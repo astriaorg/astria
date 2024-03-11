@@ -1,0 +1,314 @@
+global:
+  namespaceOverride: ""
+  replicaCount: 1
+  # Whether to use tty readable logging for astria services, when false use json.
+  # Best to be false in production environments, true for clean logs on local dev.
+  useTTY: false
+  dev: false
+
+images:
+  geth:
+    repo: "ghcr.io/astriaorg/go-ethereum"
+    tag: "0.5.2"
+    devTag: "0.6.0"
+  conductor:
+    repo: "ghcr.io/astriaorg/conductor"
+    tag: "0.11.1"
+    devTag: "latest"
+  composer:
+    repo: "ghcr.io/astriaorg/composer"
+    tag: "0.3.1"
+    devTag: "latest"
+
+  # Rollup faucet
+  faucet: "ghcr.io/astriaorg/ria-faucet:0.0.1"
+
+  # Pertaining to deploying blockscout block explorer
+  blockscout:
+    core: "docker.io/blockscout/blockscout:5.1.0"
+    postgres: "docker.io/library/postgres:14"
+    redis: "docker.io/library/redis:alpine"
+    sigProvider: "ghcr.io/blockscout/sig-provider@sha256:ae371ce8d0a20993bf61ca81b3394416f4778c9edd398250fd4d81a8d6820950"
+    smartContractVerifier: "ghcr.io/blockscout/smart-contract-verifier@sha256:f07b2d874c28d45f5ba81f297c868a746a03771e8b6d9b8e96f0eba0beeb1016"
+    visualizer: "ghcr.io/blockscout/visualizer@sha256:99479da126248e0aba5c32b1e32625f8c527b72924f55cb510b50e5f854b2d15"
+
+config:
+  # The level at which core astria components will log out
+  # Options are: error, warn, info, and debug
+  logLevel: "debug"
+
+  rollup:
+    # Default name for the rollup chain, used to generate Rollup ID
+    name: astria
+    # Can be set to 'pebble' or 'leveldb'
+    dbEngine: pebble
+    # Set to true to keep history of all blocks
+    archiveNode: false
+    # EVM network ID used by the chain
+    networkId: 1337
+    # Determines what will drive block execution, options are:
+    # - "SoftOnly" -> blocks are only pulled from the sequencer
+    # - "FirmOnly" -> blocks are only pulled from DA
+    # - "SoftAndFirm" -> blocks are pulled from both the sequencer and DA
+    executionCommitLevel: 'SoftAndFirm'
+    maxBytesPerBundle: 200000
+    maxSubmitInterval: 2000
+    # Configuration specific to EVM rollup genesis
+    genesis:
+      # Set to a hex set of bytes if your rollup has manually configured extra data
+      extraDataOverride: ""
+      # If set to true the genesis block will contain extra data
+      overrideGenesisExtraData: true
+      alloc:
+        - address: "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
+          value:
+            # The balance must be a string due to size
+            balance: "1000000000000000000000000000"
+    optimism:
+      # set to true to enable op-stack integration, and setup rest of config
+      enabled: false
+      # Websocket URL of Ethereum L1 node.
+      ethereumL1Websocket: "ws://127.0.0.1:8545"
+      # Contract address of the OptimismPortal contract on L1.
+      portalContractAddress: ""
+      # The block height of the Ethereum L1 chain that the
+      # OptimismPortal contract was deployed at.
+      initialEthereumL1BlockHeight: 1
+    metrics:
+      # set to enable prometheus metrics
+      enabled: false
+    otel:
+      enabled: false
+      endpoint:
+      tracesEndpoint:
+      tracesCompression: gzip
+      tracesTimeout: 10
+      otlpHeaders:
+      traceHeaders:
+    serviceMonitor:
+      # set to enable port svc and service monitor
+      enabled: false
+      port: 6060
+      additionalLabels:
+        release: kube-prometheus-stack
+    alerting:
+      enabled: false
+      interval: ""
+      additionalLabels:
+        release: kube-prometheus-stack
+      annotations: {}
+      # scrapeTimeout: 10s
+      # path: /metrics
+      prometheusRule:
+        enabled: true
+        additionalLabels:
+          release: kube-prometheus-stack
+        namespace: monitoring
+        rules:
+        - alert: Geth_Slow_Finalized
+          expr: increase(chain_head_finalized{namespace="astria-dusk3-cluster"}[5m]) < 20  # Insert your query Expression
+          for: 5m  # Rough number but should be enough to init warn
+          labels:
+            severity: critical
+          annotations:
+            summary: Slow Chain Head Finalized (instance {{ $labels.instance }})
+            description: "Chain Head Finalized on {{ $labels.namespace }} is increasing at a rate slower then 20 blocks per 5 minute\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+  faucet:
+    enabled: true
+    proxyCount: 1
+    # The account from which the faucet disburses funds, likely want to have
+    # the corresponding account given a balance in genesis accounts.
+    # Note: When secretProvider.enabled is true the secret provided by
+    #       `evmPrivateKey` is used instead of this value.
+    privateKey: "8b3a7999072c9c9314c084044fe705db11714c6c4ed7cddb64da18ea270dd203"
+    # The amount of token to give per request
+    amount: 1
+
+  # Configuration related to sequencer connection for rollup
+  sequencer:
+    # Block height to start syncing rollup from
+    initialBlockHeight: 2
+    # Websocket connection used for
+    websocket: "ws://node0-sequencer-rpc-service.astria-dev-cluster.svc.cluster.local:26657/websocket"
+    # URL path for the sequencer
+    rpc: "http://node0-sequencer-rpc-service.astria-dev-cluster.svc.cluster.local:26657"
+    # Private key which is used for wrapping txs for sequencer submission
+    # Note: When secretProvider.enabled is true the secret provided by
+    #       `sequencerPrivateKey` is used instead of this value.
+    privateKey: "2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90"
+
+  celestia:
+    # if config.rollup.executionLevel is NOT 'SoftOnly' AND celestia-node is not enabled
+    # the rpc, ws, and token fields must be set to access celestia network.
+    rpc: ""
+    ws: ""
+    token: ""
+    initialBlockHeight: 2
+    heightVariance: 10
+
+  blockscout:
+    enabled: true
+
+celestia-node:
+  # Strongly recommend leaving enabled when not doing `SoftOnly` execution
+  enabled: true
+  # By default the celestia node deploys on top of the Celestia testnet mocha network
+  config:
+    labelPrefix: astria
+    type: light
+    tokenAuthLevel: read
+    # You can deploy on top of a custom celestia network, uncomment below and
+    # update fields with notes
+    # network: custom
+    # chainId: test
+    # # The below information will depend on your local celestia deployment,
+    # # using the default generated when deploying "celestia-local" chart
+    # coreIp: celestia-service.astria-dev-cluster.svc.cluster.local
+    # # The custom info below must be grabbed from the custom network bridge on startup
+    # customInfo: "<GENESIS_HASH>:<BRIDGE_MULTIADDRESS>"
+
+# When deploying in a production environment should use a secret provider
+# This is configured for use with GCP, need to set own resource names
+# and keys
+secretProvider:
+  enabled: false
+  provider: gcp
+  secrets:
+    # Used in place of sequencer.privateKey value when provider enabled
+    sequencerPrivateKey:
+      filename: sequencerPrivateKey.txt
+      resourceName: "projects/$PROJECT_ID/secrets/sequencerPrivateKey/versions/latest"
+      key: token
+    # Used in place of faucet.privateKey value when provider enabled
+    evmPrivateKey:
+      filename: evmPrivateKey.txt
+      resourceName: "projects/$PROJECT_ID/secrets/evmPrivateKey/versions/latest"
+      key: token
+
+ingress:
+  enabled: true
+  labels: {}
+  hostname: localdev.me
+  className: nginx
+  services:
+    rpc:
+      enabled: true
+      hosts:
+        - executor.{{ .Values.config.rollup.name }}.{{ .Values.ingress.hostname }}
+      path: /
+      pathType: Prefix
+      service:
+        name: "{{ .Values.config.rollup.name }}-evm-service"
+        port:
+          name: json-rpc-svc
+      annotations: {}
+        # kubernetes.io/ingress.class: nginx
+        # kubernetes.io/tls-acme: "true"
+      labels: {}
+      tls: {}
+      #  - secretName: chart-example-tls
+      #    hosts:
+      #      - chart-example.local
+    ws:
+      enabled: true
+      hosts:
+        - ws-executor.{{ .Values.config.rollup.name }}.{{ .Values.ingress.hostname }}
+      path: /
+      pathType: Prefix
+      service:
+        name: "{{ .Values.config.rollup.name }}-evm-service"
+        port:
+          name: ws-rpc-svc
+      annotations: {}
+        # kubernetes.io/ingress.class: nginx
+        # kubernetes.io/tls-acme: "true"
+      labels: {}
+      tls: {}
+      #  - secretName: chart-example-tls
+      #    hosts:
+      #      - chart-example.local
+    faucet:
+      enabled: true
+      hosts:
+        - faucet.{{ .Values.config.rollup.name }}.{{ .Values.ingress.hostname }}
+      path: /
+      pathType: Prefix
+      service:
+        name: "{{ .Values.config.rollup.name }}-faucet-service"
+        port:
+          name: faucet-svc
+      annotations: {}
+        # kubernetes.io/ingress.class: nginx
+        # kubernetes.io/tls-acme: "true"
+      labels: {}
+      tls: {}
+      #  - secretName: chart-example-tls
+      #    hosts:
+      #      - chart-example.local
+    explorer:
+      enabled: true
+      hosts:
+        - blockscout.{{ .Values.config.rollup.name }}.{{ .Values.ingress.hostname }}
+      path: /
+      pathType: Prefix
+      service:
+        name: "{{ .Values.config.rollup.name }}-blockscout-svc"
+        port:
+          name: blockscout-svc
+      annotations: {}
+        # kubernetes.io/ingress.class: nginx
+        # kubernetes.io/tls-acme: "true"
+      labels: {}
+      tls: {}
+      #  - secretName: chart-example-tls
+      #    hosts:
+      #      - chart-example.local
+
+# Default persistent storage values
+# NOTE - `rollupName` will be used with `persistentVolumeName` to generate names for kubernetes resources.
+#  e.g. astria-executor-pv, astria-executor-pvc
+
+resources:
+  conductor:
+    requests:
+      cpu: 0.01
+      memory: 1Mi
+    limits:
+      cpu: 0.1
+      memory: 20Mi
+  composer:
+    requests:
+      cpu: 0.01
+      memory: 1Mi
+    limits:
+      cpu: 0.1
+      memory: 20Mi
+  geth:
+    requests:
+      cpu: 0.25
+      memory: 256Mi
+    limits:
+      cpu: 2
+      memory: 1Gi
+
+storage:
+  enabled: false
+  local: true
+  entities:
+    rollupSharedStorage:
+      size: "5Gi"
+      persistentVolumeName: "rollup-shared-storage"
+      path: "/data/rollup-data"
+
+# Default service ports
+ports:
+  jsonRPC: 8545
+  wsRPC: 8546
+  executionGRPC: 50051
+  gossipnet: 2451
+  faucet: 8080
+  blockscout: 4000
+  metrics: 6060
+  conductorMetrics: 9000
+  composerMetrics: 9001

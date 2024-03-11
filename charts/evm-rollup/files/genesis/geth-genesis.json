@@ -1,0 +1,39 @@
+{
+    "config": {
+        "chainId": {{ .Values.config.rollup.networkId }},
+        "homesteadBlock": 0,
+        "eip150Block": 0,
+        "eip155Block": 0,
+        "eip158Block": 0,
+        "byzantiumBlock": 0,
+        "constantinopleBlock": 0,
+        "petersburgBlock": 0,
+        "istanbulBlock": 0,
+        "berlinBlock": 0,
+        "londonBlock": 0,
+        "terminalTotalDifficulty": 0,
+        "terminalTotalDifficultyPassed": true,
+        "ethash": {},
+        {{- if .Values.config.rollup.genesis.extraDataOverride }}
+        "astriaExtraDataOverride": "{{ .Values.config.rollup.genesis.extraDataOverride }}",
+        {{- end }}
+        "astriaOverrideGenesisExtraData": {{ .Values.config.rollup.genesis.overrideGenesisExtraData }},
+        "astriaSequencerInitialHeight": {{ .Values.config.sequencer.initialBlockHeight }},
+        {{- if not .Values.global.dev }}
+        "astriaDataAvailabilityInitialHeight": {{ .Values.config.celestia.initialBlockHeight }},
+        "astriaDataAvailabilityHeightVariance": {{ .Values.config.celestia.heightVariance }}
+        {{- else }}
+        "astriaRollupName": "{{ .Values.config.rollup.name }}",
+        "astriaCelestiaInitialHeight": {{ .Values.config.celestia.initialBlockHeight }},
+        "astriaCelestiaHeightVariance": {{ .Values.config.celestia.heightVariance }}
+        {{- end }}
+    },
+    "difficulty": "10000000",
+    "gasLimit": "8000000",
+    "alloc": {
+    {{- range $index, $value := .Values.config.rollup.genesis.alloc }}
+        {{- if $index }},{{- end }}
+        "{{ $value.address }}": {{ toPrettyJson $value.value | indent 8 | trim }}
+    {{- end }}
+    }
+}

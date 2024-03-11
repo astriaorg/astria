@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: sequencer-relayer
+  labels:
+    app: sequencer-relayer
+  namespace: {{ include "sequencer-relayer.namespace" . }}
+spec:
+  replicas: {{ .Values.global.replicaCount }}
+  selector:
+    matchLabels:
+      app: sequencer-relayer
+  template:
+    metadata:
+      annotations:
+      name: astria-sequencer
+      labels:
+        app: sequencer-relayer
+    spec:
+      containers:
+        - name: sequencer-relayer
+          imagePullPolicy: IfNotPresent
+          image: {{ include "sequencer-relayer.image" . }}
+          command: [ "/scripts/start-relayer.sh" ]
+          stdin: {{ .Values.global.useTTY }}
+          tty: {{ .Values.global.useTTY }}
+          envFrom:
+            - configMapRef:
+                name: relayer-env
+          volumeMounts:
+            - mountPath: /scripts/
+              name: relayer-scripts-volume
+            - mountPath: {{ include "sequencer-relayer.storage.mountPath" . }}
+              name: relayer-storage-vol
+          ports:
+            - containerPort: {{ .Values.ports.metrics }}
+              name: metrics
+      volumes:
+        - name: relayer-scripts-volume
+          configMap:
+            name: relayer-scripts
+            defaultMode: 0500
+        - name: relayer-storage-vol
+          {{- if .Values.storage.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.storage.entities.sequencerRelayerStorage.persistentVolumeName }}-pvc
+          {{- else }}
+          emptyDir: {}
+          {{- end }}

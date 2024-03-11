@@ -14,7 +14,10 @@ install-cli:
 compile-protos:
   cargo run --manifest-path tools/protobuf-compiler/Cargo.toml
 
-## Scripts related to formatting code
+####################################################
+## Scripts related to formatting code and linting ##
+####################################################
+
 default_lang := 'all'
 
 # Can format 'rust', 'toml', 'proto', or 'all'. Defaults to all
@@ -68,3 +71,136 @@ _lint-proto:
   buf format -d --exit-code
   buf breaking proto/executionapis --against 'buf.build/astria/execution-apis'
   buf breaking proto/sequencerapis --against 'buf.build/astria/astria'
+
+##############################################
+## Deploying and Running using Helm and K8s ##
+##############################################
+defaultNamespace := "astria-dev-cluster"
+deploy tool *ARGS:
+  @just deploy-{{tool}} {{ARGS}}
+
+delete tool *ARGS:
+  @just delete-{{tool}} {{ARGS}}
+
+load-image image:
+  kind load docker-image {{image}} --name astria-dev-cluster
+
+deploy-all: deploy-cluster deploy-ingress-controller wait-for-ingress-controller deploy-astria-local wait-for-sequencer (deploy-chart "sequencer-faucet") deploy-dev-rollup wait-for-rollup
+delete-all: clean clean-persisted-data
+
+deploy-astria-local namespace=defaultNamespace: (deploy-chart "celestia-local" namespace) (deploy-sequencer)
+delete-astria-local namespace=defaultNamespace: (delete-chart "celestia-local" namespace) (delete-sequencer)
+
+[private]
+deploy-chart chart namespace=defaultNamespace:
+  helm install {{chart}}-chart ./charts/{{chart}} --namespace {{namespace}} --create-namespace
+
+[private]
+delete-chart chart namespace=defaultNamespace:
+  helm uninstall {{chart}}-chart --namespace {{namespace}}
+
+[private]
+helm-add-if-not-exist repo url:
+  helm repo list | grep -q {{repo}} || helm repo add {{repo}} {{url}}
+
+deploy-cluster namespace=defaultNamespace:
+  kind create cluster --config ./dev/kubernetes/kind-cluster-config.yml
+  @just helm-add-if-not-exist celestia https://helm.cilium.io/
+  helm install cilium cilium/cilium --version 1.14.3 \
+      -f ./dev/values/cilium.yml \
+      --namespace kube-system
+  kubectl create namespace {{namespace}}
+
+deploy-ingress-controller:
+  kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
+
+[private]
+deploy-celestia-local namespace=defaultNamespace: (deploy-chart "celestia-local" namespace)
+
+[private]
+delete-celestia-local namespace=defaultNamespace: (delete-chart "celestia-local" namespace)
+
+deploy-secrets-store:
+  @just helm-add-if-not-exist secrets-store-csi-driver https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts
+  helm install csi-secrets-store secrets-store-csi-driver/secrets-store-csi-driver --namespace kube-system
+
+delete-secrets-store:
+  @just delete chart csi-secrets-store kube-system
+
+wait-for-ingress-controller:
+  while ! kubectl wait --namespace ingress-nginx --for=condition=ready pod --selector=app.kubernetes.io/component=controller --timeout=600s; do \
+    sleep 1; \
+  done
+
+validatorName := "single"
+deploy-sequencer name=validatorName:
+  @helm dependency build charts/sequencer | true
+  helm install --debug \
+    {{ replace('-f dev/values/validators/#.yml' , '#', name) }} \
+    -n astria-validator-{{name}} --create-namespace \
+    {{name}}-sequencer-chart ./charts/sequencer
+deploy-sequencers: (deploy-sequencer "node0") (deploy-sequencer "node1") (deploy-sequencer "node2")
+
+delete-sequencer name=validatorName:
+  @just delete chart {{name}}-sequencer astria-validator-{{name}}
+delete-sequencers: (delete-sequencer "node0") (delete-sequencer "node1") (delete-sequencer "node2")
+
+wait-for-sequencer:
+  kubectl wait -n astria-dev-cluster deployment celestia-local --for=condition=Available=True --timeout=600s
+  kubectl rollout status --watch statefulset/sequencer  -n astria-dev-cluster --timeout=600s
+
+defaultRollupName          := "astria"
+defaultNetworkId           := ""
+defaultGenesisAllocAddress := ""
+defaultPrivateKey          := ""
+defaultSequencerStartBlock := ""
+deploy-rollup rollupName=defaultRollupName networkId=defaultNetworkId genesisAllocAddress=defaultGenesisAllocAddress privateKey=defaultPrivateKey sequencerStartBlock=defaultSequencerStartBlock:
+  helm dependency build charts/evm-rollup | true
+  helm install \
+    {{ if rollupName          != '' { replace('--set config.rollup.name=# --set celestia-node.config.labelPrefix=#', '#', rollupName) } else { '' } }} \
+    {{ if networkId           != '' { replace('--set config.rollup.networkId=#', '#', networkId) } else { '' } }} \
+    {{ if genesisAllocAddress != '' { replace('--set config.rollup.genesisAccounts[0].address=#', '#', genesisAllocAddress) } else { '' } }} \
+    {{ if privateKey          != '' { replace('--set config.faucet.privateKey=#', '#', privateKey) } else { '' } }} \
+    {{ if sequencerStartBlock != '' { replace('--set config.sequencer.initialBlockHeight=#', '#', sequencerStartBlock) } else { '' } }} \
+    {{rollupName}}-chain-chart ./charts/evm-rollup --namespace astria-dev-cluster
+
+deploy-dev-rollup rollupName=defaultRollupName networkId=defaultNetworkId genesisAllocAddress=defaultGenesisAllocAddress privateKey=defaultPrivateKey sequencerStartBlock=defaultSequencerStartBlock:
+  helm dependency build charts/evm-rollup | true
+  helm install \
+    {{ if rollupName          != '' { replace('--set config.rollup.name=# --set celestia-node.config.labelPrefix=#', '#', rollupName) } else { '' } }} \
+    {{ if networkId           != '' { replace('--set config.rollup.networkId=#', '#', networkId) } else { '' } }} \
+    {{ if genesisAllocAddress != '' { replace('--set config.rollup.genesisAccounts[0].address=#', '#', genesisAllocAddress) } else { '' } }} \
+    {{ if privateKey          != '' { replace('--set config.faucet.privateKey=#', '#', privateKey) } else { '' } }} \
+    {{ if sequencerStartBlock != '' { replace('--set config.sequencer.initialBlockHeight=#', '#', sequencerStartBlock) } else { '' } }} \
+    -f dev/values/rollup/dev.yaml \
+    {{rollupName}}-chain-chart ./charts/evm-rollup --namespace astria-dev-cluster
+
+delete-rollup rollupName=defaultRollupName:
+  @just delete chart {{rollupName}}-chain
+
+wait-for-rollup rollupName=defaultRollupName:
+  kubectl wait -n astria-dev-cluster deployment {{rollupName}}-geth --for=condition=Available=True --timeout=600s
+  kubectl wait -n astria-dev-cluster deployment {{rollupName}}-blockscout --for=condition=Available=True --timeout=600s
+
+defaultHypAgentConfig         := ""
+defaultHypRelayerPrivateKey   := ""
+defaultHypValidatorPrivateKey := ""
+deploy-hyperlane-agents rollupName=defaultRollupName agentConfig=defaultHypAgentConfig relayerPrivateKey=defaultHypRelayerPrivateKey validatorPrivateKey=defaultHypValidatorPrivateKey:
+  helm install --debug \
+    {{ if rollupName          != '' { replace('--set config.name=# --set global.namespace=#-dev-cluster', '#', rollupName) } else { '' } }} \
+    {{ if agentConfig         != '' { replace('--set config.agentConfig=#', '#', agentConfig) } else { '' } }} \
+    {{ if relayerPrivateKey   != '' { replace('--set config.relayer.privateKey=#', '#', relayerPrivateKey) } else { '' } }} \
+    {{ if validatorPrivateKey != '' { replace('--set config.validator.privateKey=#', '#', validatorPrivateKey) } else { '' } }} \
+    {{rollupName}}-hyperlane-agents-chart ./charts/hyperlane-agents --namespace astria-dev-cluster
+
+delete-hyperlane-agents rollupName=defaultRollupName:
+  @just delete {{rollupName}}-hyperlane-agents
+
+clean:
+  kind delete cluster --name astria-dev-cluster
+
+clean-persisted-data:
+  rm -r /tmp/astria
+
+deploy-local-metrics:
+  kubectl apply -f kubernetes/metrics-server-local.yml

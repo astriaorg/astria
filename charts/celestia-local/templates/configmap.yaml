@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: celestia-local-env
+  namespace: {{ .Values.global.namespace }}
+data:
+  home_dir: "/home/celestia"
+  coins: "{{ .Values.coins }}"
+  validator_stake: "{{ .Values.validatorStake }}"
+  chainid: "{{ .Values.chainId }}"
+  keyring_backend: "{{ .Values.keyringBackend }}"
+  validator_key_name: "{{ .Values.validatorKeyName }}"
+  evm_address: "{{ .Values.evmAddress }}"
+  bridge_host_port: "{{ .Values.ports.bridgeHTTP }}"
+  bridge_rpc_port: "{{ .Values.ports.bridgeRPC }}"
+  celestia_app_host_port: "{{ .Values.ports.celestiaAppHostPort }}"
+  celestia_app_grpc_port: "{{ .Values.ports.celestiaAppGrpcPort }}"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: celestia-local-bridge-scripts
+  namespace: {{ .Values.global.namespace }}
+data:
+  init-bridge.sh: |
+    {{- .Files.Get "files/scripts/init-bridge.sh" | nindent 4 }}
+  start-bridge.sh: |
+    {{- .Files.Get "files/scripts/start-bridge.sh" | nindent 4 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: celestia-local-appd-scripts
+  namespace: {{ .Values.global.namespace }}
+data:
+  init-celestia-appd.sh: |
+    {{- .Files.Get "files/scripts/init-celestia-appd.sh" | nindent 4 }}
+  start-celestia-appd.sh: |
+    {{- .Files.Get "files/scripts/start-celestia-appd.sh" | nindent 4 }}

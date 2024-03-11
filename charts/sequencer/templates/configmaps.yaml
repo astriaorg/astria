@@ -1,0 +1,59 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.config.moniker }}-cometbft-config
+  namespace: {{ include "sequencer.namespace" . }}
+data:
+  genesis.json: |
+    {{- tpl (.Files.Get "files/cometbft/config/genesis.json") $ | nindent 4 }}
+  node_key.json: |
+    {{- tpl (.Files.Get "files/cometbft/config/node_key.json") $ | nindent 4 }}
+  priv_validator_key.json: |
+    {{- tpl (.Files.Get "files/cometbft/config/priv_validator_key.json") $ | nindent 4 }}
+  config.toml: |
+    {{- tpl (.Files.Get "files/cometbft/config/config.toml") $ | nindent 4 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.config.moniker }}-cometbft-data
+  namespace: {{ include "sequencer.namespace" . }}
+data:
+  priv_validator_state.json: |
+    {{- .Files.Get "files/cometbft/data/priv_validator_state.json" | nindent 4 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.config.moniker }}-cometbft-env
+  namespace: {{ include "sequencer.namespace" . }}
+data:
+  COMET_BFT_RPC_PORT: "{{ .Values.ports.cometBFTRPC }}"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.config.moniker }}-sequencer-env
+  namespace: {{ include "sequencer.namespace" . }}
+data:
+  ASTRIA_SEQUENCER_LOG: "astria_sequencer=debug"
+  ASTRIA_SEQUENCER_LISTEN_ADDR: "127.0.0.1:{{ .Values.ports.sequencerABCI }}"
+  ASTRIA_SEQUENCER_DB_FILEPATH: "/sequencer/penumbra.db"
+  ASTRIA_SEQUENCER_ENABLE_MINT: "false"
+  # Socket address for gRPC server
+  ASTRIA_SEQUENCER_GRPC_ADDR: "127.0.0.1:{{ .Values.ports.sequencerGRPC }}"
+  {{- if not .Values.global.dev }}
+  {{- else }}
+  ASTRIA_SEQUENCER_NO_METRICS: "{{ not .Values.config.sequencer.metrics.enabled }}"
+  ASTRIA_SEQUENCER_METRICS_HTTP_LISTENER_ADDR: "127.0.0.1:{{ .Values.ports.sequencerMetrics }}"
+  ASTRIA_SEQUENCER_FORCE_STDOUT: "{{ .Values.global.useTTY }}"
+  ASTRIA_SEQUENCER_PRETTY_PRINT: "{{ .Values.global.useTTY }}"
+  ASTRIA_SEQUENCER_NO_OTEL: "{{ not .Values.config.sequencer.otel.enabled }}"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.config.sequencer.otel.endpoint }}"
+  OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "{{ .Values.config.sequencer.otel.tracesEndpoint }}"
+  OTEL_EXPORTER_OTLP_TRACES_TIMEOUT: "{{ .Values.config.sequencer.otel.tracesTimeout }}"
+  OTEL_EXPORTER_OTLP_TRACES_COMPRESSION: "{{ .Values.config.sequencer.otel.tracesCompression }}"
+  OTEL_EXPORTER_OTLP_HEADERS: "{{ .Values.config.sequencer.otel.otlpHeaders }}"
+  OTEL_EXPORTER_OTLP_TRACE_HEADERS: "{{ .Values.config.sequencer.otel.traceHeaders }}"
+  {{- end }}
+---

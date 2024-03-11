@@ -1,0 +1,67 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ .Values.config.rollup.name }}-evm-service
+  namespace: {{ include "rollup.namespace" . }}
+spec:
+  selector:
+    app: {{ .Values.config.rollup.name }}-astria-dev-cluster
+  ports:
+    - name: json-rpc-svc
+      port: {{ .Values.ports.jsonRPC }}
+      targetPort: json-rpc
+    - name: ws-rpc-svc
+      port: {{ .Values.ports.wsRPC }}
+      targetPort: ws-rpc
+    - name: gossipnet-svc
+      port: {{ .Values.ports.gossipnet }}
+      targetPort: gossipnet
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ .Values.config.rollup.name }}-faucet-service
+  namespace: {{ include "rollup.namespace" . }}
+spec:
+  selector:
+    app: {{ .Values.config.rollup.name }}-astria-dev-cluster
+  ports:
+    - name: faucet-svc
+      port: {{ .Values.ports.faucet }}
+      targetPort: faucet
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ .Values.config.rollup.name }}-blockscout-svc
+  namespace: {{ include "rollup.namespace" . }}
+spec:
+  selector:
+    app: {{ .Values.config.rollup.name }}-astria-dev-cluster
+  ports:
+    - name: blockscout-svc
+      port: {{ .Values.ports.blockscout }}
+      targetPort: blockscout
+---
+{{- if .Values.config.rollup.metrics.enabled }} 
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ .Values.config.rollup.name }}-metrics
+  namespace: {{ include "rollup.namespace" . }}
+  labels:
+    app: {{ .Values.config.rollup.name }}-astria-dev-cluster
+spec:
+  selector:
+    app: {{ .Values.config.rollup.name }}-astria-dev-cluster
+  ports:
+    - name: geth-metrics
+      port: {{ .Values.ports.metrics }}
+      targetPort: geth-metrics
+    - name: composer-metrics
+      port: {{ .Values.ports.composerMetrics }}
+      targetPort: composer-metrics
+    - name: conductor-metrics
+      port: {{ .Values.ports.conductorMetrics }}
+      targetPort: conductor-metrics
+{{- end }}

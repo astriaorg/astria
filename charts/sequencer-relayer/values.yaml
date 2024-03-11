@@ -1,0 +1,55 @@
+# Default values for sequencer.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+global:
+  namespaceOverride: ""
+  replicaCount: 1
+  # Whether to use tty readable logging for astria services, when false use json.
+  # Best to be false in production environments, true for clean logs on local dev.
+  useTTY: true
+  dev: false
+
+# sequencer core images
+images:
+  sequencerRelayer:
+    repo: ghcr.io/astriaorg/sequencer-relayer
+    tag: "0.9.1"
+    devTag: latest
+
+config:
+  relayer:
+    celestiaBearerToken: ""
+    celestiaRpc: http://celestia-service.astria-dev-cluster.svc.cluster.local:26658
+    tokenServer: http://celestia-service.astria-dev-cluster.svc.cluster.local:5353
+    sequencerRpc: ""
+
+    metrics:
+      enabled: false
+
+    otel:
+      enabled: false
+      endpoint:
+      tracesEndpoint:
+      tracesCompression: gzip
+      tracesTimeout: 10
+      otlpHeaders:
+      traceHeaders:
+
+ports:
+  relayerRPC: 2450
+  metrics: 9000
+
+serviceMonitor:
+  enabled: false
+  port: 26660
+  additionalLabels:
+    release: kube-prometheus-stack
+
+storage:
+  enabled: false
+  local: true
+  entities:
+    sequencerRelayerStorage:
+      size: "1Gi"
+      persistentVolumeName: "sequencer-relayer-storage"
+      path: "/data/sequencer-relayer-data"
