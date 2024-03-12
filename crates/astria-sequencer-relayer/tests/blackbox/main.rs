@@ -51,14 +51,11 @@ async fn report_degraded_if_block_fetch_fails() {
         actual: readyz.json::<serde_json::Value>().await.unwrap(),
     );
 
+    // don't mount another block, so the relayer will fail to fetch the block
     let abci_guard = sequencer_relayer.mount_abci_response(1).await;
-    let block_guard = sequencer_relayer.mount_bad_block_response(1).await;
     timeout(
         Duration::from_millis(2 * sequencer_relayer.config.block_time),
-        futures::future::join(
-            abci_guard.wait_until_satisfied(),
-            block_guard.wait_until_satisfied(),
-        ),
+        abci_guard.wait_until_satisfied(),
     )
     .await
     .expect("requesting abci info and block must have occured");
@@ -77,6 +74,8 @@ async fn report_degraded_if_block_fetch_fails() {
         expected: json!({"status": "degraded"}),
         actual: readyz.json::<serde_json::Value>().await.unwrap(),
     );
+
+    sequencer_relayer.shutdown().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -89,16 +88,14 @@ async fn one_block_is_relayed_to_celestia() {
     .await;
 
     let abci_guard = sequencer_relayer.mount_abci_response(1).await;
-    let block_guard = sequencer_relayer.mount_block_response::<RELAY_ALL>(1).await;
     timeout(
         Duration::from_millis(100),
-        futures::future::join(
-            abci_guard.wait_until_satisfied(),
-            block_guard.wait_until_satisfied(),
-        ),
+        abci_guard.wait_until_satisfied(),
     )
     .await
     .expect("requesting abci info and block must have occured");
+
+    sequencer_relayer.mount_block_response::<RELAY_ALL>(1).await;
 
     let Some(blobs_seen_by_celestia) = sequencer_relayer
         .celestia
@@ -113,7 +110,7 @@ async fn one_block_is_relayed_to_celestia() {
     // data.
     assert_eq!(blobs_seen_by_celestia.len(), 2);
 
-    // TODO: we should shut down and join all outstanding tasks here.
+    sequencer_relayer.shutdown().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -126,16 +123,14 @@ async fn later_height_in_state_leads_to_expected_relay() {
     .await;
 
     let abci_guard = sequencer_relayer.mount_abci_response(7).await;
-    let block_guard = sequencer_relayer.mount_block_response::<RELAY_ALL>(6).await;
     timeout(
         Duration::from_millis(100),
-        futures::future::join(
-            abci_guard.wait_until_satisfied(),
-            block_guard.wait_until_satisfied(),
-        ),
+        abci_guard.wait_until_satisfied(),
     )
     .await
     .expect("requesting abci info and block must have occured");
+
+    sequencer_relayer.mount_block_response::<RELAY_ALL>(6).await;
 
     let Some(blobs_seen_by_celestia) = sequencer_relayer
         .celestia
@@ -156,7 +151,7 @@ async fn later_height_in_state_leads_to_expected_relay() {
     tokio::time::sleep(Duration::from_secs(1)).await;
     sequencer_relayer.assert_state_files_are_as_expected(6, 6);
 
-    // TODO: we should shut down and join all outstanding tasks here.
+    sequencer_relayer.shutdown().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -169,15 +164,16 @@ async fn three_blocks_are_relayed() {
     .await;
 
     let _guard = sequencer_relayer.mount_abci_response(1).await;
-    let _guard = sequencer_relayer.mount_block_response::<RELAY_ALL>(1).await;
+    sequencer_relayer.mount_block_response::<RELAY_ALL>(1).await;
 
     let _guard = sequencer_relayer.mount_abci_response(2).await;
-    let _guard = sequencer_relayer.mount_block_response::<RELAY_ALL>(2).await;
+    sequencer_relayer.mount_block_response::<RELAY_ALL>(2).await;
 
     let _guard = sequencer_relayer.mount_abci_response(3).await;
-    let _guard = sequencer_relayer.mount_block_response::<RELAY_ALL>(3).await;
+    sequencer_relayer.mount_block_response::<RELAY_ALL>(3).await;
 
     let expected_number_of_blobs = 6;
+    let block_time = sequencer_relayer.config.block_time;
 
     let observe_blobs = async move {
         let mut blobs_seen = 0;
@@ -192,12 +188,13 @@ async fn three_blocks_are_relayed() {
                 break;
             }
         }
+        sequencer_relayer.shutdown().await;
         blobs_seen
     };
 
     let blobs_seen = timeout(
         // timeout after (3 + 1) block times to ensure that 3 blocks are definitely picked up
-        Duration::from_millis(sequencer_relayer.config.block_time * 4),
+        Duration::from_millis(block_time * 4),
         observe_blobs,
     )
     .await
@@ -219,19 +216,20 @@ async fn block_from_other_proposer_is_skipped() {
     .await;
 
     let _guard = sequencer_relayer.mount_abci_response(1).await;
-    let _guard = sequencer_relayer
+    sequencer_relayer
         .mount_block_response::<RELAY_SELF>(1)
         .await;
 
     let _guard = sequencer_relayer.mount_abci_response(2).await;
-    let _guard = sequencer_relayer.mount_block_response::<RELAY_ALL>(2).await;
+    sequencer_relayer.mount_block_response::<RELAY_ALL>(2).await;
 
     let _guard = sequencer_relayer.mount_abci_response(3).await;
-    let _guard = sequencer_relayer
+    sequencer_relayer
         .mount_block_response::<RELAY_SELF>(3)
         .await;
 
     let expected_number_of_blobs = 4;
+    let block_time = sequencer_relayer.config.block_time;
 
     let observe_blobs = async move {
         let mut blobs_seen = 0;
@@ -246,12 +244,13 @@ async fn block_from_other_proposer_is_skipped() {
                 break;
             }
         }
+        sequencer_relayer.shutdown().await;
         blobs_seen
     };
 
     let blobs_seen = timeout(
         // timeout after (3 + 1) block times to ensure that 3 blocks are definitely picked up
-        Duration::from_millis(sequencer_relayer.config.block_time * 4),
+        Duration::from_millis(block_time * 4),
         observe_blobs,
     )
     .await

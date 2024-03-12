@@ -51,7 +51,7 @@ sequencer-client = { package = "astria-sequencer-client", path = "../astria-sequ
   "http",
 ] }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
-tokio-stream = "0.1.14"
+tokio-stream = {version = "0.1.14", features = ["net"]}
 
 [dev-dependencies]
 async-trait = { workspace = true }

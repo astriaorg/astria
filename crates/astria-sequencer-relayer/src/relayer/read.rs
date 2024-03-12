@@ -237,6 +237,7 @@ async fn fetch_block(
 
     let block = SequencerBlock::try_from_raw(block.into_inner())
         .wrap_err("failed to parse raw proto block from grpc response")?;
+
     Ok(block)
 }
 
