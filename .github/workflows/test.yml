@@ -4,6 +4,7 @@ env:
   RUSTFLAGS: "-D warnings -D unreachable-pub --cfg tokio_unstable"
 on: 
   pull_request:
+  merge_group:
   push:
     branches:
       - "main"
