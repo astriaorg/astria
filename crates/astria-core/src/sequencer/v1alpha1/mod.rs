@@ -225,6 +225,20 @@ impl From<[u8; ROLLUP_ID_LEN]> for RollupId {
     }
 }
 
+impl From<&[u8; ROLLUP_ID_LEN]> for RollupId {
+    fn from(inner: &[u8; ROLLUP_ID_LEN]) -> Self {
+        Self {
+            inner: *inner,
+        }
+    }
+}
+
+impl From<&RollupId> for RollupId {
+    fn from(value: &RollupId) -> Self {
+        *value
+    }
+}
+
 impl std::fmt::Display for RollupId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for byte in self.inner {
