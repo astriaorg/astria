@@ -215,11 +215,11 @@ deploy-smoke-test tag=defaultTag:
   @helm dependency build charts/evm-rollup > /dev/null
   @echo "Setting up single astria sequencer..." && helm install -n astria-validator-single single-sequencer-chart ./charts/sequencer -f dev/values/validators/single.yml --set images.sequencer.devTag={{tag}} --set images.sequencer-relayer.devTag={{tag}} --create-namespace > /dev/null
   @just wait-for-sequencer > /dev/null
-  @echo "Starting EVM rollup" && helm install -n astria-dev-cluster astria-chain-chart ./charts/evm-rollup -f dev/values/rollup/dev.yaml --set images.conductor.devTag={{tag}} --set images.composer.devTag={{tag}} --set config.blockscout.enabled=false --set config.faucet.enabled=false > dev/null
-  @sleep 20
+  @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart ./charts/evm-rollup -f dev/values/rollup/dev.yaml --set images.conductor.devTag={{tag}} --set images.composer.devTag={{tag}} --set config.blockscout.enabled=false --set config.faucet.enabled=false > dev/null
+  @sleep 30
 
 run-smoke-test:
-  echo "Testing Transfer..."
+  @echo "Testing Transfer..."
   @cast send 0x830B0e9Bb0B1ebad01F2805278Ede64c69e068FE --rpc-url "http://executor.astria.localdev.me/" --value 1ether --private-key=8b3a7999072c9c9314c084044fe705db11714c6c4ed7cddb64da18ea270dd203 >/dev/null
   @if [ $(cast balance 0x830B0e9Bb0B1ebad01F2805278Ede64c69e068FE --rpc-url "http://executor.astria.localdev.me/") -eq 1000000000000000000 ]; then echo "Transfer success"; else echo "Transfer failure"; exit 1; fi;
   @echo "Testing finalization..."
