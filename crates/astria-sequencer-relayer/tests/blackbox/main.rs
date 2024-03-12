@@ -18,7 +18,7 @@ const RELAY_ALL: bool = false;
 
 #[tokio::test(flavor = "current_thread")]
 async fn report_degraded_if_block_fetch_fails() {
-    let sequencer_relayer = TestSequencerRelayerConfig {
+    let mut sequencer_relayer = TestSequencerRelayerConfig {
         relay_only_self: false,
         last_written_sequencer_height: None,
     }
@@ -51,16 +51,22 @@ async fn report_degraded_if_block_fetch_fails() {
         actual: readyz.json::<serde_json::Value>().await.unwrap(),
     );
 
-    // don't mount another block, so the relayer will fail to fetch the block
-    // note: this relies on relayer attempting to fetch a new block within `2 * block_time`,
-    // if that doesn't happen, this test will fail.
+    // mount a bad block next, so the relayer will fail to fetch the block
     let abci_guard = sequencer_relayer.mount_abci_response(1).await;
+    let block_guard = sequencer_relayer
+        .mount_bad_block_response::<RELAY_ALL>(1)
+        .await;
     timeout(
         Duration::from_millis(2 * sequencer_relayer.config.block_time),
-        abci_guard.wait_until_satisfied(),
+        futures::future::join(
+            abci_guard.wait_until_satisfied(),
+            block_guard.wait_until_satisfied(),
+        ),
     )
     .await
-    .expect("requesting abci info and block must have occured");
+    .expect("requesting abci info and block must have occured")
+    .1
+    .unwrap();
 
     // Relayer reports 500 on /healthz after fetching the block failed
     let readyz = reqwest::get(format!("http://{}/healthz", sequencer_relayer.api_address))

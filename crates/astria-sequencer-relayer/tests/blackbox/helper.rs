@@ -112,7 +112,7 @@ impl BlockGuard {
 }
 
 pub struct MockSequencerServer {
-    blocks: Arc<Mutex<VecDeque<(oneshot::Sender<()>, SequencerBlock)>>>,
+    blocks: Arc<Mutex<VecDeque<(oneshot::Sender<()>, RawSequencerBlock)>>>,
 }
 
 #[async_trait::async_trait]
@@ -126,7 +126,7 @@ impl SequencerService for MockSequencerServer {
             || Err(Status::not_found("no more blocks")),
             |(tx, block)| {
                 tx.send(()).unwrap();
-                Ok(Response::new(block.into_raw()))
+                Ok(Response::new(block))
             },
         )
     }
@@ -154,7 +154,7 @@ pub struct TestSequencerRelayer {
 
     /// The block to return in the mock sequencer gRPC server
     /// `get_sequencer_block` method.
-    pub sequencer_server_blocks: Arc<Mutex<VecDeque<(oneshot::Sender<()>, SequencerBlock)>>>,
+    pub sequencer_server_blocks: Arc<Mutex<VecDeque<(oneshot::Sender<()>, RawSequencerBlock)>>>,
 
     pub sequencer: JoinHandle<()>,
 
@@ -220,6 +220,43 @@ impl TestSequencerRelayer {
         let (tx, rx) = oneshot::channel();
 
         let block = SequencerBlock::try_from_cometbft(cometbft_block).unwrap();
+        let mut blocks = self.sequencer_server_blocks.lock().unwrap();
+        blocks.push_back((tx, block.into_raw()));
+        BlockGuard {
+            inner: rx,
+        }
+    }
+
+    pub async fn mount_bad_block_response<const RELAY_SELF: bool>(
+        &mut self,
+        height: u32,
+    ) -> BlockGuard {
+        let proposer = if RELAY_SELF {
+            self.account
+        } else {
+            tendermint::account::Id::try_from(vec![0u8; 20]).unwrap()
+        };
+
+        let mut cometbft_block = make_cometbft_block();
+        cometbft_block.header.height = height.into();
+        cometbft_block.header.proposer_address = proposer;
+
+        let (tx, rx) = oneshot::channel();
+
+        let mut block = SequencerBlock::try_from_cometbft(cometbft_block)
+            .unwrap()
+            .into_raw();
+
+        // make the block bad!!
+        let cometbft_header = block
+            .header
+            .as_mut()
+            .unwrap()
+            .cometbft_header
+            .as_mut()
+            .unwrap();
+        cometbft_header.data_hash = [0; 32].to_vec();
+
         let mut blocks = self.sequencer_server_blocks.lock().unwrap();
         blocks.push_back((tx, block));
         BlockGuard {
