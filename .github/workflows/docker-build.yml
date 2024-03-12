@@ -84,16 +84,18 @@ jobs:
           install_only: true
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
-      - run: |
+      - name: Setup Smoke Test Environment
+        run: |
           TAG=sha-$(git rev-parse --short HEAD)
           just deploy cluster
-          echo "Deploying with image tags $TAG"
+          echo "Deploying with astria images tagged $TAG"
           just deploy smoke-test $TAG
-          just run-smoke-test
+      - name: Run Smoke test
+        run: just run-smoke-test
 
   docker:
     if: ${{ always() && !cancelled() }}
-    needs: [composer, conductor, sequencer, sequencer-relayer]
+    needs: [composer, conductor, sequencer, sequencer-relayer, smoke-test]
     uses: ./.github/workflows/reusable-success.yml
     with:
       success: ${{ !contains(needs.*.result, 'failure') }}
