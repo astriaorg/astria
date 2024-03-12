@@ -147,7 +147,7 @@ delete-sequencers: (delete-sequencer "node0") (delete-sequencer "node1") (delete
 
 wait-for-sequencer:
   kubectl wait -n astria-dev-cluster deployment celestia-local --for=condition=Available=True --timeout=600s
-  kubectl rollout status --watch statefulset/sequencer  -n astria-dev-cluster --timeout=600s
+  kubectl rollout status --watch statefulset/sequencer -n astria-dev-cluster --timeout=600s
 
 defaultRollupName          := "astria"
 defaultNetworkId           := ""
@@ -180,7 +180,6 @@ delete-rollup rollupName=defaultRollupName:
 
 wait-for-rollup rollupName=defaultRollupName:
   kubectl wait -n astria-dev-cluster deployment {{rollupName}}-geth --for=condition=Available=True --timeout=600s
-  kubectl wait -n astria-dev-cluster deployment {{rollupName}}-blockscout --for=condition=Available=True --timeout=600s
 
 defaultHypAgentConfig         := ""
 defaultHypRelayerPrivateKey   := ""
@@ -207,15 +206,17 @@ deploy-local-metrics:
 
 
 defaultTag := 'latest'
+
 deploy-smoke-test tag=defaultTag:
-  just deploy-ingress-controller
-  just wait-for-ingress-controller
-  just deploy celestia-local
-  helm dependency build charts/sequencer
-  helm dependency build charts/evm-rollup
-  helm install -n astria-dev-cluster single-sequencer-chart ./charts/sequencer -f dev/values/validators/single.yml --set images.sequencer.devTag={{tag}} --set images.sequencer-relayer.devTag={{tag}}
-  just wait-for-sequencer
-  helm install -n astria-dev-cluster astria-chain-chart ./charts/evm-rollup -f dev/values/rollup/dev.yaml --set images.conductor.devTag={{tag}} --set images.composer.devTag={{tag}} --set config.blockscout.enabled=false --set config.faucet.enabled=false
+  @echo "Deploying ingress controller..." && just deploy-ingress-controller > /dev/null
+  @just wait-for-ingress-controller > /dev/null
+  @echo "Deploying local celestia instance..." && just deploy celestia-local > /dev/null
+  @helm dependency build charts/sequencer > /dev/null
+  @helm dependency build charts/evm-rollup > /dev/null
+  @echo "Setting up single astria sequencer..." && helm install -n astria-validator-single single-sequencer-chart ./charts/sequencer -f dev/values/validators/single.yml --set images.sequencer.devTag={{tag}} --set images.sequencer-relayer.devTag={{tag}} --create-namespace > /dev/null
+  @just wait-for-sequencer > /dev/null
+  @echo "Starting EVM rollup" && helm install -n astria-dev-cluster astria-chain-chart ./charts/evm-rollup -f dev/values/rollup/dev.yaml --set images.conductor.devTag={{tag}} --set images.composer.devTag={{tag}} --set config.blockscout.enabled=false --set config.faucet.enabled=false > dev/null
+  @sleep 20
 
 run-smoke-test:
   echo "Testing Transfer..."
@@ -223,6 +224,7 @@ run-smoke-test:
   @if [ $(cast balance 0x830B0e9Bb0B1ebad01F2805278Ede64c69e068FE --rpc-url "http://executor.astria.localdev.me/") -eq 1000000000000000000 ]; then echo "Transfer success"; else echo "Transfer failure"; exit 1; fi;
   @echo "Testing finalization..."
   @if [ $(cast block finalized --rpc-url "http://executor.astria.localdev.me/" --field number) -gt 0 ]; then echo "Finalized success"; else echo "Finalization failure"; exit 1; fi;
+
 delete-smoke-test:
   just delete rollup
   just delete sequencer

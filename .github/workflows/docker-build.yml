@@ -86,7 +86,7 @@ jobs:
           install_only: true
       - run: |
           TAG=sha-$(git rev-parse --short HEAD)
-          just create-cluster
+          just deploy cluster
           just deploy smoke-test $TAG
           just run-smoke-test
 
