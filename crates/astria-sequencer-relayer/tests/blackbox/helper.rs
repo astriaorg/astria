@@ -1,7 +1,10 @@
 use std::{
     collections::VecDeque,
     net::SocketAddr,
-    sync::Arc,
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 
 use assert_json_diff::assert_json_include;
@@ -43,7 +46,6 @@ use tokio::{
     sync::{
         mpsc,
         oneshot,
-        Mutex,
     },
     task::JoinHandle,
 };
@@ -99,8 +101,18 @@ const PRIVATE_VALIDATOR_KEY: &str = r#"
 }
 "#;
 
+pub struct BlockGuard {
+    inner: oneshot::Receiver<()>,
+}
+
+impl BlockGuard {
+    pub async fn wait_until_satisfied(self) -> Result<(), tokio::sync::oneshot::error::RecvError> {
+        self.inner.await
+    }
+}
+
 pub struct MockSequencerServer {
-    blocks: Arc<Mutex<VecDeque<SequencerBlock>>>,
+    blocks: Arc<Mutex<VecDeque<(oneshot::Sender<()>, SequencerBlock)>>>,
 }
 
 #[async_trait::async_trait]
@@ -109,10 +121,13 @@ impl SequencerService for MockSequencerServer {
         &self,
         _request: Request<GetSequencerBlockRequest>,
     ) -> Result<Response<RawSequencerBlock>, Status> {
-        let mut blocks = self.blocks.lock().await;
+        let mut blocks = self.blocks.lock().unwrap();
         blocks.pop_front().map_or_else(
             || Err(Status::not_found("no more blocks")),
-            |block| Ok(Response::new(block.into_raw())),
+            |(tx, block)| {
+                tx.send(()).unwrap();
+                Ok(Response::new(block.into_raw()))
+            },
         )
     }
 
@@ -139,7 +154,7 @@ pub struct TestSequencerRelayer {
 
     /// The block to return in the mock sequencer gRPC server
     /// `get_sequencer_block` method.
-    pub sequencer_server_blocks: Arc<Mutex<VecDeque<SequencerBlock>>>,
+    pub sequencer_server_blocks: Arc<Mutex<VecDeque<(oneshot::Sender<()>, SequencerBlock)>>>,
 
     pub sequencer: JoinHandle<()>,
 
@@ -188,7 +203,10 @@ impl TestSequencerRelayer {
             .await
     }
 
-    pub async fn mount_block_response<const RELAY_SELF: bool>(&mut self, height: u32) {
+    pub async fn mount_block_response<const RELAY_SELF: bool>(
+        &mut self,
+        height: u32,
+    ) -> BlockGuard {
         let proposer = if RELAY_SELF {
             self.account
         } else {
@@ -199,9 +217,14 @@ impl TestSequencerRelayer {
         cometbft_block.header.height = height.into();
         cometbft_block.header.proposer_address = proposer;
 
+        let (tx, rx) = oneshot::channel();
+
         let block = SequencerBlock::try_from_cometbft(cometbft_block).unwrap();
-        let mut blocks = self.sequencer_server_blocks.lock().await;
-        blocks.push_back(block);
+        let mut blocks = self.sequencer_server_blocks.lock().unwrap();
+        blocks.push_back((tx, block));
+        BlockGuard {
+            inner: rx,
+        }
     }
 
     #[track_caller]

@@ -52,6 +52,8 @@ async fn report_degraded_if_block_fetch_fails() {
     );
 
     // don't mount another block, so the relayer will fail to fetch the block
+    // note: this relies on relayer attempting to fetch a new block within `2 * block_time`,
+    // if that doesn't happen, this test will fail.
     let abci_guard = sequencer_relayer.mount_abci_response(1).await;
     timeout(
         Duration::from_millis(2 * sequencer_relayer.config.block_time),
@@ -88,14 +90,18 @@ async fn one_block_is_relayed_to_celestia() {
     .await;
 
     let abci_guard = sequencer_relayer.mount_abci_response(1).await;
+    let block_guard = sequencer_relayer.mount_block_response::<RELAY_ALL>(1).await;
     timeout(
         Duration::from_millis(100),
-        abci_guard.wait_until_satisfied(),
+        futures::future::join(
+            abci_guard.wait_until_satisfied(),
+            block_guard.wait_until_satisfied(),
+        ),
     )
     .await
-    .expect("requesting abci info and block must have occured");
-
-    sequencer_relayer.mount_block_response::<RELAY_ALL>(1).await;
+    .expect("requesting abci info and block must have occured")
+    .1
+    .unwrap();
 
     let Some(blobs_seen_by_celestia) = sequencer_relayer
         .celestia
@@ -123,14 +129,18 @@ async fn later_height_in_state_leads_to_expected_relay() {
     .await;
 
     let abci_guard = sequencer_relayer.mount_abci_response(7).await;
+    let block_guard = sequencer_relayer.mount_block_response::<RELAY_ALL>(6).await;
     timeout(
         Duration::from_millis(100),
-        abci_guard.wait_until_satisfied(),
+        futures::future::join(
+            abci_guard.wait_until_satisfied(),
+            block_guard.wait_until_satisfied(),
+        ),
     )
     .await
-    .expect("requesting abci info and block must have occured");
-
-    sequencer_relayer.mount_block_response::<RELAY_ALL>(6).await;
+    .expect("requesting abci info and block must have occured")
+    .1
+    .unwrap();
 
     let Some(blobs_seen_by_celestia) = sequencer_relayer
         .celestia
@@ -164,13 +174,13 @@ async fn three_blocks_are_relayed() {
     .await;
 
     let _guard = sequencer_relayer.mount_abci_response(1).await;
-    sequencer_relayer.mount_block_response::<RELAY_ALL>(1).await;
+    let _guard = sequencer_relayer.mount_block_response::<RELAY_ALL>(1).await;
 
     let _guard = sequencer_relayer.mount_abci_response(2).await;
-    sequencer_relayer.mount_block_response::<RELAY_ALL>(2).await;
+    let _guard = sequencer_relayer.mount_block_response::<RELAY_ALL>(2).await;
 
     let _guard = sequencer_relayer.mount_abci_response(3).await;
-    sequencer_relayer.mount_block_response::<RELAY_ALL>(3).await;
+    let _guard = sequencer_relayer.mount_block_response::<RELAY_ALL>(3).await;
 
     let expected_number_of_blobs = 6;
     let block_time = sequencer_relayer.config.block_time;
@@ -216,15 +226,15 @@ async fn block_from_other_proposer_is_skipped() {
     .await;
 
     let _guard = sequencer_relayer.mount_abci_response(1).await;
-    sequencer_relayer
+    let _guard = sequencer_relayer
         .mount_block_response::<RELAY_SELF>(1)
         .await;
 
     let _guard = sequencer_relayer.mount_abci_response(2).await;
-    sequencer_relayer.mount_block_response::<RELAY_ALL>(2).await;
+    let _guard = sequencer_relayer.mount_block_response::<RELAY_ALL>(2).await;
 
     let _guard = sequencer_relayer.mount_abci_response(3).await;
-    sequencer_relayer
+    let _guard = sequencer_relayer
         .mount_block_response::<RELAY_SELF>(3)
         .await;
 
