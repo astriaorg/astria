@@ -43,7 +43,7 @@ tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 tokio-util = { workspace = true, features = ["rt"] }
 
 astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
-astria-core = { path = "../astria-core" }
+astria-core = { path = "../astria-core", features = ["serde"] }
 astria-eyre = { path = "../astria-eyre" }
 celestia-client = { package = "astria-celestia-client", path = "../astria-celestia-client" }
 config = { package = "astria-config", path = "../astria-config" }
