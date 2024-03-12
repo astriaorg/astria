@@ -100,7 +100,7 @@ const PRIVATE_VALIDATOR_KEY: &str = r#"
 "#;
 
 pub struct MockSequencerServer {
-    next_block: Arc<Mutex<VecDeque<SequencerBlock>>>,
+    blocks: Arc<Mutex<VecDeque<SequencerBlock>>>,
 }
 
 #[async_trait::async_trait]
@@ -109,7 +109,7 @@ impl SequencerService for MockSequencerServer {
         &self,
         _request: Request<GetSequencerBlockRequest>,
     ) -> Result<Response<RawSequencerBlock>, Status> {
-        let mut blocks = self.next_block.lock().await;
+        let mut blocks = self.blocks.lock().await;
         blocks.pop_front().map_or_else(
             || Err(Status::not_found("no more blocks")),
             |block| Ok(Response::new(block.into_raw())),
@@ -137,9 +137,9 @@ pub struct TestSequencerRelayer {
     /// The mocked cometbft service
     pub cometbft: MockServer,
 
-    /// The next block to return in the mock sequencer gRPC server
+    /// The block to return in the mock sequencer gRPC server
     /// `get_sequencer_block` method.
-    pub next_sequencer_block: Arc<Mutex<VecDeque<SequencerBlock>>>,
+    pub sequencer_server_blocks: Arc<Mutex<VecDeque<SequencerBlock>>>,
 
     pub sequencer: JoinHandle<()>,
 
@@ -200,8 +200,8 @@ impl TestSequencerRelayer {
         cometbft_block.header.proposer_address = proposer;
 
         let block = SequencerBlock::try_from_cometbft(cometbft_block).unwrap();
-        let mut next_block = self.next_sequencer_block.lock().await;
-        next_block.push_back(block);
+        let mut blocks = self.sequencer_server_blocks.lock().await;
+        blocks.push_back(block);
     }
 
     #[track_caller]
@@ -275,8 +275,9 @@ impl TestSequencerRelayerConfig {
 
         let grpc_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let grpc_addr = grpc_listener.local_addr().unwrap();
+        let sequencer_server_blocks = Arc::new(Mutex::new(VecDeque::new()));
         let sequencer = MockSequencerServer {
-            next_block: Arc::new(Mutex::new(VecDeque::new())),
+            blocks: sequencer_server_blocks.clone(),
         };
 
         let grpc_server =
@@ -330,7 +331,7 @@ impl TestSequencerRelayerConfig {
             celestia,
             config,
             sequencer,
-            next_sequencer_block: next_block,
+            sequencer_server_blocks,
             cometbft,
             sequencer_relayer,
             signing_key,
