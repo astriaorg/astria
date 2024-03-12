@@ -64,7 +64,7 @@ pub(crate) use state::StateSnapshot;
 use self::submission::SubmissionState;
 
 pub(crate) struct Relayer {
-    /// The client use to query the  sequencer cometbft endpoint.
+    /// The client used to query the sequencer cometbft endpoint.
     cometbft_client: SequencerClient,
 
     /// The client used to poll the sequencer via the sequencer gRPC API.

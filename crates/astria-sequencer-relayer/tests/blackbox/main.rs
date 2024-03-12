@@ -75,7 +75,7 @@ async fn report_degraded_if_block_fetch_fails() {
         actual: readyz.json::<serde_json::Value>().await.unwrap(),
     );
 
-    sequencer_relayer.shutdown().await;
+    sequencer_relayer.shutdown();
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -110,7 +110,7 @@ async fn one_block_is_relayed_to_celestia() {
     // data.
     assert_eq!(blobs_seen_by_celestia.len(), 2);
 
-    sequencer_relayer.shutdown().await;
+    sequencer_relayer.shutdown();
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -151,7 +151,7 @@ async fn later_height_in_state_leads_to_expected_relay() {
     tokio::time::sleep(Duration::from_secs(1)).await;
     sequencer_relayer.assert_state_files_are_as_expected(6, 6);
 
-    sequencer_relayer.shutdown().await;
+    sequencer_relayer.shutdown();
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -188,7 +188,7 @@ async fn three_blocks_are_relayed() {
                 break;
             }
         }
-        sequencer_relayer.shutdown().await;
+        sequencer_relayer.shutdown();
         blobs_seen
     };
 
@@ -244,7 +244,7 @@ async fn block_from_other_proposer_is_skipped() {
                 break;
             }
         }
-        sequencer_relayer.shutdown().await;
+        sequencer_relayer.shutdown();
         blobs_seen
     };
 

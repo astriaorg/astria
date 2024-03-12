@@ -158,7 +158,7 @@ pub struct TestSequencerRelayer {
 }
 
 impl TestSequencerRelayer {
-    pub async fn shutdown(&self) {
+    pub fn shutdown(&self) {
         self.sequencer_relayer.abort();
         self.sequencer.abort();
         self.celestia.server_handle.stop().unwrap();
@@ -288,7 +288,7 @@ impl TestSequencerRelayerConfig {
                     grpc_listener,
                 ))
                 .await
-                .unwrap()
+                .unwrap();
         });
 
         // wait for server to start; TODO don't use sleep?
@@ -303,7 +303,7 @@ impl TestSequencerRelayerConfig {
 
         let config = Config {
             cometbft_endpoint: cometbft.uri(),
-            sequencer_endpoint: format!("http://{}", grpc_addr.to_string()),
+            sequencer_endpoint: format!("http://{}", grpc_addr),
             celestia_endpoint: format!("http://{celestia_addr}"),
             celestia_bearer_token: String::new(),
             block_time: 1000,
