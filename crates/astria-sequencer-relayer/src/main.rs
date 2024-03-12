@@ -42,7 +42,7 @@ async fn main() -> ExitCode {
     }
 
     info!(
-        config = serde_json::to_string(&cfg).expect("serializing to a string cannot fail"),
+        config = %telemetry::display::json(&cfg),
         "initializing sequencer relayer"
     );
 
