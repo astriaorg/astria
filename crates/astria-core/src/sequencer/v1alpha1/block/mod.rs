@@ -566,15 +566,19 @@ impl SequencerBlock {
     }
 
     #[must_use]
-    pub fn into_filtered_block(mut self, rollup_ids: Vec<RollupId>) -> FilteredSequencerBlock {
+    pub fn into_filtered_block<I, R>(mut self, rollup_ids: I) -> FilteredSequencerBlock
+    where
+        I: IntoIterator<Item = R>,
+        RollupId: From<R>,
+    {
         let all_rollup_ids: Vec<RollupId> = self.rollup_transactions.keys().copied().collect();
 
-        let mut filtered_rollup_transactions = IndexMap::with_capacity(rollup_ids.len());
+        let mut filtered_rollup_transactions = IndexMap::new();
         for id in rollup_ids {
-            let Some(rollup_transactions) = self.rollup_transactions.shift_remove(&id) else {
-                continue;
+            let id = id.into();
+            if let Some(rollup_transactions) = self.rollup_transactions.shift_remove(&id) {
+                filtered_rollup_transactions.insert(id, rollup_transactions);
             };
-            filtered_rollup_transactions.insert(id, rollup_transactions);
         }
 
         FilteredSequencerBlock {
@@ -585,6 +589,42 @@ impl SequencerBlock {
             rollup_transactions_proof: self.rollup_transactions_proof,
             all_rollup_ids,
             rollup_ids_proof: self.rollup_ids_proof,
+        }
+    }
+
+    #[must_use]
+    pub fn to_filtered_block<I, R>(&self, rollup_ids: I) -> FilteredSequencerBlock
+    where
+        I: IntoIterator<Item = R>,
+        RollupId: From<R>,
+    {
+        let all_rollup_ids: Vec<RollupId> = self.rollup_transactions.keys().copied().collect();
+
+        // recreate the whole rollup tx tree so that we can get the root, as it's not stored
+        // in the sequencer block.
+        // note: we can remove this after storing the constructed root/proofs in the sequencer app.
+        let rollup_transaction_tree = derive_merkle_tree_from_rollup_txs(
+            self.rollup_transactions
+                .iter()
+                .map(|(id, txs)| (id, txs.transactions())),
+        );
+
+        let mut filtered_rollup_transactions = IndexMap::new();
+        for id in rollup_ids {
+            let id = id.into();
+            if let Some(rollup_transactions) = self.rollup_transactions.get(&id).cloned() {
+                filtered_rollup_transactions.insert(id, rollup_transactions);
+            };
+        }
+
+        FilteredSequencerBlock {
+            block_hash: self.block_hash,
+            cometbft_header: self.header.cometbft_header.clone(),
+            rollup_transactions: filtered_rollup_transactions,
+            rollup_transactions_root: rollup_transaction_tree.root(),
+            rollup_transactions_proof: self.rollup_transactions_proof.clone(),
+            all_rollup_ids,
+            rollup_ids_proof: self.rollup_ids_proof.clone(),
         }
     }
 
