@@ -20,10 +20,7 @@ use serde::Serialize;
 use tokio::sync::watch;
 use tracing::debug;
 
-use crate::{
-    composer,
-    searcher,
-};
+use crate::composer;
 
 pub(super) type ApiServer = axum::Server<AddrIncoming, IntoMakeService<Router>>;
 

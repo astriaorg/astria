@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use astria_core::sequencer::v1alpha1::{
     asset::default_native_asset_id,
     transaction::action::SequenceAction,
@@ -21,7 +19,6 @@ use tokio::sync::{
     },
     watch,
 };
-use tokio_util::task::JoinMap;
 use tracing::{
     debug,
     instrument,

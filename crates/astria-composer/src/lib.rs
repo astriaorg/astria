@@ -44,7 +44,6 @@ mod composer;
 pub mod config;
 mod executor;
 mod rollup;
-pub(crate) mod searcher;
 
 pub use build_info::BUILD_INFO;
 pub use composer::Composer;
