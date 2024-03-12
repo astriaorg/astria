@@ -1,5 +1,5 @@
 # build stage
-FROM --platform=$BUILDPLATFORM lukemathwalker/cargo-chef:0.1.63-rust-1.76.0-bookworm AS chef
+FROM --platform=$BUILDPLATFORM lukemathwalker/cargo-chef:0.1.66-rust-1.76.0-bookworm AS chef
 
 WORKDIR /build/
 
@@ -44,7 +44,7 @@ RUN \
 FROM chef AS planner
 ARG TARGETBINARY
 COPY . .
-RUN cargo chef prepare --bin crates/$TARGETBINARY --recipe-path recipe.json
+RUN cargo chef prepare --bin $TARGETBINARY --recipe-path recipe.json
 
 FROM chef as builder
 COPY --from=planner /build/recipe.json recipe.json
