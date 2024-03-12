@@ -32,6 +32,7 @@ use sequencer_client::{
     tendermint::block::Height,
     SequencerBlock,
 };
+use telemetry::display::json;
 use tokio::{
     select,
     sync::oneshot,
@@ -54,7 +55,7 @@ use crate::{
 };
 
 mod reporting;
-use reporting::ReportBlock;
+use reporting::ReportSequencerBlock;
 
 pub(crate) struct Reader {
     executor: executor::Handle,
@@ -133,7 +134,7 @@ impl Reader {
                     let block = block.wrap_err("failed getting block")?;
                     info!(
                         height = %block.height(),
-                        block = %telemetry::display::json(&ReportBlock(&block)),
+                        block = %json(&ReportSequencerBlock(&block)),
                         "received block from sequencer",
                     );
 
