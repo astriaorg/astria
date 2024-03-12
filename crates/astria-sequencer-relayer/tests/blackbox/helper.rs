@@ -363,7 +363,7 @@ impl TestSequencerRelayerConfig {
 
         let config = Config {
             cometbft_endpoint: cometbft.uri(),
-            sequencer_endpoint: format!("http://{grpc_addr}"),
+            sequencer_grpc_endpoint: format!("http://{grpc_addr}"),
             celestia_endpoint: format!("http://{celestia_addr}"),
             celestia_bearer_token: String::new(),
             block_time: 1000,

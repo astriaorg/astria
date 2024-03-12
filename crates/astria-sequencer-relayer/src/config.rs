@@ -12,7 +12,7 @@ use serde::{
 /// The single config for creating an astria-sequencer-relayer service.
 pub struct Config {
     pub cometbft_endpoint: String,
-    pub sequencer_endpoint: String,
+    pub sequencer_grpc_endpoint: String,
     pub celestia_endpoint: String,
     pub celestia_bearer_token: String,
     pub block_time: u64,

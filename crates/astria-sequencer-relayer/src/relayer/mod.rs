@@ -99,7 +99,7 @@ impl Relayer {
         let cometbft_client = HttpClient::new(&*cfg.cometbft_endpoint)
             .wrap_err("failed constructing cometbft http client")?;
 
-        let sequencer_client = SequencerServiceClient::connect(cfg.sequencer_endpoint.clone())
+        let sequencer_client = SequencerServiceClient::connect(cfg.sequencer_grpc_endpoint.clone())
             .await
             .wrap_err("failed to create sequencer client")?;
 
