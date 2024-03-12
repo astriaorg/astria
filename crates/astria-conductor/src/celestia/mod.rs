@@ -541,7 +541,7 @@ async fn fetch_blocks_at_celestia_height(
         Ok(response) => response.sequencer_blobs,
     };
 
-    info!(
+    debug!(
         %celestia_height,
         sequencer_heights = %json(&ReportSequencerHeights(&sequencer_blobs)),
         "received sequencer header blobs from Celestia"
@@ -607,7 +607,7 @@ async fn process_sequencer_blob(
         )
         .await
         .wrap_err("failed fetching rollup blobs from celestia")?;
-    info!(
+    debug!(
         %celestia_height,
         number_of_blobs = rollup_blobs.len(),
         "received rollup blobs from Celestia"
