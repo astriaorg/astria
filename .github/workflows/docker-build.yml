@@ -76,11 +76,9 @@ jobs:
     runs-on: buildjet-8vcpu-ubuntu-2204
     steps:
       - uses: actions/checkout@v4
-      - name: Create k8s Kind Cluster
-        uses: helm/kind-action@v1
       - name: Install just
         uses: taiki-e/install-action@just
-      - name: Create k8s Kind Cluster
+      - name: Install kind
         uses: helm/kind-action@v1 
         with:
           install_only: true
@@ -89,6 +87,7 @@ jobs:
       - run: |
           TAG=sha-$(git rev-parse --short HEAD)
           just deploy cluster
+          echo "Deploying with image tags $TAG"
           just deploy smoke-test $TAG
           just run-smoke-test
 
