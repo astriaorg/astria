@@ -7,7 +7,7 @@ mod sized_bundle_tests {
         ROLLUP_ID_LEN,
     };
 
-    use crate::searcher::executor::bundle_factory::{
+    use crate::executor::bundle_factory::{
         estimate_size_of_sequence_action,
         SizedBundle,
         SizedBundleError,
@@ -114,7 +114,7 @@ mod bundle_factory_tests {
         ROLLUP_ID_LEN,
     };
 
-    use crate::searcher::executor::bundle_factory::{
+    use crate::executor::bundle_factory::{
         estimate_size_of_sequence_action,
         BundleFactory,
         BundleFactoryError,

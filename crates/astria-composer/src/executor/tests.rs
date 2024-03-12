@@ -38,7 +38,7 @@ use wiremock::{
 };
 
 use crate::{
-    searcher::executor::{
+    executor::{
         Executor,
         Status,
     },

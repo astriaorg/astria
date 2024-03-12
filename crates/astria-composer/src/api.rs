@@ -20,25 +20,29 @@ use serde::Serialize;
 use tokio::sync::watch;
 use tracing::debug;
 
-use crate::searcher;
+use crate::{
+    composer,
+    searcher,
+};
 
 pub(super) type ApiServer = axum::Server<AddrIncoming, IntoMakeService<Router>>;
 
-type SearcherStatus = watch::Receiver<searcher::Status>;
+type ComposerStatus = watch::Receiver<composer::Status>;
 
 /// `AppState` is an axum extractor
+// TODO: can we get rid of this and just impl on `composer::Status`?
 #[derive(Clone)]
 struct AppState {
-    searcher_status: SearcherStatus,
+    searcher_status: ComposerStatus,
 }
 
-impl FromRef<AppState> for SearcherStatus {
+impl FromRef<AppState> for ComposerStatus {
     fn from_ref(app_state: &AppState) -> Self {
         app_state.searcher_status.clone()
     }
 }
 
-pub(super) fn start(listen_addr: SocketAddr, searcher_status: SearcherStatus) -> ApiServer {
+pub(super) fn start(listen_addr: SocketAddr, searcher_status: ComposerStatus) -> ApiServer {
     let app = Router::new()
         .route("/readyz", get(readyz))
         .with_state(AppState {
@@ -74,7 +78,7 @@ impl IntoResponse for Readyz {
 // axum does not allow non-async handlers. This attribute can be removed
 // once this method contains `await` statements.
 #[allow(clippy::unused_async)]
-async fn readyz(State(searcher_status): State<SearcherStatus>) -> Readyz {
+async fn readyz(State(searcher_status): State<ComposerStatus>) -> Readyz {
     debug!("received readyz request");
     if searcher_status.borrow().is_ready() {
         Readyz::Ok

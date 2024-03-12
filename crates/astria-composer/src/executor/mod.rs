@@ -70,7 +70,7 @@ use tracing::{
     Span,
 };
 
-use crate::searcher::executor::bundle_factory::BundleFactory;
+use crate::executor::bundle_factory::BundleFactory;
 
 mod bundle_factory;
 
