@@ -230,7 +230,10 @@ pub(crate) trait StateWriteExt: StateWrite {
 
     #[instrument(skip(self))]
     async fn clear_block_deposits(&mut self) -> Result<()> {
-        let deposit_rollup_ids = self.get_deposit_rollup_ids().await?;
+        let deposit_rollup_ids = self
+            .get_deposit_rollup_ids()
+            .await
+            .context("failed to get deposit rollup ids")?;
         for rollup_id in deposit_rollup_ids {
             self.clear_deposit_info(&rollup_id).await;
         }

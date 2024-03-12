@@ -688,6 +688,10 @@ impl SequencerBlock {
                     .map(|deposit| RollupData::Deposit(deposit).into_raw().encode_to_vec()),
             );
         }
+
+        // XXX: The rollup data must be sorted by its keys before constructing the merkle tree.
+        // Since it's constructed from non-deterministically ordered sources, there is otherwise no
+        // guarantee that the same data will give the root.
         rollup_datas.sort_unstable_keys();
 
         // ensure the rollup IDs commitment matches the one calculated from the rollup data
@@ -1297,8 +1301,8 @@ enum DepositErrorKind {
 /// The data can be either sequenced data (originating from a [`SequenceAction`]
 /// submitted by a user) or a [`Deposit`] originating from a [`BridgeLockAction`].
 ///
-/// The rollup node receives this type, protobuf-encoded, from conductor and
-/// must decode it accordingly.
+/// The rollup node receives this type as opaque, protobuf-encoded bytes from conductor,
+/// and must decode it accordingly.
 #[derive(Debug, Clone, PartialEq)]
 pub enum RollupData {
     SequencedData(Vec<u8>),
@@ -1356,6 +1360,6 @@ impl RollupDataError {
 enum RollupDataErrorKind {
     #[error("the expected field in the raw source type was not set: `{0}`")]
     FieldNotSet(&'static str),
-    #[error(transparent)]
-    Deposit(#[from] DepositError),
+    #[error("failed to validate `deposit` field")]
+    Deposit(#[source] DepositError),
 }
