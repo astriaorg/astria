@@ -132,12 +132,6 @@ impl Reader {
 
                 Some(block) = blocks_from_heights.next() => {
                     let block = block.wrap_err("failed getting block")?;
-                    info!(
-                        height = %block.height(),
-                        block = %json(&ReportSequencerBlock(&block)),
-                        "received block from sequencer",
-                    );
-
                     if let Err(e) = sequential_blocks.insert(block) {
                         // XXX: we could temporarily kill the subscription if we put an upper limit on the cache size
                         warn!(error = &e as &dyn std::error::Error, "failed pushing block into cache, dropping it");
@@ -426,6 +420,10 @@ async fn fetch_client_then_block(
 
     let client = pool.get().await?;
     let block = client.sequencer_block(height).await?;
+    info!(
+        block = %json(&ReportSequencerBlock(&block)),
+        "received block from sequencer",
+    );
     Ok(block)
 }
 
