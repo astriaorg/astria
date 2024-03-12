@@ -165,7 +165,7 @@ impl Composer {
             rollups,
         } = self;
 
-        let api_task =
+        let mut api_task =
             tokio::spawn(async move { api_server.await.wrap_err("api server ended unexpectedly") });
 
         // The set of tasks tracking if the collectors are still running.
@@ -187,7 +187,7 @@ impl Composer {
 
         loop {
             select! {
-                o = api_task => report_exit("api server", o),
+                o = &mut api_task => report_exit("api server", o),
 
                 Some((rollup, collector_exit)) = collector_tasks.join_next() => {
                     reconnect_exited_collector(
