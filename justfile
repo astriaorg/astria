@@ -105,7 +105,7 @@ helm-add-if-not-exist repo url:
 
 deploy-cluster namespace=defaultNamespace:
   kind create cluster --config ./dev/kubernetes/kind-cluster-config.yml
-  @just helm-add-if-not-exist celestia https://helm.cilium.io/
+  @just helm-add-if-not-exist cilium https://helm.cilium.io/
   helm install cilium cilium/cilium --version 1.14.3 \
       -f ./dev/values/cilium.yml \
       --namespace kube-system
