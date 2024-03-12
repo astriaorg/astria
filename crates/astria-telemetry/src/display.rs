@@ -14,6 +14,7 @@ use base64::{
     display::Base64Display,
     engine::general_purpose::GeneralPurpose,
 };
+use serde_with::SerializeDisplay;
 
 /// Format `bytes` using standard base64 formatting.
 ///
@@ -37,6 +38,7 @@ pub fn hex<T: AsRef<[u8]> + ?Sized>(bytes: &T) -> Hex<'_> {
 /// A newtype wrapper of a byte slice that implements [`std::fmt::Display`].
 ///
 /// To be used in tracing contexts. See the [`self::hex`] utility.
+#[derive(SerializeDisplay)]
 pub struct Hex<'a>(&'a [u8]);
 
 impl<'a> Display for Hex<'a> {

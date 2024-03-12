@@ -25,6 +25,7 @@ opentelemetry-stdout = { version = "0.2.0", features = ["trace"] }
 opentelemetry_sdk = { version = "0.21.1", features = ["rt-tokio"] }
 serde = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
+serde_with = { version = "3.7.0", optional = true }
 thiserror = { workspace = true }
 tracing-opentelemetry = "0.22.0"
 tracing-subscriber = { version = "0.3.17", features = [
@@ -37,4 +38,4 @@ tracing-subscriber = { version = "0.3.17", features = [
 tracing = { workspace = true }
 
 [features]
-display = ["dep:base64", "dep:serde_json", "dep:serde"]
+display = ["dep:base64", "dep:serde", "dep:serde_json", "dep:serde_with"]

@@ -24,7 +24,8 @@ fn serialize_namespace<S>(namespace: &Namespace, serializer: S) -> Result<S::Ok,
 where
     S: serde::ser::Serializer,
 {
-    serializer.collect_str(&telemetry::display::hex(namespace.as_bytes()))
+    use serde::ser::Serialize as _;
+    telemetry::display::hex(namespace.as_bytes()).serialize(serializer)
 }
 
 #[derive(Debug, serde::Serialize)]
