@@ -85,7 +85,7 @@ type StdError = dyn std::error::Error;
 /// an `Unsigned`, then signs them with the sequencer key and submits to the sequencer.
 /// Its `status` field indicates that connection to the sequencer node has been established.
 #[derive(Debug)]
-pub(super) struct Executor {
+pub(crate) struct Executor {
     // The status of this executor
     status: watch::Sender<Status>,
     // Channel for receiving `SequenceAction`s to be bundled.
@@ -110,8 +110,8 @@ impl Drop for Executor {
 }
 
 #[derive(Debug)]
-pub(super) struct Status {
-    is_connected: bool,
+pub(crate) struct Status {
+    pub(crate) is_connected: bool,
 }
 
 impl Status {
@@ -121,13 +121,13 @@ impl Status {
         }
     }
 
-    pub(super) fn is_connected(&self) -> bool {
+    pub(crate) fn is_connected(&self) -> bool {
         self.is_connected
     }
 }
 
 impl Executor {
-    pub(super) fn new(
+    pub(crate) fn new(
         sequencer_url: &str,
         private_key: &SecretString,
         serialized_rollup_transactions_rx: mpsc::Receiver<SequenceAction>,
@@ -136,7 +136,7 @@ impl Executor {
     ) -> eyre::Result<Self> {
         let sequencer_client = sequencer_client::HttpClient::new(sequencer_url)
             .wrap_err("failed constructing sequencer client")?;
-
+        let (status, _) = watch::channel(Status::new());
         let mut private_key_bytes: [u8; 32] = hex::decode(private_key.expose_secret())
             .wrap_err("failed to decode private key bytes from hex string")?
             .try_into()
@@ -145,8 +145,6 @@ impl Executor {
         private_key_bytes.zeroize();
 
         let sequencer_address = Address::from_verification_key(sequencer_key.verification_key());
-
-        let (status, _) = watch::channel(Status::new());
 
         Ok(Self {
             status,
@@ -160,7 +158,7 @@ impl Executor {
     }
 
     /// Return a reader to the status reporting channel
-    pub(super) fn subscribe(&self) -> watch::Receiver<Status> {
+    pub(crate) fn subscribe(&self) -> watch::Receiver<Status> {
         self.status.subscribe()
     }
 
@@ -184,16 +182,18 @@ impl Executor {
     /// # Errors
     /// An error is returned if connecting to the sequencer fails.
     #[instrument(skip_all, fields(address = %self.address))]
-    pub(super) async fn run_until_stopped(mut self) -> eyre::Result<()> {
+    pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
         let mut submission_fut: Fuse<Instrumented<SubmitFut>> = Fuse::terminated();
         let mut nonce = get_latest_nonce(self.sequencer_client.clone(), self.address)
             .await
             .wrap_err("failed getting initial nonce from sequencer")?;
+
         self.status.send_modify(|status| status.is_connected = true);
 
         let block_timer = time::sleep(self.block_time);
         tokio::pin!(block_timer);
         let mut bundle_factory = BundleFactory::new(self.max_bytes_per_bundle);
+
         let reset_time = || Instant::now() + self.block_time;
 
         loop {

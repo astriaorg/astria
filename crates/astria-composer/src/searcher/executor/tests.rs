@@ -38,9 +38,9 @@ use wiremock::{
 };
 
 use crate::{
-    searcher::executor::{
-        Executor,
-        Status,
+    searcher::{
+        executor,
+        executor::Executor,
     },
     Config,
 };
@@ -176,11 +176,14 @@ async fn mount_broadcast_tx_sync_seq_actions_mock(server: &MockServer) -> MockGu
 
 /// Helper to wait for the executor to connect to the mock sequencer
 async fn wait_for_startup(
-    mut status: watch::Receiver<Status>,
+    mut status: watch::Receiver<executor::Status>,
     nonce_guard: MockGuard,
 ) -> eyre::Result<()> {
     // wait to receive executor status
-    status.wait_for(Status::is_connected).await.unwrap();
+    status
+        .wait_for(executor::Status::is_connected)
+        .await
+        .unwrap();
 
     tokio::time::timeout(
         Duration::from_millis(100),
@@ -191,7 +194,6 @@ async fn wait_for_startup(
 
     Ok(())
 }
-
 /// Test to check that the executor sends a signed transaction to the sequencer as soon as it
 /// receives a `SequenceAction` that fills it beyond its `max_bundle_size`.
 #[tokio::test]
@@ -207,9 +209,10 @@ async fn full_bundle() {
         cfg.max_bytes_per_bundle,
     )
     .unwrap();
-    let status = executor.subscribe();
-    let _executor_task = tokio::spawn(executor.run_until_stopped());
 
+    let status = executor.subscribe();
+
+    let _executor_task = tokio::spawn(executor.run_until_stopped());
     // wait for sequencer to get the initial nonce request from sequencer
     wait_for_startup(status, nonce_guard).await.unwrap();
 
@@ -288,7 +291,9 @@ async fn bundle_triggered_by_block_timer() {
         cfg.max_bytes_per_bundle,
     )
     .unwrap();
+
     let status = executor.subscribe();
+
     let _executor_task = tokio::spawn(executor.run_until_stopped());
 
     // wait for sequencer to get the initial nonce request from sequencer
@@ -364,7 +369,9 @@ async fn two_seq_actions_single_bundle() {
         cfg.max_bytes_per_bundle,
     )
     .unwrap();
+
     let status = executor.subscribe();
+
     let _executor_task = tokio::spawn(executor.run_until_stopped());
 
     // wait for sequencer to get the initial nonce request from sequencer

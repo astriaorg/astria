@@ -8,6 +8,7 @@ use astria_composer::{
     config::Config,
     Composer,
 };
+use astria_eyre::eyre;
 use once_cell::sync::Lazy;
 use test_utils::mock::Geth;
 use tokio::task::JoinHandle;
@@ -35,7 +36,7 @@ static TELEMETRY: Lazy<()> = Lazy::new(|| {
 
 pub struct TestComposer {
     pub cfg: Config,
-    pub composer: JoinHandle<()>,
+    pub composer: JoinHandle<eyre::Result<()>>,
     pub rollup_nodes: HashMap<String, Geth>,
     pub sequencer: wiremock::MockServer,
     pub setup_guard: MockGuard,
@@ -108,6 +109,7 @@ pub async fn loop_until_composer_is_ready(addr: SocketAddr) {
         status: String,
     }
 
+    println!("waiting for composer to be ready!");
     loop {
         let readyz = reqwest::get(format!("http://{addr}/readyz"))
             .await
@@ -120,4 +122,5 @@ pub async fn loop_until_composer_is_ready(addr: SocketAddr) {
             break;
         }
     }
+    println!("composer is ready!");
 }
