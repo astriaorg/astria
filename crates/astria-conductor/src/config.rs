@@ -36,7 +36,10 @@ pub struct Config {
     /// The JWT bearer token supplied with each jsonrpc call
     pub celestia_bearer_token: String,
 
-    /// URL of the sequencer cometbft HTTP RPC.
+    /// URL of the Sequencer Cometbft gRPC service.
+    pub sequencer_grpc_url: String,
+
+    /// URL of the Sequencer Cometbft HTTP RPC.
     pub sequencer_cometbft_url: String,
 
     pub sequencer_block_time: u64,

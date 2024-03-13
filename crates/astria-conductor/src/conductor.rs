@@ -83,10 +83,15 @@ impl Conductor {
         if !cfg.execution_commit_level.is_firm_only() {
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
 
+            let sequencer_grpc_client =
+                sequencer::SequencerGrpcClient::new(&cfg.sequencer_grpc_url)
+                    .wrap_err("failed constructing grpc client for Sequencer")?;
+
             // The `sync_start_block_height` represents the height of the next
             // sequencer block that can be executed on top of the rollup state.
             // This value is derived by the Executor.
             let sequencer_reader = sequencer::Reader::new(
+                sequencer_grpc_client,
                 sequencer_cometbft_client.clone(),
                 Duration::from_millis(cfg.sequencer_block_time),
                 shutdown_rx,

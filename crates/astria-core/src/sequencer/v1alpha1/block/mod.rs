@@ -890,6 +890,26 @@ where
     merkle::Tree::from_leaves(iter.into_iter().map(|item| Sha256::digest(&item)))
 }
 
+/// The individual parts that make up a [`FilteredSequencerBlock`].
+///
+/// Exists to provide convenient access to fields of a [`FilteredSequencerBlock`].
+#[derive(Debug, Clone, PartialEq)]
+#[allow(clippy::module_name_repetitions)]
+pub struct FilteredSequencerBlockParts {
+    pub block_hash: [u8; 32],
+    pub cometbft_header: tendermint::block::header::Header,
+    // filtered set of rollup transactions
+    pub rollup_transactions: IndexMap<RollupId, RollupTransactions>,
+    // root of the rollup transactions tree
+    pub rollup_transactions_root: [u8; 32],
+    // proof that `rollup_transactions_root` is included in `data_hash`
+    pub rollup_transactions_proof: merkle::Proof,
+    // all rollup ids in the sequencer block
+    pub all_rollup_ids: Vec<RollupId>,
+    // proof that `rollup_ids` is included in `data_hash`
+    pub rollup_ids_proof: merkle::Proof,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 #[allow(clippy::module_name_repetitions)]
 pub struct FilteredSequencerBlock {
@@ -1097,9 +1117,31 @@ impl FilteredSequencerBlock {
             rollup_ids_proof,
         })
     }
+
+    pub fn into_parts(self) -> FilteredSequencerBlockParts {
+        let Self {
+            block_hash,
+            cometbft_header,
+            rollup_transactions,
+            rollup_transactions_root,
+            rollup_transactions_proof,
+            all_rollup_ids,
+            rollup_ids_proof,
+        } = self;
+        FilteredSequencerBlockParts {
+            block_hash,
+            cometbft_header,
+            rollup_transactions,
+            rollup_transactions_root,
+            rollup_transactions_proof,
+            all_rollup_ids,
+            rollup_ids_proof,
+        }
+    }
 }
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
 pub struct FilteredSequencerBlockError(FilteredSequencerBlockErrorKind);
 
 #[derive(Debug, thiserror::Error)]

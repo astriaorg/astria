@@ -130,7 +130,7 @@ impl RollupId {
     /// assert_eq!(bytes, rollup_id.get());
     /// ```
     #[must_use]
-    pub fn new(inner: [u8; ROLLUP_ID_LEN]) -> Self {
+    pub const fn new(inner: [u8; ROLLUP_ID_LEN]) -> Self {
         Self {
             inner,
         }

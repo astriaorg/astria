@@ -24,9 +24,12 @@ use astria_core::{
         GetGenesisInfoRequest,
         UpdateCommitmentStateRequest,
     },
-    sequencer::v1alpha1::test_utils::{
-        make_cometbft_block,
-        ConfigureCometBftBlock,
+    sequencer::v1alpha1::{
+        test_utils::{
+            make_cometbft_block,
+            ConfigureCometBftBlock,
+        },
+        SequencerBlock,
     },
     Protobuf,
 };
@@ -42,7 +45,6 @@ use super::{
     Executor,
     ReconstructedBlock,
     RollupId,
-    SequencerBlock,
     SequencerHeight,
 };
 
@@ -50,6 +52,8 @@ use super::{
 // That's not good in general but acceptable in these tests.
 #[allow(clippy::declare_interior_mutable_const)]
 const GENESIS_HASH: Bytes = Bytes::from_static(&[0u8; 32]);
+
+const ROLLUP_ID: RollupId = RollupId::new([42u8; 32]);
 
 #[derive(Debug)]
 struct MockExecutionServer {
@@ -302,7 +306,9 @@ async fn soft_blocks_at_expected_heights_are_executed() {
 
     let mut block = make_cometbft_block();
     block.header.height = SequencerHeight::from(100u32);
-    let block = SequencerBlock::try_from_cometbft(block).unwrap();
+    let block = SequencerBlock::try_from_cometbft(block)
+        .unwrap()
+        .into_filtered_block(&[ROLLUP_ID]);
     assert!(
         mock.executor
             .execute_soft(mock.client.clone(), block)
@@ -312,7 +318,9 @@ async fn soft_blocks_at_expected_heights_are_executed() {
 
     let mut block = make_cometbft_block();
     block.header.height = SequencerHeight::from(101u32);
-    let block = SequencerBlock::try_from_cometbft(block).unwrap();
+    let block = SequencerBlock::try_from_cometbft(block)
+        .unwrap()
+        .into_filtered_block(&[ROLLUP_ID]);
     mock.executor
         .execute_soft(mock.client.clone(), block)
         .await
@@ -327,23 +335,24 @@ async fn soft_blocks_at_expected_heights_are_executed() {
 async fn first_firm_then_soft_leads_to_soft_being_dropped() {
     let mut mock = start_mock().await;
 
-    let rollup_id = RollupId::new([42u8; 32]);
     let block = ConfigureCometBftBlock {
         height: 100,
-        rollup_transactions: vec![(rollup_id, b"hello_world".to_vec())],
+        rollup_transactions: vec![(ROLLUP_ID, b"hello_world".to_vec())],
         ..Default::default()
     }
     .make();
-    let soft_block = SequencerBlock::try_from_cometbft(block).unwrap();
+    let soft_block = SequencerBlock::try_from_cometbft(block)
+        .unwrap()
+        .into_filtered_block(&[ROLLUP_ID]);
 
     let block_hash = soft_block.block_hash();
 
     let firm_block = ReconstructedBlock {
         block_hash: soft_block.block_hash(),
-        header: soft_block.header().cometbft_header().clone(),
+        header: soft_block.cometbft_header().clone(),
         transactions: soft_block
             .rollup_transactions()
-            .get(&rollup_id)
+            .get(&ROLLUP_ID)
             .cloned()
             .unwrap()
             .transactions()
@@ -381,23 +390,24 @@ async fn first_firm_then_soft_leads_to_soft_being_dropped() {
 async fn first_soft_then_firm_update_state_correctly() {
     let mut mock = start_mock().await;
 
-    let rollup_id = RollupId::new([42u8; 32]);
     let block = ConfigureCometBftBlock {
         height: 100,
-        rollup_transactions: vec![(rollup_id, b"hello_world".to_vec())],
+        rollup_transactions: vec![(ROLLUP_ID, b"hello_world".to_vec())],
         ..Default::default()
     }
     .make();
-    let soft_block = SequencerBlock::try_from_cometbft(block).unwrap();
+    let soft_block = SequencerBlock::try_from_cometbft(block)
+        .unwrap()
+        .into_filtered_block(&[ROLLUP_ID]);
 
     let block_hash = soft_block.block_hash();
 
     let firm_block = ReconstructedBlock {
         block_hash: soft_block.block_hash(),
-        header: soft_block.header().cometbft_header().clone(),
+        header: soft_block.cometbft_header().clone(),
         transactions: soft_block
             .rollup_transactions()
-            .get(&rollup_id)
+            .get(&ROLLUP_ID)
             .cloned()
             .unwrap()
             .transactions()
@@ -432,9 +442,15 @@ async fn first_soft_then_firm_update_state_correctly() {
 #[tokio::test]
 async fn old_soft_blocks_are_ignored() {
     let mut mock = start_mock().await;
-    let mut block = make_cometbft_block();
-    block.header.height = SequencerHeight::from(99u32);
-    let sequencer_block = SequencerBlock::try_from_cometbft(block).unwrap();
+    let block = ConfigureCometBftBlock {
+        height: 99,
+        rollup_transactions: vec![(ROLLUP_ID, b"hello_world".to_vec())],
+        ..Default::default()
+    }
+    .make();
+    let sequencer_block = SequencerBlock::try_from_cometbft(block)
+        .unwrap()
+        .into_filtered_block(&[ROLLUP_ID]);
 
     let firm = mock.executor.state.borrow().firm().clone();
     let soft = mock.executor.state.borrow().soft().clone();
@@ -460,9 +476,15 @@ async fn old_soft_blocks_are_ignored() {
 async fn non_sequential_future_soft_blocks_give_error() {
     let mut mock = start_mock().await;
 
-    let mut block = make_cometbft_block();
-    block.header.height = SequencerHeight::from(101u32);
-    let sequencer_block = SequencerBlock::try_from_cometbft(block).unwrap();
+    let block = ConfigureCometBftBlock {
+        height: 101,
+        rollup_transactions: vec![(ROLLUP_ID, b"hello_world".to_vec())],
+        ..Default::default()
+    }
+    .make();
+    let sequencer_block = SequencerBlock::try_from_cometbft(block)
+        .unwrap()
+        .into_filtered_block(&[ROLLUP_ID]);
     assert!(
         mock.executor
             .execute_soft(mock.client.clone(), sequencer_block)
@@ -470,9 +492,15 @@ async fn non_sequential_future_soft_blocks_give_error() {
             .is_err()
     );
 
-    let mut block = make_cometbft_block();
-    block.header.height = SequencerHeight::from(100u32);
-    let sequencer_block = SequencerBlock::try_from_cometbft(block).unwrap();
+    let block = ConfigureCometBftBlock {
+        height: 100,
+        rollup_transactions: vec![(ROLLUP_ID, b"hello_world".to_vec())],
+        ..Default::default()
+    }
+    .make();
+    let sequencer_block = SequencerBlock::try_from_cometbft(block)
+        .unwrap()
+        .into_filtered_block(&[ROLLUP_ID]);
     assert!(
         mock.executor
             .execute_soft(mock.client.clone(), sequencer_block)
@@ -535,7 +563,7 @@ fn make_state(
     }: MakeState,
 ) -> super::State {
     let genesis_info = GenesisInfo::try_from_raw(raw::GenesisInfo {
-        rollup_id: Bytes::from_static(&[0u8; 32]),
+        rollup_id: Bytes::copy_from_slice(ROLLUP_ID.as_ref()),
         sequencer_genesis_block_height: 1,
         celestia_base_block_height: 1,
         celestia_block_variance: 1,

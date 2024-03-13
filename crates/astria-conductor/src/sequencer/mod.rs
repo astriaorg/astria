@@ -7,6 +7,10 @@ use std::{
     time::Duration,
 };
 
+use astria_core::sequencer::v1alpha1::{
+    block::FilteredSequencerBlock,
+    RollupId,
+};
 use astria_eyre::eyre::{
     self,
     bail,
@@ -28,7 +32,6 @@ use pin_project_lite::pin_project;
 use sequencer_client::{
     tendermint::block::Height,
     HttpClient,
-    SequencerBlock,
 };
 use telemetry::display::json;
 use tokio::{
@@ -49,13 +52,16 @@ use crate::{
     executor,
 };
 
+mod client;
 mod reporting;
-use reporting::ReportSequencerBlock;
+pub(crate) use client::SequencerGrpcClient;
+use reporting::ReportFilteredSequencerBlock;
 
 pub(crate) struct Reader {
     executor: executor::Handle,
 
-    /// The URL to the sequencer cometbft HTTP RPC endpoint.
+    sequencer_grpc_client: SequencerGrpcClient,
+
     sequencer_cometbft_client: HttpClient,
 
     sequencer_block_time: Duration,
@@ -66,6 +72,7 @@ pub(crate) struct Reader {
 
 impl Reader {
     pub(crate) fn new(
+        sequencer_grpc_client: SequencerGrpcClient,
         sequencer_cometbft_client: HttpClient,
         sequencer_block_time: Duration,
         shutdown: oneshot::Receiver<()>,
@@ -73,6 +80,7 @@ impl Reader {
     ) -> Self {
         Self {
             executor,
+            sequencer_grpc_client,
             sequencer_cometbft_client,
             sequencer_block_time,
             shutdown,
@@ -84,6 +92,7 @@ impl Reader {
         use futures::future::FusedFuture as _;
         let Self {
             mut executor,
+            sequencer_grpc_client,
             sequencer_cometbft_client,
             sequencer_block_time,
             mut shutdown,
@@ -110,9 +119,10 @@ impl Reader {
         let mut sequential_blocks = BlockCache::with_next_height(next_expected_height)
             .wrap_err("failed constructing sequential block cache")?;
         let mut blocks_from_heights = BlocksFromHeightStream::new(
+            executor.rollup_id(),
             next_expected_height,
             latest_height,
-            sequencer_cometbft_client.clone(),
+            sequencer_grpc_client.clone(),
             20,
         );
 
@@ -187,11 +197,12 @@ impl Reader {
 
 pin_project! {
     struct BlocksFromHeightStream {
+        rollup_id: RollupId,
         next_expected_height: Height,
         greatest_requested_height: Option<Height>,
         latest_sequencer_height: Height,
-        in_progress: FuturesMap<Height, eyre::Result<SequencerBlock>>,
-        client: HttpClient,
+        in_progress: FuturesMap<Height, eyre::Result<FilteredSequencerBlock>>,
+        client: SequencerGrpcClient,
         max_ahead: u64,
     }
 }
@@ -249,12 +260,14 @@ impl BlocksFromHeightStream {
     }
 
     fn new(
+        rollup_id: RollupId,
         next_expected_height: Height,
         latest_sequencer_height: Height,
-        client: HttpClient,
+        client: SequencerGrpcClient,
         max_in_flight: usize,
     ) -> Self {
         Self {
+            rollup_id,
             next_expected_height,
             latest_sequencer_height,
             greatest_requested_height: None,
@@ -266,7 +279,7 @@ impl BlocksFromHeightStream {
 }
 
 impl Stream for BlocksFromHeightStream {
-    type Item = eyre::Result<SequencerBlock>;
+    type Item = eyre::Result<FilteredSequencerBlock>;
 
     fn poll_next(
         mut self: Pin<&mut Self>,
@@ -278,10 +291,10 @@ impl Stream for BlocksFromHeightStream {
         // our queue of futures.
         while let Some(next_height) = self.as_ref().get_ref().next_height_to_fetch() {
             let this = self.as_mut().project();
-            match this
-                .in_progress
-                .try_push(next_height, fetch_block(this.client.clone(), next_height))
-            {
+            match this.in_progress.try_push(
+                next_height,
+                fetch_block(this.client.clone(), next_height, *this.rollup_id),
+            ) {
                 Err(PushError::BeyondCapacity(_)) => break,
                 Err(PushError::Replaced(_)) => {
                     error!(
@@ -314,8 +327,10 @@ impl Stream for BlocksFromHeightStream {
                 );
                 let res = {
                     let this = self.as_mut().project();
-                    this.in_progress
-                        .try_push(height, fetch_block(this.client.clone(), height))
+                    this.in_progress.try_push(
+                        height,
+                        fetch_block(this.client.clone(), height, *this.rollup_id),
+                    )
                 };
                 assert!(
                     res.is_ok(),
@@ -340,20 +355,23 @@ impl Stream for BlocksFromHeightStream {
 
 #[instrument(
     skip_all,
-    fields(%height),
+    fields(%height, %rollup_id),
+    err,
 )]
-async fn fetch_block(client: HttpClient, height: Height) -> eyre::Result<SequencerBlock> {
-    use sequencer_client::SequencerClientExt as _;
-
-    let block = client
-        .sequencer_block(height)
+async fn fetch_block(
+    mut client: SequencerGrpcClient,
+    height: Height,
+    rollup_id: RollupId,
+) -> eyre::Result<FilteredSequencerBlock> {
+    let filtered_block = client
+        .get(height.value(), rollup_id)
         .await
-        .wrap_err("failed fetching sequencer block")?;
+        .wrap_err("failed fetching filtered sequencer block")?;
     info!(
-        block = %json(&ReportSequencerBlock(&block)),
-        "received block from sequencer",
+        block = %json(&ReportFilteredSequencerBlock(&filtered_block)),
+        "received block from Sequencer gRPC service",
     );
-    Ok(block)
+    Ok(filtered_block)
 }
 
 // TODO: Bring these back, but probably on a dedicated `Heights` types tracking the requested
