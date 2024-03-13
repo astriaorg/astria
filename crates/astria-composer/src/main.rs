@@ -51,10 +51,17 @@ async fn main() -> ExitCode {
 
     info!(config = cfg_ser, "initializing composer",);
 
-    let _ = Composer::from_config(&cfg)
+    match Composer::from_config(&cfg)
         .await
         .expect("failed creating composer")
         .run_until_stopped()
-        .await;
+        .await
+    {
+        Ok(()) => {}
+        Err(e) => {
+            eprintln!("composer failed:\n{e}");
+            return ExitCode::FAILURE;
+        }
+    }
     ExitCode::SUCCESS
 }
