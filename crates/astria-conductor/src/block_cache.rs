@@ -9,22 +9,13 @@ use astria_core::sequencer::v1alpha1::{
     CelestiaSequencerBlob,
 };
 use pin_project_lite::pin_project;
-use sequencer_client::{
-    tendermint::block::Height,
-    SequencerBlock,
-};
+use sequencer_client::tendermint::block::Height;
 
 pub(crate) trait GetSequencerHeight {
     fn get_height(&self) -> Height;
 }
 
 impl GetSequencerHeight for FilteredSequencerBlock {
-    fn get_height(&self) -> Height {
-        self.height()
-    }
-}
-
-impl GetSequencerHeight for SequencerBlock {
     fn get_height(&self) -> Height {
         self.height()
     }
