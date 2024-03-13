@@ -442,7 +442,7 @@ pub trait SequencerClientExt: Client {
     {
         const PREFIX: &[u8] = b"accounts/balance/";
 
-        let path = make_path_from_prefix_and_address(PREFIX, address.into().0);
+        let path = make_path_from_prefix_and_address(PREFIX, address.into().get());
 
         let response = self
             .abci_query(Some(path), vec![], Some(height.into()), false)
@@ -493,7 +493,7 @@ pub trait SequencerClientExt: Client {
     {
         const PREFIX: &[u8] = b"accounts/nonce/";
 
-        let path = make_path_from_prefix_and_address(PREFIX, address.into().0);
+        let path = make_path_from_prefix_and_address(PREFIX, address.into().get());
 
         let response = self
             .abci_query(Some(path), vec![], Some(height.into()), false)

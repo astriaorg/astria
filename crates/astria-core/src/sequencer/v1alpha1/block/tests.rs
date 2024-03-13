@@ -4,7 +4,7 @@ use super::*;
 use crate::sequencer::v1alpha1::test_utils::make_cometbft_block;
 
 #[test]
-fn test_sequencer_block_from_cometbft_block() {
+fn sequencer_block_from_cometbft_block_gives_expected_merkle_proofs() {
     let block = make_cometbft_block();
     let sequencer_block = SequencerBlock::try_from_cometbft(block).unwrap();
     let rollup_ids_root =
@@ -30,6 +30,7 @@ fn test_sequencer_block_from_cometbft_block() {
 
     let data_hash: [u8; 32] = sequencer_block
         .header
+        .cometbft_header
         .data_hash
         .unwrap()
         .as_bytes()
@@ -48,15 +49,11 @@ fn test_sequencer_block_from_cometbft_block() {
 }
 
 #[test]
-fn test_filtered_sequencer_block_to_from_raw() {
+fn block_to_filtered_roundtrip() {
     let block = make_cometbft_block();
     let sequencer_block = SequencerBlock::try_from_cometbft(block).unwrap();
-    let rollup_ids = sequencer_block
-        .rollup_transactions
-        .keys()
-        .copied()
-        .collect::<Vec<RollupId>>();
-    let filtered_sequencer_block = sequencer_block.into_filtered_block(rollup_ids);
+    let rollup_ids = sequencer_block.rollup_transactions.keys();
+    let filtered_sequencer_block = sequencer_block.to_filtered_block(rollup_ids);
 
     let raw = filtered_sequencer_block.clone().into_raw();
     let from_raw = FilteredSequencerBlock::try_from_raw(raw).unwrap();

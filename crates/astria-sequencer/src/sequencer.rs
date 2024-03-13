@@ -115,9 +115,7 @@ impl Sequencer {
             .grpc_addr
             .parse()
             .context("failed to parse grpc_addr address")?;
-        let grpc_server_handle =
-            start_grpc_server(&storage, &config.cometbft_rpc_addr, grpc_addr, shutdown_rx)
-                .context("failed to start grpc server")?;
+        let grpc_server_handle = start_grpc_server(&storage, grpc_addr, shutdown_rx);
 
         info!(config.listen_addr, "starting sequencer");
         let server_handle = tokio::spawn(async move {
@@ -157,10 +155,9 @@ impl Sequencer {
 
 fn start_grpc_server(
     storage: &cnidarium::Storage,
-    cometbft_rpc_addr: &str,
     grpc_addr: std::net::SocketAddr,
     shutdown_rx: oneshot::Receiver<()>,
-) -> Result<JoinHandle<Result<(), tonic::transport::Error>>> {
+) -> JoinHandle<Result<(), tonic::transport::Error>> {
     use futures::TryFutureExt as _;
     use ibc_proto::ibc::core::{
         channel::v1::query_server::QueryServer as ChannelQueryServer,
@@ -171,9 +168,8 @@ fn start_grpc_server(
     use tower_http::cors::CorsLayer;
 
     let ibc = penumbra_ibc::component::rpc::IbcQuery::<AstriaHost>::new(storage.clone());
-    let sequencer_api = SequencerServer::new(cometbft_rpc_addr, storage.clone())
-        .context("failed to create sequencer service grpc server")?;
-    let cors_layer = CorsLayer::permissive();
+    let sequencer_api = SequencerServer::new(storage.clone());
+    let cors_layer: CorsLayer = CorsLayer::permissive();
 
     // TODO: setup HTTPS?
     let grpc_server = tonic::transport::Server::builder()
@@ -199,10 +195,9 @@ fn start_grpc_server(
         .add_service(SequencerServiceServer::new(sequencer_api));
 
     info!(grpc_addr = grpc_addr.to_string(), "starting grpc server");
-    Ok(tokio::task::spawn(grpc_server.serve_with_shutdown(
-        grpc_addr,
-        shutdown_rx.unwrap_or_else(|_| ()),
-    )))
+    tokio::task::spawn(
+        grpc_server.serve_with_shutdown(grpc_addr, shutdown_rx.unwrap_or_else(|_| ())),
+    )
 }
 
 struct SignalReceiver {

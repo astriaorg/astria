@@ -11,7 +11,6 @@
 pub(crate) mod block_cache;
 mod build_info;
 pub(crate) mod celestia;
-pub(crate) mod client_provider;
 pub mod conductor;
 pub mod config;
 pub(crate) mod executor;

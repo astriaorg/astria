@@ -15,7 +15,6 @@ name = "astria-sequencer-relayer"
 dirs = "5.0"
 futures-bounded = "0.2.3"
 http = "0.2.9"
-itoa = "1.0.10"
 pin-project-lite = "0.2"
 serde_path_to_error = "0.1.13"
 zeroize = { version = "1.6.0", features = ["zeroize_derive"] }
@@ -28,6 +27,7 @@ futures = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 humantime = { workspace = true }
 hyper = { workspace = true }
+itoa = { workspace = true }
 metrics = { workspace = true }
 prost = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
@@ -35,15 +35,15 @@ serde_json = { workspace = true }
 sha2 = { workspace = true }
 tendermint = { workspace = true, features = ["rust-crypto"] }
 tendermint-config = { workspace = true }
-tendermint-rpc = { workspace = true, features = ["http-client"] }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 tryhard = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 tokio-util = { workspace = true, features = ["rt"] }
+tonic = { workspace = true }
 
 astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
-astria-core = { path = "../astria-core" }
+astria-core = { path = "../astria-core", features = ["client", "serde"] }
 astria-eyre = { path = "../astria-eyre" }
 celestia-client = { package = "astria-celestia-client", path = "../astria-celestia-client" }
 config = { package = "astria-config", path = "../astria-config" }
@@ -54,19 +54,22 @@ telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
 tokio-stream = "0.1.14"
 
 [dev-dependencies]
+async-trait = { workspace = true }
 celestia-mock = { package = "astria-celestia-mock", path = "../astria-celestia-mock" }
 config = { package = "astria-config", path = "../astria-config", features = [
   "tests",
 ] }
-astria-core = { path = "../astria-core", features = ["test-utils"] }
+astria-core = { path = "../astria-core", features = ["test-utils", "server"] }
 merkle = { package = "astria-merkle", path = "../astria-merkle" }
 rand_core = { version = "0.6", features = ["getrandom"] }
 reqwest = { workspace = true, features = ["json"] }
+tendermint-rpc = { workspace = true, features = ["http-client"] }
 
 jsonrpsee = { workspace = true, features = ["server"] }
 once_cell = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["test-util"] }
+tokio-stream = { version = "0.1.14", features = ["net"] }
 wiremock = { workspace = true }
 assert-json-diff = "2.0.2"
 

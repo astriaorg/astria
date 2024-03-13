@@ -14,8 +14,11 @@ use anyhow::{
 use astria_core::{
     generated::sequencer::v1alpha1 as raw,
     sequencer::v1alpha1::{
+        block::Deposit,
         transaction::Action,
         Address,
+        RollupId,
+        SequencerBlock,
         SignedTransaction,
     },
 };
@@ -63,12 +66,15 @@ use crate::{
             StateWriteExt as _,
         },
     },
-    bridge::state_ext::StateWriteExt,
+    bridge::state_ext::{
+        StateReadExt as _,
+        StateWriteExt,
+    },
     component::Component as _,
     genesis::GenesisState,
     ibc::component::IbcComponent,
     proposal::commitment::{
-        generate_sequence_actions_commitment,
+        generate_rollup_datas_commitment,
         GeneratedCommitments,
     },
     state_ext::{
@@ -107,15 +113,15 @@ pub(crate) struct App {
 
     // This is set to the executed hash of the proposal during `process_proposal`
     //
-    // If it does not match the hash given during begin_block, then we clear and
-    // reset the execution results cache + state delta. Transactions are reexecuted.
-    // If it does match we utilize cached results to reduce computation.
+    // If it does not match the hash given during `begin_block`, then we clear and
+    // reset the execution results cache + state delta. Transactions are re-executed.
+    // If it does match, we utilize cached results to reduce computation.
     //
-    // Resets to default hash at the begginning of prepare_proposal, and process_proposal if
-    // prepare_proposal was not called
+    // Resets to default hash at the beginning of `prepare_proposal`, and `process_proposal` if
+    // `prepare_proposal` was not called.
     executed_proposal_hash: Hash,
 
-    // cache of results of executing of transactions in prepare_proposal or process_proposal.
+    // cache of results of executing of transactions in `prepare_proposal` or `process_proposal`.
     // cleared at the end of each block.
     execution_result: HashMap<[u8; 32], anyhow::Result<Vec<abci::Event>>>,
 
@@ -134,6 +140,10 @@ pub(crate) struct App {
     // this is used only to determine who to transfer the block fees to
     // at the end of the block.
     current_proposer: Option<account::Id>,
+
+    // builder of the current `SequencerBlock`.
+    // initialized during `begin_block`, completed and written to state during `end_block`.
+    current_sequencer_block_builder: Option<SequencerBlockBuilder>,
 }
 
 impl App {
@@ -151,6 +161,7 @@ impl App {
             execution_result: HashMap::new(),
             processed_txs: 0,
             current_proposer: None,
+            current_sequencer_block_builder: None,
         }
     }
 
@@ -222,19 +233,25 @@ impl App {
         &mut self,
         prepare_proposal: abci::request::PrepareProposal,
         storage: Storage,
-    ) -> abci::response::PrepareProposal {
+    ) -> anyhow::Result<abci::response::PrepareProposal> {
         self.is_proposer = true;
         self.update_state_for_new_round(&storage);
 
         let (signed_txs, txs_to_include) = self.execute_block_data(prepare_proposal.txs).await;
 
-        // generate commitment to sequence::Actions and commitment to the chain IDs included in the
-        // sequence::Actions
-        let res = generate_sequence_actions_commitment(&signed_txs);
+        let deposits = self
+            .state
+            .get_block_deposits()
+            .await
+            .context("failed to get block deposits in prepare_proposal")?;
 
-        abci::response::PrepareProposal {
+        // generate commitment to sequence::Actions and deposits and commitment to the rollup IDs
+        // included in the block
+        let res = generate_rollup_datas_commitment(&signed_txs, deposits);
+
+        Ok(abci::response::PrepareProposal {
             txs: res.into_transactions(txs_to_include),
-        }
+        })
     }
 
     /// Generates a commitment to the `sequence::Actions` in the block's transactions
@@ -262,7 +279,7 @@ impl App {
         self.update_state_for_new_round(&storage);
 
         let mut txs = VecDeque::from(process_proposal.txs);
-        let received_sequence_actions_root: [u8; 32] = txs
+        let received_rollup_datas_root: [u8; 32] = txs
             .pop_front()
             .context("no transaction commitment in proposal")?
             .to_vec()
@@ -289,12 +306,18 @@ impl App {
             "transactions to be included do not match expected",
         );
 
+        let deposits = self
+            .state
+            .get_block_deposits()
+            .await
+            .context("failed to get block deposits in process_proposal")?;
+
         let GeneratedCommitments {
-            sequence_actions_root: expected_sequence_actions_root,
+            rollup_datas_root: expected_rollup_datas_root,
             rollup_ids_root: expected_rollup_ids_root,
-        } = generate_sequence_actions_commitment(&signed_txs);
+        } = generate_rollup_datas_commitment(&signed_txs, deposits);
         ensure!(
-            received_sequence_actions_root == expected_sequence_actions_root,
+            received_rollup_datas_root == expected_rollup_datas_root,
             "transaction commitment does not match expected",
         );
 
@@ -406,6 +429,9 @@ impl App {
         // set the current proposer
         self.current_proposer = Some(begin_block.header.proposer_address);
 
+        self.current_sequencer_block_builder =
+            Some(SequencerBlockBuilder::new(begin_block.header.clone()));
+
         // If we previously executed txs in a different proposal than is being processed reset
         // cached state changes.
         if self.executed_proposal_hash != begin_block.hash {
@@ -454,6 +480,14 @@ impl App {
         &mut self,
         tx: abci::request::DeliverTx,
     ) -> Option<anyhow::Result<Vec<abci::Event>>> {
+        self.current_sequencer_block_builder
+            .as_mut()
+            .expect(
+                "begin_block must be called before deliver_tx, thus \
+                 current_sequencer_block_builder must be set",
+            )
+            .push_transaction(tx.tx.to_vec());
+
         if self.processed_txs < 2 {
             self.processed_txs += 1;
             return Some(Ok(vec![]));
@@ -467,6 +501,7 @@ impl App {
 
         let signed_tx = match signed_transaction_from_bytes(&tx.tx) {
             Err(e) => {
+                // this is actually a protocol error, as only valid txs should be finalized
                 debug!(
                     error = AsRef::<dyn std::error::Error>::as_ref(&e),
                     "failed to decode deliver tx payload to signed transaction; ignoring it",
@@ -538,7 +573,7 @@ impl App {
         &mut self,
         end_block: &abci::request::EndBlock,
     ) -> anyhow::Result<abci::response::EndBlock> {
-        use crate::bridge::state_ext::StateReadExt as _;
+        use crate::api_state_ext::StateWriteExt as _;
 
         let state_tx = StateDelta::new(self.state.clone());
         let mut arc_state_tx = Arc::new(state_tx);
@@ -598,22 +633,37 @@ impl App {
         state_tx.clear_block_fees().await;
         self.current_proposer = None;
 
-        // get and clear rollup bridge deposit events
-        // TODO: we need to write these deposit events to the rollup data blob;
-        // right now these are not actually used anywhere.
-        let deposit_rollup_ids = state_tx
-            .get_deposit_rollup_ids()
+        // get and clear block deposits from state
+        let deposits = self
+            .state
+            .get_block_deposits()
             .await
-            .context("failed to get deposit rollup IDs")?;
-        let mut deposit_events = HashMap::new();
-        for rollup_id in deposit_rollup_ids {
-            let rollup_deposit_events = state_tx
-                .get_deposit_events(&rollup_id)
-                .await
-                .context("failed to get deposit events")?;
-            deposit_events.insert(rollup_id, rollup_deposit_events);
-            state_tx.clear_deposit_info(&rollup_id).await;
-        }
+            .context("failed to get block deposits in end_block")?;
+        self.current_sequencer_block_builder
+            .as_mut()
+            .expect(
+                "begin_block must be called before end_block, thus \
+                 current_sequencer_block_builder must be set",
+            )
+            .deposits(deposits);
+        state_tx
+            .clear_block_deposits()
+            .await
+            .context("failed to clear block deposits")?;
+
+        // store the `SequencerBlock` in the state
+        let sequencer_block = self
+            .current_sequencer_block_builder
+            .take()
+            .expect(
+                "begin_block must be called before end_block, thus \
+                 current_sequencer_block_builder must be set",
+            )
+            .build()
+            .context("failed to build sequencer block")?;
+        state_tx
+            .put_sequencer_block(sequencer_block)
+            .context("failed to write sequencer block to state")?;
 
         let events = self.apply(state_tx);
 
@@ -683,6 +733,36 @@ impl App {
     }
 }
 
+#[derive(Debug)]
+struct SequencerBlockBuilder {
+    header: tendermint::block::Header,
+    data: Vec<Vec<u8>>,
+    deposits: HashMap<RollupId, Vec<Deposit>>,
+}
+
+impl SequencerBlockBuilder {
+    fn new(header: tendermint::block::Header) -> Self {
+        Self {
+            header,
+            data: Vec::new(),
+            deposits: HashMap::new(),
+        }
+    }
+
+    fn push_transaction(&mut self, tx: Vec<u8>) {
+        self.data.push(tx);
+    }
+
+    fn deposits(&mut self, deposits: HashMap<RollupId, Vec<Deposit>>) {
+        self.deposits = deposits;
+    }
+
+    fn build(self) -> anyhow::Result<SequencerBlock> {
+        SequencerBlock::try_from_cometbft_header_and_data(self.header, self.data, self.deposits)
+            .map_err(Into::into)
+    }
+}
+
 fn signed_transaction_from_bytes(bytes: &[u8]) -> anyhow::Result<SignedTransaction> {
     let raw = raw::SignedTransaction::decode(bytes)
         .context("failed to decode protobuf to signed transaction")?;
@@ -705,7 +785,6 @@ mod test {
             SudoAddressChangeAction,
             TransferAction,
         },
-        RollupId,
         UnsignedTransaction,
         ADDRESS_LEN,
     };
@@ -728,7 +807,6 @@ mod test {
         accounts::action::TRANSFER_FEE,
         asset::get_native_asset,
         authority::state_ext::ValidatorSet,
-        bridge::state_ext::StateReadExt as _,
         genesis::Account,
         ibc::state_ext::StateReadExt as _,
         sequence::calculate_fee,
@@ -768,7 +846,7 @@ mod test {
             app_hash: AppHash::try_from(vec![]).unwrap(),
             chain_id: "test".to_string().try_into().unwrap(),
             consensus_hash: Hash::default(),
-            data_hash: Some(Hash::default()),
+            data_hash: Some(Hash::try_from([0u8; 32].to_vec()).unwrap()),
             evidence_hash: Some(Hash::default()),
             height: Height::default(),
             last_block_id: None,
@@ -802,7 +880,7 @@ mod test {
             ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
             ibc_params: IBCParameters::default(),
-            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
         });
 
         app.init_chain(genesis_state, genesis_validators, "test".to_string())
@@ -1156,7 +1234,7 @@ mod test {
             ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
             ibc_params: IBCParameters::default(),
-            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -1190,7 +1268,7 @@ mod test {
             ibc_sudo_address: alice_address,
             ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
-            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
             ibc_params: IBCParameters::default(),
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
@@ -1216,7 +1294,7 @@ mod test {
             ibc_sudo_address: alice_address,
             ibc_relayer_addresses: vec![alice_address],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
-            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
             ibc_params: IBCParameters::default(),
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
@@ -1242,7 +1320,7 @@ mod test {
             ibc_sudo_address: Address::from([0; 20]),
             ibc_relayer_addresses: vec![alice_address],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
-            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
             ibc_params: IBCParameters::default(),
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
@@ -1267,7 +1345,7 @@ mod test {
             ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
             ibc_params: IBCParameters::default(),
-            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -1300,7 +1378,7 @@ mod test {
             ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
             ibc_params: IBCParameters::default(),
-            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -1334,7 +1412,7 @@ mod test {
             ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
             ibc_params: IBCParameters::default(),
-            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -1368,7 +1446,10 @@ mod test {
             ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
             ibc_params: IBCParameters::default(),
-            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into(), test_asset.clone()],
+            allowed_fee_assets: vec![
+                DEFAULT_NATIVE_ASSET_DENOM.to_owned().into(),
+                test_asset.clone(),
+            ],
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -1404,7 +1485,7 @@ mod test {
             ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
             ibc_params: IBCParameters::default(),
-            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -1687,7 +1768,7 @@ mod test {
             ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
             ibc_params: IBCParameters::default(),
-            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -1760,6 +1841,9 @@ mod test {
             .put_validator_updates(ValidatorSet::new_from_updates(validator_updates.clone()))
             .unwrap();
         app.apply(state_tx);
+
+        let (_, sequencer_block_builder) = block_data_from_txs_no_sequence_actions(vec![]);
+        app.current_sequencer_block_builder = Some(sequencer_block_builder);
 
         let resp = app
             .end_block(&abci::request::EndBlock {
@@ -1837,7 +1921,7 @@ mod test {
             ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
             ibc_params: IBCParameters::default(),
-            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
         };
 
         let (mut app, storage) = initialize_app_with_storage(Some(genesis_state), vec![]).await;
@@ -1881,8 +1965,31 @@ mod test {
     async fn app_transfer_block_fees_to_proposer() {
         let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
 
+        let (alice_signing_key, _) = get_alice_signing_key_and_address();
+        let native_asset = get_native_asset().id();
+
+        // transfer funds from Alice to Bob; use native token for fee payment
+        let bob_address = address_from_hex_string(BOB_ADDRESS);
+        let amount = 333_333;
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![
+                TransferAction {
+                    to: bob_address,
+                    amount,
+                    asset_id: native_asset,
+                    fee_asset_id: get_native_asset().id(),
+                }
+                .into(),
+            ],
+        };
+
+        let signed_tx = tx.into_signed(&alice_signing_key);
+        let (header, sequencer_block_builder) =
+            block_data_from_txs_no_sequence_actions(vec![signed_tx.to_raw().encode_to_vec()]);
+
         let mut begin_block = abci::request::BeginBlock {
-            header: default_header(),
+            header,
             hash: Hash::default(),
             last_commit_info: CommitInfo {
                 votes: vec![],
@@ -1905,28 +2012,9 @@ mod test {
             begin_block.header.proposer_address
         );
 
-        let (alice_signing_key, _) = get_alice_signing_key_and_address();
-        let native_asset = get_native_asset().id();
-
-        // transfer funds from Alice to Bob; use native token for fee payment
-        let bob_address = address_from_hex_string(BOB_ADDRESS);
-        let amount = 333_333;
-        let tx = UnsignedTransaction {
-            nonce: 0,
-            actions: vec![
-                TransferAction {
-                    to: bob_address,
-                    amount,
-                    asset_id: native_asset,
-                    fee_asset_id: get_native_asset().id(),
-                }
-                .into(),
-            ],
-        };
-
-        let signed_tx = tx.into_signed(&alice_signing_key);
         app.deliver_tx(signed_tx).await.unwrap();
 
+        app.current_sequencer_block_builder = Some(sequencer_block_builder);
         app.end_block(&abci::request::EndBlock {
             height: 1u32.into(),
         })
@@ -1942,5 +2030,151 @@ mod test {
             TRANSFER_FEE,
         );
         assert_eq!(app.state.get_block_fees().await.unwrap().len(), 0);
+    }
+
+    #[tokio::test]
+    async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
+        use astria_core::sequencer::v1alpha1::{
+            block::Deposit,
+            transaction::action::BridgeLockAction,
+        };
+
+        let (alice_signing_key, _) = get_alice_signing_key_and_address();
+        let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
+
+        let bridge_address = Address::from([99; 20]);
+        let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
+        let asset_id = get_native_asset().id();
+
+        let mut state_tx = StateDelta::new(app.state.clone());
+        state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
+        state_tx
+            .put_bridge_account_asset_ids(&bridge_address, &[asset_id])
+            .unwrap();
+        app.apply(state_tx);
+
+        let amount = 100;
+        let lock_action = BridgeLockAction {
+            to: bridge_address,
+            amount,
+            asset_id,
+            fee_asset_id: asset_id,
+            destination_chain_address: "nootwashere".to_string(),
+        };
+        let sequence_action = SequenceAction {
+            rollup_id,
+            data: b"hello world".to_vec(),
+            fee_asset_id: asset_id,
+        };
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![lock_action.into(), sequence_action.into()],
+        };
+
+        let signed_tx = tx.into_signed(&alice_signing_key);
+
+        let expected_deposit = Deposit::new(
+            bridge_address,
+            rollup_id,
+            amount,
+            asset_id,
+            "nootwashere".to_string(),
+        );
+        let deposits = HashMap::from_iter(vec![(rollup_id, vec![expected_deposit.clone()])]);
+
+        let (header, commitments) =
+            block_data_from_txs_with_sequence_actions_and_deposits(&[signed_tx.clone()], deposits);
+
+        let begin_block = abci::request::BeginBlock {
+            header,
+            hash: Hash::default(),
+            last_commit_info: CommitInfo {
+                votes: vec![],
+                round: Round::default(),
+            },
+            byzantine_validators: vec![],
+        };
+        app.begin_block(&begin_block, storage).await.unwrap();
+
+        // deliver the commitments and the signed tx to simulate the
+        // action block execution and put them in the `app.current_sequencer_block_builder`
+        app.deliver_tx_after_proposal(abci::request::DeliverTx {
+            tx: commitments.rollup_datas_root.to_vec().into(),
+        })
+        .await
+        .unwrap()
+        .unwrap();
+        app.deliver_tx_after_proposal(abci::request::DeliverTx {
+            tx: commitments.rollup_ids_root.to_vec().into(),
+        })
+        .await
+        .unwrap()
+        .unwrap();
+        app.deliver_tx_after_proposal(abci::request::DeliverTx {
+            tx: signed_tx.to_raw().encode_to_vec().into(),
+        })
+        .await
+        .unwrap()
+        .unwrap();
+        let deposits = app.state.get_deposit_events(&rollup_id).await.unwrap();
+        assert_eq!(deposits.len(), 1);
+        assert_eq!(deposits[0], expected_deposit);
+
+        app.end_block(&abci::request::EndBlock {
+            height: 1u32.into(),
+        })
+        .await
+        .unwrap();
+
+        // ensure deposits are cleared at the end of the block
+        let deposit_events = app.state.get_deposit_events(&rollup_id).await.unwrap();
+        assert_eq!(deposit_events.len(), 0);
+    }
+
+    fn block_data_from_txs_no_sequence_actions(
+        txs: Vec<Vec<u8>>,
+    ) -> (Header, SequencerBlockBuilder) {
+        let empty_hash = merkle::Tree::from_leaves(Vec::<Vec<u8>>::new()).root();
+        let mut block_data = vec![empty_hash.to_vec(), empty_hash.to_vec()];
+        block_data.extend(txs);
+
+        let data_hash = merkle::Tree::from_leaves(block_data.iter().map(Sha256::digest)).root();
+        let mut header = default_header();
+        header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
+
+        let mut sequencer_block_builder = SequencerBlockBuilder::new(header.clone());
+        for tx in block_data {
+            sequencer_block_builder.push_transaction(tx);
+        }
+        (header, sequencer_block_builder)
+    }
+
+    fn block_data_from_txs_with_sequence_actions_and_deposits(
+        txs: &[SignedTransaction],
+        deposits: HashMap<RollupId, Vec<Deposit>>,
+    ) -> (Header, GeneratedCommitments) {
+        let GeneratedCommitments {
+            rollup_datas_root,
+            rollup_ids_root,
+        } = generate_rollup_datas_commitment(txs, deposits.clone());
+        let mut block_data = vec![rollup_datas_root.to_vec(), rollup_ids_root.to_vec()];
+        block_data.extend(txs.iter().map(|tx| tx.to_raw().encode_to_vec()));
+
+        let data_hash = merkle::Tree::from_leaves(block_data.iter().map(Sha256::digest)).root();
+        let mut header = default_header();
+        header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
+
+        let mut sequencer_block_builder = SequencerBlockBuilder::new(header.clone());
+        for tx in block_data {
+            sequencer_block_builder.push_transaction(tx);
+        }
+        sequencer_block_builder.deposits = deposits;
+        (
+            header,
+            GeneratedCommitments {
+                rollup_datas_root,
+                rollup_ids_root,
+            },
+        )
     }
 }

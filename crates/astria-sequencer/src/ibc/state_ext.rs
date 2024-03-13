@@ -1,4 +1,5 @@
 use anyhow::{
+    bail,
     Context,
     Result,
 };
@@ -68,11 +69,11 @@ pub(crate) trait StateReadExt: StateRead {
             .context("failed reading raw ibc sudo key from state")?
         else {
             // ibc sudo key must be set
-            return Err(anyhow::anyhow!("ibc sudo key not found"));
+            bail!("ibc sudo key not found");
         };
         let SudoAddress(address) =
             SudoAddress::try_from_slice(&bytes).context("invalid ibc sudo key bytes")?;
-        Ok(Address(address))
+        Ok(Address::from(address))
     }
 
     #[instrument(skip(self))]
@@ -96,9 +97,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         asset: asset::Id,
         balance: u128,
     ) -> Result<()> {
-        let bytes = Balance(balance)
-            .try_to_vec()
-            .context("failed to serialize balance")?;
+        let bytes = borsh::to_vec(&Balance(balance)).context("failed to serialize balance")?;
         self.put_raw(channel_balance_storage_key(channel, asset), bytes);
         Ok(())
     }
@@ -107,8 +106,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     fn put_ibc_sudo_address(&mut self, address: Address) -> Result<()> {
         self.put_raw(
             IBC_SUDO_STORAGE_KEY.to_string(),
-            SudoAddress(address.0)
-                .try_to_vec()
+            borsh::to_vec(&SudoAddress(address.get()))
                 .context("failed to convert sudo address to vec")?,
         );
         Ok(())

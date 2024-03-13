@@ -3,7 +3,6 @@ use std::process::ExitCode;
 use astria_eyre::eyre::WrapErr as _;
 use astria_sequencer_relayer::{
     metrics_init,
-    telemetry,
     Config,
     SequencerRelayer,
     BUILD_INFO,
@@ -43,7 +42,7 @@ async fn main() -> ExitCode {
     }
 
     info!(
-        config = serde_json::to_string(&cfg).expect("serializing to a string cannot fail"),
+        config = %telemetry::display::json(&cfg),
         "initializing sequencer relayer"
     );
 

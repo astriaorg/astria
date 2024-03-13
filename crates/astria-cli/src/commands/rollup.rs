@@ -116,7 +116,7 @@ pub(crate) async fn create_config(args: &ConfigCreateArgs) -> eyre::Result<()> {
             .await
             .wrap_err("failed to get sequencer block for initial sequencer height")?;
 
-        let new_height: u64 = res.header().height.into();
+        let new_height: u64 = res.header().cometbft_header().height.into();
         conf.sequencer_initial_block_height = Some(new_height);
     }
 

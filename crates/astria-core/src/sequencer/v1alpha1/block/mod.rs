@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use indexmap::IndexMap;
 use sha2::Sha256;
 use transaction::SignedTransaction;
@@ -55,14 +57,24 @@ enum RollupTransactionsErrorKind {
     ProofInvalid(#[source] merkle::audit::InvalidProof),
 }
 
+/// The individual parts that make up a [`RollupTransactions`] type.
+///
+/// Provides convenient access to the fields of [`RollupTransactions`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct RollupTransactionsParts {
+    pub id: RollupId,
+    pub transactions: Vec<Vec<u8>>,
+    pub proof: merkle::Proof,
+}
+
 /// The opaque transactions belonging to a rollup identified by its rollup ID.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RollupTransactions {
     /// The 32 bytes identifying a rollup. Usually the sha256 hash of a plain rollup name.
     id: RollupId,
-    /// The serialized opaque bytes of the rollup transactions.
+    /// The block data for this rollup in the form of encoded [`RollupData`].
     transactions: Vec<Vec<u8>>,
-    /// Proof that this set of transactions belongs in the `sequence::Action` merkle tree
+    /// Proof that this set of transactions belongs in the rollup datas merkle tree
     proof: merkle::Proof,
 }
 
@@ -73,7 +85,7 @@ impl RollupTransactions {
         self.id
     }
 
-    /// Returns the opaque transactions bytes.
+    /// Returns the block data for this rollup.
     #[must_use]
     pub fn transactions(&self) -> &[Vec<u8>] {
         &self.transactions
@@ -126,9 +138,19 @@ impl RollupTransactions {
         })
     }
 
+    /// Convert [`RollupTransactions`] into [`RollupTransactionsParts`].
     #[must_use]
-    pub fn into_values(self) -> (RollupId, Vec<Vec<u8>>, merkle::Proof) {
-        (self.id, self.transactions, self.proof)
+    pub fn into_parts(self) -> RollupTransactionsParts {
+        let Self {
+            id,
+            transactions,
+            proof,
+        } = self;
+        RollupTransactionsParts {
+            id,
+            transactions,
+            proof,
+        }
     }
 }
 
@@ -149,8 +171,8 @@ impl SequencerBlockError {
         Self(SequencerBlockErrorKind::FieldNotSet(field))
     }
 
-    fn cometbft_header(source: tendermint::Error) -> Self {
-        Self(SequencerBlockErrorKind::CometBftHeader(source))
+    fn header(source: SequencerBlockHeaderError) -> Self {
+        Self(SequencerBlockErrorKind::Header(source))
     }
 
     fn parse_rollup_transactions(source: RollupTransactionsError) -> Self {
@@ -189,7 +211,7 @@ impl SequencerBlockError {
         Self(SequencerBlockErrorKind::RollupIdsNotInSequencerBlock)
     }
 
-    fn signed_transaction_prootbof_decode(source: prost::DecodeError) -> Self {
+    fn signed_transaction_protobuf_decode(source: prost::DecodeError) -> Self {
         Self(SequencerBlockErrorKind::SignedTransactionProtobufDecode(
             source,
         ))
@@ -208,6 +230,14 @@ impl SequencerBlockError {
     fn rollup_ids_root_does_not_match_reconstructed() -> Self {
         Self(SequencerBlockErrorKind::RollupIdsRootDoesNotMatchReconstructed)
     }
+
+    fn invalid_rollup_transactions_root() -> Self {
+        Self(SequencerBlockErrorKind::InvalidRollupTransactionsRoot)
+    }
+
+    fn invalid_rollup_ids_root() -> Self {
+        Self(SequencerBlockErrorKind::InvalidRollupIdsRoot)
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -221,8 +251,8 @@ enum SequencerBlockErrorKind {
     CometBftBlockHashIsNone,
     #[error("the expected field in the raw source type was not set: `{0}`")]
     FieldNotSet(&'static str),
-    #[error("failed creating a native cometbft Header from the raw protobuf header")]
-    CometBftHeader(#[source] tendermint::Error),
+    #[error("failed constructing a sequencer block header from the raw protobuf header")]
+    Header(#[source] SequencerBlockHeaderError),
     #[error(
         "failed parsing a raw protobuf rollup transaction because it contained an invalid rollup \
          ID"
@@ -279,30 +309,165 @@ enum SequencerBlockErrorKind {
          root stored in the same block.data field"
     )]
     RollupIdsRootDoesNotMatchReconstructed,
+    #[error(
+        "the rollup transactions root in the header did not verify against data_hash given the \
+         rollup transactions proof"
+    )]
+    InvalidRollupTransactionsRoot,
+    #[error(
+        "the rollup IDs root in the header did not verify against data_hash given the rollup IDs \
+         proof"
+    )]
+    InvalidRollupIdsRoot,
 }
 
-/// A shadow of [`SequencerBlock`] with full public access to its fields.
+/// The individual parts that make up a [`SequencerBlockHeader`].
 ///
-/// This type does not guarantee any invariants and is mainly useful to get
-/// access the sequencer block's internal types.
+/// This type exists to provide convenient access to the fields of
+/// a `[SequencerBlockHeader]`.
+#[derive(Debug)]
+pub struct SequencerBlockHeaderParts {
+    pub cometbft_header: tendermint::block::header::Header,
+    pub rollup_transactions_root: [u8; 32],
+    pub rollup_ids_root: [u8; 32],
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SequencerBlockHeader {
+    // the cometbft header for this sequencer block
+    cometbft_header: tendermint::block::header::Header,
+    // the 32-byte merkle root of all the rollup transactions in the block
+    rollup_transactions_root: [u8; 32],
+    // the 32-byte merkle root of all the rollup IDs in the block
+    rollup_ids_root: [u8; 32],
+}
+
+impl SequencerBlockHeader {
+    #[must_use]
+    pub fn cometbft_header(&self) -> &tendermint::block::header::Header {
+        &self.cometbft_header
+    }
+
+    #[must_use]
+    pub fn rollup_transactions_root(&self) -> [u8; 32] {
+        self.rollup_transactions_root
+    }
+
+    #[must_use]
+    pub fn rollup_ids_root(&self) -> [u8; 32] {
+        self.rollup_ids_root
+    }
+
+    /// Convert [`SequencerBlockHeader`] into its [`SequencerBlockHeaderParts`].
+    #[must_use]
+    pub fn into_parts(self) -> SequencerBlockHeaderParts {
+        let Self {
+            cometbft_header,
+            rollup_transactions_root,
+            rollup_ids_root,
+        } = self;
+        SequencerBlockHeaderParts {
+            cometbft_header,
+            rollup_transactions_root,
+            rollup_ids_root,
+        }
+    }
+
+    #[must_use]
+    pub fn into_raw(self) -> raw::SequencerBlockHeader {
+        raw::SequencerBlockHeader {
+            cometbft_header: Some(self.cometbft_header.into()),
+            rollup_transactions_root: self.rollup_transactions_root.to_vec(),
+            rollup_ids_root: self.rollup_ids_root.to_vec(),
+        }
+    }
+
+    /// Attempts to transform the sequencer block header from its raw representation.
+    ///
+    /// # Errors
+    ///
+    /// - If the `cometbft_header` field is not set.
+    /// - If the `cometbft_header` field cannot be converted.
+    /// - If the `rollup_transactions_root` field is not 32 bytes long.
+    /// - If the `rollup_ids_root` field is not 32 bytes long.
+    pub fn try_from_raw(raw: raw::SequencerBlockHeader) -> Result<Self, SequencerBlockHeaderError> {
+        let raw::SequencerBlockHeader {
+            cometbft_header,
+            rollup_transactions_root,
+            rollup_ids_root,
+        } = raw;
+        let Some(cometbft_header) = cometbft_header else {
+            return Err(SequencerBlockHeaderError::field_not_set("cometbft_header"));
+        };
+        let cometbft_header = tendermint::block::header::Header::try_from(cometbft_header)
+            .map_err(SequencerBlockHeaderError::cometbft_header)?;
+
+        let rollup_transactions_root =
+            rollup_transactions_root.try_into().map_err(|e: Vec<_>| {
+                SequencerBlockHeaderError::incorrect_rollup_transactions_root_length(e.len())
+            })?;
+        let rollup_ids_root = rollup_ids_root.try_into().map_err(|e: Vec<_>| {
+            SequencerBlockHeaderError::incorrect_rollup_ids_root_length(e.len())
+        })?;
+        Ok(Self {
+            cometbft_header,
+            rollup_transactions_root,
+            rollup_ids_root,
+        })
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct SequencerBlockHeaderError(SequencerBlockHeaderErrorKind);
+
+impl SequencerBlockHeaderError {
+    fn field_not_set(field: &'static str) -> Self {
+        Self(SequencerBlockHeaderErrorKind::FieldNotSet(field))
+    }
+
+    fn cometbft_header(source: tendermint::Error) -> Self {
+        Self(SequencerBlockHeaderErrorKind::CometBftHeader(source))
+    }
+
+    fn incorrect_rollup_transactions_root_length(len: usize) -> Self {
+        Self(SequencerBlockHeaderErrorKind::IncorrectRollupTransactionsRootLength(len))
+    }
+
+    fn incorrect_rollup_ids_root_length(len: usize) -> Self {
+        Self(SequencerBlockHeaderErrorKind::IncorrectRollupIdsRootLength(
+            len,
+        ))
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum SequencerBlockHeaderErrorKind {
+    #[error("the expected field in the raw source type was not set: `{0}`")]
+    FieldNotSet(&'static str),
+    #[error("failed to create a cometbft header from the raw protobuf header")]
+    CometBftHeader(#[source] tendermint::Error),
+    #[error(
+        "the rollup transaction root in the cometbft block.data field was expected to be 32 bytes \
+         long, but was actually `{0}`"
+    )]
+    IncorrectRollupTransactionsRootLength(usize),
+    #[error(
+        "the rollup ID root in the cometbft block.data field was expected to be 32 bytes long, \
+         but was actually `{0}`"
+    )]
+    IncorrectRollupIdsRootLength(usize),
+}
+
+/// The individual parts that make up a [`SequencerBlock`].
+///
+/// Exists to provide convenient access to fields of a [`SequencerBlock`].
 #[derive(Clone, Debug, PartialEq)]
 #[allow(clippy::module_name_repetitions)]
-pub struct UncheckedSequencerBlock {
-    /// The original `CometBFT` header that was the input to this sequencer block.
-    pub header: tendermint::block::header::Header,
-    /// The collection of rollup transactions that were included in this block.
+pub struct SequencerBlockParts {
+    pub header: SequencerBlockHeader,
     pub rollup_transactions: IndexMap<RollupId, RollupTransactions>,
-    // The proof that the rollup transactions are included in the `CometBFT` block this
-    // sequencer block is derived form. This proof together with
-    // `Sha256(MTH(rollup_transactions))` must match `header.data_hash`.
-    // `MTH(rollup_transactions)` is the Merkle Tree Hash derived from the
-    // rollup transactions.
     pub rollup_transactions_proof: merkle::Proof,
-    // The proof that the rollup IDs listed in `rollup_transactions` are included
-    // in the `CometBFT` block this sequencer block is derived form. This proof together
-    // with `Sha256(MTH(rollup_ids))` must match `header.data_hash`.
-    // `MTH(rollup_ids)` is the Merkle Tree Hash derived from the rollup IDs listed in
-    // the rollup transactions.
     pub rollup_ids_proof: merkle::Proof,
 }
 
@@ -311,11 +476,12 @@ pub struct UncheckedSequencerBlock {
 #[derive(Clone, Debug, PartialEq)]
 #[allow(clippy::module_name_repetitions)]
 pub struct SequencerBlock {
-    /// The result of hashing `header`. Guaranteed to not be `None` as compared to
+    /// The result of hashing the cometbft header. Guaranteed to not be `None` as compared to
     /// the cometbft/tendermint-rs return type.
     block_hash: [u8; 32],
-    /// The original `CometBFT` header that was the input to this sequencer block.
-    header: tendermint::block::header::Header,
+    /// the block header, which contains the cometbft header and additional sequencer-specific
+    /// commitments.
+    header: SequencerBlockHeader,
     /// The collection of rollup transactions that were included in this block.
     rollup_transactions: IndexMap<RollupId, RollupTransactions>,
     // The proof that the rollup transactions are included in the `CometBFT` block this
@@ -342,19 +508,37 @@ impl SequencerBlock {
     }
 
     #[must_use]
-    pub fn header(&self) -> &tendermint::block::header::Header {
+    pub fn header(&self) -> &SequencerBlockHeader {
         &self.header
     }
 
     /// The height stored in this sequencer block.
     #[must_use]
     pub fn height(&self) -> tendermint::block::Height {
-        self.header.height
+        self.header.cometbft_header.height
     }
 
     #[must_use]
     pub fn rollup_transactions(&self) -> &IndexMap<RollupId, RollupTransactions> {
         &self.rollup_transactions
+    }
+
+    /// Converst a [`SequencerBlock`] into its [`SequencerBlockParts`].
+    #[must_use]
+    pub fn into_parts(self) -> SequencerBlockParts {
+        let Self {
+            header,
+            rollup_transactions,
+            rollup_transactions_proof,
+            rollup_ids_proof,
+            ..
+        } = self;
+        SequencerBlockParts {
+            header,
+            rollup_transactions,
+            rollup_transactions_proof,
+            rollup_ids_proof,
+        }
     }
 
     /// Returns the map of rollup transactions, consuming `self`.
@@ -373,7 +557,7 @@ impl SequencerBlock {
             ..
         } = self;
         raw::SequencerBlock {
-            header: Some(header.into()),
+            header: Some(header.into_raw()),
             rollup_transactions: rollup_transactions
                 .into_values()
                 .map(RollupTransactions::into_raw)
@@ -384,24 +568,38 @@ impl SequencerBlock {
     }
 
     #[must_use]
-    pub fn into_unchecked(self) -> UncheckedSequencerBlock {
-        let Self {
-            header,
-            rollup_transactions,
-            rollup_transactions_proof,
-            rollup_ids_proof,
-            ..
-        } = self;
-        UncheckedSequencerBlock {
-            header,
-            rollup_transactions,
-            rollup_transactions_proof,
-            rollup_ids_proof,
+    pub fn into_filtered_block<I, R>(mut self, rollup_ids: I) -> FilteredSequencerBlock
+    where
+        I: IntoIterator<Item = R>,
+        RollupId: From<R>,
+    {
+        let all_rollup_ids: Vec<RollupId> = self.rollup_transactions.keys().copied().collect();
+
+        let mut filtered_rollup_transactions = IndexMap::new();
+        for id in rollup_ids {
+            let id = id.into();
+            if let Some(rollup_transactions) = self.rollup_transactions.shift_remove(&id) {
+                filtered_rollup_transactions.insert(id, rollup_transactions);
+            };
+        }
+
+        FilteredSequencerBlock {
+            block_hash: self.block_hash,
+            cometbft_header: self.header.cometbft_header,
+            rollup_transactions: filtered_rollup_transactions,
+            rollup_transactions_root: self.header.rollup_transactions_root,
+            rollup_transactions_proof: self.rollup_transactions_proof,
+            all_rollup_ids,
+            rollup_ids_proof: self.rollup_ids_proof,
         }
     }
 
     #[must_use]
-    pub fn into_filtered_block(mut self, rollup_ids: Vec<RollupId>) -> FilteredSequencerBlock {
+    pub fn to_filtered_block<I, R>(&self, rollup_ids: I) -> FilteredSequencerBlock
+    where
+        I: IntoIterator<Item = R>,
+        RollupId: From<R>,
+    {
         let all_rollup_ids: Vec<RollupId> = self.rollup_transactions.keys().copied().collect();
 
         // recreate the whole rollup tx tree so that we can get the root, as it's not stored
@@ -413,22 +611,22 @@ impl SequencerBlock {
                 .map(|(id, txs)| (id, txs.transactions())),
         );
 
-        let mut filtered_rollup_transactions = IndexMap::with_capacity(rollup_ids.len());
+        let mut filtered_rollup_transactions = IndexMap::new();
         for id in rollup_ids {
-            let Some(rollup_transactions) = self.rollup_transactions.shift_remove(&id) else {
-                continue;
+            let id = id.into();
+            if let Some(rollup_transactions) = self.rollup_transactions.get(&id).cloned() {
+                filtered_rollup_transactions.insert(id, rollup_transactions);
             };
-            filtered_rollup_transactions.insert(id, rollup_transactions);
         }
 
         FilteredSequencerBlock {
             block_hash: self.block_hash,
-            header: self.header,
+            cometbft_header: self.header.cometbft_header.clone(),
             rollup_transactions: filtered_rollup_transactions,
             rollup_transactions_root: rollup_transaction_tree.root(),
-            rollup_transactions_proof: self.rollup_transactions_proof,
+            rollup_transactions_proof: self.rollup_transactions_proof.clone(),
             all_rollup_ids,
-            rollup_ids_proof: self.rollup_ids_proof,
+            rollup_ids_proof: self.rollup_ids_proof.clone(),
         }
     }
 
@@ -445,21 +643,42 @@ impl SequencerBlock {
     /// TODO(https://github.com/astriaorg/astria/issues/612)
     #[allow(clippy::missing_panics_doc)] // the panic sources are checked before hand; revisit if refactoring
     pub fn try_from_cometbft(block: tendermint::Block) -> Result<Self, SequencerBlockError> {
-        use prost::Message as _;
-
         let tendermint::Block {
             header,
             data,
             ..
         } = block;
 
-        let Some(tendermint::Hash::Sha256(data_hash)) = header.data_hash else {
+        // TODO: see https://github.com/astriaorg/astria/issues/774#issuecomment-1981584681
+        // deposits are not included in a block pulled from cometbft, so they don't match what's
+        // stored in the sequencer any more.
+        // this function can be removed after relayer/conductor are updated to use the sequencer
+        // API.
+        Self::try_from_cometbft_header_and_data(header, data, HashMap::new())
+    }
+
+    /// Converts from a [`tendermint::block::Header`] and the block data.
+    ///
+    /// # Errors
+    /// TODO(https://github.com/astriaorg/astria/issues/612)
+    ///
+    /// # Panics
+    ///
+    /// - if a rollup data merkle proof cannot be constructed.
+    pub fn try_from_cometbft_header_and_data(
+        cometbft_header: tendermint::block::Header,
+        data: Vec<Vec<u8>>,
+        deposits: HashMap<RollupId, Vec<Deposit>>,
+    ) -> Result<Self, SequencerBlockError> {
+        use prost::Message as _;
+
+        let Some(tendermint::Hash::Sha256(data_hash)) = cometbft_header.data_hash else {
             // header.data_hash is Option<Hash> and Hash itself has
             // variants Sha256([u8; 32]) or None.
             return Err(SequencerBlockError::field_not_set("header.data_hash"));
         };
 
-        let tendermint::Hash::Sha256(block_hash) = header.hash() else {
+        let tendermint::Hash::Sha256(block_hash) = cometbft_header.hash() else {
             return Err(SequencerBlockError::comet_bft_block_hash_is_none());
         };
 
@@ -483,10 +702,10 @@ impl SequencerBlock {
             .try_into()
             .map_err(|e: Vec<_>| SequencerBlockError::incorrect_rollup_ids_root_length(e.len()))?;
 
-        let mut rollup_base_transactions = IndexMap::new();
+        let mut rollup_datas = IndexMap::new();
         for elem in data_list {
             let raw_tx = raw::SignedTransaction::decode(&*elem)
-                .map_err(SequencerBlockError::signed_transaction_prootbof_decode)?;
+                .map_err(SequencerBlockError::signed_transaction_protobuf_decode)?;
             let signed_tx = SignedTransaction::try_from_raw(raw_tx)
                 .map_err(SequencerBlockError::raw_signed_transaction_conversion)?;
             for action in signed_tx.into_unsigned().actions {
@@ -496,19 +715,31 @@ impl SequencerBlock {
                     fee_asset_id: _,
                 }) = action
                 {
-                    let elem = rollup_base_transactions.entry(rollup_id).or_insert(vec![]);
+                    let elem = rollup_datas.entry(rollup_id).or_insert(vec![]);
+                    let data = RollupData::SequencedData(data).into_raw().encode_to_vec();
                     elem.push(data);
                 }
             }
         }
-        rollup_base_transactions.sort_unstable_keys();
+        for (id, deposits) in deposits {
+            rollup_datas.entry(id).or_default().extend(
+                deposits
+                    .into_iter()
+                    .map(|deposit| RollupData::Deposit(deposit).into_raw().encode_to_vec()),
+            );
+        }
+
+        // XXX: The rollup data must be sorted by its keys before constructing the merkle tree.
+        // Since it's constructed from non-deterministically ordered sources, there is otherwise no
+        // guarantee that the same data will give the root.
+        rollup_datas.sort_unstable_keys();
 
         // ensure the rollup IDs commitment matches the one calculated from the rollup data
-        if rollup_ids_root != merkle::Tree::from_leaves(rollup_base_transactions.keys()).root() {
+        if rollup_ids_root != merkle::Tree::from_leaves(rollup_datas.keys()).root() {
             return Err(SequencerBlockError::rollup_ids_root_does_not_match_reconstructed());
         }
 
-        let rollup_transaction_tree = derive_merkle_tree_from_rollup_txs(&rollup_base_transactions);
+        let rollup_transaction_tree = derive_merkle_tree_from_rollup_txs(&rollup_datas);
         if rollup_transactions_root != rollup_transaction_tree.root() {
             return Err(
                 SequencerBlockError::rollup_transactions_root_does_not_match_reconstructed(),
@@ -516,7 +747,7 @@ impl SequencerBlock {
         }
 
         let mut rollup_transactions = IndexMap::new();
-        for (i, (id, transactions)) in rollup_base_transactions.into_iter().enumerate() {
+        for (i, (id, data)) in rollup_datas.into_iter().enumerate() {
             let proof = rollup_transaction_tree
                 .construct_proof(i)
                 .expect("the proof must exist because the tree was derived with the same leaf");
@@ -524,7 +755,7 @@ impl SequencerBlock {
                 id,
                 RollupTransactions {
                     id,
-                    transactions,
+                    transactions: data, // TODO: rename this field?
                     proof,
                 },
             );
@@ -544,7 +775,11 @@ impl SequencerBlock {
 
         Ok(Self {
             block_hash,
-            header,
+            header: SequencerBlockHeader {
+                cometbft_header,
+                rollup_transactions_root,
+                rollup_ids_root,
+            },
             rollup_transactions,
             rollup_transactions_proof,
             rollup_ids_proof,
@@ -556,6 +791,8 @@ impl SequencerBlock {
     /// # Errors
     /// TODO(https://github.com/astriaorg/astria/issues/612)
     pub fn try_from_raw(raw: raw::SequencerBlock) -> Result<Self, SequencerBlockError> {
+        use sha2::Digest as _;
+
         fn rollup_txs_to_tuple(
             raw: raw::RollupTransactions,
         ) -> Result<(RollupId, RollupTransactions), RollupTransactionsError> {
@@ -590,16 +827,15 @@ impl SequencerBlock {
             let Some(header) = header else {
                 break 'header Err(SequencerBlockError::field_not_set("header"));
             };
-            tendermint::block::Header::try_from(header)
-                .map_err(SequencerBlockError::cometbft_header)
+            SequencerBlockHeader::try_from_raw(header).map_err(SequencerBlockError::header)
         }?;
-        let tendermint::Hash::Sha256(block_hash) = header.hash() else {
+        let tendermint::Hash::Sha256(block_hash) = header.cometbft_header.hash() else {
             return Err(SequencerBlockError::comet_bft_block_hash_is_none());
         };
 
         // header.data_hash is Option<Hash> and Hash itself has
         // variants Sha256([u8; 32]) or None.
-        let Some(tendermint::Hash::Sha256(data_hash)) = header.data_hash else {
+        let Some(tendermint::Hash::Sha256(data_hash)) = header.cometbft_header.data_hash else {
             return Err(SequencerBlockError::field_not_set("header.data_hash"));
         };
 
@@ -608,6 +844,16 @@ impl SequencerBlock {
             .map(rollup_txs_to_tuple)
             .collect::<Result<_, _>>()
             .map_err(SequencerBlockError::parse_rollup_transactions)?;
+
+        if !rollup_transactions_proof
+            .verify(&Sha256::digest(header.rollup_transactions_root), data_hash)
+        {
+            return Err(SequencerBlockError::invalid_rollup_transactions_root());
+        };
+
+        if !rollup_ids_proof.verify(&Sha256::digest(header.rollup_ids_root), data_hash) {
+            return Err(SequencerBlockError::invalid_rollup_ids_root());
+        };
 
         if !are_rollup_txs_included(&rollup_transactions, &rollup_transactions_proof, data_hash) {
             return Err(SequencerBlockError::rollup_transactions_not_in_sequencer_block());
@@ -644,11 +890,31 @@ where
     merkle::Tree::from_leaves(iter.into_iter().map(|item| Sha256::digest(&item)))
 }
 
+/// The individual parts that make up a [`FilteredSequencerBlock`].
+///
+/// Exists to provide convenient access to fields of a [`FilteredSequencerBlock`].
+#[derive(Debug, Clone, PartialEq)]
+#[allow(clippy::module_name_repetitions)]
+pub struct FilteredSequencerBlockParts {
+    pub block_hash: [u8; 32],
+    pub cometbft_header: tendermint::block::header::Header,
+    // filtered set of rollup transactions
+    pub rollup_transactions: IndexMap<RollupId, RollupTransactions>,
+    // root of the rollup transactions tree
+    pub rollup_transactions_root: [u8; 32],
+    // proof that `rollup_transactions_root` is included in `data_hash`
+    pub rollup_transactions_proof: merkle::Proof,
+    // all rollup ids in the sequencer block
+    pub all_rollup_ids: Vec<RollupId>,
+    // proof that `rollup_ids` is included in `data_hash`
+    pub rollup_ids_proof: merkle::Proof,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 #[allow(clippy::module_name_repetitions)]
 pub struct FilteredSequencerBlock {
     block_hash: [u8; 32],
-    header: tendermint::block::header::Header,
+    cometbft_header: tendermint::block::header::Header,
     // filtered set of rollup transactions
     rollup_transactions: IndexMap<RollupId, RollupTransactions>,
     // root of the rollup transactions tree
@@ -668,13 +934,13 @@ impl FilteredSequencerBlock {
     }
 
     #[must_use]
-    pub fn header(&self) -> &tendermint::block::header::Header {
-        &self.header
+    pub fn cometbft_header(&self) -> &tendermint::block::header::Header {
+        &self.cometbft_header
     }
 
     #[must_use]
     pub fn height(&self) -> tendermint::block::Height {
-        self.header.height
+        self.cometbft_header.height
     }
 
     #[must_use]
@@ -705,14 +971,14 @@ impl FilteredSequencerBlock {
     #[must_use]
     pub fn into_raw(self) -> raw::FilteredSequencerBlock {
         let Self {
-            header,
+            cometbft_header,
             rollup_transactions,
             rollup_transactions_proof,
             rollup_ids_proof,
             ..
         } = self;
         raw::FilteredSequencerBlock {
-            header: Some(header.into()),
+            cometbft_header: Some(cometbft_header.into()),
             rollup_transactions: rollup_transactions
                 .into_values()
                 .map(RollupTransactions::into_raw)
@@ -754,7 +1020,7 @@ impl FilteredSequencerBlock {
         }
 
         let raw::FilteredSequencerBlock {
-            header,
+            cometbft_header,
             rollup_transactions,
             rollup_transactions_root,
             rollup_transactions_proof,
@@ -780,20 +1046,22 @@ impl FilteredSequencerBlock {
             merkle::Proof::try_from_raw(rollup_ids_proof)
                 .map_err(FilteredSequencerBlockError::id_proof_invalid)
         }?;
-        let header = {
-            let Some(header) = header else {
-                return Err(FilteredSequencerBlockError::field_not_set("header"));
+        let cometbft_header = {
+            let Some(cometbft_header) = cometbft_header else {
+                return Err(FilteredSequencerBlockError::field_not_set(
+                    "cometbft_header",
+                ));
             };
-            tendermint::block::Header::try_from(header)
+            tendermint::block::Header::try_from(cometbft_header)
                 .map_err(FilteredSequencerBlockError::cometbft_header)
         }?;
-        let tendermint::Hash::Sha256(block_hash) = header.hash() else {
+        let tendermint::Hash::Sha256(block_hash) = cometbft_header.hash() else {
             return Err(FilteredSequencerBlockError::comet_bft_block_hash_is_none());
         };
 
         // header.data_hash is Option<Hash> and Hash itself has
         // variants Sha256([u8; 32]) or None.
-        let Some(tendermint::Hash::Sha256(data_hash)) = header.data_hash else {
+        let Some(tendermint::Hash::Sha256(data_hash)) = cometbft_header.data_hash else {
             return Err(FilteredSequencerBlockError::field_not_set(
                 "header.data_hash",
             ));
@@ -841,7 +1109,7 @@ impl FilteredSequencerBlock {
 
         Ok(Self {
             block_hash,
-            header,
+            cometbft_header,
             rollup_transactions,
             rollup_transactions_root,
             rollup_transactions_proof,
@@ -849,9 +1117,33 @@ impl FilteredSequencerBlock {
             rollup_ids_proof,
         })
     }
+
+    /// Transforms the filtered blocks into its constitutent parts.
+    #[must_use]
+    pub fn into_parts(self) -> FilteredSequencerBlockParts {
+        let Self {
+            block_hash,
+            cometbft_header,
+            rollup_transactions,
+            rollup_transactions_root,
+            rollup_transactions_proof,
+            all_rollup_ids,
+            rollup_ids_proof,
+        } = self;
+        FilteredSequencerBlockParts {
+            block_hash,
+            cometbft_header,
+            rollup_transactions,
+            rollup_transactions_root,
+            rollup_transactions_proof,
+            all_rollup_ids,
+            rollup_ids_proof,
+        }
+    }
 }
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
 pub struct FilteredSequencerBlockError(FilteredSequencerBlockErrorKind);
 
 #[derive(Debug, thiserror::Error)]
@@ -1016,7 +1308,7 @@ impl Deposit {
             bridge_address: bridge_address.to_vec(),
             rollup_id: rollup_id.to_vec(),
             amount: Some(amount.into()),
-            asset_id: asset_id.as_bytes().to_vec(),
+            asset_id: asset_id.get().to_vec(),
             destination_chain_address,
         }
     }
@@ -1079,11 +1371,79 @@ impl DepositError {
 #[derive(Debug, thiserror::Error)]
 enum DepositErrorKind {
     #[error("the address length is not 20 bytes")]
-    IncorrectAddressLength(#[from] IncorrectAddressLength),
+    IncorrectAddressLength(#[source] IncorrectAddressLength),
     #[error("the expected field in the raw source type was not set: `{0}`")]
     FieldNotSet(&'static str),
     #[error("the rollup ID length is not 32 bytes")]
-    IncorrectRollupIdLength(#[from] IncorrectRollupIdLength),
+    IncorrectRollupIdLength(#[source] IncorrectRollupIdLength),
     #[error("the asset ID length is not 32 bytes")]
-    IncorrectAssetIdLength(#[from] asset::IncorrectAssetIdLength),
+    IncorrectAssetIdLength(#[source] asset::IncorrectAssetIdLength),
+}
+
+/// A piece of data that is sent to a rollup execution node.
+///
+/// The data can be either sequenced data (originating from a [`SequenceAction`]
+/// submitted by a user) or a [`Deposit`] originating from a [`BridgeLockAction`].
+///
+/// The rollup node receives this type as opaque, protobuf-encoded bytes from conductor,
+/// and must decode it accordingly.
+#[derive(Debug, Clone, PartialEq)]
+pub enum RollupData {
+    SequencedData(Vec<u8>),
+    Deposit(Deposit),
+}
+
+impl RollupData {
+    #[must_use]
+    pub fn into_raw(self) -> raw::RollupData {
+        match self {
+            Self::SequencedData(data) => raw::RollupData {
+                value: Some(raw::rollup_data::Value::SequencedData(data)),
+            },
+            Self::Deposit(deposit) => raw::RollupData {
+                value: Some(raw::rollup_data::Value::Deposit(deposit.into_raw())),
+            },
+        }
+    }
+
+    /// Attempts to transform the `RollupData` from its raw representation.
+    ///
+    /// # Errors
+    ///
+    /// - if the `data` field is not set
+    /// - if the variant is `Deposit` but a `Deposit` cannot be constructed from the raw proto
+    pub fn try_from_raw(raw: raw::RollupData) -> Result<Self, RollupDataError> {
+        let raw::RollupData {
+            value,
+        } = raw;
+        match value {
+            Some(raw::rollup_data::Value::SequencedData(data)) => Ok(Self::SequencedData(data)),
+            Some(raw::rollup_data::Value::Deposit(deposit)) => Deposit::try_from_raw(deposit)
+                .map(Self::Deposit)
+                .map_err(RollupDataError::deposit),
+            None => Err(RollupDataError::field_not_set("data")),
+        }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct RollupDataError(RollupDataErrorKind);
+
+impl RollupDataError {
+    fn field_not_set(field: &'static str) -> Self {
+        Self(RollupDataErrorKind::FieldNotSet(field))
+    }
+
+    fn deposit(source: DepositError) -> Self {
+        Self(RollupDataErrorKind::Deposit(source))
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum RollupDataErrorKind {
+    #[error("the expected field in the raw source type was not set: `{0}`")]
+    FieldNotSet(&'static str),
+    #[error("failed to validate `deposit` field")]
+    Deposit(#[source] DepositError),
 }

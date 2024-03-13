@@ -1,13 +1,12 @@
 //! Boilerplate to construct a [`super::Reader`] via a type-state builder.
 
 use celestia_client::celestia_types::nmt::Namespace;
-use deadpool::managed::Pool;
+use sequencer_client::HttpClient;
 use tokio::sync::oneshot;
 
 use super::Reader;
 use crate::{
     celestia::block_verifier::BlockVerifier,
-    client_provider::ClientProvider,
     executor,
 };
 
@@ -16,7 +15,7 @@ pub(crate) struct ReaderBuilder<
     TCelestiaWebsocketEndpoint = NoCelestiaWebsocketEndpoint,
     TCelestiaToken = NoCelestiaToken,
     TExecutor = NoExecutor,
-    TSequencerClientPool = NoSequencerClientPool,
+    TSequencerCometbftClient = NoSequencerCometbftClient,
     TSequencerNamespace = NoSequencerNamespace,
     TShutdown = NoShutdown,
 > {
@@ -24,7 +23,7 @@ pub(crate) struct ReaderBuilder<
     celestia_websocket_endpoint: TCelestiaWebsocketEndpoint,
     celestia_token: TCelestiaToken,
     executor: TExecutor,
-    sequencer_client_pool: TSequencerClientPool,
+    sequencer_cometbft_client: TSequencerCometbftClient,
     sequencer_namespace: TSequencerNamespace,
     shutdown: TShutdown,
 }
@@ -35,7 +34,7 @@ impl
         WithCelestiaWebsocketEndpoint,
         WithCelestiaToken,
         WithExecutor,
-        WithSequencerClientPool,
+        WithSequencerCometbftClient,
         WithSequencerNamespace,
         WithShutdown,
     >
@@ -47,12 +46,12 @@ impl
             celestia_websocket_endpoint: WithCelestiaWebsocketEndpoint(celestia_ws_endpoint),
             celestia_token: WithCelestiaToken(celestia_token),
             executor: WithExecutor(executor),
-            sequencer_client_pool: WithSequencerClientPool(sequencer_client_pool),
+            sequencer_cometbft_client: WithSequencerCometbftClient(sequencer_cometbft_client),
             sequencer_namespace: WithSequencerNamespace(sequencer_namespace),
             shutdown: WithShutdown(shutdown),
         } = self;
 
-        let block_verifier = BlockVerifier::new(sequencer_client_pool);
+        let block_verifier = BlockVerifier::new(sequencer_cometbft_client);
 
         Reader {
             executor,
@@ -73,7 +72,7 @@ impl ReaderBuilder {
             celestia_websocket_endpoint: NoCelestiaWebsocketEndpoint,
             celestia_token: NoCelestiaToken,
             executor: NoExecutor,
-            sequencer_client_pool: NoSequencerClientPool,
+            sequencer_cometbft_client: NoSequencerCometbftClient,
             sequencer_namespace: NoSequencerNamespace,
             shutdown: NoShutdown,
         }
@@ -85,7 +84,7 @@ impl<
     TCelestiaWebsocketEndpoint,
     TCelestiaToken,
     TExecutor,
-    TSequencerClientPool,
+    TSequencerCometbftClient,
     TSequencerNamespace,
     TShutdown,
 >
@@ -94,7 +93,7 @@ impl<
         TCelestiaWebsocketEndpoint,
         TCelestiaToken,
         TExecutor,
-        TSequencerClientPool,
+        TSequencerCometbftClient,
         TSequencerNamespace,
         TShutdown,
     >
@@ -107,7 +106,7 @@ impl<
         TCelestiaWebsocketEndpoint,
         TCelestiaToken,
         TExecutor,
-        TSequencerClientPool,
+        TSequencerCometbftClient,
         TSequencerNamespace,
         TShutdown,
     > {
@@ -115,7 +114,7 @@ impl<
             celestia_websocket_endpoint,
             celestia_token,
             executor,
-            sequencer_client_pool,
+            sequencer_cometbft_client,
             sequencer_namespace,
             shutdown,
             ..
@@ -125,7 +124,7 @@ impl<
             celestia_websocket_endpoint,
             celestia_token,
             executor,
-            sequencer_client_pool,
+            sequencer_cometbft_client,
             sequencer_namespace,
             shutdown,
         }
@@ -139,7 +138,7 @@ impl<
         WithCelestiaWebsocketEndpoint,
         TCelestiaToken,
         TExecutor,
-        TSequencerClientPool,
+        TSequencerCometbftClient,
         TSequencerNamespace,
         TShutdown,
     > {
@@ -147,7 +146,7 @@ impl<
             celestia_http_endpoint,
             celestia_token,
             executor,
-            sequencer_client_pool,
+            sequencer_cometbft_client,
             sequencer_namespace,
             shutdown,
             ..
@@ -159,7 +158,7 @@ impl<
             ),
             celestia_token,
             executor,
-            sequencer_client_pool,
+            sequencer_cometbft_client,
             sequencer_namespace,
             shutdown,
         }
@@ -173,7 +172,7 @@ impl<
         TCelestiaWebsocketEndpoint,
         WithCelestiaToken,
         TExecutor,
-        TSequencerClientPool,
+        TSequencerCometbftClient,
         TSequencerNamespace,
         TShutdown,
     > {
@@ -181,7 +180,7 @@ impl<
             celestia_http_endpoint,
             celestia_websocket_endpoint,
             executor,
-            sequencer_client_pool,
+            sequencer_cometbft_client,
             sequencer_namespace,
             shutdown,
             ..
@@ -191,21 +190,21 @@ impl<
             celestia_websocket_endpoint,
             celestia_token: WithCelestiaToken(celestia_token.to_string()),
             executor,
-            sequencer_client_pool,
+            sequencer_cometbft_client,
             sequencer_namespace,
             shutdown,
         }
     }
 
-    pub(crate) fn sequencer_client_pool(
+    pub(crate) fn sequencer_cometbft_client(
         self,
-        sequencer_client_pool: Pool<ClientProvider>,
+        sequencer_cometbft_client: HttpClient,
     ) -> ReaderBuilder<
         TCelestiaHttpEndpoint,
         TCelestiaWebsocketEndpoint,
         TCelestiaToken,
         TExecutor,
-        WithSequencerClientPool,
+        WithSequencerCometbftClient,
         TSequencerNamespace,
         TShutdown,
     > {
@@ -223,7 +222,7 @@ impl<
             celestia_websocket_endpoint,
             celestia_token,
             executor,
-            sequencer_client_pool: WithSequencerClientPool(sequencer_client_pool),
+            sequencer_cometbft_client: WithSequencerCometbftClient(sequencer_cometbft_client),
             sequencer_namespace,
             shutdown,
         }
@@ -237,7 +236,7 @@ impl<
         TCelestiaWebsocketEndpoint,
         TCelestiaToken,
         TExecutor,
-        TSequencerClientPool,
+        TSequencerCometbftClient,
         WithSequencerNamespace,
         TShutdown,
     > {
@@ -246,7 +245,7 @@ impl<
             celestia_websocket_endpoint,
             celestia_token,
             executor,
-            sequencer_client_pool,
+            sequencer_cometbft_client,
             shutdown,
             ..
         } = self;
@@ -255,7 +254,7 @@ impl<
             celestia_websocket_endpoint,
             celestia_token,
             executor,
-            sequencer_client_pool,
+            sequencer_cometbft_client,
             sequencer_namespace: WithSequencerNamespace(sequencer_namespace),
             shutdown,
         }
@@ -269,7 +268,7 @@ impl<
         TCelestiaWebsocketEndpoint,
         TCelestiaToken,
         TExecutor,
-        TSequencerClientPool,
+        TSequencerCometbftClient,
         TSequencerNamespace,
         WithShutdown,
     > {
@@ -278,7 +277,7 @@ impl<
             celestia_websocket_endpoint,
             celestia_token,
             executor,
-            sequencer_client_pool,
+            sequencer_cometbft_client,
             sequencer_namespace,
             ..
         } = self;
@@ -287,7 +286,7 @@ impl<
             celestia_websocket_endpoint,
             celestia_token,
             executor,
-            sequencer_client_pool,
+            sequencer_cometbft_client,
             sequencer_namespace,
             shutdown: WithShutdown(shutdown),
         }
@@ -301,7 +300,7 @@ impl<
         TCelestiaWebsocketEndpoint,
         TCelestiaToken,
         WithExecutor,
-        TSequencerClientPool,
+        TSequencerCometbftClient,
         TSequencerNamespace,
         TShutdown,
     > {
@@ -309,7 +308,7 @@ impl<
             celestia_http_endpoint,
             celestia_websocket_endpoint,
             celestia_token,
-            sequencer_client_pool,
+            sequencer_cometbft_client,
             sequencer_namespace,
             shutdown,
             ..
@@ -319,7 +318,7 @@ impl<
             celestia_websocket_endpoint,
             celestia_token,
             executor: WithExecutor(executor),
-            sequencer_client_pool,
+            sequencer_cometbft_client,
             sequencer_namespace,
             shutdown,
         }
@@ -334,8 +333,8 @@ pub(crate) struct NoCelestiaToken;
 pub(crate) struct WithCelestiaToken(String);
 pub(crate) struct NoExecutor;
 pub(crate) struct WithExecutor(executor::Handle);
-pub(crate) struct NoSequencerClientPool;
-pub(crate) struct WithSequencerClientPool(Pool<ClientProvider>);
+pub(crate) struct NoSequencerCometbftClient;
+pub(crate) struct WithSequencerCometbftClient(HttpClient);
 pub(crate) struct NoSequencerNamespace;
 pub(crate) struct WithSequencerNamespace(Namespace);
 pub(crate) struct NoShutdown;

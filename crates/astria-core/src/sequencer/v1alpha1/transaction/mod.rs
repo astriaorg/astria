@@ -50,6 +50,14 @@ enum SignedTransactionErrorKind {
     Verification(ed25519_consensus::Error),
 }
 
+/// The individual parts of a [`SignedTransaction`].
+#[derive(Debug)]
+pub struct SignedTransactionParts {
+    pub signature: Signature,
+    pub verification_key: VerificationKey,
+    pub transaction: UnsignedTransaction,
+}
+
 /// A signed transaction.
 ///
 /// [`SignedTransaction`] contains an [`UnsignedTransaction`] together
@@ -140,14 +148,19 @@ impl SignedTransaction {
         })
     }
 
+    /// Converts a [`SignedTransaction`] into its [`SignedTransactionParts`].
     #[must_use]
-    pub fn into_parts(self) -> (Signature, VerificationKey, UnsignedTransaction) {
+    pub fn into_parts(self) -> SignedTransactionParts {
         let Self {
             signature,
             verification_key,
             transaction,
         } = self;
-        (signature, verification_key, transaction)
+        SignedTransactionParts {
+            signature,
+            verification_key,
+            transaction,
+        }
     }
 
     #[must_use]
