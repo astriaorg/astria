@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use indexmap::IndexMap;
 use sha2::Sha256;
 use transaction::SignedTransaction;
@@ -70,9 +72,9 @@ pub struct RollupTransactionsParts {
 pub struct RollupTransactions {
     /// The 32 bytes identifying a rollup. Usually the sha256 hash of a plain rollup name.
     id: RollupId,
-    /// The serialized opaque bytes of the rollup transactions.
+    /// The block data for this rollup in the form of encoded [`RollupData`].
     transactions: Vec<Vec<u8>>,
-    /// Proof that this set of transactions belongs in the `sequence::Action` merkle tree
+    /// Proof that this set of transactions belongs in the rollup datas merkle tree
     proof: merkle::Proof,
 }
 
@@ -83,7 +85,7 @@ impl RollupTransactions {
         self.id
     }
 
-    /// Returns the opaque transactions bytes.
+    /// Returns the block data for this rollup.
     #[must_use]
     pub fn transactions(&self) -> &[Vec<u8>] {
         &self.transactions
@@ -209,7 +211,7 @@ impl SequencerBlockError {
         Self(SequencerBlockErrorKind::RollupIdsNotInSequencerBlock)
     }
 
-    fn signed_transaction_prootbof_decode(source: prost::DecodeError) -> Self {
+    fn signed_transaction_protobuf_decode(source: prost::DecodeError) -> Self {
         Self(SequencerBlockErrorKind::SignedTransactionProtobufDecode(
             source,
         ))
@@ -566,15 +568,19 @@ impl SequencerBlock {
     }
 
     #[must_use]
-    pub fn into_filtered_block(mut self, rollup_ids: Vec<RollupId>) -> FilteredSequencerBlock {
+    pub fn into_filtered_block<I, R>(mut self, rollup_ids: I) -> FilteredSequencerBlock
+    where
+        I: IntoIterator<Item = R>,
+        RollupId: From<R>,
+    {
         let all_rollup_ids: Vec<RollupId> = self.rollup_transactions.keys().copied().collect();
 
-        let mut filtered_rollup_transactions = IndexMap::with_capacity(rollup_ids.len());
+        let mut filtered_rollup_transactions = IndexMap::new();
         for id in rollup_ids {
-            let Some(rollup_transactions) = self.rollup_transactions.shift_remove(&id) else {
-                continue;
+            let id = id.into();
+            if let Some(rollup_transactions) = self.rollup_transactions.shift_remove(&id) {
+                filtered_rollup_transactions.insert(id, rollup_transactions);
             };
-            filtered_rollup_transactions.insert(id, rollup_transactions);
         }
 
         FilteredSequencerBlock {
@@ -585,6 +591,42 @@ impl SequencerBlock {
             rollup_transactions_proof: self.rollup_transactions_proof,
             all_rollup_ids,
             rollup_ids_proof: self.rollup_ids_proof,
+        }
+    }
+
+    #[must_use]
+    pub fn to_filtered_block<I, R>(&self, rollup_ids: I) -> FilteredSequencerBlock
+    where
+        I: IntoIterator<Item = R>,
+        RollupId: From<R>,
+    {
+        let all_rollup_ids: Vec<RollupId> = self.rollup_transactions.keys().copied().collect();
+
+        // recreate the whole rollup tx tree so that we can get the root, as it's not stored
+        // in the sequencer block.
+        // note: we can remove this after storing the constructed root/proofs in the sequencer app.
+        let rollup_transaction_tree = derive_merkle_tree_from_rollup_txs(
+            self.rollup_transactions
+                .iter()
+                .map(|(id, txs)| (id, txs.transactions())),
+        );
+
+        let mut filtered_rollup_transactions = IndexMap::new();
+        for id in rollup_ids {
+            let id = id.into();
+            if let Some(rollup_transactions) = self.rollup_transactions.get(&id).cloned() {
+                filtered_rollup_transactions.insert(id, rollup_transactions);
+            };
+        }
+
+        FilteredSequencerBlock {
+            block_hash: self.block_hash,
+            cometbft_header: self.header.cometbft_header.clone(),
+            rollup_transactions: filtered_rollup_transactions,
+            rollup_transactions_root: rollup_transaction_tree.root(),
+            rollup_transactions_proof: self.rollup_transactions_proof.clone(),
+            all_rollup_ids,
+            rollup_ids_proof: self.rollup_ids_proof.clone(),
         }
     }
 
@@ -607,7 +649,12 @@ impl SequencerBlock {
             ..
         } = block;
 
-        Self::try_from_cometbft_header_and_data(header, data)
+        // TODO: see https://github.com/astriaorg/astria/issues/774#issuecomment-1981584681
+        // deposits are not included in a block pulled from cometbft, so they don't match what's
+        // stored in the sequencer any more.
+        // this function can be removed after relayer/conductor are updated to use the sequencer
+        // API.
+        Self::try_from_cometbft_header_and_data(header, data, HashMap::new())
     }
 
     /// Converts from a [`tendermint::block::Header`] and the block data.
@@ -621,6 +668,7 @@ impl SequencerBlock {
     pub fn try_from_cometbft_header_and_data(
         cometbft_header: tendermint::block::Header,
         data: Vec<Vec<u8>>,
+        deposits: HashMap<RollupId, Vec<Deposit>>,
     ) -> Result<Self, SequencerBlockError> {
         use prost::Message as _;
 
@@ -654,10 +702,10 @@ impl SequencerBlock {
             .try_into()
             .map_err(|e: Vec<_>| SequencerBlockError::incorrect_rollup_ids_root_length(e.len()))?;
 
-        let mut rollup_base_transactions = IndexMap::new();
+        let mut rollup_datas = IndexMap::new();
         for elem in data_list {
             let raw_tx = raw::SignedTransaction::decode(&*elem)
-                .map_err(SequencerBlockError::signed_transaction_prootbof_decode)?;
+                .map_err(SequencerBlockError::signed_transaction_protobuf_decode)?;
             let signed_tx = SignedTransaction::try_from_raw(raw_tx)
                 .map_err(SequencerBlockError::raw_signed_transaction_conversion)?;
             for action in signed_tx.into_unsigned().actions {
@@ -667,19 +715,31 @@ impl SequencerBlock {
                     fee_asset_id: _,
                 }) = action
                 {
-                    let elem = rollup_base_transactions.entry(rollup_id).or_insert(vec![]);
+                    let elem = rollup_datas.entry(rollup_id).or_insert(vec![]);
+                    let data = RollupData::SequencedData(data).into_raw().encode_to_vec();
                     elem.push(data);
                 }
             }
         }
-        rollup_base_transactions.sort_unstable_keys();
+        for (id, deposits) in deposits {
+            rollup_datas.entry(id).or_default().extend(
+                deposits
+                    .into_iter()
+                    .map(|deposit| RollupData::Deposit(deposit).into_raw().encode_to_vec()),
+            );
+        }
+
+        // XXX: The rollup data must be sorted by its keys before constructing the merkle tree.
+        // Since it's constructed from non-deterministically ordered sources, there is otherwise no
+        // guarantee that the same data will give the root.
+        rollup_datas.sort_unstable_keys();
 
         // ensure the rollup IDs commitment matches the one calculated from the rollup data
-        if rollup_ids_root != merkle::Tree::from_leaves(rollup_base_transactions.keys()).root() {
+        if rollup_ids_root != merkle::Tree::from_leaves(rollup_datas.keys()).root() {
             return Err(SequencerBlockError::rollup_ids_root_does_not_match_reconstructed());
         }
 
-        let rollup_transaction_tree = derive_merkle_tree_from_rollup_txs(&rollup_base_transactions);
+        let rollup_transaction_tree = derive_merkle_tree_from_rollup_txs(&rollup_datas);
         if rollup_transactions_root != rollup_transaction_tree.root() {
             return Err(
                 SequencerBlockError::rollup_transactions_root_does_not_match_reconstructed(),
@@ -687,7 +747,7 @@ impl SequencerBlock {
         }
 
         let mut rollup_transactions = IndexMap::new();
-        for (i, (id, transactions)) in rollup_base_transactions.into_iter().enumerate() {
+        for (i, (id, data)) in rollup_datas.into_iter().enumerate() {
             let proof = rollup_transaction_tree
                 .construct_proof(i)
                 .expect("the proof must exist because the tree was derived with the same leaf");
@@ -695,7 +755,7 @@ impl SequencerBlock {
                 id,
                 RollupTransactions {
                     id,
-                    transactions,
+                    transactions: data, // TODO: rename this field?
                     proof,
                 },
             );
@@ -1274,4 +1334,72 @@ enum DepositErrorKind {
     IncorrectRollupIdLength(#[source] IncorrectRollupIdLength),
     #[error("the asset ID length is not 32 bytes")]
     IncorrectAssetIdLength(#[source] asset::IncorrectAssetIdLength),
+}
+
+/// A piece of data that is sent to a rollup execution node.
+///
+/// The data can be either sequenced data (originating from a [`SequenceAction`]
+/// submitted by a user) or a [`Deposit`] originating from a [`BridgeLockAction`].
+///
+/// The rollup node receives this type as opaque, protobuf-encoded bytes from conductor,
+/// and must decode it accordingly.
+#[derive(Debug, Clone, PartialEq)]
+pub enum RollupData {
+    SequencedData(Vec<u8>),
+    Deposit(Deposit),
+}
+
+impl RollupData {
+    #[must_use]
+    pub fn into_raw(self) -> raw::RollupData {
+        match self {
+            Self::SequencedData(data) => raw::RollupData {
+                value: Some(raw::rollup_data::Value::SequencedData(data)),
+            },
+            Self::Deposit(deposit) => raw::RollupData {
+                value: Some(raw::rollup_data::Value::Deposit(deposit.into_raw())),
+            },
+        }
+    }
+
+    /// Attempts to transform the `RollupData` from its raw representation.
+    ///
+    /// # Errors
+    ///
+    /// - if the `data` field is not set
+    /// - if the variant is `Deposit` but a `Deposit` cannot be constructed from the raw proto
+    pub fn try_from_raw(raw: raw::RollupData) -> Result<Self, RollupDataError> {
+        let raw::RollupData {
+            value,
+        } = raw;
+        match value {
+            Some(raw::rollup_data::Value::SequencedData(data)) => Ok(Self::SequencedData(data)),
+            Some(raw::rollup_data::Value::Deposit(deposit)) => Deposit::try_from_raw(deposit)
+                .map(Self::Deposit)
+                .map_err(RollupDataError::deposit),
+            None => Err(RollupDataError::field_not_set("data")),
+        }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct RollupDataError(RollupDataErrorKind);
+
+impl RollupDataError {
+    fn field_not_set(field: &'static str) -> Self {
+        Self(RollupDataErrorKind::FieldNotSet(field))
+    }
+
+    fn deposit(source: DepositError) -> Self {
+        Self(RollupDataErrorKind::Deposit(source))
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum RollupDataErrorKind {
+    #[error("the expected field in the raw source type was not set: `{0}`")]
+    FieldNotSet(&'static str),
+    #[error("failed to validate `deposit` field")]
+    Deposit(#[source] DepositError),
 }

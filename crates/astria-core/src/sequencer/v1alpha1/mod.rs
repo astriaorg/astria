@@ -109,12 +109,9 @@ impl std::fmt::Display for Address {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-#[cfg_attr(features = "serde", derive(serde::Serialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub struct RollupId {
-    #[cfg_attr(
-        features = "serde",
-        serde(serialize_with = "::crate::serde::string::serialize")
-    )]
+    #[cfg_attr(feature = "serde", serde(serialize_with = "crate::serde::string::hex"))]
     inner: [u8; 32],
 }
 
@@ -228,6 +225,20 @@ impl From<[u8; ROLLUP_ID_LEN]> for RollupId {
     }
 }
 
+impl From<&[u8; ROLLUP_ID_LEN]> for RollupId {
+    fn from(inner: &[u8; ROLLUP_ID_LEN]) -> Self {
+        Self {
+            inner: *inner,
+        }
+    }
+}
+
+impl From<&RollupId> for RollupId {
+    fn from(value: &RollupId) -> Self {
+        *value
+    }
+}
+
 impl std::fmt::Display for RollupId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for byte in self.inner {
@@ -312,14 +323,13 @@ fn do_rollup_transaction_match_root(
     root: [u8; 32],
 ) -> bool {
     let id = rollup_transactions.id();
-    let txs = rollup_transactions.transactions();
     rollup_transactions
         .proof()
         .audit()
         .with_root(root)
         .with_leaf_builder()
         .write(id.as_ref())
-        .write(&merkle::Tree::from_leaves(txs).root())
+        .write(&merkle::Tree::from_leaves(rollup_transactions.transactions()).root())
         .finish_leaf()
         .perform()
 }
@@ -342,10 +352,17 @@ where
     tree
 }
 
-// TODO: This can all be done in-place once https://github.com/rust-lang/rust/issues/80552 is stabilized.
+/// Extracts all data within [`SequenceAction`]s in the given [`SignedTransaction`]s, wraps them as
+/// [`RollupData::SequencedData`] and groups them by [`RollupId`].
+///
+/// TODO: This can all be done in-place once <https://github.com/rust-lang/rust/issues/80552> is stabilized.
 pub fn group_sequence_actions_in_signed_transaction_transactions_by_rollup_id(
     signed_transactions: &[SignedTransaction],
 ) -> IndexMap<RollupId, Vec<Vec<u8>>> {
+    use prost::Message as _;
+
+    use crate::sequencer::v1alpha1::block::RollupData;
+
     let mut map = IndexMap::new();
     for action in signed_transactions
         .iter()
@@ -353,7 +370,8 @@ pub fn group_sequence_actions_in_signed_transaction_transactions_by_rollup_id(
     {
         if let Some(action) = action.as_sequence() {
             let txs_for_rollup: &mut Vec<Vec<u8>> = map.entry(action.rollup_id).or_insert(vec![]);
-            txs_for_rollup.push(action.data.clone());
+            let rollup_data = RollupData::SequencedData(action.data.clone());
+            txs_for_rollup.push(rollup_data.into_raw().encode_to_vec());
         }
     }
     map.sort_unstable_keys();
@@ -374,14 +392,14 @@ where
 }
 
 fn are_rollup_txs_included(
-    rollup_txs: &IndexMap<RollupId, RollupTransactions>,
+    rollup_datas: &IndexMap<RollupId, RollupTransactions>,
     rollup_proof: &merkle::Proof,
     data_hash: [u8; 32],
 ) -> bool {
-    let rollup_base_transactions = rollup_txs
+    let rollup_datas = rollup_datas
         .iter()
         .map(|(rollup_id, tx_data)| (rollup_id, tx_data.transactions()));
-    let rollup_tree = derive_merkle_tree_from_rollup_txs(rollup_base_transactions);
+    let rollup_tree = derive_merkle_tree_from_rollup_txs(rollup_datas);
     let hash_of_rollup_root = Sha256::digest(rollup_tree.root());
     rollup_proof.verify(&hash_of_rollup_root, data_hash)
 }
