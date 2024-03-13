@@ -10,27 +10,30 @@ use astria_core::{
         CommitmentState,
         GenesisInfo,
     },
-    generated::{execution::v1alpha2::{
-        self as raw,
-        execution_service_server::{
-            ExecutionService,
-            ExecutionServiceServer,
+    generated::{
+        execution::v1alpha2::{
+            self as raw,
+            execution_service_server::{
+                ExecutionService,
+                ExecutionServiceServer,
+            },
+            BatchGetBlocksRequest,
+            BatchGetBlocksResponse,
+            ExecuteBlockRequest,
+            GetBlockRequest,
+            GetCommitmentStateRequest,
+            GetGenesisInfoRequest,
+            UpdateCommitmentStateRequest,
         },
-        BatchGetBlocksRequest,
-        BatchGetBlocksResponse,
-        ExecuteBlockRequest,
-        GetBlockRequest,
-        GetCommitmentStateRequest,
-        GetGenesisInfoRequest,
-        UpdateCommitmentStateRequest,
-    }, sequencer::v1alpha1::RollupData as RawRollupData},
+        sequencer::v1alpha1::RollupData as RawRollupData,
+    },
     sequencer::v1alpha1::{
+        block::RollupData,
         test_utils::{
             make_cometbft_block,
             ConfigureCometBftBlock,
         },
         SequencerBlock,
-        block::RollupData,
     },
     Protobuf,
 };
@@ -199,8 +202,8 @@ fn get_expected_execution_hash(
     parent_block_hash: &Bytes,
     transactions: Vec<RawRollupData>,
 ) -> Bytes {
-    use sha2::Digest as _;
     use prost::Message as _;
+    use sha2::Digest as _;
 
     let mut hasher = sha2::Sha256::new();
     hasher.update(parent_block_hash);
