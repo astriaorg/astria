@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use astria_core::sequencer::v1alpha1::{
+use astria_core::sequencer::v1::{
     asset::default_native_asset_id,
     transaction::action::SequenceAction,
     RollupId,
@@ -65,7 +65,7 @@ static TELEMETRY: Lazy<()> = Lazy::new(|| {
 
 /// Start a mock sequencer server and mount a mock for the `accounts/nonce` query.
 async fn setup() -> (MockServer, MockGuard, Config) {
-    use astria_core::generated::sequencer::v1alpha1::NonceResponse;
+    use astria_core::generated::sequencer::v1::NonceResponse;
     Lazy::force(&TELEMETRY);
     let server = MockServer::start().await;
     let startup_guard = mount_nonce_query_mock(
@@ -128,7 +128,7 @@ async fn mount_nonce_query_mock(
 
 /// Convert a `Request` object to a `SignedTransaction`
 fn signed_tx_from_request(request: &Request) -> SignedTransaction {
-    use astria_core::generated::sequencer::v1alpha1::SignedTransaction as RawSignedTransaction;
+    use astria_core::generated::sequencer::v1::SignedTransaction as RawSignedTransaction;
     use prost::Message as _;
 
     let wrapped_tx_sync_req: request::Wrapper<tx_sync::Request> =

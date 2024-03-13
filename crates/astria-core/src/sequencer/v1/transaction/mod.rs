@@ -276,7 +276,7 @@ enum UnsignedTransactionErrorKind {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::sequencer::v1alpha1::{
+    use crate::sequencer::v1::{
         asset::default_native_asset_id,
         transaction::action::TransferAction,
         Address,

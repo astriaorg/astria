@@ -5,8 +5,8 @@ use anyhow::{
     Result,
 };
 use astria_core::{
-    generated::sequencer::v1alpha1 as raw,
-    sequencer::v1alpha1::{
+    generated::sequencer::v1 as raw,
+    sequencer::v1::{
         block::{
             RollupTransactions,
             SequencerBlock,

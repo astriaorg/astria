@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use astria_core::sequencer::v1alpha1::{
+use astria_core::sequencer::v1::{
     block::{
         Deposit,
         RollupData,
@@ -73,7 +73,7 @@ pub(crate) fn generate_rollup_datas_commitment(
     // with the same `rollup_id`, prepended with `rollup_id`.
     // the leaves are sorted in ascending order by `rollup_id`.
     let rollup_datas_root =
-        astria_core::sequencer::v1alpha1::derive_merkle_tree_from_rollup_txs(&rollup_ids_to_txs)
+        astria_core::sequencer::v1::derive_merkle_tree_from_rollup_txs(&rollup_ids_to_txs)
             .root();
     GeneratedCommitments {
         rollup_datas_root,
@@ -83,7 +83,7 @@ pub(crate) fn generate_rollup_datas_commitment(
 
 #[cfg(test)]
 mod test {
-    use astria_core::sequencer::v1alpha1::{
+    use astria_core::sequencer::v1::{
         asset::{
             Denom,
             DEFAULT_NATIVE_ASSET_DENOM,

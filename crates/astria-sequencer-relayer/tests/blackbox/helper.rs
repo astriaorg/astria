@@ -9,7 +9,7 @@ use std::{
 
 use assert_json_diff::assert_json_include;
 use astria_core::{
-    generated::sequencer::v1alpha1::{
+    generated::sequencer::v1::{
         sequencer_service_server::{
             SequencerService,
             SequencerServiceServer,
@@ -19,7 +19,7 @@ use astria_core::{
         GetSequencerBlockRequest,
         SequencerBlock as RawSequencerBlock,
     },
-    sequencer::v1alpha1::{
+    sequencer::v1::{
         test_utils::make_cometbft_block,
         SequencerBlock,
     },

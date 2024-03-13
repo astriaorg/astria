@@ -10,7 +10,7 @@ use penumbra_proto::penumbra::core::component::ibc::v1::FungibleTokenPacketData;
 
 use super::raw;
 use crate::{
-    sequencer::v1alpha1::{
+    sequencer::v1::{
         asset::{
             self,
             Denom,

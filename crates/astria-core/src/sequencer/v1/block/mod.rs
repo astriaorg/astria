@@ -15,7 +15,7 @@ use super::{
     RollupId,
 };
 use crate::{
-    sequencer::v1alpha1::{
+    sequencer::v1::{
         are_rollup_ids_included,
         are_rollup_txs_included,
         asset,
