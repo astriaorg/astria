@@ -32,7 +32,6 @@ spec:
               subPath: {{ .Values.config.moniker }}/cometbft
       containers:
         - name: sequencer
-          imagePullPolicy: IfNotPresent
           image: {{ include "sequencer.image" . }}
           command: [ "/usr/local/bin/astria-sequencer" ]
           stdin: {{ .Values.global.useTTY }}
