@@ -308,7 +308,7 @@ async fn soft_blocks_at_expected_heights_are_executed() {
     block.header.height = SequencerHeight::from(100u32);
     let block = SequencerBlock::try_from_cometbft(block)
         .unwrap()
-        .into_filtered_block(&[ROLLUP_ID]);
+        .into_filtered_block([ROLLUP_ID]);
     assert!(
         mock.executor
             .execute_soft(mock.client.clone(), block)
@@ -320,7 +320,7 @@ async fn soft_blocks_at_expected_heights_are_executed() {
     block.header.height = SequencerHeight::from(101u32);
     let block = SequencerBlock::try_from_cometbft(block)
         .unwrap()
-        .into_filtered_block(&[ROLLUP_ID]);
+        .into_filtered_block([ROLLUP_ID]);
     mock.executor
         .execute_soft(mock.client.clone(), block)
         .await
@@ -343,7 +343,7 @@ async fn first_firm_then_soft_leads_to_soft_being_dropped() {
     .make();
     let soft_block = SequencerBlock::try_from_cometbft(block)
         .unwrap()
-        .into_filtered_block(&[ROLLUP_ID]);
+        .into_filtered_block([ROLLUP_ID]);
 
     let block_hash = soft_block.block_hash();
 
@@ -398,7 +398,7 @@ async fn first_soft_then_firm_update_state_correctly() {
     .make();
     let soft_block = SequencerBlock::try_from_cometbft(block)
         .unwrap()
-        .into_filtered_block(&[ROLLUP_ID]);
+        .into_filtered_block([ROLLUP_ID]);
 
     let block_hash = soft_block.block_hash();
 
@@ -450,7 +450,7 @@ async fn old_soft_blocks_are_ignored() {
     .make();
     let sequencer_block = SequencerBlock::try_from_cometbft(block)
         .unwrap()
-        .into_filtered_block(&[ROLLUP_ID]);
+        .into_filtered_block([ROLLUP_ID]);
 
     let firm = mock.executor.state.borrow().firm().clone();
     let soft = mock.executor.state.borrow().soft().clone();
@@ -484,7 +484,7 @@ async fn non_sequential_future_soft_blocks_give_error() {
     .make();
     let sequencer_block = SequencerBlock::try_from_cometbft(block)
         .unwrap()
-        .into_filtered_block(&[ROLLUP_ID]);
+        .into_filtered_block([ROLLUP_ID]);
     assert!(
         mock.executor
             .execute_soft(mock.client.clone(), sequencer_block)
@@ -500,7 +500,7 @@ async fn non_sequential_future_soft_blocks_give_error() {
     .make();
     let sequencer_block = SequencerBlock::try_from_cometbft(block)
         .unwrap()
-        .into_filtered_block(&[ROLLUP_ID]);
+        .into_filtered_block([ROLLUP_ID]);
     assert!(
         mock.executor
             .execute_soft(mock.client.clone(), sequencer_block)

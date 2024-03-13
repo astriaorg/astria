@@ -1118,6 +1118,8 @@ impl FilteredSequencerBlock {
         })
     }
 
+    /// Transforms the filtered blocks into its constitutent parts.
+    #[must_use]
     pub fn into_parts(self) -> FilteredSequencerBlockParts {
         let Self {
             block_hash,

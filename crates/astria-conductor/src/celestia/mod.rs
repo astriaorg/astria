@@ -204,7 +204,11 @@ impl Reader {
                 last_observed: latest_celestia_height.value(),
                 next_height: initial_celestia_height.value(),
             },
-            in_progress: FuturesMap::new(std::time::Duration::from_secs(10), 10),
+            // NOTE: Gives Celestia 600 seconds to respond. This seems reasonable because we need to
+            // 1. fetch all sequencer header blobs, 2. fetch the rollup blobs, 3. verify the rollup
+            // blobs.
+            // XXX: This should probably have explicit retry logic instead of this futures map.
+            in_progress: FuturesMap::new(std::time::Duration::from_secs(600), 10),
             client: http_client,
             verifier: self.block_verifier.clone(),
             sequencer_namespace: self.sequencer_namespace,

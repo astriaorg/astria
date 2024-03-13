@@ -151,7 +151,11 @@ impl BlocksFromHeightStream {
         Self {
             rollup_id,
             heights,
-            in_progress: FuturesMap::new(std::time::Duration::from_secs(10), max_in_flight),
+            // NOTE: Gives Sequencer 1h to respond.
+            // XXX: This interacts with the retry-logic in the `SequencerGrpcClient::get` method. We
+            // shoud probably remove this FuturesMap in favor of a plain FuturesUnordered and let
+            // the client handle retries.
+            in_progress: FuturesMap::new(std::time::Duration::from_secs(3600), max_in_flight),
             client,
         }
     }

@@ -1,3 +1,5 @@
+//! A thin wrapper around a [`SequencerServiceClient`].
+
 use std::time::Duration;
 
 use astria_core::{
@@ -32,6 +34,7 @@ pub(crate) struct SequencerGrpcClient {
 }
 
 impl SequencerGrpcClient {
+    /// Creates a new, lazily-initialized client.
     pub(crate) fn new(sequencer_uri: &str) -> eyre::Result<Self> {
         let uri: Uri = sequencer_uri
             .parse()
@@ -44,6 +47,13 @@ impl SequencerGrpcClient {
         })
     }
 
+    /// Fetch a sequencer block filtered by `rollup_id`.
+    ///
+    /// This method includes retry logic with a maximum delay
+    /// up to 10 seconds. The retry logic must live in this method rather
+    /// than a higher level utility because we need to distinguish between
+    /// the server-fetch failing (whereupon we retry), and the validation of
+    /// the returned data failing (whereupon we fail).
     #[instrument(skip_all, fields(
         uri = %self.uri,
         height,
@@ -58,7 +68,8 @@ impl SequencerGrpcClient {
         let span = tracing::Span::current();
         let retry_cfg = tryhard::RetryFutureConfig::new(u32::MAX)
             .exponential_backoff(Duration::from_millis(100))
-            .max_delay(Duration::from_secs(5))
+            // XXX: This should probably be configurable.
+            .max_delay(Duration::from_secs(10))
             .on_retry(
                 |attempt: u32, next_delay: Option<Duration>, error: &tonic::Status| {
                     let wait_duration = next_delay
