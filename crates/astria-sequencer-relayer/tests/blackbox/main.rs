@@ -53,9 +53,7 @@ async fn report_degraded_if_block_fetch_fails() {
 
     // mount a bad block next, so the relayer will fail to fetch the block
     let abci_guard = sequencer_relayer.mount_abci_response(1).await;
-    let block_guard = sequencer_relayer
-        .mount_bad_block_response::<RELAY_ALL>(1)
-        .await;
+    let block_guard = sequencer_relayer.mount_bad_block_response::<RELAY_ALL>(1);
     timeout(
         Duration::from_millis(2 * sequencer_relayer.config.block_time),
         futures::future::join(
@@ -82,8 +80,6 @@ async fn report_degraded_if_block_fetch_fails() {
         expected: json!({"status": "degraded"}),
         actual: readyz.json::<serde_json::Value>().await.unwrap(),
     );
-
-    sequencer_relayer.shutdown();
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -96,7 +92,7 @@ async fn one_block_is_relayed_to_celestia() {
     .await;
 
     let abci_guard = sequencer_relayer.mount_abci_response(1).await;
-    let block_guard = sequencer_relayer.mount_block_response::<RELAY_ALL>(1).await;
+    let block_guard = sequencer_relayer.mount_block_response::<RELAY_ALL>(1);
     timeout(
         Duration::from_millis(100),
         futures::future::join(
@@ -121,8 +117,6 @@ async fn one_block_is_relayed_to_celestia() {
     // two blobs for now: one transaction in the original block + sequencer namespace
     // data.
     assert_eq!(blobs_seen_by_celestia.len(), 2);
-
-    sequencer_relayer.shutdown();
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -135,7 +129,7 @@ async fn later_height_in_state_leads_to_expected_relay() {
     .await;
 
     let abci_guard = sequencer_relayer.mount_abci_response(7).await;
-    let block_guard = sequencer_relayer.mount_block_response::<RELAY_ALL>(6).await;
+    let block_guard = sequencer_relayer.mount_block_response::<RELAY_ALL>(6);
     timeout(
         Duration::from_millis(100),
         futures::future::join(
@@ -166,8 +160,6 @@ async fn later_height_in_state_leads_to_expected_relay() {
     // or observing graceful shutdown.
     tokio::time::sleep(Duration::from_secs(1)).await;
     sequencer_relayer.assert_state_files_are_as_expected(6, 6);
-
-    sequencer_relayer.shutdown();
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -180,13 +172,13 @@ async fn three_blocks_are_relayed() {
     .await;
 
     let _guard = sequencer_relayer.mount_abci_response(1).await;
-    let _guard = sequencer_relayer.mount_block_response::<RELAY_ALL>(1).await;
+    let _guard = sequencer_relayer.mount_block_response::<RELAY_ALL>(1);
 
     let _guard = sequencer_relayer.mount_abci_response(2).await;
-    let _guard = sequencer_relayer.mount_block_response::<RELAY_ALL>(2).await;
+    let _guard = sequencer_relayer.mount_block_response::<RELAY_ALL>(2);
 
     let _guard = sequencer_relayer.mount_abci_response(3).await;
-    let _guard = sequencer_relayer.mount_block_response::<RELAY_ALL>(3).await;
+    let _guard = sequencer_relayer.mount_block_response::<RELAY_ALL>(3);
 
     let expected_number_of_blobs = 6;
     let block_time = sequencer_relayer.config.block_time;
@@ -204,7 +196,6 @@ async fn three_blocks_are_relayed() {
                 break;
             }
         }
-        sequencer_relayer.shutdown();
         blobs_seen
     };
 
@@ -232,17 +223,13 @@ async fn block_from_other_proposer_is_skipped() {
     .await;
 
     let _guard = sequencer_relayer.mount_abci_response(1).await;
-    let _guard = sequencer_relayer
-        .mount_block_response::<RELAY_SELF>(1)
-        .await;
+    let _guard = sequencer_relayer.mount_block_response::<RELAY_SELF>(1);
 
     let _guard = sequencer_relayer.mount_abci_response(2).await;
-    let _guard = sequencer_relayer.mount_block_response::<RELAY_ALL>(2).await;
+    let _guard = sequencer_relayer.mount_block_response::<RELAY_ALL>(2);
 
     let _guard = sequencer_relayer.mount_abci_response(3).await;
-    let _guard = sequencer_relayer
-        .mount_block_response::<RELAY_SELF>(3)
-        .await;
+    let _guard = sequencer_relayer.mount_block_response::<RELAY_SELF>(3);
 
     let expected_number_of_blobs = 4;
     let block_time = sequencer_relayer.config.block_time;
@@ -260,7 +247,6 @@ async fn block_from_other_proposer_is_skipped() {
                 break;
             }
         }
-        sequencer_relayer.shutdown();
         blobs_seen
     };
 

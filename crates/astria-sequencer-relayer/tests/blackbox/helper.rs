@@ -106,12 +106,18 @@ pub struct BlockGuard {
 }
 
 impl BlockGuard {
+    // # Errors
+    //
+    // - if the oneshot sender is dropped
+    //
+    // TODO: harmonize this with the ABCI `MockGuard` to have the same return value
     pub async fn wait_until_satisfied(self) -> Result<(), tokio::sync::oneshot::error::RecvError> {
         self.inner.await
     }
 }
 
 pub struct MockSequencerServer {
+    #[allow(clippy::type_complexity)]
     blocks: Arc<Mutex<VecDeque<(oneshot::Sender<()>, RawSequencerBlock)>>>,
 }
 
@@ -154,6 +160,7 @@ pub struct TestSequencerRelayer {
 
     /// The block to return in the mock sequencer gRPC server
     /// `get_sequencer_block` method.
+    #[allow(clippy::type_complexity)]
     pub sequencer_server_blocks: Arc<Mutex<VecDeque<(oneshot::Sender<()>, RawSequencerBlock)>>>,
 
     pub sequencer: JoinHandle<()>,
@@ -172,13 +179,15 @@ pub struct TestSequencerRelayer {
     pub post_submit_file: NamedTempFile,
 }
 
-impl TestSequencerRelayer {
-    pub fn shutdown(&self) {
+impl Drop for TestSequencerRelayer {
+    fn drop(&mut self) {
         self.sequencer_relayer.abort();
         self.sequencer.abort();
         self.celestia.server_handle.stop().unwrap();
     }
+}
 
+impl TestSequencerRelayer {
     pub async fn mount_abci_response(&self, height: u32) -> MockGuard {
         use tendermint::{
             abci,
@@ -203,10 +212,7 @@ impl TestSequencerRelayer {
             .await
     }
 
-    pub async fn mount_block_response<const RELAY_SELF: bool>(
-        &mut self,
-        height: u32,
-    ) -> BlockGuard {
+    pub fn mount_block_response<const RELAY_SELF: bool>(&mut self, height: u32) -> BlockGuard {
         let proposer = if RELAY_SELF {
             self.account
         } else {
@@ -227,10 +233,7 @@ impl TestSequencerRelayer {
         }
     }
 
-    pub async fn mount_bad_block_response<const RELAY_SELF: bool>(
-        &mut self,
-        height: u32,
-    ) -> BlockGuard {
+    pub fn mount_bad_block_response<const RELAY_SELF: bool>(&mut self, height: u32) -> BlockGuard {
         let proposer = if RELAY_SELF {
             self.account
         } else {
@@ -342,17 +345,13 @@ impl TestSequencerRelayerConfig {
 
         let grpc_server =
             tonic::transport::Server::builder().add_service(SequencerServiceServer::new(sequencer));
-        let sequencer = tokio::task::spawn(async move {
-            grpc_server
-                .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(
-                    grpc_listener,
-                ))
-                .await
-                .unwrap();
-        });
 
-        // wait for server to start; TODO don't use sleep?
-        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        let sequencer = {
+            let serve = grpc_server.serve_with_incoming(
+                tokio_stream::wrappers::TcpListenerStream::new(grpc_listener),
+            );
+            tokio::task::spawn(async move { serve.await.unwrap() })
+        };
 
         let (pre_submit_file, post_submit_file) =
             if let Some(last_written_sequencer_height) = self.last_written_sequencer_height {
