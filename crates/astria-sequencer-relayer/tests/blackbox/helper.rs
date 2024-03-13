@@ -106,11 +106,8 @@ pub struct BlockGuard {
 }
 
 impl BlockGuard {
-    // # Errors
-    //
-    // - if the oneshot sender is dropped
-    //
     // TODO: harmonize this with the ABCI `MockGuard` to have the same return value
+    #[allow(clippy::missing_errors_doc)]
     pub async fn wait_until_satisfied(self) -> Result<(), tokio::sync::oneshot::error::RecvError> {
         self.inner.await
     }
