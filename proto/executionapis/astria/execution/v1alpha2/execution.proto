@@ -2,8 +2,8 @@ syntax = 'proto3';
 
 package astria.execution.v1alpha2;
 
-import "google/protobuf/timestamp.proto";
 import "astria/sequencer/v1alpha1/block.proto";
+import "google/protobuf/timestamp.proto";
 
 // GenesisInfo contains the information needed to start a rollup chain.
 //
