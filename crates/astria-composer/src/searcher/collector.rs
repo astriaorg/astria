@@ -25,7 +25,7 @@ use tracing::{
     warn,
 };
 
-type StdError = dyn std::error::Error;
+use crate::searcher::StdError;
 
 /// Collects transactions submitted to a rollup node and passes them downstream for further
 /// processing.
@@ -84,7 +84,7 @@ impl GethCollector {
         }
     }
 
-    /// Subscribe to the collector's status.
+    /// Subscribe to the composer's status.
     pub(super) fn subscribe(&self) -> watch::Receiver<Status> {
         self.status.subscribe()
     }

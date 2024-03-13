@@ -28,8 +28,11 @@ use crate::Config;
 mod collector;
 mod executor;
 mod rollup;
+
 use collector::GethCollector;
 use executor::Executor;
+
+type StdError = dyn std::error::Error;
 
 /// A Searcher collates transactions from multiple rollups and bundles them into
 /// Astria sequencer transactions that are then passed on to the
@@ -45,7 +48,7 @@ pub(super) struct Searcher {
     collector_statuses: HashMap<String, watch::Receiver<collector::Status>>,
     // The map of chain ID to the URLs to which collectors should connect.
     rollups: HashMap<String, String>,
-    // The set of tasks tracking if the collectors are still running.
+    // The set of tasks tracking if the geth collectors are still running.
     collector_tasks: JoinMap<String, eyre::Result<()>>,
     // The sender of sequence actions to the executor.
     serialized_rollup_transactions_tx: Sender<SequenceAction>,
@@ -101,10 +104,11 @@ impl Searcher {
                 (rollup_name.clone(), collector)
             })
             .collect::<HashMap<_, _>>();
-        let collector_statuses = geth_collectors
-            .iter()
-            .map(|(rollup_name, collector)| (rollup_name.clone(), collector.subscribe()))
-            .collect();
+        let collector_statuses: HashMap<String, watch::Receiver<collector::Status>> =
+            geth_collectors
+                .iter()
+                .map(|(rollup_name, collector)| (rollup_name.clone(), collector.subscribe()))
+                .collect();
 
         let (status, _) = watch::channel(Status::default());
 
@@ -159,7 +163,8 @@ impl Searcher {
 
         loop {
             select!(
-                Some((rollup, collector_exit)) = self.collector_tasks.join_next() => {                    self.reconnect_exited_collector(rollup, collector_exit);
+                Some((rollup, collector_exit)) = self.collector_tasks.join_next() => {
+                    self.reconnect_exited_collector(rollup, collector_exit);
                 }
 
                 ret = &mut executor_handle => {
@@ -197,7 +202,7 @@ impl Searcher {
         );
     }
 
-    /// Spawns all collector on the collector task set.
+    /// Spawns all collectors on the collector task set.
     fn spawn_collectors(&mut self) {
         for (chain_id, collector) in self.geth_collectors.drain() {
             self.collector_tasks
@@ -225,7 +230,7 @@ impl Searcher {
                         // away because this future cannot return a reference to
                         // a stack local object.
                         Ok(_) => Ok(()),
-                        // if an collector fails while waiting for its status, this
+                        // if a collector fails while waiting for its status, this
                         // will return an error
                         Err(e) => Err(e),
                     }
@@ -289,6 +294,7 @@ fn reconnect_exited_collector(
         );
         return;
     };
+
     let collector = GethCollector::new(
         rollup.clone(),
         url.clone(),
@@ -312,7 +318,10 @@ mod tests {
 
     use crate::searcher::{
         collector,
-        collector::GethCollector,
+        collector::{
+            GethCollector,
+            Status,
+        },
     };
 
     /// This tests the `reconnect_exited_collector` handler.
@@ -372,7 +381,7 @@ mod tests {
         statuses
             .get_mut(&rollup_name)
             .unwrap()
-            .wait_for(collector::Status::is_connected)
+            .wait_for(Status::is_connected)
             .await
             .unwrap();
         let _ = mock_geth.push_tx(rollup_tx).unwrap();
