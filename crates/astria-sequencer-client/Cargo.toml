@@ -17,8 +17,11 @@ prost = { workspace = true }
 tendermint = { workspace = true }
 tendermint-proto = { workspace = true }
 tendermint-rpc = { workspace = true }
+tokio = { version = "1.3.6", default-features = false, features = ["time"] }
 tracing = { workspace = true }
 thiserror = { workspace = true }
+tokio-stream = "0.1.14"
+futures-util = "0.3.30"
 
 [features]
 default = ["http", "websocket"]

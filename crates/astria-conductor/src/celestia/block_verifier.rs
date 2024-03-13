@@ -16,22 +16,20 @@ use sequencer_client::{
     tendermint,
     tendermint_rpc,
     Client as _,
-    WebSocketClient,
+    HttpClient,
 };
 use tracing::instrument;
 
 /// `BlockVerifier` is verifying blocks received from celestia.
 #[derive(Clone)]
 pub(super) struct BlockVerifier {
-    pool: deadpool::managed::Pool<crate::client_provider::ClientProvider>,
+    client: HttpClient,
 }
 
 impl BlockVerifier {
-    pub(super) fn new(
-        pool: deadpool::managed::Pool<crate::client_provider::ClientProvider>,
-    ) -> Self {
+    pub(super) fn new(client: HttpClient) -> Self {
         Self {
-            pool,
+            client,
         }
     }
 
@@ -40,11 +38,7 @@ impl BlockVerifier {
         block_hash.in_blob = %telemetry::display::hex(&blob.block_hash()),
     ))]
     pub(super) async fn verify_blob(&self, blob: &CelestiaSequencerBlob) -> eyre::Result<()> {
-        let client =
-            self.pool.get().await.wrap_err(
-                "failed getting a client from the pool to get the current validator set",
-            )?;
-        Verify::at_height(&client, blob.height())
+        Verify::at_height(self.client.clone(), blob.height())
             .await
             .wrap_err("failed getting the required objects to verify blob")?
             .verify(blob)
@@ -57,7 +51,7 @@ struct Verify {
 
 impl Verify {
     async fn at_height(
-        client: &WebSocketClient,
+        client: HttpClient,
         height: tendermint::block::Height,
     ) -> eyre::Result<Self> {
         use futures::TryFutureExt as _;

@@ -5,7 +5,13 @@ use astria_core::{
         Block,
         CommitmentState,
     },
-    sequencer::v1alpha1::RollupId,
+    sequencer::v1alpha1::{
+        block::{
+            FilteredSequencerBlock,
+            FilteredSequencerBlockParts,
+        },
+        RollupId,
+    },
 };
 use astria_eyre::eyre::{
     self,
@@ -15,12 +21,9 @@ use astria_eyre::eyre::{
 };
 use bytes::Bytes;
 use celestia_client::celestia_types::Height as CelestiaHeight;
-use sequencer_client::{
-    tendermint::{
-        block::Height as SequencerHeight,
-        Time,
-    },
-    SequencerBlock,
+use sequencer_client::tendermint::{
+    block::Height as SequencerHeight,
+    Time,
 };
 use tokio::{
     select,
@@ -75,7 +78,7 @@ pub(crate) struct StateIsInit;
 #[derive(Debug, Clone)]
 pub(crate) struct Handle<TStateInit = StateNotInit> {
     firm_blocks: mpsc::Sender<ReconstructedBlock>,
-    soft_blocks: channel::Sender<SequencerBlock>,
+    soft_blocks: channel::Sender<FilteredSequencerBlock>,
     state: watch::Receiver<State>,
     _state_init: TStateInit,
 }
@@ -121,7 +124,7 @@ impl Handle<StateIsInit> {
 
     pub(crate) async fn send_soft_block_owned(
         self,
-        block: SequencerBlock,
+        block: FilteredSequencerBlock,
     ) -> Result<(), channel::SendError> {
         self.soft_blocks.send(block).await
     }
@@ -130,8 +133,8 @@ impl Handle<StateIsInit> {
     #[allow(clippy::result_large_err)]
     pub(crate) fn try_send_soft_block(
         &self,
-        block: SequencerBlock,
-    ) -> Result<(), channel::TrySendError<SequencerBlock>> {
+        block: FilteredSequencerBlock,
+    ) -> Result<(), channel::TrySendError<FilteredSequencerBlock>> {
         self.soft_blocks.try_send(block)
     }
 
@@ -165,7 +168,7 @@ impl Handle<StateIsInit> {
 
 pub(crate) struct Executor {
     firm_blocks: mpsc::Receiver<ReconstructedBlock>,
-    soft_blocks: channel::Receiver<SequencerBlock>,
+    soft_blocks: channel::Receiver<FilteredSequencerBlock>,
 
     shutdown: oneshot::Receiver<()>,
 
@@ -309,7 +312,11 @@ impl Executor {
         block.hash = %telemetry::display::hex(&block.block_hash()),
         block.height = block.height().value(),
     ))]
-    async fn execute_soft(&mut self, client: Client, block: SequencerBlock) -> eyre::Result<()> {
+    async fn execute_soft(
+        &mut self,
+        client: Client,
+        block: FilteredSequencerBlock,
+    ) -> eyre::Result<()> {
         // TODO(https://github.com/astriaorg/astria/issues/624): add retry logic before failing hard.
         let executable_block =
             ExecutableBlock::from_sequencer(block, self.state.borrow().rollup_id());
@@ -534,13 +541,15 @@ impl ExecutableBlock {
         }
     }
 
-    fn from_sequencer(block: SequencerBlock, id: RollupId) -> Self {
+    fn from_sequencer(block: FilteredSequencerBlock, id: RollupId) -> Self {
         let hash = block.block_hash();
         let height = block.height();
-        let timestamp =
-            convert_tendermint_to_prost_timestamp(block.header().cometbft_header().time);
-        let transactions = block
-            .into_rollup_transactions()
+        let timestamp = convert_tendermint_to_prost_timestamp(block.cometbft_header().time);
+        let FilteredSequencerBlockParts {
+            mut rollup_transactions,
+            ..
+        } = block.into_parts();
+        let transactions = rollup_transactions
             .swap_remove(&id)
             .map(|txs| txs.transactions().to_vec())
             .unwrap_or_default();
