@@ -244,7 +244,7 @@ async fn full_bundle() {
 
     // verify only one signed transaction was received by the mock sequencer
     // i.e. only the full bundle was sent and not the second one due to the block timer
-    let expected_seq_actions = vec![seq0];
+    let expected_seq_actions = [seq0];
     let requests = response_guard.received_requests().await;
     assert_eq!(requests.len(), 1);
 
@@ -320,7 +320,7 @@ async fn bundle_triggered_by_block_timer() {
     .unwrap();
 
     // verify only one signed transaction was received by the mock sequencer
-    let expected_seq_actions = vec![seq0];
+    let expected_seq_actions = [seq0];
     let requests = response_guard.received_requests().await;
     assert_eq!(requests.len(), 1);
 
@@ -403,7 +403,7 @@ async fn two_seq_actions_single_bundle() {
     .unwrap();
 
     // verify only one signed transaction was received by the mock sequencer
-    let expected_seq_actions = vec![seq0, seq1];
+    let expected_seq_actions = [seq0, seq1];
     let requests = response_guard.received_requests().await;
     assert_eq!(requests.len(), 1);
 

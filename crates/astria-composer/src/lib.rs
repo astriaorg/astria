@@ -40,6 +40,7 @@
 pub(crate) mod api;
 mod build_info;
 mod composer;
+pub(crate) mod composer_service;
 pub mod config;
 pub(crate) mod searcher;
 
