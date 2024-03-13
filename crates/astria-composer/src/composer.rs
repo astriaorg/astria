@@ -149,7 +149,7 @@ impl Composer {
 
     /// Runs the composer.
     ///
-    /// Currently only exits if the api server or searcher stop unexpectedly.
+    /// Currently only exits if the api server or executor stop unexpectedly.
     /// # Backpressure
     /// The current implementation suffers from a backpressure problem. See issue #409 for an
     /// in-depth explanation and suggested solution
@@ -182,7 +182,7 @@ impl Composer {
         let wait_for_executor = wait_for_executor(executor_status, &status);
         match tokio::try_join!(wait_for_collectors, wait_for_executor) {
             Ok(((), ())) => {}
-            Err(err) => return Err(err).wrap_err("failed to start searcher"),
+            Err(err) => return Err(err).wrap_err("failed to start composer"),
         }
 
         loop {
