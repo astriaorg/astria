@@ -10,6 +10,7 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use celestia_client::celestia_types::nmt::Namespace;
+use sequencer_client::HttpClient;
 use tokio::{
     select,
     signal::unix::{
@@ -32,20 +33,12 @@ use tracing::{
 
 use crate::{
     celestia,
-    client_provider::{
-        self,
-        ClientProvider,
-    },
     executor::Executor,
     sequencer,
     Config,
 };
 
 pub struct Conductor {
-    /// The object pool of sequencer clients that restarts the websocket connection
-    /// on failure.
-    sequencer_client_pool: deadpool::managed::Pool<ClientProvider>,
-
     /// Channels to the long-running tasks to shut them down gracefully
     shutdown_channels: HashMap<&'static str, oneshot::Sender<()>>,
 
@@ -68,6 +61,9 @@ impl Conductor {
         let mut tasks = JoinMap::new();
         let mut shutdown_channels = HashMap::new();
 
+        let sequencer_cometbft_client = HttpClient::new(&*cfg.sequencer_cometbft_url)
+            .wrap_err("failed constructing sequencer cometbft RPC client")?;
+
         // Spawn the executor task.
         let executor_handle = {
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
@@ -84,9 +80,6 @@ impl Conductor {
             handle
         };
 
-        let sequencer_client_pool = client_provider::start_pool(&cfg.sequencer_url)
-            .wrap_err("failed to create sequencer client pool")?;
-
         if !cfg.execution_commit_level.is_firm_only() {
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
 
@@ -94,7 +87,8 @@ impl Conductor {
             // sequencer block that can be executed on top of the rollup state.
             // This value is derived by the Executor.
             let sequencer_reader = sequencer::Reader::new(
-                sequencer_client_pool.clone(),
+                sequencer_cometbft_client.clone(),
+                Duration::from_millis(cfg.sequencer_block_time),
                 shutdown_rx,
                 executor_handle.clone(),
             );
@@ -108,22 +102,16 @@ impl Conductor {
 
             // Sequencer namespace is defined by the chain id of attached sequencer node
             // which can be fetched from any block header.
-            let sequencer_namespace = {
-                let client = sequencer_client_pool
-                    .get()
-                    .await
-                    .wrap_err("failed to get a sequencer client from the pool")?;
-                get_sequencer_namespace(client)
-                    .await
-                    .wrap_err("failed to get sequencer namespace")?
-            };
+            let sequencer_namespace = get_sequencer_namespace(sequencer_cometbft_client.clone())
+                .await
+                .wrap_err("failed to get sequencer namespace")?;
 
             let reader = celestia::Reader::builder()
                 .celestia_http_endpoint(&cfg.celestia_node_http_url)
                 .celestia_websocket_endpoint(&cfg.celestia_node_websocket_url)
                 .celestia_token(&cfg.celestia_bearer_token)
                 .executor(executor_handle.clone())
-                .sequencer_client_pool(sequencer_client_pool.clone())
+                .sequencer_cometbft_client(sequencer_cometbft_client.clone())
                 .sequencer_namespace(sequencer_namespace)
                 .shutdown(shutdown_rx)
                 .build();
@@ -132,7 +120,6 @@ impl Conductor {
         };
 
         Ok(Self {
-            sequencer_client_pool,
             shutdown_channels,
             tasks,
         })
@@ -218,8 +205,6 @@ impl Conductor {
             let _ = channel.send(());
         }
 
-        self.sequencer_client_pool.close();
-
         info!("waiting 5 seconds for all tasks to shut down");
         // put the tasks into an Rc to make them 'static so they can run on a local set
         let mut tasks = Rc::new(self.tasks);
@@ -269,9 +254,7 @@ impl Conductor {
 }
 
 /// Get the sequencer namespace from the latest sequencer block.
-async fn get_sequencer_namespace(
-    client: deadpool::managed::Object<ClientProvider>,
-) -> eyre::Result<Namespace> {
+async fn get_sequencer_namespace(client: HttpClient) -> eyre::Result<Namespace> {
     use sequencer_client::SequencerClientExt as _;
 
     let retry_config = tryhard::RetryFutureConfig::new(10)

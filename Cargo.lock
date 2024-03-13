@@ -595,7 +595,6 @@ dependencies = [
  "async-trait",
  "base64 0.21.7",
  "bytes",
- "deadpool 0.10.0",
  "ed25519-consensus",
  "futures",
  "futures-bounded",
@@ -2114,18 +2113,6 @@ dependencies = [
  "deadpool-runtime",
  "num_cpus",
  "retain_mut",
- "tokio",
-]
-
-[[package]]
-name = "deadpool"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fb84100978c1c7b37f09ed3ce3e5f843af02c2a2c431bae5b19230dad2c1b490"
-dependencies = [
- "async-trait",
- "deadpool-runtime",
- "num_cpus",
  "tokio",
 ]
 
@@ -8619,7 +8606,7 @@ dependencies = [
  "assert-json-diff",
  "async-trait",
  "base64 0.21.7",
- "deadpool 0.9.5",
+ "deadpool",
  "futures",
  "futures-timer",
  "http-types",

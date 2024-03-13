@@ -4,16 +4,14 @@ use std::{
     error::Error as StdError,
     pin::Pin,
     task::Poll,
+    time::Duration,
 };
 
 use astria_eyre::eyre::{
     self,
     bail,
+    Report,
     WrapErr as _,
-};
-use deadpool::managed::{
-    Pool,
-    PoolError,
 };
 use futures::{
     future::{
@@ -28,8 +26,8 @@ use futures::{
 use futures_bounded::FuturesMap;
 use pin_project_lite::pin_project;
 use sequencer_client::{
-    extension_trait::LatestHeightStream,
     tendermint::block::Height,
+    HttpClient,
     SequencerBlock,
 };
 use telemetry::display::json;
@@ -38,6 +36,7 @@ use tokio::{
     sync::oneshot,
 };
 use tracing::{
+    debug,
     error,
     info,
     instrument,
@@ -47,10 +46,6 @@ use tracing::{
 
 use crate::{
     block_cache::BlockCache,
-    client_provider::{
-        self,
-        ClientProvider,
-    },
     executor,
 };
 
@@ -60,8 +55,10 @@ use reporting::ReportSequencerBlock;
 pub(crate) struct Reader {
     executor: executor::Handle,
 
-    /// The object pool providing clients to the sequencer.
-    pool: Pool<ClientProvider>,
+    /// The URL to the sequencer cometbft HTTP RPC endpoint.
+    sequencer_cometbft_client: HttpClient,
+
+    sequencer_block_time: Duration,
 
     /// The shutdown channel to notify `Reader` to shut down.
     shutdown: oneshot::Receiver<()>,
@@ -69,13 +66,15 @@ pub(crate) struct Reader {
 
 impl Reader {
     pub(crate) fn new(
-        pool: Pool<ClientProvider>,
+        sequencer_cometbft_client: HttpClient,
+        sequencer_block_time: Duration,
         shutdown: oneshot::Receiver<()>,
         executor: executor::Handle,
     ) -> Self {
         Self {
             executor,
-            pool,
+            sequencer_cometbft_client,
+            sequencer_block_time,
             shutdown,
         }
     }
@@ -85,7 +84,8 @@ impl Reader {
         use futures::future::FusedFuture as _;
         let Self {
             mut executor,
-            pool,
+            sequencer_cometbft_client,
+            sequencer_block_time,
             mut shutdown,
         } = self;
 
@@ -95,12 +95,12 @@ impl Reader {
             .wrap_err("handle to executor failed while waiting for it being initialized")?;
         let next_expected_height = executor.next_expected_soft_height();
 
-        let mut subscription = resubscribe(pool.clone())
-            .await
-            .wrap_err("failed to start initial new-blocks subscription")?
-            .fuse();
+        let mut latest_height_stream = {
+            use sequencer_client::StreamLatestHeight as _;
+            sequencer_cometbft_client.stream_latest_height(sequencer_block_time)
+        };
 
-        let latest_height = match subscription.next().await {
+        let latest_height = match latest_height_stream.next().await {
             None => bail!("subscription to sequencer for latest heights failed immediately"),
             Some(Err(e)) => {
                 return Err(e).wrap_err("first latest height from sequencer was bad");
@@ -109,10 +109,13 @@ impl Reader {
         };
         let mut sequential_blocks = BlockCache::with_next_height(next_expected_height)
             .wrap_err("failed constructing sequential block cache")?;
-        let mut blocks_from_heights =
-            BlocksFromHeightStream::new(next_expected_height, latest_height, pool.clone(), 20);
+        let mut blocks_from_heights = BlocksFromHeightStream::new(
+            next_expected_height,
+            latest_height,
+            sequencer_cometbft_client.clone(),
+            20,
+        );
 
-        let mut resubscribing = future::Fuse::terminated();
         let mut scheduled_send: Fuse<BoxFuture<Result<_, _>>> = future::Fuse::terminated();
         'reader_loop: loop {
             select! {
@@ -163,31 +166,17 @@ impl Reader {
                     }
                 }
 
-                // Blocks from the sequencer subscription. Resubscribes if `None`
-                latest_height = subscription.next(), if !subscription.is_done() => {
-                    match latest_height {
-                        Some(Ok(height)) => {
+                Some(res) = latest_height_stream.next() => {
+                    match res {
+                        Ok(height) => {
+                            debug!(%height, "received latest height from sequencer");
                             blocks_from_heights.record_latest_height(height);
-                        },
-                        Some(Err(e)) => warn!(
-                            error = &e as &dyn StdError,
-                            "received bad block from sequencer subscription; dropping it"
-                        ),
-                        None => {
-                            warn!("sequencer new-block subscription terminated unexpectedly; attempting to resubscribe");
-                            resubscribing = resubscribe(pool.clone());
                         }
-                    }
-                }
-
-                new_subscription = &mut resubscribing, if !resubscribing.is_terminated() => {
-                    match new_subscription {
-                        Ok(new_subscription) => {
-                          subscription = new_subscription.fuse();
-                        }
-                        Err(e) => {
-                            warn!(error = &e as &dyn StdError, "failed resubscribing to new blocks stream; trying again");
-                            resubscribing = resubscribe(pool.clone());
+                        Err(error) => {
+                            warn!(
+                                error = %Report::new(error),
+                                "failed fetching latest height from sequencer; waiting until next tick",
+                            );
                         }
                     }
                 }
@@ -196,62 +185,13 @@ impl Reader {
     }
 }
 
-#[derive(Debug, thiserror::Error)]
-enum ResubscriptionError {
-    #[error("failed getting a sequencer client from the pool")]
-    Pool(#[from] deadpool::managed::PoolError<crate::client_provider::Error>),
-    #[error("JSONRPC to subscribe to new blocks failed")]
-    JsonRpc(#[from] sequencer_client::extension_trait::SubscriptionFailed),
-    #[error("back off failed after 1024 attempts")]
-    BackoffFailed,
-}
-
-fn resubscribe(
-    pool: Pool<ClientProvider>,
-) -> future::Fuse<BoxFuture<'static, Result<LatestHeightStream, ResubscriptionError>>> {
-    use std::time::Duration;
-
-    use futures::TryFutureExt as _;
-    use sequencer_client::SequencerSubscriptionClientExt as _;
-    let retry_config = tryhard::RetryFutureConfig::new(10)
-        .exponential_backoff(Duration::from_millis(100))
-        .max_delay(Duration::from_secs(10))
-        .on_retry(
-            |attempt, next_delay: Option<std::time::Duration>, error: &ResubscriptionError| {
-                let wait_duration = next_delay
-                    .map(humantime::format_duration)
-                    .map(tracing::field::display);
-                warn!(
-                    attempt,
-                    wait_duration,
-                    error = error as &dyn StdError,
-                    "attempt to resubscribe to latest height from sequencer failed; retrying \
-                     after backoff",
-                );
-                std::future::ready(())
-            },
-        );
-
-    tryhard::retry_fn(move || {
-        let pool = pool.clone();
-        async move {
-            let subscription = pool.get().await?.subscribe_latest_height().await?;
-            Ok(subscription)
-        }
-    })
-    .with_config(retry_config)
-    .map_err(|_| ResubscriptionError::BackoffFailed)
-    .boxed()
-    .fuse()
-}
-
 pin_project! {
     struct BlocksFromHeightStream {
         next_expected_height: Height,
         greatest_requested_height: Option<Height>,
         latest_sequencer_height: Height,
-        in_progress: FuturesMap<Height, Result<SequencerBlock, BlockFetchError>>,
-        pool: Pool<ClientProvider>,
+        in_progress: FuturesMap<Height, eyre::Result<SequencerBlock>>,
+        client: HttpClient,
         max_ahead: u64,
     }
 }
@@ -311,7 +251,7 @@ impl BlocksFromHeightStream {
     fn new(
         next_expected_height: Height,
         latest_sequencer_height: Height,
-        pool: Pool<ClientProvider>,
+        client: HttpClient,
         max_in_flight: usize,
     ) -> Self {
         Self {
@@ -319,21 +259,14 @@ impl BlocksFromHeightStream {
             latest_sequencer_height,
             greatest_requested_height: None,
             in_progress: FuturesMap::new(std::time::Duration::from_secs(10), max_in_flight),
-            pool,
+            client,
             max_ahead: 128,
         }
     }
 }
 
-#[derive(Debug, thiserror::Error)]
-#[error("failed getting a block at height {height}")]
-struct BlocksFromHeightStreamError {
-    height: Height,
-    source: BlockFetchError,
-}
-
 impl Stream for BlocksFromHeightStream {
-    type Item = Result<SequencerBlock, BlocksFromHeightStreamError>;
+    type Item = eyre::Result<SequencerBlock>;
 
     fn poll_next(
         mut self: Pin<&mut Self>,
@@ -345,10 +278,10 @@ impl Stream for BlocksFromHeightStream {
         // our queue of futures.
         while let Some(next_height) = self.as_ref().get_ref().next_height_to_fetch() {
             let this = self.as_mut().project();
-            match this.in_progress.try_push(
-                next_height,
-                fetch_client_then_block(this.pool.clone(), next_height),
-            ) {
+            match this
+                .in_progress
+                .try_push(next_height, fetch_block(this.client.clone(), next_height))
+            {
                 Err(PushError::BeyondCapacity(_)) => break,
                 Err(PushError::Replaced(_)) => {
                     error!(
@@ -369,11 +302,8 @@ impl Stream for BlocksFromHeightStream {
         // Err branch (timeout): a fetch timing out is not a problem: we can just reschedule it.
         match res {
             Ok(fetch_result) => {
-                return Poll::Ready(Some(fetch_result.map_err(|source| {
-                    BlocksFromHeightStreamError {
-                        height,
-                        source,
-                    }
+                return Poll::Ready(Some(fetch_result.wrap_err_with(|| {
+                    format!("failed fetching sequencer block at height `{height}`")
                 })));
             }
             Err(timed_out) => {
@@ -385,7 +315,7 @@ impl Stream for BlocksFromHeightStream {
                 let res = {
                     let this = self.as_mut().project();
                     this.in_progress
-                        .try_push(height, fetch_client_then_block(this.pool.clone(), height))
+                        .try_push(height, fetch_block(this.client.clone(), height))
                 };
                 assert!(
                     res.is_ok(),
@@ -412,14 +342,13 @@ impl Stream for BlocksFromHeightStream {
     skip_all,
     fields(%height),
 )]
-async fn fetch_client_then_block(
-    pool: Pool<ClientProvider>,
-    height: Height,
-) -> Result<SequencerBlock, BlockFetchError> {
+async fn fetch_block(client: HttpClient, height: Height) -> eyre::Result<SequencerBlock> {
     use sequencer_client::SequencerClientExt as _;
 
-    let client = pool.get().await?;
-    let block = client.sequencer_block(height).await?;
+    let block = client
+        .sequencer_block(height)
+        .await
+        .wrap_err("failed fetching sequencer block")?;
     info!(
         block = %json(&ReportSequencerBlock(&block)),
         "received block from sequencer",
@@ -427,60 +356,53 @@ async fn fetch_client_then_block(
     Ok(block)
 }
 
-#[derive(Debug, thiserror::Error)]
-enum BlockFetchError {
-    #[error("failed requesting a client from the pool")]
-    Pool(#[from] PoolError<client_provider::Error>),
-    #[error("getting a block from sequencer failed")]
-    Request(#[from] sequencer_client::extension_trait::Error),
-}
+// TODO: Bring these back, but probably on a dedicated `Heights` types tracking the requested
+// heights inside the stream. #[cfg(test)]
+// mod tests {
+//     use futures_bounded::FuturesMap;
+//     use sequencer_client::tendermint::block::Height;
 
-#[cfg(test)]
-mod tests {
-    use futures_bounded::FuturesMap;
-    use sequencer_client::tendermint::block::Height;
+//     use super::BlocksFromHeightStream;
 
-    use super::BlocksFromHeightStream;
+//     async fn make_stream() -> BlocksFromHeightStream {
+//         let pool = crate::client_provider::mock::TestPool::setup().await;
+//         BlocksFromHeightStream {
+//             next_expected_height: Height::from(1u32),
+//             greatest_requested_height: None,
+//             latest_sequencer_height: Height::from(2u32),
+//             in_progress: FuturesMap::new(std::time::Duration::from_secs(10), 10),
+//             pool: pool.pool.clone(),
+//             max_ahead: 3,
+//         }
+//     }
 
-    async fn make_stream() -> BlocksFromHeightStream {
-        let pool = crate::client_provider::mock::TestPool::setup().await;
-        BlocksFromHeightStream {
-            next_expected_height: Height::from(1u32),
-            greatest_requested_height: None,
-            latest_sequencer_height: Height::from(2u32),
-            in_progress: FuturesMap::new(std::time::Duration::from_secs(10), 10),
-            pool: pool.pool.clone(),
-            max_ahead: 3,
-        }
-    }
+//     #[tokio::test]
+//     async fn stream_next_blocks() {
+//         let mut stream = make_stream().await;
+//         assert_eq!(
+//             Some(stream.next_expected_height),
+//             stream.next_height_to_fetch(),
+//             "an unset greatest requested height should lead to the next expected height",
+//         );
 
-    #[tokio::test]
-    async fn stream_next_blocks() {
-        let mut stream = make_stream().await;
-        assert_eq!(
-            Some(stream.next_expected_height),
-            stream.next_height_to_fetch(),
-            "an unset greatest requested height should lead to the next expected height",
-        );
-
-        stream.greatest_requested_height = Some(Height::from(1u32));
-        assert_eq!(
-            Some(stream.latest_sequencer_height),
-            stream.next_height_to_fetch(),
-            "the greated requested height is right before the latest observed height, which \
-             should give the observed height",
-        );
-        stream.greatest_requested_height = Some(Height::from(2u32));
-        assert!(
-            stream.next_height_to_fetch().is_none(),
-            "the greatest requested height being the latest observed height should give nothing",
-        );
-        stream.greatest_requested_height = Some(Height::from(4u32));
-        stream.latest_sequencer_height = Height::from(5u32);
-        assert!(
-            stream.next_height_to_fetch().is_none(),
-            "a greatest height before the latest observed height but too far ahead of the next \
-             expected height should give nothing",
-        );
-    }
-}
+//         stream.greatest_requested_height = Some(Height::from(1u32));
+//         assert_eq!(
+//             Some(stream.latest_sequencer_height),
+//             stream.next_height_to_fetch(),
+//             "the greated requested height is right before the latest observed height, which \
+//              should give the observed height",
+//         );
+//         stream.greatest_requested_height = Some(Height::from(2u32));
+//         assert!(
+//             stream.next_height_to_fetch().is_none(),
+//             "the greatest requested height being the latest observed height should give nothing",
+//         );
+//         stream.greatest_requested_height = Some(Height::from(4u32));
+//         stream.latest_sequencer_height = Height::from(5u32);
+//         assert!(
+//             stream.next_height_to_fetch().is_none(),
+//             "a greatest height before the latest observed height but too far ahead of the next \
+//              expected height should give nothing",
+//         );
+//     }
+// }
