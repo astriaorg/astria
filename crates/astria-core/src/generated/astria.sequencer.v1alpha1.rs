@@ -98,8 +98,8 @@ pub struct Deposit {
     /// the rollup_id which the funds are being deposited to
     #[prost(bytes = "vec", tag = "2")]
     pub rollup_id: ::prost::alloc::vec::Vec<u8>,
-    #[prost(uint64, tag = "3")]
-    pub amount: u64,
+    #[prost(message, optional, tag = "3")]
+    pub amount: ::core::option::Option<super::super::primitive::v1::Uint128>,
     #[prost(bytes = "vec", tag = "4")]
     pub asset_id: ::prost::alloc::vec::Vec<u8>,
     /// the address on the destination chain which
@@ -943,8 +943,8 @@ pub struct BridgeLockAction {
     #[prost(bytes = "vec", tag = "1")]
     pub to: ::prost::alloc::vec::Vec<u8>,
     /// the amount to transfer
-    #[prost(uint64, tag = "2")]
-    pub amount: u64,
+    #[prost(message, optional, tag = "2")]
+    pub amount: ::core::option::Option<super::super::primitive::v1::Uint128>,
     /// the asset to be transferred
     #[prost(bytes = "vec", tag = "3")]
     pub asset_id: ::prost::alloc::vec::Vec<u8>,

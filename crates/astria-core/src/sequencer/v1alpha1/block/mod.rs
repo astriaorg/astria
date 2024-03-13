@@ -1245,7 +1245,7 @@ pub struct Deposit {
     // the rollup ID registered to the `bridge_address`
     rollup_id: RollupId,
     // the amount that was transferred to `bridge_address`
-    amount: u64,
+    amount: u128,
     // the asset ID of the asset that was transferred
     asset_id: asset::Id,
     // the address on the destination chain (rollup) which to send the bridged funds to
@@ -1257,7 +1257,7 @@ impl Deposit {
     pub fn new(
         bridge_address: Address,
         rollup_id: RollupId,
-        amount: u64,
+        amount: u128,
         asset_id: asset::Id,
         destination_chain_address: String,
     ) -> Self {
@@ -1281,7 +1281,7 @@ impl Deposit {
     }
 
     #[must_use]
-    pub fn amount(&self) -> u64 {
+    pub fn amount(&self) -> u128 {
         self.amount
     }
 
@@ -1307,7 +1307,7 @@ impl Deposit {
         raw::Deposit {
             bridge_address: bridge_address.to_vec(),
             rollup_id: rollup_id.to_vec(),
-            amount,
+            amount: Some(amount.into()),
             asset_id: asset_id.get().to_vec(),
             destination_chain_address,
         }
@@ -1331,6 +1331,7 @@ impl Deposit {
         } = raw;
         let bridge_address = Address::try_from_slice(&bridge_address)
             .map_err(DepositError::incorrect_address_length)?;
+        let amount = amount.ok_or(DepositError::field_not_set("amount"))?.into();
         let rollup_id = RollupId::try_from_slice(&rollup_id)
             .map_err(DepositError::incorrect_rollup_id_length)?;
         let asset_id = asset::Id::try_from_slice(&asset_id)
@@ -1354,6 +1355,10 @@ impl DepositError {
         Self(DepositErrorKind::IncorrectAddressLength(source))
     }
 
+    fn field_not_set(field: &'static str) -> Self {
+        Self(DepositErrorKind::FieldNotSet(field))
+    }
+
     fn incorrect_rollup_id_length(source: IncorrectRollupIdLength) -> Self {
         Self(DepositErrorKind::IncorrectRollupIdLength(source))
     }
@@ -1367,6 +1372,8 @@ impl DepositError {
 enum DepositErrorKind {
     #[error("the address length is not 20 bytes")]
     IncorrectAddressLength(#[source] IncorrectAddressLength),
+    #[error("the expected field in the raw source type was not set: `{0}`")]
+    FieldNotSet(&'static str),
     #[error("the rollup ID length is not 32 bytes")]
     IncorrectRollupIdLength(#[source] IncorrectRollupIdLength),
     #[error("the asset ID length is not 32 bytes")]
