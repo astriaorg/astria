@@ -98,7 +98,7 @@ pub(super) struct Executor {
     // The sequencer address associated with the private key
     address: Address,
     // Milliseconds for bundle timer to make sure bundles are submitted at least once per block.
-    block_time: tokio::time::Duration,
+    block_time: Duration,
     // Max bytes in a sequencer action bundle
     max_bytes_per_bundle: usize,
 }
