@@ -57,7 +57,7 @@ async fn main() -> ExitCode {
         .run_until_stopped()
         .await
     {
-        Ok(_) => ExitCode::SUCCESS,
+        Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
             eprintln!("composer failed:\n{e:?}");
             ExitCode::FAILURE

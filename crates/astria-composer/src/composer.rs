@@ -70,7 +70,7 @@ pub struct Composer {
     // The sender of sequence actions to the executor.
     serialized_rollup_transactions_tx: mpsc::Sender<SequenceAction>,
     // The Executor object that is responsible for signing and submitting sequencer transactions.
-    executor: Option<Executor>,
+    executor: Executor,
     // Channel from which to read the internal status of the executor.
     executor_status: watch::Receiver<executor::Status>,
 }
@@ -135,10 +135,10 @@ impl Composer {
             status,
             collectors,
             collector_statuses,
-            serialized_rollup_transactions_tx,
-            executor_status,
-            executor: Some(executor),
             rollups,
+            serialized_rollup_transactions_tx,
+            executor,
+            executor_status,
         })
     }
 
@@ -153,6 +153,11 @@ impl Composer {
     /// # Backpressure
     /// The current implementation suffers from a backpressure problem. See issue #409 for an
     /// in-depth explanation and suggested solution
+    /// # Errors
+    /// + `api_server` ended unexpectedly
+    /// + `executor` ended unexpectedly
+    /// # Panics
+    /// + `executor` should only be run once
     pub async fn run_until_stopped(self) -> eyre::Result<()> {
         let Self {
             api_server,
@@ -161,7 +166,7 @@ impl Composer {
             mut collector_statuses,
             serialized_rollup_transactions_tx,
             executor_status,
-            mut executor,
+            executor,
             rollups,
         } = self;
 
@@ -171,12 +176,7 @@ impl Composer {
         // The set of tasks tracking if the collectors are still running.
         let mut collector_tasks = spawn_collectors(collectors);
 
-        let mut executor_handle = tokio::spawn(
-            executor
-                .take()
-                .expect("executor should only be run once")
-                .run_until_stopped(),
-        );
+        let mut executor_handle = tokio::spawn(executor.run_until_stopped());
 
         let wait_for_collectors = wait_for_collectors(&mut collector_statuses, &status);
         let wait_for_executor = wait_for_executor(executor_status, &status);
