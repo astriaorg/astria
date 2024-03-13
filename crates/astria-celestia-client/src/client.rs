@@ -254,9 +254,7 @@ fn convert_and_filter_rollup_blobs(
             continue;
         }
         let proto_blob =
-            match astria_core::generated::sequencer::v1::CelestiaRollupBlob::decode(
-                &*blob.data,
-            ) {
+            match astria_core::generated::sequencer::v1::CelestiaRollupBlob::decode(&*blob.data) {
                 Err(e) => {
                     debug!(
                         error = &e as &dyn std::error::Error,

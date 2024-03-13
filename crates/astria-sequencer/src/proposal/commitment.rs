@@ -73,8 +73,7 @@ pub(crate) fn generate_rollup_datas_commitment(
     // with the same `rollup_id`, prepended with `rollup_id`.
     // the leaves are sorted in ascending order by `rollup_id`.
     let rollup_datas_root =
-        astria_core::sequencer::v1::derive_merkle_tree_from_rollup_txs(&rollup_ids_to_txs)
-            .root();
+        astria_core::sequencer::v1::derive_merkle_tree_from_rollup_txs(&rollup_ids_to_txs).root();
     GeneratedCommitments {
         rollup_datas_root,
         rollup_ids_root,
