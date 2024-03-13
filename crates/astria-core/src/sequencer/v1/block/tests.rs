@@ -1,7 +1,7 @@
 use sha2::Digest as _;
 
 use super::*;
-use crate::sequencer::v1alpha1::test_utils::make_cometbft_block;
+use crate::sequencer::v1::test_utils::make_cometbft_block;
 
 #[test]
 fn sequencer_block_from_cometbft_block_gives_expected_merkle_proofs() {

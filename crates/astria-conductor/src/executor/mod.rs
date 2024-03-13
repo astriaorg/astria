@@ -5,7 +5,7 @@ use astria_core::{
         Block,
         CommitmentState,
     },
-    sequencer::v1alpha1::{
+    sequencer::v1::{
         block::{
             FilteredSequencerBlock,
             FilteredSequencerBlockParts,

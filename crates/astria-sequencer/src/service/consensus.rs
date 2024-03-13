@@ -2,7 +2,7 @@ use anyhow::{
     bail,
     Context,
 };
-use astria_core::sequencer::v1alpha1::AbciErrorCode;
+use astria_core::sequencer::v1::AbciErrorCode;
 use cnidarium::Storage;
 use sha2::{
     Digest as _,
@@ -277,7 +277,7 @@ mod test {
         str::FromStr,
     };
 
-    use astria_core::sequencer::v1alpha1::{
+    use astria_core::sequencer::v1::{
         asset::DEFAULT_NATIVE_ASSET_DENOM,
         transaction::action::SequenceAction,
         Address,

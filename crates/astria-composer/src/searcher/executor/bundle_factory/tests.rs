@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod sized_bundle_tests {
-    use astria_core::sequencer::v1alpha1::{
+    use astria_core::sequencer::v1::{
         asset::default_native_asset_id,
         transaction::action::SequenceAction,
         RollupId,
@@ -107,7 +107,7 @@ mod sized_bundle_tests {
 
 #[cfg(test)]
 mod bundle_factory_tests {
-    use astria_core::sequencer::v1alpha1::{
+    use astria_core::sequencer::v1::{
         asset::default_native_asset_id,
         transaction::action::SequenceAction,
         RollupId,

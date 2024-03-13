@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use astria_core::sequencer::v1alpha1::transaction::action::SequenceAction;
+use astria_core::sequencer::v1::transaction::action::SequenceAction;
 use astria_eyre::eyre::{
     self,
     WrapErr as _,
@@ -302,7 +302,7 @@ fn reconnect_exited_collector(
 mod tests {
     use std::collections::HashMap;
 
-    use astria_core::sequencer::v1alpha1::{
+    use astria_core::sequencer::v1::{
         asset::default_native_asset_id,
         transaction::action::SequenceAction,
         RollupId,

@@ -73,8 +73,8 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
     state: S,
 ) -> response::CheckTx {
     use astria_core::{
-        generated::sequencer::v1alpha1 as raw,
-        sequencer::v1alpha1::{
+        generated::sequencer::v1 as raw,
+        sequencer::v1::{
             AbciErrorCode,
             SignedTransaction,
         },

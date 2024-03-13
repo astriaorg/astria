@@ -4,7 +4,7 @@ use astria_core::{
         CommitmentState,
         GenesisInfo,
     },
-    sequencer::v1alpha1::RollupId,
+    sequencer::v1::RollupId,
 };
 use bytes::Bytes;
 use celestia_client::celestia_types::Height as CelestiaHeight;
