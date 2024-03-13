@@ -7,6 +7,10 @@ use std::{
     time::Duration,
 };
 
+use astria_core::{
+    generated::sequencer::v1alpha1::sequencer_service_client::SequencerServiceClient,
+    sequencer::v1alpha1::SequencerBlock,
+};
 use astria_eyre::eyre::{
     self,
     bail,
@@ -24,13 +28,9 @@ use futures::{
 };
 use sequencer_client::{
     tendermint::block::Height as SequencerHeight,
-    tendermint_rpc::Client as _,
-    HttpClient,
     HttpClient as SequencerClient,
-    SequencerBlock,
 };
 use tokio::{
-    pin,
     select,
     sync::{
         mpsc::error::TrySendError,
@@ -61,8 +61,11 @@ pub(crate) use state::StateSnapshot;
 use self::submission::SubmissionState;
 
 pub(crate) struct Relayer {
-    /// The actual client used to poll the sequencer.
-    sequencer: HttpClient,
+    /// The client used to query the sequencer cometbft endpoint.
+    cometbft_client: SequencerClient,
+
+    /// The client used to poll the sequencer via the sequencer gRPC API.
+    sequencer_client: SequencerServiceClient<tonic::transport::Channel>,
 
     /// The poll period defines the fixed interval at which the sequencer is polled.
     sequencer_poll_period: Duration,
@@ -90,7 +93,11 @@ impl Relayer {
     /// + failed to construct a client to the data availability layer (unless `cfg.disable_writing`
     ///   is set).
     pub(crate) async fn new(cfg: &crate::config::Config) -> eyre::Result<Self> {
-        let sequencer = HttpClient::new(&*cfg.sequencer_endpoint)
+        let cometbft_client = SequencerClient::new(&*cfg.cometbft_endpoint)
+            .wrap_err("failed constructing cometbft http client")?;
+
+        let sequencer_client = SequencerServiceClient::connect(cfg.sequencer_grpc_endpoint.clone())
+            .await
             .wrap_err("failed to create sequencer client")?;
 
         let validator = match (
@@ -120,7 +127,8 @@ impl Relayer {
         let state = Arc::new(State::new());
 
         Ok(Self {
-            sequencer,
+            cometbft_client,
+            sequencer_client,
             sequencer_poll_period: Duration::from_millis(cfg.block_time),
             celestia,
             validator,
@@ -148,16 +156,18 @@ impl Relayer {
 
         let last_submitted_sequencer_height = submission_state.last_submitted_height();
 
-        let latest_height_stream =
-            make_latest_height_stream(self.sequencer.clone(), self.sequencer_poll_period);
-        pin!(latest_height_stream);
+        let mut latest_height_stream = {
+            use sequencer_client::StreamLatestHeight as _;
+            self.cometbft_client
+                .stream_latest_height(self.sequencer_poll_period)
+        };
 
         let (submitter_task, submitter) =
             spawn_submitter(self.celestia.clone(), self.state.clone(), submission_state);
 
         let mut block_stream = read::BlockStream::builder()
             .block_time(self.sequencer_poll_period)
-            .client(self.sequencer.clone())
+            .client(self.sequencer_client.clone())
             .set_last_fetched_height(last_submitted_sequencer_height)
             .state(self.state.clone())
             .build();
@@ -323,26 +333,6 @@ fn spawn_submitter(
 ) -> (JoinHandle<eyre::Result<()>>, write::BlobSubmitterHandle) {
     let (submitter, handle) = write::BlobSubmitter::new(client, state, submission_state);
     (tokio::spawn(submitter.run()), handle)
-}
-
-fn make_latest_height_stream(
-    client: SequencerClient,
-    poll_period: Duration,
-) -> impl StreamExt<Item = eyre::Result<SequencerHeight>> {
-    use tokio::time::MissedTickBehavior;
-    use tokio_stream::wrappers::IntervalStream;
-    let mut interval = tokio::time::interval(poll_period);
-    interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
-    IntervalStream::new(interval).then(move |_| {
-        let client = client.clone();
-        async move {
-            let info = client
-                .abci_info()
-                .await
-                .wrap_err("failed getting ABCI info")?;
-            Ok(info.last_block_height)
-        }
-    })
 }
 
 struct ReportValidator<'a>(&'a Validator);

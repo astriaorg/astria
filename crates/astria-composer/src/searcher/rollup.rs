@@ -1,4 +1,4 @@
-//! Parsing strings of the form `<chain_id>::<url>`
+//! Parsing strings of the form `<rollup_name>::<url>`
 
 use std::fmt;
 
@@ -7,7 +7,7 @@ use regex::Regex;
 
 #[derive(Debug)]
 pub(super) struct Rollup {
-    chain_id: String,
+    rollup_name: String,
     url: String,
 }
 
@@ -36,7 +36,7 @@ impl Rollup {
         static ROLLUP_RE: Lazy<Regex> = Lazy::new(|| {
             Regex::new(
                 r"(?x)
-                ^(?P<chain_id>[[:alnum:]-]+?)
+                ^(?P<rollup_name>[[:alnum:]-]+?)
                     # lazily match all alphanumeric ascii and dash;
                     # case insignificant, but we will lowercase later
                 ::
@@ -53,20 +53,20 @@ impl Rollup {
         // Note that this will panic on invalid indices. However, these
         // accesses will always be correct because the regex will only
         // match when these capture groups match.
-        let chain_id = caps["chain_id"].to_string().to_lowercase();
+        let rollup_name = caps["rollup_name"].to_string().to_lowercase();
         let url = caps["url"].to_string();
         Ok(Self {
-            chain_id,
+            rollup_name,
             url,
         })
     }
 
     pub(super) fn into_parts(self) -> (String, String) {
         let Self {
-            chain_id,
+            rollup_name,
             url,
         } = self;
-        (chain_id, url)
+        (rollup_name, url)
     }
 }
 
@@ -89,15 +89,15 @@ mod tests {
     fn parse_single_rollup_valid() {
         let rollups = expect_parse_rollups("chain-1::http://some.url");
         assert_eq!(rollups.len(), 1, "\nparsed: {rollups:#?}");
-        assert_eq!(rollups[0].chain_id, "chain-1");
+        assert_eq!(rollups[0].rollup_name, "chain-1");
         assert_eq!(rollups[0].url, "http://some.url");
     }
 
     #[test]
-    fn parse_mixed_case_chain_id_is_lowercased() {
+    fn parse_mixed_case_rollup_name_is_lowercased() {
         let rollups = expect_parse_rollups("ChAiN-1::http://some.url");
         assert_eq!(rollups.len(), 1, "\nparsed: {rollups:#?}");
-        assert_eq!(rollups[0].chain_id, "chain-1");
+        assert_eq!(rollups[0].rollup_name, "chain-1");
         assert_eq!(rollups[0].url, "http://some.url");
     }
 
@@ -106,17 +106,17 @@ mod tests {
         let rollups =
             expect_parse_rollups("chain-1::http://some.url,another::ws://ws.domain,last::foo.bar");
         assert_eq!(rollups.len(), 3, "\nparsed: {rollups:#?}");
-        assert_eq!(rollups[0].chain_id, "chain-1");
+        assert_eq!(rollups[0].rollup_name, "chain-1");
         assert_eq!(rollups[0].url, "http://some.url");
-        assert_eq!(rollups[1].chain_id, "another");
+        assert_eq!(rollups[1].rollup_name, "another");
         assert_eq!(rollups[1].url, "ws://ws.domain");
-        assert_eq!(rollups[2].chain_id, "last");
+        assert_eq!(rollups[2].rollup_name, "last");
         assert_eq!(rollups[2].url, "foo.bar");
     }
 
     #[should_panic(expected = "rollup 'chain_1::http://some.url' should parse: ParseError")]
     #[test]
-    fn parse_with_non_alnum_non_dash_chain_id_fails() {
+    fn parse_with_non_alnum_non_dash_rollup_name_fails() {
         expect_parse_rollups("chain_1::http://some.url");
     }
 
@@ -129,7 +129,7 @@ mod tests {
     #[test]
     fn parse_with_triple_colon_is_valid() {
         let rollups = expect_parse_rollups("chain-1:::http://some.url");
-        assert_eq!(rollups[0].chain_id, "chain-1");
+        assert_eq!(rollups[0].rollup_name, "chain-1");
         assert_eq!(rollups[0].url, ":http://some.url");
     }
 }

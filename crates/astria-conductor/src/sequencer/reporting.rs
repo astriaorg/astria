@@ -1,7 +1,7 @@
 use astria_core::sequencer::v1alpha1::{
     block::{
+        FilteredSequencerBlock,
         RollupTransactions,
-        SequencerBlock,
     },
     RollupId,
 };
@@ -12,13 +12,13 @@ use serde::ser::{
     SerializeStruct as _,
 };
 
-pub(super) struct ReportSequencerBlock<'a>(pub(super) &'a SequencerBlock);
-impl<'a> Serialize for ReportSequencerBlock<'a> {
+pub(super) struct ReportFilteredSequencerBlock<'a>(pub(super) &'a FilteredSequencerBlock);
+impl<'a> Serialize for ReportFilteredSequencerBlock<'a> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
-        let mut state = serializer.serialize_struct("SequencerBlockInfo", 2)?;
+        let mut state = serializer.serialize_struct("FilteredSequencerBlockInfo", 2)?;
         state.serialize_field("sequencer_height", &self.0.height().value())?;
         state.serialize_field("rollups", &ReportRollups(self.0.rollup_transactions()))?;
         state.end()

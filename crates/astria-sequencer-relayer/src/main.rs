@@ -3,7 +3,6 @@ use std::process::ExitCode;
 use astria_eyre::eyre::WrapErr as _;
 use astria_sequencer_relayer::{
     metrics_init,
-    telemetry,
     Config,
     SequencerRelayer,
     BUILD_INFO,

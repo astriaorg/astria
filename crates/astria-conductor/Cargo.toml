@@ -13,9 +13,6 @@ name = "astria-conductor"
 
 [dependencies]
 async-trait = "0.1.73"
-deadpool = { version = "0.10.0", default-features = false, features = [
-  "managed",
-] }
 futures-bounded = "0.2.3"
 pin-project-lite = "0.2"
 tracing-futures = { version = "0.2.5", features = ["futures-03"] }
