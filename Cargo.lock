@@ -601,6 +601,7 @@ dependencies = [
  "futures-bounded",
  "hex",
  "humantime",
+ "indexmap 2.2.3",
  "itoa",
  "jsonrpsee",
  "pin-project-lite",

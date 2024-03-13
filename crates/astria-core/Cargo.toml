@@ -23,6 +23,7 @@ celestia-tendermint = { workspace = true }
 ed25519-consensus = { workspace = true }
 hex = { workspace = true }
 ibc-types = { workspace = true }
+indexmap = { workspace = true }
 penumbra-ibc = { workspace = true }
 penumbra-proto = { workspace = true }
 prost = { workspace = true }
@@ -35,8 +36,6 @@ tendermint-proto = { workspace = true }
 thiserror = { workspace = true }
 tonic = { workspace = true, optional = true }
 tracing = { workspace = true }
-
-indexmap = "2.1.0"
 
 [features]
 client = ["dep:tonic"]
