@@ -138,7 +138,7 @@ impl Reader {
                 }
 
                 Ok(next_height) = executor.next_expected_soft_height_if_changed() => {
-                    blocks_from_heights.record_next_expected_height(next_height);
+                    blocks_from_heights.set_next_expected_height_if_greater(next_height);
                     sequential_blocks.drop_obsolete(next_height);
                 }
 
@@ -166,7 +166,7 @@ impl Reader {
                     match res {
                         Ok(height) => {
                             debug!(%height, "received latest height from sequencer");
-                            blocks_from_heights.record_latest_height(height);
+                            blocks_from_heights.set_latest_observed_height_if_greater(height);
                         }
                         Err(error) => {
                             warn!(
