@@ -109,7 +109,6 @@ impl Reader {
             next_expected_height,
             latest_height,
             sequencer_grpc_client.clone(),
-            20,
         );
 
         let mut scheduled_send: Fuse<BoxFuture<Result<_, _>>> = future::Fuse::terminated();

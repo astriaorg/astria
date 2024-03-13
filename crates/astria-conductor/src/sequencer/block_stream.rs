@@ -140,7 +140,6 @@ impl BlocksFromHeightStream {
         rollup_expects: Height,
         latest_sequencer_height: Height,
         client: SequencerGrpcClient,
-        max_in_flight: usize,
     ) -> Self {
         let heights = Heights {
             rollup_expects: rollup_expects.value(),
@@ -151,11 +150,12 @@ impl BlocksFromHeightStream {
         Self {
             rollup_id,
             heights,
-            // NOTE: Gives Sequencer 1h to respond.
-            // XXX: This interacts with the retry-logic in the `SequencerGrpcClient::get` method. We
-            // shoud probably remove this FuturesMap in favor of a plain FuturesUnordered and let
-            // the client handle retries.
-            in_progress: FuturesMap::new(std::time::Duration::from_secs(3600), max_in_flight),
+            // NOTE: Gives Sequencer 1h to respond, and hard code it to use 20 max in flight
+            // requests. XXX: This interacts with the retry-logic in the
+            // `SequencerGrpcClient::get` method. We shoud probably remove this
+            // FuturesMap in favor of a plain FuturesUnordered and let the client handle
+            // retries.
+            in_progress: FuturesMap::new(std::time::Duration::from_secs(3600), 20),
             client,
         }
     }
