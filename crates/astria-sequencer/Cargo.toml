@@ -50,10 +50,10 @@ sha2 = { workspace = true }
 tendermint-proto = { workspace = true }
 tendermint = { workspace = true }
 tokio = { workspace = true, features = ["rt", "tracing"] }
+tonic = { workspace = true }
 tracing = { workspace = true }
 
 ibc-proto = { version = "0.41.0", features = ["server"] }
-tonic = "0.10"
 tower-http = { version = "0.4", features = ["cors"] }
 
 [dev-dependencies]
