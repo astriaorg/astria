@@ -4,7 +4,7 @@ use std::{
     task::Poll,
 };
 
-use astria_core::sequencer::v1alpha1::{
+use astria_core::sequencer::v1::{
     block::FilteredSequencerBlock,
     RollupId,
 };

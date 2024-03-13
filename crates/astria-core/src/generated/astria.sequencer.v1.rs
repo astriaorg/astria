@@ -206,7 +206,7 @@ pub struct FilteredSequencerBlock {
     #[prost(message, optional, tag = "4")]
     pub rollup_transactions_proof: ::core::option::Option<Proof>,
     /// The rollup IDs for which `CelestiaRollupBlob`s were submitted to celestia.
-    /// Corresponds to the `astria.sequencer.v1alpha1.RollupTransactions.rollup_id` field
+    /// Corresponds to the `astria.sequencer.v1.RollupTransactions.rollup_id` field
     /// and is extracted from `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions`.
     /// Note that these are all the rollup IDs in the sequencer block, not merely those in
     /// `rollup_transactions` field. This is necessary to prove that no rollup IDs were omitted.
@@ -259,7 +259,7 @@ pub struct CelestiaRollupBlob {
     #[prost(bytes = "vec", tag = "1")]
     pub sequencer_block_hash: ::prost::alloc::vec::Vec<u8>,
     /// The 32 bytes identifying the rollup this blob belongs to. Matches
-    /// `astria.sequencer.v1alpha1.RollupTransactions.rollup_id`
+    /// `astria.sequencer.v1.RollupTransactions.rollup_id`
     #[prost(bytes = "vec", tag = "2")]
     pub rollup_id: ::prost::alloc::vec::Vec<u8>,
     /// A list of opaque bytes that are serialized rollup transactions.
@@ -286,7 +286,7 @@ pub struct CelestiaSequencerBlob {
     #[prost(message, optional, tag = "1")]
     pub header: ::core::option::Option<::tendermint_proto::types::Header>,
     /// The rollup IDs for which `CelestiaRollupBlob`s were submitted to celestia.
-    /// Corresponds to the `astria.sequencer.v1alpha1.RollupTransactions.rollup_id` field
+    /// Corresponds to the `astria.sequencer.v1.RollupTransactions.rollup_id` field
     /// and is extracted from `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions`.
     #[prost(bytes = "vec", repeated, tag = "2")]
     pub rollup_ids: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
@@ -424,13 +424,13 @@ pub mod sequencer_service_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria.sequencer.v1alpha1.SequencerService/GetSequencerBlock",
+                "/astria.sequencer.v1.SequencerService/GetSequencerBlock",
             );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
                     GrpcMethod::new(
-                        "astria.sequencer.v1alpha1.SequencerService",
+                        "astria.sequencer.v1.SequencerService",
                         "GetSequencerBlock",
                     ),
                 );
@@ -456,13 +456,13 @@ pub mod sequencer_service_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria.sequencer.v1alpha1.SequencerService/GetFilteredSequencerBlock",
+                "/astria.sequencer.v1.SequencerService/GetFilteredSequencerBlock",
             );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
                     GrpcMethod::new(
-                        "astria.sequencer.v1alpha1.SequencerService",
+                        "astria.sequencer.v1.SequencerService",
                         "GetFilteredSequencerBlock",
                     ),
                 );
@@ -572,7 +572,7 @@ pub mod sequencer_service_server {
         fn call(&mut self, req: http::Request<B>) -> Self::Future {
             let inner = self.inner.clone();
             match req.uri().path() {
-                "/astria.sequencer.v1alpha1.SequencerService/GetSequencerBlock" => {
+                "/astria.sequencer.v1.SequencerService/GetSequencerBlock" => {
                     #[allow(non_camel_case_types)]
                     struct GetSequencerBlockSvc<T: SequencerService>(pub Arc<T>);
                     impl<
@@ -622,7 +622,7 @@ pub mod sequencer_service_server {
                     };
                     Box::pin(fut)
                 }
-                "/astria.sequencer.v1alpha1.SequencerService/GetFilteredSequencerBlock" => {
+                "/astria.sequencer.v1.SequencerService/GetFilteredSequencerBlock" => {
                     #[allow(non_camel_case_types)]
                     struct GetFilteredSequencerBlockSvc<T: SequencerService>(pub Arc<T>);
                     impl<
@@ -713,7 +713,7 @@ pub mod sequencer_service_server {
         }
     }
     impl<T: SequencerService> tonic::server::NamedService for SequencerServiceServer<T> {
-        const NAME: &'static str = "astria.sequencer.v1alpha1.SequencerService";
+        const NAME: &'static str = "astria.sequencer.v1.SequencerService";
     }
 }
 /// `SignedTransaction` is a transaction that has

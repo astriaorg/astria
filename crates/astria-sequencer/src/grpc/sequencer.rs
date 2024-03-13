@@ -1,12 +1,12 @@
 use astria_core::{
-    generated::sequencer::v1alpha1::{
+    generated::sequencer::v1::{
         sequencer_service_server::SequencerService,
         FilteredSequencerBlock as RawFilteredSequencerBlock,
         GetFilteredSequencerBlockRequest,
         GetSequencerBlockRequest,
         SequencerBlock as RawSequencerBlock,
     },
-    sequencer::v1alpha1::RollupId,
+    sequencer::v1::RollupId,
 };
 use cnidarium::Storage;
 use tonic::{
@@ -154,7 +154,7 @@ impl SequencerService for SequencerServer {
 mod test {
     use std::collections::HashMap;
 
-    use astria_core::sequencer::v1alpha1::SequencerBlock;
+    use astria_core::sequencer::v1::SequencerBlock;
     use cnidarium::StateDelta;
     use sha2::{
         Digest as _,

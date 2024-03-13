@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package astria.sequencer.v1alpha1;
+package astria.sequencer.v1;
 
 import "astria/primitive/v1/types.proto";
 
