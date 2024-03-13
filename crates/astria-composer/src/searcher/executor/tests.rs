@@ -201,12 +201,14 @@ async fn full_bundle() {
     // set up the executor, channel for writing seq actions, and the sequencer mock
     let (sequencer, nonce_guard, cfg) = setup().await;
     let (seq_actions_tx, seq_actions_rx) = mpsc::channel(2);
+    let (_, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
     let executor = Executor::new(
         &cfg.sequencer_url,
         &cfg.private_key,
         seq_actions_rx,
         cfg.block_time_ms,
         cfg.max_bytes_per_bundle,
+        shutdown_rx,
     )
     .unwrap();
 
@@ -283,12 +285,14 @@ async fn bundle_triggered_by_block_timer() {
     // set up the executor, channel for writing seq actions, and the sequencer mock
     let (sequencer, nonce_guard, cfg) = setup().await;
     let (seq_actions_tx, seq_actions_rx) = mpsc::channel(2);
+    let (_, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
     let executor = Executor::new(
         &cfg.sequencer_url,
         &cfg.private_key,
         seq_actions_rx,
         cfg.block_time_ms,
         cfg.max_bytes_per_bundle,
+        shutdown_rx,
     )
     .unwrap();
 
@@ -361,12 +365,14 @@ async fn two_seq_actions_single_bundle() {
     // set up the executor, channel for writing seq actions, and the sequencer mock
     let (sequencer, nonce_guard, cfg) = setup().await;
     let (seq_actions_tx, seq_actions_rx) = mpsc::channel(2);
+    let (_, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
     let executor = Executor::new(
         &cfg.sequencer_url,
         &cfg.private_key,
         seq_actions_rx,
         cfg.block_time_ms,
         cfg.max_bytes_per_bundle,
+        shutdown_rx,
     )
     .unwrap();
 

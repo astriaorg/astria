@@ -12,10 +12,14 @@ use ethers::providers::{
     ProviderError,
     Ws,
 };
-use tokio::sync::{mpsc::{
-    error::SendTimeoutError,
-    Sender,
-}, oneshot, watch};
+use tokio::sync::{
+    mpsc::{
+        error::SendTimeoutError,
+        Sender,
+    },
+    oneshot,
+    watch,
+};
 use tracing::{
     debug,
     instrument,
@@ -46,7 +50,7 @@ pub(crate) struct GethCollector {
     /// Rollup URL
     url: String,
     // The shutdown signal for the collector.
-    shutdown_rx: oneshot::Receiver<()>
+    shutdown_rx: oneshot::Receiver<()>,
 }
 
 #[derive(Debug)]
@@ -72,7 +76,7 @@ impl GethCollector {
         chain_name: String,
         url: String,
         new_bundles: Sender<SequenceAction>,
-        shutdown_rx: oneshot::Receiver<()>
+        shutdown_rx: oneshot::Receiver<()>,
     ) -> Self {
         let (status, _) = watch::channel(Status::new());
         Self {
@@ -81,7 +85,7 @@ impl GethCollector {
             new_bundles,
             status,
             url,
-            shutdown_rx
+            shutdown_rx,
         }
     }
 

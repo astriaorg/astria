@@ -2,8 +2,8 @@ use std::{
     collections::HashMap,
     io,
     net::SocketAddr,
+    pin::pin,
 };
-use futures::TryFutureExt;
 
 use astria_core::{
     generated::composer::v1alpha1::composer_service_server::ComposerServiceServer,
@@ -13,23 +13,28 @@ use astria_eyre::eyre::{
     self,
     WrapErr as _,
 };
+use config::get;
+use futures::TryFutureExt;
 use tokio::{
     net::TcpListener,
     select,
+    signal::unix::{
+        signal,
+        SignalKind,
+    },
     sync::{
+        mpsc,
         mpsc::Sender,
+        oneshot,
         watch,
     },
     task::JoinError,
 };
-use tokio::signal::unix::{signal, SignalKind};
-use tokio::sync::{mpsc, oneshot};
 use tokio_util::task::JoinMap;
 use tracing::{
     error,
     info,
 };
-use config::get;
 
 use crate::{
     api::{
@@ -81,7 +86,7 @@ pub struct Composer {
 
 pub(crate) struct GethCollectorStatusInfo {
     status: watch::Receiver<geth_collector::Status>,
-    shutdown_signal: oneshot::Sender<()>
+    shutdown_signal: oneshot::Sender<()>,
 }
 
 impl Composer {
@@ -108,7 +113,7 @@ impl Composer {
             serialized_rollup_transactions_rx,
             cfg.block_time_ms,
             cfg.max_bytes_per_bundle,
-            executor_shutdown_rx
+            executor_shutdown_rx,
         )
         .wrap_err("executor construction from config failed")?;
 
@@ -140,7 +145,7 @@ impl Composer {
                     rollup_name.clone(),
                     url.clone(),
                     serialized_rollup_transactions_tx.clone(),
-                    shutdown_rx
+                    shutdown_rx,
                 );
                 let collector_info = GethCollectorStatusInfo {
                     status: collector.subscribe(),
@@ -154,8 +159,8 @@ impl Composer {
         //     geth_collectors
         //         .iter()
         //         .map(|(rollup_name, collector)| {
-        //             let (collector_shutdown_tx, collector_shutdown_rx) = oneshot::channel::<()>();
-        //             CollectorStatusInfo {
+        //             let (collector_shutdown_tx, collector_shutdown_rx) =
+        // oneshot::channel::<()>();             CollectorStatusInfo {
         //                 status: collector.subscribe(),
         //                 shutdown_signal: collector_shutdown_tx,
         //             }
@@ -248,7 +253,7 @@ impl Composer {
         });
 
         let mut shutdown_rx = spawn_signal_handler().await;
-        tokio::pin!(shutdown_rx);
+        let pinned_shutdown_rx = Box::pin(&mut shutdown_rx);
 
         loop {
             select!(
@@ -282,7 +287,7 @@ impl Composer {
                     collector_exit,
                 );
             },
-            _ = &mut shutdown_rx.recv() => {
+            _ = shutdown_rx.recv() => {
                 info!("shutting down composer");
                 grpc_server_shutdown_tx.send(()).unwrap_or_else(|_| ());
                 for (rollup, collector_status_info) in collector_statuses.drain() {
@@ -293,11 +298,7 @@ impl Composer {
             })
         }
 
-        tokio::try_join!(
-            api_task,
-            executor_task,
-            grpc_server_handler,
-        );
+        tokio::try_join!(api_task, executor_task, grpc_server_handler);
 
         Ok(())
     }
@@ -327,7 +328,6 @@ async fn spawn_signal_handler() -> mpsc::Receiver<()> {
     });
 
     stop_rx
-
 }
 
 async fn wait_for_executor(
@@ -405,12 +405,15 @@ fn reconnect_exited_collector(
         rollup.clone(),
         url.clone(),
         serialized_rolup_transactions_tx,
-        shutdown_rx
+        shutdown_rx,
     );
-    collector_statuses.insert(rollup.clone(), GethCollectorStatusInfo {
-        status: collector.subscribe(),
-        shutdown_signal: shutdown_tx,
-    });
+    collector_statuses.insert(
+        rollup.clone(),
+        GethCollectorStatusInfo {
+            status: collector.subscribe(),
+            shutdown_signal: shutdown_tx,
+        },
+    );
     collector_tasks.spawn(rollup, collector.run_until_stopped());
 }
 
@@ -454,7 +457,13 @@ mod tests {
         let (tx, mut rx) = tokio::sync::mpsc::channel(16);
 
         let mut collector_tasks = JoinMap::new();
-        let collector = GethCollector::new(rollup_name.clone(), rollup_url.clone(), tx.clone());
+        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+        let collector = GethCollector::new(
+            rollup_name.clone(),
+            rollup_url.clone(),
+            tx.clone(),
+            shutdown_rx,
+        );
         let mut status = collector.subscribe();
         collector_tasks.spawn(rollup_name.clone(), collector.run_until_stopped());
         status.wait_for(Status::is_connected).await.unwrap();
@@ -497,6 +506,7 @@ mod tests {
         statuses
             .get_mut(&rollup_name)
             .unwrap()
+            .status
             .wait_for(Status::is_connected)
             .await
             .unwrap();

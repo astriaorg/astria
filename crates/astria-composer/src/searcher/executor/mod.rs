@@ -51,6 +51,7 @@ use tokio::{
     select,
     sync::{
         mpsc,
+        oneshot,
         watch,
     },
     time::{
@@ -58,7 +59,6 @@ use tokio::{
         Instant,
     },
 };
-use tokio::sync::oneshot;
 use tracing::{
     debug,
     error,
@@ -103,7 +103,7 @@ pub(crate) struct Executor {
     // Max bytes in a sequencer action bundle
     max_bytes_per_bundle: usize,
     // Channel for receiving shutdown signal
-    shutdown_signal: oneshot::Receiver<()>
+    shutdown_signal: oneshot::Receiver<()>,
 }
 
 impl Drop for Executor {
@@ -136,7 +136,7 @@ impl Executor {
         serialized_rollup_transactions_rx: mpsc::Receiver<SequenceAction>,
         block_time: u64,
         max_bytes_per_bundle: usize,
-        shutdown_signal: oneshot::Receiver<()>
+        shutdown_signal: oneshot::Receiver<()>,
     ) -> eyre::Result<Self> {
         let sequencer_client = sequencer_client::HttpClient::new(sequencer_url)
             .wrap_err("failed constructing sequencer client")?;
@@ -158,7 +158,7 @@ impl Executor {
             address: sequencer_address,
             block_time: Duration::from_millis(block_time),
             max_bytes_per_bundle,
-            shutdown_signal
+            shutdown_signal,
         })
     }
 
