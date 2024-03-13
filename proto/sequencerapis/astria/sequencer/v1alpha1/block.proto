@@ -2,7 +2,6 @@ syntax = "proto3";
 
 package astria.sequencer.v1alpha1;
 
-import "astria/primitive/v1/types.proto";
 import "astria/sequencer/v1alpha1/merkle.proto";
 import "astria_vendored/tendermint/types/types.proto";
 
@@ -75,7 +74,7 @@ message Deposit {
   bytes bridge_address = 1;
   // the rollup_id which the funds are being deposited to
   bytes rollup_id = 2;
-  astria.primitive.v1.Uint128 amount = 3;
+  uint64 amount = 3;
   bytes asset_id = 4;
   // the address on the destination chain which
   // will receive the bridged funds

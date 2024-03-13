@@ -1110,7 +1110,7 @@ enum InitBridgeAccountActionErrorKind {
 #[derive(Debug, Clone)]
 pub struct BridgeLockAction {
     pub to: Address,
-    pub amount: u128,
+    pub amount: u64,
     // asset to be transferred.
     pub asset_id: asset::Id,
     // asset to use for fee payment.
@@ -1124,7 +1124,7 @@ impl BridgeLockAction {
     pub fn into_raw(self) -> raw::BridgeLockAction {
         raw::BridgeLockAction {
             to: self.to.to_vec(),
-            amount: Some(self.amount.into()),
+            amount: self.amount,
             asset_id: self.asset_id.get().to_vec(),
             fee_asset_id: self.fee_asset_id.as_ref().to_vec(),
             destination_chain_address: self.destination_chain_address,
@@ -1135,7 +1135,7 @@ impl BridgeLockAction {
     pub fn to_raw(&self) -> raw::BridgeLockAction {
         raw::BridgeLockAction {
             to: self.to.to_vec(),
-            amount: Some(self.amount.into()),
+            amount: self.amount,
             asset_id: self.asset_id.get().to_vec(),
             fee_asset_id: self.fee_asset_id.as_ref().to_vec(),
             destination_chain_address: self.destination_chain_address.clone(),
@@ -1152,16 +1152,14 @@ impl BridgeLockAction {
     pub fn try_from_raw(proto: raw::BridgeLockAction) -> Result<Self, BridgeLockActionError> {
         let to =
             Address::try_from_slice(&proto.to).map_err(BridgeLockActionError::invalid_address)?;
-        let amount = proto
-            .amount
-            .ok_or(BridgeLockActionError::missing_amount())?;
+        let amount = proto.amount;
         let asset_id = asset::Id::try_from_slice(&proto.asset_id)
             .map_err(BridgeLockActionError::invalid_asset_id)?;
         let fee_asset_id = asset::Id::try_from_slice(&proto.fee_asset_id)
             .map_err(BridgeLockActionError::invalid_fee_asset_id)?;
         Ok(Self {
             to,
-            amount: amount.into(),
+            amount,
             asset_id,
             fee_asset_id,
             destination_chain_address: proto.destination_chain_address,
@@ -1180,11 +1178,6 @@ impl BridgeLockActionError {
     }
 
     #[must_use]
-    fn missing_amount() -> Self {
-        Self(BridgeLockActionErrorKind::MissingAmount)
-    }
-
-    #[must_use]
     fn invalid_asset_id(err: asset::IncorrectAssetIdLength) -> Self {
         Self(BridgeLockActionErrorKind::InvalidAssetId(err))
     }
@@ -1199,8 +1192,6 @@ impl BridgeLockActionError {
 enum BridgeLockActionErrorKind {
     #[error("the `address` field was invalid")]
     InvalidAddress(#[source] IncorrectAddressLength),
-    #[error("the `amount` field was not set")]
-    MissingAmount,
     #[error("the `asset_id` field was invalid")]
     InvalidAssetId(#[source] asset::IncorrectAssetIdLength),
     #[error("the `fee_asset_id` field was invalid")]

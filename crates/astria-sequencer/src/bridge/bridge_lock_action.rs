@@ -36,7 +36,7 @@ impl ActionHandler for BridgeLockAction {
         let transfer_action = TransferAction {
             to: self.to,
             asset_id: self.asset_id,
-            amount: self.amount,
+            amount: self.amount.into(),
             fee_asset_id: self.fee_asset_id,
         };
 
@@ -69,7 +69,7 @@ impl ActionHandler for BridgeLockAction {
         let transfer_action = TransferAction {
             to: self.to,
             asset_id: self.asset_id,
-            amount: self.amount,
+            amount: self.amount.into(),
             fee_asset_id: self.fee_asset_id,
         };
 

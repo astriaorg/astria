@@ -1665,7 +1665,7 @@ mod test {
             .get_account_balance(bridge_address, asset_id)
             .await
             .unwrap();
-
+        let amount_u128: u128 = amount.into();
         app.deliver_tx(signed_tx).await.unwrap();
         assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
         assert_eq!(
@@ -1673,14 +1673,14 @@ mod test {
                 .get_account_balance(alice_address, asset_id)
                 .await
                 .unwrap(),
-            alice_before_balance - (amount + TRANSFER_FEE)
+            alice_before_balance - (amount_u128 + TRANSFER_FEE)
         );
         assert_eq!(
             app.state
                 .get_account_balance(bridge_address, asset_id)
                 .await
                 .unwrap(),
-            bridge_before_balance + amount
+            bridge_before_balance + amount_u128
         );
 
         let expected_deposit = Deposit::new(

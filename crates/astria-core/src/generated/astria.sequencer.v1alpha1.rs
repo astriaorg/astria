@@ -1,77 +1,3 @@
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
-#[repr(i32)]
-pub enum AbciErrorCode {
-    Unspecified = 0,
-    UnknownPath = 1,
-    InvalidParameter = 2,
-    InternalError = 3,
-    InvalidNonce = 4,
-    TransactionTooLarge = 5,
-}
-impl AbciErrorCode {
-    /// String value of the enum field names used in the ProtoBuf definition.
-    ///
-    /// The values are not transformed in any way and thus are considered stable
-    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub fn as_str_name(&self) -> &'static str {
-        match self {
-            AbciErrorCode::Unspecified => "ABCI_ERROR_CODE_UNSPECIFIED",
-            AbciErrorCode::UnknownPath => "ABCI_ERROR_CODE_UNKNOWN_PATH",
-            AbciErrorCode::InvalidParameter => "ABCI_ERROR_CODE_INVALID_PARAMETER",
-            AbciErrorCode::InternalError => "ABCI_ERROR_CODE_INTERNAL_ERROR",
-            AbciErrorCode::InvalidNonce => "ABCI_ERROR_CODE_INVALID_NONCE",
-            AbciErrorCode::TransactionTooLarge => "ABCI_ERROR_CODE_TRANSACTION_TOO_LARGE",
-        }
-    }
-    /// Creates an enum from field names used in the ProtoBuf definition.
-    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
-        match value {
-            "ABCI_ERROR_CODE_UNSPECIFIED" => Some(Self::Unspecified),
-            "ABCI_ERROR_CODE_UNKNOWN_PATH" => Some(Self::UnknownPath),
-            "ABCI_ERROR_CODE_INVALID_PARAMETER" => Some(Self::InvalidParameter),
-            "ABCI_ERROR_CODE_INTERNAL_ERROR" => Some(Self::InternalError),
-            "ABCI_ERROR_CODE_INVALID_NONCE" => Some(Self::InvalidNonce),
-            "ABCI_ERROR_CODE_TRANSACTION_TOO_LARGE" => Some(Self::TransactionTooLarge),
-            _ => None,
-        }
-    }
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct AssetBalance {
-    #[prost(string, tag = "1")]
-    pub denom: ::prost::alloc::string::String,
-    #[prost(message, optional, tag = "2")]
-    pub balance: ::core::option::Option<super::super::primitive::v1::Uint128>,
-}
-/// A response containing the balance of an account.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct BalanceResponse {
-    #[prost(uint64, tag = "2")]
-    pub height: u64,
-    #[prost(message, repeated, tag = "3")]
-    pub balances: ::prost::alloc::vec::Vec<AssetBalance>,
-}
-/// A response containing the current nonce for an account.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct NonceResponse {
-    #[prost(uint64, tag = "2")]
-    pub height: u64,
-    #[prost(uint32, tag = "3")]
-    pub nonce: u32,
-}
-/// / Represents a denomination of some asset used within the sequencer.
-/// / The `id` is used to identify the asset and for balance accounting.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct Denom {
-    #[prost(bytes = "vec", tag = "1")]
-    pub id: ::prost::alloc::vec::Vec<u8>,
-    #[prost(string, tag = "2")]
-    pub base_denom: ::prost::alloc::string::String,
-}
 /// A proof for a tree of the given size containing the audit path from a leaf to the root.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -172,8 +98,8 @@ pub struct Deposit {
     /// the rollup_id which the funds are being deposited to
     #[prost(bytes = "vec", tag = "2")]
     pub rollup_id: ::prost::alloc::vec::Vec<u8>,
-    #[prost(message, optional, tag = "3")]
-    pub amount: ::core::option::Option<super::super::primitive::v1::Uint128>,
+    #[prost(uint64, tag = "3")]
+    pub amount: u64,
     #[prost(bytes = "vec", tag = "4")]
     pub asset_id: ::prost::alloc::vec::Vec<u8>,
     /// the address on the destination chain which
@@ -246,6 +172,80 @@ pub mod rollup_data {
         #[prost(message, tag = "2")]
         Deposit(super::Deposit),
     }
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum AbciErrorCode {
+    Unspecified = 0,
+    UnknownPath = 1,
+    InvalidParameter = 2,
+    InternalError = 3,
+    InvalidNonce = 4,
+    TransactionTooLarge = 5,
+}
+impl AbciErrorCode {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            AbciErrorCode::Unspecified => "ABCI_ERROR_CODE_UNSPECIFIED",
+            AbciErrorCode::UnknownPath => "ABCI_ERROR_CODE_UNKNOWN_PATH",
+            AbciErrorCode::InvalidParameter => "ABCI_ERROR_CODE_INVALID_PARAMETER",
+            AbciErrorCode::InternalError => "ABCI_ERROR_CODE_INTERNAL_ERROR",
+            AbciErrorCode::InvalidNonce => "ABCI_ERROR_CODE_INVALID_NONCE",
+            AbciErrorCode::TransactionTooLarge => "ABCI_ERROR_CODE_TRANSACTION_TOO_LARGE",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "ABCI_ERROR_CODE_UNSPECIFIED" => Some(Self::Unspecified),
+            "ABCI_ERROR_CODE_UNKNOWN_PATH" => Some(Self::UnknownPath),
+            "ABCI_ERROR_CODE_INVALID_PARAMETER" => Some(Self::InvalidParameter),
+            "ABCI_ERROR_CODE_INTERNAL_ERROR" => Some(Self::InternalError),
+            "ABCI_ERROR_CODE_INVALID_NONCE" => Some(Self::InvalidNonce),
+            "ABCI_ERROR_CODE_TRANSACTION_TOO_LARGE" => Some(Self::TransactionTooLarge),
+            _ => None,
+        }
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct AssetBalance {
+    #[prost(string, tag = "1")]
+    pub denom: ::prost::alloc::string::String,
+    #[prost(message, optional, tag = "2")]
+    pub balance: ::core::option::Option<super::super::primitive::v1::Uint128>,
+}
+/// A response containing the balance of an account.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct BalanceResponse {
+    #[prost(uint64, tag = "2")]
+    pub height: u64,
+    #[prost(message, repeated, tag = "3")]
+    pub balances: ::prost::alloc::vec::Vec<AssetBalance>,
+}
+/// A response containing the current nonce for an account.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct NonceResponse {
+    #[prost(uint64, tag = "2")]
+    pub height: u64,
+    #[prost(uint32, tag = "3")]
+    pub nonce: u32,
+}
+/// / Represents a denomination of some asset used within the sequencer.
+/// / The `id` is used to identify the asset and for balance accounting.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Denom {
+    #[prost(bytes = "vec", tag = "1")]
+    pub id: ::prost::alloc::vec::Vec<u8>,
+    #[prost(string, tag = "2")]
+    pub base_denom: ::prost::alloc::string::String,
 }
 /// A collection of transactions belonging to a specific rollup that are submitted to celestia.
 ///
@@ -943,8 +943,8 @@ pub struct BridgeLockAction {
     #[prost(bytes = "vec", tag = "1")]
     pub to: ::prost::alloc::vec::Vec<u8>,
     /// the amount to transfer
-    #[prost(message, optional, tag = "2")]
-    pub amount: ::core::option::Option<super::super::primitive::v1::Uint128>,
+    #[prost(uint64, tag = "2")]
+    pub amount: u64,
     /// the asset to be transferred
     #[prost(bytes = "vec", tag = "3")]
     pub asset_id: ::prost::alloc::vec::Vec<u8>,
