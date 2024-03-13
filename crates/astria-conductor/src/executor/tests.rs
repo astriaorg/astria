@@ -25,7 +25,7 @@ use astria_core::{
             GetGenesisInfoRequest,
             UpdateCommitmentStateRequest,
         },
-        sequencer::v1alpha1::RollupData as RawRollupData,
+        sequencer::v1::RollupData as RawRollupData,
     },
     sequencer::v1::{
         block::RollupData,
@@ -38,7 +38,7 @@ use astria_core::{
     Protobuf,
 };
 use bytes::Bytes;
-use prost::Message as _;
+use prost::Message;
 use tokio::{
     sync::oneshot,
     task::JoinHandle,

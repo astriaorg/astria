@@ -9,7 +9,7 @@ use astria_core::{
             v1alpha2 as raw,
             v1alpha2::execution_service_client::ExecutionServiceClient,
         },
-        sequencer::v1alpha1::RollupData,
+        sequencer::v1::RollupData,
     },
     Protobuf as _,
 };
@@ -20,10 +20,7 @@ use astria_eyre::eyre::{
 use bytes::Bytes;
 use prost_types::Timestamp;
 use tonic::transport::Channel;
-use tracing::{
-    error,
-    instrument,
-};
+use tracing::instrument;
 
 /// A newtype wrapper around [`ExecutionServiceClient`] to work with
 /// idiomatic types.
@@ -74,17 +71,13 @@ impl Client {
         transactions: Vec<Vec<u8>>,
         timestamp: Timestamp,
     ) -> eyre::Result<Block> {
-        use prost::Message as _;
+        use prost::Message;
+
         let transactions = transactions
             .into_iter()
-            .filter_map(|tx| match RollupData::decode(tx.as_slice()) {
-                Ok(data) => Some(data),
-                Err(_) => {
-                    error!("failed to decode RollupData from transaction bytes");
-                    None
-                }
-            })
-            .collect();
+            .map(|tx| RollupData::decode(tx.as_slice()))
+            .collect::<Result<_, _>>()
+            .wrap_err("failed to decode tx bytes as RollupData")?;
 
         let request = raw::ExecuteBlockRequest {
             prev_block_hash,
