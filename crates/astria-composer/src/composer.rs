@@ -1,10 +1,14 @@
 use std::net::SocketAddr;
 
+use astria_core::sequencer::v1alpha1::transaction::action::SequenceAction;
 use astria_eyre::eyre::{
     self,
     WrapErr as _,
 };
-use tokio::task::JoinError;
+use tokio::{
+    sync::mpsc::Sender,
+    task::JoinError,
+};
 use tracing::{
     error,
     info,
@@ -28,6 +32,13 @@ pub struct Composer {
     /// pending transactions from them and wraps them as sequencer transactions
     /// for submission.
     searcher: Searcher,
+    /// The handle to communicate `SequenceActions` to the Executor
+    /// This is at the Composer level to allow its sharing to various different collectors.
+    executor_handle: ExecutorHandle,
+}
+
+struct ExecutorHandle {
+    send_bundles: Sender<SequenceAction>,
 }
 
 impl Composer {
@@ -38,7 +49,19 @@ impl Composer {
     /// An error is returned if the searcher fails to be initialized.
     /// See `[Searcher::from_config]` for its error scenarios.
     pub fn from_config(cfg: &Config) -> eyre::Result<Self> {
-        let searcher = Searcher::from_config(cfg).wrap_err("failed to initialize searcher")?;
+        let (serialized_rollup_transactions_tx, serialized_rollup_transactions_rx) =
+            tokio::sync::mpsc::channel(256);
+
+        let executor_handle = ExecutorHandle {
+            send_bundles: serialized_rollup_transactions_tx.clone(),
+        };
+
+        let searcher = Searcher::from_config(
+            cfg,
+            executor_handle.send_bundles.clone(),
+            serialized_rollup_transactions_rx,
+        )
+        .wrap_err("failed to initialize searcher")?;
 
         let searcher_status = searcher.subscribe_to_state();
 
@@ -51,6 +74,7 @@ impl Composer {
         Ok(Self {
             api_server,
             searcher,
+            executor_handle,
         })
     }
 
@@ -66,11 +90,13 @@ impl Composer {
         let Self {
             api_server,
             searcher,
+            executor_handle,
         } = self;
 
         let api_task =
             tokio::spawn(async move { api_server.await.wrap_err("api server ended unexpectedly") });
         let searcher_task = tokio::spawn(searcher.run());
+        let _ = executor_handle.send_bundles;
 
         tokio::select! {
             o = api_task => report_exit("api server", o),
