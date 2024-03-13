@@ -27,7 +27,7 @@ use astria_core::{
         },
         sequencer::v1alpha1::RollupData as RawRollupData,
     },
-    sequencer::v1alpha1::{
+    sequencer::v1::{
         block::RollupData,
         test_utils::{
             make_cometbft_block,

@@ -23,6 +23,6 @@ pub mod primitive {
 
 #[path = ""]
 pub mod sequencer {
-    #[path = "astria.sequencer.v1alpha1.rs"]
-    pub mod v1alpha1;
+    #[path = "astria.sequencer.v1.rs"]
+    pub mod v1;
 }

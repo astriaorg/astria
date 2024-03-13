@@ -1,4 +1,4 @@
-use astria_core::sequencer::v1alpha1::RollupId;
+use astria_core::sequencer::v1::RollupId;
 use astria_eyre::eyre::{
     self,
     WrapErr as _,

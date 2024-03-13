@@ -5,7 +5,7 @@ use sha2::{
 };
 
 use crate::{
-    generated::sequencer::v1alpha1 as raw,
+    generated::sequencer::v1 as raw,
     Protobuf,
 };
 
@@ -124,7 +124,7 @@ impl RollupId {
     ///
     /// # Examples
     /// ```
-    /// use astria_core::sequencer::v1alpha1::RollupId;
+    /// use astria_core::sequencer::v1::RollupId;
     /// let bytes = [42u8; 32];
     /// let rollup_id = RollupId::new(bytes);
     /// assert_eq!(bytes, rollup_id.get());
@@ -140,7 +140,7 @@ impl RollupId {
     ///
     /// # Examples
     /// ```
-    /// use astria_core::sequencer::v1alpha1::RollupId;
+    /// use astria_core::sequencer::v1::RollupId;
     /// let bytes = [42u8; 32];
     /// let rollup_id = RollupId::new(bytes);
     /// assert_eq!(bytes, rollup_id.get());
@@ -154,7 +154,7 @@ impl RollupId {
     ///
     /// Examples
     /// ```
-    /// use astria_core::sequencer::v1alpha1::RollupId;
+    /// use astria_core::sequencer::v1::RollupId;
     /// use sha2::{
     ///     Digest,
     ///     Sha256,
@@ -175,7 +175,7 @@ impl RollupId {
     ///
     /// # Examples
     /// ```
-    /// use astria_core::sequencer::v1alpha1::RollupId;
+    /// use astria_core::sequencer::v1::RollupId;
     /// let rollup_id = RollupId::new([42u8; 32]);
     /// assert_eq!(vec![42u8; 32], rollup_id.to_vec());
     /// ```
@@ -361,7 +361,7 @@ pub fn group_sequence_actions_in_signed_transaction_transactions_by_rollup_id(
 ) -> IndexMap<RollupId, Vec<Vec<u8>>> {
     use prost::Message as _;
 
-    use crate::sequencer::v1alpha1::block::RollupData;
+    use crate::sequencer::v1::block::RollupData;
 
     let mut map = IndexMap::new();
     for action in signed_transactions

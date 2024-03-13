@@ -12,7 +12,7 @@ use std::{
 
 #[cfg(any(feature = "http", feature = "websocket"))]
 pub use __feature_gated_exports::*;
-pub use astria_core::sequencer::v1alpha1::{
+pub use astria_core::sequencer::v1::{
     Address,
     BalanceResponse,
     NonceResponse,

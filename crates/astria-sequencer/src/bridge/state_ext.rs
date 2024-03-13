@@ -6,8 +6,8 @@ use anyhow::{
     Result,
 };
 use astria_core::{
-    generated::sequencer::v1alpha1::Deposit as RawDeposit,
-    sequencer::v1alpha1::{
+    generated::sequencer::v1::Deposit as RawDeposit,
+    sequencer::v1::{
         asset,
         block::Deposit,
         Address,
