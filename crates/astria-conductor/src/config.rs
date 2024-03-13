@@ -42,7 +42,7 @@ pub struct Config {
     /// URL of the Sequencer Cometbft HTTP RPC.
     pub sequencer_cometbft_url: String,
 
-    pub sequencer_block_time: u64,
+    pub sequencer_block_time_ms: u64,
 
     /// Address of the RPC server for execution
     pub execution_rpc_url: String,

@@ -93,7 +93,7 @@ impl Conductor {
             let sequencer_reader = sequencer::Reader::new(
                 sequencer_grpc_client,
                 sequencer_cometbft_client.clone(),
-                Duration::from_millis(cfg.sequencer_block_time),
+                Duration::from_millis(cfg.sequencer_block_time_ms),
                 shutdown_rx,
                 executor_handle.clone(),
             );
