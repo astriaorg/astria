@@ -160,6 +160,7 @@ impl Composer {
     /// Runs the composer.
     ///
     /// Currently only exits if the api server or searcher stop unexpectedly.
+    /// # Errors
     pub async fn run_until_stopped(self) -> eyre::Result<()> {
         let Self {
             api_server,
@@ -208,10 +209,12 @@ impl Composer {
         loop {
             tokio::select!(
             o = &mut api_task => {
-                    return Ok(report_exit("api server unexpectedly ended", o))
+                    report_exit("api server unexpectedly ended", o);
+                    return Ok(());
             },
             o = &mut executor_task => {
-                    return Ok(report_exit("executor unexpectedly ended", o))
+                    report_exit("executor unexpectedly ended", o);
+                    return Ok(());
             },
             exit_error = &mut grpc_server_handler => {
                     match exit_error {
@@ -223,6 +226,7 @@ impl Composer {
                             error!(%error, "grpc server task failed; reconnecting");
                         }
                     }
+                    return Ok(());
             },
             Some((rollup, collector_exit)) = collector_tasks.join_next() => {
                 reconnect_exited_collector(
