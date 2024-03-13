@@ -58,6 +58,7 @@ use tokio::{
         Instant,
     },
 };
+use tokio::sync::oneshot;
 use tracing::{
     debug,
     error,
@@ -101,6 +102,8 @@ pub(crate) struct Executor {
     block_time: Duration,
     // Max bytes in a sequencer action bundle
     max_bytes_per_bundle: usize,
+    // Channel for receiving shutdown signal
+    shutdown_signal: oneshot::Receiver<()>
 }
 
 impl Drop for Executor {
@@ -133,6 +136,7 @@ impl Executor {
         serialized_rollup_transactions_rx: mpsc::Receiver<SequenceAction>,
         block_time: u64,
         max_bytes_per_bundle: usize,
+        shutdown_signal: oneshot::Receiver<()>
     ) -> eyre::Result<Self> {
         let sequencer_client = sequencer_client::HttpClient::new(sequencer_url)
             .wrap_err("failed constructing sequencer client")?;
@@ -154,6 +158,7 @@ impl Executor {
             address: sequencer_address,
             block_time: Duration::from_millis(block_time),
             max_bytes_per_bundle,
+            shutdown_signal
         })
     }
 
@@ -184,6 +189,7 @@ impl Executor {
     #[instrument(skip_all, fields(address = %self.address))]
     pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
         let mut submission_fut: Fuse<Instrumented<SubmitFut>> = Fuse::terminated();
+        let mut in_shutdown = false;
         let mut nonce = get_latest_nonce(self.sequencer_client.clone(), self.address)
             .await
             .wrap_err("failed getting initial nonce from sequencer")?;
@@ -200,6 +206,14 @@ impl Executor {
             select! {
                 biased;
 
+                // this is put first so that it is checked before the submission_fut
+                // which otherwise could be missed because of the "biased" attribute
+                _ = &mut self.shutdown_signal => {
+                    // close the channel to signal the sequencer that no more transactions will be submitted to the Executor
+                    self.serialized_rollup_transactions_rx.close();
+                    self.status.send_modify(|status| status.is_connected = false);
+                    in_shutdown = true;
+                }
                 // process submission result and update nonce
                 rsp = &mut submission_fut, if !submission_fut.is_terminated() => {
                     match rsp {
@@ -237,6 +251,11 @@ impl Executor {
                     let bundle = bundle_factory.pop_now();
                     if bundle.is_empty() {
                         debug!("block timer ticked, but no bundle to submit to sequencer");
+                        // when shutting down waiting till all bundles are submitted to the sequencer
+                        // and then exit the executor.
+                        if in_shutdown {
+                            return Ok(());
+                        }
                         block_timer.as_mut().reset(reset_time());
                     } else {
                         debug!(
@@ -245,7 +264,7 @@ impl Executor {
                         );
                         submission_fut = self.submit_bundle(nonce, bundle);
                     }
-                }
+                },
             }
         }
     }

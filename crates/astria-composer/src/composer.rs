@@ -3,6 +3,7 @@ use std::{
     io,
     net::SocketAddr,
 };
+use futures::TryFutureExt;
 
 use astria_core::{
     generated::composer::v1alpha1::composer_service_server::ComposerServiceServer,
@@ -14,17 +15,21 @@ use astria_eyre::eyre::{
 };
 use tokio::{
     net::TcpListener,
+    select,
     sync::{
         mpsc::Sender,
         watch,
     },
     task::JoinError,
 };
+use tokio::signal::unix::{signal, SignalKind};
+use tokio::sync::{mpsc, oneshot};
 use tokio_util::task::JoinMap;
 use tracing::{
     error,
     info,
 };
+use config::get;
 
 use crate::{
     api::{
@@ -58,17 +63,25 @@ pub struct Composer {
     /// `Executor` is responsible for signing and submitting sequencer transactions
     /// The sequencer transactions are received from various collectors.
     executor: Executor,
+    /// `ExecutorShutdownSignal` is responsible for sending a signal to the executor
+    /// when the server is shutting down so that the executor can gracefully shutdown.
+    executor_shutdown_tx: oneshot::Sender<()>,
     /// `GrpcCollectorListener` is the tcp connection on which the gRPC collector is running
     grpc_collector_listener: TcpListener,
 
     // The collection of collectors and their rollup names.
     geth_collectors: HashMap<String, GethCollector>,
-    // The collection of the collector statuses.
-    collector_statuses: HashMap<String, watch::Receiver<geth_collector::Status>>,
+    // // The collection of the collector statuses.
+    collector_statuses: HashMap<String, GethCollectorStatusInfo>,
     // The map of chain ID to the URLs to which collectors should connect.
     rollups: HashMap<String, String>,
     // The set of tasks tracking if the geth collectors are still running.
     collector_tasks: JoinMap<String, eyre::Result<()>>,
+}
+
+pub(crate) struct GethCollectorStatusInfo {
+    status: watch::Receiver<geth_collector::Status>,
+    shutdown_signal: oneshot::Sender<()>
 }
 
 impl Composer {
@@ -87,12 +100,15 @@ impl Composer {
             sequence_action_tx: serialized_rollup_transactions_tx.clone(),
         };
 
+        let (executor_shutdown_tx, executor_shutdown_rx) = oneshot::channel::<()>();
+
         let executor = Executor::new(
             &cfg.sequencer_url,
             &cfg.private_key,
             serialized_rollup_transactions_rx,
             cfg.block_time_ms,
             cfg.max_bytes_per_bundle,
+            executor_shutdown_rx
         )
         .wrap_err("executor construction from config failed")?;
 
@@ -115,28 +131,50 @@ impl Composer {
             .collect::<Result<HashMap<_, _>, _>>()
             .wrap_err("failed parsing provided <rollup_name>::<url> pairs as rollups")?;
 
+        let mut collector_statuses: HashMap<String, GethCollectorStatusInfo> = HashMap::new();
         let geth_collectors = rollups
             .iter()
             .map(|(rollup_name, url)| {
+                let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
                 let collector = GethCollector::new(
                     rollup_name.clone(),
                     url.clone(),
                     serialized_rollup_transactions_tx.clone(),
+                    shutdown_rx
                 );
+                let collector_info = GethCollectorStatusInfo {
+                    status: collector.subscribe(),
+                    shutdown_signal: shutdown_tx,
+                };
+                collector_statuses.insert(rollup_name.clone(), collector_info);
                 (rollup_name.clone(), collector)
             })
             .collect::<HashMap<_, _>>();
-        let collector_statuses: HashMap<String, watch::Receiver<geth_collector::Status>> =
-            geth_collectors
-                .iter()
-                .map(|(rollup_name, collector)| (rollup_name.clone(), collector.subscribe()))
-                .collect();
+        // let collector_statuses: HashMap<String, CollectorStatusInfo> =
+        //     geth_collectors
+        //         .iter()
+        //         .map(|(rollup_name, collector)| {
+        //             let (collector_shutdown_tx, collector_shutdown_rx) = oneshot::channel::<()>();
+        //             CollectorStatusInfo {
+        //                 status: collector.subscribe(),
+        //                 shutdown_signal: collector_shutdown_tx,
+        //             }
+        //         })
+        //         .collect();
+        // for (rollup, geth_collector) in geth_collectors.iter() {
+        //     let (collector_shutdown_tx, collector_shutdown_rx) = oneshot::channel::<()>();
+        //     CollectorStatusInfo {
+        //         status: geth_collector.subscribe(),
+        //         shutdown_signal: collector_shutdown_tx,
+        //     }
+        // }
 
         Ok(Self {
             api_server,
             searcher_status_sender,
             executor_handle,
             executor,
+            executor_shutdown_tx,
             grpc_collector_listener,
             rollups,
             geth_collectors,
@@ -168,10 +206,11 @@ impl Composer {
             grpc_collector_listener,
             executor,
             executor_handle,
+            executor_shutdown_tx,
             mut collector_tasks,
             mut geth_collectors,
-            rollups,
             mut collector_statuses,
+            rollups,
         } = self;
 
         // run the api server
@@ -196,18 +235,23 @@ impl Composer {
         });
 
         // run the grpc collector
+        let (grpc_server_shutdown_tx, grpc_server_shutdown_rx) = oneshot::channel();
         let composer_service = ComposerServiceServer::new(executor_handle.clone());
         let grpc_server = tonic::transport::Server::builder().add_service(composer_service);
         let mut grpc_server_handler = tokio::spawn(async move {
             grpc_server
-                .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(
-                    grpc_collector_listener,
-                ))
+                .serve_with_incoming_shutdown(
+                    tokio_stream::wrappers::TcpListenerStream::new(grpc_collector_listener),
+                    grpc_server_shutdown_rx.unwrap_or_else(|_| ()),
+                )
                 .await
         });
 
+        let mut shutdown_rx = spawn_signal_handler().await;
+        tokio::pin!(shutdown_rx);
+
         loop {
-            tokio::select!(
+            select!(
             o = &mut api_task => {
                     report_exit("api server unexpectedly ended", o);
                     return Ok(());
@@ -237,9 +281,53 @@ impl Composer {
                     rollup,
                     collector_exit,
                 );
-            });
+            },
+            _ = &mut shutdown_rx.recv() => {
+                info!("shutting down composer");
+                grpc_server_shutdown_tx.send(()).unwrap_or_else(|_| ());
+                for (rollup, collector_status_info) in collector_statuses.drain() {
+                    collector_status_info.shutdown_signal.send(()).unwrap_or_else(|_| ());
+                }
+                executor_shutdown_tx.send(()).unwrap_or_else(|_| ());
+                break;
+            })
         }
+
+        tokio::try_join!(
+            api_task,
+            executor_task,
+            grpc_server_handler,
+        );
+
+        Ok(())
     }
+}
+
+async fn spawn_signal_handler() -> mpsc::Receiver<()> {
+    let (stop_tx, stop_rx) = mpsc::channel(1);
+    tokio::spawn(async move {
+        let mut sigint = signal(SignalKind::interrupt()).expect(
+            "setting a SIGINT listener should always work on unix; is this running on unix?",
+        );
+        let mut sigterm = signal(SignalKind::terminate()).expect(
+            "setting a SIGTERM listener should always work on unix; is this running on unix?",
+        );
+        loop {
+            select! {
+                _ = sigint.recv() => {
+                    info!("received SIGINT");
+                    let _ = stop_tx.send(());
+                }
+                _ = sigterm.recv() => {
+                    info!("received SIGTERM");
+                    let _ = stop_tx.send(());
+                }
+            }
+        }
+    });
+
+    stop_rx
+
 }
 
 async fn wait_for_executor(
@@ -255,7 +343,7 @@ async fn wait_for_executor(
 
 /// Waits for all collectors to come online.
 async fn wait_for_collectors(
-    collector_statuses: &HashMap<String, watch::Receiver<geth_collector::Status>>,
+    collector_statuses: &HashMap<String, GethCollectorStatusInfo>,
 ) -> eyre::Result<()> {
     use futures::{
         future::FutureExt as _,
@@ -266,8 +354,8 @@ async fn wait_for_collectors(
     };
     let mut statuses = collector_statuses
         .iter()
-        .map(|(chain_id, status)| {
-            let mut status = status.clone();
+        .map(|(chain_id, collector_status_info)| {
+            let mut status = collector_status_info.status.clone();
             async move {
                 match status.wait_for(geth_collector::Status::is_connected).await {
                     // `wait_for` returns a reference to status; throw it
@@ -296,7 +384,7 @@ async fn wait_for_collectors(
 }
 
 fn reconnect_exited_collector(
-    collector_statuses: &mut HashMap<String, watch::Receiver<geth_collector::Status>>,
+    collector_statuses: &mut HashMap<String, GethCollectorStatusInfo>,
     collector_tasks: &mut JoinMap<String, eyre::Result<()>>,
     serialized_rolup_transactions_tx: Sender<SequenceAction>,
     rollups: &HashMap<String, String>,
@@ -312,12 +400,17 @@ fn reconnect_exited_collector(
         return;
     };
 
+    let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
     let collector = GethCollector::new(
         rollup.clone(),
         url.clone(),
         serialized_rolup_transactions_tx,
+        shutdown_rx
     );
-    collector_statuses.insert(rollup.clone(), collector.subscribe());
+    collector_statuses.insert(rollup.clone(), GethCollectorStatusInfo {
+        status: collector.subscribe(),
+        shutdown_signal: shutdown_tx,
+    });
     collector_tasks.spawn(rollup, collector.run_until_stopped());
 }
 

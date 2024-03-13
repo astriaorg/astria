@@ -12,13 +12,10 @@ use ethers::providers::{
     ProviderError,
     Ws,
 };
-use tokio::sync::{
-    mpsc::{
-        error::SendTimeoutError,
-        Sender,
-    },
-    watch,
-};
+use tokio::sync::{mpsc::{
+    error::SendTimeoutError,
+    Sender,
+}, oneshot, watch};
 use tracing::{
     debug,
     instrument,
@@ -48,6 +45,8 @@ pub(crate) struct GethCollector {
     status: watch::Sender<Status>,
     /// Rollup URL
     url: String,
+    // The shutdown signal for the collector.
+    shutdown_rx: oneshot::Receiver<()>
 }
 
 #[derive(Debug)]
@@ -73,6 +72,7 @@ impl GethCollector {
         chain_name: String,
         url: String,
         new_bundles: Sender<SequenceAction>,
+        shutdown_rx: oneshot::Receiver<()>
     ) -> Self {
         let (status, _) = watch::channel(Status::new());
         Self {
@@ -81,6 +81,7 @@ impl GethCollector {
             new_bundles,
             status,
             url,
+            shutdown_rx
         }
     }
 
@@ -92,7 +93,7 @@ impl GethCollector {
     /// Starts the collector instance and runs until failure or until
     /// explicitly closed
     #[instrument(skip_all, fields(chain_name = self.chain_name))]
-    pub(crate) async fn run_until_stopped(self) -> eyre::Result<()> {
+    pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
         use std::time::Duration;
 
         use ethers::providers::Middleware as _;
@@ -142,36 +143,59 @@ impl GethCollector {
 
         status.send_modify(|status| status.is_connected = true);
 
-        while let Some(tx) = tx_stream.next().await {
-            let tx_hash = tx.hash;
-            debug!(transaction.hash = %tx_hash, "collected transaction from rollup");
-            let data = tx.rlp().to_vec();
-            let seq_action = SequenceAction {
-                rollup_id,
-                data,
-                fee_asset_id: default_native_asset_id(),
-            };
+        loop {
+            tokio::select!(
+                Some(tx) = tx_stream.next() => {
+                    let tx_hash = tx.hash;
+                    debug!(transaction.hash = %tx_hash, "collected transaction from rollup");
+                    let data = tx.rlp().to_vec();
+                    let seq_action = SequenceAction {
+                        rollup_id,
+                        data,
+                        fee_asset_id: default_native_asset_id(),
+                    };
 
-            match new_bundles
-                .send_timeout(seq_action, Duration::from_millis(500))
-                .await
-            {
-                Ok(()) => {}
-                Err(SendTimeoutError::Timeout(_seq_action)) => {
-                    warn!(
-                        transaction.hash = %tx_hash,
-                        "timed out sending new transaction to searcher after 500ms; dropping tx"
-                    );
-                }
-                Err(SendTimeoutError::Closed(_seq_action)) => {
-                    warn!(
-                        transaction.hash = %tx_hash,
-                        "searcher channel closed while sending transaction; dropping transaction \
-                         and exiting event loop"
-                    );
+                    match new_bundles
+                        .send_timeout(seq_action, Duration::from_millis(500))
+                        .await
+                    {
+                        Ok(()) => {}
+                        Err(SendTimeoutError::Timeout(_seq_action)) => {
+                            warn!(
+                                transaction.hash = %tx_hash,
+                                "timed out sending new transaction to searcher after 500ms; dropping tx"
+                            );
+                        }
+                        Err(SendTimeoutError::Closed(_seq_action)) => {
+                            warn!(
+                                transaction.hash = %tx_hash,
+                                "searcher channel closed while sending transaction; dropping transaction \
+                                 and exiting event loop"
+                            );
+                            match tx_stream.unsubscribe().await {
+                                Ok(res) => {
+                                    debug!("unsubscribed from geth pending tx stream");
+                                }
+                                Err(e) => {
+                                    warn!(error = %e, "failed to unsubscribe from geth pending tx stream");
+                                }
+                            }
+                            break;
+                        }
+                    }
+                },
+                _ = &mut self.shutdown_rx => {
+                    match tx_stream.unsubscribe().await {
+                        Ok(res) => {
+                            debug!("unsubscribed from geth pending tx stream");
+                        }
+                        Err(e) => {
+                            warn!(error = %e, "failed to unsubscribe from geth pending tx stream");
+                        }
+                    }
                     break;
                 }
-            }
+            );
         }
         Ok(())
     }
