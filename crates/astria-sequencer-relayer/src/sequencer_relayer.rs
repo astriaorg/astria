@@ -1,4 +1,7 @@
-use std::net::SocketAddr;
+use std::{
+    net::SocketAddr,
+    time::Duration,
+};
 
 use astria_eyre::eyre::{
     self,
@@ -10,7 +13,10 @@ use tracing::info;
 use crate::{
     api,
     config::Config,
-    relayer::Relayer,
+    relayer::{
+        self,
+        Relayer,
+    },
 };
 
 pub struct SequencerRelayer {
@@ -24,16 +30,38 @@ impl SequencerRelayer {
     /// # Errors
     ///
     /// Returns an error if constructing the inner relayer type failed.
-    pub async fn new(cfg: &Config) -> eyre::Result<Self> {
-        let relayer = Relayer::new(cfg)
-            .await
-            .wrap_err("failed to create relayer")?;
+    pub fn new(cfg: Config) -> eyre::Result<Self> {
+        let Config {
+            cometbft_endpoint,
+            sequencer_grpc_endpoint,
+            celestia_endpoint,
+            celestia_bearer_token,
+            block_time,
+            relay_only_validator_key_blocks,
+            validator_key_file,
+            api_addr,
+            pre_submit_path,
+            post_submit_path,
+            ..
+        } = cfg;
+
+        let validator_key_path = relay_only_validator_key_blocks.then_some(validator_key_file);
+        let relayer = relayer::Builder {
+            celestia_endpoint,
+            celestia_bearer_token,
+            cometbft_endpoint,
+            sequencer_poll_period: Duration::from_millis(block_time),
+            sequencer_grpc_endpoint,
+            validator_key_path,
+            pre_submit_path,
+            post_submit_path,
+        }
+        .build()
+        .wrap_err("failed to create relayer")?;
+
         let state_rx = relayer.subscribe_to_state();
-        let api_socket_addr = cfg.api_addr.parse::<SocketAddr>().wrap_err_with(|| {
-            format!(
-                "failed to parse provided `api_addr` string as socket address: `{}`",
-                cfg.api_addr
-            )
+        let api_socket_addr = api_addr.parse::<SocketAddr>().wrap_err_with(|| {
+            format!("failed to parse provided `api_addr` string as socket address: `{api_addr}`",)
         })?;
         let api_server = api::start(api_socket_addr, state_rx);
         Ok(Self {

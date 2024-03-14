@@ -364,7 +364,7 @@ impl TestSequencerRelayerConfig {
             celestia_bearer_token: String::new(),
             block_time: 1000,
             relay_only_validator_key_blocks: self.relay_only_self,
-            validator_key_file: Some(keyfile.path().to_string_lossy().to_string()),
+            validator_key_file: keyfile.path().to_string_lossy().to_string(),
             api_addr: "0.0.0.0:0".into(),
             log: String::new(),
             force_stdout: false,
@@ -377,8 +377,7 @@ impl TestSequencerRelayerConfig {
         };
 
         info!(config = serde_json::to_string(&config).unwrap());
-        let config_clone = config.clone();
-        let sequencer_relayer = SequencerRelayer::new(&config_clone).await.unwrap();
+        let sequencer_relayer = SequencerRelayer::new(config.clone()).unwrap();
         let api_address = sequencer_relayer.local_addr();
         let sequencer_relayer = tokio::task::spawn(sequencer_relayer.run());
 
