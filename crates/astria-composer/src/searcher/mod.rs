@@ -32,6 +32,8 @@ mod rollup;
 use executor::Executor;
 use geth_collector::GethCollector;
 
+type StdError = dyn std::error::Error;
+
 /// A Searcher collates transactions from multiple rollups and bundles them into
 /// Astria sequencer transactions that are then passed on to the
 /// Shared Sequencer. The rollup transactions that make up these sequencer transactions
@@ -198,7 +200,7 @@ impl Searcher {
         );
     }
 
-    /// Spawns all collector on the collector task set.
+    /// Spawns all collectors on the collector task set.
     fn spawn_collectors(&mut self) {
         for (rollup_name, collector) in self.geth_collectors.drain() {
             self.geth_collector_tasks
@@ -226,7 +228,7 @@ impl Searcher {
                         // away because this future cannot return a reference to
                         // a stack local object.
                         Ok(_) => Ok(()),
-                        // if an collector fails while waiting for its status, this
+                        // if a collector fails while waiting for its status, this
                         // will return an error
                         Err(e) => Err(e),
                     }
@@ -290,6 +292,7 @@ fn reconnect_exited_geth_collector(
         );
         return;
     };
+
     let collector = GethCollector::new(
         rollup.clone(),
         url.clone(),
