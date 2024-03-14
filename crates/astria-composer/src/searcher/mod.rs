@@ -25,11 +25,11 @@ use tracing::{
 
 use crate::Config;
 
-mod collector;
 mod executor;
+mod geth_collector;
 mod rollup;
-use collector::GethCollector;
 use executor::Executor;
+use geth_collector::GethCollector;
 
 /// A Searcher collates transactions from multiple rollups and bundles them into
 /// Astria sequencer transactions that are then passed on to the
@@ -42,7 +42,7 @@ pub(super) struct Searcher {
     // The collection of collectors and their rollup names.
     geth_collectors: HashMap<String, GethCollector>,
     // The collection of the collector statuses.
-    geth_collector_statuses: HashMap<String, watch::Receiver<collector::Status>>,
+    geth_collector_statuses: HashMap<String, watch::Receiver<geth_collector::Status>>,
     // The map of chain ID to the URLs to which collectors should connect.
     rollups: HashMap<String, String>,
     // The set of tasks tracking if the collectors are still running.
@@ -219,7 +219,7 @@ impl Searcher {
             .map(|(rollup_name, status)| {
                 let mut status = status.clone();
                 async move {
-                    match status.wait_for(collector::Status::is_connected).await {
+                    match status.wait_for(geth_collector::Status::is_connected).await {
                         // `wait_for` returns a reference to status; throw it
                         // away because this future cannot return a reference to
                         // a stack local object.
@@ -265,7 +265,7 @@ impl Searcher {
 }
 
 fn reconnect_exited_geth_collector(
-    collector_statuses: &mut HashMap<String, watch::Receiver<collector::Status>>,
+    collector_statuses: &mut HashMap<String, watch::Receiver<geth_collector::Status>>,
     collector_tasks: &mut JoinMap<String, eyre::Result<()>>,
     serialized_rolup_transactions_tx: Sender<SequenceAction>,
     rollups: &HashMap<String, String>,
@@ -310,8 +310,8 @@ mod tests {
     use tokio_util::task::JoinMap;
 
     use crate::searcher::{
-        collector,
-        collector::GethCollector,
+        geth_collector,
+        geth_collector::GethCollector,
     };
 
     /// This tests the `reconnect_exited_collector` handler.
@@ -329,7 +329,7 @@ mod tests {
         let mut status = collector.subscribe();
         collector_tasks.spawn(rollup_name.clone(), collector.run_until_stopped());
         status
-            .wait_for(collector::Status::is_connected)
+            .wait_for(geth_collector::Status::is_connected)
             .await
             .unwrap();
         let rollup_tx = Transaction::default();
@@ -371,7 +371,7 @@ mod tests {
         statuses
             .get_mut(&rollup_name)
             .unwrap()
-            .wait_for(collector::Status::is_connected)
+            .wait_for(geth_collector::Status::is_connected)
             .await
             .unwrap();
         let _ = mock_geth.push_tx(rollup_tx).unwrap();

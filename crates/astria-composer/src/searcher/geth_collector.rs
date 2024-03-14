@@ -1,3 +1,14 @@
+//! `GethCollector` is responsible for fetching pending transactions submitted to rollup
+//! nodes and then passing them downstream for the searcher to process.
+//!
+//! It is responsible for fetching pending transactions submitted to the rollup Geth nodes and then
+//! passing them downstream for the executor to process. Thus, a searcher can have multiple
+//! collectors running at the same time funneling data from multiple rollup nodes.
+//!
+//! `GethCollector` uses the <https://geth.ethereum.org/docs/interacting-with-geth/rpc/pubsub#newpendingtransactions>
+//! JSON-RPC event to fetch pending transactions from the rollup Geth nodes.
+//! Currently, only Geth supports this JSON-RPC event.
+
 use astria_core::sequencer::v1::{
     asset::default_native_asset_id,
     transaction::action::SequenceAction,
@@ -27,13 +38,11 @@ use tracing::{
 
 type StdError = dyn std::error::Error;
 
-/// Collects transactions submitted to a rollup node and passes them downstream for further
-/// processing.
+/// `GethCollector` Collects transactions submitted to a Geth rollup node and passes
+/// them downstream for further processing.
 ///
-/// Collector is a sub-actor in the Searcher module that interfaces with
-/// individual rollups.
-/// It is responsible for fetching pending transactions submitted to the rollup nodes and then
-/// passing them downstream for the searcher to process. Thus, a searcher can have multiple
+/// It is responsible for fetching pending transactions submitted to the rollup Geth nodes and then
+/// passing them downstream for the executor to process. Thus, a searcher can have multiple
 /// collectors running at the same time funneling data from multiple rollup nodes.
 #[derive(Debug)]
 pub(super) struct GethCollector {
