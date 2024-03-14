@@ -36,7 +36,7 @@ use crate::searcher::StdError;
 /// passing them downstream for the searcher to process. Thus, a searcher can have multiple
 /// collectors running at the same time funneling data from multiple rollup nodes.
 #[derive(Debug)]
-pub(super) struct GethCollector {
+pub(crate) struct GethCollector {
     // Chain ID to identify in the astria sequencer block which rollup a serialized sequencer
     // action belongs to. Created from `chain_name`.
     rollup_id: RollupId,
@@ -51,7 +51,7 @@ pub(super) struct GethCollector {
 }
 
 #[derive(Debug)]
-pub(super) struct Status {
+pub(crate) struct Status {
     is_connected: bool,
 }
 
@@ -62,14 +62,14 @@ impl Status {
         }
     }
 
-    pub(super) fn is_connected(&self) -> bool {
+    pub(crate) fn is_connected(&self) -> bool {
         self.is_connected
     }
 }
 
 impl GethCollector {
     /// Initializes a new collector instance
-    pub(super) fn new(
+    pub(crate) fn new(
         chain_name: String,
         url: String,
         new_bundles: Sender<SequenceAction>,
@@ -84,15 +84,15 @@ impl GethCollector {
         }
     }
 
-    /// Subscribe to the collector's status.
-    pub(super) fn subscribe(&self) -> watch::Receiver<Status> {
+    /// Subscribe to the composer's status.
+    pub(crate) fn subscribe(&self) -> watch::Receiver<Status> {
         self.status.subscribe()
     }
 
     /// Starts the collector instance and runs until failure or until
     /// explicitly closed
     #[instrument(skip_all, fields(chain_name = self.chain_name))]
-    pub(super) async fn run_until_stopped(self) -> eyre::Result<()> {
+    pub(crate) async fn run_until_stopped(self) -> eyre::Result<()> {
         use std::time::Duration;
 
         use ethers::providers::Middleware as _;
