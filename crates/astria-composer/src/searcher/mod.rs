@@ -28,20 +28,19 @@ use crate::Config;
 mod collector;
 mod executor;
 mod rollup;
-
-use collector::Collector;
+use collector::GethCollector;
 use executor::Executor;
 
 /// A Searcher collates transactions from multiple rollups and bundles them into
 /// Astria sequencer transactions that are then passed on to the
 /// Shared Sequencer. The rollup transactions that make up these sequencer transactions
-/// have have the property of atomic inclusion, i.e. if they are submitted to the
+/// have the property of atomic inclusion, i.e. if they are submitted to the
 /// sequencer, all of them are going to be executed in the same Astria block.
 pub(super) struct Searcher {
     // Channel to report the internal status of the searcher to other parts of the system.
     status: watch::Sender<Status>,
     // The collection of collectors and their rollup names.
-    collectors: HashMap<String, Collector>,
+    geth_collectors: HashMap<String, GethCollector>,
     // The collection of the collector statuses.
     collector_statuses: HashMap<String, watch::Receiver<collector::Status>>,
     // The map of chain ID to the URLs to which collectors should connect.
@@ -90,10 +89,10 @@ impl Searcher {
         let (serialized_rollup_transactions_tx, serialized_rollup_transactions_rx) =
             mpsc::channel(256);
 
-        let collectors = rollups
+        let geth_collectors = rollups
             .iter()
             .map(|(rollup_name, url)| {
-                let collector = Collector::new(
+                let collector = GethCollector::new(
                     rollup_name.clone(),
                     url.clone(),
                     serialized_rollup_transactions_tx.clone(),
@@ -101,7 +100,7 @@ impl Searcher {
                 (rollup_name.clone(), collector)
             })
             .collect::<HashMap<_, _>>();
-        let collector_statuses = collectors
+        let collector_statuses = geth_collectors
             .iter()
             .map(|(rollup_name, collector)| (rollup_name.clone(), collector.subscribe()))
             .collect();
@@ -121,7 +120,7 @@ impl Searcher {
 
         Ok(Searcher {
             status,
-            collectors,
+            geth_collectors,
             collector_statuses,
             collector_tasks: JoinMap::new(),
             serialized_rollup_transactions_tx,
@@ -199,7 +198,7 @@ impl Searcher {
 
     /// Spawns all collector on the collector task set.
     fn spawn_collectors(&mut self) {
-        for (rollup_name, collector) in self.collectors.drain() {
+        for (rollup_name, collector) in self.geth_collectors.drain() {
             self.collector_tasks
                 .spawn(rollup_name, collector.run_until_stopped());
         }
@@ -289,7 +288,7 @@ fn reconnect_exited_collector(
         );
         return;
     };
-    let collector = Collector::new(
+    let collector = GethCollector::new(
         rollup.clone(),
         url.clone(),
         serialized_rolup_transactions_tx,
@@ -310,9 +309,9 @@ mod tests {
     use ethers::types::Transaction;
     use tokio_util::task::JoinMap;
 
-    use crate::searcher::collector::{
-        self,
-        Collector,
+    use crate::searcher::{
+        collector,
+        collector::GethCollector,
     };
 
     /// This tests the `reconnect_exited_collector` handler.
@@ -326,7 +325,7 @@ mod tests {
         let (tx, mut rx) = tokio::sync::mpsc::channel(16);
 
         let mut collector_tasks = JoinMap::new();
-        let collector = Collector::new(rollup_name.clone(), rollup_url.clone(), tx.clone());
+        let collector = GethCollector::new(rollup_name.clone(), rollup_url.clone(), tx.clone());
         let mut status = collector.subscribe();
         collector_tasks.spawn(rollup_name.clone(), collector.run_until_stopped());
         status
