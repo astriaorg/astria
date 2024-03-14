@@ -4,7 +4,10 @@ use std::{
     net::SocketAddr,
 };
 
-use astria_core::generated::composer::v1alpha1::grpc_collector_service_server::GrpcCollectorServiceServer;
+use astria_core::{
+    generated::composer::v1alpha1::grpc_collector_service_server::GrpcCollectorServiceServer,
+    sequencer::v1::transaction::action::SequenceAction,
+};
 use astria_eyre::eyre::{
     self,
     WrapErr as _,
@@ -22,7 +25,6 @@ use tracing::{
     error,
     info,
 };
-use astria_core::sequencer::v1::transaction::action::SequenceAction;
 
 use crate::{
     api::{
@@ -335,16 +337,13 @@ fn report_exit(task_name: &str, outcome: Result<eyre::Result<()>, JoinError>) {
 mod tests {
     use std::collections::HashMap;
 
-    use astria_core::sequencer::v1alpha1::{
+    use astria_core::sequencer::v1::{
         asset::default_native_asset_id,
         transaction::action::SequenceAction,
         RollupId,
     };
     use ethers::types::Transaction;
     use tokio_util::task::JoinMap;
-    use astria_core::sequencer::v1::asset::default_native_asset_id;
-    use astria_core::sequencer::v1::RollupId;
-    use astria_core::sequencer::v1::transaction::action::SequenceAction;
 
     use crate::searcher::geth_collector::{
         GethCollector,
