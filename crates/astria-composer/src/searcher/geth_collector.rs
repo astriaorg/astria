@@ -97,7 +97,7 @@ impl GethCollector {
         }
     }
 
-    /// Subscribe to the composer's status.
+    /// Subscribe to the collector's status.
     pub(super) fn subscribe(&self) -> watch::Receiver<Status> {
         self.status.subscribe()
     }

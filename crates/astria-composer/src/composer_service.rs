@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use astria_core::{
     generated::composer::v1alpha1::{
-        composer_service_server::ComposerService,
+        grpc_collector_service_server::GrpcCollectorService,
         SubmitSequenceActionsRequest,
     }
 };
@@ -24,7 +24,7 @@ pub(crate) struct ExecutorHandle {
 }
 
 #[async_trait::async_trait]
-impl ComposerService for ExecutorHandle {
+impl GrpcCollectorService for ExecutorHandle {
     async fn submit_sequence_actions(
         &self,
         request: Request<SubmitSequenceActionsRequest>,

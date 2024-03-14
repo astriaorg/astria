@@ -8,10 +8,7 @@ use astria_eyre::eyre::{
 use tokio::{
     select,
     sync::{
-        mpsc::{
-            Receiver,
-            Sender,
-        },
+        mpsc::Sender,
         watch,
     },
     task::JoinError,
@@ -81,8 +78,8 @@ impl Searcher {
     /// + failed to construct a sequencer clinet
     pub(super) fn from_config(
         cfg: &Config,
-        serialized_rollup_transactions_tx: Sender<SequenceAction>,
-        serialized_rollup_transactions_rx: Receiver<SequenceAction>,
+        serialized_rollup_transactions_tx: tokio::sync::mpsc::Sender<SequenceAction>,
+        serialized_rollup_transactions_rx: tokio::sync::mpsc::Receiver<SequenceAction>,
     ) -> eyre::Result<Self> {
         use rollup::Rollup;
         let rollups = cfg
