@@ -19,7 +19,7 @@ use tracing::{
     error,
     info,
 };
-use astria_core::generated::composer::v1alpha1::composer_service_server::{ComposerService, ComposerServiceServer};
+use astria_core::generated::composer::v1alpha1::grpc_collector_service_server::GrpcCollectorServiceServer;
 use astria_core::generated::composer::v1alpha1::SubmitSequenceActionsRequest;
 use astria_core::sequencer::v1::asset::default_native_asset_id;
 use astria_core::sequencer::v1::RollupId;
@@ -119,7 +119,7 @@ impl Composer {
         let _ = executor_handle.sequence_action_tx;
 
         // run the grpc server
-        let composer_service = ComposerServiceServer::new(executor_handle);
+        let composer_service = GrpcCollectorServiceServer::new(executor_handle);
         let grpc_server = tonic::transport::Server::builder().add_service(composer_service);
         let grpc_server_handler = tokio::spawn(async move {
             grpc_server
