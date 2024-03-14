@@ -70,13 +70,11 @@ async fn tx_from_one_rollup_is_received_by_sequencer_from_grpc_collector() {
 
     let tx = Transaction::default();
     // send sequence action request to the grpc generic collector
-    let mut composer_client = ComposerServiceClient::connect(format!(
-        "http://{}",
-        test_composer.grpc_collector_addr.to_string()
-    ))
-    .await
-    .unwrap();
-    let res = composer_client
+    let mut composer_client =
+        ComposerServiceClient::connect(format!("http://{}", test_composer.grpc_collector_addr))
+            .await
+            .unwrap();
+    composer_client
         .submit_sequence_actions(SubmitSequenceActionsRequest {
             sequence_actions: vec![SequenceAction {
                 rollup_id: "test1".to_string(),
@@ -85,7 +83,6 @@ async fn tx_from_one_rollup_is_received_by_sequencer_from_grpc_collector() {
         })
         .await
         .expect("error submitting sequence actions to generic collector");
-    assert_eq!(res.into_inner(), ());
 
     // wait for 1 sequencer block time to make sure the bundle is preempted
     tokio::time::timeout(
@@ -203,13 +200,11 @@ async fn invalid_nonce_failure_causes_tx_resubmission_under_different_nonce_grpc
     // the stored nonce of 0, triggering the nonce refetch process
     let tx = Transaction::default();
     // send sequence action request to the grpc generic collector
-    let mut composer_client = ComposerServiceClient::connect(format!(
-        "http://{}",
-        test_composer.grpc_collector_addr.to_string()
-    ))
-    .await
-    .unwrap();
-    let res = composer_client
+    let mut composer_client =
+        ComposerServiceClient::connect(format!("http://{}", test_composer.grpc_collector_addr))
+            .await
+            .unwrap();
+    composer_client
         .submit_sequence_actions(SubmitSequenceActionsRequest {
             sequence_actions: vec![SequenceAction {
                 rollup_id: "test1".to_string(),
@@ -218,7 +213,6 @@ async fn invalid_nonce_failure_causes_tx_resubmission_under_different_nonce_grpc
         })
         .await
         .expect("error submitting sequence actions to generic collector");
-    assert_eq!(res.into_inner(), ());
 
     // wait for 1 sequencer block time to make sure the bundle is preempted
     tokio::time::timeout(
@@ -287,13 +281,11 @@ async fn single_rollup_tx_payload_integrity_grpc_collector() {
         mount_matcher_verifying_tx_integrity(&test_composer.sequencer, tx.clone()).await;
 
     // send sequence action request to the grpc generic collector
-    let mut composer_client = ComposerServiceClient::connect(format!(
-        "http://{}",
-        test_composer.grpc_collector_addr.to_string()
-    ))
-    .await
-    .unwrap();
-    let res = composer_client
+    let mut composer_client =
+        ComposerServiceClient::connect(format!("http://{}", test_composer.grpc_collector_addr))
+            .await
+            .unwrap();
+    composer_client
         .submit_sequence_actions(SubmitSequenceActionsRequest {
             sequence_actions: vec![SequenceAction {
                 rollup_id: "test1".to_string(),
@@ -302,7 +294,6 @@ async fn single_rollup_tx_payload_integrity_grpc_collector() {
         })
         .await
         .expect("error submitting sequence actions to generic collector");
-    assert_eq!(res.into_inner(), ());
 
     // wait for 1 sequencer block time to make sure the bundle is preempted
     tokio::time::timeout(
