@@ -1,13 +1,17 @@
-//! `GethCollector` is responsible for fetching pending transactions submitted to rollup
-//! nodes and then passing them downstream for the searcher to process.
+//! `GethCollector` fetches pending transactions from a Geth Rollup.
 //!
-//! It is responsible for fetching pending transactions submitted to the rollup Geth nodes and then
-//! passing them downstream for the executor to process. Thus, a searcher can have multiple
-//! collectors running at the same time funneling data from multiple rollup nodes.
+//! //! [`GethCollector`] subscribes to pending transactions from a [go-ethereum](https://geth.ethereum.org) rollup node,
+//! and forwards them for more processing. and then passing them downstream for the executor to
+//! process.
 //!
-//! `GethCollector` uses the <https://geth.ethereum.org/docs/interacting-with-geth/rpc/pubsub#newpendingtransactions>
-//! JSON-RPC event to fetch pending transactions from the rollup Geth nodes.
-//! Currently, only Geth supports this JSON-RPC event.
+//! ## Note
+//! This collector is likely specific to go-ethereum and only checked to work wit. It makes use of
+//! the [`eth_subscribe`](https://geth.ethereum.org/docs/interacting-with-geth/rpc/pubsub#newpendingtransactions)
+//! JSON-RPC with arguments shown below. It appears as if go-ethereum is the only ethereum node that
+//! documents this.
+//! ``` json
+//! { "id": 1, "jsonrpc": "2.0", "method": "eth_subscribe", "params": ["newPendingTransactions"] }
+//! ```
 
 use astria_core::sequencer::v1::{
     asset::default_native_asset_id,
