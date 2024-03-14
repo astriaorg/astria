@@ -49,7 +49,7 @@ use crate::searcher::StdError;
 /// passing them downstream for the executor to process. Thus, a searcher can have multiple
 /// collectors running at the same time funneling data from multiple rollup nodes.
 #[derive(Debug)]
-pub(crate) struct GethCollector {
+pub(super) struct GethCollector {
     // Chain ID to identify in the astria sequencer block which rollup a serialized sequencer
     // action belongs to. Created from `chain_name`.
     rollup_id: RollupId,
