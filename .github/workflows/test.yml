@@ -89,22 +89,21 @@ jobs:
       - uses: Swatinem/rust-cache@v2.7.3
         with:
           cache-provider: "buildjet"
+      - name: Install nextest
+        uses: taiki-e/install-action@nextest
       - uses: arduino/setup-protoc@v3
         with:
           version: "24.4"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Build tests
         run: |
-          cargo test --no-run --release \
+          cargo nextest archive --archive-file=archive.tar.zst --release \
           --all-features \
           --all-targets
       - name: Run tests
         timeout-minutes: 20
         run: |
-          cargo test --release \
-          --all-features \
-          --all-targets \
-          -- --include-ignored
+          cargo nextest run --archive-file=archive.tar.zst -- --include-ignored
 
   doctest:
     runs-on: buildjet-8vcpu-ubuntu-2204
