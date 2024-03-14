@@ -268,7 +268,7 @@ async fn start_mock() -> MockEnvironment {
     }
 }
 
-fn test_transaction(data: &str) -> RawRollupData {
+fn make_rollup_data(data: &str) -> RawRollupData {
     RollupData::SequencedData(data.as_bytes().to_vec()).into_raw()
 }
 
@@ -277,7 +277,7 @@ async fn firm_blocks_at_expected_heights_are_executed() {
     let mut mock = start_mock().await;
 
     let mut block = make_reconstructed_block();
-    let rollup_data = test_transaction("test_transaction");
+    let rollup_data = make_rollup_data("test_transaction");
     block.transactions.push(rollup_data.encode_to_vec());
 
     let expected_exection_hash = get_expected_execution_hash(
@@ -296,7 +296,7 @@ async fn firm_blocks_at_expected_heights_are_executed() {
 
     let mut block = make_reconstructed_block();
     block.header.height = block.header.height.increment();
-    let rollup_data = test_transaction("test_transaction");
+    let rollup_data = make_rollup_data("test_transaction");
     block.transactions.push(rollup_data.encode_to_vec());
     let expected_exection_hash = get_expected_execution_hash(
         mock.executor.state.borrow().firm().hash(),
