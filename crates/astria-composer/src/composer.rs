@@ -8,10 +8,6 @@ use astria_eyre::eyre::{
 };
 use tokio::{
     net::TcpListener,
-    sync::mpsc::{
-        error::SendTimeoutError,
-        Sender,
-    },
     task::JoinError,
 };
 use tonic::{
@@ -33,6 +29,7 @@ use crate::{
         self,
         ApiServer,
     },
+    composer_service::ExecutorHandle,
     searcher::Searcher,
     Config,
 };
@@ -53,11 +50,6 @@ pub struct Composer {
     grpc_collector_listener: TcpListener,
 }
 
-#[derive(Clone)]
-struct ExecutorHandle {
-    send_bundles: Sender<SequenceAction>,
-}
-
 impl Composer {
     /// Constructs a new Searcher service from config.
     ///
@@ -70,12 +62,12 @@ impl Composer {
             tokio::sync::mpsc::channel(256);
 
         let executor_handle = ExecutorHandle {
-            send_bundles: serialized_rollup_transactions_tx.clone(),
+            sequence_action_tx: serialized_rollup_transactions_tx.clone(),
         };
 
         let searcher = Searcher::from_config(
             cfg,
-            executor_handle.send_bundles.clone(),
+            executor_handle.sequence_action_tx.clone(),
             serialized_rollup_transactions_rx,
         )
         .wrap_err("failed to initialize searcher")?;
@@ -104,7 +96,8 @@ impl Composer {
     }
 
     /// Returns the socker address the grpc collector is served over
-    /// # Error: Returns an error if the listener is not bound
+    /// # Errors
+    /// Returns an error if the listener is not bound
     pub fn grpc_collector_local_addr(&self) -> io::Result<SocketAddr> {
         self.grpc_collector_listener.local_addr()
     }
@@ -123,7 +116,7 @@ impl Composer {
         let api_task =
             tokio::spawn(async move { api_server.await.wrap_err("api server ended unexpectedly") });
         let searcher_task = tokio::spawn(searcher.run());
-        let _ = executor_handle.send_bundles;
+        let _ = executor_handle.sequence_action_tx;
 
         // run the grpc server
         let composer_service = ComposerServiceServer::new(executor_handle);
@@ -137,9 +130,19 @@ impl Composer {
         });
 
         tokio::select! {
-            o = api_task => report_exit("api server", o),
-            o = searcher_task => report_exit("searcher", o),
-            o = grpc_server_handler => println!("grpc server ended: {:?}", o),
+                o = api_task => report_exit("api server", o),
+                o = searcher_task => report_exit("searcher", o),
+                o = grpc_server_handler => {
+                        match o {
+                            Ok(Ok(())) => info!(task = "grpc server", "task exited successfully"),
+                            Ok(Err(error)) => {
+                                error!(%error, task = "grpc_server", "task returned with error");
+                            }
+                            Err(error) => {
+                                error!(%error, task = "grpc server", "task failed to complete");
+                            }
+                        }
+                },
         }
     }
 }
@@ -153,47 +156,5 @@ fn report_exit(task_name: &str, outcome: Result<eyre::Result<()>, JoinError>) {
         Err(error) => {
             error!(%error, task = task_name, "task failed to complete");
         }
-    }
-}
-
-#[async_trait::async_trait]
-impl ComposerService for ExecutorHandle {
-    async fn submit_sequence_actions(
-        &self,
-        request: Request<SubmitSequenceActionsRequest>,
-    ) -> Result<Response<()>, tonic::Status> {
-        let submit_sequence_actions_request = request.into_inner();
-        if submit_sequence_actions_request.sequence_actions.is_empty() {
-            return Err(tonic::Status::invalid_argument(
-                "No sequence actions provided",
-            ));
-        }
-
-        // package the sequence actions into a SequenceAction and send it to the searcher
-        for sequence_action in submit_sequence_actions_request.sequence_actions {
-            let sequence_action = SequenceAction {
-                rollup_id: RollupId::from_unhashed_bytes(sequence_action.rollup_id),
-                data: sequence_action.tx_bytes,
-                fee_asset_id: default_native_asset_id(),
-            };
-
-            match self
-                .send_bundles
-                .send_timeout(sequence_action, Duration::from_millis(500))
-                .await
-            {
-                Ok(()) => {}
-                Err(SendTimeoutError::Timeout(_seq_action)) => {
-                    return Err(tonic::Status::deadline_exceeded(
-                        "timeout while sending txs to searcher",
-                    ));
-                }
-                Err(SendTimeoutError::Closed(_seq_action)) => {
-                    return Err(tonic::Status::unavailable("searcher is not available"));
-                }
-            }
-        }
-
-        Ok(Response::new(()))
     }
 }
