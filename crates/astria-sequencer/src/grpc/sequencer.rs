@@ -125,9 +125,13 @@ impl SequencerService for SequencerServer {
             .into_iter()
             .map(RollupId::to_vec)
             .collect::<Vec<_>>();
+        let rollup_ids_with_data: Vec<RollupId> = rollup_ids
+            .into_iter()
+            .filter(|id| all_rollup_ids.contains(&id.to_vec()))
+            .collect();
 
-        let mut rollup_transactions = Vec::with_capacity(rollup_ids.len());
-        for rollup_id in rollup_ids {
+        let mut rollup_transactions = Vec::with_capacity(rollup_ids_with_data.len());
+        for rollup_id in rollup_ids_with_data {
             let rollup_data = snapshot
                 .get_rollup_data(&block_hash, &rollup_id)
                 .await
