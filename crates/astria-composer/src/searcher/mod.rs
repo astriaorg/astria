@@ -28,6 +28,7 @@ use crate::Config;
 mod executor;
 mod geth_collector;
 mod rollup;
+
 use executor::Executor;
 use geth_collector::GethCollector;
 
