@@ -3,6 +3,8 @@ name: buf.build/astria/execution-apis
 breaking:
   use:
     - FILE
+deps:
+ - buf.build/astria/astria
 lint:
   use:
     - BASIC

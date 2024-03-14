@@ -10,21 +10,25 @@ use astria_core::{
         CommitmentState,
         GenesisInfo,
     },
-    generated::execution::v1alpha2::{
-        self as raw,
-        execution_service_server::{
-            ExecutionService,
-            ExecutionServiceServer,
+    generated::{
+        execution::v1alpha2::{
+            self as raw,
+            execution_service_server::{
+                ExecutionService,
+                ExecutionServiceServer,
+            },
+            BatchGetBlocksRequest,
+            BatchGetBlocksResponse,
+            ExecuteBlockRequest,
+            GetBlockRequest,
+            GetCommitmentStateRequest,
+            GetGenesisInfoRequest,
+            UpdateCommitmentStateRequest,
         },
-        BatchGetBlocksRequest,
-        BatchGetBlocksResponse,
-        ExecuteBlockRequest,
-        GetBlockRequest,
-        GetCommitmentStateRequest,
-        GetGenesisInfoRequest,
-        UpdateCommitmentStateRequest,
+        sequencer::v1::RollupData as RawRollupData,
     },
     sequencer::v1::{
+        block::RollupData,
         test_utils::{
             make_cometbft_block,
             ConfigureCometBftBlock,
@@ -34,6 +38,7 @@ use astria_core::{
     Protobuf,
 };
 use bytes::Bytes;
+use prost::Message;
 use tokio::{
     sync::oneshot,
     task::JoinHandle,
@@ -154,7 +159,7 @@ impl ExecutionService for ExecutionServiceImpl {
     ) -> std::result::Result<tonic::Response<raw::Block>, tonic::Status> {
         let request = request.into_inner();
         let parent_block_hash: Bytes = request.prev_block_hash.clone();
-        let hash = get_expected_execution_hash(&parent_block_hash, &request.transactions);
+        let hash = get_expected_execution_hash(&parent_block_hash, request.transactions);
         let new_number = {
             let mut guard = self.hash_to_number.lock().unwrap();
             let new_number = guard.get(&parent_block_hash).unwrap() + 1;
@@ -195,13 +200,15 @@ impl ExecutionService for ExecutionServiceImpl {
 
 fn get_expected_execution_hash(
     parent_block_hash: &Bytes,
-    transactions: &[impl AsRef<[u8]>],
+    transactions: Vec<RawRollupData>,
 ) -> Bytes {
+    use prost::Message as _;
     use sha2::Digest as _;
+
     let mut hasher = sha2::Sha256::new();
     hasher.update(parent_block_hash);
     for tx in transactions {
-        hasher.update(tx);
+        hasher.update(tx.encode_to_vec());
     }
     Bytes::copy_from_slice(&hasher.finalize())
 }
@@ -261,16 +268,21 @@ async fn start_mock() -> MockEnvironment {
     }
 }
 
+fn make_rollup_data(data: &str) -> RawRollupData {
+    RollupData::SequencedData(data.as_bytes().to_vec()).into_raw()
+}
+
 #[tokio::test]
 async fn firm_blocks_at_expected_heights_are_executed() {
     let mut mock = start_mock().await;
 
     let mut block = make_reconstructed_block();
-    block.transactions.push(b"test_transaction".to_vec());
+    let rollup_data = make_rollup_data("test_transaction");
+    block.transactions.push(rollup_data.encode_to_vec());
 
     let expected_exection_hash = get_expected_execution_hash(
         mock.executor.state.borrow().firm().hash(),
-        &block.transactions,
+        vec![rollup_data],
     );
 
     mock.executor
@@ -284,10 +296,11 @@ async fn firm_blocks_at_expected_heights_are_executed() {
 
     let mut block = make_reconstructed_block();
     block.header.height = block.header.height.increment();
-    block.transactions.push(b"a new transaction".to_vec());
+    let rollup_data = make_rollup_data("test_transaction");
+    block.transactions.push(rollup_data.encode_to_vec());
     let expected_exection_hash = get_expected_execution_hash(
         mock.executor.state.borrow().firm().hash(),
-        &block.transactions,
+        vec![rollup_data],
     );
 
     mock.executor
