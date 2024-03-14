@@ -28,8 +28,11 @@ use crate::Config;
 mod collector;
 mod executor;
 mod rollup;
+
 use collector::GethCollector;
 use executor::Executor;
+
+type StdError = dyn std::error::Error;
 
 /// A Searcher collates transactions from multiple rollups and bundles them into
 /// Astria sequencer transactions that are then passed on to the
@@ -197,7 +200,7 @@ impl Searcher {
         );
     }
 
-    /// Spawns all collector on the collector task set.
+    /// Spawns all collectors on the collector task set.
     fn spawn_collectors(&mut self) {
         for (rollup_name, collector) in self.geth_collectors.drain() {
             self.geth_collector_tasks
@@ -225,7 +228,7 @@ impl Searcher {
                         // away because this future cannot return a reference to
                         // a stack local object.
                         Ok(_) => Ok(()),
-                        // if an collector fails while waiting for its status, this
+                        // if a collector fails while waiting for its status, this
                         // will return an error
                         Err(e) => Err(e),
                     }
@@ -289,6 +292,7 @@ fn reconnect_exited_geth_collector(
         );
         return;
     };
+
     let collector = GethCollector::new(
         rollup.clone(),
         url.clone(),
@@ -312,7 +316,10 @@ mod tests {
 
     use crate::searcher::{
         collector,
-        collector::GethCollector,
+        collector::{
+            GethCollector,
+            Status,
+        },
     };
 
     /// This tests the `reconnect_exited_collector` handler.
@@ -372,7 +379,7 @@ mod tests {
         statuses
             .get_mut(&rollup_name)
             .unwrap()
-            .wait_for(collector::Status::is_connected)
+            .wait_for(Status::is_connected)
             .await
             .unwrap();
         let _ = mock_geth.push_tx(rollup_tx).unwrap();
