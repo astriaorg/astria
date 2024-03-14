@@ -1,3 +1,18 @@
+//! `GethCollector` fetches pending transactions from a Geth Rollup.
+//!
+//! //! [`GethCollector`] subscribes to pending transactions from a [go-ethereum](https://geth.ethereum.org) rollup node,
+//! and forwards them for more processing. and then passing them downstream for the executor to
+//! process.
+//!
+//! ## Note
+//! This collector is likely specific to go-ethereum and only checked to work wit. It makes use of
+//! the [`eth_subscribe`](https://geth.ethereum.org/docs/interacting-with-geth/rpc/pubsub#newpendingtransactions)
+//! JSON-RPC with arguments shown below. It appears as if go-ethereum is the only ethereum node that
+//! documents this.
+//! ``` json
+//! { "id": 1, "jsonrpc": "2.0", "method": "eth_subscribe", "params": ["newPendingTransactions"] }
+//! ```
+
 use astria_core::sequencer::v1::{
     asset::default_native_asset_id,
     transaction::action::SequenceAction,
@@ -27,16 +42,14 @@ use tracing::{
 
 type StdError = dyn std::error::Error;
 
-/// Collects transactions submitted to a rollup node and passes them downstream for further
-/// processing.
+/// `GethCollector` Collects transactions submitted to a Geth rollup node and passes
+/// them downstream for further processing.
 ///
-/// Collector is a sub-actor in the Searcher module that interfaces with
-/// individual rollups.
-/// It is responsible for fetching pending transactions submitted to the rollup nodes and then
-/// passing them downstream for the searcher to process. Thus, a searcher can have multiple
+/// It is responsible for fetching pending transactions submitted to the rollup Geth nodes and then
+/// passing them downstream for the executor to process. Thus, a searcher can have multiple
 /// collectors running at the same time funneling data from multiple rollup nodes.
 #[derive(Debug)]
-pub(super) struct Collector {
+pub(super) struct GethCollector {
     // Chain ID to identify in the astria sequencer block which rollup a serialized sequencer
     // action belongs to. Created from `chain_name`.
     rollup_id: RollupId,
@@ -67,7 +80,7 @@ impl Status {
     }
 }
 
-impl Collector {
+impl GethCollector {
     /// Initializes a new collector instance
     pub(super) fn new(
         chain_name: String,

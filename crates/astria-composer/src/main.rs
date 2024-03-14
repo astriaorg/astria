@@ -1,7 +1,6 @@
 use std::process::ExitCode;
 
 use astria_composer::{
-    telemetry,
     Composer,
     Config,
     BUILD_INFO,
