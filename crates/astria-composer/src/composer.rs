@@ -49,7 +49,7 @@ pub struct Composer {
     /// The handle to communicate `SequenceActions` to the Executor
     /// This is at the Composer level to allow its sharing to various different collectors.
     executor_handle: ExecutorHandle,
-    /// GrpcCollectorListener is the tcp connection on which the gRPC collector is running
+    /// `GrpcCollectorListener` is the tcp connection on which the gRPC collector is running
     grpc_collector_listener: TcpListener,
 }
 
@@ -103,6 +103,8 @@ impl Composer {
         self.api_server.local_addr()
     }
 
+    /// Returns the socker address the grpc collector is served over
+    /// # Error: Returns an error if the listener is not bound
     pub fn grpc_collector_local_addr(&self) -> io::Result<SocketAddr> {
         self.grpc_collector_listener.local_addr()
     }
