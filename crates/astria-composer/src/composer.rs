@@ -1,6 +1,6 @@
 use std::net::SocketAddr;
 
-use astria_core::sequencer::v1alpha1::transaction::action::SequenceAction;
+use astria_core::sequencer::v1::transaction::action::SequenceAction;
 use astria_eyre::eyre::{
     self,
     WrapErr as _,
