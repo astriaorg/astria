@@ -1,7 +1,9 @@
-use std::{io, net::SocketAddr};
-use std::time::Duration;
+use std::{
+    io,
+    net::SocketAddr,
+};
 
-use astria_core::sequencer::v1::transaction::action::SequenceAction;
+use astria_core::generated::composer::v1alpha1::grpc_collector_service_server::GrpcCollectorServiceServer;
 use astria_eyre::eyre::{
     self,
     WrapErr as _,
@@ -10,19 +12,10 @@ use tokio::{
     net::TcpListener,
     task::JoinError,
 };
-use tonic::{
-    Request,
-    Response,
-};
-
 use tracing::{
     error,
     info,
 };
-use astria_core::generated::composer::v1alpha1::grpc_collector_service_server::GrpcCollectorServiceServer;
-use astria_core::generated::composer::v1alpha1::SubmitSequenceActionsRequest;
-use astria_core::sequencer::v1::asset::default_native_asset_id;
-use astria_core::sequencer::v1::RollupId;
 
 use crate::{
     api::{
