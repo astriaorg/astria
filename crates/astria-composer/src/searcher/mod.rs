@@ -42,11 +42,11 @@ pub(super) struct Searcher {
     // The collection of collectors and their rollup names.
     geth_collectors: HashMap<String, GethCollector>,
     // The collection of the collector statuses.
-    collector_statuses: HashMap<String, watch::Receiver<collector::Status>>,
+    geth_collector_statuses: HashMap<String, watch::Receiver<collector::Status>>,
     // The map of chain ID to the URLs to which collectors should connect.
     rollups: HashMap<String, String>,
     // The set of tasks tracking if the collectors are still running.
-    collector_tasks: JoinMap<String, eyre::Result<()>>,
+    geth_collector_tasks: JoinMap<String, eyre::Result<()>>,
     // The sender of sequence actions to the executor.
     serialized_rollup_transactions_tx: Sender<SequenceAction>,
     // The Executor object that is responsible for signing and submitting sequencer transactions.
@@ -100,7 +100,7 @@ impl Searcher {
                 (rollup_name.clone(), collector)
             })
             .collect::<HashMap<_, _>>();
-        let collector_statuses = geth_collectors
+        let geth_collector_statuses = geth_collectors
             .iter()
             .map(|(rollup_name, collector)| (rollup_name.clone(), collector.subscribe()))
             .collect();
@@ -121,8 +121,8 @@ impl Searcher {
         Ok(Searcher {
             status,
             geth_collectors,
-            collector_statuses,
-            collector_tasks: JoinMap::new(),
+            geth_collector_statuses,
+            geth_collector_tasks: JoinMap::new(),
             serialized_rollup_transactions_tx,
             executor_status,
             executor: Some(executor),
@@ -158,7 +158,7 @@ impl Searcher {
 
         loop {
             select!(
-                Some((rollup, collector_exit)) = self.collector_tasks.join_next() => {                    self.reconnect_exited_collector(rollup, collector_exit);
+                Some((rollup, collector_exit)) = self.geth_collector_tasks.join_next() => {                    self.reconnect_exited_geth_collector(rollup, collector_exit);
                 }
 
                 ret = &mut executor_handle => {
@@ -181,14 +181,14 @@ impl Searcher {
     }
 
     #[instrument(skip_all, fields(rollup))]
-    fn reconnect_exited_collector(
+    fn reconnect_exited_geth_collector(
         &mut self,
         rollup: String,
         exit_result: Result<eyre::Result<()>, JoinError>,
     ) {
-        reconnect_exited_collector(
-            &mut self.collector_statuses,
-            &mut self.collector_tasks,
+        reconnect_exited_geth_collector(
+            &mut self.geth_collector_statuses,
+            &mut self.geth_collector_tasks,
             self.serialized_rollup_transactions_tx.clone(),
             &self.rollups,
             rollup,
@@ -199,7 +199,7 @@ impl Searcher {
     /// Spawns all collector on the collector task set.
     fn spawn_collectors(&mut self) {
         for (rollup_name, collector) in self.geth_collectors.drain() {
-            self.collector_tasks
+            self.geth_collector_tasks
                 .spawn(rollup_name, collector.run_until_stopped());
         }
     }
@@ -214,7 +214,7 @@ impl Searcher {
             },
         };
         let mut statuses = self
-            .collector_statuses
+            .geth_collector_statuses
             .iter()
             .map(|(rollup_name, status)| {
                 let mut status = status.clone();
@@ -264,7 +264,7 @@ impl Searcher {
     }
 }
 
-fn reconnect_exited_collector(
+fn reconnect_exited_geth_collector(
     collector_statuses: &mut HashMap<String, watch::Receiver<collector::Status>>,
     collector_tasks: &mut JoinMap<String, eyre::Result<()>>,
     serialized_rolup_transactions_tx: Sender<SequenceAction>,
@@ -358,7 +358,7 @@ mod tests {
         assert!(mock_geth.push_tx(Transaction::default()).is_err());
 
         let mut statuses = HashMap::new();
-        super::reconnect_exited_collector(
+        super::reconnect_exited_geth_collector(
             &mut statuses,
             &mut collector_tasks,
             tx.clone(),
