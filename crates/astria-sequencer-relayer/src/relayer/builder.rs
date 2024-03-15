@@ -59,7 +59,7 @@ impl Builder {
             .transpose()
             .wrap_err("failed to get validator info from file")?;
 
-        let celestia_client = create_celestia_client(celestia_endpoint, celestia_bearer_token)
+        let celestia_client = create_celestia_client(celestia_endpoint, &celestia_bearer_token)
             .wrap_err("failed creating client to interact with Celestia Node JSONRPC")?;
 
         let state = Arc::new(State::new());
@@ -77,7 +77,7 @@ impl Builder {
     }
 }
 
-fn create_celestia_client(endpoint: String, bearer_token: String) -> eyre::Result<CelestiaClient> {
+fn create_celestia_client(endpoint: String, bearer_token: &str) -> eyre::Result<CelestiaClient> {
     use celestia_client::jsonrpsee::http_client::{
         HeaderMap,
         HttpClientBuilder,
