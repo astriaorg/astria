@@ -110,6 +110,7 @@ impl std::fmt::Display for Address {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
+#[cfg_attr(feature = "serde", serde(transparent))]
 pub struct RollupId {
     #[cfg_attr(feature = "serde", serde(serialize_with = "crate::serde::string::hex"))]
     inner: [u8; 32],

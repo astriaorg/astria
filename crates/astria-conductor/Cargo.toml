@@ -60,6 +60,7 @@ astria-core = { path = "../astria-core", features = ["server", "test-utils"] }
 config = { package = "astria-config", path = "../astria-config", features = [
   "tests",
 ] }
+insta = { version = "1.36.1", features = ["json"] }
 
 [build-dependencies]
 astria-build-info = { path = "../astria-build-info", features = ["build"] }
