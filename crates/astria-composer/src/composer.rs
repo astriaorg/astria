@@ -9,6 +9,8 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use tokio::{
+    io,
+    net::TcpListener,
     sync::{
         mpsc::Sender,
         watch,
@@ -34,6 +36,7 @@ use crate::{
     },
     geth_collector,
     geth_collector::GethCollector,
+    grpc_collector::GrpcCollector,
     rollup::Rollup,
     Config,
 };
@@ -62,6 +65,8 @@ pub struct Composer {
     geth_collector_tasks: JoinMap<String, eyre::Result<()>>,
     /// `Rollups` The map of chain ID to the URLs to which geth collectors should connect.
     rollups: HashMap<String, String>,
+    /// `GrpcCollector` is a gRPC server to which users can send sequence actions
+    grpc_collector: GrpcCollector,
 }
 
 impl Composer {
@@ -71,7 +76,7 @@ impl Composer {
     ///
     /// An error is returned if the composer fails to be initialized.
     /// See `[Composer::from_config]` for its error scenarios.
-    pub fn from_config(cfg: &Config) -> eyre::Result<Self> {
+    pub async fn from_config(cfg: &Config) -> eyre::Result<Self> {
         let (composer_status_sender, _) = watch::channel(ComposerStatus::default());
 
         let (executor, sequence_action_tx) = Executor::new(
@@ -85,6 +90,9 @@ impl Composer {
         let executor_handle = ExecutorHandle {
             sequence_action_tx: sequence_action_tx.clone(),
         };
+
+        let grpc_collector_listener = TcpListener::bind(cfg.grpc_collector_addr).await?;
+        let grpc_collector = GrpcCollector::new(grpc_collector_listener);
 
         let api_server = api::start(cfg.api_listen_addr, composer_status_sender.subscribe());
         info!(
@@ -126,12 +134,20 @@ impl Composer {
             geth_collectors,
             geth_collector_statuses,
             geth_collector_tasks: JoinMap::new(),
+            grpc_collector,
         })
     }
 
     /// Returns the socket address the api server is served over
     pub fn local_addr(&self) -> SocketAddr {
         self.api_server.local_addr()
+    }
+
+    /// Returns the socker address the grpc collector is served over
+    /// # Errors
+    /// Returns an error if the listener is not bound
+    pub fn grpc_collector_local_addr(&self) -> io::Result<SocketAddr> {
+        self.grpc_collector.grpc_collector_local_addr()
     }
 
     /// Runs the composer.
@@ -148,6 +164,7 @@ impl Composer {
             mut geth_collectors,
             rollups,
             mut geth_collector_statuses,
+            grpc_collector,
         } = self;
 
         // run the api server
@@ -171,6 +188,15 @@ impl Composer {
             status.set_executor_connected(true);
         });
 
+        let grpc_executor_handle = executor_handle.clone();
+        // run the grpc server
+        let mut grpc_server_handle = tokio::spawn(async move {
+            grpc_collector
+                .run_until_stopped(grpc_executor_handle)
+                .await
+                .wrap_err("grpc server failed")
+        });
+
         loop {
             tokio::select!(
             o = &mut api_task => {
@@ -179,6 +205,10 @@ impl Composer {
             },
             o = &mut executor_task => {
                     report_exit("executor unexpectedly ended", o);
+                    return Ok(());
+            },
+            o = &mut grpc_server_handle => {
+                    report_exit("grpc server unexpectedly ended", o);
                     return Ok(());
             },
             Some((rollup, collector_exit)) = geth_collector_tasks.join_next() => {

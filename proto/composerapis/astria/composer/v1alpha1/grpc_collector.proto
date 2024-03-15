@@ -1,0 +1,19 @@
+syntax = 'proto3';
+
+package astria.composer.v1alpha1;
+
+import "google/protobuf/empty.proto";
+
+message SequenceAction {
+  string rollup_id = 1;
+  bytes tx_bytes = 2;
+}
+
+message SubmitSequenceActionsRequest {
+  // Sequence Actions the user wants to send to the sequencer app.
+  repeated SequenceAction sequence_actions = 1;
+}
+
+service GrpcCollectorService {
+  rpc SubmitSequenceActions(SubmitSequenceActionsRequest) returns (google.protobuf.Empty) {}
+}

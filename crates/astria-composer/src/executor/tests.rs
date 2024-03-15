@@ -88,6 +88,7 @@ async fn setup() -> (MockServer, MockGuard, Config) {
         no_metrics: false,
         metrics_http_listener_addr: String::new(),
         pretty_print: true,
+        grpc_collector_addr: "127.0.0.1:0".parse().unwrap(),
     };
     (server, startup_guard, cfg)
 }
