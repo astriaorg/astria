@@ -70,7 +70,7 @@ use tracing::{
     Span,
 };
 
-use crate::searcher::executor::bundle_factory::BundleFactory;
+use crate::executor::bundle_factory::BundleFactory;
 
 mod bundle_factory;
 
@@ -85,7 +85,7 @@ type StdError = dyn std::error::Error;
 /// an `Unsigned`, then signs them with the sequencer key and submits to the sequencer.
 /// Its `status` field indicates that connection to the sequencer node has been established.
 #[derive(Debug)]
-pub(crate) struct Executor {
+pub(super) struct Executor {
     // The status of this executor
     status: watch::Sender<Status>,
     // Channel for receiving `SequenceAction`s to be bundled.
@@ -110,8 +110,8 @@ impl Drop for Executor {
 }
 
 #[derive(Debug)]
-pub(crate) struct Status {
-    pub(crate) is_connected: bool,
+pub(super) struct Status {
+    is_connected: bool,
 }
 
 impl Status {
@@ -121,19 +121,18 @@ impl Status {
         }
     }
 
-    pub(crate) fn is_connected(&self) -> bool {
+    pub(super) fn is_connected(&self) -> bool {
         self.is_connected
     }
 }
 
 impl Executor {
-    pub(crate) fn new(
+    pub(super) fn new(
         sequencer_url: &str,
         private_key: &SecretString,
-        serialized_rollup_transactions_rx: mpsc::Receiver<SequenceAction>,
         block_time: u64,
         max_bytes_per_bundle: usize,
-    ) -> eyre::Result<Self> {
+    ) -> eyre::Result<(Self, mpsc::Sender<SequenceAction>)> {
         let sequencer_client = sequencer_client::HttpClient::new(sequencer_url)
             .wrap_err("failed constructing sequencer client")?;
         let (status, _) = watch::channel(Status::new());
@@ -146,19 +145,25 @@ impl Executor {
 
         let sequencer_address = Address::from_verification_key(sequencer_key.verification_key());
 
-        Ok(Self {
-            status,
-            serialized_rollup_transactions_rx,
-            sequencer_client,
-            sequencer_key,
-            address: sequencer_address,
-            block_time: Duration::from_millis(block_time),
-            max_bytes_per_bundle,
-        })
+        let (serialized_rollup_transactions_tx, serialized_rollup_transactions_rx) =
+            tokio::sync::mpsc::channel(256);
+
+        Ok((
+            Self {
+                status,
+                serialized_rollup_transactions_rx,
+                sequencer_client,
+                sequencer_key,
+                address: sequencer_address,
+                block_time: Duration::from_millis(block_time),
+                max_bytes_per_bundle,
+            },
+            serialized_rollup_transactions_tx,
+        ))
     }
 
     /// Return a reader to the status reporting channel
-    pub(crate) fn subscribe(&self) -> watch::Receiver<Status> {
+    pub(super) fn subscribe(&self) -> watch::Receiver<Status> {
         self.status.subscribe()
     }
 
@@ -182,7 +187,7 @@ impl Executor {
     /// # Errors
     /// An error is returned if connecting to the sequencer fails.
     #[instrument(skip_all, fields(address = %self.address))]
-    pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
+    pub(super) async fn run_until_stopped(mut self) -> eyre::Result<()> {
         let mut submission_fut: Fuse<Instrumented<SubmitFut>> = Fuse::terminated();
         let mut nonce = get_latest_nonce(self.sequencer_client.clone(), self.address)
             .await

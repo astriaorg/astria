@@ -1,19 +1,14 @@
 use std::{
     collections::HashMap,
-    io,
     net::SocketAddr,
 };
 
-use astria_core::{
-    generated::composer::v1alpha1::grpc_collector_service_server::GrpcCollectorServiceServer,
-    sequencer::v1::transaction::action::SequenceAction,
-};
+use astria_core::sequencer::v1::transaction::action::SequenceAction;
 use astria_eyre::eyre::{
     self,
     WrapErr as _,
 };
 use tokio::{
-    net::TcpListener,
     sync::{
         mpsc::Sender,
         watch,
@@ -31,74 +26,69 @@ use crate::{
         self,
         ApiServer,
     },
-    composer_service::ExecutorHandle,
-    searcher::{
-        executor,
-        executor::Executor,
-        geth_collector,
-        geth_collector::GethCollector,
-        Status,
-    },
+    composer_status::ComposerStatus,
+    executor,
+    executor::Executor,
+    geth_collectors,
+    geth_collectors::GethCollector,
+    rollup::Rollup,
     Config,
 };
 
-/// `Composer` is a service responsible for submitting transactions to the Astria
-/// Shared Sequencer.
+/// `Composer` is a service responsible for spinning up `GethCollectors` which are responsible
+/// for fetching pending transactions submitted to the rollup Geth nodes and then passing them
+/// downstream for the executor to process. Thus, a composer can have multiple collectors running
+/// at the same time funneling data from multiple rollup nodes.
 pub struct Composer {
     /// `ApiServer` is used for monitoring status of the Composer service.
     api_server: ApiServer,
-    /// `Searcher` establishes connections to individual rollup nodes, receiving
-    /// pending transactions from them and wraps them as sequencer transactions
-    /// for submission.
-    // searcher: Searcher,
-    searcher_status_sender: watch::Sender<Status>,
+    /// `ComposerStatusSender` is used to announce the current status of the Composer for other
+    /// modules in the crate to use.
+    composer_status_sender: watch::Sender<ComposerStatus>,
     /// `ExecutorHandle` to communicate SequenceActions to the Executor
     /// This is at the Composer level to allow its sharing to various different collectors.
     executor_handle: ExecutorHandle,
     /// `Executor` is responsible for signing and submitting sequencer transactions
     /// The sequencer transactions are received from various collectors.
     executor: Executor,
-    /// `GrpcCollectorListener` is the tcp connection on which the gRPC collector is running
-    grpc_collector_listener: TcpListener,
-
-    // The collection of collectors and their rollup names.
+    /// `GethCollectors` is the collection of geth collectors and their rollup names.
     geth_collectors: HashMap<String, GethCollector>,
-    // The collection of the collector statuses.
-    collector_statuses: HashMap<String, watch::Receiver<geth_collector::Status>>,
-    // The map of chain ID to the URLs to which collectors should connect.
+    /// `GethCollectorStatuses` The collection of the geth collector statuses.
+    geth_collector_statuses: HashMap<String, watch::Receiver<geth_collectors::Status>>,
+    /// `GethCollectorTasks` is the set of tasks tracking if the geth collectors are still running.
+    geth_collector_tasks: JoinMap<String, eyre::Result<()>>,
+    /// `Rollups` The map of chain ID to the URLs to which geth collectors should connect.
     rollups: HashMap<String, String>,
-    // The set of tasks tracking if the geth collectors are still running.
-    collector_tasks: JoinMap<String, eyre::Result<()>>,
+}
+
+#[derive(Clone)]
+struct ExecutorHandle {
+    sequence_action_tx: Sender<SequenceAction>,
 }
 
 impl Composer {
-    /// Constructs a new Searcher service from config.
+    /// Constructs a new Composer service from config.
     ///
     /// # Errors
     ///
-    /// An error is returned if the searcher fails to be initialized.
-    /// See `[Searcher::from_config]` for its error scenarios.
-    pub async fn from_config(cfg: &Config) -> eyre::Result<Self> {
-        let (serialized_rollup_transactions_tx, serialized_rollup_transactions_rx) =
-            tokio::sync::mpsc::channel(256);
-        let (searcher_status_sender, _) = watch::channel(Status::default());
+    /// An error is returned if the composer fails to be initialized.
+    /// See `[Composer::from_config]` for its error scenarios.
+    pub fn from_config(cfg: &Config) -> eyre::Result<Self> {
+        let (composer_status_sender, _) = watch::channel(ComposerStatus::default());
 
-        let executor_handle = ExecutorHandle {
-            sequence_action_tx: serialized_rollup_transactions_tx.clone(),
-        };
-
-        let executor = Executor::new(
+        let (executor, sequence_action_tx) = Executor::new(
             &cfg.sequencer_url,
             &cfg.private_key,
-            serialized_rollup_transactions_rx,
             cfg.block_time_ms,
             cfg.max_bytes_per_bundle,
         )
         .wrap_err("executor construction from config failed")?;
 
-        let grpc_collector_listener = TcpListener::bind(cfg.grpc_collector_addr).await?;
+        let executor_handle = ExecutorHandle {
+            sequence_action_tx: sequence_action_tx.clone(),
+        };
 
-        let api_server = api::start(cfg.api_listen_addr, searcher_status_sender.subscribe());
+        let api_server = api::start(cfg.api_listen_addr, composer_status_sender.subscribe());
         info!(
             listen_addr = %api_server.local_addr(),
             "API server listening"
@@ -108,10 +98,7 @@ impl Composer {
             .rollups
             .split(',')
             .filter(|s| !s.is_empty())
-            .map(|s| {
-                crate::searcher::rollup::Rollup::parse(s)
-                    .map(crate::searcher::rollup::Rollup::into_parts)
-            })
+            .map(|s| Rollup::parse(s).map(Rollup::into_parts))
             .collect::<Result<HashMap<_, _>, _>>()
             .wrap_err("failed parsing provided <rollup_name>::<url> pairs as rollups")?;
 
@@ -121,12 +108,12 @@ impl Composer {
                 let collector = GethCollector::new(
                     rollup_name.clone(),
                     url.clone(),
-                    serialized_rollup_transactions_tx.clone(),
+                    sequence_action_tx.clone(),
                 );
                 (rollup_name.clone(), collector)
             })
             .collect::<HashMap<_, _>>();
-        let collector_statuses: HashMap<String, watch::Receiver<geth_collector::Status>> =
+        let geth_collector_statuses: HashMap<String, watch::Receiver<geth_collectors::Status>> =
             geth_collectors
                 .iter()
                 .map(|(rollup_name, collector)| (rollup_name.clone(), collector.subscribe()))
@@ -134,14 +121,13 @@ impl Composer {
 
         Ok(Self {
             api_server,
-            searcher_status_sender,
+            composer_status_sender,
             executor_handle,
             executor,
-            grpc_collector_listener,
             rollups,
             geth_collectors,
-            collector_statuses,
-            collector_tasks: JoinMap::new(),
+            geth_collector_statuses,
+            geth_collector_tasks: JoinMap::new(),
         })
     }
 
@@ -150,28 +136,20 @@ impl Composer {
         self.api_server.local_addr()
     }
 
-    /// Returns the socker address the grpc collector is served over
-    /// # Errors
-    /// Returns an error if the listener is not bound
-    pub fn grpc_collector_local_addr(&self) -> io::Result<SocketAddr> {
-        self.grpc_collector_listener.local_addr()
-    }
-
     /// Runs the composer.
     ///
-    /// Currently only exits if the api server or searcher stop unexpectedly.
     /// # Errors
+    /// It errors out if the API Server, Executor or any of the Geth Collectors fail to start.
     pub async fn run_until_stopped(self) -> eyre::Result<()> {
         let Self {
             api_server,
-            searcher_status_sender,
-            grpc_collector_listener,
+            composer_status_sender,
             executor,
             executor_handle,
-            mut collector_tasks,
+            mut geth_collector_tasks,
             mut geth_collectors,
             rollups,
-            mut collector_statuses,
+            mut geth_collector_statuses,
         } = self;
 
         // run the api server
@@ -180,30 +158,19 @@ impl Composer {
 
         // run the collectors and executor
         for (chain_id, collector) in geth_collectors.drain() {
-            collector_tasks.spawn(chain_id, collector.run_until_stopped());
+            geth_collector_tasks.spawn(chain_id, collector.run_until_stopped());
         }
         let executor_status = executor.subscribe().clone();
         let mut executor_task = tokio::spawn(executor.run_until_stopped());
 
         // wait for collectors and executor to come online
-        wait_for_collectors(&collector_statuses).await?;
-        searcher_status_sender.send_modify(|status| {
-            status.all_collectors_connected = true;
+        wait_for_collectors(&geth_collector_statuses).await?;
+        composer_status_sender.send_modify(|status| {
+            status.set_all_collectors_connected(true);
         });
         wait_for_executor(executor_status).await?;
-        searcher_status_sender.send_modify(|status| {
-            status.executor_connected = true;
-        });
-
-        // run the grpc collector
-        let composer_service = GrpcCollectorServiceServer::new(executor_handle.clone());
-        let grpc_server = tonic::transport::Server::builder().add_service(composer_service);
-        let mut grpc_server_handler = tokio::spawn(async move {
-            grpc_server
-                .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(
-                    grpc_collector_listener,
-                ))
-                .await
+        composer_status_sender.send_modify(|status| {
+            status.set_executor_connected(true);
         });
 
         loop {
@@ -216,22 +183,10 @@ impl Composer {
                     report_exit("executor unexpectedly ended", o);
                     return Ok(());
             },
-            exit_error = &mut grpc_server_handler => {
-                    match exit_error {
-                        Ok(Ok(())) => info!("grpc server exited unexpectedly; reconnecting"),
-                        Ok(Err(error)) => {
-                            error!(%error, "grpc server exit with error; reconnecting");
-                        }
-                        Err(error) => {
-                            error!(%error, "grpc server task failed; reconnecting");
-                        }
-                    }
-                    return Ok(());
-            },
-            Some((rollup, collector_exit)) = collector_tasks.join_next() => {
+            Some((rollup, collector_exit)) = geth_collector_tasks.join_next() => {
                 reconnect_exited_collector(
-                    &mut collector_statuses,
-                    &mut collector_tasks,
+                    &mut geth_collector_statuses,
+                    &mut geth_collector_tasks,
                     executor_handle.sequence_action_tx.clone(),
                     &rollups,
                     rollup,
@@ -255,7 +210,7 @@ async fn wait_for_executor(
 
 /// Waits for all collectors to come online.
 async fn wait_for_collectors(
-    collector_statuses: &HashMap<String, watch::Receiver<geth_collector::Status>>,
+    collector_statuses: &HashMap<String, watch::Receiver<geth_collectors::Status>>,
 ) -> eyre::Result<()> {
     use futures::{
         future::FutureExt as _,
@@ -269,7 +224,7 @@ async fn wait_for_collectors(
         .map(|(chain_id, status)| {
             let mut status = status.clone();
             async move {
-                match status.wait_for(geth_collector::Status::is_connected).await {
+                match status.wait_for(geth_collectors::Status::is_connected).await {
                     // `wait_for` returns a reference to status; throw it
                     // away because this future cannot return a reference to
                     // a stack local object.
@@ -296,7 +251,7 @@ async fn wait_for_collectors(
 }
 
 fn reconnect_exited_collector(
-    collector_statuses: &mut HashMap<String, watch::Receiver<geth_collector::Status>>,
+    collector_statuses: &mut HashMap<String, watch::Receiver<geth_collectors::Status>>,
     collector_tasks: &mut JoinMap<String, eyre::Result<()>>,
     serialized_rolup_transactions_tx: Sender<SequenceAction>,
     rollups: &HashMap<String, String>,
@@ -345,9 +300,9 @@ mod tests {
     use ethers::types::Transaction;
     use tokio_util::task::JoinMap;
 
-    use crate::searcher::geth_collector::{
-        GethCollector,
-        Status,
+    use crate::{
+        geth_collectors,
+        geth_collectors::GethCollector,
     };
 
     /// This tests the `reconnect_exited_collector` handler.
@@ -364,7 +319,10 @@ mod tests {
         let collector = GethCollector::new(rollup_name.clone(), rollup_url.clone(), tx.clone());
         let mut status = collector.subscribe();
         collector_tasks.spawn(rollup_name.clone(), collector.run_until_stopped());
-        status.wait_for(Status::is_connected).await.unwrap();
+        status
+            .wait_for(geth_collectors::Status::is_connected)
+            .await
+            .unwrap();
         let rollup_tx = Transaction::default();
         let expected_seq_action = SequenceAction {
             rollup_id: RollupId::from_unhashed_bytes(&rollup_name),
@@ -404,7 +362,7 @@ mod tests {
         statuses
             .get_mut(&rollup_name)
             .unwrap()
-            .wait_for(Status::is_connected)
+            .wait_for(geth_collectors::Status::is_connected)
             .await
             .unwrap();
         let _ = mock_geth.push_tx(rollup_tx).unwrap();

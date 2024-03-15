@@ -18,10 +18,7 @@ use tendermint_rpc::{
     Id,
 };
 use tokio::{
-    sync::{
-        mpsc,
-        watch,
-    },
+    sync::watch,
     time,
 };
 use tracing::debug;
@@ -38,10 +35,8 @@ use wiremock::{
 };
 
 use crate::{
-    searcher::{
-        executor,
-        executor::Executor,
-    },
+    executor,
+    executor::Executor,
     Config,
 };
 
@@ -93,7 +88,6 @@ async fn setup() -> (MockServer, MockGuard, Config) {
         no_metrics: false,
         metrics_http_listener_addr: String::new(),
         pretty_print: true,
-        grpc_collector_addr: "127.0.0.1:0".parse().unwrap(),
     };
     (server, startup_guard, cfg)
 }
@@ -200,11 +194,9 @@ async fn wait_for_startup(
 async fn full_bundle() {
     // set up the executor, channel for writing seq actions, and the sequencer mock
     let (sequencer, nonce_guard, cfg) = setup().await;
-    let (seq_actions_tx, seq_actions_rx) = mpsc::channel(2);
-    let executor = Executor::new(
+    let (executor, seq_actions_tx) = Executor::new(
         &cfg.sequencer_url,
         &cfg.private_key,
-        seq_actions_rx,
         cfg.block_time_ms,
         cfg.max_bytes_per_bundle,
     )
@@ -282,11 +274,9 @@ async fn full_bundle() {
 async fn bundle_triggered_by_block_timer() {
     // set up the executor, channel for writing seq actions, and the sequencer mock
     let (sequencer, nonce_guard, cfg) = setup().await;
-    let (seq_actions_tx, seq_actions_rx) = mpsc::channel(2);
-    let executor = Executor::new(
+    let (executor, seq_actions_tx) = Executor::new(
         &cfg.sequencer_url,
         &cfg.private_key,
-        seq_actions_rx,
         cfg.block_time_ms,
         cfg.max_bytes_per_bundle,
     )
@@ -360,11 +350,9 @@ async fn bundle_triggered_by_block_timer() {
 async fn two_seq_actions_single_bundle() {
     // set up the executor, channel for writing seq actions, and the sequencer mock
     let (sequencer, nonce_guard, cfg) = setup().await;
-    let (seq_actions_tx, seq_actions_rx) = mpsc::channel(2);
-    let executor = Executor::new(
+    let (executor, seq_actions_tx) = Executor::new(
         &cfg.sequencer_url,
         &cfg.private_key,
-        seq_actions_rx,
         cfg.block_time_ms,
         cfg.max_bytes_per_bundle,
     )
