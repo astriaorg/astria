@@ -34,12 +34,14 @@ use crate::executor::ExecutorHandle;
 
 pub(super) struct GrpcCollector {
     grpc_collector_listener: TcpListener,
+    executor_handle: ExecutorHandle,
 }
 
 impl GrpcCollector {
-    pub(super) fn new(grpc_collector_listener: TcpListener) -> Self {
+    pub(super) fn new(grpc_collector_listener: TcpListener, executor_handle: ExecutorHandle) -> Self {
         Self {
             grpc_collector_listener,
+            executor_handle,
         }
     }
 
@@ -52,9 +54,8 @@ impl GrpcCollector {
 
     pub(super) async fn run_until_stopped(
         self,
-        executor_handle: ExecutorHandle,
     ) -> eyre::Result<()> {
-        let composer_service = GrpcCollectorServiceServer::new(executor_handle.clone());
+        let composer_service = GrpcCollectorServiceServer::new(self.executor_handle);
         let grpc_server = tonic::transport::Server::builder().add_service(composer_service);
 
         match grpc_server
