@@ -50,6 +50,7 @@ use tokio::{
         Sender,
     },
 };
+use tokio_util::sync::CancellationToken;
 use tracing::{
     debug,
     error,
@@ -201,6 +202,10 @@ pub(super) struct BlobSubmitter {
 
     // Tracks the submission state and writes it to disk before and after each Celestia submission.
     submission_state: super::SubmissionState,
+
+    // The shutdown token to signal that blob submitter should finish its current submission and
+    // exit.
+    shutdown_token: CancellationToken,
 }
 
 impl BlobSubmitter {
@@ -208,6 +213,7 @@ impl BlobSubmitter {
         client: HttpClient,
         state: Arc<super::State>,
         submission_state: super::SubmissionState,
+        shutdown_token: CancellationToken,
     ) -> (Self, BlobSubmitterHandle) {
         // XXX: The channel size here is just a number. It should probably be based on some
         // heuristic about the number of expected blobs in a block.
@@ -219,6 +225,7 @@ impl BlobSubmitter {
             blobs: QueuedConvertedBlocks::with_max_blobs(128),
             state,
             submission_state,
+            shutdown_token,
         };
         let handle = BlobSubmitterHandle {
             tx,
@@ -235,8 +242,14 @@ impl BlobSubmitter {
             .await
             .wrap_err("failed fetching latest celestia height after many retries")?;
 
-        loop {
+        let reason = loop {
             select!(
+                biased;
+
+                _ = self.shutdown_token.cancelled() => {
+                    break Ok("received shutdown signal");
+                }
+
                 Some(block) = self.blocks.recv(), if self.has_capacity() => {
                     debug!(
                         height = %block.height(),
@@ -275,10 +288,30 @@ impl BlobSubmitter {
                 submission_result = &mut submission, if !submission.is_terminated() => {
                     // XXX: Breaks the select-loop and returns. With the current retry-logic in
                     // `submit_blobs` this happens after u32::MAX retries which is effectively never.
-                    self.submission_state = submission_result.wrap_err("failed submitting blobs to Celestia")?;
+                    self.submission_state = match submission_result.wrap_err("failed submitting blocks to Celestia") {
+                        Ok(state) => state,
+                        Err(err) => {
+                            break Err(err);
+                        }
+                    };
                 }
-            );
+            )
+        };
+
+        match &reason {
+            Ok(reason) => info!(reason, "shutting down"),
+            Err(reason) => error!(%reason, "shutting down"),
         }
+
+        if submission.is_terminated() {
+            info!("no submissions to Celestia were in flight, exiting now");
+        } else {
+            info!("a submission to Celestia is in flight; waiting for it to finish");
+            if let Err(error) = submission.await {
+                error!(%error, "last submission to Celestia failed before exiting");
+            }
+        }
+        reason.map(|_| ())
     }
 
     /// Returns if the submitter has capacity for more blocks.

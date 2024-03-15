@@ -39,7 +39,11 @@ impl FromRef<AppState> for RelayerState {
     }
 }
 
-pub(crate) fn start(socket_addr: SocketAddr, relayer_state: RelayerState) -> ApiServer {
+pub(crate) fn start(
+    socket_addr: SocketAddr,
+    relayer_state: RelayerState,
+    // shutdown: oneshot::Receiver<()>,
+) -> ApiServer {
     let app = Router::new()
         .route("/healthz", get(get_healthz))
         .route("/readyz", get(get_readyz))
