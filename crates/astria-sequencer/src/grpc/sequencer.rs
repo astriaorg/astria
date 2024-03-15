@@ -84,15 +84,16 @@ impl SequencerService for SequencerServer {
             ));
         }
 
-        let mut rollup_ids: Vec<RollupId> = vec![];
-        for id in request.rollup_ids {
-            let Ok(rollup_id) = RollupId::try_from_vec(id) else {
-                return Err(Status::invalid_argument(
-                    "invalid rollup ID; must be 32 bytes",
-                ));
-            };
-            rollup_ids.push(rollup_id);
-        }
+        let Ok(rollup_ids) = request
+            .rollup_ids
+            .into_iter()
+            .map(RollupId::try_from_vec)
+            .collect::<Result<Vec<RollupId>, _>>()
+        else {
+            return Err(Status::invalid_argument(
+                "invalid rollup ID; must be 32 bytes",
+            ));
+        };
 
         let block_hash = snapshot
             .get_block_hash_by_height(request.height)
@@ -121,17 +122,14 @@ impl SequencerService for SequencerServer {
         let mut all_rollup_ids = snapshot
             .get_rollup_ids_by_block_hash(&block_hash)
             .await
-            .map_err(|e| Status::internal(format!("failed to get rollup ids from storage: {e}")))?
-            .into_iter()
-            .map(RollupId::to_vec)
-            .collect::<Vec<_>>();
+            .map_err(|e| Status::internal(format!("failed to get rollup ids from storage: {e}")))?;
         all_rollup_ids.sort_unstable();
 
         // Filter out the Rollup Ids requested which have no data before grabbing
         // so as to not error because the block had no data for the requested rollup
         let rollup_ids: Vec<RollupId> = rollup_ids
             .into_iter()
-            .filter(|id| all_rollup_ids.binary_search(&id.to_vec()).is_ok())
+            .filter(|id| all_rollup_ids.binary_search(id).is_ok())
             .collect();
         let mut rollup_transactions = Vec::with_capacity(rollup_ids.len());
         for rollup_id in rollup_ids {
@@ -143,6 +141,8 @@ impl SequencerService for SequencerServer {
                 })?;
             rollup_transactions.push(rollup_data.into_raw());
         }
+
+        let all_rollup_ids = all_rollup_ids.into_iter().map(RollupId::to_vec).collect();
 
         let block = RawFilteredSequencerBlock {
             cometbft_header: Some(header_parts.cometbft_header.into()),
