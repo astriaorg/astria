@@ -51,6 +51,7 @@ use tokio::{
     select,
     sync::{
         mpsc,
+        mpsc::Sender,
         watch,
     },
     time::{
@@ -101,6 +102,11 @@ pub(super) struct Executor {
     block_time: tokio::time::Duration,
     // Max bytes in a sequencer action bundle
     max_bytes_per_bundle: usize,
+}
+
+#[derive(Clone)]
+pub(super) struct ExecutorHandle {
+    pub(super) sequence_action_tx: Sender<SequenceAction>,
 }
 
 impl Drop for Executor {

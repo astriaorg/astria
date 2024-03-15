@@ -44,7 +44,7 @@ mod composer_status;
 pub mod config;
 mod executor;
 
-mod geth_collectors;
+mod geth_collector;
 mod rollup;
 
 pub use build_info::BUILD_INFO;

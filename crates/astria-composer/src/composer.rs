@@ -28,9 +28,12 @@ use crate::{
     },
     composer_status::ComposerStatus,
     executor,
-    executor::Executor,
-    geth_collectors,
-    geth_collectors::GethCollector,
+    executor::{
+        Executor,
+        ExecutorHandle,
+    },
+    geth_collector,
+    geth_collector::GethCollector,
     rollup::Rollup,
     Config,
 };
@@ -54,16 +57,11 @@ pub struct Composer {
     /// `GethCollectors` is the collection of geth collectors and their rollup names.
     geth_collectors: HashMap<String, GethCollector>,
     /// `GethCollectorStatuses` The collection of the geth collector statuses.
-    geth_collector_statuses: HashMap<String, watch::Receiver<geth_collectors::Status>>,
+    geth_collector_statuses: HashMap<String, watch::Receiver<geth_collector::Status>>,
     /// `GethCollectorTasks` is the set of tasks tracking if the geth collectors are still running.
     geth_collector_tasks: JoinMap<String, eyre::Result<()>>,
     /// `Rollups` The map of chain ID to the URLs to which geth collectors should connect.
     rollups: HashMap<String, String>,
-}
-
-#[derive(Clone)]
-struct ExecutorHandle {
-    sequence_action_tx: Sender<SequenceAction>,
 }
 
 impl Composer {
@@ -113,7 +111,7 @@ impl Composer {
                 (rollup_name.clone(), collector)
             })
             .collect::<HashMap<_, _>>();
-        let geth_collector_statuses: HashMap<String, watch::Receiver<geth_collectors::Status>> =
+        let geth_collector_statuses: HashMap<String, watch::Receiver<geth_collector::Status>> =
             geth_collectors
                 .iter()
                 .map(|(rollup_name, collector)| (rollup_name.clone(), collector.subscribe()))
@@ -210,7 +208,7 @@ async fn wait_for_executor(
 
 /// Waits for all collectors to come online.
 async fn wait_for_collectors(
-    collector_statuses: &HashMap<String, watch::Receiver<geth_collectors::Status>>,
+    collector_statuses: &HashMap<String, watch::Receiver<geth_collector::Status>>,
 ) -> eyre::Result<()> {
     use futures::{
         future::FutureExt as _,
@@ -224,7 +222,7 @@ async fn wait_for_collectors(
         .map(|(chain_id, status)| {
             let mut status = status.clone();
             async move {
-                match status.wait_for(geth_collectors::Status::is_connected).await {
+                match status.wait_for(geth_collector::Status::is_connected).await {
                     // `wait_for` returns a reference to status; throw it
                     // away because this future cannot return a reference to
                     // a stack local object.
@@ -251,7 +249,7 @@ async fn wait_for_collectors(
 }
 
 fn reconnect_exited_collector(
-    collector_statuses: &mut HashMap<String, watch::Receiver<geth_collectors::Status>>,
+    collector_statuses: &mut HashMap<String, watch::Receiver<geth_collector::Status>>,
     collector_tasks: &mut JoinMap<String, eyre::Result<()>>,
     serialized_rolup_transactions_tx: Sender<SequenceAction>,
     rollups: &HashMap<String, String>,
@@ -301,8 +299,8 @@ mod tests {
     use tokio_util::task::JoinMap;
 
     use crate::{
-        geth_collectors,
-        geth_collectors::GethCollector,
+        geth_collector,
+        geth_collector::GethCollector,
     };
 
     /// This tests the `reconnect_exited_collector` handler.
@@ -320,7 +318,7 @@ mod tests {
         let mut status = collector.subscribe();
         collector_tasks.spawn(rollup_name.clone(), collector.run_until_stopped());
         status
-            .wait_for(geth_collectors::Status::is_connected)
+            .wait_for(geth_collector::Status::is_connected)
             .await
             .unwrap();
         let rollup_tx = Transaction::default();
@@ -362,7 +360,7 @@ mod tests {
         statuses
             .get_mut(&rollup_name)
             .unwrap()
-            .wait_for(geth_collectors::Status::is_connected)
+            .wait_for(geth_collector::Status::is_connected)
             .await
             .unwrap();
         let _ = mock_geth.push_tx(rollup_tx).unwrap();
