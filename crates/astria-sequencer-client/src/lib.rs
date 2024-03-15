@@ -54,7 +54,6 @@ pub trait StreamLatestHeight {
 #[cfg(feature = "http")]
 impl StreamLatestHeight for HttpClient {
     fn stream_latest_height(&self, poll_period: Duration) -> LatestHeightStream {
-        println!("client: {self:?}");
         let client = self.clone();
         let f = Box::new(move |_: tokio::time::Instant| {
             let client = client.clone();
