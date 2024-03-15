@@ -84,16 +84,12 @@ impl SequencerService for SequencerServer {
             ));
         }
 
-        let Ok(rollup_ids) = request
+        let rollup_ids = request
             .rollup_ids
             .into_iter()
             .map(RollupId::try_from_vec)
-            .collect::<Result<Vec<RollupId>, _>>()
-        else {
-            return Err(Status::invalid_argument(
-                "invalid rollup ID; must be 32 bytes",
-            ));
-        };
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| Status::invalid_argument(format!("invalid rollup ID: {e}")))?;
 
         let block_hash = snapshot
             .get_block_hash_by_height(request.height)
