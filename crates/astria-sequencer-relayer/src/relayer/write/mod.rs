@@ -250,14 +250,32 @@ impl BlobSubmitter {
                     break Ok("received shutdown signal");
                 }
 
-                Some(block) = self.blocks.recv(), if self.has_capacity() => {
-                    debug!(
-                        height = %block.height(),
-                        "received sequencer block for submission",
-                    );
-                    self.conversions.push(block);
+                // handle result of submitting blocks to Celestia, if in flight
+                submission_result = &mut submission, if !submission.is_terminated() => {
+                    // XXX: Breaks the select-loop and returns. With the current retry-logic in
+                    // `submit_blobs` this happens after u32::MAX retries which is effectively never.
+                    // self.submission_state = match submission_result.wrap_err("failed submitting blocks to Celestia")
+                    self.submission_state = match submission_result {
+                        Ok(state) => state,
+                        Err(err) => {
+                            // Use `wrap_err` on the return break value. Using it on the match-value causes
+                            // type inference to fail.
+                            break Err(err).wrap_err("failed submitting blocks to Celestia");
+                        }
+                    };
                 }
 
+                // submit blocks to Celestia, if no submission in flight
+                Some(blobs) = self.blobs.take(), if submission.is_terminated() => {
+                    submission = submit_blobs(
+                        self.client.clone(),
+                        blobs,
+                        self.state.clone(),
+                        self.submission_state.clone(),
+                    ).boxed().fuse();
+                }
+
+                // handle result of converting blocks to blobs
                 Some((sequencer_height, conversion_result)) = self.conversions.next() => {
                      match conversion_result {
                         // XXX: Emitting at ERROR level because failing to convert contitutes
@@ -276,31 +294,21 @@ impl BlobSubmitter {
                     };
                 }
 
-                Some(blobs) = self.blobs.take(), if submission.is_terminated() => {
-                    submission = submit_blobs(
-                        self.client.clone(),
-                        blobs,
-                        self.state.clone(),
-                        self.submission_state.clone(),
-                    ).boxed().fuse();
+                // enqueue new blocks for conversion to blobs if there is capacity
+                Some(block) = self.blocks.recv(), if self.has_capacity() => {
+                    debug!(
+                        height = %block.height(),
+                        "received sequencer block for submission",
+                    );
+                    self.conversions.push(block);
                 }
 
-                submission_result = &mut submission, if !submission.is_terminated() => {
-                    // XXX: Breaks the select-loop and returns. With the current retry-logic in
-                    // `submit_blobs` this happens after u32::MAX retries which is effectively never.
-                    self.submission_state = match submission_result.wrap_err("failed submitting blocks to Celestia") {
-                        Ok(state) => state,
-                        Err(err) => {
-                            break Err(err);
-                        }
-                    };
-                }
             );
         };
 
         match &reason {
-            Ok(reason) => info!(reason, "shutting down"),
-            Err(reason) => error!(%reason, "shutting down"),
+            Ok(reason) => info!(reason, "starting shutdown"),
+            Err(reason) => error!(%reason, "starting shutdown"),
         }
 
         if submission.is_terminated() {

@@ -202,8 +202,8 @@ impl Relayer {
         };
 
         match &reason {
-            Ok(reason) => info!(reason, "shutting down"),
-            Err(reason) => error!(%reason, "shutting down"),
+            Ok(reason) => info!(reason, "starting shutdown"),
+            Err(reason) => error!(%reason, "starting shutdown"),
         }
 
         debug!("waiting for Celestia submission task to exit");
