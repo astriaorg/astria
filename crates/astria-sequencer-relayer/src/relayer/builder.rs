@@ -91,5 +91,6 @@ fn create_celestia_client(endpoint: String, bearer_token: String) -> eyre::Resul
         .set_headers(headers)
         .build(endpoint)
         .wrap_err("failed constructing Celestia JSONRPC HTTP Client")?;
+    println!("{client:?}");
     Ok(client)
 }

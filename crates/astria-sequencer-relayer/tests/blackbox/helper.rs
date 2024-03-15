@@ -101,6 +101,8 @@ const PRIVATE_VALIDATOR_KEY: &str = r#"
 }
 "#;
 
+const CELESTIA_BEARER_TOKEN: &str = "ABCDEFG";
+
 pub struct BlockGuard {
     inner: oneshot::Receiver<()>,
 }
@@ -361,7 +363,7 @@ impl TestSequencerRelayerConfig {
             cometbft_endpoint: cometbft.uri(),
             sequencer_grpc_endpoint: format!("http://{grpc_addr}"),
             celestia_endpoint: format!("http://{celestia_addr}"),
-            celestia_bearer_token: String::new(),
+            celestia_bearer_token: CELESTIA_BEARER_TOKEN.into(),
             block_time: 1000,
             relay_only_validator_key_blocks: self.relay_only_self,
             validator_key_file: keyfile.path().to_string_lossy().to_string(),
@@ -464,8 +466,15 @@ pub struct MockCelestia {
 impl MockCelestia {
     async fn start() -> Self {
         use jsonrpsee::server::ServerBuilder;
+        use tower_http::validate_request::ValidateRequestHeaderLayer;
         let (addr_tx, addr_rx) = oneshot::channel();
-        let server = ServerBuilder::default().build("127.0.0.1:0").await.unwrap();
+        let auth = tower::ServiceBuilder::new()
+            .layer(ValidateRequestHeaderLayer::bearer(CELESTIA_BEARER_TOKEN));
+        let server = ServerBuilder::new()
+            .set_middleware(auth)
+            .build("127.0.0.1:0")
+            .await
+            .unwrap();
         let addr = server.local_addr().unwrap();
         addr_tx.send(addr).unwrap();
         let (state_rpc_confirmed_tx, state_rpc_confirmed_rx) = mpsc::unbounded_channel();
