@@ -246,7 +246,7 @@ impl BlobSubmitter {
             select!(
                 biased;
 
-                _ = self.shutdown_token.cancelled() => {
+                () = self.shutdown_token.cancelled() => {
                     break Ok("received shutdown signal");
                 }
 
@@ -295,7 +295,7 @@ impl BlobSubmitter {
                         }
                     };
                 }
-            )
+            );
         };
 
         match &reason {

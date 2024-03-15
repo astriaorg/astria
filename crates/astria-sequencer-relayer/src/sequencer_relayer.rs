@@ -35,16 +35,6 @@ use crate::{
     },
 };
 
-pub struct Handle {
-    shutdown_token: CancellationToken,
-}
-
-impl Handle {
-    pub fn shutdown(self) {
-        self.shutdown_token.cancel()
-    }
-}
-
 pub struct SequencerRelayer {
     api_server: api::ApiServer,
     relayer: Relayer,
@@ -104,6 +94,11 @@ impl SequencerRelayer {
         self.api_server.local_addr()
     }
 
+    /// Run Sequencer Relayer.
+    ///
+    /// # Panics
+    /// Panics if a signal listener could not be constructed (usually if this binary is not run on a
+    /// Unix).
     pub async fn run(self) {
         let Self {
             api_server,
@@ -127,7 +122,7 @@ impl SequencerRelayer {
         info!("spawned relayer task");
 
         let mut sigterm = signal(SignalKind::terminate()).expect(
-            "setting a SIGTERM listener should always work on unix; is this running on unix?",
+            "setting a SIGTERM listener should always work on unix; is this running on Unix?",
         );
 
         let shutdown = select!(
@@ -181,43 +176,41 @@ impl Shutdown {
             api_shutdown_signal,
         } = self;
         // Giving relayer 25 seconds to shutdown because Kubernetes issues a SIGKILL after 30.
-        match relayer_task {
-            Some(mut relayer_task) => {
-                info!("waiting for relayer task to shut down");
-                match timeout(Duration::from_secs(25), &mut relayer_task)
-                    .await
-                    .map(crate::utils::flatten)
-                {
-                    Ok(Ok(())) => info!("relayer exited gracefully"),
-                    Ok(Err(error)) => error!(%error, "relayer exited with an error"),
-                    Err(_) => {
-                        error!("relayer did not shut down after 25 seconds; killing it");
-                        relayer_task.abort();
-                    }
+        if let Some(mut relayer_task) = relayer_task {
+            info!("waiting for relayer task to shut down");
+            match timeout(Duration::from_secs(25), &mut relayer_task)
+                .await
+                .map(crate::utils::flatten)
+            {
+                Ok(Ok(())) => info!("relayer exited gracefully"),
+                Ok(Err(error)) => error!(%error, "relayer exited with an error"),
+                Err(_) => {
+                    error!("relayer did not shut down after 25 seconds; killing it");
+                    relayer_task.abort();
                 }
-                info!("sending shutdown signal to API server");
             }
-            None => info!("relayer task was already dead"),
+            info!("sending shutdown signal to API server");
+        } else {
+            info!("relayer task was already dead");
         }
 
         // Giving the API task another 4 seconds. 25 for relayer + 4s = 29s (out of 30s for k8s).
-        match api_task {
-            Some(mut api_task) => {
-                info!("sending shutdown signal to API server");
-                let _ = api_shutdown_signal.send(());
-                match timeout(Duration::from_secs(4), &mut api_task)
-                    .await
-                    .map(crate::utils::flatten)
-                {
-                    Ok(Ok(())) => info!("api server exited gracefully"),
-                    Ok(Err(error)) => error!(%error, "api server exited with an error"),
-                    Err(_) => {
-                        error!("api server did not shut down after 25 seconds; killing it");
-                        api_task.abort();
-                    }
+        if let Some(mut api_task) = api_task {
+            info!("sending shutdown signal to API server");
+            let _ = api_shutdown_signal.send(());
+            match timeout(Duration::from_secs(4), &mut api_task)
+                .await
+                .map(crate::utils::flatten)
+            {
+                Ok(Ok(())) => info!("api server exited gracefully"),
+                Ok(Err(error)) => error!(%error, "api server exited with an error"),
+                Err(_) => {
+                    error!("api server did not shut down after 25 seconds; killing it");
+                    api_task.abort();
                 }
             }
-            None => info!("API server was already dead"),
+        } else {
+            info!("API server was already dead");
         }
     }
 }
