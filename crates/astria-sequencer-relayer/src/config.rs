@@ -17,7 +17,8 @@ pub struct Config {
     pub celestia_bearer_token: String,
     pub block_time: u64,
     pub relay_only_validator_key_blocks: bool,
-    pub validator_key_file: Option<String>,
+    #[serde(default)]
+    pub validator_key_file: String,
     // The socket address at which sequencer relayer will server healthz, readyz, and status calls.
     pub api_addr: String,
     pub log: String,
