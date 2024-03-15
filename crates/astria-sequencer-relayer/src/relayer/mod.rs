@@ -141,6 +141,7 @@ impl Relayer {
                 biased;
 
                 () = self.shutdown_token.cancelled() => {
+                    info!("received shutdown signal");
                     break Ok("shutdown signal received");
                 }
 

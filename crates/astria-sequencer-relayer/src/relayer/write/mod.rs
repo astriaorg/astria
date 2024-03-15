@@ -236,17 +236,12 @@ impl BlobSubmitter {
     pub(super) async fn run(mut self) -> eyre::Result<()> {
         let mut submission = Fuse::terminated();
 
-        // Fetch the latest Celestia height so there is a starting point when tracking
-        // submissions.
-        fetch_latest_celestia_height(self.client.clone(), self.state.clone())
-            .await
-            .wrap_err("failed fetching latest celestia height after many retries")?;
-
         let reason = loop {
             select!(
                 biased;
 
                 () = self.shutdown_token.cancelled() => {
+                    info!("shutdown signal received");
                     break Ok("received shutdown signal");
                 }
 
@@ -469,51 +464,6 @@ async fn submit_with_retry(
     .await
     .wrap_err("retry attempts exhausted; bailing")?;
     Ok(height)
-}
-
-#[instrument(skip_all)]
-async fn fetch_latest_celestia_height(
-    client: HttpClient,
-    state: Arc<super::State>,
-) -> eyre::Result<()> {
-    use celestia_client::celestia_rpc::HeaderClient as _;
-
-    let span = Span::current();
-    let retry_config = tryhard::RetryFutureConfig::new(u32::MAX)
-        .exponential_backoff(Duration::from_millis(100))
-        .max_delay(Duration::from_secs(5))
-        .on_retry(
-            |attempt: u32, next_delay: Option<Duration>, error: &eyre::Report| {
-                let wait_duration = next_delay
-                    .map(humantime::format_duration)
-                    .map(tracing::field::display);
-                warn!(
-                    parent: &span,
-                    attempt,
-                    wait_duration,
-                    %error,
-                    "attempt to fetch latest Celestia height failed; retrying after backoff",
-                );
-                futures::future::ready(())
-            },
-        );
-
-    let height = tryhard::retry_fn(|| {
-        let client = client.clone();
-        async move {
-            let header = client
-                .header_network_head()
-                .await
-                .wrap_err("failed to fetch network head from Celestia node")?;
-            Ok(header.height().value())
-        }
-    })
-    .with_config(retry_config)
-    .in_current_span()
-    .await
-    .wrap_err("retry attempts exhausted; bailing")?;
-    state.set_latest_confirmed_celestia_height(height);
-    Ok(())
 }
 
 /// Currently running conversions of Sequencer blocks to Celestia blobs.
