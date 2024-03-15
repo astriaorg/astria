@@ -38,7 +38,10 @@ pub(super) struct GrpcCollector {
 }
 
 impl GrpcCollector {
-    pub(super) fn new(grpc_collector_listener: TcpListener, executor_handle: ExecutorHandle) -> Self {
+    pub(super) fn new(
+        grpc_collector_listener: TcpListener,
+        executor_handle: ExecutorHandle,
+    ) -> Self {
         Self {
             grpc_collector_listener,
             executor_handle,
@@ -52,9 +55,7 @@ impl GrpcCollector {
         self.grpc_collector_listener.local_addr()
     }
 
-    pub(super) async fn run_until_stopped(
-        self,
-    ) -> eyre::Result<()> {
+    pub(super) async fn run_until_stopped(self) -> eyre::Result<()> {
         let composer_service = GrpcCollectorServiceServer::new(self.executor_handle);
         let grpc_server = tonic::transport::Server::builder().add_service(composer_service);
 
