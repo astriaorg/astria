@@ -72,6 +72,9 @@ tokio = { workspace = true, features = ["test-util"] }
 tokio-stream = { version = "0.1.14", features = ["net"] }
 wiremock = { workspace = true }
 assert-json-diff = "2.0.2"
+tower-http = { version = "0.4", features = ["auth"] }
+tower = { version = "0.4.13" }
+hyper.workspace = true
 
 [build-dependencies]
 astria-build-info = { path = "../astria-build-info", features = ["build"] }
