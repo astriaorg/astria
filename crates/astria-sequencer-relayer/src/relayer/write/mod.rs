@@ -50,6 +50,7 @@ use tokio::{
         Sender,
     },
 };
+use tokio_util::sync::CancellationToken;
 use tracing::{
     debug,
     error,
@@ -201,6 +202,10 @@ pub(super) struct BlobSubmitter {
 
     // Tracks the submission state and writes it to disk before and after each Celestia submission.
     submission_state: super::SubmissionState,
+
+    // The shutdown token to signal that blob submitter should finish its current submission and
+    // exit.
+    shutdown_token: CancellationToken,
 }
 
 impl BlobSubmitter {
@@ -208,6 +213,7 @@ impl BlobSubmitter {
         client: HttpClient,
         state: Arc<super::State>,
         submission_state: super::SubmissionState,
+        shutdown_token: CancellationToken,
     ) -> (Self, BlobSubmitterHandle) {
         // XXX: The channel size here is just a number. It should probably be based on some
         // heuristic about the number of expected blobs in a block.
@@ -219,6 +225,7 @@ impl BlobSubmitter {
             blobs: QueuedConvertedBlocks::with_max_blobs(128),
             state,
             submission_state,
+            shutdown_token,
         };
         let handle = BlobSubmitterHandle {
             tx,
@@ -229,22 +236,41 @@ impl BlobSubmitter {
     pub(super) async fn run(mut self) -> eyre::Result<()> {
         let mut submission = Fuse::terminated();
 
-        // Fetch the latest Celestia height so there is a starting point when tracking
-        // submissions.
-        fetch_latest_celestia_height(self.client.clone(), self.state.clone())
-            .await
-            .wrap_err("failed fetching latest celestia height after many retries")?;
-
-        loop {
+        let reason = loop {
             select!(
-                Some(block) = self.blocks.recv(), if self.has_capacity() => {
-                    debug!(
-                        height = %block.height(),
-                        "received sequencer block for submission",
-                    );
-                    self.conversions.push(block);
+                biased;
+
+                () = self.shutdown_token.cancelled() => {
+                    info!("shutdown signal received");
+                    break Ok("received shutdown signal");
                 }
 
+                // handle result of submitting blocks to Celestia, if in flight
+                submission_result = &mut submission, if !submission.is_terminated() => {
+                    // XXX: Breaks the select-loop and returns. With the current retry-logic in
+                    // `submit_blobs` this happens after u32::MAX retries which is effectively never.
+                    // self.submission_state = match submission_result.wrap_err("failed submitting blocks to Celestia")
+                    self.submission_state = match submission_result {
+                        Ok(state) => state,
+                        Err(err) => {
+                            // Use `wrap_err` on the return break value. Using it on the match-value causes
+                            // type inference to fail.
+                            break Err(err).wrap_err("failed submitting blocks to Celestia");
+                        }
+                    };
+                }
+
+                // submit blocks to Celestia, if no submission in flight
+                Some(blobs) = self.blobs.take(), if submission.is_terminated() => {
+                    submission = submit_blobs(
+                        self.client.clone(),
+                        blobs,
+                        self.state.clone(),
+                        self.submission_state.clone(),
+                    ).boxed().fuse();
+                }
+
+                // handle result of converting blocks to blobs
                 Some((sequencer_height, conversion_result)) = self.conversions.next() => {
                      match conversion_result {
                         // XXX: Emitting at ERROR level because failing to convert contitutes
@@ -263,22 +289,32 @@ impl BlobSubmitter {
                     };
                 }
 
-                Some(blobs) = self.blobs.take(), if submission.is_terminated() => {
-                    submission = submit_blobs(
-                        self.client.clone(),
-                        blobs,
-                        self.state.clone(),
-                        self.submission_state.clone(),
-                    ).boxed().fuse();
+                // enqueue new blocks for conversion to blobs if there is capacity
+                Some(block) = self.blocks.recv(), if self.has_capacity() => {
+                    debug!(
+                        height = %block.height(),
+                        "received sequencer block for submission",
+                    );
+                    self.conversions.push(block);
                 }
 
-                submission_result = &mut submission, if !submission.is_terminated() => {
-                    // XXX: Breaks the select-loop and returns. With the current retry-logic in
-                    // `submit_blobs` this happens after u32::MAX retries which is effectively never.
-                    self.submission_state = submission_result.wrap_err("failed submitting blobs to Celestia")?;
-                }
             );
+        };
+
+        match &reason {
+            Ok(reason) => info!(reason, "starting shutdown"),
+            Err(reason) => error!(%reason, "starting shutdown"),
         }
+
+        if submission.is_terminated() {
+            info!("no submissions to Celestia were in flight, exiting now");
+        } else {
+            info!("a submission to Celestia is in flight; waiting for it to finish");
+            if let Err(error) = submission.await {
+                error!(%error, "last submission to Celestia failed before exiting");
+            }
+        }
+        reason.map(|_| ())
     }
 
     /// Returns if the submitter has capacity for more blocks.
@@ -428,51 +464,6 @@ async fn submit_with_retry(
     .await
     .wrap_err("retry attempts exhausted; bailing")?;
     Ok(height)
-}
-
-#[instrument(skip_all)]
-async fn fetch_latest_celestia_height(
-    client: HttpClient,
-    state: Arc<super::State>,
-) -> eyre::Result<()> {
-    use celestia_client::celestia_rpc::HeaderClient as _;
-
-    let span = Span::current();
-    let retry_config = tryhard::RetryFutureConfig::new(u32::MAX)
-        .exponential_backoff(Duration::from_millis(100))
-        .max_delay(Duration::from_secs(5))
-        .on_retry(
-            |attempt: u32, next_delay: Option<Duration>, error: &eyre::Report| {
-                let wait_duration = next_delay
-                    .map(humantime::format_duration)
-                    .map(tracing::field::display);
-                warn!(
-                    parent: &span,
-                    attempt,
-                    wait_duration,
-                    %error,
-                    "attempt to fetch latest Celestia height failed; retrying after backoff",
-                );
-                futures::future::ready(())
-            },
-        );
-
-    let height = tryhard::retry_fn(|| {
-        let client = client.clone();
-        async move {
-            let header = client
-                .header_network_head()
-                .await
-                .wrap_err("failed to fetch network head from Celestia node")?;
-            Ok(header.height().value())
-        }
-    })
-    .with_config(retry_config)
-    .in_current_span()
-    .await
-    .wrap_err("retry attempts exhausted; bailing")?;
-    state.set_latest_confirmed_celestia_height(height);
-    Ok(())
 }
 
 /// Currently running conversions of Sequencer blocks to Celestia blobs.

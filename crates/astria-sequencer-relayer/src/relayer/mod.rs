@@ -39,6 +39,7 @@ use tokio::{
     task::JoinHandle,
 };
 use tokio_stream::StreamExt;
+use tokio_util::sync::CancellationToken;
 use tracing::{
     debug,
     error,
@@ -63,6 +64,9 @@ pub(crate) use state::StateSnapshot;
 use self::submission::SubmissionState;
 
 pub(crate) struct Relayer {
+    /// A token to notify relayer that it should shut down.
+    shutdown_token: tokio_util::sync::CancellationToken,
+
     /// The client used to query the sequencer cometbft endpoint.
     sequencer_cometbft_client: SequencerClient,
 
@@ -114,6 +118,7 @@ impl Relayer {
             self.celestia_client.clone(),
             self.state.clone(),
             submission_state,
+            self.shutdown_token.clone(),
         );
 
         let mut block_stream = read::BlockStream::builder()
@@ -134,6 +139,11 @@ impl Relayer {
         let reason = loop {
             select!(
                 biased;
+
+                () = self.shutdown_token.cancelled() => {
+                    info!("received shutdown signal");
+                    break Ok("shutdown signal received");
+                }
 
                 res = &mut forward_once_free, if !forward_once_free.is_terminated() => {
                     // XXX: exiting because submitter only returns an error after u32::MAX
@@ -192,11 +202,17 @@ impl Relayer {
             );
         };
 
-        submitter_task.abort();
-        if let Err(error) = crate::utils::flatten(submitter_task.await) {
-            error!(%error, "Celestia blob submission task failed");
+        match &reason {
+            Ok(reason) => info!(reason, "starting shutdown"),
+            Err(reason) => error!(%reason, "starting shutdown"),
         }
-        reason
+
+        debug!("waiting for Celestia submission task to exit");
+        if let Err(error) = submitter_task.await {
+            error!(%error, "Celestia submission task failed while waiting for it to exit before shutdown");
+        }
+
+        reason.map(|_| ())
     }
 
     fn report_validator(&self) -> Option<DisplayValue<ReportValidator<'_>>> {
@@ -281,8 +297,10 @@ fn spawn_submitter(
     client: CelestiaClient,
     state: Arc<State>,
     submission_state: submission::SubmissionState,
+    shutdown_token: CancellationToken,
 ) -> (JoinHandle<eyre::Result<()>>, write::BlobSubmitterHandle) {
-    let (submitter, handle) = write::BlobSubmitter::new(client, state, submission_state);
+    let (submitter, handle) =
+        write::BlobSubmitter::new(client, state, submission_state, shutdown_token);
     (tokio::spawn(submitter.run()), handle)
 }
 

@@ -20,6 +20,7 @@ use super::state::State;
 use crate::validator::Validator;
 
 pub(crate) struct Builder {
+    pub(crate) shutdown_token: tokio_util::sync::CancellationToken,
     pub(crate) celestia_endpoint: String,
     pub(crate) celestia_bearer_token: String,
     pub(crate) cometbft_endpoint: String,
@@ -34,6 +35,7 @@ impl Builder {
     /// Instantiates a `Relayer`.
     pub(crate) fn build(self) -> eyre::Result<super::Relayer> {
         let Self {
+            shutdown_token,
             celestia_endpoint,
             celestia_bearer_token,
             cometbft_endpoint,
@@ -65,6 +67,7 @@ impl Builder {
         let state = Arc::new(State::new());
 
         Ok(super::Relayer {
+            shutdown_token,
             sequencer_cometbft_client,
             sequencer_grpc_client,
             sequencer_poll_period,
