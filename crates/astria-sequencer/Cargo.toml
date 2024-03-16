@@ -30,8 +30,8 @@ matchit = "0.7.2"
 tower = "0.4"
 tower-abci = "0.11.0"
 tower-actor = "0.1.0"
-cnidarium = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.68.1" }
-cnidarium-component = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.68.1" }
+cnidarium = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.69.1" }
+cnidarium-component = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.69.1" }
 
 async-trait = { workspace = true }
 bytes = { workspace = true }

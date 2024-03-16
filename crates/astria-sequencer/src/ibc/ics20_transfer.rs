@@ -229,7 +229,10 @@ impl AppHandlerExecute for Ics20Transfer {
 
     async fn chan_close_init_execute<S: StateWrite>(_: S, _: &MsgChannelCloseInit) {}
 
-    async fn recv_packet_execute<S: StateWrite>(mut state: S, msg: &MsgRecvPacket) {
+    async fn recv_packet_execute<S: StateWrite>(
+        mut state: S,
+        msg: &MsgRecvPacket,
+    ) -> anyhow::Result<()> {
         use penumbra_ibc::component::packet::WriteAcknowledgement as _;
 
         let ack = match execute_ics20_transfer(
@@ -249,16 +252,19 @@ impl AppHandlerExecute for Ics20Transfer {
 
         let ack_bytes: Vec<u8> = ack.into();
 
-        if let Err(e) = state.write_acknowledgement(&msg.packet, &ack_bytes).await {
-            let error: &dyn std::error::Error = e.as_ref();
-            tracing::error!(error, "failed to write acknowledgement");
-        }
+        state
+            .write_acknowledgement(&msg.packet, &ack_bytes)
+            .await
+            .context("failed to write acknowledgement")
     }
 
-    async fn timeout_packet_execute<S: StateWrite>(mut state: S, msg: &MsgTimeout) {
+    async fn timeout_packet_execute<S: StateWrite>(
+        mut state: S,
+        msg: &MsgTimeout,
+    ) -> anyhow::Result<()> {
         // we put source and dest as chain_a (the source) as we're refunding tokens,
         // and the destination chain of the refund is the source.
-        if let Err(e) = execute_ics20_transfer(
+        execute_ics20_transfer(
             &mut state,
             &msg.packet.data,
             &msg.packet.port_on_a,
@@ -268,13 +274,7 @@ impl AppHandlerExecute for Ics20Transfer {
             true,
         )
         .await
-        {
-            let error: &dyn std::error::Error = e.as_ref();
-            tracing::error!(
-                error,
-                "failed to refund tokens during timeout_packet_execute",
-            );
-        };
+        .context("failed to refund tokens during timeout_packet_execute")
     }
 
     async fn acknowledge_packet_execute<S: StateWrite>(mut state: S, msg: &MsgAcknowledgement) {
