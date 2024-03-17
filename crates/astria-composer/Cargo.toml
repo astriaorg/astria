@@ -13,7 +13,7 @@ name = "astria-composer"
 
 [dependencies]
 astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
-astria-core = { path = "../astria-core", features = ["client", "server"] }
+astria-core = { path = "../astria-core", features = ["server"] }
 astria-eyre = { path = "../astria-eyre" }
 config = { package = "astria-config", path = "../astria-config" }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
@@ -64,6 +64,7 @@ test_utils = { package = "astria-test-utils", path = "../astria-test-utils", fea
   "geth",
 ] }
 tokio-test = { workspace = true }
+astria-core = { path = "../astria-core", features = ["client"] }
 
 tendermint-rpc = { workspace = true }
 wiremock = { workspace = true }
