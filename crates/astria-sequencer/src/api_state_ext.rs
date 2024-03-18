@@ -203,7 +203,7 @@ pub(crate) trait StateReadExt: StateRead {
             .context("failed to get rollup IDs by block hash")?;
 
         let mut rollup_transactions = Vec::with_capacity(rollup_ids.len());
-        for id in rollup_ids.iter() {
+        for id in &rollup_ids {
             let key = rollup_data_by_hash_and_rollup_id_key(hash, id);
             let raw = self
                 .get_raw(&key)

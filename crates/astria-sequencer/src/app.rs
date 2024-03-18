@@ -134,6 +134,9 @@ pub(crate) struct App {
 
     // the current `AppHash` of the application state.
     // set whenever `commit` is called.
+    //
+    // allow clippy because we need be specific as to what hash this is.
+    #[allow(clippy::struct_field_names)]
     app_hash: AppHash,
 }
 
@@ -421,7 +424,7 @@ impl App {
         use crate::transaction::InvalidNonce;
 
         let data_hash = astria_core::sequencer::v1::block::merkle_tree_from_data(
-            finalize_block.txs.iter().map(|tx| tx.as_ref()),
+            finalize_block.txs.iter().map(std::convert::AsRef::as_ref),
         )
         .root();
 
@@ -496,7 +499,7 @@ impl App {
                         info: code.to_string(),
                         log: format!("{e:?}"),
                         ..Default::default()
-                    })
+                    });
                 }
             }
         }
@@ -533,7 +536,11 @@ impl App {
             finalize_block.height,
             finalize_block.time,
             finalize_block.proposer_address,
-            finalize_block.txs.into_iter().map(|tx| tx.into()).collect(),
+            finalize_block
+                .txs
+                .into_iter()
+                .map(std::convert::Into::into)
+                .collect(),
             deposits,
         )
         .context("failed to convert block info and data to SequencerBlock")?;
