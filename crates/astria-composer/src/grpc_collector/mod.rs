@@ -1,7 +1,4 @@
-use std::{
-    net::SocketAddr,
-    time::Duration,
-};
+use std::time::Duration;
 
 use astria_core::{
     generated::composer::v1alpha1::{
@@ -22,7 +19,6 @@ use astria_eyre::{
     eyre::eyre,
 };
 use tokio::{
-    io,
     net::TcpListener,
     sync::mpsc::error::SendTimeoutError,
 };
@@ -47,13 +43,6 @@ impl GrpcCollector {
             grpc_collector_listener,
             executor_handle,
         }
-    }
-
-    /// Returns the socker address the grpc collector is served over
-    /// # Errors
-    /// Returns an error if the listener is not bound
-    pub(super) fn grpc_collector_local_addr(&self) -> io::Result<SocketAddr> {
-        self.grpc_collector_listener.local_addr()
     }
 
     pub(super) async fn run_until_stopped(self) -> eyre::Result<()> {
