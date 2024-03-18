@@ -423,6 +423,7 @@ impl SequencerBlockHeader {
             rollup_transactions_root: self.rollup_transactions_root.to_vec(),
             data_hash: self.data_hash.to_vec(),
             proposer_address: self.proposer_address.as_bytes().to_vec(),
+            ..Default::default()
         }
     }
 
@@ -441,6 +442,7 @@ impl SequencerBlockHeader {
             rollup_transactions_root,
             data_hash,
             proposer_address,
+            ..
         } = raw;
 
         let chain_id = tendermint::chain::Id::try_from(chain_id)
@@ -1073,6 +1075,7 @@ impl FilteredSequencerBlock {
             rollup_transactions_proof: Some(rollup_transactions_proof.into_raw()),
             all_rollup_ids: self.all_rollup_ids.iter().map(|id| id.to_vec()).collect(),
             rollup_ids_proof: Some(rollup_ids_proof.into_raw()),
+            ..Default::default()
         }
     }
 
@@ -1112,6 +1115,7 @@ impl FilteredSequencerBlock {
             rollup_transactions_proof,
             all_rollup_ids,
             rollup_ids_proof,
+            ..
         } = raw;
 
         let block_hash = block_hash

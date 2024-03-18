@@ -146,6 +146,7 @@ impl SequencerService for SequencerServer {
             rollup_transactions_proof: rollup_transactions_proof.into(),
             rollup_ids_proof: rollup_ids_proof.into(),
             all_rollup_ids,
+            ..Default::default()
         };
 
         Ok(Response::new(block))
