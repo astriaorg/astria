@@ -33,13 +33,13 @@ message CelestiaRollupBlob {
 // The original sequencer block (and in turn CometBFT block) can be identified by the
 // block hash calculated from `header`.
 message CelestiaSequencerBlob {
-  // replaced by `header` field
+  // replaced by `block_header` field
   astria_vendored.tendermint.types.Header header = 1 [deprecated = true];
   // The rollup IDs for which `CelestiaRollupBlob`s were submitted to celestia.
   // Corresponds to the `astria.sequencer.v1.RollupTransactions.rollup_id` field
   // and is extracted from `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions`.
   repeated bytes rollup_ids = 2;
-  // now included in `header` field
+  // now included in `block_header` field
   bytes rollup_transactions_root = 3 [deprecated = true];
 
   // The proof that the rollup transactions are included in sequencer block.

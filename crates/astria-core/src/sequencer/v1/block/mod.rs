@@ -762,6 +762,14 @@ impl SequencerBlock {
         )
     }
 
+    /// Converts from relevant header fields and the block data.
+    ///
+    /// # Errors
+    /// TODO(https://github.com/astriaorg/astria/issues/612)
+    ///
+    /// # Panics
+    ///
+    /// - if a rollup data merkle proof cannot be constructed.
     pub fn try_from_block_info_and_data(
         block_hash: [u8; 32],
         chain_id: tendermint::chain::Id,
