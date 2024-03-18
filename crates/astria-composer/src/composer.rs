@@ -162,15 +162,16 @@ impl Composer {
         Ok(Self {
             api_server_addr,
             executor_handle,
-            rollups,
             geth_collector_statuses,
             geth_collector_tasks,
-            grpc_collector_addr,
             composer_tasks,
+            rollups,
+            grpc_collector_addr,
         })
     }
 
     /// Returns the socket address the api server is served over
+    #[must_use]
     pub fn local_addr(&self) -> SocketAddr {
         self.api_server_addr
     }
@@ -178,7 +179,8 @@ impl Composer {
     /// Returns the socker address the grpc collector is served over
     /// # Errors
     /// Returns an error if the listener is not bound
-    pub fn grpc_collector_local_addr(&self) -> SocketAddr {
+    #[must_use]
+    pub fn grpc_collector_addr(&self) -> SocketAddr {
         self.grpc_collector_addr
     }
 
@@ -199,7 +201,7 @@ impl Composer {
         loop {
             tokio::select!(
             Some((task, err)) = composer_tasks.join_next() => {
-                report_exit(format!("composer task: {}", task).as_str(), err);
+                report_exit(format!("composer task: {task}").as_str(), err);
                 return Ok(());
             },
             Some((rollup, collector_exit)) = geth_collector_tasks.join_next() => {
