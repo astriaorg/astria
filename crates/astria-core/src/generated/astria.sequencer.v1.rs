@@ -37,8 +37,7 @@ pub struct RollupTransactions {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SequencerBlock {
-    /// the block header, which contains the cometbft header and additional sequencer-specific
-    /// commitments.
+    /// the block header, which contains sequencer-specific commitments.
     #[prost(message, optional, tag = "1")]
     pub header: ::core::option::Option<SequencerBlockHeader>,
     /// The collection of rollup transactions that were included in this block.
@@ -171,9 +170,8 @@ pub struct FilteredSequencerBlock {
     /// / The block hash of the cometbft block that corresponds to this sequencer block.
     #[prost(bytes = "vec", tag = "7")]
     pub block_hash: ::prost::alloc::vec::Vec<u8>,
-    /// / the block header, which contains the cometbft header and additional sequencer-specific
-    /// / commitments.
-    #[prost(message, optional, tag = "9")]
+    /// the block header, which contains sequencer-specific commitments.
+    #[prost(message, optional, tag = "8")]
     pub header: ::core::option::Option<SequencerBlockHeader>,
 }
 /// A piece of data that is sent to a rollup execution node.
@@ -307,17 +305,19 @@ pub struct CelestiaRollupBlob {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CelestiaSequencerBlob {
-    #[prost(bytes = "vec", tag = "1")]
-    pub block_hash: ::prost::alloc::vec::Vec<u8>,
-    /// The original CometBFT header that is the input to this blob's original sequencer block.
-    /// Corresponds to `astria.sequencer.v1alpha.SequencerBlock.header`.
-    #[prost(message, optional, tag = "2")]
-    pub header: ::core::option::Option<SequencerBlockHeader>,
+    /// replaced by `header` field
+    #[deprecated]
+    #[prost(message, optional, tag = "1")]
+    pub header: ::core::option::Option<::tendermint_proto::types::Header>,
     /// The rollup IDs for which `CelestiaRollupBlob`s were submitted to celestia.
     /// Corresponds to the `astria.sequencer.v1.RollupTransactions.rollup_id` field
     /// and is extracted from `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions`.
-    #[prost(bytes = "vec", repeated, tag = "3")]
+    #[prost(bytes = "vec", repeated, tag = "2")]
     pub rollup_ids: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+    /// now included in `header` field
+    #[deprecated]
+    #[prost(bytes = "vec", tag = "3")]
+    pub rollup_transactions_root: ::prost::alloc::vec::Vec<u8>,
     /// The proof that the rollup transactions are included in sequencer block.
     /// Corresponds to `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions_proof`.
     #[prost(message, optional, tag = "4")]
@@ -326,6 +326,12 @@ pub struct CelestiaSequencerBlob {
     /// Corresponds to `astria.sequencer.v1alpha.SequencerBlock.rollup_ids_proof`.
     #[prost(message, optional, tag = "5")]
     pub rollup_ids_proof: ::core::option::Option<Proof>,
+    /// the 32-byte block hash of the sequencer block.
+    #[prost(bytes = "vec", tag = "6")]
+    pub block_hash: ::prost::alloc::vec::Vec<u8>,
+    /// the block header, which contains sequencer-specific commitments.
+    #[prost(message, optional, tag = "7")]
+    pub block_header: ::core::option::Option<SequencerBlockHeader>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

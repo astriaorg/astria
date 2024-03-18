@@ -423,14 +423,15 @@ impl UncheckedCelestiaSequencerBlob {
     ) -> Result<Self, CelestiaSequencerBlobError> {
         let raw::CelestiaSequencerBlob {
             block_hash,
-            header,
+            block_header,
             rollup_ids,
             rollup_transactions_proof,
             rollup_ids_proof,
+            ..
         } = raw;
         let header = 'header: {
-            let Some(header) = header else {
-                break 'header Err(CelestiaSequencerBlobError::field_not_set("header"));
+            let Some(header) = block_header else {
+                break 'header Err(CelestiaSequencerBlobError::field_not_set("block_header"));
             };
             SequencerBlockHeader::try_from_raw(header).map_err(CelestiaSequencerBlobError::header)
         }?;
@@ -594,10 +595,11 @@ impl CelestiaSequencerBlob {
         } = self;
         raw::CelestiaSequencerBlob {
             block_hash: block_hash.to_vec(),
-            header: Some(header.into_raw()),
+            block_header: Some(header.into_raw()),
             rollup_ids: rollup_ids.into_iter().map(RollupId::to_vec).collect(),
             rollup_transactions_proof: Some(rollup_transactions_proof.into_raw()),
             rollup_ids_proof: Some(rollup_ids_proof.into_raw()),
+            ..Default::default()
         }
     }
 
