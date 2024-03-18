@@ -1,3 +1,9 @@
+// ! `GrpcCollector` allows users to directly send Rollup transactions to the Composer
+//
+// ! The [`GrpcCollector`] listens for incoming gRPC requests and sends the Rollup
+// transactions to the ! Executor. The Executor then sends the transactions to the Astria
+// Shared Sequencer.
+
 use std::{
     net::SocketAddr,
     time::Duration,
@@ -32,6 +38,12 @@ use tonic::{
 };
 use crate::executor;
 
+/// `GrpcCollector` listens for incoming gRPC requests and sends the Rollup transactions to the
+/// Executor. The Executor then sends the transactions to the Astria Shared Sequencer.
+///
+/// It implements the `ComposerService` rpc service.
+///
+/// The composer will only have one `GrpcCollector` running at a time.
 pub(super) struct GrpcCollector {
     grpc_collector_listener: TcpListener,
     executor_handle: executor::Handle,
