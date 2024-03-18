@@ -7845,9 +7845,9 @@ dependencies = [
 
 [[package]]
 name = "tower-abci"
-version = "0.11.1"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0d4826f3df3e9a37083d978cae73f020bcdf6143956b7dfc1bd6050b4e16367c"
+checksum = "6e2b02beb06df7f231ff03017b97c697a8b9fc93e2ed2ac227d783ee06a2e07b"
 dependencies = [
  "bytes",
  "futures",
