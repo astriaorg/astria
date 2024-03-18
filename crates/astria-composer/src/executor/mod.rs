@@ -132,7 +132,8 @@ impl Executor {
         private_key: &SecretString,
         block_time: u64,
         max_bytes_per_bundle: usize,
-    ) -> eyre::Result<(Self, mpsc::Sender<SequenceAction>)> {
+        serialized_rollup_transactions_rx: mpsc::Receiver<SequenceAction>,
+    ) -> eyre::Result<Self> {
         let sequencer_client = sequencer_client::HttpClient::new(sequencer_url)
             .wrap_err("failed constructing sequencer client")?;
         let (status, _) = watch::channel(Status::new());
@@ -145,21 +146,15 @@ impl Executor {
 
         let sequencer_address = Address::from_verification_key(sequencer_key.verification_key());
 
-        let (serialized_rollup_transactions_tx, serialized_rollup_transactions_rx) =
-            tokio::sync::mpsc::channel(256);
-
-        Ok((
-            Self {
-                status,
-                serialized_rollup_transactions_rx,
-                sequencer_client,
-                sequencer_key,
-                address: sequencer_address,
-                block_time: Duration::from_millis(block_time),
-                max_bytes_per_bundle,
-            },
-            serialized_rollup_transactions_tx,
-        ))
+        Ok(Self {
+            status,
+            serialized_rollup_transactions_rx,
+            sequencer_client,
+            sequencer_key,
+            address: sequencer_address,
+            block_time: Duration::from_millis(block_time),
+            max_bytes_per_bundle,
+        })
     }
 
     /// Return a reader to the status reporting channel

@@ -68,4 +68,3 @@ _lint-proto:
   buf format -d --exit-code
   buf breaking proto/executionapis --against 'buf.build/astria/execution-apis'
   buf breaking proto/sequencerapis --against 'buf.build/astria/astria'
-

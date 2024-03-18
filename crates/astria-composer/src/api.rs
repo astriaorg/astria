@@ -20,25 +20,25 @@ use serde::Serialize;
 use tokio::sync::watch;
 use tracing::debug;
 
-use crate::composer_status::ComposerStatus;
+use crate::composer;
 
 pub(super) type ApiServer = axum::Server<AddrIncoming, IntoMakeService<Router>>;
 
-type ComposerStatusWatch = watch::Receiver<ComposerStatus>;
+type ComposerStatus = watch::Receiver<composer::Status>;
 
 /// `AppState` is an axum extractor
 #[derive(Clone)]
 struct AppState {
-    composer_status: ComposerStatusWatch,
+    composer_status: ComposerStatus,
 }
 
-impl FromRef<AppState> for ComposerStatusWatch {
+impl FromRef<AppState> for ComposerStatus {
     fn from_ref(app_state: &AppState) -> Self {
         app_state.composer_status.clone()
     }
 }
 
-pub(super) fn start(listen_addr: SocketAddr, composer_status: ComposerStatusWatch) -> ApiServer {
+pub(super) fn start(listen_addr: SocketAddr, composer_status: ComposerStatus) -> ApiServer {
     let app = Router::new()
         .route("/readyz", get(readyz))
         .with_state(AppState {
@@ -74,7 +74,7 @@ impl IntoResponse for Readyz {
 // axum does not allow non-async handlers. This attribute can be removed
 // once this method contains `await` statements.
 #[allow(clippy::unused_async)]
-async fn readyz(State(composer_status): State<ComposerStatusWatch>) -> Readyz {
+async fn readyz(State(composer_status): State<ComposerStatus>) -> Readyz {
     debug!("received readyz request");
     if composer_status.borrow().is_ready() {
         Readyz::Ok

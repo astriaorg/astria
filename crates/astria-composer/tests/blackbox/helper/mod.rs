@@ -51,6 +51,11 @@ pub struct TestComposer {
 pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
     Lazy::force(&TELEMETRY);
 
+    assert!(
+        !rollup_ids.is_empty(),
+        "must provide at least one rollup ID for tests"
+    );
+
     let mut rollup_nodes = HashMap::new();
     let mut rollups = String::new();
     for id in rollup_ids {

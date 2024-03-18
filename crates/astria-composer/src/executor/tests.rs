@@ -194,11 +194,14 @@ async fn wait_for_startup(
 async fn full_bundle() {
     // set up the executor, channel for writing seq actions, and the sequencer mock
     let (sequencer, nonce_guard, cfg) = setup().await;
-    let (executor, seq_actions_tx) = Executor::new(
+    let (serialized_rollup_transactions_tx, serialized_rollup_transactions_rx) =
+        tokio::sync::mpsc::channel::<SequenceAction>(256);
+    let executor = Executor::new(
         &cfg.sequencer_url,
         &cfg.private_key,
         cfg.block_time_ms,
         cfg.max_bytes_per_bundle,
+        serialized_rollup_transactions_rx,
     )
     .unwrap();
 
@@ -226,8 +229,14 @@ async fn full_bundle() {
     };
 
     // push both sequence actions to the executor in order to force the full bundle to be sent
-    seq_actions_tx.send(seq0.clone()).await.unwrap();
-    seq_actions_tx.send(seq1.clone()).await.unwrap();
+    serialized_rollup_transactions_tx
+        .send(seq0.clone())
+        .await
+        .unwrap();
+    serialized_rollup_transactions_tx
+        .send(seq1.clone())
+        .await
+        .unwrap();
 
     // wait for the mock sequencer to receive the signed transaction
     tokio::time::timeout(
@@ -274,14 +283,16 @@ async fn full_bundle() {
 async fn bundle_triggered_by_block_timer() {
     // set up the executor, channel for writing seq actions, and the sequencer mock
     let (sequencer, nonce_guard, cfg) = setup().await;
-    let (executor, seq_actions_tx) = Executor::new(
+    let (serialized_rollup_transactions_tx, serialized_rollup_transactions_rx) =
+        tokio::sync::mpsc::channel::<SequenceAction>(256);
+    let executor = Executor::new(
         &cfg.sequencer_url,
         &cfg.private_key,
         cfg.block_time_ms,
         cfg.max_bytes_per_bundle,
+        serialized_rollup_transactions_rx,
     )
     .unwrap();
-
     let status = executor.subscribe();
 
     let _executor_task = tokio::spawn(executor.run_until_stopped());
@@ -302,7 +313,10 @@ async fn bundle_triggered_by_block_timer() {
     // make sure at least one block has passed so that the executor will submit the bundle
     // despite it not being full
     time::pause();
-    seq_actions_tx.send(seq0.clone()).await.unwrap();
+    serialized_rollup_transactions_tx
+        .send(seq0.clone())
+        .await
+        .unwrap();
     time::advance(Duration::from_millis(cfg.block_time_ms)).await;
     time::resume();
 
@@ -350,11 +364,14 @@ async fn bundle_triggered_by_block_timer() {
 async fn two_seq_actions_single_bundle() {
     // set up the executor, channel for writing seq actions, and the sequencer mock
     let (sequencer, nonce_guard, cfg) = setup().await;
-    let (executor, seq_actions_tx) = Executor::new(
+    let (serialized_rollup_transactions_tx, serialized_rollup_transactions_rx) =
+        tokio::sync::mpsc::channel::<SequenceAction>(256);
+    let executor = Executor::new(
         &cfg.sequencer_url,
         &cfg.private_key,
         cfg.block_time_ms,
         cfg.max_bytes_per_bundle,
+        serialized_rollup_transactions_rx,
     )
     .unwrap();
 
@@ -384,8 +401,14 @@ async fn two_seq_actions_single_bundle() {
     // make sure at least one block has passed so that the executor will submit the bundle
     // despite it not being full
     time::pause();
-    seq_actions_tx.send(seq0.clone()).await.unwrap();
-    seq_actions_tx.send(seq1.clone()).await.unwrap();
+    serialized_rollup_transactions_tx
+        .send(seq0.clone())
+        .await
+        .unwrap();
+    serialized_rollup_transactions_tx
+        .send(seq1.clone())
+        .await
+        .unwrap();
     time::advance(Duration::from_millis(cfg.block_time_ms)).await;
     time::resume();
 

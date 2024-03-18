@@ -39,13 +39,13 @@
 
 pub(crate) mod api;
 mod build_info;
+mod collectors;
 mod composer;
-mod composer_status;
 pub mod config;
 mod executor;
-
-mod geth_collectors;
 mod rollup;
+#[cfg(test)]
+mod tests;
 
 pub use build_info::BUILD_INFO;
 pub use composer::Composer;
