@@ -305,7 +305,7 @@ pub struct CelestiaRollupBlob {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CelestiaSequencerBlob {
-    /// replaced by `header` field
+    /// replaced by `block_header` field
     #[deprecated]
     #[prost(message, optional, tag = "1")]
     pub header: ::core::option::Option<::tendermint_proto::types::Header>,
@@ -314,7 +314,7 @@ pub struct CelestiaSequencerBlob {
     /// and is extracted from `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions`.
     #[prost(bytes = "vec", repeated, tag = "2")]
     pub rollup_ids: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
-    /// now included in `header` field
+    /// now included in `block_header` field
     #[deprecated]
     #[prost(bytes = "vec", tag = "3")]
     pub rollup_transactions_root: ::prost::alloc::vec::Vec<u8>,
