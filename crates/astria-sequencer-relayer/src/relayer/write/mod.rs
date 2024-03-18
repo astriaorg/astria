@@ -362,9 +362,11 @@ async fn submit_blobs(
     );
 
     let submission_started = match crate::utils::flatten(
-        tokio::task::spawn_blocking(move || submission_state.initialize(largest_height))
-            .in_current_span()
-            .await,
+        tokio::task::spawn_blocking(move || {
+            submission_state.initialize(largest_height.try_into().expect("can convert height"))
+        })
+        .in_current_span()
+        .await,
     ) {
         Err(error) => {
             error!(%error, "failed to initialize submission; abandoning");

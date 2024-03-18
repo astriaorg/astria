@@ -250,13 +250,7 @@ impl TestSequencerRelayer {
             .into_raw();
 
         // make the block bad!!
-        let cometbft_header = block
-            .header
-            .as_mut()
-            .unwrap()
-            .cometbft_header
-            .as_mut()
-            .unwrap();
+        let cometbft_header = block.header.as_mut().unwrap();
         cometbft_header.data_hash = [0; 32].to_vec();
 
         let mut blocks = self.sequencer_server_blocks.lock().unwrap();

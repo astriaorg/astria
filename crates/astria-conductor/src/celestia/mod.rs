@@ -8,6 +8,7 @@ use std::{
     time::Duration,
 };
 
+use astria_core::sequencer::v1::block::SequencerBlockHeader;
 use astria_eyre::eyre::{
     self,
     bail,
@@ -48,10 +49,7 @@ use futures::{
 };
 use futures_bounded::FuturesMap;
 use pin_project_lite::pin_project;
-use sequencer_client::tendermint::{
-    self,
-    block::Height as SequencerHeight,
-};
+use sequencer_client::tendermint::block::Height as SequencerHeight;
 use telemetry::display::{
     hex,
     json,
@@ -106,14 +104,14 @@ struct ReconstructedBlocks {
 #[derive(Clone, Debug)]
 pub(crate) struct ReconstructedBlock {
     pub(crate) block_hash: [u8; 32],
-    pub(crate) header: tendermint::block::Header,
+    pub(crate) header: SequencerBlockHeader,
     pub(crate) transactions: Vec<Vec<u8>>,
     pub(crate) celestia_height: u64,
 }
 
 impl ReconstructedBlock {
     pub(crate) fn sequencer_height(&self) -> SequencerHeight {
-        self.header.height
+        self.header.height()
     }
 }
 

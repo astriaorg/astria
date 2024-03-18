@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package astria.sequencer.v1;
 
+import "astria/sequencer/v1/block.proto";
 import "astria/sequencer/v1/merkle.proto";
 import "astria_vendored/tendermint/types/types.proto";
 
@@ -32,18 +33,14 @@ message CelestiaRollupBlob {
 // The original sequencer block (and in turn CometBFT block) can be identified by the
 // block hash calculated from `header`.
 message CelestiaSequencerBlob {
+  bytes block_hash = 1;
   // The original CometBFT header that is the input to this blob's original sequencer block.
   // Corresponds to `astria.sequencer.v1alpha.SequencerBlock.header`.
-  astria_vendored.tendermint.types.Header header = 1;
+  astria.sequencer.v1.SequencerBlockHeader header = 2;
   // The rollup IDs for which `CelestiaRollupBlob`s were submitted to celestia.
   // Corresponds to the `astria.sequencer.v1.RollupTransactions.rollup_id` field
   // and is extracted from `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions`.
-  repeated bytes rollup_ids = 2;
-  // The Merkle Tree Hash of the rollup transactions. Corresponds to
-  // `MHT(astria.sequencer.v1alpha.SequencerBlock.rollup_transactions)`, the Merkle
-  // Tree Hash deriveed from the rollup transactions.
-  // Always 32 bytes.
-  bytes rollup_transactions_root = 3;
+  repeated bytes rollup_ids = 3;
   // The proof that the rollup transactions are included in sequencer block.
   // Corresponds to `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions_proof`.
   astria.sequencer.v1.Proof rollup_transactions_proof = 4;
