@@ -82,8 +82,8 @@ impl Sequencer {
         }
 
         let app = App::new(snapshot);
-        let consensus_service = tower::ServiceBuilder::new()
-            .service(tower_actor::Actor::new(10, |queue: _| {
+        let consensus_service =
+            tower::ServiceBuilder::new().service(tower_actor::Actor::new(10, |queue: _| {
                 let storage = storage.clone();
                 async move { service::Consensus::new(storage, app, queue).run().await }
             }));

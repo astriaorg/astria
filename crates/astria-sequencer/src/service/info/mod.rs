@@ -24,9 +24,7 @@ use tendermint::v0_38::abci::{
 };
 use tower::Service;
 use tower_abci::BoxError;
-use tracing::{
-    instrument,
-};
+use tracing::instrument;
 
 mod abci_query_router;
 
@@ -132,9 +130,7 @@ impl Service<InfoRequest> for Info {
     }
 
     fn call(&mut self, req: InfoRequest) -> Self::Future {
-        self.clone()
-            .handle_info_request(req)
-            .boxed()
+        self.clone().handle_info_request(req).boxed()
     }
 }
 

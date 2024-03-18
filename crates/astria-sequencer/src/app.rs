@@ -435,25 +435,28 @@ impl App {
             .context("invalid chain ID")?;
 
         // call begin_block on all components
+        // NOTE: the fields marked `unused` are not used by any of the components;
+        // however, we need to still construct a `BeginBlock` type for now as
+        // the penumbra IBC implementation still requires it as a parameter.
         let begin_block = abci::request::BeginBlock {
             hash: finalize_block.hash,
             byzantine_validators: finalize_block.misbehavior.clone(),
             header: Header {
                 app_hash: self.app_hash.clone(),
                 chain_id: chain_id.clone(),
-                consensus_hash: Hash::default(), // TODO
+                consensus_hash: Hash::default(), // unused
                 data_hash: Some(Hash::try_from(data_hash.to_vec()).unwrap()),
-                evidence_hash: Some(Hash::default()), // TODO
+                evidence_hash: Some(Hash::default()), // unused
                 height: finalize_block.height,
-                last_block_id: None,                      // TODO
-                last_commit_hash: Some(Hash::default()),  // TODO
-                last_results_hash: Some(Hash::default()), // TODO
+                last_block_id: None,                      // unused
+                last_commit_hash: Some(Hash::default()),  // unused
+                last_results_hash: Some(Hash::default()), // unused
                 next_validators_hash: finalize_block.next_validators_hash,
                 proposer_address: finalize_block.proposer_address,
                 time: finalize_block.time,
-                validators_hash: Hash::default(), // TODO
+                validators_hash: Hash::default(), // unused
                 version: tendermint::block::header::Version {
-                    // TODO
+                    // unused
                     app: 0,
                     block: 0,
                 },
@@ -499,8 +502,6 @@ impl App {
             }
         }
 
-        println!("tx_results: {:?}", tx_results);
-
         let end_block = self
             .end_block(&abci::request::EndBlock {
                 height: finalize_block.height.into(),
@@ -514,7 +515,6 @@ impl App {
             .get_block_deposits()
             .await
             .context("failed to get block deposits in end_block")?;
-        println!("deposits: {:?}", deposits);
         state_tx
             .clear_block_deposits()
             .await
@@ -1903,9 +1903,6 @@ mod test {
             .unwrap();
         app.apply(state_tx);
 
-        // let (_, sequencer_block_builder) = block_data_from_txs_no_sequence_actions(vec![]);
-        // app.current_sequencer_block_builder = Some(sequencer_block_builder);
-
         let resp = app
             .end_block(&abci::request::EndBlock {
                 height: 1u32.into(),
@@ -2173,51 +2170,4 @@ mod test {
         assert_eq!(deposits.len(), 1);
         assert_eq!(deposits[0], expected_deposit);
     }
-
-    // fn block_data_from_txs_no_sequence_actions(
-    //     txs: Vec<Vec<u8>>,
-    // ) -> (Header, SequencerBlockBuilder) {
-    //     let empty_hash = merkle::Tree::from_leaves(Vec::<Vec<u8>>::new()).root();
-    //     let mut block_data = vec![empty_hash.to_vec(), empty_hash.to_vec()];
-    //     block_data.extend(txs);
-
-    //     let data_hash = merkle::Tree::from_leaves(block_data.iter().map(Sha256::digest)).root();
-    //     let mut header = default_header();
-    //     header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
-
-    //     let mut sequencer_block_builder = SequencerBlockBuilder::new(header.clone());
-    //     for tx in block_data {
-    //         sequencer_block_builder.push_transaction(tx);
-    //     }
-    //     (header, sequencer_block_builder)
-    // }
-
-    // fn block_data_from_txs_with_sequence_actions_and_deposits(
-    //     txs: &[SignedTransaction],
-    //     deposits: HashMap<RollupId, Vec<Deposit>>,
-    // ) -> (Header, GeneratedCommitments) {
-    //     let GeneratedCommitments {
-    //         rollup_datas_root,
-    //         rollup_ids_root,
-    //     } = generate_rollup_datas_commitment(txs, deposits.clone());
-    //     let mut block_data = vec![rollup_datas_root.to_vec(), rollup_ids_root.to_vec()];
-    //     block_data.extend(txs.iter().map(|tx| tx.to_raw().encode_to_vec()));
-
-    //     let data_hash = merkle::Tree::from_leaves(block_data.iter().map(Sha256::digest)).root();
-    //     let mut header = default_header();
-    //     header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
-
-    //     let mut sequencer_block_builder = SequencerBlockBuilder::new(header.clone());
-    //     for tx in block_data {
-    //         sequencer_block_builder.push_transaction(tx);
-    //     }
-    //     sequencer_block_builder.deposits = deposits;
-    //     (
-    //         header,
-    //         GeneratedCommitments {
-    //             rollup_datas_root,
-    //             rollup_ids_root,
-    //         },
-    //     )
-    // }
 }
