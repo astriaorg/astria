@@ -4,8 +4,8 @@ use astria_core::{
     generated::{
         composer::v1alpha1::{
             grpc_collector_service_client::GrpcCollectorServiceClient,
-            SequenceAction,
-            SubmitSequenceActionsRequest,
+            RollupTx,
+            SubmitRollupTxsRequest,
         },
         sequencer::v1::NonceResponse,
     },
@@ -84,8 +84,8 @@ async fn tx_from_one_rollup_is_received_by_sequencer_from_grpc_collector() {
     .await
     .unwrap();
     composer_client
-        .submit_sequence_actions(SubmitSequenceActionsRequest {
-            sequence_actions: vec![SequenceAction {
+        .submit_rollup_txs(SubmitRollupTxsRequest {
+            rollup_txs: vec![RollupTx {
                 rollup_id: "test1".to_string(),
                 tx_bytes: tx.rlp().to_vec(),
             }],
@@ -216,8 +216,8 @@ async fn invalid_nonce_failure_causes_tx_resubmission_under_different_nonce_grpc
     .await
     .unwrap();
     composer_client
-        .submit_sequence_actions(SubmitSequenceActionsRequest {
-            sequence_actions: vec![SequenceAction {
+        .submit_rollup_txs(SubmitRollupTxsRequest {
+            rollup_txs: vec![RollupTx {
                 rollup_id: "test1".to_string(),
                 tx_bytes: tx.rlp().to_vec(),
             }],
@@ -299,8 +299,8 @@ async fn single_rollup_tx_payload_integrity_grpc_collector() {
     .await
     .unwrap();
     composer_client
-        .submit_sequence_actions(SubmitSequenceActionsRequest {
-            sequence_actions: vec![SequenceAction {
+        .submit_rollup_txs(SubmitRollupTxsRequest {
+            rollup_txs: vec![RollupTx {
                 rollup_id: "test1".to_string(),
                 tx_bytes: tx.rlp().to_vec(),
             }],

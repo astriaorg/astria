@@ -9,7 +9,7 @@ use astria_core::{
             GrpcCollectorService,
             GrpcCollectorServiceServer,
         },
-        SubmitSequenceActionsRequest,
+        SubmitRollupTxsRequest,
     },
     sequencer::v1::{
         asset::default_native_asset_id,
@@ -74,19 +74,19 @@ impl GrpcCollector {
 
 #[async_trait::async_trait]
 impl GrpcCollectorService for ExecutorHandle {
-    async fn submit_sequence_actions(
+    async fn submit_rollup_txs(
         &self,
-        request: Request<SubmitSequenceActionsRequest>,
+        request: Request<SubmitRollupTxsRequest>,
     ) -> Result<Response<()>, tonic::Status> {
-        let submit_sequence_actions_request = request.into_inner();
-        if submit_sequence_actions_request.sequence_actions.is_empty() {
+        let submit_rollup_txs_request = request.into_inner();
+        if submit_rollup_txs_request.rollup_txs.is_empty() {
             return Err(tonic::Status::invalid_argument(
                 "No sequence actions provided",
             ));
         }
 
         // package the sequence actions into a SequenceAction and send it to the searcher
-        for sequence_action in submit_sequence_actions_request.sequence_actions {
+        for sequence_action in submit_rollup_txs_request.rollup_txs {
             let sequence_action = SequenceAction {
                 rollup_id: RollupId::from_unhashed_bytes(sequence_action.rollup_id),
                 data: sequence_action.tx_bytes,
