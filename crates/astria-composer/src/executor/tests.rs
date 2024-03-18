@@ -18,7 +18,10 @@ use tendermint_rpc::{
     Id,
 };
 use tokio::{
-    sync::watch,
+    sync::{
+        oneshot,
+        watch,
+    },
     time,
 };
 use tracing::debug;
@@ -194,12 +197,14 @@ async fn wait_for_startup(
 #[tokio::test]
 async fn full_bundle() {
     // set up the executor, channel for writing seq actions, and the sequencer mock
+    let (_shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
     let (sequencer, nonce_guard, cfg) = setup().await;
     let (executor, seq_actions_tx) = Executor::new(
         &cfg.sequencer_url,
         &cfg.private_key,
         cfg.block_time_ms,
         cfg.max_bytes_per_bundle,
+        shutdown_rx,
     )
     .unwrap();
 
@@ -274,12 +279,14 @@ async fn full_bundle() {
 #[tokio::test]
 async fn bundle_triggered_by_block_timer() {
     // set up the executor, channel for writing seq actions, and the sequencer mock
+    let (_shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
     let (sequencer, nonce_guard, cfg) = setup().await;
     let (executor, seq_actions_tx) = Executor::new(
         &cfg.sequencer_url,
         &cfg.private_key,
         cfg.block_time_ms,
         cfg.max_bytes_per_bundle,
+        shutdown_rx,
     )
     .unwrap();
 
@@ -350,12 +357,14 @@ async fn bundle_triggered_by_block_timer() {
 #[tokio::test]
 async fn two_seq_actions_single_bundle() {
     // set up the executor, channel for writing seq actions, and the sequencer mock
+    let (_shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
     let (sequencer, nonce_guard, cfg) = setup().await;
     let (executor, seq_actions_tx) = Executor::new(
         &cfg.sequencer_url,
         &cfg.private_key,
         cfg.block_time_ms,
         cfg.max_bytes_per_bundle,
+        shutdown_rx,
     )
     .unwrap();
 

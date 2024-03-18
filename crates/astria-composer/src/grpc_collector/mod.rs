@@ -18,6 +18,7 @@ use astria_eyre::{
     eyre,
     eyre::eyre,
 };
+use futures::TryFutureExt;
 use tokio::{
     net::TcpListener,
     sync::mpsc::error::SendTimeoutError,
@@ -32,16 +33,19 @@ use crate::executor::ExecutorHandle;
 pub(super) struct GrpcCollector {
     grpc_collector_listener: TcpListener,
     executor_handle: ExecutorHandle,
+    shutdown_channel: tokio::sync::oneshot::Receiver<()>,
 }
 
 impl GrpcCollector {
     pub(super) fn new(
         grpc_collector_listener: TcpListener,
         executor_handle: ExecutorHandle,
+        shutdown_channel: tokio::sync::oneshot::Receiver<()>,
     ) -> Self {
         Self {
             grpc_collector_listener,
             executor_handle,
+            shutdown_channel,
         }
     }
 
@@ -50,9 +54,10 @@ impl GrpcCollector {
         let grpc_server = tonic::transport::Server::builder().add_service(composer_service);
 
         match grpc_server
-            .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(
-                self.grpc_collector_listener,
-            ))
+            .serve_with_incoming_shutdown(
+                tokio_stream::wrappers::TcpListenerStream::new(self.grpc_collector_listener),
+                self.shutdown_channel.unwrap_or_else(|_| ()),
+            )
             .await
         {
             Ok(()) => Ok(()),

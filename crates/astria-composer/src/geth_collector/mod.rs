@@ -32,6 +32,7 @@ use tokio::sync::{
         error::SendTimeoutError,
         Sender,
     },
+    oneshot,
     watch,
 };
 use tracing::{
@@ -61,6 +62,7 @@ pub(super) struct GethCollector {
     status: watch::Sender<Status>,
     /// Rollup URL
     url: String,
+    shutdown_channel: oneshot::Receiver<()>,
 }
 
 #[derive(Debug)]
@@ -86,6 +88,7 @@ impl GethCollector {
         chain_name: String,
         url: String,
         new_bundles: Sender<SequenceAction>,
+        shutdown_channel: oneshot::Receiver<()>,
     ) -> Self {
         let (status, _) = watch::channel(Status::new());
         Self {
@@ -94,6 +97,7 @@ impl GethCollector {
             new_bundles,
             status,
             url,
+            shutdown_channel,
         }
     }
 
@@ -116,6 +120,7 @@ impl GethCollector {
             new_bundles,
             status,
             url,
+            mut shutdown_channel,
             ..
         } = self;
 
@@ -155,36 +160,51 @@ impl GethCollector {
 
         status.send_modify(|status| status.is_connected = true);
 
-        while let Some(tx) = tx_stream.next().await {
-            let tx_hash = tx.hash;
-            debug!(transaction.hash = %tx_hash, "collected transaction from rollup");
-            let data = tx.rlp().to_vec();
-            let seq_action = SequenceAction {
-                rollup_id,
-                data,
-                fee_asset_id: default_native_asset_id(),
-            };
+        loop {
+            tokio::select!(
+                tx_opt = tx_stream.next() => {
+                    if let Some(tx) = tx_opt {
+                        let tx_hash = tx.hash;
+                        debug!(transaction.hash = %tx_hash, "collected transaction from rollup");
+                        let data = tx.rlp().to_vec();
+                        let seq_action = SequenceAction {
+                            rollup_id,
+                            data,
+                            fee_asset_id: default_native_asset_id(),
+                        };
 
-            match new_bundles
-                .send_timeout(seq_action, Duration::from_millis(500))
-                .await
-            {
-                Ok(()) => {}
-                Err(SendTimeoutError::Timeout(_seq_action)) => {
-                    warn!(
-                        transaction.hash = %tx_hash,
-                        "timed out sending new transaction to executor after 500ms; dropping tx"
-                    );
-                }
-                Err(SendTimeoutError::Closed(_seq_action)) => {
-                    warn!(
-                        transaction.hash = %tx_hash,
-                        "executor channel closed while sending transaction; dropping transaction \
-                         and exiting event loop"
-                    );
-                    break;
-                }
+                        match new_bundles
+                            .send_timeout(seq_action, Duration::from_millis(500))
+                            .await
+                        {
+                            Ok(()) => {}
+                            Err(SendTimeoutError::Timeout(_seq_action)) => {
+                                warn!(
+                                transaction.hash = %tx_hash,
+                                "timed out sending new transaction to executor after 500ms; dropping tx"
+                            );
+                            }
+                            Err(SendTimeoutError::Closed(_seq_action)) => {
+                                warn!(
+                                transaction.hash = %tx_hash,
+                                "executor channel closed while sending transaction; dropping transaction \
+                                 and exiting event loop"
+                            );
+                                break;
+                            }
+                        }
+                    } else {
+                        status.send_modify(|status| status.is_connected = false);
+                        break;
+                    }
+            },
+            _ = &mut shutdown_channel => {
+                // unsubscribe to the pending transactions
+                tx_stream.unsubscribe().await?;
+                status.send_modify(|status| status.is_connected = false);
+                break;
             }
+            );
         }
         Ok(())
     }

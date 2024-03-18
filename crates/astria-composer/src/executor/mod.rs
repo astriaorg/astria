@@ -52,6 +52,7 @@ use tokio::{
     sync::{
         mpsc,
         mpsc::Sender,
+        oneshot,
         watch,
     },
     time::{
@@ -102,6 +103,7 @@ pub(super) struct Executor {
     block_time: tokio::time::Duration,
     // Max bytes in a sequencer action bundle
     max_bytes_per_bundle: usize,
+    shutdown_channel: oneshot::Receiver<()>,
 }
 
 #[derive(Clone)]
@@ -138,6 +140,7 @@ impl Executor {
         private_key: &SecretString,
         block_time: u64,
         max_bytes_per_bundle: usize,
+        shutdown_channel: oneshot::Receiver<()>,
     ) -> eyre::Result<(Self, mpsc::Sender<SequenceAction>)> {
         let sequencer_client = sequencer_client::HttpClient::new(sequencer_url)
             .wrap_err("failed constructing sequencer client")?;
@@ -163,6 +166,7 @@ impl Executor {
                 address: sequencer_address,
                 block_time: Duration::from_millis(block_time),
                 max_bytes_per_bundle,
+                shutdown_channel,
             },
             serialized_rollup_transactions_tx,
         ))
@@ -199,6 +203,7 @@ impl Executor {
             .await
             .wrap_err("failed getting initial nonce from sequencer")?;
 
+        let mut in_shutdown = false;
         self.status.send_modify(|status| status.is_connected = true);
 
         let block_timer = time::sleep(self.block_time);
@@ -247,6 +252,11 @@ impl Executor {
                 () = &mut block_timer, if submission_fut.is_terminated() => {
                     let bundle = bundle_factory.pop_now();
                     if bundle.is_empty() {
+                        if in_shutdown {
+                            info!("executor shutdown requested; exiting");
+                            self.status.send_modify(|status| status.is_connected = false);
+                            break Ok(());
+                        }
                         debug!("block timer ticked, but no bundle to submit to sequencer");
                         block_timer.as_mut().reset(reset_time());
                     } else {
@@ -256,6 +266,13 @@ impl Executor {
                         );
                         submission_fut = self.submit_bundle(nonce, bundle);
                     }
+                },
+                _ = &mut self.shutdown_channel => {
+                    info!("executor shutdown requested; exiting");
+                    // close the channel to not receive any more sequence actions from the collectors.
+                    self.serialized_rollup_transactions_rx.close();
+                    // let the remaining bundles flush out and then shutdown
+                    in_shutdown = true;
                 }
             }
         }
