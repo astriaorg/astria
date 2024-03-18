@@ -206,7 +206,6 @@ impl App {
 
         // clear the cache of transaction execution results
         self.execution_result.clear();
-        // self.processed_txs = 0;
         self.executed_proposal_hash = Hash::default();
     }
 
