@@ -520,7 +520,7 @@ mod test {
             .await
             .unwrap();
 
-        let begin_block = request::FinalizeBlock {
+        let finalize_block = request::FinalizeBlock {
             hash: Hash::try_from([0u8; 32].to_vec()).unwrap(),
             height: 1u32.into(),
             time: Time::now(),
@@ -534,7 +534,7 @@ mod test {
             txs: block_data,
         };
         consensus_service
-            .handle_request(ConsensusRequest::FinalizeBlock(begin_block))
+            .handle_request(ConsensusRequest::FinalizeBlock(finalize_block))
             .await
             .unwrap();
     }
