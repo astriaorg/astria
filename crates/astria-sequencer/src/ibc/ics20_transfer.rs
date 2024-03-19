@@ -390,7 +390,7 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
     // if the asset is prefixed with `ibc`, the rest of the denomination string is the asset ID,
     // so we need to look up the full trace from storage.
     // see https://github.com/cosmos/ibc-go/blob/main/docs/architecture/adr-001-coin-source-tracing.md#decision
-    if denom.prefix_is("ibc") {
+    if denom.prefix().starts_with("ibc") {
         denom = state
             .get_ibc_asset(denom.id())
             .await
@@ -452,4 +452,102 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod test {
+    use astria_core::sequencer::v1::RollupId;
+    use cnidarium::StateDelta;
+
+    use super::*;
+    use crate::accounts::state_ext::StateReadExt;
+
+    #[tokio::test]
+    async fn execute_ics20_transfer_to_eoa() {
+        let storage = cnidarium::TempStorage::new()
+            .await
+            .expect("failed to create temp storage backing chain state");
+        let snapshot = storage.latest_snapshot();
+        let mut state_tx = StateDelta::new(snapshot.clone());
+
+        let packet = FungibleTokenPacketData {
+            denom: "nootasset".to_string(),
+            sender: "".to_string(),
+            amount: "100".to_string(),
+            receiver: "1c0c490f1b5528d8173c5de46d131160e4b2c0c3".to_string(),
+            memo: "".to_string(),
+        };
+        let packet_bytes = serde_json::to_vec(&packet).expect("failed to serialize packet data");
+
+        execute_ics20_transfer(
+            &mut state_tx,
+            &packet_bytes,
+            &"source_port".to_string().parse().unwrap(),
+            &"source_channel".to_string().parse().unwrap(),
+            &"dest_port".to_string().parse().unwrap(),
+            &"dest_channel".to_string().parse().unwrap(),
+            false,
+        )
+        .await
+        .unwrap();
+
+        let recipient = Address::try_from_slice(
+            &hex::decode("1c0c490f1b5528d8173c5de46d131160e4b2c0c3").unwrap(),
+        )
+        .unwrap();
+        let denom: Denom = format!("dest_port/dest_channel/{}", "nootasset").into();
+        let balance = state_tx
+            .get_account_balance(recipient, denom.id())
+            .await
+            .unwrap();
+        assert_eq!(balance, 100);
+    }
+
+    #[tokio::test]
+    async fn execute_ics20_transfer_to_bridge_account() {
+        use crate::bridge::state_ext::StateWriteExt as _;
+
+        let storage = cnidarium::TempStorage::new()
+            .await
+            .expect("failed to create temp storage backing chain state");
+        let snapshot = storage.latest_snapshot();
+        let mut state_tx = StateDelta::new(snapshot.clone());
+
+        let bridge_address = Address::from([99; 20]);
+        let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
+        let denom: Denom = "nootasset".to_string().into();
+
+        state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
+        state_tx
+            .put_bridge_account_asset_ids(&bridge_address, &[denom.id()])
+            .unwrap();
+
+        let packet = FungibleTokenPacketData {
+            denom: "nootasset".to_string(),
+            sender: "".to_string(),
+            amount: "100".to_string(),
+            receiver: hex::encode(bridge_address),
+            memo: "destinationaddress".to_string(),
+        };
+        let packet_bytes = serde_json::to_vec(&packet).expect("failed to serialize packet data");
+
+        execute_ics20_transfer(
+            &mut state_tx,
+            &packet_bytes,
+            &"source_port".to_string().parse().unwrap(),
+            &"source_channel".to_string().parse().unwrap(),
+            &"dest_port".to_string().parse().unwrap(),
+            &"dest_channel".to_string().parse().unwrap(),
+            false,
+        )
+        .await
+        .unwrap();
+
+        let denom: Denom = format!("dest_port/dest_channel/{}", "nootasset").into();
+        let balance = state_tx
+            .get_account_balance(bridge_address, denom.id())
+            .await
+            .unwrap();
+        assert_eq!(balance, 100);
+    }
 }
