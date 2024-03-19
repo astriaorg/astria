@@ -11,6 +11,7 @@
 //! [`AppHandlerExecute`] is used for execution.
 
 use anyhow::{
+    ensure,
     Context as _,
     Result,
 };
@@ -49,10 +50,7 @@ use penumbra_ibc::component::app_handler::{
 use penumbra_proto::penumbra::core::component::ibc::v1::FungibleTokenPacketData;
 
 use crate::{
-    accounts::state_ext::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    },
+    accounts::state_ext::StateWriteExt as _,
     asset::state_ext::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -320,6 +318,13 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
     dest_channel: &ChannelId,
     is_refund: bool,
 ) -> Result<()> {
+    use astria_core::sequencer::v1::block::Deposit;
+
+    use crate::bridge::state_ext::{
+        StateReadExt as _,
+        StateWriteExt as _,
+    };
+
     let packet_data: FungibleTokenPacketData =
         serde_json::from_slice(data).context("failed to decode FungibleTokenPacketData")?;
     let packet_amount: u128 = packet_data
@@ -332,6 +337,56 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
     .context("invalid receiver address")?;
     let mut denom: Denom = packet_data.denom.clone().into();
 
+    // check if the recipient is a bridge account; if so,
+    // ensure that the packet memo field is set, as the value in it
+    // should be the rollup destination address.
+    //
+    // also, ensure that the asset ID being transferred
+    // to it is allowed.
+    let maybe_recipient_rollup_id = state
+        .get_bridge_account_rollup_id(&recipient)
+        .await
+        .context("failed to get bridge account rollup ID from state")?;
+    let is_bridge_lock = maybe_recipient_rollup_id.is_some();
+
+    // note: bridge accounts *are* allowed to do ICS20 withdrawals,
+    // so this could be a refund to a bridge account if that withdrawal times out.
+    //
+    // so, if this is a refund transaction, we don't need to emit a `Deposit`,
+    // as the tokens are being refunded to the bridge's account.
+    //
+    // then, we don't need to check the memo field (as no `Deposit` is created),
+    // or check the asset IDs (as the asset IDs that can be sent out are the same
+    // as those that can be received).
+    if is_bridge_lock && !is_refund {
+        ensure!(
+            !packet_data.memo.is_empty(),
+            "packet memo field must be set for bridge account recipient",
+        );
+
+        let allowed_asset_ids = state
+            .get_bridge_account_asset_ids(&recipient)
+            .await
+            .context("failed to get bridge account asset IDs")?;
+        ensure!(
+            allowed_asset_ids.contains(&denom.id()),
+            "asset ID is not authorized for transfer to bridge account",
+        );
+
+        let deposit = Deposit::new(
+            recipient,
+            maybe_recipient_rollup_id
+                .expect("recipient has a rollup ID; this was checked via `is_bridge_lock`"),
+            packet_amount,
+            denom.id(),
+            packet_data.memo,
+        );
+        state
+            .put_deposit_event(deposit)
+            .await
+            .context("failed to put deposit event into state")?;
+    }
+
     // if the asset is prefixed with `ibc`, the rest of the denomination string is the asset ID,
     // so we need to look up the full trace from storage.
     // see https://github.com/cosmos/ibc-go/blob/main/docs/architecture/adr-001-coin-source-tracing.md#decision
@@ -343,7 +398,7 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
     }
 
     if is_source(source_port, source_channel, &denom, is_refund) {
-        // sender of packet (us) was the source chain
+        // the asset being transferred in is an asset that originated from astria
         // subtract balance from escrow account and transfer to user
 
         let escrow_balance = state
@@ -351,7 +406,6 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
             .await
             .context("failed to get IBC channel balance in execute_ics20_transfer")?;
 
-        let user_balance = state.get_account_balance(recipient, denom.id()).await?;
         state
             .put_ibc_channel_balance(
                 source_channel,
@@ -363,14 +417,10 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
                     ))?,
             )
             .context("failed to update escrow account balance in execute_ics20_transfer")?;
+
         state
-            .put_account_balance(
-                recipient,
-                denom.id(),
-                user_balance
-                    .checked_add(packet_amount)
-                    .ok_or(anyhow::anyhow!("overflow when adding to user balance"))?,
-            )
+            .increase_balance(recipient, denom.id(), packet_amount)
+            .await
             .context("failed to update user account balance in execute_ics20_transfer")?;
     } else {
         let prefixed_denomination = if is_refund {
@@ -395,18 +445,9 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
                 .context("failed to put IBC asset in storage")?;
         }
 
-        let user_balance = state
-            .get_account_balance(recipient, denom.id())
-            .await
-            .context("failed to get user account balance in execute_ics20_transfer")?;
         state
-            .put_account_balance(
-                recipient,
-                denom.id(),
-                user_balance
-                    .checked_add(packet_amount)
-                    .ok_or(anyhow::anyhow!("overflow when adding to user balance"))?,
-            )
+            .increase_balance(recipient, denom.id(), packet_amount)
+            .await
             .context("failed to update user account balance in execute_ics20_transfer")?;
     }
 
