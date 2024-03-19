@@ -69,9 +69,9 @@ serde = "1"
 serde_json = "1"
 metrics = "0.22.1"
 # Note that when updating the penumbra versions, vendored types in `proto/sequencerapis/astria_vendored` may need to be updated as well.
-penumbra-ibc = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.68.1", default-features = false }
-penumbra-proto = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.68.1" }
-penumbra-tower-trace = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.68.1" }
+penumbra-ibc = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.69.1", default-features = false }
+penumbra-proto = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.69.1" }
+penumbra-tower-trace = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.69.1" }
 prost = "0.12"
 prost-types = "0.12"
 rand = "0.8.5"

@@ -70,7 +70,7 @@ use tracing::{
     Span,
 };
 
-use crate::searcher::executor::bundle_factory::BundleFactory;
+use crate::executor::bundle_factory::BundleFactory;
 
 mod bundle_factory;
 
@@ -130,13 +130,13 @@ impl Executor {
     pub(super) fn new(
         sequencer_url: &str,
         private_key: &SecretString,
-        serialized_rollup_transactions_rx: mpsc::Receiver<SequenceAction>,
         block_time: u64,
         max_bytes_per_bundle: usize,
+        serialized_rollup_transactions_rx: mpsc::Receiver<SequenceAction>,
     ) -> eyre::Result<Self> {
         let sequencer_client = sequencer_client::HttpClient::new(sequencer_url)
             .wrap_err("failed constructing sequencer client")?;
-
+        let (status, _) = watch::channel(Status::new());
         let mut private_key_bytes: [u8; 32] = hex::decode(private_key.expose_secret())
             .wrap_err("failed to decode private key bytes from hex string")?
             .try_into()
@@ -145,8 +145,6 @@ impl Executor {
         private_key_bytes.zeroize();
 
         let sequencer_address = Address::from_verification_key(sequencer_key.verification_key());
-
-        let (status, _) = watch::channel(Status::new());
 
         Ok(Self {
             status,
@@ -189,11 +187,13 @@ impl Executor {
         let mut nonce = get_latest_nonce(self.sequencer_client.clone(), self.address)
             .await
             .wrap_err("failed getting initial nonce from sequencer")?;
+
         self.status.send_modify(|status| status.is_connected = true);
 
         let block_timer = time::sleep(self.block_time);
         tokio::pin!(block_timer);
         let mut bundle_factory = BundleFactory::new(self.max_bytes_per_bundle);
+
         let reset_time = || Instant::now() + self.block_time;
 
         loop {
