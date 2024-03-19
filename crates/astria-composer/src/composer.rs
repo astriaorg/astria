@@ -191,10 +191,9 @@ impl Composer {
         });
 
         // run the grpc server
-        let grpc_executor_handle = executor_handle.clone();
         let mut grpc_server_handle = tokio::spawn(async move {
             grpc_collector
-                .run_until_stopped(grpc_executor_handle.clone())
+                .run_until_stopped()
                 .await
                 .wrap_err("grpc server failed")
         });
