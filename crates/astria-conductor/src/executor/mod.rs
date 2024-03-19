@@ -35,13 +35,13 @@ use tokio::{
                 TrySendError,
             },
         },
-        oneshot,
         watch::{
             self,
             error::RecvError,
         },
     },
 };
+use tokio_util::sync::CancellationToken;
 use tracing::{
     debug,
     error,
@@ -171,7 +171,8 @@ pub(crate) struct Executor {
     firm_blocks: mpsc::Receiver<ReconstructedBlock>,
     soft_blocks: channel::Receiver<FilteredSequencerBlock>,
 
-    shutdown: oneshot::Receiver<()>,
+    /// Token to listen for Conductor being shut down.
+    shutdown: CancellationToken,
 
     rollup_address: tonic::transport::Uri,
 
@@ -218,16 +219,9 @@ impl Executor {
             select!(
                 biased;
 
-                shutdown = &mut self.shutdown => {
-                    let ret = if let Err(error) = shutdown {
-                        let reason = "shutdown channel closed unexpectedly";
-                        error!(%error, reason, "shutting down");
-                        Err(error).wrap_err(reason)
-                    } else {
-                        info!(reason = "received shutdown signal", "shutting down");
-                        Ok(())
-                    };
-                    break ret;
+                () = self.shutdown.cancelled() => {
+                    info!("received shutdown signal, shutting down");
+                    break Ok(());
                 }
 
                 Some(block) = self.firm_blocks.recv() => {

@@ -58,14 +58,12 @@ use telemetry::display::{
 };
 use tokio::{
     select,
-    sync::{
-        mpsc::error::{
-            SendError,
-            TrySendError,
-        },
-        oneshot,
+    sync::mpsc::error::{
+        SendError,
+        TrySendError,
     },
 };
+use tokio_util::sync::CancellationToken;
 use tracing::{
     debug,
     error,
@@ -143,8 +141,8 @@ pub(crate) struct Reader {
     /// The celestia namespace sequencer blobs will be read from.
     sequencer_namespace: Namespace,
 
-    /// The channel to listen for shutdown signals.
-    shutdown: oneshot::Receiver<()>,
+    /// Token to listen for Conductor being shut down.
+    shutdown: CancellationToken,
 }
 
 impl Reader {
@@ -222,13 +220,8 @@ impl Reader {
         let mut resubscribing = Fuse::terminated();
         loop {
             select!(
-                shutdown_res = &mut self.shutdown => {
-                    match shutdown_res {
-                        Ok(()) => info!("received shutdown command; exiting"),
-                        Err(error) => {
-                            warn!(%error, "shutdown receiver dropped; exiting");
-                        }
-                    }
+                () = self.shutdown.cancelled() => {
+                    info!("received shutdown signal; shutting down");
                     break;
                 }
 

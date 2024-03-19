@@ -1,9 +1,6 @@
 //! [`Reader`] reads reads blocks from sequencer and forwards them to [`crate::executor::Executor`].
 
-use std::{
-    error::Error as StdError,
-    time::Duration,
-};
+use std::time::Duration;
 
 use astria_eyre::eyre::{
     self,
@@ -21,10 +18,8 @@ use futures::{
     StreamExt as _,
 };
 use sequencer_client::HttpClient;
-use tokio::{
-    select,
-    sync::oneshot,
-};
+use tokio::select;
+use tokio_util::sync::CancellationToken;
 use tracing::{
     debug,
     info,
@@ -54,8 +49,8 @@ pub(crate) struct Reader {
 
     sequencer_block_time: Duration,
 
-    /// The shutdown channel to notify `Reader` to shut down.
-    shutdown: oneshot::Receiver<()>,
+    /// Token to listen for Conductor being shut down.
+    shutdown: CancellationToken,
 }
 
 impl Reader {
@@ -67,7 +62,7 @@ impl Reader {
             sequencer_grpc_client,
             sequencer_cometbft_client,
             sequencer_block_time,
-            mut shutdown,
+            shutdown,
         } = self;
 
         let mut executor = executor
@@ -100,18 +95,9 @@ impl Reader {
         let mut scheduled_send: Fuse<BoxFuture<Result<_, _>>> = future::Fuse::terminated();
         'reader_loop: loop {
             select! {
-                shutdown = &mut shutdown => {
-                    let ret = if let Err(e) = shutdown {
-                        warn!(
-                            error = &e as &dyn StdError,
-                            "shutdown channel closed unexpectedly; shutting down",
-                        );
-                        Err(e).wrap_err("shutdown channel closed unexpectedly")
-                    } else {
-                        info!("received shutdown signal; shutting down");
-                        Ok(())
-                    };
-                    break 'reader_loop ret;
+                () = shutdown.cancelled() => {
+                    info!("received shutdown signal; shutting down");
+                    break 'reader_loop Ok(());
                 }
 
                 Some(block) = blocks_from_heights.next() => {

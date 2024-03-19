@@ -2,7 +2,7 @@
 
 use celestia_client::celestia_types::nmt::Namespace;
 use sequencer_client::HttpClient;
-use tokio::sync::oneshot;
+use tokio_util::sync::CancellationToken;
 
 use super::Reader;
 use crate::{
@@ -17,7 +17,7 @@ pub(crate) struct Builder {
     pub(crate) executor: executor::Handle,
     pub(crate) sequencer_cometbft_client: HttpClient,
     pub(crate) sequencer_namespace: Namespace,
-    pub(crate) shutdown: oneshot::Receiver<()>,
+    pub(crate) shutdown: CancellationToken,
 }
 
 impl Builder {

@@ -1,5 +1,4 @@
 use std::{
-    collections::HashMap,
     error::Error as StdError,
     rc::Rc,
     time::Duration,
@@ -17,14 +16,16 @@ use tokio::{
         signal,
         SignalKind,
     },
-    sync::oneshot,
     task::{
         spawn_local,
         LocalSet,
     },
     time::timeout,
 };
-use tokio_util::task::JoinMap;
+use tokio_util::{
+    sync::CancellationToken,
+    task::JoinMap,
+};
 use tracing::{
     error,
     info,
@@ -39,8 +40,8 @@ use crate::{
 };
 
 pub struct Conductor {
-    /// Channels to the long-running tasks to shut them down gracefully
-    shutdown_channels: HashMap<&'static str, oneshot::Sender<()>>,
+    /// Token to signal to all tasks to shut down gracefully.
+    shutdown: CancellationToken,
 
     /// The different long-running tasks that make up the conductor;
     tasks: JoinMap<&'static str, eyre::Result<()>>,
@@ -59,31 +60,27 @@ impl Conductor {
     /// This usually happens if the actors failed to connect to their respective endpoints.
     pub async fn new(cfg: Config) -> eyre::Result<Self> {
         let mut tasks = JoinMap::new();
-        let mut shutdown_channels = HashMap::new();
 
         let sequencer_cometbft_client = HttpClient::new(&*cfg.sequencer_cometbft_url)
             .wrap_err("failed constructing sequencer cometbft RPC client")?;
 
+        let shutdown = CancellationToken::new();
+
         // Spawn the executor task.
         let executor_handle = {
-            let (shutdown_tx, shutdown_rx) = oneshot::channel();
-
             let (executor, handle) = executor::Builder {
                 consider_commitment_spread: !cfg.execution_commit_level.is_soft_only(),
                 rollup_address: cfg.execution_rpc_url,
-                shutdown: shutdown_rx,
+                shutdown: shutdown.clone(),
             }
             .build()
             .wrap_err("failed constructing exectur")?;
 
             tasks.spawn(Self::EXECUTOR, executor.run_until_stopped());
-            shutdown_channels.insert(Self::EXECUTOR, shutdown_tx);
             handle
         };
 
         if !cfg.execution_commit_level.is_firm_only() {
-            let (shutdown_tx, shutdown_rx) = oneshot::channel();
-
             let sequencer_grpc_client =
                 sequencer::SequencerGrpcClient::new(&cfg.sequencer_grpc_url)
                     .wrap_err("failed constructing grpc client for Sequencer")?;
@@ -95,18 +92,14 @@ impl Conductor {
                 sequencer_grpc_client,
                 sequencer_cometbft_client: sequencer_cometbft_client.clone(),
                 sequencer_block_time: Duration::from_millis(cfg.sequencer_block_time_ms),
-                shutdown: shutdown_rx,
+                shutdown: shutdown.clone(),
                 executor: executor_handle.clone(),
             }
             .build();
             tasks.spawn(Self::SEQUENCER, sequencer_reader.run_until_stopped());
-            shutdown_channels.insert(Self::SEQUENCER, shutdown_tx);
         }
 
         if !cfg.execution_commit_level.is_soft_only() {
-            let (shutdown_tx, shutdown_rx) = oneshot::channel();
-            shutdown_channels.insert(Self::CELESTIA, shutdown_tx);
-
             // Sequencer namespace is defined by the chain id of attached sequencer node
             // which can be fetched from any block header.
             let sequencer_namespace = get_sequencer_namespace(sequencer_cometbft_client.clone())
@@ -120,7 +113,7 @@ impl Conductor {
                 executor: executor_handle.clone(),
                 sequencer_cometbft_client: sequencer_cometbft_client.clone(),
                 sequencer_namespace,
-                shutdown: shutdown_rx,
+                shutdown: shutdown.clone(),
             }
             .build();
 
@@ -128,7 +121,7 @@ impl Conductor {
         };
 
         Ok(Self {
-            shutdown_channels,
+            shutdown,
             tasks,
         })
     }
@@ -208,10 +201,8 @@ impl Conductor {
     }
 
     async fn shutdown(self) {
-        info!("sending shutdown command to all tasks");
-        for (_, channel) in self.shutdown_channels {
-            let _ = channel.send(());
-        }
+        info!("sending shutdown signal to all tasks");
+        self.shutdown.cancel();
 
         info!("waiting 5 seconds for all tasks to shut down");
         // put the tasks into an Rc to make them 'static so they can run on a local set
