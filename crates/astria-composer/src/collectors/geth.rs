@@ -48,7 +48,7 @@ type StdError = dyn std::error::Error;
 /// It is responsible for fetching pending transactions submitted to the rollup Geth nodes and then
 /// passing them downstream for the executor to process. Thus, a composer can have multiple
 /// collectors running at the same time funneling data from multiple rollup nodes.
-pub(crate) struct Geth {
+:pub(crate) struct Geth {
     // Chain ID to identify in the astria sequencer block which rollup a serialized sequencer
     // action belongs to. Created from `chain_name`.
     rollup_id: RollupId,
