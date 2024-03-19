@@ -89,7 +89,7 @@ pub(super) struct Executor {
     // The status of this executor
     status: watch::Sender<Status>,
     // Channel for receiving `SequenceAction`s to be bundled.
-    serialized_rollup_transactions_rx: mpsc::Receiver<SequenceAction>,
+    sequence_action_rx: mpsc::Receiver<SequenceAction>,
     // The client for submitting wrapped and signed pending eth transactions to the astria
     // sequencer.
     sequencer_client: sequencer_client::HttpClient,
@@ -132,7 +132,7 @@ impl Executor {
         private_key: &SecretString,
         block_time: u64,
         max_bytes_per_bundle: usize,
-        serialized_rollup_transactions_rx: mpsc::Receiver<SequenceAction>,
+        sequence_action_rx: mpsc::Receiver<SequenceAction>,
     ) -> eyre::Result<Self> {
         let sequencer_client = sequencer_client::HttpClient::new(sequencer_url)
             .wrap_err("failed constructing sequencer client")?;
@@ -148,7 +148,7 @@ impl Executor {
 
         Ok(Self {
             status,
-            serialized_rollup_transactions_rx,
+            sequence_action_rx,
             sequencer_client,
             sequencer_key,
             address: sequencer_address,
@@ -221,7 +221,7 @@ impl Executor {
                 }
 
                 // receive new seq_action and bundle it
-                Some(seq_action) = self.serialized_rollup_transactions_rx.recv() => {
+                Some(seq_action) = self.sequence_action_rx.recv() => {
                     let rollup_id = seq_action.rollup_id;
                     if let Err(e) = bundle_factory.try_push(seq_action) {
                             warn!(

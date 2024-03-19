@@ -44,9 +44,9 @@ pub struct Composer {
     /// `ComposerStatusSender` is used to announce the current status of the Composer for other
     /// modules in the crate to use.
     composer_status_sender: watch::Sender<Status>,
-    /// `SerializedRollupTransactionsTx` is used to communicate SequenceActions to the Executor
+    /// `SequenceActionTx` is used to communicate SequenceActions to the Executor
     /// This is at the Composer level to allow its sharing to various different collectors.
-    serialized_rollup_transactions_tx: tokio::sync::mpsc::Sender<SequenceAction>,
+    sequence_action_tx: tokio::sync::mpsc::Sender<SequenceAction>,
     /// `Executor` is responsible for signing and submitting sequencer transactions
     /// The sequencer transactions are received from various collectors.
     executor: Executor,
@@ -91,7 +91,7 @@ impl Composer {
     pub fn from_config(cfg: &Config) -> eyre::Result<Self> {
         let (composer_status_sender, _) = watch::channel(Status::default());
 
-        let (serialized_rollup_transactions_tx, serialized_rollup_transactions_rx) =
+        let (sequence_action_tx, sequence_action_rx) =
             tokio::sync::mpsc::channel::<SequenceAction>(256);
 
         let executor = Executor::new(
@@ -99,7 +99,7 @@ impl Composer {
             &cfg.private_key,
             cfg.block_time_ms,
             cfg.max_bytes_per_bundle,
-            serialized_rollup_transactions_rx,
+            sequence_action_rx,
         )
         .wrap_err("executor construction from config failed")?;
 
@@ -120,11 +120,8 @@ impl Composer {
         let geth_collectors = rollups
             .iter()
             .map(|(rollup_name, url)| {
-                let collector = Geth::new(
-                    rollup_name.clone(),
-                    url.clone(),
-                    serialized_rollup_transactions_tx.clone(),
-                );
+                let collector =
+                    Geth::new(rollup_name.clone(), url.clone(), sequence_action_tx.clone());
                 (rollup_name.clone(), collector)
             })
             .collect::<HashMap<_, _>>();
@@ -137,7 +134,7 @@ impl Composer {
         Ok(Self {
             api_server,
             composer_status_sender,
-            serialized_rollup_transactions_tx,
+            sequence_action_tx,
             executor,
             rollups,
             geth_collectors,
@@ -160,7 +157,7 @@ impl Composer {
             api_server,
             composer_status_sender,
             executor,
-            serialized_rollup_transactions_tx,
+            sequence_action_tx,
             mut geth_collector_tasks,
             mut geth_collectors,
             rollups,
@@ -202,7 +199,7 @@ impl Composer {
                 reconnect_exited_collector(
                     &mut geth_collector_statuses,
                     &mut geth_collector_tasks,
-                    serialized_rollup_transactions_tx.clone(),
+                    sequence_action_tx.clone(),
                     &rollups,
                     rollup,
                     collector_exit,
