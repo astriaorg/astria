@@ -4,16 +4,15 @@ package astria.composer.v1alpha1;
 
 import "google/protobuf/empty.proto";
 
-message SequenceAction {
+message RollupTx {
   string rollup_id = 1;
   bytes tx_bytes = 2;
 }
 
-message SubmitSequenceActionsRequest {
-  // Sequence Actions the user wants to send to the sequencer app.
-  repeated SequenceAction sequence_actions = 1;
+message SubmitRollupTxsRequest {
+  repeated RollupTx rollup_txs = 1;
 }
 
 service GrpcCollectorService {
-  rpc SubmitSequenceActions(SubmitSequenceActionsRequest) returns (google.protobuf.Empty) {}
+  rpc SubmitRollupTxs(SubmitRollupTxsRequest) returns (google.protobuf.Empty) {}
 }
