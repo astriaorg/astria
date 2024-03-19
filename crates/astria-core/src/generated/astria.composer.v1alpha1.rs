@@ -1,6 +1,6 @@
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct SequenceAction {
+pub struct RollupTx {
     #[prost(string, tag = "1")]
     pub rollup_id: ::prost::alloc::string::String,
     #[prost(bytes = "vec", tag = "2")]
@@ -8,10 +8,9 @@ pub struct SequenceAction {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct SubmitSequenceActionsRequest {
-    /// Sequence Actions the user wants to send to the sequencer app.
+pub struct SubmitRollupTxsRequest {
     #[prost(message, repeated, tag = "1")]
-    pub sequence_actions: ::prost::alloc::vec::Vec<SequenceAction>,
+    pub rollup_txs: ::prost::alloc::vec::Vec<RollupTx>,
 }
 /// Generated client implementations.
 #[cfg(feature = "client")]
@@ -99,9 +98,9 @@ pub mod grpc_collector_service_client {
             self.inner = self.inner.max_encoding_message_size(limit);
             self
         }
-        pub async fn submit_sequence_actions(
+        pub async fn submit_rollup_txs(
             &mut self,
-            request: impl tonic::IntoRequest<super::SubmitSequenceActionsRequest>,
+            request: impl tonic::IntoRequest<super::SubmitRollupTxsRequest>,
         ) -> std::result::Result<tonic::Response<()>, tonic::Status> {
             self.inner
                 .ready()
@@ -114,14 +113,14 @@ pub mod grpc_collector_service_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria.composer.v1alpha1.GrpcCollectorService/SubmitSequenceActions",
+                "/astria.composer.v1alpha1.GrpcCollectorService/SubmitRollupTxs",
             );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
                     GrpcMethod::new(
                         "astria.composer.v1alpha1.GrpcCollectorService",
-                        "SubmitSequenceActions",
+                        "SubmitRollupTxs",
                     ),
                 );
             self.inner.unary(req, path, codec).await
@@ -136,9 +135,9 @@ pub mod grpc_collector_service_server {
     /// Generated trait containing gRPC methods that should be implemented for use with GrpcCollectorServiceServer.
     #[async_trait]
     pub trait GrpcCollectorService: Send + Sync + 'static {
-        async fn submit_sequence_actions(
+        async fn submit_rollup_txs(
             &self,
-            request: tonic::Request<super::SubmitSequenceActionsRequest>,
+            request: tonic::Request<super::SubmitRollupTxsRequest>,
         ) -> std::result::Result<tonic::Response<()>, tonic::Status>;
     }
     #[derive(Debug)]
@@ -221,13 +220,13 @@ pub mod grpc_collector_service_server {
         fn call(&mut self, req: http::Request<B>) -> Self::Future {
             let inner = self.inner.clone();
             match req.uri().path() {
-                "/astria.composer.v1alpha1.GrpcCollectorService/SubmitSequenceActions" => {
+                "/astria.composer.v1alpha1.GrpcCollectorService/SubmitRollupTxs" => {
                     #[allow(non_camel_case_types)]
-                    struct SubmitSequenceActionsSvc<T: GrpcCollectorService>(pub Arc<T>);
+                    struct SubmitRollupTxsSvc<T: GrpcCollectorService>(pub Arc<T>);
                     impl<
                         T: GrpcCollectorService,
-                    > tonic::server::UnaryService<super::SubmitSequenceActionsRequest>
-                    for SubmitSequenceActionsSvc<T> {
+                    > tonic::server::UnaryService<super::SubmitRollupTxsRequest>
+                    for SubmitRollupTxsSvc<T> {
                         type Response = ();
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
@@ -235,11 +234,11 @@ pub mod grpc_collector_service_server {
                         >;
                         fn call(
                             &mut self,
-                            request: tonic::Request<super::SubmitSequenceActionsRequest>,
+                            request: tonic::Request<super::SubmitRollupTxsRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as GrpcCollectorService>::submit_sequence_actions(
+                                <T as GrpcCollectorService>::submit_rollup_txs(
                                         &inner,
                                         request,
                                     )
@@ -255,7 +254,7 @@ pub mod grpc_collector_service_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let inner = inner.0;
-                        let method = SubmitSequenceActionsSvc(inner);
+                        let method = SubmitRollupTxsSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(
