@@ -14,6 +14,7 @@ use crate::{
         Geth,
     },
     composer::reconnect_exited_collector,
+    executor,
 };
 
 /// This tests the `reconnect_exited_collector` handler.
@@ -27,7 +28,12 @@ async fn collector_is_reconnected_after_exit() {
     let (tx, mut rx) = tokio::sync::mpsc::channel(16);
 
     let mut collector_tasks = JoinMap::new();
-    let collector = Geth::new(rollup_name.clone(), rollup_url.clone(), tx.clone());
+    let executor_handle = executor::Handle::new(tx.clone());
+    let collector = Geth::new(
+        rollup_name.clone(),
+        rollup_url.clone(),
+        executor_handle.clone(),
+    );
     let mut status = collector.subscribe();
     collector_tasks.spawn(rollup_name.clone(), collector.run_until_stopped());
     status.wait_for(Status::is_connected).await.unwrap();
@@ -60,7 +66,7 @@ async fn collector_is_reconnected_after_exit() {
     reconnect_exited_collector(
         &mut statuses,
         &mut collector_tasks,
-        tx.clone(),
+        executor_handle.clone(),
         &rollups,
         rollup_name.clone(),
         exit_result,
