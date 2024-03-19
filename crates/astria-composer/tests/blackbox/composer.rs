@@ -45,7 +45,7 @@ async fn tx_from_one_rollup_is_received_by_sequencer() {
         .push_tx(Transaction::default())
         .unwrap();
 
-    // wait for 1 sequencer block time to make sure the the bundle is preempted
+    // wait for 1 sequencer block time to make sure the bundle is preempted
     tokio::time::timeout(
         Duration::from_millis(test_composer.cfg.block_time_ms),
         mock_guard.wait_until_satisfied(),
@@ -97,7 +97,7 @@ async fn invalid_nonce_failure_causes_tx_resubmission_under_different_nonce() {
         .push_tx(Transaction::default())
         .unwrap();
 
-    // wait for 1 sequencer block time to make sure the the bundle is preempted
+    // wait for 1 sequencer block time to make sure the bundle is preempted
     tokio::time::timeout(
         Duration::from_millis(test_composer.cfg.block_time_ms),
         invalid_nonce_guard.wait_until_satisfied(),
@@ -138,7 +138,7 @@ async fn single_rollup_tx_payload_integrity() {
 
     test_composer.rollup_nodes["test1"].push_tx(tx).unwrap();
 
-    // wait for 1 sequencer block time to make sure the the bundle is preempted
+    // wait for 1 sequencer block time to make sure the bundle is preempted
     tokio::time::timeout(
         Duration::from_millis(test_composer.cfg.block_time_ms),
         mock_guard.wait_until_satisfied(),
