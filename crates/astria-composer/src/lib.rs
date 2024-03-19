@@ -30,7 +30,7 @@
 //!     .expect("failed to setup telemetry");
 //! info!(config = cfg_ser, "initializing composer",);
 //!
-//! let _composer = Composer::from_config(&cfg)
+//! let _composer = Composer::from_config(&cfg).await
 //!     .expect("failed creating composer")
 //!     .run_until_stopped()
 //!     .await;
@@ -44,6 +44,9 @@ mod composer;
 mod composer_status;
 pub mod config;
 mod executor;
+
+mod grpc_collector;
+
 mod rollup;
 
 
