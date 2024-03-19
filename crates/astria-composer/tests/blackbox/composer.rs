@@ -1,7 +1,14 @@
 use std::time::Duration;
 
 use astria_core::{
-    generated::sequencer::v1::NonceResponse,
+    generated::{
+        composer::v1alpha1::{
+            grpc_collector_service_client::GrpcCollectorServiceClient,
+            SequenceAction,
+            SubmitSequenceActionsRequest,
+        },
+        sequencer::v1::NonceResponse,
+    },
     sequencer::v1::{
         AbciErrorCode,
         RollupId,
@@ -72,10 +79,12 @@ async fn tx_from_one_rollup_is_received_by_sequencer_from_grpc_collector() {
 
     let tx = Transaction::default();
     // send sequence action request to the grpc generic collector
-    let mut composer_client =
-        ComposerServiceClient::connect(format!("http://{}", test_composer.grpc_collector_addr))
-            .await
-            .unwrap();
+    let mut composer_client = GrpcCollectorServiceClient::connect(format!(
+        "http://{}",
+        test_composer.grpc_collector_addr
+    ))
+    .await
+    .unwrap();
     composer_client
         .submit_sequence_actions(SubmitSequenceActionsRequest {
             sequence_actions: vec![SequenceAction {
@@ -202,10 +211,12 @@ async fn invalid_nonce_failure_causes_tx_resubmission_under_different_nonce_grpc
     // the stored nonce of 0, triggering the nonce refetch process
     let tx = Transaction::default();
     // send sequence action request to the grpc generic collector
-    let mut composer_client =
-        ComposerServiceClient::connect(format!("http://{}", test_composer.grpc_collector_addr))
-            .await
-            .unwrap();
+    let mut composer_client = GrpcCollectorServiceClient::connect(format!(
+        "http://{}",
+        test_composer.grpc_collector_addr
+    ))
+    .await
+    .unwrap();
     composer_client
         .submit_sequence_actions(SubmitSequenceActionsRequest {
             sequence_actions: vec![SequenceAction {
@@ -283,10 +294,12 @@ async fn single_rollup_tx_payload_integrity_grpc_collector() {
         mount_matcher_verifying_tx_integrity(&test_composer.sequencer, tx.clone()).await;
 
     // send sequence action request to the grpc generic collector
-    let mut composer_client =
-        ComposerServiceClient::connect(format!("http://{}", test_composer.grpc_collector_addr))
-            .await
-            .unwrap();
+    let mut composer_client = GrpcCollectorServiceClient::connect(format!(
+        "http://{}",
+        test_composer.grpc_collector_addr
+    ))
+    .await
+    .unwrap();
     composer_client
         .submit_sequence_actions(SubmitSequenceActionsRequest {
             sequence_actions: vec![SequenceAction {

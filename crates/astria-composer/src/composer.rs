@@ -1,7 +1,6 @@
 use std::{io, net::SocketAddr};
 use std::collections::HashMap;
 use std::time::Duration;
-
 use astria_eyre::eyre::{
     self,
     WrapErr as _,
@@ -12,10 +11,6 @@ use tokio::{
 };
 use tokio::sync::watch;
 use tokio_util::task::JoinMap;
-use tonic::{
-    Request,
-    Response,
-};
 
 use tracing::{
     error,
