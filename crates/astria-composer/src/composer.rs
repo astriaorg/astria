@@ -1,7 +1,8 @@
 use std::{
-    collections::HashMap,
     net::SocketAddr,
 };
+use std::collections::HashMap;
+
 use astria_eyre::eyre::{
     self,
     WrapErr as _,
