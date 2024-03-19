@@ -8,9 +8,9 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use tokio::{
-    sync::watch,
     task::JoinError,
 };
+use tokio::sync::watch;
 use tokio_util::task::JoinMap;
 use tracing::{
     error,
