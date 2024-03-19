@@ -30,7 +30,7 @@ use tonic::{
     Request,
     Response,
 };
-use crate::executor;
+:use crate::executor;
 
 pub(super) struct GrpcCollector {
     grpc_collector_listener: TcpListener,
