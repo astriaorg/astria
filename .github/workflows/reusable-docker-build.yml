@@ -56,7 +56,7 @@ jobs:
           images: ${{ format('ghcr.io/astriaorg/{0}', inputs.package-name) }}
           tags: |
             type=ref,event=pr
-            type=match,pattern=refs/tags/([a-z-]+)-v(.*),group=2,enable=${{ startsWith(env.FULL_REF, 'refs/tags/') }},value=${{ env.FULL_REF }}
+            type=match,pattern=refs/tags/${{ inputs.package-name }}-v(.*),group=2,enable=${{ startsWith(env.FULL_REF, 'refs/tags/') }},value=${{ env.FULL_REF }}
             type=sha
             # set latest tag for `main` branch
             type=raw,value=latest,enable=${{ env.FULL_REF == format('refs/heads/{0}', 'main') }}
