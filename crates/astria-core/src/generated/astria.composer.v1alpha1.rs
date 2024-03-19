@@ -15,15 +15,15 @@ pub struct SubmitSequenceActionsRequest {
 }
 /// Generated client implementations.
 #[cfg(feature = "client")]
-pub mod composer_service_client {
+pub mod grpc_collector_service_client {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
     use tonic::codegen::*;
     use tonic::codegen::http::Uri;
     #[derive(Debug, Clone)]
-    pub struct ComposerServiceClient<T> {
+    pub struct GrpcCollectorServiceClient<T> {
         inner: tonic::client::Grpc<T>,
     }
-    impl ComposerServiceClient<tonic::transport::Channel> {
+    impl GrpcCollectorServiceClient<tonic::transport::Channel> {
         /// Attempt to create a new client by connecting to a given endpoint.
         pub async fn connect<D>(dst: D) -> Result<Self, tonic::transport::Error>
         where
@@ -34,7 +34,7 @@ pub mod composer_service_client {
             Ok(Self::new(conn))
         }
     }
-    impl<T> ComposerServiceClient<T>
+    impl<T> GrpcCollectorServiceClient<T>
     where
         T: tonic::client::GrpcService<tonic::body::BoxBody>,
         T::Error: Into<StdError>,
@@ -52,7 +52,7 @@ pub mod composer_service_client {
         pub fn with_interceptor<F>(
             inner: T,
             interceptor: F,
-        ) -> ComposerServiceClient<InterceptedService<T, F>>
+        ) -> GrpcCollectorServiceClient<InterceptedService<T, F>>
         where
             F: tonic::service::Interceptor,
             T::ResponseBody: Default,
@@ -66,7 +66,7 @@ pub mod composer_service_client {
                 http::Request<tonic::body::BoxBody>,
             >>::Error: Into<StdError> + Send + Sync,
         {
-            ComposerServiceClient::new(InterceptedService::new(inner, interceptor))
+            GrpcCollectorServiceClient::new(InterceptedService::new(inner, interceptor))
         }
         /// Compress requests with the given encoding.
         ///
@@ -114,13 +114,13 @@ pub mod composer_service_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria.composer.v1alpha1.ComposerService/SubmitSequenceActions",
+                "/astria.composer.v1alpha1.GrpcCollectorService/SubmitSequenceActions",
             );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
                     GrpcMethod::new(
-                        "astria.composer.v1alpha1.ComposerService",
+                        "astria.composer.v1alpha1.GrpcCollectorService",
                         "SubmitSequenceActions",
                     ),
                 );
@@ -130,19 +130,19 @@ pub mod composer_service_client {
 }
 /// Generated server implementations.
 #[cfg(feature = "server")]
-pub mod composer_service_server {
+pub mod grpc_collector_service_server {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
     use tonic::codegen::*;
-    /// Generated trait containing gRPC methods that should be implemented for use with ComposerServiceServer.
+    /// Generated trait containing gRPC methods that should be implemented for use with GrpcCollectorServiceServer.
     #[async_trait]
-    pub trait ComposerService: Send + Sync + 'static {
+    pub trait GrpcCollectorService: Send + Sync + 'static {
         async fn submit_sequence_actions(
             &self,
             request: tonic::Request<super::SubmitSequenceActionsRequest>,
         ) -> std::result::Result<tonic::Response<()>, tonic::Status>;
     }
     #[derive(Debug)]
-    pub struct ComposerServiceServer<T: ComposerService> {
+    pub struct GrpcCollectorServiceServer<T: GrpcCollectorService> {
         inner: _Inner<T>,
         accept_compression_encodings: EnabledCompressionEncodings,
         send_compression_encodings: EnabledCompressionEncodings,
@@ -150,7 +150,7 @@ pub mod composer_service_server {
         max_encoding_message_size: Option<usize>,
     }
     struct _Inner<T>(Arc<T>);
-    impl<T: ComposerService> ComposerServiceServer<T> {
+    impl<T: GrpcCollectorService> GrpcCollectorServiceServer<T> {
         pub fn new(inner: T) -> Self {
             Self::from_arc(Arc::new(inner))
         }
@@ -202,9 +202,10 @@ pub mod composer_service_server {
             self
         }
     }
-    impl<T, B> tonic::codegen::Service<http::Request<B>> for ComposerServiceServer<T>
+    impl<T, B> tonic::codegen::Service<http::Request<B>>
+    for GrpcCollectorServiceServer<T>
     where
-        T: ComposerService,
+        T: GrpcCollectorService,
         B: Body + Send + 'static,
         B::Error: Into<StdError> + Send + 'static,
     {
@@ -220,11 +221,11 @@ pub mod composer_service_server {
         fn call(&mut self, req: http::Request<B>) -> Self::Future {
             let inner = self.inner.clone();
             match req.uri().path() {
-                "/astria.composer.v1alpha1.ComposerService/SubmitSequenceActions" => {
+                "/astria.composer.v1alpha1.GrpcCollectorService/SubmitSequenceActions" => {
                     #[allow(non_camel_case_types)]
-                    struct SubmitSequenceActionsSvc<T: ComposerService>(pub Arc<T>);
+                    struct SubmitSequenceActionsSvc<T: GrpcCollectorService>(pub Arc<T>);
                     impl<
-                        T: ComposerService,
+                        T: GrpcCollectorService,
                     > tonic::server::UnaryService<super::SubmitSequenceActionsRequest>
                     for SubmitSequenceActionsSvc<T> {
                         type Response = ();
@@ -238,7 +239,7 @@ pub mod composer_service_server {
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ComposerService>::submit_sequence_actions(
+                                <T as GrpcCollectorService>::submit_sequence_actions(
                                         &inner,
                                         request,
                                     )
@@ -285,7 +286,7 @@ pub mod composer_service_server {
             }
         }
     }
-    impl<T: ComposerService> Clone for ComposerServiceServer<T> {
+    impl<T: GrpcCollectorService> Clone for GrpcCollectorServiceServer<T> {
         fn clone(&self) -> Self {
             let inner = self.inner.clone();
             Self {
@@ -297,7 +298,7 @@ pub mod composer_service_server {
             }
         }
     }
-    impl<T: ComposerService> Clone for _Inner<T> {
+    impl<T: GrpcCollectorService> Clone for _Inner<T> {
         fn clone(&self) -> Self {
             Self(Arc::clone(&self.0))
         }
@@ -307,7 +308,8 @@ pub mod composer_service_server {
             write!(f, "{:?}", self.0)
         }
     }
-    impl<T: ComposerService> tonic::server::NamedService for ComposerServiceServer<T> {
-        const NAME: &'static str = "astria.composer.v1alpha1.ComposerService";
+    impl<T: GrpcCollectorService> tonic::server::NamedService
+    for GrpcCollectorServiceServer<T> {
+        const NAME: &'static str = "astria.composer.v1alpha1.GrpcCollectorService";
     }
 }

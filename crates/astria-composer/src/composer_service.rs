@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use astria_core::{
     generated::composer::v1alpha1::{
-        composer_service_server::ComposerService,
+        grpc_collector_service_server::GrpcCollectorService,
         SubmitSequenceActionsRequest,
     }
 };
@@ -17,14 +17,10 @@ use tonic::{
     Request,
     Response,
 };
-
-#[derive(Clone)]
-pub(crate) struct ExecutorHandle {
-    pub(crate) sequence_action_tx: Sender<SequenceAction>,
-}
+use crate::executor;
 
 #[async_trait::async_trait]
-impl ComposerService for ExecutorHandle {
+impl GrpcCollectorService for executor::Handle {
     async fn submit_sequence_actions(
         &self,
         request: Request<SubmitSequenceActionsRequest>,
@@ -45,7 +41,7 @@ impl ComposerService for ExecutorHandle {
             };
 
             match self
-                .sequence_action_tx
+                .get()
                 .send_timeout(sequence_action, Duration::from_millis(500))
                 .await
             {

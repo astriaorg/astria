@@ -21,7 +21,7 @@ use tracing::{
     error,
     info,
 };
-use astria_core::generated::composer::v1alpha1::composer_service_server::{ComposerService, ComposerServiceServer};
+use astria_core::generated::composer::v1alpha1::grpc_collector_service_server::GrpcCollectorServiceServer;
 use astria_core::generated::composer::v1alpha1::SubmitSequenceActionsRequest;
 use astria_core::sequencer::v1::asset::default_native_asset_id;
 use astria_core::sequencer::v1::RollupId;
@@ -104,7 +104,7 @@ impl Composer {
             cfg.block_time_ms,
             cfg.max_bytes_per_bundle,
         )
-        .wrap_err("executor construction from config failed")?;
+            .wrap_err("executor construction from config failed")?;
 
         let grpc_collector_listener = TcpListener::bind(cfg.grpc_collector_addr).await?;
 
@@ -200,6 +200,17 @@ impl Composer {
             status.set_executor_connected(true);
         });
 
+        // run the grpc server
+        let composer_service = GrpcCollectorServiceServer::new(executor_handle.clone());
+        let grpc_server = tonic::transport::Server::builder().add_service(composer_service);
+        let grpc_server_handler = tokio::spawn(async move {
+            grpc_server
+                .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(
+                    grpc_collector_listener,
+                ))
+                .await
+        });
+
         loop {
             tokio::select!(
             o = &mut api_task => {
@@ -223,6 +234,7 @@ impl Composer {
         }
     }
 }
+
 
 async fn wait_for_executor(
     mut executor_status: watch::Receiver<executor::Status>,
