@@ -76,6 +76,13 @@ impl Denom {
 
         format!("{}/{}", self.prefix, self.base_denom)
     }
+
+    /// Create a new [`Denom`] with the same base denomination,
+    /// but without the prefix of the original.
+    #[must_use]
+    pub fn to_base_denom(&self) -> Self {
+        Self::from_base_denom(&self.base_denom)
+    }
 }
 
 impl std::fmt::Display for Denom {

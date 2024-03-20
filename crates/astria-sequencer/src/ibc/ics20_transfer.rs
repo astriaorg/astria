@@ -182,7 +182,7 @@ async fn refund_tokens_check<S: StateRead>(
 
     let is_source = !is_prefixed(source_port, source_channel, &denom);
     if is_source {
-        // sender of packet (us) was the source chain
+        // recipient of packet (us) was the source chain
         //
         // check if escrow account has enough balance to refund user
         let balance = state
@@ -318,10 +318,18 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
         .amount
         .parse()
         .context("failed to parse packet data amount to u128")?;
-    let recipient = Address::try_from_slice(
-        &hex::decode(packet_data.receiver).context("failed to decode receiver as hex string")?,
-    )
-    .context("invalid receiver address")?;
+    let recipient = if is_refund {
+        Address::try_from_slice(
+            &hex::decode(packet_data.sender).context("failed to decode sender as hex string")?,
+        )
+        .context("invalid sender address")?
+    } else {
+        Address::try_from_slice(
+            &hex::decode(packet_data.receiver)
+                .context("failed to decode receiver as hex string")?,
+        )
+        .context("invalid receiver address")?
+    };
     let mut denom: Denom = packet_data.denom.clone().into();
 
     // if the asset is prefixed with `ibc`, the rest of the denomination string is the asset ID,
@@ -345,6 +353,10 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
     if is_source {
         // the recipient (us) is also the source of the tokens
         // subtract balance from escrow account and transfer to user
+
+        // strip the prefix from the denom, as we're back on the source chain
+        // note: if this is a refund, this is a no-op.
+        let denom = denom.to_base_denom();
 
         let escrow_balance = if is_refund {
             state
@@ -422,6 +434,8 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
 
 #[cfg(test)]
 mod test {
+    use cnidarium::StateDelta;
+
     use super::*;
 
     #[test]
@@ -436,5 +450,101 @@ mod test {
         // prefixed by the sending chain
         let asset = Denom::from("other_port/source_channel/asset".to_string());
         assert!(!is_prefixed(&source_port, &source_channel, &asset));
+    }
+
+    #[tokio::test]
+    async fn execute_ics20_transfer_to_eoa_is_source_not_refund() {
+        let storage = cnidarium::TempStorage::new()
+            .await
+            .expect("failed to create temp storage backing chain state");
+        let snapshot = storage.latest_snapshot();
+        let mut state_tx = StateDelta::new(snapshot.clone());
+
+        let address_string = "1c0c490f1b5528d8173c5de46d131160e4b2c0c3";
+        let amount = 100;
+        let base_denom: Denom = "nootasset".to_string().into();
+        state_tx
+            .put_ibc_channel_balance(
+                &"dest_channel".to_string().parse().unwrap(),
+                base_denom.id(),
+                amount,
+            )
+            .unwrap();
+
+        let packet = FungibleTokenPacketData {
+            denom: format!("source_port/source_channel/{}", base_denom),
+            sender: String::new(),
+            amount: amount.to_string(),
+            receiver: address_string.to_string(),
+            memo: String::new(),
+        };
+        let packet_bytes = serde_json::to_vec(&packet).expect("failed to serialize packet data");
+
+        execute_ics20_transfer(
+            &mut state_tx,
+            &packet_bytes,
+            &"source_port".to_string().parse().unwrap(),
+            &"source_channel".to_string().parse().unwrap(),
+            &"dest_port".to_string().parse().unwrap(),
+            &"dest_channel".to_string().parse().unwrap(),
+            false,
+        )
+        .await
+        .unwrap();
+
+        let recipient = Address::try_from_slice(&hex::decode(address_string).unwrap()).unwrap();
+        let balance = state_tx
+            .get_account_balance(recipient, base_denom.id())
+            .await
+            .unwrap();
+        assert_eq!(balance, amount);
+    }
+
+    #[tokio::test]
+    async fn execute_ics20_transfer_to_eoa_is_source_refund() {
+        let storage = cnidarium::TempStorage::new()
+            .await
+            .expect("failed to create temp storage backing chain state");
+        let snapshot = storage.latest_snapshot();
+        let mut state_tx = StateDelta::new(snapshot.clone());
+
+        let address_string = "1c0c490f1b5528d8173c5de46d131160e4b2c0c3";
+        let amount = 100;
+        let base_denom: Denom = "nootasset".to_string().into();
+        state_tx
+            .put_ibc_channel_balance(
+                &"source_channel".to_string().parse().unwrap(),
+                base_denom.id(),
+                amount,
+            )
+            .unwrap();
+
+        let packet = FungibleTokenPacketData {
+            denom: base_denom.to_string(),
+            sender: address_string.to_string(),
+            amount: amount.to_string(),
+            receiver: address_string.to_string(),
+            memo: String::new(),
+        };
+        let packet_bytes = serde_json::to_vec(&packet).expect("failed to serialize packet data");
+
+        execute_ics20_transfer(
+            &mut state_tx,
+            &packet_bytes,
+            &"source_port".to_string().parse().unwrap(),
+            &"source_channel".to_string().parse().unwrap(),
+            &"dest_port".to_string().parse().unwrap(),
+            &"dest_channel".to_string().parse().unwrap(),
+            true,
+        )
+        .await
+        .unwrap();
+
+        let recipient = Address::try_from_slice(&hex::decode(address_string).unwrap()).unwrap();
+        let balance = state_tx
+            .get_account_balance(recipient, base_denom.id())
+            .await
+            .unwrap();
+        assert_eq!(balance, amount);
     }
 }
