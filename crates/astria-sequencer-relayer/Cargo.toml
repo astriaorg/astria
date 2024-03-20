@@ -1,6 +1,6 @@
 [package]
 name = "astria-sequencer-relayer"
-version = "0.10.0"
+version = "0.11.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 rust-version = "1.73"
@@ -38,8 +38,8 @@ tendermint-config = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 tryhard = { workspace = true }
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
-tokio-util = { workspace = true, features = ["rt"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal"] }
+tokio-util = { workspace = true }
 tonic = { workspace = true }
 
 astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
@@ -72,6 +72,9 @@ tokio = { workspace = true, features = ["test-util"] }
 tokio-stream = { version = "0.1.14", features = ["net"] }
 wiremock = { workspace = true }
 assert-json-diff = "2.0.2"
+tower-http = { version = "0.4", features = ["auth"] }
+tower = { version = "0.4.13" }
+hyper.workspace = true
 
 [build-dependencies]
 astria-build-info = { path = "../astria-build-info", features = ["build"] }

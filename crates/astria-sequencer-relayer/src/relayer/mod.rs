@@ -39,6 +39,7 @@ use tokio::{
     task::JoinHandle,
 };
 use tokio_stream::StreamExt;
+use tokio_util::sync::CancellationToken;
 use tracing::{
     debug,
     error,
@@ -50,28 +51,33 @@ use tracing::{
 
 use crate::validator::Validator;
 
+mod builder;
 mod read;
 mod state;
 mod submission;
 mod write;
 
+pub(crate) use builder::Builder;
 use state::State;
 pub(crate) use state::StateSnapshot;
 
 use self::submission::SubmissionState;
 
 pub(crate) struct Relayer {
+    /// A token to notify relayer that it should shut down.
+    shutdown_token: tokio_util::sync::CancellationToken,
+
     /// The client used to query the sequencer cometbft endpoint.
-    cometbft_client: SequencerClient,
+    sequencer_cometbft_client: SequencerClient,
 
     /// The client used to poll the sequencer via the sequencer gRPC API.
-    sequencer_client: SequencerServiceClient<tonic::transport::Channel>,
+    sequencer_grpc_client: SequencerServiceClient<tonic::transport::Channel>,
 
     /// The poll period defines the fixed interval at which the sequencer is polled.
     sequencer_poll_period: Duration,
 
     // The http client for submitting sequencer blocks to celestia.
-    celestia: CelestiaClient,
+    celestia_client: CelestiaClient,
 
     // If this is set, only relay blocks to DA which are proposed by the same validator key.
     validator: Option<Validator>,
@@ -84,60 +90,6 @@ pub(crate) struct Relayer {
 }
 
 impl Relayer {
-    /// Instantiates a `Relayer`.
-    ///
-    /// # Errors
-    ///
-    /// Returns one of the following errors:
-    /// + failed to read the validator keys from the path in cfg;
-    /// + failed to construct a client to the data availability layer (unless `cfg.disable_writing`
-    ///   is set).
-    pub(crate) async fn new(cfg: &crate::config::Config) -> eyre::Result<Self> {
-        let cometbft_client = SequencerClient::new(&*cfg.cometbft_endpoint)
-            .wrap_err("failed constructing cometbft http client")?;
-
-        let sequencer_client = SequencerServiceClient::connect(cfg.sequencer_grpc_endpoint.clone())
-            .await
-            .wrap_err("failed to create sequencer client")?;
-
-        let validator = match (
-            &cfg.relay_only_validator_key_blocks,
-            &cfg.validator_key_file,
-        ) {
-            (true, Some(file)) => Some(
-                Validator::from_path(file).wrap_err("failed to get validator info from file")?,
-            ),
-            (true, None) => {
-                bail!("validator key file must be set if `disable_relay_all` is set")
-            }
-            (false, _) => None, // could also say that the file was unnecessarily set, but it's ok
-        };
-
-        let celestia_client::celestia_rpc::Client::Http(celestia) =
-            celestia_client::celestia_rpc::Client::new(
-                &cfg.celestia_endpoint,
-                Some(&cfg.celestia_bearer_token),
-            )
-            .await
-            .wrap_err("failed constructing celestia http client")?
-        else {
-            bail!("expected to get a celestia HTTP client, but got a websocket client");
-        };
-
-        let state = Arc::new(State::new());
-
-        Ok(Self {
-            cometbft_client,
-            sequencer_client,
-            sequencer_poll_period: Duration::from_millis(cfg.block_time),
-            celestia,
-            validator,
-            state,
-            pre_submit_path: cfg.pre_submit_path.clone(),
-            post_submit_path: cfg.post_submit_path.clone(),
-        })
-    }
-
     pub(crate) fn subscribe_to_state(&self) -> watch::Receiver<state::StateSnapshot> {
         self.state.subscribe()
     }
@@ -158,16 +110,20 @@ impl Relayer {
 
         let mut latest_height_stream = {
             use sequencer_client::StreamLatestHeight as _;
-            self.cometbft_client
+            self.sequencer_cometbft_client
                 .stream_latest_height(self.sequencer_poll_period)
         };
 
-        let (submitter_task, submitter) =
-            spawn_submitter(self.celestia.clone(), self.state.clone(), submission_state);
+        let (submitter_task, submitter) = spawn_submitter(
+            self.celestia_client.clone(),
+            self.state.clone(),
+            submission_state,
+            self.shutdown_token.clone(),
+        );
 
         let mut block_stream = read::BlockStream::builder()
             .block_time(self.sequencer_poll_period)
-            .client(self.sequencer_client.clone())
+            .client(self.sequencer_grpc_client.clone())
             .set_last_fetched_height(last_submitted_sequencer_height)
             .state(self.state.clone())
             .build();
@@ -183,6 +139,11 @@ impl Relayer {
         let reason = loop {
             select!(
                 biased;
+
+                () = self.shutdown_token.cancelled() => {
+                    info!("received shutdown signal");
+                    break Ok("shutdown signal received");
+                }
 
                 res = &mut forward_once_free, if !forward_once_free.is_terminated() => {
                     // XXX: exiting because submitter only returns an error after u32::MAX
@@ -241,11 +202,17 @@ impl Relayer {
             );
         };
 
-        submitter_task.abort();
-        if let Err(error) = crate::utils::flatten(submitter_task.await) {
-            error!(%error, "Celestia blob submission task failed");
+        match &reason {
+            Ok(reason) => info!(reason, "starting shutdown"),
+            Err(reason) => error!(%reason, "starting shutdown"),
         }
-        reason
+
+        debug!("waiting for Celestia submission task to exit");
+        if let Err(error) = submitter_task.await {
+            error!(%error, "Celestia submission task failed while waiting for it to exit before shutdown");
+        }
+
+        reason.map(|_| ())
     }
 
     fn report_validator(&self) -> Option<DisplayValue<ReportValidator<'_>>> {
@@ -330,8 +297,10 @@ fn spawn_submitter(
     client: CelestiaClient,
     state: Arc<State>,
     submission_state: submission::SubmissionState,
+    shutdown_token: CancellationToken,
 ) -> (JoinHandle<eyre::Result<()>>, write::BlobSubmitterHandle) {
-    let (submitter, handle) = write::BlobSubmitter::new(client, state, submission_state);
+    let (submitter, handle) =
+        write::BlobSubmitter::new(client, state, submission_state, shutdown_token);
     (tokio::spawn(submitter.run()), handle)
 }
 

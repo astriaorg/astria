@@ -39,9 +39,11 @@
 
 pub(crate) mod api;
 mod build_info;
+mod collectors;
 mod composer;
 pub mod config;
-pub(crate) mod searcher;
+mod executor;
+mod rollup;
 
 pub use build_info::BUILD_INFO;
 pub use composer::Composer;
