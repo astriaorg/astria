@@ -478,10 +478,10 @@ mod test {
 
         let packet = FungibleTokenPacketData {
             denom: "nootasset".to_string(),
-            sender: "".to_string(),
+            sender: String::new(),
             amount: "100".to_string(),
             receiver: "1c0c490f1b5528d8173c5de46d131160e4b2c0c3".to_string(),
-            memo: "".to_string(),
+            memo: String::new(),
         };
         let packet_bytes = serde_json::to_vec(&packet).expect("failed to serialize packet data");
 
@@ -528,7 +528,7 @@ mod test {
 
         let packet = FungibleTokenPacketData {
             denom: "nootasset".to_string(),
-            sender: "".to_string(),
+            sender: String::new(),
             amount: "100".to_string(),
             receiver: hex::encode(bridge_address),
             memo: "destinationaddress".to_string(),
@@ -578,10 +578,10 @@ mod test {
         // use empty memo, which should fail
         let packet = FungibleTokenPacketData {
             denom: "nootasset".to_string(),
-            sender: "".to_string(),
+            sender: String::new(),
             amount: "100".to_string(),
             receiver: hex::encode(bridge_address),
-            memo: "".to_string(),
+            memo: String::new(),
         };
         let packet_bytes = serde_json::to_vec(&packet).expect("failed to serialize packet data");
 
@@ -602,7 +602,7 @@ mod test {
         // use invalid asset, which should fail
         let packet = FungibleTokenPacketData {
             denom: "fake".to_string(),
-            sender: "".to_string(),
+            sender: String::new(),
             amount: "100".to_string(),
             receiver: hex::encode(bridge_address),
             memo: "destinationaddress".to_string(),
