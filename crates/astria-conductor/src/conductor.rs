@@ -33,7 +33,7 @@ use tracing::{
 
 use crate::{
     celestia,
-    executor::Executor,
+    executor,
     sequencer,
     Config,
 };
@@ -68,12 +68,13 @@ impl Conductor {
         let executor_handle = {
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
 
-            let (executor, handle) = Executor::builder()
-                .set_consider_commitment_spread(!cfg.execution_commit_level.is_soft_only())
-                .rollup_address(&cfg.execution_rpc_url)
-                .wrap_err("failed to assign rollup node address")?
-                .shutdown(shutdown_rx)
-                .build();
+            let (executor, handle) = executor::Builder {
+                consider_commitment_spread: !cfg.execution_commit_level.is_soft_only(),
+                rollup_address: cfg.execution_rpc_url,
+                shutdown: shutdown_rx,
+            }
+            .build()
+            .wrap_err("failed constructing exectur")?;
 
             tasks.spawn(Self::EXECUTOR, executor.run_until_stopped());
             shutdown_channels.insert(Self::EXECUTOR, shutdown_tx);
@@ -90,13 +91,14 @@ impl Conductor {
             // The `sync_start_block_height` represents the height of the next
             // sequencer block that can be executed on top of the rollup state.
             // This value is derived by the Executor.
-            let sequencer_reader = sequencer::Reader::new(
+            let sequencer_reader = sequencer::Builder {
                 sequencer_grpc_client,
-                sequencer_cometbft_client.clone(),
-                Duration::from_millis(cfg.sequencer_block_time_ms),
-                shutdown_rx,
-                executor_handle.clone(),
-            );
+                sequencer_cometbft_client: sequencer_cometbft_client.clone(),
+                sequencer_block_time: Duration::from_millis(cfg.sequencer_block_time_ms),
+                shutdown: shutdown_rx,
+                executor: executor_handle.clone(),
+            }
+            .build();
             tasks.spawn(Self::SEQUENCER, sequencer_reader.run_until_stopped());
             shutdown_channels.insert(Self::SEQUENCER, shutdown_tx);
         }
@@ -111,15 +113,16 @@ impl Conductor {
                 .await
                 .wrap_err("failed to get sequencer namespace")?;
 
-            let reader = celestia::Reader::builder()
-                .celestia_http_endpoint(&cfg.celestia_node_http_url)
-                .celestia_websocket_endpoint(&cfg.celestia_node_websocket_url)
-                .celestia_token(&cfg.celestia_bearer_token)
-                .executor(executor_handle.clone())
-                .sequencer_cometbft_client(sequencer_cometbft_client.clone())
-                .sequencer_namespace(sequencer_namespace)
-                .shutdown(shutdown_rx)
-                .build();
+            let reader = celestia::Builder {
+                celestia_http_endpoint: cfg.celestia_node_http_url,
+                celestia_websocket_endpoint: cfg.celestia_node_websocket_url,
+                celestia_token: cfg.celestia_bearer_token,
+                executor: executor_handle.clone(),
+                sequencer_cometbft_client: sequencer_cometbft_client.clone(),
+                sequencer_namespace,
+                shutdown: shutdown_rx,
+            }
+            .build();
 
             tasks.spawn(Self::CELESTIA, reader.run_until_stopped());
         };

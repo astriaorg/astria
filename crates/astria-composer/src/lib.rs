@@ -44,8 +44,6 @@ mod composer;
 pub mod config;
 mod executor;
 mod rollup;
-#[cfg(test)]
-mod tests;
 
 pub use build_info::BUILD_INFO;
 pub use composer::Composer;

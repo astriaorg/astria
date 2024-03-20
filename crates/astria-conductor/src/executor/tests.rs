@@ -245,11 +245,13 @@ async fn start_mock() -> MockEnvironment {
 
     let (shutdown_tx, shutdown_rx) = oneshot::channel();
 
-    let (executor, _) = Executor::builder()
-        .rollup_address(&server_url)
-        .unwrap()
-        .shutdown(shutdown_rx)
-        .build();
+    let (executor, _) = crate::executor::Builder {
+        consider_commitment_spread: false,
+        rollup_address: server_url,
+        shutdown: shutdown_rx,
+    }
+    .build()
+    .unwrap();
 
     let client = Client::connect(executor.rollup_address.clone())
         .await

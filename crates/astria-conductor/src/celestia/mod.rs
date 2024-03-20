@@ -88,6 +88,7 @@ use crate::{
     executor,
 };
 mod builder;
+pub(crate) use builder::Builder;
 mod reporting;
 use reporting::{
     ReportReconstructedBlocks,
@@ -147,10 +148,6 @@ pub(crate) struct Reader {
 }
 
 impl Reader {
-    pub(super) fn builder() -> builder::ReaderBuilder {
-        builder::ReaderBuilder::new()
-    }
-
     #[instrument(skip(self))]
     pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
         let mut executor = self

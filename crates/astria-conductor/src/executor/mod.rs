@@ -54,6 +54,7 @@ use crate::celestia::ReconstructedBlock;
 mod builder;
 pub(crate) mod channel;
 
+pub(crate) use builder::Builder;
 use channel::soft_block_channel;
 
 mod client;
@@ -189,10 +190,6 @@ pub(crate) struct Executor {
 }
 
 impl Executor {
-    pub(super) fn builder() -> builder::ExecutorBuilder {
-        builder::ExecutorBuilder::new()
-    }
-
     #[instrument(skip_all)]
     pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
         let client = Client::connect(self.rollup_address.clone())
