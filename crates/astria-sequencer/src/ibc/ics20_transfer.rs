@@ -472,7 +472,7 @@ mod test {
             .unwrap();
 
         let packet = FungibleTokenPacketData {
-            denom: format!("source_port/source_channel/{}", base_denom),
+            denom: format!("source_port/source_channel/{base_denom}"),
             sender: String::new(),
             amount: amount.to_string(),
             receiver: address_string.to_string(),
