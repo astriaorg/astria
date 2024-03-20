@@ -111,11 +111,15 @@ impl Geth {
         }
     }
 
+<<<<<<< HEAD:crates/astria-composer/src/geth_collectors/mod.rs
 <<<<<<<< HEAD:crates/astria-composer/src/collectors/geth.rs
     /// Subscribe to the collector's status.
     pub(crate) fn subscribe(&self) -> watch::Receiver<Status> {
 ========
     /// Subscribe to the composer's status.
+=======
+    /// Subscribe to the collector's status.
+>>>>>>> a5434eb (minor refactor):crates/astria-composer/src/geth_collector/mod.rs
     pub(super) fn subscribe(&self) -> watch::Receiver<Status> {
 >>>>>>>> 3186524 (move executor and geth collectors to the composer):crates/astria-composer/src/geth_collectors/mod.rs
         self.status.subscribe()
