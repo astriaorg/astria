@@ -39,8 +39,10 @@ use crate::{
 };
 
 mod block_stream;
+mod builder;
 mod client;
 mod reporting;
+pub(crate) use builder::Builder;
 pub(crate) use client::SequencerGrpcClient;
 
 pub(crate) struct Reader {
@@ -57,22 +59,6 @@ pub(crate) struct Reader {
 }
 
 impl Reader {
-    pub(crate) fn new(
-        sequencer_grpc_client: SequencerGrpcClient,
-        sequencer_cometbft_client: HttpClient,
-        sequencer_block_time: Duration,
-        shutdown: oneshot::Receiver<()>,
-        executor: executor::Handle,
-    ) -> Self {
-        Self {
-            executor,
-            sequencer_grpc_client,
-            sequencer_cometbft_client,
-            sequencer_block_time,
-            shutdown,
-        }
-    }
-
     #[instrument(skip_all, err)]
     pub(crate) async fn run_until_stopped(self) -> eyre::Result<()> {
         use futures::future::FusedFuture as _;
