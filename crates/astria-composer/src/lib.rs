@@ -49,7 +49,6 @@ mod grpc_collector;
 
 mod rollup;
 
-
 pub use build_info::BUILD_INFO;
 pub use composer::Composer;
 pub use config::Config;

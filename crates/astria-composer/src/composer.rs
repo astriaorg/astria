@@ -96,7 +96,7 @@ impl Composer {
 
 
         let grpc_collector_listener = TcpListener::bind(cfg.grpc_collector_addr).await?;
-        let grpc_collector = GrpcCollector::new(grpc_collector_listener);
+        let grpc_collector = GrpcCollector::new(grpc_collector_listener, executor_handle.clone());
 
         let api_server = api::start(cfg.api_listen_addr, composer_status_sender.subscribe());
 
@@ -190,11 +190,11 @@ impl Composer {
             status.set_executor_connected(true);
         });
 
-        let grpc_executor_handle = executor_handle.clone();
         // run the grpc server
+        let grpc_executor_handle = executor_handle.clone();
         let mut grpc_server_handle = tokio::spawn(async move {
             grpc_collector
-                .run_until_stopped(grpc_executor_handle)
+                .run_until_stopped(grpc_executor_handle.clone())
                 .await
                 .wrap_err("grpc server failed")
         });
