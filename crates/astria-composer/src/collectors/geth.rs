@@ -160,7 +160,7 @@ impl Geth {
             };
 
             match executor_handle
-                .send_with_timeout(seq_action, Duration::from_millis(500))
+                .send_timeout(seq_action, Duration::from_millis(500))
                 .await
             {
                 Ok(()) => {}

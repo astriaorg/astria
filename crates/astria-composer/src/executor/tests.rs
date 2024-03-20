@@ -227,11 +227,11 @@ async fn full_bundle() {
 
     // push both sequence actions to the executor in order to force the full bundle to be sent
     executor_handle
-        .send_with_timeout(seq0.clone(), Duration::from_millis(1000))
+        .send_timeout(seq0.clone(), Duration::from_millis(1000))
         .await
         .unwrap();
     executor_handle
-        .send_with_timeout(seq1.clone(), Duration::from_millis(1000))
+        .send_timeout(seq1.clone(), Duration::from_millis(1000))
         .await
         .unwrap();
 
@@ -308,7 +308,7 @@ async fn bundle_triggered_by_block_timer() {
     // despite it not being full
     time::pause();
     executor_handle
-        .send_with_timeout(seq0.clone(), Duration::from_millis(1000))
+        .send_timeout(seq0.clone(), Duration::from_millis(1000))
         .await
         .unwrap();
     time::advance(Duration::from_millis(cfg.block_time_ms)).await;
@@ -393,11 +393,11 @@ async fn two_seq_actions_single_bundle() {
     // despite it not being full
     time::pause();
     executor_handle
-        .send_with_timeout(seq0.clone(), Duration::from_millis(1000))
+        .send_timeout(seq0.clone(), Duration::from_millis(1000))
         .await
         .unwrap();
     executor_handle
-        .send_with_timeout(seq1.clone(), Duration::from_millis(1000))
+        .send_timeout(seq1.clone(), Duration::from_millis(1000))
         .await
         .unwrap();
     time::advance(Duration::from_millis(cfg.block_time_ms)).await;
