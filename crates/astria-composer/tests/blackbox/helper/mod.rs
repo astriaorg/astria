@@ -109,6 +109,7 @@ pub async fn loop_until_composer_is_ready(addr: SocketAddr) {
         status: String,
     }
 
+    println!("waiting for composer to be ready!");
     loop {
         let readyz = reqwest::get(format!("http://{addr}/readyz"))
             .await
@@ -121,4 +122,5 @@ pub async fn loop_until_composer_is_ready(addr: SocketAddr) {
             break;
         }
     }
+    println!("composer is ready!");
 }

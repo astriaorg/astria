@@ -288,6 +288,7 @@ async fn bundle_triggered_by_block_timer() {
         cfg.max_bytes_per_bundle,
     )
     .unwrap();
+
     let status = executor.subscribe();
 
     let _executor_task = tokio::spawn(executor.run_until_stopped());

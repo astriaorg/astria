@@ -1,3 +1,3 @@
 pub(crate) mod geth;
 
-pub(crate) use geth::Geth;
+pub(crate) use geth::{Geth, Status};
