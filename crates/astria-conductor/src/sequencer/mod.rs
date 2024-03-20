@@ -152,7 +152,7 @@ impl Reader {
                     }
                 }
 
-                // Record the latst height of the Sequencer network, allowing `blocks_from_heights` to progress.
+                // Record the latest height of the Sequencer network, allowing `blocks_from_heights` to progress.
                 Some(res) = latest_height_stream.next() => {
                     match res {
                         Ok(height) => {
