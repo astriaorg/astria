@@ -337,6 +337,16 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
     .context("invalid receiver address")?;
     let mut denom: Denom = packet_data.denom.clone().into();
 
+    // if the asset is prefixed with `ibc`, the rest of the denomination string is the asset ID,
+    // so we need to look up the full trace from storage.
+    // see https://github.com/cosmos/ibc-go/blob/main/docs/architecture/adr-001-coin-source-tracing.md#decision
+    if denom.prefix().starts_with("ibc") {
+        denom = state
+            .get_ibc_asset(denom.id())
+            .await
+            .context("failed to get denom trace from asset id")?;
+    }
+
     // check if the recipient is a bridge account; if so,
     // ensure that the packet memo field is set, as the value in it
     // should be the rollup destination address.
@@ -385,16 +395,6 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
             .put_deposit_event(deposit)
             .await
             .context("failed to put deposit event into state")?;
-    }
-
-    // if the asset is prefixed with `ibc`, the rest of the denomination string is the asset ID,
-    // so we need to look up the full trace from storage.
-    // see https://github.com/cosmos/ibc-go/blob/main/docs/architecture/adr-001-coin-source-tracing.md#decision
-    if denom.prefix().starts_with("ibc") {
-        denom = state
-            .get_ibc_asset(denom.id())
-            .await
-            .context("failed to get denom trace from asset id")?;
     }
 
     if is_source(source_port, source_channel, &denom, is_refund) {
@@ -460,7 +460,13 @@ mod test {
     use cnidarium::StateDelta;
 
     use super::*;
-    use crate::accounts::state_ext::StateReadExt;
+    use crate::{
+        accounts::state_ext::StateReadExt as _,
+        bridge::state_ext::{
+            StateReadExt as _,
+            StateWriteExt as _,
+        },
+    };
 
     #[tokio::test]
     async fn execute_ics20_transfer_to_eoa() {
@@ -504,9 +510,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn execute_ics20_transfer_to_bridge_account() {
-        use crate::bridge::state_ext::StateWriteExt as _;
-
+    async fn execute_ics20_transfer_to_bridge_account_ok() {
         let storage = cnidarium::TempStorage::new()
             .await
             .expect("failed to create temp storage backing chain state");
@@ -549,5 +553,74 @@ mod test {
             .await
             .unwrap();
         assert_eq!(balance, 100);
+
+        let deposit = state_tx.get_block_deposits().await.unwrap();
+        assert_eq!(deposit.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn execute_ics20_transfer_to_bridge_account_invalid() {
+        let storage = cnidarium::TempStorage::new()
+            .await
+            .expect("failed to create temp storage backing chain state");
+        let snapshot = storage.latest_snapshot();
+        let mut state_tx = StateDelta::new(snapshot.clone());
+
+        let bridge_address = Address::from([99; 20]);
+        let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
+        let denom: Denom = "nootasset".to_string().into();
+
+        state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
+        state_tx
+            .put_bridge_account_asset_ids(&bridge_address, &[denom.id()])
+            .unwrap();
+
+        // use empty memo, which should fail
+        let packet = FungibleTokenPacketData {
+            denom: "nootasset".to_string(),
+            sender: "".to_string(),
+            amount: "100".to_string(),
+            receiver: hex::encode(bridge_address),
+            memo: "".to_string(),
+        };
+        let packet_bytes = serde_json::to_vec(&packet).expect("failed to serialize packet data");
+
+        assert!(
+            execute_ics20_transfer(
+                &mut state_tx,
+                &packet_bytes,
+                &"source_port".to_string().parse().unwrap(),
+                &"source_channel".to_string().parse().unwrap(),
+                &"dest_port".to_string().parse().unwrap(),
+                &"dest_channel".to_string().parse().unwrap(),
+                false,
+            )
+            .await
+            .is_err()
+        );
+
+        // use invalid asset, which should fail
+        let packet = FungibleTokenPacketData {
+            denom: "fake".to_string(),
+            sender: "".to_string(),
+            amount: "100".to_string(),
+            receiver: hex::encode(bridge_address),
+            memo: "destinationaddress".to_string(),
+        };
+        let packet_bytes = serde_json::to_vec(&packet).expect("failed to serialize packet data");
+
+        assert!(
+            execute_ics20_transfer(
+                &mut state_tx,
+                &packet_bytes,
+                &"source_port".to_string().parse().unwrap(),
+                &"source_channel".to_string().parse().unwrap(),
+                &"dest_port".to_string().parse().unwrap(),
+                &"dest_channel".to_string().parse().unwrap(),
+                false,
+            )
+            .await
+            .is_err()
+        );
     }
 }
