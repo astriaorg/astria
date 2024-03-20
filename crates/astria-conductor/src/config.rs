@@ -27,11 +27,11 @@ impl CommitLevel {
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Config {
+    /// The block time of Celestia network in milliseconds.
+    pub celestia_block_time_ms: u64,
+
     /// URL of the Celestia Node HTTP RPC
     pub celestia_node_http_url: String,
-
-    /// URL of the Celestia Node Websocket RPC
-    pub celestia_node_websocket_url: String,
 
     /// The JWT bearer token supplied with each jsonrpc call
     pub celestia_bearer_token: String,
