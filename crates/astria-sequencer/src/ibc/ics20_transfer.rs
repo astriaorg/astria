@@ -459,13 +459,7 @@ mod test {
     use cnidarium::StateDelta;
 
     use super::*;
-    use crate::{
-        accounts::state_ext::StateReadExt as _,
-        bridge::state_ext::{
-            StateReadExt as _,
-            StateWriteExt as _,
-        },
-    };
+    use crate::accounts::state_ext::StateReadExt as _;
 
     #[test]
     fn is_prefixed_test() {
