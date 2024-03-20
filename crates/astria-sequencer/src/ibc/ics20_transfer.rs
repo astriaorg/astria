@@ -207,7 +207,7 @@ fn is_source(
     asset: &Denom,
     is_refund: bool,
 ) -> bool {
-    let prefix = format!("{source_port}/{source_channel}/");
+    let prefix = format!("{source_port}/{source_channel}");
     if is_refund {
         !asset.prefix_is(&prefix)
     } else {
@@ -411,4 +411,22 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn is_source_test() {
+        let source_port = "source_port".to_string().parse().unwrap();
+        let source_channel = "source_channel".to_string().parse().unwrap();
+        let asset = Denom::from("source_port/source_channel/asset".to_string());
+        // in the case of a transfer in that is not a refund,
+        // we are the source if the packets are prefixed by the sending chain
+        assert!(is_source(&source_port, &source_channel, &asset, false));
+        // in the case of a refund, we are the source if the packets are not
+        // prefixed by the sending chain
+        assert!(!is_source(&source_port, &source_channel, &asset, true));
+    }
 }
