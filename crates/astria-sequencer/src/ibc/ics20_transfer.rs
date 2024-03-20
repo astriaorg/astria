@@ -418,7 +418,7 @@ mod test {
     use super::*;
 
     #[test]
-    fn is_source_test() {
+    fn is_source_prefix_ok() {
         let source_port = "source_port".to_string().parse().unwrap();
         let source_channel = "source_channel".to_string().parse().unwrap();
         let asset = Denom::from("source_port/source_channel/asset".to_string());
