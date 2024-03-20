@@ -17,6 +17,7 @@ use anyhow::{
 };
 use astria_core::sequencer::v1::{
     asset::Denom,
+    block::Deposit,
     Address,
 };
 use cnidarium::{
@@ -52,6 +53,10 @@ use penumbra_proto::penumbra::core::component::ibc::v1::FungibleTokenPacketData;
 use crate::{
     accounts::state_ext::StateWriteExt as _,
     asset::state_ext::{
+        StateReadExt as _,
+        StateWriteExt as _,
+    },
+    bridge::state_ext::{
         StateReadExt as _,
         StateWriteExt as _,
     },
@@ -310,13 +315,6 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
     dest_channel: &ChannelId,
     is_refund: bool,
 ) -> Result<()> {
-    use astria_core::sequencer::v1::block::Deposit;
-
-    use crate::bridge::state_ext::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    };
-
     let packet_data: FungibleTokenPacketData =
         serde_json::from_slice(data).context("failed to decode FungibleTokenPacketData")?;
     let packet_amount: u128 = packet_data
