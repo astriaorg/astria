@@ -30,7 +30,7 @@
 //!     .expect("failed to setup telemetry");
 //! info!(config = cfg_ser, "initializing composer",);
 //!
-//! let _composer = Composer::from_config(&cfg).await
+//! let _composer = Composer::from_config(&cfg)
 //!     .expect("failed creating composer")
 //!     .run_until_stopped()
 //!     .await;
@@ -41,10 +41,11 @@ pub(crate) mod api;
 mod build_info;
 mod collectors;
 mod composer;
-pub(crate) mod composer_service;
+mod composer_status;
 pub mod config;
 mod executor;
 mod rollup;
+
 
 pub use build_info::BUILD_INFO;
 pub use composer::Composer;

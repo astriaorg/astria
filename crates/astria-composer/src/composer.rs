@@ -1,42 +1,31 @@
 use std::{
     collections::HashMap,
-    io,
     net::SocketAddr,
 };
 
-use astria_core::{
-    generated::composer::v1alpha1::grpc_collector_service_server::GrpcCollectorServiceServer,
-    sequencer::v1::transaction::action::SequenceAction,
-};
+use astria_core::sequencer::v1::transaction::action::SequenceAction;
 use astria_eyre::eyre::{
     self,
     WrapErr as _,
 };
 use tokio::{
-    net::TcpListener,
     sync::{
         mpsc::Sender,
         watch,
     },
     task::JoinError,
 };
+use tokio::net::TcpListener;
 use tokio_util::task::JoinMap;
 use tracing::{
     error,
     info,
 };
-use crate::{
-    api::{
-        self,
-        ApiServer,
-    },
-    collectors,
-    collectors::Geth,
-    executor,
-    executor::Executor,
-    rollup::Rollup,
-    Config,
-};
+use crate::{api::{
+    self,
+    ApiServer,
+}, collectors, collectors::Geth, executor, executor::Executor, rollup::Rollup, Config, composer};
+use crate::composer_status::ComposerStatus;
 
 /// `Composer` is a service responsible for spinning up `GethCollectors` which are responsible
 /// for fetching pending transactions submitted to the rollup Geth nodes and then passing them
@@ -47,8 +36,8 @@ pub struct Composer {
     api_server: ApiServer,
     /// `ComposerStatusSender` is used to announce the current status of the Composer for other
     /// modules in the crate to use.
-    composer_status_sender: watch::Sender<Status>,
-    /// `ExecutorHandle` contains a channel to communicate SequenceActions to the Executor
+    composer_status_sender: watch::Sender<composer::Status>,
+    /// `ExecutorHandle` to communicate SequenceActions to the Executor
     /// This is at the Composer level to allow its sharing to various different collectors.
     executor_handle: executor::Handle,
     /// `Executor` is responsible for signing and submitting sequencer transactions
@@ -104,7 +93,6 @@ impl Composer {
         )
             .wrap_err("executor construction from config failed")?;
 
-        let grpc_collector_listener = TcpListener::bind(cfg.grpc_collector_addr).await?;
 
         let api_server = api::start(cfg.api_listen_addr, composer_status_sender.subscribe());
 
@@ -151,13 +139,6 @@ impl Composer {
     /// Returns the socket address the api server is served over
     pub fn local_addr(&self) -> SocketAddr {
         self.api_server.local_addr()
-    }
-
-    /// Returns the socker address the grpc collector is served over
-    /// # Errors
-    /// Returns an error if the listener is not bound
-    pub fn grpc_collector_local_addr(&self) -> io::Result<SocketAddr> {
-        self.grpc_collector_listener.local_addr()
     }
 
     /// Runs the composer.
@@ -345,7 +326,6 @@ mod tests {
     use astria_core::sequencer::v1::RollupId;
     use astria_core::sequencer::v1::transaction::action::SequenceAction;
     use crate::{collectors, executor};
-
 
     /// This tests the `reconnect_exited_collector` handler.
     #[tokio::test]
