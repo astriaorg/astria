@@ -9,11 +9,7 @@ use astria_eyre::eyre::{
 };
 use tokio::{
     io,
-    net::TcpListener,
-    sync::{
-        mpsc::Sender,
-        watch,
-    },
+    sync::watch,
     task::JoinError,
 };
 use tokio_util::task::JoinMap;
@@ -21,12 +17,20 @@ use tracing::{
     error,
     info,
 };
-use crate::{api::{
-    self,
-    ApiServer,
-}, collectors, collectors::Geth, executor, executor::Executor, rollup::Rollup, Config, composer};
-use crate::composer_status::ComposerStatus;
-use crate::grpc_collector::GrpcCollector;
+
+use crate::{
+    api::{
+        self,
+        ApiServer,
+    },
+    collectors,
+    collectors::Geth,
+    composer,
+    executor,
+    executor::Executor,
+    rollup::Rollup,
+    Config,
+};
 
 /// `Composer` is a service responsible for spinning up `GethCollectors` which are responsible
 /// for fetching pending transactions submitted to the rollup Geth nodes and then passing them
@@ -47,13 +51,13 @@ pub struct Composer {
     /// `GethCollectors` is the collection of geth collectors and their rollup names.
     geth_collectors: HashMap<String, collectors::Geth>,
     /// `GethCollectorStatuses` The collection of the geth collector statuses.
-    geth_collector_statuses: HashMap<String, watch::Receiver<collectors::Status>>,
+    geth_collector_statuses: HashMap<String, watch::Receiver<collectors::geth::Status>>,
     /// `GethCollectorTasks` is the set of tasks tracking if the geth collectors are still running.
     geth_collector_tasks: JoinMap<String, eyre::Result<()>>,
     /// `Rollups` The map of chain ID to the URLs to which geth collectors should connect.
-    rollups: HashMap<String, String>,
+    rollup_id_to_url: HashMap<String, String>,
     /// `GrpcCollector` is a gRPC server to which users can send sequence actions
-    grpc_collector: GrpcCollector,
+    grpc_collector: collectors::Grpc,
 }
 
 /// Announces the current status of the Composer for other modules in the crate to use
@@ -83,7 +87,7 @@ impl Composer {
     /// # Errors
     ///
     /// An error is returned if the composer fails to be initialized.
-    /// See `[Composer::from_config]` for its error scenarios.
+    /// See `[from_config]` for its error scenarios.
     pub async fn from_config(cfg: &Config) -> eyre::Result<Self> {
         let (composer_status_sender, _) = watch::channel(Status::default());
         let (executor, executor_handle) = Executor::new(
@@ -92,11 +96,12 @@ impl Composer {
             cfg.block_time_ms,
             cfg.max_bytes_per_bundle,
         )
-            .wrap_err("executor construction from config failed")?;
+        .wrap_err("executor construction from config failed")?;
 
-
-        let grpc_collector_listener = TcpListener::bind(cfg.grpc_collector_addr).await?;
-        let grpc_collector = GrpcCollector::new(grpc_collector_listener, executor_handle.clone());
+        let grpc_collector =
+            collectors::Grpc::new(cfg.grpc_collector_addr, executor_handle.clone())
+                .await
+                .wrap_err("grpc collector construction from config failed")?;
 
         let api_server = api::start(cfg.api_listen_addr, composer_status_sender.subscribe());
 
@@ -105,7 +110,7 @@ impl Composer {
             "API server listening"
         );
 
-        let rollups = cfg
+        let rollup_id_to_url = cfg
             .rollups
             .split(',')
             .filter(|s| !s.is_empty())
@@ -113,7 +118,7 @@ impl Composer {
             .collect::<Result<HashMap<_, _>, _>>()
             .wrap_err("failed parsing provided <rollup_name>::<url> pairs as rollups")?;
 
-        let geth_collectors = rollups
+        let geth_collectors = rollup_id_to_url
             .iter()
             .map(|(rollup_name, url)| {
                 let collector =
@@ -132,7 +137,7 @@ impl Composer {
             composer_status_sender,
             executor_handle,
             executor,
-            rollups,
+            rollup_id_to_url,
             geth_collectors,
             geth_collector_statuses,
             geth_collector_tasks: JoinMap::new(),
@@ -149,7 +154,7 @@ impl Composer {
     /// # Errors
     /// Returns an error if the listener is not bound
     pub fn grpc_collector_local_addr(&self) -> io::Result<SocketAddr> {
-        self.grpc_collector.grpc_collector_local_addr()
+        self.grpc_collector.local_addr()
     }
 
     /// Runs the composer.
@@ -164,7 +169,7 @@ impl Composer {
             executor_handle,
             mut geth_collector_tasks,
             mut geth_collectors,
-            rollups,
+            rollup_id_to_url: rollups,
             mut geth_collector_statuses,
             grpc_collector,
         } = self;
@@ -320,12 +325,18 @@ fn report_exit(task_name: &str, outcome: Result<eyre::Result<()>, JoinError>) {
 mod tests {
     use std::collections::HashMap;
 
+    use astria_core::sequencer::v1::{
+        asset::default_native_asset_id,
+        transaction::action::SequenceAction,
+        RollupId,
+    };
     use ethers::types::Transaction;
     use tokio_util::task::JoinMap;
-    use astria_core::sequencer::v1::asset::default_native_asset_id;
-    use astria_core::sequencer::v1::RollupId;
-    use astria_core::sequencer::v1::transaction::action::SequenceAction;
-    use crate::{collectors, executor};
+
+    use crate::{
+        collectors,
+        executor,
+    };
 
     /// This tests the `reconnect_exited_collector` handler.
     #[tokio::test]
@@ -339,10 +350,17 @@ mod tests {
         let executor_handle = executor::Handle::new(tx.clone());
 
         let mut collector_tasks = JoinMap::new();
-        let collector = collectors::Geth::new(rollup_name.clone(), rollup_url.clone(), executor_handle.clone());
+        let collector = collectors::Geth::new(
+            rollup_name.clone(),
+            rollup_url.clone(),
+            executor_handle.clone(),
+        );
         let mut status = collector.subscribe();
         collector_tasks.spawn(rollup_name.clone(), collector.run_until_stopped());
-        status.wait_for(collectors::Status::is_connected).await.unwrap();
+        status
+            .wait_for(collectors::geth::Status::is_connected)
+            .await
+            .unwrap();
         let rollup_tx = Transaction::default();
         let expected_seq_action = SequenceAction {
             rollup_id: RollupId::from_unhashed_bytes(&rollup_name),
@@ -382,7 +400,7 @@ mod tests {
         statuses
             .get_mut(&rollup_name)
             .unwrap()
-            .wait_for(collectors::Status::is_connected)
+            .wait_for(collectors::geth::Status::is_connected)
             .await
             .unwrap();
         let _ = mock_geth.push_tx(rollup_tx).unwrap();

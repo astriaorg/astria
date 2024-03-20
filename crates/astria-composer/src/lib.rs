@@ -41,11 +41,8 @@ pub(crate) mod api;
 mod build_info;
 mod collectors;
 mod composer;
-mod composer_status;
 pub mod config;
 mod executor;
-
-mod grpc_collector;
 
 mod rollup;
 
