@@ -28,10 +28,7 @@ use ethers::providers::{
     Ws,
 };
 use tokio::sync::{
-    mpsc::{
-        error::SendTimeoutError,
-        Sender,
-    },
+    mpsc::error::SendTimeoutError,
     watch,
 };
 use tracing::{
@@ -39,6 +36,8 @@ use tracing::{
     instrument,
     warn,
 };
+
+use crate::executor;
 
 type StdError = dyn std::error::Error;
 
@@ -48,7 +47,6 @@ type StdError = dyn std::error::Error;
 /// It is responsible for fetching pending transactions submitted to the rollup Geth nodes and then
 /// passing them downstream for the executor to process. Thus, a composer can have multiple
 /// collectors running at the same time funneling data from multiple rollup nodes.
-#[derive(Debug)]
 pub(crate) struct Geth {
     // Chain ID to identify in the astria sequencer block which rollup a serialized sequencer
     // action belongs to. Created from `chain_name`.
@@ -56,7 +54,7 @@ pub(crate) struct Geth {
     // Name of the chain the transactions are read from.
     chain_name: String,
     // The channel on which the collector sends new txs to the executor.
-    new_bundles: Sender<SequenceAction>,
+    executor_handle: executor::Handle,
     // The status of this collector instance.
     status: watch::Sender<Status>,
     /// Rollup URL
@@ -82,16 +80,12 @@ impl Status {
 
 impl Geth {
     /// Initializes a new collector instance
-    pub(crate) fn new(
-        chain_name: String,
-        url: String,
-        new_bundles: Sender<SequenceAction>,
-    ) -> Self {
+    pub(crate) fn new(chain_name: String, url: String, executor_handle: executor::Handle) -> Self {
         let (status, _) = watch::channel(Status::new());
         Self {
             rollup_id: RollupId::from_unhashed_bytes(&chain_name),
             chain_name,
-            new_bundles,
+            executor_handle,
             status,
             url,
         }
@@ -113,7 +107,7 @@ impl Geth {
 
         let Self {
             rollup_id,
-            new_bundles,
+            executor_handle,
             status,
             url,
             ..
@@ -165,7 +159,7 @@ impl Geth {
                 fee_asset_id: default_native_asset_id(),
             };
 
-            match new_bundles
+            match executor_handle
                 .send_timeout(seq_action, Duration::from_millis(500))
                 .await
             {
