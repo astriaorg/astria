@@ -168,6 +168,8 @@ impl Reader {
             "setting up celestia reader",
         );
 
+        // XXX: The websocket client must be kept alive so that the subscription doesn't die.
+        //      We bind to `_wsclient` because `_` will immediately drop the object.
         let (mut _wsclient, mut headers) =
             subscribe_to_celestia_headers(&self.celestia_ws_endpoint, &self.celestia_auth_token)
                 .await
@@ -215,28 +217,34 @@ impl Reader {
             namespace.sequencer = %hex(&self.sequencer_namespace.as_bytes()),
         ));
 
-        let mut scheduled_block: Fuse<BoxFuture<Result<_, SendError<ReconstructedBlock>>>> =
+        // Enqueued block waiting for executor to free up. Set if the executor exhibits
+        // backpressure.
+        let mut enqueued_block: Fuse<BoxFuture<Result<_, SendError<ReconstructedBlock>>>> =
             future::Fuse::terminated();
+
+        // Pending subcription to Celestia network headers. Set if the current subscription fails.
         let mut resubscribing = Fuse::terminated();
-        loop {
+        let reason = loop {
             select!(
+                biased;
+
                 () = self.shutdown.cancelled() => {
-                    info!("received shutdown signal; shutting down");
-                    break;
+                    break Ok("received shutdown signal");
                 }
 
-                // Processing block executions which were scheduled due to channel being full
-                res = &mut scheduled_block, if !scheduled_block.is_terminated() => {
+                // Process block execution which was enqueued due to executor channel being full
+                res = &mut enqueued_block, if !enqueued_block.is_terminated() => {
                     match res {
                         Ok(celestia_height) => {
                             block_stream.inner_mut().update_reference_height_if_greater(celestia_height);
+                            debug!("submitted enqueued block to executor, resuming normal operation");
                         }
-                        Err(_) => bail!("executor channel closed while waiting for it to free up"),
+                        Err(err) => break Err(err).wrap_err("failed sending enqueued block to executor"),
                     }
                 }
 
-                // Attempt sending next sequential block, if channel is full will be scheduled
-                Some(block) = sequential_blocks.next_block(), if scheduled_block.is_terminated() => {
+                // Forward the next block to executor. Enqueue if the executor channel is full.
+                Some(block) = sequential_blocks.next_block(), if enqueued_block.is_terminated() => {
                     let celestia_height = block.celestia_height;
                     match executor.try_send_firm_block(block) {
                         Ok(()) => {
@@ -246,7 +254,7 @@ impl Reader {
                             trace!("executor channel is full; rescheduling block fetch until the channel opens up");
                             let executor_clone = executor.clone();
                             // must return the celestia height to update the reference height upon completion
-                            scheduled_block = async move {
+                            enqueued_block = async move {
                                 let celestia_height = block.celestia_height;
                                 executor_clone.send_firm_block(block).await?;
                                 Ok(celestia_height)
@@ -321,8 +329,20 @@ impl Reader {
                     }
                 }
             );
+        };
+
+        // XXX: explicitly setting the message (usually implicitly set by tracing)
+        let message = "shutting down";
+        match reason {
+            Ok(reason) => {
+                info!(reason, message);
+                Ok(())
+            }
+            Err(reason) => {
+                error!(%reason, message);
+                Err(reason)
+            }
         }
-        Ok(())
     }
 }
 

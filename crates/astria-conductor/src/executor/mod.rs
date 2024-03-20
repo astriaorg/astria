@@ -210,7 +210,7 @@ impl Executor {
              spread (this has no effect if conductor is set to perform soft-sync only)"
         );
 
-        loop {
+        let reason = loop {
             let spread_not_too_large = !self.is_spread_too_large(max_spread);
             if spread_not_too_large {
                 self.soft_blocks.fill_permits();
@@ -220,8 +220,7 @@ impl Executor {
                 biased;
 
                 () = self.shutdown.cancelled() => {
-                    info!("received shutdown signal, shutting down");
-                    break Ok(());
+                    break Ok("received shutdown signal");
                 }
 
                 Some(block) = self.firm_blocks.recv() => {
@@ -231,9 +230,7 @@ impl Executor {
                         "received block from celestia reader",
                     );
                     if let Err(error) = self.execute_firm(client.clone(), block).await {
-                        let reason = "failed executing firm block";
-                        error!(%error, reason, "shutting down");
-                        break Err(error).wrap_err(reason);
+                        break Err(error).wrap_err("failed executing firm block");
                     }
                 }
 
@@ -244,14 +241,24 @@ impl Executor {
                         "received block from sequencer reader",
                     );
                     if let Err(error) = self.execute_soft(client.clone(), block).await {
-                        let reason = "failed executing soft block";
-                        error!(%error, reason, "shutting down");
-                        break Err(error).wrap_err(reason);
+                        break Err(error).wrap_err("failed executing soft block");
                     }
                 }
             );
+        };
+
+        // XXX: explicitly setting the message (usually implicitly set by tracing)
+        let message = "shutting down";
+        match reason {
+            Ok(reason) => {
+                info!(reason, message);
+                Ok(())
+            }
+            Err(reason) => {
+                error!(%reason, message);
+                Err(reason)
+            }
         }
-        // XXX: shut down the channels here and attempt to drain them before returning.
     }
 
     /// Calculates the maximum allowed spread between firm and soft commitments heights.
