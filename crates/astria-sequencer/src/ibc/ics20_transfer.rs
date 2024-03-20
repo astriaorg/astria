@@ -343,13 +343,20 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
         is_prefixed
     };
     if is_source {
-        // sender of packet (us) was the source chain
+        // the recipient (us) is also the source of the tokens
         // subtract balance from escrow account and transfer to user
 
-        let escrow_balance = state
-            .get_ibc_channel_balance(source_channel, denom.id())
-            .await
-            .context("failed to get IBC channel balance in execute_ics20_transfer")?;
+        let escrow_balance = if is_refund {
+            state
+                .get_ibc_channel_balance(source_channel, denom.id())
+                .await
+                .context("failed to get IBC channel balance in execute_ics20_transfer")?
+        } else {
+            state
+                .get_ibc_channel_balance(dest_channel, denom.id())
+                .await
+                .context("failed to get IBC channel balance in execute_ics20_transfer")?
+        };
 
         let user_balance = state.get_account_balance(recipient, denom.id()).await?;
         state
