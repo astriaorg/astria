@@ -25,7 +25,7 @@ use astria_core::{
 };
 use astria_eyre::{
     eyre,
-    eyre::eyre,
+    eyre::WrapErr,
 };
 use tokio::{
     io,
@@ -36,6 +36,7 @@ use tonic::{
     Request,
     Response,
 };
+
 use crate::executor;
 
 /// `GrpcCollector` listens for incoming gRPC requests and sends the Rollup transactions to the
@@ -44,39 +45,43 @@ use crate::executor;
 /// It implements the `ComposerService` rpc service.
 ///
 /// The composer will only have one `GrpcCollector` running at a time.
-pub(super) struct GrpcCollector {
-    grpc_collector_listener: TcpListener,
+pub(crate) struct Grpc {
+    listener: TcpListener,
     executor_handle: executor::Handle,
 }
 
-impl GrpcCollector {
-    pub(super) fn new(grpc_collector_listener: TcpListener, executor_handle: executor::Handle) -> Self {
-        Self {
-            grpc_collector_listener,
+impl Grpc {
+    pub(crate) async fn new(
+        grpc_addr: SocketAddr,
+        executor_handle: executor::Handle,
+    ) -> eyre::Result<Self> {
+        let listener = TcpListener::bind(grpc_addr)
+            .await
+            .wrap_err("failed to bind grpc listener")?;
+
+        Ok(Self {
+            listener,
             executor_handle,
-        }
+        })
     }
 
     /// Returns the socker address the grpc collector is served over
     /// # Errors
     /// Returns an error if the listener is not bound
-    pub(super) fn grpc_collector_local_addr(&self) -> io::Result<SocketAddr> {
-        self.grpc_collector_listener.local_addr()
+    pub(crate) fn local_addr(&self) -> io::Result<SocketAddr> {
+        self.listener.local_addr()
     }
 
-    pub(super) async fn run_until_stopped(self) -> eyre::Result<()> {
+    pub(crate) async fn run_until_stopped(self) -> eyre::Result<()> {
         let composer_service = GrpcCollectorServiceServer::new(self.executor_handle);
         let grpc_server = tonic::transport::Server::builder().add_service(composer_service);
 
-        match grpc_server
+        grpc_server
             .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(
-                self.grpc_collector_listener,
+                self.listener,
             ))
             .await
-        {
-            Ok(()) => Ok(()),
-            Err(err) => Err(eyre!(err)),
-        }
+            .wrap_err("failed to run grpc server")
     }
 }
 
@@ -93,17 +98,16 @@ impl GrpcCollectorService for executor::Handle {
             ));
         }
 
-        // package the sequence actions into a SequenceAction and send it to the searcher
-        for sequence_action in submit_rollup_txs_request.rollup_txs {
+        // package the rollup txs into a SequenceAction and send it to the searcher
+        for rollup_txs in submit_rollup_txs_request.rollup_txs {
             let sequence_action = SequenceAction {
-                rollup_id: RollupId::from_unhashed_bytes(sequence_action.rollup_id),
-                data: sequence_action.tx_bytes,
+                rollup_id: RollupId::from_unhashed_bytes(rollup_txs.rollup_id),
+                data: rollup_txs.tx_bytes,
                 fee_asset_id: default_native_asset_id(),
             };
 
             match self
-                .get()
-                .send_timeout(sequence_action, Duration::from_millis(500))
+                .send_with_timeout(sequence_action, Duration::from_millis(500))
                 .await
             {
                 Ok(()) => {}

@@ -30,8 +30,6 @@ use wiremock::{
     Request,
     ResponseTemplate,
 };
-use astria_core::generated::composer::v1alpha1::composer_service_client::ComposerServiceClient;
-use astria_core::generated::composer::v1alpha1::{SequenceAction, SubmitSequenceActionsRequest};
 
 use crate::helper::spawn_composer;
 
