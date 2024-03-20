@@ -72,8 +72,7 @@ async fn collector_restarts_after_exit() {
     rollup_node.cancel_subscriptions().unwrap();
 
     // FIXME: There is a race condition in the mock geth server between when the tx is pushed
-    // and when the `eth_subscribe` task reads it. We need to ensure that tasks pushed to the mock
-    // geth server stay alive across all `eth_subscribe` tasks spawned by the geth server.
+    // and when the `eth_subscribe` task reads it.
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     // the collector will be restarted now, we should be able to send a tx normally
