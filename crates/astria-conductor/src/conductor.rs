@@ -1,15 +1,12 @@
-use std::{
-    collections::HashMap,
-    error::Error as StdError,
-    rc::Rc,
-    time::Duration,
-};
+use std::time::Duration;
 
 use astria_eyre::eyre::{
     self,
+    eyre,
     WrapErr as _,
 };
 use celestia_client::celestia_types::nmt::Namespace;
+use itertools::Itertools as _;
 use sequencer_client::HttpClient;
 use tokio::{
     select,
@@ -17,14 +14,12 @@ use tokio::{
         signal,
         SignalKind,
     },
-    sync::oneshot,
-    task::{
-        spawn_local,
-        LocalSet,
-    },
     time::timeout,
 };
-use tokio_util::task::JoinMap;
+use tokio_util::{
+    sync::CancellationToken,
+    task::JoinMap,
+};
 use tracing::{
     error,
     info,
@@ -35,12 +30,13 @@ use crate::{
     celestia,
     executor,
     sequencer,
+    utils::flatten,
     Config,
 };
 
 pub struct Conductor {
-    /// Channels to the long-running tasks to shut them down gracefully
-    shutdown_channels: HashMap<&'static str, oneshot::Sender<()>>,
+    /// Token to signal to all tasks to shut down gracefully.
+    shutdown: CancellationToken,
 
     /// The different long-running tasks that make up the conductor;
     tasks: JoinMap<&'static str, eyre::Result<()>>,
@@ -59,31 +55,27 @@ impl Conductor {
     /// This usually happens if the actors failed to connect to their respective endpoints.
     pub async fn new(cfg: Config) -> eyre::Result<Self> {
         let mut tasks = JoinMap::new();
-        let mut shutdown_channels = HashMap::new();
 
         let sequencer_cometbft_client = HttpClient::new(&*cfg.sequencer_cometbft_url)
             .wrap_err("failed constructing sequencer cometbft RPC client")?;
 
+        let shutdown = CancellationToken::new();
+
         // Spawn the executor task.
         let executor_handle = {
-            let (shutdown_tx, shutdown_rx) = oneshot::channel();
-
             let (executor, handle) = executor::Builder {
                 consider_commitment_spread: !cfg.execution_commit_level.is_soft_only(),
                 rollup_address: cfg.execution_rpc_url,
-                shutdown: shutdown_rx,
+                shutdown: shutdown.clone(),
             }
             .build()
             .wrap_err("failed constructing exectur")?;
 
             tasks.spawn(Self::EXECUTOR, executor.run_until_stopped());
-            shutdown_channels.insert(Self::EXECUTOR, shutdown_tx);
             handle
         };
 
         if !cfg.execution_commit_level.is_firm_only() {
-            let (shutdown_tx, shutdown_rx) = oneshot::channel();
-
             let sequencer_grpc_client =
                 sequencer::SequencerGrpcClient::new(&cfg.sequencer_grpc_url)
                     .wrap_err("failed constructing grpc client for Sequencer")?;
@@ -95,18 +87,14 @@ impl Conductor {
                 sequencer_grpc_client,
                 sequencer_cometbft_client: sequencer_cometbft_client.clone(),
                 sequencer_block_time: Duration::from_millis(cfg.sequencer_block_time_ms),
-                shutdown: shutdown_rx,
+                shutdown: shutdown.clone(),
                 executor: executor_handle.clone(),
             }
             .build();
             tasks.spawn(Self::SEQUENCER, sequencer_reader.run_until_stopped());
-            shutdown_channels.insert(Self::SEQUENCER, shutdown_tx);
         }
 
         if !cfg.execution_commit_level.is_soft_only() {
-            let (shutdown_tx, shutdown_rx) = oneshot::channel();
-            shutdown_channels.insert(Self::CELESTIA, shutdown_tx);
-
             // Sequencer namespace is defined by the chain id of attached sequencer node
             // which can be fetched from any block header.
             let sequencer_namespace = get_sequencer_namespace(sequencer_cometbft_client.clone())
@@ -120,7 +108,7 @@ impl Conductor {
                 executor: executor_handle.clone(),
                 sequencer_cometbft_client: sequencer_cometbft_client.clone(),
                 sequencer_namespace,
-                shutdown: shutdown_rx,
+                shutdown: shutdown.clone(),
             }
             .build();
 
@@ -128,7 +116,7 @@ impl Conductor {
         };
 
         Ok(Self {
-            shutdown_channels,
+            shutdown,
             tasks,
         })
     }
@@ -138,26 +126,6 @@ impl Conductor {
     /// # Panics
     /// Panics if it could not install a signal handler.
     pub async fn run_until_stopped(mut self) {
-        enum ExitReason {
-            Sigterm,
-            TaskExited {
-                name: &'static str,
-            },
-            TaskErrored {
-                name: &'static str,
-                error: eyre::Report,
-            },
-            TaskPanicked {
-                name: &'static str,
-                error: tokio::task::JoinError,
-            },
-        }
-        use ExitReason::{
-            Sigterm,
-            TaskErrored,
-            TaskExited,
-            TaskPanicked,
-        };
         let mut sigterm = signal(SignalKind::terminate()).expect(
             "setting a SIGTERM listener should always work on unix; is this running on unix?",
         );
@@ -165,99 +133,58 @@ impl Conductor {
         let exit_reason = select! {
             biased;
 
-            _ = sigterm.recv() => Sigterm,
+            _ = sigterm.recv() => Ok("received SIGTERM"),
 
             Some((name, res)) = self.tasks.join_next() => {
-                match res {
-                    Ok(Ok(())) => TaskExited { name, },
-                    Ok(Err(error)) => TaskErrored { name, error},
-                    Err(error) => TaskPanicked { name, error },
+                match flatten(res) {
+                    Ok(()) => Err(eyre!("task `{name}` exited unexpectedly")),
+                    Err(err) => Err(err).wrap_err_with(|| "task `{name}` failed"),
                 }
             }
         };
 
+        let message = "initiating shutdown";
         match exit_reason {
-            Sigterm => info!(reason = "received SIGTERM", "shutting down"),
-            TaskExited {
-                name,
-            } => error!(
-                task.name = name,
-                reason = "task exited unexpectedly",
-                "shutting down"
-            ),
-            TaskErrored {
-                name,
-                error,
-            } => error!(
-                task.name = name,
-                reason = "task exited with error",
-                %error,
-                "shutting down"
-            ),
-            TaskPanicked {
-                name,
-                error,
-            } => error!(
-                task.name = name,
-                reason = "task panicked",
-                error = &error as &dyn StdError,
-                "shutting down",
-            ),
+            Ok(reason) => info!(reason, message),
+            Err(reason) => error!(%reason, message),
         }
         self.shutdown().await;
     }
 
-    async fn shutdown(self) {
-        info!("sending shutdown command to all tasks");
-        for (_, channel) in self.shutdown_channels {
-            let _ = channel.send(());
-        }
+    /// Shuts down all tasks.
+    ///
+    /// Waits 25 seconds for all tasks to shut down before aborting them. 25 seconds
+    /// because kubernetes issues SIGKILL 30 seconds after SIGTERM, giving 5 seconds
+    /// to abort the remaining tasks.
+    async fn shutdown(mut self) {
+        self.shutdown.cancel();
 
-        info!("waiting 5 seconds for all tasks to shut down");
-        // put the tasks into an Rc to make them 'static so they can run on a local set
-        let mut tasks = Rc::new(self.tasks);
-        let local_set = LocalSet::new();
-        local_set
-            .run_until(async {
-                let mut tasks = tasks.clone();
-                let _ = timeout(
-                    Duration::from_secs(5),
-                    spawn_local(async move {
-                        while let Some((name, res)) = Rc::get_mut(&mut tasks)
-                            .expect(
-                                "only one Rc to the conductor tasks should exist; this is a bug",
-                            )
-                            .join_next()
-                            .await
-                        {
-                            match res {
-                                Ok(Ok(())) => info!(task.name = name, "task exited normally"),
-                                Ok(Err(e)) => {
-                                    let error: &(dyn std::error::Error + 'static) = e.as_ref();
-                                    error!(task.name = name, error, "task exited with error");
-                                }
-                                Err(e) => {
-                                    let error = &e as &(dyn std::error::Error + 'static);
-                                    error!(task.name = name, error, "task failed");
-                                }
-                            }
-                        }
-                    }),
-                )
-                .await;
-            })
-            .await;
+        info!("signalled all tasks to shut down; waiting for 25 seconds to exit");
 
-        if !tasks.is_empty() {
+        let shutdown_loop = async {
+            while let Some((name, res)) = self.tasks.join_next().await {
+                let message = "task shut down";
+                match flatten(res) {
+                    Ok(()) => info!(name, message),
+                    Err(error) => error!(name, %error, message),
+                }
+            }
+        };
+
+        if timeout(Duration::from_secs(25), shutdown_loop)
+            .await
+            .is_err()
+        {
+            let tasks = self.tasks.keys().join(", ");
             warn!(
-                number = tasks.len(),
-                "aborting tasks that haven't shutdown yet"
+                tasks = format_args!("[{tasks}]"),
+                "aborting all tasks that have not yet shut down",
             );
-            Rc::get_mut(&mut tasks)
-                .expect("only one Rc to the conductor tasks should exist; this is a bug")
-                .shutdown()
-                .await;
+            self.tasks.abort_all();
+        } else {
+            info!("all tasks shut down regularly");
         }
+        info!("shutting down");
     }
 }
 

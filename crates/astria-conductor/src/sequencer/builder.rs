@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use tokio::sync::oneshot;
+use tokio_util::sync::CancellationToken;
 
 use super::SequencerGrpcClient;
 use crate::executor;
@@ -10,7 +10,7 @@ pub(crate) struct Builder {
     pub(crate) sequencer_grpc_client: SequencerGrpcClient,
     pub(crate) sequencer_cometbft_client: sequencer_client::HttpClient,
     pub(crate) sequencer_block_time: Duration,
-    pub(crate) shutdown: oneshot::Receiver<()>,
+    pub(crate) shutdown: CancellationToken,
 }
 
 impl Builder {
