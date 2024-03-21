@@ -1,0 +1,42 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: preview-evm-rollup
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+  - pullRequest:
+      github:
+        owner: astriaorg
+        repo: astria
+        tokenRef:
+          key: token
+          secretName: github-pat
+        labels:
+        - preview-evm-rollup
+      requeueAfterSeconds: 60
+  template:
+    metadata:
+      name: pr-{{.number}}-evm-rollup
+    spec:
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: pr-{{.number}}
+      project: default
+      sources:
+        - repoURL: https://github.com/astriaorg/astria.git
+          targetRevision: HEAD
+          path: ./charts/evm-rollup
+          helm:
+            valueFiles:
+            - values-dev.yaml
+            parameters:
+            - name: global.namespace
+              value: pr-{{.number}}
+            - name: ingress.hostname
+              value: "pr-{{.number}}.dev.astria.org"
+      syncPolicy:
+        automated:
+          selfHeal: false

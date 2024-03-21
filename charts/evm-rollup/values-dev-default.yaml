@@ -1,0 +1,73 @@
+# Default values for rollup.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+global:
+  namespace: "astria-dev-cluster"
+  replicaCount: 1
+  useTTY: false
+
+config:
+  # Whether to use tty readable logging for astria services, when false use json.
+  # Best to be false in production environments, true for clean logs on local dev.
+
+  logLevel: "debug"
+
+  rollup:
+    # Name for Rollup Chain
+    name: astria-dusk
+    # Chain ID used for submission to shared sequencer, and generating DA namespace
+    chainId: astria-dusk-1
+    # EVM network ID used by the chain
+    networkId: 912559
+    # Set to true to have rollup blocks only be generated when there are transactions
+    skipEmptyBlocks: false
+    # Determines what will drive block execution, options are:
+    # - "SoftOnly" -> blocks are only pulled from the sequencer
+    # - "FirmOnly" -> blocks are only pulled from DA
+    # - "SoftAndFirm" -> blocks are pulled from both the sequencer and DA
+    executionCommitLevel: 'SoftOnly'
+    # Definitions around who has funding on startup
+    genesisAccounts:
+      - address: "0xEDFA7f5913DfbBaA8834203199fCb32E6D3Fca75"
+        balance: "100000000000000000000000000"
+    
+  faucet:
+    # The amount of token to give per request
+    amount: 1
+  
+  sequencer:
+    # Block height to start syncing rollup from
+    initialBlockHeight: 1
+    # Websocket connection used for
+    websocket: "ws://sequencer-service:26657/websocket"
+    # URL path for the sequencer
+    rpc: "http://sequencer-service:26657"
+
+  # Configuration for Celestia DA
+  celestia:
+    # Full node which client will connect to
+    fullNodeUrl: "http://celestia-service:26658"
+
+storage:
+  enabled: true
+  local: false
+  entities:
+    rollupSharedStorage:
+      size: "200Gi"
+      persistentVolumeName: "rollup-shared-storage"
+      path: "/data/rollup-data"
+
+secretProvider:
+  enabled: true
+  provider: gcp
+  secrets:
+    # Used in place of sequencer.privateKey value when provider enabled
+    sequencer-private-key:
+      filename: sequencer-private-key.txt
+      resourceName: projects/devnet-coldbrew-1/secrets/funded-sequencer-private-key/versions/latest
+      key: token
+    # Used in place of faucet.privateKey value when provider enabled
+    evm-private-key:
+      filename: evm-private-key.txt
+      resourceName: projects/devnet-coldbrew-1/secrets/funded-evm-private-key/versions/latest
+      key: token

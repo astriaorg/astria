@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: evm-rollup-mono
+spec:
+  project: default
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: astria-mono
+  sources:
+    - repoURL: https://github.com/astriaorg/astria.git
+      targetRevision: aajimal/charts-argo
+      path: './charts/evm-rollup'
+      helm:
+        valueFiles:
+        - values.yaml
+        - values-dev-default.yaml
+        - values-dev.yaml
