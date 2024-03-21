@@ -306,6 +306,73 @@ impl AppHandlerExecute for Ics20Transfer {
 #[async_trait::async_trait]
 impl AppHandler for Ics20Transfer {}
 
+async fn execute_ics20_transfer_bridge_lock<S: StateWriteExt>(
+    state: &mut S,
+    recipient: &Address,
+    denom: &Denom,
+    amount: u128,
+    destination_address: String,
+    is_refund: bool,
+) -> Result<()> {
+    // check if the recipient is a bridge account; if so,
+    // ensure that the packet memo field (`destination_address`) is set.
+    //
+    // also, ensure that the asset ID being transferred
+    // to it is allowed.
+    let maybe_recipient_rollup_id = state
+        .get_bridge_account_rollup_id(recipient)
+        .await
+        .context("failed to get bridge account rollup ID from state")?;
+    let is_bridge_lock = maybe_recipient_rollup_id.is_some();
+
+    // account being transferred to is not a bridge account, return
+    if !is_bridge_lock {
+        return Ok(());
+    }
+
+    // note: bridge accounts *are* allowed to do ICS20 withdrawals,
+    // so this could be a refund to a bridge account if that withdrawal times out.
+    //
+    // so, if this is a refund transaction, we don't need to emit a `Deposit`,
+    // as the tokens are being refunded to the bridge's account.
+    //
+    // then, we don't need to check the memo field (as no `Deposit` is created),
+    // or check the asset IDs (as the asset IDs that can be sent out are the same
+    // as those that can be received).
+    if is_refund {
+        return Ok(());
+    }
+
+    ensure!(
+        !destination_address.is_empty(),
+        "packet memo field must be set for bridge account recipient",
+    );
+
+    let allowed_asset_ids = state
+        .get_bridge_account_asset_ids(&recipient)
+        .await
+        .context("failed to get bridge account asset IDs")?;
+    ensure!(
+        allowed_asset_ids.contains(&denom.id()),
+        "asset ID is not authorized for transfer to bridge account",
+    );
+
+    let deposit = Deposit::new(
+        recipient.clone(),
+        maybe_recipient_rollup_id
+            .expect("recipient has a rollup ID; this was checked via `is_bridge_lock`"),
+        amount,
+        denom.id(),
+        destination_address,
+    );
+    state
+        .put_deposit_event(deposit)
+        .await
+        .context("failed to put deposit event into state")?;
+
+    Ok(())
+}
+
 async fn execute_ics20_transfer<S: StateWriteExt>(
     state: &mut S,
     data: &[u8],
@@ -337,55 +404,18 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
             .context("failed to get denom trace from asset id")?;
     }
 
-    // check if the recipient is a bridge account; if so,
-    // ensure that the packet memo field is set, as the value in it
-    // should be the rollup destination address.
-    //
-    // also, ensure that the asset ID being transferred
-    // to it is allowed.
-    let maybe_recipient_rollup_id = state
-        .get_bridge_account_rollup_id(&recipient)
-        .await
-        .context("failed to get bridge account rollup ID from state")?;
-    let is_bridge_lock = maybe_recipient_rollup_id.is_some();
-
-    // note: bridge accounts *are* allowed to do ICS20 withdrawals,
-    // so this could be a refund to a bridge account if that withdrawal times out.
-    //
-    // so, if this is a refund transaction, we don't need to emit a `Deposit`,
-    // as the tokens are being refunded to the bridge's account.
-    //
-    // then, we don't need to check the memo field (as no `Deposit` is created),
-    // or check the asset IDs (as the asset IDs that can be sent out are the same
-    // as those that can be received).
-    if is_bridge_lock && !is_refund {
-        ensure!(
-            !packet_data.memo.is_empty(),
-            "packet memo field must be set for bridge account recipient",
-        );
-
-        let allowed_asset_ids = state
-            .get_bridge_account_asset_ids(&recipient)
-            .await
-            .context("failed to get bridge account asset IDs")?;
-        ensure!(
-            allowed_asset_ids.contains(&denom.id()),
-            "asset ID is not authorized for transfer to bridge account",
-        );
-
-        let deposit = Deposit::new(
-            recipient,
-            maybe_recipient_rollup_id
-                .expect("recipient has a rollup ID; this was checked via `is_bridge_lock`"),
-            packet_amount,
-            denom.id(),
-            packet_data.memo,
-        );
-        state
-            .put_deposit_event(deposit)
-            .await
-            .context("failed to put deposit event into state")?;
-    }
+    // check if this is a transfer to a bridge account and
+    // execute relevant state changes if it is
+    execute_ics20_transfer_bridge_lock(
+        state,
+        &recipient,
+        &denom,
+        packet_amount,
+        packet_data.memo.clone(),
+        is_refund,
+    )
+    .await
+    .context("failed to execute ics20 transfer to bridge account")?;
 
     let is_prefixed = is_prefixed(source_port, source_channel, &denom);
     let is_source = if is_refund {
