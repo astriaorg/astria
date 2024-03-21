@@ -35,13 +35,13 @@ use tokio::{
                 TrySendError,
             },
         },
-        oneshot,
         watch::{
             self,
             error::RecvError,
         },
     },
 };
+use tokio_util::sync::CancellationToken;
 use tracing::{
     debug,
     error,
@@ -54,6 +54,7 @@ use crate::celestia::ReconstructedBlock;
 mod builder;
 pub(crate) mod channel;
 
+pub(crate) use builder::Builder;
 use channel::soft_block_channel;
 
 mod client;
@@ -170,7 +171,8 @@ pub(crate) struct Executor {
     firm_blocks: mpsc::Receiver<ReconstructedBlock>,
     soft_blocks: channel::Receiver<FilteredSequencerBlock>,
 
-    shutdown: oneshot::Receiver<()>,
+    /// Token to listen for Conductor being shut down.
+    shutdown: CancellationToken,
 
     rollup_address: tonic::transport::Uri,
 
@@ -189,10 +191,6 @@ pub(crate) struct Executor {
 }
 
 impl Executor {
-    pub(super) fn builder() -> builder::ExecutorBuilder {
-        builder::ExecutorBuilder::new()
-    }
-
     #[instrument(skip_all)]
     pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
         let client = Client::connect(self.rollup_address.clone())
@@ -212,7 +210,7 @@ impl Executor {
              spread (this has no effect if conductor is set to perform soft-sync only)"
         );
 
-        loop {
+        let reason = loop {
             let spread_not_too_large = !self.is_spread_too_large(max_spread);
             if spread_not_too_large {
                 self.soft_blocks.fill_permits();
@@ -221,16 +219,8 @@ impl Executor {
             select!(
                 biased;
 
-                shutdown = &mut self.shutdown => {
-                    let ret = if let Err(error) = shutdown {
-                        let reason = "shutdown channel closed unexpectedly";
-                        error!(%error, reason, "shutting down");
-                        Err(error).wrap_err(reason)
-                    } else {
-                        info!(reason = "received shutdown signal", "shutting down");
-                        Ok(())
-                    };
-                    break ret;
+                () = self.shutdown.cancelled() => {
+                    break Ok("received shutdown signal");
                 }
 
                 Some(block) = self.firm_blocks.recv() => {
@@ -240,9 +230,7 @@ impl Executor {
                         "received block from celestia reader",
                     );
                     if let Err(error) = self.execute_firm(client.clone(), block).await {
-                        let reason = "failed executing firm block";
-                        error!(%error, reason, "shutting down");
-                        break Err(error).wrap_err(reason);
+                        break Err(error).wrap_err("failed executing firm block");
                     }
                 }
 
@@ -253,14 +241,24 @@ impl Executor {
                         "received block from sequencer reader",
                     );
                     if let Err(error) = self.execute_soft(client.clone(), block).await {
-                        let reason = "failed executing soft block";
-                        error!(%error, reason, "shutting down");
-                        break Err(error).wrap_err(reason);
+                        break Err(error).wrap_err("failed executing soft block");
                     }
                 }
             );
+        };
+
+        // XXX: explicitly setting the message (usually implicitly set by tracing)
+        let message = "shutting down";
+        match reason {
+            Ok(reason) => {
+                info!(reason, message);
+                Ok(())
+            }
+            Err(reason) => {
+                error!(%reason, message);
+                Err(reason)
+            }
         }
-        // XXX: shut down the channels here and attempt to drain them before returning.
     }
 
     /// Calculates the maximum allowed spread between firm and soft commitments heights.

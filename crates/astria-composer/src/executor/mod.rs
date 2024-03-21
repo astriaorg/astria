@@ -51,6 +51,7 @@ use tokio::{
     select,
     sync::{
         mpsc,
+        mpsc::error::SendTimeoutError,
         watch,
     },
     time::{
@@ -89,7 +90,7 @@ pub(super) struct Executor {
     // The status of this executor
     status: watch::Sender<Status>,
     // Channel for receiving `SequenceAction`s to be bundled.
-    serialized_rollup_transactions_rx: mpsc::Receiver<SequenceAction>,
+    serialized_rollup_transactions: mpsc::Receiver<SequenceAction>,
     // The client for submitting wrapped and signed pending eth transactions to the astria
     // sequencer.
     sequencer_client: sequencer_client::HttpClient,
@@ -101,6 +102,29 @@ pub(super) struct Executor {
     block_time: tokio::time::Duration,
     // Max bytes in a sequencer action bundle
     max_bytes_per_bundle: usize,
+}
+
+#[derive(Clone)]
+pub(super) struct Handle {
+    serialized_rollup_transactions_tx: mpsc::Sender<SequenceAction>,
+}
+
+impl Handle {
+    fn new(serialized_rollup_transactions_tx: mpsc::Sender<SequenceAction>) -> Self {
+        Self {
+            serialized_rollup_transactions_tx,
+        }
+    }
+
+    pub(super) async fn send_timeout(
+        &self,
+        sequence_action: SequenceAction,
+        timeout: Duration,
+    ) -> Result<(), SendTimeoutError<SequenceAction>> {
+        self.serialized_rollup_transactions_tx
+            .send_timeout(sequence_action, timeout)
+            .await
+    }
 }
 
 impl Drop for Executor {
@@ -132,8 +156,7 @@ impl Executor {
         private_key: &SecretString,
         block_time: u64,
         max_bytes_per_bundle: usize,
-        serialized_rollup_transactions_rx: mpsc::Receiver<SequenceAction>,
-    ) -> eyre::Result<Self> {
+    ) -> eyre::Result<(Self, Handle)> {
         let sequencer_client = sequencer_client::HttpClient::new(sequencer_url)
             .wrap_err("failed constructing sequencer client")?;
         let (status, _) = watch::channel(Status::new());
@@ -146,15 +169,21 @@ impl Executor {
 
         let sequencer_address = Address::from_verification_key(sequencer_key.verification_key());
 
-        Ok(Self {
-            status,
-            serialized_rollup_transactions_rx,
-            sequencer_client,
-            sequencer_key,
-            address: sequencer_address,
-            block_time: Duration::from_millis(block_time),
-            max_bytes_per_bundle,
-        })
+        let (serialized_rollup_transaction_tx, serialized_rollup_transaction_rx) =
+            tokio::sync::mpsc::channel::<SequenceAction>(256);
+
+        Ok((
+            Self {
+                status,
+                serialized_rollup_transactions: serialized_rollup_transaction_rx,
+                sequencer_client,
+                sequencer_key,
+                address: sequencer_address,
+                block_time: Duration::from_millis(block_time),
+                max_bytes_per_bundle,
+            },
+            Handle::new(serialized_rollup_transaction_tx),
+        ))
     }
 
     /// Return a reader to the status reporting channel
@@ -221,7 +250,7 @@ impl Executor {
                 }
 
                 // receive new seq_action and bundle it
-                Some(seq_action) = self.serialized_rollup_transactions_rx.recv() => {
+                Some(seq_action) = self.serialized_rollup_transactions.recv() => {
                     let rollup_id = seq_action.rollup_id;
                     if let Err(e) = bundle_factory.try_push(seq_action) {
                             warn!(
