@@ -52,6 +52,7 @@ tracing = { workspace = true, features = ["attributes"] }
 tryhard = { workspace = true }
 tonic = "0.10.2"
 tokio-stream = { version = "0.1.14", features = ["net"] }
+tonic-health = "0.10.2"
 
 [dependencies.sequencer-client]
 package = "astria-sequencer-client"

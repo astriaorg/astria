@@ -37,7 +37,10 @@ use tonic::{
     Response,
 };
 
-use crate::executor;
+use crate::{
+    executor,
+    executor::Handle,
+};
 
 /// `GrpcCollector` listens for incoming gRPC requests and sends the Rollup transactions to the
 /// Executor. The Executor then sends the transactions to the Astria Shared Sequencer.
@@ -65,7 +68,7 @@ impl Grpc {
         })
     }
 
-    /// Returns the socker address the grpc collector is served over
+    /// Returns the socket address the grpc collector is served over
     /// # Errors
     /// Returns an error if the listener is not bound
     pub(crate) fn local_addr(&self) -> io::Result<SocketAddr> {
@@ -73,8 +76,16 @@ impl Grpc {
     }
 
     pub(crate) async fn run_until_stopped(self) -> eyre::Result<()> {
+        let (mut health_reporter, health_service) = tonic_health::server::health_reporter();
+
         let composer_service = GrpcCollectorServiceServer::new(self.executor_handle);
-        let grpc_server = tonic::transport::Server::builder().add_service(composer_service);
+        let grpc_server = tonic::transport::Server::builder()
+            .add_service(health_service)
+            .add_service(composer_service);
+
+        health_reporter
+            .set_serving::<GrpcCollectorServiceServer<Handle>>()
+            .await;
 
         grpc_server
             .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(
@@ -107,7 +118,7 @@ impl GrpcCollectorService for executor::Handle {
             };
 
             match self
-                .send_with_timeout(sequence_action, Duration::from_millis(500))
+                .send_timeout(sequence_action, Duration::from_millis(500))
                 .await
             {
                 Ok(()) => {}
