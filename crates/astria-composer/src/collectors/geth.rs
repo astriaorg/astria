@@ -27,10 +27,14 @@ use ethers::providers::{
     ProviderError,
     Ws,
 };
-use tokio::sync::{
-    mpsc::error::SendTimeoutError,
-    watch,
+use tokio::{
+    select,
+    sync::{
+        mpsc::error::SendTimeoutError,
+        watch,
+    },
 };
+use tokio_util::sync::CancellationToken;
 use tracing::{
     debug,
     instrument,
@@ -58,6 +62,7 @@ pub(crate) struct Geth {
     status: watch::Sender<Status>,
     /// Rollup URL
     url: String,
+    shutdown_token: CancellationToken,
 }
 
 #[derive(Debug)]
@@ -79,7 +84,12 @@ impl Status {
 
 impl Geth {
     /// Initializes a new collector instance
-    pub(crate) fn new(chain_name: String, url: String, executor_handle: executor::Handle) -> Self {
+    pub(crate) fn new(
+        chain_name: String,
+        url: String,
+        executor_handle: executor::Handle,
+        shutdown_token: CancellationToken,
+    ) -> Self {
         let (status, _) = watch::channel(Status::new());
         Self {
             rollup_id: RollupId::from_unhashed_bytes(&chain_name),
@@ -87,6 +97,7 @@ impl Geth {
             executor_handle,
             status,
             url,
+            shutdown_token,
         }
     }
 
@@ -109,6 +120,7 @@ impl Geth {
             executor_handle,
             status,
             url,
+            shutdown_token,
             ..
         } = self;
 
@@ -148,37 +160,53 @@ impl Geth {
 
         status.send_modify(|status| status.is_connected = true);
 
-        while let Some(tx) = tx_stream.next().await {
-            let tx_hash = tx.hash;
-            debug!(transaction.hash = %tx_hash, "collected transaction from rollup");
-            let data = tx.rlp().to_vec();
-            let seq_action = SequenceAction {
-                rollup_id,
-                data,
-                fee_asset_id: default_native_asset_id(),
-            };
-
-            match executor_handle
-                .send_timeout(seq_action, Duration::from_millis(500))
-                .await
-            {
-                Ok(()) => {}
-                Err(SendTimeoutError::Timeout(_seq_action)) => {
-                    warn!(
-                        transaction.hash = %tx_hash,
-                        "timed out sending new transaction to executor after 500ms; dropping tx"
-                    );
-                }
-                Err(SendTimeoutError::Closed(_seq_action)) => {
-                    warn!(
-                        transaction.hash = %tx_hash,
-                        "executor channel closed while sending transaction; dropping transaction \
-                         and exiting event loop"
-                    );
+        loop {
+            select! {
+                biased;
+                _ = shutdown_token.cancelled() => {
+                    tx_stream.unsubscribe().await?;
+                    status.send_modify(|status| status.is_connected = false);
                     break;
+                },
+                tx_res = tx_stream.next() => {
+                    if let Some(tx) = tx_res {
+                        let tx_hash = tx.hash;
+                        debug!(transaction.hash = %tx_hash, "collected transaction from rollup");
+                        let data = tx.rlp().to_vec();
+                        let seq_action = SequenceAction {
+                            rollup_id,
+                            data,
+                            fee_asset_id: default_native_asset_id(),
+                        };
+
+                        match executor_handle
+                            .send_timeout(seq_action, Duration::from_millis(500))
+                            .await
+                        {
+                            Ok(()) => {}
+                            Err(SendTimeoutError::Timeout(_seq_action)) => {
+                                warn!(
+                                transaction.hash = %tx_hash,
+                                "timed out sending new transaction to executor after 500ms; dropping tx"
+                            );
+                            }
+                            Err(SendTimeoutError::Closed(_seq_action)) => {
+                                warn!(
+                                transaction.hash = %tx_hash,
+                                "executor channel closed while sending transaction; dropping transaction \
+                                 and exiting event loop"
+                            );
+                                break;
+                            }
+                        }
+                    } else {
+                        status.send_modify(|status| status.is_connected = false);
+                        break;
+                    }
                 }
             }
         }
+
         Ok(())
     }
 }

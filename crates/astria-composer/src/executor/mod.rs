@@ -59,6 +59,7 @@ use tokio::{
         Instant,
     },
 };
+use tokio_util::sync::CancellationToken;
 use tracing::{
     debug,
     error,
@@ -102,6 +103,7 @@ pub(super) struct Executor {
     block_time: tokio::time::Duration,
     // Max bytes in a sequencer action bundle
     max_bytes_per_bundle: usize,
+    shutdown_token: CancellationToken,
 }
 
 #[derive(Clone)]
@@ -156,6 +158,7 @@ impl Executor {
         private_key: &SecretString,
         block_time: u64,
         max_bytes_per_bundle: usize,
+        shutdown_token: CancellationToken,
     ) -> eyre::Result<(Self, Handle)> {
         let sequencer_client = sequencer_client::HttpClient::new(sequencer_url)
             .wrap_err("failed constructing sequencer client")?;
@@ -181,6 +184,7 @@ impl Executor {
                 address: sequencer_address,
                 block_time: Duration::from_millis(block_time),
                 max_bytes_per_bundle,
+                shutdown_token,
             },
             Handle::new(serialized_rollup_transaction_tx),
         ))
@@ -219,6 +223,7 @@ impl Executor {
 
         self.status.send_modify(|status| status.is_connected = true);
 
+        let mut in_shutdown = false;
         let block_timer = time::sleep(self.block_time);
         tokio::pin!(block_timer);
         let mut bundle_factory = BundleFactory::new(self.max_bytes_per_bundle);
@@ -229,6 +234,11 @@ impl Executor {
             select! {
                 biased;
 
+                _ = self.shutdown_token.cancelled() => {
+                    info!("executor shutting down, waiting for all bundles to be submitted");
+                    in_shutdown = true;
+                    self.serialized_rollup_transactions.close();
+                }
                 // process submission result and update nonce
                 rsp = &mut submission_fut, if !submission_fut.is_terminated() => {
                     match rsp {
@@ -265,6 +275,12 @@ impl Executor {
                 () = &mut block_timer, if submission_fut.is_terminated() => {
                     let bundle = bundle_factory.pop_now();
                     if bundle.is_empty() {
+                        if in_shutdown {
+                            info!("executor shutting down; no more bundles to submit");
+                            self.status.send_modify(|status| status.is_connected = false);
+
+                            break Ok(());
+                        }
                         debug!("block timer ticked, but no bundle to submit to sequencer");
                         block_timer.as_mut().reset(reset_time());
                     } else {

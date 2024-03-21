@@ -9,10 +9,17 @@ use astria_eyre::eyre::{
 };
 use tokio::{
     io,
+    signal::unix::{
+        signal,
+        SignalKind,
+    },
     sync::watch,
     task::JoinError,
 };
-use tokio_util::task::JoinMap;
+use tokio_util::{
+    sync::CancellationToken,
+    task::JoinMap,
+};
 use tracing::{
     error,
     info,
@@ -58,6 +65,7 @@ pub struct Composer {
     rollup_id_to_url: HashMap<String, String>,
     /// `GrpcCollector` is a gRPC server to which users can send sequence actions
     grpc_collector: collectors::Grpc,
+    shutdown_token: CancellationToken,
 }
 
 /// Announces the current status of the Composer for other modules in the crate to use
@@ -90,18 +98,24 @@ impl Composer {
     /// See `[from_config]` for its error scenarios.
     pub async fn from_config(cfg: &Config) -> eyre::Result<Self> {
         let (composer_status_sender, _) = watch::channel(Status::default());
+        let shutdown_token = CancellationToken::new();
+
         let (executor, executor_handle) = Executor::new(
             &cfg.sequencer_url,
             &cfg.private_key,
             cfg.block_time_ms,
             cfg.max_bytes_per_bundle,
+            shutdown_token.clone(),
         )
         .wrap_err("executor construction from config failed")?;
 
-        let grpc_collector =
-            collectors::Grpc::new(cfg.grpc_collector_addr, executor_handle.clone())
-                .await
-                .wrap_err("grpc collector construction from config failed")?;
+        let grpc_collector = collectors::Grpc::new(
+            cfg.grpc_collector_addr,
+            executor_handle.clone(),
+            shutdown_token.clone(),
+        )
+        .await
+        .wrap_err("grpc collector construction from config failed")?;
 
         let api_server = api::start(cfg.api_listen_addr, composer_status_sender.subscribe());
 
@@ -121,8 +135,12 @@ impl Composer {
         let geth_collectors = rollup_id_to_url
             .iter()
             .map(|(rollup_name, url)| {
-                let collector =
-                    Geth::new(rollup_name.clone(), url.clone(), executor_handle.clone());
+                let collector = Geth::new(
+                    rollup_name.clone(),
+                    url.clone(),
+                    executor_handle.clone(),
+                    shutdown_token.clone(),
+                );
                 (rollup_name.clone(), collector)
             })
             .collect::<HashMap<_, _>>();
@@ -142,6 +160,7 @@ impl Composer {
             geth_collector_statuses,
             geth_collector_tasks: JoinMap::new(),
             grpc_collector,
+            shutdown_token,
         })
     }
 
@@ -172,6 +191,7 @@ impl Composer {
             rollup_id_to_url,
             mut geth_collector_statuses,
             grpc_collector,
+            shutdown_token,
         } = self;
 
         // run the api server
@@ -203,21 +223,34 @@ impl Composer {
                 .wrap_err("grpc server failed")
         });
 
+        let mut sigterm = signal(SignalKind::terminate()).expect(
+            "setting a SIGTERM listener should always work on unix; is this running on unix?",
+        );
+
         loop {
             tokio::select!(
+            biased;
+            _ = sigterm.recv() => {
+                    shutdown_token.cancel();
+                    break;
+            },
             o = &mut api_task => {
                     report_exit("api server unexpectedly ended", o);
-                    return Ok(());
+                    // return Ok(());
+                    break;
             },
             o = &mut executor_task => {
                     report_exit("executor unexpectedly ended", o);
-                    return Ok(());
+                    // return Ok(());
+                    break;
             },
             o = &mut grpc_server_handle => {
                     report_exit("grpc server unexpectedly ended", o);
-                    return Ok(());
+                    // return Ok(());
+                    break;
             },
             Some((rollup, collector_exit)) = geth_collector_tasks.join_next() => {
+                   // TODO - add some backoff logic here, if there are too many exits
                    reconnect_exited_collector(
                     &mut geth_collector_statuses,
                     &mut geth_collector_tasks,
@@ -225,10 +258,17 @@ impl Composer {
                     &rollup_id_to_url,
                     rollup,
                     collector_exit,
+                    shutdown_token.clone()
                 );
             });
         }
+
+        shutdown().await
     }
+}
+
+async fn shutdown() -> eyre::Result<()> {
+    Ok(())
 }
 
 async fn wait_for_executor(
@@ -294,6 +334,7 @@ pub(super) fn reconnect_exited_collector(
     rollups: &HashMap<String, String>,
     rollup: String,
     exit_result: Result<eyre::Result<()>, JoinError>,
+    shutdown_token: CancellationToken,
 ) {
     report_exit("collector", exit_result);
     let Some(url) = rollups.get(&rollup) else {
@@ -304,7 +345,7 @@ pub(super) fn reconnect_exited_collector(
         return;
     };
 
-    let collector = Geth::new(rollup.clone(), url.clone(), executor_handle);
+    let collector = Geth::new(rollup.clone(), url.clone(), executor_handle, shutdown_token);
     collector_statuses.insert(rollup.clone(), collector.subscribe());
     collector_tasks.spawn(rollup, collector.run_until_stopped());
 }
