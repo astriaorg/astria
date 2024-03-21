@@ -540,7 +540,7 @@ mod test {
             receiver: hex::encode(bridge_address),
             memo: "destinationaddress".to_string(),
         };
-        let packet_bytes = serde_json::to_vec(&packet).expect("failed to serialize packet data");
+        let packet_bytes = serde_json::to_vec(&packet).expect("can serialize packet data");
 
         execute_ics20_transfer(
             &mut state_tx,
@@ -552,16 +552,19 @@ mod test {
             false,
         )
         .await
-        .unwrap();
+        .expect("valid ics20 transfer to bridge account; recipient, memo, and asset ID are valid");
 
         let denom: Denom = format!("dest_port/dest_channel/{}", "nootasset").into();
         let balance = state_tx
             .get_account_balance(bridge_address, denom.id())
             .await
-            .unwrap();
+            .expect("ics20 transfer from sender to bridge account should succeed");
         assert_eq!(balance, 100);
 
-        let deposit = state_tx.get_block_deposits().await.unwrap();
+        let deposit = state_tx
+            .get_block_deposits()
+            .await
+            .expect("a deposit should exist as a result of the transfer to a bridge account");
         assert_eq!(deposit.len(), 1);
     }
 
@@ -590,21 +593,19 @@ mod test {
             receiver: hex::encode(bridge_address),
             memo: String::new(),
         };
-        let packet_bytes = serde_json::to_vec(&packet).expect("failed to serialize packet data");
+        let packet_bytes = serde_json::to_vec(&packet).expect("can serialize packet data");
 
-        assert!(
-            execute_ics20_transfer(
-                &mut state_tx,
-                &packet_bytes,
-                &"source_port".to_string().parse().unwrap(),
-                &"source_channel".to_string().parse().unwrap(),
-                &"dest_port".to_string().parse().unwrap(),
-                &"dest_channel".to_string().parse().unwrap(),
-                false,
-            )
-            .await
-            .is_err()
-        );
+        execute_ics20_transfer(
+            &mut state_tx,
+            &packet_bytes,
+            &"source_port".to_string().parse().unwrap(),
+            &"source_channel".to_string().parse().unwrap(),
+            &"dest_port".to_string().parse().unwrap(),
+            &"dest_channel".to_string().parse().unwrap(),
+            false,
+        )
+        .await
+        .expect_err("empty memo field during transfer to bridge account should fail");
 
         // use invalid asset, which should fail
         let packet = FungibleTokenPacketData {
@@ -614,20 +615,18 @@ mod test {
             receiver: hex::encode(bridge_address),
             memo: "destinationaddress".to_string(),
         };
-        let packet_bytes = serde_json::to_vec(&packet).expect("failed to serialize packet data");
+        let packet_bytes = serde_json::to_vec(&packet).expect("can serialize packet data");
 
-        assert!(
-            execute_ics20_transfer(
-                &mut state_tx,
-                &packet_bytes,
-                &"source_port".to_string().parse().unwrap(),
-                &"source_channel".to_string().parse().unwrap(),
-                &"dest_port".to_string().parse().unwrap(),
-                &"dest_channel".to_string().parse().unwrap(),
-                false,
-            )
-            .await
-            .is_err()
-        );
+        execute_ics20_transfer(
+            &mut state_tx,
+            &packet_bytes,
+            &"source_port".to_string().parse().unwrap(),
+            &"source_channel".to_string().parse().unwrap(),
+            &"dest_port".to_string().parse().unwrap(),
+            &"dest_channel".to_string().parse().unwrap(),
+            false,
+        )
+        .await
+        .expect_err("invalid asset during transfer to bridge account should fail");
     }
 }
