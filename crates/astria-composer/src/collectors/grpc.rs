@@ -83,6 +83,7 @@ impl Grpc {
             .add_service(health_service)
             .add_service(composer_service);
 
+        // TODO: in a shutdown, we need to set this to non-serving
         health_reporter
             .set_serving::<GrpcCollectorServiceServer<Handle>>()
             .await;
