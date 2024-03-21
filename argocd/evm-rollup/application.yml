@@ -1,0 +1,46 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: mono-astria-evm-rollup
+spec:
+  project: default
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: mono-astria
+  sources:
+    - repoURL: https://github.com/astriaorg/astria.git
+      targetRevision: aajimal/charts-argo # Update to HEAD when charts are merged
+      path: charts/evm-rollup
+      helm:
+        valueFiles:
+        - values.yaml # Need to find correct values for dev-dev
+        parameters:
+        - name: global.namespace
+          value: $ARGOCD_APP_NAMESPACE
+        - name: ingress.hostname
+          value: $ARGOCD_APP_NAMESPACE.dev.astria.org
+    - repoURL: git@github.com/astriaorg/argocd-apps.git
+      targetRevision: HEAD
+      ref: values
+  syncPolicy:
+    automated:
+      selfHeal: false
+    # For automatic namespace cleanup, ensure argocd-cm sets application.resourceTrackingMethod to 
+    # 
+    #   application.resourceTrackingMethod: annotation
+    #
+    #   or
+    # 
+    #   application.resourceTrackingMethod: annotation+label
+    #
+    # https://github.com/argoproj/argo-cd/issues/7875#issuecomment-1948588656
+    managedNamespaceMetadata:
+      labels:
+        # # <$ARGOCD_APP_NAME>
+        argocd.argoproj.io/instance: mono-astria-evm-rollup
+      annotations:
+        # <$ARGOCD_APP_NAME>:/Namespace:$ARGOCD_APP_NAMESPACE/$ARGOCD_APP_NAMESPACE
+        argocd.argoproj.io/tracking-id: >-
+          mono-astria-evm-rollup:/Namespace:mono-astria/mono-astria
+    syncOptions:
+    - CreateNamespace=true

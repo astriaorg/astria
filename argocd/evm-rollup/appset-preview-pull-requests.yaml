@@ -1,0 +1,55 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: preview-mono-astria-evm-rollup
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+  - pullRequest:
+      github:
+        owner: astriaorg
+        repo: astria
+        tokenRef:
+          key: token
+          secretName: github-pat
+        labels:
+        # - preview
+        # - evm-rollup
+        - demo 
+        - evm
+      requeueAfterSeconds: 60
+  template:
+    metadata:
+      name: pr-{{.number}}-astria-evm-rollup
+    spec:
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: pr-{{.number}}-astria
+      project: default
+      sources:
+        - repoURL: https://github.com/astriaorg/astria.git
+          targetRevision: '{{.head_sha}}'
+          path: charts/evm-rollup
+          helm:
+            valueFiles:
+            - values.yaml
+            parameters:
+            - name: global.namespace
+              value: pr-{{.number}}-astria
+            - name: ingress.hostname
+              value: "pr-{{.number}}-astria-evm-rollup.dev.astria.org"
+      syncPolicy:
+        automated:
+          selfHeal: false
+        managedNamespaceMetadata:
+          labels:
+            # <$ARGOCD_APP_NAME>
+            argocd.argoproj.io/instance: pr-{{.number}}-mono-astria
+          annotations:
+            # <$ARGOCD_APP_NAME>:/Namespace:$ARGOCD_APP_NAMESPACE/$ARGOCD_APP_NAMESPACE
+            argocd.argoproj.io/tracking-id: >-
+              pr-{{.number}}-astria-evm-rollup:/Namespace:pr-{{.number}}-astria/pr-{{.number}}-astria
+        syncOptions:
+        - CreateNamespace=true
