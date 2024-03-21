@@ -2,7 +2,7 @@ use anyhow::{
     bail,
     Context,
 };
-use astria_core::sequencer::v1alpha1::AbciErrorCode;
+use astria_core::sequencer::v1::AbciErrorCode;
 use cnidarium::Storage;
 use sha2::{
     Digest as _,
@@ -89,7 +89,9 @@ impl Consensus {
             ),
             ConsensusRequest::PrepareProposal(prepare_proposal) => {
                 ConsensusResponse::PrepareProposal(
-                    self.handle_prepare_proposal(prepare_proposal).await,
+                    self.handle_prepare_proposal(prepare_proposal)
+                        .await
+                        .context("failed to prepare proposal")?,
                 )
             }
             ConsensusRequest::ProcessProposal(process_proposal) => {
@@ -171,7 +173,7 @@ impl Consensus {
     async fn handle_prepare_proposal(
         &mut self,
         prepare_proposal: request::PrepareProposal,
-    ) -> response::PrepareProposal {
+    ) -> anyhow::Result<response::PrepareProposal> {
         self.app
             .prepare_proposal(prepare_proposal, self.storage.clone())
             .await
@@ -270,9 +272,12 @@ impl Consensus {
 
 #[cfg(test)]
 mod test {
-    use std::str::FromStr;
+    use std::{
+        collections::HashMap,
+        str::FromStr,
+    };
 
-    use astria_core::sequencer::v1alpha1::{
+    use astria_core::sequencer::v1::{
         asset::DEFAULT_NATIVE_ASSET_DENOM,
         transaction::action::SequenceAction,
         Address,
@@ -295,7 +300,7 @@ mod test {
     use super::*;
     use crate::{
         asset::get_native_asset,
-        proposal::commitment::generate_sequence_actions_commitment,
+        proposal::commitment::generate_rollup_datas_commitment,
     };
 
     fn make_unsigned_tx() -> UnsignedTransaction {
@@ -348,12 +353,13 @@ mod test {
         let tx_bytes = signed_tx.clone().into_raw().encode_to_vec();
         let txs = vec![tx_bytes.into()];
 
-        let res = generate_sequence_actions_commitment(&vec![signed_tx]);
+        let res = generate_rollup_datas_commitment(&vec![signed_tx], HashMap::new());
 
         let prepare_proposal = new_prepare_proposal_request(txs.clone());
         let prepare_proposal_response = consensus_service
             .handle_prepare_proposal(prepare_proposal)
-            .await;
+            .await
+            .unwrap();
         assert_eq!(
             prepare_proposal_response,
             response::PrepareProposal {
@@ -379,7 +385,7 @@ mod test {
         let signed_tx = tx.into_signed(&signing_key);
         let tx_bytes = signed_tx.clone().into_raw().encode_to_vec();
         let txs = vec![tx_bytes.into()];
-        let res = generate_sequence_actions_commitment(&vec![signed_tx]);
+        let res = generate_rollup_datas_commitment(&vec![signed_tx], HashMap::new());
         let process_proposal = new_process_proposal_request(res.into_transactions(txs));
         consensus_service
             .handle_process_proposal(process_proposal)
@@ -439,12 +445,13 @@ mod test {
     async fn prepare_proposal_empty_block() {
         let mut consensus_service = new_consensus_service(None).await;
         let txs = vec![];
-        let res = generate_sequence_actions_commitment(&txs.clone());
+        let res = generate_rollup_datas_commitment(&txs.clone(), HashMap::new());
         let prepare_proposal = new_prepare_proposal_request(vec![]);
 
         let prepare_proposal_response = consensus_service
             .handle_prepare_proposal(prepare_proposal)
-            .await;
+            .await
+            .unwrap();
         assert_eq!(
             prepare_proposal_response,
             response::PrepareProposal {
@@ -457,7 +464,7 @@ mod test {
     async fn process_proposal_ok_empty_block() {
         let mut consensus_service = new_consensus_service(None).await;
         let txs = vec![];
-        let res = generate_sequence_actions_commitment(&txs);
+        let res = generate_rollup_datas_commitment(&txs, HashMap::new());
         let process_proposal = new_process_proposal_request(res.into_transactions(vec![]));
         consensus_service
             .handle_process_proposal(process_proposal)
@@ -548,7 +555,7 @@ mod test {
         let signed_tx = tx.into_signed(&signing_key);
         let tx_bytes = signed_tx.clone().into_raw().encode_to_vec();
         let txs = vec![tx_bytes.clone().into()];
-        let res = generate_sequence_actions_commitment(&vec![signed_tx]);
+        let res = generate_rollup_datas_commitment(&vec![signed_tx], HashMap::new());
 
         let block_data = res.into_transactions(txs.clone());
         let data_hash = merkle::Tree::from_leaves(block_data.iter().map(Sha256::digest)).root();

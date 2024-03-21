@@ -5,7 +5,13 @@ use astria_core::{
         Block,
         CommitmentState,
     },
-    sequencer::v1alpha1::RollupId,
+    sequencer::v1::{
+        block::{
+            FilteredSequencerBlock,
+            FilteredSequencerBlockParts,
+        },
+        RollupId,
+    },
 };
 use astria_eyre::eyre::{
     self,
@@ -15,12 +21,9 @@ use astria_eyre::eyre::{
 };
 use bytes::Bytes;
 use celestia_client::celestia_types::Height as CelestiaHeight;
-use sequencer_client::{
-    tendermint::{
-        block::Height as SequencerHeight,
-        Time,
-    },
-    SequencerBlock,
+use sequencer_client::tendermint::{
+    block::Height as SequencerHeight,
+    Time,
 };
 use tokio::{
     select,
@@ -32,13 +35,13 @@ use tokio::{
                 TrySendError,
             },
         },
-        oneshot,
         watch::{
             self,
             error::RecvError,
         },
     },
 };
+use tokio_util::sync::CancellationToken;
 use tracing::{
     debug,
     error,
@@ -51,6 +54,7 @@ use crate::celestia::ReconstructedBlock;
 mod builder;
 pub(crate) mod channel;
 
+pub(crate) use builder::Builder;
 use channel::soft_block_channel;
 
 mod client;
@@ -75,7 +79,7 @@ pub(crate) struct StateIsInit;
 #[derive(Debug, Clone)]
 pub(crate) struct Handle<TStateInit = StateNotInit> {
     firm_blocks: mpsc::Sender<ReconstructedBlock>,
-    soft_blocks: channel::Sender<SequencerBlock>,
+    soft_blocks: channel::Sender<FilteredSequencerBlock>,
     state: watch::Receiver<State>,
     _state_init: TStateInit,
 }
@@ -121,7 +125,7 @@ impl Handle<StateIsInit> {
 
     pub(crate) async fn send_soft_block_owned(
         self,
-        block: SequencerBlock,
+        block: FilteredSequencerBlock,
     ) -> Result<(), channel::SendError> {
         self.soft_blocks.send(block).await
     }
@@ -130,8 +134,8 @@ impl Handle<StateIsInit> {
     #[allow(clippy::result_large_err)]
     pub(crate) fn try_send_soft_block(
         &self,
-        block: SequencerBlock,
-    ) -> Result<(), channel::TrySendError<SequencerBlock>> {
+        block: FilteredSequencerBlock,
+    ) -> Result<(), channel::TrySendError<FilteredSequencerBlock>> {
         self.soft_blocks.try_send(block)
     }
 
@@ -165,9 +169,10 @@ impl Handle<StateIsInit> {
 
 pub(crate) struct Executor {
     firm_blocks: mpsc::Receiver<ReconstructedBlock>,
-    soft_blocks: channel::Receiver<SequencerBlock>,
+    soft_blocks: channel::Receiver<FilteredSequencerBlock>,
 
-    shutdown: oneshot::Receiver<()>,
+    /// Token to listen for Conductor being shut down.
+    shutdown: CancellationToken,
 
     rollup_address: tonic::transport::Uri,
 
@@ -186,10 +191,6 @@ pub(crate) struct Executor {
 }
 
 impl Executor {
-    pub(super) fn builder() -> builder::ExecutorBuilder {
-        builder::ExecutorBuilder::new()
-    }
-
     #[instrument(skip_all)]
     pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
         let client = Client::connect(self.rollup_address.clone())
@@ -209,7 +210,7 @@ impl Executor {
              spread (this has no effect if conductor is set to perform soft-sync only)"
         );
 
-        loop {
+        let reason = loop {
             let spread_not_too_large = !self.is_spread_too_large(max_spread);
             if spread_not_too_large {
                 self.soft_blocks.fill_permits();
@@ -218,16 +219,8 @@ impl Executor {
             select!(
                 biased;
 
-                shutdown = &mut self.shutdown => {
-                    let ret = if let Err(error) = shutdown {
-                        let reason = "shutdown channel closed unexpectedly";
-                        error!(%error, reason, "shutting down");
-                        Err(error).wrap_err(reason)
-                    } else {
-                        info!(reason = "received shutdown signal", "shutting down");
-                        Ok(())
-                    };
-                    break ret;
+                () = self.shutdown.cancelled() => {
+                    break Ok("received shutdown signal");
                 }
 
                 Some(block) = self.firm_blocks.recv() => {
@@ -237,9 +230,7 @@ impl Executor {
                         "received block from celestia reader",
                     );
                     if let Err(error) = self.execute_firm(client.clone(), block).await {
-                        let reason = "failed executing firm block";
-                        error!(%error, reason, "shutting down");
-                        break Err(error).wrap_err(reason);
+                        break Err(error).wrap_err("failed executing firm block");
                     }
                 }
 
@@ -250,14 +241,24 @@ impl Executor {
                         "received block from sequencer reader",
                     );
                     if let Err(error) = self.execute_soft(client.clone(), block).await {
-                        let reason = "failed executing soft block";
-                        error!(%error, reason, "shutting down");
-                        break Err(error).wrap_err(reason);
+                        break Err(error).wrap_err("failed executing soft block");
                     }
                 }
             );
+        };
+
+        // XXX: explicitly setting the message (usually implicitly set by tracing)
+        let message = "shutting down";
+        match reason {
+            Ok(reason) => {
+                info!(reason, message);
+                Ok(())
+            }
+            Err(reason) => {
+                error!(%reason, message);
+                Err(reason)
+            }
         }
-        // XXX: shut down the channels here and attempt to drain them before returning.
     }
 
     /// Calculates the maximum allowed spread between firm and soft commitments heights.
@@ -309,7 +310,11 @@ impl Executor {
         block.hash = %telemetry::display::hex(&block.block_hash()),
         block.height = block.height().value(),
     ))]
-    async fn execute_soft(&mut self, client: Client, block: SequencerBlock) -> eyre::Result<()> {
+    async fn execute_soft(
+        &mut self,
+        client: Client,
+        block: FilteredSequencerBlock,
+    ) -> eyre::Result<()> {
         // TODO(https://github.com/astriaorg/astria/issues/624): add retry logic before failing hard.
         let executable_block =
             ExecutableBlock::from_sequencer(block, self.state.borrow().rollup_id());
@@ -534,13 +539,15 @@ impl ExecutableBlock {
         }
     }
 
-    fn from_sequencer(block: SequencerBlock, id: RollupId) -> Self {
+    fn from_sequencer(block: FilteredSequencerBlock, id: RollupId) -> Self {
         let hash = block.block_hash();
         let height = block.height();
-        let timestamp =
-            convert_tendermint_to_prost_timestamp(block.header().cometbft_header().time);
-        let transactions = block
-            .into_rollup_transactions()
+        let timestamp = convert_tendermint_to_prost_timestamp(block.cometbft_header().time);
+        let FilteredSequencerBlockParts {
+            mut rollup_transactions,
+            ..
+        } = block.into_parts();
+        let transactions = rollup_transactions
             .swap_remove(&id)
             .map(|txs| txs.transactions().to_vec())
             .unwrap_or_default();

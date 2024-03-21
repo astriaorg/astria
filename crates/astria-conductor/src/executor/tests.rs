@@ -10,31 +10,37 @@ use astria_core::{
         CommitmentState,
         GenesisInfo,
     },
-    generated::execution::v1alpha2::{
-        self as raw,
-        execution_service_server::{
-            ExecutionService,
-            ExecutionServiceServer,
+    generated::{
+        execution::v1alpha2::{
+            self as raw,
+            execution_service_server::{
+                ExecutionService,
+                ExecutionServiceServer,
+            },
+            BatchGetBlocksRequest,
+            BatchGetBlocksResponse,
+            ExecuteBlockRequest,
+            GetBlockRequest,
+            GetCommitmentStateRequest,
+            GetGenesisInfoRequest,
+            UpdateCommitmentStateRequest,
         },
-        BatchGetBlocksRequest,
-        BatchGetBlocksResponse,
-        ExecuteBlockRequest,
-        GetBlockRequest,
-        GetCommitmentStateRequest,
-        GetGenesisInfoRequest,
-        UpdateCommitmentStateRequest,
+        sequencer::v1::RollupData as RawRollupData,
     },
-    sequencer::v1alpha1::test_utils::{
-        make_cometbft_block,
-        ConfigureCometBftBlock,
+    sequencer::v1::{
+        block::RollupData,
+        test_utils::{
+            make_cometbft_block,
+            ConfigureCometBftBlock,
+        },
+        SequencerBlock,
     },
     Protobuf,
 };
 use bytes::Bytes;
-use tokio::{
-    sync::oneshot,
-    task::JoinHandle,
-};
+use prost::Message;
+use tokio::task::JoinHandle;
+use tokio_util::sync::CancellationToken;
 use tonic::transport::Server;
 
 use super::{
@@ -42,7 +48,6 @@ use super::{
     Executor,
     ReconstructedBlock,
     RollupId,
-    SequencerBlock,
     SequencerHeight,
 };
 
@@ -50,6 +55,8 @@ use super::{
 // That's not good in general but acceptable in these tests.
 #[allow(clippy::declare_interior_mutable_const)]
 const GENESIS_HASH: Bytes = Bytes::from_static(&[0u8; 32]);
+
+const ROLLUP_ID: RollupId = RollupId::new([42u8; 32]);
 
 #[derive(Debug)]
 struct MockExecutionServer {
@@ -150,7 +157,7 @@ impl ExecutionService for ExecutionServiceImpl {
     ) -> std::result::Result<tonic::Response<raw::Block>, tonic::Status> {
         let request = request.into_inner();
         let parent_block_hash: Bytes = request.prev_block_hash.clone();
-        let hash = get_expected_execution_hash(&parent_block_hash, &request.transactions);
+        let hash = get_expected_execution_hash(&parent_block_hash, request.transactions);
         let new_number = {
             let mut guard = self.hash_to_number.lock().unwrap();
             let new_number = guard.get(&parent_block_hash).unwrap() + 1;
@@ -191,13 +198,15 @@ impl ExecutionService for ExecutionServiceImpl {
 
 fn get_expected_execution_hash(
     parent_block_hash: &Bytes,
-    transactions: &[impl AsRef<[u8]>],
+    transactions: Vec<RawRollupData>,
 ) -> Bytes {
+    use prost::Message as _;
     use sha2::Digest as _;
+
     let mut hasher = sha2::Sha256::new();
     hasher.update(parent_block_hash);
     for tx in transactions {
-        hasher.update(tx);
+        hasher.update(tx.encode_to_vec());
     }
     Bytes::copy_from_slice(&hasher.finalize())
 }
@@ -223,7 +232,7 @@ fn make_reconstructed_block() -> ReconstructedBlock {
 
 struct MockEnvironment {
     _server: MockExecutionServer,
-    _shutdown_tx: oneshot::Sender<()>,
+    _shutdown: CancellationToken,
     executor: Executor,
     client: Client,
 }
@@ -232,13 +241,14 @@ async fn start_mock() -> MockEnvironment {
     let server = MockExecutionServer::spawn().await;
     let server_url = format!("http://{}", server.local_addr());
 
-    let (shutdown_tx, shutdown_rx) = oneshot::channel();
-
-    let (executor, _) = Executor::builder()
-        .rollup_address(&server_url)
-        .unwrap()
-        .shutdown(shutdown_rx)
-        .build();
+    let shutdown_token = CancellationToken::new();
+    let (executor, _) = crate::executor::Builder {
+        consider_commitment_spread: false,
+        rollup_address: server_url,
+        shutdown: shutdown_token.clone(),
+    }
+    .build()
+    .unwrap();
 
     let client = Client::connect(executor.rollup_address.clone())
         .await
@@ -251,10 +261,14 @@ async fn start_mock() -> MockEnvironment {
 
     MockEnvironment {
         _server: server,
-        _shutdown_tx: shutdown_tx,
+        _shutdown: shutdown_token,
         executor,
         client,
     }
+}
+
+fn make_rollup_data(data: &str) -> RawRollupData {
+    RollupData::SequencedData(data.as_bytes().to_vec()).into_raw()
 }
 
 #[tokio::test]
@@ -262,11 +276,12 @@ async fn firm_blocks_at_expected_heights_are_executed() {
     let mut mock = start_mock().await;
 
     let mut block = make_reconstructed_block();
-    block.transactions.push(b"test_transaction".to_vec());
+    let rollup_data = make_rollup_data("test_transaction");
+    block.transactions.push(rollup_data.encode_to_vec());
 
     let expected_exection_hash = get_expected_execution_hash(
         mock.executor.state.borrow().firm().hash(),
-        &block.transactions,
+        vec![rollup_data],
     );
 
     mock.executor
@@ -280,10 +295,11 @@ async fn firm_blocks_at_expected_heights_are_executed() {
 
     let mut block = make_reconstructed_block();
     block.header.height = block.header.height.increment();
-    block.transactions.push(b"a new transaction".to_vec());
+    let rollup_data = make_rollup_data("test_transaction");
+    block.transactions.push(rollup_data.encode_to_vec());
     let expected_exection_hash = get_expected_execution_hash(
         mock.executor.state.borrow().firm().hash(),
-        &block.transactions,
+        vec![rollup_data],
     );
 
     mock.executor
@@ -302,7 +318,9 @@ async fn soft_blocks_at_expected_heights_are_executed() {
 
     let mut block = make_cometbft_block();
     block.header.height = SequencerHeight::from(100u32);
-    let block = SequencerBlock::try_from_cometbft(block).unwrap();
+    let block = SequencerBlock::try_from_cometbft(block)
+        .unwrap()
+        .into_filtered_block([ROLLUP_ID]);
     assert!(
         mock.executor
             .execute_soft(mock.client.clone(), block)
@@ -312,7 +330,9 @@ async fn soft_blocks_at_expected_heights_are_executed() {
 
     let mut block = make_cometbft_block();
     block.header.height = SequencerHeight::from(101u32);
-    let block = SequencerBlock::try_from_cometbft(block).unwrap();
+    let block = SequencerBlock::try_from_cometbft(block)
+        .unwrap()
+        .into_filtered_block([ROLLUP_ID]);
     mock.executor
         .execute_soft(mock.client.clone(), block)
         .await
@@ -327,23 +347,24 @@ async fn soft_blocks_at_expected_heights_are_executed() {
 async fn first_firm_then_soft_leads_to_soft_being_dropped() {
     let mut mock = start_mock().await;
 
-    let rollup_id = RollupId::new([42u8; 32]);
     let block = ConfigureCometBftBlock {
         height: 100,
-        rollup_transactions: vec![(rollup_id, b"hello_world".to_vec())],
+        rollup_transactions: vec![(ROLLUP_ID, b"hello_world".to_vec())],
         ..Default::default()
     }
     .make();
-    let soft_block = SequencerBlock::try_from_cometbft(block).unwrap();
+    let soft_block = SequencerBlock::try_from_cometbft(block)
+        .unwrap()
+        .into_filtered_block([ROLLUP_ID]);
 
     let block_hash = soft_block.block_hash();
 
     let firm_block = ReconstructedBlock {
         block_hash: soft_block.block_hash(),
-        header: soft_block.header().cometbft_header().clone(),
+        header: soft_block.cometbft_header().clone(),
         transactions: soft_block
             .rollup_transactions()
-            .get(&rollup_id)
+            .get(&ROLLUP_ID)
             .cloned()
             .unwrap()
             .transactions()
@@ -381,23 +402,24 @@ async fn first_firm_then_soft_leads_to_soft_being_dropped() {
 async fn first_soft_then_firm_update_state_correctly() {
     let mut mock = start_mock().await;
 
-    let rollup_id = RollupId::new([42u8; 32]);
     let block = ConfigureCometBftBlock {
         height: 100,
-        rollup_transactions: vec![(rollup_id, b"hello_world".to_vec())],
+        rollup_transactions: vec![(ROLLUP_ID, b"hello_world".to_vec())],
         ..Default::default()
     }
     .make();
-    let soft_block = SequencerBlock::try_from_cometbft(block).unwrap();
+    let soft_block = SequencerBlock::try_from_cometbft(block)
+        .unwrap()
+        .into_filtered_block([ROLLUP_ID]);
 
     let block_hash = soft_block.block_hash();
 
     let firm_block = ReconstructedBlock {
         block_hash: soft_block.block_hash(),
-        header: soft_block.header().cometbft_header().clone(),
+        header: soft_block.cometbft_header().clone(),
         transactions: soft_block
             .rollup_transactions()
-            .get(&rollup_id)
+            .get(&ROLLUP_ID)
             .cloned()
             .unwrap()
             .transactions()
@@ -432,9 +454,15 @@ async fn first_soft_then_firm_update_state_correctly() {
 #[tokio::test]
 async fn old_soft_blocks_are_ignored() {
     let mut mock = start_mock().await;
-    let mut block = make_cometbft_block();
-    block.header.height = SequencerHeight::from(99u32);
-    let sequencer_block = SequencerBlock::try_from_cometbft(block).unwrap();
+    let block = ConfigureCometBftBlock {
+        height: 99,
+        rollup_transactions: vec![(ROLLUP_ID, b"hello_world".to_vec())],
+        ..Default::default()
+    }
+    .make();
+    let sequencer_block = SequencerBlock::try_from_cometbft(block)
+        .unwrap()
+        .into_filtered_block([ROLLUP_ID]);
 
     let firm = mock.executor.state.borrow().firm().clone();
     let soft = mock.executor.state.borrow().soft().clone();
@@ -460,9 +488,15 @@ async fn old_soft_blocks_are_ignored() {
 async fn non_sequential_future_soft_blocks_give_error() {
     let mut mock = start_mock().await;
 
-    let mut block = make_cometbft_block();
-    block.header.height = SequencerHeight::from(101u32);
-    let sequencer_block = SequencerBlock::try_from_cometbft(block).unwrap();
+    let block = ConfigureCometBftBlock {
+        height: 101,
+        rollup_transactions: vec![(ROLLUP_ID, b"hello_world".to_vec())],
+        ..Default::default()
+    }
+    .make();
+    let sequencer_block = SequencerBlock::try_from_cometbft(block)
+        .unwrap()
+        .into_filtered_block([ROLLUP_ID]);
     assert!(
         mock.executor
             .execute_soft(mock.client.clone(), sequencer_block)
@@ -470,9 +504,15 @@ async fn non_sequential_future_soft_blocks_give_error() {
             .is_err()
     );
 
-    let mut block = make_cometbft_block();
-    block.header.height = SequencerHeight::from(100u32);
-    let sequencer_block = SequencerBlock::try_from_cometbft(block).unwrap();
+    let block = ConfigureCometBftBlock {
+        height: 100,
+        rollup_transactions: vec![(ROLLUP_ID, b"hello_world".to_vec())],
+        ..Default::default()
+    }
+    .make();
+    let sequencer_block = SequencerBlock::try_from_cometbft(block)
+        .unwrap()
+        .into_filtered_block([ROLLUP_ID]);
     assert!(
         mock.executor
             .execute_soft(mock.client.clone(), sequencer_block)
@@ -535,7 +575,7 @@ fn make_state(
     }: MakeState,
 ) -> super::State {
     let genesis_info = GenesisInfo::try_from_raw(raw::GenesisInfo {
-        rollup_id: Bytes::from_static(&[0u8; 32]),
+        rollup_id: Bytes::copy_from_slice(ROLLUP_ID.as_ref()),
         sequencer_genesis_block_height: 1,
         celestia_base_block_height: 1,
         celestia_block_variance: 1,

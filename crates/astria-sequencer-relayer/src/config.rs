@@ -11,12 +11,14 @@ use serde::{
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 /// The single config for creating an astria-sequencer-relayer service.
 pub struct Config {
-    pub sequencer_endpoint: String,
+    pub cometbft_endpoint: String,
+    pub sequencer_grpc_endpoint: String,
     pub celestia_endpoint: String,
     pub celestia_bearer_token: String,
     pub block_time: u64,
     pub relay_only_validator_key_blocks: bool,
-    pub validator_key_file: Option<String>,
+    #[serde(default)]
+    pub validator_key_file: String,
     // The socket address at which sequencer relayer will server healthz, readyz, and status calls.
     pub api_addr: String,
     pub log: String,

@@ -238,11 +238,11 @@ impl Geth {
     /// # Errors
     ///
     /// Returns the same error as tokio's [`Sender::send`].
-    pub fn abort(&self) -> Result<usize, SendError<SubscriptionCommand>> {
+    pub fn cancel_subscriptions(&self) -> Result<usize, SendError<SubscriptionCommand>> {
         self.command.send(SubscriptionCommand::Abort)
     }
 
-    /// Push a new transaction into the mocket geth server.
+    /// Push a new transaction into the mocked geth server.
     ///
     /// If composer is subscribed to the mocked geth server using its
     /// `eth_subscribe` JSONRPC, the transaction will be immediately

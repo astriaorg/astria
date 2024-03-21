@@ -1,13 +1,15 @@
 use std::process::ExitCode;
 
 use astria_composer::{
-    telemetry,
     Composer,
     Config,
     BUILD_INFO,
 };
 use astria_eyre::eyre::WrapErr as _;
-use tracing::info;
+use tracing::{
+    error,
+    info,
+};
 
 #[tokio::main]
 async fn main() -> ExitCode {
@@ -52,9 +54,22 @@ async fn main() -> ExitCode {
 
     info!(config = cfg_ser, "initializing composer",);
 
-    Composer::from_config(&cfg)
-        .expect("failed creating composer")
-        .run_until_stopped()
-        .await;
-    ExitCode::SUCCESS
+    let composer = match Composer::from_config(&cfg) {
+        Err(error) => {
+            error!(%error, "failed initializing Composer");
+            return ExitCode::FAILURE;
+        }
+        Ok(composer) => composer,
+    };
+
+    return match composer.run_until_stopped().await {
+        Ok(()) => {
+            info!("composer stopped");
+            ExitCode::SUCCESS
+        }
+        Err(error) => {
+            error!(%error, "Composer exited with errro");
+            ExitCode::FAILURE
+        }
+    };
 }

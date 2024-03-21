@@ -3,7 +3,6 @@ use std::process::ExitCode;
 use astria_eyre::eyre::WrapErr as _;
 use astria_sequencer_relayer::{
     metrics_init,
-    telemetry,
     Config,
     SequencerRelayer,
     BUILD_INFO,
@@ -14,12 +13,10 @@ use tracing::info;
 async fn main() -> ExitCode {
     astria_eyre::install().expect("astria eyre hook must be the first hook installed");
 
-    eprintln!(
-        "{}",
-        serde_json::to_string(&BUILD_INFO)
-            .expect("build info is serializable because it contains only unicode fields")
-    );
+    eprintln!("{}", telemetry::display::json(&BUILD_INFO),);
+
     let cfg: Config = config::get().expect("failed to read configuration");
+    eprintln!("{}", telemetry::display::json(&cfg),);
 
     let mut telemetry_conf = telemetry::configure()
         .set_no_otel(cfg.no_otel)
@@ -43,12 +40,11 @@ async fn main() -> ExitCode {
     }
 
     info!(
-        config = serde_json::to_string(&cfg).expect("serializing to a string cannot fail"),
+        config = %telemetry::display::json(&cfg),
         "initializing sequencer relayer"
     );
 
-    SequencerRelayer::new(&cfg)
-        .await
+    SequencerRelayer::new(cfg)
         .expect("could not initialize sequencer relayer")
         .run()
         .await;

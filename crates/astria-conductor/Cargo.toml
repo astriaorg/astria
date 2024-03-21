@@ -1,6 +1,6 @@
 [package]
 name = "astria-conductor"
-version = "0.12.0"
+version = "0.13.0"
 edition = "2021"
 rust-version = "1.73"
 license = "MIT OR Apache-2.0"
@@ -13,9 +13,6 @@ name = "astria-conductor"
 
 [dependencies]
 async-trait = "0.1.73"
-deadpool = { version = "0.10.0", default-features = false, features = [
-  "managed",
-] }
 futures-bounded = "0.2.3"
 pin-project-lite = "0.2"
 tracing-futures = { version = "0.2.5", features = ["futures-03"] }
@@ -26,6 +23,7 @@ ed25519-consensus = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
 humantime = { workspace = true }
+indexmap = { workspace = true }
 itoa = { workspace = true }
 prost = { workspace = true }
 prost-types = { workspace = true }
@@ -52,6 +50,7 @@ sequencer-client = { package = "astria-sequencer-client", path = "../astria-sequ
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry", features = [
   "display",
 ] }
+itertools = "0.12.1"
 
 [dev-dependencies]
 jsonrpsee = { workspace = true, features = ["server"] }
@@ -62,6 +61,7 @@ astria-core = { path = "../astria-core", features = ["server", "test-utils"] }
 config = { package = "astria-config", path = "../astria-config", features = [
   "tests",
 ] }
+insta = { version = "1.36.1", features = ["json"] }
 
 [build-dependencies]
 astria-build-info = { path = "../astria-build-info", features = ["build"] }

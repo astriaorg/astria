@@ -3,7 +3,7 @@ use anyhow::{
     Context as _,
     Result,
 };
-use astria_core::sequencer::v1alpha1::asset;
+use astria_core::sequencer::v1::asset;
 use async_trait::async_trait;
 use cnidarium::{
     StateRead,

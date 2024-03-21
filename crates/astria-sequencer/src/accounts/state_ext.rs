@@ -2,7 +2,7 @@ use anyhow::{
     Context,
     Result,
 };
-use astria_core::sequencer::v1alpha1::{
+use astria_core::sequencer::v1::{
     account::AssetBalance,
     asset,
     Address,
@@ -84,7 +84,7 @@ pub(crate) trait StateReadExt: StateRead {
             if asset_id == native_asset.id() {
                 // TODO: this is jank, just have 1 denom type.
                 balances.push(AssetBalance {
-                    denom: astria_core::sequencer::v1alpha1::asset::Denom::from(
+                    denom: astria_core::sequencer::v1::asset::Denom::from(
                         native_asset.base_denom().to_owned(),
                     ),
                     balance,

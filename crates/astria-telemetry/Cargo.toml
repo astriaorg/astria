@@ -18,13 +18,16 @@ metrics-exporter-prometheus = { version = "0.13.1", default-features = false, fe
 ] }
 # When updating ensure that `opentelemetry-semantic-conventions` matches
 # that used by `opentelemetry-otlp`.
-opentelemetry = "0.21.0"
-opentelemetry-otlp = { version = "0.14.0", features = ["gzip-tonic"] }
-opentelemetry-semantic-conventions = "0.13.0"
-opentelemetry-stdout = { version = "0.2.0", features = ["trace"] }
-opentelemetry_sdk = { version = "0.21.1", features = ["rt-tokio"] }
+opentelemetry = "0.22.0"
+opentelemetry-otlp = { version = "0.15.0", features = ["gzip-tonic"] }
+opentelemetry-semantic-conventions = "0.14.0"
+opentelemetry-stdout = { version = "0.3.0", features = ["trace"] }
+opentelemetry_sdk = { version = "0.22.1", features = ["rt-tokio"] }
+serde = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+serde_with = { version = "3.7.0", optional = true }
 thiserror = { workspace = true }
-tracing-opentelemetry = "0.22.0"
+tracing-opentelemetry = "0.23.0"
 tracing-subscriber = { version = "0.3.17", features = [
   "fmt",
   "env-filter",
@@ -35,4 +38,4 @@ tracing-subscriber = { version = "0.3.17", features = [
 tracing = { workspace = true }
 
 [features]
-display = ["dep:base64"]
+display = ["dep:base64", "dep:serde", "dep:serde_json", "dep:serde_with"]

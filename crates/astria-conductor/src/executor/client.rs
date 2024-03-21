@@ -4,9 +4,12 @@ use astria_core::{
         CommitmentState,
         GenesisInfo,
     },
-    generated::execution::{
-        v1alpha2 as raw,
-        v1alpha2::execution_service_client::ExecutionServiceClient,
+    generated::{
+        execution::{
+            v1alpha2 as raw,
+            v1alpha2::execution_service_client::ExecutionServiceClient,
+        },
+        sequencer::v1::RollupData,
     },
     Protobuf as _,
 };
@@ -68,7 +71,14 @@ impl Client {
         transactions: Vec<Vec<u8>>,
         timestamp: Timestamp,
     ) -> eyre::Result<Block> {
-        let transactions = transactions.into_iter().map(Bytes::from).collect();
+        use prost::Message;
+
+        let transactions = transactions
+            .into_iter()
+            .map(|tx| RollupData::decode(tx.as_slice()))
+            .collect::<Result<_, _>>()
+            .wrap_err("failed to decode tx bytes as RollupData")?;
+
         let request = raw::ExecuteBlockRequest {
             prev_block_hash,
             transactions,

@@ -12,10 +12,12 @@ use anyhow::{
     Context,
 };
 use astria_core::{
-    generated::sequencer::v1alpha1 as raw,
-    sequencer::v1alpha1::{
+    generated::sequencer::v1 as raw,
+    sequencer::v1::{
+        block::Deposit,
         transaction::Action,
         Address,
+        RollupId,
         SequencerBlock,
         SignedTransaction,
     },
@@ -64,12 +66,15 @@ use crate::{
             StateWriteExt as _,
         },
     },
-    bridge::state_ext::StateWriteExt,
+    bridge::state_ext::{
+        StateReadExt as _,
+        StateWriteExt,
+    },
     component::Component as _,
     genesis::GenesisState,
     ibc::component::IbcComponent,
     proposal::commitment::{
-        generate_sequence_actions_commitment,
+        generate_rollup_datas_commitment,
         GeneratedCommitments,
     },
     state_ext::{
@@ -108,15 +113,15 @@ pub(crate) struct App {
 
     // This is set to the executed hash of the proposal during `process_proposal`
     //
-    // If it does not match the hash given during begin_block, then we clear and
-    // reset the execution results cache + state delta. Transactions are reexecuted.
-    // If it does match we utilize cached results to reduce computation.
+    // If it does not match the hash given during `begin_block`, then we clear and
+    // reset the execution results cache + state delta. Transactions are re-executed.
+    // If it does match, we utilize cached results to reduce computation.
     //
-    // Resets to default hash at the begginning of prepare_proposal, and process_proposal if
-    // prepare_proposal was not called
+    // Resets to default hash at the beginning of `prepare_proposal`, and `process_proposal` if
+    // `prepare_proposal` was not called.
     executed_proposal_hash: Hash,
 
-    // cache of results of executing of transactions in prepare_proposal or process_proposal.
+    // cache of results of executing of transactions in `prepare_proposal` or `process_proposal`.
     // cleared at the end of each block.
     execution_result: HashMap<[u8; 32], anyhow::Result<Vec<abci::Event>>>,
 
@@ -228,19 +233,25 @@ impl App {
         &mut self,
         prepare_proposal: abci::request::PrepareProposal,
         storage: Storage,
-    ) -> abci::response::PrepareProposal {
+    ) -> anyhow::Result<abci::response::PrepareProposal> {
         self.is_proposer = true;
         self.update_state_for_new_round(&storage);
 
         let (signed_txs, txs_to_include) = self.execute_block_data(prepare_proposal.txs).await;
 
-        // generate commitment to sequence::Actions and commitment to the chain IDs included in the
-        // sequence::Actions
-        let res = generate_sequence_actions_commitment(&signed_txs);
+        let deposits = self
+            .state
+            .get_block_deposits()
+            .await
+            .context("failed to get block deposits in prepare_proposal")?;
 
-        abci::response::PrepareProposal {
+        // generate commitment to sequence::Actions and deposits and commitment to the rollup IDs
+        // included in the block
+        let res = generate_rollup_datas_commitment(&signed_txs, deposits);
+
+        Ok(abci::response::PrepareProposal {
             txs: res.into_transactions(txs_to_include),
-        }
+        })
     }
 
     /// Generates a commitment to the `sequence::Actions` in the block's transactions
@@ -268,7 +279,7 @@ impl App {
         self.update_state_for_new_round(&storage);
 
         let mut txs = VecDeque::from(process_proposal.txs);
-        let received_sequence_actions_root: [u8; 32] = txs
+        let received_rollup_datas_root: [u8; 32] = txs
             .pop_front()
             .context("no transaction commitment in proposal")?
             .to_vec()
@@ -295,12 +306,18 @@ impl App {
             "transactions to be included do not match expected",
         );
 
+        let deposits = self
+            .state
+            .get_block_deposits()
+            .await
+            .context("failed to get block deposits in process_proposal")?;
+
         let GeneratedCommitments {
-            sequence_actions_root: expected_sequence_actions_root,
+            rollup_datas_root: expected_rollup_datas_root,
             rollup_ids_root: expected_rollup_ids_root,
-        } = generate_sequence_actions_commitment(&signed_txs);
+        } = generate_rollup_datas_commitment(&signed_txs, deposits);
         ensure!(
-            received_sequence_actions_root == expected_sequence_actions_root,
+            received_rollup_datas_root == expected_rollup_datas_root,
             "transaction commitment does not match expected",
         );
 
@@ -517,7 +534,7 @@ impl App {
     ))]
     pub(crate) async fn deliver_tx(
         &mut self,
-        signed_tx: astria_core::sequencer::v1alpha1::SignedTransaction,
+        signed_tx: astria_core::sequencer::v1::SignedTransaction,
     ) -> anyhow::Result<Vec<abci::Event>> {
         let signed_tx_2 = signed_tx.clone();
         let stateless =
@@ -556,10 +573,7 @@ impl App {
         &mut self,
         end_block: &abci::request::EndBlock,
     ) -> anyhow::Result<abci::response::EndBlock> {
-        use crate::{
-            api_state_ext::StateWriteExt as _,
-            bridge::state_ext::StateReadExt as _,
-        };
+        use crate::api_state_ext::StateWriteExt as _;
 
         let state_tx = StateDelta::new(self.state.clone());
         let mut arc_state_tx = Arc::new(state_tx);
@@ -619,22 +633,23 @@ impl App {
         state_tx.clear_block_fees().await;
         self.current_proposer = None;
 
-        // get and clear rollup bridge deposit events
-        // TODO: we need to write these deposit events to the rollup data blob;
-        // right now these are not actually used anywhere.
-        let deposit_rollup_ids = state_tx
-            .get_deposit_rollup_ids()
+        // get and clear block deposits from state
+        let deposits = self
+            .state
+            .get_block_deposits()
             .await
-            .context("failed to get deposit rollup IDs")?;
-        let mut deposit_events = HashMap::new();
-        for rollup_id in deposit_rollup_ids {
-            let rollup_deposit_events = state_tx
-                .get_deposit_events(&rollup_id)
-                .await
-                .context("failed to get deposit events")?;
-            deposit_events.insert(rollup_id, rollup_deposit_events);
-            state_tx.clear_deposit_info(&rollup_id).await;
-        }
+            .context("failed to get block deposits in end_block")?;
+        self.current_sequencer_block_builder
+            .as_mut()
+            .expect(
+                "begin_block must be called before end_block, thus \
+                 current_sequencer_block_builder must be set",
+            )
+            .deposits(deposits);
+        state_tx
+            .clear_block_deposits()
+            .await
+            .context("failed to clear block deposits")?;
 
         // store the `SequencerBlock` in the state
         let sequencer_block = self
@@ -722,6 +737,7 @@ impl App {
 struct SequencerBlockBuilder {
     header: tendermint::block::Header,
     data: Vec<Vec<u8>>,
+    deposits: HashMap<RollupId, Vec<Deposit>>,
 }
 
 impl SequencerBlockBuilder {
@@ -729,6 +745,7 @@ impl SequencerBlockBuilder {
         Self {
             header,
             data: Vec::new(),
+            deposits: HashMap::new(),
         }
     }
 
@@ -736,8 +753,12 @@ impl SequencerBlockBuilder {
         self.data.push(tx);
     }
 
+    fn deposits(&mut self, deposits: HashMap<RollupId, Vec<Deposit>>) {
+        self.deposits = deposits;
+    }
+
     fn build(self) -> anyhow::Result<SequencerBlock> {
-        SequencerBlock::try_from_cometbft_header_and_data(self.header, self.data)
+        SequencerBlock::try_from_cometbft_header_and_data(self.header, self.data, self.deposits)
             .map_err(Into::into)
     }
 }
@@ -754,8 +775,8 @@ fn signed_transaction_from_bytes(bytes: &[u8]) -> anyhow::Result<SignedTransacti
 #[cfg(test)]
 mod test {
     #[cfg(feature = "mint")]
-    use astria_core::sequencer::v1alpha1::transaction::action::MintAction;
-    use astria_core::sequencer::v1alpha1::{
+    use astria_core::sequencer::v1::transaction::action::MintAction;
+    use astria_core::sequencer::v1::{
         asset,
         asset::DEFAULT_NATIVE_ASSET_DENOM,
         transaction::action::{
@@ -764,7 +785,6 @@ mod test {
             SudoAddressChangeAction,
             TransferAction,
         },
-        RollupId,
         UnsignedTransaction,
         ADDRESS_LEN,
     };
@@ -787,7 +807,6 @@ mod test {
         accounts::action::TRANSFER_FEE,
         asset::get_native_asset,
         authority::state_ext::ValidatorSet,
-        bridge::state_ext::StateReadExt as _,
         genesis::Account,
         ibc::state_ext::StateReadExt as _,
         sequence::calculate_fee,
@@ -1382,7 +1401,7 @@ mod test {
 
     #[tokio::test]
     async fn app_deliver_tx_fee_asset_change_addition() {
-        use astria_core::sequencer::v1alpha1::transaction::action::FeeAssetChangeAction;
+        use astria_core::sequencer::v1::transaction::action::FeeAssetChangeAction;
 
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
 
@@ -1415,7 +1434,7 @@ mod test {
 
     #[tokio::test]
     async fn app_deliver_tx_fee_asset_change_removal() {
-        use astria_core::sequencer::v1alpha1::transaction::action::FeeAssetChangeAction;
+        use astria_core::sequencer::v1::transaction::action::FeeAssetChangeAction;
 
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
         let test_asset = asset::Denom::from_base_denom("test");
@@ -1455,7 +1474,7 @@ mod test {
 
     #[tokio::test]
     async fn app_deliver_tx_fee_asset_change_invalid() {
-        use astria_core::sequencer::v1alpha1::transaction::action::FeeAssetChangeAction;
+        use astria_core::sequencer::v1::transaction::action::FeeAssetChangeAction;
 
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
 
@@ -1489,7 +1508,7 @@ mod test {
 
     #[tokio::test]
     async fn app_deliver_tx_init_bridge_account_ok() {
-        use astria_core::sequencer::v1alpha1::transaction::action::InitBridgeAccountAction;
+        use astria_core::sequencer::v1::transaction::action::InitBridgeAccountAction;
 
         use crate::bridge::init_bridge_account_action::INIT_BRIDGE_ACCOUNT_FEE;
 
@@ -1543,7 +1562,7 @@ mod test {
 
     #[tokio::test]
     async fn app_deliver_tx_init_bridge_account_empty_asset_ids() {
-        use astria_core::sequencer::v1alpha1::transaction::action::InitBridgeAccountAction;
+        use astria_core::sequencer::v1::transaction::action::InitBridgeAccountAction;
 
         let (alice_signing_key, _) = get_alice_signing_key_and_address();
         let mut app = initialize_app(None, vec![]).await;
@@ -1566,7 +1585,7 @@ mod test {
 
     #[tokio::test]
     async fn app_deliver_tx_init_bridge_account_account_already_registered() {
-        use astria_core::sequencer::v1alpha1::transaction::action::InitBridgeAccountAction;
+        use astria_core::sequencer::v1::transaction::action::InitBridgeAccountAction;
 
         let (alice_signing_key, _) = get_alice_signing_key_and_address();
         let mut app = initialize_app(None, vec![]).await;
@@ -1602,7 +1621,7 @@ mod test {
 
     #[tokio::test]
     async fn app_deliver_tx_bridge_lock_action_ok() {
-        use astria_core::sequencer::v1alpha1::{
+        use astria_core::sequencer::v1::{
             block::Deposit,
             transaction::action::BridgeLockAction,
         };
@@ -1679,7 +1698,7 @@ mod test {
 
     #[tokio::test]
     async fn app_deliver_tx_bridge_lock_action_invalid_for_eoa() {
-        use astria_core::sequencer::v1alpha1::transaction::action::BridgeLockAction;
+        use astria_core::sequencer::v1::transaction::action::BridgeLockAction;
 
         let (alice_signing_key, _) = get_alice_signing_key_and_address();
         let mut app = initialize_app(None, vec![]).await;
@@ -2013,6 +2032,105 @@ mod test {
         assert_eq!(app.state.get_block_fees().await.unwrap().len(), 0);
     }
 
+    #[tokio::test]
+    async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
+        use astria_core::sequencer::v1::{
+            block::Deposit,
+            transaction::action::BridgeLockAction,
+        };
+
+        let (alice_signing_key, _) = get_alice_signing_key_and_address();
+        let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
+
+        let bridge_address = Address::from([99; 20]);
+        let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
+        let asset_id = get_native_asset().id();
+
+        let mut state_tx = StateDelta::new(app.state.clone());
+        state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
+        state_tx
+            .put_bridge_account_asset_ids(&bridge_address, &[asset_id])
+            .unwrap();
+        app.apply(state_tx);
+
+        let amount = 100;
+        let lock_action = BridgeLockAction {
+            to: bridge_address,
+            amount,
+            asset_id,
+            fee_asset_id: asset_id,
+            destination_chain_address: "nootwashere".to_string(),
+        };
+        let sequence_action = SequenceAction {
+            rollup_id,
+            data: b"hello world".to_vec(),
+            fee_asset_id: asset_id,
+        };
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![lock_action.into(), sequence_action.into()],
+        };
+
+        let signed_tx = tx.into_signed(&alice_signing_key);
+
+        let expected_deposit = Deposit::new(
+            bridge_address,
+            rollup_id,
+            amount,
+            asset_id,
+            "nootwashere".to_string(),
+        );
+        let deposits = HashMap::from_iter(vec![(rollup_id, vec![expected_deposit.clone()])]);
+
+        let (header, commitments) =
+            block_data_from_txs_with_sequence_actions_and_deposits(&[signed_tx.clone()], deposits);
+
+        let begin_block = abci::request::BeginBlock {
+            header,
+            hash: Hash::default(),
+            last_commit_info: CommitInfo {
+                votes: vec![],
+                round: Round::default(),
+            },
+            byzantine_validators: vec![],
+        };
+        app.begin_block(&begin_block, storage).await.unwrap();
+
+        // deliver the commitments and the signed tx to simulate the
+        // action block execution and put them in the `app.current_sequencer_block_builder`
+        app.deliver_tx_after_proposal(abci::request::DeliverTx {
+            tx: commitments.rollup_datas_root.to_vec().into(),
+        })
+        .await
+        .unwrap()
+        .unwrap();
+        app.deliver_tx_after_proposal(abci::request::DeliverTx {
+            tx: commitments.rollup_ids_root.to_vec().into(),
+        })
+        .await
+        .unwrap()
+        .unwrap();
+        app.deliver_tx_after_proposal(abci::request::DeliverTx {
+            tx: signed_tx.to_raw().encode_to_vec().into(),
+        })
+        .await
+        .unwrap()
+        .unwrap();
+        let deposits = app.state.get_deposit_events(&rollup_id).await.unwrap();
+        assert_eq!(deposits.len(), 1);
+        assert_eq!(deposits[0], expected_deposit);
+
+        app.end_block(&abci::request::EndBlock {
+            height: 1u32.into(),
+        })
+        .await
+        .unwrap();
+
+        // ensure deposits are cleared at the end of the block
+        let deposit_events = app.state.get_deposit_events(&rollup_id).await.unwrap();
+        assert_eq!(deposit_events.len(), 0);
+    }
+
     fn block_data_from_txs_no_sequence_actions(
         txs: Vec<Vec<u8>>,
     ) -> (Header, SequencerBlockBuilder) {
@@ -2029,5 +2147,34 @@ mod test {
             sequencer_block_builder.push_transaction(tx);
         }
         (header, sequencer_block_builder)
+    }
+
+    fn block_data_from_txs_with_sequence_actions_and_deposits(
+        txs: &[SignedTransaction],
+        deposits: HashMap<RollupId, Vec<Deposit>>,
+    ) -> (Header, GeneratedCommitments) {
+        let GeneratedCommitments {
+            rollup_datas_root,
+            rollup_ids_root,
+        } = generate_rollup_datas_commitment(txs, deposits.clone());
+        let mut block_data = vec![rollup_datas_root.to_vec(), rollup_ids_root.to_vec()];
+        block_data.extend(txs.iter().map(|tx| tx.to_raw().encode_to_vec()));
+
+        let data_hash = merkle::Tree::from_leaves(block_data.iter().map(Sha256::digest)).root();
+        let mut header = default_header();
+        header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
+
+        let mut sequencer_block_builder = SequencerBlockBuilder::new(header.clone());
+        for tx in block_data {
+            sequencer_block_builder.push_transaction(tx);
+        }
+        sequencer_block_builder.deposits = deposits;
+        (
+            header,
+            GeneratedCommitments {
+                rollup_datas_root,
+                rollup_ids_root,
+            },
+        )
     }
 }

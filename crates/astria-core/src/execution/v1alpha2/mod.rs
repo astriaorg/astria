@@ -3,7 +3,7 @@ use prost_types::Timestamp;
 
 use crate::{
     generated::execution::v1alpha2 as raw,
-    sequencer::v1alpha1::{
+    sequencer::v1::{
         IncorrectRollupIdLength,
         RollupId,
     },

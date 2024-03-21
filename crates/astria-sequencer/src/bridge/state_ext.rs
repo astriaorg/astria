@@ -1,11 +1,13 @@
+use std::collections::HashMap;
+
 use anyhow::{
     anyhow,
     Context,
     Result,
 };
 use astria_core::{
-    generated::sequencer::v1alpha1::Deposit as RawDeposit,
-    sequencer::v1alpha1::{
+    generated::sequencer::v1::Deposit as RawDeposit,
+    sequencer::v1::{
         asset,
         block::Deposit,
         Address,
@@ -122,8 +124,18 @@ pub(crate) trait StateReadExt: StateRead {
     async fn get_deposit_rollup_ids(&self) -> Result<Vec<RollupId>> {
         let mut stream = std::pin::pin!(self.nonverifiable_prefix_raw(DEPOSIT_PREFIX.as_bytes()));
         let mut rollup_ids = Vec::new();
-        while let Some(Ok((_, value))) = stream.next().await {
-            let rollup_id = RollupId::try_from_slice(&value).context("invalid rollup ID bytes")?;
+        while let Some(Ok((key, _))) = stream.next().await {
+            // the deposit key is of the form "deposit/{rollup_id}/{nonce}"
+            let key_str =
+                String::from_utf8(key).context("failed to convert deposit key to string")?;
+            let key_parts = key_str.split('/').collect::<Vec<_>>();
+            if key_parts.len() != 3 {
+                continue;
+            }
+            let rollup_id_bytes =
+                hex::decode(key_parts[1]).context("invalid rollup ID hex string")?;
+            let rollup_id =
+                RollupId::try_from_slice(&rollup_id_bytes).context("invalid rollup ID bytes")?;
             rollup_ids.push(rollup_id);
         }
         Ok(rollup_ids)
@@ -141,6 +153,23 @@ pub(crate) trait StateReadExt: StateRead {
             deposits.push(deposit);
         }
         Ok(deposits)
+    }
+
+    #[instrument(skip(self))]
+    async fn get_block_deposits(&self) -> Result<HashMap<RollupId, Vec<Deposit>>> {
+        let deposit_rollup_ids = self
+            .get_deposit_rollup_ids()
+            .await
+            .context("failed to get deposit rollup IDs")?;
+        let mut deposit_events = HashMap::new();
+        for rollup_id in deposit_rollup_ids {
+            let rollup_deposit_events = self
+                .get_deposit_events(&rollup_id)
+                .await
+                .context("failed to get deposit events")?;
+            deposit_events.insert(rollup_id, rollup_deposit_events);
+        }
+        Ok(deposit_events)
     }
 }
 
@@ -197,6 +226,18 @@ pub(crate) trait StateWriteExt: StateWrite {
         while let Some(Ok((key, _))) = stream.next().await {
             self.nonverifiable_delete(key);
         }
+    }
+
+    #[instrument(skip(self))]
+    async fn clear_block_deposits(&mut self) -> Result<()> {
+        let deposit_rollup_ids = self
+            .get_deposit_rollup_ids()
+            .await
+            .context("failed to get deposit rollup ids")?;
+        for rollup_id in deposit_rollup_ids {
+            self.clear_deposit_info(&rollup_id).await;
+        }
+        Ok(())
     }
 }
 

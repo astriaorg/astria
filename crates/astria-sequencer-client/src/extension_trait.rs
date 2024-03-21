@@ -26,7 +26,7 @@ use std::{
     sync::Arc,
 };
 
-pub use astria_core::sequencer::v1alpha1::{
+pub use astria_core::sequencer::v1::{
     block::SequencerBlockError,
     Address,
     BalanceResponse,
@@ -450,7 +450,7 @@ pub trait SequencerClientExt: Client {
             .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
 
         let proto_response =
-            astria_core::generated::sequencer::v1alpha1::BalanceResponse::decode(&*response.value)
+            astria_core::generated::sequencer::v1::BalanceResponse::decode(&*response.value)
                 .map_err(|e| {
                     Error::abci_query_deserialization(
                         "astria.sequencer.v1alpha1.BalanceResponse",
@@ -501,7 +501,7 @@ pub trait SequencerClientExt: Client {
             .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
 
         let proto_response =
-            astria_core::generated::sequencer::v1alpha1::NonceResponse::decode(&*response.value)
+            astria_core::generated::sequencer::v1::NonceResponse::decode(&*response.value)
                 .map_err(|e| {
                     Error::abci_query_deserialization(
                         "astria.sequencer.v1alpha1.NonceResponse",
