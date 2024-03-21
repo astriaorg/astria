@@ -1,12 +1,14 @@
 use std::{
     collections::HashMap,
     net::SocketAddr,
+    time::Duration,
 };
 
 use astria_eyre::eyre::{
     self,
     WrapErr as _,
 };
+use itertools::Itertools;
 use tokio::{
     io,
     signal::unix::{
@@ -14,7 +16,11 @@ use tokio::{
         SignalKind,
     },
     sync::watch,
-    task::JoinError,
+    task::{
+        JoinError,
+        JoinHandle,
+    },
+    time::timeout,
 };
 use tokio_util::{
     sync::CancellationToken,
@@ -23,6 +29,7 @@ use tokio_util::{
 use tracing::{
     error,
     info,
+    warn,
 };
 
 use crate::{
@@ -263,11 +270,72 @@ impl Composer {
             });
         }
 
-        shutdown().await
+        shutdown(
+            api_task,
+            executor_task,
+            grpc_server_handle,
+            geth_collector_tasks,
+        )
+        .await
     }
 }
 
-async fn shutdown() -> eyre::Result<()> {
+async fn shutdown(
+    api_server_task_handle: JoinHandle<eyre::Result<()>>,
+    executor_task_handle: JoinHandle<eyre::Result<()>>,
+    grpc_server_task_handle: JoinHandle<eyre::Result<()>>,
+    mut geth_collector_tasks: JoinMap<String, eyre::Result<()>>,
+) -> eyre::Result<()> {
+    // wait 2s for each handle
+    match tokio::time::timeout(std::time::Duration::from_secs(2), api_server_task_handle)
+        .await
+        .map(flatten)
+    {
+        Ok(Ok(())) => info!("api server shut down"),
+        Ok(Err(error)) => error!(%error, "api server failed to shut down"),
+        Err(error) => error!(%error, "api server panicked"),
+    }
+    match tokio::time::timeout(std::time::Duration::from_secs(2), executor_task_handle)
+        .await
+        .map(flatten)
+    {
+        Ok(Ok(())) => info!("executor shut down"),
+        Ok(Err(error)) => error!(%error, "executor failed to shut down"),
+        Err(error) => error!(%error, "executor panciked"),
+    }
+    match tokio::time::timeout(std::time::Duration::from_secs(2), grpc_server_task_handle)
+        .await
+        .map(flatten)
+    {
+        Ok(Ok(())) => info!("grpc server shut down"),
+        Ok(Err(error)) => error!(%error, "grpc server failed to shut down"),
+        Err(error) => error!(%error, "grpc server failed to shut down"),
+    }
+
+    let shutdown_loop = async {
+        while let Some((name, res)) = geth_collector_tasks.join_next().await {
+            let message = "task shut down";
+            match flatten(res) {
+                Ok(()) => info!(name, message),
+                Err(error) => error!(name, %error, message),
+            }
+        }
+    };
+
+    if timeout(Duration::from_secs(25), shutdown_loop)
+        .await
+        .is_err()
+    {
+        let tasks = geth_collector_tasks.keys().join(", ");
+        warn!(
+            tasks = format_args!("[{tasks}]"),
+            "aborting all tasks that have not yet shut down",
+        );
+        geth_collector_tasks.abort_all();
+    } else {
+        info!("all tasks shut down regularly");
+    }
+
     Ok(())
 }
 
@@ -359,5 +427,13 @@ fn report_exit(task_name: &str, outcome: Result<eyre::Result<()>, JoinError>) {
         Err(error) => {
             error!(%error, task = task_name, "task failed to complete");
         }
+    }
+}
+
+pub(crate) fn flatten<T>(res: Result<eyre::Result<T>, JoinError>) -> eyre::Result<T> {
+    match res {
+        Ok(Ok(val)) => Ok(val),
+        Ok(Err(err)) => Err(err).wrap_err("task returned with error"),
+        Err(err) => Err(err).wrap_err("task panicked"),
     }
 }
