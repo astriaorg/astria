@@ -87,7 +87,7 @@ impl Geth {
         info!(
             rollup_name = %chain_name,
             rollup_id = %rollup_id,
-            "Creating new collector for rollup",
+            "creating new collector for rollup",
         );
         Self {
             rollup_id,

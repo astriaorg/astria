@@ -515,7 +515,7 @@ impl<'a> std::fmt::Display for ReportBundleRollupIdCounts<'a> {
         if let Some((rollup_id, count)) = counts_iter.next() {
             write!(f, "{rollup_id}: {count}")?;
         };
-        for (rollup_id, count) in counts {
+        for (rollup_id, count) in counts_iter {
             f.write_str(", ")?;
             write!(f, "{rollup_id}: {count}")?;
         }
