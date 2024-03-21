@@ -234,7 +234,7 @@ impl Executor {
             select! {
                 biased;
 
-                _ = self.shutdown_token.cancelled() => {
+                () = self.shutdown_token.cancelled() => {
                     info!("executor shutting down, waiting for all bundles to be submitted");
                     in_shutdown = true;
                     self.serialized_rollup_transactions.close();

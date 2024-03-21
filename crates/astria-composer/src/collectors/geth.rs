@@ -163,7 +163,7 @@ impl Geth {
         loop {
             select! {
                 biased;
-                _ = shutdown_token.cancelled() => {
+                () = shutdown_token.cancelled() => {
                     tx_stream.unsubscribe().await?;
                     status.send_modify(|status| status.is_connected = false);
                     break;
