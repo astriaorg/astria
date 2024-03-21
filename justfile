@@ -215,7 +215,7 @@ deploy-smoke-test tag=defaultTag:
   @helm dependency build charts/evm-rollup > /dev/null
   @echo "Setting up single astria sequencer..." && helm install -n astria-validator-single single-sequencer-chart ./charts/sequencer -f dev/values/validators/single.yml --set images.sequencer.devTag={{tag}} --set images.sequencer-relayer.devTag={{tag}} --create-namespace > /dev/null
   @just wait-for-sequencer > /dev/null
-  @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart ./charts/evm-rollup -f dev/values/rollup/dev.yaml --set images.conductor.devTag={{tag}} --set images.composer.devTag={{tag}} --set config.blockscout.enabled=false --set config.faucet.enabled=false > dev/null
+  @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart ./charts/evm-rollup -f dev/values/rollup/dev.yaml --set images.conductor.devTag={{tag}} --set images.composer.devTag={{tag}} --set config.blockscout.enabled=false --set config.faucet.enabled=false > /dev/null
   @sleep 30
 
 run-smoke-test:
@@ -230,3 +230,17 @@ delete-smoke-test:
   just delete sequencer
   just delete celestia-local
 
+cometbft_image := "docker.io/cometbft/cometbft:v0.37.x"
+load-arm-cometbft:
+  #! /usr/bin/env bash
+  TAG=$(echo "{{ cometbft_image }}" | cut -d':' -f2)
+  VERSION="${TAG%.*}"
+  if [ "$(uname -m)" == "arm64" ]; then
+      docker build -t "{{ cometbft_image }}" -f- . <<-EOL
+          FROM "{{ cometbft_image }}"
+          USER root
+          RUN curl -sL $(curl -s https://api.github.com/repos/cometbft/cometbft/releases | grep -F browser_download_url | grep -F linux_arm64.tar.gz | grep -F "${VERSION}" | head -n 1 | awk '{print $NF}' | sed 's/\"//g') | tar zx -C /usr/bin cometbft
+          USER tmuser
+  EOL
+  just load-image {{ cometbft_image }}
+  fi
