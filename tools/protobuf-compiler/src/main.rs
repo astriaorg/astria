@@ -66,12 +66,25 @@ fn main() {
         .bytes([".astria.execution.v1alpha2"])
         .client_mod_attribute(".", "#[cfg(feature=\"client\")]")
         .server_mod_attribute(".", "#[cfg(feature=\"server\")]")
-        .extern_path(".astria_vendored.tendermint.abci", "::tendermint-proto::abci")
-        .extern_path(".astria_vendored.tendermint.crypto", "::tendermint-proto::crypto")
-        .extern_path(".astria_vendored.tendermint.version", "::tendermint-proto::version")
-        .extern_path(".astria_vendored.tendermint.types", "::tendermint-proto::types")
+        .extern_path(
+            ".astria_vendored.tendermint.abci",
+            "::tendermint-proto::abci",
+        )
+        .extern_path(
+            ".astria_vendored.tendermint.crypto",
+            "::tendermint-proto::crypto",
+        )
+        .extern_path(
+            ".astria_vendored.tendermint.version",
+            "::tendermint-proto::version",
+        )
+        .extern_path(
+            ".astria_vendored.tendermint.types",
+            "::tendermint-proto::types",
+        )
         .extern_path(".astria_vendored.penumbra", "::penumbra-proto")
         .type_attribute(".astria.primitive.v1.Uint128", "#[derive(Copy)]")
+        .use_arc_self(true)
         .out_dir(&out_dir)
         .file_descriptor_set_path(buf_img.path())
         .skip_protoc_run()

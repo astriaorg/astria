@@ -409,18 +409,18 @@ pub mod execution_service_server {
     pub trait ExecutionService: Send + Sync + 'static {
         /// GetGenesisInfo returns the necessary genesis information for rollup chain.
         async fn get_genesis_info(
-            &self,
+            self: std::sync::Arc<Self>,
             request: tonic::Request<super::GetGenesisInfoRequest>,
         ) -> std::result::Result<tonic::Response<super::GenesisInfo>, tonic::Status>;
         /// GetBlock will return a block given an identifier.
         async fn get_block(
-            &self,
+            self: std::sync::Arc<Self>,
             request: tonic::Request<super::GetBlockRequest>,
         ) -> std::result::Result<tonic::Response<super::Block>, tonic::Status>;
         /// BatchGetBlocks will return an array of Blocks given an array of block
         /// identifiers.
         async fn batch_get_blocks(
-            &self,
+            self: std::sync::Arc<Self>,
             request: tonic::Request<super::BatchGetBlocksRequest>,
         ) -> std::result::Result<
             tonic::Response<super::BatchGetBlocksResponse>,
@@ -429,18 +429,18 @@ pub mod execution_service_server {
         /// ExecuteBlock is called to deterministically derive a rollup block from
         /// filtered sequencer block information.
         async fn execute_block(
-            &self,
+            self: std::sync::Arc<Self>,
             request: tonic::Request<super::ExecuteBlockRequest>,
         ) -> std::result::Result<tonic::Response<super::Block>, tonic::Status>;
         /// GetCommitmentState fetches the current CommitmentState of the chain.
         async fn get_commitment_state(
-            &self,
+            self: std::sync::Arc<Self>,
             request: tonic::Request<super::GetCommitmentStateRequest>,
         ) -> std::result::Result<tonic::Response<super::CommitmentState>, tonic::Status>;
         /// UpdateCommitmentState replaces the whole CommitmentState with a new
         /// CommitmentState.
         async fn update_commitment_state(
-            &self,
+            self: std::sync::Arc<Self>,
             request: tonic::Request<super::UpdateCommitmentStateRequest>,
         ) -> std::result::Result<tonic::Response<super::CommitmentState>, tonic::Status>;
     }
@@ -546,7 +546,7 @@ pub mod execution_service_server {
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ExecutionService>::get_genesis_info(&inner, request)
+                                <T as ExecutionService>::get_genesis_info(inner, request)
                                     .await
                             };
                             Box::pin(fut)
@@ -593,7 +593,7 @@ pub mod execution_service_server {
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ExecutionService>::get_block(&inner, request).await
+                                <T as ExecutionService>::get_block(inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -639,7 +639,7 @@ pub mod execution_service_server {
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ExecutionService>::batch_get_blocks(&inner, request)
+                                <T as ExecutionService>::batch_get_blocks(inner, request)
                                     .await
                             };
                             Box::pin(fut)
@@ -686,8 +686,7 @@ pub mod execution_service_server {
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ExecutionService>::execute_block(&inner, request)
-                                    .await
+                                <T as ExecutionService>::execute_block(inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -734,7 +733,7 @@ pub mod execution_service_server {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
                                 <T as ExecutionService>::get_commitment_state(
-                                        &inner,
+                                        inner,
                                         request,
                                     )
                                     .await
@@ -784,7 +783,7 @@ pub mod execution_service_server {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
                                 <T as ExecutionService>::update_commitment_state(
-                                        &inner,
+                                        inner,
                                         request,
                                     )
                                     .await
