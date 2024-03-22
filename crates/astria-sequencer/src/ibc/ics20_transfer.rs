@@ -504,7 +504,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn execute_ics20_transfer_to_eoa() {
+    async fn execute_ics20_transfer_to_user_account() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot.clone());
@@ -528,7 +528,7 @@ mod test {
             false,
         )
         .await
-        .expect("valid ics20 transfer to EOA; recipient, memo, and asset ID are valid");
+        .expect("valid ics20 transfer to user account; recipient, memo, and asset ID are valid");
 
         let recipient = Address::try_from_slice(
             &hex::decode("1c0c490f1b5528d8173c5de46d131160e4b2c0c3").unwrap(),
@@ -539,7 +539,8 @@ mod test {
             .get_account_balance(recipient, denom.id())
             .await
             .expect(
-                "ics20 transfer to EOA should succeed and balance should be minted to this account",
+                "ics20 transfer to user account should succeed and balance should be minted to \
+                 this account",
             );
         assert_eq!(balance, 100);
     }
