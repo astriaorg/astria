@@ -325,12 +325,10 @@ async fn execute_ics20_transfer_bridge_lock<S: StateWriteExt>(
         .context("failed to get bridge account rollup ID from state")?;
     let is_bridge_lock = maybe_recipient_rollup_id.is_some();
 
-    // account being transferred to is not a bridge account, return
-    if !is_bridge_lock {
-        return Ok(());
-    }
-
-    // note: bridge accounts *are* allowed to do ICS20 withdrawals,
+    // if account being transferred to is not a bridge account, or
+    // the incoming packet is a refund, return
+    //
+    // note on refunds: bridge accounts *are* allowed to do ICS20 withdrawals,
     // so this could be a refund to a bridge account if that withdrawal times out.
     //
     // so, if this is a refund transaction, we don't need to emit a `Deposit`,
@@ -339,7 +337,7 @@ async fn execute_ics20_transfer_bridge_lock<S: StateWriteExt>(
     // then, we don't need to check the memo field (as no `Deposit` is created),
     // or check the asset IDs (as the asset IDs that can be sent out are the same
     // as those that can be received).
-    if is_refund {
+    if !is_bridge_lock || is_refund {
         return Ok(());
     }
 
@@ -349,7 +347,7 @@ async fn execute_ics20_transfer_bridge_lock<S: StateWriteExt>(
     );
 
     let allowed_asset_ids = state
-        .get_bridge_account_asset_ids(&recipient)
+        .get_bridge_account_asset_ids(recipient)
         .await
         .context("failed to get bridge account asset IDs")?;
     ensure!(
@@ -358,7 +356,7 @@ async fn execute_ics20_transfer_bridge_lock<S: StateWriteExt>(
     );
 
     let deposit = Deposit::new(
-        recipient.clone(),
+        *recipient,
         maybe_recipient_rollup_id
             .expect("recipient has a rollup ID; this was checked via `is_bridge_lock`"),
         amount,
@@ -507,9 +505,7 @@ mod test {
 
     #[tokio::test]
     async fn execute_ics20_transfer_to_eoa() {
-        let storage = cnidarium::TempStorage::new()
-            .await
-            .expect("failed to create temp storage backing chain state");
+        let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot.clone());
 
@@ -520,7 +516,7 @@ mod test {
             receiver: "1c0c490f1b5528d8173c5de46d131160e4b2c0c3".to_string(),
             memo: String::new(),
         };
-        let packet_bytes = serde_json::to_vec(&packet).expect("failed to serialize packet data");
+        let packet_bytes = serde_json::to_vec(&packet).unwrap();
 
         execute_ics20_transfer(
             &mut state_tx,
@@ -532,7 +528,7 @@ mod test {
             false,
         )
         .await
-        .unwrap();
+        .expect("valid ics20 transfer to EOA; recipient, memo, and asset ID are valid");
 
         let recipient = Address::try_from_slice(
             &hex::decode("1c0c490f1b5528d8173c5de46d131160e4b2c0c3").unwrap(),
@@ -542,15 +538,15 @@ mod test {
         let balance = state_tx
             .get_account_balance(recipient, denom.id())
             .await
-            .unwrap();
+            .expect(
+                "ics20 transfer to EOA should succeed and balance should be minted to this account",
+            );
         assert_eq!(balance, 100);
     }
 
     #[tokio::test]
     async fn execute_ics20_transfer_to_bridge_account_ok() {
-        let storage = cnidarium::TempStorage::new()
-            .await
-            .expect("failed to create temp storage backing chain state");
+        let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot.clone());
 
@@ -570,7 +566,7 @@ mod test {
             receiver: hex::encode(bridge_address),
             memo: "destinationaddress".to_string(),
         };
-        let packet_bytes = serde_json::to_vec(&packet).expect("can serialize packet data");
+        let packet_bytes = serde_json::to_vec(&packet).unwrap();
 
         execute_ics20_transfer(
             &mut state_tx,
@@ -588,7 +584,10 @@ mod test {
         let balance = state_tx
             .get_account_balance(bridge_address, denom.id())
             .await
-            .expect("ics20 transfer from sender to bridge account should succeed");
+            .expect(
+                "ics20 transfer from sender to bridge account should have updated funds in the \
+                 bridge address",
+            );
         assert_eq!(balance, 100);
 
         let deposit = state_tx
@@ -599,10 +598,8 @@ mod test {
     }
 
     #[tokio::test]
-    async fn execute_ics20_transfer_to_bridge_account_invalid() {
-        let storage = cnidarium::TempStorage::new()
-            .await
-            .expect("failed to create temp storage backing chain state");
+    async fn execute_ics20_transfer_to_bridge_account_invalid_memo() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot.clone());
 
@@ -623,7 +620,7 @@ mod test {
             receiver: hex::encode(bridge_address),
             memo: String::new(),
         };
-        let packet_bytes = serde_json::to_vec(&packet).expect("can serialize packet data");
+        let packet_bytes = serde_json::to_vec(&packet).unwrap();
 
         execute_ics20_transfer(
             &mut state_tx,
@@ -635,7 +632,23 @@ mod test {
             false,
         )
         .await
-        .expect_err("empty memo field during transfer to bridge account should fail");
+        .expect_err("empty packet memo field during transfer to bridge account should fail");
+    }
+
+    #[tokio::test]
+    async fn execute_ics20_transfer_to_bridge_account_invalid_asset() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state_tx = StateDelta::new(snapshot.clone());
+
+        let bridge_address = Address::from([99; 20]);
+        let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
+        let denom: Denom = "nootasset".to_string().into();
+
+        state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
+        state_tx
+            .put_bridge_account_asset_ids(&bridge_address, &[denom.id()])
+            .unwrap();
 
         // use invalid asset, which should fail
         let packet = FungibleTokenPacketData {
@@ -645,7 +658,7 @@ mod test {
             receiver: hex::encode(bridge_address),
             memo: "destinationaddress".to_string(),
         };
-        let packet_bytes = serde_json::to_vec(&packet).expect("can serialize packet data");
+        let packet_bytes = serde_json::to_vec(&packet).unwrap();
 
         execute_ics20_transfer(
             &mut state_tx,

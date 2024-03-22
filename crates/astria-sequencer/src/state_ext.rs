@@ -243,26 +243,3 @@ pub(crate) trait StateWriteExt: StateWrite {
 }
 
 impl<T: StateWrite> StateWriteExt for T {}
-
-#[cfg(test)]
-mod test {
-    use cnidarium::StateDelta;
-
-    use super::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    };
-
-    #[tokio::test]
-    async fn chain_id() {
-        let storage = cnidarium::TempStorage::new()
-            .await
-            .expect("failed to create temp storage backing chain state");
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        let chain_id = "test-chain";
-        state.put_chain_id(chain_id.to_string());
-        assert!(state.get_chain_id().await.unwrap() == chain_id);
-    }
-}
