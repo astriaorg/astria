@@ -1,6 +1,6 @@
 [package]
 name = "astria-conductor"
-version = "0.12.0"
+version = "0.13.0"
 edition = "2021"
 rust-version = "1.73"
 license = "MIT OR Apache-2.0"
@@ -50,6 +50,7 @@ sequencer-client = { package = "astria-sequencer-client", path = "../astria-sequ
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry", features = [
   "display",
 ] }
+itertools = "0.12.1"
 
 [dev-dependencies]
 jsonrpsee = { workspace = true, features = ["server"] }
