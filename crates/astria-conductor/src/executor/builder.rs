@@ -6,9 +6,9 @@ use astria_eyre::eyre::{
 };
 use tokio::sync::{
     mpsc,
-    oneshot,
     watch,
 };
+use tokio_util::sync::CancellationToken;
 
 use super::{
     Executor,
@@ -20,7 +20,7 @@ use super::{
 pub(crate) struct Builder {
     pub(crate) consider_commitment_spread: bool,
     pub(crate) rollup_address: String,
-    pub(crate) shutdown: oneshot::Receiver<()>,
+    pub(crate) shutdown: CancellationToken,
 }
 
 impl Builder {
