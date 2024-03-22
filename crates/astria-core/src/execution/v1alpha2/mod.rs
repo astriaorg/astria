@@ -1,5 +1,5 @@
 use bytes::Bytes;
-use prost_types::Timestamp;
+use pbjson_types::Timestamp;
 
 use crate::{
     generated::execution::v1alpha2 as raw,
@@ -35,12 +35,12 @@ enum GenesisInfoErrorKind {
 /// [`raw::GenesisInfo`].
 #[derive(Clone, Copy, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
+#[cfg_attr(
+    feature = "serde",
+    serde(into = "crate::generated::execution::v1alpha2::GenesisInfo")
+)]
 pub struct GenesisInfo {
     /// The rollup id which is used to identify the rollup txs.
-    #[cfg_attr(
-        feature = "serde",
-        serde(serialize_with = "crate::serde::string::display")
-    )]
     rollup_id: RollupId,
     /// The Sequencer block height which contains the first block of the rollup.
     sequencer_genesis_block_height: tendermint::block::Height,
@@ -70,6 +70,12 @@ impl GenesisInfo {
     #[must_use]
     pub fn celestia_block_variance(&self) -> u32 {
         self.celestia_block_variance
+    }
+}
+
+impl From<GenesisInfo> for raw::GenesisInfo {
+    fn from(value: GenesisInfo) -> Self {
+        value.to_raw()
     }
 }
 
@@ -146,22 +152,20 @@ enum BlockErrorKind {
 ///
 /// Usually constructed its [`Protobuf`] implementation from a
 /// [`raw::Block`].
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
+#[cfg_attr(
+    feature = "serde",
+    serde(into = "crate::generated::execution::v1alpha2::Block")
+)]
 pub struct Block {
     /// The block number
     number: u32,
     /// The hash of the block
-    #[cfg_attr(feature = "serde", serde(serialize_with = "crate::serde::string::hex"))]
     hash: Bytes,
     /// The hash of the parent block
-    #[cfg_attr(feature = "serde", serde(serialize_with = "crate::serde::string::hex"))]
     parent_block_hash: Bytes,
     /// Timestamp on the block, standardized to google protobuf standard.
-    #[cfg_attr(
-        feature = "serde",
-        serde(serialize_with = "crate::serde::string::display")
-    )]
     timestamp: Timestamp,
 }
 
@@ -186,6 +190,12 @@ impl Block {
         // prost_types::Timestamp is a (i64, i32) tuple, so this is
         // effectively just a copy
         self.timestamp.clone()
+    }
+}
+
+impl From<Block> for raw::Block {
+    fn from(value: Block) -> Self {
+        value.to_raw()
     }
 }
 
@@ -343,8 +353,12 @@ impl CommitmentStateBuilder<WithFirm, WithSoft> {
 /// - Block numbers are such that soft >= firm (upheld by this type).
 /// - No blocks ever decrease in block number.
 /// - The chain defined by soft is the head of the canonical chain the firm block must belong to.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
+#[cfg_attr(
+    feature = "serde",
+    serde(into = "crate::generated::execution::v1alpha2::CommitmentState")
+)]
 pub struct CommitmentState {
     /// Soft commitment is the rollup block matching latest sequencer block.
     soft: Block,
@@ -366,6 +380,12 @@ impl CommitmentState {
     #[must_use]
     pub fn soft(&self) -> &Block {
         &self.soft
+    }
+}
+
+impl From<CommitmentState> for raw::CommitmentState {
+    fn from(value: CommitmentState) -> Self {
+        value.to_raw()
     }
 }
 

@@ -1,15 +1,5 @@
 pub(crate) mod string {
-    use std::fmt::Display;
-
     use serde::Serializer;
-
-    pub(crate) fn display<T, S>(value: &T, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        T: Display,
-        S: Serializer,
-    {
-        serializer.collect_str(value)
-    }
 
     pub(crate) fn hex<T, S>(value: &T, serializer: S) -> Result<S::Ok, S::Error>
     where
