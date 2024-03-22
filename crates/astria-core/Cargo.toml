@@ -38,12 +38,16 @@ tendermint-proto = { workspace = true }
 thiserror = { workspace = true }
 tonic = { workspace = true, optional = true }
 tracing = { workspace = true }
+base64-serde = { workspace = true, optional = true }
+base64 = { workspace = true, optional = true }
 
 [features]
 client = ["dep:tonic"]
-serde = ["dep:serde", "dep:pbjson"]
+serde = ["dep:serde", "dep:pbjson", "dep:base64", "dep:base64-serde"]
 server = ["dep:tonic"]
 test-utils = ["dep:rand"]
+base64-serde = ["dep:base64-serde"]
+base64 = ["dep:base64"]
 
 [dev-dependencies]
 rand = { workspace = true }
