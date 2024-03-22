@@ -11,11 +11,13 @@
 //! [`AppHandlerExecute`] is used for execution.
 
 use anyhow::{
+    ensure,
     Context as _,
     Result,
 };
 use astria_core::sequencer::v1::{
     asset::Denom,
+    block::Deposit,
     Address,
 };
 use cnidarium::{
@@ -49,11 +51,12 @@ use penumbra_ibc::component::app_handler::{
 use penumbra_proto::penumbra::core::component::ibc::v1::FungibleTokenPacketData;
 
 use crate::{
-    accounts::state_ext::{
+    accounts::state_ext::StateWriteExt as _,
+    asset::state_ext::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    asset::state_ext::{
+    bridge::state_ext::{
         StateReadExt as _,
         StateWriteExt as _,
     },
@@ -303,6 +306,71 @@ impl AppHandlerExecute for Ics20Transfer {
 #[async_trait::async_trait]
 impl AppHandler for Ics20Transfer {}
 
+async fn execute_ics20_transfer_bridge_lock<S: StateWriteExt>(
+    state: &mut S,
+    recipient: &Address,
+    denom: &Denom,
+    amount: u128,
+    destination_address: String,
+    is_refund: bool,
+) -> Result<()> {
+    // check if the recipient is a bridge account; if so,
+    // ensure that the packet memo field (`destination_address`) is set.
+    //
+    // also, ensure that the asset ID being transferred
+    // to it is allowed.
+    let maybe_recipient_rollup_id = state
+        .get_bridge_account_rollup_id(recipient)
+        .await
+        .context("failed to get bridge account rollup ID from state")?;
+    let is_bridge_lock = maybe_recipient_rollup_id.is_some();
+
+    // if account being transferred to is not a bridge account, or
+    // the incoming packet is a refund, return
+    //
+    // note on refunds: bridge accounts *are* allowed to do ICS20 withdrawals,
+    // so this could be a refund to a bridge account if that withdrawal times out.
+    //
+    // so, if this is a refund transaction, we don't need to emit a `Deposit`,
+    // as the tokens are being refunded to the bridge's account.
+    //
+    // then, we don't need to check the memo field (as no `Deposit` is created),
+    // or check the asset IDs (as the asset IDs that can be sent out are the same
+    // as those that can be received).
+    if !is_bridge_lock || is_refund {
+        return Ok(());
+    }
+
+    ensure!(
+        !destination_address.is_empty(),
+        "packet memo field must be set for bridge account recipient",
+    );
+
+    let allowed_asset_ids = state
+        .get_bridge_account_asset_ids(recipient)
+        .await
+        .context("failed to get bridge account asset IDs")?;
+    ensure!(
+        allowed_asset_ids.contains(&denom.id()),
+        "asset ID is not authorized for transfer to bridge account",
+    );
+
+    let deposit = Deposit::new(
+        *recipient,
+        maybe_recipient_rollup_id
+            .expect("recipient has a rollup ID; this was checked via `is_bridge_lock`"),
+        amount,
+        denom.id(),
+        destination_address,
+    );
+    state
+        .put_deposit_event(deposit)
+        .await
+        .context("failed to put deposit event into state")?;
+
+    Ok(())
+}
+
 async fn execute_ics20_transfer<S: StateWriteExt>(
     state: &mut S,
     data: &[u8],
@@ -327,12 +395,25 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
     // if the asset is prefixed with `ibc`, the rest of the denomination string is the asset ID,
     // so we need to look up the full trace from storage.
     // see https://github.com/cosmos/ibc-go/blob/main/docs/architecture/adr-001-coin-source-tracing.md#decision
-    if denom.prefix_is("ibc") {
+    if denom.prefix().starts_with("ibc") {
         denom = state
             .get_ibc_asset(denom.id())
             .await
             .context("failed to get denom trace from asset id")?;
     }
+
+    // check if this is a transfer to a bridge account and
+    // execute relevant state changes if it is
+    execute_ics20_transfer_bridge_lock(
+        state,
+        &recipient,
+        &denom,
+        packet_amount,
+        packet_data.memo.clone(),
+        is_refund,
+    )
+    .await
+    .context("failed to execute ics20 transfer to bridge account")?;
 
     let is_prefixed = is_prefixed(source_port, source_channel, &denom);
     let is_source = if is_refund {
@@ -342,8 +423,9 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
         // we are the source if the denom is prefixed by source_port/source_channel
         is_prefixed
     };
+
     if is_source {
-        // sender of packet (us) was the source chain
+        // the asset being transferred in is an asset that originated from astria
         // subtract balance from escrow account and transfer to user
 
         let escrow_balance = state
@@ -351,7 +433,6 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
             .await
             .context("failed to get IBC channel balance in execute_ics20_transfer")?;
 
-        let user_balance = state.get_account_balance(recipient, denom.id()).await?;
         state
             .put_ibc_channel_balance(
                 source_channel,
@@ -363,14 +444,10 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
                     ))?,
             )
             .context("failed to update escrow account balance in execute_ics20_transfer")?;
+
         state
-            .put_account_balance(
-                recipient,
-                denom.id(),
-                user_balance
-                    .checked_add(packet_amount)
-                    .ok_or(anyhow::anyhow!("overflow when adding to user balance"))?,
-            )
+            .increase_balance(recipient, denom.id(), packet_amount)
+            .await
             .context("failed to update user account balance in execute_ics20_transfer")?;
     } else {
         let prefixed_denomination = if is_refund {
@@ -395,18 +472,9 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
                 .context("failed to put IBC asset in storage")?;
         }
 
-        let user_balance = state
-            .get_account_balance(recipient, denom.id())
-            .await
-            .context("failed to get user account balance in execute_ics20_transfer")?;
         state
-            .put_account_balance(
-                recipient,
-                denom.id(),
-                user_balance
-                    .checked_add(packet_amount)
-                    .ok_or(anyhow::anyhow!("overflow when adding to user balance"))?,
-            )
+            .increase_balance(recipient, denom.id(), packet_amount)
+            .await
             .context("failed to update user account balance in execute_ics20_transfer")?;
     }
 
@@ -415,7 +483,11 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
 
 #[cfg(test)]
 mod test {
+    use astria_core::sequencer::v1::RollupId;
+    use cnidarium::StateDelta;
+
     use super::*;
+    use crate::accounts::state_ext::StateReadExt as _;
 
     #[test]
     fn is_prefixed_test() {
@@ -429,5 +501,176 @@ mod test {
         // prefixed by the sending chain
         let asset = Denom::from("other_port/source_channel/asset".to_string());
         assert!(!is_prefixed(&source_port, &source_channel, &asset));
+    }
+
+    #[tokio::test]
+    async fn execute_ics20_transfer_to_user_account() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state_tx = StateDelta::new(snapshot.clone());
+
+        let packet = FungibleTokenPacketData {
+            denom: "nootasset".to_string(),
+            sender: String::new(),
+            amount: "100".to_string(),
+            receiver: "1c0c490f1b5528d8173c5de46d131160e4b2c0c3".to_string(),
+            memo: String::new(),
+        };
+        let packet_bytes = serde_json::to_vec(&packet).unwrap();
+
+        execute_ics20_transfer(
+            &mut state_tx,
+            &packet_bytes,
+            &"source_port".to_string().parse().unwrap(),
+            &"source_channel".to_string().parse().unwrap(),
+            &"dest_port".to_string().parse().unwrap(),
+            &"dest_channel".to_string().parse().unwrap(),
+            false,
+        )
+        .await
+        .expect("valid ics20 transfer to user account; recipient, memo, and asset ID are valid");
+
+        let recipient = Address::try_from_slice(
+            &hex::decode("1c0c490f1b5528d8173c5de46d131160e4b2c0c3").unwrap(),
+        )
+        .unwrap();
+        let denom: Denom = format!("dest_port/dest_channel/{}", "nootasset").into();
+        let balance = state_tx
+            .get_account_balance(recipient, denom.id())
+            .await
+            .expect(
+                "ics20 transfer to user account should succeed and balance should be minted to \
+                 this account",
+            );
+        assert_eq!(balance, 100);
+    }
+
+    #[tokio::test]
+    async fn execute_ics20_transfer_to_bridge_account_ok() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state_tx = StateDelta::new(snapshot.clone());
+
+        let bridge_address = Address::from([99; 20]);
+        let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
+        let denom: Denom = "nootasset".to_string().into();
+
+        state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
+        state_tx
+            .put_bridge_account_asset_ids(&bridge_address, &[denom.id()])
+            .unwrap();
+
+        let packet = FungibleTokenPacketData {
+            denom: "nootasset".to_string(),
+            sender: String::new(),
+            amount: "100".to_string(),
+            receiver: hex::encode(bridge_address),
+            memo: "destinationaddress".to_string(),
+        };
+        let packet_bytes = serde_json::to_vec(&packet).unwrap();
+
+        execute_ics20_transfer(
+            &mut state_tx,
+            &packet_bytes,
+            &"source_port".to_string().parse().unwrap(),
+            &"source_channel".to_string().parse().unwrap(),
+            &"dest_port".to_string().parse().unwrap(),
+            &"dest_channel".to_string().parse().unwrap(),
+            false,
+        )
+        .await
+        .expect("valid ics20 transfer to bridge account; recipient, memo, and asset ID are valid");
+
+        let denom: Denom = format!("dest_port/dest_channel/{}", "nootasset").into();
+        let balance = state_tx
+            .get_account_balance(bridge_address, denom.id())
+            .await
+            .expect(
+                "ics20 transfer from sender to bridge account should have updated funds in the \
+                 bridge address",
+            );
+        assert_eq!(balance, 100);
+
+        let deposit = state_tx
+            .get_block_deposits()
+            .await
+            .expect("a deposit should exist as a result of the transfer to a bridge account");
+        assert_eq!(deposit.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn execute_ics20_transfer_to_bridge_account_invalid_memo() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state_tx = StateDelta::new(snapshot.clone());
+
+        let bridge_address = Address::from([99; 20]);
+        let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
+        let denom: Denom = "nootasset".to_string().into();
+
+        state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
+        state_tx
+            .put_bridge_account_asset_ids(&bridge_address, &[denom.id()])
+            .unwrap();
+
+        // use empty memo, which should fail
+        let packet = FungibleTokenPacketData {
+            denom: "nootasset".to_string(),
+            sender: String::new(),
+            amount: "100".to_string(),
+            receiver: hex::encode(bridge_address),
+            memo: String::new(),
+        };
+        let packet_bytes = serde_json::to_vec(&packet).unwrap();
+
+        execute_ics20_transfer(
+            &mut state_tx,
+            &packet_bytes,
+            &"source_port".to_string().parse().unwrap(),
+            &"source_channel".to_string().parse().unwrap(),
+            &"dest_port".to_string().parse().unwrap(),
+            &"dest_channel".to_string().parse().unwrap(),
+            false,
+        )
+        .await
+        .expect_err("empty packet memo field during transfer to bridge account should fail");
+    }
+
+    #[tokio::test]
+    async fn execute_ics20_transfer_to_bridge_account_invalid_asset() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state_tx = StateDelta::new(snapshot.clone());
+
+        let bridge_address = Address::from([99; 20]);
+        let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
+        let denom: Denom = "nootasset".to_string().into();
+
+        state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
+        state_tx
+            .put_bridge_account_asset_ids(&bridge_address, &[denom.id()])
+            .unwrap();
+
+        // use invalid asset, which should fail
+        let packet = FungibleTokenPacketData {
+            denom: "fake".to_string(),
+            sender: String::new(),
+            amount: "100".to_string(),
+            receiver: hex::encode(bridge_address),
+            memo: "destinationaddress".to_string(),
+        };
+        let packet_bytes = serde_json::to_vec(&packet).unwrap();
+
+        execute_ics20_transfer(
+            &mut state_tx,
+            &packet_bytes,
+            &"source_port".to_string().parse().unwrap(),
+            &"source_channel".to_string().parse().unwrap(),
+            &"dest_port".to_string().parse().unwrap(),
+            &"dest_channel".to_string().parse().unwrap(),
+            false,
+        )
+        .await
+        .expect_err("invalid asset during transfer to bridge account should fail");
     }
 }
