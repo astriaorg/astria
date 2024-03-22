@@ -39,10 +39,8 @@ use astria_core::{
 };
 use bytes::Bytes;
 use prost::Message;
-use tokio::{
-    sync::oneshot,
-    task::JoinHandle,
-};
+use tokio::task::JoinHandle;
+use tokio_util::sync::CancellationToken;
 use tonic::transport::Server;
 
 use super::{
@@ -231,7 +229,7 @@ fn make_reconstructed_block(height: u32) -> ReconstructedBlock {
 
 struct MockEnvironment {
     _server: MockExecutionServer,
-    _shutdown_tx: oneshot::Sender<()>,
+    _shutdown: CancellationToken,
     executor: Executor,
     client: Client,
 }
@@ -240,13 +238,14 @@ async fn start_mock() -> MockEnvironment {
     let server = MockExecutionServer::spawn().await;
     let server_url = format!("http://{}", server.local_addr());
 
-    let (shutdown_tx, shutdown_rx) = oneshot::channel();
-
-    let (executor, _) = Executor::builder()
-        .rollup_address(&server_url)
-        .unwrap()
-        .shutdown(shutdown_rx)
-        .build();
+    let shutdown_token = CancellationToken::new();
+    let (executor, _) = crate::executor::Builder {
+        consider_commitment_spread: false,
+        rollup_address: server_url,
+        shutdown: shutdown_token.clone(),
+    }
+    .build()
+    .unwrap();
 
     let client = Client::connect(executor.rollup_address.clone())
         .await
@@ -259,7 +258,7 @@ async fn start_mock() -> MockEnvironment {
 
     MockEnvironment {
         _server: server,
-        _shutdown_tx: shutdown_tx,
+        _shutdown: shutdown_token,
         executor,
         client,
     }

@@ -3,16 +3,12 @@ use std::{
     net::SocketAddr,
 };
 
-use astria_core::sequencer::v1::transaction::action::SequenceAction;
 use astria_eyre::eyre::{
     self,
     WrapErr as _,
 };
 use tokio::{
-    sync::{
-        mpsc::Sender,
-        watch,
-    },
+    sync::watch,
     task::JoinError,
 };
 use tokio_util::task::JoinMap;
@@ -44,9 +40,9 @@ pub struct Composer {
     /// `ComposerStatusSender` is used to announce the current status of the Composer for other
     /// modules in the crate to use.
     composer_status_sender: watch::Sender<Status>,
-    /// `SerializedRollupTransactionsTx` is used to communicate SequenceActions to the Executor
+    /// `ExecutorHandle` contains a channel to communicate SequenceActions to the Executor
     /// This is at the Composer level to allow its sharing to various different collectors.
-    serialized_rollup_transactions_tx: tokio::sync::mpsc::Sender<SequenceAction>,
+    executor_handle: executor::Handle,
     /// `Executor` is responsible for signing and submitting sequencer transactions
     /// The sequencer transactions are received from various collectors.
     executor: Executor,
@@ -91,15 +87,11 @@ impl Composer {
     pub fn from_config(cfg: &Config) -> eyre::Result<Self> {
         let (composer_status_sender, _) = watch::channel(Status::default());
 
-        let (serialized_rollup_transactions_tx, serialized_rollup_transactions_rx) =
-            tokio::sync::mpsc::channel::<SequenceAction>(256);
-
-        let executor = Executor::new(
+        let (executor, executor_handle) = Executor::new(
             &cfg.sequencer_url,
             &cfg.private_key,
             cfg.block_time_ms,
             cfg.max_bytes_per_bundle,
-            serialized_rollup_transactions_rx,
         )
         .wrap_err("executor construction from config failed")?;
 
@@ -120,11 +112,8 @@ impl Composer {
         let geth_collectors = rollups
             .iter()
             .map(|(rollup_name, url)| {
-                let collector = Geth::new(
-                    rollup_name.clone(),
-                    url.clone(),
-                    serialized_rollup_transactions_tx.clone(),
-                );
+                let collector =
+                    Geth::new(rollup_name.clone(), url.clone(), executor_handle.clone());
                 (rollup_name.clone(), collector)
             })
             .collect::<HashMap<_, _>>();
@@ -137,7 +126,7 @@ impl Composer {
         Ok(Self {
             api_server,
             composer_status_sender,
-            serialized_rollup_transactions_tx,
+            executor_handle,
             executor,
             rollups,
             geth_collectors,
@@ -160,7 +149,7 @@ impl Composer {
             api_server,
             composer_status_sender,
             executor,
-            serialized_rollup_transactions_tx,
+            executor_handle,
             mut geth_collector_tasks,
             mut geth_collectors,
             rollups,
@@ -202,7 +191,7 @@ impl Composer {
                 reconnect_exited_collector(
                     &mut geth_collector_statuses,
                     &mut geth_collector_tasks,
-                    serialized_rollup_transactions_tx.clone(),
+                    executor_handle.clone(),
                     &rollups,
                     rollup,
                     collector_exit,
@@ -271,7 +260,7 @@ async fn wait_for_collectors(
 pub(super) fn reconnect_exited_collector(
     collector_statuses: &mut HashMap<String, watch::Receiver<collectors::geth::Status>>,
     collector_tasks: &mut JoinMap<String, eyre::Result<()>>,
-    serialized_rollup_transactions_tx: Sender<SequenceAction>,
+    executor_handle: executor::Handle,
     rollups: &HashMap<String, String>,
     rollup: String,
     exit_result: Result<eyre::Result<()>, JoinError>,
@@ -285,11 +274,7 @@ pub(super) fn reconnect_exited_collector(
         return;
     };
 
-    let collector = Geth::new(
-        rollup.clone(),
-        url.clone(),
-        serialized_rollup_transactions_tx,
-    );
+    let collector = Geth::new(rollup.clone(), url.clone(), executor_handle);
     collector_statuses.insert(rollup.clone(), collector.subscribe());
     collector_tasks.spawn(rollup, collector.run_until_stopped());
 }

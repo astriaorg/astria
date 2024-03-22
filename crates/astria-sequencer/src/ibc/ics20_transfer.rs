@@ -180,7 +180,8 @@ async fn refund_tokens_check<S: StateRead>(
             .context("failed to get denom trace from asset id")?;
     }
 
-    if is_source(source_port, source_channel, &denom, true) {
+    let is_source = !is_prefixed(source_port, source_channel, &denom);
+    if is_source {
         // sender of packet (us) was the source chain
         //
         // check if escrow account has enough balance to refund user
@@ -201,18 +202,9 @@ async fn refund_tokens_check<S: StateRead>(
     Ok(())
 }
 
-fn is_source(
-    source_port: &PortId,
-    source_channel: &ChannelId,
-    asset: &Denom,
-    is_refund: bool,
-) -> bool {
-    let prefix = format!("{source_port}/{source_channel}/");
-    if is_refund {
-        !asset.prefix_is(&prefix)
-    } else {
-        asset.prefix_is(&prefix)
-    }
+fn is_prefixed(source_port: &PortId, source_channel: &ChannelId, asset: &Denom) -> bool {
+    let prefix = format!("{source_port}/{source_channel}");
+    asset.prefix_is(&prefix)
 }
 
 #[async_trait::async_trait]
@@ -342,7 +334,15 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
             .context("failed to get denom trace from asset id")?;
     }
 
-    if is_source(source_port, source_channel, &denom, is_refund) {
+    let is_prefixed = is_prefixed(source_port, source_channel, &denom);
+    let is_source = if is_refund {
+        // we are the source if the denom is not prefixed by source_port/source_channel
+        !is_prefixed
+    } else {
+        // we are the source if the denom is prefixed by source_port/source_channel
+        is_prefixed
+    };
+    if is_source {
         // sender of packet (us) was the source chain
         // subtract balance from escrow account and transfer to user
 
@@ -411,4 +411,23 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn is_prefixed_test() {
+        let source_port = "source_port".to_string().parse().unwrap();
+        let source_channel = "source_channel".to_string().parse().unwrap();
+        let asset = Denom::from("source_port/source_channel/asset".to_string());
+        // in the case of a transfer in that is not a refund,
+        // we are the source if the packets are prefixed by the sending chain
+        assert!(is_prefixed(&source_port, &source_channel, &asset));
+        // in the case of a refund, we are the source if the packets are not
+        // prefixed by the sending chain
+        let asset = Denom::from("other_port/source_channel/asset".to_string());
+        assert!(!is_prefixed(&source_port, &source_channel, &asset));
+    }
 }
