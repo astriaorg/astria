@@ -387,17 +387,15 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
         .parse()
         .context("failed to parse packet data amount to u128")?;
     let recipient = if is_refund {
-        Address::try_from_slice(
-            &hex::decode(packet_data.sender).context("failed to decode sender as hex string")?,
-        )
-        .context("invalid sender address")?
+        packet_data.sender
     } else {
-        Address::try_from_slice(
-            &hex::decode(packet_data.receiver)
-                .context("failed to decode receiver as hex string")?,
-        )
-        .context("invalid receiver address")?
+        packet_data.receiver
     };
+
+    let recipient = Address::try_from_slice(
+        &hex::decode(recipient).context("failed to decode recipient as hex string")?,
+    )
+    .context("invalid recipient address")?;
     let mut denom: Denom = packet_data.denom.clone().into();
 
     // if the asset is prefixed with `ibc`, the rest of the denomination string is the asset ID,
@@ -431,8 +429,6 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
         // we are the source if the denom is prefixed by source_port/source_channel
         is_prefixed
     };
-
-    println!("is_source: {}", is_source);
 
     if is_source {
         // the asset being transferred in is an asset that originated from astria
