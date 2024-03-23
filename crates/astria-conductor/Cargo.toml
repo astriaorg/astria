@@ -12,10 +12,18 @@ homepage = "https://astria.org"
 name = "astria-conductor"
 
 [dependencies]
-async-trait = "0.1.73"
-futures-bounded = "0.2.3"
-pin-project-lite = "0.2"
-tracing-futures = { version = "0.2.5", features = ["futures-03"] }
+astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
+astria-core = { path = "../astria-core", features = ["client", "serde"] }
+astria-eyre = { path = "../astria-eyre" }
+celestia-client = { package = "astria-celestia-client", path = "../astria-celestia-client" }
+config = { package = "astria-config", path = "../astria-config" }
+merkle = { package = "astria-merkle", path = "../astria-merkle" }
+sequencer-client = { package = "astria-sequencer-client", path = "../astria-sequencer-client", features = [
+  "websocket",
+] }
+telemetry = { package = "astria-telemetry", path = "../astria-telemetry", features = [
+  "display",
+] }
 
 base64 = { workspace = true }
 bytes = { workspace = true }
@@ -38,30 +46,23 @@ tonic = { workspace = true }
 tracing = { workspace = true, features = ["valuable"] }
 tryhard = { workspace = true }
 
-astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
-astria-core = { path = "../astria-core", features = ["client", "serde"] }
-astria-eyre = { path = "../astria-eyre" }
-celestia-client = { package = "astria-celestia-client", path = "../astria-celestia-client" }
-config = { package = "astria-config", path = "../astria-config" }
-merkle = { package = "astria-merkle", path = "../astria-merkle" }
-sequencer-client = { package = "astria-sequencer-client", path = "../astria-sequencer-client", features = [
-  "websocket",
-] }
-telemetry = { package = "astria-telemetry", path = "../astria-telemetry", features = [
-  "display",
-] }
+async-trait = "0.1.73"
+futures-bounded = "0.2.3"
 itertools = "0.12.1"
+pin-project-lite = "0.2"
+tracing-futures = { version = "0.2.5", features = ["futures-03"] }
 
 [dev-dependencies]
-jsonrpsee = { workspace = true, features = ["server"] }
-
-tokio-stream = { version = "0.1.14", features = ["net"] }
-
 astria-core = { path = "../astria-core", features = ["server", "test-utils"] }
 config = { package = "astria-config", path = "../astria-config", features = [
   "tests",
 ] }
+
 insta = { workspace = true, features = ["json"] }
+jsonrpsee = { workspace = true, features = ["server"] }
+
+chrono = "0.4.35"
+tokio-stream = { version = "0.1.14", features = ["net"] }
 
 [build-dependencies]
 astria-build-info = { path = "../astria-build-info", features = ["build"] }

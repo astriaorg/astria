@@ -208,7 +208,7 @@ mod tests {
         generated::execution::v1alpha2 as raw,
         Protobuf as _,
     };
-    use prost_types::Timestamp;
+    use pbjson_types::Timestamp;
 
     use super::*;
 

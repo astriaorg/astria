@@ -23,7 +23,7 @@ use bytes::Bytes;
 use celestia_client::celestia_types::Height as CelestiaHeight;
 use sequencer_client::tendermint::{
     block::Height as SequencerHeight,
-    Time,
+    Time as TendermintTime,
 };
 use tokio::{
     select,
@@ -518,7 +518,7 @@ enum Update {
 struct ExecutableBlock {
     hash: [u8; 32],
     height: SequencerHeight,
-    timestamp: prost_types::Timestamp,
+    timestamp: pbjson_types::Timestamp,
     transactions: Vec<Vec<u8>>,
 }
 
@@ -530,7 +530,7 @@ impl ExecutableBlock {
             transactions,
             ..
         } = block;
-        let timestamp = convert_tendermint_to_prost_timestamp(header.time);
+        let timestamp = convert_tendermint_time_to_protobuf_timestamp(header.time);
         Self {
             hash: block_hash,
             height: header.height,
@@ -542,7 +542,7 @@ impl ExecutableBlock {
     fn from_sequencer(block: FilteredSequencerBlock, id: RollupId) -> Self {
         let hash = block.block_hash();
         let height = block.height();
-        let timestamp = convert_tendermint_to_prost_timestamp(block.cometbft_header().time);
+        let timestamp = convert_tendermint_time_to_protobuf_timestamp(block.cometbft_header().time);
         let FilteredSequencerBlockParts {
             mut rollup_transactions,
             ..
@@ -561,12 +561,12 @@ impl ExecutableBlock {
 }
 
 /// Converts a [`tendermint::Time`] to a [`prost_types::Timestamp`].
-fn convert_tendermint_to_prost_timestamp(value: Time) -> prost_types::Timestamp {
+fn convert_tendermint_time_to_protobuf_timestamp(value: TendermintTime) -> pbjson_types::Timestamp {
     let sequencer_client::tendermint_proto::google::protobuf::Timestamp {
         seconds,
         nanos,
     } = value.into();
-    prost_types::Timestamp {
+    pbjson_types::Timestamp {
         seconds,
         nanos,
     }
