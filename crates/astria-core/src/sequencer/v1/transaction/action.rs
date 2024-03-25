@@ -163,7 +163,6 @@ impl From<SequenceAction> for Action {
 
 impl From<TransferAction> for Action {
     fn from(value: TransferAction) -> Self {
-        // a change which isn't really a change
         Self::Transfer(value)
     }
 }
