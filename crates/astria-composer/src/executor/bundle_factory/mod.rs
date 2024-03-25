@@ -16,7 +16,10 @@ use astria_core::sequencer::v1::{
     RollupId,
     ROLLUP_ID_LEN,
 };
-use serde::Serialize;
+use serde::{
+    self,
+    Serialize,
+};
 use tracing::trace;
 
 mod tests;
@@ -30,6 +33,7 @@ enum SizedBundleError {
 }
 
 #[derive(Serialize, Clone)]
+#[serde(transparent)]
 pub(super) struct RollupCountsReport(HashMap<RollupId, u32>);
 
 /// A bundle sequence actions to be submitted to the sequencer. Maintains the total size of the
