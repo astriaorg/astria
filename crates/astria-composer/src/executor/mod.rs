@@ -193,7 +193,6 @@ impl Executor {
     }
 
     /// Create a future to submit a bundle to the sequencer.
-    // TODO: fix instrumentation
     #[instrument(skip_all, fields(nonce.initial = %nonce, bundle = %bundle))]
     fn submit_bundle(&self, nonce: u32, bundle: SizedBundle) -> Fuse<Instrumented<SubmitFut>> {
         SubmitFut {

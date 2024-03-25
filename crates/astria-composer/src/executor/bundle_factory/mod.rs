@@ -98,11 +98,11 @@ impl std::fmt::Display for SizedBundle {
 
         let mut counts_iter = self.rollup_counts.iter();
         if let Some((rollup_id, count)) = counts_iter.next() {
-            write!(f, "{rollup_id}: {count}, ")?;
+            write!(f, "{rollup_id}: {count}")?;
         };
         for (rollup_id, count) in counts_iter {
             f.write_str(", ")?;
-            write!(f, "{rollup_id}: {count}, ")?;
+            write!(f, ", {rollup_id}: {count}")?;
         }
         write!(f, "] }}")?;
         Ok(())
