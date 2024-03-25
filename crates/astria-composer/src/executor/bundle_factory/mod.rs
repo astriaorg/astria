@@ -32,7 +32,6 @@ enum SizedBundleError {
     SequenceActionTooLarge(SequenceAction),
 }
 
-#[derive(Clone)]
 pub(super) struct SizedBundleReport<'a>(pub(super) &'a SizedBundle);
 
 impl<'a> Serialize for SizedBundleReport<'a> {

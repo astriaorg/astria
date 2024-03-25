@@ -422,8 +422,8 @@ impl Future for SubmitFut {
                         actions: this.bundle.clone().into_actions(),
                     }
                     .into_signed(this.signing_key);
-                    debug!(
-                        nonce = *this.nonce,
+                    info!(
+                        nonce.actual = *this.nonce,
                         bundle = %telemetry::display::json(&SizedBundleReport(this.bundle)),
                         transaction.hash = %telemetry::display::hex(&tx.sha256_of_proto_encoding()),
                         "submitting transaction to sequencer",
@@ -480,8 +480,8 @@ impl Future for SubmitFut {
                             actions: this.bundle.clone().into_actions(),
                         }
                         .into_signed(this.signing_key);
-                        debug!(
-                            nonce = *this.nonce,
+                        info!(
+                            nonce.resubmission = *this.nonce,
                             bundle = %telemetry::display::json(&SizedBundleReport(this.bundle)),
                             transaction.hash = %telemetry::display::hex(&tx.sha256_of_proto_encoding()),
                             "resubmitting transaction to sequencer with new nonce",
