@@ -322,12 +322,12 @@ mod test {
         assert!(state.get_block_timestamp().await.is_err());
 
         // can write new
-        let block_timestamp_orig = Time::from_unix_timestamp(1577836800, 0).unwrap();
+        let block_timestamp_orig = Time::from_unix_timestamp(1_577_836_800, 0).unwrap();
         state.put_block_timestamp(block_timestamp_orig);
         assert!(state.get_block_timestamp().await.unwrap() == block_timestamp_orig);
 
         // can rewrite with new value
-        let block_timestamp_update = Time::from_unix_timestamp(1577836801, 0).unwrap();
+        let block_timestamp_update = Time::from_unix_timestamp(1_577_836_801, 0).unwrap();
         state.put_block_timestamp(block_timestamp_update);
         assert!(state.get_block_timestamp().await.unwrap() == block_timestamp_update);
     }
@@ -417,18 +417,15 @@ mod test {
 
         // doesn't exist at first
         let fee_balances_orig = state.get_block_fees().await.unwrap();
-        assert!(fee_balances_orig.len() == 0);
+        assert!(fee_balances_orig.is_empty());
 
         // can write
         let asset = astria_core::sequencer::v1::asset::Id::from_denom("asset_0");
         let amount = 100u128;
-        assert!(
-            state
-                .get_and_increase_block_fees(asset, amount)
-                .await
-                .unwrap()
-                == ()
-        );
+        state
+            .get_and_increase_block_fees(asset, amount)
+            .await
+            .unwrap();
 
         // holds expected
         let fee_balances_updated = state.get_block_fees().await.unwrap();
@@ -448,21 +445,15 @@ mod test {
         let asset_second = astria_core::sequencer::v1::asset::Id::from_denom("asset_1");
         let amount_first = 100u128;
         let amount_second = 200u128;
-        assert!(
-            state
-                .get_and_increase_block_fees(asset_first, amount_first)
-                .await
-                .unwrap()
-                == ()
-        );
-        assert!(
-            state
-                .get_and_increase_block_fees(asset_second, amount_second)
-                .await
-                .unwrap()
-                == ()
-        );
 
+        state
+            .get_and_increase_block_fees(asset_first, amount_first)
+            .await
+            .unwrap();
+        state
+            .get_and_increase_block_fees(asset_second, amount_second)
+            .await
+            .unwrap();
         // holds expected
         let fee_balances = state.get_block_fees().await.unwrap();
         for val in fee_balances {
@@ -473,7 +464,7 @@ mod test {
         state.clear_block_fees().await;
 
         let fee_balances_updated = state.get_block_fees().await.unwrap();
-        assert!(fee_balances_updated.len() == 0);
+        assert!(fee_balances_updated.is_empty());
     }
 
     #[tokio::test]
@@ -515,7 +506,7 @@ mod test {
 
         // see is deleted
         let assets = state.get_allowed_fee_assets().await.unwrap();
-        assert!(assets.len() == 0);
+        assert!(assets.is_empty());
     }
 
     #[tokio::test]
