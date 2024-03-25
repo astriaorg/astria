@@ -31,6 +31,7 @@ pub enum Command {
     },
     /// Command for sending balance between accounts
     Transfer(TransferArgs),
+    InitBridgeAccount(InitBridgeAccountArgs),
 }
 
 #[derive(Debug, Subcommand)]
@@ -81,6 +82,25 @@ pub struct TransferArgs {
         default_value = crate::cli::DEFAULT_SEQUENCER_RPC
     )]
     pub(crate) sequencer_url: String,
+}
+
+#[derive(Args, Debug)]
+pub struct InitBridgeAccountArgs {
+    // TODO: https://github.com/astriaorg/astria/issues/594
+    // Don't use a plain text private, prefer wrapper like from
+    // the secrecy crate with specialized `Debug` and `Drop` implementations
+    // that overwrite the key on drop and don't reveal it when printing.
+    pub(crate) private_key: String,
+    /// The url of the Sequencer node
+    #[clap(
+        long,
+        env = "SEQUENCER_URL", 
+        default_value = crate::cli::DEFAULT_SEQUENCER_RPC
+    )]
+    pub(crate) sequencer_url: String,
+    /// Plaintext rollup name (to be hashed into a rollup ID)
+    /// to initialize the bridge account with.
+    pub(crate) rollup_name: String,
 }
 
 #[derive(Clone, Debug, PartialEq)]
