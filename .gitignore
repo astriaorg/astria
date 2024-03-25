@@ -10,3 +10,6 @@ target/
 
 # mac os
 .DS_Store
+
+# We don't want to commit the dependency directory of charts
+charts/*/charts

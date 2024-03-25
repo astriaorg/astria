@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sequencer-faucet-env
+  namespace: {{ .Values.global.namespace }}
+data:
+  SEQUENCER_FAUCET_PORT: "{{ .Values.ports.faucet }}"
+  SEQUENCER_FAUCET_PROXYCOUNT: "{{ .Values.config.proxyCount }}"
+  SEQUENCER_FAUCET_SEQUENCER_RPC_URL: "{{ .Values.config.sequencerRpcUrl}}"
+  SEQUENCER_FAUCET_AMOUNT: "{{ .Values.config.amount }}"
+  {{- if not .Values.secretProvider.enabled }}
+  SEQUENCER_FAUCET_PRIVATE_KEY: "{{ .Values.config.fundingPrivateKey }}"
+  {{- end }}
+---

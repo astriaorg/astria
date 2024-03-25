@@ -1,0 +1,247 @@
+# Default values for sequencer.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+global:
+  namespaceOverride: ""
+  replicaCount: 1
+  # Whether to use tty readable logging for astria services, when false use json.
+  # Best to be false in production environments, true for clean logs on local dev.
+  useTTY: true
+  dev: false
+
+# sequencer core images
+images:
+  cometBFT:
+    repo: docker.io/cometbft/cometbft
+    tag: v0.37.x
+    devTag: v0.37.x
+  sequencer:
+    repo: ghcr.io/astriaorg/sequencer
+    tag: "0.10.0"
+    devTag: latest
+
+config:
+  moniker: "node0"
+  sequencer:
+    authoritySudoAddress: 1c0c490f1b5528d8173c5de46d131160e4b2c0c3
+    nativeAssetBaseDenomination: nria
+    allowedFeeAssets:
+      - nria
+    ibc:
+      enabled: true
+      inboundEnabled: true
+      outboundEnabled: true
+      sudoAddress: 1c0c490f1b5528d8173c5de46d131160e4b2c0c3
+      relayerAddresses:
+        - 1c0c490f1b5528d8173c5de46d131160e4b2c0c3
+        - 34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a
+    # Note large balances must be strings support templating with the u128 size account balances
+    genesisAccounts:
+    - address: 1c0c490f1b5528d8173c5de46d131160e4b2c0c3
+      balance: "340282366920938463463374607431768211455"
+    - address: 34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a
+      balance: "340282366920938463463374607431768211455"
+    - address: 60709e2d391864b732b4f0f51e387abb76743871
+      balance: "340282366920938463463374607431768211455"
+      # NOTE - the following address matches the privKey that funds the sequencer-faucet
+    - address: 00d75b270542084a54fcf0d0f6eab0402982d156
+      balance: "340282366920938463463374607431768211455"
+
+    metrics:
+      enabled: false
+
+    otel:
+      enabled: false
+      endpoint:
+      tracesEndpoint:
+      tracesCompression: gzip
+      tracesTimeout: 10
+      otlpHeaders:
+      traceHeaders:
+
+  # Values for CometBFT node configuration
+  cometBFT:
+    chainId: 'sequencer-test-chain'
+
+    # If using postgres for indexing, update to enabled and set the connection
+    psql:
+      enabled: false
+      conn: postgresql://<user>:<password>@<host>:<port>/<db>?<opts>
+
+    # CometBFT P2P Private key.
+    # This is a secret key, should use a secret manager for production deployments
+    privNodeKey: HGWRtLbV8WLGFgbYhaGyaLe++DC+DBoc7O3bri81vs2ZlpR28IFfQScoO1aNOE/ygs8LIPM9UzLzbaab4VMggQ==
+    p2p:
+      # Address to listen for incoming connections, port is inferred from ports.cometBFTP2P
+      laddr: "tcp://0.0.0.0"
+      # Address to advertise to peers for them to dial. If empty, will use the same
+      # port as the laddr, and will introspect on the listener to figure out the
+      # address. IP and port are required. Example: 159.89.10.97:26656
+      externalAddress: ""
+
+      # List of seeds to connect to
+      seeds: []
+      # List of nodes to keep persistent connections to
+      persistentPeers: []
+      # List of node IDs, to which a connection will be (re)established ignoring any existing limits
+      unconditionalPeers: []
+      # List of peer IDs to keep private (will not be gossiped to other peers)
+      privatePeers: []
+      # Seed mode, in which node constantly crawls the network and looks for
+      # peers. If another node asks it for addresses, it responds and disconnects.
+      seed_mode: false
+    validator:
+      # Ed25519 address of validator
+      address: 091E47761C58C474534F4D414AF104A6CAF90C22
+      # public key for the validator address
+      pubKey: lV57+rGs2vac7mvkGHP1oBFGHPJM3a+WoAzeFDCJDNU=
+      # private key for the validator address
+      # This is a secret key, should use a secret manager for production deployments
+      privKey: dGOTAweQV8Do9P2n+A8m5EnboDrlxgD3dg4vrYpdIRqVXnv6saza9pzua+QYc/WgEUYc8kzdr5agDN4UMIkM1Q==
+    validators:
+      - name: core
+        power: '1'
+        address: 091E47761C58C474534F4D414AF104A6CAF90C22
+        pubKey: lV57+rGs2vac7mvkGHP1oBFGHPJM3a+WoAzeFDCJDNU=
+
+sequencer-relayer:
+  enabled: false
+
+ports:
+  cometBFTP2P: 26656
+  cometBFTRPC: 26657
+  cometBFTMETRICS: 26660
+  sequencerABCI: 26658
+  sequencerGRPC: 8080
+  relayerRPC: 2450
+  sequencerMetrics: 9000
+
+# ServiceMonitor configuration
+serviceMonitor:
+  enabled: false
+  port: 26660
+  additionalLabels:
+    release: kube-prometheus-stack
+
+# Alerting Configuration
+alerting:
+  enabled: false
+  interval: ""
+  additionalLabels:
+    release: kube-prometheus-stack
+  annotations: {}
+  # scrapeTimeout: 10s
+  # path: /metrics
+  prometheusRule:
+    enabled: true
+    additionalLabels:
+      release: kube-prometheus-stack
+    namespace: monitoring
+    rules:
+    - alert: Chain_Node_Down
+      expr: up{container="cometbft"} == 0  # Insert your query Expression
+      for: 1m  # Rough number but should be enough to init warn
+      labels:
+        severity: critical
+      annotations:
+        summary: Chain Node is Down (instance {{ $labels.instance }})
+        description: "chain node '{{ $labels.namespace }}' has disappeared from Prometheus target discovery.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+storage:
+  enabled: false
+  local: true
+  entities:
+    sequencerSharedStorage:
+      size: "5Gi"
+      persistentVolumeName: "sequencer-shared-storage"
+      path: "/data/sequencer-data"
+
+ingress:
+  rpc:
+    enabled: true
+    hostname: sequencer.localdev.me
+    ingressClassName: nginx
+    # For Kubernetes >= 1.18 you should specify the ingress-controller via the field ingressClassName
+    # See https://kubernetes.io/blog/2020/04/02/improvements-to-the-ingress-api-in-kubernetes-1.18/#specifying-the-class-of-an-ingress
+    # ingressClassName: nginx
+    # Values can be templdated
+    annotations: {}
+      # kubernetes.io/ingress.class: nginx
+      # kubernetes.io/tls-acme: "true"
+    labels: {}
+    path: {}
+    # pathType is only for k8s >= 1.1=
+    pathType: Prefix
+    hosts: {}
+    # - chart-example.local
+    service: {}
+      # name: sequencer-service
+      # port:
+      #   name: cometbft-rpc
+    defaultBackend: {}
+      # service:
+      #   name: sequencer-service
+      #   port:
+      #     name: cometbft-rpc
+    ## Extra paths to prepend to every host configuration. This is useful when working with annotation based services.
+    extraPaths: {}
+    # - path: /*
+    #   backend:
+    #     serviceName: ssl-redirect
+    #     servicePort: use-annotation
+    ## Or for k8s > 1.19
+    # - path: /*
+    #   pathType: Prefix
+    #   backend:
+    #     service:
+    #       name: ssl-redirect
+    #       port:
+    #         name: use-annotation
+    tls: {}
+    #  - secretName: chart-example-tls
+    #    hosts:
+    #      - chart-example.local
+  p2p:
+    enabled: false
+    hostname: sequencer.localdev.me
+    ingressClassName: nginx
+    # For Kubernetes >= 1.18 you should specify the ingress-controller via the field ingressClassName
+    # See https://kubernetes.io/blog/2020/04/02/improvements-to-the-ingress-api-in-kubernetes-1.18/#specifying-the-class-of-an-ingress
+    # ingressClassName: nginx
+    # Values can be templdated
+    annotations: {}
+      # kubernetes.io/ingress.class: nginx
+      # kubernetes.io/tls-acme: "true"
+    labels: {}
+    path: {}
+    # pathType is only for k8s >= 1.1=
+    pathType: Prefix
+    hosts: {}
+    # - chart-example.local
+    service: {}
+      # name: sequencer-service
+      # port:
+      #   name: cometbft-rpc
+    defaultBackend: {}
+      # service:
+      #   name: sequencer-service
+      #   port:
+      #     name: cometbft-rpc
+    ## Extra paths to prepend to every host configuration. This is useful when working with annotation based services.
+    extraPaths: {}
+    # - path: /*
+    #   backend:
+    #     serviceName: ssl-redirect
+    #     servicePort: use-annotation
+    ## Or for k8s > 1.19
+    # - path: /*
+    #   pathType: Prefix
+    #   backend:
+    #     service:
+    #       name: ssl-redirect
+    #       port:
+    #         name: use-annotation
+    tls: {}
+    #  - secretName: chart-example-tls
+    #    hosts:
+    #      - chart-example.local

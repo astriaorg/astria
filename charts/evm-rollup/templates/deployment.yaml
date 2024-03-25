@@ -1,0 +1,314 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.config.rollup.name }}-geth
+  labels:
+    app: {{ .Values.config.rollup.name }}-astria-dev-cluster
+  namespace: {{ include "rollup.namespace" . }}
+spec:
+  replicas : {{ .Values.global.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Values.config.rollup.name }}-astria-dev-cluster
+  template:
+    metadata:
+      name: {{ .Values.config.rollup.name }}-execution-chain
+      labels:
+        app: {{ .Values.config.rollup.name }}-astria-dev-cluster
+    spec:
+      initContainers:
+        - name: init-geth
+          command: [ "/scripts/init-geth.sh" ]
+          image: {{ include "rollup.image" . }}
+          volumeMounts:
+            - mountPath: /scripts/
+              name: {{ .Values.config.rollup.name }}-executor-scripts-volume
+            - mountPath: /home/geth
+              name: {{ $.Values.config.rollup.name }}-rollup-shared-storage-vol
+              subPath: {{ .Values.config.rollup.name }}/executor
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.config.rollup.name }}-geth-env
+      containers:
+        - name: geth
+          command: [ "geth" ]
+          args:
+            - --datadir=$(data_dir)/
+            - --networkid={{ .Values.config.rollup.networkId }}
+            - --http
+            - --http.addr=0.0.0.0
+            - --http.port={{ .Values.ports.jsonRPC }}
+            - --http.corsdomain=*
+            - --http.vhosts=*
+            - --http.api=eth,net,web3,debug,txpool
+            - --ws
+            - --ws.addr=0.0.0.0
+            - --ws.port={{ .Values.ports.wsRPC }}
+            - --ws.origins=*
+            - --grpc
+            - --grpc.addr=0.0.0.0
+            - --grpc.port={{ .Values.ports.executionGRPC }}
+            - --db.engine={{ .Values.config.rollup.dbEngine }}
+            - --maxpeers=0
+            {{- if .Values.config.rollup.archiveNode }}
+            - --gcmode=archive
+            - --history.transactions=0
+            {{- else }}
+            - --state.scheme=path
+            {{- end }}
+            {{ if .Values.config.rollup.metrics.enabled }} 
+            - --metrics 
+            - --metrics.addr=0.0.0.0
+            - --metrics.port={{ .Values.ports.metrics }}
+            {{- end }}
+          image: {{ include "rollup.image" . }}
+          volumeMounts:
+            - mountPath: /scripts/
+              name: {{ .Values.config.rollup.name }}-executor-scripts-volume
+              readOnly: true
+            - mountPath: /home/geth
+              name: {{ $.Values.config.rollup.name }}-rollup-shared-storage-vol
+              subPath: {{ .Values.config.rollup.name }}/executor
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.config.rollup.name }}-geth-env
+          ports:
+            - containerPort: {{ .Values.ports.jsonRPC }}
+              name: json-rpc
+            - containerPort: {{ .Values.ports.wsRPC }}
+              name: ws-rpc
+            - containerPort: {{ .Values.ports.executionGRPC }}
+              name: execution-grpc
+            {{- if .Values.config.rollup.metrics.enabled }} 
+            - containerPort: {{ .Values.ports.metrics }}
+              name: geth-metrics
+            {{- end }}
+          resources:
+            {{- toYaml .Values.resources.geth | trim | nindent 12 }}     
+        - name: composer
+          image: {{ include "composer.image" . }}
+          command: [ "/usr/local/bin/astria-composer" ]
+          stdin: {{ .Values.global.useTTY }}
+          tty: {{ .Values.global.useTTY }}
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.config.rollup.name }}-composer-env
+          {{- if .Values.secretProvider.enabled }}
+          env:
+            - name: ASTRIA_COMPOSER_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: sequencer-private-key
+                  key: {{ .Values.secretProvider.secrets.sequencerPrivateKey.key }}
+          {{- end }}
+          volumeMounts:
+          {{- if .Values.secretProvider.enabled }}
+          - mountPath: "/var/secrets"
+            name: sequencer-private-key
+          {{- end }}
+          {{- if .Values.config.rollup.metrics.enabled }} 
+          ports:
+            - containerPort: {{ .Values.ports.composerMetrics }}
+              name: composer-metrics
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources.composer | trim | nindent 12 }}
+        - name: conductor
+          image: {{ include "conductor.image" . }}
+          command: [ "/scripts/start-conductor.sh" ]
+          stdin: {{ .Values.global.useTTY }}
+          tty: {{ .Values.global.useTTY }}
+          volumeMounts:
+            - mountPath: /scripts/
+              name: {{ .Values.config.rollup.name }}-conductor-scripts-volume
+              readOnly: true
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.config.rollup.name }}-conductor-env
+          resources:
+            {{- toYaml .Values.resources.conductor | trim | nindent 12 }}
+          {{- if .Values.config.rollup.metrics.enabled }} 
+          ports:
+            - containerPort: {{ .Values.ports.conductorMetrics }}
+              name: conductor-metrics
+          {{- end }}
+      volumes:
+        - name: {{ .Values.config.rollup.name }}-executor-scripts-volume
+          configMap:
+            name: {{ .Values.config.rollup.name }}-executor-scripts
+            defaultMode: 0500
+        - name: {{ .Values.config.rollup.name }}-conductor-scripts-volume
+          configMap:
+            name: {{ .Values.config.rollup.name }}-conductor-scripts
+            defaultMode: 0500
+        - name: {{ $.Values.config.rollup.name }}-rollup-shared-storage-vol
+          {{- if .Values.storage.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ $.Values.config.rollup.name }}-rollup-shared-storage-pvc-geth
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- if .Values.secretProvider.enabled }}
+        - name: sequencer-private-key
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: sequencer-private-key
+        {{- end }}
+---
+{{- if .Values.config.faucet.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.config.rollup.name }}-faucet
+  labels:
+    app: {{ .Values.config.rollup.name }}-astria-dev-cluster
+  namespace: {{ include "rollup.namespace" . }}
+spec:
+  replicas : {{ .Values.global.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Values.config.rollup.name }}-astria-dev-cluster
+  template:
+    metadata:
+      name: {{ .Values.config.rollup.name }}-faucet
+      labels:
+        app: {{ .Values.config.rollup.name }}-astria-dev-cluster
+    spec:
+      containers:
+        - name: faucet
+          command: [ "/app/eth-faucet" ]
+          args:
+            - -httpport=$(ETH_FAUCET_PORT)
+            - -wallet.provider=$(ETH_FAUCET_EVM_PROVIDER_URL)
+            - -wallet.privkey=$(ETH_FAUCET_EVM_PRIVATE_KEY)
+            - -faucet.amount=$(ETH_FAUCET_AMOUNT)
+            - -proxycount=$(ETH_FAUCET_PROXYCOUNT)
+          image: {{ .Values.images.faucet }}
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.config.rollup.name }}-faucet-env
+          {{- if .Values.secretProvider.enabled }}
+          env:
+            - name: ETH_FAUCET_EVM_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: evm-private-key
+                  key: {{ .Values.secretProvider.secrets.evmPrivateKey.key }}
+          {{- end }}
+          volumeMounts:
+            - mountPath: /home/faucet
+              name: {{ .Values.config.rollup.name }}-faucet-home-vol
+              subPath: {{ .Values.config.rollup.name }}/faucet
+            {{- if .Values.secretProvider.enabled }}
+            - mountPath: /var/secrets
+              name: evm-private-key
+            {{- end }}
+          ports:
+            - containerPort: {{ .Values.ports.faucet }}
+              name: faucet
+      volumes:
+        - emptyDir: {}
+          name: {{ .Values.config.rollup.name }}-faucet-home-vol
+        {{- if .Values.secretProvider.enabled }}
+        - name: evm-private-key
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: evm-private-key
+        {{- end }}
+---
+{{- end }}
+{{- if .Values.config.blockscout.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.config.rollup.name }}-blockscout
+  labels:
+    app: {{ .Values.config.rollup.name }}-astria-dev-cluster
+  namespace: {{ include "rollup.namespace" . }}
+spec:
+  replicas : {{ .Values.global.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Values.config.rollup.name }}-astria-dev-cluster
+  template:
+    metadata:
+      name: {{ .Values.config.rollup.name }}-blockscout-local
+      labels:
+        app: {{ .Values.config.rollup.name }}-astria-dev-cluster
+    spec:
+      containers:
+        - name: blockscout
+          command: ["bash"]
+          args:
+            - -c
+            - bin/blockscout eval "Elixir.Explorer.ReleaseTasks.create_and_migrate()" && bin/blockscout start
+          image: {{ .Values.images.blockscout.core }}
+          volumeMounts:
+            - mountPath: /app/logs
+              name: {{ $.Values.config.rollup.name }}-rollup-shared-storage-vol
+              subPath: {{ .Values.config.rollup.name }}/blockscout/logs
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.config.rollup.name }}-blockscout-env
+          ports:
+            - containerPort: {{ .Values.ports.blockscout }}
+              name: blockscout
+        - name: postgres
+          command: ["docker-entrypoint.sh"]
+          args:
+            - -c
+            - max_connections=200
+          env:
+            - name: POSTGRES_HOST_AUTH_METHOD
+              value: trust
+            - name: POSTGRES_PASSWORD
+            - name: POSTGRES_USER
+              value: postgres
+          image: {{ .Values.images.blockscout.postgres }}
+          ports:
+            - containerPort: 5432
+          volumeMounts:
+            - mountPath: /var/lib/postgresql/data
+              name: {{ $.Values.config.rollup.name }}-rollup-shared-storage-vol
+              subPath: {{ .Values.config.rollup.name }}/blockscout/postgres
+        - name: redis
+          command: ["redis-server"]
+          image: {{ .Values.images.blockscout.redis }}
+          ports:
+            - containerPort: 6379
+          volumeMounts:
+            - mountPath: /data
+              name: {{ $.Values.config.rollup.name }}-rollup-shared-storage-vol
+              subPath: {{ .Values.config.rollup.name }}/blockscout/redis
+        - name: sig-provider
+          image: {{ .Values.images.blockscout.sigProvider }}
+          ports:
+            - containerPort: 8050
+        - name: smart-contract-verifier
+          image: {{ .Values.images.blockscout.smartContractVerifier }}
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.config.rollup.name }}-smart-contract-verifier-env
+          ports:
+            - containerPort: 8150
+        - name: visualizer
+          image: {{ .Values.images.blockscout.visualizer }}
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.config.rollup.name }}-visualizer-env
+          ports:
+            - containerPort: 8151
+      volumes:
+        - name: {{ $.Values.config.rollup.name }}-rollup-shared-storage-vol
+          {{- if .Values.storage.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ $.Values.config.rollup.name }}-rollup-shared-storage-pvc-blockscout
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+---
+{{- end }}
