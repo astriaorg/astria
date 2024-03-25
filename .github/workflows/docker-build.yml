@@ -42,7 +42,7 @@ jobs:
 
   composer:
     needs: run_checker
-    if: needs.run_checker.outputs.run_docker == 'true' && (!github.event_name == 'workflow_dispatch' || github.event.inputs.target == 'composer')
+    if: needs.run_checker.outputs.run_docker == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'composer')
     uses: './.github/workflows/reusable-docker-build.yml'
     with:
       package-name: composer
@@ -52,7 +52,7 @@ jobs:
 
   conductor:
     needs: run_checker
-    if: needs.run_checker.outputs.run_docker == 'true' && (!github.event_name == 'workflow_dispatch' || github.event.inputs.target == 'conductor')
+    if: needs.run_checker.outputs.run_docker == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'conductor')
     uses: './.github/workflows/reusable-docker-build.yml'
     with:
       package-name: conductor
@@ -62,7 +62,7 @@ jobs:
 
   sequencer:
     needs: run_checker
-    if: needs.run_checker.outputs.run_docker == 'true' && (!github.event_name == 'workflow_dispatch' || github.event.inputs.target == 'sequencer')
+    if: needs.run_checker.outputs.run_docker == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'sequencer')
     uses: './.github/workflows/reusable-docker-build.yml'
     with:
       package-name: sequencer

@@ -7,16 +7,16 @@ components, and run the full Astria stack.
 
 Main dependencies
 
-* docker - https://docs.docker.com/get-docker/
-* kubectl - https://kubernetes.io/docs/tasks/tools/
-* helm - https://helm.sh/docs/intro/install/
-* kind - https://kind.sigs.k8s.io/docs/user/quick-start/#installation
-* just - https://just.systems/man/en/chapter_4.html
+* docker - <https://docs.docker.com/get-docker/>
+* kubectl - <https://kubernetes.io/docs/tasks/tools/>
+* helm - <https://helm.sh/docs/intro/install/>
+* kind - <https://kind.sigs.k8s.io/docs/user/quick-start/#installation>
+* just - <https://just.systems/man/en/chapter_4.html>
 
 For contract deployment:
 
 * Forge (part of Foundry) -
-  https://book.getfoundry.sh/getting-started/installation
+  <https://book.getfoundry.sh/getting-started/installation>
 
 ## Setup
 
@@ -211,4 +211,3 @@ RUST_LOG=debug forge create src/Storage.sol:Storage \
 * <https://kubernetes.io/docs/concepts/configuration/configmap/>
 * <https://kubernetes.io/docs/reference/kubectl/cheatsheet/>
 * <https://jamesdefabia.github.io/docs/user-guide/kubectl/kubectl_logs/>
-
