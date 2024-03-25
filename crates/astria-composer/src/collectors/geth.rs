@@ -105,7 +105,7 @@ impl Geth {
 
     /// Starts the collector instance and runs until failure or until
     /// explicitly closed
-    #[instrument(skip_all, fields(chain_name = self.chain_name))]
+    #[instrument(skip_all, fields(chain_name = self.chain_name, rollup_id = %self.rollup_id))]
     pub(crate) async fn run_until_stopped(self) -> eyre::Result<()> {
         use std::time::Duration;
 
