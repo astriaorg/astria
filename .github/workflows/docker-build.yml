@@ -95,12 +95,14 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
       - name: Setup Smoke Test Environment
+        timeout-minutes: 5
         run: |
           TAG=sha-$(git rev-parse --short HEAD)
           just deploy cluster
           echo "Deploying with astria images tagged $TAG"
           just deploy smoke-test $TAG
       - name: Run Smoke test
+        timeout-minutes: 1
         run: just run-smoke-test
 
   docker:

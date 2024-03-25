@@ -52,9 +52,18 @@ jobs:
           git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
       - name: Install Helm
         uses: azure/setup-helm@v3
+      - name: Update all chart dependencies before packaging
+        run: |
+          for chart in charts/*/; do
+            helm dependency update $chart
+          done
       - name: Run chart-releaser
         uses: helm/chart-releaser-action@v1.6.0
+        with:
+          skip_existing: true
         env:
+          CR_OWNER: "astriaorg"
+          CR_GIT_REPO: "dev-cluster"
           CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
 
   conductor:
