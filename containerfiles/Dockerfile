@@ -48,8 +48,8 @@ COPY . .
 
 RUN mkdir -p release
 RUN \
-    --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/build/target \
+    --mount=type=cache,target=/usr/local/cargo/registry,id=${TARGETPLATFORM}-${TARGETBINARY} \
+    --mount=type=cache,target=/build/target,id=${TARGETPLATFORM}-${TARGETBINARY} \
     if [ "$TARGETPLATFORM" = "linux/arm64" ] && [ "$BUILDPLATFORM" != "linux/arm64" ]; then \
       export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
         CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
