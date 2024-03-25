@@ -3,7 +3,7 @@ use anyhow::{
     Context,
     Result,
 };
-use astria_core::sequencer::v1alpha1::{
+use astria_core::sequencer::v1::{
     transaction::action::SequenceAction,
     Address,
 };

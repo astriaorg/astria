@@ -1,4 +1,4 @@
-use astria_core::sequencer::v1alpha1::{
+use astria_core::sequencer::v1::{
     asset::default_native_asset_id,
     transaction::action::TransferAction,
     Address,
@@ -141,7 +141,7 @@ fn create_signed_transaction() -> SignedTransaction {
 
 #[tokio::test]
 async fn get_latest_nonce() {
-    use astria_core::generated::sequencer::v1alpha1::NonceResponse;
+    use astria_core::generated::sequencer::v1::NonceResponse;
     let MockSequencer {
         server,
         client,
@@ -164,7 +164,7 @@ async fn get_latest_nonce() {
 
 #[tokio::test]
 async fn get_latest_balance() {
-    use astria_core::generated::sequencer::v1alpha1::{
+    use astria_core::generated::sequencer::v1::{
         AssetBalance,
         BalanceResponse,
     };

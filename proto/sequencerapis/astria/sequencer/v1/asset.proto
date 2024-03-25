@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package astria.sequencer.v1;
+
+/// Represents a denomination of some asset used within the sequencer.
+/// The `id` is used to identify the asset and for balance accounting.
+message Denom {
+  bytes id = 1;
+  string base_denom = 2;
+}

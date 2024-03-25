@@ -1,13 +1,31 @@
-use std::net::SocketAddr;
+use std::{
+    collections::VecDeque,
+    net::SocketAddr,
+    sync::{
+        Arc,
+        Mutex,
+    },
+};
 
 use assert_json_diff::assert_json_include;
-use astria_core::sequencer::v1alpha1::{
-    test_utils::ConfigureCometBftBlock,
-    RollupId,
+use astria_core::{
+    generated::sequencer::v1::{
+        sequencer_service_server::{
+            SequencerService,
+            SequencerServiceServer,
+        },
+        FilteredSequencerBlock as RawFilteredSequencerBlock,
+        GetFilteredSequencerBlockRequest,
+        GetSequencerBlockRequest,
+        SequencerBlock as RawSequencerBlock,
+    },
+    sequencer::v1::{
+        test_utils::make_cometbft_block,
+        SequencerBlock,
+    },
 };
 use astria_sequencer_relayer::{
     config::Config,
-    telemetry,
     SequencerRelayer,
 };
 use celestia_client::celestia_types::{
@@ -20,16 +38,21 @@ use serde_json::json;
 use tempfile::NamedTempFile;
 use tendermint_config::PrivValidatorKey;
 use tendermint_rpc::{
-    endpoint,
     response::Wrapper,
     Id,
 };
 use tokio::{
+    net::TcpListener,
     sync::{
         mpsc,
         oneshot,
     },
     task::JoinHandle,
+};
+use tonic::{
+    Request,
+    Response,
+    Status,
 };
 use tracing::info;
 use wiremock::{
@@ -78,6 +101,49 @@ const PRIVATE_VALIDATOR_KEY: &str = r#"
 }
 "#;
 
+const CELESTIA_BEARER_TOKEN: &str = "ABCDEFG";
+
+pub struct BlockGuard {
+    inner: oneshot::Receiver<()>,
+}
+
+impl BlockGuard {
+    // TODO: harmonize this with the ABCI `MockGuard` to have the same return value
+    #[allow(clippy::missing_errors_doc)]
+    pub async fn wait_until_satisfied(self) -> Result<(), tokio::sync::oneshot::error::RecvError> {
+        self.inner.await
+    }
+}
+
+pub struct MockSequencerServer {
+    #[allow(clippy::type_complexity)]
+    blocks: Arc<Mutex<VecDeque<(oneshot::Sender<()>, RawSequencerBlock)>>>,
+}
+
+#[async_trait::async_trait]
+impl SequencerService for MockSequencerServer {
+    async fn get_sequencer_block(
+        &self,
+        _request: Request<GetSequencerBlockRequest>,
+    ) -> Result<Response<RawSequencerBlock>, Status> {
+        let mut blocks = self.blocks.lock().unwrap();
+        blocks.pop_front().map_or_else(
+            || Err(Status::not_found("no more blocks")),
+            |(tx, block)| {
+                tx.send(()).unwrap();
+                Ok(Response::new(block))
+            },
+        )
+    }
+
+    async fn get_filtered_sequencer_block(
+        &self,
+        _request: Request<GetFilteredSequencerBlockRequest>,
+    ) -> Result<Response<RawFilteredSequencerBlock>, Status> {
+        return Err(Status::internal("unimplemented"));
+    }
+}
+
 pub struct TestSequencerRelayer {
     /// The socket address that sequencer relayer is serving its API endpoint on
     ///
@@ -88,8 +154,15 @@ pub struct TestSequencerRelayer {
     /// The mocked celestia node jsonrpc server
     pub celestia: MockCelestia,
 
-    /// The mocked sequencer service (also serving as tendermint jsonrpc?)
-    pub sequencer: MockServer,
+    /// The mocked cometbft service
+    pub cometbft: MockServer,
+
+    /// The block to return in the mock sequencer gRPC server
+    /// `get_sequencer_block` method.
+    #[allow(clippy::type_complexity)]
+    pub sequencer_server_blocks: Arc<Mutex<VecDeque<(oneshot::Sender<()>, RawSequencerBlock)>>>,
+
+    pub sequencer: JoinHandle<()>,
 
     pub sequencer_relayer: JoinHandle<()>,
 
@@ -103,6 +176,14 @@ pub struct TestSequencerRelayer {
 
     pub pre_submit_file: NamedTempFile,
     pub post_submit_file: NamedTempFile,
+}
+
+impl Drop for TestSequencerRelayer {
+    fn drop(&mut self) {
+        self.sequencer_relayer.abort();
+        self.sequencer.abort();
+        self.celestia.server_handle.stop().unwrap();
+    }
 }
 
 impl TestSequencerRelayer {
@@ -126,43 +207,63 @@ impl TestSequencerRelayer {
             .respond_with(ResponseTemplate::new(200).set_body_json(abci_response))
             .up_to_n_times(1)
             .expect(1..)
-            .mount_as_scoped(&self.sequencer)
+            .mount_as_scoped(&self.cometbft)
             .await
     }
 
-    pub async fn mount_block_response<const RELAY_SELF: bool>(&self, height: u32) -> MockGuard {
+    pub fn mount_block_response<const RELAY_SELF: bool>(&mut self, height: u32) -> BlockGuard {
         let proposer = if RELAY_SELF {
             self.account
         } else {
             tendermint::account::Id::try_from(vec![0u8; 20]).unwrap()
         };
-        let block_response = create_block_response(&self.signing_key, proposer, height);
-        let wrapped = Wrapper::new_with_id(Id::Num(1), Some(block_response.clone()), None);
-        let matcher = body_partial_json(json!({
-            "method": "block",
-            "params": {
-                "height": format!("{height}")
-            }
-        }));
-        Mock::given(matcher)
-            .respond_with(ResponseTemplate::new(200).set_body_json(wrapped))
-            .expect(1)
-            .mount_as_scoped(&self.sequencer)
-            .await
+
+        let mut cometbft_block = make_cometbft_block();
+        cometbft_block.header.height = height.into();
+        cometbft_block.header.proposer_address = proposer;
+
+        let (tx, rx) = oneshot::channel();
+
+        let block = SequencerBlock::try_from_cometbft(cometbft_block).unwrap();
+        let mut blocks = self.sequencer_server_blocks.lock().unwrap();
+        blocks.push_back((tx, block.into_raw()));
+        BlockGuard {
+            inner: rx,
+        }
     }
 
-    pub async fn mount_bad_block_response(&self, height: u32) -> MockGuard {
-        let matcher = body_partial_json(json!({
-            "method": "block",
-            "params": {
-                "height": format!("{height}")
-            }
-        }));
-        Mock::given(matcher)
-            .respond_with(ResponseTemplate::new(500))
-            .expect(1..)
-            .mount_as_scoped(&self.sequencer)
-            .await
+    pub fn mount_bad_block_response<const RELAY_SELF: bool>(&mut self, height: u32) -> BlockGuard {
+        let proposer = if RELAY_SELF {
+            self.account
+        } else {
+            tendermint::account::Id::try_from(vec![0u8; 20]).unwrap()
+        };
+
+        let mut cometbft_block = make_cometbft_block();
+        cometbft_block.header.height = height.into();
+        cometbft_block.header.proposer_address = proposer;
+
+        let (tx, rx) = oneshot::channel();
+
+        let mut block = SequencerBlock::try_from_cometbft(cometbft_block)
+            .unwrap()
+            .into_raw();
+
+        // make the block bad!!
+        let cometbft_header = block
+            .header
+            .as_mut()
+            .unwrap()
+            .cometbft_header
+            .as_mut()
+            .unwrap();
+        cometbft_header.data_hash = [0; 32].to_vec();
+
+        let mut blocks = self.sequencer_server_blocks.lock().unwrap();
+        blocks.push_back((tx, block));
+        BlockGuard {
+            inner: rx,
+        }
     }
 
     #[track_caller]
@@ -232,7 +333,24 @@ impl TestSequencerRelayerConfig {
             .try_into()
             .unwrap();
 
-        let sequencer = MockServer::start().await;
+        let cometbft = MockServer::start().await;
+
+        let grpc_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let grpc_addr = grpc_listener.local_addr().unwrap();
+        let sequencer_server_blocks = Arc::new(Mutex::new(VecDeque::new()));
+        let sequencer = MockSequencerServer {
+            blocks: sequencer_server_blocks.clone(),
+        };
+
+        let grpc_server =
+            tonic::transport::Server::builder().add_service(SequencerServiceServer::new(sequencer));
+
+        let sequencer = {
+            let serve = grpc_server.serve_with_incoming(
+                tokio_stream::wrappers::TcpListenerStream::new(grpc_listener),
+            );
+            tokio::task::spawn(async move { serve.await.unwrap() })
+        };
 
         let (pre_submit_file, post_submit_file) =
             if let Some(last_written_sequencer_height) = self.last_written_sequencer_height {
@@ -242,12 +360,13 @@ impl TestSequencerRelayerConfig {
             };
 
         let config = Config {
-            sequencer_endpoint: sequencer.uri(),
+            cometbft_endpoint: cometbft.uri(),
+            sequencer_grpc_endpoint: format!("http://{grpc_addr}"),
             celestia_endpoint: format!("http://{celestia_addr}"),
-            celestia_bearer_token: String::new(),
+            celestia_bearer_token: CELESTIA_BEARER_TOKEN.into(),
             block_time: 1000,
             relay_only_validator_key_blocks: self.relay_only_self,
-            validator_key_file: Some(keyfile.path().to_string_lossy().to_string()),
+            validator_key_file: keyfile.path().to_string_lossy().to_string(),
             api_addr: "0.0.0.0:0".into(),
             log: String::new(),
             force_stdout: false,
@@ -260,8 +379,7 @@ impl TestSequencerRelayerConfig {
         };
 
         info!(config = serde_json::to_string(&config).unwrap());
-        let config_clone = config.clone();
-        let sequencer_relayer = SequencerRelayer::new(&config_clone).await.unwrap();
+        let sequencer_relayer = SequencerRelayer::new(config.clone()).unwrap();
         let api_address = sequencer_relayer.local_addr();
         let sequencer_relayer = tokio::task::spawn(sequencer_relayer.run());
 
@@ -270,6 +388,8 @@ impl TestSequencerRelayerConfig {
             celestia,
             config,
             sequencer,
+            sequencer_server_blocks,
+            cometbft,
             sequencer_relayer,
             signing_key,
             account: address,
@@ -346,8 +466,15 @@ pub struct MockCelestia {
 impl MockCelestia {
     async fn start() -> Self {
         use jsonrpsee::server::ServerBuilder;
+        use tower_http::validate_request::ValidateRequestHeaderLayer;
         let (addr_tx, addr_rx) = oneshot::channel();
-        let server = ServerBuilder::default().build("127.0.0.1:0").await.unwrap();
+        let auth = tower::ServiceBuilder::new()
+            .layer(ValidateRequestHeaderLayer::bearer(CELESTIA_BEARER_TOKEN));
+        let server = ServerBuilder::new()
+            .set_middleware(auth)
+            .build("127.0.0.1:0")
+            .await
+            .unwrap();
         let addr = server.local_addr().unwrap();
         addr_tx.send(addr).unwrap();
         let (state_rpc_confirmed_tx, state_rpc_confirmed_rx) = mpsc::unbounded_channel();
@@ -418,34 +545,6 @@ impl BlobServer for BlobServerImpl {
     ) -> Result<u64, ErrorObjectOwned> {
         self.rpc_confirmed_tx.send(blobs).unwrap();
         Ok(100)
-    }
-}
-
-fn create_block_response(
-    signing_key: &SigningKey,
-    proposer_address: tendermint::account::Id,
-    height: u32,
-) -> endpoint::block::Response {
-    use tendermint::{
-        block,
-        Hash,
-    };
-    let rollup_id = RollupId::from_unhashed_bytes(b"test_chain_id_1");
-    let data = b"hello_world_id_1".to_vec();
-    let block = ConfigureCometBftBlock {
-        height,
-        signing_key: Some(signing_key.clone()),
-        proposer_address: Some(proposer_address),
-        rollup_transactions: vec![(rollup_id, data)],
-    }
-    .make();
-
-    endpoint::block::Response {
-        block_id: block::Id {
-            hash: Hash::Sha256([0; 32]),
-            part_set_header: block::parts::Header::new(0, Hash::None).unwrap(),
-        },
-        block,
     }
 }
 

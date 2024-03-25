@@ -5,8 +5,8 @@ use anyhow::{
     Result,
 };
 use astria_core::{
-    generated::sequencer::v1alpha1 as raw,
-    sequencer::v1alpha1::{
+    generated::sequencer::v1 as raw,
+    sequencer::v1::{
         block::{
             RollupTransactions,
             SequencerBlock,
@@ -203,7 +203,7 @@ pub(crate) trait StateReadExt: StateRead {
             .context("failed to get rollup IDs by block hash")?;
 
         let mut rollup_transactions = Vec::with_capacity(rollup_ids.len());
-        for (i, id) in rollup_ids.iter().enumerate() {
+        for id in &rollup_ids {
             let key = rollup_data_by_hash_and_rollup_id_key(hash, id);
             let raw = self
                 .get_raw(&key)
@@ -213,7 +213,7 @@ pub(crate) trait StateReadExt: StateRead {
                 let raw = raw.as_slice();
                 let rollup_data = raw::RollupTransactions::decode(raw)
                     .context("failed to decode rollup data from raw bytes")?;
-                rollup_transactions[i] = rollup_data;
+                rollup_transactions.push(rollup_data);
             }
         }
 

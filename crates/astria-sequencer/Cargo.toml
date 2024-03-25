@@ -1,6 +1,6 @@
 [package]
 name = "astria-sequencer"
-version = "0.9.0"
+version = "0.10.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 rust-version = "1.73"
@@ -30,8 +30,8 @@ matchit = "0.7.2"
 tower = "0.4"
 tower-abci = "0.11.0"
 tower-actor = "0.1.0"
-cnidarium = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.68.1" }
-cnidarium-component = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.68.1" }
+cnidarium = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.69.1" }
+cnidarium-component = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.69.1" }
 
 async-trait = { workspace = true }
 bytes = { workspace = true }
@@ -50,10 +50,10 @@ sha2 = { workspace = true }
 tendermint-proto = { workspace = true }
 tendermint = { workspace = true }
 tokio = { workspace = true, features = ["rt", "tracing"] }
+tonic = { workspace = true }
 tracing = { workspace = true }
 
 ibc-proto = { version = "0.41.0", features = ["server"] }
-tonic = "0.10"
 tower-http = { version = "0.4", features = ["cors"] }
 
 [dev-dependencies]

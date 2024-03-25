@@ -1,8 +1,8 @@
 use std::time::Duration;
 
 use astria_core::{
-    generated::sequencer::v1alpha1::NonceResponse,
-    sequencer::v1alpha1::{
+    generated::sequencer::v1::NonceResponse,
+    sequencer::v1::{
         AbciErrorCode,
         RollupId,
         SignedTransaction,
@@ -38,16 +38,56 @@ async fn tx_from_one_rollup_is_received_by_sequencer() {
     .await
     .expect("setup guard failed");
 
-    let expected_chain_ids = vec![RollupId::from_unhashed_bytes("test1")];
+    let expected_rollup_ids = vec![RollupId::from_unhashed_bytes("test1")];
     let mock_guard =
-        mount_broadcast_tx_sync_mock(&test_composer.sequencer, expected_chain_ids, vec![0]).await;
+        mount_broadcast_tx_sync_mock(&test_composer.sequencer, expected_rollup_ids, vec![0]).await;
     test_composer.rollup_nodes["test1"]
         .push_tx(Transaction::default())
         .unwrap();
 
-    // wait for 1 sequencer block time to make sure the the bundle is preempted
+    // wait for 1 sequencer block time to make sure the bundle is preempted
     tokio::time::timeout(
         Duration::from_millis(test_composer.cfg.block_time_ms),
+        mock_guard.wait_until_satisfied(),
+    )
+    .await
+    .expect("mocked sequencer should have received a broadcast message from composer");
+}
+
+#[tokio::test]
+async fn collector_restarts_after_exit() {
+    // Spawn a composer with a mock sequencer and a mock rollup node
+    // Initial nonce is 0
+    let test_composer = spawn_composer(&["test1"]).await;
+    tokio::time::timeout(
+        Duration::from_millis(100),
+        test_composer.setup_guard.wait_until_satisfied(),
+    )
+    .await
+    .expect("setup guard failed");
+
+    // get rollup node
+    let rollup_node = test_composer.rollup_nodes.get("test1").unwrap();
+    // abort the rollup node. The collector should restart after this abort
+    rollup_node.cancel_subscriptions().unwrap();
+
+    // FIXME: There is a race condition in the mock geth server between when the tx is pushed
+    // and when the `eth_subscribe` task reads it.
+    tokio::time::sleep(Duration::from_millis(100)).await;
+
+    // the collector will be restarted now, we should be able to send a tx normally
+    let expected_rollup_ids = vec![RollupId::from_unhashed_bytes("test1")];
+    let mock_guard =
+        mount_broadcast_tx_sync_mock(&test_composer.sequencer, expected_rollup_ids, vec![0]).await;
+    test_composer.rollup_nodes["test1"]
+        .push_tx(Transaction::default())
+        .unwrap();
+
+    // wait for 1 sequencer block time to make sure the bundle is preempted
+    // we added an extra 1000ms to the block time to make sure the collector has restarted
+    // as the collector has to establish a new subscription on start up.
+    tokio::time::timeout(
+        Duration::from_millis(test_composer.cfg.block_time_ms + 1000),
         mock_guard.wait_until_satisfied(),
     )
     .await
@@ -86,10 +126,10 @@ async fn invalid_nonce_failure_causes_tx_resubmission_under_different_nonce() {
     )
     .await;
 
-    let expected_chain_ids = vec![RollupId::from_unhashed_bytes("test1")];
+    let expected_rollup_ids = vec![RollupId::from_unhashed_bytes("test1")];
     // Expect nonce 1 again so that the resubmitted tx is accepted
     let valid_nonce_guard =
-        mount_broadcast_tx_sync_mock(&test_composer.sequencer, expected_chain_ids, vec![1]).await;
+        mount_broadcast_tx_sync_mock(&test_composer.sequencer, expected_rollup_ids, vec![1]).await;
 
     // Push a tx to the rollup node so that it is picked up by the composer and submitted with the
     // stored nonce of 0, triggering the nonce refetch process
@@ -97,7 +137,7 @@ async fn invalid_nonce_failure_causes_tx_resubmission_under_different_nonce() {
         .push_tx(Transaction::default())
         .unwrap();
 
-    // wait for 1 sequencer block time to make sure the the bundle is preempted
+    // wait for 1 sequencer block time to make sure the bundle is preempted
     tokio::time::timeout(
         Duration::from_millis(test_composer.cfg.block_time_ms),
         invalid_nonce_guard.wait_until_satisfied(),
@@ -138,7 +178,7 @@ async fn single_rollup_tx_payload_integrity() {
 
     test_composer.rollup_nodes["test1"].push_tx(tx).unwrap();
 
-    // wait for 1 sequencer block time to make sure the the bundle is preempted
+    // wait for 1 sequencer block time to make sure the bundle is preempted
     tokio::time::timeout(
         Duration::from_millis(test_composer.cfg.block_time_ms),
         mock_guard.wait_until_satisfied(),
@@ -148,21 +188,21 @@ async fn single_rollup_tx_payload_integrity() {
 }
 
 /// Deserizalizes the bytes contained in a `tx_sync::Request` to a signed sequencer transaction and
-/// verifies that the contained sequence action is in the given `expected_chain_ids` and
+/// verifies that the contained sequence action is in the given `expected_rollup_ids` and
 /// `expected_nonces`.
 async fn mount_broadcast_tx_sync_mock(
     server: &MockServer,
-    expected_chain_ids: Vec<RollupId>,
+    expected_rollup_ids: Vec<RollupId>,
     expected_nonces: Vec<u32>,
 ) -> MockGuard {
     let expected_calls = expected_nonces.len().try_into().unwrap();
     let matcher = move |request: &Request| {
-        let (chain_id, nonce) = chain_id_nonce_from_request(request);
+        let (rollup_id, nonce) = rollup_id_nonce_from_request(request);
 
-        let valid_chain_id = expected_chain_ids.contains(&chain_id);
+        let valid_rollup_id = expected_rollup_ids.contains(&rollup_id);
         let valid_nonce = expected_nonces.contains(&nonce);
 
-        valid_chain_id && valid_nonce
+        valid_rollup_id && valid_nonce
     };
     let jsonrpc_rsp = response::Wrapper::new_with_id(
         Id::Num(1),
@@ -184,15 +224,15 @@ async fn mount_broadcast_tx_sync_mock(
 }
 
 /// Deserizalizes the bytes contained in a `tx_sync::Request` to a signed sequencer transaction and
-/// verifies that the contained sequence action is for the given `expected_chain_id`. It then
+/// verifies that the contained sequence action is for the given `expected_rollup_id`. It then
 /// rejects the transaction for an invalid nonce.
 async fn mount_broadcast_tx_sync_invalid_nonce_mock(
     server: &MockServer,
-    expected_chain_id: RollupId,
+    expected_rollup_id: RollupId,
 ) -> MockGuard {
     let matcher = move |request: &Request| {
-        let (chain_id, _) = chain_id_nonce_from_request(request);
-        chain_id == expected_chain_id
+        let (rollup_id, _) = rollup_id_nonce_from_request(request);
+        rollup_id == expected_rollup_id
     };
     let jsonrpc_rsp = response::Wrapper::new_with_id(
         Id::Num(1),
@@ -251,7 +291,7 @@ async fn mount_matcher_verifying_tx_integrity(
 }
 
 fn signed_tx_from_request(request: &Request) -> SignedTransaction {
-    use astria_core::generated::sequencer::v1alpha1::SignedTransaction as RawSignedTransaction;
+    use astria_core::generated::sequencer::v1::SignedTransaction as RawSignedTransaction;
     use prost::Message as _;
 
     let wrapped_tx_sync_req: request::Wrapper<tx_sync::Request> =
@@ -266,7 +306,7 @@ fn signed_tx_from_request(request: &Request) -> SignedTransaction {
     signed_tx
 }
 
-fn chain_id_nonce_from_request(request: &Request) -> (RollupId, u32) {
+fn rollup_id_nonce_from_request(request: &Request) -> (RollupId, u32) {
     let signed_tx = signed_tx_from_request(request);
 
     // validate that the transaction's first action is a sequence action

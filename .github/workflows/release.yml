@@ -23,12 +23,16 @@ jobs:
       - uses: bufbuild/buf-push-action@v1
         with:
           draft:  ${{ github.ref_name != 'main'}}
-          input: "proto/executionapis"
+          input: "proto/sequencerapis"
           buf_token: ${{ secrets.BUF_TOKEN }}
+      - name: "Update Execution API dependency"
+        run: |
+          cd proto/executionapis
+          buf mod update --only buf.build/astria/astria
       - uses: bufbuild/buf-push-action@v1
         with:
           draft:  ${{ github.ref_name != 'main'}}
-          input: "proto/sequencerapis"
+          input: "proto/executionapis"
           buf_token: ${{ secrets.BUF_TOKEN }}
 
   charts:

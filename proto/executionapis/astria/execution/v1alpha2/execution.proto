@@ -2,6 +2,7 @@ syntax = 'proto3';
 
 package astria.execution.v1alpha2;
 
+import "astria/sequencer/v1/block.proto";
 import "google/protobuf/timestamp.proto";
 
 // GenesisInfo contains the information needed to start a rollup chain.
@@ -67,7 +68,7 @@ message ExecuteBlockRequest {
   // The hash of previous block, which new block will be created on top of.
   bytes prev_block_hash = 1;
   // List of transactions to include in the new block.
-  repeated bytes transactions = 2;
+  repeated astria.sequencer.v1.RollupData transactions = 2;
   // Timestamp to be used for new block.
   google.protobuf.Timestamp timestamp = 3;
 }

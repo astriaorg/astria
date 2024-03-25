@@ -7,6 +7,15 @@ on:
       tag:
         description: Git branch, or tag to build from.
         required: false
+      target:
+        description: Target to build.
+        required: false
+        type: choice
+        options:
+          - composer
+          - conductor
+          - sequencer
+          - sequencer-relayer
   merge_group:
   push:
     branches:
@@ -16,6 +25,7 @@ on:
       - "**-v[0-9]+.[0-9]+.[0-9]+-alpha.[0-9]+"
       - "**-v[0-9]+.[0-9]+.[0-9]+-beta.[0-9]+"
       - "**-v[0-9]+.[0-9]+.[0-9]+-rc[0-9]+"
+    
   # trigger on pull request updates when target is `main` branch
   pull_request:
     types:
@@ -32,7 +42,7 @@ jobs:
 
   composer:
     needs: run_checker
-    if: needs.run_checker.outputs.run_docker == 'true'
+    if: needs.run_checker.outputs.run_docker == 'true' && (!github.event_name == 'workflow_dispatch' || github.event.inputs.target == 'composer')
     uses: './.github/workflows/reusable-docker-build.yml'
     with:
       package-name: composer
@@ -42,7 +52,7 @@ jobs:
 
   conductor:
     needs: run_checker
-    if: needs.run_checker.outputs.run_docker == 'true'
+    if: needs.run_checker.outputs.run_docker == 'true' && (!github.event_name == 'workflow_dispatch' || github.event.inputs.target == 'conductor')
     uses: './.github/workflows/reusable-docker-build.yml'
     with:
       package-name: conductor
@@ -52,7 +62,7 @@ jobs:
 
   sequencer:
     needs: run_checker
-    if: needs.run_checker.outputs.run_docker == 'true'
+    if: needs.run_checker.outputs.run_docker == 'true' && (!github.event_name == 'workflow_dispatch' || github.event.inputs.target == 'sequencer')
     uses: './.github/workflows/reusable-docker-build.yml'
     with:
       package-name: sequencer
@@ -62,7 +72,7 @@ jobs:
 
   sequencer-relayer:
     needs: run_checker
-    if: needs.run_checker.outputs.run_docker == 'true'
+    if: needs.run_checker.outputs.run_docker == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'sequencer-relayer')
     uses: './.github/workflows/reusable-docker-build.yml'
     with:
       package-name: sequencer-relayer
