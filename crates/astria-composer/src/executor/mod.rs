@@ -193,7 +193,11 @@ impl Executor {
     }
 
     /// Create a future to submit a bundle to the sequencer.
-    #[instrument(skip_all, fields(nonce.initial = %nonce, bundle_bytes = %bundle.curr_size, rollup_actions = %telemetry::display::json(&bundle.rollup_counts)))]
+    #[instrument(skip_all, fields(
+        nonce.initial = %nonce,
+        bundle_bytes = %bundle.curr_size,
+        rollup_actions = %telemetry::display::json(&bundle.rollup_counts)
+    ))]
     fn submit_bundle(&self, nonce: u32, bundle: SizedBundle) -> Fuse<Instrumented<SubmitFut>> {
         SubmitFut {
             client: self.sequencer_client.clone(),

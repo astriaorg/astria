@@ -16,8 +16,9 @@ use astria_core::sequencer::v1::{
     RollupId,
     ROLLUP_ID_LEN,
 };
-use serde::{
+use serde::ser::{
     Serialize,
+    SerializeMap as _,
     Serializer,
 };
 use tracing::trace;
@@ -39,7 +40,11 @@ impl Serialize for RollupCountsReport {
     where
         S: Serializer,
     {
-        self.0.serialize(serializer)
+        let mut map = serializer.serialize_map(Some(self.0.len()))?;
+        for (rollup_id, count) in &self.0 {
+            map.serialize_entry(rollup_id, count)?;
+        }
+        map.end()
     }
 }
 
