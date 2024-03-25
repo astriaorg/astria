@@ -63,12 +63,10 @@ config = { package = "astria-config", path = "../astria-config", features = [
 test_utils = { package = "astria-test-utils", path = "../astria-test-utils", features = [
   "geth",
 ] }
+insta = { workspace = true, features = ["json"] }
 tokio-test = { workspace = true }
-
 tendermint-rpc = { workspace = true }
 wiremock = { workspace = true }
-
-insta = { workspace = true, features = ["json"] }
 
 [build-dependencies]
 astria-build-info = { path = "../astria-build-info", features = ["build"] }

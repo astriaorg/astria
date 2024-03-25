@@ -10,10 +10,7 @@ use std::{
 };
 
 use astria_core::sequencer::v1::{
-    transaction::{
-        action::SequenceAction,
-        Action,
-    },
+    transaction::action::SequenceAction,
     AbciErrorCode,
     SignedTransaction,
     UnsignedTransaction,
@@ -193,11 +190,7 @@ impl Executor {
     }
 
     /// Create a future to submit a bundle to the sequencer.
-    #[instrument(skip_all, fields(
-        nonce.initial = %nonce,
-        bundle_bytes = %bundle.curr_size,
-        rollup_actions = %telemetry::display::json(&bundle.rollup_counts)
-    ))]
+    #[instrument(skip_all, fields(nonce.initial = %nonce))]
     fn submit_bundle(&self, nonce: u32, bundle: SizedBundle) -> Fuse<Instrumented<SubmitFut>> {
         SubmitFut {
             client: self.sequencer_client.clone(),
@@ -205,7 +198,7 @@ impl Executor {
             nonce,
             signing_key: self.sequencer_key.clone(),
             state: SubmitState::NotStarted,
-            bundle: bundle.into_actions(),
+            bundle,
         }
         .in_current_span()
         .fuse()
@@ -387,7 +380,7 @@ pin_project! {
         signing_key: SigningKey,
         #[pin]
         state: SubmitState,
-        bundle: Vec<Action>,
+        bundle: SizedBundle,
     }
 
     impl PinnedDrop for SubmitFut {
@@ -423,9 +416,17 @@ impl Future for SubmitFut {
                 SubmitStateProj::NotStarted => {
                     let tx = UnsignedTransaction {
                         nonce: *this.nonce,
-                        actions: this.bundle.clone(),
+                        actions: this.bundle.clone().into_actions(),
                     }
                     .into_signed(this.signing_key);
+                    debug!(
+                        nonce = *this.nonce,
+                        bundle.bytes = this.bundle.curr_size(),
+                        bundle.rollup_counts =
+                            %telemetry::display::json(&this.bundle.rollup_counts()),
+                        transaction.hash = %telemetry::display::hex(&tx.sha256_of_proto_encoding()),
+                        "submitting transaction to sequencer",
+                    );
                     SubmitState::WaitingForSend {
                         fut: submit_tx(this.client.clone(), tx).boxed(),
                     }
@@ -475,9 +476,17 @@ impl Future for SubmitFut {
                         *this.nonce = nonce;
                         let tx = UnsignedTransaction {
                             nonce: *this.nonce,
-                            actions: this.bundle.clone(),
+                            actions: this.bundle.clone().into_actions(),
                         }
                         .into_signed(this.signing_key);
+                        debug!(
+                            nonce = *this.nonce,
+                            bundle.bytes = this.bundle.curr_size(),
+                            bundle.rollup_counts =
+                                %telemetry::display::json(&this.bundle.rollup_counts()),
+                            transaction.hash = %telemetry::display::hex(&tx.sha256_of_proto_encoding()),
+                            "resubmitting transaction to sequencer with new nonce",
+                        );
                         SubmitState::WaitingForSend {
                             fut: submit_tx(this.client.clone(), tx).boxed(),
                         }

@@ -16,11 +16,7 @@ use astria_core::sequencer::v1::{
     RollupId,
     ROLLUP_ID_LEN,
 };
-use serde::ser::{
-    Serialize,
-    SerializeMap as _,
-    Serializer,
-};
+use serde::Serialize;
 use tracing::trace;
 
 mod tests;
@@ -33,34 +29,23 @@ enum SizedBundleError {
     SequenceActionTooLarge(SequenceAction),
 }
 
+#[derive(Serialize, Clone)]
 pub(super) struct RollupCountsReport(HashMap<RollupId, u32>);
-
-impl Serialize for RollupCountsReport {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut map = serializer.serialize_map(Some(self.0.len()))?;
-        for (rollup_id, count) in &self.0 {
-            map.serialize_entry(rollup_id, count)?;
-        }
-        map.end()
-    }
-}
 
 /// A bundle sequence actions to be submitted to the sequencer. Maintains the total size of the
 /// bytes pushed to it and enforces a max size in bytes passed in the constructor. If an incoming
 /// `seq_action` won't fit in the buffer it is flushed and a new bundle is started.
+#[derive(Clone)]
 pub(super) struct SizedBundle {
     /// The buffer of actions
     buffer: Vec<Action>,
     /// The current size of the bundle in bytes. This is equal to the sum of the size of the
     /// `seq_action`s + `ROLLUP_ID_LEN` for each.
-    pub(super) curr_size: usize,
+    curr_size: usize,
     /// The max bundle size in bytes to enforce.
     max_size: usize,
     /// Mapping of rollup id to the number of sequence actions for that rollup id in the bundle.
-    pub(super) rollup_counts: RollupCountsReport,
+    rollup_counts: RollupCountsReport,
 }
 
 impl SizedBundle {
@@ -110,6 +95,14 @@ impl SizedBundle {
     /// Returns true if the bundle is empty.
     pub(super) fn is_empty(&self) -> bool {
         self.buffer.is_empty()
+    }
+
+    pub(super) fn rollup_counts(&self) -> &RollupCountsReport {
+        &self.rollup_counts
+    }
+
+    pub(super) fn curr_size(&self) -> usize {
+        self.curr_size
     }
 }
 
