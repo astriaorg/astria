@@ -36,11 +36,11 @@ pub(super) struct SizedBundle {
     buffer: Vec<Action>,
     /// The current size of the bundle in bytes. This is equal to the sum of the size of the
     /// `seq_action`s + `ROLLUP_ID_LEN` for each.
-    curr_size: usize,
+    pub(super) curr_size: usize,
     /// The max bundle size in bytes to enforce.
     max_size: usize,
     /// Mapping of rollup id to the number of sequence actions for that rollup id in the bundle.
-    rollup_counts: HashMap<RollupId, u32>,
+    pub(super) rollup_counts: HashMap<RollupId, u32>,
 }
 
 impl SizedBundle {
@@ -89,27 +89,6 @@ impl SizedBundle {
     /// Returns true if the bundle is empty.
     pub(super) fn is_empty(&self) -> bool {
         self.buffer.is_empty()
-    }
-}
-
-impl std::fmt::Display for SizedBundle {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "SizedBundle {{ size: {} bytes, actions: [",
-            self.curr_size
-        )?;
-
-        let mut counts_iter = self.rollup_counts.iter();
-        if let Some((rollup_id, count)) = counts_iter.next() {
-            write!(f, "{rollup_id}: {count}")?;
-        };
-        for (rollup_id, count) in counts_iter {
-            f.write_str(", ")?;
-            write!(f, ", {rollup_id}: {count}")?;
-        }
-        write!(f, "] }}")?;
-        Ok(())
     }
 }
 
