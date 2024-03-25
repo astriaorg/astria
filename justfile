@@ -204,7 +204,6 @@ clean-persisted-data:
 deploy-local-metrics:
   kubectl apply -f kubernetes/metrics-server-local.yml
 
-
 defaultTag := 'latest'
 
 deploy-smoke-test tag=defaultTag:

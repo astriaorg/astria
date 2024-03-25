@@ -5,16 +5,14 @@ metadata:
   namespace: {{ include "sequencer-relayer.namespace" . }}
 data:
   ASTRIA_SEQUENCER_RELAYER_LOG: "astria_sequencer_relayer=debug"
-  ASTRIA_SEQUENCER_RELAYER_SEQUENCER_ENDPOINT: "{{ .Values.config.relayer.sequencerRpc }}"
   ASTRIA_SEQUENCER_RELAYER_CELESTIA_ENDPOINT: "{{ .Values.config.relayer.celestiaRpc }}"
   ASTRIA_SEQUENCER_RELAYER_BLOCK_TIME: "1000"
   ASTRIA_SEQUENCER_RELAYER_VALIDATOR_KEY_FILE: /cometbft/config/priv_validator_key.json
   ASTRIA_SEQUENCER_RELAYER_RELAY_ONLY_VALIDATOR_KEY_BLOCKS: "false"
   ASTRIA_SEQUENCER_RELAYER_CELESTIA_BEARER_TOKEN: "{{ .Values.config.relayer.celestiaBearerToken }}"
   TOKEN_SERVER: "{{ .Values.config.relayer.tokenServer }}"
-  {{- if not .Values.global.dev }}
-  ASTRIA_SEQUENCER_RELAYER_RPC_PORT: "{{ .Values.ports.relayerRPC }}"
-  {{- else }}
+  ASTRIA_SEQUENCER_RELAYER_COMETBFT_ENDPOINT: "{{ .Values.config.relayer.cometbftRpc }}"
+  ASTRIA_SEQUENCER_RELAYER_SEQUENCER_GRPC_ENDPOINT: "{{ .Values.config.relayer.sequencerGrpc }}"
   ASTRIA_SEQUENCER_RELAYER_API_ADDR: "127.0.0.1:{{ .Values.ports.relayerRPC }}"
   ASTRIA_SEQUENCER_RELAYER_PRE_SUBMIT_PATH: "{{ include "sequencer-relayer.storage.preSubmitPath" . }}"
   ASTRIA_SEQUENCER_RELAYER_POST_SUBMIT_PATH: "{{ include "sequencer-relayer.storage.postSubmitPath" . }}"
@@ -29,6 +27,8 @@ data:
   OTEL_EXPORTER_OTLP_TRACES_COMPRESSION: "{{ .Values.config.relayer.otel.tracesCompression }}"
   OTEL_EXPORTER_OTLP_HEADERS: "{{ .Values.config.relayer.otel.otlpHeaders }}"
   OTEL_EXPORTER_OTLP_TRACE_HEADERS: "{{ .Values.config.relayer.otel.traceHeaders }}"
+  {{- if not .Values.global.dev }}
+  {{- else }}
   {{- end }}
 ---
 apiVersion: v1

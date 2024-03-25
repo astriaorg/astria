@@ -8,17 +8,17 @@ global:
 
 images:
   geth:
-    repo: "ghcr.io/astriaorg/go-ethereum"
-    tag: "0.5.2"
-    devTag: "0.6.0"
+    repo: ghcr.io/astriaorg/go-ethereum
+    tag: "0.7.0"
+    devTag: latest
   conductor:
-    repo: "ghcr.io/astriaorg/conductor"
-    tag: "0.11.1"
-    devTag: "latest"
+    repo: ghcr.io/astriaorg/conductor
+    tag: "0.13.0"
+    devTag: latest
   composer:
-    repo: "ghcr.io/astriaorg/composer"
-    tag: "0.3.1"
-    devTag: "latest"
+    repo: ghcr.io/astriaorg/composer
+    tag: "0.5.0"
+    devTag: latest
 
   # Rollup faucet
   faucet: "ghcr.io/astriaorg/ria-faucet:0.0.1"
@@ -45,7 +45,7 @@ config:
     # Set to true to keep history of all blocks
     archiveNode: false
     # EVM network ID used by the chain
-    networkId: 1337
+    networkId: "1337"
     # Determines what will drive block execution, options are:
     # - "SoftOnly" -> blocks are only pulled from the sequencer
     # - "FirmOnly" -> blocks are only pulled from DA
@@ -64,16 +64,6 @@ config:
           value:
             # The balance must be a string due to size
             balance: "1000000000000000000000000000"
-    optimism:
-      # set to true to enable op-stack integration, and setup rest of config
-      enabled: false
-      # Websocket URL of Ethereum L1 node.
-      ethereumL1Websocket: "ws://127.0.0.1:8545"
-      # Contract address of the OptimismPortal contract on L1.
-      portalContractAddress: ""
-      # The block height of the Ethereum L1 chain that the
-      # OptimismPortal contract was deployed at.
-      initialEthereumL1BlockHeight: 1
     metrics:
       # set to enable prometheus metrics
       enabled: false
@@ -128,11 +118,13 @@ config:
   # Configuration related to sequencer connection for rollup
   sequencer:
     # Block height to start syncing rollup from
-    initialBlockHeight: 2
-    # Websocket connection used for
-    websocket: "ws://node0-sequencer-rpc-service.astria-dev-cluster.svc.cluster.local:26657/websocket"
+    initialBlockHeight: "2"
+    # Fastest block time possible in MS
+    blockTimeMs: 2000
     # URL path for the sequencer
     rpc: "http://node0-sequencer-rpc-service.astria-dev-cluster.svc.cluster.local:26657"
+    # gRPC path for the sequencer
+    grpc: "http://node0-sequencer-grpc-service.astria-dev-cluster.svc.cluster.local:8080"
     # Private key which is used for wrapping txs for sequencer submission
     # Note: When secretProvider.enabled is true the secret provided by
     #       `sequencerPrivateKey` is used instead of this value.
@@ -144,8 +136,8 @@ config:
     rpc: ""
     ws: ""
     token: ""
-    initialBlockHeight: 2
-    heightVariance: 10
+    initialBlockHeight: "2"
+    heightVariance: "10"
 
   blockscout:
     enabled: true

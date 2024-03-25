@@ -23,7 +23,7 @@ Define the service name
 Define the k8s path to rpc service
 */}}
 {{- define "celestiaNode.service.addresses.base" -}}
-{{ include "celestiaNode.service.name" . }}.{{ .Values.global.namespace }}.svc.cluster.local:{{ .Values.ports.celestia.rpc }}
+{{ include "celestiaNode.service.name" . }}.{{ include "celestiaNode.namespace" . }}.svc.cluster.local:{{ .Values.ports.celestia.rpc }}
 {{- end }}
 
 

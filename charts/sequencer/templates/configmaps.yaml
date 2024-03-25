@@ -41,9 +41,7 @@ data:
   ASTRIA_SEQUENCER_DB_FILEPATH: "/sequencer/penumbra.db"
   ASTRIA_SEQUENCER_ENABLE_MINT: "false"
   # Socket address for gRPC server
-  ASTRIA_SEQUENCER_GRPC_ADDR: "127.0.0.1:{{ .Values.ports.sequencerGRPC }}"
-  {{- if not .Values.global.dev }}
-  {{- else }}
+  ASTRIA_SEQUENCER_GRPC_ADDR: "0.0.0.0:{{ .Values.ports.sequencerGRPC }}"
   ASTRIA_SEQUENCER_NO_METRICS: "{{ not .Values.config.sequencer.metrics.enabled }}"
   ASTRIA_SEQUENCER_METRICS_HTTP_LISTENER_ADDR: "127.0.0.1:{{ .Values.ports.sequencerMetrics }}"
   ASTRIA_SEQUENCER_FORCE_STDOUT: "{{ .Values.global.useTTY }}"
@@ -55,5 +53,7 @@ data:
   OTEL_EXPORTER_OTLP_TRACES_COMPRESSION: "{{ .Values.config.sequencer.otel.tracesCompression }}"
   OTEL_EXPORTER_OTLP_HEADERS: "{{ .Values.config.sequencer.otel.otlpHeaders }}"
   OTEL_EXPORTER_OTLP_TRACE_HEADERS: "{{ .Values.config.sequencer.otel.traceHeaders }}"
+  {{- if not .Values.global.dev }}
+  {{- else }}
   {{- end }}
 ---

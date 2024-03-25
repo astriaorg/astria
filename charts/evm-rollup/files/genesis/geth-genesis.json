@@ -1,6 +1,6 @@
 {
     "config": {
-        "chainId": {{ .Values.config.rollup.networkId }},
+        "chainId": {{ toString .Values.config.rollup.networkId | replace "\"" "" }},
         "homesteadBlock": 0,
         "eip150Block": 0,
         "eip155Block": 0,
@@ -18,14 +18,12 @@
         "astriaExtraDataOverride": "{{ .Values.config.rollup.genesis.extraDataOverride }}",
         {{- end }}
         "astriaOverrideGenesisExtraData": {{ .Values.config.rollup.genesis.overrideGenesisExtraData }},
-        "astriaSequencerInitialHeight": {{ .Values.config.sequencer.initialBlockHeight }},
-        {{- if not .Values.global.dev }}
-        "astriaDataAvailabilityInitialHeight": {{ .Values.config.celestia.initialBlockHeight }},
-        "astriaDataAvailabilityHeightVariance": {{ .Values.config.celestia.heightVariance }}
-        {{- else }}
+        "astriaSequencerInitialHeight": {{ toString .Values.config.sequencer.initialBlockHeight | replace "\"" "" }},
         "astriaRollupName": "{{ .Values.config.rollup.name }}",
-        "astriaCelestiaInitialHeight": {{ .Values.config.celestia.initialBlockHeight }},
-        "astriaCelestiaHeightVariance": {{ .Values.config.celestia.heightVariance }}
+        "astriaCelestiaInitialHeight": {{ toString .Values.config.celestia.initialBlockHeight | replace "\"" "" }},
+        "astriaCelestiaHeightVariance":{{ toString .Values.config.celestia.heightVariance | replace "\"" "" }}
+        {{- if not .Values.global.dev }}
+        {{- else }}
         {{- end }}
     },
     "difficulty": "10000000",

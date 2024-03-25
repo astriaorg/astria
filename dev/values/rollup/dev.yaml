@@ -4,9 +4,9 @@ global:
 
 config:
   celestia:
-     rpc: "http://celestia-service.astria-dev-cluster.svc.cluster.local:26658"
-     ws: "ws://celestia-service.astria-dev-cluster.svc.cluster.local:26658"
-     token: "http://celestia-service.astria-dev-cluster.svc.cluster.local:5353"
+    rpc: "http://celestia-service.astria-dev-cluster.svc.cluster.local:26658"
+    ws: "ws://celestia-service.astria-dev-cluster.svc.cluster.local:26658"
+    token: "http://celestia-service.astria-dev-cluster.svc.cluster.local:5353"
 
 celestia-node:
   enabled: false

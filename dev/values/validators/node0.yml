@@ -53,4 +53,5 @@ sequencer-relayer:
   config:
     relayer:
       celestiaRpc: http://celestia-service.astria-dev-cluster.svc.cluster.local:26658
-      sequencerRpc: http://node0-sequencer-rpc-service.astria-dev-cluster.svc.cluster.local:26657
+      cometbftRpc: http://node0-sequencer-rpc-service.astria-dev-cluster.svc.cluster.local:26657
+      sequencerGrpc: http://node0-sequencer-grpc-service.astria-dev-cluster.svc.cluster.local:8080

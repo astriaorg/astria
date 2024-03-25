@@ -15,7 +15,7 @@ config:
   amount: 1800
 
 images:
-  sequencerFaucet: "ghcr.io/astriaorg/seq-faucet:0.4.0"
+  sequencerFaucet: "ghcr.io/astriaorg/seq-faucet:0.5.0"
 
 # When deploying in a production environment should use a secret provider
 # This is configured for use with GCP, need to set own resource names

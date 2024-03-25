@@ -10,10 +10,6 @@
       }
       {{- end }}
     ],
-    {{- if not .Values.global.dev }}
-    "authority_sudo_key": "{{ .Values.config.sequencer.authoritySudoAddress }}",
-    "native_asset_base_denomination": "nria"
-    {{- else }}
     "authority_sudo_address": "{{ .Values.config.sequencer.authoritySudoAddress }}",
     "native_asset_base_denomination": "{{ .Values.config.sequencer.nativeAssetBaseDenomination }}",
     "allowed_fee_assets": [
@@ -34,6 +30,8 @@
       "inbound_ics20_transfers_enabled": {{ .Values.config.sequencer.ibc.inboundEnabled }},
       "outbound_ics20_transfers_enabled": {{ .Values.config.sequencer.ibc.outboundEnabled }}
     }
+    {{- if not .Values.global.dev }}
+    {{- else }}
     {{- end}}
   },
   "chain_id": "{{ .Values.config.cometBFT.chainId }}",

@@ -61,6 +61,7 @@ Return if ingress supports pathType.
 {{- or (eq (include "rollup.ingress.isStable" .) "true") (and (eq (include "rollup.ingress.apiVersion" .) "networking.k8s.io/v1beta1") (semverCompare ">= 1.18-0" .Capabilities.KubeVersion.Version)) }}
 {{- end }}
 
+{{/*
 Return the appropriate apiVersion for ingress.
 */}}
 {{- define "rollup.ingress.apiVersion" -}}

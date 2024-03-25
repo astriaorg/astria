@@ -19,7 +19,6 @@ spec:
     spec:
       containers:
         - name: sequencer-relayer
-          imagePullPolicy: IfNotPresent
           image: {{ include "sequencer-relayer.image" . }}
           command: [ "/scripts/start-relayer.sh" ]
           stdin: {{ .Values.global.useTTY }}

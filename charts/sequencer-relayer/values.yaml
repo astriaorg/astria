@@ -13,7 +13,7 @@ global:
 images:
   sequencerRelayer:
     repo: ghcr.io/astriaorg/sequencer-relayer
-    tag: "0.9.1"
+    tag: "0.11.0"
     devTag: latest
 
 config:
@@ -21,7 +21,8 @@ config:
     celestiaBearerToken: ""
     celestiaRpc: http://celestia-service.astria-dev-cluster.svc.cluster.local:26658
     tokenServer: http://celestia-service.astria-dev-cluster.svc.cluster.local:5353
-    sequencerRpc: ""
+    cometbftRpc: ""
+    sequencerGrpc: ""
 
     metrics:
       enabled: false

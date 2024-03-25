@@ -17,7 +17,7 @@ images:
     devTag: v0.37.x
   sequencer:
     repo: ghcr.io/astriaorg/sequencer
-    tag: "0.8.0"
+    tag: "0.10.0"
     devTag: latest
 
 config:
