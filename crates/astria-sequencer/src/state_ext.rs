@@ -243,3 +243,307 @@ pub(crate) trait StateWriteExt: StateWrite {
 }
 
 impl<T: StateWrite> StateWriteExt for T {}
+
+#[cfg(test)]
+mod test {
+    use cnidarium::StateDelta;
+    use tendermint::Time;
+
+    use super::{
+        StateReadExt as _,
+        StateWriteExt as _,
+    };
+
+    #[tokio::test]
+    async fn chain_id() {
+        let storage = cnidarium::TempStorage::new()
+            .await
+            .expect("failed to create temp storage backing chain state");
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // doesn't exist at first
+        assert!(state.get_chain_id().await.is_err());
+
+        // can write new
+        let chain_id_orig = "test-chain-orig";
+        state.put_chain_id(chain_id_orig.to_string());
+        assert!(state.get_chain_id().await.unwrap() == chain_id_orig);
+
+        // can rewrite with new value
+        let chain_id_update = "test-chain-update";
+        state.put_chain_id(chain_id_update.to_string());
+        assert!(state.get_chain_id().await.unwrap() == chain_id_update);
+    }
+
+    #[tokio::test]
+    async fn revision_number() {
+        let storage = cnidarium::TempStorage::new()
+            .await
+            .expect("failed to create temp storage backing chain state");
+        let snapshot = storage.latest_snapshot();
+        let state = StateDelta::new(snapshot);
+
+        // current impl just returns 'ok'
+        assert!(state.get_revision_number().await.unwrap() == 0u64);
+    }
+
+    #[tokio::test]
+    async fn block_height() {
+        let storage = cnidarium::TempStorage::new()
+            .await
+            .expect("failed to create temp storage backing chain state");
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // doesn't exist at first
+        assert!(state.get_block_height().await.is_err());
+
+        // can write new
+        let block_height_orig = 0;
+        state.put_block_height(block_height_orig);
+        assert!(state.get_block_height().await.unwrap() == block_height_orig);
+
+        // can rewrite with new value
+        let block_height_update = 1;
+        state.put_block_height(block_height_update);
+        assert!(state.get_block_height().await.unwrap() == block_height_update);
+    }
+
+    #[tokio::test]
+    async fn block_timestamp() {
+        let storage = cnidarium::TempStorage::new()
+            .await
+            .expect("failed to create temp storage backing chain state");
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // doesn't exist at first
+        assert!(state.get_block_timestamp().await.is_err());
+
+        // can write new
+        let block_timestamp_orig = Time::from_unix_timestamp(1577836800, 0).unwrap();
+        state.put_block_timestamp(block_timestamp_orig);
+        assert!(state.get_block_timestamp().await.unwrap() == block_timestamp_orig);
+
+        // can rewrite with new value
+        let block_timestamp_update = Time::from_unix_timestamp(1577836801, 0).unwrap();
+        state.put_block_timestamp(block_timestamp_update);
+        assert!(state.get_block_timestamp().await.unwrap() == block_timestamp_update);
+    }
+
+    #[tokio::test]
+    async fn storage_version() {
+        let storage = cnidarium::TempStorage::new()
+            .await
+            .expect("failed to create temp storage backing chain state");
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // doesn't exist at first
+        assert!(state.get_storage_version_by_height(0u64).await.is_err());
+
+        // can write for block height 0
+        let block_height_orig = 0;
+        let storage_version_orig = 0;
+        state.put_storage_version_by_height(block_height_orig, storage_version_orig);
+        assert!(
+            state
+                .get_storage_version_by_height(block_height_orig)
+                .await
+                .unwrap()
+                == storage_version_orig
+        );
+
+        // can update block height 0
+        let storage_version_update = 0;
+        state.put_storage_version_by_height(block_height_orig, storage_version_update);
+        assert!(
+            state
+                .get_storage_version_by_height(block_height_orig)
+                .await
+                .unwrap()
+                == storage_version_update
+        );
+
+        // can write block 1 and block 0 is unchanged
+        let block_height_update = 1;
+        state.put_storage_version_by_height(block_height_update, storage_version_orig);
+        assert!(
+            state
+                .get_storage_version_by_height(block_height_update)
+                .await
+                .unwrap()
+                == storage_version_orig
+        );
+        assert!(
+            state
+                .get_storage_version_by_height(block_height_orig)
+                .await
+                .unwrap()
+                == storage_version_update
+        );
+    }
+
+    #[tokio::test]
+    async fn native_asset_denom() {
+        let storage = cnidarium::TempStorage::new()
+            .await
+            .expect("failed to create temp storage backing chain state");
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // doesn't exist at first
+        assert!(state.get_native_asset_denom().await.is_err());
+
+        // can write
+        let denom_orig = "denom_orig";
+        state.put_native_asset_denom(denom_orig);
+        assert!(state.get_native_asset_denom().await.unwrap() == denom_orig);
+
+        // can write new value
+        let denom_update = "denom_update";
+        state.put_native_asset_denom(denom_update);
+        assert!(state.get_native_asset_denom().await.unwrap() == denom_update);
+    }
+
+    #[tokio::test]
+    async fn block_fee_read_and_increase() {
+        let storage = cnidarium::TempStorage::new()
+            .await
+            .expect("failed to create temp storage backing chain state");
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // doesn't exist at first
+        let fee_balances_orig = state.get_block_fees().await.unwrap();
+        assert!(fee_balances_orig.len() == 0);
+
+        // can write
+        let asset = astria_core::sequencer::v1::asset::Id::from_denom("asset_0");
+        let amount = 100u128;
+        assert!(
+            state
+                .get_and_increase_block_fees(asset, amount)
+                .await
+                .unwrap()
+                == ()
+        );
+
+        // holds expected
+        let fee_balances_updated = state.get_block_fees().await.unwrap();
+        assert!(fee_balances_updated[0] == (asset, amount));
+    }
+
+    #[tokio::test]
+    async fn block_fee_read_and_increase_can_delete() {
+        let storage = cnidarium::TempStorage::new()
+            .await
+            .expect("failed to create temp storage backing chain state");
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // can write
+        let asset_first = astria_core::sequencer::v1::asset::Id::from_denom("asset_0");
+        let asset_second = astria_core::sequencer::v1::asset::Id::from_denom("asset_1");
+        let amount_first = 100u128;
+        let amount_second = 200u128;
+        assert!(
+            state
+                .get_and_increase_block_fees(asset_first, amount_first)
+                .await
+                .unwrap()
+                == ()
+        );
+        assert!(
+            state
+                .get_and_increase_block_fees(asset_second, amount_second)
+                .await
+                .unwrap()
+                == ()
+        );
+
+        // holds expected
+        let fee_balances = state.get_block_fees().await.unwrap();
+        for val in fee_balances {
+            assert!(val == (asset_first, amount_first) || val == (asset_second, amount_second));
+        }
+
+        // can delete
+        state.clear_block_fees().await;
+
+        let fee_balances_updated = state.get_block_fees().await.unwrap();
+        assert!(fee_balances_updated.len() == 0);
+    }
+
+    #[tokio::test]
+    async fn is_allowed_fee_asset() {
+        let storage = cnidarium::TempStorage::new()
+            .await
+            .expect("failed to create temp storage backing chain state");
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // non-existent fees assets return false
+        let asset = astria_core::sequencer::v1::asset::Id::from_denom("asset_0");
+        assert!(!state.is_allowed_fee_asset(asset).await.unwrap());
+
+        // existent fee assets return true
+        state.put_allowed_fee_asset(asset);
+        assert!(state.is_allowed_fee_asset(asset).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn can_delete_allowed_fee_assets_simple() {
+        let storage = cnidarium::TempStorage::new()
+            .await
+            .expect("failed to create temp storage backing chain state");
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // setup fee asset
+        let asset = astria_core::sequencer::v1::asset::Id::from_denom("asset_0");
+        state.put_allowed_fee_asset(asset);
+        assert!(state.is_allowed_fee_asset(asset).await.unwrap());
+
+        // see can get fee asset
+        let assets = state.get_allowed_fee_assets().await.unwrap();
+        assert!(assets[0] == asset);
+
+        // can delete
+        state.delete_allowed_fee_asset(asset);
+
+        // see is deleted
+        let assets = state.get_allowed_fee_assets().await.unwrap();
+        assert!(assets.len() == 0);
+    }
+
+    #[tokio::test]
+    async fn can_delete_allowed_fee_assets_complex() {
+        let storage = cnidarium::TempStorage::new()
+            .await
+            .expect("failed to create temp storage backing chain state");
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // setup fee assets
+        let asset_first = astria_core::sequencer::v1::asset::Id::from_denom("asset_0");
+        state.put_allowed_fee_asset(asset_first);
+        assert!(state.is_allowed_fee_asset(asset_first).await.unwrap());
+        let asset_second = astria_core::sequencer::v1::asset::Id::from_denom("asset_1");
+        state.put_allowed_fee_asset(asset_second);
+        assert!(state.is_allowed_fee_asset(asset_second).await.unwrap());
+        let asset_third = astria_core::sequencer::v1::asset::Id::from_denom("asset_3");
+        state.put_allowed_fee_asset(asset_third);
+        assert!(state.is_allowed_fee_asset(asset_third).await.unwrap());
+
+        // can delete
+        state.delete_allowed_fee_asset(asset_second);
+
+        // see is deleted
+        let assets = state.get_allowed_fee_assets().await.unwrap();
+        for asset in assets {
+            assert!(asset == asset_first || asset == asset_third);
+        }
+    }
+}
