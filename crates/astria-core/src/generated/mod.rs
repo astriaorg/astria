@@ -1,4 +1,8 @@
-#![allow(unreachable_pub, clippy::pedantic)]
+#![allow(
+    unreachable_pub,
+    clippy::pedantic,
+    clippy::needless_borrows_for_generic_args
+)]
 
 /// Files generated using [`tonic-build`] and [`buf`] via the [`tools/protobuf-compiler`]
 /// build tool.
