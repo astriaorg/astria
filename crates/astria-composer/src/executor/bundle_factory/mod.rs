@@ -16,6 +16,10 @@ use astria_core::sequencer::v1::{
     RollupId,
     ROLLUP_ID_LEN,
 };
+use serde::{
+    Serialize,
+    Serializer,
+};
 use tracing::trace;
 
 mod tests;
@@ -26,6 +30,17 @@ enum SizedBundleError {
     NotEnoughSpace(SequenceAction),
     #[error("sequence action is larger than the max bundle size")]
     SequenceActionTooLarge(SequenceAction),
+}
+
+pub(super) struct RollupCountsReport(HashMap<RollupId, u32>);
+
+impl Serialize for RollupCountsReport {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        self.0.serialize(serializer)
+    }
 }
 
 /// A bundle sequence actions to be submitted to the sequencer. Maintains the total size of the
@@ -40,7 +55,7 @@ pub(super) struct SizedBundle {
     /// The max bundle size in bytes to enforce.
     max_size: usize,
     /// Mapping of rollup id to the number of sequence actions for that rollup id in the bundle.
-    pub(super) rollup_counts: HashMap<RollupId, u32>,
+    pub(super) rollup_counts: RollupCountsReport,
 }
 
 impl SizedBundle {
@@ -50,7 +65,7 @@ impl SizedBundle {
             buffer: vec![],
             curr_size: 0,
             max_size,
-            rollup_counts: HashMap::new(),
+            rollup_counts: RollupCountsReport(HashMap::new()),
         }
     }
 
@@ -68,6 +83,7 @@ impl SizedBundle {
         }
 
         self.rollup_counts
+            .0
             .entry(seq_action.rollup_id)
             .and_modify(|count| *count += 1)
             .or_insert(1);

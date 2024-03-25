@@ -6,6 +6,7 @@ mod sized_bundle_tests {
         RollupId,
         ROLLUP_ID_LEN,
     };
+    use insta::assert_json_snapshot;
 
     use crate::executor::bundle_factory::{
         estimate_size_of_sequence_action,
@@ -102,6 +103,30 @@ mod sized_bundle_tests {
         let actual_seq_action = actions[0].as_sequence().unwrap();
         assert_eq!(actual_seq_action.rollup_id, seq_action.rollup_id);
         assert_eq!(actual_seq_action.data, seq_action.data);
+    }
+
+    fn snapshot_bundle() -> SizedBundle {
+        let mut bundle = SizedBundle::new(200);
+        let seq_action0 = SequenceAction {
+            rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
+            data: vec![0; 100 - ROLLUP_ID_LEN],
+            fee_asset_id: default_native_asset_id(),
+        };
+        let seq_action1 = SequenceAction {
+            rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
+            data: vec![1; 100 - ROLLUP_ID_LEN],
+            fee_asset_id: default_native_asset_id(),
+        };
+        bundle.push(seq_action0).unwrap();
+        bundle.push(seq_action1).unwrap();
+        bundle
+    }
+
+    #[test]
+    fn snapshots() {
+        let bundle = snapshot_bundle();
+
+        assert_json_snapshot!(bundle.rollup_counts);
     }
 }
 
