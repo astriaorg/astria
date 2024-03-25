@@ -16,9 +16,9 @@ use astria_core::sequencer::v1::{
     RollupId,
     ROLLUP_ID_LEN,
 };
-use serde::{
-    self,
+use serde::ser::{
     Serialize,
+    SerializeStruct as _,
 };
 use tracing::trace;
 
@@ -32,9 +32,20 @@ enum SizedBundleError {
     SequenceActionTooLarge(SequenceAction),
 }
 
-#[derive(Serialize, Clone)]
-#[serde(transparent)]
-pub(super) struct RollupCountsReport(HashMap<RollupId, u32>);
+#[derive(Clone)]
+pub(super) struct SizedBundleReport<'a>(pub(super) &'a SizedBundle);
+
+impl<'a> Serialize for SizedBundleReport<'a> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut report = serializer.serialize_struct("SizedBundleReport", 2)?;
+        report.serialize_field("size", &self.0.curr_size)?;
+        report.serialize_field("rollup_counts", &self.0.rollup_counts)?;
+        report.end()
+    }
+}
 
 /// A bundle sequence actions to be submitted to the sequencer. Maintains the total size of the
 /// bytes pushed to it and enforces a max size in bytes passed in the constructor. If an incoming
@@ -49,7 +60,7 @@ pub(super) struct SizedBundle {
     /// The max bundle size in bytes to enforce.
     max_size: usize,
     /// Mapping of rollup id to the number of sequence actions for that rollup id in the bundle.
-    rollup_counts: RollupCountsReport,
+    rollup_counts: HashMap<RollupId, usize>,
 }
 
 impl SizedBundle {
@@ -59,7 +70,7 @@ impl SizedBundle {
             buffer: vec![],
             curr_size: 0,
             max_size,
-            rollup_counts: RollupCountsReport(HashMap::new()),
+            rollup_counts: HashMap::new(),
         }
     }
 
@@ -77,7 +88,6 @@ impl SizedBundle {
         }
 
         self.rollup_counts
-            .0
             .entry(seq_action.rollup_id)
             .and_modify(|count| *count += 1)
             .or_insert(1);
@@ -99,14 +109,6 @@ impl SizedBundle {
     /// Returns true if the bundle is empty.
     pub(super) fn is_empty(&self) -> bool {
         self.buffer.is_empty()
-    }
-
-    pub(super) fn rollup_counts(&self) -> &RollupCountsReport {
-        &self.rollup_counts
-    }
-
-    pub(super) fn curr_size(&self) -> usize {
-        self.curr_size
     }
 }
 

@@ -69,7 +69,10 @@ use tracing::{
 };
 
 use self::bundle_factory::SizedBundle;
-use crate::executor::bundle_factory::BundleFactory;
+use crate::executor::bundle_factory::{
+    BundleFactory,
+    SizedBundleReport,
+};
 
 mod bundle_factory;
 
@@ -421,9 +424,7 @@ impl Future for SubmitFut {
                     .into_signed(this.signing_key);
                     debug!(
                         nonce = *this.nonce,
-                        bundle.bytes = this.bundle.curr_size(),
-                        bundle.rollup_counts =
-                            %telemetry::display::json(&this.bundle.rollup_counts()),
+                        bundle = %telemetry::display::json(&SizedBundleReport(this.bundle)),
                         transaction.hash = %telemetry::display::hex(&tx.sha256_of_proto_encoding()),
                         "submitting transaction to sequencer",
                     );
@@ -481,9 +482,7 @@ impl Future for SubmitFut {
                         .into_signed(this.signing_key);
                         debug!(
                             nonce = *this.nonce,
-                            bundle.bytes = this.bundle.curr_size(),
-                            bundle.rollup_counts =
-                                %telemetry::display::json(&this.bundle.rollup_counts()),
+                            bundle = %telemetry::display::json(&SizedBundleReport(this.bundle)),
                             transaction.hash = %telemetry::display::hex(&tx.sha256_of_proto_encoding()),
                             "resubmitting transaction to sequencer with new nonce",
                         );

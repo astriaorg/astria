@@ -107,18 +107,24 @@ mod sized_bundle_tests {
 
     fn snapshot_bundle() -> SizedBundle {
         let mut bundle = SizedBundle::new(200);
-        let seq_action0 = SequenceAction {
-            rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
-            data: vec![0; 100 - ROLLUP_ID_LEN],
-            fee_asset_id: default_native_asset_id(),
-        };
         let seq_action1 = SequenceAction {
             rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
-            data: vec![1; 100 - ROLLUP_ID_LEN],
+            data: vec![1; 50 - ROLLUP_ID_LEN],
             fee_asset_id: default_native_asset_id(),
         };
-        bundle.push(seq_action0).unwrap();
+        let seq_action1_2 = SequenceAction {
+            rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
+            data: vec![1; 50 - ROLLUP_ID_LEN],
+            fee_asset_id: default_native_asset_id(),
+        };
+        let seq_action2 = SequenceAction {
+            rollup_id: RollupId::new([2; ROLLUP_ID_LEN]),
+            data: vec![2; 100 - ROLLUP_ID_LEN],
+            fee_asset_id: default_native_asset_id(),
+        };
         bundle.push(seq_action1).unwrap();
+        bundle.push(seq_action1_2).unwrap();
+        bundle.push(seq_action2).unwrap();
         bundle
     }
 
