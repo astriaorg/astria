@@ -94,7 +94,11 @@ impl SizedBundle {
 
 impl std::fmt::Display for SizedBundle {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "SizedBundle {{ size: {}, actions: [", self.curr_size)?;
+        write!(
+            f,
+            "SizedBundle {{ size: {} bytes, actions: [",
+            self.curr_size
+        )?;
 
         let mut counts_iter = self.rollup_counts.iter();
         if let Some((rollup_id, count)) = counts_iter.next() {
