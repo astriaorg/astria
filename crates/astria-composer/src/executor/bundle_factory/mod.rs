@@ -190,7 +190,6 @@ impl BundleFactory {
         self.finished
             .pop_front()
             .or_else(|| Some(self.curr_bundle.flush()))
-            // .map(SizedBundle::into_actions)
             .unwrap_or(SizedBundle::new(self.curr_bundle.max_size))
     }
 }
@@ -204,7 +203,6 @@ impl<'a> NextFinishedBundle<'a> {
         self.bundle_factory
             .finished
             .pop_front()
-            // .map(SizedBundle::into_actions)
             .expect("next bundle exists. this is a bug.")
     }
 }
