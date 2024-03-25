@@ -185,7 +185,7 @@ mod bundle_factory_tests {
         assert_eq!(bundle_factory.finished.len(), 1);
         // assert `pop_finished()` will return `seq_action0`
         let next_actions = bundle_factory.next_finished();
-        let actions = next_actions.unwrap().pop();
+        let actions = next_actions.unwrap().pop().into_actions();
         let actual_seq_action = actions[0].as_sequence().unwrap();
         assert_eq!(actual_seq_action.rollup_id, seq_action0.rollup_id);
         assert_eq!(actual_seq_action.data, seq_action0.data);
@@ -227,7 +227,7 @@ mod bundle_factory_tests {
         // assert that the finished queue is empty (curr wasnt flushed)
         assert_eq!(bundle_factory.finished.len(), 0);
         // assert `pop_now()` returns `seq_action`
-        let actions = bundle_factory.pop_now();
+        let actions = bundle_factory.pop_now().into_actions();
         let actual_seq_action = actions[0].as_sequence().unwrap();
         assert_eq!(actual_seq_action.rollup_id, seq_action.rollup_id);
         assert_eq!(actual_seq_action.data, seq_action.data);
@@ -258,7 +258,7 @@ mod bundle_factory_tests {
         // assert that the bundle factory has one bundle in the finished queue
         assert_eq!(bundle_factory.finished.len(), 1);
         // assert `pop_now()` will return `seq_action0`
-        let actions = bundle_factory.pop_now();
+        let actions = bundle_factory.pop_now().into_actions();
         let actual_seq_action = actions[0].as_sequence().unwrap();
         assert_eq!(actual_seq_action.rollup_id, seq_action0.rollup_id);
         assert_eq!(actual_seq_action.data, seq_action0.data);
@@ -302,7 +302,7 @@ mod bundle_factory_tests {
         assert_eq!(bundle_factory.finished.len(), 1);
 
         // assert `pop_now()` will return `seq_action0` on the first call
-        let actions_finished = bundle_factory.pop_now();
+        let actions_finished = bundle_factory.pop_now().into_actions();
         assert_eq!(actions_finished.len(), 1);
         let actual_seq_action = actions_finished[0].as_sequence().unwrap();
         assert_eq!(actual_seq_action.rollup_id, seq_action0.rollup_id);
@@ -312,7 +312,7 @@ mod bundle_factory_tests {
         assert_eq!(bundle_factory.finished.len(), 0);
 
         // assert `pop_now()` will return `seq_action1` on the second call (i.e. from curr)
-        let actions_curr = bundle_factory.pop_now();
+        let actions_curr = bundle_factory.pop_now().into_actions();
         assert_eq!(actions_curr.len(), 1);
         let actual_seq_action = actions_curr[0].as_sequence().unwrap();
         assert_eq!(actual_seq_action.rollup_id, seq_action1.rollup_id);

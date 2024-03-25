@@ -4,7 +4,6 @@
 /// - Managing the connection to the sequencer
 /// - Submitting transactions to the sequencer
 use std::{
-    collections::HashMap,
     pin::Pin,
     task::Poll,
     time::Duration,
@@ -72,6 +71,7 @@ use tracing::{
     Span,
 };
 
+use self::bundle_factory::SizedBundle;
 use crate::executor::bundle_factory::BundleFactory;
 
 mod bundle_factory;
@@ -193,15 +193,16 @@ impl Executor {
     }
 
     /// Create a future to submit a bundle to the sequencer.
-    #[instrument(skip_all, fields(nonce.initial = %nonce, rollup_counts = %ReportBundleRollupIdCounts(&bundle)))]
-    fn submit_bundle(&self, nonce: u32, bundle: Vec<Action>) -> Fuse<Instrumented<SubmitFut>> {
+    // TODO: fix instrumentation
+    #[instrument(skip_all, fields(nonce.initial = %nonce, bundle = %bundle))]
+    fn submit_bundle(&self, nonce: u32, bundle: SizedBundle) -> Fuse<Instrumented<SubmitFut>> {
         SubmitFut {
             client: self.sequencer_client.clone(),
             address: self.address,
             nonce,
             signing_key: self.sequencer_key.clone(),
             state: SubmitState::NotStarted,
-            bundle,
+            bundle: bundle.into_actions(),
         }
         .in_current_span()
         .fuse()
@@ -270,7 +271,6 @@ impl Executor {
                         block_timer.as_mut().reset(reset_time());
                     } else {
                         debug!(
-                            bundle_len=bundle.len(),
                             "forcing bundle submission to sequencer due to block timer"
                         );
                         submission_fut = self.submit_bundle(nonce, bundle);
@@ -495,31 +495,4 @@ impl Future for SubmitFut {
 fn sha256(data: &[u8]) -> [u8; 32] {
     use sha2::Sha256;
     Sha256::digest(data)
-}
-
-/// A helper struct to report the number of sequence actions per rollup id in a bundle.
-struct ReportBundleRollupIdCounts<'a>(&'a [Action]);
-impl<'a> std::fmt::Display for ReportBundleRollupIdCounts<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use std::fmt::Write as _;
-
-        let mut counts = HashMap::new();
-        for action in self.0 {
-            if let Some(action) = action.as_sequence() {
-                *counts.entry(action.rollup_id).or_insert(0) += 1;
-            }
-        }
-
-        f.write_char('[')?;
-        let mut counts_iter = counts.iter();
-        if let Some((rollup_id, count)) = counts_iter.next() {
-            write!(f, "{rollup_id}: {count}")?;
-        };
-        for (rollup_id, count) in counts_iter {
-            f.write_str(", ")?;
-            write!(f, "{rollup_id}: {count}")?;
-        }
-        f.write_char(']')?;
-        Ok(())
-    }
 }

@@ -1,7 +1,10 @@
 /// ! This module is responsible for bundling sequence actions into bundles that can be
 /// submitted to the sequencer.
 use std::{
-    collections::VecDeque,
+    collections::{
+        HashMap,
+        VecDeque,
+    },
     mem,
 };
 
@@ -10,6 +13,7 @@ use astria_core::sequencer::v1::{
         action::SequenceAction,
         Action,
     },
+    RollupId,
     ROLLUP_ID_LEN,
 };
 use tracing::trace;
@@ -27,7 +31,7 @@ enum SizedBundleError {
 /// A bundle sequence actions to be submitted to the sequencer. Maintains the total size of the
 /// bytes pushed to it and enforces a max size in bytes passed in the constructor. If an incoming
 /// `seq_action` won't fit in the buffer it is flushed and a new bundle is started.
-struct SizedBundle {
+pub(super) struct SizedBundle {
     /// The buffer of actions
     buffer: Vec<Action>,
     /// The current size of the bundle in bytes. This is equal to the sum of the size of the
@@ -35,6 +39,8 @@ struct SizedBundle {
     curr_size: usize,
     /// The max bundle size in bytes to enforce.
     max_size: usize,
+    /// Mapping of rollup id to the number of sequence actions for that rollup id in the bundle.
+    rollup_counts: HashMap<RollupId, u32>,
 }
 
 impl SizedBundle {
@@ -44,6 +50,7 @@ impl SizedBundle {
             buffer: vec![],
             curr_size: 0,
             max_size,
+            rollup_counts: HashMap::new(),
         }
     }
 
@@ -60,6 +67,10 @@ impl SizedBundle {
             return Err(SizedBundleError::NotEnoughSpace(seq_action));
         }
 
+        self.rollup_counts
+            .entry(seq_action.rollup_id)
+            .and_modify(|count| *count += 1)
+            .or_insert(1);
         self.buffer.push(Action::Sequence(seq_action));
         self.curr_size += seq_action_size;
         Ok(())
@@ -71,8 +82,30 @@ impl SizedBundle {
     }
 
     /// Consume self and return the underlying buffer of actions.
-    fn into_actions(self) -> Vec<Action> {
+    pub(super) fn into_actions(self) -> Vec<Action> {
         self.buffer
+    }
+
+    /// Returns true if the bundle is empty.
+    pub(super) fn is_empty(&self) -> bool {
+        self.buffer.is_empty()
+    }
+}
+
+impl std::fmt::Display for SizedBundle {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "SizedBundle {{ size: {}, actions: [", self.curr_size)?;
+
+        let mut counts_iter = self.rollup_counts.iter();
+        if let Some((rollup_id, count)) = counts_iter.next() {
+            write!(f, "{rollup_id}: {count}, ")?;
+        };
+        for (rollup_id, count) in counts_iter {
+            f.write_str(", ")?;
+            write!(f, "{rollup_id}: {count}, ")?;
+        }
+        write!(f, "] }}")?;
+        Ok(())
     }
 }
 
@@ -153,12 +186,12 @@ impl BundleFactory {
     /// Immediately the currently aggregating bundle.
     ///
     /// Returns an empty bundle if there are no bundled transactions.
-    pub(super) fn pop_now(&mut self) -> Vec<Action> {
+    pub(super) fn pop_now(&mut self) -> SizedBundle {
         self.finished
             .pop_front()
             .or_else(|| Some(self.curr_bundle.flush()))
-            .map(SizedBundle::into_actions)
-            .unwrap_or_default()
+            // .map(SizedBundle::into_actions)
+            .unwrap_or(SizedBundle::new(self.curr_bundle.max_size))
     }
 }
 
@@ -167,11 +200,11 @@ pub(super) struct NextFinishedBundle<'a> {
 }
 
 impl<'a> NextFinishedBundle<'a> {
-    pub(super) fn pop(self) -> Vec<Action> {
+    pub(super) fn pop(self) -> SizedBundle {
         self.bundle_factory
             .finished
             .pop_front()
-            .map(SizedBundle::into_actions)
+            // .map(SizedBundle::into_actions)
             .expect("next bundle exists. this is a bug.")
     }
 }
