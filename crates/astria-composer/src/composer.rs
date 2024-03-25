@@ -1,20 +1,35 @@
 use std::{
     collections::HashMap,
     net::SocketAddr,
+    time::Duration,
 };
 
 use astria_eyre::eyre::{
     self,
     WrapErr as _,
 };
+use itertools::Itertools;
 use tokio::{
+    io,
+    signal::unix::{
+        signal,
+        SignalKind,
+    },
     sync::watch,
-    task::JoinError,
+    task::{
+        JoinError,
+        JoinHandle,
+    },
+    time::timeout,
 };
-use tokio_util::task::JoinMap;
+use tokio_util::{
+    sync::CancellationToken,
+    task::JoinMap,
+};
 use tracing::{
     error,
     info,
+    warn,
 };
 
 use crate::{
@@ -24,6 +39,7 @@ use crate::{
     },
     collectors,
     collectors::Geth,
+    composer,
     executor,
     executor::Executor,
     rollup::Rollup,
@@ -39,8 +55,8 @@ pub struct Composer {
     api_server: ApiServer,
     /// `ComposerStatusSender` is used to announce the current status of the Composer for other
     /// modules in the crate to use.
-    composer_status_sender: watch::Sender<Status>,
-    /// `ExecutorHandle` contains a channel to communicate SequenceActions to the Executor
+    composer_status_sender: watch::Sender<composer::Status>,
+    /// `ExecutorHandle` to communicate SequenceActions to the Executor
     /// This is at the Composer level to allow its sharing to various different collectors.
     executor_handle: executor::Handle,
     /// `Executor` is responsible for signing and submitting sequencer transactions
@@ -52,8 +68,11 @@ pub struct Composer {
     geth_collector_statuses: HashMap<String, watch::Receiver<collectors::geth::Status>>,
     /// `GethCollectorTasks` is the set of tasks tracking if the geth collectors are still running.
     geth_collector_tasks: JoinMap<String, eyre::Result<()>>,
-    /// `Rollups` The map of chain ID to the URLs to which geth collectors should connect.
-    rollups: HashMap<String, String>,
+    /// `RollupIdToUrl` The map of chain ID to the URLs to which geth collectors should connect.
+    rollup_id_to_url: HashMap<String, String>,
+    /// `GrpcCollector` is a gRPC server to which users can send sequence actions
+    grpc_collector: collectors::Grpc,
+    shutdown_token: CancellationToken,
 }
 
 /// Announces the current status of the Composer for other modules in the crate to use
@@ -83,25 +102,36 @@ impl Composer {
     /// # Errors
     ///
     /// An error is returned if the composer fails to be initialized.
-    /// See `[Composer::from_config]` for its error scenarios.
-    pub fn from_config(cfg: &Config) -> eyre::Result<Self> {
+    /// See `[from_config]` for its error scenarios.
+    pub async fn from_config(cfg: &Config) -> eyre::Result<Self> {
         let (composer_status_sender, _) = watch::channel(Status::default());
+        let shutdown_token = CancellationToken::new();
 
         let (executor, executor_handle) = Executor::new(
             &cfg.sequencer_url,
             &cfg.private_key,
             cfg.block_time_ms,
             cfg.max_bytes_per_bundle,
+            shutdown_token.clone(),
         )
         .wrap_err("executor construction from config failed")?;
 
+        let grpc_collector = collectors::Grpc::new(
+            cfg.grpc_collector_addr,
+            executor_handle.clone(),
+            shutdown_token.clone(),
+        )
+        .await
+        .wrap_err("grpc collector construction from config failed")?;
+
         let api_server = api::start(cfg.api_listen_addr, composer_status_sender.subscribe());
+
         info!(
             listen_addr = %api_server.local_addr(),
             "API server listening"
         );
 
-        let rollups = cfg
+        let rollup_id_to_url = cfg
             .rollups
             .split(',')
             .filter(|s| !s.is_empty())
@@ -109,11 +139,15 @@ impl Composer {
             .collect::<Result<HashMap<_, _>, _>>()
             .wrap_err("failed parsing provided <rollup_name>::<url> pairs as rollups")?;
 
-        let geth_collectors = rollups
+        let geth_collectors = rollup_id_to_url
             .iter()
             .map(|(rollup_name, url)| {
-                let collector =
-                    Geth::new(rollup_name.clone(), url.clone(), executor_handle.clone());
+                let collector = Geth::new(
+                    rollup_name.clone(),
+                    url.clone(),
+                    executor_handle.clone(),
+                    shutdown_token.clone(),
+                );
                 (rollup_name.clone(), collector)
             })
             .collect::<HashMap<_, _>>();
@@ -128,16 +162,25 @@ impl Composer {
             composer_status_sender,
             executor_handle,
             executor,
-            rollups,
+            rollup_id_to_url,
             geth_collectors,
             geth_collector_statuses,
             geth_collector_tasks: JoinMap::new(),
+            grpc_collector,
+            shutdown_token,
         })
     }
 
     /// Returns the socket address the api server is served over
     pub fn local_addr(&self) -> SocketAddr {
         self.api_server.local_addr()
+    }
+
+    /// Returns the socker address the grpc collector is served over
+    /// # Errors
+    /// Returns an error if the listener is not bound
+    pub fn grpc_collector_local_addr(&self) -> io::Result<SocketAddr> {
+        self.grpc_collector.local_addr()
     }
 
     /// Runs the composer.
@@ -152,8 +195,10 @@ impl Composer {
             executor_handle,
             mut geth_collector_tasks,
             mut geth_collectors,
-            rollups,
+            rollup_id_to_url,
             mut geth_collector_statuses,
+            grpc_collector,
+            shutdown_token,
         } = self;
 
         // run the api server
@@ -177,28 +222,121 @@ impl Composer {
             status.set_executor_connected(true);
         });
 
+        // run the grpc server
+        let mut grpc_server_handle = tokio::spawn(async move {
+            grpc_collector
+                .run_until_stopped()
+                .await
+                .wrap_err("grpc server failed")
+        });
+
+        let mut sigterm = signal(SignalKind::terminate()).expect(
+            "setting a SIGTERM listener should always work on unix; is this running on unix?",
+        );
+
         loop {
             tokio::select!(
+            biased;
+            _ = sigterm.recv() => {
+                    shutdown_token.cancel();
+                    break;
+            },
             o = &mut api_task => {
                     report_exit("api server unexpectedly ended", o);
-                    return Ok(());
+                    // return Ok(());
+                    break;
             },
             o = &mut executor_task => {
                     report_exit("executor unexpectedly ended", o);
-                    return Ok(());
+                    // return Ok(());
+                    break;
+            },
+            o = &mut grpc_server_handle => {
+                    report_exit("grpc server unexpectedly ended", o);
+                    // return Ok(());
+                    break;
             },
             Some((rollup, collector_exit)) = geth_collector_tasks.join_next() => {
-                reconnect_exited_collector(
+                   // TODO - add some backoff logic here, if there are too many exits
+                   reconnect_exited_collector(
                     &mut geth_collector_statuses,
                     &mut geth_collector_tasks,
                     executor_handle.clone(),
-                    &rollups,
+                    &rollup_id_to_url,
                     rollup,
                     collector_exit,
+                    shutdown_token.clone()
                 );
             });
         }
+
+        shutdown(
+            api_task,
+            executor_task,
+            grpc_server_handle,
+            geth_collector_tasks,
+        )
+        .await
     }
+}
+
+async fn shutdown(
+    api_server_task_handle: JoinHandle<eyre::Result<()>>,
+    executor_task_handle: JoinHandle<eyre::Result<()>>,
+    grpc_server_task_handle: JoinHandle<eyre::Result<()>>,
+    mut geth_collector_tasks: JoinMap<String, eyre::Result<()>>,
+) -> eyre::Result<()> {
+    // wait 2s for each handle
+    match tokio::time::timeout(std::time::Duration::from_secs(2), api_server_task_handle)
+        .await
+        .map(flatten)
+    {
+        Ok(Ok(())) => info!("api server shut down"),
+        Ok(Err(error)) => error!(%error, "api server failed to shut down"),
+        Err(error) => error!(%error, "api server panicked"),
+    }
+    match tokio::time::timeout(std::time::Duration::from_secs(2), executor_task_handle)
+        .await
+        .map(flatten)
+    {
+        Ok(Ok(())) => info!("executor shut down"),
+        Ok(Err(error)) => error!(%error, "executor failed to shut down"),
+        Err(error) => error!(%error, "executor panciked"),
+    }
+    match tokio::time::timeout(std::time::Duration::from_secs(2), grpc_server_task_handle)
+        .await
+        .map(flatten)
+    {
+        Ok(Ok(())) => info!("grpc server shut down"),
+        Ok(Err(error)) => error!(%error, "grpc server failed to shut down"),
+        Err(error) => error!(%error, "grpc server failed to shut down"),
+    }
+
+    let shutdown_loop = async {
+        while let Some((name, res)) = geth_collector_tasks.join_next().await {
+            let message = "task shut down";
+            match flatten(res) {
+                Ok(()) => info!(name, message),
+                Err(error) => error!(name, %error, message),
+            }
+        }
+    };
+
+    if timeout(Duration::from_secs(25), shutdown_loop)
+        .await
+        .is_err()
+    {
+        let tasks = geth_collector_tasks.keys().join(", ");
+        warn!(
+            tasks = format_args!("[{tasks}]"),
+            "aborting all tasks that have not yet shut down",
+        );
+        geth_collector_tasks.abort_all();
+    } else {
+        info!("all tasks shut down regularly");
+    }
+
+    Ok(())
 }
 
 async fn wait_for_executor(
@@ -264,6 +402,7 @@ pub(super) fn reconnect_exited_collector(
     rollups: &HashMap<String, String>,
     rollup: String,
     exit_result: Result<eyre::Result<()>, JoinError>,
+    shutdown_token: CancellationToken,
 ) {
     report_exit("collector", exit_result);
     let Some(url) = rollups.get(&rollup) else {
@@ -274,7 +413,7 @@ pub(super) fn reconnect_exited_collector(
         return;
     };
 
-    let collector = Geth::new(rollup.clone(), url.clone(), executor_handle);
+    let collector = Geth::new(rollup.clone(), url.clone(), executor_handle, shutdown_token);
     collector_statuses.insert(rollup.clone(), collector.subscribe());
     collector_tasks.spawn(rollup, collector.run_until_stopped());
 }
@@ -288,5 +427,13 @@ fn report_exit(task_name: &str, outcome: Result<eyre::Result<()>, JoinError>) {
         Err(error) => {
             error!(%error, task = task_name, "task failed to complete");
         }
+    }
+}
+
+pub(crate) fn flatten<T>(res: Result<eyre::Result<T>, JoinError>) -> eyre::Result<T> {
+    match res {
+        Ok(Ok(val)) => Ok(val),
+        Ok(Err(err)) => Err(err).wrap_err("task returned with error"),
+        Err(err) => Err(err).wrap_err("task panicked"),
     }
 }

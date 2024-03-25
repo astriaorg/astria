@@ -26,3 +26,9 @@ pub mod sequencer {
     #[path = "astria.sequencer.v1.rs"]
     pub mod v1;
 }
+
+#[path = ""]
+pub mod composer {
+    #[path = "astria.composer.v1alpha1.rs"]
+    pub mod v1alpha1;
+}

@@ -21,6 +21,7 @@ use tokio::{
     sync::watch,
     time,
 };
+use tokio_util::sync::CancellationToken;
 use tracing::debug;
 use wiremock::{
     matchers::{
@@ -88,6 +89,7 @@ async fn setup() -> (MockServer, MockGuard, Config) {
         no_metrics: false,
         metrics_http_listener_addr: String::new(),
         pretty_print: true,
+        grpc_collector_addr: "127.0.0.1:0".parse().unwrap(),
     };
     (server, startup_guard, cfg)
 }
@@ -194,11 +196,13 @@ async fn wait_for_startup(
 async fn full_bundle() {
     // set up the executor, channel for writing seq actions, and the sequencer mock
     let (sequencer, nonce_guard, cfg) = setup().await;
+    let shutdown_token = CancellationToken::new();
     let (executor, executor_handle) = Executor::new(
         &cfg.sequencer_url,
         &cfg.private_key,
         cfg.block_time_ms,
         cfg.max_bytes_per_bundle,
+        shutdown_token,
     )
     .unwrap();
 
@@ -280,13 +284,16 @@ async fn full_bundle() {
 async fn bundle_triggered_by_block_timer() {
     // set up the executor, channel for writing seq actions, and the sequencer mock
     let (sequencer, nonce_guard, cfg) = setup().await;
+    let shutdown_token = CancellationToken::new();
     let (executor, executor_handle) = Executor::new(
         &cfg.sequencer_url,
         &cfg.private_key,
         cfg.block_time_ms,
         cfg.max_bytes_per_bundle,
+        shutdown_token,
     )
     .unwrap();
+
     let status = executor.subscribe();
 
     let _executor_task = tokio::spawn(executor.run_until_stopped());
@@ -358,11 +365,13 @@ async fn bundle_triggered_by_block_timer() {
 async fn two_seq_actions_single_bundle() {
     // set up the executor, channel for writing seq actions, and the sequencer mock
     let (sequencer, nonce_guard, cfg) = setup().await;
+    let shutdown_token = CancellationToken::new();
     let (executor, executor_handle) = Executor::new(
         &cfg.sequencer_url,
         &cfg.private_key,
         cfg.block_time_ms,
         cfg.max_bytes_per_bundle,
+        shutdown_token.clone(),
     )
     .unwrap();
 

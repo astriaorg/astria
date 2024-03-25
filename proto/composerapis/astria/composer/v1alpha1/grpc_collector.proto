@@ -1,0 +1,18 @@
+syntax = 'proto3';
+
+package astria.composer.v1alpha1;
+
+import "google/protobuf/empty.proto";
+
+message RollupTx {
+  string rollup_id = 1;
+  bytes tx_bytes = 2;
+}
+
+message SubmitRollupTxsRequest {
+  repeated RollupTx rollup_txs = 1;
+}
+
+service GrpcCollectorService {
+  rpc SubmitRollupTxs(SubmitRollupTxsRequest) returns (google.protobuf.Empty) {}
+}
