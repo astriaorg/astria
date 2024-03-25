@@ -43,7 +43,7 @@ jobs:
     #  if: needs.run_checker.outputs.run_release_charts == 'true'
     steps:
       - name: Checkout Repo
-        uses: actions/checkout@master
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Configure Git
@@ -59,9 +59,6 @@ jobs:
           done
       - name: Run chart-releaser
         uses: helm/chart-releaser-action@v1.6.0
-        with:
-          skip_existing: true
-          config: cr.yaml
         env:
           CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
 
