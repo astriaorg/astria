@@ -66,5 +66,7 @@ tokio-test = { workspace = true }
 tendermint-rpc = { workspace = true }
 wiremock = { workspace = true }
 
+insta = { workspace = true, features = ["json"] }
+
 [build-dependencies]
 astria-build-info = { path = "../astria-build-info", features = ["build"] }
