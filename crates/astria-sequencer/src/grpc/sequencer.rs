@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use astria_core::{
     generated::sequencer::v1::{
         sequencer_service_server::SequencerService,
@@ -38,7 +40,7 @@ impl SequencerService for SequencerServer {
     /// Given a block height, returns the sequencer block at that height.
     #[instrument(skip_all, fields(height = request.get_ref().height))]
     async fn get_sequencer_block(
-        &self,
+        self: Arc<Self>,
         request: Request<GetSequencerBlockRequest>,
     ) -> Result<Response<RawSequencerBlock>, Status> {
         let snapshot = self.storage.latest_snapshot();
@@ -68,7 +70,7 @@ impl SequencerService for SequencerServer {
     /// is filtered to contain only the transactions that are relevant to the given rollup.
     #[instrument(skip_all, fields(height = request.get_ref().height))]
     async fn get_filtered_sequencer_block(
-        &self,
+        self: Arc<Self>,
         request: Request<GetFilteredSequencerBlockRequest>,
     ) -> Result<Response<RawFilteredSequencerBlock>, Status> {
         let snapshot = self.storage.latest_snapshot();
@@ -220,7 +222,7 @@ mod test {
         state_tx.put_sequencer_block(block.clone()).unwrap();
         storage.commit(state_tx).await.unwrap();
 
-        let server = SequencerServer::new(storage.clone());
+        let server = Arc::new(SequencerServer::new(storage.clone()));
         let request = GetSequencerBlockRequest {
             height: 1,
         };

@@ -1,7 +1,10 @@
 use std::{
     collections::HashMap,
     net::SocketAddr,
-    sync::Mutex,
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 
 use astria_core::{
@@ -129,14 +132,14 @@ impl ExecutionServiceImpl {
 #[tonic::async_trait]
 impl ExecutionService for ExecutionServiceImpl {
     async fn get_block(
-        &self,
+        self: Arc<Self>,
         _request: tonic::Request<GetBlockRequest>,
     ) -> std::result::Result<tonic::Response<raw::Block>, tonic::Status> {
         unimplemented!("get_block")
     }
 
     async fn get_genesis_info(
-        &self,
+        self: Arc<Self>,
         _request: tonic::Request<GetGenesisInfoRequest>,
     ) -> std::result::Result<tonic::Response<raw::GenesisInfo>, tonic::Status> {
         Ok(tonic::Response::new(
@@ -145,14 +148,14 @@ impl ExecutionService for ExecutionServiceImpl {
     }
 
     async fn batch_get_blocks(
-        &self,
+        self: Arc<Self>,
         _request: tonic::Request<BatchGetBlocksRequest>,
     ) -> std::result::Result<tonic::Response<BatchGetBlocksResponse>, tonic::Status> {
         unimplemented!("batch_get_blocks")
     }
 
     async fn execute_block(
-        &self,
+        self: Arc<Self>,
         request: tonic::Request<ExecuteBlockRequest>,
     ) -> std::result::Result<tonic::Response<raw::Block>, tonic::Status> {
         let request = request.into_inner();
@@ -175,7 +178,7 @@ impl ExecutionService for ExecutionServiceImpl {
     }
 
     async fn get_commitment_state(
-        &self,
+        self: Arc<Self>,
         _request: tonic::Request<GetCommitmentStateRequest>,
     ) -> std::result::Result<tonic::Response<raw::CommitmentState>, tonic::Status> {
         Ok(tonic::Response::new(
@@ -184,7 +187,7 @@ impl ExecutionService for ExecutionServiceImpl {
     }
 
     async fn update_commitment_state(
-        &self,
+        self: Arc<Self>,
         request: tonic::Request<UpdateCommitmentStateRequest>,
     ) -> std::result::Result<tonic::Response<raw::CommitmentState>, tonic::Status> {
         let new_state = {

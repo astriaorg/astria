@@ -219,18 +219,18 @@ pub mod execution_service_server {
     #[async_trait]
     pub trait ExecutionService: Send + Sync + 'static {
         async fn init_state(
-            &self,
+            self: std::sync::Arc<Self>,
             request: tonic::Request<super::InitStateRequest>,
         ) -> std::result::Result<
             tonic::Response<super::InitStateResponse>,
             tonic::Status,
         >;
         async fn do_block(
-            &self,
+            self: std::sync::Arc<Self>,
             request: tonic::Request<super::DoBlockRequest>,
         ) -> std::result::Result<tonic::Response<super::DoBlockResponse>, tonic::Status>;
         async fn finalize_block(
-            &self,
+            self: std::sync::Arc<Self>,
             request: tonic::Request<super::FinalizeBlockRequest>,
         ) -> std::result::Result<
             tonic::Response<super::FinalizeBlockResponse>,
@@ -334,7 +334,7 @@ pub mod execution_service_server {
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ExecutionService>::init_state(&inner, request).await
+                                <T as ExecutionService>::init_state(inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -380,7 +380,7 @@ pub mod execution_service_server {
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ExecutionService>::do_block(&inner, request).await
+                                <T as ExecutionService>::do_block(inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -426,7 +426,7 @@ pub mod execution_service_server {
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ExecutionService>::finalize_block(&inner, request)
+                                <T as ExecutionService>::finalize_block(inner, request)
                                     .await
                             };
                             Box::pin(fut)
