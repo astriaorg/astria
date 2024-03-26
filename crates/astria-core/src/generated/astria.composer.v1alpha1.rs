@@ -10,11 +10,25 @@ pub struct SubmitRollupTransactionRequest {
     #[prost(bytes = "vec", tag = "2")]
     pub data: ::prost::alloc::vec::Vec<u8>,
 }
+impl ::prost::Name for SubmitRollupTransactionRequest {
+    const NAME: &'static str = "SubmitRollupTransactionRequest";
+    const PACKAGE: &'static str = "astria.composer.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.composer.v1alpha1.{}", Self::NAME)
+    }
+}
 /// SubmitRollupTransactionResponse is a message that represents a response to a request to submit a rollup.
 /// It's currently an empty response which can be evolved in the future to include more information
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SubmitRollupTransactionResponse {}
+impl ::prost::Name for SubmitRollupTransactionResponse {
+    const NAME: &'static str = "SubmitRollupTransactionResponse";
+    const PACKAGE: &'static str = "astria.composer.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.composer.v1alpha1.{}", Self::NAME)
+    }
+}
 /// Generated client implementations.
 #[cfg(feature = "client")]
 pub mod grpc_collector_service_client {
