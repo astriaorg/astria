@@ -8,11 +8,25 @@ pub struct DoBlockRequest {
     #[prost(message, optional, tag = "3")]
     pub timestamp: ::core::option::Option<::pbjson_types::Timestamp>,
 }
+impl ::prost::Name for DoBlockRequest {
+    const NAME: &'static str = "DoBlockRequest";
+    const PACKAGE: &'static str = "astria.execution.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.execution.v1alpha1.{}", Self::NAME)
+    }
+}
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DoBlockResponse {
     #[prost(bytes = "vec", tag = "1")]
     pub block_hash: ::prost::alloc::vec::Vec<u8>,
+}
+impl ::prost::Name for DoBlockResponse {
+    const NAME: &'static str = "DoBlockResponse";
+    const PACKAGE: &'static str = "astria.execution.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.execution.v1alpha1.{}", Self::NAME)
+    }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -20,17 +34,45 @@ pub struct FinalizeBlockRequest {
     #[prost(bytes = "vec", tag = "1")]
     pub block_hash: ::prost::alloc::vec::Vec<u8>,
 }
+impl ::prost::Name for FinalizeBlockRequest {
+    const NAME: &'static str = "FinalizeBlockRequest";
+    const PACKAGE: &'static str = "astria.execution.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.execution.v1alpha1.{}", Self::NAME)
+    }
+}
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FinalizeBlockResponse {}
+impl ::prost::Name for FinalizeBlockResponse {
+    const NAME: &'static str = "FinalizeBlockResponse";
+    const PACKAGE: &'static str = "astria.execution.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.execution.v1alpha1.{}", Self::NAME)
+    }
+}
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct InitStateRequest {}
+impl ::prost::Name for InitStateRequest {
+    const NAME: &'static str = "InitStateRequest";
+    const PACKAGE: &'static str = "astria.execution.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.execution.v1alpha1.{}", Self::NAME)
+    }
+}
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct InitStateResponse {
     #[prost(bytes = "vec", tag = "1")]
     pub block_hash: ::prost::alloc::vec::Vec<u8>,
+}
+impl ::prost::Name for InitStateResponse {
+    const NAME: &'static str = "InitStateResponse";
+    const PACKAGE: &'static str = "astria.execution.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.execution.v1alpha1.{}", Self::NAME)
+    }
 }
 /// Generated client implementations.
 #[cfg(feature = "client")]

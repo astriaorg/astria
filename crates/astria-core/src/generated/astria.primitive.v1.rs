@@ -18,3 +18,10 @@ pub struct Uint128 {
     #[prost(uint64, tag = "2")]
     pub hi: u64,
 }
+impl ::prost::Name for Uint128 {
+    const NAME: &'static str = "Uint128";
+    const PACKAGE: &'static str = "astria.primitive.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.primitive.v1.{}", Self::NAME)
+    }
+}
