@@ -82,6 +82,7 @@ pub async fn run(cli: Cli) -> eyre::Result<()> {
                 SequencerCommand::InitBridgeAccount(args) => {
                     sequencer::init_bridge_account(&args).await?
                 }
+                SequencerCommand::BridgeLock(args) => sequencer::bridge_lock(&args).await?,
             },
         }
     } else {

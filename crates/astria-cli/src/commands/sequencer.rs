@@ -1,6 +1,7 @@
 use astria_core::sequencer::v1::{
     transaction::action::{
         Action,
+        BridgeLockAction,
         InitBridgeAccountAction,
         TransferAction,
     },
@@ -26,6 +27,7 @@ use rand::rngs::OsRng;
 use crate::cli::sequencer::{
     BasicAccountArgs,
     BlockHeightGetArgs,
+    BridgeLockArgs,
     InitBridgeAccountArgs,
     TransferArgs,
 };
@@ -205,11 +207,34 @@ pub(crate) async fn init_bridge_account(args: &InitBridgeAccountArgs) -> eyre::R
     Ok(())
 }
 
+pub(crate) async fn bridge_lock(args: &BridgeLockArgs) -> eyre::Result<()> {
+    use astria_core::sequencer::v1::asset::default_native_asset_id;
+
+    let res = submit_transaction(
+        args.sequencer_url.as_str(),
+        args.private_key.as_str(),
+        Action::BridgeLock(BridgeLockAction {
+            to: args.to_address.0,
+            asset_id: default_native_asset_id(),
+            amount: args.amount,
+            fee_asset_id: default_native_asset_id(),
+            destination_chain_address: args.destination_chain_address.clone(),
+        }),
+    )
+    .await
+    .wrap_err("failed to submit BridgeLock transaction")?;
+
+    ensure!(res.tx_result.code.is_ok(), "error with BridgeLock");
+    println!("BridgeLock completed!");
+    Ok(())
+}
+
 async fn submit_transaction(
     sequencer_url: &str,
     private_key: &str,
     action: Action,
 ) -> eyre::Result<endpoint::broadcast::tx_commit::Response> {
+    println!("private_key: {}", private_key);
     let sequencer_client =
         HttpClient::new(sequencer_url).wrap_err("failed constructing http sequencer client")?;
 
