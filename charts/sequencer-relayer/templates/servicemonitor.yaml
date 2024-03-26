@@ -1,0 +1,29 @@
+{{- if and .Values.serviceMonitor.enabled .Values.config.sequencer.metrics.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: sequencer-relayer-metrics
+  labels:
+    {{- include "sequencer.labels" . | nindent 4 }}
+    {{- with .Values.serviceMonitor.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  jobLabel: sequencer-relayer-metric
+  namespaceSelector:
+    matchNames:
+      - {{ include "sequencer-relayer.namespace" . }}
+  selector:
+    matchLabels:
+      app: sequencer-relayer
+      name: sequencer-relayer-metrics
+  endpoints:
+    - port: metric
+      path: /
+      {{- with .Values.serviceMonitor.interval }}
+      interval: {{ . }}
+      {{- end }}
+      {{- with .Values.serviceMonitor.scrapeTimeout  }}
+      scrapeTimeout: {{ . }}
+      {{- end }}
+{{- end }}

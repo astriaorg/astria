@@ -21,12 +21,19 @@ on:
       run_lint_markdown:
         description: If lint for markdown needs to be run, will be 'true'
         value: ${{ github.event_name != 'pull_request' || jobs.changes.outputs.lint_workflow == 'true' || jobs.changes.outputs.markdown == 'true' }}
+      run_lint_charts:
+        description: If lint for charts needs to be run, will be 'true'
+        value: ${{ github.event_name != 'pull_request' || jobs.changes.outputs.lint_workflow == 'true' || jobs.changes.outputs.charts == 'true' }}
       run_release_proto:
         description: If release for protos needs to be run, will be 'true'
         value: ${{ github.event_name != 'pull_request' || jobs.changes.outputs.release_workflow == 'true' || jobs.changes.outputs.proto == 'true' }}
       run_release_services:
         description: If release for services needs to be run, will be 'true'
         value: ${{ github.event_name != 'pull_request' || jobs.changes.outputs.release_workflow == 'true' || jobs.changes.outputs.crates == 'true' }}
+      run_release_charts:
+        description: If release for charts needs to be run, will be 'true'
+        value: ${{ github.event_name != 'pull_request' && (jobs.changes.outputs.release_workflow == 'true' || jobs.changes.outputs.charts == 'true') }}
+
 
 jobs:
   changes:
@@ -44,6 +51,7 @@ jobs:
       toml: ${{ steps.filters.outputs.toml }}
       markdown: ${{ steps.filters.outputs.markdown }}
       rustfmt: ${{ steps.filters.outputs.rustfmt }}
+      charts: ${{ steps.filters.outputs.charts }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -79,3 +87,5 @@ jobs:
               - '**/*.md'
             rustfmt:
               - 'rustfmt.toml'
+            charts:
+              - 'charts/**'

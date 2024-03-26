@@ -1,0 +1,12 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: sequencer-faucet-service
+  namespace: {{ .Values.global.namespace }}
+spec:
+  selector:
+    app: astria-dev-cluster
+  ports:
+    - name: seq-faucet-svc
+      port: {{ .Values.ports.faucet }}
+      targetPort: seq-faucet

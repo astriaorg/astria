@@ -1,0 +1,132 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.config.name }}-hyperlane-agents
+  labels:
+    app: {{ .Values.config.name }}-astria-dev-cluster
+  namespace: {{ .Values.global.namespace }}
+spec:
+  replicas : {{ .Values.global.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Values.config.name }}-astria-dev-cluster
+  template:
+    metadata:
+      name: {{ .Values.config.name }}-hyperlane-agents
+      labels:
+        app: {{ .Values.config.name }}-astria-dev-cluster
+    spec:
+      initContainers:
+        {{- range $index, $chain := .Values.config.validator.chains }}
+        - name: init-validator-{{ $chain }}
+          image: busybox
+          command: [ "/bin/sh", "-c" ]
+          args:
+            - mkdir -p /data/{{ $chain }}/validator && chmod -R 0777 /data/{{ $chain }}
+          volumeMounts:
+            - mountPath: /data
+              name: {{ $.Values.config.name }}-hyperlane-shared-storage-vol
+        {{- end }}
+        - name: init-relayer
+          image: busybox
+          command: [ "/bin/sh", "-c" ]
+          args:
+            - mkdir -p /data/relayer && chmod -R 0777 /data/relayer
+          volumeMounts:
+            - mountPath: /data
+              name: {{ $.Values.config.name }}-hyperlane-shared-storage-vol
+      containers:
+        {{- range $index, $chain := .Values.config.validator.chains }}
+        - name: validator-{{ $chain }}
+          image: "{{ $.Values.images.agent }}"
+          imagePullPolicy: {{ $.Values.images.pullPolicy }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - ./validator
+          envFrom:
+            - configMapRef:
+                name: {{ $.Values.config.name }}-hyperlane-agent-env
+          env:
+            - name: HYP_ORIGINCHAINNAME
+              value: {{ $chain }}
+            - name: HYP_CHECKPOINTSYNCER_PATH
+              value: /data/{{ $chain }}/validator
+            {{- if $.Values.secretProvider.enabled }}
+            - name: HYP_VALIDATOR_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: validator-private-key
+                  key: {{ $.Values.secretProvider.secrets.ValidatorPrivateKey.key }}
+            - name: HYP_DEFAULTSIGNER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: relayer-private-key
+                  key: {{ $.Values.secretProvider.secrets.RelayerPrivateKey.key }}                  
+            {{- end }}
+          volumeMounts:
+            - mountPath: /data
+              name: {{ $.Values.config.name }}-hyperlane-shared-storage-vol
+            - mountPath: /config/
+              name: {{ $.Values.config.name }}-hyperlane-agent-config-vol
+              readOnly: true
+            {{- if $.Values.secretProvider.enabled }}
+            - mountPath: /var/secrets/validatorPrivateKey.txt
+              name: validator-private-key
+              subPath: validatorPrivateKey.txt
+            - mountPath: /var/secrets/relayerPrivateKey.txt
+              name: relayer-private-key
+              subPath: relayerPrivateKey.txt              
+            {{- end }}     
+        {{- end }}
+        - name: relayer
+          image: "{{ .Values.images.agent }}"
+          imagePullPolicy: {{ .Values.images.pullPolicy }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - ./relayer
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.config.name }}-hyperlane-agent-env
+          {{- if $.Values.secretProvider.enabled }}
+          env:
+            - name: HYP_DEFAULTSIGNER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: relayer-private-key
+                  key: {{ $.Values.secretProvider.secrets.RelayerPrivateKey.key }}
+          {{- end }}
+          volumeMounts:
+            - mountPath: /data
+              name: {{ $.Values.config.name }}-hyperlane-shared-storage-vol
+            - mountPath: /config/
+              name: {{ .Values.config.name }}-hyperlane-agent-config-vol
+              readOnly: true
+            {{- if $.Values.secretProvider.enabled }}
+            - mountPath: /var/secrets
+              name: relayer-private-key
+            {{- end }}                
+      volumes:
+        - name: {{ .Values.config.name }}-hyperlane-agent-config-vol
+          configMap:
+            name: {{ .Values.config.name }}-hyperlane-agent-config
+         {{- if $.Values.secretProvider.enabled }}
+        - name: validator-private-key
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: validator-private-key
+        - name: relayer-private-key
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: relayer-private-key
+        {{- end }}              
+        - name: {{ $.Values.config.name }}-hyperlane-shared-storage-vol
+          {{- if .Values.storage.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ $.Values.config.name }}-hyperlane-agent-storage-pvc
+          {{- else }}
+          emptyDir: {}
+          {{- end }}

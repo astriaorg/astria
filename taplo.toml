@@ -1,0 +1,4 @@
+exclude = [
+  "charts/celestia-node/files/config.toml",
+  "charts/sequencer/files/cometbft/config/config.toml",
+]

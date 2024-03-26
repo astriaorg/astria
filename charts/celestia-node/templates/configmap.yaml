@@ -1,0 +1,29 @@
+{{- $label := include "celestiaNode.baseLabel" . }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $label }}-files-env
+  namespace: {{ include "celestiaNode.namespace" . }}
+data:
+  config.toml: |
+  {{- tpl (.Files.Get "files/config.toml") $ | nindent 4 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $label }}-scripts-env
+  namespace: {{ include "celestiaNode.namespace" . }}
+data:
+  start-node.sh: |
+  {{- tpl (.Files.Get "files/scripts/start-node.sh") $ | nindent 4 }}
+---
+{{- if eq .Values.config.network "custom" }}
+{{- $customInfo := .Values.config.customInfo | required "customInfo is required for custom network" }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $label }}-env
+  namespace: {{ include "celestiaNode.namespace" . }}
+data:
+  CELESTIA_CUSTOM_TO_BE: {{ .Values.config.chainId }}:{{ $customInfo }}
+{{- end }}

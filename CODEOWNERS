@@ -2,3 +2,5 @@
 
 /.github/	@astriaorg/infra
 /containerfiles/	@astriaorg/infra
+/charts/ @astriaorg/infra
+/dev/ @astriaorg/infra
