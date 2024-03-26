@@ -1,15 +1,21 @@
-use std::{io, net::SocketAddr};
-use std::collections::HashMap;
-use std::time::Duration;
+use std::{
+    collections::HashMap,
+    io,
+    net::SocketAddr,
+};
+
 use astria_eyre::eyre::{
     self,
     WrapErr as _,
 };
 use tokio::{
     net::TcpListener,
+    sync::{
+        mpsc::Sender,
+        watch,
+    },
     task::JoinError,
 };
-use tokio::sync::watch;
 use tokio_util::task::JoinMap;
 use tracing::{
     error,
@@ -49,7 +55,7 @@ pub struct Composer {
     /// `GethCollectors` is the collection of geth collectors and their rollup names.
     geth_collectors: HashMap<String, collectors::Geth>,
     /// `GethCollectorStatuses` The collection of the geth collector statuses.
-    geth_collector_statuses: HashMap<String, watch::Receiver<collectors::geth::Status>>,
+    geth_collector_statuses: HashMap<String, watch::Receiver<collectors::Status>>,
     /// `GethCollectorTasks` is the set of tasks tracking if the geth collectors are still running.
     geth_collector_tasks: JoinMap<String, eyre::Result<()>>,
     /// `Rollups` The map of chain ID to the URLs to which geth collectors should connect.
@@ -193,7 +199,7 @@ impl Composer {
         // run the grpc server
         let composer_service = GrpcCollectorServiceServer::new(executor_handle.clone());
         let grpc_server = tonic::transport::Server::builder().add_service(composer_service);
-        let grpc_server_handler = tokio::spawn(async move {
+        let mut grpc_server_handler = tokio::spawn(async move {
             grpc_server
                 .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(
                     grpc_collector_listener,
@@ -204,15 +210,24 @@ impl Composer {
         loop {
             tokio::select!(
             o = &mut api_task => {
-                    report_exit("api server unexpectedly ended", o);
-                    return Ok(());
+                    return Ok(report_exit("api server unexpectedly ended", o))
             },
             o = &mut executor_task => {
-                    report_exit("executor unexpectedly ended", o);
-                    return Ok(());
+                    return Ok(report_exit("executor unexpectedly ended", o))
+            },
+            exit_error = &mut grpc_server_handler => {
+                    match exit_error {
+                        Ok(Ok(())) => info!("grpc server exited unexpectedly; reconnecting"),
+                        Ok(Err(error)) => {
+                            error!(%error, "grpc server exit with error; reconnecting");
+                        }
+                        Err(error) => {
+                            error!(%error, "grpc server task failed; reconnecting");
+                        }
+                    }
             },
             Some((rollup, collector_exit)) = geth_collector_tasks.join_next() => {
-                reconnect_exited_collector(
+                   reconnect_exited_collector(
                     &mut geth_collector_statuses,
                     &mut geth_collector_tasks,
                     executor_handle.clone(),
@@ -224,7 +239,6 @@ impl Composer {
         }
     }
 }
-
 
 async fn wait_for_executor(
     mut executor_status: watch::Receiver<executor::Status>,
@@ -313,5 +327,87 @@ fn report_exit(task_name: &str, outcome: Result<eyre::Result<()>, JoinError>) {
         Err(error) => {
             error!(%error, task = task_name, "task failed to complete");
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use ethers::types::Transaction;
+    use tokio_util::task::JoinMap;
+    use astria_core::sequencer::v1::asset::default_native_asset_id;
+    use astria_core::sequencer::v1::RollupId;
+    use astria_core::sequencer::v1::transaction::action::SequenceAction;
+    use crate::{collectors, executor};
+    use crate::executor::Executor;
+
+
+    /// This tests the `reconnect_exited_collector` handler.
+    #[tokio::test]
+    async fn collector_is_reconnected_after_exit() {
+        let mock_geth = test_utils::mock::Geth::spawn().await;
+        let rollup_name = "test".to_string();
+        let rollup_url = format!("ws://{}", mock_geth.local_addr());
+        let rollups = HashMap::from([(rollup_name.clone(), rollup_url.clone())]);
+
+        let (tx, mut rx) = tokio::sync::mpsc::channel(16);
+        let executor_handle = executor::Handle::new(tx.clone());
+
+        let mut collector_tasks = JoinMap::new();
+        let collector = collectors::Geth::new(rollup_name.clone(), rollup_url.clone(), executor_handle.clone());
+        let mut status = collector.subscribe();
+        collector_tasks.spawn(rollup_name.clone(), collector.run_until_stopped());
+        status.wait_for(collectors::Status::is_connected).await.unwrap();
+        let rollup_tx = Transaction::default();
+        let expected_seq_action = SequenceAction {
+            rollup_id: RollupId::from_unhashed_bytes(&rollup_name),
+            data: Transaction::default().rlp().to_vec(),
+            fee_asset_id: default_native_asset_id(),
+        };
+        let _ = mock_geth.push_tx(rollup_tx.clone()).unwrap();
+        let collector_tx = rx.recv().await.unwrap();
+
+        assert_eq!(
+            RollupId::from_unhashed_bytes(&rollup_name),
+            collector_tx.rollup_id,
+        );
+        assert_eq!(expected_seq_action.data, collector_tx.data);
+
+        let _ = mock_geth.abort().unwrap();
+
+        let (exited_rollup_name, exit_result) = collector_tasks.join_next().await.unwrap();
+        assert_eq!(exited_rollup_name, rollup_name);
+        assert!(collector_tasks.is_empty());
+
+        // after aborting pushing a new tx to subscribers should fail as there are no broadcast
+        // receivers
+        assert!(mock_geth.push_tx(Transaction::default()).is_err());
+
+        let mut statuses = HashMap::new();
+        super::reconnect_exited_collector(
+            &mut statuses,
+            &mut collector_tasks,
+            executor_handle.clone(),
+            &rollups,
+            rollup_name.clone(),
+            exit_result,
+        );
+
+        assert!(collector_tasks.contains_key(&rollup_name));
+        statuses
+            .get_mut(&rollup_name)
+            .unwrap()
+            .wait_for(collectors::Status::is_connected)
+            .await
+            .unwrap();
+        let _ = mock_geth.push_tx(rollup_tx).unwrap();
+        let collector_tx = rx.recv().await.unwrap();
+
+        assert_eq!(
+            RollupId::from_unhashed_bytes(&rollup_name),
+            collector_tx.rollup_id,
+        );
+        assert_eq!(expected_seq_action.data, collector_tx.data);
     }
 }
