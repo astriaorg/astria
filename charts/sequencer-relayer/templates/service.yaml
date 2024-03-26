@@ -1,0 +1,16 @@
+{{- if .Values.serviceMonitor.enabled }} 
+kind: Service
+apiVersion: v1
+metadata:
+  name: sequencer-relayer-metrics
+  namespace: {{ include "sequencer-relayer.namespace" . }}
+spec:
+  selector:
+    app: sequencer-relayer
+  ports:
+    {{- if .Values.config.relayer.metrics.enabled }}
+    - name: metrics
+      port: {{ .Values.ports.metrics }}
+      targetPort: metrics
+    {{- end }}
+{{- end }}

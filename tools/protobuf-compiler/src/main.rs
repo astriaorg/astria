@@ -66,17 +66,50 @@ fn main() {
         .bytes([".astria.execution.v1alpha2"])
         .client_mod_attribute(".", "#[cfg(feature=\"client\")]")
         .server_mod_attribute(".", "#[cfg(feature=\"server\")]")
-        .extern_path(".astria_vendored.tendermint.abci", "::tendermint-proto::abci")
-        .extern_path(".astria_vendored.tendermint.crypto", "::tendermint-proto::crypto")
-        .extern_path(".astria_vendored.tendermint.version", "::tendermint-proto::version")
-        .extern_path(".astria_vendored.tendermint.types", "::tendermint-proto::types")
+        .extern_path(
+            ".astria_vendored.tendermint.abci",
+            "::tendermint-proto::abci",
+        )
+        .extern_path(
+            ".astria_vendored.tendermint.crypto",
+            "::tendermint-proto::crypto",
+        )
+        .extern_path(
+            ".astria_vendored.tendermint.version",
+            "::tendermint-proto::version",
+        )
+        .extern_path(
+            ".astria_vendored.tendermint.types",
+            "::tendermint-proto::types",
+        )
         .extern_path(".astria_vendored.penumbra", "::penumbra-proto")
         .type_attribute(".astria.primitive.v1.Uint128", "#[derive(Copy)]")
-        .out_dir(&out_dir)
+        .use_arc_self(true)
+        // override prost-types with pbjson-types
+        .compile_well_known_types(true)
+        .extern_path(".google.protobuf", "::pbjson_types")
         .file_descriptor_set_path(buf_img.path())
         .skip_protoc_run()
+        .out_dir(&out_dir)
         .compile(&files, INCLUDES)
         .expect("should be able to compile protobuf using tonic");
+
+    let descriptor_set = std::fs::read(buf_img.path())
+        .expect("the buf image/descriptor set must exist and be readable at this point");
+
+    pbjson_build::Builder::new()
+        .register_descriptors(&descriptor_set)
+        .unwrap()
+        .preserve_proto_field_names()
+        .out_dir(&out_dir)
+        // only add JSON to types required for the execution API for now
+        .build(&[
+            ".astria.execution.v1alpha2",
+            ".astria.sequencer.v1.Deposit",
+            ".astria.sequencer.v1.RollupData",
+            ".astria.primitive.v1.Uint128",
+        ])
+        .unwrap();
 
     let mut after_build = build_content_map(&out_dir);
     clean_non_astria_code(&mut after_build);

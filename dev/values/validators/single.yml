@@ -1,0 +1,13 @@
+global:
+  namespaceOverride: astria-dev-cluster
+  dev: true
+
+sequencer-relayer:
+  enabled: true
+  config:
+    relayer:
+      celestiaRpc: http://celestia-service.astria-dev-cluster.svc.cluster.local:26658
+      cometbftRpc: http://node0-sequencer-rpc-service.astria-dev-cluster.svc.cluster.local:26657
+      sequencerGrpc: http://node0-sequencer-grpc-service.astria-dev-cluster.svc.cluster.local:8080
+  storage:
+    enabled: false

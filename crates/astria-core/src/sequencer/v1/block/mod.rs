@@ -416,7 +416,7 @@ impl SequencerBlockHeader {
         raw::SequencerBlockHeader {
             chain_id: self.chain_id.to_string(),
             height: self.height.value(),
-            time: Some(prost_types::Timestamp {
+            time: Some(pbjson_types::Timestamp {
                 seconds: time.seconds,
                 nanos: time.nanos,
             }),

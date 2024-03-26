@@ -387,7 +387,7 @@ mod test {
         let header = RawSequencerBlockHeader {
             chain_id: "test-chain".to_string(),
             height: 1,
-            time: Some(prost_types::Timestamp {
+            time: Some(pbjson_types::Timestamp {
                 seconds: 1,
                 nanos: 0,
             }),
@@ -433,7 +433,7 @@ mod test {
         let header = RawSequencerBlockHeader {
             chain_id: "test-chain".to_string(),
             height: 1,
-            time: Some(prost_types::Timestamp {
+            time: Some(pbjson_types::Timestamp {
                 seconds: 1,
                 nanos: 0,
             }),

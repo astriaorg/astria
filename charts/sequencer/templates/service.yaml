@@ -1,0 +1,68 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ .Values.config.moniker }}-sequencer-rpc-service
+  namespace: {{ include "sequencer.namespace" . }}
+spec:
+  selector:
+    app: {{ .Values.config.moniker }}-sequencer
+  ports:
+    - name: cometbft-rpc
+      port: {{ .Values.ports.cometBFTRPC }}
+      targetPort: cometbft-rpc
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ .Values.config.moniker }}-sequencer-p2p-service
+  namespace: {{ include "sequencer.namespace" . }}
+spec:
+  selector:
+    app: {{ .Values.config.moniker }}-sequencer
+  ports:
+    - name: cometbft-p2p
+      targetPort: cometbft-p2p
+      {{- if and .Values.config.cometBFT.p2p.externalAddress (not  .Values.ingress.p2p.enabled)}}
+      {{- $parsedExternal := splitList ":" .Values.config.cometBFT.p2p.externalAddress }}
+      {{- $externalAddress := index $parsedExternal 0 }}
+      {{- $externalPort := index $parsedExternal 1 }}
+      port: {{ $externalPort }}
+  type: LoadBalancer
+  loadBalancerIP: {{ $externalAddress }}
+  {{- else }}
+      port: {{ .Values.ports.cometBFTP2P }}
+  type: NodePort
+  {{- end }}
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ .Values.config.moniker }}-sequencer-grpc-service
+  namespace: {{ include "sequencer.namespace" . }}
+spec:
+  selector:
+    app: {{ .Values.config.moniker }}-sequencer
+  ports:
+    - name: sequencer-grpc
+      port: {{ .Values.ports.sequencerGRPC }}
+      targetPort: sequencer-grpc
+---
+{{- if .Values.serviceMonitor.enabled }} 
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ .Values.config.moniker }}-sequencer-metrics
+  namespace: {{ include "sequencer.namespace" . }}
+spec:
+  selector:
+    app: {{ .Values.config.moniker }}-sequencer
+  ports:
+    - name: cometbft-metric
+      port: {{ .Values.ports.cometBFTMETRICS }}
+      targetPort: cometbft-metric
+    {{- if .Values.config.sequencer.metrics.enabled }}
+    - name: sequencer-metric
+      port: {{ .Values.ports.sequencerMetrics }}
+      targetPort: sequencer-metric
+    {{- end }}
+{{- end }}
