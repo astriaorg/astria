@@ -67,9 +67,9 @@ test_utils = { package = "astria-test-utils", path = "../astria-test-utils", fea
 ] }
 insta = { workspace = true, features = ["json"] }
 tokio-test = { workspace = true }
+astria-core = { path = "../astria-core", features = ["client"] }
 tendermint-rpc = { workspace = true }
 wiremock = { workspace = true }
-astria-core = { path = "../astria-core", features = ["client"] }
 
 [build-dependencies]
 astria-build-info = { path = "../astria-build-info", features = ["build"] }
