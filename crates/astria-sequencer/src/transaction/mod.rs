@@ -454,6 +454,55 @@ mod test {
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
-        check_balance_mempool(&signed_tx, &state_tx).await.unwrap();
+        check_balance_mempool(&signed_tx, &state_tx)
+            .await
+            .expect("sufficient balance for all actions");
+    }
+
+    #[tokio::test]
+    async fn check_balance_mempool_insuffient_other_asset_balance() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state_tx = StateDelta::new(snapshot);
+
+        crate::asset::initialize_native_asset(DEFAULT_NATIVE_ASSET_DENOM);
+        let native_asset = crate::asset::get_native_asset().id();
+        let other_asset = Denom::from_base_denom("other").id();
+
+        let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
+        let amount = 100;
+        let data = [0; 32].to_vec();
+        state_tx
+            .increase_balance(
+                alice_address,
+                native_asset,
+                TRANSFER_FEE + crate::sequence::calculate_fee(&data).unwrap(),
+            )
+            .await
+            .unwrap();
+
+        let actions = vec![
+            Action::Transfer(TransferAction {
+                asset_id: other_asset,
+                amount,
+                fee_asset_id: native_asset,
+                to: [0; ADDRESS_LEN].into(),
+            }),
+            Action::Sequence(SequenceAction {
+                rollup_id: RollupId::from_unhashed_bytes([0; 32]),
+                data,
+                fee_asset_id: native_asset,
+            }),
+        ];
+
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions,
+        };
+
+        let signed_tx = tx.into_signed(&alice_signing_key);
+        check_balance_mempool(&signed_tx, &state_tx)
+            .await
+            .expect_err("insuffient funds for `other` asset");
     }
 }
