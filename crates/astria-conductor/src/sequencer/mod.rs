@@ -25,7 +25,6 @@ use tracing::{
     error,
     info,
     instrument,
-    trace,
     warn,
 };
 
@@ -129,7 +128,7 @@ impl Reader {
                             }
 
                             executor::channel::TrySendError::NoPermits(block) => {
-                                trace!("executor channel is full; scheduling block and stopping block fetch until a slot opens up");
+                                debug!("executor channel is full; scheduling block and stopping block fetch until a slot opens up");
                                 enqueued_block = executor.clone().send_soft_block_owned(block).boxed().fuse();
                             }
                         }

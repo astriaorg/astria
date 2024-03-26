@@ -734,17 +734,24 @@ impl App {
     }
 }
 
-/// Display implementation for `HashMap<RollupId, Vec<Deposit>>`.
+/// Display wrapper for `HashMap<RollupId, Vec<Deposit>>`.
 struct DisplayDeposits<'a>(&'a HashMap<RollupId, Vec<Deposit>>);
 
 impl<'a> std::fmt::Display for DisplayDeposits<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for (rollup_id, deposits) in self.0 {
-            writeln!(f, "Rollup ID: {}", rollup_id)?;
-            for deposit in deposits {
-                writeln!(f, "  {:?}", deposit)?;
-            }
+        write!(f, "deposits: [ ")?;
+
+        let mut deposits_iter = self.0.iter();
+        if let Some((rollup_id, deposits)) = deposits_iter.next() {
+            write!(f, "rollup_id={rollup_id} deposit_count={}", deposits.len())?;
         }
+
+        for (rollup_id, deposits) in deposits_iter {
+            write!(f, ", ")?;
+            write!(f, "rollup_id={rollup_id} deposit_count={}", deposits.len())?;
+        }
+
+        write!(f, " ]")?;
         Ok(())
     }
 }
