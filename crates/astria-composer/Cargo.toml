@@ -13,10 +13,12 @@ name = "astria-composer"
 
 [dependencies]
 astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
-astria-core = { path = "../astria-core" }
+astria-core = { path = "../astria-core", features = ["serde"] }
 astria-eyre = { path = "../astria-eyre" }
 config = { package = "astria-config", path = "../astria-config" }
-telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
+telemetry = { package = "astria-telemetry", path = "../astria-telemetry", features = [
+  "display",
+] }
 
 pin-project-lite = "0.2.13"
 secrecy = { version = "0.8", features = ["serde"] }
@@ -61,8 +63,8 @@ config = { package = "astria-config", path = "../astria-config", features = [
 test_utils = { package = "astria-test-utils", path = "../astria-test-utils", features = [
   "geth",
 ] }
+insta = { workspace = true, features = ["json"] }
 tokio-test = { workspace = true }
-
 tendermint-rpc = { workspace = true }
 wiremock = { workspace = true }
 

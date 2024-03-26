@@ -16,6 +16,7 @@ on:
           - conductor
           - sequencer
           - sequencer-relayer
+  merge_group:
   push:
     branches:
       - "main"
@@ -41,7 +42,7 @@ jobs:
 
   composer:
     needs: run_checker
-    if: needs.run_checker.outputs.run_docker == 'true' && (!github.event_name == 'workflow_dispatch' || github.event.inputs.target == 'composer')
+    if: needs.run_checker.outputs.run_docker == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'composer')
     uses: './.github/workflows/reusable-docker-build.yml'
     with:
       package-name: composer
@@ -51,7 +52,7 @@ jobs:
 
   conductor:
     needs: run_checker
-    if: needs.run_checker.outputs.run_docker == 'true' && (!github.event_name == 'workflow_dispatch' || github.event.inputs.target == 'conductor')
+    if: needs.run_checker.outputs.run_docker == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'conductor')
     uses: './.github/workflows/reusable-docker-build.yml'
     with:
       package-name: conductor
@@ -61,7 +62,7 @@ jobs:
 
   sequencer:
     needs: run_checker
-    if: needs.run_checker.outputs.run_docker == 'true' && (!github.event_name == 'workflow_dispatch' || github.event.inputs.target == 'sequencer')
+    if: needs.run_checker.outputs.run_docker == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'sequencer')
     uses: './.github/workflows/reusable-docker-build.yml'
     with:
       package-name: sequencer
@@ -78,10 +79,35 @@ jobs:
       target-binary: astria-sequencer-relayer
       tag: ${{ inputs.tag }}
     secrets: inherit
+  
+  smoke-test:
+    needs: [run_checker, composer, conductor, sequencer, sequencer-relayer]
+    if: github.event_name == 'merge_group' || needs.run_checker.outputs.run_docker == 'true'
+    runs-on: buildjet-8vcpu-ubuntu-2204
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install just
+        uses: taiki-e/install-action@just
+      - name: Install kind
+        uses: helm/kind-action@v1 
+        with:
+          install_only: true
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+      - name: Setup Smoke Test Environment
+        timeout-minutes: 5
+        run: |
+          TAG=sha-$(git rev-parse --short HEAD)
+          just deploy cluster
+          echo "Deploying with astria images tagged $TAG"
+          just deploy smoke-test $TAG
+      - name: Run Smoke test
+        timeout-minutes: 1
+        run: just run-smoke-test
 
   docker:
     if: ${{ always() && !cancelled() }}
-    needs: [composer, conductor, sequencer, sequencer-relayer]
+    needs: [composer, conductor, sequencer, sequencer-relayer, smoke-test]
     uses: ./.github/workflows/reusable-success.yml
     with:
       success: ${{ !contains(needs.*.result, 'failure') }}

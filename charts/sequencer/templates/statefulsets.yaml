@@ -1,0 +1,93 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: sequencer
+  labels:
+    app: {{ .Values.config.moniker }}-sequencer
+  namespace: {{ include "sequencer.namespace" . }}
+spec:
+  replicas: {{ .Values.global.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Values.config.moniker }}-sequencer
+  template:
+    metadata:
+      name: astria-sequencer
+      labels:
+        app: {{ .Values.config.moniker }}-sequencer
+    spec:
+      initContainers:
+        - command: [ "/bin/sh", "-c" ]
+          args:
+            - cp -LR /data/ /cometbft/data && cp -LR /config /cometbft/config && chmod -R 0777 /cometbft
+          name: config-cometbft
+          image: "ghcr.io/tomwright/dasel:alpine"
+          volumeMounts:
+            - mountPath: /config/
+              name: cometbft-config-volume
+            - mountPath: /data/
+              name: cometbft-data-volume
+            - mountPath: /cometbft
+              name: sequencer-shared-storage-vol
+              subPath: {{ .Values.config.moniker }}/cometbft
+      containers:
+        - name: sequencer
+          image: {{ include "sequencer.image" . }}
+          command: [ "/usr/local/bin/astria-sequencer" ]
+          stdin: {{ .Values.global.useTTY }}
+          tty: {{ .Values.global.useTTY }}
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.config.moniker }}-sequencer-env
+          volumeMounts:
+            - mountPath: /sequencer
+              name: sequencer-shared-storage-vol
+              subPath: {{ .Values.config.moniker }}/sequencer
+          ports:
+            - containerPort: {{ .Values.ports.sequencerABCI }}
+              name: sequencer-abci
+            - containerPort: {{ .Values.ports.sequencerGRPC }}
+              name: sequencer-grpc
+            {{- if .Values.config.sequencer.metrics.enabled }}
+            - containerPort: {{ .Values.ports.sequencerMetrics }}
+              name: sequencer-metric
+            {{- end }}
+        - name: cometbft
+          imagePullPolicy: IfNotPresent
+          command: [ "cometbft", "start" ]
+          args:
+          - "--home"
+          - "/cometbft"
+          image: "{{ include "cometBFT.image" . }}"
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.config.moniker }}-cometbft-env
+          volumeMounts:
+            - mountPath: /cometbft
+              name: sequencer-shared-storage-vol
+              subPath: {{ .Values.config.moniker }}/cometbft
+          ports:
+            - containerPort: {{ .Values.ports.cometBFTP2P }}
+              name: cometbft-p2p
+            - containerPort: {{ .Values.ports.cometBFTRPC }}
+              name: cometbft-rpc
+            {{- if .Values.serviceMonitor.enabled }} 
+            - containerPort: {{ .Values.ports.cometBFTMETRICS }}
+              name: cometbft-metric
+            {{- end }}
+      volumes:
+        - name: cometbft-config-volume
+          configMap:
+            name: {{ .Values.config.moniker }}-cometbft-config
+            defaultMode: 0700
+        - name: cometbft-data-volume
+          configMap:
+            name: {{ .Values.config.moniker }}-cometbft-data
+            defaultMode: 0700
+        - name: sequencer-shared-storage-vol
+          {{- if .Values.storage.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.config.moniker }}-{{ .Values.storage.entities.sequencerSharedStorage.persistentVolumeName }}-pvc
+          {{- else }}
+          emptyDir: {}
+          {{- end }}

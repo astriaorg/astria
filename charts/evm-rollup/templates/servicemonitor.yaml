@@ -1,0 +1,44 @@
+{{- if .Values.config.rollup.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ .Values.config.rollup.name }}-geth-metrics
+  labels:
+    {{- include "rollup.labels" . | nindent 4 }}
+    {{- with .Values.config.rollup.serviceMonitor.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  jobLabel: geth-metrics
+  namespaceSelector:
+    matchNames:
+      - {{ include "rollup.namespace" . }}
+  selector:
+    matchLabels:
+      app: {{ .Values.config.rollup.name }}-astria-dev-cluster
+  endpoints:
+    - port: geth-metrics
+      path: /debug/metrics/prometheus
+      {{- with .Values.config.rollup.serviceMonitor.interval }}
+      interval: {{ . }}
+      {{- end }}
+      {{- with .Values.config.rollup.serviceMonitor.scrapeTimeout  }}
+      scrapeTimeout: {{ . }}
+      {{- end }}
+    - port: composer-metrics
+      path: /
+      {{- with .Values.config.rollup.serviceMonitor.interval }}
+      interval: {{ . }}
+      {{- end }}
+      {{- with .Values.config.rollup.serviceMonitor.scrapeTimeout  }}
+      scrapeTimeout: {{ . }}
+      {{- end }}
+    - port: conductor-metrics
+      path: /
+      {{- with .Values.config.rollup.serviceMonitor.interval }}
+      interval: {{ . }}
+      {{- end }}
+      {{- with .Values.config.rollup.serviceMonitor.scrapeTimeout  }}
+      scrapeTimeout: {{ . }}
+      {{- end }}
+{{- end }}

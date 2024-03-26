@@ -1,0 +1,27 @@
+kubeProxyReplacement: strict
+k8sServiceHost: astria-dev-cluster-control-plane # use master node in kind network
+k8sServicePort: 6443               # use api server port
+hostServices:
+  enabled: false
+externalIPs:
+  enabled: true
+nodePort:
+  enabled: true
+hostPort:
+  enabled: true
+image:
+  pullPolicy: IfNotPresent
+ipam:
+  mode: kubernetes
+hubble:
+  enabled: true
+  relay:
+    enabled: true
+  ui:
+    enabled: true
+    ingress:
+      enabled: true
+      annotations:
+        kubernetes.io/ingress.class: nginx
+      hosts:
+        - hubble-ui.127.0.0.1.nip.io

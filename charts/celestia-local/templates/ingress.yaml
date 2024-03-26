@@ -1,0 +1,53 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: celestia-local-network-ingress
+  namespace: {{ $.Values.global.namespace }}
+  labels:
+    app: celestia-local-network
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: rpc.node.celestia.localdev.me
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: celestia-service
+                port:
+                  name: bridge-jsonrpc
+    - host: rest.node.celestia.localdev.me
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: celestia-service
+                port:
+                  name: bridge-rest
+    - host: token.node.celestia.localdev.me
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: celestia-service
+                port:
+                  name: token-svc
+    - host: rpc.app.celestia.localdev.me
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: celestia-app-service
+                port:
+                  name: app-rpc

@@ -1,0 +1,126 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: celestia-local
+  labels:
+    app: celestia-local-network
+  namespace: {{ .Values.global.namespace }}
+spec:
+  replicas: {{ .Values.global.replicaCount }}
+  selector:
+    matchLabels:
+      app: celestia-local-network
+  template:
+    metadata:
+      name: celestia-local
+      labels:
+        app: celestia-local-network
+        "app.kubernetes.io/name": "celestia-local"
+        "app.kubernetes.io/managed-by": {{ $.Release.Service | quote }}
+        "helm.sh/chart": {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    spec:
+      securityContext:
+        runAsUser: 10001
+        fsGroup: 10001
+        fsGroupChangePolicy: "OnRootMismatch"
+      initContainers:
+        - name: init-celestia-app
+          command: [ "/scripts/init-celestia-appd.sh" ]
+          image: {{ .Values.celestiaAppImage }}
+          volumeMounts:
+            - mountPath: /scripts/
+              name: celestia-appd-scripts-volume
+            - mountPath: /home/celestia
+              name: celestia-home-vol
+          envFrom:
+            - configMapRef:
+                name: celestia-local-env
+        - name: init-bridge
+          command: [ "/scripts/init-bridge.sh" ]
+          image: {{ .Values.celestiaNodeImage }}
+          volumeMounts:
+            - mountPath: /scripts/
+              name: bridge-scripts-volume
+            - mountPath: /home/celestia
+              name: celestia-home-vol
+          envFrom:
+            - configMapRef:
+                name: celestia-local-env
+      containers:
+        - name: celestia-app
+          command: [ "/scripts/start-celestia-appd.sh" ]
+          image: {{ .Values.celestiaAppImage }}
+          volumeMounts:
+            - mountPath: /scripts/
+              name: celestia-appd-scripts-volume
+            - mountPath: /home/celestia
+              name: celestia-home-vol
+          envFrom:
+            - configMapRef:
+                name: celestia-local-env
+          ports:
+            - containerPort: {{ .Values.ports.celestiaAppHostPort }}
+              name: app-rpc
+            - containerPort: {{ .Values.ports.celestiaAppGrpcPort }}
+              name: app-grpc
+        - name: celestia-bridge
+          command: [ "/scripts/start-bridge.sh" ]
+          image: {{ .Values.celestiaNodeImage }}
+          volumeMounts:
+            - mountPath: /scripts/
+              name: bridge-scripts-volume
+            - mountPath: /home/celestia
+              name: celestia-home-vol
+          envFrom:
+            - configMapRef:
+                name: celestia-local-env
+          ports:
+            - containerPort: {{ .Values.ports.bridgeHTTP }}
+              name: bridge-rest
+            - containerPort: {{ .Values.ports.bridgeRPC }}
+              name: bridge-jsonrpc
+          startupProbe:
+            httpGet:
+              path: /head
+              port: bridge-rest
+            failureThreshold: 30
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 1
+              memory: 4Gi
+            limits:
+              cpu: 2
+              memory: 8Gi
+        - name: token-server
+          image: {{ .Values.tokenServerImage }}
+          command: [ "/bin/httpd", "-v", "-f", "-p", "5353", "-h", "/home/celestia/token-server/" ]
+          ports:
+            - containerPort: {{ .Values.ports.celestiaTokenService }}
+              name: token-svc
+          volumeMounts:
+            - mountPath: /home/celestia
+              name: celestia-home-vol
+              readOnly: true
+          startupProbe:
+            httpGet:
+              path: /
+              port: token-svc
+            failureThreshold: 30
+            periodSeconds: 5
+      volumes:
+        - name: bridge-scripts-volume
+          configMap:
+            name: celestia-local-bridge-scripts
+            defaultMode: 0550
+        - name: celestia-appd-scripts-volume
+          configMap:
+            name: celestia-local-appd-scripts
+            defaultMode: 0550
+        - name: celestia-home-vol
+          {{- if .Values.storage.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.storage.entities.celestiaSharedStorage.persistentVolumeName }}-pvc
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
