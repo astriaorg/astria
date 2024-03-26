@@ -2,6 +2,11 @@ ci:
   - changed-files:
     - any-glob-to-any-file:
       - '.github/**'
+cd:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'charts/**'
+      - 'dev/**'
 conductor:
   - changed-files:
     - any-glob-to-any-file:
@@ -19,6 +24,7 @@ proto:
     - any-glob-to-any-file:
       - 'proto/**'
       - 'crates/astria-core/src/generated/**'
+      - 'buf.work.yaml'
 sequencer:
   - changed-files:
     - any-glob-to-any-file:
@@ -29,7 +35,6 @@ sequencer-relayer:
   - changed-files:
     - any-glob-to-any-file:
       - 'crates/astria-sequencer-relayer/**'
-      - 'crates/astria-gossipnet/**'
 documentation:
   - changed-files:
     - any-glob-to-any-file:

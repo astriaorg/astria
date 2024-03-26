@@ -1,0 +1,42 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: astria-dev-cluster
+networking:
+  disableDefaultCNI: true # disable kindnet
+  kubeProxyMode: none
+  podSubnet: "10.10.0.0/16"
+  serviceSubnet: "10.11.0.0/16"
+nodes:
+- role: control-plane
+  extraMounts:
+    - hostPath: /tmp/astria/celestia-data
+      containerPath: /data/celestia-data
+    - hostPath: /tmp/astria/rollup-data/
+      containerPath: /data/rollup-data/
+    - hostPath: /tmp/astria/sequencer-data
+      containerPath: /data/sequencer-data
+    - hostPath: /tmp/astria/sequencer-relayer-data
+      containerPath: /data/sequencer-relayer-data
+  kubeadmConfigPatches:
+  - |
+    kind: InitConfiguration
+    nodeRegistration:
+      kubeletExtraArgs:
+        node-labels: "ingress-ready=true"
+  extraPortMappings:
+  - containerPort: 80
+    hostPort: 80
+    protocol: TCP
+  - containerPort: 443
+    hostPort: 443
+    protocol: TCP
+- role: worker
+  extraMounts:
+    - hostPath: /tmp/astria/celestia-data
+      containerPath: /data/celestia-data
+    - hostPath: /tmp/astria/rollup-data/
+      containerPath: /data/rollup-data/
+    - hostPath: /tmp/astria/sequencer-data
+      containerPath: /data/sequencer-data
+    - hostPath: /tmp/astria/sequencer-relayer-data
+      containerPath: /data/sequencer-relayer-data

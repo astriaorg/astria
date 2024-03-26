@@ -185,7 +185,7 @@ async fn refund_tokens_check<S: StateRead>(
 
     let is_source = !is_prefixed(source_port, source_channel, &denom);
     if is_source {
-        // sender of packet (us) was the source chain
+        // recipient of packet (us) was the source chain
         //
         // check if escrow account has enough balance to refund user
         let balance = state
@@ -386,10 +386,16 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
         .amount
         .parse()
         .context("failed to parse packet data amount to u128")?;
+    let recipient = if is_refund {
+        packet_data.sender
+    } else {
+        packet_data.receiver
+    };
+
     let recipient = Address::try_from_slice(
-        &hex::decode(packet_data.receiver).context("failed to decode receiver as hex string")?,
+        &hex::decode(recipient).context("failed to decode recipient as hex string")?,
     )
-    .context("invalid receiver address")?;
+    .context("invalid recipient address")?;
     let mut denom: Denom = packet_data.denom.clone().into();
 
     // if the asset is prefixed with `ibc`, the rest of the denomination string is the asset ID,
@@ -428,14 +434,24 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
         // the asset being transferred in is an asset that originated from astria
         // subtract balance from escrow account and transfer to user
 
+        // strip the prefix from the denom, as we're back on the source chain
+        // note: if this is a refund, this is a no-op.
+        let denom = denom.to_base_denom();
+
+        let escrow_channel = if is_refund {
+            source_channel
+        } else {
+            dest_channel
+        };
+
         let escrow_balance = state
-            .get_ibc_channel_balance(source_channel, denom.id())
+            .get_ibc_channel_balance(escrow_channel, denom.id())
             .await
             .context("failed to get IBC channel balance in execute_ics20_transfer")?;
 
         state
             .put_ibc_channel_balance(
-                source_channel,
+                escrow_channel,
                 denom.id(),
                 escrow_balance
                     .checked_sub(packet_amount)
@@ -672,5 +688,113 @@ mod test {
         )
         .await
         .expect_err("invalid asset during transfer to bridge account should fail");
+    }
+
+    #[tokio::test]
+    async fn execute_ics20_transfer_to_user_account_is_source_not_refund() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state_tx = StateDelta::new(snapshot.clone());
+
+        let address_string = "1c0c490f1b5528d8173c5de46d131160e4b2c0c3";
+        let amount = 100;
+        let base_denom: Denom = "nootasset".to_string().into();
+        state_tx
+            .put_ibc_channel_balance(
+                &"dest_channel".to_string().parse().unwrap(),
+                base_denom.id(),
+                amount,
+            )
+            .unwrap();
+
+        let packet = FungibleTokenPacketData {
+            denom: format!("source_port/source_channel/{base_denom}"),
+            sender: String::new(),
+            amount: amount.to_string(),
+            receiver: address_string.to_string(),
+            memo: String::new(),
+        };
+        let packet_bytes = serde_json::to_vec(&packet).unwrap();
+
+        execute_ics20_transfer(
+            &mut state_tx,
+            &packet_bytes,
+            &"source_port".to_string().parse().unwrap(),
+            &"source_channel".to_string().parse().unwrap(),
+            &"dest_port".to_string().parse().unwrap(),
+            &"dest_channel".to_string().parse().unwrap(),
+            false,
+        )
+        .await
+        .expect("valid ics20 transfer to user account; recipient, memo, and asset ID are valid");
+
+        let recipient = Address::try_from_slice(&hex::decode(address_string).unwrap()).unwrap();
+        let balance = state_tx
+            .get_account_balance(recipient, base_denom.id())
+            .await
+            .expect("ics20 transfer to user account should succeed");
+        assert_eq!(balance, amount);
+        let balance = state_tx
+            .get_ibc_channel_balance(
+                &"dest_channel".to_string().parse().unwrap(),
+                base_denom.id(),
+            )
+            .await
+            .expect("ics20 transfer to user account from escrow account should succeed");
+        assert_eq!(balance, 0);
+    }
+
+    #[tokio::test]
+    async fn execute_ics20_transfer_to_user_account_is_source_refund() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state_tx = StateDelta::new(snapshot.clone());
+
+        let address_string = "1c0c490f1b5528d8173c5de46d131160e4b2c0c3";
+        let amount = 100;
+        let base_denom: Denom = "nootasset".to_string().into();
+        state_tx
+            .put_ibc_channel_balance(
+                &"source_channel".to_string().parse().unwrap(),
+                base_denom.id(),
+                amount,
+            )
+            .unwrap();
+
+        let packet = FungibleTokenPacketData {
+            denom: base_denom.to_string(),
+            sender: address_string.to_string(),
+            amount: amount.to_string(),
+            receiver: address_string.to_string(),
+            memo: String::new(),
+        };
+        let packet_bytes = serde_json::to_vec(&packet).unwrap();
+
+        execute_ics20_transfer(
+            &mut state_tx,
+            &packet_bytes,
+            &"source_port".to_string().parse().unwrap(),
+            &"source_channel".to_string().parse().unwrap(),
+            &"source_port".to_string().parse().unwrap(),
+            &"source_channel".to_string().parse().unwrap(),
+            true,
+        )
+        .await
+        .expect("valid ics20 refund to user account; recipient, memo, and asset ID are valid");
+
+        let recipient = Address::try_from_slice(&hex::decode(address_string).unwrap()).unwrap();
+        let balance = state_tx
+            .get_account_balance(recipient, base_denom.id())
+            .await
+            .expect("ics20 refund to user account should succeed");
+        assert_eq!(balance, amount);
+        let balance = state_tx
+            .get_ibc_channel_balance(
+                &"source_channel".to_string().parse().unwrap(),
+                base_denom.id(),
+            )
+            .await
+            .expect("ics20 refund to user account from escrow account should succeed");
+        assert_eq!(balance, 0);
     }
 }
