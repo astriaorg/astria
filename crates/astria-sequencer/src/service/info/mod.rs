@@ -13,8 +13,7 @@ use futures::{
     Future,
     FutureExt,
 };
-use penumbra_tower_trace::v037::RequestExt as _;
-use tendermint::v0_37::abci::{
+use tendermint::v0_38::abci::{
     request,
     response::{
         self,
@@ -25,10 +24,7 @@ use tendermint::v0_37::abci::{
 };
 use tower::Service;
 use tower_abci::BoxError;
-use tracing::{
-    instrument,
-    Instrument,
-};
+use tracing::instrument;
 
 mod abci_query_router;
 
@@ -134,12 +130,7 @@ impl Service<InfoRequest> for Info {
     }
 
     fn call(&mut self, req: InfoRequest) -> Self::Future {
-        let span = req.create_span();
-
-        self.clone()
-            .handle_info_request(req)
-            .instrument(span)
-            .boxed()
+        self.clone().handle_info_request(req).boxed()
     }
 }
 
@@ -153,7 +144,7 @@ mod test {
         Address,
     };
     use cnidarium::StateDelta;
-    use tendermint::v0_37::abci::{
+    use tendermint::v0_38::abci::{
         request,
         InfoRequest,
         InfoResponse,
