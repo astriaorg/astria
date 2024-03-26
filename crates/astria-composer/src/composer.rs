@@ -1,20 +1,6 @@
-use std::{
-    collections::HashMap,
-    io,
-    net::SocketAddr,
-    time::Duration,
-};
-
-use astria_core::{
-    generated::composer::v1alpha1::{
-        SubmitSequenceActionsRequest,
-    },
-    sequencer::v1::{
-        asset::default_native_asset_id,
-        transaction::action::SequenceAction,
-        RollupId,
-    },
-};
+use std::{io, net::SocketAddr};
+use std::collections::HashMap;
+use std::time::Duration;
 use astria_eyre::eyre::{
     self,
     WrapErr as _,
@@ -25,10 +11,6 @@ use tokio::{
 };
 use tokio::sync::watch;
 use tokio_util::task::JoinMap;
-use tonic::{
-    Request,
-    Response,
-};
 use tracing::{
     error,
     info,
