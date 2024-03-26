@@ -17,6 +17,7 @@ impl AbciErrorCode {
     pub const INTERNAL_ERROR: Self = Self(3);
     pub const INVALID_NONCE: Self = Self(4);
     pub const TRANSACTION_TOO_LARGE: Self = Self(5);
+    pub const INSUFFICIENT_FUNDS: Self = Self(6);
 }
 
 impl AbciErrorCode {
@@ -29,6 +30,7 @@ impl AbciErrorCode {
             3 => "an internal server error occured".into(),
             4 => "the provided nonce was invalid".into(),
             5 => "the provided transaction was too large".into(),
+            6 => "insufficient funds".into(),
             other => format!("unknown non-zero abci error code: {other}").into(),
         }
     }
