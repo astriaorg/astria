@@ -54,6 +54,9 @@ pub struct Config {
 
     /// Writes a human readable format to stdout instead of JSON formatted OTEL trace data.
     pub pretty_print: bool,
+
+    /// The address at which the generic collector is listening
+    pub grpc_collector_addr: SocketAddr,
 }
 
 impl config::Config for Config {

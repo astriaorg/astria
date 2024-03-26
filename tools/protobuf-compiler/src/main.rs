@@ -163,6 +163,7 @@ fn find_protos<P: AsRef<Path>>(dir: P) -> Vec<PathBuf> {
         .collect()
 }
 
+#[derive(Debug)]
 struct ContentMap {
     files: HashMap<String, PathBuf>,
     codes: HashMap<String, String>,

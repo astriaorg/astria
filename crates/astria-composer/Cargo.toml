@@ -13,7 +13,7 @@ name = "astria-composer"
 
 [dependencies]
 astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
-astria-core = { path = "../astria-core", features = ["serde"] }
+astria-core = { path = "../astria-core", features = ["server", "serde"] }
 astria-eyre = { path = "../astria-eyre" }
 config = { package = "astria-config", path = "../astria-config" }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry", features = [
@@ -50,6 +50,9 @@ tokio = { workspace = true, features = [
 tokio-util = { workspace = true, features = ["rt"] }
 tracing = { workspace = true, features = ["attributes"] }
 tryhard = { workspace = true }
+tonic = "0.10.2"
+tempfile = "3.6.0"
+tokio-stream = { version = "0.1.14", features = ["net"] }
 
 [dependencies.sequencer-client]
 package = "astria-sequencer-client"
@@ -67,6 +70,7 @@ insta = { workspace = true, features = ["json"] }
 tokio-test = { workspace = true }
 tendermint-rpc = { workspace = true }
 wiremock = { workspace = true }
+astria-core = { path = "../astria-core", features = ["client"] }
 
 [build-dependencies]
 astria-build-info = { path = "../astria-build-info", features = ["build"] }
