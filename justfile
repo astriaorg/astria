@@ -71,6 +71,7 @@ _lint-proto:
   buf format -d --exit-code
   buf breaking proto/executionapis --against 'buf.build/astria/execution-apis'
   buf breaking proto/sequencerapis --against 'buf.build/astria/astria'
+<<<<<<< HEAD
   buf breaking proto/composerapis --against 'buf.build/astria/composer-apis'
 
 ##############################################
@@ -79,6 +80,8 @@ _lint-proto:
 defaultNamespace := "astria-dev-cluster"
 deploy tool *ARGS:
   @just deploy-{{tool}} {{ARGS}}
+=======
+>>>>>>> 9a6271b (move executor and geth collectors to the composer)
 
 delete tool *ARGS:
   @just delete-{{tool}} {{ARGS}}

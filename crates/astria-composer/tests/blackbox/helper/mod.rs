@@ -12,6 +12,7 @@ use astria_eyre::eyre;
 use once_cell::sync::Lazy;
 use test_utils::mock::Geth;
 use tokio::task::JoinHandle;
+use tracing::debug;
 use wiremock::MockGuard;
 
 pub mod mock_sequencer;
@@ -40,7 +41,6 @@ pub struct TestComposer {
     pub rollup_nodes: HashMap<String, Geth>,
     pub sequencer: wiremock::MockServer,
     pub setup_guard: MockGuard,
-    pub grpc_collector_addr: SocketAddr,
 }
 
 /// Spawns composer in a test environment.
@@ -76,24 +76,22 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
         no_metrics: true,
         metrics_http_listener_addr: String::new(),
         pretty_print: true,
-        grpc_collector_addr: "127.0.0.1:0".parse().unwrap(),
     };
-    let (composer_addr, grpc_collector_addr, composer_handle) = {
-        let composer = Composer::from_config(&config).await.unwrap();
+    let (composer_addr, composer) = {
+        let composer = Composer::from_config(&config).unwrap();
         let composer_addr = composer.local_addr();
-        let grpc_collector_addr = composer.grpc_collector_local_addr().unwrap();
         let task = tokio::spawn(composer.run_until_stopped());
-        (composer_addr, grpc_collector_addr, task)
+        (composer_addr, task)
     };
 
+    debug!("looping until composer is ready");
     loop_until_composer_is_ready(composer_addr).await;
     TestComposer {
         cfg: config,
-        composer: composer_handle,
+        composer,
         rollup_nodes,
         sequencer,
         setup_guard: sequencer_setup_guard,
-        grpc_collector_addr,
     }
 }
 

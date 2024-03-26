@@ -6,13 +6,13 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 
 #[derive(Debug)]
-pub(crate) struct Rollup {
+pub(super) struct Rollup {
     rollup_name: String,
     url: String,
 }
 
 #[derive(Debug)]
-pub(crate) struct ParseError {}
+pub(super) struct ParseError {}
 
 impl ParseError {
     fn new() -> Self {
@@ -32,7 +32,7 @@ impl fmt::Display for ParseError {
 impl std::error::Error for ParseError {}
 
 impl Rollup {
-    pub(crate) fn parse(from: &str) -> Result<Self, ParseError> {
+    pub(super) fn parse(from: &str) -> Result<Self, ParseError> {
         static ROLLUP_RE: Lazy<Regex> = Lazy::new(|| {
             Regex::new(
                 r"(?x)
@@ -61,7 +61,7 @@ impl Rollup {
         })
     }
 
-    pub(crate) fn into_parts(self) -> (String, String) {
+    pub(super) fn into_parts(self) -> (String, String) {
         let Self {
             rollup_name,
             url,

@@ -50,9 +50,6 @@ tokio = { workspace = true, features = [
 tokio-util = { workspace = true, features = ["rt"] }
 tracing = { workspace = true, features = ["attributes"] }
 tryhard = { workspace = true }
-tonic = "0.10.2"
-tempfile = "3.6.0"
-tokio-stream = { version = "0.1.14", features = ["net"] }
 
 [dependencies.sequencer-client]
 package = "astria-sequencer-client"

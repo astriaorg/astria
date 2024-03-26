@@ -33,12 +33,15 @@ use tokio::sync::{
 };
 use tracing::{
     debug,
-    info,
     instrument,
     warn,
 };
 
+<<<<<<<< HEAD:crates/astria-composer/src/collectors/geth.rs
 use crate::executor;
+
+========
+>>>>>>>> 3186524 (move executor and geth collectors to the composer):crates/astria-composer/src/geth_collectors/mod.rs
 type StdError = dyn std::error::Error;
 
 /// `GethCollector` Collects transactions submitted to a Geth rollup node and passes
@@ -47,14 +50,18 @@ type StdError = dyn std::error::Error;
 /// It is responsible for fetching pending transactions submitted to the rollup Geth nodes and then
 /// passing them downstream for the executor to process. Thus, a composer can have multiple
 /// collectors running at the same time funneling data from multiple rollup nodes.
-pub(crate) struct Geth {
+:pub(crate) struct Geth {
     // Chain ID to identify in the astria sequencer block which rollup a serialized sequencer
     // action belongs to. Created from `chain_name`.
     rollup_id: RollupId,
     // Name of the chain the transactions are read from.
     chain_name: String,
     // The channel on which the collector sends new txs to the executor.
+<<<<<<<< HEAD:crates/astria-composer/src/collectors/geth.rs
     executor_handle: executor::Handle,
+========
+    new_bundles: Sender<SequenceAction>,
+>>>>>>>> 3186524 (move executor and geth collectors to the composer):crates/astria-composer/src/geth_collectors/mod.rs
     // The status of this collector instance.
     status: watch::Sender<Status>,
     /// Rollup URL
@@ -62,8 +69,13 @@ pub(crate) struct Geth {
 }
 
 #[derive(Debug)]
+<<<<<<<< HEAD:crates/astria-composer/src/collectors/geth.rs
 pub(crate) struct Status {
     pub(crate) is_connected: bool,
+========
+pub(super) struct Status {
+    is_connected: bool,
+>>>>>>>> 3186524 (move executor and geth collectors to the composer):crates/astria-composer/src/geth_collectors/mod.rs
 }
 
 impl Status {
@@ -73,23 +85,25 @@ impl Status {
         }
     }
 
-    pub(crate) fn is_connected(&self) -> bool {
+    pub(super) fn is_connected(&self) -> bool {
         self.is_connected
     }
 }
 
 impl Geth {
     /// Initializes a new collector instance
+<<<<<<<< HEAD:crates/astria-composer/src/collectors/geth.rs
     pub(crate) fn new(chain_name: String, url: String, executor_handle: executor::Handle) -> Self {
+========
+    pub(super) fn new(
+        chain_name: String,
+        url: String,
+        new_bundles: Sender<SequenceAction>,
+    ) -> Self {
+>>>>>>>> 3186524 (move executor and geth collectors to the composer):crates/astria-composer/src/geth_collectors/mod.rs
         let (status, _) = watch::channel(Status::new());
-        let rollup_id = RollupId::from_unhashed_bytes(&chain_name);
-        info!(
-            rollup_name = %chain_name,
-            rollup_id = %rollup_id,
-            "created new geth collector for rollup",
-        );
         Self {
-            rollup_id,
+            rollup_id: RollupId::from_unhashed_bytes(&chain_name),
             chain_name,
             executor_handle,
             status,
@@ -97,15 +111,20 @@ impl Geth {
         }
     }
 
+<<<<<<<< HEAD:crates/astria-composer/src/collectors/geth.rs
     /// Subscribe to the collector's status.
     pub(crate) fn subscribe(&self) -> watch::Receiver<Status> {
+========
+    /// Subscribe to the composer's status.
+    pub(super) fn subscribe(&self) -> watch::Receiver<Status> {
+>>>>>>>> 3186524 (move executor and geth collectors to the composer):crates/astria-composer/src/geth_collectors/mod.rs
         self.status.subscribe()
     }
 
     /// Starts the collector instance and runs until failure or until
     /// explicitly closed
-    #[instrument(skip_all, fields(chain_name = self.chain_name, rollup_id = %self.rollup_id))]
-    pub(crate) async fn run_until_stopped(self) -> eyre::Result<()> {
+    #[instrument(skip_all, fields(chain_name = self.chain_name))]
+    pub(super) async fn run_until_stopped(self) -> eyre::Result<()> {
         use std::time::Duration;
 
         use ethers::providers::Middleware as _;
@@ -166,6 +185,7 @@ impl Geth {
             };
 
             match executor_handle
+                .get()
                 .send_timeout(seq_action, Duration::from_millis(500))
                 .await
             {
