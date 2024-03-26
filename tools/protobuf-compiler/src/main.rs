@@ -106,7 +106,11 @@ fn main() {
         .build(&[
             ".astria.execution.v1alpha2",
             ".astria.sequencer.v1.Deposit",
+            ".astria.sequencer.v1.FilteredSequencerBlock",
+            ".astria.sequencer.v1.GetFilteredSequencerBlockRequest",
+            ".astria.sequencer.v1.Proof",
             ".astria.sequencer.v1.RollupData",
+            ".astria.sequencer.v1.RollupTransactions",
             ".astria.primitive.v1.Uint128",
         ])
         .unwrap();
