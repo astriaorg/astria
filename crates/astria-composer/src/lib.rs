@@ -41,6 +41,7 @@ pub(crate) mod api;
 mod build_info;
 mod collectors;
 mod composer;
+pub(crate) mod composer_service;
 pub mod config;
 mod executor;
 mod rollup;
