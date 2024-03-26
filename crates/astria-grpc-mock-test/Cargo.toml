@@ -1,0 +1,21 @@
+[package]
+name = "astria-grpc-mock-test"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+prost.workspace = true
+serde.workspace = true
+tokio = { workspace = true, features = [
+  "macros",
+  "rt",
+  "rt-multi-thread",
+  "time",
+] }
+tonic.workspace = true
+
+[dev-dependencies]
+astria-grpc-mock = { path = "../astria-grpc-mock" }
+tokio-stream = { version = "0.1.15", features = ["net"] }
