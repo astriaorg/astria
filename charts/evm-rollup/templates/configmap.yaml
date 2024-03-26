@@ -8,11 +8,9 @@ data:
   {{- if (index .Values "celestia-node").enabled }}
   TOKEN_SERVER_URL: "{{ include "celestiaNode.service.addresses.token" (index .Subcharts "celestia-node") }}"
   ASTRIA_CONDUCTOR_CELESTIA_NODE_HTTP_URL: "{{ include "celestiaNode.service.addresses.rpc" (index .Subcharts "celestia-node") }}"
-  ASTRIA_CONDUCTOR_CELESTIA_NODE_WEBSOCKET_URL: "{{ include "celestiaNode.service.addresses.ws" (index .Subcharts "celestia-node") }}"
   {{- else }}
   TOKEN_SERVER_URL: "{{ .Values.config.celestia.token }}"
   ASTRIA_CONDUCTOR_CELESTIA_NODE_HTTP_URL: "{{ .Values.config.celestia.rpc }}"
-  ASTRIA_CONDUCTOR_CELESTIA_NODE_WEBSOCKET_URL: "{{ .Values.config.celestia.ws }}"
   {{- end }}
   ASTRIA_CONDUCTOR_EXECUTION_RPC_URL: "http://127.0.0.1:{{ .Values.ports.executionGRPC }}"
   ASTRIA_CONDUCTOR_EXECUTION_COMMIT_LEVEL: "{{ .Values.config.rollup.executionCommitLevel }}"
@@ -32,7 +30,17 @@ data:
   OTEL_EXPORTER_OTLP_HEADERS: "{{ .Values.config.rollup.otel.otlpHeaders }}"
   OTEL_EXPORTER_OTLP_TRACE_HEADERS: "{{ .Values.config.rollup.otel.traceHeaders }}"
   {{- if not .Values.global.dev }}
+
+  # This block is for removing `ASTRIA_CONDUCTOR_CELESTIA_NODE_WEBSOCKET_URL`.
+  # 
+  {{- if (index .Values "celestia-node").enabled }}
+  ASTRIA_CONDUCTOR_CELESTIA_NODE_WEBSOCKET_URL: "{{ include "celestiaNode.service.addresses.ws" (index .Subcharts "celestia-node") }}"
   {{- else }}
+  ASTRIA_CONDUCTOR_CELESTIA_NODE_WEBSOCKET_URL: "{{ .Values.config.celestia.ws }}"
+  {{- end }}
+
+  {{- else }}
+  ASTRIA_CONDUCTOR_CELESTIA_BLOCK_TIME_MS: "12000"
   {{- end }}
 ---
 apiVersion: v1

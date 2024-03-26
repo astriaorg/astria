@@ -48,8 +48,10 @@ tryhard = { workspace = true }
 
 async-trait = "0.1.73"
 futures-bounded = "0.2.3"
+http = "0.2.9"
 itertools = "0.12.1"
 pin-project-lite = "0.2"
+tokio-stream = "0.1.14"
 tracing-futures = { version = "0.2.5", features = ["futures-03"] }
 
 [dev-dependencies]
