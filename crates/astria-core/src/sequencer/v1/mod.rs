@@ -112,7 +112,7 @@ impl std::fmt::Display for Address {
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
 #[cfg_attr(feature = "serde", serde(transparent))]
 pub struct RollupId {
-    #[cfg_attr(feature = "serde", serde(serialize_with = "crate::serde::string::hex"))]
+    #[cfg_attr(feature = "serde", serde(serialize_with = "crate::serde::base64"))]
     inner: [u8; 32],
 }
 

@@ -96,7 +96,7 @@ fn make_genesis_block() -> raw::Block {
         number: 0,
         hash: GENESIS_HASH,
         parent_block_hash: GENESIS_HASH,
-        timestamp: Some(std::time::SystemTime::now().into()),
+        timestamp: Some(chrono::Utc::now().into()),
     }
 }
 
@@ -559,7 +559,7 @@ fn make_block(number: u32) -> raw::Block {
         number,
         hash: Bytes::from_static(&[0u8; 32]),
         parent_block_hash: Bytes::from_static(&[0u8; 32]),
-        timestamp: Some(prost_types::Timestamp {
+        timestamp: Some(pbjson_types::Timestamp {
             seconds: 0,
             nanos: 0,
         }),

@@ -34,7 +34,7 @@ pub struct Block {
     pub parent_block_hash: ::prost::bytes::Bytes,
     /// Timestamp on the block, standardized to google protobuf standard.
     #[prost(message, optional, tag = "4")]
-    pub timestamp: ::core::option::Option<::prost_types::Timestamp>,
+    pub timestamp: ::core::option::Option<::pbjson_types::Timestamp>,
 }
 /// Fields which are indexed for finding blocks on a blockchain.
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -95,7 +95,7 @@ pub struct ExecuteBlockRequest {
     pub transactions: ::prost::alloc::vec::Vec<super::super::sequencer::v1::RollupData>,
     /// Timestamp to be used for new block.
     #[prost(message, optional, tag = "3")]
-    pub timestamp: ::core::option::Option<::prost_types::Timestamp>,
+    pub timestamp: ::core::option::Option<::pbjson_types::Timestamp>,
 }
 /// The CommitmentState holds the block at each stage of sequencer commitment
 /// level
