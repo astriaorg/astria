@@ -639,6 +639,7 @@ impl App {
             .get_block_deposits()
             .await
             .context("failed to get block deposits in end_block")?;
+        debug!(deposits = %DisplayDeposits(&deposits), "end_block: got block deposits");
         self.current_sequencer_block_builder
             .as_mut()
             .expect(
@@ -730,6 +731,21 @@ impl App {
         );
 
         events
+    }
+}
+
+/// Display implementation for `HashMap<RollupId, Vec<Deposit>>`.
+struct DisplayDeposits<'a>(&'a HashMap<RollupId, Vec<Deposit>>);
+
+impl<'a> std::fmt::Display for DisplayDeposits<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for (rollup_id, deposits) in self.0 {
+            writeln!(f, "Rollup ID: {}", rollup_id)?;
+            for deposit in deposits {
+                writeln!(f, "  {:?}", deposit)?;
+            }
+        }
+        Ok(())
     }
 }
 

@@ -62,7 +62,7 @@ impl Consensus {
                 warn!(
                     parent: &span,
                     error = e,
-                    "failed processing concensus request; returning error back to sender",
+                    "failed processing consensus request; returning error back to sender",
                 );
             }
             // `send` returns the sent message if sending fail, so we are dropping it.
