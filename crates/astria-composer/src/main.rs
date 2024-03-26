@@ -54,9 +54,21 @@ async fn main() -> ExitCode {
 
     info!(config = cfg_ser, "initializing composer",);
 
+<<<<<<< HEAD
     let composer = match Composer::from_config(&cfg).await {
         Err(error) => {
             error!(%error, "failed initializing Composer");
+=======
+    match Composer::from_config(&cfg)
+        .await
+        .expect("failed creating composer")
+        .run_until_stopped()
+        .await
+    {
+        Ok(()) => {}
+        Err(e) => {
+            eprintln!("composer failed:\n{e}");
+>>>>>>> 48edee5 (add gRPC collector)
             return ExitCode::FAILURE;
         }
         Ok(composer) => composer,

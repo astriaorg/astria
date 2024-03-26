@@ -1,8 +1,14 @@
-use std::time::Duration;
+use std::{
+    net::SocketAddr,
+    time::Duration,
+};
 
 use astria_core::{
     generated::composer::v1alpha1::{
-        grpc_collector_service_server::GrpcCollectorService,
+        grpc_collector_service_server::{
+            GrpcCollectorService,
+            GrpcCollectorServiceServer,
+        },
         SubmitSequenceActionsRequest,
     },
     sequencer::v1::{
@@ -11,15 +17,57 @@ use astria_core::{
         RollupId,
     },
 };
-use tokio::sync::mpsc::{
-    error::SendTimeoutError,
-    Sender,
+use astria_eyre::{
+    eyre,
+    eyre::eyre,
+};
+use tokio::{
+    io,
+    net::TcpListener,
+    sync::mpsc::error::SendTimeoutError,
 };
 use tonic::{
     Request,
     Response,
 };
 use crate::executor;
+
+pub(super) struct GrpcCollector {
+    grpc_collector_listener: TcpListener,
+}
+
+impl GrpcCollector {
+    pub(super) fn new(grpc_collector_listener: TcpListener) -> Self {
+        Self {
+            grpc_collector_listener,
+        }
+    }
+
+    /// Returns the socker address the grpc collector is served over
+    /// # Errors
+    /// Returns an error if the listener is not bound
+    pub(super) fn grpc_collector_local_addr(&self) -> io::Result<SocketAddr> {
+        self.grpc_collector_listener.local_addr()
+    }
+
+    pub(super) async fn run_until_stopped(
+        self,
+        executor_handle: executor::Handle,
+    ) -> eyre::Result<()> {
+        let composer_service = GrpcCollectorServiceServer::new(executor_handle.clone());
+        let grpc_server = tonic::transport::Server::builder().add_service(composer_service);
+
+        match grpc_server
+            .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(
+                self.grpc_collector_listener,
+            ))
+            .await
+        {
+            Ok(()) => Ok(()),
+            Err(err) => Err(eyre!(err)),
+        }
+    }
+}
 
 #[async_trait::async_trait]
 impl GrpcCollectorService for executor::Handle {

@@ -8,13 +8,14 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use tokio::{
+    io,
+    net::TcpListener,
     sync::{
         mpsc::Sender,
         watch,
     },
     task::JoinError,
 };
-use tokio::net::TcpListener;
 use tokio_util::task::JoinMap;
 use tracing::{
     error,
@@ -25,6 +26,7 @@ use crate::{api::{
     ApiServer,
 }, collectors, collectors::Geth, executor, executor::Executor, rollup::Rollup, Config, composer};
 use crate::composer_status::ComposerStatus;
+use crate::grpc_collector::GrpcCollector;
 
 /// `Composer` is a service responsible for spinning up `GethCollectors` which are responsible
 /// for fetching pending transactions submitted to the rollup Geth nodes and then passing them
@@ -50,8 +52,8 @@ pub struct Composer {
     geth_collector_tasks: JoinMap<String, eyre::Result<()>>,
     /// `Rollups` The map of chain ID to the URLs to which geth collectors should connect.
     rollups: HashMap<String, String>,
-    /// GrpcCollectorListener is the tcp connection on which the gRPC collector is running
-    grpc_collector_listener: TcpListener,
+    /// `GrpcCollector` is a gRPC server to which users can send sequence actions
+    grpc_collector: GrpcCollector,
 }
 
 /// Announces the current status of the Composer for other modules in the crate to use
@@ -93,6 +95,9 @@ impl Composer {
             .wrap_err("executor construction from config failed")?;
 
 
+        let grpc_collector_listener = TcpListener::bind(cfg.grpc_collector_addr).await?;
+        let grpc_collector = GrpcCollector::new(grpc_collector_listener);
+
         let api_server = api::start(cfg.api_listen_addr, composer_status_sender.subscribe());
 
         info!(
@@ -131,13 +136,20 @@ impl Composer {
             geth_collectors,
             geth_collector_statuses,
             geth_collector_tasks: JoinMap::new(),
-            grpc_collector_listener,
+            grpc_collector,
         })
     }
 
     /// Returns the socket address the api server is served over
     pub fn local_addr(&self) -> SocketAddr {
         self.api_server.local_addr()
+    }
+
+    /// Returns the socker address the grpc collector is served over
+    /// # Errors
+    /// Returns an error if the listener is not bound
+    pub fn grpc_collector_local_addr(&self) -> io::Result<SocketAddr> {
+        self.grpc_collector.grpc_collector_local_addr()
     }
 
     /// Runs the composer.
@@ -154,7 +166,7 @@ impl Composer {
             mut geth_collectors,
             rollups,
             mut geth_collector_statuses,
-            grpc_collector_listener,
+            grpc_collector,
         } = self;
 
         // run the api server
@@ -178,15 +190,13 @@ impl Composer {
             status.set_executor_connected(true);
         });
 
+        let grpc_executor_handle = executor_handle.clone();
         // run the grpc server
-        let composer_service = GrpcCollectorServiceServer::new(executor_handle.clone());
-        let grpc_server = tonic::transport::Server::builder().add_service(composer_service);
-        let mut grpc_server_handler = tokio::spawn(async move {
-            grpc_server
-                .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(
-                    grpc_collector_listener,
-                ))
+        let mut grpc_server_handle = tokio::spawn(async move {
+            grpc_collector
+                .run_until_stopped(grpc_executor_handle)
                 .await
+                .wrap_err("grpc server failed")
         });
 
         loop {
@@ -199,16 +209,8 @@ impl Composer {
                     report_exit("executor unexpectedly ended", o);
                     return Ok(());
             },
-            exit_error = &mut grpc_server_handler => {
-                    match exit_error {
-                        Ok(Ok(())) => info!("grpc server exited unexpectedly; reconnecting"),
-                        Ok(Err(error)) => {
-                            error!(%error, "grpc server exit with error; reconnecting");
-                        }
-                        Err(error) => {
-                            error!(%error, "grpc server task failed; reconnecting");
-                        }
-                    }
+            o = &mut grpc_server_handle => {
+                    report_exit("grpc server unexpectedly ended", o);
                     return Ok(());
             },
             Some((rollup, collector_exit)) = geth_collector_tasks.join_next() => {
