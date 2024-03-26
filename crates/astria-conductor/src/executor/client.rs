@@ -18,7 +18,7 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use bytes::Bytes;
-use prost_types::Timestamp;
+use pbjson_types::Timestamp;
 use tonic::transport::Channel;
 use tracing::instrument;
 
