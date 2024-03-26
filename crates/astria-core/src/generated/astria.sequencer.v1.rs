@@ -480,13 +480,13 @@ pub mod sequencer_service_server {
     pub trait SequencerService: Send + Sync + 'static {
         /// Given a block height, returns the sequencer block at that height.
         async fn get_sequencer_block(
-            &self,
+            self: std::sync::Arc<Self>,
             request: tonic::Request<super::GetSequencerBlockRequest>,
         ) -> std::result::Result<tonic::Response<super::SequencerBlock>, tonic::Status>;
         /// Given a block height and set of rollup ids, returns a SequencerBlock which
         /// is filtered to contain only the transactions that are relevant to the given rollup.
         async fn get_filtered_sequencer_block(
-            &self,
+            self: std::sync::Arc<Self>,
             request: tonic::Request<super::GetFilteredSequencerBlockRequest>,
         ) -> std::result::Result<
             tonic::Response<super::FilteredSequencerBlock>,
@@ -590,10 +590,7 @@ pub mod sequencer_service_server {
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as SequencerService>::get_sequencer_block(
-                                        &inner,
-                                        request,
-                                    )
+                                <T as SequencerService>::get_sequencer_block(inner, request)
                                     .await
                             };
                             Box::pin(fut)
@@ -644,7 +641,7 @@ pub mod sequencer_service_server {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
                                 <T as SequencerService>::get_filtered_sequencer_block(
-                                        &inner,
+                                        inner,
                                         request,
                                     )
                                     .await
