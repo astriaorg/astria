@@ -115,7 +115,7 @@ impl BlocksFromHeightStream {
     )]
     pub(super) fn set_latest_observed_height_if_greater(&mut self, height: Height) {
         if !self.heights.set_latest_observed_if_greater(height) {
-            info!("observed latest sequencer height older than previous; ignoring it");
+            info!("observed latest sequencer height older or the same as previous; ignoring it");
         }
     }
 
