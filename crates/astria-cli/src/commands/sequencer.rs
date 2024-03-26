@@ -178,6 +178,7 @@ pub(crate) async fn send_transfer(args: &TransferArgs) -> eyre::Result<()> {
 
     ensure!(res.tx_result.code.is_ok(), "error with transfer");
     println!("Transfer completed!");
+    println!("Included in block: {}", res.height);
     Ok(())
 }
 
@@ -202,8 +203,9 @@ pub(crate) async fn init_bridge_account(args: &InitBridgeAccountArgs) -> eyre::R
 
     ensure!(res.tx_result.code.is_ok(), "error with InitBridgeAccount");
     println!("InitBridgeAccount completed!");
+    println!("Included in block: {}", res.height);
     println!("Rollup name: {}", args.rollup_name);
-    println!("Rollup ID: {}", rollup_id);
+    println!("Rollup ID: {rollup_id}");
     Ok(())
 }
 
@@ -226,6 +228,7 @@ pub(crate) async fn bridge_lock(args: &BridgeLockArgs) -> eyre::Result<()> {
 
     ensure!(res.tx_result.code.is_ok(), "error with BridgeLock");
     println!("BridgeLock completed!");
+    println!("Included in block: {}", res.height);
     Ok(())
 }
 
@@ -234,7 +237,6 @@ async fn submit_transaction(
     private_key: &str,
     action: Action,
 ) -> eyre::Result<endpoint::broadcast::tx_commit::Response> {
-    println!("private_key: {}", private_key);
     let sequencer_client =
         HttpClient::new(sequencer_url).wrap_err("failed constructing http sequencer client")?;
 
