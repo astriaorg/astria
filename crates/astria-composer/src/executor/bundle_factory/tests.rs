@@ -6,7 +6,10 @@ mod sized_bundle_tests {
         RollupId,
         ROLLUP_ID_LEN,
     };
-    use insta::assert_json_snapshot;
+    use insta::{
+        assert_json_snapshot,
+        Settings,
+    };
 
     use crate::executor::bundle_factory::{
         estimate_size_of_sequence_action,
@@ -132,7 +135,12 @@ mod sized_bundle_tests {
     fn snapshots() {
         let bundle = snapshot_bundle();
 
-        assert_json_snapshot!(bundle.rollup_counts);
+        let mut settings = Settings::new();
+        settings.set_sort_maps(true);
+
+        settings.bind(|| {
+            assert_json_snapshot!(bundle.rollup_counts);
+        });
     }
 }
 
