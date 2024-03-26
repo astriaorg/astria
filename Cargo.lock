@@ -661,7 +661,7 @@ dependencies = [
  "tendermint-proto",
  "thiserror",
  "tonic 0.10.2",
- "tonic-build",
+ "tonic-build 0.10.2",
  "tracing",
  "walkdir",
  "which",
@@ -676,6 +676,42 @@ dependencies = [
  "tokio-test",
  "tracing",
  "tracing-subscriber 0.3.18",
+]
+
+[[package]]
+name = "astria-grpc-mock"
+version = "0.1.0"
+dependencies = [
+ "assert-json-diff",
+ "erased-serde 0.4.4",
+ "futures",
+ "prost",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tonic 0.10.2",
+ "tracing",
+]
+
+[[package]]
+name = "astria-grpc-mock-test"
+version = "0.1.0"
+dependencies = [
+ "astria-grpc-mock",
+ "prost",
+ "serde",
+ "tokio",
+ "tokio-stream",
+ "tonic 0.10.2",
+]
+
+[[package]]
+name = "astria-grpc-mock-test-codegen"
+version = "0.1.0"
+dependencies = [
+ "pbjson-build",
+ "prost-build",
+ "tonic-build 0.11.0",
 ]
 
 [[package]]
@@ -2610,6 +2646,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "erased-serde"
+version = "0.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2b73807008a3c7f171cc40312f37d95ef0396e048b5848d775f54b1a4dd4a0d3"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "errno"
 version = "0.3.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3722,7 +3767,7 @@ dependencies = [
  "derive_more",
  "displaydoc",
  "dyn-clone",
- "erased-serde",
+ "erased-serde 0.3.31",
  "hex",
  "ibc-proto",
  "ibc-types-domain-type",
@@ -3809,7 +3854,7 @@ dependencies = [
  "derive_more",
  "displaydoc",
  "dyn-clone",
- "erased-serde",
+ "erased-serde 0.3.31",
  "ibc-proto",
  "ibc-types-core-client",
  "ibc-types-core-commitment",
@@ -7585,9 +7630,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-stream"
-version = "0.1.14"
+version = "0.1.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "397c988d37662c7dda6d2208364a706264bf3d6138b11d436cbac0ad38832842"
+checksum = "267ac89e0bec6e691e5813911606935d77c476ff49024f98abcea3e7b15e37af"
 dependencies = [
  "futures-core",
  "pin-project-lite",
@@ -7803,6 +7848,19 @@ name = "tonic-build"
 version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9d021fc044c18582b9a2408cd0dd05b1596e3ecdb5c4df822bb0183545683889"
+dependencies = [
+ "prettyplease",
+ "proc-macro2 1.0.78",
+ "prost-build",
+ "quote",
+ "syn 2.0.48",
+]
+
+[[package]]
+name = "tonic-build"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "be4ef6dd70a610078cb4e338a0f79d06bc759ff1b22d2120c2ff02ae264ba9c2"
 dependencies = [
  "prettyplease",
  "proc-macro2 1.0.78",
