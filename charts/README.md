@@ -168,7 +168,7 @@ To deploy and run this:
 > just deploy cluster 
 > just deploy smoke-test
 # deploys all components needed to run the smoke test
-> just run smoke-test
+> just run-smoke-test
 # Runs the smoke test will return failure if fails
 > just delete smoke-test
 # Clean up deployed test
