@@ -13,7 +13,7 @@
 #[path = ""]
 pub mod execution {
     #[path = "astria.execution.v1alpha1.rs"]
-    pub mod v1alpha1;
+    pub mod v1;
 
     pub mod v1alpha2 {
         include!("astria.execution.v1alpha2.rs");

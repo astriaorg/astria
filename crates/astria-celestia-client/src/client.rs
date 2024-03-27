@@ -305,7 +305,7 @@ fn does_rollup_blob_verify_against_sequencer_blob(
     rollup_blob
         .proof()
         .audit()
-        .with_root(sequencer_blob.rollup_transactions_root())
+        .with_root(sequencer_blob.header().rollup_transactions_root())
         .with_leaf_builder()
         .write(&rollup_blob.rollup_id().get())
         .write(&merkle::Tree::from_leaves(rollup_blob.transactions()).root())

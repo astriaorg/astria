@@ -240,6 +240,7 @@ pub(crate) trait StateReadExt: StateRead {
             .context("failed to decode rollup IDs proof from raw bytes")?;
 
         let raw = raw::SequencerBlock {
+            block_hash: hash.to_vec(),
             header: header_raw.into(),
             rollup_transactions,
             rollup_transactions_proof: rollup_transactions_proof.into(),

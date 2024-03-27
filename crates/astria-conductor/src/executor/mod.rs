@@ -530,10 +530,10 @@ impl ExecutableBlock {
             transactions,
             ..
         } = block;
-        let timestamp = convert_tendermint_time_to_protobuf_timestamp(header.time);
+        let timestamp = convert_tendermint_time_to_protobuf_timestamp(header.time());
         Self {
             hash: block_hash,
-            height: header.height,
+            height: header.height(),
             timestamp,
             transactions,
         }
@@ -542,7 +542,7 @@ impl ExecutableBlock {
     fn from_sequencer(block: FilteredSequencerBlock, id: RollupId) -> Self {
         let hash = block.block_hash();
         let height = block.height();
-        let timestamp = convert_tendermint_time_to_protobuf_timestamp(block.cometbft_header().time);
+        let timestamp = convert_tendermint_time_to_protobuf_timestamp(block.header().time());
         let FilteredSequencerBlockParts {
             mut rollup_transactions,
             ..

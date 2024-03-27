@@ -28,14 +28,7 @@ fn sequencer_block_from_cometbft_block_gives_expected_merkle_proofs() {
         );
     }
 
-    let data_hash: [u8; 32] = sequencer_block
-        .header
-        .cometbft_header
-        .data_hash
-        .unwrap()
-        .as_bytes()
-        .try_into()
-        .unwrap();
+    let data_hash: [u8; 32] = sequencer_block.header.data_hash;
     assert!(
         sequencer_block
             .rollup_transactions_proof

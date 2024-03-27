@@ -98,15 +98,14 @@ impl SequencerService for SequencerServer {
             .await
             .map_err(|e| Status::internal(format!("failed to get block hash from storage: {e}")))?;
 
-        let header_parts = snapshot
+        let header = snapshot
             .get_sequencer_block_header_by_hash(&block_hash)
             .await
             .map_err(|e| {
                 Status::internal(format!(
                     "failed to get sequencer block header from storage: {e}"
                 ))
-            })?
-            .into_parts();
+            })?;
 
         let (rollup_transactions_proof, rollup_ids_proof) = snapshot
             .get_block_proofs_by_block_hash(&block_hash)
@@ -143,12 +142,13 @@ impl SequencerService for SequencerServer {
         let all_rollup_ids = all_rollup_ids.into_iter().map(RollupId::to_vec).collect();
 
         let block = RawFilteredSequencerBlock {
-            cometbft_header: Some(header_parts.cometbft_header.into()),
+            block_hash: block_hash.to_vec(),
+            header: Some(header.into_raw()),
             rollup_transactions,
-            rollup_transactions_root: header_parts.rollup_transactions_root.to_vec(),
             rollup_transactions_proof: rollup_transactions_proof.into(),
             rollup_ids_proof: rollup_ids_proof.into(),
             all_rollup_ids,
+            ..Default::default()
         };
 
         Ok(Response::new(block))
@@ -228,15 +228,6 @@ mod test {
         };
         let request = Request::new(request);
         let response = server.get_sequencer_block(request).await.unwrap();
-        assert_eq!(
-            response
-                .into_inner()
-                .header
-                .unwrap()
-                .cometbft_header
-                .unwrap()
-                .height,
-            1
-        );
+        assert_eq!(response.into_inner().header.unwrap().height, 1);
     }
 }

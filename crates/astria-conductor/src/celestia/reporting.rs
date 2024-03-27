@@ -24,7 +24,7 @@ where
     {
         let mut seq = serializer.serialize_seq(Some(self.0.len()))?;
         for elem in self.0 {
-            seq.serialize_element(&elem.get_height().value())?;
+            seq.serialize_element(&elem.get_height())?;
         }
         seq.end()
     }
