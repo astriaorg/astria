@@ -124,3 +124,278 @@ pub(crate) trait StateWriteExt: StateWrite {
 }
 
 impl<T: StateWrite> StateWriteExt for T {}
+
+#[cfg(test)]
+mod test {
+    use astria_core::sequencer::v1::{
+        asset::Id,
+        Address,
+    };
+    use cnidarium::StateDelta;
+    use ibc_types::core::channel::ChannelId;
+
+    use super::{
+        StateReadExt as _,
+        StateWriteExt as _,
+    };
+
+    #[tokio::test]
+    async fn get_ibc_sudo_address_fails_if_not_set() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let state = StateDelta::new(snapshot);
+
+        // should fail if not set
+        state
+            .get_ibc_sudo_address()
+            .await
+            .expect_err("sudo address should be set");
+    }
+
+    #[tokio::test]
+    async fn put_ibc_sudo_address() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // can write new
+        let mut address_expected = Address::try_from_slice(&[42u8; 20]).unwrap();
+        state
+            .put_ibc_sudo_address(address_expected)
+            .expect("writing sudo address should not fail");
+        assert_eq!(
+            state
+                .get_ibc_sudo_address()
+                .await
+                .expect("a sudo address was written and must exist inside the database"),
+            address_expected,
+            "stored sudo address was not what was expected"
+        );
+
+        // can rewrite with new value
+        address_expected = Address::try_from_slice(&[41u8; 20]).unwrap();
+        state
+            .put_ibc_sudo_address(address_expected)
+            .expect("writing sudo address should not fail");
+        assert_eq!(
+            state
+                .get_ibc_sudo_address()
+                .await
+                .expect("sudo address was written and must exist inside the database"),
+            address_expected,
+            "updated sudo address was not what was expected"
+        );
+    }
+
+    #[tokio::test]
+    async fn is_ibc_relayer_ok_if_not_set() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let state = StateDelta::new(snapshot);
+
+        // unset address returns false
+        let address_expected = Address::try_from_slice(&[42u8; 20]).unwrap();
+        assert!(
+            !state
+                .is_ibc_relayer(&address_expected)
+                .await
+                .expect("calls to properly formatted addresses should not fail"),
+            "inputted address should've returned false"
+        );
+    }
+
+    #[tokio::test]
+    async fn delete_ibc_relayer_address() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // can write
+        let address_expected = Address::try_from_slice(&[42u8; 20]).unwrap();
+        state.put_ibc_relayer_address(&address_expected);
+        assert!(
+            state
+                .is_ibc_relayer(&address_expected)
+                .await
+                .expect("a relayer address was written and must exist inside the database"),
+            "stored relayer address could not be verified"
+        );
+
+        // can delete
+        state.delete_ibc_relayer_address(&address_expected);
+        assert!(
+            !state
+                .is_ibc_relayer(&address_expected)
+                .await
+                .expect("calls on unset addresses should not fail"),
+            "relayer address was not deleted as was intended"
+        );
+    }
+
+    #[tokio::test]
+    async fn put_ibc_relayer_address() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // can write
+        let address_expected = Address::try_from_slice(&[42u8; 20]).unwrap();
+        state.put_ibc_relayer_address(&address_expected);
+        assert!(
+            state
+                .is_ibc_relayer(&address_expected)
+                .await
+                .expect("a relayer address was written and must exist inside the database"),
+            "stored relayer address could not be verified"
+        );
+
+        // can write multiple
+        let address_expected_1 = Address::try_from_slice(&[41u8; 20]).unwrap();
+        state.put_ibc_relayer_address(&address_expected_1);
+        assert!(
+            state
+                .is_ibc_relayer(&address_expected_1)
+                .await
+                .expect("a relayer address was written and must exist inside the database"),
+            "additional stored relayer address could not be verified"
+        );
+        assert!(
+            state
+                .is_ibc_relayer(&address_expected)
+                .await
+                .expect("a relayer address was written and must exist inside the database"),
+            "original stored relayer address could not be verified"
+        );
+    }
+
+    #[tokio::test]
+    async fn get_ibc_channel_balance_unset_ok() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let state = StateDelta::new(snapshot);
+
+        let channel = ChannelId::new(0u64);
+        let asset = Id::from_denom("asset");
+
+        assert_eq!(
+            state
+                .get_ibc_channel_balance(&channel, asset)
+                .await
+                .expect("retrieving asset balance for channel should not fail"),
+            0u128,
+            "unset asset and channel should return zero"
+        );
+    }
+
+    #[tokio::test]
+    async fn put_ibc_channel_balance_simple() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let channel = ChannelId::new(0u64);
+        let asset = Id::from_denom("asset");
+        let mut expected_amount = 10u128;
+
+        // write initial
+        state
+            .put_ibc_channel_balance(&channel, asset, expected_amount)
+            .expect("should be able to set balance for channel and asset pair");
+        assert_eq!(
+            state
+                .get_ibc_channel_balance(&channel, asset)
+                .await
+                .expect("retrieving asset balance for channel should not fail"),
+            expected_amount,
+            "set balance for channel/asset pair not what was expected"
+        );
+
+        // can update
+        expected_amount = 20u128;
+        state
+            .put_ibc_channel_balance(&channel, asset, expected_amount)
+            .expect("should be able to set balance for channel and asset pair");
+        assert_eq!(
+            state
+                .get_ibc_channel_balance(&channel, asset)
+                .await
+                .expect("retrieving asset balance for channel should not fail"),
+            expected_amount,
+            "set balance for channel/asset pair not what was expected"
+        );
+    }
+
+    #[tokio::test]
+    async fn put_ibc_channel_balance_mutliple_assets() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let channel = ChannelId::new(0u64);
+        let asset_0 = Id::from_denom("asset_0");
+        let asset_1 = Id::from_denom("asset_1");
+        let expected_amount_0 = 10u128;
+        let expected_amount_1 = 20u128;
+
+        // write both
+        state
+            .put_ibc_channel_balance(&channel, asset_0, expected_amount_0)
+            .expect("should be able to set balance for channel and asset pair");
+        state
+            .put_ibc_channel_balance(&channel, asset_1, expected_amount_1)
+            .expect("should be able to set balance for channel and asset pair");
+        assert_eq!(
+            state
+                .get_ibc_channel_balance(&channel, asset_0)
+                .await
+                .expect("retrieving asset balance for channel should not fail"),
+            expected_amount_0,
+            "set balance for channel/asset pair not what was expected"
+        );
+        assert_eq!(
+            state
+                .get_ibc_channel_balance(&channel, asset_1)
+                .await
+                .expect("retrieving asset balance for channel should not fail"),
+            expected_amount_1,
+            "set balance for channel/asset pair not what was expected"
+        );
+    }
+
+    #[tokio::test]
+    async fn put_ibc_channel_balance_mutliple_channels() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let channel_0 = ChannelId::new(0u64);
+        let channel_1 = ChannelId::new(1u64);
+        let asset = Id::from_denom("asset_0");
+        let expected_amount_0 = 10u128;
+        let expected_amount_1 = 20u128;
+
+        // write both
+        state
+            .put_ibc_channel_balance(&channel_0, asset, expected_amount_0)
+            .expect("should be able to set balance for channel and asset pair");
+        state
+            .put_ibc_channel_balance(&channel_1, asset, expected_amount_1)
+            .expect("should be able to set balance for channel and asset pair");
+        assert_eq!(
+            state
+                .get_ibc_channel_balance(&channel_0, asset)
+                .await
+                .expect("retrieving asset balance for channel should not fail"),
+            expected_amount_0,
+            "set balance for channel/asset pair not what was expected"
+        );
+        assert_eq!(
+            state
+                .get_ibc_channel_balance(&channel_1, asset)
+                .await
+                .expect("retrieving asset balance for channel should not fail"),
+            expected_amount_1,
+            "set balance for channel/asset pair not what was expected"
+        );
+    }
+}
