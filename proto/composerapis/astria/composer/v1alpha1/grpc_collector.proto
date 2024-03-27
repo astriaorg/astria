@@ -2,17 +2,29 @@ syntax = 'proto3';
 
 package astria.composer.v1alpha1;
 
-import "google/protobuf/empty.proto";
-
-message RollupTx {
-  string rollup_id = 1;
-  bytes tx_bytes = 2;
+// RollupTransaction is a message that represents a single rollup transaction that is to be submitted to the
+// Shared Sequencer Network via the Composer
+message RollupTransaction {
+  // the unhashed rollup id
+  bytes rollup_id = 1;
+  // the raw data bytes of the rollup transaction
+  bytes data = 2;
 }
 
-message SubmitRollupTxsRequest {
-  repeated RollupTx rollup_txs = 1;
+// SubmitRollupTransactionsRequest contains a batch of rollup transactions to be submitted to the Shared Sequencer
+// Network via the Composer
+message SubmitRollupTransactionsRequest {
+  // an array of rollup transactions to be submitted
+  repeated RollupTransaction rollup_transactions = 1;
 }
 
+// SubmitRollupTransactionsResponse is a message that represents a response to a request to submit a batch of rollup.
+// It's currently an empty response which can be evolved in the future to include more information
+message SubmitRollupTransactionsResponse {}
+
+// GrpcCollectorService is a service that defines the gRPC collector of the Composer
 service GrpcCollectorService {
-  rpc SubmitRollupTxs(SubmitRollupTxsRequest) returns (google.protobuf.Empty) {}
+  // SubmitRollupTransactions submits a batch of rollup transactions to the Composer.
+  // The transactions sent are bundled up and submitted to the Shared Sequencer Network.
+  rpc SubmitRollupTransactions(SubmitRollupTransactionsRequest) returns (SubmitRollupTransactionsResponse) {}
 }

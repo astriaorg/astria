@@ -50,8 +50,8 @@ tokio = { workspace = true, features = [
 tokio-util = { workspace = true, features = ["rt"] }
 tracing = { workspace = true, features = ["attributes"] }
 tryhard = { workspace = true }
-tonic = "0.10.2"
-tokio-stream = { version = "0.1.14", features = ["net"] }
+tonic = { workspace = true }
+tokio-stream = { workspace = true, features = ["net"] }
 tonic-health = "0.10.2"
 
 [dependencies.sequencer-client]

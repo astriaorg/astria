@@ -3,8 +3,6 @@ name: buf.build/astria/composer-apis
 breaking:
   use:
     - FILE
-deps:
-  - buf.build/googleapis/googleapis
 lint:
   use:
     - BASIC

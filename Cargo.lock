@@ -7821,7 +7821,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f80db390246dfb46553481f6024f0082ba00178ea495dbb99e70ba9a4fafb5e1"
 dependencies = [
  "async-stream",
- "prost 0.12.3",
+ "prost",
  "tokio",
  "tokio-stream",
  "tonic 0.10.2",

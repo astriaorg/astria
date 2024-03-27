@@ -79,8 +79,6 @@ _lint-proto:
 defaultNamespace := "astria-dev-cluster"
 deploy tool *ARGS:
   @just deploy-{{tool}} {{ARGS}}
-=======
->>>>>>> 9a6271b (move executor and geth collectors to the composer)
 
 delete tool *ARGS:
   @just delete-{{tool}} {{ARGS}}

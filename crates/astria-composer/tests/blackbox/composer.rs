@@ -4,8 +4,8 @@ use astria_core::{
     generated::{
         composer::v1alpha1::{
             grpc_collector_service_client::GrpcCollectorServiceClient,
-            RollupTx,
-            SubmitRollupTxsRequest,
+            RollupTransaction,
+            SubmitRollupTransactionsRequest,
         },
         sequencer::v1::NonceResponse,
     },
@@ -71,7 +71,8 @@ async fn tx_from_one_rollup_is_received_by_sequencer_from_grpc_collector() {
     .await
     .expect("setup guard failed");
 
-    let expected_chain_ids = vec![RollupId::from_unhashed_bytes("test1")];
+    let rollup_id = RollupId::from_unhashed_bytes("test1");
+    let expected_chain_ids = vec![rollup_id];
     let mock_guard =
         mount_broadcast_tx_sync_mock(&test_composer.sequencer, expected_chain_ids, vec![0]).await;
 
@@ -84,10 +85,10 @@ async fn tx_from_one_rollup_is_received_by_sequencer_from_grpc_collector() {
     .await
     .unwrap();
     composer_client
-        .submit_rollup_txs(SubmitRollupTxsRequest {
-            rollup_txs: vec![RollupTx {
-                rollup_id: "test1".to_string(),
-                tx_bytes: tx.rlp().to_vec(),
+        .submit_rollup_transactions(SubmitRollupTransactionsRequest {
+            rollup_transactions: vec![RollupTransaction {
+                rollup_id: rollup_id.as_ref().to_vec(),
+                data: tx.rlp().to_vec(),
             }],
         })
         .await
@@ -214,7 +215,8 @@ async fn invalid_nonce_failure_causes_tx_resubmission_under_different_nonce_grpc
 
     // Spawn a composer with a mock sequencer and a mock rollup node
     // Initial nonce is 0
-    let test_composer = spawn_composer(&["test1"]).await;
+    let rollup_id = RollupId::from_unhashed_bytes("test1");
+    let test_composer = spawn_composer(&[rollup_id.to_string().as_str()]).await;
     tokio::time::timeout(
         Duration::from_millis(100),
         test_composer.setup_guard.wait_until_satisfied(),
@@ -223,11 +225,8 @@ async fn invalid_nonce_failure_causes_tx_resubmission_under_different_nonce_grpc
     .expect("setup guard failed");
 
     // Reject the first transaction for invalid nonce
-    let invalid_nonce_guard = mount_broadcast_tx_sync_invalid_nonce_mock(
-        &test_composer.sequencer,
-        RollupId::from_unhashed_bytes("test1"),
-    )
-    .await;
+    let invalid_nonce_guard =
+        mount_broadcast_tx_sync_invalid_nonce_mock(&test_composer.sequencer, rollup_id).await;
 
     // Mount a response of 0 to a nonce query
     let nonce_refetch_guard = mount_abci_query_mock(
@@ -240,7 +239,7 @@ async fn invalid_nonce_failure_causes_tx_resubmission_under_different_nonce_grpc
     )
     .await;
 
-    let expected_chain_ids = vec![RollupId::from_unhashed_bytes("test1")];
+    let expected_chain_ids = vec![rollup_id];
     // Expect nonce 1 again so that the resubmitted tx is accepted
     let valid_nonce_guard =
         mount_broadcast_tx_sync_mock(&test_composer.sequencer, expected_chain_ids, vec![1]).await;
@@ -256,10 +255,10 @@ async fn invalid_nonce_failure_causes_tx_resubmission_under_different_nonce_grpc
     .await
     .unwrap();
     composer_client
-        .submit_rollup_txs(SubmitRollupTxsRequest {
-            rollup_txs: vec![RollupTx {
-                rollup_id: "test1".to_string(),
-                tx_bytes: tx.rlp().to_vec(),
+        .submit_rollup_transactions(SubmitRollupTransactionsRequest {
+            rollup_transactions: vec![RollupTransaction {
+                rollup_id: rollup_id.as_ref().to_vec(),
+                data: tx.rlp().to_vec(),
             }],
         })
         .await
@@ -319,6 +318,7 @@ async fn single_rollup_tx_payload_integrity_geth_collector() {
 async fn single_rollup_tx_payload_integrity_grpc_collector() {
     // Spawn a composer with a mock sequencer and a mock rollup node
     // Initial nonce is 0
+    let rollup_id = RollupId::from_unhashed_bytes("test1");
     let test_composer = spawn_composer(&[]).await;
     tokio::time::timeout(
         Duration::from_millis(100),
@@ -339,10 +339,10 @@ async fn single_rollup_tx_payload_integrity_grpc_collector() {
     .await
     .unwrap();
     composer_client
-        .submit_rollup_txs(SubmitRollupTxsRequest {
-            rollup_txs: vec![RollupTx {
-                rollup_id: "test1".to_string(),
-                tx_bytes: tx.rlp().to_vec(),
+        .submit_rollup_transactions(SubmitRollupTransactionsRequest {
+            rollup_transactions: vec![RollupTransaction {
+                rollup_id: rollup_id.as_ref().to_vec(),
+                data: tx.rlp().to_vec(),
             }],
         })
         .await

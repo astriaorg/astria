@@ -76,7 +76,7 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
         no_metrics: true,
         metrics_http_listener_addr: String::new(),
         pretty_print: true,
-        grpc_collector_addr: "127.0.0.1:0".parse().unwrap(),
+        grpc_addr: "127.0.0.1:0".parse().unwrap(),
     };
     let (composer_addr, grpc_collector_addr, composer_handle) = {
         let composer = Composer::from_config(&config).await.unwrap();

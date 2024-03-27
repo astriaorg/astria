@@ -72,6 +72,7 @@ data:
   {{- end }}
   {{- if not .Values.global.dev }}
   {{- else }}
+  ASTRIA_COMPOSER_GRPC_ADDR: "0.0.0.0:0"
   {{- end }}
 ---
 apiVersion: v1

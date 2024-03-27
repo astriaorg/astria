@@ -1,23 +1,36 @@
+/// RollupTransaction is a message that represents a single rollup transaction that is to be submitted to the
+/// Shared Sequencer Network via the Composer
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct RollupTx {
-    #[prost(string, tag = "1")]
-    pub rollup_id: ::prost::alloc::string::String,
+pub struct RollupTransaction {
+    /// the unhashed rollup id
+    #[prost(bytes = "vec", tag = "1")]
+    pub rollup_id: ::prost::alloc::vec::Vec<u8>,
+    /// the raw data bytes of the rollup transaction
     #[prost(bytes = "vec", tag = "2")]
-    pub tx_bytes: ::prost::alloc::vec::Vec<u8>,
+    pub data: ::prost::alloc::vec::Vec<u8>,
 }
+/// SubmitRollupTransactionsRequest contains a batch of rollup transactions to be submitted to the Shared Sequencer
+/// Network via the Composer
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct SubmitRollupTxsRequest {
+pub struct SubmitRollupTransactionsRequest {
+    /// an array of rollup transactions to be submitted
     #[prost(message, repeated, tag = "1")]
-    pub rollup_txs: ::prost::alloc::vec::Vec<RollupTx>,
+    pub rollup_transactions: ::prost::alloc::vec::Vec<RollupTransaction>,
 }
+/// SubmitRollupTransactionsResponse is a message that represents a response to a request to submit a batch of rollup.
+/// It's currently an empty response which can be evolved in the future to include more information
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct SubmitRollupTransactionsResponse {}
 /// Generated client implementations.
 #[cfg(feature = "client")]
 pub mod grpc_collector_service_client {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
     use tonic::codegen::*;
     use tonic::codegen::http::Uri;
+    /// GrpcCollectorService is a service that defines the gRPC collector of the Composer
     #[derive(Debug, Clone)]
     pub struct GrpcCollectorServiceClient<T> {
         inner: tonic::client::Grpc<T>,
@@ -98,10 +111,15 @@ pub mod grpc_collector_service_client {
             self.inner = self.inner.max_encoding_message_size(limit);
             self
         }
-        pub async fn submit_rollup_txs(
+        /// SubmitRollupTransactions submits a batch of rollup transactions to the Composer.
+        /// The transactions sent are bundled up and submitted to the Shared Sequencer Network.
+        pub async fn submit_rollup_transactions(
             &mut self,
-            request: impl tonic::IntoRequest<super::SubmitRollupTxsRequest>,
-        ) -> std::result::Result<tonic::Response<()>, tonic::Status> {
+            request: impl tonic::IntoRequest<super::SubmitRollupTransactionsRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::SubmitRollupTransactionsResponse>,
+            tonic::Status,
+        > {
             self.inner
                 .ready()
                 .await
@@ -113,14 +131,14 @@ pub mod grpc_collector_service_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria.composer.v1alpha1.GrpcCollectorService/SubmitRollupTxs",
+                "/astria.composer.v1alpha1.GrpcCollectorService/SubmitRollupTransactions",
             );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
                     GrpcMethod::new(
                         "astria.composer.v1alpha1.GrpcCollectorService",
-                        "SubmitRollupTxs",
+                        "SubmitRollupTransactions",
                     ),
                 );
             self.inner.unary(req, path, codec).await
@@ -135,11 +153,17 @@ pub mod grpc_collector_service_server {
     /// Generated trait containing gRPC methods that should be implemented for use with GrpcCollectorServiceServer.
     #[async_trait]
     pub trait GrpcCollectorService: Send + Sync + 'static {
-        async fn submit_rollup_txs(
-            &self,
-            request: tonic::Request<super::SubmitRollupTxsRequest>,
-        ) -> std::result::Result<tonic::Response<()>, tonic::Status>;
+        /// SubmitRollupTransactions submits a batch of rollup transactions to the Composer.
+        /// The transactions sent are bundled up and submitted to the Shared Sequencer Network.
+        async fn submit_rollup_transactions(
+            self: std::sync::Arc<Self>,
+            request: tonic::Request<super::SubmitRollupTransactionsRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::SubmitRollupTransactionsResponse>,
+            tonic::Status,
+        >;
     }
+    /// GrpcCollectorService is a service that defines the gRPC collector of the Composer
     #[derive(Debug)]
     pub struct GrpcCollectorServiceServer<T: GrpcCollectorService> {
         inner: _Inner<T>,
@@ -220,26 +244,30 @@ pub mod grpc_collector_service_server {
         fn call(&mut self, req: http::Request<B>) -> Self::Future {
             let inner = self.inner.clone();
             match req.uri().path() {
-                "/astria.composer.v1alpha1.GrpcCollectorService/SubmitRollupTxs" => {
+                "/astria.composer.v1alpha1.GrpcCollectorService/SubmitRollupTransactions" => {
                     #[allow(non_camel_case_types)]
-                    struct SubmitRollupTxsSvc<T: GrpcCollectorService>(pub Arc<T>);
+                    struct SubmitRollupTransactionsSvc<T: GrpcCollectorService>(
+                        pub Arc<T>,
+                    );
                     impl<
                         T: GrpcCollectorService,
-                    > tonic::server::UnaryService<super::SubmitRollupTxsRequest>
-                    for SubmitRollupTxsSvc<T> {
-                        type Response = ();
+                    > tonic::server::UnaryService<super::SubmitRollupTransactionsRequest>
+                    for SubmitRollupTransactionsSvc<T> {
+                        type Response = super::SubmitRollupTransactionsResponse;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,
                         >;
                         fn call(
                             &mut self,
-                            request: tonic::Request<super::SubmitRollupTxsRequest>,
+                            request: tonic::Request<
+                                super::SubmitRollupTransactionsRequest,
+                            >,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as GrpcCollectorService>::submit_rollup_txs(
-                                        &inner,
+                                <T as GrpcCollectorService>::submit_rollup_transactions(
+                                        inner,
                                         request,
                                     )
                                     .await
@@ -254,7 +282,7 @@ pub mod grpc_collector_service_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let inner = inner.0;
-                        let method = SubmitRollupTxsSvc(inner);
+                        let method = SubmitRollupTransactionsSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(

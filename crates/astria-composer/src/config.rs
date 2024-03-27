@@ -56,7 +56,7 @@ pub struct Config {
     pub pretty_print: bool,
 
     /// The address at which the generic collector is listening
-    pub grpc_collector_addr: SocketAddr,
+    pub grpc_addr: SocketAddr,
 }
 
 impl config::Config for Config {
