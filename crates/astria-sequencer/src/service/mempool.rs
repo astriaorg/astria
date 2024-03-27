@@ -6,11 +6,19 @@ use std::{
     },
 };
 
+use astria_core::{
+    generated::sequencer::v1 as raw,
+    sequencer::v1::{
+        AbciErrorCode,
+        SignedTransaction,
+    },
+};
 use cnidarium::Storage;
 use futures::{
     Future,
     FutureExt,
 };
+use prost::Message as _;
 use tendermint::v0_37::abci::{
     request,
     response,
@@ -21,7 +29,10 @@ use tower::Service;
 use tower_abci::BoxError;
 use tracing::Instrument;
 
-use crate::accounts::state_ext::StateReadExt;
+use crate::{
+    accounts::state_ext::StateReadExt,
+    transaction,
+};
 
 const MAX_TX_SIZE: usize = 256_000; // 256 KB
 
@@ -68,21 +79,16 @@ impl Service<MempoolRequest> for Mempool {
     }
 }
 
+// Handles a [`request::CheckTx`] request.
+//
+// Performs stateless checks (decoding and signature check),
+// as well as stateful checks (nonce and balance checks).
+//
+// If the tx passes all checks, status code 0 is returned.
 async fn handle_check_tx<S: StateReadExt + 'static>(
     req: request::CheckTx,
     state: S,
 ) -> response::CheckTx {
-    use astria_core::{
-        generated::sequencer::v1 as raw,
-        sequencer::v1::{
-            AbciErrorCode,
-            SignedTransaction,
-        },
-    };
-    use prost::Message as _;
-
-    use crate::transaction;
-
     let request::CheckTx {
         tx, ..
     } = req;
@@ -123,10 +129,15 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
         }
     };
 
-    // if the tx passes the check, status code 0 is returned.
-    // TODO(https://github.com/astriaorg/astria/issues/228): status codes for various errors
-    // TODO(https://github.com/astriaorg/astria/issues/319): offload `check_stateless` using `deliver_tx_bytes` mechanism
-    //       and a worker task similar to penumbra
+    if let Err(e) = transaction::check_stateless(&signed_tx).await {
+        return response::CheckTx {
+            code: AbciErrorCode::INVALID_PARAMETER.into(),
+            info: "transaction failed stateless check".into(),
+            log: format!("{e:?}"),
+            ..response::CheckTx::default()
+        };
+    };
+
     if let Err(e) = transaction::check_nonce_mempool(&signed_tx, &state).await {
         return response::CheckTx {
             code: AbciErrorCode::INVALID_NONCE.into(),
@@ -136,13 +147,14 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
         };
     };
 
-    match transaction::check_stateless(&signed_tx).await {
-        Ok(()) => response::CheckTx::default(),
-        Err(e) => response::CheckTx {
-            code: AbciErrorCode::INVALID_PARAMETER.into(),
-            info: "transaction failed stateless check".into(),
+    if let Err(e) = transaction::check_balance_mempool(&signed_tx, &state).await {
+        return response::CheckTx {
+            code: AbciErrorCode::INSUFFICIENT_FUNDS.into(),
+            info: "failed verifying account balance".into(),
             log: format!("{e:?}"),
             ..response::CheckTx::default()
-        },
-    }
+        };
+    };
+
+    response::CheckTx::default()
 }
