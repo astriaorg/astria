@@ -72,3 +72,162 @@ pub(crate) trait StateWriteExt: StateWrite {
 }
 
 impl<T: StateWrite> StateWriteExt for T {}
+
+#[cfg(test)]
+mod test {
+    use astria_core::sequencer::v1::asset::{
+        Denom,
+        Id,
+    };
+    use cnidarium::StateDelta;
+
+    use super::{
+        StateReadExt as _,
+        StateWriteExt as _,
+    };
+
+    #[tokio::test]
+    async fn get_ibc_asset_non_existent() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let state = StateDelta::new(snapshot);
+
+        let asset = Id::from_denom("asset_0");
+
+        // gets for non existing assets fail
+        state
+            .get_ibc_asset(asset)
+            .await
+            .expect_err("gets for non existing ibc assets should fail");
+    }
+
+    #[tokio::test]
+    async fn has_ibc_asset() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let asset_string = "asset_0";
+        let asset = Id::from_denom(asset_string);
+        let denom = Denom::from_base_denom(asset_string);
+
+        // non existing calls are ok for 'has'
+        assert!(
+            !state
+                .has_ibc_asset(asset)
+                .await
+                .expect("'has' for non existing ibc assets should be ok"),
+            "query for non existing asset should return false"
+        );
+
+        state
+            .put_ibc_asset(asset, &denom)
+            .expect("putting ibc asset should not fail");
+
+        // existing calls are ok for 'has'
+        assert!(
+            state
+                .has_ibc_asset(asset)
+                .await
+                .expect("'has' for existing ibc assets should be ok"),
+            "query for existing asset should return true"
+        );
+    }
+
+    #[tokio::test]
+    async fn put_ibc_asset_simple() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // can write new
+        let asset_string = "asset_0";
+        let asset = Id::from_denom(asset_string);
+        let denom = Denom::from_base_denom(asset_string);
+        state
+            .put_ibc_asset(asset, &denom)
+            .expect("putting ibc asset should not fail");
+        assert_eq!(
+            state
+                .get_ibc_asset(asset)
+                .await
+                .expect("an ibc asset was written and must exist inside the database"),
+            denom,
+            "stored ibc asset was not what was expected"
+        );
+    }
+
+    #[tokio::test]
+    async fn put_ibc_asset_complex() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // can write new
+        let asset_string = "asset_0";
+        let asset = Id::from_denom(asset_string);
+        let denom = Denom::from_base_denom(asset_string);
+        state
+            .put_ibc_asset(asset, &denom)
+            .expect("putting ibc asset should not fail");
+        assert_eq!(
+            state
+                .get_ibc_asset(asset)
+                .await
+                .expect("an ibc asset was written and must exist inside the database"),
+            denom,
+            "stored ibc asset was not what was expected"
+        );
+
+        // can write another without affecting original
+        let asset_string_1 = "asset_1";
+        let asset_1 = Id::from_denom(asset_string_1);
+        let denom_1 = Denom::from_base_denom(asset_string_1);
+        state
+            .put_ibc_asset(asset_1, &denom_1)
+            .expect("putting ibc asset should not fail");
+        assert_eq!(
+            state
+                .get_ibc_asset(asset_1)
+                .await
+                .expect("an additional ibc asset was written and must exist inside the database"),
+            denom_1,
+            "additional ibc asset was not what was expected"
+        );
+        assert_eq!(
+            state
+                .get_ibc_asset(asset)
+                .await
+                .expect("an ibc asset was written and must exist inside the database"),
+            denom,
+            "original ibc asset was not what was expected"
+        );
+    }
+
+    #[tokio::test]
+    async fn put_ibc_asset_can_write_unrelated_ids_to_denoms() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // can write unrelated ids and denoms
+        let id_string = "asset_0";
+        let id_key = Id::from_denom(id_string);
+        let denom_string = "asset_1";
+        let denom = Denom::from_base_denom(denom_string);
+        state
+            .put_ibc_asset(id_key, &denom)
+            .expect("putting ibc asset should not fail");
+
+        // see that id key and denom's stored id differ
+        assert_ne!(
+            state
+                .get_ibc_asset(id_key)
+                .await
+                .expect("an ibc asset was written and must exist inside the database")
+                .id(),
+            id_key,
+            "stored ibc asset was not what was expected"
+        );
+    }
+}
