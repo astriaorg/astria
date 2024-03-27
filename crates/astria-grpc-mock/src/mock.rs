@@ -12,6 +12,10 @@ use super::{
     response::Respond,
     AnyMessage,
 };
+use crate::{
+    mock_server::MockGuard,
+    MockServer,
+};
 
 pub trait Match: Send + Sync {
     fn matches(&self, req: &tonic::Request<AnyMessage>) -> bool;
@@ -52,6 +56,14 @@ impl Mock {
     pub fn with_name(mut self, name: impl Into<String>) -> Self {
         self.name.replace(name.into());
         self
+    }
+
+    pub async fn mount(self, server: &MockServer) {
+        server.register(self).await;
+    }
+
+    pub async fn mount_as_scoped(self, server: &MockServer) -> MockGuard {
+        server.register_as_scoped(self).await
     }
 }
 
