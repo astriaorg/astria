@@ -28,20 +28,20 @@ fmt lang=default_lang:
 lint lang=default_lang:
   @just _lint-{{lang}}
 
-_fmt-all: 
-  @just _fmt-rust 
+_fmt-all:
+  @just _fmt-rust
   @just _fmt-toml
   @just _fmt-proto
 
-@_lint-all: 
-  -just _lint-rust 
-  -just _lint-toml 
+@_lint-all:
+  -just _lint-rust
+  -just _lint-toml
   -just _lint-proto
   -just _lint-md
 
 [no-exit-message]
 _fmt-rust:
-  cargo +nightly-2024-02-07 fmt --all 
+  cargo +nightly-2024-02-07 fmt --all
 
 [no-exit-message]
 _lint-rust:
@@ -134,7 +134,7 @@ wait-for-ingress-controller:
 
 validatorName := "single"
 deploy-sequencer name=validatorName:
-  @helm dependency build charts/sequencer | true
+  helm dependency build charts/sequencer > /dev/null
   helm install --debug \
     {{ replace('-f dev/values/validators/#.yml' , '#', name) }} \
     -n astria-validator-{{name}} --create-namespace \
@@ -155,7 +155,7 @@ defaultGenesisAllocAddress := ""
 defaultPrivateKey          := ""
 defaultSequencerStartBlock := ""
 deploy-rollup rollupName=defaultRollupName networkId=defaultNetworkId genesisAllocAddress=defaultGenesisAllocAddress privateKey=defaultPrivateKey sequencerStartBlock=defaultSequencerStartBlock:
-  helm dependency build charts/evm-rollup | true
+  helm dependency build charts/evm-rollup > /dev/null
   helm install \
     {{ if rollupName          != '' { replace('--set config.rollup.name=# --set celestia-node.config.labelPrefix=#', '#', rollupName) } else { '' } }} \
     {{ if networkId           != '' { replace('--set config.rollup.networkId=#', '#', networkId) } else { '' } }} \
@@ -165,7 +165,7 @@ deploy-rollup rollupName=defaultRollupName networkId=defaultNetworkId genesisAll
     {{rollupName}}-chain-chart ./charts/evm-rollup --namespace astria-dev-cluster
 
 deploy-dev-rollup rollupName=defaultRollupName networkId=defaultNetworkId genesisAllocAddress=defaultGenesisAllocAddress privateKey=defaultPrivateKey sequencerStartBlock=defaultSequencerStartBlock:
-  helm dependency build charts/evm-rollup | true
+  helm dependency build charts/evm-rollup > /dev/null
   helm install \
     {{ if rollupName          != '' { replace('--set config.rollup.name=# --set celestia-node.config.labelPrefix=#', '#', rollupName) } else { '' } }} \
     {{ if networkId           != '' { replace('--set config.rollup.networkId=#', '#', networkId) } else { '' } }} \
@@ -228,4 +228,3 @@ delete-smoke-test:
   just delete celestia-local
   just delete sequencer
   just delete rollup
-
