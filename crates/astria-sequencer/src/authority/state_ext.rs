@@ -178,3 +178,319 @@ pub(crate) trait StateWriteExt: StateWrite {
 }
 
 impl<T: StateWrite> StateWriteExt for T {}
+
+#[cfg(test)]
+mod test {
+    use astria_core::sequencer::v1::Address;
+    use cnidarium::StateDelta;
+    use tendermint::{
+        validator,
+        vote,
+        PublicKey,
+    };
+
+    use super::{
+        StateReadExt as _,
+        StateWriteExt as _,
+        ValidatorSet,
+    };
+
+    #[tokio::test]
+    async fn sudo_address() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // doesn't exist at first
+        state
+            .get_sudo_address()
+            .await
+            .expect_err("no sudo address should exist at first");
+
+        // can write new
+        let mut address_expected = Address::try_from_slice(&[42u8; 20]).unwrap();
+        state
+            .put_sudo_address(address_expected)
+            .expect("writing sudo address should not fail");
+        assert_eq!(
+            state
+                .get_sudo_address()
+                .await
+                .expect("a sudo address was written and must exist inside the database"),
+            address_expected,
+            "stored sudo address was not what was expected"
+        );
+
+        // can rewrite with new value
+        address_expected = Address::try_from_slice(&[41u8; 20]).unwrap();
+        state
+            .put_sudo_address(address_expected)
+            .expect("writing sudo address should not fail");
+        assert_eq!(
+            state
+                .get_sudo_address()
+                .await
+                .expect("a new sudo address was written and must exist inside the database"),
+            address_expected,
+            "updated sudo address was not what was expected"
+        );
+    }
+
+    #[tokio::test]
+    async fn validator_set_uninitialized_fails() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let state = StateDelta::new(snapshot);
+
+        // doesn't exist at first
+        state
+            .get_validator_set()
+            .await
+            .expect_err("no validator set should exist at first");
+    }
+
+    #[tokio::test]
+    async fn put_validator_set() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let initial = vec![validator::Update {
+            pub_key: PublicKey::from_raw_ed25519(&[1u8; 32])
+                .expect("creating ed25519 key should not fail"),
+            power: vote::Power::from(10u32),
+        }];
+        let intial_validator_set = ValidatorSet::new_from_updates(initial);
+
+        // can write new
+        state
+            .put_validator_set(intial_validator_set.clone())
+            .expect("writing initial validator set should not fail");
+        assert_eq!(
+            state
+                .get_validator_set()
+                .await
+                .expect("a validator set was written and must exist inside the database"),
+            intial_validator_set,
+            "stored validator set was not what was expected"
+        );
+
+        // can update
+        let updates = vec![validator::Update {
+            pub_key: PublicKey::from_raw_ed25519(&[2u8; 32])
+                .expect("creating ed25519 key should not fail"),
+            power: vote::Power::from(20u32),
+        }];
+        let updated_validator_set = ValidatorSet::new_from_updates(updates);
+        state
+            .put_validator_set(updated_validator_set.clone())
+            .expect("writing update validator set should not fail");
+        assert_eq!(
+            state
+                .get_validator_set()
+                .await
+                .expect("a validator set was written and must exist inside the database"),
+            updated_validator_set,
+            "stored validator set was not what was expected"
+        );
+    }
+
+    #[tokio::test]
+    async fn get_validator_updates_empty() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let state = StateDelta::new(snapshot);
+
+        // create update validator set
+        let empty_validator_set = ValidatorSet::new_from_updates(vec![]);
+
+        // querying for empty validator set is ok
+        assert_eq!(
+            state
+                .get_validator_updates()
+                .await
+                .expect("if no updates have been written return empty set"),
+            empty_validator_set,
+            "returned empty validator set different than expected"
+        );
+    }
+
+    #[tokio::test]
+    async fn put_validator_updates() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // create update validator set
+        let mut updates = vec![
+            validator::Update {
+                pub_key: PublicKey::from_raw_ed25519(&[1u8; 32])
+                    .expect("creating ed25519 key should not fail"),
+                power: vote::Power::from(10u32),
+            },
+            validator::Update {
+                pub_key: PublicKey::from_raw_ed25519(&[2u8; 32])
+                    .expect("creating ed25519 key should not fail"),
+                power: vote::Power::from(0u32),
+            },
+        ];
+        let mut validator_set_updates = ValidatorSet::new_from_updates(updates);
+
+        // put validator updates
+        state
+            .put_validator_updates(validator_set_updates.clone())
+            .expect("writing update validator set should not fail");
+        assert_eq!(
+            state
+                .get_validator_updates()
+                .await
+                .expect("an update validator set was written and must exist inside the database"),
+            validator_set_updates,
+            "stored update validator set was not what was expected"
+        );
+
+        // create different updates
+        updates = vec![
+            validator::Update {
+                pub_key: PublicKey::from_raw_ed25519(&[1u8; 32])
+                    .expect("creating ed25519 key should not fail"),
+                power: vote::Power::from(22u32),
+            },
+            validator::Update {
+                pub_key: PublicKey::from_raw_ed25519(&[3u8; 32])
+                    .expect("creating ed25519 key should not fail"),
+                power: vote::Power::from(10u32),
+            },
+        ];
+
+        validator_set_updates = ValidatorSet::new_from_updates(updates);
+
+        // write different updates
+        state
+            .put_validator_updates(validator_set_updates.clone())
+            .expect("writing update validator set should not fail");
+        assert_eq!(
+            state
+                .get_validator_updates()
+                .await
+                .expect("an update validator set was written and must exist inside the database"),
+            validator_set_updates,
+            "stored update validator set was not what was expected"
+        );
+    }
+
+    #[tokio::test]
+    async fn clear_validator_updates() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // create update validator set
+        let updates = vec![validator::Update {
+            pub_key: PublicKey::from_raw_ed25519(&[1u8; 32])
+                .expect("creating ed25519 key should not fail"),
+            power: vote::Power::from(10u32),
+        }];
+        let validator_set_updates = ValidatorSet::new_from_updates(updates);
+
+        // put validator updates
+        state
+            .put_validator_updates(validator_set_updates.clone())
+            .expect("writing update validator set should not fail");
+        assert_eq!(
+            state
+                .get_validator_updates()
+                .await
+                .expect("an update validator set was written and must exist inside the database"),
+            validator_set_updates,
+            "stored update validator set was not what was expected"
+        );
+
+        // clear updates
+        state.clear_validator_updates();
+
+        // check that clear worked
+        let empty_validator_set = ValidatorSet::new_from_updates(vec![]);
+        assert_eq!(
+            state
+                .get_validator_updates()
+                .await
+                .expect("if no updates have been written return empty set"),
+            empty_validator_set,
+            "returned empty validator set different than expected"
+        );
+    }
+
+    #[tokio::test]
+    async fn clear_validator_updates_empty_ok() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // able to clear non-existent updates with no error
+        state.clear_validator_updates();
+    }
+
+    #[tokio::test]
+    async fn execute_validator_updates() {
+        let key_0 =
+            PublicKey::from_raw_ed25519(&[1u8; 32]).expect("creating ed25519 key should not fail");
+        let key_1 =
+            PublicKey::from_raw_ed25519(&[2u8; 32]).expect("creating ed25519 key should not fail");
+        let key_2 =
+            PublicKey::from_raw_ed25519(&[3u8; 32]).expect("creating ed25519 key should not fail");
+
+        // create initial validator set
+        let initial = vec![
+            validator::Update {
+                pub_key: key_0,
+                power: vote::Power::from(1u32),
+            },
+            validator::Update {
+                pub_key: key_1,
+                power: vote::Power::from(2u32),
+            },
+            validator::Update {
+                pub_key: key_2,
+                power: vote::Power::from(3u32),
+            },
+        ];
+        let mut initial_validator_set = ValidatorSet::new_from_updates(initial);
+
+        // create set of updates (update key_0, remove key_1)
+        let updates = vec![
+            validator::Update {
+                pub_key: key_0,
+                power: vote::Power::from(5u32),
+            },
+            validator::Update {
+                pub_key: key_1,
+                power: vote::Power::from(0u32),
+            },
+        ];
+
+        let validator_set_updates = ValidatorSet::new_from_updates(updates);
+
+        // apply updates
+        initial_validator_set.apply_updates(validator_set_updates);
+
+        // create end state
+        let updates = vec![
+            validator::Update {
+                pub_key: key_0,
+                power: vote::Power::from(5u32),
+            },
+            validator::Update {
+                pub_key: key_2,
+                power: vote::Power::from(3u32),
+            },
+        ];
+        let validator_set_endstate = ValidatorSet::new_from_updates(updates);
+
+        // check updates applied correctly
+        assert_eq!(
+            initial_validator_set, validator_set_endstate,
+            "validator set apply updates did not behave as expected"
+        );
+    }
+}
