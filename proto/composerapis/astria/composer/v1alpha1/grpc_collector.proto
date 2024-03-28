@@ -1,0 +1,23 @@
+syntax = 'proto3';
+
+package astria.composer.v1alpha1;
+
+// SubmitRollupTransactionRequest contains a rollup transaction to be submitted to the Shared Sequencer Network
+// via the Composer
+message SubmitRollupTransactionRequest {
+  // the unhashed rollup id
+  bytes rollup_id = 1;
+  // the raw data bytes of the rollup transaction
+  bytes data = 2;
+}
+
+// SubmitRollupTransactionResponse is a message that represents a response to a request to submit a rollup.
+// It's currently an empty response which can be evolved in the future to include more information
+message SubmitRollupTransactionResponse {}
+
+// GrpcCollectorService is a service that defines the gRPC collector of the Composer
+service GrpcCollectorService {
+  // SubmitRollupTransaction submits a rollup transactions to the Composer.
+  // The transaction sent is bundled up with other transactions and submitted to the Shared Sequencer Network.
+  rpc SubmitRollupTransaction(SubmitRollupTransactionRequest) returns (SubmitRollupTransactionResponse) {}
+}

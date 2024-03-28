@@ -88,6 +88,7 @@ async fn setup() -> (MockServer, MockGuard, Config) {
         no_metrics: false,
         metrics_http_listener_addr: String::new(),
         pretty_print: true,
+        grpc_addr: "127.0.0.1:0".parse().unwrap(),
     };
     (server, startup_guard, cfg)
 }
@@ -287,6 +288,7 @@ async fn bundle_triggered_by_block_timer() {
         cfg.max_bytes_per_bundle,
     )
     .unwrap();
+
     let status = executor.subscribe();
 
     let _executor_task = tokio::spawn(executor.run_until_stopped());

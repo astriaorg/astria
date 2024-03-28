@@ -51,7 +51,7 @@ sequencer-client = { package = "astria-sequencer-client", path = "../astria-sequ
   "http",
 ] }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
-tokio-stream = "0.1.14"
+tokio-stream = { workspace = true }
 
 [dev-dependencies]
 async-trait = { workspace = true }
@@ -69,7 +69,7 @@ jsonrpsee = { workspace = true, features = ["server"] }
 once_cell = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["test-util"] }
-tokio-stream = { version = "0.1.14", features = ["net"] }
+tokio-stream = { workspace = true }
 wiremock = { workspace = true }
 assert-json-diff = "2.0.2"
 tower-http = { version = "0.4", features = ["auth"] }

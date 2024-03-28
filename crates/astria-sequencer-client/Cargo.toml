@@ -20,7 +20,7 @@ tendermint-rpc = { workspace = true }
 tokio = { version = "1.3.6", default-features = false, features = ["time"] }
 tracing = { workspace = true }
 thiserror = { workspace = true }
-tokio-stream = "0.1.14"
+tokio-stream = { workspace = true }
 futures-util = "0.3.30"
 
 [features]

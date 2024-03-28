@@ -39,7 +39,6 @@ use tracing::{
 };
 
 use crate::executor;
-
 type StdError = dyn std::error::Error;
 
 /// `GethCollector` Collects transactions submitted to a Geth rollup node and passes
