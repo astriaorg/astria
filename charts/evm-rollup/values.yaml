@@ -69,8 +69,8 @@ config:
       enabled: false
     otel:
       enabled: true
-      endpoint: "http://otel-collector.monitoring.svc.cluster.local:4317"
-      tracesEndpoint:
+      endpoint: otel-collector.monitoring.svc.cluster.local:4317
+      tracesEndpoint: 
       tracesCompression: gzip
       tracesTimeout: 10
       otlpHeaders:
