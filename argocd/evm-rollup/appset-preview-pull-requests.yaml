@@ -42,7 +42,9 @@ spec:
               value: "pr-{{.number}}.dev.astria.org"
       syncPolicy:
         automated:
+          prune: true
           selfHeal: false
+          allowEmpty: true
         managedNamespaceMetadata:
           labels:
             # <$ARGOCD_APP_NAME>
