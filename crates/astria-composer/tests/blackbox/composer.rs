@@ -4,8 +4,7 @@ use astria_core::{
     generated::{
         composer::v1alpha1::{
             grpc_collector_service_client::GrpcCollectorServiceClient,
-            RollupTransaction,
-            SubmitRollupTransactionsRequest,
+            SubmitRollupTransactionRequest,
         },
         sequencer::v1::NonceResponse,
     },
@@ -85,11 +84,9 @@ async fn tx_from_one_rollup_is_received_by_sequencer_from_grpc_collector() {
     .await
     .unwrap();
     composer_client
-        .submit_rollup_transactions(SubmitRollupTransactionsRequest {
-            rollup_transactions: vec![RollupTransaction {
-                rollup_id: rollup_id.as_ref().to_vec(),
-                data: tx.rlp().to_vec(),
-            }],
+        .submit_rollup_transaction(SubmitRollupTransactionRequest {
+            rollup_id: rollup_id.as_ref().to_vec(),
+            data: tx.rlp().to_vec(),
         })
         .await
         .expect("error submitting sequence actions to generic collector");
@@ -255,11 +252,9 @@ async fn invalid_nonce_failure_causes_tx_resubmission_under_different_nonce_grpc
     .await
     .unwrap();
     composer_client
-        .submit_rollup_transactions(SubmitRollupTransactionsRequest {
-            rollup_transactions: vec![RollupTransaction {
-                rollup_id: rollup_id.as_ref().to_vec(),
-                data: tx.rlp().to_vec(),
-            }],
+        .submit_rollup_transaction(SubmitRollupTransactionRequest {
+            rollup_id: rollup_id.as_ref().to_vec(),
+            data: tx.rlp().to_vec(),
         })
         .await
         .expect("error submitting sequence actions to generic collector");
@@ -339,11 +334,9 @@ async fn single_rollup_tx_payload_integrity_grpc_collector() {
     .await
     .unwrap();
     composer_client
-        .submit_rollup_transactions(SubmitRollupTransactionsRequest {
-            rollup_transactions: vec![RollupTransaction {
-                rollup_id: rollup_id.as_ref().to_vec(),
-                data: tx.rlp().to_vec(),
-            }],
+        .submit_rollup_transaction(SubmitRollupTransactionRequest {
+            rollup_id: rollup_id.as_ref().to_vec(),
+            data: tx.rlp().to_vec(),
         })
         .await
         .expect("error submitting sequence actions to generic collector");
