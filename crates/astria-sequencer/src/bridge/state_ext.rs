@@ -116,10 +116,11 @@ pub(crate) trait StateReadExt: StateRead {
             return Ok(0);
         };
 
-        let truncated_bytes: [u8; 4] = bytes[bytes.len() - 4..]
-            .try_into()
-            .expect("failed transforming raw deposit nonce bytes into nonce");
-        let Nonce(nonce) = Nonce(u32::from_be_bytes(truncated_bytes));
+        let Nonce(nonce) = Nonce(u32::from_be_bytes(
+            bytes
+                .try_into()
+                .expect("failed transforming raw nonce bytes into nonce"),
+        ));
         Ok(nonce)
     }
 
