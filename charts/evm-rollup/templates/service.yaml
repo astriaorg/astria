@@ -30,19 +30,6 @@ spec:
       port: {{ .Values.ports.faucet }}
       targetPort: faucet
 ---
-kind: Service
-apiVersion: v1
-metadata:
-  name: {{ .Values.config.rollup.name }}-blockscout-svc
-  namespace: {{ include "rollup.namespace" . }}
-spec:
-  selector:
-    app: {{ .Values.config.rollup.name }}-astria-dev-cluster
-  ports:
-    - name: blockscout-svc
-      port: {{ .Values.ports.blockscout }}
-      targetPort: blockscout
----
 {{- if .Values.config.rollup.metrics.enabled }} 
 kind: Service
 apiVersion: v1

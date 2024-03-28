@@ -23,14 +23,14 @@ images:
   # Rollup faucet
   faucet: "ghcr.io/astriaorg/ria-faucet:0.0.1"
 
-  # Pertaining to deploying blockscout block explorer
-  blockscout:
-    core: "docker.io/blockscout/blockscout:5.1.0"
-    postgres: "docker.io/library/postgres:14"
-    redis: "docker.io/library/redis:alpine"
-    sigProvider: "ghcr.io/blockscout/sig-provider@sha256:ae371ce8d0a20993bf61ca81b3394416f4778c9edd398250fd4d81a8d6820950"
-    smartContractVerifier: "ghcr.io/blockscout/smart-contract-verifier@sha256:f07b2d874c28d45f5ba81f297c868a746a03771e8b6d9b8e96f0eba0beeb1016"
-    visualizer: "ghcr.io/blockscout/visualizer@sha256:99479da126248e0aba5c32b1e32625f8c527b72924f55cb510b50e5f854b2d15"
+  # # Pertaining to deploying blockscout block explorer
+  # blockscout:
+  #   core: "docker.io/blockscout/blockscout:5.1.0"
+  #   postgres: "docker.io/library/postgres:14"
+  #   redis: "docker.io/library/redis:alpine"
+  #   sigProvider: "ghcr.io/blockscout/sig-provider@sha256:ae371ce8d0a20993bf61ca81b3394416f4778c9edd398250fd4d81a8d6820950"
+  #   smartContractVerifier: "ghcr.io/blockscout/smart-contract-verifier@sha256:f07b2d874c28d45f5ba81f297c868a746a03771e8b6d9b8e96f0eba0beeb1016"
+  #   visualizer: "ghcr.io/blockscout/visualizer@sha256:99479da126248e0aba5c32b1e32625f8c527b72924f55cb510b50e5f854b2d15"
 
 config:
   # The level at which core astria components will log out
@@ -242,24 +242,24 @@ ingress:
       #  - secretName: chart-example-tls
       #    hosts:
       #      - chart-example.local
-    explorer:
-      enabled: true
-      hosts:
-        - blockscout.{{ .Values.config.rollup.name }}.{{ .Values.ingress.hostname }}
-      path: /
-      pathType: Prefix
-      service:
-        name: "{{ .Values.config.rollup.name }}-blockscout-svc"
-        port:
-          name: blockscout-svc
-      annotations: {}
-        # kubernetes.io/ingress.class: nginx
-        # kubernetes.io/tls-acme: "true"
-      labels: {}
-      tls: {}
-      #  - secretName: chart-example-tls
-      #    hosts:
-      #      - chart-example.local
+    # explorer:
+    #   enabled: true
+    #   hosts:
+    #     - blockscout.{{ .Values.config.rollup.name }}.{{ .Values.ingress.hostname }}
+    #   path: /
+    #   pathType: Prefix
+    #   service:
+    #     name: "{{ .Values.config.rollup.name }}-blockscout-svc"
+    #     port:
+    #       name: blockscout-svc
+    #   annotations: {}
+    #     # kubernetes.io/ingress.class: nginx
+    #     # kubernetes.io/tls-acme: "true"
+    #   labels: {}
+    #   tls: {}
+    #   #  - secretName: chart-example-tls
+    #   #    hosts:
+    #   #      - chart-example.local
 
 # Default persistent storage values
 # NOTE - `rollupName` will be used with `persistentVolumeName` to generate names for kubernetes resources.
@@ -304,7 +304,75 @@ ports:
   executionGRPC: 50051
   gossipnet: 2451
   faucet: 8080
-  blockscout: 4000
+  # blockscout: 4000
   metrics: 6060
   conductorMetrics: 9000
   composerMetrics: 9001
+
+evm-rollup-blockscout:
+  namespaceOverride: ""
+  replicaCount: 1
+  # Whether to use tty readable logging for astria services, when false use json.
+  # Best to be false in production environments, true for clean logs on local dev.
+  useTTY: false
+  dev: false
+
+  images:
+    # Pertaining to deploying blockscout block explorer
+    blockscout:
+      core: "docker.io/blockscout/blockscout:5.1.0"
+      postgres: "docker.io/library/postgres:14"
+      redis: "docker.io/library/redis:alpine"
+      sigProvider: "ghcr.io/blockscout/sig-provider@sha256:ae371ce8d0a20993bf61ca81b3394416f4778c9edd398250fd4d81a8d6820950"
+      smartContractVerifier: "ghcr.io/blockscout/smart-contract-verifier@sha256:f07b2d874c28d45f5ba81f297c868a746a03771e8b6d9b8e96f0eba0beeb1016"
+      visualizer: "ghcr.io/blockscout/visualizer@sha256:99479da126248e0aba5c32b1e32625f8c527b72924f55cb510b50e5f854b2d15"
+
+  config:
+    # The level at which core astria components will log out
+    # Options are: error, warn, info, and debug
+    logLevel: "debug"
+    rollup:
+      # Default name for the rollup chain, used to generate Rollup ID
+      name: astria
+    blockscout:
+      enabled: true
+
+  ingress:
+    enabled: true
+    labels: {}
+    hostname: localdev.me
+    className: nginx
+    services:
+      explorer:
+        enabled: true
+        hosts:
+          - blockscout.{{ .Values.config.rollup.name }}.{{ .Values.ingress.hostname }}
+        path: /
+        pathType: Prefix
+        service:
+          name: "{{ .Values.config.rollup.name }}-blockscout-svc"
+          port:
+            name: blockscout-svc
+        annotations: {}
+          # kubernetes.io/ingress.class: nginx
+          # kubernetes.io/tls-acme: "true"
+        labels: {}
+        tls: {}
+        #  - secretName: chart-example-tls
+        #    hosts:
+        #      - chart-example.local
+
+  storage:
+    enabled: false
+    local: true
+    entities:
+      rollupSharedStorage:
+        size: "5Gi"
+        persistentVolumeName: "rollup-shared-storage"
+        path: "/data/rollup-data"
+
+  # Default service ports
+  ports:
+    jsonRPC: 8545 
+    wsRPC: 8546
+    blockscout: 4000

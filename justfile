@@ -106,6 +106,7 @@ helm-add-if-not-exist repo url:
 
 deploy-cluster namespace=defaultNamespace:
   kind create cluster --config ./dev/kubernetes/kind-cluster-config.yml
+  @just load-arm-cometbft
   @just helm-add-if-not-exist cilium https://helm.cilium.io/
   helm install cilium cilium/cilium --version 1.14.3 \
       -f ./dev/values/cilium.yml \
@@ -229,3 +230,26 @@ delete-smoke-test:
   just delete celestia-local
   just delete sequencer
   just delete rollup
+
+cometbft_image := "docker.io/cometbft/cometbft:v0.37.x"
+load-arm-cometbft:
+  #! /usr/bin/env bash
+  TAG=$(echo "{{ cometbft_image }}" | cut -d':' -f2)
+  VERSION="${TAG%.*}"
+  ARCH="$(uname -m)"
+  if [ "$ARCH" == "arm64" ] || [ "$ARCH" == "aarch64" ]; then
+    echo "It matches!"
+      docker build -t "{{ cometbft_image }}" -f- . <<-EOL
+          FROM "{{ cometbft_image }}"
+          USER root
+          RUN curl -sL $(curl -s https://api.github.com/repos/cometbft/cometbft/releases | grep -F browser_download_url | grep -F linux_arm64.tar.gz | grep -F "${VERSION}" | head -n 1 | awk '{print $NF}' | sed 's/\"//g') | tar zx -C /usr/bin cometbft
+          USER tmuser
+  EOL
+  just load-image {{ cometbft_image }}
+  fi
+
+default_chart_path := "charts/evm-rollup-blockscout"
+helm-template-filter chart_path=default_chart_path:
+  helm template --debug --dry-run {{ chart_path }} | \
+  yq 'select(.. | select(tag == "!!str") | select(contains("visualizer") or contains("blockscout")))' | \
+  tee {{ chart_path }}/rendered-template.yaml
