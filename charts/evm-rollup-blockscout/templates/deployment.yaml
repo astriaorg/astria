@@ -1,0 +1,91 @@
+{{- if .Values.config.blockscout.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.config.rollup.name }}-blockscout
+  labels:
+    app: {{ .Values.config.rollup.name }}-astria-dev-cluster
+  namespace: {{ include "rollup.namespace" . }}
+spec:
+  replicas : {{ .Values.global.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Values.config.rollup.name }}-astria-dev-cluster
+  template:
+    metadata:
+      name: {{ .Values.config.rollup.name }}-blockscout-local
+      labels:
+        app: {{ .Values.config.rollup.name }}-astria-dev-cluster
+    spec:
+      containers:
+        - name: blockscout
+          command: ["bash"]
+          args:
+            - -c
+            - bin/blockscout eval "Elixir.Explorer.ReleaseTasks.create_and_migrate()" && bin/blockscout start
+          image: {{ .Values.images.blockscout.core }}
+          volumeMounts:
+            - mountPath: /app/logs
+              name: {{ $.Values.config.rollup.name }}-rollup-shared-storage-vol
+              subPath: {{ .Values.config.rollup.name }}/blockscout/logs
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.config.rollup.name }}-blockscout-env
+          ports:
+            - containerPort: {{ .Values.ports.blockscout }}
+              name: blockscout
+        - name: postgres
+          command: ["docker-entrypoint.sh"]
+          args:
+            - -c
+            - max_connections=200
+          env:
+            - name: POSTGRES_HOST_AUTH_METHOD
+              value: trust
+            - name: POSTGRES_PASSWORD
+            - name: POSTGRES_USER
+              value: postgres
+          image: {{ .Values.images.blockscout.postgres }}
+          ports:
+            - containerPort: 5432
+          volumeMounts:
+            - mountPath: /var/lib/postgresql/data
+              name: {{ $.Values.config.rollup.name }}-rollup-shared-storage-vol
+              subPath: {{ .Values.config.rollup.name }}/blockscout/postgres
+        - name: redis
+          command: ["redis-server"]
+          image: {{ .Values.images.blockscout.redis }}
+          ports:
+            - containerPort: 6379
+          volumeMounts:
+            - mountPath: /data
+              name: {{ $.Values.config.rollup.name }}-rollup-shared-storage-vol
+              subPath: {{ .Values.config.rollup.name }}/blockscout/redis
+        - name: sig-provider
+          image: {{ .Values.images.blockscout.sigProvider }}
+          ports:
+            - containerPort: 8050
+        - name: smart-contract-verifier
+          image: {{ .Values.images.blockscout.smartContractVerifier }}
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.config.rollup.name }}-smart-contract-verifier-env
+          ports:
+            - containerPort: 8150
+        - name: visualizer
+          image: {{ .Values.images.blockscout.visualizer }}
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.config.rollup.name }}-visualizer-env
+          ports:
+            - containerPort: 8151
+      volumes:
+        - name: {{ $.Values.config.rollup.name }}-rollup-shared-storage-vol
+          {{- if .Values.storage.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ $.Values.config.rollup.name }}-rollup-shared-storage-pvc-blockscout
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+---
+{{- end }}
