@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
-  name: preview-mono-astria-evm-rollup
+  name: preview-evm-rollup
   namespace: argocd
 spec:
   goTemplate: true
@@ -22,34 +22,34 @@ spec:
       requeueAfterSeconds: 60
   template:
     metadata:
-      name: pr-{{.number}}-astria-evm-rollup
+      name: pr-{{.number}}-evm-rollup
     spec:
       destination:
         server: https://kubernetes.default.svc
-        namespace: pr-{{.number}}-astria
+        namespace: pr-{{.number}}
       project: default
       sources:
         - repoURL: https://github.com/astriaorg/astria.git
-          targetRevision: '{{.head_sha}}'
+          targetRevision: 'pull/{{.number}}/head' # '{{.head_sha}}'
           path: charts/evm-rollup
           helm:
             valueFiles:
             - values.yaml
             parameters:
             - name: global.namespace
-              value: pr-{{.number}}-astria
+              value: pr-{{.number}}
             - name: ingress.hostname
-              value: "pr-{{.number}}-astria-evm-rollup.dev.astria.org"
+              value: "pr-{{.number}}.dev.astria.org"
       syncPolicy:
         automated:
           selfHeal: false
         managedNamespaceMetadata:
           labels:
             # <$ARGOCD_APP_NAME>
-            argocd.argoproj.io/instance: pr-{{.number}}-mono-astria
+            argocd.argoproj.io/instance: pr-{{.number}}-evm-rollup
           annotations:
-            # <$ARGOCD_APP_NAME>:/Namespace:$ARGOCD_APP_NAMESPACE/$ARGOCD_APP_NAMESPACE
+            # <$ARGOCD_APP_NAME>:/Namespace:$ARGOCD_APP_NAMESPACE
             argocd.argoproj.io/tracking-id: >-
-              pr-{{.number}}-astria-evm-rollup:/Namespace:pr-{{.number}}-astria/pr-{{.number}}-astria
+              pr-{{.number}}-evm-rollup:/Namespace:pr-{{.number}}
         syncOptions:
         - CreateNamespace=true

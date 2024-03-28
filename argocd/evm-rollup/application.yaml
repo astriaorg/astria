@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: mono-astria-evm-rollup
+  name: evm-rollup
 spec:
   project: default
   destination:
@@ -18,7 +18,7 @@ spec:
         - name: global.namespace
           value: $ARGOCD_APP_NAMESPACE
         - name: ingress.hostname
-          value: $ARGOCD_APP_NAMESPACE.dev.astria.org
+          value: $ARGOCD_APP_NAME.$ARGOCD_APP_NAMESPACE.dev.astria.org
     - repoURL: git@github.com/astriaorg/argocd-apps.git
       targetRevision: HEAD
       ref: values
@@ -37,10 +37,10 @@ spec:
     managedNamespaceMetadata:
       labels:
         # # <$ARGOCD_APP_NAME>
-        argocd.argoproj.io/instance: mono-astria-evm-rollup
+        argocd.argoproj.io/instance: evm-rollup
       annotations:
         # <$ARGOCD_APP_NAME>:/Namespace:$ARGOCD_APP_NAMESPACE/$ARGOCD_APP_NAMESPACE
         argocd.argoproj.io/tracking-id: >-
-          mono-astria-evm-rollup:/Namespace:mono-astria/mono-astria
+          evm-rollup:/Namespace:mono-astria/mono-astria
     syncOptions:
     - CreateNamespace=true
