@@ -81,8 +81,9 @@ impl MockServer {
                     } else {
                         received_requests.iter().enumerate().fold(
                             "Received requests:\n".to_string(),
-                            |mut message, (index, request)| {
+                            |mut message, (index, (rpc, request))| {
                                 _ = writeln!(message, "- Request #{}", index + 1,);
+                                _ = writeln!(message, "  RPC: {rpc}\n");
                                 _ = request.print(&mut message);
                                 message
                             },
@@ -181,7 +182,7 @@ impl From<AnyRequest> for MockRequest {
 #[derive(Default)]
 struct MockServerState {
     mock_set: MockSet,
-    received_requests: Option<Vec<MockRequest>>,
+    received_requests: Option<Vec<(&'static str, MockRequest)>>,
 }
 
 impl MockServerState {
@@ -194,7 +195,7 @@ impl MockServerState {
         req: tonic::Request<T>,
     ) -> tonic::Result<tonic::Response<U>> {
         if let Some(received_requests) = &mut self.received_requests {
-            received_requests.push(erase_request(clone_request(&req)).into());
+            received_requests.push((rpc, erase_request(clone_request(&req)).into()));
         }
         self.mock_set.handle_request(rpc, req)
     }
@@ -225,8 +226,9 @@ impl Drop for MockGuard {
                         } else {
                             received_requests.iter().enumerate().fold(
                                 "Received requests:\n".to_string(),
-                                |mut message, (index, request)| {
-                                    _ = write!(message, "- Request #{}\n\t", index + 1,);
+                                |mut message, (index, (rpc, request))| {
+                                    _ = writeln!(message, "- Request #{}", index + 1,);
+                                    _ = writeln!(message, "  RPC: {rpc}\n");
                                     _ = request.print(&mut message);
                                     message
                                 },

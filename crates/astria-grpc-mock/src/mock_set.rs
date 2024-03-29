@@ -77,9 +77,9 @@ impl MockSet {
 
         mock_response
             .ok_or_else(|| {
-                let mut msg = "got unexpected request:\n".to_string();
+                let mut msg = "got unexpected request: ".to_string();
                 msg.push_str(
-                    &serde_json::to_string_pretty(erased.get_ref().as_serialize())
+                    &serde_json::to_string(erased.get_ref().as_serialize())
                         .expect("can map protobuf message to json"),
                 );
                 tonic::Status::not_found(msg)

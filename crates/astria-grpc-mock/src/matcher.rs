@@ -21,7 +21,7 @@ impl Match for MessagePartialJsonMatcher {
         let req_json = serde_json::to_value(req.get_ref().as_serialize())
             .expect("can map provided gRPC request to JSON");
         let config = assert_json_diff::Config::new(CompareMode::Inclusive);
-        assert_json_matches_no_panic(&self.0, &req_json, config).is_ok()
+        assert_json_matches_no_panic(&req_json, &self.0, config).is_ok()
     }
 }
 
