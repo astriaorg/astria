@@ -48,7 +48,7 @@ impl GrpcServer {
         })
     }
 
-    /// Returns the socket address the grpc collector is served over
+    /// Returns the socket address the grpc server is served over
     /// # Errors
     /// Returns an error if the listener is not bound
     pub(crate) fn local_addr(&self) -> io::Result<SocketAddr> {

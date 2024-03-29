@@ -103,7 +103,7 @@ impl Composer {
 
         let grpc_server = GrpcServer::new(cfg.grpc_addr, executor_handle.clone())
             .await
-            .wrap_err("grpc collector construction from config failed")?;
+            .wrap_err("failed to create grpc server")?;
 
         info!(
             listen_addr = %grpc_server.local_addr().wrap_err("grpc server listener not bound")?,
@@ -157,10 +157,10 @@ impl Composer {
         self.api_server.local_addr()
     }
 
-    /// Returns the socker address the grpc collector is served over
+    /// Returns the socker address the grpc server is served over
     /// # Errors
     /// Returns an error if the listener is not bound
-    pub fn grpc_collector_local_addr(&self) -> io::Result<SocketAddr> {
+    pub fn grpc_local_addr(&self) -> io::Result<SocketAddr> {
         self.grpc_server.local_addr()
     }
 

@@ -55,7 +55,7 @@ pub struct Config {
     /// Writes a human readable format to stdout instead of JSON formatted OTEL trace data.
     pub pretty_print: bool,
 
-    /// The address at which the gRPC collector is listening
+    /// The address at which the gRPC server is listening
     pub grpc_addr: SocketAddr,
 }
 
