@@ -397,7 +397,7 @@ evm-rollup-faucet:
 
     rollup:
       # Default name for the rollup chain, used to generate Rollup ID
-      name: astria-hello-world
+      name: astria
 
     faucet:
       enabled: true
