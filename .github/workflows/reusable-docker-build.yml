@@ -20,6 +20,8 @@ on:
 env:
   REGISTRY: ghcr.io
   FULL_REF: ${{ inputs.tag && format('refs/tags/{0}', inputs.tag) || github.ref }}
+  PR_NUMBER: ${{ github.event.number }}
+  PR_IMG: ghcr.io/astriaorg/${{ github.event.number }}
 
 jobs:
   build-and-push:
@@ -60,6 +62,11 @@ jobs:
             type=sha
             # set latest tag for `main` branch
             type=raw,value=latest,enable=${{ env.FULL_REF == format('refs/heads/{0}', 'main') }}
+      # Pre-pull PR image if it was already built
+      - name: Pull image
+        run: |
+          env | sort
+          docker pull $PR_IMG
       - name: Build and push
         uses: docker/build-push-action@v4
         with:
