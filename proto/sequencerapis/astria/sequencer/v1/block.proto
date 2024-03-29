@@ -51,7 +51,7 @@ message SequencerBlock {
 }
 
 message SequencerBlockHeader {
-  // replaced by `header` field
+  // removed in favour of having necessary fields in this message
   astria_vendored.tendermint.types.Header cometbft_header = 1 [deprecated = true];
   // The 32-byte merkle root of all the rollup transactions in the block,
   // Corresponds to `MHT(astria.sequencer.v1alpha.SequencerBlock.rollup_transactions)`,

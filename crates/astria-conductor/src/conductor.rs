@@ -218,7 +218,7 @@ async fn get_sequencer_namespace(client: HttpClient) -> eyre::Result<Namespace> 
         .wrap_err("failed to get block from sequencer after 10 attempts")?;
 
     Ok(
-        celestia_client::celestia_namespace_v0_from_cometbft_chain_id(
+        celestia_client::celestia_namespace_v0_from_cometbft_str(
             block.header().chain_id().as_str(),
         ),
     )
