@@ -14,7 +14,10 @@ pub mod response;
 mod verification;
 
 pub use mock::Mock;
-pub use mock_server::MockServer;
+pub use mock_server::{
+    MockGuard,
+    MockServer,
+};
 
 pub type AnyMessage = Box<dyn ErasedMessage + Send + Sync>;
 pub type AnyRequest = tonic::Request<AnyMessage>;
