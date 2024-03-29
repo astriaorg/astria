@@ -40,6 +40,14 @@ spec:
               value: pr-{{.number}}
             - name: ingress.hostname
               value: "pr-{{.number}}.dev.astria.org"
+            - name: evm-rollup-blockscout.global.namespace
+              value: pr-{{.number}}
+            - name: evm-rollup-blockscout.ingress.hostname
+              value: "pr-{{.number}}.dev.astria.org"
+            - name: evm-rollup-faucet.global.namespace
+              value: pr-{{.number}}
+            - name: evm-rollup-faucet.ingress.hostname
+              value: "pr-{{.number}}.dev.astria.org"
       syncPolicy:
         automated:
           prune: true
