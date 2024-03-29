@@ -1,0 +1,12 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ .Values.config.rollup.name }}-faucet-service
+  namespace: {{ include "rollup.namespace" . }}
+spec:
+  selector:
+    app: {{ .Values.config.rollup.name }}-astria-dev-cluster
+  ports:
+    - name: faucet-svc
+      port: {{ .Values.ports.faucet }}
+      targetPort: faucet

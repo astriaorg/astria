@@ -5,5 +5,8 @@ dependencies:
 - name: evm-rollup-blockscout
   repository: file://../evm-rollup-blockscout
   version: 0.1.0
-digest: sha256:40003472bcc56e3654bb210ab53863004da69485ab5356b7c87a14face4f969d
-generated: "2024-03-28T01:20:35.924587-07:00"
+- name: evm-rollup-faucet
+  repository: file://../evm-rollup-faucet
+  version: 0.1.0
+digest: sha256:149bb7fa09e5d52d31c29ef4bacaec186a229d8e7995080ecb5cb4a02a5a7287
+generated: "2024-03-29T00:04:47.041323-07:00"

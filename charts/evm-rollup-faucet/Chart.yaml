@@ -1,6 +1,6 @@
 apiVersion: v2
-name: evm-rollup
-description: A Helm chart for EVM rollup in k8s deployed on top of Astria Sequencer Network + Celestia.
+name: evm-rollup-faucet
+description: A Helm chart for Kubernetes
 
 # A chart can be either an 'application' or a 'library' chart.
 #
@@ -15,34 +15,10 @@ type: application
 # This is the chart version. This version number should be incremented each time you make changes
 # to the chart and its templates, including the app version.
 # Versions are expected to follow Semantic Versioning (https://semver.org/)
-
-version: 0.11.0
+version: 0.1.0
 
 # This is the version number of the application being deployed. This version number should be
 # incremented each time you make changes to the application. Versions are not expected to
 # follow Semantic Versioning. They should reflect the version the application is using.
 # It is recommended to use it with quotes.
-appVersion: "0.9.0"
-
-dependencies:
-  - name: celestia-node
-    version: "0.2.1"
-    repository: "file://../celestia-node"
-    condition: celestia-node.enabled
-  - name: evm-rollup-blockscout
-    version: "0.1.0"
-    repository: "file://../evm-rollup-blockscout"
-    condition: config.blockscout.enabled
-  - name: evm-rollup-faucet
-    version: "0.1.0"
-    repository: "file://../evm-rollup-faucet"
-    condition: config.faucet.enabled
-
-
-maintainers:
-  - name: wafflesvonmaple
-    url: astria.org
-  - name: steezeburger
-    url: astria.org
-  - name: joroshiba
-    url: astria.org
+appVersion: "1.16.0"
