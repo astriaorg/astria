@@ -21,7 +21,7 @@ env:
   REGISTRY: ghcr.io
   FULL_REF: ${{ inputs.tag && format('refs/tags/{0}', inputs.tag) || github.ref }}
   PR_NUMBER: ${{ github.event.number }}
-  PR_IMG: ghcr.io/astriaorg/${{ github.event.number }}
+  PR_IMG: ghcr.io/astriaorg/${{inputs.package-name}}:pr-${{ github.event.number }}
 
 jobs:
   build-and-push:
