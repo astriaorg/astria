@@ -8,6 +8,7 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use tokio::{
+    io,
     sync::watch,
     task::JoinError,
 };
@@ -24,8 +25,10 @@ use crate::{
     },
     collectors,
     collectors::Geth,
+    composer,
     executor,
     executor::Executor,
+    grpc::GrpcServer,
     rollup::Rollup,
     Config,
 };
@@ -35,25 +38,29 @@ use crate::{
 /// downstream for the executor to process. Thus, a composer can have multiple collectors running
 /// at the same time funneling data from multiple rollup nodes.
 pub struct Composer {
-    /// `ApiServer` is used for monitoring status of the Composer service.
+    /// used for monitoring the status of the Composer service.
     api_server: ApiServer,
-    /// `ComposerStatusSender` is used to announce the current status of the Composer for other
+    /// used to announce the current status of the Composer for other
     /// modules in the crate to use.
-    composer_status_sender: watch::Sender<Status>,
-    /// `ExecutorHandle` contains a channel to communicate SequenceActions to the Executor
+    composer_status_sender: watch::Sender<composer::Status>,
+    /// used to forward transactions received from rollups to the Executor.
     /// This is at the Composer level to allow its sharing to various different collectors.
     executor_handle: executor::Handle,
-    /// `Executor` is responsible for signing and submitting sequencer transactions
+    /// responsible for signing and submitting sequencer transactions.
     /// The sequencer transactions are received from various collectors.
     executor: Executor,
-    /// `GethCollectors` is the collection of geth collectors and their rollup names.
+    /// The collection of geth collectors and their rollup names.
     geth_collectors: HashMap<String, collectors::Geth>,
-    /// `GethCollectorStatuses` The collection of the geth collector statuses.
+    /// The collection of the status of each geth collector.
     geth_collector_statuses: HashMap<String, watch::Receiver<collectors::geth::Status>>,
-    /// `GethCollectorTasks` is the set of tasks tracking if the geth collectors are still running.
+    /// The set of tasks tracking if the geth collectors are still running and to receive
+    /// the final result of each geth collector.
     geth_collector_tasks: JoinMap<String, eyre::Result<()>>,
-    /// `Rollups` The map of chain ID to the URLs to which geth collectors should connect.
+    /// The map of chain ID to the URLs to which geth collectors should connect.
     rollups: HashMap<String, String>,
+    /// The gRPC server that listens for incoming requests from the collectors via the
+    /// GrpcCollector service. It also exposes a health service.
+    grpc_server: GrpcServer,
 }
 
 /// Announces the current status of the Composer for other modules in the crate to use
@@ -83,10 +90,9 @@ impl Composer {
     /// # Errors
     ///
     /// An error is returned if the composer fails to be initialized.
-    /// See `[Composer::from_config]` for its error scenarios.
-    pub fn from_config(cfg: &Config) -> eyre::Result<Self> {
+    /// See `[from_config]` for its error scenarios.
+    pub async fn from_config(cfg: &Config) -> eyre::Result<Self> {
         let (composer_status_sender, _) = watch::channel(Status::default());
-
         let (executor, executor_handle) = Executor::new(
             &cfg.sequencer_url,
             &cfg.private_key,
@@ -95,7 +101,17 @@ impl Composer {
         )
         .wrap_err("executor construction from config failed")?;
 
+        let grpc_server = GrpcServer::new(cfg.grpc_addr, executor_handle.clone())
+            .await
+            .wrap_err("failed to create grpc server")?;
+
+        info!(
+            listen_addr = %grpc_server.local_addr().wrap_err("grpc server listener not bound")?,
+            "gRPC server listening"
+        );
+
         let api_server = api::start(cfg.api_listen_addr, composer_status_sender.subscribe());
+
         info!(
             listen_addr = %api_server.local_addr(),
             "API server listening"
@@ -132,12 +148,20 @@ impl Composer {
             geth_collectors,
             geth_collector_statuses,
             geth_collector_tasks: JoinMap::new(),
+            grpc_server,
         })
     }
 
     /// Returns the socket address the api server is served over
     pub fn local_addr(&self) -> SocketAddr {
         self.api_server.local_addr()
+    }
+
+    /// Returns the socker address the grpc server is served over
+    /// # Errors
+    /// Returns an error if the listener is not bound
+    pub fn grpc_local_addr(&self) -> io::Result<SocketAddr> {
+        self.grpc_server.local_addr()
     }
 
     /// Runs the composer.
@@ -154,6 +178,7 @@ impl Composer {
             mut geth_collectors,
             rollups,
             mut geth_collector_statuses,
+            grpc_server,
         } = self;
 
         // run the api server
@@ -177,6 +202,14 @@ impl Composer {
             status.set_executor_connected(true);
         });
 
+        // run the grpc server
+        let mut grpc_server_handle = tokio::spawn(async move {
+            grpc_server
+                .run_until_stopped()
+                .await
+                .wrap_err("grpc server failed")
+        });
+
         loop {
             tokio::select!(
             o = &mut api_task => {
@@ -187,8 +220,12 @@ impl Composer {
                     report_exit("executor unexpectedly ended", o);
                     return Ok(());
             },
+            o = &mut grpc_server_handle => {
+                    report_exit("grpc server unexpectedly ended", o);
+                    return Ok(());
+            },
             Some((rollup, collector_exit)) = geth_collector_tasks.join_next() => {
-                reconnect_exited_collector(
+                   reconnect_exited_collector(
                     &mut geth_collector_statuses,
                     &mut geth_collector_tasks,
                     executor_handle.clone(),
