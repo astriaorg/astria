@@ -9,4 +9,7 @@ pub(crate) mod validator;
 
 pub use build_info::BUILD_INFO;
 pub use config::Config;
-pub use sequencer_relayer::SequencerRelayer;
+pub use sequencer_relayer::{
+    SequencerRelayer,
+    ShutdownController,
+};

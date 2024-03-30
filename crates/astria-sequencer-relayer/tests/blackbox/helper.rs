@@ -1,10 +1,12 @@
 use std::{
     collections::VecDeque,
+    mem,
     net::SocketAddr,
     sync::{
         Arc,
         Mutex,
     },
+    time::Duration,
 };
 
 use assert_json_diff::assert_json_include;
@@ -27,6 +29,7 @@ use astria_core::{
 use astria_sequencer_relayer::{
     config::Config,
     SequencerRelayer,
+    ShutdownController,
 };
 use celestia_client::celestia_types::{
     blob::SubmitOptions,
@@ -43,11 +46,16 @@ use tendermint_rpc::{
 };
 use tokio::{
     net::TcpListener,
+    runtime::{
+        self,
+        RuntimeFlavor,
+    },
     sync::{
         mpsc,
         oneshot,
     },
     task::JoinHandle,
+    time::timeout,
 };
 use tonic::{
     Request,
@@ -164,6 +172,8 @@ pub struct TestSequencerRelayer {
 
     pub sequencer: JoinHandle<()>,
 
+    /// A controller which issues a shutdown to the sequencer relayer on being dropped.
+    pub relayer_shutdown_controller: Option<ShutdownController>,
     pub sequencer_relayer: JoinHandle<()>,
 
     pub config: Config,
@@ -180,7 +190,18 @@ pub struct TestSequencerRelayer {
 
 impl Drop for TestSequencerRelayer {
     fn drop(&mut self) {
-        self.sequencer_relayer.abort();
+        // We drop the shutdown controller here to cause the sequencer relayer to shut down.
+        let _ = self.relayer_shutdown_controller.take();
+
+        let sequencer_relayer = mem::replace(&mut self.sequencer_relayer, tokio::spawn(async {}));
+        let _ = futures::executor::block_on(async move {
+            timeout(Duration::from_secs(30), sequencer_relayer)
+                .await
+                .unwrap_or_else(|_| {
+                    panic!("timed out waiting for sequencer relayer to shut down");
+                })
+        });
+
         self.sequencer.abort();
         self.celestia.server_handle.stop().unwrap();
     }
@@ -305,6 +326,12 @@ pub struct TestSequencerRelayerConfig {
 
 impl TestSequencerRelayerConfig {
     pub async fn spawn_relayer(self) -> TestSequencerRelayer {
+        assert_ne!(
+            runtime::Handle::current().runtime_flavor(),
+            RuntimeFlavor::CurrentThread,
+            "the sequencer relayer must be run on a multi-threaded runtime, e.g. the test could \
+             be configured using `#[tokio::test(flavor = \"multi_thread\", worker_threads = 1)]`"
+        );
         Lazy::force(&TELEMETRY);
 
         let mut celestia = MockCelestia::start().await;
@@ -379,7 +406,8 @@ impl TestSequencerRelayerConfig {
         };
 
         info!(config = serde_json::to_string(&config).unwrap());
-        let sequencer_relayer = SequencerRelayer::new(config.clone()).unwrap();
+        let (relayer_shutdown_controller, shutdown_receiver) = ShutdownController::new();
+        let sequencer_relayer = SequencerRelayer::new(config.clone(), shutdown_receiver).unwrap();
         let api_address = sequencer_relayer.local_addr();
         let sequencer_relayer = tokio::task::spawn(sequencer_relayer.run());
 
@@ -390,6 +418,7 @@ impl TestSequencerRelayerConfig {
             sequencer,
             sequencer_server_blocks,
             cometbft,
+            relayer_shutdown_controller: Some(relayer_shutdown_controller),
             sequencer_relayer,
             signing_key,
             account: address,

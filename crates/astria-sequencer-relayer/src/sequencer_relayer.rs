@@ -13,7 +13,10 @@ use tokio::{
         signal,
         SignalKind,
     },
-    sync::oneshot,
+    sync::{
+        mpsc,
+        oneshot,
+    },
     task::{
         JoinError,
         JoinHandle,
@@ -39,6 +42,7 @@ pub struct SequencerRelayer {
     api_server: api::ApiServer,
     relayer: Relayer,
     shutdown_token: CancellationToken,
+    shutdown_receiver: mpsc::Receiver<()>,
 }
 
 impl SequencerRelayer {
@@ -47,7 +51,7 @@ impl SequencerRelayer {
     /// # Errors
     ///
     /// Returns an error if constructing the inner relayer type failed.
-    pub fn new(cfg: Config) -> eyre::Result<Self> {
+    pub fn new(cfg: Config, shutdown_receiver: mpsc::Receiver<()>) -> eyre::Result<Self> {
         let shutdown_token = CancellationToken::new();
         let Config {
             cometbft_endpoint,
@@ -87,6 +91,7 @@ impl SequencerRelayer {
             api_server,
             relayer,
             shutdown_token,
+            shutdown_receiver,
         })
     }
 
@@ -94,16 +99,13 @@ impl SequencerRelayer {
         self.api_server.local_addr()
     }
 
-    /// Run Sequencer Relayer.
-    ///
-    /// # Panics
-    /// Panics if a signal listener could not be constructed (usually if this binary is not run on a
-    /// Unix).
+    /// Runs Sequencer Relayer.
     pub async fn run(self) {
         let Self {
             api_server,
             relayer,
             shutdown_token,
+            mut shutdown_receiver,
         } = self;
         // Separate the API shutdown signal from the cancellation token because we want it to live
         // until the very end.
@@ -121,13 +123,9 @@ impl SequencerRelayer {
         let mut relayer_task = tokio::spawn(relayer.run());
         info!("spawned relayer task");
 
-        let mut sigterm = signal(SignalKind::terminate()).expect(
-            "setting a SIGTERM listener should always work on unix; is this running on Unix?",
-        );
-
         let shutdown = select!(
-            _ = sigterm.recv() => {
-                info!("received SIGTERM, issuing shutdown to all services");
+            _ = shutdown_receiver.recv() => {
+                info!("received shutdown command, issuing shutdown to all services");
                 ShutDown { api_task: Some(api_task), relayer_task: Some(relayer_task), api_shutdown_signal, shutdown_token }
             },
 
@@ -142,6 +140,58 @@ impl SequencerRelayer {
 
         );
         shutdown.run().await;
+    }
+}
+
+/// A controller for instructing the [`SequencerRelayer`] to shut down.
+///
+/// When constructed, it will provide a receiver to be passed into the `SequencerRelayer`'s
+/// constructor.  The `SequencerRelayer` should begin to shut down as soon as the first value is
+/// received from the receiver.
+///
+/// The controller will send the value on receiving a `SIGTERM` signal or on being dropped.
+pub struct ShutdownController {
+    sender: mpsc::Sender<()>,
+}
+
+impl ShutdownController {
+    /// Creates a new `ShutdownController`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a signal listener could not be constructed (usually if this is not run on Unix).
+    #[must_use]
+    pub fn new() -> (Self, mpsc::Receiver<()>) {
+        let (sender, receiver) = mpsc::channel(1);
+        let cloned_sender = sender.clone();
+        let mut sigterm = signal(SignalKind::terminate())
+            .expect("setting a SIGTERM listener should always work on Unix");
+        tokio::spawn(async move {
+            // We don't care about the result (i.e. whether there could be more SIGTERM signals
+            // incoming); we just want to shut down as soon as we receive the first `SIGTERM`.
+            let _ = sigterm.recv().await;
+            // We don't care about the result; it's not a problem if the channel is full (meaning
+            // the `ShutdownController` has been dropped at roughly the same time) or if the
+            // receiver has already been dropped.
+            if cloned_sender.try_send(()).is_ok() {
+                info!("received SIGTERM, issuing shutdown to all services");
+            }
+        });
+        let controller = ShutdownController {
+            sender,
+        };
+        (controller, receiver)
+    }
+}
+
+impl Drop for ShutdownController {
+    fn drop(&mut self) {
+        // We don't care about the result; it's not a problem if the channel is full (meaning
+        // we received a `SIGTERM` at roughly the same time) or if the receiver has already been
+        // dropped.
+        if self.sender.try_send(()).is_ok() {
+            info!("scoped shutdown dropped, issuing shutdown to all services");
+        }
     }
 }
 
@@ -180,18 +230,21 @@ impl ShutDown {
         // Giving relayer 25 seconds to shutdown because Kubernetes issues a SIGKILL after 30.
         if let Some(mut relayer_task) = relayer_task {
             info!("waiting for relayer task to shut down");
-            match timeout(Duration::from_secs(25), &mut relayer_task)
+            let limit = Duration::from_secs(25);
+            match timeout(limit, &mut relayer_task)
                 .await
                 .map(crate::utils::flatten)
             {
                 Ok(Ok(())) => info!("relayer exited gracefully"),
                 Ok(Err(error)) => error!(%error, "relayer exited with an error"),
                 Err(_) => {
-                    error!("relayer did not shut down after 25 seconds; killing it");
+                    error!(
+                        timeout_secs = limit.as_secs(),
+                        "relayer did not shut down within timeout; killing it"
+                    );
                     relayer_task.abort();
                 }
             }
-            info!("sending shutdown signal to API server");
         } else {
             info!("relayer task was already dead");
         }
@@ -200,14 +253,18 @@ impl ShutDown {
         if let Some(mut api_task) = api_task {
             info!("sending shutdown signal to API server");
             let _ = api_shutdown_signal.send(());
-            match timeout(Duration::from_secs(4), &mut api_task)
+            let limit = Duration::from_secs(4);
+            match timeout(limit, &mut api_task)
                 .await
                 .map(crate::utils::flatten)
             {
-                Ok(Ok(())) => info!("api server exited gracefully"),
-                Ok(Err(error)) => error!(%error, "api server exited with an error"),
+                Ok(Ok(())) => info!("API server exited gracefully"),
+                Ok(Err(error)) => error!(%error, "API server exited with an error"),
                 Err(_) => {
-                    error!("api server did not shut down after 25 seconds; killing it");
+                    error!(
+                        timeout_secs = limit.as_secs(),
+                        "API server did not shut down within timeout; killing it"
+                    );
                     api_task.abort();
                 }
             }

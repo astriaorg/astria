@@ -5,6 +5,7 @@ use astria_sequencer_relayer::{
     metrics_init,
     Config,
     SequencerRelayer,
+    ShutdownController,
     BUILD_INFO,
 };
 use tracing::info;
@@ -44,7 +45,8 @@ async fn main() -> ExitCode {
         "initializing sequencer relayer"
     );
 
-    SequencerRelayer::new(cfg)
+    let (_shutdown_controller, shutdown_receiver) = ShutdownController::new();
+    SequencerRelayer::new(cfg, shutdown_receiver)
         .expect("could not initialize sequencer relayer")
         .run()
         .await;
