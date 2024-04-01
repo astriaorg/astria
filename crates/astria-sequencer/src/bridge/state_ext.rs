@@ -116,11 +116,10 @@ pub(crate) trait StateReadExt: StateRead {
             return Ok(0);
         };
 
-        let Nonce(nonce) = Nonce(u32::from_be_bytes(
-            bytes
-                .try_into()
-                .expect("all deposit nonces stored should be 4 bytes; this is a bug"),
-        ));
+        let Nonce(nonce) =
+            Nonce(u32::from_be_bytes(bytes.try_into().expect(
+                "all deposit nonces stored should be 4 bytes; this is a bug",
+            )));
         Ok(nonce)
     }
 
