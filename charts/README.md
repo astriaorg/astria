@@ -86,6 +86,19 @@ The default Blockscout app is available at <http://blockscout.astria.localdev.me
 If you deploy a custom Blockscout app, it will be available at
 `http://blockscout.<rollup_name>.localdev.me`.
 
+### Sequencer
+
+The default sequencer RPC is available at <http://rpc.sequencer.localdev.me/health>.
+
+### EVM Rollup
+
+The default EVM rollup has an RPC endpoint available at <http://executor.astria.localdev.me>.
+
+There is also a default WSS endpoint available at <ws://ws-executor.astria.localdev.me>.
+
+If you deploy a custom rollup, then the endpoints will be `http://executor.<rollup_name>.localdev.me` and
+`ws://ws-executor.<rollup_name>.localdev.me`
+
 ### Connecting Metamask
 
 * adding the default network
