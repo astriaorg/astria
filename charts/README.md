@@ -96,8 +96,8 @@ The default EVM rollup has an RPC endpoint available at <http://executor.astria.
 
 There is also a default WSS endpoint available at <ws://ws-executor.astria.localdev.me>.
 
-If you deploy a custom rollup, then the endpoints will be `http://executor.<rollup_name>.localdev.me` and
-`ws://ws-executor.<rollup_name>.localdev.me`
+If you deploy a custom rollup, then the endpoints will be
+`http://executor.<rollup_name>.localdev.me` and `ws://ws-executor.<rollup_name>.localdev.me`
 
 ### Connecting Metamask
 
