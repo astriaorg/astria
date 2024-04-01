@@ -159,30 +159,30 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         // can write new
-        let mut address_expected = Address::try_from_slice(&[42u8; 20]).unwrap();
+        let mut address = Address::try_from_slice(&[42u8; 20]).unwrap();
         state
-            .put_ibc_sudo_address(address_expected)
+            .put_ibc_sudo_address(address)
             .expect("writing sudo address should not fail");
         assert_eq!(
             state
                 .get_ibc_sudo_address()
                 .await
                 .expect("a sudo address was written and must exist inside the database"),
-            address_expected,
+            address,
             "stored sudo address was not what was expected"
         );
 
         // can rewrite with new value
-        address_expected = Address::try_from_slice(&[41u8; 20]).unwrap();
+        address = Address::try_from_slice(&[41u8; 20]).unwrap();
         state
-            .put_ibc_sudo_address(address_expected)
+            .put_ibc_sudo_address(address)
             .expect("writing sudo address should not fail");
         assert_eq!(
             state
                 .get_ibc_sudo_address()
                 .await
                 .expect("sudo address was written and must exist inside the database"),
-            address_expected,
+            address,
             "updated sudo address was not what was expected"
         );
     }
@@ -194,10 +194,10 @@ mod test {
         let state = StateDelta::new(snapshot);
 
         // unset address returns false
-        let address_expected = Address::try_from_slice(&[42u8; 20]).unwrap();
+        let address = Address::try_from_slice(&[42u8; 20]).unwrap();
         assert!(
             !state
-                .is_ibc_relayer(&address_expected)
+                .is_ibc_relayer(&address)
                 .await
                 .expect("calls to properly formatted addresses should not fail"),
             "inputted address should've returned false"
@@ -211,21 +211,21 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         // can write
-        let address_expected = Address::try_from_slice(&[42u8; 20]).unwrap();
-        state.put_ibc_relayer_address(&address_expected);
+        let address = Address::try_from_slice(&[42u8; 20]).unwrap();
+        state.put_ibc_relayer_address(&address);
         assert!(
             state
-                .is_ibc_relayer(&address_expected)
+                .is_ibc_relayer(&address)
                 .await
                 .expect("a relayer address was written and must exist inside the database"),
             "stored relayer address could not be verified"
         );
 
         // can delete
-        state.delete_ibc_relayer_address(&address_expected);
+        state.delete_ibc_relayer_address(&address);
         assert!(
             !state
-                .is_ibc_relayer(&address_expected)
+                .is_ibc_relayer(&address)
                 .await
                 .expect("calls on unset addresses should not fail"),
             "relayer address was not deleted as was intended"
@@ -239,29 +239,29 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         // can write
-        let address_expected = Address::try_from_slice(&[42u8; 20]).unwrap();
-        state.put_ibc_relayer_address(&address_expected);
+        let address = Address::try_from_slice(&[42u8; 20]).unwrap();
+        state.put_ibc_relayer_address(&address);
         assert!(
             state
-                .is_ibc_relayer(&address_expected)
+                .is_ibc_relayer(&address)
                 .await
                 .expect("a relayer address was written and must exist inside the database"),
             "stored relayer address could not be verified"
         );
 
         // can write multiple
-        let address_expected_1 = Address::try_from_slice(&[41u8; 20]).unwrap();
-        state.put_ibc_relayer_address(&address_expected_1);
+        let address_1 = Address::try_from_slice(&[41u8; 20]).unwrap();
+        state.put_ibc_relayer_address(&address_1);
         assert!(
             state
-                .is_ibc_relayer(&address_expected_1)
+                .is_ibc_relayer(&address_1)
                 .await
                 .expect("a relayer address was written and must exist inside the database"),
             "additional stored relayer address could not be verified"
         );
         assert!(
             state
-                .is_ibc_relayer(&address_expected)
+                .is_ibc_relayer(&address)
                 .await
                 .expect("a relayer address was written and must exist inside the database"),
             "original stored relayer address could not be verified"
@@ -295,32 +295,32 @@ mod test {
 
         let channel = ChannelId::new(0u64);
         let asset = Id::from_denom("asset");
-        let mut expected_amount = 10u128;
+        let mut amount = 10u128;
 
         // write initial
         state
-            .put_ibc_channel_balance(&channel, asset, expected_amount)
+            .put_ibc_channel_balance(&channel, asset, amount)
             .expect("should be able to set balance for channel and asset pair");
         assert_eq!(
             state
                 .get_ibc_channel_balance(&channel, asset)
                 .await
                 .expect("retrieving asset balance for channel should not fail"),
-            expected_amount,
+            amount,
             "set balance for channel/asset pair not what was expected"
         );
 
         // can update
-        expected_amount = 20u128;
+        amount = 20u128;
         state
-            .put_ibc_channel_balance(&channel, asset, expected_amount)
+            .put_ibc_channel_balance(&channel, asset, amount)
             .expect("should be able to set balance for channel and asset pair");
         assert_eq!(
             state
                 .get_ibc_channel_balance(&channel, asset)
                 .await
                 .expect("retrieving asset balance for channel should not fail"),
-            expected_amount,
+            amount,
             "set balance for channel/asset pair not what was expected"
         );
     }
@@ -334,22 +334,22 @@ mod test {
         let channel = ChannelId::new(0u64);
         let asset_0 = Id::from_denom("asset_0");
         let asset_1 = Id::from_denom("asset_1");
-        let expected_amount_0 = 10u128;
-        let expected_amount_1 = 20u128;
+        let amount_0 = 10u128;
+        let amount_1 = 20u128;
 
         // write both
         state
-            .put_ibc_channel_balance(&channel, asset_0, expected_amount_0)
+            .put_ibc_channel_balance(&channel, asset_0, amount_0)
             .expect("should be able to set balance for channel and asset pair");
         state
-            .put_ibc_channel_balance(&channel, asset_1, expected_amount_1)
+            .put_ibc_channel_balance(&channel, asset_1, amount_1)
             .expect("should be able to set balance for channel and asset pair");
         assert_eq!(
             state
                 .get_ibc_channel_balance(&channel, asset_0)
                 .await
                 .expect("retrieving asset balance for channel should not fail"),
-            expected_amount_0,
+            amount_0,
             "set balance for channel/asset pair not what was expected"
         );
         assert_eq!(
@@ -357,7 +357,7 @@ mod test {
                 .get_ibc_channel_balance(&channel, asset_1)
                 .await
                 .expect("retrieving asset balance for channel should not fail"),
-            expected_amount_1,
+            amount_1,
             "set balance for channel/asset pair not what was expected"
         );
     }
@@ -371,22 +371,22 @@ mod test {
         let channel_0 = ChannelId::new(0u64);
         let channel_1 = ChannelId::new(1u64);
         let asset = Id::from_denom("asset_0");
-        let expected_amount_0 = 10u128;
-        let expected_amount_1 = 20u128;
+        let amount_0 = 10u128;
+        let amount_1 = 20u128;
 
         // write both
         state
-            .put_ibc_channel_balance(&channel_0, asset, expected_amount_0)
+            .put_ibc_channel_balance(&channel_0, asset, amount_0)
             .expect("should be able to set balance for channel and asset pair");
         state
-            .put_ibc_channel_balance(&channel_1, asset, expected_amount_1)
+            .put_ibc_channel_balance(&channel_1, asset, amount_1)
             .expect("should be able to set balance for channel and asset pair");
         assert_eq!(
             state
                 .get_ibc_channel_balance(&channel_0, asset)
                 .await
                 .expect("retrieving asset balance for channel should not fail"),
-            expected_amount_0,
+            amount_0,
             "set balance for channel/asset pair not what was expected"
         );
         assert_eq!(
@@ -394,7 +394,7 @@ mod test {
                 .get_ibc_channel_balance(&channel_1, asset)
                 .await
                 .expect("retrieving asset balance for channel should not fail"),
-            expected_amount_1,
+            amount_1,
             "set balance for channel/asset pair not what was expected"
         );
     }
