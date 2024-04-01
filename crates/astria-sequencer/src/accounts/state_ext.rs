@@ -418,7 +418,6 @@ mod test {
         // writing to other accounts does not affect original account
         // create needed variables
         let address_1 = Address::try_from_slice(&[41u8; 20]).unwrap();
-        let asset = Id::from_denom("asset_0");
         let amount_expected_1 = 2u128;
 
         state
@@ -539,7 +538,7 @@ mod test {
         let amount_expected_1 = 2u128;
         let amount_expected_2 = 3u128;
 
-        // add balaces to the account
+        // add balances to the account
         state
             .put_account_balance(address, asset_0, amount_expected_0)
             .expect("putting an account balance should not fail");
