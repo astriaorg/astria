@@ -92,7 +92,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let state = StateDelta::new(snapshot);
 
-        let asset = Id::from_denom("asset_0");
+        let asset = Id::from_denom("asset");
 
         // gets for non existing assets fail
         state
@@ -107,27 +107,25 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        let asset_string = "asset_0";
-        let asset = Id::from_denom(asset_string);
-        let denom = Denom::from_base_denom(asset_string);
+        let denom = Denom::from_base_denom("asset");
 
         // non existing calls are ok for 'has'
         assert!(
             !state
-                .has_ibc_asset(asset)
+                .has_ibc_asset(denom.id())
                 .await
                 .expect("'has' for non existing ibc assets should be ok"),
             "query for non existing asset should return false"
         );
 
         state
-            .put_ibc_asset(asset, &denom)
+            .put_ibc_asset(denom.id(), &denom)
             .expect("putting ibc asset should not fail");
 
         // existing calls are ok for 'has'
         assert!(
             state
-                .has_ibc_asset(asset)
+                .has_ibc_asset(denom.id())
                 .await
                 .expect("'has' for existing ibc assets should be ok"),
             "query for existing asset should return true"
@@ -141,15 +139,13 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         // can write new
-        let asset_string = "asset_0";
-        let asset = Id::from_denom(asset_string);
-        let denom = Denom::from_base_denom(asset_string);
+        let denom = Denom::from_base_denom("asset");
         state
-            .put_ibc_asset(asset, &denom)
+            .put_ibc_asset(denom.id(), &denom)
             .expect("putting ibc asset should not fail");
         assert_eq!(
             state
-                .get_ibc_asset(asset)
+                .get_ibc_asset(denom.id())
                 .await
                 .expect("an ibc asset was written and must exist inside the database"),
             denom,
@@ -164,15 +160,13 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         // can write new
-        let asset_string = "asset_0";
-        let asset = Id::from_denom(asset_string);
-        let denom = Denom::from_base_denom(asset_string);
+        let denom = Denom::from_base_denom("asset_0");
         state
-            .put_ibc_asset(asset, &denom)
+            .put_ibc_asset(denom.id(), &denom)
             .expect("putting ibc asset should not fail");
         assert_eq!(
             state
-                .get_ibc_asset(asset)
+                .get_ibc_asset(denom.id())
                 .await
                 .expect("an ibc asset was written and must exist inside the database"),
             denom,
@@ -180,15 +174,13 @@ mod test {
         );
 
         // can write another without affecting original
-        let asset_string_1 = "asset_1";
-        let asset_1 = Id::from_denom(asset_string_1);
-        let denom_1 = Denom::from_base_denom(asset_string_1);
+        let denom_1 = Denom::from_base_denom("asset_1");
         state
-            .put_ibc_asset(asset_1, &denom_1)
+            .put_ibc_asset(denom_1.id(), &denom_1)
             .expect("putting ibc asset should not fail");
         assert_eq!(
             state
-                .get_ibc_asset(asset_1)
+                .get_ibc_asset(denom_1.id())
                 .await
                 .expect("an additional ibc asset was written and must exist inside the database"),
             denom_1,
@@ -196,7 +188,7 @@ mod test {
         );
         assert_eq!(
             state
-                .get_ibc_asset(asset)
+                .get_ibc_asset(denom.id())
                 .await
                 .expect("an ibc asset was written and must exist inside the database"),
             denom,
@@ -211,10 +203,8 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         // can write unrelated ids and denoms
-        let id_string = "asset_0";
-        let id_key = Id::from_denom(id_string);
-        let denom_string = "asset_1";
-        let denom = Denom::from_base_denom(denom_string);
+        let id_key = Id::from_denom("asset_0");
+        let denom = Denom::from_base_denom("asset_1");
         state
             .put_ibc_asset(id_key, &denom)
             .expect("putting ibc asset should not fail");
