@@ -417,7 +417,7 @@ mod test {
                 .await
                 .expect("if no updates have been written return empty set"),
             empty_validator_set,
-            "returned empty validator set different than expected"
+            "returned validator set different than expected"
         );
     }
 
