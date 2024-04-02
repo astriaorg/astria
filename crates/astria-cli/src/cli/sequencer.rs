@@ -31,7 +31,9 @@ pub enum Command {
     },
     /// Command for sending balance between accounts
     Transfer(TransferArgs),
+    /// Command for initializing a bridge account
     InitBridgeAccount(InitBridgeAccountArgs),
+    /// Command for transferring to a bridge account
     BridgeLock(BridgeLockArgs),
 }
 
