@@ -96,3 +96,4 @@ tryhard = "0.5.1"
 which = "4.4.0"
 wiremock = "0.5"
 insta = "1.36.1"
+tokio-stream = { version = "0.1.14" }

@@ -128,17 +128,16 @@ impl SequencerRelayer {
         let shutdown = select!(
             _ = sigterm.recv() => {
                 info!("received SIGTERM, issuing shutdown to all services");
-                shutdown_token.cancel();
-                Shutdown { api_task: Some(api_task), relayer_task: Some(relayer_task), api_shutdown_signal, }
+                ShutDown { api_task: Some(api_task), relayer_task: Some(relayer_task), api_shutdown_signal, shutdown_token }
             },
 
             o = &mut api_task => {
                 report_exit("api server", o);
-                Shutdown { api_task: None, relayer_task: Some(relayer_task), api_shutdown_signal, }
+                ShutDown { api_task: None, relayer_task: Some(relayer_task), api_shutdown_signal, shutdown_token }
             }
             o = &mut relayer_task => {
                 report_exit("relayer worker", o);
-                Shutdown { api_task: Some(api_task), relayer_task: None, api_shutdown_signal, }
+                ShutDown { api_task: Some(api_task), relayer_task: None, api_shutdown_signal, shutdown_token }
             }
 
         );
@@ -148,12 +147,12 @@ impl SequencerRelayer {
 
 fn report_exit(task_name: &str, outcome: Result<eyre::Result<()>, JoinError>) {
     match outcome {
-        Ok(Ok(())) => tracing::info!(task = task_name, "task has exited"),
+        Ok(Ok(())) => info!(task = task_name, "task has exited"),
         Ok(Err(error)) => {
-            tracing::error!(task = task_name, %error, "task returned with error");
+            error!(task = task_name, %error, "task returned with error");
         }
         Err(e) => {
-            tracing::error!(
+            error!(
                 task = task_name,
                 error = &e as &dyn std::error::Error,
                 "task failed to complete"
@@ -162,19 +161,22 @@ fn report_exit(task_name: &str, outcome: Result<eyre::Result<()>, JoinError>) {
     }
 }
 
-struct Shutdown {
+struct ShutDown {
     api_task: Option<JoinHandle<eyre::Result<()>>>,
     relayer_task: Option<JoinHandle<eyre::Result<()>>>,
     api_shutdown_signal: oneshot::Sender<()>,
+    shutdown_token: CancellationToken,
 }
 
-impl Shutdown {
+impl ShutDown {
     async fn run(self) {
         let Self {
             api_task,
             relayer_task,
             api_shutdown_signal,
+            shutdown_token,
         } = self;
+        shutdown_token.cancel();
         // Giving relayer 25 seconds to shutdown because Kubernetes issues a SIGKILL after 30.
         if let Some(mut relayer_task) = relayer_task {
             info!("waiting for relayer task to shut down");
