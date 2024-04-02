@@ -9,14 +9,7 @@ use astria_eyre::eyre::{
 };
 use tokio::{
     select,
-    signal::unix::{
-        signal,
-        SignalKind,
-    },
-    sync::{
-        mpsc,
-        oneshot,
-    },
+    sync::oneshot,
     task::{
         JoinError,
         JoinHandle,
@@ -42,7 +35,6 @@ pub struct SequencerRelayer {
     api_server: api::ApiServer,
     relayer: Relayer,
     shutdown_token: CancellationToken,
-    shutdown_receiver: mpsc::Receiver<()>,
 }
 
 impl SequencerRelayer {
@@ -51,8 +43,8 @@ impl SequencerRelayer {
     /// # Errors
     ///
     /// Returns an error if constructing the inner relayer type failed.
-    pub fn new(cfg: Config, shutdown_receiver: mpsc::Receiver<()>) -> eyre::Result<Self> {
-        let shutdown_token = CancellationToken::new();
+    pub fn new(cfg: Config) -> eyre::Result<(Self, ShutdownHandle)> {
+        let shutdown_handle = ShutdownHandle::new();
         let Config {
             cometbft_endpoint,
             sequencer_grpc_endpoint,
@@ -69,7 +61,7 @@ impl SequencerRelayer {
 
         let validator_key_path = relay_only_validator_key_blocks.then_some(validator_key_file);
         let relayer = relayer::Builder {
-            shutdown_token: shutdown_token.clone(),
+            shutdown_token: shutdown_handle.token(),
             celestia_endpoint,
             celestia_bearer_token,
             cometbft_endpoint,
@@ -87,12 +79,12 @@ impl SequencerRelayer {
             format!("failed to parse provided `api_addr` string as socket address: `{api_addr}`",)
         })?;
         let api_server = api::start(api_socket_addr, state_rx);
-        Ok(Self {
+        let relayer = Self {
             api_server,
             relayer,
-            shutdown_token,
-            shutdown_receiver,
-        })
+            shutdown_token: shutdown_handle.token(),
+        };
+        Ok((relayer, shutdown_handle))
     }
 
     pub fn local_addr(&self) -> SocketAddr {
@@ -105,7 +97,6 @@ impl SequencerRelayer {
             api_server,
             relayer,
             shutdown_token,
-            mut shutdown_receiver,
         } = self;
         // Separate the API shutdown signal from the cancellation token because we want it to live
         // until the very end.
@@ -124,11 +115,6 @@ impl SequencerRelayer {
         info!("spawned relayer task");
 
         let shutdown = select!(
-            _ = shutdown_receiver.recv() => {
-                info!("received shutdown command, issuing shutdown to all services");
-                ShutDown { api_task: Some(api_task), relayer_task: Some(relayer_task), api_shutdown_signal, shutdown_token }
-            },
-
             o = &mut api_task => {
                 report_exit("api server", o);
                 ShutDown { api_task: None, relayer_task: Some(relayer_task), api_shutdown_signal, shutdown_token }
@@ -143,55 +129,41 @@ impl SequencerRelayer {
     }
 }
 
-/// A controller for instructing the [`SequencerRelayer`] to shut down.
+/// A handle for instructing the [`SequencerRelayer`] to shut down.
 ///
-/// When constructed, it will provide a receiver to be passed into the `SequencerRelayer`'s
-/// constructor.  The `SequencerRelayer` should begin to shut down as soon as the first value is
-/// received from the receiver.
-///
-/// The controller will send the value on receiving a `SIGTERM` signal or on being dropped.
-pub struct ShutdownController {
-    sender: mpsc::Sender<()>,
+/// It is returned along with its related `SequencerRelayer` from [`SequencerRelayer::new`].  The
+/// `SequencerRelayer` will begin to shut down as soon as [`ShutdownHandle::shutdown`] is called or
+/// when the `ShutdownHandle` is dropped.
+pub struct ShutdownHandle {
+    token: CancellationToken,
 }
 
-impl ShutdownController {
-    /// Creates a new `ShutdownController`.
-    ///
-    /// # Panics
-    ///
-    /// Panics if a signal listener could not be constructed (usually if this is not run on Unix).
+impl ShutdownHandle {
     #[must_use]
-    pub fn new() -> (Self, mpsc::Receiver<()>) {
-        let (sender, receiver) = mpsc::channel(1);
-        let cloned_sender = sender.clone();
-        let mut sigterm = signal(SignalKind::terminate())
-            .expect("setting a SIGTERM listener should always work on Unix");
-        tokio::spawn(async move {
-            // We don't care about the result (i.e. whether there could be more SIGTERM signals
-            // incoming); we just want to shut down as soon as we receive the first `SIGTERM`.
-            let _ = sigterm.recv().await;
-            // We don't care about the result; it's not a problem if the channel is full (meaning
-            // the `ShutdownController` has been dropped at roughly the same time) or if the
-            // receiver has already been dropped.
-            if cloned_sender.try_send(()).is_ok() {
-                info!("received SIGTERM, issuing shutdown to all services");
-            }
-        });
-        let controller = ShutdownController {
-            sender,
-        };
-        (controller, receiver)
+    fn new() -> Self {
+        Self {
+            token: CancellationToken::new(),
+        }
+    }
+
+    /// Returns a clone of the wrapped cancellation token.
+    #[must_use]
+    pub fn token(&self) -> CancellationToken {
+        self.token.clone()
+    }
+
+    /// Consumes `self` and cancels the wrapped cancellation token.
+    pub fn shutdown(self) {
+        self.token.cancel();
     }
 }
 
-impl Drop for ShutdownController {
+impl Drop for ShutdownHandle {
     fn drop(&mut self) {
-        // We don't care about the result; it's not a problem if the channel is full (meaning
-        // we received a `SIGTERM` at roughly the same time) or if the receiver has already been
-        // dropped.
-        if self.sender.try_send(()).is_ok() {
-            info!("scoped shutdown dropped, issuing shutdown to all services");
+        if !self.token.is_cancelled() {
+            info!("shutdown handle dropped, issuing shutdown to all services");
         }
+        self.token.cancel();
     }
 }
 

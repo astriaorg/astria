@@ -29,7 +29,7 @@ use astria_core::{
 use astria_sequencer_relayer::{
     config::Config,
     SequencerRelayer,
-    ShutdownController,
+    ShutdownHandle,
 };
 use celestia_client::celestia_types::{
     blob::SubmitOptions,
@@ -172,8 +172,8 @@ pub struct TestSequencerRelayer {
 
     pub sequencer: JoinHandle<()>,
 
-    /// A controller which issues a shutdown to the sequencer relayer on being dropped.
-    pub relayer_shutdown_controller: Option<ShutdownController>,
+    /// A handle which issues a shutdown to the sequencer relayer on being dropped.
+    pub relayer_shutdown_handle: Option<ShutdownHandle>,
     pub sequencer_relayer: JoinHandle<()>,
 
     pub config: Config,
@@ -190,8 +190,8 @@ pub struct TestSequencerRelayer {
 
 impl Drop for TestSequencerRelayer {
     fn drop(&mut self) {
-        // We drop the shutdown controller here to cause the sequencer relayer to shut down.
-        let _ = self.relayer_shutdown_controller.take();
+        // We drop the shutdown handle here to cause the sequencer relayer to shut down.
+        let _ = self.relayer_shutdown_handle.take();
 
         let sequencer_relayer = mem::replace(&mut self.sequencer_relayer, tokio::spawn(async {}));
         let _ = futures::executor::block_on(async move {
@@ -406,8 +406,8 @@ impl TestSequencerRelayerConfig {
         };
 
         info!(config = serde_json::to_string(&config).unwrap());
-        let (relayer_shutdown_controller, shutdown_receiver) = ShutdownController::new();
-        let sequencer_relayer = SequencerRelayer::new(config.clone(), shutdown_receiver).unwrap();
+        let (sequencer_relayer, relayer_shutdown_handle) =
+            SequencerRelayer::new(config.clone()).unwrap();
         let api_address = sequencer_relayer.local_addr();
         let sequencer_relayer = tokio::task::spawn(sequencer_relayer.run());
 
@@ -418,7 +418,7 @@ impl TestSequencerRelayerConfig {
             sequencer,
             sequencer_server_blocks,
             cometbft,
-            relayer_shutdown_controller: Some(relayer_shutdown_controller),
+            relayer_shutdown_handle: Some(relayer_shutdown_handle),
             sequencer_relayer,
             signing_key,
             account: address,
