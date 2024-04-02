@@ -123,7 +123,7 @@ pub struct MockSequencerServer {
 #[async_trait::async_trait]
 impl SequencerService for MockSequencerServer {
     async fn get_sequencer_block(
-        &self,
+        self: Arc<Self>,
         _request: Request<GetSequencerBlockRequest>,
     ) -> Result<Response<RawSequencerBlock>, Status> {
         let mut blocks = self.blocks.lock().unwrap();
@@ -137,7 +137,7 @@ impl SequencerService for MockSequencerServer {
     }
 
     async fn get_filtered_sequencer_block(
-        &self,
+        self: Arc<Self>,
         _request: Request<GetFilteredSequencerBlockRequest>,
     ) -> Result<Response<RawFilteredSequencerBlock>, Status> {
         return Err(Status::internal("unimplemented"));
