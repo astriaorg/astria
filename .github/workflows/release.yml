@@ -51,9 +51,11 @@ jobs:
         with:
           source-files: 'charts/'
           destination-username: 'astriaorg'
+          destination-branch: 'main'
           destination-repository: 'charts'
           destination-directory: 'charts'
-          commit-email: 'jordan@astria.org'
+          commit-email: '${{ github.actor }}@users.noreply.github.com'
+          commit-username: '${{ github.actor }}'
 
   conductor:
     needs: run_checker
