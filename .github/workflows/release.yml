@@ -44,23 +44,16 @@ jobs:
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Configure Git
-        run: |
-          git config user.name "$GITHUB_ACTOR"
-          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
-      - name: Install Helm
-        uses: azure/setup-helm@v3
-      - name: Update all chart dependencies before packaging
-        run: |
-          for chart in charts/*/; do
-            helm dependency update $chart
-          done
-      - name: Run chart-releaser
-        uses: helm/chart-releaser-action@v1.6.0
+      - name: Publish to Charts Repo
+        uses: nkoppel/push-files-to-another-repository@1.1.0
         env:
-          CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+          API_TOKEN_GITHUB: ${{ secrets.CHARTS_REPO_TOKEN }}
+        with:
+          source-files: 'charts/'
+          destination-username: 'astriaorg'
+          destination-repository: 'charts'
+          destination-directory: 'charts'
+          commit-email: 'jordan@astria.org'
 
   conductor:
     needs: run_checker
