@@ -53,7 +53,6 @@ jobs:
           destination-username: 'astriaorg'
           destination-branch: 'main'
           destination-repository: 'charts'
-          destination-directory: 'charts'
           commit-email: '${{ github.actor }}@users.noreply.github.com'
           commit-username: '${{ github.actor }}'
 
