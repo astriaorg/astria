@@ -57,7 +57,6 @@ pub(crate) fn generate_rollup_datas_commitment(
 
     let mut rollup_ids_to_txs =
         group_sequence_actions_in_signed_transaction_transactions_by_rollup_id(signed_txs);
-    let rollup_ids_root = merkle::Tree::from_leaves(rollup_ids_to_txs.keys()).root();
 
     for (rollup_id, deposit) in deposits {
         rollup_ids_to_txs.entry(rollup_id).or_default().extend(
@@ -68,6 +67,7 @@ pub(crate) fn generate_rollup_datas_commitment(
     }
 
     rollup_ids_to_txs.sort_unstable_keys();
+    let rollup_ids_root = merkle::Tree::from_leaves(rollup_ids_to_txs.keys()).root();
 
     // each leaf of the action tree is the root of a merkle tree of the `sequence::Action`s
     // with the same `rollup_id`, prepended with `rollup_id`.

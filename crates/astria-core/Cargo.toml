@@ -16,6 +16,8 @@ keywords = ["astria", "grpc", "rpc", "blockchain", "execution", "protobuf"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+pbjson = { version = "0.6.0", optional = true }
+
 merkle = { package = "astria-merkle", path = "../astria-merkle" }
 
 bytes = { workspace = true }
@@ -24,10 +26,10 @@ ed25519-consensus = { workspace = true }
 hex = { workspace = true }
 ibc-types = { workspace = true }
 indexmap = { workspace = true }
+pbjson-types = { workspace = true }
 penumbra-ibc = { workspace = true }
 penumbra-proto = { workspace = true }
 prost = { workspace = true }
-prost-types = { workspace = true }
 rand = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"], optional = true }
 sha2 = { workspace = true }
@@ -36,12 +38,16 @@ tendermint-proto = { workspace = true }
 thiserror = { workspace = true }
 tonic = { workspace = true, optional = true }
 tracing = { workspace = true }
+base64-serde = { workspace = true, optional = true }
+base64 = { workspace = true, optional = true }
 
 [features]
 client = ["dep:tonic"]
-serde = ["dep:serde"]
+serde = ["dep:serde", "dep:pbjson", "dep:base64", "dep:base64-serde"]
 server = ["dep:tonic"]
 test-utils = ["dep:rand"]
+base64-serde = ["dep:base64-serde"]
+base64 = ["dep:base64"]
 
 [dev-dependencies]
 rand = { workspace = true }
