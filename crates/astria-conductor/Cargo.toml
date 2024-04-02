@@ -12,32 +12,6 @@ homepage = "https://astria.org"
 name = "astria-conductor"
 
 [dependencies]
-async-trait = "0.1.73"
-futures-bounded = "0.2.3"
-pin-project-lite = "0.2"
-tracing-futures = { version = "0.2.5", features = ["futures-03"] }
-
-base64 = { workspace = true }
-bytes = { workspace = true }
-ed25519-consensus = { workspace = true }
-futures = { workspace = true }
-hex = { workspace = true }
-humantime = { workspace = true }
-indexmap = { workspace = true }
-itoa = { workspace = true }
-prost = { workspace = true }
-prost-types = { workspace = true }
-rand = { workspace = true }
-serde = { workspace = true, features = ["derive"] }
-serde_json = { workspace = true }
-sha2 = { workspace = true }
-thiserror = { workspace = true }
-tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal"] }
-tokio-util = { workspace = true, features = ["rt"] }
-tonic = { workspace = true }
-tracing = { workspace = true, features = ["valuable"] }
-tryhard = { workspace = true }
-
 astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
 astria-core = { path = "../astria-core", features = ["client", "serde"] }
 astria-eyre = { path = "../astria-eyre" }
@@ -50,18 +24,45 @@ sequencer-client = { package = "astria-sequencer-client", path = "../astria-sequ
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry", features = [
   "display",
 ] }
+
+base64 = { workspace = true }
+bytes = { workspace = true }
+ed25519-consensus = { workspace = true }
+futures = { workspace = true }
+hex = { workspace = true }
+humantime = { workspace = true }
+indexmap = { workspace = true }
+itoa = { workspace = true }
+pbjson-types = { workspace = true }
+prost = { workspace = true }
+rand = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal"] }
+tokio-util = { workspace = true, features = ["rt"] }
+tonic = { workspace = true }
+tracing = { workspace = true, features = ["valuable"] }
+tryhard = { workspace = true }
+
+async-trait = "0.1.73"
+futures-bounded = "0.2.3"
 itertools = "0.12.1"
+pin-project-lite = "0.2"
+tracing-futures = { version = "0.2.5", features = ["futures-03"] }
 
 [dev-dependencies]
-jsonrpsee = { workspace = true, features = ["server"] }
-
-tokio-stream = { version = "0.1.14", features = ["net"] }
-
 astria-core = { path = "../astria-core", features = ["server", "test-utils"] }
 config = { package = "astria-config", path = "../astria-config", features = [
   "tests",
 ] }
+
 insta = { workspace = true, features = ["json"] }
+jsonrpsee = { workspace = true, features = ["server"] }
+
+chrono = "0.4.35"
+tokio-stream = { version = "0.1.14", features = ["net"] }
 
 [build-dependencies]
 astria-build-info = { path = "../astria-build-info", features = ["build"] }

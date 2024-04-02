@@ -1,7 +1,10 @@
 use std::{
     collections::HashMap,
     net::SocketAddr,
-    sync::Mutex,
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 
 use astria_core::{
@@ -93,7 +96,7 @@ fn make_genesis_block() -> raw::Block {
         number: 0,
         hash: GENESIS_HASH,
         parent_block_hash: GENESIS_HASH,
-        timestamp: Some(std::time::SystemTime::now().into()),
+        timestamp: Some(chrono::Utc::now().into()),
     }
 }
 
@@ -129,14 +132,14 @@ impl ExecutionServiceImpl {
 #[tonic::async_trait]
 impl ExecutionService for ExecutionServiceImpl {
     async fn get_block(
-        &self,
+        self: Arc<Self>,
         _request: tonic::Request<GetBlockRequest>,
     ) -> std::result::Result<tonic::Response<raw::Block>, tonic::Status> {
         unimplemented!("get_block")
     }
 
     async fn get_genesis_info(
-        &self,
+        self: Arc<Self>,
         _request: tonic::Request<GetGenesisInfoRequest>,
     ) -> std::result::Result<tonic::Response<raw::GenesisInfo>, tonic::Status> {
         Ok(tonic::Response::new(
@@ -145,14 +148,14 @@ impl ExecutionService for ExecutionServiceImpl {
     }
 
     async fn batch_get_blocks(
-        &self,
+        self: Arc<Self>,
         _request: tonic::Request<BatchGetBlocksRequest>,
     ) -> std::result::Result<tonic::Response<BatchGetBlocksResponse>, tonic::Status> {
         unimplemented!("batch_get_blocks")
     }
 
     async fn execute_block(
-        &self,
+        self: Arc<Self>,
         request: tonic::Request<ExecuteBlockRequest>,
     ) -> std::result::Result<tonic::Response<raw::Block>, tonic::Status> {
         let request = request.into_inner();
@@ -175,7 +178,7 @@ impl ExecutionService for ExecutionServiceImpl {
     }
 
     async fn get_commitment_state(
-        &self,
+        self: Arc<Self>,
         _request: tonic::Request<GetCommitmentStateRequest>,
     ) -> std::result::Result<tonic::Response<raw::CommitmentState>, tonic::Status> {
         Ok(tonic::Response::new(
@@ -184,7 +187,7 @@ impl ExecutionService for ExecutionServiceImpl {
     }
 
     async fn update_commitment_state(
-        &self,
+        self: Arc<Self>,
         request: tonic::Request<UpdateCommitmentStateRequest>,
     ) -> std::result::Result<tonic::Response<raw::CommitmentState>, tonic::Status> {
         let new_state = {
@@ -556,7 +559,7 @@ fn make_block(number: u32) -> raw::Block {
         number,
         hash: Bytes::from_static(&[0u8; 32]),
         parent_block_hash: Bytes::from_static(&[0u8; 32]),
-        timestamp: Some(prost_types::Timestamp {
+        timestamp: Some(pbjson_types::Timestamp {
             seconds: 0,
             nanos: 0,
         }),

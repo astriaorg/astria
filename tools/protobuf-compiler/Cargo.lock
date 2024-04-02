@@ -21,6 +21,7 @@ checksum = "a4668cab20f66d8d020e1fbc0ebe47217433c1b6c8f2040faf858554e394ace6"
 name = "astria-protobuf-compiler"
 version = "0.1.0"
 dependencies = [
+ "pbjson-build",
  "tempfile",
  "tonic-build",
  "walkdir",
@@ -160,6 +161,18 @@ name = "once_cell"
 version = "1.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dd8b5dd2ae5ed71462c540258bedcb51965123ad7e7ccf4b9a8cafaa4a63576d"
+
+[[package]]
+name = "pbjson-build"
+version = "0.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2580e33f2292d34be285c5bc3dba5259542b083cfad6037b6d70345f24dcb735"
+dependencies = [
+ "heck",
+ "itertools",
+ "prost",
+ "prost-types",
+]
 
 [[package]]
 name = "petgraph"

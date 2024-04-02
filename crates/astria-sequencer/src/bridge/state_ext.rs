@@ -116,7 +116,10 @@ pub(crate) trait StateReadExt: StateRead {
             return Ok(0);
         };
 
-        let Nonce(nonce) = Nonce::try_from_slice(&bytes).context("invalid nonce bytes")?;
+        let Nonce(nonce) =
+            Nonce(u32::from_be_bytes(bytes.try_into().expect(
+                "all deposit nonces stored should be 4 bytes; this is a bug",
+            )));
         Ok(nonce)
     }
 
@@ -242,3 +245,610 @@ pub(crate) trait StateWriteExt: StateWrite {
 }
 
 impl<T: StateWrite> StateWriteExt for T {}
+
+#[cfg(test)]
+mod test {
+    use astria_core::sequencer::v1::{
+        asset::Id,
+        block::Deposit,
+        Address,
+        RollupId,
+    };
+    use cnidarium::StateDelta;
+
+    use super::{
+        StateReadExt as _,
+        StateWriteExt as _,
+    };
+
+    #[tokio::test]
+    async fn get_bridge_account_rollup_id_uninitialized_ok() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let state = StateDelta::new(snapshot);
+
+        let address = Address::try_from_slice(&[42u8; 20]).unwrap();
+
+        // uninitialized ok
+        assert_eq!(
+            state.get_bridge_account_rollup_id(&address).await.expect(
+                "call to get bridge account rollup id should not fail for uninitialized addresses"
+            ),
+            Option::None,
+            "stored rollup id for bridge not what was expected"
+        );
+    }
+
+    #[tokio::test]
+    async fn put_bridge_account_rollup_id() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let mut rollup_id = RollupId::new([1u8; 32]);
+        let address = Address::try_from_slice(&[42u8; 20]).unwrap();
+
+        // can write new
+        state.put_bridge_account_rollup_id(&address, &rollup_id);
+        assert_eq!(
+            state
+                .get_bridge_account_rollup_id(&address)
+                .await
+                .expect("a rollup ID was written and must exist inside the database")
+                .expect("expecting return value"),
+            rollup_id,
+            "stored rollup id for bridge not what was expected"
+        );
+
+        // can rewrite with new value
+        rollup_id = RollupId::new([2u8; 32]);
+        state.put_bridge_account_rollup_id(&address, &rollup_id);
+        assert_eq!(
+            state
+                .get_bridge_account_rollup_id(&address)
+                .await
+                .expect("a rollup ID was written and must exist inside the database")
+                .expect("expecting return value"),
+            rollup_id,
+            "stored rollup id for bridge not what was expected"
+        );
+
+        // can write additional account and both valid
+        let rollup_id_1 = RollupId::new([2u8; 32]);
+        let address_1 = Address::try_from_slice(&[41u8; 20]).unwrap();
+        state.put_bridge_account_rollup_id(&address_1, &rollup_id_1);
+        assert_eq!(
+            state
+                .get_bridge_account_rollup_id(&address_1)
+                .await
+                .expect("a rollup ID was written and must exist inside the database")
+                .expect("expecting return value"),
+            rollup_id_1,
+            "additional stored rollup id for bridge not what was expected"
+        );
+
+        assert_eq!(
+            state
+                .get_bridge_account_rollup_id(&address)
+                .await
+                .expect("a rollup ID was written and must exist inside the database")
+                .expect("expecting return value"),
+            rollup_id,
+            "original stored rollup id for bridge not what was expected"
+        );
+    }
+
+    #[tokio::test]
+    async fn get_bridge_account_asset_ids_none_should_fail() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let state = StateDelta::new(snapshot);
+
+        let address = Address::try_from_slice(&[42u8; 20]).unwrap();
+        state
+            .get_bridge_account_asset_ids(&address)
+            .await
+            .expect_err("call to get bridge account asset ids should fail if no assets");
+    }
+
+    #[tokio::test]
+    async fn put_bridge_account_asset_ids() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let address = Address::try_from_slice(&[42u8; 20]).unwrap();
+        let mut assets = vec![Id::from_denom("asset_0"), Id::from_denom("asset_1")];
+        assets.sort();
+
+        // can write
+        state
+            .put_bridge_account_asset_ids(&address, &assets)
+            .expect("storing bridge account assets should not fail");
+        let mut result = state
+            .get_bridge_account_asset_ids(&address)
+            .await
+            .expect("bridge asset ids were written and must exist inside the database");
+        result.sort();
+        assert_eq!(
+            result, assets,
+            "returned bridge account asset ids did not match expected"
+        );
+
+        // can update
+        assets.append(&mut vec![Id::from_denom("asset_2")]);
+        assets.sort();
+        state
+            .put_bridge_account_asset_ids(&address, &assets)
+            .expect("storing bridge account assets should not fail");
+        let mut result = state
+            .get_bridge_account_asset_ids(&address)
+            .await
+            .expect("bridge asset ids were written and must exist inside the database");
+        result.sort();
+        assert_eq!(
+            result, assets,
+            "returned bridge account asset ids did not match expected"
+        );
+
+        // writing to other account also ok
+        let address_1 = Address::try_from_slice(&[41u8; 20]).unwrap();
+        let assets_1 = vec![Id::from_denom("asset_0")];
+        state
+            .put_bridge_account_asset_ids(&address_1, &assets_1)
+            .expect("storing bridge account assets should not fail");
+        assert_eq!(
+            state
+                .get_bridge_account_asset_ids(&address_1)
+                .await
+                .expect("bridge asset ids were written and must exist inside the database"),
+            assets_1,
+            "second bridge account assets not what was expected"
+        );
+        assert_eq!(
+            result, assets,
+            "original bridge account asset ids did not match expected"
+        );
+    }
+
+    #[tokio::test]
+    async fn get_deposit_nonce_uninitialized_ok() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let state = StateDelta::new(snapshot);
+
+        let rollup_id = RollupId::new([2u8; 32]);
+
+        // uninitialized ok
+        assert_eq!(
+            state
+                .get_deposit_nonce(&rollup_id)
+                .await
+                .expect("call to get deposit nonce should not fail on uninitialized rollup ids"),
+            0u32,
+            "uninitialized rollup id nonce should be zero"
+        );
+    }
+
+    #[tokio::test]
+    async fn put_deposit_nonce() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let rollup_id = RollupId::new([2u8; 32]);
+        let mut nonce = 1u32;
+
+        // can write
+        state.put_deposit_nonce(&rollup_id, nonce);
+        assert_eq!(
+            state
+                .get_deposit_nonce(&rollup_id)
+                .await
+                .expect("a rollup id nonce was written and must exist inside the database"),
+            nonce,
+            "stored nonce did not match expected"
+        );
+
+        // can update
+        nonce = 2u32;
+        state.put_deposit_nonce(&rollup_id, nonce);
+        assert_eq!(
+            state
+                .get_deposit_nonce(&rollup_id)
+                .await
+                .expect("a rollup id nonce was written and must exist inside the database"),
+            nonce,
+            "stored nonce did not match expected"
+        );
+
+        // writing to different account is ok
+        let rollup_id_1 = RollupId::new([3u8; 32]);
+        let nonce_1 = 3u32;
+        state.put_deposit_nonce(&rollup_id_1, nonce_1);
+        assert_eq!(
+            state
+                .get_deposit_nonce(&rollup_id_1)
+                .await
+                .expect("a rollup id nonce was written and must exist inside the database"),
+            nonce_1,
+            "additional stored nonce did not match expected"
+        );
+        assert_eq!(
+            state
+                .get_deposit_nonce(&rollup_id)
+                .await
+                .expect("a rollup id nonce was written and must exist inside the database"),
+            nonce,
+            "original stored nonce did not match expected"
+        );
+    }
+
+    #[tokio::test]
+    async fn get_deposit_events_empty_ok() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let state = StateDelta::new(snapshot);
+
+        let rollup_id = RollupId::new([2u8; 32]);
+
+        // no events ok
+        assert_eq!(
+            state
+                .get_deposit_events(&rollup_id)
+                .await
+                .expect("call for rollup id with no deposit events should not fail"),
+            vec![],
+            "no events were written to the database so none should be returned"
+        );
+    }
+
+    #[tokio::test]
+    async fn get_deposit_events() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let rollup_id = RollupId::new([1u8; 32]);
+        let bridge_address = Address::try_from_slice(&[42u8; 20]).unwrap();
+        let mut amount = 10u128;
+        let asset = Id::from_denom("asset_0");
+        let destination_chain_address = "0xdeadbeef";
+        let mut deposit = Deposit::new(
+            bridge_address,
+            rollup_id,
+            amount,
+            asset,
+            destination_chain_address.to_string(),
+        );
+
+        let mut deposits = vec![deposit.clone()];
+
+        // can write
+        state
+            .put_deposit_event(deposit)
+            .await
+            .expect("writing deposit events should be ok");
+        assert_eq!(
+            state
+                .get_deposit_events(&rollup_id)
+                .await
+                .expect("deposit info was written to the database and must exist"),
+            deposits,
+            "stored deposits do not match what was expected"
+        );
+        // nonce is correct
+        assert_eq!(
+            state
+                .get_deposit_nonce(&rollup_id)
+                .await
+                .expect("calls to get nonce should not fail"),
+            1u32,
+            "nonce was consumed and should've been incremented"
+        );
+
+        // can write additional
+        amount = 20u128;
+        deposit = Deposit::new(
+            bridge_address,
+            rollup_id,
+            amount,
+            asset,
+            destination_chain_address.to_string(),
+        );
+        deposits.append(&mut vec![deposit.clone()]);
+        state
+            .put_deposit_event(deposit)
+            .await
+            .expect("writing deposit events should be ok");
+        let mut returned_deposits = state
+            .get_deposit_events(&rollup_id)
+            .await
+            .expect("deposit info was written to the database and must exist");
+        returned_deposits.sort_by_key(Deposit::amount);
+        deposits.sort_by_key(Deposit::amount);
+        assert_eq!(
+            returned_deposits, deposits,
+            "stored deposits do not match what was expected"
+        );
+        // nonce is correct
+        assert_eq!(
+            state
+                .get_deposit_nonce(&rollup_id)
+                .await
+                .expect("calls to get nonce should not fail"),
+            2u32,
+            "nonce was consumed and should've been incremented"
+        );
+
+        // can write different rollup id and both ok
+        let rollup_id_1 = RollupId::new([2u8; 32]);
+        deposit = Deposit::new(
+            bridge_address,
+            rollup_id_1,
+            amount,
+            asset,
+            destination_chain_address.to_string(),
+        );
+        let deposits_1 = vec![deposit.clone()];
+        state
+            .put_deposit_event(deposit)
+            .await
+            .expect("writing deposit events should be ok");
+        assert_eq!(
+            state
+                .get_deposit_events(&rollup_id_1)
+                .await
+                .expect("deposit info was written to the database and must exist"),
+            deposits_1,
+            "stored deposits do not match what was expected"
+        );
+        // verify original still ok
+        returned_deposits = state
+            .get_deposit_events(&rollup_id)
+            .await
+            .expect("deposit info was written to the database and must exist");
+        returned_deposits.sort_by_key(Deposit::amount);
+        assert_eq!(
+            returned_deposits, deposits,
+            "stored deposits do not match what was expected"
+        );
+    }
+
+    #[tokio::test]
+    async fn clear_deposit_info_uninitialized_ok() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let rollup_id = RollupId::new([1u8; 32]);
+        // uninitialized delete ok
+        state.clear_deposit_info(&rollup_id).await;
+    }
+
+    #[tokio::test]
+    async fn clear_deposit_info() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let rollup_id = RollupId::new([1u8; 32]);
+        let bridge_address = Address::try_from_slice(&[42u8; 20]).unwrap();
+        let amount = 10u128;
+        let asset = Id::from_denom("asset_0");
+        let destination_chain_address = "0xdeadbeef";
+        let deposit = Deposit::new(
+            bridge_address,
+            rollup_id,
+            amount,
+            asset,
+            destination_chain_address.to_string(),
+        );
+
+        let deposits = vec![deposit.clone()];
+
+        // can write
+        state
+            .put_deposit_event(deposit)
+            .await
+            .expect("writing deposit events should be ok");
+        assert_eq!(
+            state
+                .get_deposit_events(&rollup_id)
+                .await
+                .expect("deposit info was written to the database and must exist"),
+            deposits,
+            "stored deposits do not match what was expected"
+        );
+
+        // can delete
+        state.clear_deposit_info(&rollup_id).await;
+        assert_eq!(
+            state
+                .get_deposit_events(&rollup_id)
+                .await
+                .expect("deposit should return empty when none exists"),
+            vec![],
+            "deposits were cleared and should return empty vector"
+        );
+        assert_eq!(
+            state
+                .get_deposit_nonce(&rollup_id)
+                .await
+                .expect("calls to get nonce should not fail"),
+            0u32,
+            "nonce should have been deleted also"
+        );
+    }
+
+    #[tokio::test]
+    async fn clear_deposit_info_multiple_accounts() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let rollup_id = RollupId::new([1u8; 32]);
+        let bridge_address = Address::try_from_slice(&[42u8; 20]).unwrap();
+        let amount = 10u128;
+        let asset = Id::from_denom("asset_0");
+        let destination_chain_address = "0xdeadbeef";
+        let mut deposit = Deposit::new(
+            bridge_address,
+            rollup_id,
+            amount,
+            asset,
+            destination_chain_address.to_string(),
+        );
+
+        // write to first
+        state
+            .put_deposit_event(deposit)
+            .await
+            .expect("writing deposit events should be ok");
+
+        // write to second
+        let rollup_id_1 = RollupId::new([2u8; 32]);
+        deposit = Deposit::new(
+            bridge_address,
+            rollup_id_1,
+            amount,
+            asset,
+            destination_chain_address.to_string(),
+        );
+        let deposits_1 = vec![deposit.clone()];
+
+        state
+            .put_deposit_event(deposit)
+            .await
+            .expect("writing deposit events for rollup 2 should be ok");
+
+        // delete first rollup's info
+        state.clear_deposit_info(&rollup_id).await;
+        assert_eq!(
+            state
+                .get_deposit_events(&rollup_id)
+                .await
+                .expect("deposit should return empty when none exists"),
+            vec![],
+            "deposits were cleared and should return empty vector"
+        );
+        assert_eq!(
+            state
+                .get_deposit_nonce(&rollup_id)
+                .await
+                .expect("calls to get nonce should not fail"),
+            0u32,
+            "nonce should have been deleted also"
+        );
+
+        // second rollup's info should be intact
+        assert_eq!(
+            state
+                .get_deposit_events(&rollup_id_1)
+                .await
+                .expect("deposit should return empty when none exists"),
+            deposits_1,
+            "deposits were written to the database and should exist"
+        );
+        assert_eq!(
+            state
+                .get_deposit_nonce(&rollup_id_1)
+                .await
+                .expect("calls to get nonce should not fail"),
+            1u32,
+            "nonce was written to the database and should exist"
+        );
+    }
+
+    #[tokio::test]
+    async fn clear_block_info_uninitialized_ok() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // uninitialized delete ok
+        state
+            .clear_block_deposits()
+            .await
+            .expect("calls to clear block deposit should succeed");
+    }
+
+    #[tokio::test]
+    async fn clear_block_deposits() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let rollup_id = RollupId::new([1u8; 32]);
+        let bridge_address = Address::try_from_slice(&[42u8; 20]).unwrap();
+        let amount = 10u128;
+        let asset = Id::from_denom("asset_0");
+        let destination_chain_address = "0xdeadbeef";
+        let mut deposit = Deposit::new(
+            bridge_address,
+            rollup_id,
+            amount,
+            asset,
+            destination_chain_address.to_string(),
+        );
+
+        // write to first
+        state
+            .put_deposit_event(deposit)
+            .await
+            .expect("writing deposit events should be ok");
+
+        // write to second
+        let rollup_id_1 = RollupId::new([2u8; 32]);
+        deposit = Deposit::new(
+            bridge_address,
+            rollup_id_1,
+            amount,
+            asset,
+            destination_chain_address.to_string(),
+        );
+        state
+            .put_deposit_event(deposit)
+            .await
+            .expect("writing deposit events for rollup 2 should be ok");
+
+        // delete all info
+        state
+            .clear_block_deposits()
+            .await
+            .expect("clearing deposits call should not fail");
+        assert_eq!(
+            state
+                .get_deposit_events(&rollup_id)
+                .await
+                .expect("deposit should return empty when none exists"),
+            vec![],
+            "deposits were cleared and should return empty vector"
+        );
+        // check that all info was deleted
+        assert_eq!(
+            state
+                .get_deposit_events(&rollup_id_1)
+                .await
+                .expect("deposit should return empty when none exists"),
+            vec![],
+            "deposits were cleared and should return empty vector"
+        );
+        assert_eq!(
+            state
+                .get_deposit_nonce(&rollup_id)
+                .await
+                .expect("deposit should return empty when none exists"),
+            0u32,
+            "nonce should have been deleted also"
+        );
+        assert_eq!(
+            state
+                .get_deposit_nonce(&rollup_id_1)
+                .await
+                .expect("deposit should return empty when none exists"),
+            0u32,
+            "nonce should have been deleted also"
+        );
+    }
+}

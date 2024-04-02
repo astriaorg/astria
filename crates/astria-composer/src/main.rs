@@ -54,7 +54,7 @@ async fn main() -> ExitCode {
 
     info!(config = cfg_ser, "initializing composer",);
 
-    let composer = match Composer::from_config(&cfg) {
+    let composer = match Composer::from_config(&cfg).await {
         Err(error) => {
             error!(%error, "failed initializing Composer");
             return ExitCode::FAILURE;
