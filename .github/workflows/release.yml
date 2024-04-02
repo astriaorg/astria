@@ -45,7 +45,7 @@ jobs:
       - name: Checkout Repo
         uses: actions/checkout@v4
       - name: Publish to Charts Repo
-        uses: nkoppel/push-files-to-another-repository@1.1.0
+        uses: nkoppel/push-files-to-another-repository@v1.1.2
         env:
           API_TOKEN_GITHUB: ${{ secrets.CHARTS_REPO_TOKEN }}
         with:
