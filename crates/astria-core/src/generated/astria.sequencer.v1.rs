@@ -68,7 +68,7 @@ pub struct SequencerBlock {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SequencerBlockHeader {
-    /// replaced by `header` field
+    /// removed in favour of having necessary fields in this message
     #[deprecated]
     #[prost(message, optional, tag = "1")]
     pub cometbft_header: ::core::option::Option<::tendermint_proto::types::Header>,
