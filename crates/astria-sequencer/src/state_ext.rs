@@ -22,11 +22,11 @@ fn storage_version_by_height_key(height: u64) -> Vec<u8> {
 }
 
 fn block_fees_key(asset: asset::Id) -> Vec<u8> {
-    format!("{BLOCK_FEES_PREFIX}{asset}").into()
+    format!("{BLOCK_FEES_PREFIX}{}", crate::utils::Hex(asset.as_ref())).into()
 }
 
 fn fee_asset_key(asset: asset::Id) -> Vec<u8> {
-    format!("{FEE_ASSET_PREFIX}{asset}").into()
+    format!("{FEE_ASSET_PREFIX}{}", crate::utils::Hex(asset.as_ref())).into()
 }
 
 #[async_trait]
