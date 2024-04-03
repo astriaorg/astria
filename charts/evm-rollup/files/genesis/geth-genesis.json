@@ -21,7 +21,7 @@
         "astriaSequencerInitialHeight": {{ toString .Values.config.sequencer.initialBlockHeight | replace "\"" "" }},
         "astriaRollupName": "{{ .Values.config.rollup.name }}",
         "astriaCelestiaInitialHeight": {{ toString .Values.config.celestia.initialBlockHeight | replace "\"" "" }},
-        "astriaCelestiaHeightVariance":{{ toString .Values.config.celestia.heightVariance | replace "\"" "" }}
+        "astriaCelestiaHeightVariance": {{ toString .Values.config.celestia.heightVariance | replace "\"" "" }}
         {{- if not .Values.global.dev }}
         {{- else }}
         {{- end }}
