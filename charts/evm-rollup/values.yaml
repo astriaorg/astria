@@ -9,7 +9,7 @@ global:
 images:
   geth:
     repo: ghcr.io/astriaorg/go-ethereum
-    tag: "0.7.0"
+    tag: "0.9.0"
     devTag: latest
   conductor:
     repo: ghcr.io/astriaorg/conductor
@@ -59,6 +59,10 @@ config:
       extraDataOverride: ""
       # If set to true the genesis block will contain extra data
       overrideGenesisExtraData: true
+      # Configure the sequencer bridge address and allowed asset denom if using 
+      # the astria canonical bridge. Recommend removing alloc values if so.
+      bridgeAddress: ""
+      bridgeAllowedAssetDenom: nria
       alloc:
         - address: "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
           value:
