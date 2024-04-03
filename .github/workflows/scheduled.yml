@@ -2,8 +2,12 @@ name: Scheduled
 on:
   schedule:
     - cron: '0 0 * * *'
+
 jobs:
   audit:
+    permissions:
+      issues: write
+      checks: write
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3

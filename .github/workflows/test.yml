@@ -90,6 +90,7 @@ jobs:
       - uses: rustsec/audit-check@v1.4.1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+
   rust:
     runs-on: buildjet-8vcpu-ubuntu-2204
     needs: run_checker
