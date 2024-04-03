@@ -117,7 +117,7 @@ enum CelestiaRollupBlobErrorKind {
     FieldNotSet { field: &'static str },
     #[error("failed converting the provided bytes to Rollup ID")]
     RollupId { source: IncorrectRollupIdLength },
-    #[error("failed constructing a Merkle Hash Tree Proof from the provided raw protobf type")]
+    #[error("failed constructing a Merkle Hash Tree Proof from the provided raw protobuf type")]
     Proof {
         source: <merkle::Proof as Protobuf>::Error,
     },

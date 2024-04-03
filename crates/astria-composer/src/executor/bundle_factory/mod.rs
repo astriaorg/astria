@@ -132,7 +132,7 @@ pub(super) enum BundleFactoryError {
     #[error("sequence action is larger than the max bundle size. seq_action size: {size}")]
     SequenceActionTooLarge { size: usize, max_size: usize },
     #[error(
-        "finished bundle queue is at capactiy and the sequence action does not fit in the current \
+        "finished bundle queue is at capacity and the sequence action does not fit in the current \
          bundle. finished queue capacity: {finished_queue_capacity}, curr bundle size: \
          {curr_bundle_size}, sequence action size: {sequence_action_size}"
     )]

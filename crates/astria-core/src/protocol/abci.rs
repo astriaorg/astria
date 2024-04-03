@@ -26,7 +26,7 @@ impl AbciErrorCode {
             0 => "unspecified".into(),
             1 => "provided path is unknown".into(),
             2 => "one or more path parameters were invalid".into(),
-            3 => "an internal server error occured".into(),
+            3 => "an internal server error occurred".into(),
             4 => "the provided nonce was invalid".into(),
             5 => "the provided transaction was too large".into(),
             6 => "insufficient funds".into(),

@@ -67,7 +67,7 @@ pub struct NoLeafHash;
 /// The default type-state for the `Audit` APIs root hash source.
 pub struct NoRoot;
 
-/// The type-state for the `Audit` API after seting a leaf hash.
+/// The type-state for the `Audit` API after setting a leaf hash.
 pub struct WithLeafHash {
     leaf_hash: [u8; 32],
 }

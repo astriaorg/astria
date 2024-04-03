@@ -2724,7 +2724,7 @@ mod test {
     async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
         let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
 
-        // update storage with initalized genesis app state
+        // update storage with initialized genesis app state
         let intermediate_state = StateDelta::new(storage.latest_snapshot());
         let state = Arc::try_unwrap(std::mem::replace(
             &mut app.state,
@@ -2795,7 +2795,7 @@ mod test {
         assert_eq!(
             result.txs.len(),
             3,
-            "total transaciton length should be three, including the two commitments and the one \
+            "total transaction length should be three, including the two commitments and the one \
              tx that fit"
         );
     }
@@ -2804,7 +2804,7 @@ mod test {
     async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
         let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
 
-        // update storage with initalized genesis app state
+        // update storage with initialized genesis app state
         let intermediate_state = StateDelta::new(storage.latest_snapshot());
         let state = Arc::try_unwrap(std::mem::replace(
             &mut app.state,
@@ -2875,7 +2875,7 @@ mod test {
         assert_eq!(
             result.txs.len(),
             3,
-            "total transaciton length should be three, including the two commitments and the one \
+            "total transaction length should be three, including the two commitments and the one \
              tx that fit"
         );
     }

@@ -239,8 +239,8 @@ pub enum BlobAssemblyError {
 /// Drops a blob under the following conditions:
 /// + the blob's namespace does not match the provided [`Namespace`]
 /// + cannot be decode/convert to [`CelestiaRollupBlob`]
-/// + block hash does not match that of [`CcelestiaSequencerBlob`]
-/// + the proof, ID, and transactions recorded in the blob cannot be verified against the seuencer
+/// + block hash does not match that of [`CelestiaSequencerBlob`]
+/// + the proof, ID, and transactions recorded in the blob cannot be verified against the sequencer
 ///   blob's `rollup_transaction_root`.
 fn convert_and_filter_rollup_blobs(
     blobs: Vec<Blob>,

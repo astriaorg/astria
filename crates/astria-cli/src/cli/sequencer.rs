@@ -83,7 +83,7 @@ pub enum IbcRelayerChangeCommand {
 pub enum FeeAssetChangeCommand {
     /// Add Fee Asset
     Add(FeeAssetChangeArgs),
-    /// Remove Fee ASset
+    /// Remove Fee Asset
     Remove(FeeAssetChangeArgs),
 }
 
@@ -92,7 +92,7 @@ pub struct BasicAccountArgs {
     /// The url of the Sequencer node
     #[clap(
         long,
-        env = "SEQUENCER_URL", 
+        env = "SEQUENCER_URL",
         default_value = crate::cli::DEFAULT_SEQUENCER_RPC
     )]
     pub(crate) sequencer_url: String,
@@ -124,7 +124,7 @@ pub struct TransferArgs {
     /// The url of the Sequencer node
     #[clap(
         long,
-        env = "SEQUENCER_URL", 
+        env = "SEQUENCER_URL",
         default_value = crate::cli::DEFAULT_SEQUENCER_RPC
     )]
     pub(crate) sequencer_url: String,
@@ -148,7 +148,7 @@ pub struct FeeAssetChangeArgs {
     /// The url of the Sequencer node
     #[clap(
         long,
-        env = "SEQUENCER_URL", 
+        env = "SEQUENCER_URL",
         default_value = crate::cli::DEFAULT_SEQUENCER_RPC
     )]
     pub(crate) sequencer_url: String,
@@ -175,7 +175,7 @@ pub struct IbcRelayerChangeArgs {
     /// The url of the Sequencer node
     #[clap(
         long,
-        env = "SEQUENCER_URL", 
+        env = "SEQUENCER_URL",
         default_value = crate::cli::DEFAULT_SEQUENCER_RPC
     )]
     pub(crate) sequencer_url: String,
@@ -202,7 +202,7 @@ pub struct InitBridgeAccountArgs {
     /// The url of the Sequencer node
     #[clap(
         long,
-        env = "SEQUENCER_URL", 
+        env = "SEQUENCER_URL",
         default_value = crate::cli::DEFAULT_SEQUENCER_RPC
     )]
     pub(crate) sequencer_url: String,
@@ -237,7 +237,7 @@ pub struct BridgeLockArgs {
     /// The url of the Sequencer node
     #[clap(
         long,
-        env = "SEQUENCER_URL", 
+        env = "SEQUENCER_URL",
         default_value = crate::cli::DEFAULT_SEQUENCER_RPC
     )]
     pub(crate) sequencer_url: String,
@@ -303,7 +303,7 @@ pub struct MintArgs {
     /// The url of the Sequencer node
     #[clap(
         long,
-        env = "SEQUENCER_URL", 
+        env = "SEQUENCER_URL",
         default_value = crate::cli::DEFAULT_SEQUENCER_RPC
     )]
     pub(crate) sequencer_url: String,
@@ -333,7 +333,7 @@ pub struct SudoAddressChangeArgs {
     /// The url of the Sequencer node
     #[clap(
         long,
-        env = "SEQUENCER_URL", 
+        env = "SEQUENCER_URL",
         default_value = crate::cli::DEFAULT_SEQUENCER_RPC
     )]
     pub(crate) sequencer_url: String,
@@ -354,7 +354,7 @@ pub struct ValidatorUpdateArgs {
     /// The url of the Sequencer node
     #[clap(
         long,
-        env = "SEQUENCER_URL", 
+        env = "SEQUENCER_URL",
         default_value = crate::cli::DEFAULT_SEQUENCER_RPC
     )]
     pub(crate) sequencer_url: String,

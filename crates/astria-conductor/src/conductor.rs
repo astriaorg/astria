@@ -69,7 +69,7 @@ impl Conductor {
                 shutdown: shutdown.clone(),
             }
             .build()
-            .wrap_err("failed constructing exectur")?;
+            .wrap_err("failed constructing executor")?;
 
             tasks.spawn(Self::EXECUTOR, executor.run_until_stopped());
             handle

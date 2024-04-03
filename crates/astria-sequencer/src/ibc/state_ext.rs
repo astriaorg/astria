@@ -353,7 +353,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn put_ibc_channel_balance_mutliple_assets() {
+    async fn put_ibc_channel_balance_multiple_assets() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
@@ -390,7 +390,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn put_ibc_channel_balance_mutliple_channels() {
+    async fn put_ibc_channel_balance_multiple_channels() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
