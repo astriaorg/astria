@@ -3,8 +3,6 @@ use std::{
     num::NonZeroU32,
 };
 
-use super::raw;
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[allow(clippy::module_name_repetitions)]
 pub struct AbciErrorCode(u32);
@@ -34,23 +32,6 @@ impl AbciErrorCode {
             other => format!("unknown non-zero abci error code: {other}").into(),
         }
     }
-
-    /// Converts from the rust representation of the abci error code.
-    ///
-    /// Note that by convention unknown protobuf enum variants are mapped to
-    /// the default enum variant with value 0.
-    #[must_use]
-    pub fn from_raw(raw: raw::AbciErrorCode) -> Option<Self> {
-        let code = match raw {
-            raw::AbciErrorCode::Unspecified => Self::UNSPECIFIED,
-            raw::AbciErrorCode::UnknownPath => Self::UNKNOWN_PATH,
-            raw::AbciErrorCode::InvalidParameter => Self::INVALID_PARAMETER,
-            raw::AbciErrorCode::InternalError => Self::INTERNAL_ERROR,
-            raw::AbciErrorCode::InvalidNonce => Self::INVALID_NONCE,
-            raw::AbciErrorCode::TransactionTooLarge => Self::TRANSACTION_TOO_LARGE,
-        };
-        Some(code)
-    }
 }
 
 impl std::fmt::Display for AbciErrorCode {
@@ -73,6 +54,7 @@ impl From<NonZeroU32> for AbciErrorCode {
             3 => Self::INTERNAL_ERROR,
             4 => Self::INVALID_NONCE,
             5 => Self::TRANSACTION_TOO_LARGE,
+            6 => Self::INSUFFICIENT_FUNDS,
             other => Self(other),
         }
     }
