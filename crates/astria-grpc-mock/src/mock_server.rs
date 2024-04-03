@@ -75,25 +75,8 @@ impl MockServer {
         if let VerificationOutcome::Failure(failed_verifications) = self.state.read().await.verify()
         {
             let received_requests_message =
-                if let Some(received_requests) = &self.state.read().await.received_requests {
-                    if received_requests.is_empty() {
-                        "The server did not receive any request.".into()
-                    } else {
-                        received_requests.iter().enumerate().fold(
-                            "Received requests:\n".to_string(),
-                            |mut message, (index, (rpc, request))| {
-                                _ = writeln!(message, "- Request #{index}");
-                                _ = writeln!(message, "  RPC: {rpc}\n");
-                                _ = request.print(&mut message);
-                                message
-                            },
-                        )
-                    }
-                } else {
-                    "Enable request recording on the mock server to get the list of incoming \
-                     requests as part of the panic message."
-                        .into()
-                };
+                received_requests_message(&self.state.read().await.received_requests);
+
             let verifications_errors: String =
                 failed_verifications.iter().fold(String::new(), |mut s, m| {
                     _ = writeln!(s, "- {}", m.error_message());
@@ -219,26 +202,7 @@ impl Drop for MockGuard {
             if report.is_satisfied() {
                 state.mock_set.deactivate(*mock_id);
             } else {
-                let received_requests_message =
-                    if let Some(received_requests) = &state.received_requests {
-                        if received_requests.is_empty() {
-                            "The server did not receive any request.".into()
-                        } else {
-                            received_requests.iter().enumerate().fold(
-                                "Received requests:\n".to_string(),
-                                |mut message, (index, (rpc, request))| {
-                                    _ = writeln!(message, "- Request #{index}");
-                                    _ = writeln!(message, "  RPC: {rpc}\n");
-                                    _ = request.print(&mut message);
-                                    message
-                                },
-                            )
-                        }
-                    } else {
-                        "Enable request recording on the mock server to get the list of incoming \
-                         requests as part of the panic message."
-                            .into()
-                    };
+                let received_requests_message = received_requests_message(&state.received_requests);
 
                 let verifications_error = format!("- {}\n", report.error_message());
                 let error_message = format!(
@@ -253,5 +217,29 @@ impl Drop for MockGuard {
             }
         };
         futures::executor::block_on(future);
+    }
+}
+
+fn received_requests_message(
+    received_requests: &Option<Vec<(&'static str, MockRequest)>>,
+) -> String {
+    if let Some(received_requests) = received_requests {
+        if received_requests.is_empty() {
+            "The server did not receive any request.".into()
+        } else {
+            received_requests.iter().enumerate().fold(
+                "Received requests:\n".to_string(),
+                |mut message, (index, (rpc, request))| {
+                    _ = writeln!(message, "- Request #{index}");
+                    _ = writeln!(message, "  RPC: {rpc}\n");
+                    _ = request.print(&mut message);
+                    message
+                },
+            )
+        }
+    } else {
+        "Enable request recording on the mock server to get the list of incoming requests as part \
+         of the panic message."
+            .into()
     }
 }
