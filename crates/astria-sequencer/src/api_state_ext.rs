@@ -394,6 +394,7 @@ mod test {
         Protobuf,
     };
     use cnidarium::StateDelta;
+    use rand::Rng;
     use sha2::{
         Digest as _,
         Sha256,
@@ -408,82 +409,43 @@ mod test {
         Hash,
         Time,
     };
-    use tendermint_proto::v0_37::types::{
-        BlockId,
-        PartSetHeader,
-    };
 
     use super::*;
     use crate::proposal::commitment::generate_rollup_datas_commitment;
 
-    struct ValueGenerator {
-        value: u8,
-    }
-
-    // used to ensure that unique data is being written for all sequencer block components
-    impl ValueGenerator {
-        fn new(start: u8) -> Self {
-            ValueGenerator {
-                value: start,
-            }
-        }
-
-        fn generate(&mut self) -> u8 {
-            let prev = self.value;
-            // Check if value is at its max and prevent overflow
-            self.value = self.value.saturating_add(1);
-            prev
-        }
-    }
-
     // creates new sequencer block, optionally shifting all values except the height by 1
-    fn make_test_sequencer_block(gen: &mut ValueGenerator, shift_values: bool) -> SequencerBlock {
-        // create height
-        let height = u32::from(gen.generate());
-
-        // shift values (used for overwriting height test)
-        if shift_values {
-            gen.generate();
-        }
-
-        // create last block id
-        let last_block_id = BlockId {
-            hash: [gen.generate(); 32].to_vec(),
-            part_set_header: Some(PartSetHeader {
-                total: u32::from(gen.generate()),
-                hash: [gen.generate(); 32].to_vec(),
-            }),
-        };
+    fn make_test_sequencer_block(height: u32) -> SequencerBlock {
+        let mut rng = rand::thread_rng();
 
         // create cometbft header
         let mut header = Header {
-            app_hash: AppHash::try_from([gen.generate(); 32].to_vec()).unwrap(),
-            chain_id: gen.generate().to_string().try_into().unwrap(),
-            consensus_hash: Hash::try_from([gen.generate(); 32].to_vec()).unwrap(),
-            data_hash: Some(Hash::try_from([gen.generate(); 32].to_vec()).unwrap()),
-            evidence_hash: Some(Hash::try_from([gen.generate(); 32].to_vec()).unwrap()),
+            app_hash: AppHash::default(),
+            chain_id: "test".to_string().try_into().unwrap(),
+            consensus_hash: Hash::default(),
+            data_hash: Some(Hash::default()),
+            evidence_hash: None,
             height: height.into(),
-            last_block_id: Some(tendermint::block::Id::try_from(last_block_id).unwrap()),
-            last_commit_hash: Some(Hash::try_from([gen.generate(); 32].to_vec()).unwrap()),
-            last_results_hash: Some(Hash::try_from([gen.generate(); 32].to_vec()).unwrap()),
-            next_validators_hash: Hash::try_from([gen.generate(); 32].to_vec()).unwrap(),
-            proposer_address: account::Id::try_from([gen.generate(); 20].to_vec()).unwrap(),
+            last_block_id: None,
+            last_commit_hash: None,
+            last_results_hash: None,
+            next_validators_hash: Hash::default(),
+            proposer_address: account::Id::try_from([0u8; 20].to_vec()).unwrap(),
             time: Time::now(),
-            validators_hash: Hash::try_from([gen.generate(); 32].to_vec()).unwrap(),
+            validators_hash: Hash::default(),
             version: Version {
-                app: u64::from(gen.generate()),
-                block: u64::from(gen.generate()),
+                app: 0,
+                block: 0,
             },
         };
 
         // create inner rollup id/tx data
         let mut deposits = HashMap::new();
         for _ in 0..2 {
-            let rollup_id = RollupId::new([gen.generate(); 32]);
-            let bridge_address = Address::try_from_slice(&[gen.generate(); 20]).unwrap();
-            let amount = u128::from(gen.generate());
-            let asset_id = Id::from_denom(&gen.generate().to_string());
-            let destination_chain_address = gen.generate().to_string();
+            let rollup_id = RollupId::new([rng.gen(); 32]);
+            let bridge_address = Address::try_from_slice(&[rng.gen(); 20]).unwrap();
+            let amount = rng.gen::<u128>();
+            let asset_id = Id::from_denom(&rng.gen::<u8>().to_string());
+            let destination_chain_address = rng.gen::<u8>().to_string();
             let deposit = Deposit::new(
                 bridge_address,
                 rollup_id,
@@ -495,10 +457,10 @@ mod test {
         }
 
         // create block's other data
-        let committments = generate_rollup_datas_commitment(&[], deposits.clone());
+        let commitments = generate_rollup_datas_commitment(&[], deposits.clone());
         let block_data = vec![
-            committments.rollup_datas_root.to_vec(),
-            committments.rollup_ids_root.to_vec(),
+            commitments.rollup_datas_root.to_vec(),
+            commitments.rollup_ids_root.to_vec(),
         ];
         let data_hash = merkle::Tree::from_leaves(block_data.iter().map(Sha256::digest)).root();
         header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
@@ -512,11 +474,8 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        // create generator to ensure unique values are being written
-        let mut generator = ValueGenerator::new(2u8);
-
         // can write one
-        let block_0 = make_test_sequencer_block(&mut generator, false);
+        let block_0 = make_test_sequencer_block(2u32);
         state
             .put_sequencer_block(block_0.clone())
             .expect("writing block to database should work");
@@ -531,7 +490,7 @@ mod test {
         );
 
         // can write another and both are ok
-        let block_1 = make_test_sequencer_block(&mut generator, false);
+        let block_1 = make_test_sequencer_block(3u32);
         state
             .put_sequencer_block(block_1.clone())
             .expect("writing another block to database should work");
@@ -559,12 +518,8 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        // create generators to ensure unique values are being written
-        let mut generator_0 = ValueGenerator::new(2u8);
-        let mut generator_1 = ValueGenerator::new(2u8);
-
         // write original block
-        let mut block = make_test_sequencer_block(&mut generator_0, false);
+        let mut block = make_test_sequencer_block(2u32);
         state
             .put_sequencer_block(block.clone())
             .expect("writing block to database should work");
@@ -577,8 +532,8 @@ mod test {
             "stored block does not match expected"
         );
 
-        // write to same height but with new values (true toggle makes all other values shifted)
-        block = make_test_sequencer_block(&mut generator_1, true);
+        // write to same height but with new values
+        block = make_test_sequencer_block(2u32);
         state
             .put_sequencer_block(block.clone())
             .expect("writing block update to database should work");
@@ -600,11 +555,8 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        // create generator to ensure unique values are being written
-        let mut generator = ValueGenerator::new(2u8);
-
         // write block
-        let block = make_test_sequencer_block(&mut generator, false);
+        let block = make_test_sequencer_block(2u32);
         state
             .put_sequencer_block(block.clone())
             .expect("writing block to database should work");
@@ -629,11 +581,8 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        // create generator to ensure unique values are being written
-        let mut generator = ValueGenerator::new(2u8);
-
         // write block
-        let block = make_test_sequencer_block(&mut generator, false);
+        let block = make_test_sequencer_block(2u32);
         state
             .put_sequencer_block(block.clone())
             .expect("writing block to database should work");
@@ -658,11 +607,8 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        // create generator to ensure unique values are being written
-        let mut generator = ValueGenerator::new(2u8);
-
         // write block
-        let block = make_test_sequencer_block(&mut generator, false);
+        let block = make_test_sequencer_block(2u32);
         state
             .put_sequencer_block(block.clone())
             .expect("writing block to database should work");
@@ -688,11 +634,8 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        // create generator to ensure unique values are being written
-        let mut generator = ValueGenerator::new(2u8);
-
         // write block
-        let block = make_test_sequencer_block(&mut generator, false);
+        let block = make_test_sequencer_block(2u32);
         state
             .put_sequencer_block(block.clone())
             .expect("writing block to database should work");
@@ -717,11 +660,8 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        // create generator to ensure unique values are being written
-        let mut generator = ValueGenerator::new(2u8);
-
         // write block
-        let block = make_test_sequencer_block(&mut generator, false);
+        let block = make_test_sequencer_block(2u32);
         state
             .put_sequencer_block(block.clone())
             .expect("writing block to database should work");
@@ -754,11 +694,8 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        // create generator to ensure unique values are being written
-        let mut generator = ValueGenerator::new(2u8);
-
         // write block
-        let block = make_test_sequencer_block(&mut generator, false);
+        let block = make_test_sequencer_block(2u32);
         state
             .put_sequencer_block(block.clone())
             .expect("writing block to database should work");
