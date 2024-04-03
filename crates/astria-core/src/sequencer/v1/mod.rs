@@ -1,4 +1,5 @@
 use indexmap::IndexMap;
+use serde::Serialize;
 use sha2::{
     Digest as _,
     Sha256,
@@ -38,7 +39,7 @@ use self::block::RollupTransactions;
 pub const ADDRESS_LEN: usize = 20;
 pub const ROLLUP_ID_LEN: usize = 32;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub struct Address([u8; ADDRESS_LEN]);
 
 impl Address {

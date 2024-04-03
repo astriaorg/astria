@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use indexmap::IndexMap;
+use serde::Serialize;
 use sha2::Sha256;
 use transaction::SignedTransaction;
 
@@ -1238,7 +1239,7 @@ impl FilteredSequencerBlockError {
 ///
 /// A [`Deposit`] is constructed whenever a [`BridgeLockAction`] is executed
 /// and stored as part of the block's events.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Deposit {
     // the address on the sequencer to which the funds were sent to.
     bridge_address: Address,

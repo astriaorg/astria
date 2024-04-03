@@ -639,7 +639,10 @@ impl App {
             .get_block_deposits()
             .await
             .context("failed to get block deposits in end_block")?;
-        debug!(deposits = %DisplayDeposits(&deposits), "end_block: got block deposits");
+        debug!(
+            deposits = %telemetry::display::json(&DisplayDeposits(&deposits)),
+            "end_block: got block deposits"
+        );
         self.current_sequencer_block_builder
             .as_mut()
             .expect(
@@ -735,26 +738,8 @@ impl App {
 }
 
 /// Display wrapper for `HashMap<RollupId, Vec<Deposit>>`.
+#[derive(Debug, serde::Serialize)]
 struct DisplayDeposits<'a>(&'a HashMap<RollupId, Vec<Deposit>>);
-
-impl<'a> std::fmt::Display for DisplayDeposits<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "deposits: [ ")?;
-
-        let mut deposits_iter = self.0.iter();
-        if let Some((rollup_id, deposits)) = deposits_iter.next() {
-            write!(f, "rollup_id={rollup_id} deposit_count={}", deposits.len())?;
-        }
-
-        for (rollup_id, deposits) in deposits_iter {
-            write!(f, ", ")?;
-            write!(f, "rollup_id={rollup_id} deposit_count={}", deposits.len())?;
-        }
-
-        write!(f, " ]")?;
-        Ok(())
-    }
-}
 
 #[derive(Debug)]
 struct SequencerBlockBuilder {
