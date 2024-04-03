@@ -18,12 +18,17 @@ use astria_core::sequencer::v1::{
 use tracing::instrument;
 
 use crate::{
-    accounts::state_ext::{
-        StateReadExt,
-        StateWriteExt,
+    accounts::{
+        action::TRANSFER_FEE,
+        state_ext::{
+            StateReadExt,
+            StateWriteExt,
+        },
     },
+    bridge::init_bridge_account_action::INIT_BRIDGE_ACCOUNT_FEE,
     ibc::{
         host_interface::AstriaHost,
+        ics20_withdrawal::ICS20_WITHDRAWAL_FEE,
         state_ext::StateReadExt as _,
     },
 };
@@ -41,6 +46,85 @@ pub(crate) async fn check_nonce_mempool<S: StateReadExt + 'static>(
         tx.unsigned_transaction().nonce >= curr_nonce,
         "nonce already used by account"
     );
+    Ok(())
+}
+
+pub(crate) async fn check_balance_mempool<S: StateReadExt + 'static>(
+    tx: &SignedTransaction,
+    state: &S,
+) -> anyhow::Result<()> {
+    use std::collections::HashMap;
+
+    let signer_address = Address::from_verification_key(tx.verification_key());
+    let mut fees_by_asset = HashMap::new();
+    for action in tx.actions() {
+        match action {
+            Action::Transfer(act) => {
+                fees_by_asset
+                    .entry(act.asset_id)
+                    .and_modify(|amt| *amt += act.amount)
+                    .or_insert(act.amount);
+                fees_by_asset
+                    .entry(act.fee_asset_id)
+                    .and_modify(|amt| *amt += TRANSFER_FEE)
+                    .or_insert(TRANSFER_FEE);
+            }
+            Action::Sequence(act) => {
+                let fee = crate::sequence::calculate_fee(&act.data)
+                    .context("fee for sequence action overflowed; data too large")?;
+                fees_by_asset
+                    .entry(act.fee_asset_id)
+                    .and_modify(|amt| *amt += fee)
+                    .or_insert(fee);
+            }
+            Action::Ics20Withdrawal(act) => {
+                fees_by_asset
+                    .entry(act.denom().id())
+                    .and_modify(|amt| *amt += act.amount())
+                    .or_insert(act.amount());
+                fees_by_asset
+                    .entry(*act.fee_asset_id())
+                    .and_modify(|amt| *amt += ICS20_WITHDRAWAL_FEE)
+                    .or_insert(ICS20_WITHDRAWAL_FEE);
+            }
+            Action::InitBridgeAccount(act) => {
+                fees_by_asset
+                    .entry(act.fee_asset_id)
+                    .and_modify(|amt| *amt += INIT_BRIDGE_ACCOUNT_FEE)
+                    .or_insert(INIT_BRIDGE_ACCOUNT_FEE);
+            }
+            Action::BridgeLock(act) => {
+                fees_by_asset
+                    .entry(act.asset_id)
+                    .and_modify(|amt| *amt += act.amount)
+                    .or_insert(act.amount);
+                fees_by_asset
+                    .entry(act.fee_asset_id)
+                    .and_modify(|amt| *amt += TRANSFER_FEE)
+                    .or_insert(TRANSFER_FEE);
+            }
+            Action::ValidatorUpdate(_)
+            | Action::SudoAddressChange(_)
+            | Action::Ibc(_)
+            | Action::IbcRelayerChange(_)
+            | Action::FeeAssetChange(_)
+            | Action::Mint(_) => {
+                continue;
+            }
+        }
+    }
+    for (asset, total_fee) in fees_by_asset {
+        let balance = state
+            .get_account_balance(signer_address, asset)
+            .await
+            .context("failed to get account balance")?;
+        ensure!(
+            balance >= total_fee,
+            "insufficient funds for asset {}",
+            asset
+        );
+    }
+
     Ok(())
 }
 
@@ -307,5 +391,124 @@ impl ActionHandler for UnsignedTransaction {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use astria_core::sequencer::v1::{
+        asset::{
+            Denom,
+            DEFAULT_NATIVE_ASSET_DENOM,
+        },
+        transaction::action::{
+            SequenceAction,
+            TransferAction,
+        },
+        RollupId,
+        ADDRESS_LEN,
+    };
+    use cnidarium::StateDelta;
+
+    use super::*;
+    use crate::app::test_utils::*;
+
+    #[tokio::test]
+    async fn check_balance_mempool_ok() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state_tx = StateDelta::new(snapshot);
+
+        crate::asset::initialize_native_asset(DEFAULT_NATIVE_ASSET_DENOM);
+        let native_asset = crate::asset::get_native_asset().id();
+        let other_asset = Denom::from_base_denom("other").id();
+
+        let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
+        let amount = 100;
+        let data = [0; 32].to_vec();
+        state_tx
+            .increase_balance(
+                alice_address,
+                native_asset,
+                TRANSFER_FEE + crate::sequence::calculate_fee(&data).unwrap(),
+            )
+            .await
+            .unwrap();
+        state_tx
+            .increase_balance(alice_address, other_asset, amount)
+            .await
+            .unwrap();
+
+        let actions = vec![
+            Action::Transfer(TransferAction {
+                asset_id: other_asset,
+                amount,
+                fee_asset_id: native_asset,
+                to: [0; ADDRESS_LEN].into(),
+            }),
+            Action::Sequence(SequenceAction {
+                rollup_id: RollupId::from_unhashed_bytes([0; 32]),
+                data,
+                fee_asset_id: native_asset,
+            }),
+        ];
+
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions,
+        };
+
+        let signed_tx = tx.into_signed(&alice_signing_key);
+        check_balance_mempool(&signed_tx, &state_tx)
+            .await
+            .expect("sufficient balance for all actions");
+    }
+
+    #[tokio::test]
+    async fn check_balance_mempool_insufficient_other_asset_balance() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state_tx = StateDelta::new(snapshot);
+
+        crate::asset::initialize_native_asset(DEFAULT_NATIVE_ASSET_DENOM);
+        let native_asset = crate::asset::get_native_asset().id();
+        let other_asset = Denom::from_base_denom("other").id();
+
+        let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
+        let amount = 100;
+        let data = [0; 32].to_vec();
+        state_tx
+            .increase_balance(
+                alice_address,
+                native_asset,
+                TRANSFER_FEE + crate::sequence::calculate_fee(&data).unwrap(),
+            )
+            .await
+            .unwrap();
+
+        let actions = vec![
+            Action::Transfer(TransferAction {
+                asset_id: other_asset,
+                amount,
+                fee_asset_id: native_asset,
+                to: [0; ADDRESS_LEN].into(),
+            }),
+            Action::Sequence(SequenceAction {
+                rollup_id: RollupId::from_unhashed_bytes([0; 32]),
+                data,
+                fee_asset_id: native_asset,
+            }),
+        ];
+
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions,
+        };
+
+        let signed_tx = tx.into_signed(&alice_signing_key);
+        let err = check_balance_mempool(&signed_tx, &state_tx)
+            .await
+            .expect_err("insufficient funds for `other` asset");
+        assert!(err.to_string().contains(&other_asset.to_string()));
     }
 }
