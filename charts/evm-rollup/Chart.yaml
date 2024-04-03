@@ -33,6 +33,10 @@ dependencies:
     version: "0.1.0"
     repository: "file://../evm-rollup-blockscout"
     condition: config.blockscout.enabled
+  - name: evm-rollup-blockscout
+    version: "0.1.0"
+    repository: "file://../evm-rollup-blockscout"
+    condition: config.blockscout.enabled
   - name: evm-rollup-faucet
     version: "0.1.0"
     repository: "file://../evm-rollup-faucet"
