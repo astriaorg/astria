@@ -14,6 +14,7 @@ use tokio::signal::unix::{
 use tracing::{
     error,
     info,
+    warn,
 };
 
 #[tokio::main]
@@ -55,25 +56,23 @@ async fn main() -> ExitCode {
         .expect("setting a SIGTERM listener should always work on Unix");
     let (sequencer_relayer, shutdown_handle) =
         SequencerRelayer::new(cfg).expect("could not initialize sequencer relayer");
-    let sigterm_handle = tokio::spawn(async move {
-        let shutdown_token = shutdown_handle.token();
-        tokio::select!(
-            _ = sigterm.recv() => {
-                // We don't care about the result (i.e. whether there could be more SIGTERM signals
-                // incoming); we just want to shut down as soon as we receive the first `SIGTERM`.
-                info!("received SIGTERM, issuing shutdown to all services");
-                shutdown_handle.shutdown();
-            }
-            () = shutdown_token.cancelled() => {
-                // Nothing to log here - we're just finishing up waiting for a SIGTERM having
-                // never received one.
-            }
-        );
-    });
+    let sequencer_relayer_handle = tokio::spawn(sequencer_relayer.run());
 
-    sequencer_relayer.run().await;
-    if let Err(error) = sigterm_handle.await {
-        error!(%error, "failed to join sigterm handler task");
+    let shutdown_token = shutdown_handle.token();
+    tokio::select!(
+        _ = sigterm.recv() => {
+            // We don't care about the result (i.e. whether there could be more SIGTERM signals
+            // incoming); we just want to shut down as soon as we receive the first `SIGTERM`.
+            info!("received SIGTERM, issuing shutdown to all services");
+            shutdown_handle.shutdown();
+        }
+        () = shutdown_token.cancelled() => {
+            warn!("stopped waiting for SIGTERM");
+        }
+    );
+
+    if let Err(error) = sequencer_relayer_handle.await {
+        error!(%error, "failed to join main sequencer relayer task");
     }
 
     ExitCode::SUCCESS
