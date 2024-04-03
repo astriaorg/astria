@@ -143,7 +143,7 @@ impl MountedMock {
                     let expected = std::any::type_name::<U>();
                     #[rustfmt::skip]
                         let msg = format!(
-                            "failed downcasting mock response to conrete type:\n\
+                            "failed downcasting mock response to concrete type:\n\
                              required type of gRPC response: `{expected}`\n\
                              type of mock response: `{actual}`\n\
                              JSON serialization:\n\
