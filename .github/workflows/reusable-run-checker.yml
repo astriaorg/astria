@@ -6,6 +6,9 @@ on:
       run_tests:
         description: If tests need to be run, will be 'true'
         value: ${{ github.event_name != 'pull_request' || jobs.changes.outputs.test_workflow == 'true' || jobs.changes.outputs.crates == 'true' }}
+      run_audit:
+        description: If cargo audit needs to be run, will be 'true'
+        value: ${{ github.event_name != 'pull_request' || jobs.changes.outputs.test_workflow == 'true' || jobs.changes.outputs.lockfile == 'true' }}
       run_docker:
         description: If docker workflow needs to be run, will be 'true'
         value: ${{ github.event_name != 'pull_request' || jobs.changes.outputs.docker_workflow == 'true' || contains(github.event.pull_request.labels.*.name, 'docker-build') }}
@@ -52,6 +55,7 @@ jobs:
       markdown: ${{ steps.filters.outputs.markdown }}
       rustfmt: ${{ steps.filters.outputs.rustfmt }}
       charts: ${{ steps.filters.outputs.charts }}
+      lockfile: ${{ steps.filters.outputs.lockfile }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -89,3 +93,5 @@ jobs:
               - 'rustfmt.toml'
             charts:
               - 'charts/**'
+            lockfile:
+              - 'Cargo.lock'

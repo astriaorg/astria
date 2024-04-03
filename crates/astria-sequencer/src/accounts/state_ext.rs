@@ -48,7 +48,7 @@ fn nonce_storage_key(address: Address) -> String {
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
-    #[instrument(skip(self))]
+    #[instrument(skip_all, fields(address=%address))]
     async fn get_account_balances(&self, address: Address) -> Result<Vec<AssetBalance>> {
         use crate::asset::state_ext::StateReadExt as _;
 
@@ -98,7 +98,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(balances)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all, fields(address=%address, asset_id=%asset))]
     async fn get_account_balance(&self, address: Address, asset: asset::Id) -> Result<u128> {
         let Some(bytes) = self
             .get_raw(&balance_storage_key(address, asset))
@@ -111,7 +111,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(balance)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all, fields(address=%address))]
     async fn get_account_nonce(&self, address: Address) -> Result<u32> {
         let bytes = self
             .get_raw(&nonce_storage_key(address))
