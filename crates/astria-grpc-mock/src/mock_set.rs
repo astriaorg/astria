@@ -68,9 +68,11 @@ impl MockSet {
                 MockResult::NoMatch => continue,
                 MockResult::BadResponse(status) => {
                     mock_response.replace(Err(status));
+                    break;
                 }
                 MockResult::Success(response) => {
                     mock_response.replace(response);
+                    break;
                 }
             }
         }
