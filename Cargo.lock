@@ -688,6 +688,7 @@ dependencies = [
  "assert-json-diff",
  "erased-serde 0.4.4",
  "futures",
+ "indenter",
  "prost",
  "serde",
  "serde_json",

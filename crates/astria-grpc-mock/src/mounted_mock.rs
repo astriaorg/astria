@@ -36,7 +36,7 @@ pub(crate) struct BadResponse {
 }
 
 impl BadResponse {
-    pub(crate) fn print(&self, mut buffer: impl std::fmt::Write, indent: &str) -> std::fmt::Result {
+    pub(crate) fn print(&self, mut buffer: impl std::fmt::Write) -> std::fmt::Result {
         // TODO: Print the metadata map
 
         // for name in self.inner.iter() {
@@ -50,10 +50,10 @@ impl BadResponse {
         //     writeln!(buffer, "{}: {}", name, values)?;
         // }
 
-        writeln!(buffer, "{indent}Matched request (Protobuf as JSON)")?;
+        writeln!(buffer, "Matched request (Protobuf as JSON)")?;
         writeln!(
             buffer,
-            "{indent}Protobuf type name: {}",
+            "Protobuf type name: {}",
             self.request.get_ref().as_name().full_name()
         )?;
         if let Ok(body) = serde_json::to_string_pretty(self.request.get_ref().as_serialize()) {
@@ -62,21 +62,14 @@ impl BadResponse {
             writeln!(buffer, "<Could not map the gRPC body to JSON>")?;
         }
 
+        writeln!(buffer, "\nBad response (mock returned unexpected protobuf)")?;
         writeln!(
             buffer,
-            "\n{indent}Bad response (mock returned unexpected protobuf)"
-        )?;
-        writeln!(
-            buffer,
-            "{indent}Protobuf type name: {}",
+            "Protobuf type name: {}",
             self.mock_response.inner.get_ref().as_name().full_name()
         )?;
-        writeln!(
-            buffer,
-            "{indent}Rust type name: {}",
-            self.mock_response.type_name
-        )?;
-        writeln!(buffer, "{indent}Protobuf as JSON:")?;
+        writeln!(buffer, "Rust type name: {}", self.mock_response.type_name)?;
+        writeln!(buffer, "Protobuf as JSON:")?;
         if let Ok(body) =
             serde_json::to_string_pretty(self.mock_response.inner.get_ref().as_serialize())
         {

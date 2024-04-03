@@ -47,12 +47,12 @@ impl VerificationReport {
         };
 
         if !self.bad_responses.is_empty() {
-            let _ = writeln!(msg, "Bad responses:");
+            let _ = writeln!(msg, "Bad responses (mock response had the wrong type):");
             msg = self.bad_responses.iter().enumerate().fold(
                 msg,
                 |mut msg, (index, response)| {
                     _ = writeln!(msg, "\t - Bad response #{index}");
-                    _ = response.print(&mut msg, "\t\t");
+                    _ = response.print(indenter::indented(&mut msg).with_str("\t\t"));
                     msg
                 }
             );

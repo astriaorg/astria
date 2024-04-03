@@ -231,8 +231,9 @@ fn received_requests_message(
                 "Received requests:\n".to_string(),
                 |mut message, (index, (rpc, request))| {
                     _ = writeln!(message, "- Request #{index}");
-                    _ = writeln!(message, "  RPC: {rpc}\n");
-                    _ = request.print(&mut message);
+                    _ = writeln!(message, "\tRPC name: {rpc}");
+                    _ = writeln!(message, "\tRequests Protobuf as JSON");
+                    _ = request.print(indenter::indented(&mut message).with_str("\t"));
                     message
                 },
             )

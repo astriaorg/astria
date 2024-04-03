@@ -9,6 +9,7 @@ edition = "2021"
 assert-json-diff = "2.0.2"
 erased-serde = "0.4.4"
 futures.workspace = true
+indenter = "0.3.3"
 prost.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
