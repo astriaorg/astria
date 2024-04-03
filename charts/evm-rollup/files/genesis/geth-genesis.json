@@ -22,7 +22,7 @@
         "astriaRollupName": "{{ .Values.config.rollup.name }}",
         "astriaCelestiaInitialHeight": {{ toString .Values.config.celestia.initialBlockHeight | replace "\"" "" }},
         "astriaCelestiaHeightVariance": {{ toString .Values.config.celestia.heightVariance | replace "\"" "" }},
-        "astriaBridgeAddresses": [{{ .Values.config.rollup.genesis.bridgeAddresses | quote }}],
+        "astriaBridgeAddresses": [{{ .Values.config.rollup.genesis.bridgeAddress | quote }}],
         "astriaBridgeAllowedAssetDenom": {{ .Values.config.rollup.genesis.bridgeAllowedAssetDenom | quote }}
         {{- if not .Values.global.dev }}
         {{- else }}
