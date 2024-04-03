@@ -82,7 +82,7 @@ impl MockServer {
                         received_requests.iter().enumerate().fold(
                             "Received requests:\n".to_string(),
                             |mut message, (index, (rpc, request))| {
-                                _ = writeln!(message, "- Request #{}", index + 1,);
+                                _ = writeln!(message, "- Request #{index}");
                                 _ = writeln!(message, "  RPC: {rpc}\n");
                                 _ = request.print(&mut message);
                                 message
@@ -227,7 +227,7 @@ impl Drop for MockGuard {
                             received_requests.iter().enumerate().fold(
                                 "Received requests:\n".to_string(),
                                 |mut message, (index, (rpc, request))| {
-                                    _ = writeln!(message, "- Request #{}", index + 1,);
+                                    _ = writeln!(message, "- Request #{index}");
                                     _ = writeln!(message, "  RPC: {rpc}\n");
                                     _ = request.print(&mut message);
                                     message

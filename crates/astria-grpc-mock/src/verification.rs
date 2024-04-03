@@ -51,7 +51,7 @@ impl VerificationReport {
             msg = self.bad_responses.iter().enumerate().fold(
                 msg,
                 |mut msg, (index, response)| {
-                    _ = writeln!(msg, "\t - Bad response #{}", index+1,);
+                    _ = writeln!(msg, "\t - Bad response #{index}");
                     _ = response.print(&mut msg, "\t");
                     msg
                 }
