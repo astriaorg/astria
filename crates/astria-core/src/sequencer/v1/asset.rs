@@ -6,6 +6,7 @@ use std::{
     },
 };
 
+#[cfg(feature = "serde")]
 use serde::Serialize;
 
 /// The default sequencer asset base denomination.
@@ -120,7 +121,8 @@ impl From<String> for Denom {
 }
 
 /// Asset ID, which is the hash of the denomination trace.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
 pub struct Id([u8; 32]);
 
 impl Id {
