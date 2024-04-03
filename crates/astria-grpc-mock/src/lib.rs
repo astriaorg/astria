@@ -110,13 +110,13 @@ where
 }
 
 fn clone_request<T: Clone>(req: &tonic::Request<T>) -> tonic::Request<T> {
-    let mut req = tonic::Request::new(req.get_ref().clone());
-    *req.metadata_mut() = req.metadata().clone();
-    req
+    let mut clone = tonic::Request::new(req.get_ref().clone());
+    *clone.metadata_mut() = req.metadata().clone();
+    clone
 }
 
-fn clone_response<T: Clone>(req: &tonic::Response<T>) -> tonic::Response<T> {
-    let mut req = tonic::Response::new(req.get_ref().clone());
-    *req.metadata_mut() = req.metadata().clone();
-    req
+fn clone_response<T: Clone>(rsp: &tonic::Response<T>) -> tonic::Response<T> {
+    let mut clone = tonic::Response::new(rsp.get_ref().clone());
+    *clone.metadata_mut() = rsp.metadata().clone();
+    clone
 }
