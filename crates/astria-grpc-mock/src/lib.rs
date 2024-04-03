@@ -13,11 +13,15 @@ mod mounted_mock;
 pub mod response;
 mod verification;
 
-pub use mock::Mock;
+pub use mock::{
+    Match,
+    Mock,
+};
 pub use mock_server::{
     MockGuard,
     MockServer,
 };
+pub use response::Respond;
 
 pub type AnyMessage = Box<dyn ErasedMessage + Send + Sync>;
 pub type AnyRequest = tonic::Request<AnyMessage>;
