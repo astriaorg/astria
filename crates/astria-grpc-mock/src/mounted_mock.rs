@@ -37,7 +37,7 @@ pub(crate) struct BadResponse {
 
 impl BadResponse {
     pub(crate) fn print(&self, mut buffer: impl std::fmt::Write) -> std::fmt::Result {
-        // TODO: Print the metadata map
+        // TODO(https://github.com/astriaorg/astria/issues/900): Print the metadata map
 
         // for name in self.inner.iter() {
         //     let values = self
