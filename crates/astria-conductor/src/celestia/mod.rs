@@ -53,7 +53,7 @@ use sequencer_client::tendermint::{
     block::Height as SequencerHeight,
 };
 use telemetry::display::{
-    hex,
+    base64,
     json,
 };
 use tokio::{
@@ -213,8 +213,8 @@ impl Reader {
         }
         .instrument(info_span!(
             "celestia_block_stream",
-            namespace.rollup = %hex(&rollup_namespace.as_bytes()),
-            namespace.sequencer = %hex(&self.sequencer_namespace.as_bytes()),
+            namespace.rollup = %base64(&rollup_namespace.as_bytes()),
+            namespace.sequencer = %base64(&self.sequencer_namespace.as_bytes()),
         ));
 
         // Enqueued block waiting for executor to free up. Set if the executor exhibits
@@ -521,8 +521,8 @@ impl Stream for ReconstructedBlocksStream {
     skip_all,
     fields(
         %celestia_height,
-        namespace.sequencer = %hex(&sequencer_namespace.as_bytes()),
-        namespace.rollup = %hex(&rollup_namespace.as_bytes()),
+        namespace.sequencer = %base64(&sequencer_namespace.as_bytes()),
+        namespace.rollup = %base64(&rollup_namespace.as_bytes()),
     ),
     err
 )]
@@ -597,8 +597,8 @@ async fn fetch_blocks_at_celestia_height(
     skip_all,
     fields(
         blob.sequencer_height = sequencer_blob.height().value(),
-        blob.block_hash = %hex(&sequencer_blob.block_hash()),
-        celestia_rollup_namespace = %hex(rollup_namespace.as_bytes()),
+        blob.block_hash = %base64(&sequencer_blob.block_hash()),
+        celestia_rollup_namespace = %base64(rollup_namespace.as_bytes()),
     ),
     err,
 )]

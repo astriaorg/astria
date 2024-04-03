@@ -377,7 +377,7 @@ impl App {
                 > MAX_SEQUENCE_DATA_BYTES_PER_BLOCK
             {
                 debug!(
-                    transaction_hash = %telemetry::display::hex(&tx_hash),
+                    transaction_hash = %telemetry::display::base64(&tx_hash),
                     included_data_bytes = block_sequence_data_bytes,
                     tx_data_bytes = tx_sequence_data_bytes,
                     max_data_bytes = MAX_SEQUENCE_DATA_BYTES_PER_BLOCK,
@@ -397,7 +397,7 @@ impl App {
                 }
                 Err(e) => {
                     debug!(
-                        transaction_hash = %telemetry::display::hex(&tx_hash),
+                        transaction_hash = %telemetry::display::base64(&tx_hash),
                         error = AsRef::<dyn std::error::Error>::as_ref(&e),
                         "failed to execute transaction, not including in block"
                     );
@@ -474,7 +474,7 @@ impl App {
     /// Note that the first two "transactions" in the block, which are the proposer-generated
     /// commitments, are ignored.
     #[instrument(name = "App::deliver_tx_after_proposal", skip_all, fields(
-        tx_hash =  %telemetry::display::hex(&Sha256::digest(&tx.tx)),
+        tx_hash =  %telemetry::display::base64(&Sha256::digest(&tx.tx)),
     ))]
     pub(crate) async fn deliver_tx_after_proposal(
         &mut self,
@@ -529,7 +529,7 @@ impl App {
     ///
     /// Note that `begin_block` is now called *after* transaction execution.
     #[instrument(name = "App::deliver_tx", skip_all, fields(
-        signed_transaction_hash = %telemetry::display::hex(&signed_tx.sha256_of_proto_encoding()),
+        signed_transaction_hash = %telemetry::display::base64(&signed_tx.sha256_of_proto_encoding()),
         sender = %Address::from_verification_key(signed_tx.verification_key()),
     ))]
     pub(crate) async fn deliver_tx(
@@ -701,7 +701,7 @@ impl App {
             .await
             .expect("must be able to successfully commit to storage");
         tracing::debug!(
-            app_hash = %telemetry::display::hex(&app_hash),
+            app_hash = %telemetry::display::base64(&app_hash),
             "finished committing state",
         );
 
