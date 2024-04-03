@@ -79,6 +79,10 @@ pub async fn run(cli: Cli) -> eyre::Result<()> {
                 } => match command {
                     BlockHeightCommand::Get(args) => sequencer::get_block_height(&args).await?,
                 },
+                SequencerCommand::InitBridgeAccount(args) => {
+                    sequencer::init_bridge_account(&args).await?;
+                }
+                SequencerCommand::BridgeLock(args) => sequencer::bridge_lock(&args).await?,
             },
         }
     } else {
