@@ -103,7 +103,12 @@ pub(crate) async fn check_balance_mempool<S: StateReadExt + 'static>(
                     .and_modify(|amt| *amt += TRANSFER_FEE)
                     .or_insert(TRANSFER_FEE);
             }
-            _ => {
+            Action::ValidatorUpdate(_)
+            | Action::SudoAddressChange(_)
+            | Action::Ibc(_)
+            | Action::IbcRelayerChange(_)
+            | Action::FeeAssetChange(_)
+            | Action::Mint(_) => {
                 continue;
             }
         }
@@ -460,7 +465,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn check_balance_mempool_insuffient_other_asset_balance() {
+    async fn check_balance_mempool_insufficient_other_asset_balance() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot);
@@ -501,8 +506,9 @@ mod test {
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
-        check_balance_mempool(&signed_tx, &state_tx)
+        let err = check_balance_mempool(&signed_tx, &state_tx)
             .await
-            .expect_err("insuffient funds for `other` asset");
+            .expect_err("insufficient funds for `other` asset");
+        assert!(err.to_string().contains(&other_asset.to_string()));
     }
 }

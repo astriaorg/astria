@@ -245,7 +245,7 @@ impl Consensus {
                 response::DeliverTx {
                     code: code.into(),
                     info: code.to_string(),
-                    log: format!("{e:?}"),
+                    log: e.to_string(),
                     ..Default::default()
                 }
             }

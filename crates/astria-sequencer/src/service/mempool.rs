@@ -79,12 +79,12 @@ impl Service<MempoolRequest> for Mempool {
     }
 }
 
-// Handles a [`request::CheckTx`] request.
-//
-// Performs stateless checks (decoding and signature check),
-// as well as stateful checks (nonce and balance checks).
-//
-// If the tx passes all checks, status code 0 is returned.
+/// Handles a [`request::CheckTx`] request.
+///
+/// Performs stateless checks (decoding and signature check),
+/// as well as stateful checks (nonce and balance checks).
+///
+/// If the tx passes all checks, status code 0 is returned.
 async fn handle_check_tx<S: StateReadExt + 'static>(
     req: request::CheckTx,
     state: S,
@@ -109,7 +109,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
         Err(e) => {
             return response::CheckTx {
                 code: AbciErrorCode::INVALID_PARAMETER.into(),
-                log: format!("{e:?}"),
+                log: e.to_string(),
                 info: "failed decoding bytes as a protobuf SignedTransaction".into(),
                 ..response::CheckTx::default()
             };
@@ -123,7 +123,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
                 info: "the provided bytes was not a valid protobuf-encoded SignedTransaction, or \
                        the signature was invalid"
                     .into(),
-                log: format!("{e:?}"),
+                log: e.to_string(),
                 ..response::CheckTx::default()
             };
         }
@@ -133,7 +133,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
         return response::CheckTx {
             code: AbciErrorCode::INVALID_PARAMETER.into(),
             info: "transaction failed stateless check".into(),
-            log: format!("{e:?}"),
+            log: e.to_string(),
             ..response::CheckTx::default()
         };
     };
@@ -142,7 +142,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
         return response::CheckTx {
             code: AbciErrorCode::INVALID_NONCE.into(),
             info: "failed verifying transaction nonce".into(),
-            log: format!("{e:?}"),
+            log: e.to_string(),
             ..response::CheckTx::default()
         };
     };
@@ -151,7 +151,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
         return response::CheckTx {
             code: AbciErrorCode::INSUFFICIENT_FUNDS.into(),
             info: "failed verifying account balance".into(),
-            log: format!("{e:?}"),
+            log: e.to_string(),
             ..response::CheckTx::default()
         };
     };
