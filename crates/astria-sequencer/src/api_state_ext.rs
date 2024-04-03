@@ -29,28 +29,39 @@ use cnidarium::{
 use prost::Message;
 use tracing::instrument;
 
+struct Hex<'a>(&'a [u8]);
+
+impl<'a> std::fmt::Display for Hex<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for byte in self.0 {
+            f.write_fmt(format_args!("{byte:02x}"))?;
+        }
+        Ok(())
+    }
+}
+
 fn block_hash_by_height_key(height: u64) -> String {
     format!("blockhash/{height}")
 }
 
 fn sequencer_block_header_by_hash_key(hash: &[u8]) -> String {
-    format!("blockheader/{}", telemetry::display::hex(hash))
+    format!("blockheader/{}", Hex(hash))
 }
 
 fn rollup_data_by_hash_and_rollup_id_key(hash: &[u8], rollup_id: &RollupId) -> String {
-    format!("rollupdata/{}/{}", telemetry::display::hex(hash), rollup_id)
+    format!("rollupdata/{}/{}", Hex(hash), rollup_id)
 }
 
 fn rollup_ids_by_hash_key(hash: &[u8]) -> String {
-    format!("rollupids/{}", telemetry::display::hex(hash))
+    format!("rollupids/{}", Hex(hash))
 }
 
 fn rollup_transactions_proof_by_hash_key(hash: &[u8]) -> String {
-    format!("rolluptxsproof/{}", telemetry::display::hex(hash))
+    format!("rolluptxsproof/{}", Hex(hash))
 }
 
 fn rollup_ids_proof_by_hash_key(hash: &[u8]) -> String {
-    format!("rollupidsproof/{}", telemetry::display::hex(hash))
+    format!("rollupidsproof/{}", Hex(hash))
 }
 
 #[derive(BorshSerialize, BorshDeserialize)]
