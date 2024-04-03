@@ -52,7 +52,7 @@ impl VerificationReport {
                 msg,
                 |mut msg, (index, response)| {
                     _ = writeln!(msg, "\t - Bad response #{index}");
-                    _ = response.print(&mut msg, "\t");
+                    _ = response.print(&mut msg, "\t\t");
                     msg
                 }
             );
