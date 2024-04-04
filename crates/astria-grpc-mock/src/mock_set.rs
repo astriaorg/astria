@@ -56,7 +56,7 @@ impl MockSet {
         rpc: &'static str,
         req: tonic::Request<T>,
     ) -> tonic::Result<tonic::Response<U>> {
-        debug!("handling request.");
+        debug!(rpc, "handling request.");
         // perform erasure here so that it's not done in every single `Mock::matches` call.
         let erased = erase_request(req);
         let mut mock_response: Option<tonic::Result<tonic::Response<U>>> = None;
