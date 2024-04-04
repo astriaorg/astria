@@ -12,6 +12,7 @@ const DEFAULT_ROLLUP_CHART_PATH: &str =
 const DEFAULT_SEQUENCER_GRPC: &str = "https://grpc.sequencer.dusk-4.devnet.astria.org/";
 const DEFAULT_LOG_LEVEL: &str = "debug";
 const DEFAULT_NETWORK_ID: u64 = 1337;
+const DEFAULT_EXECUTION_COMMIT_LEVEL: &str = "SoftOnly";
 const DEFAULT_HOSTNAME: &str = "localdev.me";
 const DEFAULT_NAMESPACE: &str = "astria-dev-cluster";
 
@@ -64,6 +65,13 @@ pub struct ConfigCreateArgs {
     /// The Network ID for the EVM chain
     #[clap(long = "rollup.network-id", env = "ROLLUP_NETWORK_ID", default_value_t = DEFAULT_NETWORK_ID)]
     pub network_id: u64,
+    /// The Execution Commit level
+    #[clap(
+        long = "rollup.execution-commit-level",
+        env = "ROLLUP_EXECUTION_COMMIT_LEVEL",
+        default_value = DEFAULT_EXECUTION_COMMIT_LEVEL
+    )]
+    pub execution_commit_level: String,
     /// List of genesis accounts to fund, in the form of `address:balance`
     #[clap(
         long = "rollup.genesis-accounts", 

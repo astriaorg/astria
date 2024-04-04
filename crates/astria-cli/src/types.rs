@@ -176,6 +176,7 @@ impl TryFrom<&ConfigCreateArgs> for RollupDeploymentConfig {
             rollup: RollupConfig {
                 name: args.name.clone(),
                 network_id: args.network_id.to_string(),
+                execution_commit_level: args.execution_commit_level.to_string(),
                 genesis: GenesisConfig {
                     alloc: genesis_accounts,
                 },
@@ -195,6 +196,7 @@ pub struct RollupConfig {
     name: String,
     // NOTE - String here because yaml will serialize large ints w/ scientific notation
     network_id: String,
+    execution_commit_level: String,
     genesis: GenesisConfig,
 }
 
@@ -254,6 +256,7 @@ mod tests {
             log_level: "debug".to_string(),
             name: "rollup1".to_string(),
             network_id: 1,
+            execution_commit_level: "SoftOnly".to_string(),
             genesis_accounts: vec![
                 GenesisAccountArg {
                     address: "0xA5TR14".to_string(),
@@ -281,6 +284,7 @@ mod tests {
                 rollup: RollupConfig {
                     name: "rollup1".to_string(),
                     network_id: "1".to_string(),
+                    execution_commit_level: "SoftOnly".to_string(),
                     genesis: GenesisConfig {
                         alloc: vec![
                             GenesisAccount {
@@ -331,6 +335,7 @@ mod tests {
             log_level: "info".to_string(),
             name: "rollup2".to_string(),
             network_id: 2_211_011_801,
+            execution_commit_level: "SoftOnly".to_string(),
             genesis_accounts: vec![GenesisAccountArg {
                 address: "0xA5TR14".to_string(),
                 balance: 10000,
@@ -352,6 +357,7 @@ mod tests {
                 rollup: RollupConfig {
                     name: "rollup2".to_string(),
                     network_id: "2211011801".to_string(),
+                    execution_commit_level: "SoftOnly".to_string(),
                     genesis: GenesisConfig {
                         alloc: vec![GenesisAccount {
                             address: "0xA5TR14".to_string(),

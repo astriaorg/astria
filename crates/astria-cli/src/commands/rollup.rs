@@ -327,6 +327,7 @@ mod test {
             use_tty: false,
             name: "test".to_string(),
             network_id: 0,
+            execution_commit_level: "SoftOnly".to_string(),
             genesis_accounts: vec![],
             sequencer_initial_block_height: Some(1),
             sequencer_grpc: String::new(),
