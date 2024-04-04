@@ -1,4 +1,7 @@
-use std::collections::HashMap;
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 use anyhow::{
     anyhow,
@@ -124,9 +127,9 @@ pub(crate) trait StateReadExt: StateRead {
     }
 
     #[instrument(skip(self))]
-    async fn get_deposit_rollup_ids(&self) -> Result<Vec<RollupId>> {
+    async fn get_deposit_rollup_ids(&self) -> Result<HashSet<RollupId>> {
         let mut stream = std::pin::pin!(self.nonverifiable_prefix_raw(DEPOSIT_PREFIX.as_bytes()));
-        let mut rollup_ids = Vec::new();
+        let mut rollup_ids = HashSet::new();
         while let Some(Ok((key, _))) = stream.next().await {
             // the deposit key is of the form "deposit/{rollup_id}/{nonce}"
             let key_str =
@@ -139,7 +142,7 @@ pub(crate) trait StateReadExt: StateRead {
                 hex::decode(key_parts[1]).context("invalid rollup ID hex string")?;
             let rollup_id =
                 RollupId::try_from_slice(&rollup_id_bytes).context("invalid rollup ID bytes")?;
-            rollup_ids.push(rollup_id);
+            rollup_ids.insert(rollup_id);
         }
         Ok(rollup_ids)
     }
@@ -612,6 +615,66 @@ mod test {
         assert_eq!(
             returned_deposits, deposits,
             "stored deposits do not match what was expected"
+        );
+    }
+
+    #[tokio::test]
+    async fn get_deposit_rollup_ids() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let rollup_id_0 = RollupId::new([1u8; 32]);
+        let bridge_address = Address::try_from_slice(&[42u8; 20]).unwrap();
+        let amount = 10u128;
+        let asset = Id::from_denom("asset_0");
+        let destination_chain_address = "0xdeadbeef";
+        let mut deposit = Deposit::new(
+            bridge_address,
+            rollup_id_0,
+            amount,
+            asset,
+            destination_chain_address.to_string(),
+        );
+
+        // write same rollup id twice
+        state
+            .put_deposit_event(deposit.clone())
+            .await
+            .expect("writing deposit events should be ok");
+
+        // writing to same rollup id does not create duplicates
+        state
+            .put_deposit_event(deposit.clone())
+            .await
+            .expect("writing deposit events should be ok");
+
+        // writing additional different rollup id
+        let rollup_id_1 = RollupId::new([2u8; 32]);
+        deposit = Deposit::new(
+            bridge_address,
+            rollup_id_1,
+            amount,
+            asset,
+            destination_chain_address.to_string(),
+        );
+        state
+            .put_deposit_event(deposit)
+            .await
+            .expect("writing deposit events should be ok");
+        // ensure only two rollup ids are in system
+        let rollups = state
+            .get_deposit_rollup_ids()
+            .await
+            .expect("deposit info was written rollup ids should still be in database");
+        assert_eq!(rollups.len(), 2, "only two rollup ids should exits");
+        assert!(
+            rollups.contains(&rollup_id_0),
+            "deposit data was written for rollup and it should exist"
+        );
+        assert!(
+            rollups.contains(&rollup_id_1),
+            "deposit data was written for rollup and it should exist"
         );
     }
 
