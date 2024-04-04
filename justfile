@@ -248,8 +248,29 @@ load-arm-cometbft:
   just load-image {{ cometbft_image }}
   fi
 
-default_chart_path := "charts/evm-rollup-blockscout"
-helm-template-filter chart_path=default_chart_path:
+default_chart_path := "charts/sequencer"
+default_values_path := "charts/sequencer"
+dusk_values_path := "~/src/astria/argocd-apps/apps/sequencer/dusk-4/"
+helm-template chart_path=default_chart_path:
+  helm template --debug --dry-run {{ chart_path }} | \
+  tee {{ chart_path }}/rendered-template.yaml
+
+helm-template-filter-contains chart_path=default_chart_path:
   helm template --debug --dry-run {{ chart_path }} | \
   yq 'select(.. | select(tag == "!!str") | select(contains("visualizer") or contains("blockscout")))' | \
-  tee {{ chart_path }}/rendered-template.yaml
+  tee {{ chart_path }}/rendered-template-filter-contains.yaml
+
+helm-template-filter-kind chart_path=default_chart_path:
+  helm template --debug --dry-run {{ chart_path }} | \
+  yq '. | select(.kind == "Ingress" or .kind == "Service")' | \
+  tee {{ chart_path }}/rendered-template-filter-kind.yaml
+
+helm-template-dusk4 chart_path=default_chart_path:
+  helm template --debug --dry-run {{ chart_path }} \
+  -f {{ default_values_path }}/values-node-0.yaml | \
+  tee {{ chart_path }}/rendered-template-dusk4.yaml
+
+helm-template-filter-testgrpc chart_path=default_chart_path:
+  helm template --debug --dry-run {{ chart_path }} | \
+  yq '. | select(.metadata.name == "*greeter*")' | \
+  tee {{ chart_path }}/rendered-template-filter-testgrpc.yaml
