@@ -1,9 +1,9 @@
 default:
   @just --list
 
-default_docker_tag := 'local'
+default_docker_tag := 'latest'
 
-# Builds docker image for the crate. Defaults to 'local' tag.
+# Builds docker image for the crate. Defaults to 'latest' tag.
 docker-build crate tag=default_docker_tag:
   docker buildx build --load --build-arg TARGETBINARY={{crate}} -f containerfiles/Dockerfile -t {{crate}}:{{tag}} .
 

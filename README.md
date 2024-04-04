@@ -46,12 +46,12 @@ docker installed you can use the following just command:
 
 ```sh
 # Full command:
-just docker-build <CRATE> <TAG=local>
+just docker-build <CRATE> <TAG=latest>
 #
 # Replace CRATE with what the target binary is ie `astria-sequencer`
 # TAG defaults to `local` but can be changed.
 
-# this command will build a local image tagged as 'astria-sequencer:local' 
+# this command will build a local image tagged as 'astria-sequencer:latest' 
 just docker-build astria-sequencer
 
 # this command will build a local image tagged as 'astria-sequencer:debug' 

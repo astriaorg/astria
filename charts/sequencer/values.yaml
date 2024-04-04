@@ -201,8 +201,8 @@ ingress:
     #  - secretName: chart-example-tls
     #    hosts:
     #      - chart-example.local
-  p2p:
-    enabled: false
+  grpc:
+    enabled: true
     hostname: sequencer.localdev.me
     ingressClassName: nginx
     # For Kubernetes >= 1.18 you should specify the ingress-controller via the field ingressClassName
