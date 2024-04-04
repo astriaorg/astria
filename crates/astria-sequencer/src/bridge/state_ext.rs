@@ -127,7 +127,7 @@ pub(crate) trait StateReadExt: StateRead {
     }
 
     #[instrument(skip(self))]
-    async fn get_deposit_rollup_ids(&self) -> Result<Vec<RollupId>> {
+    async fn get_deposit_rollup_ids(&self) -> Result<HashSet<RollupId>> {
         let mut stream = std::pin::pin!(self.nonverifiable_prefix_raw(DEPOSIT_PREFIX.as_bytes()));
         let mut rollup_ids = HashSet::new();
         while let Some(Ok((key, _))) = stream.next().await {
@@ -144,7 +144,7 @@ pub(crate) trait StateReadExt: StateRead {
                 RollupId::try_from_slice(&rollup_id_bytes).context("invalid rollup ID bytes")?;
             rollup_ids.insert(rollup_id);
         }
-        Ok(rollup_ids.into_iter().collect())
+        Ok(rollup_ids)
     }
 
     #[instrument(skip(self))]
@@ -637,38 +637,19 @@ mod test {
             destination_chain_address.to_string(),
         );
 
-        // can write
+        // write same rollup id twice
         state
             .put_deposit_event(deposit.clone())
             .await
             .expect("writing deposit events should be ok");
-        assert!(
-            state
-                .get_deposit_rollup_ids()
-                .await
-                .expect("deposit info was written and rollup's id should be in database")
-                .contains(&rollup_id),
-            "rollup id was written and should exist"
-        );
 
         // writing to same rollup id does not create duplicates
         state
             .put_deposit_event(deposit.clone())
             .await
             .expect("writing deposit events should be ok");
-        assert_eq!(
-            state
-                .get_deposit_rollup_ids()
-                .await
-                .expect(
-                    "deposit info was written again and rollup's id should still be in database"
-                )
-                .len(),
-            1,
-            "rollup id should only be returned once"
-        );
 
-        // writing new rollup id does create new entry
+        // writing additional different rollup id
         rollup_id = RollupId::new([2u8; 32]);
         deposit = Deposit::new(
             bridge_address,
@@ -677,19 +658,19 @@ mod test {
             asset,
             destination_chain_address.to_string(),
         );
-
         state
             .put_deposit_event(deposit)
             .await
             .expect("writing deposit events should be ok");
+        // ensure only two rollup ids are in system
         assert_eq!(
             state
                 .get_deposit_rollup_ids()
                 .await
-                .expect("deposit info was written again and rollup ids should still be in database")
+                .expect("deposit info was written rollup ids should still be in database")
                 .len(),
             2,
-            "multiple rollup ids should be returned"
+            "only two rollup ids should exits"
         );
     }
 
