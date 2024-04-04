@@ -130,6 +130,9 @@ pub struct ConfigCreateArgs {
     /// Configures the k8s namespace rollup will be deployed to
     #[clap(long, env = "ROLLUP_NAMESPACE", default_value = DEFAULT_NAMESPACE)]
     pub namespace: String,
+    /// Choose to enable the Celestia feature
+    #[clap(long = "celestia-node.enabled", env = "ROLLUP_ENABLE_CELESTIA_NODE")]
+    pub enable_celestia_node: bool,
 }
 
 fn validate_initial_block_height(val: &str) -> Result<u64, String> {

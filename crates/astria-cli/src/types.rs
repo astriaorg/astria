@@ -126,6 +126,7 @@ impl From<&ConfigCreateArgs> for GlobalsConfig {
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CelestiaNode {
+    enabled: bool,
     #[serde(rename = "config")]
     celestia_node_config: CelestiaNodeConfig,
 }
@@ -135,6 +136,7 @@ impl From<&ConfigCreateArgs> for CelestiaNode {
         let celestia_node_config = CelestiaNodeConfig::from(args);
 
         Self {
+            enabled: args.enable_celestia_node,
             celestia_node_config,
         }
     }
@@ -282,6 +284,7 @@ mod tests {
             sequencer_rpc: "http://localhost:8081".to_string(),
             hostname: "test.com".to_string(),
             namespace: "test-cluster".to_string(),
+            enable_celestia_node: false,
         };
 
         let expected_config = Rollup {
@@ -325,6 +328,7 @@ mod tests {
                 hostname: "test.com".to_string(),
             },
             celestia_node: CelestiaNode {
+                enabled: false,
                 celestia_node_config: CelestiaNodeConfig {
                     label_prefix: "rollup1".to_string(),
                 },
@@ -361,6 +365,7 @@ mod tests {
             sequencer_rpc: "http://localhost:8083".to_string(),
             hostname: "localdev.me".to_string(),
             namespace: "astria-dev-cluster".to_string(),
+            enable_celestia_node: false,
         };
 
         let expected_config = Rollup {
@@ -396,6 +401,7 @@ mod tests {
                 hostname: "localdev.me".to_string(),
             },
             celestia_node: CelestiaNode {
+                enabled: false,
                 celestia_node_config: CelestiaNodeConfig {
                     label_prefix: "rollup2".to_string(),
                 },

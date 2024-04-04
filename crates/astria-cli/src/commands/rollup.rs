@@ -338,6 +338,7 @@ mod test {
             log_level: String::new(),
             hostname: String::new(),
             namespace: "namespace_test".to_string(),
+            enable_celestia_node: false,
         }
     }
 
