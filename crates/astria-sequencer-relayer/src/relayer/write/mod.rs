@@ -273,12 +273,12 @@ impl BlobSubmitter {
                 // handle result of converting blocks to blobs
                 Some((sequencer_height, conversion_result)) = self.conversions.next() => {
                      match conversion_result {
-                        // XXX: Emitting at ERROR level because failing to convert contitutes
+                        // XXX: Emitting at ERROR level because failing to convert constitutes
                         // a fundamental problem for the relayer, even though it can happily
                         // continue chugging along.
                         // XXX: Should there instead be a mechanism to bubble up the error and
                         // have sequencer-relayer return with an error code (so that k8s can halt
-                        // the chain)? This should probably be part of the protocal/sequencer
+                        // the chain)? This should probably be part of the protocol/sequencer
                         // proper.
                         Err(error) => error!(
                             %sequencer_height,

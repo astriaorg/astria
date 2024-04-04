@@ -143,7 +143,7 @@ pub trait CelestiaClientExt: BlobClient {
     #[instrument(skip_all, fields(
         height = height.into(),
         namespace = %telemetry::display::base64(&namespace.as_bytes()),
-        block_hash = %telemetry::display::hex(&sequencer_blob.block_hash()),
+        block_hash = %telemetry::display::base64(&sequencer_blob.block_hash()),
     ))]
     async fn get_rollup_blobs_matching_sequencer_blob<T>(
         &self,

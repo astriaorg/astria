@@ -34,23 +34,23 @@ fn block_hash_by_height_key(height: u64) -> String {
 }
 
 fn sequencer_block_header_by_hash_key(hash: &[u8]) -> String {
-    format!("blockheader/{}", telemetry::display::hex(hash))
+    format!("blockheader/{}", crate::utils::Hex(hash))
 }
 
 fn rollup_data_by_hash_and_rollup_id_key(hash: &[u8], rollup_id: &RollupId) -> String {
-    format!("rollupdata/{}/{}", telemetry::display::hex(hash), rollup_id)
+    format!("rollupdata/{}/{}", crate::utils::Hex(hash), rollup_id)
 }
 
 fn rollup_ids_by_hash_key(hash: &[u8]) -> String {
-    format!("rollupids/{}", telemetry::display::hex(hash))
+    format!("rollupids/{}", crate::utils::Hex(hash))
 }
 
 fn rollup_transactions_proof_by_hash_key(hash: &[u8]) -> String {
-    format!("rolluptxsproof/{}", telemetry::display::hex(hash))
+    format!("rolluptxsproof/{}", crate::utils::Hex(hash))
 }
 
 fn rollup_ids_proof_by_hash_key(hash: &[u8]) -> String {
-    format!("rollupidsproof/{}", telemetry::display::hex(hash))
+    format!("rollupidsproof/{}", crate::utils::Hex(hash))
 }
 
 #[derive(BorshSerialize, BorshDeserialize)]

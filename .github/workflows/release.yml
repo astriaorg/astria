@@ -1,6 +1,7 @@
 name: Release
 on:
   pull_request:
+  merge_group:
   push:
     branches:
         - main
@@ -34,6 +35,12 @@ jobs:
           draft:  ${{ github.ref_name != 'main'}}
           input: "proto/executionapis"
           buf_token: ${{ secrets.BUF_TOKEN }}
+      - uses: bufbuild/buf-push-action@v1
+        with:
+          draft: ${{ github.ref_name != 'main'}}
+          input: "proto/composerapis"
+          buf_token: ${{ secrets.BUF_TOKEN }}
+
 
   charts:
     permissions:
@@ -43,28 +50,18 @@ jobs:
     if: needs.run_checker.outputs.run_release_charts == 'true'
     steps:
       - name: Checkout Repo
-        uses: actions/checkout@master
-        with:
-          fetch-depth: 0
-      - name: Configure Git
-        run: |
-          git config user.name "$GITHUB_ACTOR"
-          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
-      - name: Install Helm
-        uses: azure/setup-helm@v3
-      - name: Update all chart dependencies before packaging
-        run: |
-          for chart in charts/*/; do
-            helm dependency update $chart
-          done
-      - name: Run chart-releaser
-        uses: helm/chart-releaser-action@v1.6.0
-        with:
-          skip_existing: true
+        uses: actions/checkout@v4
+      - name: Publish to Charts Repo
+        uses: nkoppel/push-files-to-another-repository@v1.1.2
         env:
-          CR_OWNER: "astriaorg"
-          CR_GIT_REPO: "dev-cluster"
-          CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+          API_TOKEN_GITHUB: ${{ secrets.CHARTS_REPO_TOKEN }}
+        with:
+          source-files: 'charts/'
+          destination-username: 'astriaorg'
+          destination-branch: 'main'
+          destination-repository: 'charts'
+          commit-email: '${{ github.actor }}@users.noreply.github.com'
+          commit-username: '${{ github.actor }}'
 
   conductor:
     needs: run_checker

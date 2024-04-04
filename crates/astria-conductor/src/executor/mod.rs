@@ -226,7 +226,7 @@ impl Executor {
                 Some(block) = self.firm_blocks.recv() => {
                     debug!(
                         block.height = %block.sequencer_height(),
-                        block.hash = %telemetry::display::hex(&block.block_hash),
+                        block.hash = %telemetry::display::base64(&block.block_hash),
                         "received block from celestia reader",
                     );
                     if let Err(error) = self.execute_firm(client.clone(), block).await {
@@ -237,7 +237,7 @@ impl Executor {
                 Some(block) = self.soft_blocks.recv(), if spread_not_too_large => {
                     debug!(
                         block.height = %block.height(),
-                        block.hash = %telemetry::display::hex(&block.block_hash()),
+                        block.hash = %telemetry::display::base64(&block.block_hash()),
                         "received block from sequencer reader",
                     );
                     if let Err(error) = self.execute_soft(client.clone(), block).await {
@@ -307,7 +307,7 @@ impl Executor {
     }
 
     #[instrument(skip_all, fields(
-        block.hash = %telemetry::display::hex(&block.block_hash()),
+        block.hash = %telemetry::display::base64(&block.block_hash()),
         block.height = block.height().value(),
     ))]
     async fn execute_soft(
@@ -362,7 +362,7 @@ impl Executor {
     }
 
     #[instrument(skip_all, fields(
-        block.hash = %telemetry::display::hex(&block.block_hash),
+        block.hash = %telemetry::display::base64(&block.block_hash),
         block.height = block.sequencer_height().value(),
     ))]
     async fn execute_firm(
@@ -408,10 +408,10 @@ impl Executor {
     /// This function is called via [`Executor::execute_firm`] or [`Executor::execute_soft`],
     /// and should not be called directly.
     #[instrument(skip_all, fields(
-        block.hash = %telemetry::display::hex(&block.hash),
+        block.hash = %telemetry::display::base64(&block.hash),
         block.height = block.height.value(),
         block.num_of_transactions = block.transactions.len(),
-        rollup.parent_hash = %telemetry::display::hex(&parent_block_hash),
+        rollup.parent_hash = %telemetry::display::base64(&parent_block_hash),
     ))]
     async fn execute_block(
         &mut self,
@@ -431,7 +431,7 @@ impl Executor {
             .wrap_err("failed to run execute_block RPC")?;
 
         info!(
-            executed_block.hash = %telemetry::display::hex(&executed_block.hash()),
+            executed_block.hash = %telemetry::display::base64(&executed_block.hash()),
             executed_block.number = executed_block.number(),
             "executed block",
         );
@@ -497,9 +497,9 @@ impl Executor {
             .wrap_err("failed updating remote commitment state")?;
         info!(
             soft.number = new_state.soft().number(),
-            soft.hash = %telemetry::display::hex(&new_state.soft().hash()),
+            soft.hash = %telemetry::display::base64(&new_state.soft().hash()),
             firm.number = new_state.firm().number(),
-            firm.hash = %telemetry::display::hex(&new_state.firm().hash()),
+            firm.hash = %telemetry::display::base64(&new_state.firm().hash()),
             "updated commitment state",
         );
         self.state

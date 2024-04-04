@@ -22,6 +22,7 @@ name = "astria-protobuf-compiler"
 version = "0.1.0"
 dependencies = [
  "pbjson-build",
+ "prost-build",
  "tempfile",
  "tonic-build",
  "walkdir",

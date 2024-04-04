@@ -1,11 +1,14 @@
 use astria_core::sequencer::v1::{
     transaction::action::{
         Action,
+        BridgeLockAction,
+        InitBridgeAccountAction,
         TransferAction,
     },
     UnsignedTransaction,
 };
 use astria_sequencer_client::{
+    tendermint_rpc::endpoint,
     Address,
     HttpClient,
     SequencerClientExt,
@@ -24,6 +27,8 @@ use rand::rngs::OsRng;
 use crate::cli::sequencer::{
     BasicAccountArgs,
     BlockHeightGetArgs,
+    BridgeLockArgs,
+    InitBridgeAccountArgs,
     TransferArgs,
 };
 
@@ -158,46 +163,105 @@ pub(crate) async fn get_block_height(args: &BlockHeightGetArgs) -> eyre::Result<
 pub(crate) async fn send_transfer(args: &TransferArgs) -> eyre::Result<()> {
     use astria_core::sequencer::v1::asset::default_native_asset_id;
 
-    // Build the signing_key
-    let private_key_bytes: [u8; 32] = hex::decode(args.private_key.as_str())
+    let res = submit_transaction(
+        args.sequencer_url.as_str(),
+        args.private_key.as_str(),
+        Action::Transfer(TransferAction {
+            to: args.to_address.0,
+            amount: args.amount,
+            asset_id: default_native_asset_id(),
+            fee_asset_id: default_native_asset_id(),
+        }),
+    )
+    .await
+    .wrap_err("failed to submit transfer transaction")?;
+
+    ensure!(res.tx_result.code.is_ok(), "error with transfer");
+    println!("Transfer completed!");
+    println!("Included in block: {}", res.height);
+    Ok(())
+}
+
+pub(crate) async fn init_bridge_account(args: &InitBridgeAccountArgs) -> eyre::Result<()> {
+    use astria_core::sequencer::v1::{
+        asset::default_native_asset_id,
+        RollupId,
+    };
+
+    let rollup_id = RollupId::from_unhashed_bytes(args.rollup_name.as_bytes());
+    let res = submit_transaction(
+        args.sequencer_url.as_str(),
+        args.private_key.as_str(),
+        Action::InitBridgeAccount(InitBridgeAccountAction {
+            rollup_id,
+            asset_ids: vec![default_native_asset_id()],
+            fee_asset_id: default_native_asset_id(),
+        }),
+    )
+    .await
+    .wrap_err("failed to submit InitBridgeAccount transaction")?;
+
+    ensure!(res.tx_result.code.is_ok(), "error with InitBridgeAccount");
+    println!("InitBridgeAccount completed!");
+    println!("Included in block: {}", res.height);
+    println!("Rollup name: {}", args.rollup_name);
+    println!("Rollup ID: {rollup_id}");
+    Ok(())
+}
+
+pub(crate) async fn bridge_lock(args: &BridgeLockArgs) -> eyre::Result<()> {
+    use astria_core::sequencer::v1::asset::default_native_asset_id;
+
+    let res = submit_transaction(
+        args.sequencer_url.as_str(),
+        args.private_key.as_str(),
+        Action::BridgeLock(BridgeLockAction {
+            to: args.to_address.0,
+            asset_id: default_native_asset_id(),
+            amount: args.amount,
+            fee_asset_id: default_native_asset_id(),
+            destination_chain_address: args.destination_chain_address.clone(),
+        }),
+    )
+    .await
+    .wrap_err("failed to submit BridgeLock transaction")?;
+
+    ensure!(res.tx_result.code.is_ok(), "error with BridgeLock");
+    println!("BridgeLock completed!");
+    println!("Included in block: {}", res.height);
+    Ok(())
+}
+
+async fn submit_transaction(
+    sequencer_url: &str,
+    private_key: &str,
+    action: Action,
+) -> eyre::Result<endpoint::broadcast::tx_commit::Response> {
+    let sequencer_client =
+        HttpClient::new(sequencer_url).wrap_err("failed constructing http sequencer client")?;
+
+    let private_key_bytes: [u8; 32] = hex::decode(private_key)
         .wrap_err("failed to decode private key bytes from hex string")?
         .try_into()
         .map_err(|_| eyre!("invalid private key length; must be 32 bytes"))?;
     let sequencer_key = SigningKey::from(private_key_bytes);
 
-    // To and from addresses
     let from_address = Address::from_verification_key(sequencer_key.verification_key());
-    let to_address = args.to_address.0;
 
-    let sequencer_client = HttpClient::new(args.sequencer_url.as_str())
-        .wrap_err("failed constructing http sequencer client")?;
-
-    // Fetch the nonce for the action
     let nonce_res = sequencer_client
         .get_latest_nonce(from_address)
         .await
         .wrap_err("failed to get nonce")?;
 
-    // Build and submit tx
     let tx = UnsignedTransaction {
         nonce: nonce_res.nonce,
-        actions: vec![Action::Transfer(TransferAction {
-            to: to_address,
-            amount: args.amount,
-            asset_id: default_native_asset_id(),
-            fee_asset_id: default_native_asset_id(),
-        })],
+        actions: vec![action],
     }
     .into_signed(&sequencer_key);
-    let res = sequencer_client
+    sequencer_client
         .submit_transaction_commit(tx)
         .await
-        .wrap_err("failed to submit transfer transaction")?;
-
-    ensure!(res.tx_result.code.is_ok(), "error with transfer");
-    println!("Transfer completed!");
-
-    Ok(())
+        .wrap_err("failed to submit InitBridgeAccount transaction")
 }
 
 #[cfg(test)]

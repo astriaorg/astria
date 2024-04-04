@@ -11,6 +11,9 @@ members = [
   "crates/astria-config",
   "crates/astria-core",
   "crates/astria-eyre",
+  "crates/astria-grpc-mock",
+  "crates/astria-grpc-mock-test",
+  "crates/astria-grpc-mock-test-codegen",
   "crates/astria-merkle",
   "crates/astria-sequencer",
   "crates/astria-sequencer-client",
@@ -32,6 +35,9 @@ default-members = [
   "crates/astria-config",
   "crates/astria-core",
   "crates/astria-merkle",
+  "crates/astria-grpc-mock",
+  "crates/astria-grpc-mock-test",
+  "crates/astria-grpc-mock-test-codegen",
   "crates/astria-sequencer",
   "crates/astria-sequencer-client",
   "crates/astria-sequencer-relayer",
@@ -96,3 +102,4 @@ tryhard = "0.5.1"
 which = "4.4.0"
 wiremock = "0.5"
 insta = "1.36.1"
+tokio-stream = { version = "0.1.14" }

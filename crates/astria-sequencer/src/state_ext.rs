@@ -22,11 +22,11 @@ fn storage_version_by_height_key(height: u64) -> Vec<u8> {
 }
 
 fn block_fees_key(asset: asset::Id) -> Vec<u8> {
-    format!("{BLOCK_FEES_PREFIX}{asset}").into()
+    format!("{BLOCK_FEES_PREFIX}{}", crate::utils::Hex(asset.as_ref())).into()
 }
 
 fn fee_asset_key(asset: asset::Id) -> Vec<u8> {
-    format!("{FEE_ASSET_PREFIX}{asset}").into()
+    format!("{FEE_ASSET_PREFIX}{}", crate::utils::Hex(asset.as_ref())).into()
 }
 
 #[async_trait]
@@ -243,3 +243,413 @@ pub(crate) trait StateWriteExt: StateWrite {
 }
 
 impl<T: StateWrite> StateWriteExt for T {}
+
+#[cfg(test)]
+mod test {
+    use cnidarium::StateDelta;
+    use tendermint::Time;
+
+    use super::{
+        StateReadExt as _,
+        StateWriteExt as _,
+    };
+
+    #[tokio::test]
+    async fn chain_id() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // doesn't exist at first
+        state
+            .get_chain_id()
+            .await
+            .expect_err("no chain ID should exist at first");
+
+        // can write new
+        let chain_id_orig = "test-chain-orig";
+        state.put_chain_id(chain_id_orig.to_string());
+        assert_eq!(
+            state
+                .get_chain_id()
+                .await
+                .expect("a chain ID was written and must exist inside the database"),
+            chain_id_orig,
+            "stored chain ID was not what was expected"
+        );
+
+        // can rewrite with new value
+        let chain_id_update = "test-chain-update";
+        state.put_chain_id(chain_id_update.to_string());
+        assert_eq!(
+            state
+                .get_chain_id()
+                .await
+                .expect("a new chain ID was written and must exist inside the database"),
+            chain_id_update,
+            "updated chain ID was not what was expected"
+        );
+    }
+
+    #[tokio::test]
+    async fn revision_number() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let state = StateDelta::new(snapshot);
+
+        // current impl just returns 'ok'
+        assert_eq!(
+            state
+                .get_revision_number()
+                .await
+                .expect("getting the revision number should return 0u64"),
+            0u64,
+            "returned revision number should be 0u64"
+        );
+    }
+
+    #[tokio::test]
+    async fn block_height() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // doesn't exist at first
+        state
+            .get_block_height()
+            .await
+            .expect_err("no block height should exist at first");
+
+        // can write new
+        let block_height_orig = 0;
+        state.put_block_height(block_height_orig);
+        assert_eq!(
+            state
+                .get_block_height()
+                .await
+                .expect("a block height was written and must exist inside the database"),
+            block_height_orig,
+            "stored block height was not what was expected"
+        );
+
+        // can rewrite with new value
+        let block_height_update = 1;
+        state.put_block_height(block_height_update);
+        assert_eq!(
+            state
+                .get_block_height()
+                .await
+                .expect("a new block height was written and must exist inside the database"),
+            block_height_update,
+            "updated block height was not what was expected"
+        );
+    }
+
+    #[tokio::test]
+    async fn block_timestamp() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // doesn't exist at first
+        state
+            .get_block_timestamp()
+            .await
+            .expect_err("no block timestamp should exist at first");
+
+        // can write new
+        let block_timestamp_orig = Time::from_unix_timestamp(1_577_836_800, 0).unwrap();
+        state.put_block_timestamp(block_timestamp_orig);
+        assert_eq!(
+            state
+                .get_block_timestamp()
+                .await
+                .expect("a block timestamp was written and must exist inside the database"),
+            block_timestamp_orig,
+            "stored block timestamp was not what was expected"
+        );
+
+        // can rewrite with new value
+        let block_timestamp_update = Time::from_unix_timestamp(1_577_836_801, 0).unwrap();
+        state.put_block_timestamp(block_timestamp_update);
+        assert_eq!(
+            state
+                .get_block_timestamp()
+                .await
+                .expect("a new block timestamp was written and must exist inside the database"),
+            block_timestamp_update,
+            "updated block timestamp was not what was expected"
+        );
+    }
+
+    #[tokio::test]
+    async fn storage_version() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // doesn't exist at first
+        let block_height_orig = 0;
+        state
+            .get_storage_version_by_height(block_height_orig)
+            .await
+            .expect_err("no block height should exist at first");
+
+        // can write for block height 0
+        let storage_version_orig = 0;
+        state.put_storage_version_by_height(block_height_orig, storage_version_orig);
+        assert_eq!(
+            state
+                .get_storage_version_by_height(block_height_orig)
+                .await
+                .expect("a storage version was written and must exist inside the database"),
+            storage_version_orig,
+            "stored storage version was not what was expected"
+        );
+
+        // can update block height 0
+        let storage_version_update = 0;
+        state.put_storage_version_by_height(block_height_orig, storage_version_update);
+        assert_eq!(
+            state
+                .get_storage_version_by_height(block_height_orig)
+                .await
+                .expect("a new storage version was written and must exist inside the database"),
+            storage_version_update,
+            "updated storage version was not what was expected"
+        );
+
+        // can write block 1 and block 0 is unchanged
+        let block_height_update = 1;
+        state.put_storage_version_by_height(block_height_update, storage_version_orig);
+        assert_eq!(
+            state
+                .get_storage_version_by_height(block_height_update)
+                .await
+                .expect("a second storage version was written and must exist inside the database"),
+            storage_version_orig,
+            "additional storage version was not what was expected"
+        );
+        assert_eq!(
+            state
+                .get_storage_version_by_height(block_height_orig)
+                .await
+                .expect(
+                    "the first storage version was written and should still exist inside the \
+                     database"
+                ),
+            storage_version_update,
+            "original but updated storage version was not what was expected"
+        );
+    }
+
+    #[tokio::test]
+    async fn native_asset_denom() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // doesn't exist at first
+        state
+            .get_native_asset_denom()
+            .await
+            .expect_err("no native asset denom should exist at first");
+
+        // can write
+        let denom_orig = "denom_orig";
+        state.put_native_asset_denom(denom_orig);
+        assert_eq!(
+            state.get_native_asset_denom().await.expect(
+                "a native asset denomination was written and must exist inside the database"
+            ),
+            denom_orig,
+            "stored native asset denomination was not what was expected"
+        );
+
+        // can write new value
+        let denom_update = "denom_update";
+        state.put_native_asset_denom(denom_update);
+        assert_eq!(
+            state.get_native_asset_denom().await.expect(
+                "a native asset denomination update was written and must exist inside the database"
+            ),
+            denom_update,
+            "updated native asset denomination was not what was expected"
+        );
+    }
+
+    #[tokio::test]
+    async fn block_fee_read_and_increase() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // doesn't exist at first
+        let fee_balances_orig = state.get_block_fees().await.unwrap();
+        assert!(fee_balances_orig.is_empty());
+
+        // can write
+        let asset = astria_core::sequencer::v1::asset::Id::from_denom("asset_0");
+        let amount = 100u128;
+        state
+            .get_and_increase_block_fees(asset, amount)
+            .await
+            .unwrap();
+
+        // holds expected
+        let fee_balances_updated = state.get_block_fees().await.unwrap();
+        assert_eq!(
+            fee_balances_updated[0],
+            (asset, amount),
+            "fee balances are not what they were expected to be"
+        );
+    }
+
+    #[tokio::test]
+    async fn block_fee_read_and_increase_can_delete() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // can write
+        let asset_first = astria_core::sequencer::v1::asset::Id::from_denom("asset_0");
+        let asset_second = astria_core::sequencer::v1::asset::Id::from_denom("asset_1");
+        let amount_first = 100u128;
+        let amount_second = 200u128;
+
+        state
+            .get_and_increase_block_fees(asset_first, amount_first)
+            .await
+            .unwrap();
+        state
+            .get_and_increase_block_fees(asset_second, amount_second)
+            .await
+            .unwrap();
+        // holds expected
+        let mut fee_balances = state.get_block_fees().await.unwrap();
+        fee_balances.sort_by(|a, b| a.1.cmp(&b.1));
+        assert_eq!(
+            fee_balances,
+            vec![(asset_first, amount_first), (asset_second, amount_second)],
+            "returned fee balance vector not what was expected"
+        );
+
+        // can delete
+        state.clear_block_fees().await;
+
+        let fee_balances_updated = state.get_block_fees().await.unwrap();
+        assert!(
+            fee_balances_updated.is_empty(),
+            "fee balances were expected to be deleted but were not"
+        );
+    }
+
+    #[tokio::test]
+    async fn is_allowed_fee_asset() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // non-existent fees assets return false
+        let asset = astria_core::sequencer::v1::asset::Id::from_denom("asset_0");
+        assert!(
+            !state
+                .is_allowed_fee_asset(asset)
+                .await
+                .expect("checking for allowed fee asset should not fail"),
+            "fee asset was expected to return false"
+        );
+
+        // existent fee assets return true
+        state.put_allowed_fee_asset(asset);
+        assert!(
+            state
+                .is_allowed_fee_asset(asset)
+                .await
+                .expect("checking for allowed fee asset should not fail"),
+            "fee asset was expected to be allowed"
+        );
+    }
+
+    #[tokio::test]
+    async fn can_delete_allowed_fee_assets_simple() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // setup fee asset
+        let asset = astria_core::sequencer::v1::asset::Id::from_denom("asset_0");
+        state.put_allowed_fee_asset(asset);
+        assert!(
+            state
+                .is_allowed_fee_asset(asset)
+                .await
+                .expect("checking for allowed fee asset should not fail"),
+            "fee asset was expected to be allowed"
+        );
+
+        // see can get fee asset
+        let assets = state.get_allowed_fee_assets().await.unwrap();
+        assert_eq!(
+            assets,
+            vec![asset],
+            "expected returned allowed fee assets to match what was written in"
+        );
+
+        // can delete
+        state.delete_allowed_fee_asset(asset);
+
+        // see is deleted
+        let assets = state.get_allowed_fee_assets().await.unwrap();
+        assert!(assets.is_empty(), "fee assets should be empty post delete");
+    }
+
+    #[tokio::test]
+    async fn can_delete_allowed_fee_assets_complex() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // setup fee assets
+        let asset_first = astria_core::sequencer::v1::asset::Id::from_denom("asset_0");
+        state.put_allowed_fee_asset(asset_first);
+        assert!(
+            state
+                .is_allowed_fee_asset(asset_first)
+                .await
+                .expect("checking for allowed fee asset should not fail"),
+            "fee asset was expected to be allowed"
+        );
+        let asset_second = astria_core::sequencer::v1::asset::Id::from_denom("asset_1");
+        state.put_allowed_fee_asset(asset_second);
+        assert!(
+            state
+                .is_allowed_fee_asset(asset_second)
+                .await
+                .expect("checking for allowed fee asset should not fail"),
+            "fee asset was expected to be allowed"
+        );
+        let asset_third = astria_core::sequencer::v1::asset::Id::from_denom("asset_3");
+        state.put_allowed_fee_asset(asset_third);
+        assert!(
+            state
+                .is_allowed_fee_asset(asset_third)
+                .await
+                .expect("checking for allowed fee asset should not fail"),
+            "fee asset was expected to be allowed"
+        );
+
+        // can delete
+        state.delete_allowed_fee_asset(asset_second);
+
+        // see is deleted
+        let mut assets = state.get_allowed_fee_assets().await.unwrap();
+        assets.sort();
+        assets.reverse(); // asset ids are hashes of the string input which the statement below is ordered by
+        assert_eq!(
+            assets,
+            vec![asset_first, asset_third],
+            "delete for allowed fee asset did not behave as expected"
+        );
+    }
+}

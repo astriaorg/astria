@@ -35,7 +35,7 @@ impl BlockVerifier {
 
     #[instrument(skip_all, fields(
         height.in_blob = %blob.height(),
-        block_hash.in_blob = %telemetry::display::hex(&blob.block_hash()),
+        block_hash.in_blob = %telemetry::display::base64(&blob.block_hash()),
     ))]
     pub(super) async fn verify_blob(&self, blob: &CelestiaSequencerBlob) -> eyre::Result<()> {
         Verify::at_height(self.client.clone(), blob.height())

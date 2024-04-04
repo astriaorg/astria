@@ -51,3 +51,9 @@ pub mod sequencer {
         }
     }
 }
+
+#[path = ""]
+pub mod composer {
+    #[path = "astria.composer.v1alpha1.rs"]
+    pub mod v1alpha1;
+}

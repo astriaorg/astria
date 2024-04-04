@@ -149,7 +149,7 @@ impl Relayer {
                     // XXX: exiting because submitter only returns an error after u32::MAX
                     // retries, which is practically infinity.
                     if res.is_err() {
-                        break Err(eyre!("submitter exited unexpectly while trying to forward block"));
+                        break Err(eyre!("submitter exited unexpectedly while trying to forward block"));
                     }
                     block_stream.resume();
                     debug!("block stream resumed");
