@@ -202,7 +202,7 @@ ingress:
     #    hosts:
     #      - chart-example.local
   grpc:
-    enabled: true
+    enabled: false
     hostname: sequencer.localdev.me
     ingressClassName: nginx
     # For Kubernetes >= 1.18 you should specify the ingress-controller via the field ingressClassName
