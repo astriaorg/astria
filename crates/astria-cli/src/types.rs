@@ -162,8 +162,8 @@ impl TryFrom<&ConfigCreateArgs> for RollupDeploymentConfig {
     type Error = eyre::Report;
 
     fn try_from(args: &ConfigCreateArgs) -> eyre::Result<Self> {
-        // Set to block 1 if nothing set.
-        let sequencer_initial_block_height = args.sequencer_initial_block_height.unwrap_or(1);
+        // Set to block 2 if nothing set.
+        let sequencer_initial_block_height = args.sequencer_initial_block_height.unwrap_or(2);
 
         let genesis_accounts = args
             .genesis_accounts
@@ -178,6 +178,9 @@ impl TryFrom<&ConfigCreateArgs> for RollupDeploymentConfig {
                 network_id: args.network_id.to_string(),
                 execution_commit_level: args.execution_commit_level.to_string(),
                 genesis: GenesisConfig {
+                    override_genesis_extra_data: args.override_genesis_extra_data,
+                    bridge_address: args.bridge_address.clone(),
+                    bridge_allowed_asset_denom: args.bridge_allowed_asset_denom.clone(),
                     alloc: genesis_accounts,
                 },
             },
@@ -203,6 +206,10 @@ pub struct RollupConfig {
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GenesisConfig {
+    override_genesis_extra_data: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    bridge_address: Option<String>,
+    bridge_allowed_asset_denom: String,
     alloc: Vec<GenesisAccount>,
 }
 
@@ -257,6 +264,9 @@ mod tests {
             name: "rollup1".to_string(),
             network_id: 1,
             execution_commit_level: "SoftOnly".to_string(),
+            override_genesis_extra_data: false,
+            bridge_address: None,
+            bridge_allowed_asset_denom: "nria".to_string(),
             genesis_accounts: vec![
                 GenesisAccountArg {
                     address: "0xA5TR14".to_string(),
@@ -286,6 +296,9 @@ mod tests {
                     network_id: "1".to_string(),
                     execution_commit_level: "SoftOnly".to_string(),
                     genesis: GenesisConfig {
+                        override_genesis_extra_data: false,
+                        bridge_address: None,
+                        bridge_allowed_asset_denom: "nria".to_string(),
                         alloc: vec![
                             GenesisAccount {
                                 address: "0xA5TR14".to_string(),
@@ -336,6 +349,9 @@ mod tests {
             name: "rollup2".to_string(),
             network_id: 2_211_011_801,
             execution_commit_level: "SoftOnly".to_string(),
+            override_genesis_extra_data: false,
+            bridge_address: None,
+            bridge_allowed_asset_denom: "nria".to_string(),
             genesis_accounts: vec![GenesisAccountArg {
                 address: "0xA5TR14".to_string(),
                 balance: 10000,
@@ -359,6 +375,9 @@ mod tests {
                     network_id: "2211011801".to_string(),
                     execution_commit_level: "SoftOnly".to_string(),
                     genesis: GenesisConfig {
+                        override_genesis_extra_data: false,
+                        bridge_address: None,
+                        bridge_allowed_asset_denom: "nria".to_string(),
                         alloc: vec![GenesisAccount {
                             address: "0xA5TR14".to_string(),
                             value: GenesisAccountValue {

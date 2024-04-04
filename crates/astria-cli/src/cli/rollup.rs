@@ -15,6 +15,7 @@ const DEFAULT_NETWORK_ID: u64 = 1337;
 const DEFAULT_EXECUTION_COMMIT_LEVEL: &str = "SoftOnly";
 const DEFAULT_HOSTNAME: &str = "localdev.me";
 const DEFAULT_NAMESPACE: &str = "astria-dev-cluster";
+const DEFAULT_ROLLUP_GENESIS_BRIDGE_ALLOWED_ASSET_DENOM: &str = "nria";
 
 /// Remove the 0x prefix from a hex string if present
 fn strip_0x_prefix(s: &str) -> &str {
@@ -72,6 +73,22 @@ pub struct ConfigCreateArgs {
         default_value = DEFAULT_EXECUTION_COMMIT_LEVEL
     )]
     pub execution_commit_level: String,
+    /// Choose to allow genesis extra data override
+    #[clap(
+        long = "rollup.override-genesis-extra-data",
+        env = "ROLLUP_OVERRIDE_GENESIS_EXTRA_DATA"
+    )]
+    pub override_genesis_extra_data: bool,
+    /// Optional. If set, will be used as the bridge address. If not set, nothing happens.
+    #[clap(long = "rollup.bridge-address", env = "ROLLUP_BRIDGE_ADDRESS")]
+    pub bridge_address: Option<String>,
+    /// The allowed asset denom for the bridge
+    #[clap(
+        long = "rollup.bridge-allowed-asset-denom",
+        env = "ROLLUP_BRIDGE_ALLOWED_ASSET_DENOM",
+        default_value = DEFAULT_ROLLUP_GENESIS_BRIDGE_ALLOWED_ASSET_DENOM
+    )]
+    pub bridge_allowed_asset_denom: String,
     /// List of genesis accounts to fund, in the form of `address:balance`
     #[clap(
         long = "rollup.genesis-accounts", 
@@ -86,6 +103,7 @@ pub struct ConfigCreateArgs {
         long = "sequencer.initial-block-height",
         env = "ROLLUP_SEQUENCER_INITIAL_BLOCK_HEIGHT"
     )]
+    #[arg(value_parser = validate_initial_block_height)]
     pub sequencer_initial_block_height: Option<u64>,
     /// Optional. If not set, will be default to the devnet sequencer websocket address
     #[clap(
@@ -112,6 +130,13 @@ pub struct ConfigCreateArgs {
     /// Configures the k8s namespace rollup will be deployed to
     #[clap(long, env = "ROLLUP_NAMESPACE", default_value = DEFAULT_NAMESPACE)]
     pub namespace: String,
+}
+
+fn validate_initial_block_height(val: &str) -> Result<u64, String> {
+    match val.parse::<u64>() {
+        Ok(height) if height >= 2 => Ok(height),
+        _ => Err(String::from("The block height must be at least 2.")),
+    }
 }
 
 /// `GenesisAccountArg` is a struct that represents a genesis account to be funded.
