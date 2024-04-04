@@ -67,7 +67,7 @@ async fn invalid_nonce_causes_resubmission_under_different_nonce() {
     // Spawn a composer with a mock sequencer and a mock rollup node
     // Initial nonce is 0
     let rollup_id = RollupId::from_unhashed_bytes("test1");
-    let test_composer = spawn_composer(&[rollup_id.to_string().as_str()]).await;
+    let test_composer = spawn_composer(&[]).await;
     tokio::time::timeout(
         Duration::from_millis(100),
         test_composer.setup_guard.wait_until_satisfied(),

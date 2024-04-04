@@ -19,6 +19,7 @@ mod sequencer;
 pub(crate) mod service;
 pub(crate) mod state_ext;
 pub(crate) mod transaction;
+mod utils;
 
 pub use build_info::BUILD_INFO;
 pub use config::Config;
