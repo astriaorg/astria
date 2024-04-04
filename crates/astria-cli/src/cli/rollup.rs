@@ -53,7 +53,7 @@ pub enum ConfigCommand {
 
 #[derive(Args, Debug, Serialize, Clone)]
 pub struct ConfigCreateArgs {
-    #[clap(long, env = "ROLLUP_USE_TTY")]
+    #[clap(long, env = "ROLLUP_USE_TTY", default_value = "true")]
     pub use_tty: bool,
     #[clap(long, env = "ROLLUP_LOG_LEVEL", default_value = DEFAULT_LOG_LEVEL)]
     pub log_level: String,
