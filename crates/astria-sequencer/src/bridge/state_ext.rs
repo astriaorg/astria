@@ -624,14 +624,14 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        let mut rollup_id = RollupId::new([1u8; 32]);
+        let rollup_id_0 = RollupId::new([1u8; 32]);
         let bridge_address = Address::try_from_slice(&[42u8; 20]).unwrap();
         let amount = 10u128;
         let asset = Id::from_denom("asset_0");
         let destination_chain_address = "0xdeadbeef";
         let mut deposit = Deposit::new(
             bridge_address,
-            rollup_id,
+            rollup_id_0,
             amount,
             asset,
             destination_chain_address.to_string(),
@@ -650,10 +650,10 @@ mod test {
             .expect("writing deposit events should be ok");
 
         // writing additional different rollup id
-        rollup_id = RollupId::new([2u8; 32]);
+        let rollup_id_1 = RollupId::new([2u8; 32]);
         deposit = Deposit::new(
             bridge_address,
-            rollup_id,
+            rollup_id_1,
             amount,
             asset,
             destination_chain_address.to_string(),
@@ -663,14 +663,18 @@ mod test {
             .await
             .expect("writing deposit events should be ok");
         // ensure only two rollup ids are in system
-        assert_eq!(
-            state
-                .get_deposit_rollup_ids()
-                .await
-                .expect("deposit info was written rollup ids should still be in database")
-                .len(),
-            2,
-            "only two rollup ids should exits"
+        let rollups = state
+            .get_deposit_rollup_ids()
+            .await
+            .expect("deposit info was written rollup ids should still be in database");
+        assert_eq!(rollups.len(), 2, "only two rollup ids should exits");
+        assert!(
+            rollups.contains(&rollup_id_0),
+            "deposit data was written for rollup and it should exist"
+        );
+        assert!(
+            rollups.contains(&rollup_id_1),
+            "deposit data was written for rollup and it should exist"
         );
     }
 
