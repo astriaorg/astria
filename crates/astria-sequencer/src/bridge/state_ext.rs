@@ -646,10 +646,7 @@ mod test {
             state
                 .get_deposit_rollup_ids()
                 .await
-                .expect(
-                    "deposit info was written to the database and rollup's id should be in \
-                     database"
-                )
+                .expect("deposit info was written and rollup's id should be in database")
                 .contains(&rollup_id),
             "rollup id was written and should exist"
         );
@@ -664,8 +661,7 @@ mod test {
                 .get_deposit_rollup_ids()
                 .await
                 .expect(
-                    "deposit info was written again to the database and rollup's id should still \
-                     be in database"
+                    "deposit info was written again and rollup's id should still be in database"
                 )
                 .len(),
             1,
@@ -690,10 +686,7 @@ mod test {
             state
                 .get_deposit_rollup_ids()
                 .await
-                .expect(
-                    "deposit info was written again to the database and rollup ids should still \
-                     be in database"
-                )
+                .expect("deposit info was written again and rollup ids should still be in database")
                 .len(),
             2,
             "multiple rollup ids should be returned"
