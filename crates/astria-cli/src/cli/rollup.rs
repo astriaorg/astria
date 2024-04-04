@@ -8,8 +8,8 @@ use color_eyre::eyre;
 use serde::Serialize;
 
 const DEFAULT_ROLLUP_CHART_PATH: &str =
-    "https://github.com/astriaorg/dev-cluster/releases/download/astria-evm-rollup-0.8.6/astria-evm-rollup-0.8.6.tgz";
-const DEFAULT_SEQUENCER_WS: &str = "wss://rpc.sequencer.dusk-3.devnet.astria.org/websocket";
+    "https://github.com/astriaorg/charts/releases/download/evm-rollup-0.11.0/evm-rollup-0.11.0.tgz";
+const DEFAULT_SEQUENCER_GRPC: &str = "https://grpc.sequencer.dusk-4.devnet.astria.org/";
 const DEFAULT_LOG_LEVEL: &str = "debug";
 const DEFAULT_NETWORK_ID: u64 = 1337;
 const DEFAULT_HOSTNAME: &str = "localdev.me";
@@ -61,9 +61,6 @@ pub struct ConfigCreateArgs {
     /// The name of the rollup
     #[clap(long = "rollup.name", env = "ROLLUP_NAME")]
     pub name: String,
-    /// Optional. Will be derived from the rollup name if not provided
-    #[clap(long = "rollup.chain-id", env = "ROLLUP_CHAIN_ID", required = false)]
-    pub chain_id: Option<String>,
     /// The Network ID for the EVM chain
     #[clap(long = "rollup.network-id", env = "ROLLUP_NETWORK_ID", default_value_t = DEFAULT_NETWORK_ID)]
     pub network_id: u64,
@@ -75,7 +72,6 @@ pub struct ConfigCreateArgs {
         value_delimiter = ','
     )]
     pub genesis_accounts: Vec<GenesisAccountArg>,
-
     // sequencer config
     /// Optional. If not set, will be determined from the current block height of the sequencer
     #[clap(
@@ -85,11 +81,11 @@ pub struct ConfigCreateArgs {
     pub sequencer_initial_block_height: Option<u64>,
     /// Optional. If not set, will be default to the devnet sequencer websocket address
     #[clap(
-        long = "sequencer.websocket", 
-        env = "ROLLUP_SEQUENCER_WEBSOCKET", 
-        default_value = DEFAULT_SEQUENCER_WS
+        long = "sequencer.grpc", 
+        env = "ROLLUP_SEQUENCER_GRPC", 
+        default_value = DEFAULT_SEQUENCER_GRPC
     )]
-    pub sequencer_websocket: String,
+    pub sequencer_grpc: String,
     /// Optional. If not set, will be default to the devnet sequencer rpc address
     #[clap(
         long = "sequencer.rpc", 

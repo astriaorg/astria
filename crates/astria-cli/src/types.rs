@@ -162,11 +162,6 @@ impl TryFrom<&ConfigCreateArgs> for RollupDeploymentConfig {
     type Error = eyre::Report;
 
     fn try_from(args: &ConfigCreateArgs) -> eyre::Result<Self> {
-        let chain_id = args
-            .chain_id
-            .clone()
-            .unwrap_or(format!("{}-chain", args.name));
-
         // Set to block 1 if nothing set.
         let sequencer_initial_block_height = args.sequencer_initial_block_height.unwrap_or(1);
 
@@ -180,7 +175,6 @@ impl TryFrom<&ConfigCreateArgs> for RollupDeploymentConfig {
         Ok(Self {
             rollup: RollupConfig {
                 name: args.name.clone(),
-                chain_id,
                 network_id: args.network_id.to_string(),
                 genesis: GenesisConfig {
                     alloc: genesis_accounts,
@@ -188,7 +182,7 @@ impl TryFrom<&ConfigCreateArgs> for RollupDeploymentConfig {
             },
             sequencer: SequencerConfig {
                 initial_block_height: sequencer_initial_block_height.to_string(),
-                websocket: args.sequencer_websocket.clone(),
+                grpc: args.sequencer_grpc.clone(),
                 rpc: args.sequencer_rpc.clone(),
             },
         })
@@ -199,7 +193,6 @@ impl TryFrom<&ConfigCreateArgs> for RollupDeploymentConfig {
 #[serde(rename_all = "camelCase")]
 pub struct RollupConfig {
     name: String,
-    chain_id: String,
     // NOTE - String here because yaml will serialize large ints w/ scientific notation
     network_id: String,
     genesis: GenesisConfig,
@@ -241,8 +234,8 @@ impl From<GenesisAccountArg> for GenesisAccount {
 struct SequencerConfig {
     // NOTE - string because yaml will serialize large ints w/ scientific notation
     initial_block_height: String,
-    websocket: String,
     rpc: String,
+    grpc: String,
 }
 
 #[cfg(test)]
@@ -260,7 +253,6 @@ mod tests {
             use_tty: true,
             log_level: "debug".to_string(),
             name: "rollup1".to_string(),
-            chain_id: Some("chain1".to_string()),
             network_id: 1,
             genesis_accounts: vec![
                 GenesisAccountArg {
@@ -273,7 +265,7 @@ mod tests {
                 },
             ],
             sequencer_initial_block_height: Some(127_689_000_000),
-            sequencer_websocket: "ws://localhost:8080".to_string(),
+            sequencer_grpc: "http://localhost:8080".to_string(),
             sequencer_rpc: "http://localhost:8081".to_string(),
             hostname: "test.com".to_string(),
             namespace: "test-cluster".to_string(),
@@ -288,7 +280,6 @@ mod tests {
             deployment_config: RollupDeploymentConfig {
                 rollup: RollupConfig {
                     name: "rollup1".to_string(),
-                    chain_id: "chain1".to_string(),
                     network_id: "1".to_string(),
                     genesis: GenesisConfig {
                         alloc: vec![
@@ -309,7 +300,7 @@ mod tests {
                 },
                 sequencer: SequencerConfig {
                     initial_block_height: "127689000000".to_string(),
-                    websocket: "ws://localhost:8080".to_string(),
+                    grpc: "http://localhost:8080".to_string(),
                     rpc: "http://localhost:8081".to_string(),
                 },
             },
@@ -339,14 +330,13 @@ mod tests {
             use_tty: false,
             log_level: "info".to_string(),
             name: "rollup2".to_string(),
-            chain_id: None,
             network_id: 2_211_011_801,
             genesis_accounts: vec![GenesisAccountArg {
                 address: "0xA5TR14".to_string(),
                 balance: 10000,
             }],
             sequencer_initial_block_height: None,
-            sequencer_websocket: "ws://localhost:8082".to_string(),
+            sequencer_grpc: "http://localhost:8082".to_string(),
             sequencer_rpc: "http://localhost:8083".to_string(),
             hostname: "localdev.me".to_string(),
             namespace: "astria-dev-cluster".to_string(),
@@ -361,7 +351,6 @@ mod tests {
             deployment_config: RollupDeploymentConfig {
                 rollup: RollupConfig {
                     name: "rollup2".to_string(),
-                    chain_id: "rollup2-chain".to_string(), // Derived from name
                     network_id: "2211011801".to_string(),
                     genesis: GenesisConfig {
                         alloc: vec![GenesisAccount {
@@ -374,7 +363,7 @@ mod tests {
                 },
                 sequencer: SequencerConfig {
                     initial_block_height: "1".to_string(), // Default value
-                    websocket: "ws://localhost:8082".to_string(),
+                    grpc: "http://localhost:8082".to_string(),
                     rpc: "http://localhost:8083".to_string(),
                 },
             },

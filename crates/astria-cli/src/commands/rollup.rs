@@ -326,11 +326,10 @@ mod test {
         ConfigCreateArgs {
             use_tty: false,
             name: "test".to_string(),
-            chain_id: None,
             network_id: 0,
             genesis_accounts: vec![],
             sequencer_initial_block_height: Some(1),
-            sequencer_websocket: String::new(),
+            sequencer_grpc: String::new(),
             sequencer_rpc: String::new(),
             log_level: String::new(),
             hostname: String::new(),
