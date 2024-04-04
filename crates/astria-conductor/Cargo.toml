@@ -56,15 +56,18 @@ tracing-futures = { version = "0.2.5", features = ["futures-03"] }
 
 [dev-dependencies]
 astria-core = { path = "../astria-core", features = ["server", "test-utils"] }
+astria-grpc-mock = { path = "../astria-grpc-mock" }
 config = { package = "astria-config", path = "../astria-config", features = [
   "tests",
 ] }
 
 insta = { workspace = true, features = ["json"] }
 jsonrpsee = { workspace = true, features = ["server"] }
+once_cell = { workspace = true }
+wiremock.workspace = { workspace = true }
 
 chrono = "0.4.35"
-tokio-stream = { version = "0.1.14", features = ["net"] }
+tokio-stream = { version = "0.1.15", features = ["net"] }
 
 [build-dependencies]
 astria-build-info = { path = "../astria-build-info", features = ["build"] }
