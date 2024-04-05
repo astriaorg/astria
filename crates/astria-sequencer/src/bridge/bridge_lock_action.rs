@@ -11,7 +11,7 @@ use astria_core::sequencer::{
         },
         Address,
     },
-    v2::block::Deposit,
+    v2alpha1::block::Deposit,
 };
 use tracing::instrument;
 

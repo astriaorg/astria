@@ -112,12 +112,12 @@ fn main() {
             ".astria.sequencer.v1.RollupData",
             ".astria.sequencer.v1.RollupTransactions",
             ".astria.primitive.v1.Uint128",
-            ".astria.sequencer.v2.Deposit",
-            ".astria.sequencer.v2.SequencerBlockHeader",
-            ".astria.sequencer.v2.FilteredSequencerBlock",
-            ".astria.sequencer.v2.GetFilteredSequencerBlockRequest",
-            ".astria.sequencer.v2.RollupData",
-            ".astria.sequencer.v2.RollupTransactions",
+            ".astria.sequencer.v2alpha1.Deposit",
+            ".astria.sequencer.v2alpha1.SequencerBlockHeader",
+            ".astria.sequencer.v2alpha1.FilteredSequencerBlock",
+            ".astria.sequencer.v2alpha1.GetFilteredSequencerBlockRequest",
+            ".astria.sequencer.v2alpha1.RollupData",
+            ".astria.sequencer.v2alpha1.RollupTransactions",
         ])
         .unwrap();
 

@@ -275,10 +275,10 @@ mod test {
     use std::collections::BTreeMap;
 
     use astria_core::{
-        generated::sequencer::v2::SequencerBlockHeader as RawSequencerBlockHeader,
+        generated::sequencer::v2alpha1::SequencerBlockHeader as RawSequencerBlockHeader,
         sequencer::{
             v1::RollupId,
-            v2::{
+            v2alpha1::{
                 block::SequencerBlockHeader,
                 celestia::UncheckedCelestiaSequencerBlob,
             },

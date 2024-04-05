@@ -1,6 +1,6 @@
 use astria_core::sequencer::{
     v1::RollupId,
-    v2::block::{
+    v2alpha1::block::{
         FilteredSequencerBlock,
         RollupTransactions,
     },
@@ -47,7 +47,7 @@ mod tests {
             test_utils::ConfigureCometBftBlock,
             RollupId,
         },
-        v2::block::{
+        v2alpha1::block::{
             FilteredSequencerBlock,
             SequencerBlock,
         },

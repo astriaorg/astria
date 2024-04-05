@@ -2,7 +2,7 @@ pub mod client;
 pub mod metrics_init;
 pub mod submission;
 
-pub use astria_core::sequencer::v2::{
+pub use astria_core::sequencer::v2alpha1::{
     CelestiaRollupBlob,
     CelestiaSequencerBlob,
 };

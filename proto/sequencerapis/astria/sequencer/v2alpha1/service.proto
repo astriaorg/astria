@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-package astria.sequencer.v2;
+package astria.sequencer.v2alpha1;
 
-import "astria/sequencer/v2/block.proto";
+import "astria/sequencer/v2alpha1/block.proto";
 import "google/api/annotations.proto";
 import "google/api/field_behavior.proto";
 
@@ -28,7 +28,7 @@ service SequencerService {
   // is filtered to contain only the transactions that are relevant to the given rollup.
   rpc GetFilteredSequencerBlock(GetFilteredSequencerBlockRequest) returns (FilteredSequencerBlock) {
     option (google.api.http) = {
-      post: "/v2/sequencer/{height}:filtered"
+      post: "/v2alpha1/sequencer/{height}:filtered"
       body: "*"
     };
   }

@@ -9,14 +9,14 @@ use anyhow::{
     Result,
 };
 use astria_core::{
-    generated::sequencer::v2::Deposit as RawDeposit,
+    generated::sequencer::v2alpha1::Deposit as RawDeposit,
     sequencer::{
         v1::{
             asset,
             Address,
             RollupId,
         },
-        v2::block::Deposit,
+        v2alpha1::block::Deposit,
     },
 };
 use async_trait::async_trait;
@@ -259,7 +259,7 @@ mod test {
             Address,
             RollupId,
         },
-        v2::block::Deposit,
+        v2alpha1::block::Deposit,
     };
     use cnidarium::StateDelta;
 

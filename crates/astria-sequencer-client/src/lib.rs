@@ -19,7 +19,7 @@ pub use astria_core::sequencer::{
         NonceResponse,
         SignedTransaction,
     },
-    v2::SequencerBlock,
+    v2alpha1::SequencerBlock,
 };
 use futures_util::{
     FutureExt,

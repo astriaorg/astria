@@ -20,7 +20,7 @@ use astria_core::{
             RollupId,
             SignedTransaction,
         },
-        v2::block::{
+        v2alpha1::block::{
             Deposit,
             SequencerBlock,
         },
@@ -825,7 +825,7 @@ mod test {
             },
             UnsignedTransaction,
         },
-        v2::block::Deposit,
+        v2alpha1::block::Deposit,
     };
     use ed25519_consensus::SigningKey;
     use penumbra_ibc::params::IBCParameters;

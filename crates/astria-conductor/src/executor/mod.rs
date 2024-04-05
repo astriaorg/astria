@@ -7,7 +7,7 @@ use astria_core::{
     },
     sequencer::{
         v1::RollupId,
-        v2::block::{
+        v2alpha1::block::{
             FilteredSequencerBlock,
             FilteredSequencerBlockParts,
         },

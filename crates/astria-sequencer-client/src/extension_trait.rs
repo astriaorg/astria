@@ -33,7 +33,7 @@ pub use astria_core::sequencer::{
         NonceResponse,
         SignedTransaction,
     },
-    v2::{
+    v2alpha1::{
         block::SequencerBlockError,
         SequencerBlock,
     },

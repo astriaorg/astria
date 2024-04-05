@@ -51,13 +51,13 @@ pub mod sequencer {
         }
     }
 
-    pub mod v2 {
-        include!("astria.sequencer.v2.rs");
+    pub mod v2alpha1 {
+        include!("astria.sequencer.v2alpha1.rs");
 
         #[cfg(feature = "serde")]
         mod _serde_impl {
             use super::*;
-            include!("astria.sequencer.v2.serde.rs");
+            include!("astria.sequencer.v2alpha1.serde.rs");
         }
     }
 }

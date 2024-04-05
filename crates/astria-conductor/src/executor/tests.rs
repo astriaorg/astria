@@ -38,7 +38,7 @@ use astria_core::{
                 ConfigureCometBftBlock,
             },
         },
-        v2::SequencerBlock,
+        v2alpha1::SequencerBlock,
     },
     Protobuf,
 };

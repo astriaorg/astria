@@ -20,7 +20,7 @@ use astria_core::sequencer::{
         asset::Denom,
         Address,
     },
-    v2::block::Deposit,
+    v2alpha1::block::Deposit,
 };
 use cnidarium::{
     StateRead,

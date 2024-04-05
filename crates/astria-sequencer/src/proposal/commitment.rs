@@ -6,7 +6,7 @@ use astria_core::sequencer::{
         RollupId,
         SignedTransaction,
     },
-    v2::block::{
+    v2alpha1::block::{
         Deposit,
         RollupData,
     },

@@ -7,11 +7,11 @@ use anyhow::{
 use astria_core::{
     generated::sequencer::{
         v1 as rawv1,
-        v2 as rawv2,
+        v2alpha1 as rawv2alpha1,
     },
     sequencer::{
         v1::RollupId,
-        v2::block::{
+        v2alpha1::block::{
             RollupTransactions,
             SequencerBlock,
             SequencerBlockHeader,
@@ -164,7 +164,7 @@ pub(crate) trait StateReadExt: StateRead {
             bail!("header not found for given block hash");
         };
 
-        let raw = rawv2::SequencerBlockHeader::decode(header_bytes.as_slice())
+        let raw = rawv2alpha1::SequencerBlockHeader::decode(header_bytes.as_slice())
             .context("failed to decode sequencer block from raw bytes")?;
         let header = SequencerBlockHeader::try_from_raw(raw)
             .context("failed to convert raw sequencer block to sequencer block")?;
@@ -197,7 +197,7 @@ pub(crate) trait StateReadExt: StateRead {
             bail!("header not found for given block hash");
         };
 
-        let header_raw = rawv2::SequencerBlockHeader::decode(header_bytes.as_slice())
+        let header_raw = rawv2alpha1::SequencerBlockHeader::decode(header_bytes.as_slice())
             .context("failed to decode sequencer block from raw bytes")?;
 
         let rollup_ids = self
@@ -214,7 +214,7 @@ pub(crate) trait StateReadExt: StateRead {
                 .context("failed to read rollup data by block hash and rollup ID from state")?;
             if let Some(raw) = raw {
                 let raw = raw.as_slice();
-                let rollup_data = rawv2::RollupTransactions::decode(raw)
+                let rollup_data = rawv2alpha1::RollupTransactions::decode(raw)
                     .context("failed to decode rollup data from raw bytes")?;
                 rollup_transactions.push(rollup_data);
             }
@@ -242,7 +242,7 @@ pub(crate) trait StateReadExt: StateRead {
         let rollup_ids_proof = rawv1::Proof::decode(rollup_ids_proof.as_slice())
             .context("failed to decode rollup IDs proof from raw bytes")?;
 
-        let raw = rawv2::SequencerBlock {
+        let raw = rawv2alpha1::SequencerBlock {
             block_hash: hash.to_vec(),
             header: header_raw.into(),
             rollup_transactions,
@@ -281,7 +281,7 @@ pub(crate) trait StateReadExt: StateRead {
         else {
             bail!("rollup data not found for given block hash and rollup ID");
         };
-        let raw = rawv2::RollupTransactions::decode(bytes.as_slice())
+        let raw = rawv2alpha1::RollupTransactions::decode(bytes.as_slice())
             .context("failed to decode rollup data from raw bytes")?;
 
         let rollup_transactions = RollupTransactions::try_from_raw(raw)

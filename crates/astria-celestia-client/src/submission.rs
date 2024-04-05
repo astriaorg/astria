@@ -2,7 +2,7 @@
 
 use astria_core::sequencer::{
     v1::RollupId,
-    v2::SequencerBlock,
+    v2alpha1::SequencerBlock,
 };
 use celestia_types::Blob;
 use prost::Message as _;

@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-package astria.sequencer.v2;
+package astria.sequencer.v2alpha1;
 
-import "astria/sequencer/v2/block.proto";
+import "astria/sequencer/v2alpha1/block.proto";
 import "astria/sequencer/v1/merkle.proto";
 import "astria_vendored/tendermint/types/types.proto";
 
@@ -36,7 +36,7 @@ message CelestiaSequencerBlob {
   // the 32-byte block hash of the sequencer block.
   bytes block_hash = 1;
   // the block header, which contains sequencer-specific commitments.
-  astria.sequencer.v2.SequencerBlockHeader header = 2;
+  astria.sequencer.v2alpha1.SequencerBlockHeader header = 2;
   // The rollup IDs for which `CelestiaRollupBlob`s were submitted to celestia.
   // Corresponds to the `astria.sequencer.v1.RollupTransactions.rollup_id` field
   // and is extracted from `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions`.

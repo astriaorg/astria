@@ -3,7 +3,7 @@ use anyhow::{
     Context as _,
     Result,
 };
-use astria_core::generated::sequencer::v2::sequencer_service_server::SequencerServiceServer;
+use astria_core::generated::sequencer::v2alpha1::sequencer_service_server::SequencerServiceServer;
 use penumbra_tower_trace::{
     trace::request_span,
     v037::RequestExt as _,
