@@ -13,13 +13,17 @@ use anyhow::{
 };
 use astria_core::{
     generated::sequencer::v1 as raw,
-    sequencer::v1::{
-        block::Deposit,
-        transaction::Action,
-        Address,
-        RollupId,
-        SequencerBlock,
-        SignedTransaction,
+    sequencer::{
+        v1::{
+            transaction::Action,
+            Address,
+            RollupId,
+            SignedTransaction,
+        },
+        v2::block::{
+            Deposit,
+            SequencerBlock,
+        },
     },
 };
 use cnidarium::{
@@ -808,16 +812,20 @@ pub(crate) mod test_utils {
 mod test {
     #[cfg(feature = "mint")]
     use astria_core::sequencer::v1::transaction::action::MintAction;
-    use astria_core::sequencer::v1::{
-        asset,
-        asset::DEFAULT_NATIVE_ASSET_DENOM,
-        transaction::action::{
-            IbcRelayerChangeAction,
-            SequenceAction,
-            SudoAddressChangeAction,
-            TransferAction,
+    use astria_core::sequencer::{
+        v1::{
+            asset,
+            asset::DEFAULT_NATIVE_ASSET_DENOM,
+            transaction::action::{
+                BridgeLockAction,
+                IbcRelayerChangeAction,
+                SequenceAction,
+                SudoAddressChangeAction,
+                TransferAction,
+            },
+            UnsignedTransaction,
         },
-        UnsignedTransaction,
+        v2::block::Deposit,
     };
     use ed25519_consensus::SigningKey;
     use penumbra_ibc::params::IBCParameters;
@@ -1630,11 +1638,6 @@ mod test {
 
     #[tokio::test]
     async fn app_deliver_tx_bridge_lock_action_ok() {
-        use astria_core::sequencer::v1::{
-            block::Deposit,
-            transaction::action::BridgeLockAction,
-        };
-
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
         let mut app = initialize_app(None, vec![]).await;
 
@@ -2043,11 +2046,6 @@ mod test {
 
     #[tokio::test]
     async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
-        use astria_core::sequencer::v1::{
-            block::Deposit,
-            transaction::action::BridgeLockAction,
-        };
-
         let (alice_signing_key, _) = get_alice_signing_key_and_address();
         let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
 

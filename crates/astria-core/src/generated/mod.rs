@@ -50,6 +50,17 @@ pub mod sequencer {
             include!("astria.sequencer.v1.serde.rs");
         }
     }
+
+    pub mod v2 {
+        include!("astria.sequencer.v2.rs");
+
+        // TODO how do i generate this?
+        // #[cfg(feature = "serde")]
+        // mod _serde_impl {
+        //     use super::*;
+        //     include!("astria.sequencer.v2.serde.rs");
+        // }
+    }
 }
 
 #[path = ""]

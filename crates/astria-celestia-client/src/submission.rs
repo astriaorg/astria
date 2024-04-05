@@ -1,8 +1,8 @@
 //! Logic to convert sequencer blocks to celestia blobs before submission.
 
-use astria_core::sequencer::v1::{
-    RollupId,
-    SequencerBlock,
+use astria_core::sequencer::{
+    v1::RollupId,
+    v2::SequencerBlock,
 };
 use celestia_types::Blob;
 use prost::Message as _;
@@ -66,9 +66,8 @@ fn convert(block: SequencerBlock, blobs: &mut Vec<Blob>) -> Result<(), ToBlobsEr
     // Allocate extra space: one blob for the sequencer blob "header",
     // the rest for the rollup blobs.
     blobs.reserve(rollup_blobs.len() + 1);
-    let sequencer_namespace = crate::celestia_namespace_v0_from_cometbft_str(
-        sequencer_blob.header().chain_id().as_str(),
-    );
+    let sequencer_namespace =
+        crate::celestia_namespace_v0_from_cometbft_str(sequencer_blob.header().chain_id().as_str());
 
     let header_blob = Blob::new(
         sequencer_namespace,

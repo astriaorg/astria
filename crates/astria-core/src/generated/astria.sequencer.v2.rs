@@ -1,24 +1,3 @@
-/// A proof for a tree of the given size containing the audit path from a leaf to the root.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct Proof {
-    /// A sequence of 32 byte hashes used to reconstruct a Merkle Tree Hash.
-    #[prost(bytes = "vec", tag = "1")]
-    pub audit_path: ::prost::alloc::vec::Vec<u8>,
-    /// The index of the leaf this proof applies to.
-    #[prost(uint64, tag = "2")]
-    pub leaf_index: u64,
-    /// The total size of the tree this proof was derived from.
-    #[prost(uint64, tag = "3")]
-    pub tree_size: u64,
-}
-impl ::prost::Name for Proof {
-    const NAME: &'static str = "Proof";
-    const PACKAGE: &'static str = "astria.sequencer.v1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencer.v1.{}", Self::NAME)
-    }
-}
 /// `RollupTransactions` are a sequence of opaque bytes together with a 32 byte
 /// identifier of that rollup.
 ///
@@ -37,13 +16,13 @@ pub struct RollupTransactions {
     /// The proof that these rollup transactions are included in sequencer block.
     /// `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions_proof`.
     #[prost(message, optional, tag = "3")]
-    pub proof: ::core::option::Option<Proof>,
+    pub proof: ::core::option::Option<super::v1::Proof>,
 }
 impl ::prost::Name for RollupTransactions {
     const NAME: &'static str = "RollupTransactions";
-    const PACKAGE: &'static str = "astria.sequencer.v1";
+    const PACKAGE: &'static str = "astria.sequencer.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencer.v1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.sequencer.v2.{}", Self::NAME)
     }
 }
 /// `SequencerBlock` is constructed from a tendermint/cometbft block by
@@ -51,8 +30,7 @@ impl ::prost::Name for RollupTransactions {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SequencerBlock {
-    /// / the block header, which contains the cometbft header and additional sequencer-specific
-    /// / commitments.
+    /// the block header, which contains sequencer-specific commitments.
     #[prost(message, optional, tag = "1")]
     pub header: ::core::option::Option<SequencerBlockHeader>,
     /// The collection of rollup transactions that were included in this block.
@@ -64,7 +42,7 @@ pub struct SequencerBlock {
     /// `MTH(rollup_transactions)` is the Merkle Tree Hash derived from the
     /// rollup transactions.
     #[prost(message, optional, tag = "3")]
-    pub rollup_transactions_proof: ::core::option::Option<Proof>,
+    pub rollup_transactions_proof: ::core::option::Option<super::v1::Proof>,
     /// The proof that the rollup IDs listed in `rollup_transactions` are included
     /// in the CometBFT block this sequencer block is derived form.
     ///
@@ -75,34 +53,46 @@ pub struct SequencerBlock {
     /// `MTH(rollup_ids)` is the Merkle Tree Hash derived from the rollup IDs listed in
     /// the rollup transactions.
     #[prost(message, optional, tag = "4")]
-    pub rollup_ids_proof: ::core::option::Option<Proof>,
+    pub rollup_ids_proof: ::core::option::Option<super::v1::Proof>,
+    /// / The block hash of the cometbft block that corresponds to this sequencer block.
+    #[prost(bytes = "vec", tag = "5")]
+    pub block_hash: ::prost::alloc::vec::Vec<u8>,
 }
 impl ::prost::Name for SequencerBlock {
     const NAME: &'static str = "SequencerBlock";
-    const PACKAGE: &'static str = "astria.sequencer.v1";
+    const PACKAGE: &'static str = "astria.sequencer.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencer.v1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.sequencer.v2.{}", Self::NAME)
     }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SequencerBlockHeader {
-    /// The original CometBFT header that was the input to this sequencer block.
-    #[prost(message, optional, tag = "1")]
-    pub cometbft_header: ::core::option::Option<::tendermint_proto::types::Header>,
+    /// the cometbft chain ID of the sequencer chain
+    #[prost(string, tag = "1")]
+    pub chain_id: ::prost::alloc::string::String,
+    /// the height of this sequencer block
+    #[prost(uint64, tag = "2")]
+    pub height: u64,
+    /// the timestamp of this sequencer block
+    #[prost(message, optional, tag = "3")]
+    pub time: ::core::option::Option<::pbjson_types::Timestamp>,
+    /// the data_hash of the sequencer block (merkle root of all transaction hashes)
+    #[prost(bytes = "vec", tag = "4")]
+    pub data_hash: ::prost::alloc::vec::Vec<u8>,
+    /// the cometbft proposer address of the sequencer block
+    #[prost(bytes = "vec", tag = "5")]
+    pub proposer_address: ::prost::alloc::vec::Vec<u8>,
     /// The 32-byte merkle root of all the rollup transactions in the block,
     /// Corresponds to `MHT(astria.sequencer.v1alpha.SequencerBlock.rollup_transactions)`,
-    #[prost(bytes = "vec", tag = "2")]
+    #[prost(bytes = "vec", tag = "6")]
     pub rollup_transactions_root: ::prost::alloc::vec::Vec<u8>,
-    /// The 32-byte merkle root of all the rollup IDs in the block.
-    #[prost(bytes = "vec", tag = "3")]
-    pub rollup_ids_root: ::prost::alloc::vec::Vec<u8>,
 }
 impl ::prost::Name for SequencerBlockHeader {
     const NAME: &'static str = "SequencerBlockHeader";
-    const PACKAGE: &'static str = "astria.sequencer.v1";
+    const PACKAGE: &'static str = "astria.sequencer.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencer.v1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.sequencer.v2.{}", Self::NAME)
     }
 }
 /// `Deposit` represents a deposit from the sequencer
@@ -137,9 +127,9 @@ pub struct Deposit {
 }
 impl ::prost::Name for Deposit {
     const NAME: &'static str = "Deposit";
-    const PACKAGE: &'static str = "astria.sequencer.v1";
+    const PACKAGE: &'static str = "astria.sequencer.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencer.v1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.sequencer.v2.{}", Self::NAME)
     }
 }
 /// `FilteredSequencerBlock` is similar to `SequencerBlock` but with a subset
@@ -147,25 +137,22 @@ impl ::prost::Name for Deposit {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FilteredSequencerBlock {
-    /// The original CometBFT header that was the input to this sequencer block.
-    #[prost(message, optional, tag = "1")]
-    pub cometbft_header: ::core::option::Option<::tendermint_proto::types::Header>,
+    /// / The block hash of the cometbft block that corresponds to this sequencer block.
+    #[prost(bytes = "vec", tag = "1")]
+    pub block_hash: ::prost::alloc::vec::Vec<u8>,
+    /// the block header, which contains sequencer-specific commitments.
+    #[prost(message, optional, tag = "2")]
+    pub header: ::core::option::Option<SequencerBlockHeader>,
     /// A subset of rollup transactions that were included in this block.
-    #[prost(message, repeated, tag = "2")]
+    #[prost(message, repeated, tag = "3")]
     pub rollup_transactions: ::prost::alloc::vec::Vec<RollupTransactions>,
-    /// The Merkle Tree Hash of all the rollup transactions in the block (not just the
-    /// subset included). Corresponds to `MHT(astria.sequencer.v1alpha.SequencerBlock.rollup_transactions)`,
-    /// the Merkle Tree Hash derived from the rollup transactions.
-    /// Always 32 bytes.
-    #[prost(bytes = "vec", tag = "3")]
-    pub rollup_transactions_root: ::prost::alloc::vec::Vec<u8>,
     /// The proof that the rollup transactions are included in the CometBFT block this
     /// sequencer block is derived form. This proof together with
     /// `rollup_transactions_root = Sha256(MTH(rollup_transactions))` must match `header.data_hash`.
     /// `MTH(rollup_transactions)` is the Merkle Tree Hash derived from the
     /// rollup transactions.
     #[prost(message, optional, tag = "4")]
-    pub rollup_transactions_proof: ::core::option::Option<Proof>,
+    pub rollup_transactions_proof: ::core::option::Option<super::v1::Proof>,
     /// The rollup IDs for which `CelestiaRollupBlob`s were submitted to celestia.
     /// Corresponds to the `astria.sequencer.v1.RollupTransactions.rollup_id` field
     /// and is extracted from `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions`.
@@ -183,13 +170,13 @@ pub struct FilteredSequencerBlock {
     /// `MTH(rollup_ids)` is the Merkle Tree Hash derived from the rollup IDs listed in
     /// the rollup transactions.
     #[prost(message, optional, tag = "6")]
-    pub rollup_ids_proof: ::core::option::Option<Proof>,
+    pub rollup_ids_proof: ::core::option::Option<super::v1::Proof>,
 }
 impl ::prost::Name for FilteredSequencerBlock {
     const NAME: &'static str = "FilteredSequencerBlock";
-    const PACKAGE: &'static str = "astria.sequencer.v1";
+    const PACKAGE: &'static str = "astria.sequencer.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencer.v1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.sequencer.v2.{}", Self::NAME)
     }
 }
 /// A piece of data that is sent to a rollup execution node.
@@ -217,73 +204,9 @@ pub mod rollup_data {
 }
 impl ::prost::Name for RollupData {
     const NAME: &'static str = "RollupData";
-    const PACKAGE: &'static str = "astria.sequencer.v1";
+    const PACKAGE: &'static str = "astria.sequencer.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencer.v1.{}", Self::NAME)
-    }
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct AssetBalance {
-    #[prost(string, tag = "1")]
-    pub denom: ::prost::alloc::string::String,
-    #[prost(message, optional, tag = "2")]
-    pub balance: ::core::option::Option<super::super::primitive::v1::Uint128>,
-}
-impl ::prost::Name for AssetBalance {
-    const NAME: &'static str = "AssetBalance";
-    const PACKAGE: &'static str = "astria.sequencer.v1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencer.v1.{}", Self::NAME)
-    }
-}
-/// A response containing the balance of an account.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct BalanceResponse {
-    #[prost(uint64, tag = "2")]
-    pub height: u64,
-    #[prost(message, repeated, tag = "3")]
-    pub balances: ::prost::alloc::vec::Vec<AssetBalance>,
-}
-impl ::prost::Name for BalanceResponse {
-    const NAME: &'static str = "BalanceResponse";
-    const PACKAGE: &'static str = "astria.sequencer.v1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencer.v1.{}", Self::NAME)
-    }
-}
-/// A response containing the current nonce for an account.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct NonceResponse {
-    #[prost(uint64, tag = "2")]
-    pub height: u64,
-    #[prost(uint32, tag = "3")]
-    pub nonce: u32,
-}
-impl ::prost::Name for NonceResponse {
-    const NAME: &'static str = "NonceResponse";
-    const PACKAGE: &'static str = "astria.sequencer.v1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencer.v1.{}", Self::NAME)
-    }
-}
-/// / Represents a denomination of some asset used within the sequencer.
-/// / The `id` is used to identify the asset and for balance accounting.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct Denom {
-    #[prost(bytes = "vec", tag = "1")]
-    pub id: ::prost::alloc::vec::Vec<u8>,
-    #[prost(string, tag = "2")]
-    pub base_denom: ::prost::alloc::string::String,
-}
-impl ::prost::Name for Denom {
-    const NAME: &'static str = "Denom";
-    const PACKAGE: &'static str = "astria.sequencer.v1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencer.v1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.sequencer.v2.{}", Self::NAME)
     }
 }
 /// A collection of transactions belonging to a specific rollup that are submitted to celestia.
@@ -307,13 +230,13 @@ pub struct CelestiaRollupBlob {
     /// The proof that these rollup transactions are included in sequencer block.
     /// `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions_proof`.
     #[prost(message, optional, tag = "4")]
-    pub proof: ::core::option::Option<Proof>,
+    pub proof: ::core::option::Option<super::v1::Proof>,
 }
 impl ::prost::Name for CelestiaRollupBlob {
     const NAME: &'static str = "CelestiaRollupBlob";
-    const PACKAGE: &'static str = "astria.sequencer.v1";
+    const PACKAGE: &'static str = "astria.sequencer.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencer.v1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.sequencer.v2.{}", Self::NAME)
     }
 }
 /// The metadata of a sequencer block that is submitted to celestia.
@@ -327,35 +250,31 @@ impl ::prost::Name for CelestiaRollupBlob {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CelestiaSequencerBlob {
-    /// The original CometBFT header that is the input to this blob's original sequencer block.
-    /// Corresponds to `astria.sequencer.v1alpha.SequencerBlock.header`.
-    #[prost(message, optional, tag = "1")]
-    pub header: ::core::option::Option<::tendermint_proto::types::Header>,
+    /// the 32-byte block hash of the sequencer block.
+    #[prost(bytes = "vec", tag = "1")]
+    pub block_hash: ::prost::alloc::vec::Vec<u8>,
+    /// the block header, which contains sequencer-specific commitments.
+    #[prost(message, optional, tag = "2")]
+    pub header: ::core::option::Option<SequencerBlockHeader>,
     /// The rollup IDs for which `CelestiaRollupBlob`s were submitted to celestia.
     /// Corresponds to the `astria.sequencer.v1.RollupTransactions.rollup_id` field
     /// and is extracted from `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions`.
-    #[prost(bytes = "vec", repeated, tag = "2")]
+    #[prost(bytes = "vec", repeated, tag = "3")]
     pub rollup_ids: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
-    /// The Merkle Tree Hash of the rollup transactions. Corresponds to
-    /// `MHT(astria.sequencer.v1alpha.SequencerBlock.rollup_transactions)`, the Merkle
-    /// Tree Hash deriveed from the rollup transactions.
-    /// Always 32 bytes.
-    #[prost(bytes = "vec", tag = "3")]
-    pub rollup_transactions_root: ::prost::alloc::vec::Vec<u8>,
     /// The proof that the rollup transactions are included in sequencer block.
     /// Corresponds to `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions_proof`.
     #[prost(message, optional, tag = "4")]
-    pub rollup_transactions_proof: ::core::option::Option<Proof>,
+    pub rollup_transactions_proof: ::core::option::Option<super::v1::Proof>,
     /// The proof that the rollup IDs are included in sequencer block.
     /// Corresponds to `astria.sequencer.v1alpha.SequencerBlock.rollup_ids_proof`.
     #[prost(message, optional, tag = "5")]
-    pub rollup_ids_proof: ::core::option::Option<Proof>,
+    pub rollup_ids_proof: ::core::option::Option<super::v1::Proof>,
 }
 impl ::prost::Name for CelestiaSequencerBlob {
     const NAME: &'static str = "CelestiaSequencerBlob";
-    const PACKAGE: &'static str = "astria.sequencer.v1";
+    const PACKAGE: &'static str = "astria.sequencer.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencer.v1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.sequencer.v2.{}", Self::NAME)
     }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -367,9 +286,9 @@ pub struct GetSequencerBlockRequest {
 }
 impl ::prost::Name for GetSequencerBlockRequest {
     const NAME: &'static str = "GetSequencerBlockRequest";
-    const PACKAGE: &'static str = "astria.sequencer.v1";
+    const PACKAGE: &'static str = "astria.sequencer.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencer.v1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.sequencer.v2.{}", Self::NAME)
     }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -384,9 +303,9 @@ pub struct GetFilteredSequencerBlockRequest {
 }
 impl ::prost::Name for GetFilteredSequencerBlockRequest {
     const NAME: &'static str = "GetFilteredSequencerBlockRequest";
-    const PACKAGE: &'static str = "astria.sequencer.v1";
+    const PACKAGE: &'static str = "astria.sequencer.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencer.v1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.sequencer.v2.{}", Self::NAME)
     }
 }
 /// Generated client implementations.
@@ -491,13 +410,13 @@ pub mod sequencer_service_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria.sequencer.v1.SequencerService/GetSequencerBlock",
+                "/astria.sequencer.v2.SequencerService/GetSequencerBlock",
             );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
                     GrpcMethod::new(
-                        "astria.sequencer.v1.SequencerService",
+                        "astria.sequencer.v2.SequencerService",
                         "GetSequencerBlock",
                     ),
                 );
@@ -523,13 +442,13 @@ pub mod sequencer_service_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria.sequencer.v1.SequencerService/GetFilteredSequencerBlock",
+                "/astria.sequencer.v2.SequencerService/GetFilteredSequencerBlock",
             );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
                     GrpcMethod::new(
-                        "astria.sequencer.v1.SequencerService",
+                        "astria.sequencer.v2.SequencerService",
                         "GetFilteredSequencerBlock",
                     ),
                 );
@@ -639,7 +558,7 @@ pub mod sequencer_service_server {
         fn call(&mut self, req: http::Request<B>) -> Self::Future {
             let inner = self.inner.clone();
             match req.uri().path() {
-                "/astria.sequencer.v1.SequencerService/GetSequencerBlock" => {
+                "/astria.sequencer.v2.SequencerService/GetSequencerBlock" => {
                     #[allow(non_camel_case_types)]
                     struct GetSequencerBlockSvc<T: SequencerService>(pub Arc<T>);
                     impl<
@@ -686,7 +605,7 @@ pub mod sequencer_service_server {
                     };
                     Box::pin(fut)
                 }
-                "/astria.sequencer.v1.SequencerService/GetFilteredSequencerBlock" => {
+                "/astria.sequencer.v2.SequencerService/GetFilteredSequencerBlock" => {
                     #[allow(non_camel_case_types)]
                     struct GetFilteredSequencerBlockSvc<T: SequencerService>(pub Arc<T>);
                     impl<
@@ -777,337 +696,6 @@ pub mod sequencer_service_server {
         }
     }
     impl<T: SequencerService> tonic::server::NamedService for SequencerServiceServer<T> {
-        const NAME: &'static str = "astria.sequencer.v1.SequencerService";
-    }
-}
-/// `SignedTransaction` is a transaction that has
-/// been signed by the given public key.
-/// It wraps an `UnsignedTransaction` with a
-/// signature and public key.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct SignedTransaction {
-    #[prost(bytes = "vec", tag = "1")]
-    pub signature: ::prost::alloc::vec::Vec<u8>,
-    #[prost(bytes = "vec", tag = "2")]
-    pub public_key: ::prost::alloc::vec::Vec<u8>,
-    #[prost(message, optional, tag = "3")]
-    pub transaction: ::core::option::Option<UnsignedTransaction>,
-}
-impl ::prost::Name for SignedTransaction {
-    const NAME: &'static str = "SignedTransaction";
-    const PACKAGE: &'static str = "astria.sequencer.v1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencer.v1.{}", Self::NAME)
-    }
-}
-/// `UnsignedTransaction` is a transaction that does
-/// not have an attached signature.
-/// Note: `value` must be set, it cannot be `None`.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct UnsignedTransaction {
-    #[prost(uint32, tag = "1")]
-    pub nonce: u32,
-    #[prost(message, repeated, tag = "2")]
-    pub actions: ::prost::alloc::vec::Vec<Action>,
-}
-impl ::prost::Name for UnsignedTransaction {
-    const NAME: &'static str = "UnsignedTransaction";
-    const PACKAGE: &'static str = "astria.sequencer.v1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencer.v1.{}", Self::NAME)
-    }
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct Action {
-    #[prost(oneof = "action::Value", tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11")]
-    pub value: ::core::option::Option<action::Value>,
-}
-/// Nested message and enum types in `Action`.
-pub mod action {
-    #[allow(clippy::derive_partial_eq_without_eq)]
-    #[derive(Clone, PartialEq, ::prost::Oneof)]
-    pub enum Value {
-        #[prost(message, tag = "1")]
-        TransferAction(super::TransferAction),
-        #[prost(message, tag = "2")]
-        SequenceAction(super::SequenceAction),
-        #[prost(message, tag = "3")]
-        ValidatorUpdateAction(::tendermint_proto::abci::ValidatorUpdate),
-        #[prost(message, tag = "4")]
-        SudoAddressChangeAction(super::SudoAddressChangeAction),
-        #[prost(message, tag = "5")]
-        MintAction(super::MintAction),
-        #[prost(message, tag = "6")]
-        IbcAction(::penumbra_proto::core::component::ibc::v1::IbcRelay),
-        #[prost(message, tag = "7")]
-        Ics20Withdrawal(super::Ics20Withdrawal),
-        #[prost(message, tag = "8")]
-        IbcRelayerChangeAction(super::IbcRelayerChangeAction),
-        #[prost(message, tag = "9")]
-        FeeAssetChangeAction(super::FeeAssetChangeAction),
-        #[prost(message, tag = "10")]
-        InitBridgeAccountAction(super::InitBridgeAccountAction),
-        #[prost(message, tag = "11")]
-        BridgeLockAction(super::BridgeLockAction),
-    }
-}
-impl ::prost::Name for Action {
-    const NAME: &'static str = "Action";
-    const PACKAGE: &'static str = "astria.sequencer.v1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencer.v1.{}", Self::NAME)
-    }
-}
-/// `TransferAction` represents a value transfer transaction.
-///
-/// Note: all values must be set (ie. not `None`), otherwise it will
-/// be considered invalid by the sequencer.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct TransferAction {
-    #[prost(bytes = "vec", tag = "1")]
-    pub to: ::prost::alloc::vec::Vec<u8>,
-    #[prost(message, optional, tag = "2")]
-    pub amount: ::core::option::Option<super::super::primitive::v1::Uint128>,
-    /// the asset to be transferred
-    #[prost(bytes = "vec", tag = "3")]
-    pub asset_id: ::prost::alloc::vec::Vec<u8>,
-    /// the asset used to pay the transaction fee
-    #[prost(bytes = "vec", tag = "4")]
-    pub fee_asset_id: ::prost::alloc::vec::Vec<u8>,
-}
-impl ::prost::Name for TransferAction {
-    const NAME: &'static str = "TransferAction";
-    const PACKAGE: &'static str = "astria.sequencer.v1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencer.v1.{}", Self::NAME)
-    }
-}
-/// `SequenceAction` represents a transaction destined for another
-/// chain, ordered by the sequencer.
-///
-/// It contains the rollup ID of the destination chain, and the
-/// opaque transaction data.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct SequenceAction {
-    #[prost(bytes = "vec", tag = "1")]
-    pub rollup_id: ::prost::alloc::vec::Vec<u8>,
-    #[prost(bytes = "vec", tag = "2")]
-    pub data: ::prost::alloc::vec::Vec<u8>,
-    /// the asset used to pay the transaction fee
-    #[prost(bytes = "vec", tag = "3")]
-    pub fee_asset_id: ::prost::alloc::vec::Vec<u8>,
-}
-impl ::prost::Name for SequenceAction {
-    const NAME: &'static str = "SequenceAction";
-    const PACKAGE: &'static str = "astria.sequencer.v1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencer.v1.{}", Self::NAME)
-    }
-}
-/// / `SudoAddressChangeAction` represents a transaction that changes
-/// / the sudo address of the chain, which is the address authorized to
-/// / make validator update actions.
-/// /
-/// / It contains the new sudo address.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct SudoAddressChangeAction {
-    #[prost(bytes = "vec", tag = "1")]
-    pub new_address: ::prost::alloc::vec::Vec<u8>,
-}
-impl ::prost::Name for SudoAddressChangeAction {
-    const NAME: &'static str = "SudoAddressChangeAction";
-    const PACKAGE: &'static str = "astria.sequencer.v1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencer.v1.{}", Self::NAME)
-    }
-}
-/// `MintAction` represents a minting transaction.
-/// It can only be executed by the chain's sudo address.
-///
-/// It contains the address to mint to, and the amount to mint.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct MintAction {
-    #[prost(bytes = "vec", tag = "1")]
-    pub to: ::prost::alloc::vec::Vec<u8>,
-    #[prost(message, optional, tag = "2")]
-    pub amount: ::core::option::Option<super::super::primitive::v1::Uint128>,
-}
-impl ::prost::Name for MintAction {
-    const NAME: &'static str = "MintAction";
-    const PACKAGE: &'static str = "astria.sequencer.v1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencer.v1.{}", Self::NAME)
-    }
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct Ics20Withdrawal {
-    /// first two fields are a transparent value consisting of an amount and a denom.
-    #[prost(message, optional, tag = "1")]
-    pub amount: ::core::option::Option<super::super::primitive::v1::Uint128>,
-    #[prost(string, tag = "2")]
-    pub denom: ::prost::alloc::string::String,
-    /// the address on the destination chain to send the transfer to.
-    /// this is not validated by Astria; it is up to the destination chain
-    /// to interpret it.
-    #[prost(string, tag = "3")]
-    pub destination_chain_address: ::prost::alloc::string::String,
-    /// an Astria address to use to return funds from this withdrawal
-    /// in the case it fails.
-    #[prost(bytes = "vec", tag = "4")]
-    pub return_address: ::prost::alloc::vec::Vec<u8>,
-    /// the height (on Astria) at which this transfer expires.
-    #[prost(message, optional, tag = "5")]
-    pub timeout_height: ::core::option::Option<IbcHeight>,
-    /// the unix timestamp (in nanoseconds) at which this transfer expires.
-    #[prost(uint64, tag = "6")]
-    pub timeout_time: u64,
-    /// the source channel used for the withdrawal.
-    #[prost(string, tag = "7")]
-    pub source_channel: ::prost::alloc::string::String,
-    /// the asset used to pay the transaction fee
-    #[prost(bytes = "vec", tag = "8")]
-    pub fee_asset_id: ::prost::alloc::vec::Vec<u8>,
-}
-impl ::prost::Name for Ics20Withdrawal {
-    const NAME: &'static str = "Ics20Withdrawal";
-    const PACKAGE: &'static str = "astria.sequencer.v1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencer.v1.{}", Self::NAME)
-    }
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct IbcHeight {
-    #[prost(uint64, tag = "1")]
-    pub revision_number: u64,
-    #[prost(uint64, tag = "2")]
-    pub revision_height: u64,
-}
-impl ::prost::Name for IbcHeight {
-    const NAME: &'static str = "IbcHeight";
-    const PACKAGE: &'static str = "astria.sequencer.v1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencer.v1.{}", Self::NAME)
-    }
-}
-/// `IbcRelayerChangeAction` represents a transaction that adds
-/// or removes an IBC relayer address.
-/// The bytes contained in each variant are the address to add or remove.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct IbcRelayerChangeAction {
-    #[prost(oneof = "ibc_relayer_change_action::Value", tags = "1, 2")]
-    pub value: ::core::option::Option<ibc_relayer_change_action::Value>,
-}
-/// Nested message and enum types in `IbcRelayerChangeAction`.
-pub mod ibc_relayer_change_action {
-    #[allow(clippy::derive_partial_eq_without_eq)]
-    #[derive(Clone, PartialEq, ::prost::Oneof)]
-    pub enum Value {
-        #[prost(bytes, tag = "1")]
-        Addition(::prost::alloc::vec::Vec<u8>),
-        #[prost(bytes, tag = "2")]
-        Removal(::prost::alloc::vec::Vec<u8>),
-    }
-}
-impl ::prost::Name for IbcRelayerChangeAction {
-    const NAME: &'static str = "IbcRelayerChangeAction";
-    const PACKAGE: &'static str = "astria.sequencer.v1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencer.v1.{}", Self::NAME)
-    }
-}
-/// `FeeAssetChangeAction` represents a transaction that adds
-/// or removes an asset for fee payments.
-/// The bytes contained in each variant are the 32-byte asset ID
-/// to add or remove.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct FeeAssetChangeAction {
-    #[prost(oneof = "fee_asset_change_action::Value", tags = "1, 2")]
-    pub value: ::core::option::Option<fee_asset_change_action::Value>,
-}
-/// Nested message and enum types in `FeeAssetChangeAction`.
-pub mod fee_asset_change_action {
-    #[allow(clippy::derive_partial_eq_without_eq)]
-    #[derive(Clone, PartialEq, ::prost::Oneof)]
-    pub enum Value {
-        #[prost(bytes, tag = "1")]
-        Addition(::prost::alloc::vec::Vec<u8>),
-        #[prost(bytes, tag = "2")]
-        Removal(::prost::alloc::vec::Vec<u8>),
-    }
-}
-impl ::prost::Name for FeeAssetChangeAction {
-    const NAME: &'static str = "FeeAssetChangeAction";
-    const PACKAGE: &'static str = "astria.sequencer.v1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencer.v1.{}", Self::NAME)
-    }
-}
-/// `InitBridgeAccountAction` represents a transaction that initializes
-/// a bridge account for the given rollup on the chain.
-///
-/// The sender of the transaction is used as the owner of the bridge account
-/// and is the only actor authorized to transfer out of this account via
-/// a `TransferAction`.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct InitBridgeAccountAction {
-    /// the rollup ID to register with the bridge account (the tx sender)
-    #[prost(bytes = "vec", tag = "1")]
-    pub rollup_id: ::prost::alloc::vec::Vec<u8>,
-    /// the asset IDs accepted as an incoming transfer by the bridge account
-    #[prost(bytes = "vec", repeated, tag = "2")]
-    pub asset_ids: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
-    /// the asset used to pay the transaction fee
-    #[prost(bytes = "vec", tag = "3")]
-    pub fee_asset_id: ::prost::alloc::vec::Vec<u8>,
-}
-impl ::prost::Name for InitBridgeAccountAction {
-    const NAME: &'static str = "InitBridgeAccountAction";
-    const PACKAGE: &'static str = "astria.sequencer.v1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencer.v1.{}", Self::NAME)
-    }
-}
-/// `BridgeLockAction` represents a transaction that transfers
-/// funds from a sequencer account to a bridge account.
-///
-/// It's the same as a `TransferAction` but with the added
-/// `destination_chain_address` field.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct BridgeLockAction {
-    /// the address of the bridge account to transfer to
-    #[prost(bytes = "vec", tag = "1")]
-    pub to: ::prost::alloc::vec::Vec<u8>,
-    /// the amount to transfer
-    #[prost(message, optional, tag = "2")]
-    pub amount: ::core::option::Option<super::super::primitive::v1::Uint128>,
-    /// the asset to be transferred
-    #[prost(bytes = "vec", tag = "3")]
-    pub asset_id: ::prost::alloc::vec::Vec<u8>,
-    /// the asset used to pay the transaction fee
-    #[prost(bytes = "vec", tag = "4")]
-    pub fee_asset_id: ::prost::alloc::vec::Vec<u8>,
-    /// the address on the destination chain which
-    /// will receive the bridged funds
-    #[prost(string, tag = "5")]
-    pub destination_chain_address: ::prost::alloc::string::String,
-}
-impl ::prost::Name for BridgeLockAction {
-    const NAME: &'static str = "BridgeLockAction";
-    const PACKAGE: &'static str = "astria.sequencer.v1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencer.v1.{}", Self::NAME)
+        const NAME: &'static str = "astria.sequencer.v2.SequencerService";
     }
 }

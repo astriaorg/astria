@@ -9,12 +9,14 @@ use anyhow::{
     Result,
 };
 use astria_core::{
-    generated::sequencer::v1::Deposit as RawDeposit,
-    sequencer::v1::{
-        asset,
-        block::Deposit,
-        Address,
-        RollupId,
+    generated::sequencer::v2::Deposit as RawDeposit,
+    sequencer::{
+        v1::{
+            asset,
+            Address,
+            RollupId,
+        },
+        v2::block::Deposit,
     },
 };
 use async_trait::async_trait;
@@ -251,11 +253,13 @@ impl<T: StateWrite> StateWriteExt for T {}
 
 #[cfg(test)]
 mod test {
-    use astria_core::sequencer::v1::{
-        asset::Id,
-        block::Deposit,
-        Address,
-        RollupId,
+    use astria_core::sequencer::{
+        v1::{
+            asset::Id,
+            Address,
+            RollupId,
+        },
+        v2::block::Deposit,
     };
     use cnidarium::StateDelta;
 
