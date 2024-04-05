@@ -13,7 +13,7 @@
 #[path = ""]
 pub mod execution {
     #[path = "astria.execution.v1alpha1.rs"]
-    pub mod v1;
+    pub mod v1alpha1;
 
     pub mod v1alpha2 {
         include!("astria.execution.v1alpha2.rs");
@@ -54,12 +54,11 @@ pub mod sequencer {
     pub mod v2 {
         include!("astria.sequencer.v2.rs");
 
-        // TODO how do i generate this?
-        // #[cfg(feature = "serde")]
-        // mod _serde_impl {
-        //     use super::*;
-        //     include!("astria.sequencer.v2.serde.rs");
-        // }
+        #[cfg(feature = "serde")]
+        mod _serde_impl {
+            use super::*;
+            include!("astria.sequencer.v2.serde.rs");
+        }
     }
 }
 
