@@ -586,7 +586,7 @@ dependencies = [
 
 [[package]]
 name = "astria-conductor"
-version = "0.13.0"
+version = "0.13.1"
 dependencies = [
  "astria-build-info",
  "astria-celestia-client",
