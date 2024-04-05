@@ -8,7 +8,7 @@ use color_eyre::eyre;
 use serde::Serialize;
 
 const DEFAULT_ROLLUP_CHART_PATH: &str =
-    "https://github.com/astriaorg/charts/releases/download/evm-rollup-0.11.0/evm-rollup-0.11.0.tgz";
+    "https://github.com/astriaorg/charts/releases/download/evm-rollup-0.11.1/evm-rollup-0.11.1.tgz";
 const DEFAULT_SEQUENCER_GRPC: &str = "https://grpc.sequencer.dusk-4.devnet.astria.org/";
 const DEFAULT_LOG_LEVEL: &str = "debug";
 const DEFAULT_NETWORK_ID: u64 = 1337;
