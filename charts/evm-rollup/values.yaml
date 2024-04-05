@@ -9,11 +9,11 @@ global:
 images:
   geth:
     repo: ghcr.io/astriaorg/go-ethereum
-    tag: "0.9.0"
+    tag: "0.9.1"
     devTag: latest
   conductor:
     repo: ghcr.io/astriaorg/conductor
-    tag: "0.13.0"
+    tag: "0.13.1"
     devTag: latest
   composer:
     repo: ghcr.io/astriaorg/composer
