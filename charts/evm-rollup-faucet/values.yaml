@@ -1,0 +1,99 @@
+global:
+  namespaceOverride: ""
+  replicaCount: 1
+  # Whether to use tty readable logging for astria services, when false use json.
+  # Best to be false in production environments, true for clean logs on local dev.
+  useTTY: false
+  dev: false
+
+images:
+  # Rollup faucet
+  faucet: "ghcr.io/astriaorg/ria-faucet:0.0.1"
+
+
+config:
+  # The level at which core astria components will log out
+  # Options are: error, warn, info, and debug
+  logLevel: "debug"
+
+  rollup:
+    # Default name for the rollup chain, used to generate Rollup ID
+    name: astria
+
+  faucet:
+    enabled: true
+    proxyCount: 1
+    # The account from which the faucet disburses funds, likely want to have
+    # the corresponding account given a balance in genesis accounts.
+    # Note: When secretProvider.enabled is true the secret provided by
+    #       `evmPrivateKey` is used instead of this value.
+    privateKey: "8b3a7999072c9c9314c084044fe705db11714c6c4ed7cddb64da18ea270dd203"
+    # The amount of token to give per request
+    amount: 1
+
+
+
+
+
+# When deploying in a production environment should use a secret provider
+# This is configured for use with GCP, need to set own resource names
+# and keys
+secretProvider:
+  enabled: false
+  provider: gcp
+  secrets:
+    # Used in place of sequencer.privateKey value when provider enabled
+    sequencerPrivateKey:
+      filename: sequencerPrivateKey.txt
+      resourceName: "projects/$PROJECT_ID/secrets/sequencerPrivateKey/versions/latest"
+      key: token
+    # Used in place of faucet.privateKey value when provider enabled
+    evmPrivateKey:
+      filename: evmPrivateKey.txt
+      resourceName: "projects/$PROJECT_ID/secrets/evmPrivateKey/versions/latest"
+      key: token
+
+ingress:
+  enabled: true
+  labels: {}
+  hostname: localdev.me
+  className: nginx
+  services:
+
+    faucet:
+      enabled: true
+      hosts:
+        - faucet.{{ .Values.config.rollup.name }}.{{ .Values.ingress.hostname }}
+      path: /
+      pathType: Prefix
+      service:
+        name: "{{ .Values.config.rollup.name }}-faucet-service"
+        port:
+          name: faucet-svc
+      annotations: {}
+        # kubernetes.io/ingress.class: nginx
+        # kubernetes.io/tls-acme: "true"
+      labels: {}
+      tls: {}
+      #  - secretName: chart-example-tls
+      #    hosts:
+      #      - chart-example.local
+
+
+# Default persistent storage values
+# NOTE - `rollupName` will be used with `persistentVolumeName` to generate names for kubernetes resources.
+#  e.g. astria-executor-pv, astria-executor-pvc
+
+storage:
+  enabled: false
+  local: true
+  entities:
+    rollupSharedStorage:
+      size: "5Gi"
+      persistentVolumeName: "rollup-shared-storage"
+      path: "/data/rollup-data"
+
+# Default service ports
+ports:
+  jsonRPC: 8545
+  faucet: 8080

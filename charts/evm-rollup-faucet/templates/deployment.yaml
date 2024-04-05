@@ -1,0 +1,63 @@
+{{- if .Values.config.faucet.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.config.rollup.name }}-faucet
+  labels:
+    app: {{ .Values.config.rollup.name }}-astria-dev-cluster
+  namespace: {{ include "rollup.namespace" . }}
+spec:
+  replicas : {{ .Values.global.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Values.config.rollup.name }}-astria-dev-cluster
+  template:
+    metadata:
+      name: {{ .Values.config.rollup.name }}-faucet
+      labels:
+        app: {{ .Values.config.rollup.name }}-astria-dev-cluster
+    spec:
+      containers:
+        - name: faucet
+          command: [ "/app/eth-faucet" ]
+          args:
+            - -httpport=$(ETH_FAUCET_PORT)
+            - -wallet.provider=$(ETH_FAUCET_EVM_PROVIDER_URL)
+            - -wallet.privkey=$(ETH_FAUCET_EVM_PRIVATE_KEY)
+            - -faucet.amount=$(ETH_FAUCET_AMOUNT)
+            - -proxycount=$(ETH_FAUCET_PROXYCOUNT)
+          image: {{ .Values.images.faucet }}
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.config.rollup.name }}-faucet-env
+          {{- if .Values.secretProvider.enabled }}
+          env:
+            - name: ETH_FAUCET_EVM_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: evm-private-key
+                  key: {{ .Values.secretProvider.secrets.evmPrivateKey.key }}
+          {{- end }}
+          volumeMounts:
+            - mountPath: /home/faucet
+              name: {{ .Values.config.rollup.name }}-faucet-home-vol
+              subPath: {{ .Values.config.rollup.name }}/faucet
+            {{- if .Values.secretProvider.enabled }}
+            - mountPath: /var/secrets
+              name: evm-private-key
+            {{- end }}
+          ports:
+            - containerPort: {{ .Values.ports.faucet }}
+              name: faucet
+      volumes:
+        - emptyDir: {}
+          name: {{ .Values.config.rollup.name }}-faucet-home-vol
+        {{- if .Values.secretProvider.enabled }}
+        - name: evm-private-key
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: evm-private-key
+        {{- end }}
+{{- end }}

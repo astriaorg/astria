@@ -106,6 +106,7 @@ helm-add-if-not-exist repo url:
 
 deploy-cluster namespace=defaultNamespace:
   kind create cluster --config ./dev/kubernetes/kind-cluster-config.yml
+  @just load-arm-cometbft
   @just helm-add-if-not-exist cilium https://helm.cilium.io/
   helm install cilium cilium/cilium --version 1.14.3 \
       -f ./dev/values/cilium.yml \
@@ -215,7 +216,7 @@ deploy-smoke-test tag=defaultTag:
   @helm dependency build charts/evm-rollup > /dev/null
   @echo "Setting up single astria sequencer..." && helm install -n astria-validator-single single-sequencer-chart ./charts/sequencer -f dev/values/validators/single.yml --set images.sequencer.devTag={{tag}} --set sequencer-relayer.images.sequencer-relayer.devTag={{tag}} --create-namespace > /dev/null
   @just wait-for-sequencer > /dev/null
-  @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart ./charts/evm-rollup -f dev/values/rollup/dev.yaml --set images.conductor.devTag={{tag}} --set images.composer.devTag={{tag}} --set config.blockscout.enabled=false --set config.faucet.enabled=false > /dev/null
+  @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart ./charts/evm-rollup -f dev/values/rollup/dev.yaml --set images.conductor.devTag={{tag}} --set images.composer.devTag={{tag}} --set config.blockscout.enabled=true --set config.faucet.enabled=false > /dev/null
   @sleep 30
 
 run-smoke-test:
@@ -229,3 +230,47 @@ delete-smoke-test:
   just delete celestia-local
   just delete sequencer
   just delete rollup
+
+cometbft_image := "docker.io/cometbft/cometbft:v0.37.x"
+load-arm-cometbft:
+  #! /usr/bin/env bash
+  TAG=$(echo "{{ cometbft_image }}" | cut -d':' -f2)
+  VERSION="${TAG%.*}"
+  ARCH="$(uname -m)"
+  if [ "$ARCH" == "arm64" ] || [ "$ARCH" == "aarch64" ]; then
+    echo "It matches!"
+      docker build -t "{{ cometbft_image }}" -f- . <<-EOL
+          FROM "{{ cometbft_image }}"
+          USER root
+          RUN curl -sL $(curl -s https://api.github.com/repos/cometbft/cometbft/releases | grep -F browser_download_url | grep -F linux_arm64.tar.gz | grep -F "${VERSION}" | head -n 1 | awk '{print $NF}' | sed 's/\"//g') | tar zx -C /usr/bin cometbft
+          USER tmuser
+  EOL
+  just load-image {{ cometbft_image }}
+  fi
+
+default_chart_path := "charts/sequencer"
+default_values_path := "charts/sequencer"
+dusk_values_path := "~/src/astria/argocd-apps/apps/sequencer/dusk-4/"
+helm-template chart_path=default_chart_path:
+  helm template --debug --dry-run {{ chart_path }} | \
+  tee {{ chart_path }}/rendered-template.yaml
+
+helm-template-filter-contains chart_path=default_chart_path:
+  helm template --debug --dry-run {{ chart_path }} | \
+  yq 'select(.. | select(tag == "!!str") | select(contains("visualizer") or contains("blockscout")))' | \
+  tee {{ chart_path }}/rendered-template-filter-contains.yaml
+
+helm-template-filter-kind chart_path=default_chart_path:
+  helm template --debug --dry-run {{ chart_path }} | \
+  yq '. | select(.kind == "Ingress" or .kind == "Service")' | \
+  tee {{ chart_path }}/rendered-template-filter-kind.yaml
+
+helm-template-dusk4 chart_path=default_chart_path:
+  helm template --debug --dry-run {{ chart_path }} \
+  -f {{ default_values_path }}/values-node-0.yaml | \
+  tee {{ chart_path }}/rendered-template-dusk4.yaml
+
+helm-template-filter-testgrpc chart_path=default_chart_path:
+  helm template --debug --dry-run {{ chart_path }} | \
+  yq '. | select(.metadata.name == "*greeter*")' | \
+  tee {{ chart_path }}/rendered-template-filter-testgrpc.yaml

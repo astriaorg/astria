@@ -30,6 +30,12 @@ nodes:
   - containerPort: 443
     hostPort: 443
     protocol: TCP
+  - containerPort: 8080
+    hostPort: 8080
+    protocol: TCP
+  - containerPort: 50051
+    hostPort: 50051
+    protocol: TCP
 - role: worker
   extraMounts:
     - hostPath: /tmp/astria/celestia-data

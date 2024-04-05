@@ -118,3 +118,17 @@ jobs:
     uses: ./.github/workflows/reusable-success.yml
     with:
       success: ${{ !contains(needs.*.result, 'failure') }}
+
+  label-pr:
+    needs: [run_checker, composer, conductor, sequencer, sequencer-relayer]
+    if:  contains(github.event.pull_request.labels.*.name, 'demo')
+    runs-on: buildjet-8vcpu-ubuntu-2204
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+      - name: add labels
+        uses: actions-ecosystem/action-add-labels@v1
+        if: ${{ contains(github.event.pull_request.labels.*.name, 'demo') }}
+        with:
+          labels: |
+            evm

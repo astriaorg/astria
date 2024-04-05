@@ -1,0 +1,65 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: preview-evm-rollup
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+  - pullRequest:
+      github:
+        owner: astriaorg
+        repo: astria
+        tokenRef:
+          key: token
+          secretName: github-pat
+        labels:
+        # - preview
+        # - evm-rollup
+        - demo 
+        - evm
+      requeueAfterSeconds: 60
+  template:
+    metadata:
+      name: pr-{{.number}}-evm-rollup
+    spec:
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: pr-{{.number}}
+      project: default
+      sources:
+        - repoURL: https://github.com/astriaorg/astria.git
+          targetRevision: 'pull/{{.number}}/head' # '{{.head_sha}}'
+          path: charts/evm-rollup
+          helm:
+            valueFiles:
+            - values.yaml
+            parameters:
+            - name: global.namespace
+              value: pr-{{.number}}
+            - name: ingress.hostname
+              value: "pr-{{.number}}.dev.astria.org"
+            - name: evm-rollup-blockscout.global.namespace
+              value: pr-{{.number}}
+            - name: evm-rollup-blockscout.ingress.hostname
+              value: "pr-{{.number}}.dev.astria.org"
+            - name: evm-rollup-faucet.global.namespace
+              value: pr-{{.number}}
+            - name: evm-rollup-faucet.ingress.hostname
+              value: "pr-{{.number}}.dev.astria.org"
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: false
+          allowEmpty: true
+        managedNamespaceMetadata:
+          labels:
+            # <$ARGOCD_APP_NAME>
+            argocd.argoproj.io/instance: pr-{{.number}}-evm-rollup
+          annotations:
+            # <$ARGOCD_APP_NAME>:/Namespace:$ARGOCD_APP_NAMESPACE
+            argocd.argoproj.io/tracking-id: >-
+              pr-{{.number}}-evm-rollup:/Namespace:pr-{{.number}}
+        syncOptions:
+        - CreateNamespace=true

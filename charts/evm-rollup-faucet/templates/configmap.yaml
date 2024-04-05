@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.config.rollup.name }}-faucet-env
+  namespace: {{ include "rollup.namespace" .  }}
+data:
+  ETH_FAUCET_PROXYCOUNT: "{{ .Values.config.faucet.proxyCount }}"
+  ETH_FAUCET_PORT: "{{ .Values.ports.faucet }}"
+  ETH_FAUCET_EVM_PROVIDER_URL: "http://{{ .Values.config.rollup.name }}-evm-service:{{ .Values.ports.jsonRPC }}"
+  ETH_FAUCET_AMOUNT: "{{ .Values.config.faucet.amount }}"
+  {{- if not .Values.secretProvider.enabled }}
+  ETH_FAUCET_EVM_PRIVATE_KEY: "{{ .Values.config.faucet.privateKey }}"
+  {{- end }}

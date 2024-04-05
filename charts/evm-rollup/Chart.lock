@@ -2,5 +2,11 @@ dependencies:
 - name: celestia-node
   repository: file://../celestia-node
   version: 0.2.1
-digest: sha256:42e3beb2b8dac70b3288ba9bea36cf87d1d51357f84197847895f5056aaafef5
-generated: "2024-03-20T15:44:26.418305-04:00"
+- name: evm-rollup-blockscout
+  repository: file://../evm-rollup-blockscout
+  version: 0.1.0
+- name: evm-rollup-faucet
+  repository: file://../evm-rollup-faucet
+  version: 0.1.0
+digest: sha256:149bb7fa09e5d52d31c29ef4bacaec186a229d8e7995080ecb5cb4a02a5a7287
+generated: "2024-03-29T00:04:47.041323-07:00"

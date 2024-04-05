@@ -11,7 +11,7 @@ on:
         value: ${{ github.event_name != 'pull_request' || jobs.changes.outputs.test_workflow == 'true' || jobs.changes.outputs.lockfile == 'true' }}
       run_docker:
         description: If docker workflow needs to be run, will be 'true'
-        value: ${{ github.event_name != 'pull_request' || jobs.changes.outputs.docker_workflow == 'true' || contains(github.event.pull_request.labels.*.name, 'docker-build') }}
+        value: ${{ github.event_name != 'pull_request' || jobs.changes.outputs.docker_workflow == 'true' || contains(github.event.pull_request.labels.*.name, 'docker-build') || contains(github.event.pull_request.labels.*.name, 'demo')}}
       run_lint_proto:
         description: If lint for protos needs to be run, will be 'true'
         value: ${{ github.event_name != 'pull_request' || jobs.changes.outputs.lint_workflow == 'true' || jobs.changes.outputs.proto == 'true' }}
