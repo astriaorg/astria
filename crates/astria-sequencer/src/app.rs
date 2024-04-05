@@ -452,7 +452,7 @@ impl App {
     async fn execute_block_data(
         &mut self,
         txs: VecDeque<bytes::Bytes>,
-    ) -> Result<Vec<SignedTransaction>, anyhow::Error> {
+    ) -> anyhow::Result<Vec<SignedTransaction>, anyhow::Error> {
         let mut signed_txs = Vec::new();
         for tx in txs {
             // all txs in the proposal should be deserializable and executable,
