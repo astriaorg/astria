@@ -441,7 +441,7 @@ mod test {
         // create inner rollup id/tx data
         let mut deposits = HashMap::new();
         for _ in 0..2 {
-            let rollup_id = RollupId::new([rng.gen(); 32]);
+            let rollup_id = RollupId::new(rng.gen());
             let bridge_address = Address::try_from_slice(&[rng.gen(); 20]).unwrap();
             let amount = rng.gen::<u128>();
             let asset_id = Id::from_denom(&rng.gen::<u8>().to_string());
