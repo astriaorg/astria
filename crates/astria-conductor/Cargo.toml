@@ -42,7 +42,7 @@ sha2 = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal"] }
 tokio-util = { workspace = true, features = ["rt"] }
-tonic = { workspace = true }
+tonic = { workspace = true, features = ["tls", "tls-roots"] }
 tracing = { workspace = true, features = ["valuable"] }
 tryhard = { workspace = true }
 
