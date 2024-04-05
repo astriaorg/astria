@@ -8,7 +8,6 @@ use std::{
 
 use anyhow::{
     anyhow,
-    bail,
     ensure,
     Context,
 };
@@ -74,9 +73,12 @@ use crate::{
     component::Component as _,
     genesis::GenesisState,
     ibc::component::IbcComponent,
-    proposal::commitment::{
-        generate_rollup_datas_commitment,
-        GeneratedCommitments,
+    proposal::{
+        block_size_constraints::BlockSizeConstraints,
+        commitment::{
+            generate_rollup_datas_commitment,
+            GeneratedCommitments,
+        },
     },
     state_ext::{
         StateReadExt as _,
@@ -87,9 +89,6 @@ use crate::{
 
 /// The inter-block state being written to by the application.
 type InterBlockState = Arc<StateDelta<Snapshot>>;
-
-/// The maximum number of bytes allowed in sequencer action data.
-const MAX_SEQUENCE_DATA_BYTES_PER_BLOCK: usize = 256_000;
 
 /// The Sequencer application, written as a bundle of [`Component`]s.
 ///
@@ -238,14 +237,20 @@ impl App {
         self.is_proposer = true;
         self.update_state_for_new_round(&storage);
 
-        let remaining_tx_bytes: usize = usize::try_from(prepare_proposal.max_tx_bytes)
-            .expect("should be able to convert max_tx_bytes to usize")
-            .checked_sub(std::mem::size_of::<GeneratedCommitments>())
-            .expect("commitment size should not be larger than the prepare proposal's max bytes");
+        let mut block_size_constraints = BlockSizeConstraints::new(
+            usize::try_from(prepare_proposal.max_tx_bytes)
+                .context("failed to convert max_tx_bytes to usize")?,
+        );
+        block_size_constraints
+            .cometbft_checked_add(std::mem::size_of::<GeneratedCommitments>())
+            .context(
+                "commitment size should not be larger than the prepare proposal's max bytes",
+            )?;
 
         let (signed_txs, txs_to_include) = self
-            .execute_and_filter_block_data(VecDeque::from(prepare_proposal.txs), remaining_tx_bytes)
-            .await;
+            .execute_and_filter_block_data(prepare_proposal.txs, &mut block_size_constraints)
+            .await
+            .context("failed to execute and filter transactions in prepare_proposal")?;
 
         let deposits = self
             .state
@@ -304,7 +309,7 @@ impl App {
         let signed_txs = self
             .execute_block_data(txs)
             .await
-            .map_err(|_| anyhow!("transactions failed to execute"))?;
+            .context("transactions failed to decode and execute")?;
 
         let deposits = self
             .state
@@ -340,21 +345,20 @@ impl App {
     /// in both their [`SignedTransaction`] and raw bytes form.
     ///
     /// Will filter transactions that are too large for the sequencer block or
-    /// the cometbft block.
+    /// the cometBFT block.
     #[instrument(name = "App::execute_and_filter_block_data", skip_all, fields(
         tx_count = txs.len()
     ))]
     async fn execute_and_filter_block_data(
         &mut self,
-        mut txs: VecDeque<bytes::Bytes>,
-        mut remaining_cometbft_bytes: usize,
-    ) -> (Vec<SignedTransaction>, Vec<bytes::Bytes>) {
-        let mut signed_txs = Vec::with_capacity(txs.len());
+        txs: Vec<bytes::Bytes>,
+        block_size_constraints: &mut BlockSizeConstraints,
+    ) -> anyhow::Result<(Vec<SignedTransaction>, Vec<bytes::Bytes>)> {
+        let mut signed_txs: Vec<SignedTransaction> = Vec::with_capacity(txs.len());
         let mut validated_txs = Vec::with_capacity(txs.len());
-        let mut block_sequence_data_bytes: usize = 0;
         let mut excluded_tx_count: usize = 0;
 
-        while let Some(tx) = txs.pop_front() {
+        for tx in txs {
             let signed_tx = match signed_transaction_from_bytes(&tx) {
                 Err(e) => {
                     debug!(
@@ -376,44 +380,51 @@ impl App {
                 .filter_map(Action::as_sequence)
                 .fold(0usize, |acc, seq| acc + seq.data.len());
 
-            // Don't include tx if it would make the sequenced block data too large.
-            if block_sequence_data_bytes + tx_sequence_data_bytes
-                > MAX_SEQUENCE_DATA_BYTES_PER_BLOCK
-            {
+            // don't include tx if it would make the sequenced block data too large
+            if !block_size_constraints.sequencer_has_space(tx_sequence_data_bytes) {
                 debug!(
-                    transaction_hash = %telemetry::display::hex(&tx_hash),
-                    included_data_bytes = block_sequence_data_bytes,
+                    transaction_hash = %telemetry::display::base64(&tx_hash),
+                    max_sequencer_bytes = block_size_constraints.max_sequencer,
+                    included_data_bytes = block_size_constraints.current_sequencer,
                     tx_data_bytes = tx_sequence_data_bytes,
-                    max_data_bytes = MAX_SEQUENCE_DATA_BYTES_PER_BLOCK,
                     "excluding transaction: max block sequenced data limit reached"
                 );
                 excluded_tx_count += 1;
                 continue;
             }
 
-            // Don't include tx if it would make the cometbft block too large
-            if remaining_cometbft_bytes < tx.len() {
+            // don't include tx if it would make the cometBFT block too large
+            if !block_size_constraints.cometbft_has_space(tx.len()) {
                 debug!(
-                    remaining_cometbft_bytes = remaining_cometbft_bytes,
-                    number_transactions_excluded = tx.len() + 1,
-                    "excluding rest of transactions: max cometbft data limit reached"
-                );
-                excluded_tx_count += txs.len() + 1;
-                break;
-            }
-
-            // store transaction execution result, indexed by tx hash
-            if let Ok(signed_tx) = self.execute_tx(signed_tx).await {
-                block_sequence_data_bytes += tx_sequence_data_bytes;
-                remaining_cometbft_bytes = remaining_cometbft_bytes.saturating_sub(tx.len());
-                signed_txs.push(signed_tx);
-                validated_txs.push(tx);
-            } else {
-                debug!(
-                    transaction_hash = %telemetry::display::hex(&tx_hash),
-                    "failed to execute transaction, not including in block"
+                    transaction_hash = %telemetry::display::base64(&tx_hash),
+                    max_cometbft_bytes = block_size_constraints.max_cometbft,
+                    included_data_bytes = block_size_constraints.current_cometbft,
+                    tx_data_bytes = tx.len(),
+                    "excluding transactions: max cometBFT data limit reached"
                 );
                 excluded_tx_count += 1;
+                continue;
+            }
+
+            // store transaction execution result
+            match self.execute_and_store_signed_tx(&signed_tx).await {
+                Ok(()) => {
+                    block_size_constraints
+                        .sequencer_checked_add(tx_sequence_data_bytes)
+                        .context("error growing sequencer block size")?;
+                    block_size_constraints
+                        .cometbft_checked_add(tx.len())
+                        .context("error growing cometBFT block size")?;
+                    signed_txs.push(signed_tx);
+                    validated_txs.push(tx);
+                }
+                Err(_e) => {
+                    debug!(
+                        transaction_hash = %telemetry::display::base64(&tx_hash),
+                        "failed to execute transaction, not including in block"
+                    );
+                    excluded_tx_count += 1;
+                }
             }
         }
 
@@ -425,7 +436,7 @@ impl App {
             );
         }
 
-        (signed_txs, validated_txs)
+        Ok((signed_txs, validated_txs))
     }
 
     /// Executes the given transaction data, writing it to the app's `StateDelta`
@@ -444,19 +455,18 @@ impl App {
     ) -> Result<Vec<SignedTransaction>, anyhow::Error> {
         let mut signed_txs = Vec::new();
         for tx in txs {
-            let signed_tx = signed_transaction_from_bytes(&tx)
-                .map_err(|_| anyhow!("failed to decode tx bytes to signed transaction"))?;
-            match self.execute_tx(signed_tx).await {
-                Ok(signed_tx) => {
-                    signed_txs.push(signed_tx);
-                }
-                Err(_e) => {
-                    // all txs in the proposal should be deserializable and executable,
-                    // if any txs were not deserializeable or executable, they would not have been
-                    // returned by `execute_block_data`, something is wrong
-                    bail!("all transactions should succeed at this stage");
-                }
-            }
+            // all txs in the proposal should be deserializable and executable,
+            // if any txs were not deserializeable or executable, they would not have been
+            // returned by `execute_block_data`
+            let signed_tx = signed_transaction_from_bytes(&tx).context(
+                "failed to decode tx bytes to signed transaction, should've been filtered out in \
+                 prepare proposal",
+            )?;
+            self.execute_and_store_signed_tx(&signed_tx).await.context(
+                "transaction failed during execution, should've been filtered out in prepare \
+                 proposal",
+            )?;
+            signed_txs.push(signed_tx);
         }
         Ok(signed_txs)
     }
@@ -465,26 +475,26 @@ impl App {
     /// and stores the results in `self.execution_result`.
     ///
     /// Returns the signed transaction if it successfully executed else an error.
-    #[instrument(name = "App::execute_tx", skip_all)]
-    async fn execute_tx(
+    #[instrument(name = "App::execute_and_store_signed_tx", skip_all)]
+    async fn execute_and_store_signed_tx(
         &mut self,
-        signed_tx: SignedTransaction,
-    ) -> Result<SignedTransaction, anyhow::Error> {
+        signed_tx: &SignedTransaction,
+    ) -> anyhow::Result<()> {
         // store transaction execution result, indexed by tx hash
         let tx_hash = Sha256::digest(signed_tx.to_raw().encode_to_vec());
         match self.deliver_tx(signed_tx.clone()).await {
             Ok(events) => {
                 self.execution_result.insert(tx_hash.into(), Ok(events));
-                return Ok(signed_tx);
+                Ok(())
             }
             Err(e) => {
                 debug!(
-                    transaction_hash = %telemetry::display::hex(&Sha256::digest(tx_hash)),
+                    transaction_hash = %telemetry::display::base64(&Sha256::digest(tx_hash)),
                     error = AsRef::<dyn std::error::Error>::as_ref(&e),
                     "failed to execute transaction"
                 );
                 self.execution_result.insert(tx_hash.into(), Err(e));
-                return Err(anyhow!("transaction commitment must be 32 bytes"));
+                Err(anyhow!("failed to execute transaction"))
             }
         }
     }
@@ -2250,6 +2260,18 @@ mod test {
     }
 
     #[tokio::test]
+    async fn app_cometbft_block_size_commitmemts_() {
+        // ensure that the returned size of the commimtments is what is intended.
+        // we need the size of whatever is being put into the cometBFT block
+        assert_eq!(
+            std::mem::size_of::<GeneratedCommitments>(),
+            64,
+            "expecting the size to be equal to the length of the commitments being appended to \
+             the cometBFT block"
+        );
+    }
+
+    #[tokio::test]
     async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
         let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
 
@@ -2265,7 +2287,7 @@ mod test {
             .await
             .expect("applying genesis state should be okay");
 
-        // create txs which will cause cometbft overflow
+        // create txs which will cause cometBFT overflow
         let (alice_signing_key, _) = get_alice_signing_key_and_address();
         let tx_pass = UnsignedTransaction {
             nonce: 0,
