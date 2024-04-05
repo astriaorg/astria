@@ -17,7 +17,7 @@ images:
     devTag: latest
   composer:
     repo: ghcr.io/astriaorg/composer
-    tag: "0.5.0"
+    tag: "0.6.0"
     devTag: latest
 
   # Rollup faucet
@@ -302,9 +302,10 @@ ports:
   jsonRPC: 8545
   wsRPC: 8546
   executionGRPC: 50051
-  gossipnet: 2451
+  composerGRPC: 5051
   faucet: 8080
   blockscout: 4000
   metrics: 6060
   conductorMetrics: 9000
   composerMetrics: 9001
+

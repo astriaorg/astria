@@ -106,11 +106,13 @@ spec:
           - mountPath: "/var/secrets"
             name: sequencer-private-key
           {{- end }}
-          {{- if .Values.config.rollup.metrics.enabled }} 
           ports:
+            - containerPort: {{ .Values.ports.composerGRPC }}
+              name: composer-grpc
+            {{- if .Values.config.rollup.metrics.enabled }} 
             - containerPort: {{ .Values.ports.composerMetrics }}
               name: composer-metrics
-          {{- end }}
+            {{- end }}
           resources:
             {{- toYaml .Values.resources.composer | trim | nindent 12 }}
         - name: conductor

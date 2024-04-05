@@ -13,9 +13,19 @@ spec:
     - name: ws-rpc-svc
       port: {{ .Values.ports.wsRPC }}
       targetPort: ws-rpc
-    - name: gossipnet-svc
-      port: {{ .Values.ports.gossipnet }}
-      targetPort: gossipnet
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ .Values.config.rollup.name }}-composer-service
+  namespace: {{ include "rollup.namespace" . }}
+spec:
+  selector:
+    app: {{ .Values.config.rollup.name }}-astria-dev-cluster
+  ports:
+    - name: composer-grpc-svc
+      port: {{ .Values.ports.composerGRPC }}
+      targetPort: composer-grpc
 ---
 kind: Service
 apiVersion: v1
