@@ -64,7 +64,7 @@ jobs:
       - name: Check that each crate compiles individually (circumventing workspace wide dependency resolution)
         run: |
           : # exclude all lints because cargo-hack ignores default-members and operates on all workspace members
-          cargo hack check --workspace --all-features \
+          cargo hack check --workspace --all-targets --all-features \
           --exclude tracing_debug_field
 
   lockfile:
