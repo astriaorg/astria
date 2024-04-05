@@ -1,9 +1,6 @@
 //! `GrpcCollector` implements the `GrpcCollectorService` rpc service.
 
-use std::{
-    sync::Arc,
-    time::Duration,
-};
+use std::sync::Arc;
 
 use astria_core::{
     generated::composer::v1alpha1::{
@@ -24,7 +21,10 @@ use tonic::{
     Status,
 };
 
-use crate::executor;
+use crate::{
+    collectors::geth::EXECUTOR_SEND_TIMEOUT,
+    executor,
+};
 
 /// Implements the `GrpcCollectorService` which listens for incoming gRPC requests and
 /// sends the Rollup transactions to the Executor. The Executor then sends the transactions
@@ -61,7 +61,7 @@ impl GrpcCollectorService for Grpc {
 
         match self
             .executor
-            .send_timeout(sequence_action, Duration::from_millis(500))
+            .send_timeout(sequence_action, EXECUTOR_SEND_TIMEOUT)
             .await
         {
             Ok(()) => {}

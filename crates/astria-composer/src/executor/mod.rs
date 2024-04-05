@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 /// ! The `Executor` is responsible for:
 /// - Nonce management
 /// - Transaction signing
@@ -56,6 +57,7 @@ use tokio::{
         Instant,
     },
 };
+use tokio_util::sync::CancellationToken;
 use tracing::{
     debug,
     error,
@@ -78,6 +80,8 @@ mod bundle_factory;
 
 #[cfg(test)]
 mod tests;
+
+const EXECUTOR_SHUTDOWN_DURATION: Duration = Duration::from_secs(17);
 
 type StdError = dyn std::error::Error;
 
@@ -103,6 +107,8 @@ pub(super) struct Executor {
     block_time: tokio::time::Duration,
     // Max bytes in a sequencer action bundle
     max_bytes_per_bundle: usize,
+    // Token to signal the executor to stop upon shutdown.
+    shutdown_token: CancellationToken,
 }
 
 #[derive(Clone)]
@@ -157,6 +163,7 @@ impl Executor {
         private_key: &SecretString,
         block_time: u64,
         max_bytes_per_bundle: usize,
+        shutdown_token: CancellationToken,
     ) -> eyre::Result<(Self, Handle)> {
         let sequencer_client = sequencer_client::HttpClient::new(sequencer_url)
             .wrap_err("failed constructing sequencer client")?;
@@ -182,6 +189,7 @@ impl Executor {
                 address: sequencer_address,
                 block_time: Duration::from_millis(block_time),
                 max_bytes_per_bundle,
+                shutdown_token,
             },
             Handle::new(serialized_rollup_transaction_tx),
         ))
@@ -226,10 +234,13 @@ impl Executor {
 
         let reset_time = || Instant::now() + self.block_time;
 
-        loop {
+        let reason = loop {
             select! {
                 biased;
 
+                () = self.shutdown_token.cancelled() => {
+                    break Ok("received shutdown signal");
+                }
                 // process submission result and update nonce
                 rsp = &mut submission_fut, if !submission_fut.is_terminated() => {
                     match rsp {
@@ -257,7 +268,7 @@ impl Executor {
                             warn!(
                                 rollup_id = %rollup_id,
                                 error = &e as &StdError,
-                                "failed to bundle sequence action: too large. sequence action is dropped."
+                                "failed to bundle sequence action, dropping it."
                             );
                     }
                 }
@@ -276,7 +287,122 @@ impl Executor {
                     }
                 }
             }
+        };
+
+        self.status
+            .send_modify(|status| status.is_connected = false);
+
+        // close the channel to avoid receiving any other txs before we drain the remaining
+        // sequence actions
+        self.serialized_rollup_transactions.close();
+
+        match &reason {
+            Ok(reason) => {
+                info!(reason, "shutting down");
+            }
+            Err(reason) => {
+                error!(%reason, "executor exited with error");
+                // we error out because of a failure to submit a bundle to the sequencer
+                // we do not want to proceed with the shutdown process in this case
+                return Err(eyre!(reason.to_string()));
+            }
+        };
+
+        let mut bundles_to_drain: VecDeque<SizedBundle> = VecDeque::new();
+        let mut bundles_drained = 0;
+
+        info!("draining sequence actions from the executor receiver channel");
+
+        // drain the receiver channel
+        while let Ok(seq_action) = self.serialized_rollup_transactions.try_recv() {
+            let rollup_id = seq_action.rollup_id;
+            if let Err(e) = bundle_factory.try_push(seq_action) {
+                warn!(
+                    rollup_id = %rollup_id,
+                    error = &e as &StdError,
+                    "failed to bundle sequence action, dropping it."
+                );
+            }
         }
+
+        // when shutting down, drain all the remaining bundles and submit to the sequencer
+        // to avoid any bundle loss.
+        loop {
+            let bundle = bundle_factory.pop_now();
+            if bundle.is_empty() {
+                break;
+            }
+
+            bundles_to_drain.push_back(bundle);
+        }
+
+        let shutdown_logic = async {
+            // wait for the last bundle to be submitted
+            if !submission_fut.is_terminated() {
+                info!("waiting for the last bundle to be submitted to the sequencer");
+                match submission_fut.await {
+                    Ok(new_nonce) => {
+                        debug!(new_nonce = new_nonce, "drained bundle successfully");
+                        nonce = new_nonce;
+                    }
+                    Err(error) => {
+                        error!(%error, "failed submitting bundle to sequencer during shutdown; \
+                                aborting shutdown");
+                        return Err(error);
+                    }
+                }
+            }
+
+            info!(
+                no_of_bundles_to_drain = bundles_to_drain.len(),
+                "draining remaining bundles from bundle factory"
+            );
+            while let Some(bundle) = bundles_to_drain.pop_front() {
+                match self.submit_bundle(nonce, bundle.clone()).await {
+                    Ok(new_nonce) => {
+                        debug!(
+                            bundle = %telemetry::display::json(&SizedBundleReport(&bundle)),
+                            new_nonce = new_nonce,
+                            "drained bundle successfully"
+                        );
+                        nonce = new_nonce;
+                        bundles_drained += 1;
+                    }
+                    Err(error) => {
+                        error!(bundle = %telemetry::display::json(&SizedBundleReport(&bundle)),
+                                %error, "failed submitting bundle to sequencer during shutdown; \
+                                    aborting shutdown");
+                        // if we can't submit a bundle after multiple retries, we can abort
+                        // the shutdown process
+                        return Err(error);
+                    }
+                }
+            }
+
+            Ok(())
+        };
+
+        match tokio::time::timeout(EXECUTOR_SHUTDOWN_DURATION, shutdown_logic).await {
+            Ok(Ok(())) => info!("executor shutdown tasks completed successfully"),
+            Ok(Err(error)) => error!(%error, "executor shutdown tasks failed"),
+            Err(error) => error!(%error, "executor shutdown tasks failed to complete in time"),
+        }
+
+        info!(bundles_drained, "bundles drained during shutdown");
+
+        if !bundles_to_drain.is_empty() {
+            // log all the bundles that have not been drained
+            let report: Vec<SizedBundleReport> =
+                bundles_to_drain.iter().map(SizedBundleReport).collect();
+
+            warn!(
+                no_of_undrained_bundles = report.len(),
+                undrained_bundles = %telemetry::display::json(&report),
+                "unable to drain all bundles within the allocated time"
+            );
+        }
+
+        reason.map(|_| ())
     }
 }
 
@@ -317,7 +443,6 @@ async fn get_latest_nonce(
     .await
     .wrap_err("failed getting latest nonce from sequencer after 1024 attempts")
 }
-
 /// Queries the sequencer for the latest nonce with an exponential backoff
 #[instrument(
     name = "submit signed transaction",
