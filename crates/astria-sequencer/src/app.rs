@@ -812,20 +812,17 @@ pub(crate) mod test_utils {
 mod test {
     #[cfg(feature = "mint")]
     use astria_core::sequencer::v1::transaction::action::MintAction;
-    use astria_core::sequencer::{
-        v1::{
-            asset,
-            asset::DEFAULT_NATIVE_ASSET_DENOM,
-            transaction::action::{
-                BridgeLockAction,
-                IbcRelayerChangeAction,
-                SequenceAction,
-                SudoAddressChangeAction,
-                TransferAction,
-            },
-            UnsignedTransaction,
+    use astria_core::sequencer::v1::{
+        asset,
+        asset::DEFAULT_NATIVE_ASSET_DENOM,
+        transaction::action::{
+            BridgeLockAction,
+            IbcRelayerChangeAction,
+            SequenceAction,
+            SudoAddressChangeAction,
+            TransferAction,
         },
-        v2alpha1::block::Deposit,
+        UnsignedTransaction,
     };
     use ed25519_consensus::SigningKey;
     use penumbra_ibc::params::IBCParameters;
