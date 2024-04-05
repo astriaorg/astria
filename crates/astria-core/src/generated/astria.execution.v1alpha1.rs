@@ -6,7 +6,14 @@ pub struct DoBlockRequest {
     #[prost(bytes = "vec", repeated, tag = "2")]
     pub transactions: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
     #[prost(message, optional, tag = "3")]
-    pub timestamp: ::core::option::Option<::prost_types::Timestamp>,
+    pub timestamp: ::core::option::Option<::pbjson_types::Timestamp>,
+}
+impl ::prost::Name for DoBlockRequest {
+    const NAME: &'static str = "DoBlockRequest";
+    const PACKAGE: &'static str = "astria.execution.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.execution.v1alpha1.{}", Self::NAME)
+    }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -14,23 +21,58 @@ pub struct DoBlockResponse {
     #[prost(bytes = "vec", tag = "1")]
     pub block_hash: ::prost::alloc::vec::Vec<u8>,
 }
+impl ::prost::Name for DoBlockResponse {
+    const NAME: &'static str = "DoBlockResponse";
+    const PACKAGE: &'static str = "astria.execution.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.execution.v1alpha1.{}", Self::NAME)
+    }
+}
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FinalizeBlockRequest {
     #[prost(bytes = "vec", tag = "1")]
     pub block_hash: ::prost::alloc::vec::Vec<u8>,
 }
+impl ::prost::Name for FinalizeBlockRequest {
+    const NAME: &'static str = "FinalizeBlockRequest";
+    const PACKAGE: &'static str = "astria.execution.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.execution.v1alpha1.{}", Self::NAME)
+    }
+}
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FinalizeBlockResponse {}
+impl ::prost::Name for FinalizeBlockResponse {
+    const NAME: &'static str = "FinalizeBlockResponse";
+    const PACKAGE: &'static str = "astria.execution.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.execution.v1alpha1.{}", Self::NAME)
+    }
+}
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct InitStateRequest {}
+impl ::prost::Name for InitStateRequest {
+    const NAME: &'static str = "InitStateRequest";
+    const PACKAGE: &'static str = "astria.execution.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.execution.v1alpha1.{}", Self::NAME)
+    }
+}
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct InitStateResponse {
     #[prost(bytes = "vec", tag = "1")]
     pub block_hash: ::prost::alloc::vec::Vec<u8>,
+}
+impl ::prost::Name for InitStateResponse {
+    const NAME: &'static str = "InitStateResponse";
+    const PACKAGE: &'static str = "astria.execution.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.execution.v1alpha1.{}", Self::NAME)
+    }
 }
 /// Generated client implementations.
 #[cfg(feature = "client")]
@@ -219,18 +261,18 @@ pub mod execution_service_server {
     #[async_trait]
     pub trait ExecutionService: Send + Sync + 'static {
         async fn init_state(
-            &self,
+            self: std::sync::Arc<Self>,
             request: tonic::Request<super::InitStateRequest>,
         ) -> std::result::Result<
             tonic::Response<super::InitStateResponse>,
             tonic::Status,
         >;
         async fn do_block(
-            &self,
+            self: std::sync::Arc<Self>,
             request: tonic::Request<super::DoBlockRequest>,
         ) -> std::result::Result<tonic::Response<super::DoBlockResponse>, tonic::Status>;
         async fn finalize_block(
-            &self,
+            self: std::sync::Arc<Self>,
             request: tonic::Request<super::FinalizeBlockRequest>,
         ) -> std::result::Result<
             tonic::Response<super::FinalizeBlockResponse>,
@@ -334,7 +376,7 @@ pub mod execution_service_server {
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ExecutionService>::init_state(&inner, request).await
+                                <T as ExecutionService>::init_state(inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -380,7 +422,7 @@ pub mod execution_service_server {
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ExecutionService>::do_block(&inner, request).await
+                                <T as ExecutionService>::do_block(inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -426,7 +468,7 @@ pub mod execution_service_server {
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ExecutionService>::finalize_block(&inner, request)
+                                <T as ExecutionService>::finalize_block(inner, request)
                                     .await
                             };
                             Box::pin(fut)

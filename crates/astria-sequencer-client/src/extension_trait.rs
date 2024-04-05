@@ -26,13 +26,17 @@ use std::{
     sync::Arc,
 };
 
-pub use astria_core::sequencer::v1::{
-    block::SequencerBlockError,
-    Address,
-    BalanceResponse,
-    NonceResponse,
-    SequencerBlock,
-    SignedTransaction,
+pub use astria_core::sequencer::{
+    v1::{
+        Address,
+        BalanceResponse,
+        NonceResponse,
+        SignedTransaction,
+    },
+    v2alpha1::{
+        block::SequencerBlockError,
+        SequencerBlock,
+    },
 };
 use async_trait::async_trait;
 use futures::Stream;

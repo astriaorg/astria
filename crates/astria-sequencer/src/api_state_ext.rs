@@ -5,15 +5,18 @@ use anyhow::{
     Result,
 };
 use astria_core::{
-    generated::sequencer::v1 as raw,
-    sequencer::v1::{
-        block::{
+    generated::sequencer::{
+        v1 as rawv1,
+        v2alpha1 as rawv2alpha1,
+    },
+    sequencer::{
+        v1::RollupId,
+        v2alpha1::block::{
             RollupTransactions,
             SequencerBlock,
             SequencerBlockHeader,
             SequencerBlockParts,
         },
-        RollupId,
     },
     Protobuf,
 };
@@ -34,23 +37,23 @@ fn block_hash_by_height_key(height: u64) -> String {
 }
 
 fn sequencer_block_header_by_hash_key(hash: &[u8]) -> String {
-    format!("blockheader/{}", telemetry::display::hex(hash))
+    format!("blockheader/{}", crate::utils::Hex(hash))
 }
 
 fn rollup_data_by_hash_and_rollup_id_key(hash: &[u8], rollup_id: &RollupId) -> String {
-    format!("rollupdata/{}/{}", telemetry::display::hex(hash), rollup_id)
+    format!("rollupdata/{}/{}", crate::utils::Hex(hash), rollup_id)
 }
 
 fn rollup_ids_by_hash_key(hash: &[u8]) -> String {
-    format!("rollupids/{}", telemetry::display::hex(hash))
+    format!("rollupids/{}", crate::utils::Hex(hash))
 }
 
 fn rollup_transactions_proof_by_hash_key(hash: &[u8]) -> String {
-    format!("rolluptxsproof/{}", telemetry::display::hex(hash))
+    format!("rolluptxsproof/{}", crate::utils::Hex(hash))
 }
 
 fn rollup_ids_proof_by_hash_key(hash: &[u8]) -> String {
-    format!("rollupidsproof/{}", telemetry::display::hex(hash))
+    format!("rollupidsproof/{}", crate::utils::Hex(hash))
 }
 
 #[derive(BorshSerialize, BorshDeserialize)]
@@ -161,7 +164,7 @@ pub(crate) trait StateReadExt: StateRead {
             bail!("header not found for given block hash");
         };
 
-        let raw = raw::SequencerBlockHeader::decode(header_bytes.as_slice())
+        let raw = rawv2alpha1::SequencerBlockHeader::decode(header_bytes.as_slice())
             .context("failed to decode sequencer block from raw bytes")?;
         let header = SequencerBlockHeader::try_from_raw(raw)
             .context("failed to convert raw sequencer block to sequencer block")?;
@@ -194,7 +197,7 @@ pub(crate) trait StateReadExt: StateRead {
             bail!("header not found for given block hash");
         };
 
-        let header_raw = raw::SequencerBlockHeader::decode(header_bytes.as_slice())
+        let header_raw = rawv2alpha1::SequencerBlockHeader::decode(header_bytes.as_slice())
             .context("failed to decode sequencer block from raw bytes")?;
 
         let rollup_ids = self
@@ -211,7 +214,7 @@ pub(crate) trait StateReadExt: StateRead {
                 .context("failed to read rollup data by block hash and rollup ID from state")?;
             if let Some(raw) = raw {
                 let raw = raw.as_slice();
-                let rollup_data = raw::RollupTransactions::decode(raw)
+                let rollup_data = rawv2alpha1::RollupTransactions::decode(raw)
                     .context("failed to decode rollup data from raw bytes")?;
                 rollup_transactions.push(rollup_data);
             }
@@ -225,7 +228,7 @@ pub(crate) trait StateReadExt: StateRead {
             bail!("rollup transactions proof not found for given block hash");
         };
 
-        let rollup_transactions_proof = raw::Proof::decode(rollup_transactions_proof.as_slice())
+        let rollup_transactions_proof = rawv1::Proof::decode(rollup_transactions_proof.as_slice())
             .context("failed to decode rollup transactions proof from raw bytes")?;
 
         let Some(rollup_ids_proof) = self
@@ -236,10 +239,10 @@ pub(crate) trait StateReadExt: StateRead {
             bail!("rollup IDs proof not found for given block hash");
         };
 
-        let rollup_ids_proof = raw::Proof::decode(rollup_ids_proof.as_slice())
+        let rollup_ids_proof = rawv1::Proof::decode(rollup_ids_proof.as_slice())
             .context("failed to decode rollup IDs proof from raw bytes")?;
 
-        let raw = raw::SequencerBlock {
+        let raw = rawv2alpha1::SequencerBlock {
             block_hash: hash.to_vec(),
             header: header_raw.into(),
             rollup_transactions,
@@ -278,7 +281,7 @@ pub(crate) trait StateReadExt: StateRead {
         else {
             bail!("rollup data not found for given block hash and rollup ID");
         };
-        let raw = raw::RollupTransactions::decode(bytes.as_slice())
+        let raw = rawv2alpha1::RollupTransactions::decode(bytes.as_slice())
             .context("failed to decode rollup data from raw bytes")?;
 
         let rollup_transactions = RollupTransactions::try_from_raw(raw)
@@ -291,7 +294,7 @@ pub(crate) trait StateReadExt: StateRead {
     async fn get_block_proofs_by_block_hash(
         &self,
         hash: &[u8],
-    ) -> Result<(raw::Proof, raw::Proof)> {
+    ) -> Result<(rawv1::Proof, rawv1::Proof)> {
         let Some(rollup_transactions_proof) = self
             .get_raw(&rollup_transactions_proof_by_hash_key(hash))
             .await
@@ -300,7 +303,7 @@ pub(crate) trait StateReadExt: StateRead {
             bail!("rollup transactions proof not found for given block hash");
         };
 
-        let rollup_transactions_proof = raw::Proof::decode(rollup_transactions_proof.as_slice())
+        let rollup_transactions_proof = rawv1::Proof::decode(rollup_transactions_proof.as_slice())
             .context("failed to decode rollup transactions proof from raw bytes")?;
 
         let Some(rollup_ids_proof) = self
@@ -311,7 +314,7 @@ pub(crate) trait StateReadExt: StateRead {
             bail!("rollup IDs proof not found for given block hash");
         };
 
-        let rollup_ids_proof = raw::Proof::decode(rollup_ids_proof.as_slice())
+        let rollup_ids_proof = rawv1::Proof::decode(rollup_ids_proof.as_slice())
             .context("failed to decode rollup IDs proof from raw bytes")?;
 
         Ok((rollup_transactions_proof, rollup_ids_proof))
@@ -376,3 +379,345 @@ pub(crate) trait StateWriteExt: StateWrite {
 }
 
 impl<T: StateWrite> StateWriteExt for T {}
+
+#[cfg(test)]
+mod test {
+
+    use std::collections::HashMap;
+
+    use astria_core::sequencer::{
+        v1::{
+            asset::Id,
+            Address,
+        },
+        v2alpha1::block::Deposit,
+    };
+    use cnidarium::StateDelta;
+    use rand::Rng;
+    use sha2::{
+        Digest as _,
+        Sha256,
+    };
+    use tendermint::{
+        account,
+        block::{
+            header::Version,
+            Header,
+        },
+        AppHash,
+        Hash,
+        Time,
+    };
+
+    use super::*;
+    use crate::proposal::commitment::generate_rollup_datas_commitment;
+
+    // creates new sequencer block, optionally shifting all values except the height by 1
+    fn make_test_sequencer_block(height: u32) -> SequencerBlock {
+        let mut rng = rand::thread_rng();
+
+        // create cometbft header
+        let mut header = Header {
+            app_hash: AppHash::default(),
+            chain_id: "test".to_string().try_into().unwrap(),
+            consensus_hash: Hash::default(),
+            data_hash: Some(Hash::default()),
+            evidence_hash: None,
+            height: height.into(),
+            last_block_id: None,
+            last_commit_hash: None,
+            last_results_hash: None,
+            next_validators_hash: Hash::default(),
+            proposer_address: account::Id::try_from([0u8; 20].to_vec()).unwrap(),
+            time: Time::now(),
+            validators_hash: Hash::default(),
+            version: Version {
+                app: 0,
+                block: 0,
+            },
+        };
+
+        // create inner rollup id/tx data
+        let mut deposits = HashMap::new();
+        for _ in 0..2 {
+            let rollup_id = RollupId::new(rng.gen());
+            let bridge_address = Address::try_from_slice(&[rng.gen(); 20]).unwrap();
+            let amount = rng.gen::<u128>();
+            let asset_id = Id::from_denom(&rng.gen::<u8>().to_string());
+            let destination_chain_address = rng.gen::<u8>().to_string();
+            let deposit = Deposit::new(
+                bridge_address,
+                rollup_id,
+                amount,
+                asset_id,
+                destination_chain_address,
+            );
+            deposits.insert(rollup_id, vec![deposit]);
+        }
+
+        // create block's other data
+        let commitments = generate_rollup_datas_commitment(&[], deposits.clone());
+        let block_data = vec![
+            commitments.rollup_datas_root.to_vec(),
+            commitments.rollup_ids_root.to_vec(),
+        ];
+        let data_hash = merkle::Tree::from_leaves(block_data.iter().map(Sha256::digest)).root();
+        header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
+        header.height = height.into();
+        SequencerBlock::try_from_cometbft_header_and_data(header, block_data, deposits).unwrap()
+    }
+
+    #[tokio::test]
+    async fn put_sequencer_block() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // can write one
+        let block_0 = make_test_sequencer_block(2u32);
+        state
+            .put_sequencer_block(block_0.clone())
+            .expect("writing block to database should work");
+
+        assert_eq!(
+            state
+                .get_sequencer_block_by_height(block_0.height().into())
+                .await
+                .expect("a block was written to the database and should exist"),
+            block_0,
+            "stored block does not match expected"
+        );
+
+        // can write another and both are ok
+        let block_1 = make_test_sequencer_block(3u32);
+        state
+            .put_sequencer_block(block_1.clone())
+            .expect("writing another block to database should work");
+        assert_eq!(
+            state
+                .get_sequencer_block_by_height(block_0.height().into())
+                .await
+                .expect("a block was written to the database and should exist"),
+            block_0,
+            "original stored block does not match expected"
+        );
+        assert_eq!(
+            state
+                .get_sequencer_block_by_height(block_1.height().into())
+                .await
+                .expect("a block was written to the database and should exist"),
+            block_1,
+            "additionally stored block does not match expected"
+        );
+    }
+
+    #[tokio::test]
+    async fn put_sequencer_block_update() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // write original block
+        let mut block = make_test_sequencer_block(2u32);
+        state
+            .put_sequencer_block(block.clone())
+            .expect("writing block to database should work");
+        assert_eq!(
+            state
+                .get_sequencer_block_by_height(block.height().into())
+                .await
+                .expect("a block was written to the database and should exist"),
+            block,
+            "stored block does not match expected"
+        );
+
+        // write to same height but with new values
+        block = make_test_sequencer_block(2u32);
+        state
+            .put_sequencer_block(block.clone())
+            .expect("writing block update to database should work");
+
+        // block was updates
+        assert_eq!(
+            state
+                .get_sequencer_block_by_height(block.height().into())
+                .await
+                .expect("a block was written to the database and should exist"),
+            block,
+            "updated stored block does not match expected"
+        );
+    }
+
+    #[tokio::test]
+    async fn get_block_hash_by_height() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // write block
+        let block = make_test_sequencer_block(2u32);
+        state
+            .put_sequencer_block(block.clone())
+            .expect("writing block to database should work");
+
+        // grab block hash by block height
+        assert_eq!(
+            state
+                .get_block_hash_by_height(block.height().into())
+                .await
+                .expect(
+                    "a block was written to the database and we should be able to query its block \
+                     hash by height"
+                ),
+            block.block_hash(),
+            "stored block hash does not match expected"
+        );
+    }
+
+    #[tokio::test]
+    async fn get_sequencer_block_header_by_hash() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // write block
+        let block = make_test_sequencer_block(2u32);
+        state
+            .put_sequencer_block(block.clone())
+            .expect("writing block to database should work");
+
+        // grab block header by block hash
+        assert_eq!(
+            state
+                .get_sequencer_block_header_by_hash(block.block_hash().as_ref())
+                .await
+                .expect(
+                    "a block was written to the database and we should be able to query its block \
+                     header by block hash"
+                ),
+            block.header().clone(),
+            "stored block header does not match expected"
+        );
+    }
+
+    #[tokio::test]
+    async fn get_rollup_ids_by_block_hash() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // write block
+        let block = make_test_sequencer_block(2u32);
+        state
+            .put_sequencer_block(block.clone())
+            .expect("writing block to database should work");
+
+        // grab rollup ids by block hash
+        let stored_rollup_ids = state
+            .get_rollup_ids_by_block_hash(block.block_hash().as_ref())
+            .await
+            .expect(
+                "a block was written to the database and we should be able to query its rollup ids",
+            );
+        let original_rollup_ids: Vec<RollupId> =
+            block.rollup_transactions().keys().copied().collect();
+        assert_eq!(
+            stored_rollup_ids, original_rollup_ids,
+            "stored rollup ids do not match expected"
+        );
+    }
+
+    #[tokio::test]
+    async fn get_sequencer_block_by_hash() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // write block
+        let block = make_test_sequencer_block(2u32);
+        state
+            .put_sequencer_block(block.clone())
+            .expect("writing block to database should work");
+
+        // grab block by block hash
+        assert_eq!(
+            state
+                .get_sequencer_block_by_hash(block.block_hash().as_ref())
+                .await
+                .expect(
+                    "a block was written to the database and we should be able to query its block \
+                     by block hash"
+                ),
+            block,
+            "stored block does not match expected"
+        );
+    }
+
+    #[tokio::test]
+    async fn get_rollup_data() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // write block
+        let block = make_test_sequencer_block(2u32);
+        state
+            .put_sequencer_block(block.clone())
+            .expect("writing block to database should work");
+
+        // get written rollup id and data
+        let rollup_id = block
+            .rollup_transactions()
+            .keys()
+            .copied()
+            .collect::<Vec<RollupId>>()[0];
+        let rollup_data = block.rollup_transactions().get(&rollup_id).unwrap();
+
+        // grab rollup's data by block hash
+        let stored_rollup_data = state
+            .get_rollup_data(block.block_hash().as_ref(), &rollup_id)
+            .await
+            .expect(
+                "a block was written to the database and we should be able to query the data for \
+                 a rollup",
+            );
+        assert_eq!(
+            stored_rollup_data, *rollup_data,
+            "stored rollup data does not match expected"
+        );
+    }
+
+    #[tokio::test]
+    async fn get_block_proofs_by_block_hash() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // write block
+        let block = make_test_sequencer_block(2u32);
+        state
+            .put_sequencer_block(block.clone())
+            .expect("writing block to database should work");
+
+        // get written proofs
+        let transactions_proof = block
+            .clone()
+            .into_parts()
+            .rollup_transactions_proof
+            .into_raw();
+        let ids_proof = block.clone().into_parts().rollup_ids_proof.into_raw();
+
+        // grab rollup's stored proofs
+        let stored_proofs = state
+            .get_block_proofs_by_block_hash(block.block_hash().as_ref())
+            .await
+            .expect(
+                "a block was written to the database and we should be able to query its proof data",
+            );
+        assert_eq!(
+            (transactions_proof, ids_proof),
+            stored_proofs,
+            "stored proofs do not match expected"
+        );
+    }
+}

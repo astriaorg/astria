@@ -8,11 +8,11 @@ use std::{
 };
 
 use astria_core::{
-    generated::sequencer::v1::{
+    generated::sequencer::v2alpha1::{
         sequencer_service_client::SequencerServiceClient,
         GetSequencerBlockRequest,
     },
-    sequencer::v1::SequencerBlock,
+    sequencer::v2alpha1::SequencerBlock,
 };
 use astria_eyre::eyre::{
     self,

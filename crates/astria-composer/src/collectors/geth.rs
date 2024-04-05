@@ -33,12 +33,12 @@ use tokio::sync::{
 };
 use tracing::{
     debug,
+    info,
     instrument,
     warn,
 };
 
 use crate::executor;
-
 type StdError = dyn std::error::Error;
 
 /// `GethCollector` Collects transactions submitted to a Geth rollup node and passes
@@ -82,8 +82,14 @@ impl Geth {
     /// Initializes a new collector instance
     pub(crate) fn new(chain_name: String, url: String, executor_handle: executor::Handle) -> Self {
         let (status, _) = watch::channel(Status::new());
+        let rollup_id = RollupId::from_unhashed_bytes(&chain_name);
+        info!(
+            rollup_name = %chain_name,
+            rollup_id = %rollup_id,
+            "created new geth collector for rollup",
+        );
         Self {
-            rollup_id: RollupId::from_unhashed_bytes(&chain_name),
+            rollup_id,
             chain_name,
             executor_handle,
             status,
@@ -98,7 +104,7 @@ impl Geth {
 
     /// Starts the collector instance and runs until failure or until
     /// explicitly closed
-    #[instrument(skip_all, fields(chain_name = self.chain_name))]
+    #[instrument(skip_all, fields(chain_name = self.chain_name, rollup_id = %self.rollup_id))]
     pub(crate) async fn run_until_stopped(self) -> eyre::Result<()> {
         use std::time::Duration;
 

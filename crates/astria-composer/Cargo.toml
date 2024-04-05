@@ -13,10 +13,12 @@ name = "astria-composer"
 
 [dependencies]
 astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
-astria-core = { path = "../astria-core" }
+astria-core = { path = "../astria-core", features = ["serde", "server"] }
 astria-eyre = { path = "../astria-eyre" }
 config = { package = "astria-config", path = "../astria-config" }
-telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
+telemetry = { package = "astria-telemetry", path = "../astria-telemetry", features = [
+  "display",
+] }
 
 pin-project-lite = "0.2.13"
 secrecy = { version = "0.8", features = ["serde"] }
@@ -48,6 +50,9 @@ tokio = { workspace = true, features = [
 tokio-util = { workspace = true, features = ["rt"] }
 tracing = { workspace = true, features = ["attributes"] }
 tryhard = { workspace = true }
+tonic = { workspace = true }
+tokio-stream = { workspace = true, features = ["net"] }
+tonic-health = "0.10.2"
 
 [dependencies.sequencer-client]
 package = "astria-sequencer-client"
@@ -61,8 +66,9 @@ config = { package = "astria-config", path = "../astria-config", features = [
 test_utils = { package = "astria-test-utils", path = "../astria-test-utils", features = [
   "geth",
 ] }
+insta = { workspace = true, features = ["json"] }
 tokio-test = { workspace = true }
-
+astria-core = { path = "../astria-core", features = ["client"] }
 tendermint-rpc = { workspace = true }
 wiremock = { workspace = true }
 

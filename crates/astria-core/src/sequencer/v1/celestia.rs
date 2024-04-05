@@ -6,16 +6,13 @@ use sha2::{
 use super::{
     block::{
         RollupTransactionsParts,
-        SequencerBlockHeader,
+        SequencerBlockHeaderParts,
     },
     raw,
     IncorrectRollupIdLength,
     RollupId,
 };
-use crate::{
-    sequencer::v1::block::SequencerBlockHeaderError,
-    Protobuf,
-};
+use crate::Protobuf;
 
 /// A bundle of blobs constructed from a [`super::SequencerBlock`].
 ///
@@ -39,10 +36,17 @@ impl CelestiaBlobBundle {
             rollup_ids_proof,
         } = block.into_parts();
 
+        let SequencerBlockHeaderParts {
+            cometbft_header,
+            rollup_transactions_root,
+            ..
+        } = header.into_parts();
+
         let head = CelestiaSequencerBlob {
             block_hash,
-            header,
+            header: cometbft_header,
             rollup_ids: rollup_transactions.keys().copied().collect(),
+            rollup_transactions_root,
             rollup_transactions_proof,
             rollup_ids_proof,
         };
@@ -138,7 +142,7 @@ pub struct UncheckedCelestiaRollupBlob {
     /// The hash of the sequencer block. Must be 32 bytes.
     pub sequencer_block_hash: [u8; 32],
     /// The 32 bytes identifying the rollup this blob belongs to. Matches
-    /// `astria.sequencer.v1.RollupTransactions.rollup_id`
+    /// `astria.sequencer.v1alpha1.RollupTransactions.rollup_id`
     pub rollup_id: RollupId,
     /// A list of opaque bytes that are serialized rollup transactions.
     pub transactions: Vec<Vec<u8>>,
@@ -159,7 +163,7 @@ pub struct CelestiaRollupBlob {
     /// The hash of the sequencer block. Must be 32 bytes.
     sequencer_block_hash: [u8; 32],
     /// The 32 bytes identifying the rollup this blob belongs to. Matches
-    /// `astria.sequencer.v1.RollupTransactions.rollup_id`
+    /// `astria.sequencer.v1alpha1.RollupTransactions.rollup_id`
     rollup_id: RollupId,
     /// A list of opaque bytes that are serialized rollup transactions.
     transactions: Vec<Vec<u8>>,
@@ -285,15 +289,15 @@ pub struct CelestiaSequencerBlobError {
 }
 
 impl CelestiaSequencerBlobError {
-    fn block_hash(actual_len: usize) -> Self {
+    fn empty_cometbft_block_hash() -> Self {
         Self {
-            kind: CelestiaSequencerBlobErrorKind::BlockHash(actual_len),
+            kind: CelestiaSequencerBlobErrorKind::EmptyCometBftBlockHash,
         }
     }
 
-    fn header(source: SequencerBlockHeaderError) -> Self {
+    fn cometbft_header(source: tendermint::Error) -> Self {
         Self {
-            kind: CelestiaSequencerBlobErrorKind::Header {
+            kind: CelestiaSequencerBlobErrorKind::CometBftHeader {
                 source,
             },
         }
@@ -310,6 +314,12 @@ impl CelestiaSequencerBlobError {
             kind: CelestiaSequencerBlobErrorKind::RollupIds {
                 source,
             },
+        }
+    }
+
+    fn rollup_transactions_root(actual_len: usize) -> Self {
+        Self {
+            kind: CelestiaSequencerBlobErrorKind::RollupTransactionsRoot(actual_len),
         }
     }
 
@@ -344,16 +354,19 @@ impl CelestiaSequencerBlobError {
 
 #[derive(Debug, thiserror::Error)]
 enum CelestiaSequencerBlobErrorKind {
-    #[error(
-        "the provided bytes were too short for a block hash; expected: 32 bytes, actual: {0} bytes"
-    )]
-    BlockHash(usize),
-    #[error("failed constructing the sequencer block header from its raw source value")]
-    Header { source: SequencerBlockHeaderError },
+    #[error("the hash derived from the cometbft header was empty where it should be 32 bytes")]
+    EmptyCometBftBlockHash,
+    #[error("failed constructing the cometbft header from its raw source value")]
+    CometBftHeader { source: tendermint::Error },
     #[error("the field of the raw source value was not set: `{0}`")]
     FieldNotSet(&'static str),
     #[error("one of the rollup IDs in the raw source value was invalid")]
     RollupIds { source: IncorrectRollupIdLength },
+    #[error(
+        "the provided bytes were too short for a rollup transactions Merkle Tree Hash; expected: \
+         32 bytes, actual: {0} bytes"
+    )]
+    RollupTransactionsRoot(usize),
     #[error(
         "failed constructing a Merkle Hash Tree Proof for the rollup transactions from the raw \
          raw source type"
@@ -383,14 +396,18 @@ enum CelestiaSequencerBlobErrorKind {
 /// access the sequencer block's internal types.
 #[derive(Clone, Debug)]
 pub struct UncheckedCelestiaSequencerBlob {
-    pub block_hash: [u8; 32],
     /// The original `CometBFT` header that is the input to this blob's original sequencer block.
     /// Corresponds to `astria.sequencer.v1alpha.SequencerBlock.header`.
-    pub header: SequencerBlockHeader,
+    pub header: tendermint::block::header::Header,
     /// The rollup rollup IDs for which `CelestiaRollupBlob`s were submitted to celestia.
-    /// Corresponds to the `astria.sequencer.v1.RollupTransactions.id` field
+    /// Corresponds to the `astria.sequencer.v1alpha1.RollupTransactions.id` field
     /// and is extracted from `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions`.
     pub rollup_ids: Vec<RollupId>,
+    /// The Merkle Tree Hash of the rollup transactions. Corresponds to
+    /// `MHT(astria.sequencer.v1alpha.SequencerBlock.rollup_transactions)`, the Merkle
+    /// Tree Hash deriveed from the rollup transactions.
+    /// Always 32 bytes.
+    pub rollup_transactions_root: [u8; 32],
     /// The proof that the rollup transactions are included in sequencer block.
     /// Corresponds to `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions_proof`.
     pub rollup_transactions_proof: merkle::Proof,
@@ -422,24 +439,31 @@ impl UncheckedCelestiaSequencerBlob {
         raw: raw::CelestiaSequencerBlob,
     ) -> Result<Self, CelestiaSequencerBlobError> {
         let raw::CelestiaSequencerBlob {
-            block_hash,
-            block_header,
+            header,
             rollup_ids,
+            rollup_transactions_root,
             rollup_transactions_proof,
             rollup_ids_proof,
-            ..
         } = raw;
-        let header = 'header: {
-            let Some(header) = block_header else {
-                break 'header Err(CelestiaSequencerBlobError::field_not_set("block_header"));
+        let header = 'cometbft_header: {
+            let Some(header) = header else {
+                break 'cometbft_header Err(CelestiaSequencerBlobError::field_not_set("header"));
             };
-            SequencerBlockHeader::try_from_raw(header).map_err(CelestiaSequencerBlobError::header)
+            tendermint::block::Header::try_from(header)
+                .map_err(CelestiaSequencerBlobError::cometbft_header)
         }?;
         let rollup_ids: Vec<_> = rollup_ids
             .into_iter()
             .map(RollupId::try_from_vec)
             .collect::<Result<_, _>>()
             .map_err(CelestiaSequencerBlobError::rollup_ids)?;
+
+        let rollup_transactions_root =
+            rollup_transactions_root
+                .try_into()
+                .map_err(|bytes: Vec<_>| {
+                    CelestiaSequencerBlobError::rollup_transactions_root(bytes.len())
+                })?;
 
         let rollup_transactions_proof = 'transactions_proof: {
             let Some(rollup_transactions_proof) = rollup_transactions_proof else {
@@ -461,14 +485,10 @@ impl UncheckedCelestiaSequencerBlob {
                 .map_err(CelestiaSequencerBlobError::rollup_ids_proof)
         }?;
 
-        let block_hash = block_hash
-            .try_into()
-            .map_err(|bytes: Vec<_>| CelestiaSequencerBlobError::block_hash(bytes.len()))?;
-
         Ok(Self {
-            block_hash,
             header,
             rollup_ids,
+            rollup_transactions_root,
             rollup_transactions_proof,
             rollup_ids_proof,
         })
@@ -480,12 +500,18 @@ impl UncheckedCelestiaSequencerBlob {
 pub struct CelestiaSequencerBlob {
     /// The block hash obtained from hashing `.header`.
     block_hash: [u8; 32],
-    /// The sequencer block header.
-    header: SequencerBlockHeader,
+    /// The original `CometBFT` header that is the input to this blob's original sequencer block.
+    /// Corresponds to `astria.sequencer.v1alpha.SequencerBlock.header`.
+    header: tendermint::block::header::Header,
     /// The rollup IDs for which `CelestiaRollupBlob`s were submitted to celestia.
-    /// Corresponds to the `astria.sequencer.v1.RollupTransactions.id` field
+    /// Corresponds to the `astria.sequencer.v1alpha1.RollupTransactions.id` field
     /// and is extracted from `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions`.
     rollup_ids: Vec<RollupId>,
+    /// The Merkle Tree Hash of the rollup transactions. Corresponds to
+    /// `MHT(astria.sequencer.v1alpha.SequencerBlock.rollup_transactions)`, the Merkle
+    /// Tree Hash deriveed from the rollup transactions.
+    /// Always 32 bytes.
+    rollup_transactions_root: [u8; 32],
     /// The proof that the rollup transactions are included in sequencer block.
     /// Corresponds to `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions_proof`.
     rollup_transactions_proof: merkle::Proof,
@@ -508,37 +534,44 @@ impl CelestiaSequencerBlob {
     /// Returns the sequencer's `CometBFT` chain ID.
     #[must_use]
     pub fn cometbft_chain_id(&self) -> &tendermint::chain::Id {
-        self.header.chain_id()
+        &self.header.chain_id
     }
 
     /// Returns the `CometBFT` height stored in the header of the [`SequencerBlock`] this blob was
     /// derived from.
     #[must_use]
     pub fn height(&self) -> tendermint::block::Height {
-        self.header.height()
+        self.header.height
     }
 
-    /// Returns the header of the [`SequencerBlock`] this blob was derived from.
+    /// Returns the `CometBFT` header of the [`SequencerBlock`] this blob was derived from.
     #[must_use]
-    pub fn header(&self) -> &SequencerBlockHeader {
+    pub fn header(&self) -> &tendermint::block::Header {
         &self.header
+    }
+
+    /// Returns the Merkle Tree Hash constructed from the rollup transactions of the original
+    /// [`SequencerBlock`] this blob was derived from.
+    #[must_use]
+    pub fn rollup_transactions_root(&self) -> [u8; 32] {
+        self.rollup_transactions_root
     }
 
     /// Converts into the unchecked representation fo this type.
     #[must_use]
     pub fn into_unchecked(self) -> UncheckedCelestiaSequencerBlob {
         let Self {
-            block_hash,
             header,
             rollup_ids,
+            rollup_transactions_root,
             rollup_transactions_proof,
             rollup_ids_proof,
             ..
         } = self;
         UncheckedCelestiaSequencerBlob {
-            block_hash,
             header,
             rollup_ids,
+            rollup_transactions_root,
             rollup_transactions_proof,
             rollup_ids_proof,
         }
@@ -552,25 +585,29 @@ impl CelestiaSequencerBlob {
         unchecked: UncheckedCelestiaSequencerBlob,
     ) -> Result<Self, CelestiaSequencerBlobError> {
         let UncheckedCelestiaSequencerBlob {
-            block_hash,
             header,
             rollup_ids,
+            rollup_transactions_root,
             rollup_transactions_proof,
             rollup_ids_proof,
         } = unchecked;
+        let tendermint::Hash::Sha256(block_hash) = header.hash() else {
+            return Err(CelestiaSequencerBlobError::empty_cometbft_block_hash());
+        };
+        // header.data_hash is Option<Hash> and Hash itself has
+        // variants Sha256([u8; 32]) or None.
+        let Some(tendermint::Hash::Sha256(data_hash)) = header.data_hash else {
+            return Err(CelestiaSequencerBlobError::field_not_set(
+                "header.data_hash",
+            ));
+        };
 
-        if !rollup_transactions_proof.verify(
-            &Sha256::digest(header.rollup_transactions_root()),
-            header.data_hash(),
-        ) {
+        if !rollup_transactions_proof.verify(&Sha256::digest(rollup_transactions_root), data_hash) {
             return Err(CelestiaSequencerBlobError::rollup_transactions_not_in_cometbft_block());
         }
 
-        if !super::are_rollup_ids_included(
-            rollup_ids.iter().copied(),
-            &rollup_ids_proof,
-            header.data_hash(),
-        ) {
+        if !super::are_rollup_ids_included(rollup_ids.iter().copied(), &rollup_ids_proof, data_hash)
+        {
             return Err(CelestiaSequencerBlobError::rollup_ids_not_in_cometbft_block());
         }
 
@@ -578,6 +615,7 @@ impl CelestiaSequencerBlob {
             block_hash,
             header,
             rollup_ids,
+            rollup_transactions_root,
             rollup_transactions_proof,
             rollup_ids_proof,
         })
@@ -586,20 +624,19 @@ impl CelestiaSequencerBlob {
     /// Converts into the raw decoded protobuf representation of this type.
     pub fn into_raw(self) -> raw::CelestiaSequencerBlob {
         let Self {
-            block_hash,
             header,
             rollup_ids,
+            rollup_transactions_root,
             rollup_transactions_proof,
             rollup_ids_proof,
             ..
         } = self;
         raw::CelestiaSequencerBlob {
-            block_hash: block_hash.to_vec(),
-            block_header: Some(header.into_raw()),
+            header: Some(header.into()),
             rollup_ids: rollup_ids.into_iter().map(RollupId::to_vec).collect(),
+            rollup_transactions_root: rollup_transactions_root.to_vec(),
             rollup_transactions_proof: Some(rollup_transactions_proof.into_raw()),
             rollup_ids_proof: Some(rollup_ids_proof.into_raw()),
-            ..Default::default()
         }
     }
 

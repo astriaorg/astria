@@ -3,7 +3,7 @@ use anyhow::{
     Context as _,
     Result,
 };
-use astria_core::generated::sequencer::v1::sequencer_service_server::SequencerServiceServer;
+use astria_core::generated::sequencer::v2alpha1::sequencer_service_server::SequencerServiceServer;
 use tokio::{
     select,
     signal::unix::{

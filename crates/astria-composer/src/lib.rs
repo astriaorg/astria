@@ -31,6 +31,7 @@
 //! info!(config = cfg_ser, "initializing composer",);
 //!
 //! let _composer = Composer::from_config(&cfg)
+//!     .await
 //!     .expect("failed creating composer")
 //!     .run_until_stopped()
 //!     .await;
@@ -43,6 +44,7 @@ mod collectors;
 mod composer;
 pub mod config;
 mod executor;
+mod grpc;
 mod rollup;
 
 pub use build_info::BUILD_INFO;

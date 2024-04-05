@@ -10,10 +10,7 @@ use std::{
 };
 
 use astria_core::sequencer::v1::{
-    transaction::{
-        action::SequenceAction,
-        Action,
-    },
+    transaction::action::SequenceAction,
     AbciErrorCode,
     SignedTransaction,
     UnsignedTransaction,
@@ -71,7 +68,11 @@ use tracing::{
     Span,
 };
 
-use crate::executor::bundle_factory::BundleFactory;
+use self::bundle_factory::SizedBundle;
+use crate::executor::bundle_factory::{
+    BundleFactory,
+    SizedBundleReport,
+};
 
 mod bundle_factory;
 
@@ -192,8 +193,8 @@ impl Executor {
     }
 
     /// Create a future to submit a bundle to the sequencer.
-    #[instrument(skip(self), fields(nonce.initial = %nonce))]
-    fn submit_bundle(&self, nonce: u32, bundle: Vec<Action>) -> Fuse<Instrumented<SubmitFut>> {
+    #[instrument(skip_all, fields(nonce.initial = %nonce))]
+    fn submit_bundle(&self, nonce: u32, bundle: SizedBundle) -> Fuse<Instrumented<SubmitFut>> {
         SubmitFut {
             client: self.sequencer_client.clone(),
             address: self.address,
@@ -269,7 +270,6 @@ impl Executor {
                         block_timer.as_mut().reset(reset_time());
                     } else {
                         debug!(
-                            bundle_len=bundle.len(),
                             "forcing bundle submission to sequencer due to block timer"
                         );
                         submission_fut = self.submit_bundle(nonce, bundle);
@@ -383,7 +383,7 @@ pin_project! {
         signing_key: SigningKey,
         #[pin]
         state: SubmitState,
-        bundle: Vec<Action>,
+        bundle: SizedBundle,
     }
 
     impl PinnedDrop for SubmitFut {
@@ -419,9 +419,15 @@ impl Future for SubmitFut {
                 SubmitStateProj::NotStarted => {
                     let tx = UnsignedTransaction {
                         nonce: *this.nonce,
-                        actions: this.bundle.clone(),
+                        actions: this.bundle.clone().into_actions(),
                     }
                     .into_signed(this.signing_key);
+                    info!(
+                        nonce.actual = *this.nonce,
+                        bundle = %telemetry::display::json(&SizedBundleReport(this.bundle)),
+                        transaction.hash = %telemetry::display::base64(&tx.sha256_of_proto_encoding()),
+                        "submitting transaction to sequencer",
+                    );
                     SubmitState::WaitingForSend {
                         fut: submit_tx(this.client.clone(), tx).boxed(),
                     }
@@ -471,9 +477,15 @@ impl Future for SubmitFut {
                         *this.nonce = nonce;
                         let tx = UnsignedTransaction {
                             nonce: *this.nonce,
-                            actions: this.bundle.clone(),
+                            actions: this.bundle.clone().into_actions(),
                         }
                         .into_signed(this.signing_key);
+                        info!(
+                            nonce.resubmission = *this.nonce,
+                            bundle = %telemetry::display::json(&SizedBundleReport(this.bundle)),
+                            transaction.hash = %telemetry::display::base64(&tx.sha256_of_proto_encoding()),
+                            "resubmitting transaction to sequencer with new nonce",
+                        );
                         SubmitState::WaitingForSend {
                             fut: submit_tx(this.client.clone(), tx).boxed(),
                         }

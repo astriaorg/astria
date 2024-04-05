@@ -1,6 +1,7 @@
 name: Release
 on:
   pull_request:
+  merge_group:
   push:
     branches:
         - main
@@ -34,6 +35,33 @@ jobs:
           draft:  ${{ github.ref_name != 'main'}}
           input: "proto/executionapis"
           buf_token: ${{ secrets.BUF_TOKEN }}
+      - uses: bufbuild/buf-push-action@v1
+        with:
+          draft: ${{ github.ref_name != 'main'}}
+          input: "proto/composerapis"
+          buf_token: ${{ secrets.BUF_TOKEN }}
+
+
+  charts:
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    needs: run_checker
+    if: needs.run_checker.outputs.run_release_charts == 'true'
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+      - name: Publish to Charts Repo
+        uses: nkoppel/push-files-to-another-repository@v1.1.2
+        env:
+          API_TOKEN_GITHUB: ${{ secrets.CHARTS_REPO_TOKEN }}
+        with:
+          source-files: 'charts/'
+          destination-username: 'astriaorg'
+          destination-branch: 'main'
+          destination-repository: 'charts'
+          commit-email: '${{ github.actor }}@users.noreply.github.com'
+          commit-username: '${{ github.actor }}'
 
   conductor:
     needs: run_checker

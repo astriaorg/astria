@@ -25,7 +25,7 @@ where
     S: serde::ser::Serializer,
 {
     use serde::ser::Serialize as _;
-    telemetry::display::hex(namespace.as_bytes()).serialize(serializer)
+    telemetry::display::base64(namespace.as_bytes()).serialize(serializer)
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -59,7 +59,7 @@ pub(super) fn convert(block: SequencerBlock) -> eyre::Result<Converted> {
     // Allocate extra space: one blob for the sequencer blob "header",
     // the rest for the rollup blobs.
     let mut blobs = Vec::with_capacity(rollup_blobs.len() + 1);
-    let sequencer_namespace = celestia_client::celestia_namespace_v0_from_cometbft_chain_id(
+    let sequencer_namespace = celestia_client::celestia_namespace_v0_from_cometbft_str(
         sequencer_blob.header().chain_id().as_str(),
     );
 

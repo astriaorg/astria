@@ -3,13 +3,15 @@ use anyhow::{
     Context as _,
     Result,
 };
-use astria_core::sequencer::v1::{
-    block::Deposit,
-    transaction::action::{
-        BridgeLockAction,
-        TransferAction,
+use astria_core::sequencer::{
+    v1::{
+        transaction::action::{
+            BridgeLockAction,
+            TransferAction,
+        },
+        Address,
     },
-    Address,
+    v2alpha1::block::Deposit,
 };
 use tracing::instrument;
 

@@ -1,0 +1,157 @@
+{{- $ingressApiIsStable := eq (include "sequencer.ingress.isStable" .) "true" -}}
+{{- $ingressSupportsIngressClassName := eq (include "sequencer.ingress.supportsIngressClassName" .) "true" -}}
+{{- $ingressSupportsPathType := eq (include "sequencer.ingress.supportsPathType" .) "true" -}}
+
+{{- $ingress := .Values.ingress.rpc -}}
+{{- if $ingress.enabled -}}
+{{- $servicePort := $ingress.service.port -}}
+{{- $serviceName := $ingress.service.name -}}
+{{- $ingressPath := $ingress.path -}}
+{{- $ingressPathType := $ingress.pathType -}}
+{{- $extraPaths := $ingress.extraPaths }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Values.config.moniker }}-sequencer-rpc-ingress
+  namespace: {{ include "sequencer.namespace" . }}
+  labels:
+    {{- with $ingress.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  annotations:
+  {{- if $ingress.annotations  }}
+  {{- with $ingress.annotations }}
+    {{- range $key, $value := . }}
+    {{ $key }}: {{ tpl $value $ | quote }}
+    {{- end }}
+  {{- end }}
+  {{- else }}
+    kubernetes.io/ingress.class: nginx
+  {{- end }}
+spec:
+  {{- if and $ingressSupportsIngressClassName $ingress.ingressClassName }}
+  ingressClassName: {{ $ingress.ingressClassName }}
+  {{- end -}}
+  {{- with $ingress.defaultBackend }}
+  defaultBackend:
+    {{- tpl (toYaml .) $ | nindent 4 }}
+  {{- end }}
+  rules:
+    {{- if $ingress.hosts  }}
+  {{- range $ingress.hosts }}
+    - host: {{ tpl . $ }}
+      http:
+        paths:
+          {{- with $extraPaths }}
+          {{- toYaml . | nindent 10 }}
+          {{- end }}
+          - path: {{ $ingressPath }}
+            {{- if $ingressSupportsPathType }}
+            pathType: {{ $ingressPathType }}
+            {{- end }}
+            backend:
+              {{- if $ingressApiIsStable }}
+              service:
+                name: {{ $serviceName }}
+                port:
+                  number: {{ $servicePort }}
+              {{- else }}
+              serviceName: {{ $serviceName }}
+              servicePort: {{ $servicePort }}
+              {{- end }}
+  {{- end }}
+  {{- with $ingress.tls }}
+  tls:
+    {{- tpl (toYaml .) $ | nindent 4 }}
+  {{- end }}
+  {{- else if $ingress.hostname }}
+    - host: rpc.{{ $ingress.hostname }}
+      http:
+        paths:
+          - path: "/"
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $.Values.config.moniker }}-sequencer-rpc-service
+                port:
+                  name: cometbft-rpc
+    {{- end }}
+---
+{{- end }}
+{{- $ingress := .Values.ingress.grpc }}
+{{- if $ingress.enabled -}}
+{{- $servicePort := $ingress.service.port -}}
+{{- $serviceName := $ingress.service.name -}}
+{{- $ingressPath := $ingress.path -}}
+{{- $ingressPathType := $ingress.pathType -}}
+{{- $extraPaths := $ingress.extraPaths -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Values.config.moniker }}-sequencer-grpc-ingress
+  namespace: {{ include "sequencer.namespace" . }}
+  labels:
+    {{- with $ingress.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  annotations:
+    nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+  {{- if $ingress.annotations  }}
+  {{- with $ingress.annotations }}
+    {{- range $key, $value := . }}
+    {{ $key }}: {{ tpl $value $ | quote }}
+    {{- end }}
+  {{- end }}
+  {{- else }}
+    kubernetes.io/ingress.class: nginx
+  {{- end }}
+spec:
+  {{- if and $ingressSupportsIngressClassName $ingress.ingressClassName }}
+  ingressClassName: {{ $ingress.ingressClassName }}
+  {{- end -}}
+  {{- with $ingress.defaultBackend }}
+  defaultBackend:
+    {{- tpl (toYaml .) $ | nindent 4 }}
+  {{- end }}
+  rules:
+    {{- if $ingress.hosts  }}
+  {{- range $ingress.hosts }}
+    - host: {{ tpl . $ }}
+      http:
+        paths:
+          {{- with $extraPaths }}
+          {{- toYaml . | nindent 10 }}
+          {{- end }}
+          - path: {{ $ingressPath }}
+            {{- if $ingressSupportsPathType }}
+            pathType: {{ $ingressPathType }}
+            {{- end }}
+            backend:
+              {{- if $ingressApiIsStable }}
+              service:
+                name: {{ $serviceName }}
+                port:
+                  number: {{ $servicePort }}
+              {{- else }}
+              serviceName: {{ $serviceName }}
+              servicePort: {{ $servicePort }}
+              {{- end }}
+  {{- end }}
+  {{- with $ingress.tls }}
+  tls:
+    {{- tpl (toYaml .) $ | nindent 4 }}
+  {{- end }}
+  {{- else if $ingress.hostname }}
+    - host: grpc.{{ $ingress.hostname }}
+      http:
+        paths:
+          - path: "/"
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.config.moniker }}-sequencer-grpc-service
+                port:
+                  name: sequencer-grpc
+  {{- end }}
+---
+{{- end }}

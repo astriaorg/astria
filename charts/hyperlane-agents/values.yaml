@@ -1,0 +1,133 @@
+# Default values for sequencer.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+global:
+  namespace: "astria-dev-cluster"
+  replicaCount: 1
+
+images:
+  pullPolicy: IfNotPresent
+# Main as of 12/15/23
+  agent: gcr.io/abacus-labs-dev/hyperlane-agent:10c0ab1-20231215-220639
+
+
+secretProvider:
+  enabled: false
+  provider: gcp
+  secrets:
+    RelayerPrivateKey:
+      filename: relayerPrivateKey.txt
+      resourceName: "projects/$PROJECT_ID/secrets/hyperlaneRelayerPrivateKey/versions/latest"
+      key: token
+    ValidatorPrivateKey:
+      filename: validatorPrivateKey.txt
+      resourceName: "projects/$PROJECT_ID/secrets/hyperlaneValidatorPrivateKey/versions/latest"
+      key: token
+
+config:
+  name: astria
+  agentConfigData:
+    chains:
+      astria:
+        name: astria
+        displayName: Astria Local Dev
+        displayNameShort: Astria
+        chainId: 1337
+        domainId: 1337
+        protocol: ethereum
+        isTestnet: true
+        rpcUrls:
+          - http: 'https://executor.astria.localdev.me'
+        nativeToken:
+          name: RIA
+          symbol: RIA
+          decimals: 18
+        merkleRootMultisigIsmFactory: '0xe97078A2DFCCac70A4f759B7130740904858a90c'
+        messageIdMultisigIsmFactory: '0xB4344710884566e6f044094e428eB65cC31039B3'
+        aggregationIsmFactory: '0xf9739eAf4b48cc825BAD96d55F096f091F784E47'
+        aggregationHookFactory: '0x8Cb8a26694B3272c2c757060b021cD6C107B8702'
+        routingIsmFactory: '0xA36c6718B5288a562b6ca78Df38f665B9DFeC2b2'
+        multisigIsm: '0x246Ec1ED9Aa6281d93fe80b2602c828Fa0cc0DB4'
+        sepolia:
+          messageIdMultisigIsm: '0xee5CE99c0FfB2356608570b1F5deE2d674ddcdFa'
+        domainRoutingIsm: '0x246Ec1ED9Aa6281d93fe80b2602c828Fa0cc0DB4'
+        proxyAdmin: '0xba4a75c229e5a5F362009f414481C3DBBbDe917B'
+        storageGasOracle: '0xFEC68C4FC7b2e93b862C4306eD8d350Ea3b5a420'
+        interchainGasPaymaster: '0xBdCdb818CA5A64DeA0176F3B44D9694D99eA81ad'
+        merkleTreeHook: '0x9e594FAc0d2c225205898034CF153207b600AD0B'
+        aggregationHook: '0xE2E9443ee37CD08401Eb5CEc3D48593FC5A4014D'
+        protocolFee: '0xe89E1536b239032B071eeac1D4088a5954f25D58'
+        mailbox: '0x09A0EB9a49c4B0df993A74af16a5356586b12988'
+        validatorAnnounce: '0x8ce4820D68a8532ad34A0b0Ae6944B9b99c14Efa'
+        testRecipient: '0xA2eDc7d8528f63Cb537697F3B88d5082670EDf9f'
+        index:
+          from: 88248
+      sepolia:
+        chainId: 11155111
+        domainId: 11155111
+        name: sepolia
+        protocol: ethereum
+        displayName: Sepolia
+        nativeToken:
+          name: Ether
+          symbol: ETH
+          decimals: 18
+        rpcUrls:
+          - http: 'https://nd-950-422-262.p2pify.com/3ead640b1f1e7b471894eb32c3e8d95c'
+        blockExplorers:
+          - name: Etherscan
+            url: 'https://sepolia.etherscan.io'
+            apiUrl: 'https://api-sepolia.etherscan.io/api'
+            family: etherscan
+        blocks:
+          confirmations: 1
+          reorgPeriod: 2
+          estimateBlockTime: 13
+        isTestnet: true
+        merkleRootMultisigIsmFactory: '0x0a71AcC99967829eE305a285750017C4916Ca269'
+        messageIdMultisigIsmFactory: '0xFEb9585b2f948c1eD74034205a7439261a9d27DD'
+        aggregationIsmFactory: '0xC83e12EF2627ACE445C298e6eC418684918a6002'
+        aggregationHookFactory: '0x160C28C92cA453570aD7C031972b58d5Dd128F72'
+        routingIsmFactory: '0x3603458990BfEb30f99E61B58427d196814D8ce1'
+        proxyAdmin: '0x97Bbc6bBaFa5Ce3b2FA966c121Af63bD09e940f8'
+        storageGasOracle: '0x71775B071F77F1ce52Ece810ce084451a3045FFe'
+        interchainGasPaymaster: '0x6f2756380FD49228ae25Aa7F2817993cB74Ecc56'
+        aggregationHook: '0xDdB7Cc04B58847373cE7d793936a1f62481459df'
+        protocolFee: '0x13AC3349Cb159fE86A22cf42DdA803D9f7309DB5'
+        mailbox: '0xfFAEF09B3cd11D9b20d1a19bECca54EEC2884766'
+        merkleTreeHook: '0x4917a9746A7B6E0A57159cCb7F5a6744247f2d0d'
+        validatorAnnounce: '0xE6105C59480a1B7DD3E4f28153aFdbE12F4CfCD9'
+        fallbackRoutingHook: '0x17Dc724B7a2F09141C13b8AC33B396073785c2BC'
+        testRecipient: '0x8Cb8a26694B3272c2c757060b021cD6C107B8702'
+        multisigIsm: '0x22d50a897493899371c66f1C561BBDf8853D46aC'
+        astria:
+          messageIdMultisigIsm: '0x4F16de8ee3421fEfbA1F7ede090113c3Ba8D4b87'
+        domainRoutingIsm: '0x22d50a897493899371c66f1C561BBDf8853D46aC'
+        index:
+          from: 3082913
+    defaultRpcConsensusType: fallback
+  interval: 1
+  tracing:
+    level: info
+    format: json
+  relayer:
+    # Note: When secretProvider.enabled is true the secret provided by
+    #       `relayerPrivateKey` is used instead of this value.
+    privateKey: "0x8b3a7999072c9c9314c084044fe705db11714c6c4ed7cddb64da18ea270dd203"
+    chains:
+      - sepolia
+      - astria
+  validator:
+    # Note: When secretProvider.enabled is true the secret provided by
+    #       `validatorPrivateKey` is used instead of this value.
+    privateKey: "0x8b3a7999072c9c9314c084044fe705db11714c6c4ed7cddb64da18ea270dd203"
+    chains:
+      - astria
+
+storage:
+  enabled: true
+  local: false
+  entities:
+    storage:
+      size: 5Gi
+      path: /data

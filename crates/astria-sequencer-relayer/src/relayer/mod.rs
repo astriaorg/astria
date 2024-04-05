@@ -8,8 +8,8 @@ use std::{
 };
 
 use astria_core::{
-    generated::sequencer::v1::sequencer_service_client::SequencerServiceClient,
-    sequencer::v1::SequencerBlock,
+    generated::sequencer::v2alpha1::sequencer_service_client::SequencerServiceClient,
+    sequencer::v2alpha1::SequencerBlock,
 };
 use astria_eyre::eyre::{
     self,
@@ -149,7 +149,7 @@ impl Relayer {
                     // XXX: exiting because submitter only returns an error after u32::MAX
                     // retries, which is practically infinity.
                     if res.is_err() {
-                        break Err(eyre!("submitter exited unexpectly while trying to forward block"));
+                        break Err(eyre!("submitter exited unexpectedly while trying to forward block"));
                     }
                     block_stream.resume();
                     debug!("block stream resumed");

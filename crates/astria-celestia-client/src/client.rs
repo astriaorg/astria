@@ -1,4 +1,4 @@
-use astria_core::sequencer::v1::{
+use astria_core::sequencer::v2alpha1::{
     celestia::CelestiaSequencerBlobError,
     CelestiaRollupBlob,
     CelestiaSequencerBlob,
@@ -103,7 +103,7 @@ pub trait CelestiaClientExt: BlobClient {
             }
             'blob: {
                 let raw_blob =
-                    match astria_core::generated::sequencer::v1::CelestiaSequencerBlob::decode(
+                    match astria_core::generated::sequencer::v2alpha1::CelestiaSequencerBlob::decode(
                         &*blob.data,
                     ) {
                         Ok(blob) => blob,
@@ -143,7 +143,7 @@ pub trait CelestiaClientExt: BlobClient {
     #[instrument(skip_all, fields(
         height = height.into(),
         namespace = %telemetry::display::base64(&namespace.as_bytes()),
-        block_hash = %telemetry::display::hex(&sequencer_blob.block_hash()),
+        block_hash = %telemetry::display::base64(&sequencer_blob.block_hash()),
     ))]
     async fn get_rollup_blobs_matching_sequencer_blob<T>(
         &self,
@@ -254,7 +254,9 @@ fn convert_and_filter_rollup_blobs(
             continue;
         }
         let proto_blob =
-            match astria_core::generated::sequencer::v1::CelestiaRollupBlob::decode(&*blob.data) {
+            match astria_core::generated::sequencer::v2alpha1::CelestiaRollupBlob::decode(
+                &*blob.data,
+            ) {
                 Err(e) => {
                     debug!(
                         error = &e as &dyn std::error::Error,

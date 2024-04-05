@@ -35,7 +35,7 @@ impl BlockVerifier {
 
     #[instrument(skip_all, fields(
         height.in_blob = %blob.height(),
-        block_hash.in_blob = %telemetry::display::hex(&blob.block_hash()),
+        block_hash.in_blob = %telemetry::display::base64(&blob.block_hash()),
     ))]
     pub(super) async fn verify_blob(&self, blob: &CelestiaSequencerBlob) -> eyre::Result<()> {
         Verify::at_height(self.client.clone(), blob.height())
@@ -275,11 +275,13 @@ mod test {
     use std::collections::BTreeMap;
 
     use astria_core::{
-        generated::sequencer::v1::SequencerBlockHeader as RawSequencerBlockHeader,
-        sequencer::v1::{
-            block::SequencerBlockHeader,
-            celestia::UncheckedCelestiaSequencerBlob,
-            RollupId,
+        generated::sequencer::v2alpha1::SequencerBlockHeader as RawSequencerBlockHeader,
+        sequencer::{
+            v1::RollupId,
+            v2alpha1::{
+                block::SequencerBlockHeader,
+                celestia::UncheckedCelestiaSequencerBlob,
+            },
         },
     };
     use prost::Message as _;
@@ -387,7 +389,7 @@ mod test {
         let header = RawSequencerBlockHeader {
             chain_id: "test-chain".to_string(),
             height: 1,
-            time: Some(prost_types::Timestamp {
+            time: Some(pbjson_types::Timestamp {
                 seconds: 1,
                 nanos: 0,
             }),
@@ -433,7 +435,7 @@ mod test {
         let header = RawSequencerBlockHeader {
             chain_id: "test-chain".to_string(),
             height: 1,
-            time: Some(prost_types::Timestamp {
+            time: Some(pbjson_types::Timestamp {
                 seconds: 1,
                 nanos: 0,
             }),

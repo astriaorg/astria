@@ -1,4 +1,6 @@
-*	@joroshiba @noot @SuperFluffy
+*	@joroshiba @noot @SuperFluffy @Fraser999
 
 /.github/	@astriaorg/infra
 /containerfiles/	@astriaorg/infra
+/charts/ @astriaorg/infra
+/dev/ @astriaorg/infra

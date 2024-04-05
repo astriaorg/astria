@@ -1,0 +1,266 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.config.rollup.name }}-conductor-env
+  namespace: {{ include "rollup.namespace" .  }}
+data:
+  ASTRIA_CONDUCTOR_LOG: "astria_conductor={{ .Values.config.logLevel }}"
+  {{- if (index .Values "celestia-node").enabled }}
+  TOKEN_SERVER_URL: "{{ include "celestiaNode.service.addresses.token" (index .Subcharts "celestia-node") }}"
+  ASTRIA_CONDUCTOR_CELESTIA_NODE_HTTP_URL: "{{ include "celestiaNode.service.addresses.rpc" (index .Subcharts "celestia-node") }}"
+  ASTRIA_CONDUCTOR_CELESTIA_NODE_WEBSOCKET_URL: "{{ include "celestiaNode.service.addresses.ws" (index .Subcharts "celestia-node") }}"
+  {{- else }}
+  TOKEN_SERVER_URL: "{{ .Values.config.celestia.token }}"
+  ASTRIA_CONDUCTOR_CELESTIA_NODE_HTTP_URL: "{{ .Values.config.celestia.rpc }}"
+  ASTRIA_CONDUCTOR_CELESTIA_NODE_WEBSOCKET_URL: "{{ .Values.config.celestia.ws }}"
+  {{- end }}
+  ASTRIA_CONDUCTOR_EXECUTION_RPC_URL: "http://127.0.0.1:{{ .Values.ports.executionGRPC }}"
+  ASTRIA_CONDUCTOR_EXECUTION_COMMIT_LEVEL: "{{ .Values.config.rollup.executionCommitLevel }}"
+  ASTRIA_CONDUCTOR_INITIAL_SEQUENCER_BLOCK_HEIGHT: "{{ .Values.config.sequencer.initialBlockHeight }}"
+  ASTRIA_CONDUCTOR_SEQUENCER_GRPC_URL: "{{ .Values.config.sequencer.grpc }}"
+  ASTRIA_CONDUCTOR_SEQUENCER_COMETBFT_URL: "{{ .Values.config.sequencer.rpc }}"
+  ASTRIA_CONDUCTOR_SEQUENCER_BLOCK_TIME_MS: "{{ .Values.config.sequencer.blockTimeMs }}"
+  ASTRIA_CONDUCTOR_NO_METRICS: "{{ not .Values.config.rollup.metrics.enabled }}"
+  ASTRIA_CONDUCTOR_METRICS_HTTP_LISTENER_ADDR: "127.0.0.1:{{ .Values.ports.conductorMetrics }}"
+  ASTRIA_CONDUCTOR_FORCE_STDOUT: "{{ .Values.global.useTTY }}"
+  ASTRIA_CONDUCTOR_PRETTY_PRINT: "{{ .Values.global.useTTY }}"
+  ASTRIA_CONDUCTOR_NO_OTEL: "{{ not .Values.config.rollup.otel.enabled }}"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.config.rollup.otel.endpoint }}"
+  OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "{{ .Values.config.rollup.otel.tracesEndpoint }}"
+  OTEL_EXPORTER_OTLP_TRACES_TIMEOUT: "{{ .Values.config.rollup.otel.tracesTimeout }}"
+  OTEL_EXPORTER_OTLP_TRACES_COMPRESSION: "{{ .Values.config.rollup.otel.tracesCompression }}"
+  OTEL_EXPORTER_OTLP_HEADERS: "{{ .Values.config.rollup.otel.otlpHeaders }}"
+  OTEL_EXPORTER_OTLP_TRACE_HEADERS: "{{ .Values.config.rollup.otel.traceHeaders }}"
+  {{- if not .Values.global.dev }}
+  {{- else }}
+  {{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.config.rollup.name }}-conductor-scripts
+  namespace: {{ include "rollup.namespace" .  }}
+data:
+  start-conductor.sh: |
+    {{- .Files.Get "files/scripts/start-conductor.sh" | nindent 4 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.config.rollup.name }}-composer-env
+  namespace: {{ include "rollup.namespace" .  }}
+data:
+  ASTRIA_COMPOSER_LOG: "astria_composer={{ .Values.config.logLevel }}"
+  ASTRIA_COMPOSER_API_LISTEN_ADDR: "0.0.0.0:0"
+  ASTRIA_COMPOSER_SEQUENCER_URL: "{{ .Values.config.sequencer.rpc }}"
+  ASTRIA_COMPOSER_ROLLUPS: "{{ .Values.config.rollup.name }}::ws://127.0.0.1:{{ .Values.ports.wsRPC }}"
+  ASTRIA_COMPOSER_MAX_BYTES_PER_BUNDLE: "{{ .Values.config.rollup.maxBytesPerBundle }}"
+  ASTRIA_COMPOSER_MAX_SUBMIT_INTERVAL_MS: "{{ .Values.config.rollup.maxSubmitInterval }}"
+  ASTRIA_COMPOSER_NO_METRICS: "{{ not .Values.config.rollup.metrics.enabled }}"
+  ASTRIA_COMPOSER_METRICS_HTTP_LISTENER_ADDR: "127.0.0.1:{{ .Values.ports.composerMetrics }}"
+  ASTRIA_COMPOSER_FORCE_STDOUT: "{{ .Values.global.useTTY }}"
+  ASTRIA_COMPOSER_PRETTY_PRINT: "{{ .Values.global.useTTY }}"
+  ASTRIA_COMPOSER_NO_OTEL: "{{ not .Values.config.rollup.otel.enabled }}"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.config.rollup.otel.endpoint }}"
+  OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "{{ .Values.config.rollup.otel.tracesEndpoint }}"
+  OTEL_EXPORTER_OTLP_TRACES_TIMEOUT: "{{ .Values.config.rollup.otel.tracesTimeout }}"
+  OTEL_EXPORTER_OTLP_TRACES_COMPRESSION: "{{ .Values.config.rollup.otel.tracesCompression }}"
+  OTEL_EXPORTER_OTLP_HEADERS: "{{ .Values.config.rollup.otel.otlpHeaders }}"
+  OTEL_EXPORTER_OTLP_TRACE_HEADERS: "{{ .Values.config.rollup.otel.traceHeaders }}"
+  {{- if not .Values.secretProvider.enabled }}
+  ASTRIA_COMPOSER_PRIVATE_KEY: "{{ .Values.config.sequencer.privateKey }}"
+  {{- end }}
+  {{- if not .Values.global.dev }}
+  {{- else }}
+  ASTRIA_COMPOSER_GRPC_ADDR: "0.0.0.0:0"
+  {{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.config.rollup.name }}-faucet-env
+  namespace: {{ include "rollup.namespace" .  }}
+data:
+  ETH_FAUCET_PROXYCOUNT: "{{ .Values.config.faucet.proxyCount }}"
+  ETH_FAUCET_PORT: "{{ .Values.ports.faucet }}"
+  ETH_FAUCET_EVM_PROVIDER_URL: "http://{{ .Values.config.rollup.name }}-evm-service:{{ .Values.ports.jsonRPC }}"
+  ETH_FAUCET_AMOUNT: "{{ .Values.config.faucet.amount }}"
+  {{- if not .Values.secretProvider.enabled }}
+  ETH_FAUCET_EVM_PRIVATE_KEY: "{{ .Values.config.faucet.privateKey }}"
+  {{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.config.rollup.name }}-geth-env
+  namespace: {{ include "rollup.namespace" .  }}
+data:
+  home_dir: "/home/geth"
+  data_dir: "/home/geth/{{ .Values.config.rollup.name }}geth"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.config.rollup.name }}-executor-scripts
+  namespace: {{ include "rollup.namespace" .  }}
+data:
+  geth-genesis.json: |
+    {{- tpl (.Files.Get "files/genesis/geth-genesis.json") $ | nindent 4 }}
+  init-geth.sh: |
+    {{- tpl (.Files.Get "files/scripts/init-geth.sh") $ | nindent 4 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.config.rollup.name }}-blockscout-env
+  namespace: {{ include "rollup.namespace" .  }}
+data:
+  ACCOUNT_CLOAK_KEY: ""
+  ACCOUNT_ENABLED: "false"
+  ACCOUNT_REDIS_URL: "redis://localhost:6379"
+  API_RATE_LIMIT: "50"
+  API_RATE_LIMIT_BY_IP: "3000"
+  API_RATE_LIMIT_BY_IP_TIME_INTERVAL: "5m"
+  API_RATE_LIMIT_BY_KEY: "50"
+  API_RATE_LIMIT_BY_WHITELISTED_IP: "50"
+  API_RATE_LIMIT_STATIC_API_KEY: ""
+  API_RATE_LIMIT_TIME_INTERVAL: "1s"
+  API_RATE_LIMIT_UI_V2_TOKEN_TTL_IN_SECONDS: "18000"
+  API_RATE_LIMIT_UI_V2_WITH_TOKEN: "5"
+  API_RATE_LIMIT_WHITELISTED_IPS: ""
+  API_V1_READ_METHODS_DISABLED: "false"
+  API_V1_WRITE_METHODS_DISABLED: "false"
+  APPS_MENU: "true"
+  BLOCK_TRANSFORMER: "base"
+  BLOCKSCOUT_HOST: ""
+  BLOCKSCOUT_PROTOCOL: ""
+  CACHE_ADDRESS_SUM_PERIOD: "3600"
+  CACHE_ADDRESS_TOKEN_TRANSFERS_COUNTER_PERIOD: "1800"
+  CACHE_ADDRESS_TOKENS_USD_SUM_PERIOD: "3600"
+  CACHE_ADDRESS_TRANSACTIONS_COUNTER_PERIOD: "1800"
+  CACHE_ADDRESS_TRANSACTIONS_GAS_USAGE_COUNTER_PERIOD: "1800"
+  CACHE_ADDRESS_WITH_BALANCES_UPDATE_INTERVAL: "1800"
+  CACHE_AVERAGE_BLOCK_PERIOD: "1800"
+  CACHE_BLOCK_COUNT_PERIOD: "7200"
+  CACHE_MARKET_HISTORY_PERIOD: "21600"
+  CACHE_TOKEN_HOLDERS_COUNTER_PERIOD: "3600"
+  CACHE_TOKEN_TRANSFERS_COUNTER_PERIOD: "3600"
+  CACHE_TOTAL_GAS_USAGE_PERIOD: "3600"
+  CACHE_TXS_COUNT_PERIOD: "7200"
+  CHAIN_ID: ""
+  CHECKSUM_ADDRESS_HASHES: "true"
+  CHECKSUM_FUNCTION: "eth"
+  COIN: ""
+  COIN_BALANCE_HISTORY_DAYS: "90"
+  COIN_NAME: ""
+  CONTRACT_MAX_STRING_LENGTH_WITHOUT_TRIMMING: "2040"
+  CONTRACT_VERIFICATION_ALLOWED_SOLIDITY_EVM_VERSIONS: "homestead,tangerineWhistle,spuriousDragon,byzantium,constantinople,petersburg,istanbul,berlin,london,paris,shanghai,default"
+  CONTRACT_VERIFICATION_ALLOWED_VYPER_EVM_VERSIONS: "byzantium,constantinople,petersburg,istanbul,berlin,paris,shanghai,default"
+  DATABASE_URL: "postgresql://postgres:@localhost:5432/blockscout?ssl=false"
+  DECODE_NOT_A_CONTRACT_CALLS: "true"
+  DISABLE_EXCHANGE_RATES: "true"
+  DISABLE_INDEXER: "false"
+  DISABLE_REALTIME_INDEXER: "false"
+  DISABLE_WEBAPP: "false"
+  DISPLAY_TOKEN_ICONS: "false"
+  ECTO_USE_SSL: "false"
+  EIP_1559_ELASTICITY_MULTIPLIER: "2"
+  EMISSION_FORMAT: "DEFAULT"
+  ETHEREUM_JSONRPC_DISABLE_ARCHIVE_BALANCES: "false"
+  ETHEREUM_JSONRPC_HTTP_URL: "http://{{ .Values.config.rollup.name }}-evm-service:{{ .Values.ports.jsonRPC }}/"
+  ETHEREUM_JSONRPC_TRACE_URL: "http://{{ .Values.config.rollup.name }}-evm-service:{{ .Values.ports.jsonRPC }}/"
+  ETHEREUM_JSONRPC_WS_URL: "ws://{{ .Values.config.rollup.name }}-evm-service:{{ .Values.ports.wsRPC }}/"
+  ETHEREUM_JSONRPC_TRANSPORT: "http"
+  ETHEREUM_JSONRPC_VARIANT: "geth"
+  EXCHANGE_RATES_COIN: ""
+  EXTERNAL_APPS: '[]'
+  FETCH_REWARDS_WAY: "trace_block"
+  FOOTER_LINK_TO_OTHER_EXPLORERS: "false"
+  FOOTER_LOGO: "/images/blockscout_logo.svg"
+  FOOTER_OTHER_EXPLORERS: '{}'
+  HEART_BEAT_TIMEOUT: "30"
+  HIDE_BLOCK_MINER: "false"
+  INDEXER_DISABLE_INTERNAL_TRANSACTIONS_FETCHER: "false"
+  INDEXER_DISABLE_PENDING_TRANSACTIONS_FETCHER: "false"
+  INDEXER_DISABLE_TOKEN_INSTANCE_REALTIME_FETCHER: "false"
+  INDEXER_DISABLE_TOKEN_INSTANCE_RETRY_FETCHER: "false"
+  INDEXER_DISABLE_TOKEN_INSTANCE_SANITIZE_FETCHER: "false"
+  IPC_PATH: ""
+  JSON_RPC: ""
+  LOGO: "/images/blockscout_logo.svg"
+  MAINTENANCE_ALERT_MESSAGE: ""
+  MAX_SIZE_UNLESS_HIDE_ARRAY: "50"
+  MICROSERVICE_ETH_BYTECODE_DB_INTERVAL_BETWEEN_LOOKUPS: "10m"
+  MICROSERVICE_SC_VERIFIER_ENABLED: "true"
+  MICROSERVICE_SC_VERIFIER_TYPE: "sc_verifier"
+  MICROSERVICE_SC_VERIFIER_URL: "http://localhost:8150/"
+  MICROSERVICE_SIG_PROVIDER_ENABLED: "true"
+  MICROSERVICE_SIG_PROVIDER_URL: "http://localhost:8050/"
+  MICROSERVICE_VISUALIZE_SOL2UML_ENABLED: "true"
+  MICROSERVICE_VISUALIZE_SOL2UML_URL: "http://localhost:8151/"
+  NETWORK: "{{ .Values.config.rollup.name }}"
+  NETWORK_PATH: "/"
+  POOL_SIZE: "90"
+  POOL_SIZE_API: "10"
+  PORT: "4000"
+  RE_CAPTCHA_CLIENT_KEY: ""
+  RE_CAPTCHA_DISABLED: "false"
+  RE_CAPTCHA_SECRET_KEY: ""
+  RE_CAPTCHA_V3_CLIENT_KEY: ""
+  RE_CAPTCHA_V3_SECRET_KEY: ""
+  RELEASE_LINK: ""
+  SHOW_ADDRESS_MARKETCAP_PERCENTAGE: "true"
+  SHOW_MAINTENANCE_ALERT: "false"
+  SHOW_PRICE_CHART: "false"
+  SHOW_PRICE_CHART_LEGEND: "false"
+  SHOW_TENDERLY_LINK: "false"
+  SHOW_TXS_CHART: "true"
+  SOURCIFY_INTEGRATION_ENABLED: "false"
+  SOURCIFY_REPO_URL: ""
+  SOURCIFY_SERVER_URL: ""
+  SUBNETWORK: {{ .Values.config.rollup.name | title }}
+  SUPPORTED_CHAINS: '{}'
+  TENDERLY_CHAIN_PATH: ""
+  TOKEN_METADATA_UPDATE_INTERVAL: "172800"
+  TXS_HISTORIAN_INIT_LAG: "0"
+  TXS_STATS_DAYS_TO_COMPILE_AT_INIT: "10"
+  TXS_STATS_ENABLED: "true"
+  UNCLES_IN_AVERAGE_BLOCK_TIME: "false"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.config.rollup.name }}-smart-contract-verifier-env
+  namespace: {{ include "rollup.namespace" .  }}
+data:
+  SMART_CONTRACT_VERIFIER__JAEGER__AGENT_ENDPOINT: "localhost:6831"
+  SMART_CONTRACT_VERIFIER__JAEGER__ENABLED: "false"
+  SMART_CONTRACT_VERIFIER__METRICS__ADDR: "0.0.0.0:6060"
+  SMART_CONTRACT_VERIFIER__METRICS__ENABLED: "false"
+  SMART_CONTRACT_VERIFIER__METRICS__ROUTE: "/metrics"
+  SMART_CONTRACT_VERIFIER__SERVER__GRPC__ADDR: "0.0.0.0:8151"
+  SMART_CONTRACT_VERIFIER__SERVER__GRPC__ENABLED: "false"
+  SMART_CONTRACT_VERIFIER__SERVER__HTTP__ADDR: "0.0.0.0:8150"
+  SMART_CONTRACT_VERIFIER__SERVER__HTTP__ENABLED: "true"
+  SMART_CONTRACT_VERIFIER__SERVER__HTTP__MAX_BODY_SIZE: "2097152"
+  SMART_CONTRACT_VERIFIER__SOLIDITY__COMPILERS_DIR: "/tmp/solidity-compilers"
+  SMART_CONTRACT_VERIFIER__SOLIDITY__ENABLED: "true"
+  SMART_CONTRACT_VERIFIER__SOLIDITY__FETCHER__LIST__LIST_URL: "https://solc-bin.ethereum.org/linux-amd64/list.json"
+  SMART_CONTRACT_VERIFIER__SOLIDITY__REFRESH_VERSIONS_SCHEDULE: "0 0 * * * * *"
+  SMART_CONTRACT_VERIFIER__SOURCIFY__API_URL: "https://sourcify.dev/server/"
+  SMART_CONTRACT_VERIFIER__SOURCIFY__ENABLED: "true"
+  SMART_CONTRACT_VERIFIER__SOURCIFY__REQUEST_TIMEOUT: "10"
+  SMART_CONTRACT_VERIFIER__SOURCIFY__VERIFICATION_ATTEMPTS: "3"
+  SMART_CONTRACT_VERIFIER__VYPER__COMPILERS_DIR: "/tmp/vyper-compilers"
+  SMART_CONTRACT_VERIFIER__VYPER__ENABLED: "true"
+  SMART_CONTRACT_VERIFIER__VYPER__FETCHER__LIST__LIST_URL: "https://raw.githubusercontent.com/blockscout/solc-bin/main/vyper.list.json"
+  SMART_CONTRACT_VERIFIER__VYPER__REFRESH_VERSIONS_SCHEDULE: "0 0 * * * * *"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: {{ include "rollup.namespace" .  }}
+  name: {{ .Values.config.rollup.name }}-visualizer-env
+data:
+  VISUALIZER__SERVER__GRPC__ENABLED: "false"
+  VISUALIZER__SERVER__HTTP__ADDR: "0.0.0.0:8151"

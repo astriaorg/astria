@@ -4,9 +4,9 @@ use std::{
     task::Poll,
 };
 
-use astria_core::sequencer::v1::{
-    block::FilteredSequencerBlock,
-    RollupId,
+use astria_core::sequencer::{
+    v1::RollupId,
+    v2alpha1::block::FilteredSequencerBlock,
 };
 use astria_eyre::eyre::{
     self,
@@ -115,7 +115,7 @@ impl BlocksFromHeightStream {
     )]
     pub(super) fn set_latest_observed_height_if_greater(&mut self, height: Height) {
         if !self.heights.set_latest_observed_if_greater(height) {
-            info!("observed latest sequencer height older than previous; ignoring it");
+            info!("observed latest sequencer height older or the same as previous; ignoring it");
         }
     }
 
