@@ -4,7 +4,7 @@ use std::{
     future::Future,
 };
 
-use astria_core::sequencer::v1::{
+use astria_core::sequencer::v2::{
     block::FilteredSequencerBlock,
     CelestiaSequencerBlob,
 };

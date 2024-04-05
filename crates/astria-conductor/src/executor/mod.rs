@@ -5,12 +5,12 @@ use astria_core::{
         Block,
         CommitmentState,
     },
-    sequencer::v1::{
-        block::{
+    sequencer::{
+        v1::RollupId,
+        v2::block::{
             FilteredSequencerBlock,
             FilteredSequencerBlockParts,
         },
-        RollupId,
     },
 };
 use astria_eyre::eyre::{

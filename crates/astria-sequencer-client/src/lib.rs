@@ -12,12 +12,14 @@ use std::{
 
 #[cfg(any(feature = "http", feature = "websocket"))]
 pub use __feature_gated_exports::*;
-pub use astria_core::sequencer::v1::{
-    Address,
-    BalanceResponse,
-    NonceResponse,
-    SequencerBlock,
-    SignedTransaction,
+pub use astria_core::sequencer::{
+    v1::{
+        Address,
+        BalanceResponse,
+        NonceResponse,
+        SignedTransaction,
+    },
+    v2::SequencerBlock,
 };
 use futures_util::{
     FutureExt,

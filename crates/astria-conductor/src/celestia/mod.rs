@@ -8,7 +8,7 @@ use std::{
     time::Duration,
 };
 
-use astria_core::sequencer::v1::block::SequencerBlockHeader;
+use astria_core::sequencer::v2::block::SequencerBlockHeader;
 use astria_eyre::eyre::{
     self,
     bail,

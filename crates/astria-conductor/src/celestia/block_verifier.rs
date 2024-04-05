@@ -275,11 +275,13 @@ mod test {
     use std::collections::BTreeMap;
 
     use astria_core::{
-        generated::sequencer::v1::SequencerBlockHeader as RawSequencerBlockHeader,
-        sequencer::v1::{
-            block::SequencerBlockHeader,
-            celestia::UncheckedCelestiaSequencerBlob,
-            RollupId,
+        generated::sequencer::v2::SequencerBlockHeader as RawSequencerBlockHeader,
+        sequencer::{
+            v1::RollupId,
+            v2::{
+                block::SequencerBlockHeader,
+                celestia::UncheckedCelestiaSequencerBlob,
+            },
         },
     };
     use prost::Message as _;
