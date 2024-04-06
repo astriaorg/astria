@@ -11,3 +11,9 @@ sequencer-relayer:
       sequencerGrpc: http://node0-sequencer-grpc-service.astria-dev-cluster.svc.cluster.local:8080
   storage:
     enabled: false
+
+ingress:
+  rpc:
+    enabled: true
+  grpc:
+    enabled: true

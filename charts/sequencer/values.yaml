@@ -201,7 +201,7 @@ ingress:
     #  - secretName: chart-example-tls
     #    hosts:
     #      - chart-example.local
-  p2p:
+  grpc:
     enabled: false
     hostname: sequencer.localdev.me
     ingressClassName: nginx
