@@ -2,12 +2,15 @@ use astria_core::sequencer::v1::{
     transaction::action::{
         Action,
         BridgeLockAction,
+        IbcRelayerChangeAction,
         InitBridgeAccountAction,
+        SudoAddressChangeAction,
         TransferAction,
     },
     UnsignedTransaction,
 };
 use astria_sequencer_client::{
+    tendermint,
     tendermint_rpc::endpoint,
     Address,
     HttpClient,
@@ -21,7 +24,10 @@ use color_eyre::{
         Context,
     },
 };
-use ed25519_consensus::SigningKey;
+use ed25519_consensus::{
+    SigningKey,
+    VerificationKeyBytes,
+};
 use rand::rngs::OsRng;
 
 use crate::cli::sequencer::{
@@ -29,7 +35,9 @@ use crate::cli::sequencer::{
     BlockHeightGetArgs,
     BridgeLockArgs,
     InitBridgeAccountArgs,
+    SudoAccountArgs,
     TransferArgs,
+    ValidatorUpdateArgs,
 };
 
 /// Generate a new signing key (this is also called a secret key by other implementations)
@@ -228,6 +236,85 @@ pub(crate) async fn bridge_lock(args: &BridgeLockArgs) -> eyre::Result<()> {
 
     ensure!(res.tx_result.code.is_ok(), "error with BridgeLock");
     println!("BridgeLock completed!");
+    println!("Included in block: {}", res.height);
+    Ok(())
+}
+
+pub(crate) async fn add_relayer(args: &SudoAccountArgs) -> eyre::Result<()> {
+    let res = submit_transaction(
+        args.sequencer_url.as_str(),
+        args.private_key.as_str(),
+        Action::IbcRelayerChange(IbcRelayerChangeAction::Addition(args.address.0)),
+    )
+    .await
+    .wrap_err("failed to submit IbcRelayerChange::Addition transaction")?;
+
+    ensure!(
+        res.tx_result.code.is_ok(),
+        "error with IbcRelayerChange::Addition"
+    );
+    println!("IbcRelayerChange::Addition completed!");
+    println!("Included in block: {}", res.height);
+    Ok(())
+}
+
+pub(crate) async fn remove_relayer(args: &SudoAccountArgs) -> eyre::Result<()> {
+    let res = submit_transaction(
+        args.sequencer_url.as_str(),
+        args.private_key.as_str(),
+        Action::IbcRelayerChange(IbcRelayerChangeAction::Removal(args.address.0)),
+    )
+    .await
+    .wrap_err("failed to submit IbcRelayerChange::Removal transaction")?;
+
+    ensure!(
+        res.tx_result.code.is_ok(),
+        "error with IbcRelayerChange::Removal"
+    );
+    println!("IbcRelayerChange::Removal completed!");
+    println!("Included in block: {}", res.height);
+    Ok(())
+}
+
+pub(crate) async fn sudo_address_change(args: &SudoAccountArgs) -> eyre::Result<()> {
+    let res = submit_transaction(
+        args.sequencer_url.as_str(),
+        args.private_key.as_str(),
+        Action::SudoAddressChange(SudoAddressChangeAction {
+            new_address: args.address.0,
+        }),
+    )
+    .await
+    .wrap_err("failed to submit SudoAddressChange transaction")?;
+
+    ensure!(res.tx_result.code.is_ok(), "error with SudoAddressChange");
+    println!("SudoAddressChange completed!");
+    println!("Included in block: {}", res.height);
+    Ok(())
+}
+
+pub(crate) async fn update_validator(args: &ValidatorUpdateArgs) -> eyre::Result<()> {
+    let public_key_raw = hex::decode(args.validator_public_key.as_str())
+        .wrap_err("failed to decode public key into bytes")?;
+    let public_key_bytes = VerificationKeyBytes::try_from(public_key_raw.as_slice())
+        .wrap_err("public key bytes were too long, must be 32 bytes")?;
+    let pub_key = tendermint::PublicKey::from_raw_ed25519(public_key_bytes.as_bytes())
+        .expect("failed to parse public key from parsed bytes");
+    let validator_update = tendermint::validator::Update {
+        pub_key,
+        power: args.power.into(),
+    };
+
+    let res = submit_transaction(
+        args.sequencer_url.as_str(),
+        args.private_key.as_str(),
+        Action::ValidatorUpdate(validator_update),
+    )
+    .await
+    .wrap_err("failed to submit ValidatorUpdate transaction")?;
+
+    ensure!(res.tx_result.code.is_ok(), "error with ValidatorUpdate");
+    println!("ValidatorUpdate completed!");
     println!("Included in block: {}", res.height);
     Ok(())
 }

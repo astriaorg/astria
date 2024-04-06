@@ -18,6 +18,8 @@ use crate::cli::{
         BalanceCommand,
         BlockHeightCommand,
         Command as SequencerCommand,
+        SudoCommand,
+        SudoRelayerCommand,
     },
     Cli,
     Command,
@@ -83,6 +85,24 @@ pub async fn run(cli: Cli) -> eyre::Result<()> {
                     sequencer::init_bridge_account(&args).await?;
                 }
                 SequencerCommand::BridgeLock(args) => sequencer::bridge_lock(&args).await?,
+                SequencerCommand::Sudo {
+                    command,
+                } => match command {
+                    SudoCommand::Relayer {
+                        command,
+                    } => match command {
+                        SudoRelayerCommand::Add(args) => sequencer::add_relayer(&args).await?,
+                        SudoRelayerCommand::Remove(args) => {
+                            sequencer::remove_relayer(&args).await?
+                        }
+                    },
+                    SudoCommand::ValidatorUpdate(args) => {
+                        sequencer::update_validator(&args).await?
+                    }
+                    SudoCommand::UpdateAddress(args) => {
+                        sequencer::sudo_address_change(&args).await?
+                    }
+                },
             },
         }
     } else {

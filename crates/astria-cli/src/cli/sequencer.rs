@@ -23,6 +23,10 @@ pub enum Command {
         #[clap(subcommand)]
         command: BalanceCommand,
     },
+    Sudo {
+        #[clap(subcommand)]
+        command: SudoCommand,
+    },
     /// Commands for interacting with Sequencer block heights
     #[clap(name = "blockheight")]
     BlockHeight {
@@ -49,6 +53,64 @@ pub enum AccountCommand {
 pub enum BalanceCommand {
     /// Get the balance of a Sequencer account
     Get(BasicAccountArgs),
+}
+
+#[derive(Debug, Subcommand)]
+pub enum SudoCommand {
+    Relayer {
+        #[clap(subcommand)]
+        command: SudoRelayerCommand,
+    },
+    UpdateAddress(SudoAccountArgs),
+    ValidatorUpdate(ValidatorUpdateArgs),
+}
+
+#[derive(Debug, Subcommand)]
+pub enum SudoRelayerCommand {
+    Add(SudoAccountArgs),
+    Remove(SudoAccountArgs),
+}
+
+#[derive(Args, Debug)]
+pub struct SudoAccountArgs {
+    /// The url of the Sequencer node
+    #[clap(
+        long,
+        env = "SEQUENCER_URL", 
+        default_value = crate::cli::DEFAULT_SEQUENCER_RPC
+    )]
+    pub(crate) sequencer_url: String,
+    /// The address of the Sequencer account
+    pub(crate) address: SequencerAddressArg,
+    /// The private key of the sudo account authorizing change
+    #[clap(long, env = "SEQUENCER_PRIVATE_KEY")]
+    // TODO: https://github.com/astriaorg/astria/issues/594
+    // Don't use a plain text private, prefer wrapper like from
+    // the secrecy crate with specialized `Debug` and `Drop` implementations
+    // that overwrite the key on drop and don't reveal it when printing.
+    pub(crate) private_key: String,
+}
+
+#[derive(Args, Debug)]
+pub struct ValidatorUpdateArgs {
+    /// The url of the Sequencer node
+    #[clap(
+        long,
+        env = "SEQUENCER_URL", 
+        default_value = crate::cli::DEFAULT_SEQUENCER_RPC
+    )]
+    pub(crate) sequencer_url: String,
+    /// The private key of the sudo account authorizing change
+    #[clap(long, env = "SEQUENCER_PRIVATE_KEY")]
+    // TODO: https://github.com/astriaorg/astria/issues/594
+    // Don't use a plain text private, prefer wrapper like from
+    // the secrecy crate with specialized `Debug` and `Drop` implementations
+    // that overwrite the key on drop and don't reveal it when printing.
+    pub(crate) private_key: String,
+    /// The address of the Validator being updated
+    pub(crate) validator_public_key: String,
+    /// The power the validator is being updated to
+    pub(crate) power: u32,
 }
 
 #[derive(Args, Debug)]
