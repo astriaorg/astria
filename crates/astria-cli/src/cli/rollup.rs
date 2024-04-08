@@ -105,7 +105,7 @@ pub struct ConfigCreateArgs {
     )]
     #[arg(value_parser = validate_initial_block_height)]
     pub sequencer_initial_block_height: Option<u64>,
-    /// Optional. If not set, will be default to the devnet sequencer websocket address
+    /// Optional. If not set, will default to the devnet sequencer gRPC address
     #[clap(
         long = "sequencer.grpc", 
         env = "ROLLUP_SEQUENCER_GRPC", 
