@@ -5,11 +5,16 @@ Namepsace to deploy elements into.
 {{- default .Release.Namespace .Values.global.namespaceOverride | trunc 63 | trimSuffix "-" -}}
 {{- end }}
 
+{{/*  The name of the rollup */}}
+{{- define "rollup.name" -}}
+{{- tpl .Values.genesis.rollupName . }}
+{{- end }}
+
 {{/*
 Expand the name of the chart.
 */}}
-{{- define "rollup.name" -}}
-{{- default .Values.config.rollup.name | trunc 63 | trimSuffix "-" }}-astria-dev-cluster
+{{- define "rollup.appName" -}}
+{{- default (include "rollup.name" .) | trunc 63 | trimSuffix "-" }}-astria-dev-cluster
 {{- end }}
 
 {{/*
@@ -23,7 +28,24 @@ Common labels
 Selector labels
 */}}
 {{- define "rollup.selectorLabels" -}}
-app: {{ include "rollup.name" . }}
+app: {{ include "rollup.appName" . }}
+{{- end }}
+
+{{/*
+The log level represented as a number
+*/}}
+{{- define "rollup.logLevelNum" -}}
+{{- if eq .Values.config.logLevel "error" }}
+1
+{{- else if eq .Values.config.logLevel "warn" }}
+2
+{{- else if eq .Values.config.logLevel "info" }}
+3
+{{- else if eq .Values.config.logLevel "debug" }}
+4
+{{- else if eq .Values.config.logLevel "trace" }}
+5
+{{- end }}
 {{- end }}
 
 {{/*
@@ -72,4 +94,12 @@ Return the appropriate apiVersion for ingress.
 {{- else }}
 {{- print "extensions/v1beta1" }}
 {{- end }}
+{{- end }}
+
+{{- define "rollup.gethHomeDir" -}}
+/home/geth
+{{- end }}
+
+{{- define "rollup.gethDataDir" -}}
+{{ include "rollup.gethHomeDir" . }}/{{ include "rollup.name" . }}
 {{- end }}
