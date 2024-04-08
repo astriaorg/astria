@@ -392,7 +392,7 @@ mod tests {
                     },
                 },
                 sequencer: SequencerConfig {
-                    initial_block_height: "1".to_string(), // Default value
+                    initial_block_height: "2".to_string(), // Default value
                     grpc: "http://localhost:8082".to_string(),
                     rpc: "http://localhost:8083".to_string(),
                 },
