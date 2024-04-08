@@ -1,0 +1,66 @@
+# Default values for sequencer.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+global:
+  namespaceOverride: ""
+  replicaCount: 1
+  # Whether to use tty readable logging for astria services, when false use json.
+  # Best to be false in production environments, true for clean logs on local dev.
+  useTTY: true
+  dev: true
+
+evm-rollup:
+  config:
+
+evm-faucet:
+  enabled: true
+
+blockscout-stack:
+  enabled: true
+  config:
+    id: 1337
+    name: Astria
+    shortname: Astria
+    currency:
+      name: RIA
+      symbol: RIA
+      decimals: 18
+    testnet: true
+    prometheus:
+      enabled: false
+  blockscout:
+    extraEnv:
+      - name: DATABASE_URL
+        value: "postgres://blockscout:blockscout@blockscout-postegres.astria-dev-cluster.svc.local:5432/blockscout"
+      - name: ETHEREUM_JSONRPC_VARIANT
+        value: "geth"
+      - name: ETHEREUM_JSONRPC_HTTP_URL
+        value: "http://astria-geth-0.astria-dev-cluster.svc.local:8545/"
+      - name: ETHEREUM_JSONRPC_WS_URL
+        value: "ws://astria-geth-0.astria-dev-cluster.svc.local:8546/"
+      - name: NETWORK
+        value: "Astria"
+      - name: SUBNETWORK
+        value: "Local"
+      - name: CHAIN_ID
+        value: "1337"
+      - name: CONTRACT_VERIFICATION_ALLOWED_SOLIDITY_EVM_VERSIONS
+        value: "homestead,tangerineWhistle,spuriousDragon,byzantium,constantinople,petersburg,istanbul,berlin,london,paris,default"
+      - name: CONTRACT_VERIFICATION_ALLOWED_VYPER_EVM_VERSIONS
+        value: "byzantium,constantinople,petersburg,istanbul,berlin,paris,default"
+
+    ingress:
+      enabled: true
+      hostname: blockscout.localdev.me
+  frontend:
+    ingress:
+      enabled: true
+      hostname: blockscout.localdev.me
+
+postgresql:
+  enabled: true
+  nameOverride: blockscout-postegres
+  auth:
+    username: blockscout
+    password: blockscout
+    database: blockscout

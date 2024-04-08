@@ -14,36 +14,6 @@ spec:
       port: {{ .Values.ports.wsRPC }}
       targetPort: ws-rpc
 ---
-{{- if .Values.config.faucet.enabled}}
-kind: Service
-apiVersion: v1
-metadata:
-  name: {{ .Values.config.rollup.name }}-faucet-service
-  namespace: {{ include "rollup.namespace" . }}
-spec:
-  selector:
-    app: {{ .Values.config.rollup.name }}-astria-dev-cluster
-  ports:
-    - name: faucet-svc
-      port: {{ .Values.ports.faucet }}
-      targetPort: faucet
----
-{{- end }}
-{{- if .Values.config.blockscout.enabled }}
-kind: Service
-apiVersion: v1
-metadata:
-  name: {{ .Values.config.rollup.name }}-blockscout-svc
-  namespace: {{ include "rollup.namespace" . }}
-spec:
-  selector:
-    app: {{ .Values.config.rollup.name }}-astria-dev-cluster
-  ports:
-    - name: blockscout-svc
-      port: {{ .Values.ports.blockscout }}
-      targetPort: blockscout
----
-{{- end }}
 {{- if .Values.config.rollup.metrics.enabled }} 
 kind: Service
 apiVersion: v1
