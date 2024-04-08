@@ -139,7 +139,7 @@ fn validate_initial_block_height(val: &str) -> Result<u64, String> {
     match val.parse::<u64>() {
         Ok(height) if height >= 2 => Ok(height),
         Ok(_) => Err(String::from("the block height must be at least 2.")),
-        Err(e) => Err(format!("parsing to u64: {}", e)),
+        Err(e) => Err(format!("parsing to u64: {e}")),
     }
 }
 
