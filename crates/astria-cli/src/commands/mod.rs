@@ -18,6 +18,9 @@ use crate::cli::{
         BalanceCommand,
         BlockHeightCommand,
         Command as SequencerCommand,
+        FeeAssetChangeCommand,
+        IbcRelayerChangeCommand,
+        SudoCommand,
     },
     Cli,
     Command,
@@ -72,6 +75,35 @@ pub async fn run(cli: Cli) -> eyre::Result<()> {
                     command,
                 } => match command {
                     BalanceCommand::Get(args) => sequencer::get_balance(&args).await?,
+                },
+                SequencerCommand::Sudo {
+                    command,
+                } => match command {
+                    SudoCommand::IbcRelayer {
+                        command,
+                    } => match command {
+                        IbcRelayerChangeCommand::Add(args) => {
+                            sequencer::ibc_relayer_add(&args).await?;
+                        }
+                        IbcRelayerChangeCommand::Remove(args) => {
+                            sequencer::ibc_relayer_remove(&args).await?;
+                        }
+                    },
+                    SudoCommand::FeeAsset {
+                        command,
+                    } => match command {
+                        FeeAssetChangeCommand::Add(args) => sequencer::fee_asset_add(&args).await?,
+                        FeeAssetChangeCommand::Remove(args) => {
+                            sequencer::fee_asset_remove(&args).await?;
+                        }
+                    },
+                    SudoCommand::Mint(args) => sequencer::mint(&args).await?,
+                    SudoCommand::ValidatorUpdate(args) => {
+                        sequencer::validator_update(&args).await?;
+                    }
+                    SudoCommand::SudoAddressChange(args) => {
+                        sequencer::sudo_address_change(&args).await?;
+                    }
                 },
                 SequencerCommand::Transfer(args) => sequencer::send_transfer(&args).await?,
                 SequencerCommand::BlockHeight {
