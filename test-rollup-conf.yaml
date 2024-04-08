@@ -1,0 +1,23 @@
+global:
+  namespace: astria-dev-cluster
+  useTTY: true
+  logLevel: debug
+config:
+  rollup:
+    name: test
+    networkId: '1337'
+    executionCommitLevel: SoftOnly
+    genesis:
+      overrideGenesisExtraData: false
+      bridgeAllowedAssetDenom: nria
+      alloc: []
+  sequencer:
+    initialBlockHeight: '2'
+    rpc: https://rpc.sequencer.dusk-4.devnet.astria.org
+    grpc: https://grpc.sequencer.dusk-4.devnet.astria.org/
+ingress:
+  hostname: localdev.me
+celestia-node:
+  enabled: false
+  config:
+    labelPrefix: test

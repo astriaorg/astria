@@ -105,7 +105,7 @@ pub struct ConfigCreateArgs {
     )]
     #[arg(value_parser = validate_initial_block_height)]
     pub sequencer_initial_block_height: Option<u64>,
-    /// Optional. If not set, will default to the devnet sequencer gRPC address
+    /// Optional. If not set, will be default to the devnet sequencer websocket address
     #[clap(
         long = "sequencer.grpc", 
         env = "ROLLUP_SEQUENCER_GRPC", 
@@ -138,7 +138,8 @@ pub struct ConfigCreateArgs {
 fn validate_initial_block_height(val: &str) -> Result<u64, String> {
     match val.parse::<u64>() {
         Ok(height) if height >= 2 => Ok(height),
-        _ => Err(String::from("The block height must be at least 2.")),
+        Ok(_) => Err(String::from("the block height must be at least 2.")),
+        Err(e) => Err(format!("parsing to u64: {}", e)),
     }
 }
 
