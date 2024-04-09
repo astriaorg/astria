@@ -55,8 +55,12 @@ pub(crate) trait StateReadExt: StateRead {
             bail!("revision number not found in state");
         };
 
-        let bytes = TryInto::<[u8; 8]>::try_into(bytes)
-            .map_err(|b| anyhow::anyhow!("expected 8 revision number bytes but got {}; this is a bug", b.len()))?;
+        let bytes = TryInto::<[u8; 8]>::try_into(bytes).map_err(|b| {
+            anyhow::anyhow!(
+                "expected 8 revision number bytes but got {}; this is a bug",
+                b.len()
+            )
+        })?;
 
         Ok(u64::from_be_bytes(bytes))
     }
