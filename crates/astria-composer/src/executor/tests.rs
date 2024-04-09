@@ -83,6 +83,7 @@ async fn setup() -> (MockServer, MockGuard, Config) {
             .into(),
         block_time_ms: 2000,
         max_bytes_per_bundle: 1000,
+        finished_queue_capacity: 10,
         no_otel: false,
         force_stdout: false,
         no_metrics: false,
@@ -200,6 +201,7 @@ async fn full_bundle() {
         &cfg.private_key,
         cfg.block_time_ms,
         cfg.max_bytes_per_bundle,
+        cfg.finished_queue_capacity,
     )
     .unwrap();
 
@@ -286,6 +288,7 @@ async fn bundle_triggered_by_block_timer() {
         &cfg.private_key,
         cfg.block_time_ms,
         cfg.max_bytes_per_bundle,
+        cfg.finished_queue_capacity,
     )
     .unwrap();
 
@@ -365,6 +368,7 @@ async fn two_seq_actions_single_bundle() {
         &cfg.private_key,
         cfg.block_time_ms,
         cfg.max_bytes_per_bundle,
+        cfg.finished_queue_capacity,
     )
     .unwrap();
 

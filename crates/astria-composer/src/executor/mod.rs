@@ -103,6 +103,8 @@ pub(super) struct Executor {
     block_time: tokio::time::Duration,
     // Max bytes in a sequencer action bundle
     max_bytes_per_bundle: usize,
+    // Max amount of `SizedBundle`s that can be in the `BundleFactory`'s `finished` queue.
+    finished_queue_capacity: usize,
 }
 
 #[derive(Clone)]
@@ -157,6 +159,7 @@ impl Executor {
         private_key: &SecretString,
         block_time: u64,
         max_bytes_per_bundle: usize,
+        finished_queue_capacity: usize,
     ) -> eyre::Result<(Self, Handle)> {
         let sequencer_client = sequencer_client::HttpClient::new(sequencer_url)
             .wrap_err("failed constructing sequencer client")?;
@@ -182,6 +185,7 @@ impl Executor {
                 address: sequencer_address,
                 block_time: Duration::from_millis(block_time),
                 max_bytes_per_bundle,
+                finished_queue_capacity,
             },
             Handle::new(serialized_rollup_transaction_tx),
         ))
@@ -222,7 +226,8 @@ impl Executor {
 
         let block_timer = time::sleep(self.block_time);
         tokio::pin!(block_timer);
-        let mut bundle_factory = BundleFactory::new(self.max_bytes_per_bundle);
+        let mut bundle_factory =
+            BundleFactory::new(self.max_bytes_per_bundle, self.finished_queue_capacity);
 
         let reset_time = || Instant::now() + self.block_time;
 
@@ -250,8 +255,8 @@ impl Executor {
                     }
                 }
 
-                // receive new seq_action and bundle it
-                Some(seq_action) = self.serialized_rollup_transactions.recv() => {
+                // receive new seq_action and bundle it. will not pull from the channel if `bundle_factory` is full
+                Some(seq_action) = self.serialized_rollup_transactions.recv(), if !bundle_factory.full() => {
                     let rollup_id = seq_action.rollup_id;
                     if let Err(e) = bundle_factory.try_push(seq_action) {
                             warn!(
