@@ -266,7 +266,7 @@ impl App {
         // if we proposed this block (ie. prepare_proposal was called directly before this), then
         // we skip execution for this `process_proposal` call.
         //
-        // if we didn't propose this block, `self.signing_address` will be None or a differnet
+        // if we didn't propose this block, `self.signing_address` will be None or a different
         // value, so we will execute the block as normal.
         if let Some(id) = self.signing_address {
             if id == process_proposal.proposer_address {
