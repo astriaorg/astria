@@ -14,6 +14,7 @@ use tendermint::Time;
 use tracing::instrument;
 
 const NATIVE_ASSET_KEY: &[u8] = b"nativeasset";
+const REVISION_NUMBER_KEY: &str = "revision_number";
 const BLOCK_FEES_PREFIX: &str = "block_fees/";
 const FEE_ASSET_PREFIX: &str = "fee_asset/";
 
@@ -46,8 +47,19 @@ pub(crate) trait StateReadExt: StateRead {
 
     #[instrument(skip(self))]
     async fn get_revision_number(&self) -> Result<u64> {
-        // this is used for chain upgrades, which we do not currently have.
-        Ok(0)
+        let Some(bytes) = self
+            .get_raw(REVISION_NUMBER_KEY)
+            .await
+            .context("failed to read raw revision number from state")?
+        else {
+            bail!("revision number not found in state");
+        };
+
+        let Ok(bytes): Result<[u8; 8], _> = bytes.try_into() else {
+            bail!("failed turning raw revision number bytes into u64; not 8 bytes?");
+        };
+
+        Ok(u64::from_be_bytes(bytes))
     }
 
     #[instrument(skip(self))]
@@ -167,11 +179,31 @@ pub(crate) trait StateReadExt: StateRead {
 
 impl<T: StateRead> StateReadExt for T {}
 
+fn revision_number_from_chain_id(chain_id: &str) -> u64 {
+    let parts = chain_id.split("-").collect::<Vec<_>>();
+    if let Some(revision_number) = parts.last() {
+        if let Ok(revision_number) = revision_number.parse::<u64>() {
+            return revision_number;
+        }
+    };
+    0
+}
+
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip(self))]
-    fn put_chain_id(&mut self, chain_id: String) {
+    fn put_chain_id_and_revision_number(&mut self, chain_id: String) {
+        let revision_number = revision_number_from_chain_id(&chain_id);
         self.put_raw("chain_id".into(), chain_id.into_bytes());
+        self.put_revision_number(revision_number);
+    }
+
+    #[instrument(skip(self))]
+    fn put_revision_number(&mut self, revision_number: u64) {
+        self.put_raw(
+            REVISION_NUMBER_KEY.into(),
+            revision_number.to_be_bytes().to_vec(),
+        );
     }
 
     #[instrument(skip(self))]
@@ -255,7 +287,7 @@ mod test {
     };
 
     #[tokio::test]
-    async fn chain_id() {
+    async fn put_chain_id_and_revision_number() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
@@ -268,7 +300,7 @@ mod test {
 
         // can write new
         let chain_id_orig = "test-chain-orig";
-        state.put_chain_id(chain_id_orig.to_string());
+        state.put_chain_id_and_revision_number(chain_id_orig.to_string());
         assert_eq!(
             state
                 .get_chain_id()
@@ -278,9 +310,18 @@ mod test {
             "stored chain ID was not what was expected"
         );
 
+        assert_eq!(
+            state
+                .get_revision_number()
+                .await
+                .expect("getting the revision number should succeed"),
+            0u64,
+            "returned revision number should be 0u64 as chain id did not have a revision number"
+        );
+
         // can rewrite with new value
         let chain_id_update = "test-chain-update";
-        state.put_chain_id(chain_id_update.to_string());
+        state.put_chain_id_and_revision_number(chain_id_update.to_string());
         assert_eq!(
             state
                 .get_chain_id()
@@ -289,22 +330,35 @@ mod test {
             chain_id_update,
             "updated chain ID was not what was expected"
         );
-    }
 
-    #[tokio::test]
-    async fn revision_number() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let state = StateDelta::new(snapshot);
-
-        // current impl just returns 'ok'
         assert_eq!(
             state
                 .get_revision_number()
                 .await
-                .expect("getting the revision number should return 0u64"),
+                .expect("getting the revision number should succeed"),
             0u64,
-            "returned revision number should be 0u64"
+            "returned revision number should be 0u64 as chain id did not have a revision number"
+        );
+
+        // can rewrite with chain id with revision number
+        let chain_id_update = "test-chain-update-99";
+        state.put_chain_id_and_revision_number(chain_id_update.to_string());
+        assert_eq!(
+            state
+                .get_chain_id()
+                .await
+                .expect("a new chain ID was written and must exist inside the database"),
+            chain_id_update,
+            "updated chain ID was not what was expected"
+        );
+
+        assert_eq!(
+            state
+                .get_revision_number()
+                .await
+                .expect("getting the revision number should succeed"),
+            99u64,
+            "returned revision number should be 0u64 as chain id did not have a revision number"
         );
     }
 

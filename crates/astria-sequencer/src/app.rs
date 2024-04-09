@@ -179,7 +179,7 @@ impl App {
 
         crate::asset::initialize_native_asset(&genesis_state.native_asset_base_denomination);
         state_tx.put_native_asset_denom(&genesis_state.native_asset_base_denomination);
-        state_tx.put_chain_id(chain_id);
+        state_tx.put_chain_id_and_revision_number(chain_id);
         state_tx.put_block_height(0);
 
         for fee_asset in &genesis_state.allowed_fee_assets {
