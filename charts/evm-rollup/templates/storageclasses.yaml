@@ -5,7 +5,15 @@
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  name: {{ $.Values.config.rollup.name }}-{{ $value.persistentVolumeName }}-local
+  name: {{ $.Values.config.rollup.name }}-{{ $value.persistentVolumeName }}-geth-local
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Retain
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: {{ $.Values.config.rollup.name }}-{{ $value.persistentVolumeName }}-blockscout-local
 provisioner: kubernetes.io/no-provisioner
 volumeBindingMode: WaitForFirstConsumer
 reclaimPolicy: Retain
