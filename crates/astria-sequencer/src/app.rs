@@ -8,6 +8,7 @@ use std::{
 
 use anyhow::{
     anyhow,
+    bail,
     ensure,
     Context,
 };
@@ -359,39 +360,7 @@ impl App {
         let mut excluded_tx_count: usize = 0;
 
         for tx in txs {
-            let signed_tx = match signed_transaction_from_bytes(&tx) {
-                Err(e) => {
-                    debug!(
-                        error = AsRef::<dyn std::error::Error>::as_ref(&e),
-                        "failed to decode deliver tx payload to signed transaction; ignoring it",
-                    );
-                    excluded_tx_count += 1;
-                    continue;
-                }
-                Ok(tx) => tx,
-            };
-
             let tx_hash = Sha256::digest(&tx);
-
-            let tx_sequence_data_bytes = signed_tx
-                .unsigned_transaction()
-                .actions
-                .iter()
-                .filter_map(Action::as_sequence)
-                .fold(0usize, |acc, seq| acc + seq.data.len());
-
-            // don't include tx if it would make the sequenced block data too large
-            if !block_size_constraints.sequencer_has_space(tx_sequence_data_bytes) {
-                debug!(
-                    transaction_hash = %telemetry::display::base64(&tx_hash),
-                    max_sequencer_bytes = block_size_constraints.max_sequencer,
-                    included_data_bytes = block_size_constraints.current_sequencer,
-                    tx_data_bytes = tx_sequence_data_bytes,
-                    "excluding transaction: max block sequenced data limit reached"
-                );
-                excluded_tx_count += 1;
-                continue;
-            }
 
             // don't include tx if it would make the cometBFT block too large
             if !block_size_constraints.cometbft_has_space(tx.len()) {
@@ -406,25 +375,56 @@ impl App {
                 continue;
             }
 
-            // store transaction execution result
-            match self.execute_and_store_signed_tx(&signed_tx).await {
-                Ok(()) => {
-                    block_size_constraints
-                        .sequencer_checked_add(tx_sequence_data_bytes)
-                        .context("error growing sequencer block size")?;
-                    block_size_constraints
-                        .cometbft_checked_add(tx.len())
-                        .context("error growing cometBFT block size")?;
-                    signed_txs.push(signed_tx);
-                    validated_txs.push(tx);
-                }
-                Err(_e) => {
+            // try to decode the tx
+            let signed_tx = match signed_transaction_from_bytes(&tx) {
+                Err(e) => {
                     debug!(
-                        transaction_hash = %telemetry::display::base64(&tx_hash),
-                        "failed to execute transaction, not including in block"
+                        error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                        "failed to decode deliver tx payload to signed transaction; excluding it",
                     );
                     excluded_tx_count += 1;
+                    continue;
                 }
+                Ok(tx) => tx,
+            };
+
+            // check if tx's sequence data will fit into sequence block
+            let tx_sequence_data_bytes = signed_tx
+                .unsigned_transaction()
+                .actions
+                .iter()
+                .filter_map(Action::as_sequence)
+                .fold(0usize, |acc, seq| acc + seq.data.len());
+
+            if !block_size_constraints.sequencer_has_space(tx_sequence_data_bytes) {
+                debug!(
+                    transaction_hash = %telemetry::display::base64(&tx_hash),
+                    max_sequencer_bytes = block_size_constraints.max_sequencer,
+                    included_data_bytes = block_size_constraints.current_sequencer,
+                    tx_data_bytes = tx_sequence_data_bytes,
+                    "excluding transaction: max block sequenced data limit reached"
+                );
+                excluded_tx_count += 1;
+                continue;
+            }
+
+            // execute the tx and include it if it succeeds
+            let tx_hash = self.execute_and_store_signed_tx(&signed_tx).await;
+            if let Some(Err(_e)) = self.execution_result.get(&tx_hash) {
+                debug!(
+                    transaction_hash = %telemetry::display::base64(&tx_hash),
+                    "failed to execute transaction, not including in block"
+                );
+                excluded_tx_count += 1;
+            } else {
+                block_size_constraints
+                    .sequencer_checked_add(tx_sequence_data_bytes)
+                    .context("error growing sequencer block size")?;
+                block_size_constraints
+                    .cometbft_checked_add(tx.len())
+                    .context("error growing cometBFT block size")?;
+                signed_txs.push(signed_tx);
+                validated_txs.push(tx);
             }
         }
 
@@ -457,15 +457,20 @@ impl App {
         for tx in txs {
             // all txs in the proposal should be deserializable and executable,
             // if any txs were not deserializeable or executable, they would not have been
-            // returned by `execute_block_data`
+            // returned by `execute_and_filter_block_data`
             let signed_tx = signed_transaction_from_bytes(&tx).context(
                 "failed to decode tx bytes to signed transaction, should've been filtered out in \
                  prepare proposal",
             )?;
-            self.execute_and_store_signed_tx(&signed_tx).await.context(
-                "transaction failed during execution, should've been filtered out in prepare \
-                 proposal",
-            )?;
+
+            // execute transaction and ensure that it succeeded
+            let tx_hash = self.execute_and_store_signed_tx(&signed_tx).await;
+            if let Some(Err(_e)) = self.execution_result.get(&tx_hash) {
+                bail!(
+                    "transaction failed during execution, should've been filtered out in prepare \
+                     proposal"
+                )
+            }
             signed_txs.push(signed_tx);
         }
         Ok(signed_txs)
@@ -474,29 +479,25 @@ impl App {
     /// Executes the given transaction data, writing it to the app's `StateDelta`
     /// and stores the results in `self.execution_result`.
     ///
-    /// Returns the signed transaction if it successfully executed else an error.
+    /// Returns the transaction's hash that can be used to look up the result.
     #[instrument(name = "App::execute_and_store_signed_tx", skip_all)]
-    async fn execute_and_store_signed_tx(
-        &mut self,
-        signed_tx: &SignedTransaction,
-    ) -> anyhow::Result<()> {
+    async fn execute_and_store_signed_tx(&mut self, signed_tx: &SignedTransaction) -> [u8; 32] {
         // store transaction execution result, indexed by tx hash
-        let tx_hash = Sha256::digest(signed_tx.to_raw().encode_to_vec());
+        let tx_hash: [u8; 32] = Sha256::digest(signed_tx.to_raw().encode_to_vec()).into();
         match self.deliver_tx(signed_tx.clone()).await {
             Ok(events) => {
-                self.execution_result.insert(tx_hash.into(), Ok(events));
-                Ok(())
+                self.execution_result.insert(tx_hash, Ok(events));
             }
             Err(e) => {
                 debug!(
-                    transaction_hash = %telemetry::display::base64(&Sha256::digest(tx_hash)),
+                    transaction_hash = %telemetry::display::base64(&tx_hash),
                     error = AsRef::<dyn std::error::Error>::as_ref(&e),
                     "failed to execute transaction"
                 );
-                self.execution_result.insert(tx_hash.into(), Err(e));
-                Err(anyhow!("failed to execute transaction"))
+                self.execution_result.insert(tx_hash, Err(e));
             }
         }
+        tx_hash
     }
 
     #[instrument(name = "App::begin_block", skip_all)]
@@ -2331,6 +2332,80 @@ mod test {
         // send to prepare_proposal
         let prepare_args = abci::request::PrepareProposal {
             max_tx_bytes: 200_000,
+            txs,
+            local_last_commit: None,
+            misbehavior: vec![],
+            height: Height::default(),
+            time: Time::now(),
+            next_validators_hash: Hash::default(),
+            proposer_address: account::Id::new([1u8; 20]),
+        };
+
+        let result = app
+            .prepare_proposal(prepare_args, storage)
+            .await
+            .expect("too large transactions should not cause prepare proposal to fail");
+
+        // see only first tx made it in
+        assert_eq!(
+            result.txs.len(),
+            3,
+            "total transaciton length should be three, including the two commitments and the one \
+             tx that fit"
+        );
+    }
+
+    #[tokio::test]
+    async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
+        let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
+
+        // update storage with initalized genesis app state
+        let intermediate_state = StateDelta::new(storage.latest_snapshot());
+        let state = Arc::try_unwrap(std::mem::replace(
+            &mut app.state,
+            Arc::new(intermediate_state),
+        ))
+        .expect("we have exclusive ownership of the State at commit()");
+        storage
+            .commit(state)
+            .await
+            .expect("applying genesis state should be okay");
+
+        // create txs which will cause sequencer overflow (max is currently 256_000 bytes)
+        let (alice_signing_key, _) = get_alice_signing_key_and_address();
+        let tx_pass = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![
+                SequenceAction {
+                    rollup_id: RollupId::from([1u8; 32]),
+                    data: vec![1u8; 200_000],
+                    fee_asset_id: get_native_asset().id(),
+                }
+                .into(),
+            ],
+        }
+        .into_signed(&alice_signing_key);
+        let tx_overflow = UnsignedTransaction {
+            nonce: 1,
+            actions: vec![
+                SequenceAction {
+                    rollup_id: RollupId::from([1u8; 32]),
+                    data: vec![1u8; 100_000],
+                    fee_asset_id: get_native_asset().id(),
+                }
+                .into(),
+            ],
+        }
+        .into_signed(&alice_signing_key);
+
+        let txs: Vec<bytes::Bytes> = vec![
+            tx_pass.to_raw().encode_to_vec().into(),
+            tx_overflow.to_raw().encode_to_vec().into(),
+        ];
+
+        // send to prepare_proposal
+        let prepare_args = abci::request::PrepareProposal {
+            max_tx_bytes: 600_000, // make large enough to overflow sequencer bytes first
             txs,
             local_last_commit: None,
             misbehavior: vec![],
