@@ -55,9 +55,8 @@ pub(crate) trait StateReadExt: StateRead {
             bail!("revision number not found in state");
         };
 
-        let Ok(bytes): Result<[u8; 8], _> = bytes.try_into() else {
-            bail!("failed turning raw revision number bytes into u64; not 8 bytes?");
-        };
+        let bytes = TryInto::<[u8; 8]>::try_into(bytes)
+            .map_err(|b| anyhow::anyhow!("expected 8 revision number bytes but got {}; this is a bug", b.len()))?;
 
         Ok(u64::from_be_bytes(bytes))
     }
@@ -179,16 +178,6 @@ pub(crate) trait StateReadExt: StateRead {
 
 impl<T: StateRead> StateReadExt for T {}
 
-fn revision_number_from_chain_id(chain_id: &str) -> u64 {
-    let parts = chain_id.split("-").collect::<Vec<_>>();
-    if let Some(revision_number) = parts.last() {
-        if let Ok(revision_number) = revision_number.parse::<u64>() {
-            return revision_number;
-        }
-    };
-    0
-}
-
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip(self))]
@@ -276,15 +265,53 @@ pub(crate) trait StateWriteExt: StateWrite {
 
 impl<T: StateWrite> StateWriteExt for T {}
 
+fn revision_number_from_chain_id(chain_id: &str) -> u64 {
+    let re = regex::Regex::new(r".*-([0-9]+)$").unwrap();
+
+    if !re.is_match(chain_id) {
+        return 0;
+    }
+
+    let (_, revision_number): (&str, [&str; 1]) = re
+        .captures(chain_id)
+        .expect("should have a matching string")
+        .extract();
+    revision_number[0]
+        .parse::<u64>()
+        .expect("revision number must be parseable and fit in a u64")
+}
+
 #[cfg(test)]
 mod test {
     use cnidarium::StateDelta;
     use tendermint::Time;
 
     use super::{
+        revision_number_from_chain_id,
         StateReadExt as _,
         StateWriteExt as _,
     };
+
+    #[test]
+    fn revision_number_from_chain_id_regex() {
+        let revision_number = revision_number_from_chain_id("test-chain-1024-99");
+        assert_eq!(revision_number, 99u64);
+
+        let revision_number = revision_number_from_chain_id("test-chain-1024");
+        assert_eq!(revision_number, 1024u64);
+
+        let revision_number = revision_number_from_chain_id("test-chain");
+        assert_eq!(revision_number, 0u64);
+
+        let revision_number = revision_number_from_chain_id("99");
+        assert_eq!(revision_number, 0u64);
+
+        let revision_number = revision_number_from_chain_id("99-1024");
+        assert_eq!(revision_number, 1024u64);
+
+        let revision_number = revision_number_from_chain_id("test-chain-1024-99-");
+        assert_eq!(revision_number, 0u64);
+    }
 
     #[tokio::test]
     async fn put_chain_id_and_revision_number() {
@@ -341,7 +368,7 @@ mod test {
         );
 
         // can rewrite with chain id with revision number
-        let chain_id_update = "test-chain-update-99";
+        let chain_id_update = "test-chain-99";
         state.put_chain_id_and_revision_number(chain_id_update.to_string());
         assert_eq!(
             state
