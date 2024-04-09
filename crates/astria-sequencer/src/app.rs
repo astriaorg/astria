@@ -555,7 +555,7 @@ impl App {
     /// Note that the first two "transactions" in the block, which are the proposer-generated
     /// commitments, are ignored.
     #[instrument(name = "App::deliver_tx_after_proposal", skip_all, fields(
-        tx_hash =  %telemetry::display::hex(&Sha256::digest(&tx.tx)),
+        tx_hash =  %telemetry::display::base64(&Sha256::digest(&tx.tx)),
     ))]
     pub(crate) async fn deliver_tx_after_proposal(
         &mut self,
@@ -610,7 +610,7 @@ impl App {
     ///
     /// Note that `begin_block` is now called *after* transaction execution.
     #[instrument(name = "App::deliver_tx", skip_all, fields(
-        signed_transaction_hash = %telemetry::display::hex(&signed_tx.sha256_of_proto_encoding()),
+        signed_transaction_hash = %telemetry::display::base64(&signed_tx.sha256_of_proto_encoding()),
         sender = %Address::from_verification_key(signed_tx.verification_key()),
     ))]
     pub(crate) async fn deliver_tx(
@@ -782,7 +782,7 @@ impl App {
             .await
             .expect("must be able to successfully commit to storage");
         tracing::debug!(
-            app_hash = %telemetry::display::hex(&app_hash),
+            app_hash = %telemetry::display::base64(&app_hash),
             "finished committing state",
         );
 
@@ -854,6 +854,38 @@ fn signed_transaction_from_bytes(bytes: &[u8]) -> anyhow::Result<SignedTransacti
 }
 
 #[cfg(test)]
+pub(crate) mod test_utils {
+    use astria_core::sequencer::v1::{
+        Address,
+        ADDRESS_LEN,
+    };
+    use ed25519_consensus::SigningKey;
+
+    // attempts to decode the given hex string into an address.
+    pub(crate) fn address_from_hex_string(s: &str) -> Address {
+        let bytes = hex::decode(s).unwrap();
+        let arr: [u8; ADDRESS_LEN] = bytes.try_into().unwrap();
+        Address::from_array(arr)
+    }
+
+    pub(crate) const ALICE_ADDRESS: &str = "1c0c490f1b5528d8173c5de46d131160e4b2c0c3";
+    pub(crate) const BOB_ADDRESS: &str = "34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a";
+    pub(crate) const CAROL_ADDRESS: &str = "60709e2d391864b732b4f0f51e387abb76743871";
+
+    pub(crate) fn get_alice_signing_key_and_address() -> (SigningKey, Address) {
+        // this secret key corresponds to ALICE_ADDRESS
+        let alice_secret_bytes: [u8; 32] =
+            hex::decode("2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90")
+                .unwrap()
+                .try_into()
+                .unwrap();
+        let alice_signing_key = SigningKey::from(alice_secret_bytes);
+        let alice = Address::from_verification_key(alice_signing_key.verification_key());
+        (alice_signing_key, alice)
+    }
+}
+
+#[cfg(test)]
 mod test {
     #[cfg(feature = "mint")]
     use astria_core::sequencer::v1::transaction::action::MintAction;
@@ -867,7 +899,6 @@ mod test {
             TransferAction,
         },
         UnsignedTransaction,
-        ADDRESS_LEN,
     };
     use ed25519_consensus::SigningKey;
     use penumbra_ibc::params::IBCParameters;
@@ -886,6 +917,7 @@ mod test {
     use super::*;
     use crate::{
         accounts::action::TRANSFER_FEE,
+        app::test_utils::*,
         asset::get_native_asset,
         authority::state_ext::ValidatorSet,
         genesis::Account,
@@ -893,17 +925,6 @@ mod test {
         sequence::calculate_fee,
         transaction::InvalidNonce,
     };
-
-    /// attempts to decode the given hex string into an address.
-    fn address_from_hex_string(s: &str) -> Address {
-        let bytes = hex::decode(s).unwrap();
-        let arr: [u8; ADDRESS_LEN] = bytes.try_into().unwrap();
-        Address::from_array(arr)
-    }
-
-    const ALICE_ADDRESS: &str = "1c0c490f1b5528d8173c5de46d131160e4b2c0c3";
-    const BOB_ADDRESS: &str = "34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a";
-    const CAROL_ADDRESS: &str = "60709e2d391864b732b4f0f51e387abb76743871";
 
     fn default_genesis_accounts() -> Vec<Account> {
         vec![
@@ -978,18 +999,6 @@ mod test {
         let (app, _storage) = initialize_app_with_storage(genesis_state, genesis_validators).await;
 
         app
-    }
-
-    fn get_alice_signing_key_and_address() -> (SigningKey, Address) {
-        // this secret key corresponds to ALICE_ADDRESS
-        let alice_secret_bytes: [u8; 32] =
-            hex::decode("2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90")
-                .unwrap()
-                .try_into()
-                .unwrap();
-        let alice_signing_key = SigningKey::from(alice_secret_bytes);
-        let alice = Address::from_verification_key(alice_signing_key.verification_key());
-        (alice_signing_key, alice)
     }
 
     #[tokio::test]

@@ -45,7 +45,9 @@ config:
         pubKey: 4v1RdMiKkWgBBTTP26iRSLOEkAY99gMVfZijm6OCzjs=
 
 ingress:
-  p2p:
+  rpc:
+    enabled: true
+  grpc:
     enabled: true
 
 sequencer-relayer:

@@ -7,7 +7,15 @@ use astria_sequencer_relayer::{
     SequencerRelayer,
     BUILD_INFO,
 };
-use tracing::info;
+use tokio::signal::unix::{
+    signal,
+    SignalKind,
+};
+use tracing::{
+    error,
+    info,
+    warn,
+};
 
 #[tokio::main]
 async fn main() -> ExitCode {
@@ -44,10 +52,28 @@ async fn main() -> ExitCode {
         "initializing sequencer relayer"
     );
 
-    SequencerRelayer::new(cfg)
-        .expect("could not initialize sequencer relayer")
-        .run()
-        .await;
+    let mut sigterm = signal(SignalKind::terminate())
+        .expect("setting a SIGTERM listener should always work on Unix");
+    let (sequencer_relayer, shutdown_handle) =
+        SequencerRelayer::new(cfg).expect("could not initialize sequencer relayer");
+    let sequencer_relayer_handle = tokio::spawn(sequencer_relayer.run());
+
+    let shutdown_token = shutdown_handle.token();
+    tokio::select!(
+        _ = sigterm.recv() => {
+            // We don't care about the result (i.e. whether there could be more SIGTERM signals
+            // incoming); we just want to shut down as soon as we receive the first `SIGTERM`.
+            info!("received SIGTERM, issuing shutdown to all services");
+            shutdown_handle.shutdown();
+        }
+        () = shutdown_token.cancelled() => {
+            warn!("stopped waiting for SIGTERM");
+        }
+    );
+
+    if let Err(error) = sequencer_relayer_handle.await {
+        error!(%error, "failed to join main sequencer relayer task");
+    }
 
     ExitCode::SUCCESS
 }

@@ -184,8 +184,8 @@ impl Consensus {
         time = %process_proposal.time,
         tx_count = process_proposal.txs.len(),
         proposer = %process_proposal.proposer_address,
-        hash = %telemetry::display::hex(&process_proposal.hash),
-        next_validators_hash = %telemetry::display::hex(&process_proposal.next_validators_hash),
+        hash = %telemetry::display::base64(&process_proposal.hash),
+        next_validators_hash = %telemetry::display::base64(&process_proposal.next_validators_hash),
     ))]
     async fn handle_process_proposal(
         &mut self,
@@ -217,7 +217,7 @@ impl Consensus {
     }
 
     #[instrument(skip_all, fields(
-        tx_hash = %telemetry::display::hex(&Sha256::digest(&deliver_tx.tx))
+        tx_hash = %telemetry::display::base64(&Sha256::digest(&deliver_tx.tx))
     ))]
     async fn deliver_tx(&mut self, deliver_tx: request::DeliverTx) -> response::DeliverTx {
         use crate::transaction::InvalidNonce;
@@ -245,7 +245,7 @@ impl Consensus {
                 response::DeliverTx {
                     code: code.into(),
                     info: code.to_string(),
-                    log: format!("{e:?}"),
+                    log: e.to_string(),
                     ..Default::default()
                 }
             }

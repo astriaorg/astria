@@ -25,7 +25,7 @@ where
     S: serde::ser::Serializer,
 {
     use serde::ser::Serialize as _;
-    telemetry::display::hex(namespace.as_bytes()).serialize(serializer)
+    telemetry::display::base64(namespace.as_bytes()).serialize(serializer)
 }
 
 #[derive(Debug, serde::Serialize)]

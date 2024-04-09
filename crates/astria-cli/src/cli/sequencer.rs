@@ -31,6 +31,10 @@ pub enum Command {
     },
     /// Command for sending balance between accounts
     Transfer(TransferArgs),
+    /// Command for initializing a bridge account
+    InitBridgeAccount(InitBridgeAccountArgs),
+    /// Command for transferring to a bridge account
+    BridgeLock(BridgeLockArgs),
 }
 
 #[derive(Debug, Subcommand)]
@@ -73,6 +77,51 @@ pub struct TransferArgs {
     // Don't use a plain text private, prefer wrapper like from
     // the secrecy crate with specialized `Debug` and `Drop` implementations
     // that overwrite the key on drop and don't reveal it when printing.
+    pub(crate) private_key: String,
+    /// The url of the Sequencer node
+    #[clap(
+        long,
+        env = "SEQUENCER_URL", 
+        default_value = crate::cli::DEFAULT_SEQUENCER_RPC
+    )]
+    pub(crate) sequencer_url: String,
+}
+
+#[derive(Args, Debug)]
+pub struct InitBridgeAccountArgs {
+    // TODO: https://github.com/astriaorg/astria/issues/594
+    // Don't use a plain text private, prefer wrapper like from
+    // the secrecy crate with specialized `Debug` and `Drop` implementations
+    // that overwrite the key on drop and don't reveal it when printing.
+    #[clap(long, env = "SEQUENCER_PRIVATE_KEY")]
+    pub(crate) private_key: String,
+    /// The url of the Sequencer node
+    #[clap(
+        long,
+        env = "SEQUENCER_URL", 
+        default_value = crate::cli::DEFAULT_SEQUENCER_RPC
+    )]
+    pub(crate) sequencer_url: String,
+    /// Plaintext rollup name (to be hashed into a rollup ID)
+    /// to initialize the bridge account with.
+    #[clap(long)]
+    pub(crate) rollup_name: String,
+}
+
+#[derive(Args, Debug)]
+pub struct BridgeLockArgs {
+    /// The address of the Sequencer account to lock amount to
+    pub(crate) to_address: SequencerAddressArg,
+    /// The amount being locked
+    #[clap(long)]
+    pub(crate) amount: u128,
+    #[clap(long)]
+    pub(crate) destination_chain_address: String,
+    // TODO: https://github.com/astriaorg/astria/issues/594
+    // Don't use a plain text private, prefer wrapper like from
+    // the secrecy crate with specialized `Debug` and `Drop` implementations
+    // that overwrite the key on drop and don't reveal it when printing.
+    #[clap(long, env = "SEQUENCER_PRIVATE_KEY")]
     pub(crate) private_key: String,
     /// The url of the Sequencer node
     #[clap(

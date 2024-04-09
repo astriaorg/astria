@@ -172,10 +172,11 @@ impl AsRef<[u8]> for Id {
 
 impl Display for Id {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        for byte in self.0 {
-            write!(f, "{byte:02x}")?;
-        }
-        Ok(())
+        use base64::{
+            display::Base64Display,
+            prelude::BASE64_STANDARD,
+        };
+        Base64Display::new(self.as_ref(), &BASE64_STANDARD).fmt(f)
     }
 }
 

@@ -2,7 +2,7 @@ name: Test
 env:
   CI: true
   RUSTFLAGS: "-D warnings -D unreachable-pub --cfg tokio_unstable"
-on: 
+on:
   pull_request:
   merge_group:
   push:
@@ -64,7 +64,7 @@ jobs:
       - name: Check that each crate compiles individually (circumventing workspace wide dependency resolution)
         run: |
           : # exclude all lints because cargo-hack ignores default-members and operates on all workspace members
-          cargo hack check --workspace --all-features \
+          cargo hack check --workspace --all-targets --all-features \
           --exclude tracing_debug_field
 
   lockfile:
@@ -79,7 +79,18 @@ jobs:
           cache-provider: "github"
       - name: Check that the lockfile is updated
         run: cargo fetch --locked
-    
+
+  audit:
+    runs-on: ubuntu-22.04
+    needs: run_checker
+    if: needs.run_checker.outputs.run_audit == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.76.0
+      - uses: rustsec/audit-check@v1.4.1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
   rust:
     runs-on: buildjet-8vcpu-ubuntu-2204
     needs: run_checker
