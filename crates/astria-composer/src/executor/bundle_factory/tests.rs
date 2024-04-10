@@ -280,7 +280,7 @@ mod bundle_factory_tests {
             })
         ));
         assert_eq!(bundle_factory.finished.len(), 1);
-        assert!(bundle_factory.full());
+        assert!(bundle_factory.is_full());
     }
 
     #[test]
@@ -345,12 +345,12 @@ mod bundle_factory_tests {
             })
         ));
         assert_eq!(bundle_factory.finished.len(), 1);
-        assert!(bundle_factory.full());
+        assert!(bundle_factory.is_full());
 
         // assert `next_finished().pop()` will change the status back to not full
         let _next_bundle = bundle_factory.next_finished().unwrap().pop();
         assert_eq!(bundle_factory.finished.len(), 0);
-        assert!(!bundle_factory.full());
+        assert!(!bundle_factory.is_full());
     }
 
     #[test]
@@ -490,11 +490,11 @@ mod bundle_factory_tests {
         // assert that the bundle factory has one bundle in the finished queue and it is considered
         // full
         assert_eq!(bundle_factory.finished.len(), 1);
-        assert!(bundle_factory.full());
+        assert!(bundle_factory.is_full());
 
         // assert `pop_now()` will set the factory to no longer full
         let _actions_finished = bundle_factory.pop_now();
         assert_eq!(bundle_factory.finished.len(), 0);
-        assert!(!bundle_factory.full());
+        assert!(!bundle_factory.is_full());
     }
 }

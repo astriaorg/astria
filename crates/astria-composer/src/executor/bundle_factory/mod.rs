@@ -249,7 +249,7 @@ impl BundleFactory {
         bundle
     }
 
-    pub(super) fn full(&self) -> bool {
+    pub(super) fn is_full(&self) -> bool {
         self.full
     }
 }

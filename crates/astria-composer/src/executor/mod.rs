@@ -256,7 +256,7 @@ impl Executor {
                 }
 
                 // receive new seq_action and bundle it. will not pull from the channel if `bundle_factory` is full
-                Some(seq_action) = self.serialized_rollup_transactions.recv(), if !bundle_factory.full() => {
+                Some(seq_action) = self.serialized_rollup_transactions.recv(), if !bundle_factory.is_full() => {
                     let rollup_id = seq_action.rollup_id;
                     if let Err(e) = bundle_factory.try_push(seq_action) {
                             warn!(
