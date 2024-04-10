@@ -40,7 +40,11 @@ jobs:
           draft: ${{ github.ref_name != 'main'}}
           input: "proto/composerapis"
           buf_token: ${{ secrets.BUF_TOKEN }}
-
+      - uses: bufbuild/buf-push-action@v1
+        with:
+          draft: ${{ github.ref_name != 'main'}}
+          input: "proto/sequencerblockapis"
+          buf_token: ${{ secrets.BUF_TOKEN }}
 
   charts:
     permissions:

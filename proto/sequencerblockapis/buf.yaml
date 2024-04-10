@@ -1,5 +1,5 @@
 version: v1
-name: buf.build/astria/sequencer-block-apis
+name: buf.build/astria/sequencerblock-apis
 deps:
   - buf.build/googleapis/googleapis
 lint:
