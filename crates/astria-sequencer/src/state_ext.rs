@@ -273,7 +273,7 @@ fn revision_number_from_chain_id(chain_id: &str) -> u64 {
     let re = regex::Regex::new(r".*-([0-9]+)$").unwrap();
 
     if !re.is_match(chain_id) {
-        debug!("no revision number found in chain id; setting to 0");
+        tracing::debug!("no revision number found in chain id; setting to 0");
         return 0;
     }
 
