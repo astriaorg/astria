@@ -3,9 +3,6 @@ name: buf.build/astria/sequencer-block-apis
 deps:
   - buf.build/googleapis/googleapis
 lint:
-  ignore_only:
-    PACKAGE_VERSION_SUFFIX:
-      - "astria_vendored/tendermint"
   use:
     - BASIC
     - ENUM_VALUE_PREFIX

@@ -4,7 +4,6 @@ package astria.sequencerblock.v1alpha1;
 
 import "astria/primitive/v1/types.proto";
 import "astria/sequencerblock/v1alpha1/merkle.proto";
-import "astria_vendored/tendermint/types/types.proto";
 import "google/protobuf/timestamp.proto";
 
 // `RollupTransactions` are a sequence of opaque bytes together with a 32 byte

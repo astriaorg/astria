@@ -4,7 +4,6 @@ package astria.sequencerblock.v1alpha1;
 
 import "astria/sequencerblock/v1alpha1/block.proto";
 import "astria/sequencerblock/v1alpha1/merkle.proto";
-import "astria_vendored/tendermint/types/types.proto";
 
 // A collection of transactions belonging to a specific rollup that are submitted to celestia.
 //
