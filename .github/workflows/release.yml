@@ -40,6 +40,10 @@ jobs:
           draft: ${{ github.ref_name != 'main'}}
           input: "proto/composerapis"
           buf_token: ${{ secrets.BUF_TOKEN }}
+      - name: "Update Sequencer Block API dependency"
+        run: |
+          cd proto/sequencerblockapis
+          buf mod update --only buf.build/astria/astria
       - uses: bufbuild/buf-push-action@v1
         with:
           draft: ${{ github.ref_name != 'main'}}

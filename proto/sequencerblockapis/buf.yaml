@@ -2,6 +2,7 @@ version: v1
 name: buf.build/astria/sequencerblock-apis
 deps:
   - buf.build/googleapis/googleapis
+  - buf.build/astria/astria
 lint:
   use:
     - BASIC
