@@ -105,11 +105,11 @@ pub(crate) struct App {
     // The validator address in cometbft being used to sign votes.
     //
     // Used to avoid executing a block in both `prepare_proposal` and `process_proposal`. It
-    // is set in `prepare_proposal` from information sent in from cometbft and can change.
-    // In `process_proposal` we check if we prepared the proposal, and if so, we clear the
-    // value and we skip re-execution of the block's transactions to avoid failures caused by
-    // re-execution.
-    signing_address: Option<account::Id>,
+    // is set in `prepare_proposal` from information sent in from cometbft and can potentially
+    // change round-to-round. In `process_proposal` we check if we prepared the proposal, and
+    // if so, we clear the value and we skip re-execution of the block's transactions to avoid
+    // failures caused by re-execution.
+    validator_address: Option<account::Id>,
 
     // This is set to the executed hash of the proposal during `process_proposal`
     //
@@ -156,7 +156,7 @@ impl App {
 
         Self {
             state,
-            signing_address: None,
+            validator_address: None,
             executed_proposal_hash: Hash::default(),
             execution_result: HashMap::new(),
             processed_txs: 0,
@@ -234,7 +234,7 @@ impl App {
         prepare_proposal: abci::request::PrepareProposal,
         storage: Storage,
     ) -> anyhow::Result<abci::response::PrepareProposal> {
-        self.signing_address = Some(prepare_proposal.proposer_address);
+        self.validator_address = Some(prepare_proposal.proposer_address);
         self.update_state_for_new_round(&storage);
 
         let (signed_txs, txs_to_include) = self.execute_block_data(prepare_proposal.txs).await;
@@ -266,17 +266,20 @@ impl App {
         // if we proposed this block (ie. prepare_proposal was called directly before this), then
         // we skip execution for this `process_proposal` call.
         //
-        // if we didn't propose this block, `self.signing_address` will be None or a different
+        // if we didn't propose this block, `self.validator_address` will be None or a different
         // value, so we will execute the block as normal.
-        if let Some(id) = self.signing_address {
+        if let Some(id) = self.validator_address {
             if id == process_proposal.proposer_address {
                 debug!("skipping process_proposal as we are the proposer for this block");
-                self.signing_address = None;
+                self.validator_address = None;
                 self.executed_proposal_hash = process_proposal.hash;
                 return Ok(());
             }
-            debug!("signing address was set but we're not the proposer, shouldn't happen");
-            self.signing_address = None;
+            debug!(
+                "our validator address was set but we're not the proposer, so our previous \
+                 proposal was skipped, executing block"
+            );
+            self.validator_address = None;
         }
 
         self.update_state_for_new_round(&storage);
