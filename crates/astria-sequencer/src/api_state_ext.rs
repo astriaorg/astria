@@ -381,17 +381,10 @@ mod test {
 
     use std::collections::HashMap;
 
-    use astria_core::{
-        sequencer::v1::{
-            asset::Id,
-            block::{
-                Deposit,
-                SequencerBlock,
-            },
-            Address,
-            RollupId,
-        },
-        Protobuf,
+    use astria_core::sequencer::v1::{
+        asset::Id,
+        block::Deposit,
+        Address,
     };
     use cnidarium::StateDelta;
     use rand::Rng;

@@ -753,6 +753,7 @@ dependencies = [
  "penumbra-tower-trace",
  "prost",
  "rand 0.8.5",
+ "regex",
  "serde",
  "serde_json",
  "sha2 0.10.8",
