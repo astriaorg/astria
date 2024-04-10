@@ -738,6 +738,7 @@ dependencies = [
  "astria-merkle",
  "astria-telemetry",
  "async-trait",
+ "base64 0.21.7",
  "borsh 1.4.0",
  "bytes",
  "cnidarium",

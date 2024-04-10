@@ -511,4 +511,17 @@ mod test {
             .expect_err("insufficient funds for `other` asset");
         assert!(err.to_string().contains(&other_asset.to_string()));
     }
+
+    #[test]
+    fn tx_ibc_relay() {
+        use base64::prelude::*;
+        use prost::Message as _;
+
+        let str = "Cq0BCisvaWJjLmxpZ2h0Y2xpZW50cy50ZW5kZXJtaW50LnYxLkNsaWVudFN0YXRlEn4KB21vY2hhLTQSBAgBEAMaBAiA6kkiBAiA324qAgg3MgA6BggEENWcXkIZCgkIARgBIAEqAQASDAoCAAEQIRgEIAwwAUIZCgkIARgBIAEqAQASDAoCAAEQIBgBIAEwAUoHdXBncmFkZUoQdXBncmFkZWRJQkNTdGF0ZVABWAEShgEKLi9pYmMubGlnaHRjbGllbnRzLnRlbmRlcm1pbnQudjEuQ29uc2Vuc3VzU3RhdGUSVAoMCIiYwrAGEIzI9KwBEiIKIIQ/VOM6GD9ErLRNlgQlJhxlNxRXXyJDtqYz3LjF5JFTGiCJdX646SJuUIgOvm/GFSeegVTpVbVkadI/OVq03Bs5AhooOWRmNzhiY2QwMDc4NWRhODM0Y2ZhMDJjZDhlMDQ4MWY1OTRhMzMzNg==";
+        let tx = penumbra_proto::penumbra::core::component::ibc::v1::IbcRelay::decode(
+            BASE64_STANDARD.decode(str).unwrap().as_slice(),
+        )
+        .unwrap();
+        println!("{:?}", tx);
+    }
 }

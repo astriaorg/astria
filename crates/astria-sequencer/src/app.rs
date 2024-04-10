@@ -37,6 +37,7 @@ use sha2::{
 use tendermint::{
     abci::{
         self,
+        request::BeginBlock,
         Event,
     },
     account,
@@ -144,6 +145,9 @@ pub(crate) struct App {
     // builder of the current `SequencerBlock`.
     // initialized during `begin_block`, completed and written to state during `end_block`.
     current_sequencer_block_builder: Option<SequencerBlockBuilder>,
+
+    // hack - remove later
+    begin_block: Option<BeginBlock>,
 }
 
 impl App {
@@ -162,6 +166,7 @@ impl App {
             processed_txs: 0,
             current_proposer: None,
             current_sequencer_block_builder: None,
+            begin_block: None,
         }
     }
 
@@ -438,12 +443,14 @@ impl App {
             self.update_state_for_new_round(&storage);
         }
 
-        let mut state_tx = StateDelta::new(self.state.clone());
+        self.begin_block = Some(begin_block.clone());
 
-        // store the block height
-        state_tx.put_block_height(begin_block.header.height.into());
-        // store the block time
-        state_tx.put_block_timestamp(begin_block.header.time);
+        let state_tx = StateDelta::new(self.state.clone());
+
+        // // store the block height
+        // state_tx.put_block_height(begin_block.header.height.into());
+        // // store the block time
+        // state_tx.put_block_timestamp(begin_block.header.time);
 
         // call begin_block on all components
         let mut arc_state_tx = Arc::new(state_tx);
@@ -453,9 +460,9 @@ impl App {
         AuthorityComponent::begin_block(&mut arc_state_tx, begin_block)
             .await
             .context("failed to call begin_block on AuthorityComponent")?;
-        IbcComponent::begin_block(&mut arc_state_tx, begin_block)
-            .await
-            .context("failed to call begin_block on IbcComponent")?;
+        // IbcComponent::begin_block(&mut arc_state_tx, begin_block)
+        //     .await
+        //     .context("failed to call begin_block on IbcComponent")?;
 
         let state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
@@ -575,8 +582,25 @@ impl App {
     ) -> anyhow::Result<abci::response::EndBlock> {
         use crate::api_state_ext::StateWriteExt as _;
 
-        let state_tx = StateDelta::new(self.state.clone());
+        let mut state_tx = StateDelta::new(self.state.clone());
+
+        // hack - do IBC begin_block stuff here, as we forgot to do it in prepare/process_proposal
+        // :/
+        let begin_block = self
+            .begin_block
+            .as_ref()
+            .expect("begin_block must be called before end_block, thus begin_block must be set");
+
+        // store the block height
+        state_tx.put_block_height(begin_block.header.height.into());
+        // store the block time
+        state_tx.put_block_timestamp(begin_block.header.time);
+
         let mut arc_state_tx = Arc::new(state_tx);
+
+        IbcComponent::begin_block(&mut arc_state_tx, begin_block)
+            .await
+            .context("failed to call begin_block on IbcComponent")?;
 
         // call end_block on all components
         AccountsComponent::end_block(&mut arc_state_tx, end_block)
