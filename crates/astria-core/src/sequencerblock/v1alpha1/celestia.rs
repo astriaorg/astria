@@ -15,7 +15,7 @@ use super::{
 };
 use crate::{
     sequencer::v1::IncorrectRollupIdLength,
-    Protobuf,
+    sequencerblock::Protobuf,
 };
 
 /// A bundle of blobs constructed from a [`super::SequencerBlock`].

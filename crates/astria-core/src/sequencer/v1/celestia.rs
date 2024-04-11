@@ -12,7 +12,7 @@ use super::{
     IncorrectRollupIdLength,
     RollupId,
 };
-use crate::ProtobufV1;
+use crate::sequencer::Protobuf;
 
 /// A bundle of blobs constructed from a [`super::SequencerBlock`].
 ///
@@ -102,7 +102,7 @@ impl CelestiaRollupBlobError {
         }
     }
 
-    fn proof(source: <merkle::Proof as ProtobufV1>::Error) -> Self {
+    fn proof(source: <merkle::Proof as Protobuf>::Error) -> Self {
         Self {
             kind: CelestiaRollupBlobErrorKind::Proof {
                 source,
@@ -123,9 +123,9 @@ enum CelestiaRollupBlobErrorKind {
     FieldNotSet { field: &'static str },
     #[error("failed converting the provided bytes to Rollup ID")]
     RollupId { source: IncorrectRollupIdLength },
-    #[error("failed constructing a Merkle Hash Tree Proof from the provided raw protobf type")]
+    #[error("failed constructing a Merkle Hash Tree Proof from the provided raw protobuf type")]
     Proof {
-        source: <merkle::Proof as ProtobufV1>::Error,
+        source: <merkle::Proof as Protobuf>::Error,
     },
     #[error(
         "the provided bytes were too short for a sequencer block hash. Expected: 32 bytes, \
@@ -323,7 +323,7 @@ impl CelestiaSequencerBlobError {
         }
     }
 
-    fn rollup_transactions_proof(source: <merkle::Proof as ProtobufV1>::Error) -> Self {
+    fn rollup_transactions_proof(source: <merkle::Proof as Protobuf>::Error) -> Self {
         Self {
             kind: CelestiaSequencerBlobErrorKind::RollupTransactionsProof {
                 source,
@@ -331,7 +331,7 @@ impl CelestiaSequencerBlobError {
         }
     }
 
-    fn rollup_ids_proof(source: <merkle::Proof as ProtobufV1>::Error) -> Self {
+    fn rollup_ids_proof(source: <merkle::Proof as Protobuf>::Error) -> Self {
         Self {
             kind: CelestiaSequencerBlobErrorKind::RollupIdsProof {
                 source,
@@ -372,14 +372,14 @@ enum CelestiaSequencerBlobErrorKind {
          raw source type"
     )]
     RollupTransactionsProof {
-        source: <merkle::Proof as ProtobufV1>::Error,
+        source: <merkle::Proof as Protobuf>::Error,
     },
     #[error(
         "failed constructing a Merkle Hash Tree Proof for the rollup IDs from the raw raw source \
          type"
     )]
     RollupIdsProof {
-        source: <merkle::Proof as ProtobufV1>::Error,
+        source: <merkle::Proof as Protobuf>::Error,
     },
     #[error(
         "the Merkle Tree Hash of the rollup transactions was not a leaf in the sequencer block \

@@ -7,13 +7,15 @@ use anyhow::{
 use astria_core::{
     generated::sequencerblock::v1alpha1 as raw,
     sequencer::v1::RollupId,
-    sequencerblock::v1alpha1::block::{
-        RollupTransactions,
-        SequencerBlock,
-        SequencerBlockHeader,
-        SequencerBlockParts,
+    sequencerblock::{
+        v1alpha1::block::{
+            RollupTransactions,
+            SequencerBlock,
+            SequencerBlockHeader,
+            SequencerBlockParts,
+        },
+        Protobuf as _,
     },
-    Protobuf,
 };
 use async_trait::async_trait;
 use borsh::{

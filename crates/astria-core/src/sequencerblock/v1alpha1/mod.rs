@@ -21,7 +21,7 @@ use crate::{
         derive_merkle_tree_from_rollup_txs,
         RollupId,
     },
-    Protobuf,
+    sequencerblock::Protobuf,
 };
 
 pub(crate) fn are_rollup_ids_included<'a, TRollupIds: 'a>(

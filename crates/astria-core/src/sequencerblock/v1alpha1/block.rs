@@ -29,7 +29,7 @@ use crate::{
         IncorrectRollupIdLength,
         RollupId,
     },
-    Protobuf as _,
+    sequencerblock::Protobuf as _,
 };
 
 #[derive(Debug, thiserror::Error)]

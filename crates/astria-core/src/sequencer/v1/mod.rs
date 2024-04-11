@@ -8,10 +8,7 @@ use sha2::{
     Sha256,
 };
 
-use crate::{
-    generated::sequencer::v1 as raw,
-    ProtobufV1,
-};
+use crate::generated::sequencer::v1 as raw;
 
 pub mod abci;
 pub mod account;
@@ -37,7 +34,9 @@ pub use transaction::{
     UnsignedTransaction,
 };
 
-impl ProtobufV1 for merkle::Proof {
+use crate::sequencer::Protobuf;
+
+impl Protobuf for merkle::Proof {
     type Error = merkle::audit::InvalidProof;
     type Raw = raw::Proof;
 

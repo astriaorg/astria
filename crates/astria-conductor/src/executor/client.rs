@@ -11,7 +11,7 @@ use astria_core::{
         },
         sequencer::v1::RollupData,
     },
-    Protobuf as _,
+    sequencerblock::Protobuf as _,
 };
 use astria_eyre::eyre::{
     self,

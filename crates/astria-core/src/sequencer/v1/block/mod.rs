@@ -14,8 +14,8 @@ use super::{
     IncorrectRollupIdLength,
     RollupId,
 };
-use crate::{
-    sequencer::v1::{
+use crate::sequencer::{
+    v1::{
         are_rollup_ids_included,
         are_rollup_txs_included,
         asset,
@@ -23,7 +23,7 @@ use crate::{
         transaction::action,
         IncorrectAddressLength,
     },
-    ProtobufV1 as _,
+    Protobuf as _,
 };
 
 #[cfg(test)]
