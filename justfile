@@ -180,7 +180,7 @@ delete-rollup rollupName=defaultRollupName:
   @just delete chart {{rollupName}}-chain
 
 wait-for-rollup rollupName=defaultRollupName:
-  kubectl wait -n astria-dev-cluster deployment {{rollupName}}-geth --for=condition=Available=True --timeout=600s
+  kubectl rollout status --watch statefulset/{{rollupName}}-geth -n astria-dev-cluster --timeout=600s
 
 defaultHypAgentConfig         := ""
 defaultHypRelayerPrivateKey   := ""
@@ -223,14 +223,38 @@ deploy-smoke-test tag=defaultTag:
     {{ if tag != '' { replace('--set images.conductor.devTag=# --set images.composer.devTag=#', '#', tag) } else { '' } }} \
     --set config.blockscout.enabled=false \
     --set config.faucet.enabled=false > /dev/null
-  @sleep 30
+  @just wait-for-rollup > /dev/null
+  @sleep 15
 
 run-smoke-test:
-  @echo "Testing Transfer..."
-  @cast send 0x830B0e9Bb0B1ebad01F2805278Ede64c69e068FE --rpc-url "http://executor.astria.localdev.me/" --value 1ether --private-key=8b3a7999072c9c9314c084044fe705db11714c6c4ed7cddb64da18ea270dd203 >/dev/null
-  @if [ $(cast balance 0x830B0e9Bb0B1ebad01F2805278Ede64c69e068FE --rpc-url "http://executor.astria.localdev.me/") -eq 1000000000000000000 ]; then echo "Transfer success"; else echo "Transfer failure"; exit 1; fi;
-  @echo "Testing finalization..."
-  @if [ $(cast block finalized --rpc-url "http://executor.astria.localdev.me/" --field number) -gt 0 ]; then echo "Finalized success"; else echo "Finalization failure"; exit 1; fi;
+  #!/usr/bin/env bash
+  echo "Testing Transfer..."
+  export ETH_RPC_URL="http://executor.astria.localdev.me/"
+
+  BALANCE=$(cast balance 0x830B0e9Bb0B1ebad01F2805278Ede64c69e068FE)
+  EXPECTED_BALANCE=$(expr $BALANCE + 1000000000000000000)
+  cast send 0x830B0e9Bb0B1ebad01F2805278Ede64c69e068FE --value 1ether --private-key=8b3a7999072c9c9314c084044fe705db11714c6c4ed7cddb64da18ea270dd203 > /dev/null
+  if [ $(cast balance 0x830B0e9Bb0B1ebad01F2805278Ede64c69e068FE) -eq $EXPECTED_BALANCE ]; then 
+    echo "Transfer success"; 
+  else
+    echo "Transfer failure"
+    exit 1
+  fi
+
+  echo "Testing finalization..."
+  RUNS=0
+  MAX_RUNS=30
+  while [ $RUNS -lt $MAX_RUNS ]; do
+    if [ $(cast block finalized --field number) -gt 0 ]; then
+      echo "Finalized success"
+      exit 0
+    else
+      sleep 1
+    fi
+    RUNS=$((RUNS+1))
+  done
+  echo "Finalization failure"
+  exit 1
 
 delete-smoke-test:
   just delete celestia-local
