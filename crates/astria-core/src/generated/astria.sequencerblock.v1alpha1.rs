@@ -29,7 +29,7 @@ impl ::prost::Name for Proof {
 pub struct RollupTransactions {
     /// The 32 bytes identifying a rollup. Usually the sha256 hash of a plain rollup name.
     #[prost(bytes = "vec", tag = "1")]
-    pub id: ::prost::alloc::vec::Vec<u8>,
+    pub rollup_id: ::prost::alloc::vec::Vec<u8>,
     /// The serialized bytes of the rollup data.
     /// Each entry is a protobuf-encoded `RollupData` message.
     #[prost(bytes = "vec", repeated, tag = "2")]

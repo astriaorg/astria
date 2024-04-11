@@ -13,7 +13,7 @@ import "google/protobuf/timestamp.proto";
 // services sending and receiving the transactions.
 message RollupTransactions {
   // The 32 bytes identifying a rollup. Usually the sha256 hash of a plain rollup name.
-  bytes id = 1;
+  bytes rollup_id = 1;
   // The serialized bytes of the rollup data.
   // Each entry is a protobuf-encoded `RollupData` message.
   repeated bytes transactions = 2;
