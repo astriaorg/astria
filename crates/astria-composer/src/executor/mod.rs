@@ -1,10 +1,10 @@
-use std::collections::VecDeque;
 /// ! The `Executor` is responsible for:
 /// - Nonce management
 /// - Transaction signing
 /// - Managing the connection to the sequencer
 /// - Submitting transactions to the sequencer
 use std::{
+    collections::VecDeque,
     pin::Pin,
     task::Poll,
     time::Duration,
