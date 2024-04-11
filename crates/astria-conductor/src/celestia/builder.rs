@@ -44,7 +44,6 @@ impl Builder {
             stream_latest_heights(celestia_client.clone(), celestia_block_time);
 
         Ok(Reader {
-            // block_verifier,
             celestia_client,
             latest_celestia_heights,
             executor,

@@ -53,7 +53,7 @@ macro_rules! filtered_sequencer_block {
 
 // XXX: We have to live with rustfmt mangling the pattern match. Fixing it triggers warnings:
 // 1. applying #[rustfmt::skip] on the macro or on the containing module triggers issue 52234.
-// 2. appylin #![rustfmt::skip] triggers issue 64266.
+// 2. applying #![rustfmt::skip] triggers issue 64266.
 #[macro_export]
 macro_rules! genesis_info {
     (
@@ -185,53 +185,3 @@ macro_rules! mount_get_genesis_info {
         ).await;
     };
 }
-
-// fn latest_commit() -> response::Wrapper<tendermint_rpc::endpoint::commit::Response> {
-//     use sequencer_client::tendermint::{
-//         account,
-//         block::{
-//             header::{
-//                 Header,
-//                 Version,
-//             },
-//             signed_header::SignedHeader,
-//             Commit,
-//         },
-//         chain,
-//         hash::{
-//             AppHash,
-//             Hash,
-//         },
-//         time::Time,
-//     };
-//     let response = tendermint_rpc::endpoint::commit::Response {
-//         signed_header: SignedHeader::new(
-//             Header {
-//                 version: Version {
-//                     block: 1,
-//                     app: 1,
-//                 },
-//                 chain_id: "mocksequencer-1000".parse::<chain::Id>().unwrap(),
-//                 height: 1u32.into(),
-//                 time: Time::now(),
-//                 last_block_id: None,
-//                 last_commit_hash: None,
-//                 data_hash: None,
-//                 validators_hash: Hash::Sha256([0u8; 32]),
-//                 next_validators_hash: Hash::Sha256([0u8; 32]),
-//                 consensus_hash: Hash::Sha256([0u8; 32]),
-//                 app_hash: AppHash::try_from(vec![0u8; 32]).unwrap(),
-//                 last_results_hash: None,
-//                 evidence_hash: None,
-//                 proposer_address: account::Id::new([0u8; 20]),
-//             },
-//             Commit {
-//                 height: 1u32.into(),
-//                 ..Commit::default()
-//             },
-//         )
-//         .unwrap(),
-//         canonical: true,
-//     };
-//     response::Wrapper::new_with_id(tendermint_rpc::Id::uuid_v4(), Some(response), None)
-// }
