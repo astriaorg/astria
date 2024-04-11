@@ -5,18 +5,13 @@ use anyhow::{
     Result,
 };
 use astria_core::{
-    generated::sequencer::{
-        v1 as rawv1,
-        v2alpha1 as rawv2alpha1,
-    },
-    sequencer::{
-        v1::RollupId,
-        v2alpha1::block::{
-            RollupTransactions,
-            SequencerBlock,
-            SequencerBlockHeader,
-            SequencerBlockParts,
-        },
+    generated::sequencerblock::v1alpha1 as raw,
+    sequencer::v1::RollupId,
+    sequencerblock::v1alpha1::block::{
+        RollupTransactions,
+        SequencerBlock,
+        SequencerBlockHeader,
+        SequencerBlockParts,
     },
     Protobuf,
 };
@@ -164,7 +159,7 @@ pub(crate) trait StateReadExt: StateRead {
             bail!("header not found for given block hash");
         };
 
-        let raw = rawv2alpha1::SequencerBlockHeader::decode(header_bytes.as_slice())
+        let raw = raw::SequencerBlockHeader::decode(header_bytes.as_slice())
             .context("failed to decode sequencer block from raw bytes")?;
         let header = SequencerBlockHeader::try_from_raw(raw)
             .context("failed to convert raw sequencer block to sequencer block")?;
@@ -197,7 +192,7 @@ pub(crate) trait StateReadExt: StateRead {
             bail!("header not found for given block hash");
         };
 
-        let header_raw = rawv2alpha1::SequencerBlockHeader::decode(header_bytes.as_slice())
+        let header_raw = raw::SequencerBlockHeader::decode(header_bytes.as_slice())
             .context("failed to decode sequencer block from raw bytes")?;
 
         let rollup_ids = self
@@ -214,7 +209,7 @@ pub(crate) trait StateReadExt: StateRead {
                 .context("failed to read rollup data by block hash and rollup ID from state")?;
             if let Some(raw) = raw {
                 let raw = raw.as_slice();
-                let rollup_data = rawv2alpha1::RollupTransactions::decode(raw)
+                let rollup_data = raw::RollupTransactions::decode(raw)
                     .context("failed to decode rollup data from raw bytes")?;
                 rollup_transactions.push(rollup_data);
             }
@@ -228,7 +223,7 @@ pub(crate) trait StateReadExt: StateRead {
             bail!("rollup transactions proof not found for given block hash");
         };
 
-        let rollup_transactions_proof = rawv1::Proof::decode(rollup_transactions_proof.as_slice())
+        let rollup_transactions_proof = raw::Proof::decode(rollup_transactions_proof.as_slice())
             .context("failed to decode rollup transactions proof from raw bytes")?;
 
         let Some(rollup_ids_proof) = self
@@ -239,10 +234,10 @@ pub(crate) trait StateReadExt: StateRead {
             bail!("rollup IDs proof not found for given block hash");
         };
 
-        let rollup_ids_proof = rawv1::Proof::decode(rollup_ids_proof.as_slice())
+        let rollup_ids_proof = raw::Proof::decode(rollup_ids_proof.as_slice())
             .context("failed to decode rollup IDs proof from raw bytes")?;
 
-        let raw = rawv2alpha1::SequencerBlock {
+        let raw = raw::SequencerBlock {
             block_hash: hash.to_vec(),
             header: header_raw.into(),
             rollup_transactions,
@@ -281,7 +276,7 @@ pub(crate) trait StateReadExt: StateRead {
         else {
             bail!("rollup data not found for given block hash and rollup ID");
         };
-        let raw = rawv2alpha1::RollupTransactions::decode(bytes.as_slice())
+        let raw = raw::RollupTransactions::decode(bytes.as_slice())
             .context("failed to decode rollup data from raw bytes")?;
 
         let rollup_transactions = RollupTransactions::try_from_raw(raw)
@@ -294,7 +289,7 @@ pub(crate) trait StateReadExt: StateRead {
     async fn get_block_proofs_by_block_hash(
         &self,
         hash: &[u8],
-    ) -> Result<(rawv1::Proof, rawv1::Proof)> {
+    ) -> Result<(raw::Proof, raw::Proof)> {
         let Some(rollup_transactions_proof) = self
             .get_raw(&rollup_transactions_proof_by_hash_key(hash))
             .await
@@ -303,7 +298,7 @@ pub(crate) trait StateReadExt: StateRead {
             bail!("rollup transactions proof not found for given block hash");
         };
 
-        let rollup_transactions_proof = rawv1::Proof::decode(rollup_transactions_proof.as_slice())
+        let rollup_transactions_proof = raw::Proof::decode(rollup_transactions_proof.as_slice())
             .context("failed to decode rollup transactions proof from raw bytes")?;
 
         let Some(rollup_ids_proof) = self
@@ -314,7 +309,7 @@ pub(crate) trait StateReadExt: StateRead {
             bail!("rollup IDs proof not found for given block hash");
         };
 
-        let rollup_ids_proof = rawv1::Proof::decode(rollup_ids_proof.as_slice())
+        let rollup_ids_proof = raw::Proof::decode(rollup_ids_proof.as_slice())
             .context("failed to decode rollup IDs proof from raw bytes")?;
 
         Ok((rollup_transactions_proof, rollup_ids_proof))

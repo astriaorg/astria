@@ -20,9 +20,9 @@ pub struct RollupTransactions {
 }
 impl ::prost::Name for RollupTransactions {
     const NAME: &'static str = "RollupTransactions";
-    const PACKAGE: &'static str = "astria.sequencer.v2alpha1";
+    const PACKAGE: &'static str = "astria.sequencer.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencer.v2alpha1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.sequencer.v1alpha1.{}", Self::NAME)
     }
 }
 /// `SequencerBlock` is constructed from a tendermint/cometbft block by
@@ -60,9 +60,9 @@ pub struct SequencerBlock {
 }
 impl ::prost::Name for SequencerBlock {
     const NAME: &'static str = "SequencerBlock";
-    const PACKAGE: &'static str = "astria.sequencer.v2alpha1";
+    const PACKAGE: &'static str = "astria.sequencer.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencer.v2alpha1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.sequencer.v1alpha1.{}", Self::NAME)
     }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -90,9 +90,9 @@ pub struct SequencerBlockHeader {
 }
 impl ::prost::Name for SequencerBlockHeader {
     const NAME: &'static str = "SequencerBlockHeader";
-    const PACKAGE: &'static str = "astria.sequencer.v2alpha1";
+    const PACKAGE: &'static str = "astria.sequencer.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencer.v2alpha1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.sequencer.v1alpha1.{}", Self::NAME)
     }
 }
 /// `Deposit` represents a deposit from the sequencer
@@ -127,9 +127,9 @@ pub struct Deposit {
 }
 impl ::prost::Name for Deposit {
     const NAME: &'static str = "Deposit";
-    const PACKAGE: &'static str = "astria.sequencer.v2alpha1";
+    const PACKAGE: &'static str = "astria.sequencer.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencer.v2alpha1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.sequencer.v1alpha1.{}", Self::NAME)
     }
 }
 /// `FilteredSequencerBlock` is similar to `SequencerBlock` but with a subset
@@ -174,9 +174,9 @@ pub struct FilteredSequencerBlock {
 }
 impl ::prost::Name for FilteredSequencerBlock {
     const NAME: &'static str = "FilteredSequencerBlock";
-    const PACKAGE: &'static str = "astria.sequencer.v2alpha1";
+    const PACKAGE: &'static str = "astria.sequencer.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencer.v2alpha1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.sequencer.v1alpha1.{}", Self::NAME)
     }
 }
 /// A piece of data that is sent to a rollup execution node.
@@ -204,9 +204,9 @@ pub mod rollup_data {
 }
 impl ::prost::Name for RollupData {
     const NAME: &'static str = "RollupData";
-    const PACKAGE: &'static str = "astria.sequencer.v2alpha1";
+    const PACKAGE: &'static str = "astria.sequencer.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencer.v2alpha1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.sequencer.v1alpha1.{}", Self::NAME)
     }
 }
 /// A collection of transactions belonging to a specific rollup that are submitted to celestia.
@@ -234,9 +234,9 @@ pub struct CelestiaRollupBlob {
 }
 impl ::prost::Name for CelestiaRollupBlob {
     const NAME: &'static str = "CelestiaRollupBlob";
-    const PACKAGE: &'static str = "astria.sequencer.v2alpha1";
+    const PACKAGE: &'static str = "astria.sequencer.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencer.v2alpha1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.sequencer.v1alpha1.{}", Self::NAME)
     }
 }
 /// The metadata of a sequencer block that is submitted to celestia.
@@ -272,9 +272,9 @@ pub struct CelestiaSequencerBlob {
 }
 impl ::prost::Name for CelestiaSequencerBlob {
     const NAME: &'static str = "CelestiaSequencerBlob";
-    const PACKAGE: &'static str = "astria.sequencer.v2alpha1";
+    const PACKAGE: &'static str = "astria.sequencer.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencer.v2alpha1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.sequencer.v1alpha1.{}", Self::NAME)
     }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -286,9 +286,9 @@ pub struct GetSequencerBlockRequest {
 }
 impl ::prost::Name for GetSequencerBlockRequest {
     const NAME: &'static str = "GetSequencerBlockRequest";
-    const PACKAGE: &'static str = "astria.sequencer.v2alpha1";
+    const PACKAGE: &'static str = "astria.sequencer.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencer.v2alpha1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.sequencer.v1alpha1.{}", Self::NAME)
     }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -303,9 +303,9 @@ pub struct GetFilteredSequencerBlockRequest {
 }
 impl ::prost::Name for GetFilteredSequencerBlockRequest {
     const NAME: &'static str = "GetFilteredSequencerBlockRequest";
-    const PACKAGE: &'static str = "astria.sequencer.v2alpha1";
+    const PACKAGE: &'static str = "astria.sequencer.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencer.v2alpha1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.sequencer.v1alpha1.{}", Self::NAME)
     }
 }
 /// Generated client implementations.
@@ -410,13 +410,13 @@ pub mod sequencer_service_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria.sequencer.v2alpha1.SequencerService/GetSequencerBlock",
+                "/astria.sequencer.v1alpha1.SequencerService/GetSequencerBlock",
             );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
                     GrpcMethod::new(
-                        "astria.sequencer.v2alpha1.SequencerService",
+                        "astria.sequencer.v1alpha1.SequencerService",
                         "GetSequencerBlock",
                     ),
                 );
@@ -442,13 +442,13 @@ pub mod sequencer_service_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria.sequencer.v2alpha1.SequencerService/GetFilteredSequencerBlock",
+                "/astria.sequencer.v1alpha1.SequencerService/GetFilteredSequencerBlock",
             );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
                     GrpcMethod::new(
-                        "astria.sequencer.v2alpha1.SequencerService",
+                        "astria.sequencer.v1alpha1.SequencerService",
                         "GetFilteredSequencerBlock",
                     ),
                 );
@@ -558,7 +558,7 @@ pub mod sequencer_service_server {
         fn call(&mut self, req: http::Request<B>) -> Self::Future {
             let inner = self.inner.clone();
             match req.uri().path() {
-                "/astria.sequencer.v2alpha1.SequencerService/GetSequencerBlock" => {
+                "/astria.sequencer.v1alpha1.SequencerService/GetSequencerBlock" => {
                     #[allow(non_camel_case_types)]
                     struct GetSequencerBlockSvc<T: SequencerService>(pub Arc<T>);
                     impl<
@@ -605,7 +605,7 @@ pub mod sequencer_service_server {
                     };
                     Box::pin(fut)
                 }
-                "/astria.sequencer.v2alpha1.SequencerService/GetFilteredSequencerBlock" => {
+                "/astria.sequencer.v1alpha1.SequencerService/GetFilteredSequencerBlock" => {
                     #[allow(non_camel_case_types)]
                     struct GetFilteredSequencerBlockSvc<T: SequencerService>(pub Arc<T>);
                     impl<
@@ -696,6 +696,6 @@ pub mod sequencer_service_server {
         }
     }
     impl<T: SequencerService> tonic::server::NamedService for SequencerServiceServer<T> {
-        const NAME: &'static str = "astria.sequencer.v2alpha1.SequencerService";
+        const NAME: &'static str = "astria.sequencer.v1alpha1.SequencerService";
     }
 }

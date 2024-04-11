@@ -15,12 +15,12 @@ use anyhow::{
     Context as _,
     Result,
 };
-use astria_core::sequencer::{
-    v1::{
+use astria_core::{
+    sequencer::v1::{
         asset::Denom,
         Address,
     },
-    v2alpha1::block::Deposit,
+    sequencerblock::v1alpha1::block::Deposit,
 };
 use cnidarium::{
     StateRead,

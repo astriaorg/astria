@@ -13,17 +13,15 @@ use anyhow::{
 };
 use astria_core::{
     generated::sequencer::v1 as raw,
-    sequencer::{
-        v1::{
-            transaction::Action,
-            Address,
-            RollupId,
-            SignedTransaction,
-        },
-        v2alpha1::block::{
-            Deposit,
-            SequencerBlock,
-        },
+    sequencer::v1::{
+        transaction::Action,
+        Address,
+        RollupId,
+        SignedTransaction,
+    },
+    sequencerblock::v1alpha1::block::{
+        Deposit,
+        SequencerBlock,
     },
 };
 use cnidarium::{

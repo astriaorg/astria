@@ -21,7 +21,7 @@ impl serde::Serialize for Deposit {
         if !self.destination_chain_address.is_empty() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.sequencer.v2alpha1.Deposit", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.sequencer.v1alpha1.Deposit", len)?;
         if !self.bridge_address.is_empty() {
             #[allow(clippy::needless_borrow)]
             struct_ser.serialize_field("bridge_address", pbjson::private::base64::encode(&self.bridge_address).as_str())?;
@@ -106,7 +106,7 @@ impl<'de> serde::Deserialize<'de> for Deposit {
             type Value = Deposit;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.sequencer.v2alpha1.Deposit")
+                formatter.write_str("struct astria.sequencer.v1alpha1.Deposit")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<Deposit, V::Error>
@@ -167,7 +167,7 @@ impl<'de> serde::Deserialize<'de> for Deposit {
                 })
             }
         }
-        deserializer.deserialize_struct("astria.sequencer.v2alpha1.Deposit", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.sequencer.v1alpha1.Deposit", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for FilteredSequencerBlock {
@@ -196,7 +196,7 @@ impl serde::Serialize for FilteredSequencerBlock {
         if self.rollup_ids_proof.is_some() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.sequencer.v2alpha1.FilteredSequencerBlock", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.sequencer.v1alpha1.FilteredSequencerBlock", len)?;
         if !self.block_hash.is_empty() {
             #[allow(clippy::needless_borrow)]
             struct_ser.serialize_field("block_hash", pbjson::private::base64::encode(&self.block_hash).as_str())?;
@@ -286,7 +286,7 @@ impl<'de> serde::Deserialize<'de> for FilteredSequencerBlock {
             type Value = FilteredSequencerBlock;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.sequencer.v2alpha1.FilteredSequencerBlock")
+                formatter.write_str("struct astria.sequencer.v1alpha1.FilteredSequencerBlock")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<FilteredSequencerBlock, V::Error>
@@ -354,7 +354,7 @@ impl<'de> serde::Deserialize<'de> for FilteredSequencerBlock {
                 })
             }
         }
-        deserializer.deserialize_struct("astria.sequencer.v2alpha1.FilteredSequencerBlock", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.sequencer.v1alpha1.FilteredSequencerBlock", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for GetFilteredSequencerBlockRequest {
@@ -371,7 +371,7 @@ impl serde::Serialize for GetFilteredSequencerBlockRequest {
         if !self.rollup_ids.is_empty() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.sequencer.v2alpha1.GetFilteredSequencerBlockRequest", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.sequencer.v1alpha1.GetFilteredSequencerBlockRequest", len)?;
         if self.height != 0 {
             #[allow(clippy::needless_borrow)]
             struct_ser.serialize_field("height", ToString::to_string(&self.height).as_str())?;
@@ -433,7 +433,7 @@ impl<'de> serde::Deserialize<'de> for GetFilteredSequencerBlockRequest {
             type Value = GetFilteredSequencerBlockRequest;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.sequencer.v2alpha1.GetFilteredSequencerBlockRequest")
+                formatter.write_str("struct astria.sequencer.v1alpha1.GetFilteredSequencerBlockRequest")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<GetFilteredSequencerBlockRequest, V::Error>
@@ -469,7 +469,7 @@ impl<'de> serde::Deserialize<'de> for GetFilteredSequencerBlockRequest {
                 })
             }
         }
-        deserializer.deserialize_struct("astria.sequencer.v2alpha1.GetFilteredSequencerBlockRequest", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.sequencer.v1alpha1.GetFilteredSequencerBlockRequest", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for RollupData {
@@ -483,7 +483,7 @@ impl serde::Serialize for RollupData {
         if self.value.is_some() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.sequencer.v2alpha1.RollupData", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.sequencer.v1alpha1.RollupData", len)?;
         if let Some(v) = self.value.as_ref() {
             match v {
                 rollup_data::Value::SequencedData(v) => {
@@ -549,7 +549,7 @@ impl<'de> serde::Deserialize<'de> for RollupData {
             type Value = RollupData;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.sequencer.v2alpha1.RollupData")
+                formatter.write_str("struct astria.sequencer.v1alpha1.RollupData")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<RollupData, V::Error>
@@ -579,7 +579,7 @@ impl<'de> serde::Deserialize<'de> for RollupData {
                 })
             }
         }
-        deserializer.deserialize_struct("astria.sequencer.v2alpha1.RollupData", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.sequencer.v1alpha1.RollupData", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for RollupTransactions {
@@ -599,7 +599,7 @@ impl serde::Serialize for RollupTransactions {
         if self.proof.is_some() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.sequencer.v2alpha1.RollupTransactions", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.sequencer.v1alpha1.RollupTransactions", len)?;
         if !self.id.is_empty() {
             #[allow(clippy::needless_borrow)]
             struct_ser.serialize_field("id", pbjson::private::base64::encode(&self.id).as_str())?;
@@ -666,7 +666,7 @@ impl<'de> serde::Deserialize<'de> for RollupTransactions {
             type Value = RollupTransactions;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.sequencer.v2alpha1.RollupTransactions")
+                formatter.write_str("struct astria.sequencer.v1alpha1.RollupTransactions")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<RollupTransactions, V::Error>
@@ -710,7 +710,7 @@ impl<'de> serde::Deserialize<'de> for RollupTransactions {
                 })
             }
         }
-        deserializer.deserialize_struct("astria.sequencer.v2alpha1.RollupTransactions", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.sequencer.v1alpha1.RollupTransactions", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for SequencerBlockHeader {
@@ -739,7 +739,7 @@ impl serde::Serialize for SequencerBlockHeader {
         if !self.rollup_transactions_root.is_empty() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.sequencer.v2alpha1.SequencerBlockHeader", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.sequencer.v1alpha1.SequencerBlockHeader", len)?;
         if !self.chain_id.is_empty() {
             struct_ser.serialize_field("chain_id", &self.chain_id)?;
         }
@@ -831,7 +831,7 @@ impl<'de> serde::Deserialize<'de> for SequencerBlockHeader {
             type Value = SequencerBlockHeader;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.sequencer.v2alpha1.SequencerBlockHeader")
+                formatter.write_str("struct astria.sequencer.v1alpha1.SequencerBlockHeader")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<SequencerBlockHeader, V::Error>
@@ -902,6 +902,6 @@ impl<'de> serde::Deserialize<'de> for SequencerBlockHeader {
                 })
             }
         }
-        deserializer.deserialize_struct("astria.sequencer.v2alpha1.SequencerBlockHeader", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.sequencer.v1alpha1.SequencerBlockHeader", FIELDS, GeneratedVisitor)
     }
 }

@@ -23,7 +23,7 @@ use astria_core::{
     },
     sequencer::{
         v1::test_utils::make_cometbft_block,
-        v2alpha1::SequencerBlock,
+        v1alpha1::SequencerBlock,
     },
 };
 use astria_sequencer_relayer::{

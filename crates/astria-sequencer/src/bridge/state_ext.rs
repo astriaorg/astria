@@ -9,15 +9,13 @@ use anyhow::{
     Result,
 };
 use astria_core::{
-    generated::sequencer::v2alpha1::Deposit as RawDeposit,
-    sequencer::{
-        v1::{
-            asset,
-            Address,
-            RollupId,
-        },
-        v2alpha1::block::Deposit,
+    generated::sequencerblock::v1alpha1::Deposit as RawDeposit,
+    sequencer::v1::{
+        asset,
+        Address,
+        RollupId,
     },
+    sequencerblock::v1alpha1::block::Deposit,
 };
 use async_trait::async_trait;
 use borsh::{
@@ -253,13 +251,13 @@ impl<T: StateWrite> StateWriteExt for T {}
 
 #[cfg(test)]
 mod test {
-    use astria_core::sequencer::{
-        v1::{
+    use astria_core::{
+        sequencer::v1::{
             asset::Id,
             Address,
             RollupId,
         },
-        v2alpha1::block::Deposit,
+        sequencerblock::v1alpha1::block::Deposit,
     };
     use cnidarium::StateDelta;
 

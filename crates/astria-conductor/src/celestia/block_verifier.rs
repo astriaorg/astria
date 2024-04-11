@@ -276,12 +276,10 @@ mod test {
 
     use astria_core::{
         generated::sequencerblock::v1alpha1::SequencerBlockHeader as RawSequencerBlockHeader,
-        sequencer::{
-            v1::RollupId,
-            v2alpha1::{
-                block::SequencerBlockHeader,
-                celestia::UncheckedCelestiaSequencerBlob,
-            },
+        sequencer::v1::RollupId,
+        sequencerblock::v1alpha1::{
+            block::SequencerBlockHeader,
+            celestia::UncheckedCelestiaSequencerBlob,
         },
     };
     use prost::Message as _;

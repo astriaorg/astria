@@ -30,16 +30,14 @@ use astria_core::{
         },
         sequencer::v1::RollupData as RawRollupData,
     },
-    sequencer::{
-        v1::{
-            block::RollupData,
-            test_utils::{
-                make_cometbft_block,
-                ConfigureCometBftBlock,
-            },
+    sequencer::v1::{
+        block::RollupData,
+        test_utils::{
+            make_cometbft_block,
+            ConfigureCometBftBlock,
         },
-        v2alpha1::SequencerBlock,
     },
+    sequencerblock::v1alpha1::SequencerBlock,
     Protobuf,
 };
 use bytes::Bytes;

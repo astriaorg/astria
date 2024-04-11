@@ -118,6 +118,7 @@ fn main() {
             ".astria.sequencerblock.v1alpha1.GetFilteredSequencerBlockRequest",
             ".astria.sequencerblock.v1alpha1.RollupData",
             ".astria.sequencerblock.v1alpha1.RollupTransactions",
+            ".astria.sequencerblock.v1alpha1.Proof",
         ])
         .unwrap();
 
