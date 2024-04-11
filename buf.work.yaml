@@ -3,3 +3,4 @@ directories:
   - proto/executionapis
   - proto/sequencerapis
   - proto/composerapis
+  - proto/sequencerblockapis
