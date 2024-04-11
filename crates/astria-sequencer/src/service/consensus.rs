@@ -53,11 +53,12 @@ impl Consensus {
             // if the caller didn't propagate the message back to tendermint
             // for some reason -- but that's not our problem.
             let rsp = self.handle_request(req).instrument(span.clone()).await;
+            tracing::debug!(?rsp, "sending consensus response");
             if let Err(e) = rsp.as_ref() {
                 warn!(
                     parent: &span,
                     error = e,
-                    "failed processing concensus request; returning error back to sender",
+                    "failed processing consensus request; returning error back to sender",
                 );
             }
             // `send` returns the sent message if sending fail, so we are dropping it.
@@ -76,6 +77,7 @@ impl Consensus {
         &mut self,
         req: ConsensusRequest,
     ) -> Result<ConsensusResponse, BoxError> {
+        tracing::debug!(?req, "handling consensus request");
         Ok(match req {
             ConsensusRequest::InitChain(init_chain) => ConsensusResponse::InitChain(
                 self.init_chain(init_chain)
@@ -138,7 +140,8 @@ impl Consensus {
 
         let genesis_state: GenesisState = serde_json::from_slice(&init_chain.app_state_bytes)
             .context("failed to parse app_state in genesis file")?;
-        self.app
+        let app_hash = self
+            .app
             .init_chain(
                 self.storage.clone(),
                 genesis_state,
@@ -147,15 +150,10 @@ impl Consensus {
             )
             .await
             .context("failed to call init_chain")?;
+        self.app.commit(self.storage.clone()).await;
 
-        // commit the state and return the app hash
-        let app_hash = self.app.commit(self.storage.clone()).await;
         Ok(response::InitChain {
-            app_hash: app_hash
-                .0
-                .to_vec()
-                .try_into()
-                .context("failed to convert app hash")?,
+            app_hash,
             consensus_params: Some(init_chain.consensus_params),
             validators: init_chain.validators,
         })
@@ -189,7 +187,9 @@ impl Consensus {
     ) -> anyhow::Result<()> {
         self.app
             .process_proposal(process_proposal, self.storage.clone())
-            .await
+            .await?;
+        tracing::debug!("proposal processed");
+        Ok(())
     }
 
     #[instrument(skip_all, fields(
@@ -214,6 +214,7 @@ impl Consensus {
     async fn commit(&mut self) -> anyhow::Result<response::Commit> {
         let app_hash = self.app.commit(self.storage.clone()).await;
         Ok(response::Commit {
+            // note: this field is ignored in cometbft v0.38.
             data: app_hash.0.to_vec().into(),
             ..Default::default()
         })

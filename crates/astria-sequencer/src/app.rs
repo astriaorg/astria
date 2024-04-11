@@ -172,7 +172,7 @@ impl App {
         genesis_state: GenesisState,
         genesis_validators: Vec<tendermint::validator::Update>,
         chain_id: String,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<AppHash> {
         let mut state_tx = self
             .state
             .try_begin_transaction()
@@ -206,11 +206,12 @@ impl App {
 
         state_tx.apply();
 
-        let _ = self
+        let app_hash = self
             .prepare_commit(storage)
             .await
             .context("failed to prepare commit")?;
-        Ok(())
+        debug!(app_hash = %telemetry::display::base64(&app_hash), "init_chain completed");
+        Ok(app_hash)
     }
 
     fn update_state_for_new_round(&mut self, storage: &Storage) {
@@ -495,7 +496,16 @@ impl App {
              rollup IDs commitment"
         );
 
-        let mut tx_results: Vec<ExecTxResult> = Vec::with_capacity(finalize_block.txs.len() - 2);
+        // cometbft expects a result for every tx in the block, so we need to return a
+        // tx result for the commitments, even though they're not actually user txs.
+        let mut tx_results: Vec<ExecTxResult> = Vec::with_capacity(finalize_block.txs.len());
+        tx_results.push(ExecTxResult {
+            ..Default::default()
+        });
+        tx_results.push(ExecTxResult {
+            ..Default::default()
+        });
+
         for tx in &finalize_block.txs[2..] {
             match self.deliver_tx_after_proposal(tx).await {
                 Ok(events) => tx_results.push(ExecTxResult {
