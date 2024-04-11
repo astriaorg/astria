@@ -53,7 +53,6 @@ impl Consensus {
             // if the caller didn't propagate the message back to tendermint
             // for some reason -- but that's not our problem.
             let rsp = self.handle_request(req).instrument(span.clone()).await;
-            tracing::debug!(?rsp, "sending consensus response");
             if let Err(e) = rsp.as_ref() {
                 warn!(
                     parent: &span,
@@ -77,7 +76,6 @@ impl Consensus {
         &mut self,
         req: ConsensusRequest,
     ) -> Result<ConsensusResponse, BoxError> {
-        tracing::debug!(?req, "handling consensus request");
         Ok(match req {
             ConsensusRequest::InitChain(init_chain) => ConsensusResponse::InitChain(
                 self.init_chain(init_chain)
