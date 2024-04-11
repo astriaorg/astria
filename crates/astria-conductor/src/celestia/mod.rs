@@ -601,7 +601,7 @@ async fn process_sequencer_blob(
 
 /// Get the sequencer namespace from the latest sequencer block.
 async fn get_sequencer_namespace(client: SequencerClient) -> eyre::Result<Namespace> {
-    use sequencer_client::Client as _;
+    use sequencer_client::SequencerClientExt as _;
 
     let retry_config = tryhard::RetryFutureConfig::new(10)
         .exponential_backoff(Duration::from_millis(100))
@@ -609,7 +609,7 @@ async fn get_sequencer_namespace(client: SequencerClient) -> eyre::Result<Namesp
         .on_retry(
             |attempt: u32,
              next_delay: Option<Duration>,
-             error: &sequencer_client::tendermint_rpc::Error| {
+             error: &sequencer_client::extension_trait::Error| {
                 let wait_duration = next_delay
                     .map(humantime::format_duration)
                     .map(tracing::field::display);
