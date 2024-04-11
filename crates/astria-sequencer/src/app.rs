@@ -1,8 +1,5 @@
 use std::{
-    collections::{
-        HashMap,
-        VecDeque,
-    },
+    collections::VecDeque,
     sync::Arc,
 };
 
@@ -37,9 +34,11 @@ use sha2::{
 use tendermint::{
     abci::{
         self,
+        types::ExecTxResult,
         Event,
     },
     account,
+    block::Header,
     AppHash,
     Hash,
 };
@@ -84,6 +83,7 @@ use crate::{
         StateWriteExt as _,
     },
     transaction,
+    transaction::InvalidNonce,
 };
 
 /// The inter-block state being written to by the application.
@@ -124,7 +124,7 @@ pub(crate) struct App {
 
     // cache of results of executing of transactions in `prepare_proposal` or `process_proposal`.
     // cleared at the end of each block.
-    execution_result: HashMap<[u8; 32], anyhow::Result<Vec<abci::Event>>>,
+    execution_results: Option<Vec<tendermint::abci::types::ExecTxResult>>,
 
     // proposer of the block being currently executed; set in begin_block
     // and cleared in end_block.
@@ -146,6 +146,43 @@ pub(crate) struct App {
     app_hash: AppHash,
 }
 
+/// Relevant data of a block being executed.
+#[derive(Debug, Clone)]
+struct BlockData {
+    txs: Vec<bytes::Bytes>,
+    misbehavior: Vec<tendermint::abci::types::Misbehavior>,
+    height: tendermint::block::Height,
+    time: tendermint::Time,
+    next_validators_hash: Hash,
+    proposer_address: account::Id,
+}
+
+impl From<abci::request::FinalizeBlock> for BlockData {
+    fn from(finalize_block: abci::request::FinalizeBlock) -> Self {
+        Self {
+            txs: finalize_block.txs,
+            misbehavior: finalize_block.misbehavior,
+            height: finalize_block.height,
+            time: finalize_block.time,
+            next_validators_hash: finalize_block.next_validators_hash,
+            proposer_address: finalize_block.proposer_address,
+        }
+    }
+}
+
+impl From<abci::request::PrepareProposal> for BlockData {
+    fn from(prepare_proposal: abci::request::PrepareProposal) -> Self {
+        Self {
+            txs: prepare_proposal.txs,
+            misbehavior: prepare_proposal.misbehavior,
+            height: prepare_proposal.height,
+            time: prepare_proposal.time,
+            next_validators_hash: prepare_proposal.next_validators_hash,
+            proposer_address: prepare_proposal.proposer_address,
+        }
+    }
+}
+
 impl App {
     pub(crate) fn new(snapshot: Snapshot) -> Self {
         tracing::debug!("initializing App instance");
@@ -158,7 +195,7 @@ impl App {
             state,
             validator_address: None,
             executed_proposal_hash: Hash::default(),
-            execution_result: HashMap::new(),
+            execution_results: None,
             current_proposer: None,
             write_batch: None,
             app_hash: AppHash::default(),
@@ -222,7 +259,7 @@ impl App {
         self.state = Arc::new(StateDelta::new(storage.latest_snapshot()));
 
         // clear the cache of transaction execution results
-        self.execution_result.clear();
+        self.execution_results = None;
         self.executed_proposal_hash = Hash::default();
     }
 
@@ -243,7 +280,12 @@ impl App {
         self.validator_address = Some(prepare_proposal.proposer_address);
         self.update_state_for_new_round(&storage);
 
-        let (signed_txs, txs_to_include) = self.execute_block_data(prepare_proposal.txs).await;
+        let txs = self
+            .pre_execute_block(prepare_proposal.into())
+            .await
+            .context("failed to prepare for executing block")?;
+
+        let (signed_txs, txs_to_include) = self.execute_transactions_before_finalization(txs).await;
 
         let deposits = self
             .state
@@ -307,7 +349,23 @@ impl App {
 
         let expected_txs_len = txs.len();
 
-        let (signed_txs, txs_to_include) = self.execute_block_data(txs.into()).await;
+        let block_data = BlockData {
+            txs: txs.into_iter().collect(),
+            misbehavior: process_proposal.misbehavior,
+            height: process_proposal.height,
+            time: process_proposal.time,
+            next_validators_hash: process_proposal.next_validators_hash,
+            proposer_address: process_proposal.proposer_address,
+        };
+
+        let txs = self
+            .pre_execute_block(block_data)
+            .await
+            .context("failed to prepare for executing block")?;
+
+        let (signed_txs, txs_to_include) = self
+            .execute_transactions_before_finalization(txs.into())
+            .await;
 
         // all txs in the proposal should be deserializable and executable
         // if any txs were not deserializeable or executable, they would not have been
@@ -346,14 +404,14 @@ impl App {
     /// Executes the given transaction data, writing it to the app's `StateDelta`.
     ///
     /// The result of execution of every transaction which is successfully decoded
-    /// is stored in `self.execution_result`.
+    /// is stored in `self.execution_results`.
     ///
     /// Returns the transactions which were successfully decoded and executed
     /// in both their [`SignedTransaction`] and raw bytes form.
-    #[instrument(name = "App::execute_block_data", skip_all, fields(
+    #[instrument(name = "App::execute_block_before_finalization", skip_all, fields(
         tx_count = txs.len()
     ))]
-    async fn execute_block_data(
+    async fn execute_transactions_before_finalization(
         &mut self,
         txs: Vec<bytes::Bytes>,
     ) -> (Vec<SignedTransaction>, Vec<bytes::Bytes>) {
@@ -361,6 +419,7 @@ impl App {
         let mut validated_txs = Vec::with_capacity(txs.len());
         let mut block_sequence_data_bytes: usize = 0;
         let mut excluded_tx_count: usize = 0;
+        let mut execution_results = Vec::with_capacity(txs.len());
 
         for tx in txs {
             let signed_tx = match signed_transaction_from_bytes(&tx) {
@@ -400,9 +459,12 @@ impl App {
             }
 
             // store transaction execution result, indexed by tx hash
-            match self.deliver_tx(signed_tx.clone()).await {
+            match self.execute_transaction(signed_tx.clone()).await {
                 Ok(events) => {
-                    self.execution_result.insert(tx_hash.into(), Ok(events));
+                    execution_results.push(ExecTxResult {
+                        events,
+                        ..Default::default()
+                    });
                     signed_txs.push(signed_tx);
                     validated_txs.push(tx);
                     block_sequence_data_bytes += tx_sequence_data_bytes;
@@ -414,7 +476,17 @@ impl App {
                         "failed to execute transaction, not including in block"
                     );
                     excluded_tx_count += 1;
-                    self.execution_result.insert(tx_hash.into(), Err(e));
+                    let code = if e.downcast_ref::<InvalidNonce>().is_some() {
+                        AbciErrorCode::INVALID_NONCE
+                    } else {
+                        AbciErrorCode::INTERNAL_ERROR
+                    };
+                    execution_results.push(ExecTxResult {
+                        code: code.into(),
+                        info: code.to_string(),
+                        log: format!("{e:?}"),
+                        ..Default::default()
+                    });
                 }
             }
         }
@@ -427,24 +499,18 @@ impl App {
             );
         }
 
+        self.execution_results = Some(execution_results);
         (signed_txs, validated_txs)
     }
 
-    #[instrument(name = "App::finalize_block", skip_all)]
-    pub(crate) async fn finalize_block(
+    // sets up the state for execution of the block's transactions.
+    // set the current height and timestamp, and calls `begin_block` on all components.
+    async fn pre_execute_block(
         &mut self,
-        finalize_block: abci::request::FinalizeBlock,
-        storage: Storage,
-    ) -> anyhow::Result<abci::response::FinalizeBlock> {
-        use tendermint::{
-            abci::types::ExecTxResult,
-            block::Header,
-        };
-
-        use crate::transaction::InvalidNonce;
-
+        block_data: BlockData,
+    ) -> anyhow::Result<Vec<bytes::Bytes>> {
         let data_hash = astria_core::sequencerblock::v1alpha1::block::merkle_tree_from_data(
-            finalize_block.txs.iter().map(std::convert::AsRef::as_ref),
+            block_data.txs.iter().map(std::convert::AsRef::as_ref),
         )
         .root();
 
@@ -461,21 +527,21 @@ impl App {
         // however, we need to still construct a `BeginBlock` type for now as
         // the penumbra IBC implementation still requires it as a parameter.
         let begin_block = abci::request::BeginBlock {
-            hash: finalize_block.hash,
-            byzantine_validators: finalize_block.misbehavior.clone(),
+            hash: Hash::default(), // unused
+            byzantine_validators: block_data.misbehavior.clone(),
             header: Header {
                 app_hash: self.app_hash.clone(),
                 chain_id: chain_id.clone(),
                 consensus_hash: Hash::default(), // unused
                 data_hash: Some(Hash::try_from(data_hash.to_vec()).unwrap()),
                 evidence_hash: Some(Hash::default()), // unused
-                height: finalize_block.height,
+                height: block_data.height,
                 last_block_id: None,                      // unused
                 last_commit_hash: Some(Hash::default()),  // unused
                 last_results_hash: Some(Hash::default()), // unused
-                next_validators_hash: finalize_block.next_validators_hash,
-                proposer_address: finalize_block.proposer_address,
-                time: finalize_block.time,
+                next_validators_hash: block_data.next_validators_hash,
+                proposer_address: block_data.proposer_address,
+                time: block_data.time,
                 validators_hash: Hash::default(), // unused
                 version: tendermint::block::header::Version {
                     // unused
@@ -483,22 +549,68 @@ impl App {
                     block: 0,
                 },
             },
-            last_commit_info: finalize_block.decided_last_commit.clone(),
+            last_commit_info: tendermint::abci::types::CommitInfo {
+                round: 0u16.into(), // unused
+                votes: vec![],
+            }, // unused
         };
 
-        self.begin_block(&begin_block, storage.clone())
+        self.begin_block(&begin_block)
             .await
             .context("failed to call begin_block")?;
 
+        Ok(block_data.txs)
+    }
+
+    #[instrument(name = "App::finalize_block", skip_all)]
+    pub(crate) async fn finalize_block(
+        &mut self,
+        finalize_block: abci::request::FinalizeBlock,
+        storage: Storage,
+    ) -> anyhow::Result<abci::response::FinalizeBlock> {
+        let chain_id: tendermint::chain::Id = self
+            .state
+            .get_chain_id()
+            .await
+            .context("failed to get chain ID from state")?
+            .try_into()
+            .context("invalid chain ID")?;
+
+        // set the current proposer
+        self.current_proposer = Some(finalize_block.proposer_address);
+        let height = finalize_block.height;
+        let time = finalize_block.time;
+        // this conversion should never fail
+        let block_hash = finalize_block
+            .hash
+            .as_bytes()
+            .to_vec()
+            .try_into()
+            .map_err(|_| {
+                anyhow!("failed to convert block hash into 32-byte vec; this should not occur")
+            })?;
+
+        // If we previously executed txs in a different proposal than is being processed,
+        // reset cached state changes.
+        if self.executed_proposal_hash != finalize_block.hash {
+            self.update_state_for_new_round(&storage);
+        }
+
+        // this function returns the txs inside `finalize_block` back to us unmodified.
+        let txs = self
+            .pre_execute_block(finalize_block.into())
+            .await
+            .context("failed to execute block")?;
+
         ensure!(
-            finalize_block.txs.len() >= 2,
-            "block must contain at least two transactions: the rollup transactions commitment and \
+            txs.len() >= 2,
+            "block must contain at least two transactions: the rollup transactions commitment and
              rollup IDs commitment"
         );
 
         // cometbft expects a result for every tx in the block, so we need to return a
         // tx result for the commitments, even though they're not actually user txs.
-        let mut tx_results: Vec<ExecTxResult> = Vec::with_capacity(finalize_block.txs.len());
+        let mut tx_results: Vec<ExecTxResult> = Vec::with_capacity(txs.len());
         tx_results.push(ExecTxResult {
             ..Default::default()
         });
@@ -506,36 +618,49 @@ impl App {
             ..Default::default()
         });
 
-        for tx in &finalize_block.txs[2..] {
-            match self.deliver_tx_after_proposal(tx).await {
-                Ok(events) => tx_results.push(ExecTxResult {
-                    events,
-                    ..Default::default()
-                }),
-                Err(e) => {
-                    // this is actually a protocol error, as only valid txs should be finalized
-                    tracing::error!(
-                        error = AsRef::<dyn std::error::Error>::as_ref(&e),
-                        "failed to finalize transaction; ignoring it",
-                    );
-                    let code = if e.downcast_ref::<InvalidNonce>().is_some() {
-                        AbciErrorCode::INVALID_NONCE
-                    } else {
-                        AbciErrorCode::INTERNAL_ERROR
-                    };
-                    tx_results.push(ExecTxResult {
-                        code: code.into(),
-                        info: code.to_string(),
-                        log: format!("{e:?}"),
+        // When the hash is not empty, we have already executed and cached the results
+        if !self.executed_proposal_hash.is_empty() {
+            let execution_results = self.execution_results.take().expect(
+                "execution results must be present if txs were already executed during proposal \
+                 phase",
+            );
+            tx_results.extend(execution_results);
+        } else {
+            // we haven't executed these txs before, so execute them
+            for tx in &txs[2..] {
+                let signed_tx = signed_transaction_from_bytes(tx)
+                    .expect("protocol error; only valid txs should be finalized");
+
+                match self.execute_transaction(signed_tx).await {
+                    Ok(events) => tx_results.push(ExecTxResult {
+                        events,
                         ..Default::default()
-                    });
+                    }),
+                    Err(e) => {
+                        // this is actually a protocol error, as only valid txs should be finalized
+                        tracing::error!(
+                            error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                            "failed to finalize transaction; ignoring it",
+                        );
+                        let code = if e.downcast_ref::<InvalidNonce>().is_some() {
+                            AbciErrorCode::INVALID_NONCE
+                        } else {
+                            AbciErrorCode::INTERNAL_ERROR
+                        };
+                        tx_results.push(ExecTxResult {
+                            code: code.into(),
+                            info: code.to_string(),
+                            log: format!("{e:?}"),
+                            ..Default::default()
+                        });
+                    }
                 }
             }
         }
 
         let end_block = self
             .end_block(&abci::request::EndBlock {
-                height: finalize_block.height.into(),
+                height: height.into(),
             })
             .await?;
 
@@ -551,25 +676,19 @@ impl App {
             .await
             .context("failed to clear block deposits")?;
 
+        // reset proposer address for fee payment
+        let proposer_address = self
+            .current_proposer
+            .take()
+            .expect("current proposer must be set at the start of finalize_block");
+
         let sequencer_block = SequencerBlock::try_from_block_info_and_data(
-            // this conversion should never fail
-            finalize_block
-                .hash
-                .as_bytes()
-                .to_vec()
-                .try_into()
-                .map_err(|_| {
-                    anyhow!("failed to convert block hash into 32-byte vec; this should not occur")
-                })?,
+            block_hash,
             chain_id,
-            finalize_block.height,
-            finalize_block.time,
-            finalize_block.proposer_address,
-            finalize_block
-                .txs
-                .into_iter()
-                .map(std::convert::Into::into)
-                .collect(),
+            height,
+            time,
+            proposer_address,
+            txs.into_iter().map(std::convert::Into::into).collect(),
             deposits,
         )
         .context("failed to convert block info and data to SequencerBlock")?;
@@ -632,17 +751,7 @@ impl App {
     pub(crate) async fn begin_block(
         &mut self,
         begin_block: &abci::request::BeginBlock,
-        storage: Storage,
     ) -> anyhow::Result<Vec<abci::Event>> {
-        // set the current proposer
-        self.current_proposer = Some(begin_block.header.proposer_address);
-
-        // If we previously executed txs in a different proposal than is being processed,
-        // reset cached state changes.
-        if self.executed_proposal_hash != begin_block.hash {
-            self.update_state_for_new_round(&storage);
-        }
-
         let mut state_tx = StateDelta::new(self.state.clone());
 
         // store the block height
@@ -668,37 +777,6 @@ impl App {
         Ok(self.apply(state_tx))
     }
 
-    /// Called during the normal ABCI `deliver_tx` process, returning the results
-    /// of transaction execution during the proposal phase.
-    ///
-    /// Since transaction execution now happens in the proposal phase, results
-    /// are cached in the app and returned here during the usual ABCI block execution process.
-    ///
-    /// If the tx was not executed during the proposal phase it will be executed here.
-    ///
-    /// Note that the first two "transactions" in the block, which are the proposer-generated
-    /// commitments, are ignored.
-    #[instrument(name = "App::deliver_tx_after_proposal", skip_all, fields(
-        tx_hash =  %telemetry::display::base64(&Sha256::digest(tx)),
-    ))]
-    pub(crate) async fn deliver_tx_after_proposal(
-        &mut self,
-        tx: &bytes::Bytes,
-    ) -> anyhow::Result<Vec<abci::Event>> {
-        // When the hash is not empty, we have already executed and cached the results
-        if !self.executed_proposal_hash.is_empty() {
-            let tx_hash: [u8; 32] = sha2::Sha256::digest(tx).into();
-            return self
-                .execution_result
-                .remove(&tx_hash)
-                .unwrap_or_else(|| Err(anyhow!("transaction not executed during proposal phase")));
-        }
-
-        let signed_tx = signed_transaction_from_bytes(tx)
-            .expect("protocol error; only valid txs should be finalized");
-        self.deliver_tx(signed_tx).await
-    }
-
     /// Executes a signed transaction.
     ///
     /// Unlike the usual flow of an ABCI application, this is called during
@@ -713,11 +791,11 @@ impl App {
     /// successfully.
     ///
     /// Note that `begin_block` is now called *after* transaction execution.
-    #[instrument(name = "App::deliver_tx", skip_all, fields(
+    #[instrument(name = "App::execute_transaction", skip_all, fields(
         signed_transaction_hash = %telemetry::display::base64(&signed_tx.sha256_of_proto_encoding()),
         sender = %Address::from_verification_key(signed_tx.verification_key()),
     ))]
-    pub(crate) async fn deliver_tx(
+    pub(crate) async fn execute_transaction(
         &mut self,
         signed_tx: astria_core::sequencer::v1::SignedTransaction,
     ) -> anyhow::Result<Vec<abci::Event>> {
@@ -814,7 +892,6 @@ impl App {
 
         // clear block fees
         state_tx.clear_block_fees().await;
-        self.current_proposer = None;
 
         let events = self.apply(state_tx);
 
@@ -914,6 +991,8 @@ pub(crate) mod test_utils {
 
 #[cfg(test)]
 mod test {
+    use std::collections::HashMap;
+
     #[cfg(feature = "mint")]
     use astria_core::sequencer::v1::transaction::action::MintAction;
     use astria_core::{
@@ -938,7 +1017,6 @@ mod test {
         abci::types::CommitInfo,
         block::{
             header::Version,
-            Header,
             Height,
             Round,
         },
@@ -954,7 +1032,6 @@ mod test {
         genesis::Account,
         ibc::state_ext::StateReadExt as _,
         sequence::calculate_fee,
-        transaction::InvalidNonce,
     };
 
     fn default_genesis_accounts() -> Vec<Account> {
@@ -1064,25 +1141,23 @@ mod test {
     }
 
     #[tokio::test]
-    async fn app_begin_block() {
-        let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
+    async fn app_pre_execute_block() {
+        let mut app = initialize_app(None, vec![]).await;
 
-        let mut begin_block = abci::request::BeginBlock {
-            header: default_header(),
-            hash: Hash::default(),
-            last_commit_info: CommitInfo {
-                votes: vec![],
-                round: Round::default(),
-            },
-            byzantine_validators: vec![],
+        let block_data = BlockData {
+            txs: vec![],
+            misbehavior: vec![],
+            height: 1u8.into(),
+            time: Time::now(),
+            next_validators_hash: Hash::default(),
+            proposer_address: account::Id::try_from([0u8; 20].to_vec()).unwrap(),
         };
-        begin_block.header.height = 1u8.into();
 
-        app.begin_block(&begin_block, storage).await.unwrap();
+        app.pre_execute_block(block_data.clone()).await.unwrap();
         assert_eq!(app.state.get_block_height().await.unwrap(), 1);
         assert_eq!(
             app.state.get_block_timestamp().await.unwrap(),
-            begin_block.header.time
+            block_data.time
         );
     }
 
@@ -1107,8 +1182,7 @@ mod test {
             },
         ];
 
-        let (mut app, storage) =
-            initialize_app_with_storage(None, initial_validator_set.clone()).await;
+        let mut app = initialize_app(None, initial_validator_set.clone()).await;
 
         let misbehavior = types::Misbehavior {
             kind: types::MisbehaviorKind::Unknown,
@@ -1135,7 +1209,7 @@ mod test {
         };
         begin_block.header.height = 1u8.into();
 
-        app.begin_block(&begin_block, storage).await.unwrap();
+        app.begin_block(&begin_block).await.unwrap();
 
         // assert that validator with pubkey_a is removed
         let validator_set = app.state.get_validator_set().await.unwrap();
@@ -1147,7 +1221,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn app_deliver_tx_transfer() {
+    async fn app_execute_transaction_transfer() {
         let mut app = initialize_app(None, vec![]).await;
 
         // transfer funds from Alice to Bob
@@ -1168,7 +1242,7 @@ mod test {
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
-        app.deliver_tx(signed_tx).await.unwrap();
+        app.execute_transaction(signed_tx).await.unwrap();
 
         let native_asset = get_native_asset().id();
         assert_eq!(
@@ -1190,7 +1264,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn app_deliver_tx_transfer_not_native_token() {
+    async fn app_execute_transaction_transfer_not_native_token() {
         use crate::accounts::state_ext::StateWriteExt as _;
 
         let mut app = initialize_app(None, vec![]).await;
@@ -1221,7 +1295,7 @@ mod test {
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
-        app.deliver_tx(signed_tx).await.unwrap();
+        app.execute_transaction(signed_tx).await.unwrap();
 
         let native_asset = get_native_asset().id();
         assert_eq!(
@@ -1259,7 +1333,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn app_deliver_tx_transfer_balance_too_low_for_fee() {
+    async fn app_execute_transaction_transfer_balance_too_low_for_fee() {
         use rand::rngs::OsRng;
 
         let mut app = initialize_app(None, vec![]).await;
@@ -1284,7 +1358,7 @@ mod test {
 
         let signed_tx = tx.into_signed(&keypair);
         let res = app
-            .deliver_tx(signed_tx)
+            .execute_transaction(signed_tx)
             .await
             .unwrap_err()
             .root_cause()
@@ -1293,7 +1367,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn app_deliver_tx_sequence() {
+    async fn app_execute_transaction_sequence() {
         let mut app = initialize_app(None, vec![]).await;
 
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
@@ -1313,7 +1387,7 @@ mod test {
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
-        app.deliver_tx(signed_tx).await.unwrap();
+        app.execute_transaction(signed_tx).await.unwrap();
         assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
 
         assert_eq!(
@@ -1326,7 +1400,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn app_deliver_tx_invalid_fee_asset() {
+    async fn app_execute_transaction_invalid_fee_asset() {
         let mut app = initialize_app(None, vec![]).await;
 
         let (alice_signing_key, _) = get_alice_signing_key_and_address();
@@ -1347,11 +1421,11 @@ mod test {
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
-        assert!(app.deliver_tx(signed_tx).await.is_err());
+        assert!(app.execute_transaction(signed_tx).await.is_err());
     }
 
     #[tokio::test]
-    async fn app_deliver_tx_validator_update() {
+    async fn app_execute_transaction_validator_update() {
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
 
         let genesis_state = GenesisState {
@@ -1377,7 +1451,7 @@ mod test {
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
-        app.deliver_tx(signed_tx).await.unwrap();
+        app.execute_transaction(signed_tx).await.unwrap();
         assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
 
         let validator_updates = app.state.get_validator_updates().await.unwrap();
@@ -1386,7 +1460,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn app_deliver_tx_ibc_relayer_change_addition() {
+    async fn app_execute_transaction_ibc_relayer_change_addition() {
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
 
         let genesis_state = GenesisState {
@@ -1406,13 +1480,13 @@ mod test {
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
-        app.deliver_tx(signed_tx).await.unwrap();
+        app.execute_transaction(signed_tx).await.unwrap();
         assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
         assert!(app.state.is_ibc_relayer(&alice_address).await.unwrap());
     }
 
     #[tokio::test]
-    async fn app_deliver_tx_ibc_relayer_change_deletion() {
+    async fn app_execute_transaction_ibc_relayer_change_deletion() {
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
 
         let genesis_state = GenesisState {
@@ -1432,13 +1506,13 @@ mod test {
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
-        app.deliver_tx(signed_tx).await.unwrap();
+        app.execute_transaction(signed_tx).await.unwrap();
         assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
         assert!(!app.state.is_ibc_relayer(&alice_address).await.unwrap());
     }
 
     #[tokio::test]
-    async fn app_deliver_tx_ibc_relayer_change_invalid() {
+    async fn app_execute_transaction_ibc_relayer_change_invalid() {
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
 
         let genesis_state = GenesisState {
@@ -1458,11 +1532,11 @@ mod test {
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
-        assert!(app.deliver_tx(signed_tx).await.is_err());
+        assert!(app.execute_transaction(signed_tx).await.is_err());
     }
 
     #[tokio::test]
-    async fn app_deliver_tx_sudo_address_change() {
+    async fn app_execute_transaction_sudo_address_change() {
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
 
         let genesis_state = GenesisState {
@@ -1486,7 +1560,7 @@ mod test {
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
-        app.deliver_tx(signed_tx).await.unwrap();
+        app.execute_transaction(signed_tx).await.unwrap();
         assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
 
         let sudo_address = app.state.get_sudo_address().await.unwrap();
@@ -1494,7 +1568,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn app_deliver_tx_sudo_address_change_error() {
+    async fn app_execute_transaction_sudo_address_change_error() {
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
         let sudo_address = address_from_hex_string(CAROL_ADDRESS);
 
@@ -1518,7 +1592,7 @@ mod test {
 
         let signed_tx = tx.into_signed(&alice_signing_key);
         let res = app
-            .deliver_tx(signed_tx)
+            .execute_transaction(signed_tx)
             .await
             .unwrap_err()
             .root_cause()
@@ -1527,7 +1601,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn app_deliver_tx_fee_asset_change_addition() {
+    async fn app_execute_transaction_fee_asset_change_addition() {
         use astria_core::sequencer::v1::transaction::action::FeeAssetChangeAction;
 
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
@@ -1553,14 +1627,14 @@ mod test {
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
-        app.deliver_tx(signed_tx).await.unwrap();
+        app.execute_transaction(signed_tx).await.unwrap();
         assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
 
         assert!(app.state.is_allowed_fee_asset(new_asset).await.unwrap());
     }
 
     #[tokio::test]
-    async fn app_deliver_tx_fee_asset_change_removal() {
+    async fn app_execute_transaction_fee_asset_change_removal() {
         use astria_core::sequencer::v1::transaction::action::FeeAssetChangeAction;
 
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
@@ -1588,7 +1662,7 @@ mod test {
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
-        app.deliver_tx(signed_tx).await.unwrap();
+        app.execute_transaction(signed_tx).await.unwrap();
         assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
 
         assert!(
@@ -1600,7 +1674,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn app_deliver_tx_fee_asset_change_invalid() {
+    async fn app_execute_transaction_fee_asset_change_invalid() {
         use astria_core::sequencer::v1::transaction::action::FeeAssetChangeAction;
 
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
@@ -1625,7 +1699,7 @@ mod test {
 
         let signed_tx = tx.into_signed(&alice_signing_key);
         let res = app
-            .deliver_tx(signed_tx)
+            .execute_transaction(signed_tx)
             .await
             .unwrap_err()
             .root_cause()
@@ -1634,7 +1708,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn app_deliver_tx_init_bridge_account_ok() {
+    async fn app_execute_transaction_init_bridge_account_ok() {
         use astria_core::sequencer::v1::transaction::action::InitBridgeAccountAction;
 
         use crate::bridge::init_bridge_account_action::INIT_BRIDGE_ACCOUNT_FEE;
@@ -1661,7 +1735,7 @@ mod test {
             .get_account_balance(alice_address, asset_id)
             .await
             .unwrap();
-        app.deliver_tx(signed_tx).await.unwrap();
+        app.execute_transaction(signed_tx).await.unwrap();
         assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
         assert_eq!(
             app.state
@@ -1688,7 +1762,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn app_deliver_tx_init_bridge_account_empty_asset_ids() {
+    async fn app_execute_transaction_init_bridge_account_empty_asset_ids() {
         use astria_core::sequencer::v1::transaction::action::InitBridgeAccountAction;
 
         let (alice_signing_key, _) = get_alice_signing_key_and_address();
@@ -1707,11 +1781,11 @@ mod test {
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
-        assert!(app.deliver_tx(signed_tx).await.is_err());
+        assert!(app.execute_transaction(signed_tx).await.is_err());
     }
 
     #[tokio::test]
-    async fn app_deliver_tx_init_bridge_account_account_already_registered() {
+    async fn app_execute_transaction_init_bridge_account_account_already_registered() {
         use astria_core::sequencer::v1::transaction::action::InitBridgeAccountAction;
 
         let (alice_signing_key, _) = get_alice_signing_key_and_address();
@@ -1730,7 +1804,7 @@ mod test {
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
-        app.deliver_tx(signed_tx).await.unwrap();
+        app.execute_transaction(signed_tx).await.unwrap();
 
         let action = InitBridgeAccountAction {
             rollup_id,
@@ -1743,11 +1817,11 @@ mod test {
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
-        assert!(app.deliver_tx(signed_tx).await.is_err());
+        assert!(app.execute_transaction(signed_tx).await.is_err());
     }
 
     #[tokio::test]
-    async fn app_deliver_tx_bridge_lock_action_ok() {
+    async fn app_execute_transaction_bridge_lock_action_ok() {
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
         let mut app = initialize_app(None, vec![]).await;
 
@@ -1788,7 +1862,7 @@ mod test {
             .await
             .unwrap();
 
-        app.deliver_tx(signed_tx).await.unwrap();
+        app.execute_transaction(signed_tx).await.unwrap();
         assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
         assert_eq!(
             app.state
@@ -1819,7 +1893,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn app_deliver_tx_bridge_lock_action_invalid_for_eoa() {
+    async fn app_execute_transaction_bridge_lock_action_invalid_for_eoa() {
         use astria_core::sequencer::v1::transaction::action::BridgeLockAction;
 
         let (alice_signing_key, _) = get_alice_signing_key_and_address();
@@ -1843,11 +1917,11 @@ mod test {
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
-        assert!(app.deliver_tx(signed_tx).await.is_err());
+        assert!(app.execute_transaction(signed_tx).await.is_err());
     }
 
     #[tokio::test]
-    async fn app_deliver_tx_transfer_invalid_to_bridge_account() {
+    async fn app_execute_transaction_transfer_invalid_to_bridge_account() {
         let (alice_signing_key, _) = get_alice_signing_key_and_address();
         let mut app = initialize_app(None, vec![]).await;
 
@@ -1875,12 +1949,12 @@ mod test {
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
-        assert!(app.deliver_tx(signed_tx).await.is_err());
+        assert!(app.execute_transaction(signed_tx).await.is_err());
     }
 
     #[cfg(feature = "mint")]
     #[tokio::test]
-    async fn app_deliver_tx_mint() {
+    async fn app_execute_transaction_mint() {
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
 
         let genesis_state = GenesisState {
@@ -1908,7 +1982,7 @@ mod test {
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
-        app.deliver_tx(signed_tx).await.unwrap();
+        app.execute_transaction(signed_tx).await.unwrap();
 
         assert_eq!(
             app.state
@@ -1989,7 +2063,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn app_deliver_tx_invalid_nonce() {
+    async fn app_execute_transaction_invalid_nonce() {
         let mut app = initialize_app(None, vec![]).await;
 
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
@@ -2009,7 +2083,7 @@ mod test {
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
-        let response = app.deliver_tx(signed_tx).await;
+        let response = app.execute_transaction(signed_tx).await;
 
         // check that tx was not executed by checking nonce and balance are unchanged
         assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 0);
