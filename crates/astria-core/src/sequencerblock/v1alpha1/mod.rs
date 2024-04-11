@@ -1,7 +1,10 @@
 pub mod block;
 pub mod celestia;
 
-pub use block::SequencerBlock;
+pub use block::{
+    RollupTransactions,
+    SequencerBlock,
+};
 pub use celestia::{
     CelestiaRollupBlob,
     CelestiaSequencerBlob,
@@ -13,13 +16,10 @@ use sha2::{
 };
 
 use crate::{
-    generated::sequencer::v2alpha1 as raw,
-    sequencer::{
-        v1::{
-            derive_merkle_tree_from_rollup_txs,
-            RollupId,
-        },
-        v2alpha1::block::RollupTransactions,
+    generated::sequencerblock::v1alpha1 as raw,
+    sequencer::v1::{
+        derive_merkle_tree_from_rollup_txs,
+        RollupId,
     },
 };
 

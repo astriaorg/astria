@@ -103,14 +103,15 @@ impl Conductor {
 
             let reader = celestia::Builder {
                 celestia_http_endpoint: cfg.celestia_node_http_url,
-                celestia_websocket_endpoint: cfg.celestia_node_websocket_url,
                 celestia_token: cfg.celestia_bearer_token,
+                celestia_block_time: Duration::from_millis(cfg.celestia_block_time_ms),
                 executor: executor_handle.clone(),
                 sequencer_cometbft_client: sequencer_cometbft_client.clone(),
                 sequencer_namespace,
                 shutdown: shutdown.clone(),
             }
-            .build();
+            .build()
+            .wrap_err("failed to build Celestia Reader")?;
 
             tasks.spawn(Self::CELESTIA, reader.run_until_stopped());
         };

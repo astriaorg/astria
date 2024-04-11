@@ -50,14 +50,17 @@ pub mod sequencer {
             include!("astria.sequencer.v1.serde.rs");
         }
     }
+}
 
-    pub mod v2alpha1 {
-        include!("astria.sequencer.v2alpha1.rs");
+#[path = ""]
+pub mod sequencerblock {
+    pub mod v1alpha1 {
+        include!("astria.sequencerblock.v1alpha1.rs");
 
         #[cfg(feature = "serde")]
         mod _serde_impl {
             use super::*;
-            include!("astria.sequencer.v2alpha1.serde.rs");
+            include!("astria.sequencerblock.v1alpha1.serde.rs");
         }
     }
 }

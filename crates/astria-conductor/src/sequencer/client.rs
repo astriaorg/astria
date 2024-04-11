@@ -3,7 +3,7 @@
 use std::time::Duration;
 
 use astria_core::{
-    generated::sequencer::v2alpha1::{
+    generated::sequencerblock::v1alpha1::{
         sequencer_service_client::SequencerServiceClient,
         GetFilteredSequencerBlockRequest,
     },

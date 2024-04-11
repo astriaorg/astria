@@ -275,7 +275,7 @@ mod test {
     use std::collections::BTreeMap;
 
     use astria_core::{
-        generated::sequencer::v2alpha1::SequencerBlockHeader as RawSequencerBlockHeader,
+        generated::sequencerblock::v1alpha1::SequencerBlockHeader as RawSequencerBlockHeader,
         sequencer::{
             v1::RollupId,
             v2alpha1::{

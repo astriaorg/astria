@@ -9,6 +9,7 @@ pub mod generated;
 pub mod execution;
 pub mod primitive;
 pub mod sequencer;
+pub mod sequencerblock;
 
 #[cfg(feature = "serde")]
 pub(crate) mod serde;

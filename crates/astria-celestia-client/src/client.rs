@@ -1,4 +1,4 @@
-use astria_core::sequencer::v2alpha1::{
+use astria_core::sequencerblock::v1alpha1::{
     celestia::CelestiaSequencerBlobError,
     CelestiaRollupBlob,
     CelestiaSequencerBlob,
@@ -103,7 +103,7 @@ pub trait CelestiaClientExt: BlobClient {
             }
             'blob: {
                 let raw_blob =
-                    match astria_core::generated::sequencer::v2alpha1::CelestiaSequencerBlob::decode(
+                    match astria_core::generated::sequencerblock::v1alpha1::CelestiaSequencerBlob::decode(
                         &*blob.data,
                     ) {
                         Ok(blob) => blob,
@@ -254,7 +254,7 @@ fn convert_and_filter_rollup_blobs(
             continue;
         }
         let proto_blob =
-            match astria_core::generated::sequencer::v2alpha1::CelestiaRollupBlob::decode(
+            match astria_core::generated::sequencerblock::v1alpha1::CelestiaRollupBlob::decode(
                 &*blob.data,
             ) {
                 Err(e) => {

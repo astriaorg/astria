@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use astria_core::{
-    generated::sequencer::v2alpha1::{
+    generated::sequencerblock::v1alpha1::{
         sequencer_service_server::SequencerService,
         FilteredSequencerBlock as RawFilteredSequencerBlock,
         GetFilteredSequencerBlockRequest,
@@ -159,7 +159,7 @@ impl SequencerService for SequencerServer {
 mod test {
     use std::collections::HashMap;
 
-    use astria_core::sequencer::v2alpha1::SequencerBlock;
+    use astria_core::sequencerblock::v1alpha1::SequencerBlock;
     use cnidarium::StateDelta;
     use sha2::{
         Digest as _,

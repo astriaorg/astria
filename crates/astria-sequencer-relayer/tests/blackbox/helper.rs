@@ -11,7 +11,7 @@ use std::{
 
 use assert_json_diff::assert_json_include;
 use astria_core::{
-    generated::sequencer::v2alpha1::{
+    generated::sequencerblock::v1alpha1::{
         sequencer_service_server::{
             SequencerService,
             SequencerServiceServer,
