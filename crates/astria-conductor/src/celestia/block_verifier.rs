@@ -275,13 +275,11 @@ mod test {
     use std::collections::BTreeMap;
 
     use astria_core::{
-        generated::sequencer::v2alpha1::SequencerBlockHeader as RawSequencerBlockHeader,
-        sequencer::{
-            v1::RollupId,
-            v2alpha1::{
-                block::SequencerBlockHeader,
-                celestia::UncheckedCelestiaSequencerBlob,
-            },
+        generated::sequencerblock::v1alpha1::SequencerBlockHeader as RawSequencerBlockHeader,
+        sequencer::v1::RollupId,
+        sequencerblock::v1alpha1::{
+            block::SequencerBlockHeader,
+            celestia::UncheckedCelestiaSequencerBlob,
         },
     };
     use prost::Message as _;
@@ -396,7 +394,6 @@ mod test {
             data_hash: data_hash.to_vec(),
             rollup_transactions_root: rollup_transactions_root.to_vec(),
             proposer_address: proposer_address.as_bytes().to_vec(),
-            ..Default::default()
         };
         let header = SequencerBlockHeader::try_from_raw(header).unwrap();
 
@@ -442,7 +439,6 @@ mod test {
             data_hash: data_hash.to_vec(),
             rollup_transactions_root: rollup_transactions_root.to_vec(),
             proposer_address: proposer_address.as_bytes().to_vec(),
-            ..Default::default()
         };
         let header = SequencerBlockHeader::try_from_raw(header).unwrap();
 

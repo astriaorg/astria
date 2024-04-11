@@ -3,14 +3,12 @@
 use std::time::Duration;
 
 use astria_core::{
-    generated::sequencer::v2alpha1::{
+    generated::sequencerblock::v1alpha1::{
         sequencer_service_client::SequencerServiceClient,
         GetFilteredSequencerBlockRequest,
     },
-    sequencer::{
-        v1::RollupId,
-        v2alpha1::block::FilteredSequencerBlock,
-    },
+    sequencer::v1::RollupId,
+    sequencerblock::v1alpha1::block::FilteredSequencerBlock,
 };
 use astria_eyre::eyre::{
     self,

@@ -604,6 +604,7 @@ dependencies = [
  "futures",
  "futures-bounded",
  "hex",
+ "http",
  "humantime",
  "indexmap 2.2.6",
  "insta",
@@ -737,7 +738,7 @@ dependencies = [
  "astria-merkle",
  "astria-telemetry",
  "async-trait",
- "borsh 1.4.0",
+ "borsh",
  "bytes",
  "cnidarium",
  "cnidarium-component",
@@ -752,6 +753,7 @@ dependencies = [
  "penumbra-tower-trace",
  "prost",
  "rand 0.8.5",
+ "regex",
  "serde",
  "serde_json",
  "sha2 0.10.8",
@@ -1294,35 +1296,12 @@ dependencies = [
 
 [[package]]
 name = "borsh"
-version = "0.10.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4114279215a005bc675e386011e594e1d9b800918cea18fcadadcce864a2046b"
-dependencies = [
- "borsh-derive 0.10.3",
- "hashbrown 0.13.2",
-]
-
-[[package]]
-name = "borsh"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0901fc8eb0aca4c83be0106d6f2db17d86a08dfc2c25f0e84464bf381158add6"
 dependencies = [
- "borsh-derive 1.4.0",
+ "borsh-derive",
  "cfg_aliases",
-]
-
-[[package]]
-name = "borsh-derive"
-version = "0.10.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0754613691538d51f329cce9af41d7b7ca150bc973056f1156611489475f54f7"
-dependencies = [
- "borsh-derive-internal",
- "borsh-schema-derive-internal",
- "proc-macro-crate 0.1.5",
- "proc-macro2 1.0.79",
- "syn 1.0.109",
 ]
 
 [[package]]
@@ -1337,28 +1316,6 @@ dependencies = [
  "quote",
  "syn 2.0.58",
  "syn_derive",
-]
-
-[[package]]
-name = "borsh-derive-internal"
-version = "0.10.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "afb438156919598d2c7bad7e1c0adf3d26ed3840dbc010db1a882a65583ca2fb"
-dependencies = [
- "proc-macro2 1.0.79",
- "quote",
- "syn 1.0.109",
-]
-
-[[package]]
-name = "borsh-schema-derive-internal"
-version = "0.10.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "634205cc43f74a1b9046ef87c4540ebda95696ec0f315024860cad7c5b0f5ccd"
-dependencies = [
- "proc-macro2 1.0.79",
- "quote",
- "syn 1.0.109",
 ]
 
 [[package]]
@@ -1747,12 +1704,12 @@ dependencies = [
 
 [[package]]
 name = "cnidarium"
-version = "0.69.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.69.1#b3e62ece950a55f25982c962c88dcfec0b603174"
+version = "0.71.0"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=8b06546af43bf073fd99f3f9d82b8afb51872489#8b06546af43bf073fd99f3f9d82b8afb51872489"
 dependencies = [
  "anyhow",
  "async-trait",
- "borsh 0.10.3",
+ "borsh",
  "futures",
  "hex",
  "ibc-types",
@@ -1775,8 +1732,8 @@ dependencies = [
 
 [[package]]
 name = "cnidarium-component"
-version = "0.69.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.69.1#b3e62ece950a55f25982c962c88dcfec0b603174"
+version = "0.71.0"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=8b06546af43bf073fd99f3f9d82b8afb51872489#8b06546af43bf073fd99f3f9d82b8afb51872489"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2238,8 +2195,8 @@ dependencies = [
 
 [[package]]
 name = "decaf377-fmd"
-version = "0.69.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.69.1#b3e62ece950a55f25982c962c88dcfec0b603174"
+version = "0.71.0"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=8b06546af43bf073fd99f3f9d82b8afb51872489#8b06546af43bf073fd99f3f9d82b8afb51872489"
 dependencies = [
  "ark-ff 0.4.2",
  "ark-serialize 0.4.2",
@@ -2252,8 +2209,8 @@ dependencies = [
 
 [[package]]
 name = "decaf377-ka"
-version = "0.69.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.69.1#b3e62ece950a55f25982c962c88dcfec0b603174"
+version = "0.71.0"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=8b06546af43bf073fd99f3f9d82b8afb51872489#8b06546af43bf073fd99f3f9d82b8afb51872489"
 dependencies = [
  "ark-ff 0.4.2",
  "decaf377 0.5.0",
@@ -4181,12 +4138,12 @@ checksum = "49f1f14873335454500d59611f1cf4a4b0f786f9ac11f4312a78e4cf2566695b"
 
 [[package]]
 name = "jmt"
-version = "0.9.0"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c2950721a65dff82492e30fe67076127135d0d710aa0140f21efafda2aee7849"
+checksum = "a9a3bf1a303934c6f75533bd3a563730a0730f9361023c49ed6aee9fcb5b98f8"
 dependencies = [
  "anyhow",
- "borsh 0.10.3",
+ "borsh",
  "digest 0.10.7",
  "hashbrown 0.13.2",
  "hex",
@@ -5332,8 +5289,8 @@ dependencies = [
 
 [[package]]
 name = "penumbra-asset"
-version = "0.69.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.69.1#b3e62ece950a55f25982c962c88dcfec0b603174"
+version = "0.71.0"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=8b06546af43bf073fd99f3f9d82b8afb51872489#8b06546af43bf073fd99f3f9d82b8afb51872489"
 dependencies = [
  "anyhow",
  "ark-ff 0.4.2",
@@ -5370,8 +5327,8 @@ dependencies = [
 
 [[package]]
 name = "penumbra-ibc"
-version = "0.69.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.69.1#b3e62ece950a55f25982c962c88dcfec0b603174"
+version = "0.71.0"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=8b06546af43bf073fd99f3f9d82b8afb51872489#8b06546af43bf073fd99f3f9d82b8afb51872489"
 dependencies = [
  "anyhow",
  "ark-ff 0.4.2",
@@ -5405,8 +5362,8 @@ dependencies = [
 
 [[package]]
 name = "penumbra-keys"
-version = "0.69.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.69.1#b3e62ece950a55f25982c962c88dcfec0b603174"
+version = "0.71.0"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=8b06546af43bf073fd99f3f9d82b8afb51872489#8b06546af43bf073fd99f3f9d82b8afb51872489"
 dependencies = [
  "aes",
  "anyhow",
@@ -5449,8 +5406,8 @@ dependencies = [
 
 [[package]]
 name = "penumbra-num"
-version = "0.69.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.69.1#b3e62ece950a55f25982c962c88dcfec0b603174"
+version = "0.71.0"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=8b06546af43bf073fd99f3f9d82b8afb51872489#8b06546af43bf073fd99f3f9d82b8afb51872489"
 dependencies = [
  "anyhow",
  "ark-ff 0.4.2",
@@ -5485,8 +5442,8 @@ dependencies = [
 
 [[package]]
 name = "penumbra-proto"
-version = "0.69.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.69.1#b3e62ece950a55f25982c962c88dcfec0b603174"
+version = "0.71.0"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=8b06546af43bf073fd99f3f9d82b8afb51872489#8b06546af43bf073fd99f3f9d82b8afb51872489"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -5514,8 +5471,8 @@ dependencies = [
 
 [[package]]
 name = "penumbra-sct"
-version = "0.69.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.69.1#b3e62ece950a55f25982c962c88dcfec0b603174"
+version = "0.71.0"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=8b06546af43bf073fd99f3f9d82b8afb51872489#8b06546af43bf073fd99f3f9d82b8afb51872489"
 dependencies = [
  "anyhow",
  "ark-ff 0.4.2",
@@ -5548,8 +5505,8 @@ dependencies = [
 
 [[package]]
 name = "penumbra-tct"
-version = "0.69.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.69.1#b3e62ece950a55f25982c962c88dcfec0b603174"
+version = "0.71.0"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=8b06546af43bf073fd99f3f9d82b8afb51872489#8b06546af43bf073fd99f3f9d82b8afb51872489"
 dependencies = [
  "ark-ed-on-bls12-377",
  "ark-ff 0.4.2",
@@ -5576,8 +5533,8 @@ dependencies = [
 
 [[package]]
 name = "penumbra-tower-trace"
-version = "0.69.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.69.1#b3e62ece950a55f25982c962c88dcfec0b603174"
+version = "0.71.0"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=8b06546af43bf073fd99f3f9d82b8afb51872489#8b06546af43bf073fd99f3f9d82b8afb51872489"
 dependencies = [
  "futures",
  "hex",
@@ -5598,8 +5555,8 @@ dependencies = [
 
 [[package]]
 name = "penumbra-txhash"
-version = "0.69.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.69.1#b3e62ece950a55f25982c962c88dcfec0b603174"
+version = "0.71.0"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=8b06546af43bf073fd99f3f9d82b8afb51872489#8b06546af43bf073fd99f3f9d82b8afb51872489"
 dependencies = [
  "anyhow",
  "blake2b_simd 1.0.2",
@@ -5894,15 +5851,6 @@ dependencies = [
  "impl-serde",
  "scale-info",
  "uint",
-]
-
-[[package]]
-name = "proc-macro-crate"
-version = "0.1.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d6ea3c4595b96363c13943497db34af4460fb474a95c43f4446ad341b8c9785"
-dependencies = [
- "toml 0.5.11",
 ]
 
 [[package]]

@@ -4,7 +4,7 @@ use std::{
     time::Duration,
 };
 
-use astria_core::generated::sequencer::v2alpha1::sequencer_service_client::SequencerServiceClient;
+use astria_core::generated::sequencerblock::v1alpha1::sequencer_service_client::SequencerServiceClient;
 use astria_eyre::eyre::{
     self,
     WrapErr as _,

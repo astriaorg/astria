@@ -29,7 +29,7 @@ use crate::{
         IncorrectRollupIdLength,
         RollupId,
     },
-    Protobuf as _,
+    sequencerblock::Protobuf as _,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -65,7 +65,7 @@ enum RollupTransactionsErrorKind {
 /// Provides convenient access to the fields of [`RollupTransactions`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct RollupTransactionsParts {
-    pub id: RollupId,
+    pub rollup_id: RollupId,
     pub transactions: Vec<Vec<u8>>,
     pub proof: merkle::Proof,
 }
@@ -74,7 +74,7 @@ pub struct RollupTransactionsParts {
 #[derive(Clone, Debug, PartialEq)]
 pub struct RollupTransactions {
     /// The 32 bytes identifying a rollup. Usually the sha256 hash of a plain rollup name.
-    id: RollupId,
+    rollup_id: RollupId,
     /// The block data for this rollup in the form of encoded [`RollupData`].
     transactions: Vec<Vec<u8>>,
     /// Proof that this set of transactions belongs in the rollup datas merkle tree
@@ -84,8 +84,8 @@ pub struct RollupTransactions {
 impl RollupTransactions {
     /// Returns the [`RollupId`] identifying the rollup these transactions belong to.
     #[must_use]
-    pub fn id(&self) -> RollupId {
-        self.id
+    pub fn rollup_id(&self) -> RollupId {
+        self.rollup_id
     }
 
     /// Returns the block data for this rollup.
@@ -106,12 +106,12 @@ impl RollupTransactions {
     #[must_use]
     pub fn into_raw(self) -> raw::RollupTransactions {
         let Self {
-            id,
+            rollup_id,
             transactions,
             proof,
         } = self;
         raw::RollupTransactions {
-            id: id.get().to_vec(),
+            rollup_id: rollup_id.get().to_vec(),
             transactions,
             proof: Some(proof.into_raw()),
         }
@@ -123,11 +123,12 @@ impl RollupTransactions {
     /// Returns an error if the rollup ID bytes could not be turned into a [`RollupId`].
     pub fn try_from_raw(raw: raw::RollupTransactions) -> Result<Self, RollupTransactionsError> {
         let raw::RollupTransactions {
-            id,
+            rollup_id,
             transactions,
             proof,
         } = raw;
-        let id = RollupId::try_from_slice(&id).map_err(RollupTransactionsError::rollup_id)?;
+        let rollup_id =
+            RollupId::try_from_slice(&rollup_id).map_err(RollupTransactionsError::rollup_id)?;
         let proof = 'proof: {
             let Some(proof) = proof else {
                 break 'proof Err(RollupTransactionsError::field_not_set("proof"));
@@ -135,7 +136,7 @@ impl RollupTransactions {
             merkle::Proof::try_from_raw(proof).map_err(RollupTransactionsError::proof_invalid)
         }?;
         Ok(Self {
-            id,
+            rollup_id,
             transactions,
             proof,
         })
@@ -145,12 +146,12 @@ impl RollupTransactions {
     #[must_use]
     pub fn into_parts(self) -> RollupTransactionsParts {
         let Self {
-            id,
+            rollup_id,
             transactions,
             proof,
         } = self;
         RollupTransactionsParts {
-            id,
+            rollup_id,
             transactions,
             proof,
         }
@@ -422,7 +423,6 @@ impl SequencerBlockHeader {
             rollup_transactions_root: self.rollup_transactions_root.to_vec(),
             data_hash: self.data_hash.to_vec(),
             proposer_address: self.proposer_address.as_bytes().to_vec(),
-            ..Default::default()
         }
     }
 
@@ -843,14 +843,14 @@ impl SequencerBlock {
         }
 
         let mut rollup_transactions = IndexMap::new();
-        for (i, (id, data)) in rollup_datas.into_iter().enumerate() {
+        for (i, (rollup_id, data)) in rollup_datas.into_iter().enumerate() {
             let proof = rollup_transaction_tree
                 .construct_proof(i)
                 .expect("the proof must exist because the tree was derived with the same leaf");
             rollup_transactions.insert(
-                id,
+                rollup_id,
                 RollupTransactions {
-                    id,
+                    rollup_id,
                     transactions: data, // TODO: rename this field?
                     proof,
                 },
@@ -896,7 +896,7 @@ impl SequencerBlock {
             raw: raw::RollupTransactions,
         ) -> Result<(RollupId, RollupTransactions), RollupTransactionsError> {
             let rollup_transactions = RollupTransactions::try_from_raw(raw)?;
-            Ok((rollup_transactions.id, rollup_transactions))
+            Ok((rollup_transactions.rollup_id, rollup_transactions))
         }
 
         let raw::SequencerBlock {
@@ -1082,7 +1082,6 @@ impl FilteredSequencerBlock {
             rollup_transactions_proof: Some(rollup_transactions_proof.into_raw()),
             all_rollup_ids: self.all_rollup_ids.iter().map(|id| id.to_vec()).collect(),
             rollup_ids_proof: Some(rollup_ids_proof.into_raw()),
-            ..Default::default()
         }
     }
 
@@ -1112,7 +1111,7 @@ impl FilteredSequencerBlock {
             raw: raw::RollupTransactions,
         ) -> Result<(RollupId, RollupTransactions), RollupTransactionsError> {
             let rollup_transactions = RollupTransactions::try_from_raw(raw)?;
-            Ok((rollup_transactions.id, rollup_transactions))
+            Ok((rollup_transactions.rollup_id, rollup_transactions))
         }
 
         let raw::FilteredSequencerBlock {
@@ -1183,7 +1182,7 @@ impl FilteredSequencerBlock {
             ) {
                 return Err(
                     FilteredSequencerBlockError::rollup_transaction_for_id_not_in_sequencer_block(
-                        rollup_transactions.id(),
+                        rollup_transactions.rollup_id(),
                     ),
                 );
             }

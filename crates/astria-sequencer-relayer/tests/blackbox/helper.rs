@@ -11,7 +11,7 @@ use std::{
 
 use assert_json_diff::assert_json_include;
 use astria_core::{
-    generated::sequencer::v2alpha1::{
+    generated::sequencerblock::v1alpha1::{
         sequencer_service_server::{
             SequencerService,
             SequencerServiceServer,
@@ -21,10 +21,8 @@ use astria_core::{
         GetSequencerBlockRequest,
         SequencerBlock as RawSequencerBlock,
     },
-    sequencer::{
-        v1::test_utils::make_cometbft_block,
-        v2alpha1::SequencerBlock,
-    },
+    sequencer::v1::test_utils::make_cometbft_block,
+    sequencerblock::v1alpha1::SequencerBlock,
 };
 use astria_sequencer_relayer::{
     config::Config,

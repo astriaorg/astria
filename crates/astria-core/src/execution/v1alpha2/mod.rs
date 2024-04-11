@@ -7,7 +7,7 @@ use crate::{
         IncorrectRollupIdLength,
         RollupId,
     },
-    Protobuf,
+    sequencerblock::Protobuf,
 };
 
 // An error when transforming a [`raw::GenesisInfo`] into a [`GenesisInfo`].

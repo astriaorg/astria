@@ -3,7 +3,12 @@ use anyhow::{
     Context as _,
     Result,
 };
-use astria_core::generated::sequencer::v2alpha1::sequencer_service_server::SequencerServiceServer;
+use astria_core::generated::sequencerblock::v1alpha1::sequencer_service_server::SequencerServiceServer;
+use penumbra_tower_trace::{
+    trace::request_span,
+    v038::RequestExt as _,
+};
+use tendermint::v0_38::abci::ConsensusRequest;
 use tokio::{
     select,
     signal::unix::{
@@ -82,8 +87,12 @@ impl Sequencer {
         }
 
         let app = App::new(snapshot);
-        let consensus_service =
-            tower::ServiceBuilder::new().service(tower_actor::Actor::new(10, |queue: _| {
+
+        let consensus_service = tower::ServiceBuilder::new()
+            .layer(request_span::layer(|req: &ConsensusRequest| {
+                req.create_span()
+            }))
+            .service(tower_actor::Actor::new(10, |queue: _| {
                 let storage = storage.clone();
                 async move { service::Consensus::new(storage, app, queue).run().await }
             }));

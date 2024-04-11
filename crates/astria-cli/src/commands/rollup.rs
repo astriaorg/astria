@@ -326,15 +326,19 @@ mod test {
         ConfigCreateArgs {
             use_tty: false,
             name: "test".to_string(),
-            chain_id: None,
             network_id: 0,
+            execution_commit_level: "SoftOnly".to_string(),
+            override_genesis_extra_data: false,
+            bridge_address: None,
+            bridge_allowed_asset_denom: "nria".to_string(),
             genesis_accounts: vec![],
             sequencer_initial_block_height: Some(1),
-            sequencer_websocket: String::new(),
+            sequencer_grpc: String::new(),
             sequencer_rpc: String::new(),
             log_level: String::new(),
             hostname: String::new(),
             namespace: "namespace_test".to_string(),
+            enable_celestia_node: false,
         }
     }
 

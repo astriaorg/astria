@@ -26,14 +26,14 @@ use std::{
     sync::Arc,
 };
 
-pub use astria_core::sequencer::{
-    v1::{
+pub use astria_core::{
+    sequencer::v1::{
         Address,
         BalanceResponse,
         NonceResponse,
         SignedTransaction,
     },
-    v2alpha1::{
+    sequencerblock::v1alpha1::{
         block::SequencerBlockError,
         SequencerBlock,
     },

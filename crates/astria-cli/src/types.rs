@@ -126,6 +126,7 @@ impl From<&ConfigCreateArgs> for GlobalsConfig {
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CelestiaNode {
+    enabled: bool,
     #[serde(rename = "config")]
     celestia_node_config: CelestiaNodeConfig,
 }
@@ -135,6 +136,7 @@ impl From<&ConfigCreateArgs> for CelestiaNode {
         let celestia_node_config = CelestiaNodeConfig::from(args);
 
         Self {
+            enabled: args.enable_celestia_node,
             celestia_node_config,
         }
     }
@@ -162,13 +164,8 @@ impl TryFrom<&ConfigCreateArgs> for RollupDeploymentConfig {
     type Error = eyre::Report;
 
     fn try_from(args: &ConfigCreateArgs) -> eyre::Result<Self> {
-        let chain_id = args
-            .chain_id
-            .clone()
-            .unwrap_or(format!("{}-chain", args.name));
-
-        // Set to block 1 if nothing set.
-        let sequencer_initial_block_height = args.sequencer_initial_block_height.unwrap_or(1);
+        // Set to block 2 if nothing set.
+        let sequencer_initial_block_height = args.sequencer_initial_block_height.unwrap_or(2);
 
         let genesis_accounts = args
             .genesis_accounts
@@ -180,15 +177,18 @@ impl TryFrom<&ConfigCreateArgs> for RollupDeploymentConfig {
         Ok(Self {
             rollup: RollupConfig {
                 name: args.name.clone(),
-                chain_id,
                 network_id: args.network_id.to_string(),
+                execution_commit_level: args.execution_commit_level.to_string(),
                 genesis: GenesisConfig {
+                    override_genesis_extra_data: args.override_genesis_extra_data,
+                    bridge_address: args.bridge_address.clone(),
+                    bridge_allowed_asset_denom: args.bridge_allowed_asset_denom.clone(),
                     alloc: genesis_accounts,
                 },
             },
             sequencer: SequencerConfig {
                 initial_block_height: sequencer_initial_block_height.to_string(),
-                websocket: args.sequencer_websocket.clone(),
+                grpc: args.sequencer_grpc.clone(),
                 rpc: args.sequencer_rpc.clone(),
             },
         })
@@ -199,15 +199,19 @@ impl TryFrom<&ConfigCreateArgs> for RollupDeploymentConfig {
 #[serde(rename_all = "camelCase")]
 pub struct RollupConfig {
     name: String,
-    chain_id: String,
     // NOTE - String here because yaml will serialize large ints w/ scientific notation
     network_id: String,
+    execution_commit_level: String,
     genesis: GenesisConfig,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GenesisConfig {
+    override_genesis_extra_data: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    bridge_address: Option<String>,
+    bridge_allowed_asset_denom: String,
     alloc: Vec<GenesisAccount>,
 }
 
@@ -241,8 +245,8 @@ impl From<GenesisAccountArg> for GenesisAccount {
 struct SequencerConfig {
     // NOTE - string because yaml will serialize large ints w/ scientific notation
     initial_block_height: String,
-    websocket: String,
     rpc: String,
+    grpc: String,
 }
 
 #[cfg(test)]
@@ -260,8 +264,11 @@ mod tests {
             use_tty: true,
             log_level: "debug".to_string(),
             name: "rollup1".to_string(),
-            chain_id: Some("chain1".to_string()),
             network_id: 1,
+            execution_commit_level: "SoftOnly".to_string(),
+            override_genesis_extra_data: false,
+            bridge_address: None,
+            bridge_allowed_asset_denom: "nria".to_string(),
             genesis_accounts: vec![
                 GenesisAccountArg {
                     address: "0xA5TR14".to_string(),
@@ -273,10 +280,11 @@ mod tests {
                 },
             ],
             sequencer_initial_block_height: Some(127_689_000_000),
-            sequencer_websocket: "ws://localhost:8080".to_string(),
+            sequencer_grpc: "http://localhost:8080".to_string(),
             sequencer_rpc: "http://localhost:8081".to_string(),
             hostname: "test.com".to_string(),
             namespace: "test-cluster".to_string(),
+            enable_celestia_node: false,
         };
 
         let expected_config = Rollup {
@@ -288,9 +296,12 @@ mod tests {
             deployment_config: RollupDeploymentConfig {
                 rollup: RollupConfig {
                     name: "rollup1".to_string(),
-                    chain_id: "chain1".to_string(),
                     network_id: "1".to_string(),
+                    execution_commit_level: "SoftOnly".to_string(),
                     genesis: GenesisConfig {
+                        override_genesis_extra_data: false,
+                        bridge_address: None,
+                        bridge_allowed_asset_denom: "nria".to_string(),
                         alloc: vec![
                             GenesisAccount {
                                 address: "0xA5TR14".to_string(),
@@ -309,7 +320,7 @@ mod tests {
                 },
                 sequencer: SequencerConfig {
                     initial_block_height: "127689000000".to_string(),
-                    websocket: "ws://localhost:8080".to_string(),
+                    grpc: "http://localhost:8080".to_string(),
                     rpc: "http://localhost:8081".to_string(),
                 },
             },
@@ -317,6 +328,7 @@ mod tests {
                 hostname: "test.com".to_string(),
             },
             celestia_node: CelestiaNode {
+                enabled: false,
                 celestia_node_config: CelestiaNodeConfig {
                     label_prefix: "rollup1".to_string(),
                 },
@@ -339,17 +351,21 @@ mod tests {
             use_tty: false,
             log_level: "info".to_string(),
             name: "rollup2".to_string(),
-            chain_id: None,
             network_id: 2_211_011_801,
+            execution_commit_level: "SoftOnly".to_string(),
+            override_genesis_extra_data: false,
+            bridge_address: None,
+            bridge_allowed_asset_denom: "nria".to_string(),
             genesis_accounts: vec![GenesisAccountArg {
                 address: "0xA5TR14".to_string(),
                 balance: 10000,
             }],
             sequencer_initial_block_height: None,
-            sequencer_websocket: "ws://localhost:8082".to_string(),
+            sequencer_grpc: "http://localhost:8082".to_string(),
             sequencer_rpc: "http://localhost:8083".to_string(),
             hostname: "localdev.me".to_string(),
             namespace: "astria-dev-cluster".to_string(),
+            enable_celestia_node: false,
         };
 
         let expected_config = Rollup {
@@ -361,9 +377,12 @@ mod tests {
             deployment_config: RollupDeploymentConfig {
                 rollup: RollupConfig {
                     name: "rollup2".to_string(),
-                    chain_id: "rollup2-chain".to_string(), // Derived from name
                     network_id: "2211011801".to_string(),
+                    execution_commit_level: "SoftOnly".to_string(),
                     genesis: GenesisConfig {
+                        override_genesis_extra_data: false,
+                        bridge_address: None,
+                        bridge_allowed_asset_denom: "nria".to_string(),
                         alloc: vec![GenesisAccount {
                             address: "0xA5TR14".to_string(),
                             value: GenesisAccountValue {
@@ -373,8 +392,8 @@ mod tests {
                     },
                 },
                 sequencer: SequencerConfig {
-                    initial_block_height: "1".to_string(), // Default value
-                    websocket: "ws://localhost:8082".to_string(),
+                    initial_block_height: "2".to_string(), // Default value
+                    grpc: "http://localhost:8082".to_string(),
                     rpc: "http://localhost:8083".to_string(),
                 },
             },
@@ -382,6 +401,7 @@ mod tests {
                 hostname: "localdev.me".to_string(),
             },
             celestia_node: CelestiaNode {
+                enabled: false,
                 celestia_node_config: CelestiaNodeConfig {
                     label_prefix: "rollup2".to_string(),
                 },

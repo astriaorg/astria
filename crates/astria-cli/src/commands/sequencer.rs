@@ -1,13 +1,19 @@
 use astria_core::sequencer::v1::{
+    asset,
     transaction::action::{
         Action,
         BridgeLockAction,
+        FeeAssetChangeAction,
+        IbcRelayerChangeAction,
         InitBridgeAccountAction,
+        MintAction,
+        SudoAddressChangeAction,
         TransferAction,
     },
     UnsignedTransaction,
 };
 use astria_sequencer_client::{
+    tendermint,
     tendermint_rpc::endpoint,
     Address,
     HttpClient,
@@ -21,15 +27,23 @@ use color_eyre::{
         Context,
     },
 };
-use ed25519_consensus::SigningKey;
+use ed25519_consensus::{
+    SigningKey,
+    VerificationKeyBytes,
+};
 use rand::rngs::OsRng;
 
 use crate::cli::sequencer::{
     BasicAccountArgs,
     BlockHeightGetArgs,
     BridgeLockArgs,
+    FeeAssetChangeArgs,
+    IbcRelayerChangeArgs,
     InitBridgeAccountArgs,
+    MintArgs,
+    SudoAddressChangeArgs,
     TransferArgs,
+    ValidatorUpdateArgs,
 };
 
 /// Generate a new signing key (this is also called a secret key by other implementations)
@@ -91,7 +105,7 @@ pub(crate) async fn get_balance(args: &BasicAccountArgs) -> eyre::Result<()> {
         .await
         .wrap_err("failed to get balance")?;
 
-    println!("Balances for address {}:", address.0);
+    println!("Balances for address {}:", hex::encode(address.0));
     for balance in res.balances {
         println!("    asset ID: {}", hex::encode(balance.denom.id()));
         println!("    {} {}", balance.balance, balance.denom);
@@ -182,6 +196,72 @@ pub(crate) async fn send_transfer(args: &TransferArgs) -> eyre::Result<()> {
     Ok(())
 }
 
+/// Adds an address to the Ibc Relayer set
+///
+/// # Arguments
+///
+/// * `args` - The arguments passed to the command
+///
+/// # Errors
+///
+/// * If the http client cannot be created
+/// * If the transaction failed to be included
+pub(crate) async fn ibc_relayer_add(args: &IbcRelayerChangeArgs) -> eyre::Result<()> {
+    let res = submit_transaction(
+        args.sequencer_url.as_str(),
+        args.private_key.as_str(),
+        Action::IbcRelayerChange(IbcRelayerChangeAction::Addition(args.address.0)),
+    )
+    .await
+    .wrap_err("failed to submit IbcRelayerChangeAction::Addition transaction")?;
+
+    ensure!(
+        res.tx_result.code.is_ok(),
+        "error with IbcRelayerChangeAction::Addition"
+    );
+    println!("IbcRelayerChangeAction::Addition completed!");
+    println!("Included in block: {}", res.height);
+    Ok(())
+}
+
+/// Removes an address to the Ibc Relayer set
+///
+/// # Arguments
+///
+/// * `args` - The arguments passed to the command
+///
+/// # Errors
+///
+/// * If the http client cannot be created
+/// * If the transaction failed to be included
+pub(crate) async fn ibc_relayer_remove(args: &IbcRelayerChangeArgs) -> eyre::Result<()> {
+    let res = submit_transaction(
+        args.sequencer_url.as_str(),
+        args.private_key.as_str(),
+        Action::IbcRelayerChange(IbcRelayerChangeAction::Removal(args.address.0)),
+    )
+    .await
+    .wrap_err("failed to submit IbcRelayerChangeAction::Removal transaction")?;
+
+    ensure!(
+        res.tx_result.code.is_ok(),
+        "error with IbcRelayerChangeAction::Removal"
+    );
+    println!("IbcRelayerChangeAction::Removal completed!");
+    println!("Included in block: {}", res.height);
+    Ok(())
+}
+
+/// Inits a bridge account
+///
+/// # Arguments
+///
+/// * `args` - The arguments passed to the command
+///
+/// # Errors
+///
+/// * If the http client cannot be created
+/// * If the transaction failed to be included
 pub(crate) async fn init_bridge_account(args: &InitBridgeAccountArgs) -> eyre::Result<()> {
     use astria_core::sequencer::v1::{
         asset::default_native_asset_id,
@@ -209,6 +289,16 @@ pub(crate) async fn init_bridge_account(args: &InitBridgeAccountArgs) -> eyre::R
     Ok(())
 }
 
+/// Bridge Lock action
+///
+/// # Arguments
+///
+/// * `args` - The arguments passed to the command
+///
+/// # Errors
+///
+/// * If the http client cannot be created
+/// * If the transaction failed to be included
 pub(crate) async fn bridge_lock(args: &BridgeLockArgs) -> eyre::Result<()> {
     use astria_core::sequencer::v1::asset::default_native_asset_id;
 
@@ -228,6 +318,157 @@ pub(crate) async fn bridge_lock(args: &BridgeLockArgs) -> eyre::Result<()> {
 
     ensure!(res.tx_result.code.is_ok(), "error with BridgeLock");
     println!("BridgeLock completed!");
+    println!("Included in block: {}", res.height);
+    Ok(())
+}
+
+/// Adds a fee asset
+///
+/// # Arguments
+///
+/// * `args` - The arguments passed to the command
+///
+/// # Errors
+///
+/// * If the http client cannot be created
+/// * If the transaction failed to be included
+pub(crate) async fn fee_asset_add(args: &FeeAssetChangeArgs) -> eyre::Result<()> {
+    let res = submit_transaction(
+        args.sequencer_url.as_str(),
+        args.private_key.as_str(),
+        Action::FeeAssetChange(FeeAssetChangeAction::Addition(asset::Id::from_denom(
+            &args.asset,
+        ))),
+    )
+    .await
+    .wrap_err("failed to submit FeeAssetChangeAction::Addition transaction")?;
+
+    ensure!(
+        res.tx_result.code.is_ok(),
+        "error with FeeAssetChangeAction::Addition"
+    );
+    println!("FeeAssetChangeAction::Addition completed!");
+    println!("Included in block: {}", res.height);
+    Ok(())
+}
+
+/// Removes a fee asset
+///
+/// # Arguments
+///
+/// * `args` - The arguments passed to the command
+///
+/// # Errors
+///
+/// * If the http client cannot be created
+/// * If the transaction failed to be included
+pub(crate) async fn fee_asset_remove(args: &FeeAssetChangeArgs) -> eyre::Result<()> {
+    let res = submit_transaction(
+        args.sequencer_url.as_str(),
+        args.private_key.as_str(),
+        Action::FeeAssetChange(FeeAssetChangeAction::Removal(asset::Id::from_denom(
+            &args.asset,
+        ))),
+    )
+    .await
+    .wrap_err("failed to submit FeeAssetChangeAction::Removal transaction")?;
+
+    ensure!(
+        res.tx_result.code.is_ok(),
+        "error with FeeAssetChangeAction::Removal"
+    );
+    println!("FeeAssetChangeAction::Removal completed!");
+    println!("Included in block: {}", res.height);
+    Ok(())
+}
+
+/// Mints native asset to an account
+///
+/// # Arguments
+///
+/// * `args` - The arguments passed to the command
+///
+/// # Errors
+///
+/// * If the http client cannot be created
+/// * If the transaction failed to be submitted
+pub(crate) async fn mint(args: &MintArgs) -> eyre::Result<()> {
+    let res = submit_transaction(
+        args.sequencer_url.as_str(),
+        args.private_key.as_str(),
+        Action::Mint(MintAction {
+            to: args.to_address.0,
+            amount: args.amount,
+        }),
+    )
+    .await
+    .wrap_err("failed to submit Mint transaction")?;
+
+    ensure!(res.tx_result.code.is_ok(), "error with Mint");
+    println!("Mint completed!");
+    println!("Included in block: {}", res.height);
+    Ok(())
+}
+
+/// Changes the Sequencer's sudo address to a new address
+///
+/// # Arguments
+///
+/// * `args` - The arguments passed to the command
+///
+/// # Errors
+///
+/// * If the http client cannot be created
+/// * If the sudo address was not changed
+pub(crate) async fn sudo_address_change(args: &SudoAddressChangeArgs) -> eyre::Result<()> {
+    let res = submit_transaction(
+        args.sequencer_url.as_str(),
+        args.private_key.as_str(),
+        Action::SudoAddressChange(SudoAddressChangeAction {
+            new_address: args.address.0,
+        }),
+    )
+    .await
+    .wrap_err("failed to submit SudoAddressChange transaction")?;
+
+    ensure!(res.tx_result.code.is_ok(), "error with SudoAddressChange");
+    println!("SudoAddressChange completed!");
+    println!("Included in block: {}", res.height);
+    Ok(())
+}
+
+/// Updates a validator
+///
+/// # Arguments
+///
+/// * `args` - The arguments passed to the command
+///
+/// # Errors
+///
+/// * If the http client cannot be created
+/// * If the transaction failed to be submitted
+pub(crate) async fn validator_update(args: &ValidatorUpdateArgs) -> eyre::Result<()> {
+    let public_key_raw = hex::decode(args.validator_public_key.as_str())
+        .wrap_err("failed to decode public key into bytes")?;
+    let public_key_bytes = VerificationKeyBytes::try_from(public_key_raw.as_slice())
+        .wrap_err("public key bytes were too long, must be 32 bytes")?;
+    let pub_key = tendermint::PublicKey::from_raw_ed25519(public_key_bytes.as_bytes())
+        .expect("failed to parse public key from parsed bytes");
+    let validator_update = tendermint::validator::Update {
+        pub_key,
+        power: args.power.into(),
+    };
+
+    let res = submit_transaction(
+        args.sequencer_url.as_str(),
+        args.private_key.as_str(),
+        Action::ValidatorUpdate(validator_update),
+    )
+    .await
+    .wrap_err("failed to submit ValidatorUpdate transaction")?;
+
+    ensure!(res.tx_result.code.is_ok(), "error with ValidatorUpdate");
+    println!("ValidatorUpdate completed!");
     println!("Included in block: {}", res.height);
     Ok(())
 }
@@ -261,7 +502,7 @@ async fn submit_transaction(
     sequencer_client
         .submit_transaction_commit(tx)
         .await
-        .wrap_err("failed to submit InitBridgeAccount transaction")
+        .wrap_err("failed to submit transaction")
 }
 
 #[cfg(test)]

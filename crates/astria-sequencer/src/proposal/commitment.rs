@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
-use astria_core::sequencer::{
-    v1::{
+use astria_core::{
+    sequencer::v1::{
         group_sequence_actions_in_signed_transaction_transactions_by_rollup_id,
         RollupId,
         SignedTransaction,
     },
-    v2alpha1::block::{
+    sequencerblock::v1alpha1::block::{
         Deposit,
         RollupData,
     },

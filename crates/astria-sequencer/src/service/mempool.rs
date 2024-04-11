@@ -27,6 +27,7 @@ use tendermint::v0_38::abci::{
 };
 use tower::Service;
 use tower_abci::BoxError;
+use tracing::Instrument as _;
 
 use crate::{
     accounts::state_ext::StateReadExt,
@@ -62,6 +63,8 @@ impl Service<MempoolRequest> for Mempool {
     }
 
     fn call(&mut self, req: MempoolRequest) -> Self::Future {
+        use penumbra_tower_trace::v038::RequestExt as _;
+        let span = req.create_span();
         let storage = self.storage.clone();
         async move {
             let rsp = match req {
@@ -71,6 +74,7 @@ impl Service<MempoolRequest> for Mempool {
             };
             Ok(rsp)
         }
+        .instrument(span)
         .boxed()
     }
 }

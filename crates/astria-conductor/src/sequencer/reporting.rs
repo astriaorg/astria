@@ -1,6 +1,6 @@
-use astria_core::sequencer::{
-    v1::RollupId,
-    v2alpha1::block::{
+use astria_core::{
+    sequencer::v1::RollupId,
+    sequencerblock::v1alpha1::block::{
         FilteredSequencerBlock,
         RollupTransactions,
     },
@@ -42,12 +42,12 @@ impl<'a> Serialize for ReportRollups<'a> {
 
 #[cfg(test)]
 mod tests {
-    use astria_core::sequencer::{
-        v1::{
+    use astria_core::{
+        sequencer::v1::{
             test_utils::ConfigureCometBftBlock,
             RollupId,
         },
-        v2alpha1::block::{
+        sequencerblock::v1alpha1::block::{
             FilteredSequencerBlock,
             SequencerBlock,
         },

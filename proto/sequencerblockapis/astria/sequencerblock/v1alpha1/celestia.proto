@@ -1,10 +1,9 @@
 syntax = "proto3";
 
-package astria.sequencer.v2alpha1;
+package astria.sequencerblock.v1alpha1;
 
-import "astria/sequencer/v2alpha1/block.proto";
-import "astria/sequencer/v1/merkle.proto";
-import "astria_vendored/tendermint/types/types.proto";
+import "astria/sequencerblock/v1alpha1/block.proto";
+import "astria/sequencerblock/v1alpha1/merkle.proto";
 
 // A collection of transactions belonging to a specific rollup that are submitted to celestia.
 //
@@ -21,7 +20,7 @@ message CelestiaRollupBlob {
   repeated bytes transactions = 3;
   // The proof that these rollup transactions are included in sequencer block.
   // `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions_proof`.
-  astria.sequencer.v1.Proof proof = 4;
+  astria.sequencerblock.v1alpha1.Proof proof = 4;
 }
 
 // The metadata of a sequencer block that is submitted to celestia.
@@ -36,15 +35,15 @@ message CelestiaSequencerBlob {
   // the 32-byte block hash of the sequencer block.
   bytes block_hash = 1;
   // the block header, which contains sequencer-specific commitments.
-  astria.sequencer.v2alpha1.SequencerBlockHeader header = 2;
+  astria.sequencerblock.v1alpha1.SequencerBlockHeader header = 2;
   // The rollup IDs for which `CelestiaRollupBlob`s were submitted to celestia.
   // Corresponds to the `astria.sequencer.v1.RollupTransactions.rollup_id` field
   // and is extracted from `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions`.
   repeated bytes rollup_ids = 3;
   // The proof that the rollup transactions are included in sequencer block.
   // Corresponds to `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions_proof`.
-  astria.sequencer.v1.Proof rollup_transactions_proof = 4;
+  astria.sequencerblock.v1alpha1.Proof rollup_transactions_proof = 4;
   // The proof that the rollup IDs are included in sequencer block.
   // Corresponds to `astria.sequencer.v1alpha.SequencerBlock.rollup_ids_proof`.
-  astria.sequencer.v1.Proof rollup_ids_proof = 5;
+  astria.sequencerblock.v1alpha1.Proof rollup_ids_proof = 5;
 }
