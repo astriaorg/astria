@@ -146,43 +146,6 @@ pub(crate) struct App {
     app_hash: AppHash,
 }
 
-/// Relevant data of a block being executed.
-#[derive(Debug, Clone)]
-struct BlockData {
-    txs: Vec<bytes::Bytes>,
-    misbehavior: Vec<tendermint::abci::types::Misbehavior>,
-    height: tendermint::block::Height,
-    time: tendermint::Time,
-    next_validators_hash: Hash,
-    proposer_address: account::Id,
-}
-
-impl From<abci::request::FinalizeBlock> for BlockData {
-    fn from(finalize_block: abci::request::FinalizeBlock) -> Self {
-        Self {
-            txs: finalize_block.txs,
-            misbehavior: finalize_block.misbehavior,
-            height: finalize_block.height,
-            time: finalize_block.time,
-            next_validators_hash: finalize_block.next_validators_hash,
-            proposer_address: finalize_block.proposer_address,
-        }
-    }
-}
-
-impl From<abci::request::PrepareProposal> for BlockData {
-    fn from(prepare_proposal: abci::request::PrepareProposal) -> Self {
-        Self {
-            txs: prepare_proposal.txs,
-            misbehavior: prepare_proposal.misbehavior,
-            height: prepare_proposal.height,
-            time: prepare_proposal.time,
-            next_validators_hash: prepare_proposal.next_validators_hash,
-            proposer_address: prepare_proposal.proposer_address,
-        }
-    }
-}
-
 impl App {
     pub(crate) fn new(snapshot: Snapshot) -> Self {
         tracing::debug!("initializing App instance");
@@ -281,7 +244,7 @@ impl App {
         self.update_state_for_new_round(&storage);
 
         let txs = self
-            .pre_execute_block(prepare_proposal.into())
+            .pre_execute_transactions(prepare_proposal.into())
             .await
             .context("failed to prepare for executing block")?;
 
@@ -359,7 +322,7 @@ impl App {
         };
 
         let txs = self
-            .pre_execute_block(block_data)
+            .pre_execute_transactions(block_data)
             .await
             .context("failed to prepare for executing block")?;
 
@@ -408,7 +371,7 @@ impl App {
     ///
     /// Returns the transactions which were successfully decoded and executed
     /// in both their [`SignedTransaction`] and raw bytes form.
-    #[instrument(name = "App::execute_block_before_finalization", skip_all, fields(
+    #[instrument(name = "App::execute_transactions_before_finalization", skip_all, fields(
         tx_count = txs.len()
     ))]
     async fn execute_transactions_before_finalization(
@@ -505,7 +468,10 @@ impl App {
 
     // sets up the state for execution of the block's transactions.
     // set the current height and timestamp, and calls `begin_block` on all components.
-    async fn pre_execute_block(
+    //
+    // this *must* be called anytime before a block's txs are executed, whether it's
+    // during the proposal phase, or finalize_block phase.
+    async fn pre_execute_transactions(
         &mut self,
         block_data: BlockData,
     ) -> anyhow::Result<Vec<bytes::Bytes>> {
@@ -596,21 +562,15 @@ impl App {
             self.update_state_for_new_round(&storage);
         }
 
-        // this function returns the txs inside `finalize_block` back to us unmodified.
-        let txs = self
-            .pre_execute_block(finalize_block.into())
-            .await
-            .context("failed to execute block")?;
-
         ensure!(
-            txs.len() >= 2,
+            finalize_block.txs.len() >= 2,
             "block must contain at least two transactions: the rollup transactions commitment and
              rollup IDs commitment"
         );
 
         // cometbft expects a result for every tx in the block, so we need to return a
         // tx result for the commitments, even though they're not actually user txs.
-        let mut tx_results: Vec<ExecTxResult> = Vec::with_capacity(txs.len());
+        let mut tx_results: Vec<ExecTxResult> = Vec::with_capacity(finalize_block.txs.len());
         tx_results.push(ExecTxResult {
             ..Default::default()
         });
@@ -619,13 +579,20 @@ impl App {
         });
 
         // When the hash is not empty, we have already executed and cached the results
-        if !self.executed_proposal_hash.is_empty() {
+        let txs = if !self.executed_proposal_hash.is_empty() {
             let execution_results = self.execution_results.take().expect(
                 "execution results must be present if txs were already executed during proposal \
                  phase",
             );
             tx_results.extend(execution_results);
+            finalize_block.txs
         } else {
+            // this function returns the txs inside `finalize_block` back to us unmodified.
+            let txs = self
+                .pre_execute_transactions(finalize_block.into())
+                .await
+                .context("failed to execute block")?;
+
             // we haven't executed these txs before, so execute them
             for tx in &txs[2..] {
                 let signed_tx = signed_transaction_from_bytes(tx)
@@ -656,7 +623,9 @@ impl App {
                     }
                 }
             }
-        }
+
+            txs
+        };
 
         let end_block = self
             .end_block(&abci::request::EndBlock {
@@ -948,6 +917,45 @@ impl App {
     }
 }
 
+/// relevant data of a block being executed.
+///
+/// used to setup the state before execution of transactions.
+#[derive(Debug, Clone)]
+struct BlockData {
+    txs: Vec<bytes::Bytes>,
+    misbehavior: Vec<tendermint::abci::types::Misbehavior>,
+    height: tendermint::block::Height,
+    time: tendermint::Time,
+    next_validators_hash: Hash,
+    proposer_address: account::Id,
+}
+
+impl From<abci::request::FinalizeBlock> for BlockData {
+    fn from(finalize_block: abci::request::FinalizeBlock) -> Self {
+        Self {
+            txs: finalize_block.txs,
+            misbehavior: finalize_block.misbehavior,
+            height: finalize_block.height,
+            time: finalize_block.time,
+            next_validators_hash: finalize_block.next_validators_hash,
+            proposer_address: finalize_block.proposer_address,
+        }
+    }
+}
+
+impl From<abci::request::PrepareProposal> for BlockData {
+    fn from(prepare_proposal: abci::request::PrepareProposal) -> Self {
+        Self {
+            txs: prepare_proposal.txs,
+            misbehavior: prepare_proposal.misbehavior,
+            height: prepare_proposal.height,
+            time: prepare_proposal.time,
+            next_validators_hash: prepare_proposal.next_validators_hash,
+            proposer_address: prepare_proposal.proposer_address,
+        }
+    }
+}
+
 fn signed_transaction_from_bytes(bytes: &[u8]) -> anyhow::Result<SignedTransaction> {
     let raw = raw::SignedTransaction::decode(bytes)
         .context("failed to decode protobuf to signed transaction")?;
@@ -1141,7 +1149,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn app_pre_execute_block() {
+    async fn app_pre_execute_transactions() {
         let mut app = initialize_app(None, vec![]).await;
 
         let block_data = BlockData {
@@ -1153,7 +1161,9 @@ mod test {
             proposer_address: account::Id::try_from([0u8; 20].to_vec()).unwrap(),
         };
 
-        app.pre_execute_block(block_data.clone()).await.unwrap();
+        app.pre_execute_transactions(block_data.clone())
+            .await
+            .unwrap();
         assert_eq!(app.state.get_block_height().await.unwrap(), 1);
         assert_eq!(
             app.state.get_block_timestamp().await.unwrap(),
