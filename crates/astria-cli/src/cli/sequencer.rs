@@ -158,7 +158,7 @@ pub struct IbcRelayerChangeArgs {
         default_value = crate::cli::DEFAULT_SEQUENCER_RPC
     )]
     pub(crate) sequencer_url: String,
-    /// The new address to take over sudo privileges
+    /// The address to add or remove as an IBC relayer
     #[clap(long)]
     pub(crate) address: SequencerAddressArg,
 }
