@@ -600,7 +600,6 @@ impl CelestiaSequencerBlob {
             rollup_ids: rollup_ids.into_iter().map(RollupId::to_vec).collect(),
             rollup_transactions_proof: Some(rollup_transactions_proof.into_raw()),
             rollup_ids_proof: Some(rollup_ids_proof.into_raw()),
-            ..Default::default()
         }
     }
 
