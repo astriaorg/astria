@@ -23,7 +23,7 @@ use crate::{
         transaction::action,
         IncorrectAddressLength,
     },
-    Protobuf as _,
+    ProtobufV1 as _,
 };
 
 #[cfg(test)]

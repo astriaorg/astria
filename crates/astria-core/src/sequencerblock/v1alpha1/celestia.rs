@@ -139,7 +139,7 @@ pub struct UncheckedCelestiaRollupBlob {
     /// The hash of the sequencer block. Must be 32 bytes.
     pub sequencer_block_hash: [u8; 32],
     /// The 32 bytes identifying the rollup this blob belongs to. Matches
-    /// `astria.sequencer.v1.RollupTransactions.rollup_id`
+    /// `astria.sequencerblock.v1alpha1.RollupTransactions.rollup_id`
     pub rollup_id: RollupId,
     /// A list of opaque bytes that are serialized rollup transactions.
     pub transactions: Vec<Vec<u8>>,
@@ -160,7 +160,7 @@ pub struct CelestiaRollupBlob {
     /// The hash of the sequencer block. Must be 32 bytes.
     sequencer_block_hash: [u8; 32],
     /// The 32 bytes identifying the rollup this blob belongs to. Matches
-    /// `astria.sequencer.v1.RollupTransactions.rollup_id`
+    /// `astria.sequencerblock.v1alpha1.RollupTransactions.rollup_id`
     rollup_id: RollupId,
     /// A list of opaque bytes that are serialized rollup transactions.
     transactions: Vec<Vec<u8>>,
