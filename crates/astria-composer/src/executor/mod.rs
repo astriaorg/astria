@@ -81,7 +81,7 @@ mod bundle_factory;
 #[cfg(test)]
 mod tests;
 
-const EXECUTOR_SHUTDOWN_DURATION: Duration = Duration::from_secs(17);
+const BUNDLE_DRAINING_DURATION: Duration = Duration::from_secs(16);
 
 type StdError = dyn std::error::Error;
 
@@ -382,7 +382,7 @@ impl Executor {
             Ok(())
         };
 
-        match tokio::time::timeout(EXECUTOR_SHUTDOWN_DURATION, shutdown_logic).await {
+        match tokio::time::timeout(BUNDLE_DRAINING_DURATION, shutdown_logic).await {
             Ok(Ok(())) => info!("executor shutdown tasks completed successfully"),
             Ok(Err(error)) => error!(%error, "executor shutdown tasks failed"),
             Err(error) => error!(%error, "executor shutdown tasks failed to complete in time"),

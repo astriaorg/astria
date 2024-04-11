@@ -49,6 +49,7 @@ use crate::{
 
 const API_SERVER_SHUTDOWN_DURATION: Duration = Duration::from_secs(2);
 const GRPC_SERVER_SHUTDOWN_DURATION: Duration = Duration::from_secs(5);
+const EXECUTOR_SHUTDOWN_DURATION: Duration = Duration::from_secs(17);
 const GETH_COLLECTOR_SHUTDOWN_DURATION: Duration = Duration::from_secs(5);
 
 /// `Composer` is a service responsible for spinning up `GethCollectors` which are responsible
@@ -349,10 +350,13 @@ impl ShutdownInfo {
         // We give executor 17 seconds to shut down. The logic to timeout is in the
         // executor itself. We wait 17s for all the bundles to be drained.
         if let Some(executor_task_handle) = executor_task_handle {
-            match executor_task_handle.await {
-                Ok(Ok(())) => info!("executor shut down successfully"),
+            match tokio::time::timeout(EXECUTOR_SHUTDOWN_DURATION, executor_task_handle)
+                .await
+                .map(flatten_result)
+            {
+                Ok(Ok(())) => info!("executor task shut down"),
                 Ok(Err(error)) => error!(%error, "executor task shut down with error"),
-                Err(error) => error!(%error, "executor task didn't complete successfully"),
+                Err(error) => error!(%error, "executor task failed to shut down in time"),
             }
         } else {
             info!("executor task was already dead");
