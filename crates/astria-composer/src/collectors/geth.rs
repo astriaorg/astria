@@ -47,12 +47,13 @@ use tracing::{
     warn,
 };
 
-use crate::executor;
+use crate::{
+    collectors::EXECUTOR_SEND_TIMEOUT,
+    executor,
+};
 type StdError = dyn std::error::Error;
 
 const WSS_UNSUBSCRIBE_TIMEOUT: Duration = Duration::from_secs(2);
-
-pub(super) const EXECUTOR_SEND_TIMEOUT: Duration = Duration::from_millis(500);
 
 /// `GethCollector` Collects transactions submitted to a Geth rollup node and passes
 /// them downstream for further processing.

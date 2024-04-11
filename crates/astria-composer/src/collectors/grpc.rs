@@ -22,7 +22,7 @@ use tonic::{
 };
 
 use crate::{
-    collectors::geth::EXECUTOR_SEND_TIMEOUT,
+    collectors::EXECUTOR_SEND_TIMEOUT,
     executor,
 };
 
