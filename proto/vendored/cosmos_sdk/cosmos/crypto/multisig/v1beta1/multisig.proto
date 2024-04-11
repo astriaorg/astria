@@ -1,0 +1,21 @@
+syntax = "proto3";
+package cosmos.crypto.multisig.v1beta1;
+
+// This file contains types which are copied from
+// https://github.com/celestiaorg/cosmos-sdk/blob/v1.18.3-sdk-v0.46.14/proto/cosmos/crypto/multisig/v1beta1/multisig.proto
+
+// MultiSignature wraps the signatures from a multisig.LegacyAminoPubKey.
+// See cosmos.tx.v1betata1.ModeInfo.Multi for how to specify which signers
+// signed and with which modes.
+message MultiSignature {
+  repeated bytes signatures = 1;
+}
+
+// CompactBitArray is an implementation of a space efficient bit array.
+// This is used to ensure that the encoded data takes up a minimal amount of
+// space after proto encoding.
+// This is not thread safe, and is not intended for concurrent usage.
+message CompactBitArray {
+  uint32 extra_bits_stored = 1;
+  bytes elems = 2;
+}

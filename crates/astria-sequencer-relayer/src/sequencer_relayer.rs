@@ -49,7 +49,7 @@ impl SequencerRelayer {
             cometbft_endpoint,
             sequencer_grpc_endpoint,
             celestia_endpoint,
-            celestia_bearer_token,
+            celestia_key_file,
             block_time,
             relay_only_validator_key_blocks,
             validator_key_file,
@@ -63,7 +63,7 @@ impl SequencerRelayer {
         let relayer = relayer::Builder {
             shutdown_token: shutdown_handle.token(),
             celestia_endpoint,
-            celestia_bearer_token,
+            celestia_key_file,
             cometbft_endpoint,
             sequencer_poll_period: Duration::from_millis(block_time),
             sequencer_grpc_endpoint,

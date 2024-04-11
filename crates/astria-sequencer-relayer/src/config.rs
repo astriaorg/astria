@@ -14,7 +14,7 @@ pub struct Config {
     pub cometbft_endpoint: String,
     pub sequencer_grpc_endpoint: String,
     pub celestia_endpoint: String,
-    pub celestia_bearer_token: String,
+    pub celestia_key_file: String,
     pub block_time: u64,
     pub relay_only_validator_key_blocks: bool,
     #[serde(default)]

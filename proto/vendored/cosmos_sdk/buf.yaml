@@ -1,0 +1,24 @@
+version: v1
+name: buf.build/astria/cosmos_sdk_vendored
+breaking:
+  ignore_unstable_packages: true
+  use:
+    - FILE
+deps:
+  - buf.build/googleapis/googleapis
+lint:
+  ignore_only:
+    PACKAGE_VERSION_SUFFIX:
+      - "cosmos/crypto/secp256k1/keys.proto"
+      - "tendermint/abci/types.proto"
+      - "tendermint/p2p/types.proto"
+    SERVICE_SUFFIX:
+      - "cosmos/auth/v1beta1/query.proto"
+  use:
+    - BASIC
+    - ENUM_VALUE_PREFIX
+    - ENUM_ZERO_VALUE_SUFFIX
+    - FILE_LOWER_SNAKE_CASE
+    - RPC_REQUEST_STANDARD_NAME
+    - PACKAGE_VERSION_SUFFIX
+    - SERVICE_SUFFIX

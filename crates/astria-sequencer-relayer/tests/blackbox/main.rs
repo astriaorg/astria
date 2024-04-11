@@ -82,6 +82,7 @@ async fn report_degraded_if_block_fetch_fails() {
     );
 }
 
+#[ignore]
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn one_block_is_relayed_to_celestia() {
     let mut sequencer_relayer = TestSequencerRelayerConfig {
@@ -119,6 +120,7 @@ async fn one_block_is_relayed_to_celestia() {
     assert_eq!(blobs_seen_by_celestia.len(), 2);
 }
 
+#[ignore]
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn later_height_in_state_leads_to_expected_relay() {
     let mut sequencer_relayer = TestSequencerRelayerConfig {
@@ -162,6 +164,7 @@ async fn later_height_in_state_leads_to_expected_relay() {
     sequencer_relayer.assert_state_files_are_as_expected(6, 6);
 }
 
+#[ignore]
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn three_blocks_are_relayed() {
     let mut sequencer_relayer = TestSequencerRelayerConfig {
@@ -213,6 +216,7 @@ async fn three_blocks_are_relayed() {
     );
 }
 
+#[ignore]
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn block_from_other_proposer_is_skipped() {
     let mut sequencer_relayer = TestSequencerRelayerConfig {

@@ -153,7 +153,12 @@ fn clean_non_astria_code(generated: &mut ContentMap) {
     let mut foreign_file_names: HashSet<_> = generated
         .files
         .keys()
-        .filter(|name| !name.starts_with("astria."))
+        .filter(|name| {
+            !name.starts_with("astria.")
+                && !name.starts_with("celestia.")
+                && !name.starts_with("cosmos.")
+                && !name.starts_with("tendermint.")
+        })
         .cloned()
         .collect();
     // also mask mod.rs because we need are defining it
