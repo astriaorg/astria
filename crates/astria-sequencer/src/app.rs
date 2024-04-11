@@ -25,6 +25,7 @@ use cnidarium::{
     ArcStateDeltaExt,
     RootHash,
     Snapshot,
+    StagedWriteBatch,
     StateDelta,
     Storage,
 };
@@ -99,7 +100,6 @@ const MAX_SEQUENCE_DATA_BYTES_PER_BLOCK: usize = 256_000;
 /// See also the [Penumbra reference] implementation.
 ///
 /// [Penumbra reference]: https://github.com/penumbra-zone/penumbra/blob/9cc2c644e05c61d21fdc7b507b96016ba6b9a935/app/src/app/mod.rs#L42
-#[derive(Debug)]
 pub(crate) struct App {
     state: InterBlockState,
 
@@ -132,7 +132,13 @@ pub(crate) struct App {
     // at the end of the block.
     current_proposer: Option<account::Id>,
 
-    // the current `AppHash` of the application state.
+    // the current `StagedWriteBatch` which contains the rocksdb write batch
+    // of the current block being executed, created from the state delta,
+    // and set after `finalize_block`.
+    // this is committed to the state when `commit` is called, and set to `None`.
+    write_batch: Option<StagedWriteBatch>,
+
+    // the currently committed `AppHash` of the application state.
     // set whenever `commit` is called.
     //
     // allow clippy because we need be specific as to what hash this is.
@@ -154,6 +160,7 @@ impl App {
             executed_proposal_hash: Hash::default(),
             execution_result: HashMap::new(),
             current_proposer: None,
+            write_batch: None,
             app_hash: AppHash::default(),
         }
     }
@@ -161,6 +168,7 @@ impl App {
     #[instrument(name = "App:init_chain", skip_all)]
     pub(crate) async fn init_chain(
         &mut self,
+        storage: Storage,
         genesis_state: GenesisState,
         genesis_validators: Vec<tendermint::validator::Update>,
         chain_id: String,
@@ -197,6 +205,11 @@ impl App {
             .context("failed to call init_chain on IbcComponent")?;
 
         state_tx.apply();
+
+        let _ = self
+            .prepare_commit(storage)
+            .await
+            .context("failed to prepare commit")?;
         Ok(())
     }
 
@@ -557,21 +570,52 @@ impl App {
         // there should be none anyways.
         let _ = self.apply(state_tx);
 
-        // TODO: finalize_block forces us to return the app hash, but we can't get it
-        // without committing; cnidarium is the limitation here
-        let app_hash = self.commit(storage).await;
+        // prepare the `StagedWriteBatch` for a later commit.
+        let app_hash = self
+            .prepare_commit(storage.clone())
+            .await
+            .context("failed to prepare commit")?;
 
         Ok(abci::response::FinalizeBlock {
             events: end_block.events,
             validator_updates: end_block.validator_updates,
             consensus_param_updates: end_block.consensus_param_updates,
             tx_results,
-            app_hash: app_hash
-                .0
-                .to_vec()
-                .try_into()
-                .context("failed to convert app hash")?,
+            app_hash,
         })
+    }
+
+    async fn prepare_commit(&mut self, storage: Storage) -> anyhow::Result<AppHash> {
+        // extract the state we've built up to so we can prepare it as a `StagedWriteBatch`.
+        let dummy_state = StateDelta::new(storage.latest_snapshot());
+        let mut state = Arc::try_unwrap(std::mem::replace(&mut self.state, Arc::new(dummy_state)))
+            .expect("we have exclusive ownership of the State at commit()");
+
+        // store the storage version indexed by block height
+        let new_version = storage.latest_version().wrapping_add(1);
+        let height = state
+            .get_block_height()
+            .await
+            .expect("block height must be set, as `put_block_height` was already called");
+        state.put_storage_version_by_height(height, new_version);
+        debug!(
+            height,
+            version = new_version,
+            "stored storage version for height"
+        );
+
+        let write_batch = storage
+            .prepare_commit(state)
+            .await
+            .context("failed to prepare commit")?;
+        let app_hash = write_batch
+            .root_hash()
+            .0
+            .to_vec()
+            .try_into()
+            .context("failed to convert app hash")?;
+        self.write_batch = Some(write_batch);
+        Ok(app_hash)
     }
 
     #[instrument(name = "App::begin_block", skip_all)]
@@ -773,29 +817,11 @@ impl App {
 
     #[instrument(name = "App::commit", skip_all)]
     pub(crate) async fn commit(&mut self, storage: Storage) -> RootHash {
-        // We need to extract the State we've built up to commit it.  Fill in a dummy state.
-        let dummy_state = StateDelta::new(storage.latest_snapshot());
-
-        let mut state = Arc::try_unwrap(std::mem::replace(&mut self.state, Arc::new(dummy_state)))
-            .expect("we have exclusive ownership of the State at commit()");
-
-        // store the storage version indexed by block height
-        let new_version = storage.latest_version().wrapping_add(1);
-        let height = state
-            .get_block_height()
-            .await
-            .expect("block height must be set, as `begin_block` is always called before `commit`");
-        state.put_storage_version_by_height(height, new_version);
-        debug!(
-            height,
-            version = new_version,
-            "stored storage version for height"
-        );
-
         // Commit the pending writes, clearing the state.
         let app_hash = storage
-            .commit(state)
-            .await
+            .commit_batch(self.write_batch.take().expect(
+                "write batch must be set, as `finalize_block` is always called before `commit`",
+            ))
             .expect("must be able to successfully commit to storage");
         tracing::debug!(
             app_hash = %telemetry::display::base64(&app_hash),
@@ -880,18 +906,21 @@ pub(crate) mod test_utils {
 mod test {
     #[cfg(feature = "mint")]
     use astria_core::sequencer::v1::transaction::action::MintAction;
-    use astria_core::sequencer::v1::{
-        asset,
-        asset::DEFAULT_NATIVE_ASSET_DENOM,
-        transaction::action::{
-            BridgeLockAction,
-            IbcRelayerChangeAction,
-            SequenceAction,
-            SudoAddressChangeAction,
-            TransferAction,
+    use astria_core::{
+        sequencer::v1::{
+            asset,
+            asset::DEFAULT_NATIVE_ASSET_DENOM,
+            transaction::action::{
+                BridgeLockAction,
+                IbcRelayerChangeAction,
+                SequenceAction,
+                SudoAddressChangeAction,
+                TransferAction,
+            },
+            RollupId,
+            UnsignedTransaction,
         },
-        RollupId,
-        UnsignedTransaction,
+        sequencerblock::v1alpha1::block::Deposit,
     };
     use ed25519_consensus::SigningKey;
     use penumbra_ibc::params::IBCParameters;
@@ -905,7 +934,6 @@ mod test {
         },
         Time,
     };
-    use astria_core::sequencerblock::v1alpha1::block::Deposit;
 
     use super::*;
     use crate::{
@@ -978,9 +1006,14 @@ mod test {
             allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
         });
 
-        app.init_chain(genesis_state, genesis_validators, "test".to_string())
-            .await
-            .unwrap();
+        app.init_chain(
+            storage.clone(),
+            genesis_state,
+            genesis_validators,
+            "test".to_string(),
+        )
+        .await
+        .unwrap();
         app.commit(storage.clone()).await;
 
         (app, storage.clone())
@@ -2019,9 +2052,12 @@ mod test {
         }
 
         // commit should write the changes to the underlying storage
+        app.prepare_commit(storage.clone()).await.unwrap();
         app.commit(storage.clone()).await;
+
         let snapshot = storage.latest_snapshot();
         assert_eq!(snapshot.get_block_height().await.unwrap(), 0);
+
         for Account {
             address,
             balance,
@@ -2081,7 +2117,10 @@ mod test {
             },
             misbehavior: vec![],
         };
-        app.finalize_block(finalize_block, storage).await.unwrap();
+        app.finalize_block(finalize_block, storage.clone())
+            .await
+            .unwrap();
+        app.commit(storage).await;
 
         // assert that transaction fees were transferred to the block proposer
         assert_eq!(
@@ -2116,6 +2155,7 @@ mod test {
             .put_bridge_account_asset_ids(&bridge_address, &[asset_id])
             .unwrap();
         app.apply(state_tx);
+        app.prepare_commit(storage.clone()).await.unwrap();
         app.commit(storage.clone()).await;
 
         let amount = 100;
@@ -2161,7 +2201,10 @@ mod test {
             },
             misbehavior: vec![],
         };
-        app.finalize_block(finalize_block, storage).await.unwrap();
+        app.finalize_block(finalize_block, storage.clone())
+            .await
+            .unwrap();
+        app.commit(storage).await;
 
         // ensure deposits are cleared at the end of the block
         let deposit_events = app.state.get_deposit_events(&rollup_id).await.unwrap();

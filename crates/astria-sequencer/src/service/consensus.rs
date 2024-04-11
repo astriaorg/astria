@@ -140,6 +140,7 @@ impl Consensus {
             .context("failed to parse app_state in genesis file")?;
         self.app
             .init_chain(
+                self.storage.clone(),
                 genesis_state,
                 init_chain.validators.clone(),
                 init_chain.chain_id,
@@ -485,7 +486,7 @@ mod test {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut app = App::new(snapshot);
-        app.init_chain(genesis_state, vec![], "test".to_string())
+        app.init_chain(storage.clone(), genesis_state, vec![], "test".to_string())
             .await
             .unwrap();
         app.commit(storage.clone()).await;
