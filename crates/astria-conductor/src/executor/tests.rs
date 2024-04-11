@@ -37,8 +37,10 @@ use astria_core::{
             ConfigureCometBftBlock,
         },
     },
-    sequencerblock::v1alpha1::SequencerBlock,
-    Protobuf,
+    sequencerblock::{
+        v1alpha1::SequencerBlock,
+        Protobuf as _,
+    },
 };
 use bytes::Bytes;
 use prost::Message;
