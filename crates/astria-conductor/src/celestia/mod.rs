@@ -623,13 +623,13 @@ async fn get_sequencer_namespace(client: SequencerClient) -> eyre::Result<Namesp
             },
         );
 
-    let response = tryhard::retry_fn(|| client.latest_commit())
+    let block = tryhard::retry_fn(|| client.latest_sequencer_block())
         .with_config(retry_config)
         .await
         .wrap_err("failed to get latest commit from sequencer after 10 attempts")?;
 
     Ok(celestia_client::celestia_namespace_v0_from_cometbft_header(
-        response.signed_header.header(),
+        block.header().cometbft_header(),
     ))
 }
 
