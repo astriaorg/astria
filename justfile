@@ -180,7 +180,7 @@ delete-rollup rollupName=defaultRollupName:
   @just delete chart {{rollupName}}-chain
 
 wait-for-rollup rollupName=defaultRollupName:
-  kubectl wait -n astria-dev-cluster deployment {{rollupName}}-geth --for=condition=Available=True --timeout=600s
+  kubectl rollout status --watch statefulset/{{rollupName}}-geth -n astria-dev-cluster --timeout=600s
 
 defaultHypAgentConfig         := ""
 defaultHypRelayerPrivateKey   := ""
@@ -205,7 +205,7 @@ clean-persisted-data:
 deploy-local-metrics:
   kubectl apply -f kubernetes/metrics-server-local.yml
 
-defaultTag := 'latest'
+defaultTag := ""
 
 deploy-smoke-test tag=defaultTag:
   @echo "Deploying ingress controller..." && just deploy-ingress-controller > /dev/null
@@ -213,17 +213,62 @@ deploy-smoke-test tag=defaultTag:
   @echo "Deploying local celestia instance..." && just deploy celestia-local > /dev/null
   @helm dependency build charts/sequencer > /dev/null
   @helm dependency build charts/evm-rollup > /dev/null
-  @echo "Setting up single astria sequencer..." && helm install -n astria-validator-single single-sequencer-chart ./charts/sequencer -f dev/values/validators/single.yml --set images.sequencer.devTag={{tag}} --set sequencer-relayer.images.sequencer-relayer.devTag={{tag}} --create-namespace > /dev/null
+  @echo "Setting up single astria sequencer..." && helm install \
+    -n astria-validator-single single-sequencer-chart ./charts/sequencer \
+    -f dev/values/validators/single.yml \
+    {{ if tag != '' { replace('--set images.sequencer.devTag=# --set sequencer-relayer.images.sequencer-relayer.devTag=#', '#', tag) } else { '' } }} \
+    --create-namespace > /dev/null
   @just wait-for-sequencer > /dev/null
-  @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart ./charts/evm-rollup -f dev/values/rollup/dev.yaml --set images.conductor.devTag={{tag}} --set images.composer.devTag={{tag}} --set config.blockscout.enabled=false --set config.faucet.enabled=false > /dev/null
-  @sleep 30
+  @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart ./charts/evm-rollup -f dev/values/rollup/dev.yaml \
+    {{ if tag != '' { replace('--set images.conductor.devTag=# --set images.composer.devTag=#', '#', tag) } else { '' } }} \
+    --set config.blockscout.enabled=false \
+    --set config.faucet.enabled=false > /dev/null
+  @just wait-for-rollup > /dev/null
+  @sleep 15
 
 run-smoke-test:
-  @echo "Testing Transfer..."
-  @cast send 0x830B0e9Bb0B1ebad01F2805278Ede64c69e068FE --rpc-url "http://executor.astria.localdev.me/" --value 1ether --private-key=8b3a7999072c9c9314c084044fe705db11714c6c4ed7cddb64da18ea270dd203 >/dev/null
-  @if [ $(cast balance 0x830B0e9Bb0B1ebad01F2805278Ede64c69e068FE --rpc-url "http://executor.astria.localdev.me/") -eq 1000000000000000000 ]; then echo "Transfer success"; else echo "Transfer failure"; exit 1; fi;
-  @echo "Testing finalization..."
-  @if [ $(cast block finalized --rpc-url "http://executor.astria.localdev.me/" --field number) -gt 0 ]; then echo "Finalized success"; else echo "Finalization failure"; exit 1; fi;
+  #!/usr/bin/env bash
+  ETH_RPC_URL="http://executor.astria.localdev.me/"
+  MAX_RUNS=30
+  echo "Testing Transfer..."
+  TRANSFER_RUNS=0
+  EXPECTED_BALANCE=1000000000000000000
+  curl -X POST $ETH_RPC_URL -s -d '{"jsonrpc":"2.0","method":"eth_sendRawTransaction","params":["0xf86d80843c54e7f182520894830b0e9bb0b1ebad01f2805278ede64c69e068fe880de0b6b3a764000080820a96a045cac19cec50c92e356c665172ec70de5f3cd3721ba09bf3cbad1976d3e83487a00ff4d49607db9ac3c4bb71160be41600f8d1b56ac20b092c0e042f0d226e5277"],"id":1}' -H 'Content-Type: application/json' -s
+  balance() {
+    HEX_NUM=$(curl -X POST $ETH_RPC_URL -s -d '{"jsonrpc":"2.0","method":"eth_getBalance","params":["0x830B0e9Bb0B1ebad01F2805278Ede64c69e068FE", "latest"],"id":1}' -H 'Content-Type: application/json' | jq -r '.result')
+    echo "$(printf "%d" $HEX_NUM)"
+  }
+  while [ $TRANSFER_RUNS -lt $MAX_RUNS ]; do
+    if [ $(balance) -eq $EXPECTED_BALANCE ]; then
+      echo "Transfer success"
+      break
+    else
+      sleep 1
+    fi
+    TRANSFER_RUNS=$((TRANSFER_RUNS+1))
+  done
+  if [ $TRANSFER_RUNS -eq $MAX_RUNS ]; then
+    echo "Transfer failure"
+    exit 1
+  fi
+
+  echo "Testing finalization..."
+  FINALIZED_RUNS=0
+  finalized() {
+    HEX_NUM=$(curl -X POST $ETH_RPC_URL -s -d '{"jsonrpc":"2.0","method":"eth_getBlockByNumber","params":["finalized", false],"id":1}' -H 'Content-Type: application/json' | jq -r '.result.number')
+    echo "$(printf "%d" $HEX_NUM)"
+  }
+  while [ $FINALIZED_RUNS -lt $MAX_RUNS ]; do
+    if [ $(finalized) -gt 0 ]; then
+      echo "Finalized success"
+      exit 0
+    else
+      sleep 1
+    fi
+    FINALIZED_RUNS=$((FINALIZED_RUNS+1))
+  done
+  echo "Finalization failure"
+  exit 1
 
 delete-smoke-test:
   just delete celestia-local

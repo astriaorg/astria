@@ -1,3 +1,7 @@
+use base64::{
+    display::Base64Display,
+    prelude::BASE64_STANDARD,
+};
 use indexmap::IndexMap;
 #[cfg(feature = "serde")]
 use serde::Serialize;
@@ -104,10 +108,7 @@ impl From<[u8; ADDRESS_LEN]> for Address {
 
 impl std::fmt::Display for Address {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for byte in self.0 {
-            write!(f, "{byte:02x}")?;
-        }
-        Ok(())
+        Base64Display::new(self.as_ref(), &BASE64_STANDARD).fmt(f)
     }
 }
 
@@ -245,10 +246,7 @@ impl From<&RollupId> for RollupId {
 
 impl std::fmt::Display for RollupId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for byte in self.inner {
-            write!(f, "{byte:02x}")?;
-        }
-        Ok(())
+        Base64Display::new(self.as_ref(), &BASE64_STANDARD).fmt(f)
     }
 }
 

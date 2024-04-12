@@ -92,14 +92,19 @@ jobs:
         uses: helm/kind-action@v1 
         with:
           install_only: true
-      - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1
+      - name: Log in to GHCR
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Setup Smoke Test Environment
         timeout-minutes: 5
         run: |
           TAG=sha-$(git rev-parse --short HEAD)
           just deploy cluster
-          echo "Deploying with astria images tagged $TAG"
+          kubectl create secret generic regcred --from-file=.dockerconfigjson=$HOME/.docker/config.json --type=kubernetes.io/dockerconfigjson
+          echo -e "\n\nDeploying with astria images tagged $TAG"
           just deploy smoke-test $TAG
       - name: Run Smoke test
         timeout-minutes: 1

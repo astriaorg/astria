@@ -9,10 +9,6 @@ use astria_eyre::eyre::{
 };
 use tokio::{
     select,
-    signal::unix::{
-        signal,
-        SignalKind,
-    },
     sync::oneshot,
     task::{
         JoinError,
@@ -47,8 +43,8 @@ impl SequencerRelayer {
     /// # Errors
     ///
     /// Returns an error if constructing the inner relayer type failed.
-    pub fn new(cfg: Config) -> eyre::Result<Self> {
-        let shutdown_token = CancellationToken::new();
+    pub fn new(cfg: Config) -> eyre::Result<(Self, ShutdownHandle)> {
+        let shutdown_handle = ShutdownHandle::new();
         let Config {
             cometbft_endpoint,
             sequencer_grpc_endpoint,
@@ -65,7 +61,7 @@ impl SequencerRelayer {
 
         let validator_key_path = relay_only_validator_key_blocks.then_some(validator_key_file);
         let relayer = relayer::Builder {
-            shutdown_token: shutdown_token.clone(),
+            shutdown_token: shutdown_handle.token(),
             celestia_endpoint,
             celestia_bearer_token,
             cometbft_endpoint,
@@ -83,22 +79,19 @@ impl SequencerRelayer {
             format!("failed to parse provided `api_addr` string as socket address: `{api_addr}`",)
         })?;
         let api_server = api::start(api_socket_addr, state_rx);
-        Ok(Self {
+        let relayer = Self {
             api_server,
             relayer,
-            shutdown_token,
-        })
+            shutdown_token: shutdown_handle.token(),
+        };
+        Ok((relayer, shutdown_handle))
     }
 
     pub fn local_addr(&self) -> SocketAddr {
         self.api_server.local_addr()
     }
 
-    /// Run Sequencer Relayer.
-    ///
-    /// # Panics
-    /// Panics if a signal listener could not be constructed (usually if this binary is not run on a
-    /// Unix).
+    /// Runs Sequencer Relayer.
     pub async fn run(self) {
         let Self {
             api_server,
@@ -121,16 +114,7 @@ impl SequencerRelayer {
         let mut relayer_task = tokio::spawn(relayer.run());
         info!("spawned relayer task");
 
-        let mut sigterm = signal(SignalKind::terminate()).expect(
-            "setting a SIGTERM listener should always work on unix; is this running on Unix?",
-        );
-
         let shutdown = select!(
-            _ = sigterm.recv() => {
-                info!("received SIGTERM, issuing shutdown to all services");
-                ShutDown { api_task: Some(api_task), relayer_task: Some(relayer_task), api_shutdown_signal, shutdown_token }
-            },
-
             o = &mut api_task => {
                 report_exit("api server", o);
                 ShutDown { api_task: None, relayer_task: Some(relayer_task), api_shutdown_signal, shutdown_token }
@@ -142,6 +126,44 @@ impl SequencerRelayer {
 
         );
         shutdown.run().await;
+    }
+}
+
+/// A handle for instructing the [`SequencerRelayer`] to shut down.
+///
+/// It is returned along with its related `SequencerRelayer` from [`SequencerRelayer::new`].  The
+/// `SequencerRelayer` will begin to shut down as soon as [`ShutdownHandle::shutdown`] is called or
+/// when the `ShutdownHandle` is dropped.
+pub struct ShutdownHandle {
+    token: CancellationToken,
+}
+
+impl ShutdownHandle {
+    #[must_use]
+    fn new() -> Self {
+        Self {
+            token: CancellationToken::new(),
+        }
+    }
+
+    /// Returns a clone of the wrapped cancellation token.
+    #[must_use]
+    pub fn token(&self) -> CancellationToken {
+        self.token.clone()
+    }
+
+    /// Consumes `self` and cancels the wrapped cancellation token.
+    pub fn shutdown(self) {
+        self.token.cancel();
+    }
+}
+
+impl Drop for ShutdownHandle {
+    fn drop(&mut self) {
+        if !self.token.is_cancelled() {
+            info!("shutdown handle dropped, issuing shutdown to all services");
+        }
+        self.token.cancel();
     }
 }
 
@@ -180,18 +202,21 @@ impl ShutDown {
         // Giving relayer 25 seconds to shutdown because Kubernetes issues a SIGKILL after 30.
         if let Some(mut relayer_task) = relayer_task {
             info!("waiting for relayer task to shut down");
-            match timeout(Duration::from_secs(25), &mut relayer_task)
+            let limit = Duration::from_secs(25);
+            match timeout(limit, &mut relayer_task)
                 .await
                 .map(crate::utils::flatten)
             {
                 Ok(Ok(())) => info!("relayer exited gracefully"),
                 Ok(Err(error)) => error!(%error, "relayer exited with an error"),
                 Err(_) => {
-                    error!("relayer did not shut down after 25 seconds; killing it");
+                    error!(
+                        timeout_secs = limit.as_secs(),
+                        "relayer did not shut down within timeout; killing it"
+                    );
                     relayer_task.abort();
                 }
             }
-            info!("sending shutdown signal to API server");
         } else {
             info!("relayer task was already dead");
         }
@@ -200,14 +225,18 @@ impl ShutDown {
         if let Some(mut api_task) = api_task {
             info!("sending shutdown signal to API server");
             let _ = api_shutdown_signal.send(());
-            match timeout(Duration::from_secs(4), &mut api_task)
+            let limit = Duration::from_secs(4);
+            match timeout(limit, &mut api_task)
                 .await
                 .map(crate::utils::flatten)
             {
-                Ok(Ok(())) => info!("api server exited gracefully"),
-                Ok(Err(error)) => error!(%error, "api server exited with an error"),
+                Ok(Ok(())) => info!("API server exited gracefully"),
+                Ok(Err(error)) => error!(%error, "API server exited with an error"),
                 Err(_) => {
-                    error!("api server did not shut down after 25 seconds; killing it");
+                    error!(
+                        timeout_secs = limit.as_secs(),
+                        "API server did not shut down within timeout; killing it"
+                    );
                     api_task.abort();
                 }
             }

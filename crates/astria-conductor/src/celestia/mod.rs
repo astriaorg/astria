@@ -5,7 +5,6 @@ use std::{
         Context,
         Poll,
     },
-    time::Duration,
 };
 
 use astria_eyre::eyre::{
@@ -16,22 +15,8 @@ use astria_eyre::eyre::{
 };
 use celestia_client::{
     celestia_namespace_v0_from_rollup_id,
-    celestia_rpc::{
-        self,
-        Client,
-    },
-    celestia_types::{
-        nmt::Namespace,
-        ExtendedHeader,
-    },
-    jsonrpsee::{
-        core::{
-            client::Subscription,
-            Error as JrpcError,
-        },
-        http_client::HttpClient,
-        ws_client::WsClient,
-    },
+    celestia_types::nmt::Namespace,
+    jsonrpsee::http_client::HttpClient as CelestiaClient,
     CelestiaClientExt as _,
     CelestiaSequencerBlob,
 };
@@ -53,7 +38,7 @@ use sequencer_client::tendermint::{
     block::Height as SequencerHeight,
 };
 use telemetry::display::{
-    hex,
+    base64,
     json,
 };
 use tokio::{
@@ -75,7 +60,17 @@ use tracing::{
 };
 
 mod block_verifier;
+mod builder;
+mod latest_height_stream;
+mod reporting;
+
 use block_verifier::BlockVerifier;
+pub(crate) use builder::Builder;
+use latest_height_stream::LatestHeightStream;
+use reporting::{
+    ReportReconstructedBlocks,
+    ReportSequencerHeights,
+};
 use tracing_futures::Instrument;
 
 use crate::{
@@ -84,13 +79,6 @@ use crate::{
         GetSequencerHeight,
     },
     executor,
-};
-mod builder;
-pub(crate) use builder::Builder;
-mod reporting;
-use reporting::{
-    ReportReconstructedBlocks,
-    ReportSequencerHeights,
 };
 
 type StdError = dyn std::error::Error;
@@ -123,20 +111,17 @@ impl GetSequencerHeight for ReconstructedBlock {
 }
 
 pub(crate) struct Reader {
-    /// The channel used to send messages to the executor task.
-    executor: executor::Handle,
-
-    // The HTTP endpoint to fetch celestia blocks.
-    celestia_http_endpoint: String,
-
-    // The WS endpoint to subscribe to the latest celestia headers and read heights.
-    celestia_ws_endpoint: String,
-
-    // The bearer token to authenticate with the celestia node.
-    celestia_auth_token: String,
-
     /// Validates sequencer blobs read from celestia against sequencer.
     block_verifier: BlockVerifier,
+
+    // Client to fetch heights and blocks from Celestia.
+    celestia_client: CelestiaClient,
+
+    // A stream of the latest Celestia heights.
+    latest_celestia_heights: LatestHeightStream,
+
+    /// The channel used to send messages to the executor task.
+    executor: executor::Handle,
 
     /// The celestia namespace sequencer blobs will be read from.
     sequencer_namespace: Namespace,
@@ -168,37 +153,29 @@ impl Reader {
             "setting up celestia reader",
         );
 
-        // XXX: The websocket client must be kept alive so that the subscription doesn't die.
-        //      We bind to `_wsclient` because `_` will immediately drop the object.
-        let (mut _wsclient, mut headers) =
-            subscribe_to_celestia_headers(&self.celestia_ws_endpoint, &self.celestia_auth_token)
-                .await
-                .wrap_err("failed to subscribe to celestia headers")?;
-
-        let latest_celestia_height = match headers.next().await {
-            Some(Ok(header)) => header.height(),
+        let latest_celestia_height = match self.latest_celestia_heights.next().await {
+            Some(Ok(height)) => height,
             Some(Err(e)) => {
                 return Err(e).wrap_err("subscription to celestia header returned an error");
             }
             None => bail!("celestia header subscription was terminated unexpectedly"),
         };
 
-        debug!(height = %latest_celestia_height, "received latest height from celestia");
+        debug!(
+            height = latest_celestia_height,
+            "received latest height from celestia"
+        );
 
         // XXX: This block cache always starts at height 1, the default value for `Height`.
         let mut sequential_blocks =
             BlockCache::<ReconstructedBlock>::with_next_height(initial_expected_sequencer_height)
                 .wrap_err("failed constructing sequential block cache")?;
 
-        let http_client =
-            connect_to_celestia(&self.celestia_http_endpoint, &self.celestia_auth_token)
-                .await
-                .wrap_err("failed to connect to the Celestia node HTTP RPC")?;
         let mut block_stream = ReconstructedBlocksStream {
             track_heights: TrackHeights {
                 reference_height: initial_celestia_height.value(),
                 variance: celestia_variance,
-                last_observed: latest_celestia_height.value(),
+                last_observed: latest_celestia_height,
                 next_height: initial_celestia_height.value(),
             },
             // NOTE: Gives Celestia 600 seconds to respond. This seems reasonable because we need to
@@ -206,15 +183,15 @@ impl Reader {
             // blobs.
             // XXX: This should probably have explicit retry logic instead of this futures map.
             in_progress: FuturesMap::new(std::time::Duration::from_secs(600), 10),
-            client: http_client,
+            client: self.celestia_client.clone(),
             verifier: self.block_verifier.clone(),
             sequencer_namespace: self.sequencer_namespace,
             rollup_namespace,
         }
         .instrument(info_span!(
             "celestia_block_stream",
-            namespace.rollup = %hex(&rollup_namespace.as_bytes()),
-            namespace.sequencer = %hex(&self.sequencer_namespace.as_bytes()),
+            namespace.rollup = %base64(&rollup_namespace.as_bytes()),
+            namespace.sequencer = %base64(&self.sequencer_namespace.as_bytes()),
         ));
 
         // Enqueued block waiting for executor to free up. Set if the executor exhibits
@@ -222,8 +199,6 @@ impl Reader {
         let mut enqueued_block: Fuse<BoxFuture<Result<_, SendError<ReconstructedBlock>>>> =
             future::Fuse::terminated();
 
-        // Pending subcription to Celestia network headers. Set if the current subscription fails.
-        let mut resubscribing = Fuse::terminated();
         let reason = loop {
             select!(
                 biased;
@@ -265,59 +240,32 @@ impl Reader {
                     }
                 }
 
-                new_subscription = &mut resubscribing, if !resubscribing.is_terminated() => {
-                    match new_subscription {
-                        Ok(new_subscription) => (_wsclient, headers) = new_subscription,
-                        Err(e) => return Err(e).wrap_err("resubscribing to celestia headers ultimately failed"),
+                // Write the latest Celestia height to the block stream.
+                Some(res) = self.latest_celestia_heights.next() => {
+                    match res {
+                        Ok(height) => {
+                            debug!(height, "received height from Celestia");
+                            if block_stream.inner_mut().update_latest_observed_height_if_greater(height)
+                            && block_stream.inner().is_exhausted()
+                            {
+                                info!(
+                                    reference_height = block_stream.inner().track_heights.reference_height(),
+                                    variance = block_stream.inner().track_heights.variance(),
+                                    max_permitted_height = block_stream.inner().track_heights.max_permitted(),
+                                    "updated reference height, but the block stream is exhausted and won't fetch past its permitted window",
+                                );
+                            }
+                        }
+                        Err(error) => {
+                            warn!(
+                                %error,
+                                "failed fetching latest height from sequencer; waiting until next tick",
+                            );
+                        }
                     }
                 }
 
-                maybe_header = headers.next(), if resubscribing.is_terminated() => {
-                    let mut resubscribe = false;
-
-                    if block_stream.inner().is_exhausted() {
-                        info!(
-                            reference_height = block_stream.inner().track_heights.reference_height(),
-                            variance = block_stream.inner().track_heights.variance(),
-                            max_permitted_height = block_stream.inner().track_heights.max_permitted(),
-                            "received a new header from Celestia, but the stream is exhausted and won't fetch past its permitted window",
-                        );
-                    }
-
-                    match maybe_header {
-                        Some(Ok(header)) => {
-                            if !block_stream.inner_mut().update_latest_observed_height_if_greater(header.height().value()) {
-                                info!("received a new Celestia header, but the height therein was already seen");
-                        }}
-
-                        Some(Err(JrpcError::ParseError(e))) => {
-                            warn!(
-                                error = &e as &StdError,
-                                "failed to parse return value of header subscription",
-                            );
-                        }
-
-                        Some(Err(e)) => {
-                            warn!(
-                                error = &e as &StdError,
-                                "Celestia header subscription failed, resubscribing",
-                            );
-                            resubscribe = true;
-                        }
-
-                        None => {
-                            warn!("Celestia header subscription is unexpectedly exhausted, resubscribing");
-                            resubscribe = true;
-                        }
-                    }
-                    if resubscribe {
-                        resubscribing = subscribe_to_celestia_headers(
-                            &self.celestia_ws_endpoint,
-                            &self.celestia_auth_token,
-                        ).boxed().fuse();
-                    }
-                }
-
+                // Pull the the next reconstructed block from the stream reading off of Celestia.
                 Some(reconstructed) = block_stream.next() => {
                     for block in reconstructed.blocks {
                         if let Err(e) = sequential_blocks.insert(block) {
@@ -405,7 +353,7 @@ pin_project! {
 
         in_progress: FuturesMap<u64, eyre::Result<ReconstructedBlocks>>,
 
-        client: HttpClient,
+        client: CelestiaClient,
         verifier: BlockVerifier,
         sequencer_namespace: Namespace,
         rollup_namespace: Namespace,
@@ -521,13 +469,13 @@ impl Stream for ReconstructedBlocksStream {
     skip_all,
     fields(
         %celestia_height,
-        namespace.sequencer = %hex(&sequencer_namespace.as_bytes()),
-        namespace.rollup = %hex(&rollup_namespace.as_bytes()),
+        namespace.sequencer = %base64(&sequencer_namespace.as_bytes()),
+        namespace.rollup = %base64(&rollup_namespace.as_bytes()),
     ),
     err
 )]
 async fn fetch_blocks_at_celestia_height(
-    client: HttpClient,
+    client: CelestiaClient,
     verifier: BlockVerifier,
     celestia_height: u64,
     sequencer_namespace: Namespace,
@@ -597,13 +545,13 @@ async fn fetch_blocks_at_celestia_height(
     skip_all,
     fields(
         blob.sequencer_height = sequencer_blob.height().value(),
-        blob.block_hash = %hex(&sequencer_blob.block_hash()),
-        celestia_rollup_namespace = %hex(rollup_namespace.as_bytes()),
+        blob.block_hash = %base64(&sequencer_blob.block_hash()),
+        celestia_rollup_namespace = %base64(rollup_namespace.as_bytes()),
     ),
     err,
 )]
 async fn process_sequencer_blob(
-    client: HttpClient,
+    client: CelestiaClient,
     verifier: BlockVerifier,
     celestia_height: u64,
     rollup_namespace: Namespace,
@@ -640,86 +588,6 @@ async fn process_sequencer_blob(
         header: sequencer_blob.header().clone(),
         transactions,
     })
-}
-
-#[instrument(err)]
-async fn subscribe_to_celestia_headers(
-    endpoint: &str,
-    token: &str,
-) -> eyre::Result<(WsClient, Subscription<ExtendedHeader>)> {
-    use celestia_client::celestia_rpc::HeaderClient as _;
-
-    async fn connect(endpoint: &str, token: &str) -> Result<WsClient, celestia_rpc::Error> {
-        let Client::Ws(client) = Client::new(endpoint, Some(token)).await? else {
-            panic!("expected a celestia Websocket client but got a HTTP client");
-        };
-        Ok(client)
-    }
-
-    let retry_config = tryhard::RetryFutureConfig::new(u32::MAX)
-        .exponential_backoff(Duration::from_millis(100))
-        .max_delay(Duration::from_secs(5))
-        .on_retry(
-            |attempt: u32, next_delay: Option<Duration>, error: &eyre::Report| {
-                let wait_duration = next_delay
-                    .map(humantime::format_duration)
-                    .map(tracing::field::display);
-                warn!(
-                    attempt,
-                    wait_duration,
-                    %error,
-                    "attempt to connect to subscribe to Celestia headers failed; retrying after backoff",
-                );
-                futures::future::ready(())
-            },
-        );
-
-    tryhard::retry_fn(|| async move {
-        let client = connect(endpoint, token)
-            .await
-            .wrap_err("failed to connect to Celestia Websocket RPC")?;
-        let headers = client
-            .header_subscribe()
-            .await
-            .wrap_err("failed to subscribe to Celestia headers")?;
-        Ok((client, headers))
-    })
-    .with_config(retry_config)
-    .await
-    .wrap_err("retry attempts exhausted; bailing")
-}
-
-#[instrument(err)]
-async fn connect_to_celestia(endpoint: &str, token: &str) -> eyre::Result<HttpClient> {
-    async fn connect(endpoint: &str, token: &str) -> Result<HttpClient, celestia_rpc::Error> {
-        let Client::Http(client) = Client::new(endpoint, Some(token)).await? else {
-            panic!("expected a celestia HTTP client but got a Websocket client");
-        };
-        Ok(client)
-    }
-
-    let retry_config = tryhard::RetryFutureConfig::new(u32::MAX)
-        .exponential_backoff(Duration::from_millis(100))
-        .max_delay(Duration::from_secs(5))
-        .on_retry(
-            |attempt: u32, next_delay: Option<Duration>, error: &celestia_rpc::Error| {
-                let wait_duration = next_delay
-                    .map(humantime::format_duration)
-                    .map(tracing::field::display);
-                warn!(
-                    attempt,
-                    wait_duration,
-                    %error,
-                    "attempt to connect to Celestia HTTP RPC failed; retrying after backoff",
-                );
-                futures::future::ready(())
-            },
-        );
-
-    tryhard::retry_fn(|| connect(endpoint, token))
-        .with_config(retry_config)
-        .await
-        .wrap_err("retry attempts exhausted; bailing")
 }
 
 #[cfg(test)]

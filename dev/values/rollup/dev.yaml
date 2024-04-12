@@ -10,3 +10,6 @@ config:
 
 celestia-node:
   enabled: false
+
+storage:
+  enabled: false

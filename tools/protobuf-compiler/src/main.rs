@@ -91,7 +91,7 @@ fn main() {
         .file_descriptor_set_path(buf_img.path())
         .skip_protoc_run()
         .out_dir(&out_dir)
-        .compile(&files, INCLUDES)
+        .compile_with_config(prost_build_config(), &files, INCLUDES)
         .expect("should be able to compile protobuf using tonic");
 
     let descriptor_set = std::fs::read(buf_img.path())
@@ -106,13 +106,29 @@ fn main() {
         .build(&[
             ".astria.execution.v1alpha2",
             ".astria.sequencer.v1.Deposit",
+            ".astria.sequencer.v1.FilteredSequencerBlock",
+            ".astria.sequencer.v1.GetFilteredSequencerBlockRequest",
+            ".astria.sequencer.v1.Proof",
             ".astria.sequencer.v1.RollupData",
+            ".astria.sequencer.v1.RollupTransactions",
             ".astria.primitive.v1.Uint128",
+            ".astria.sequencerblock.v1alpha1.Deposit",
+            ".astria.sequencerblock.v1alpha1.SequencerBlockHeader",
+            ".astria.sequencerblock.v1alpha1.FilteredSequencerBlock",
+            ".astria.sequencerblock.v1alpha1.GetFilteredSequencerBlockRequest",
+            ".astria.sequencerblock.v1alpha1.RollupData",
+            ".astria.sequencerblock.v1alpha1.RollupTransactions",
         ])
         .unwrap();
 
     let mut after_build = build_content_map(&out_dir);
     clean_non_astria_code(&mut after_build);
+}
+
+fn prost_build_config() -> prost_build::Config {
+    let mut config = prost_build::Config::new();
+    config.enable_type_names();
+    config
 }
 
 fn emit_buf_stdout(buf: &[u8]) -> std::io::Result<()> {

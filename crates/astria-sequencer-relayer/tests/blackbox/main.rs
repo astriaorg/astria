@@ -16,7 +16,7 @@ use tokio::time::{
 const RELAY_SELF: bool = true;
 const RELAY_ALL: bool = false;
 
-#[tokio::test(flavor = "current_thread")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn report_degraded_if_block_fetch_fails() {
     let mut sequencer_relayer = TestSequencerRelayerConfig {
         relay_only_self: false,
@@ -62,7 +62,7 @@ async fn report_degraded_if_block_fetch_fails() {
         ),
     )
     .await
-    .expect("requesting abci info and block must have occured")
+    .expect("requesting abci info and block must have occurred")
     .1
     .unwrap();
 
@@ -82,7 +82,7 @@ async fn report_degraded_if_block_fetch_fails() {
     );
 }
 
-#[tokio::test(flavor = "current_thread")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn one_block_is_relayed_to_celestia() {
     let mut sequencer_relayer = TestSequencerRelayerConfig {
         relay_only_self: false,
@@ -119,7 +119,7 @@ async fn one_block_is_relayed_to_celestia() {
     assert_eq!(blobs_seen_by_celestia.len(), 2);
 }
 
-#[tokio::test(flavor = "current_thread")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn later_height_in_state_leads_to_expected_relay() {
     let mut sequencer_relayer = TestSequencerRelayerConfig {
         relay_only_self: false,
@@ -162,7 +162,7 @@ async fn later_height_in_state_leads_to_expected_relay() {
     sequencer_relayer.assert_state_files_are_as_expected(6, 6);
 }
 
-#[tokio::test(flavor = "current_thread")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn three_blocks_are_relayed() {
     let mut sequencer_relayer = TestSequencerRelayerConfig {
         relay_only_self: false,
@@ -213,7 +213,7 @@ async fn three_blocks_are_relayed() {
     );
 }
 
-#[tokio::test(flavor = "current_thread")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn block_from_other_proposer_is_skipped() {
     let mut sequencer_relayer = TestSequencerRelayerConfig {
         relay_only_self: true,

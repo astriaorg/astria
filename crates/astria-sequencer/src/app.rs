@@ -102,14 +102,14 @@ const MAX_SEQUENCE_DATA_BYTES_PER_BLOCK: usize = 256_000;
 pub(crate) struct App {
     state: InterBlockState,
 
-    // set to true when `prepare_proposal` is called, indicating we are the proposer for this
-    // block. set to false when `process_proposal` is called, as it's called during the prevote
-    // phase for that block.
+    // The validator address in cometbft being used to sign votes.
     //
-    // if true, `process_proposal` is not executed, as this means we are the proposer of that
-    // block, and we have already executed the transactions for the block during
-    // `prepare_proposal`, and re-executing them would cause failure.
-    is_proposer: bool,
+    // Used to avoid executing a block in both `prepare_proposal` and `process_proposal`. It
+    // is set in `prepare_proposal` from information sent in from cometbft and can potentially
+    // change round-to-round. In `process_proposal` we check if we prepared the proposal, and
+    // if so, we clear the value and we skip re-execution of the block's transactions to avoid
+    // failures caused by re-execution.
+    validator_address: Option<account::Id>,
 
     // This is set to the executed hash of the proposal during `process_proposal`
     //
@@ -156,7 +156,7 @@ impl App {
 
         Self {
             state,
-            is_proposer: false,
+            validator_address: None,
             executed_proposal_hash: Hash::default(),
             execution_result: HashMap::new(),
             processed_txs: 0,
@@ -179,7 +179,7 @@ impl App {
 
         crate::asset::initialize_native_asset(&genesis_state.native_asset_base_denomination);
         state_tx.put_native_asset_denom(&genesis_state.native_asset_base_denomination);
-        state_tx.put_chain_id(chain_id);
+        state_tx.put_chain_id_and_revision_number(chain_id);
         state_tx.put_block_height(0);
 
         for fee_asset in &genesis_state.allowed_fee_assets {
@@ -234,7 +234,7 @@ impl App {
         prepare_proposal: abci::request::PrepareProposal,
         storage: Storage,
     ) -> anyhow::Result<abci::response::PrepareProposal> {
-        self.is_proposer = true;
+        self.validator_address = Some(prepare_proposal.proposer_address);
         self.update_state_for_new_round(&storage);
 
         let (signed_txs, txs_to_include) = self.execute_block_data(prepare_proposal.txs).await;
@@ -266,16 +266,22 @@ impl App {
         // if we proposed this block (ie. prepare_proposal was called directly before this), then
         // we skip execution for this `process_proposal` call.
         //
-        // if we didn't propose this block, `self.is_proposer` will be `false`, so
-        // we will execute the block as normal.
-        if self.is_proposer {
-            debug!("skipping process_proposal as we are the proposer for this block");
-            self.is_proposer = false;
-            self.executed_proposal_hash = process_proposal.hash;
-            return Ok(());
+        // if we didn't propose this block, `self.validator_address` will be None or a different
+        // value, so we will execute the block as normal.
+        if let Some(id) = self.validator_address {
+            if id == process_proposal.proposer_address {
+                debug!("skipping process_proposal as we are the proposer for this block");
+                self.validator_address = None;
+                self.executed_proposal_hash = process_proposal.hash;
+                return Ok(());
+            }
+            debug!(
+                "our validator address was set but we're not the proposer, so our previous \
+                 proposal was skipped, executing block"
+            );
+            self.validator_address = None;
         }
 
-        self.is_proposer = false;
         self.update_state_for_new_round(&storage);
 
         let mut txs = VecDeque::from(process_proposal.txs);
@@ -377,7 +383,7 @@ impl App {
                 > MAX_SEQUENCE_DATA_BYTES_PER_BLOCK
             {
                 debug!(
-                    transaction_hash = %telemetry::display::hex(&tx_hash),
+                    transaction_hash = %telemetry::display::base64(&tx_hash),
                     included_data_bytes = block_sequence_data_bytes,
                     tx_data_bytes = tx_sequence_data_bytes,
                     max_data_bytes = MAX_SEQUENCE_DATA_BYTES_PER_BLOCK,
@@ -397,7 +403,7 @@ impl App {
                 }
                 Err(e) => {
                     debug!(
-                        transaction_hash = %telemetry::display::hex(&tx_hash),
+                        transaction_hash = %telemetry::display::base64(&tx_hash),
                         error = AsRef::<dyn std::error::Error>::as_ref(&e),
                         "failed to execute transaction, not including in block"
                     );
@@ -474,7 +480,7 @@ impl App {
     /// Note that the first two "transactions" in the block, which are the proposer-generated
     /// commitments, are ignored.
     #[instrument(name = "App::deliver_tx_after_proposal", skip_all, fields(
-        tx_hash =  %telemetry::display::hex(&Sha256::digest(&tx.tx)),
+        tx_hash =  %telemetry::display::base64(&Sha256::digest(&tx.tx)),
     ))]
     pub(crate) async fn deliver_tx_after_proposal(
         &mut self,
@@ -529,7 +535,7 @@ impl App {
     ///
     /// Note that `begin_block` is now called *after* transaction execution.
     #[instrument(name = "App::deliver_tx", skip_all, fields(
-        signed_transaction_hash = %telemetry::display::hex(&signed_tx.sha256_of_proto_encoding()),
+        signed_transaction_hash = %telemetry::display::base64(&signed_tx.sha256_of_proto_encoding()),
         sender = %Address::from_verification_key(signed_tx.verification_key()),
     ))]
     pub(crate) async fn deliver_tx(
@@ -705,7 +711,7 @@ impl App {
             .await
             .expect("must be able to successfully commit to storage");
         tracing::debug!(
-            app_hash = %telemetry::display::hex(&app_hash),
+            app_hash = %telemetry::display::base64(&app_hash),
             "finished committing state",
         );
 

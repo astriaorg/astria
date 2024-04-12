@@ -1,6 +1,6 @@
 [package]
 name = "astria-conductor"
-version = "0.13.0"
+version = "0.13.1"
 edition = "2021"
 rust-version = "1.73"
 license = "MIT OR Apache-2.0"
@@ -42,14 +42,16 @@ sha2 = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal"] }
 tokio-util = { workspace = true, features = ["rt"] }
-tonic = { workspace = true }
+tonic = { workspace = true, features = ["tls", "tls-roots"] }
 tracing = { workspace = true, features = ["valuable"] }
 tryhard = { workspace = true }
 
 async-trait = "0.1.73"
 futures-bounded = "0.2.3"
+http = "0.2.9"
 itertools = "0.12.1"
 pin-project-lite = "0.2"
+tokio-stream = "0.1.14"
 tracing-futures = { version = "0.2.5", features = ["futures-03"] }
 
 [dev-dependencies]
