@@ -20,7 +20,6 @@ use astria_core::{
 };
 use cnidarium::{
     ArcStateDeltaExt,
-    RootHash,
     Snapshot,
     StagedWriteBatch,
     StateDelta,
@@ -544,15 +543,9 @@ impl App {
         self.current_proposer = Some(finalize_block.proposer_address);
         let height = finalize_block.height;
         let time = finalize_block.time;
-        // this conversion should never fail
-        let block_hash = finalize_block
-            .hash
-            .as_bytes()
-            .to_vec()
-            .try_into()
-            .map_err(|_| {
-                anyhow!("failed to convert block hash into 32-byte vec; this should not occur")
-            })?;
+        let Hash::Sha256(block_hash) = finalize_block.hash else {
+            anyhow::bail!("finalized block hash is empty; this should not occur")
+        };
 
         // If we previously executed txs in a different proposal than is being processed,
         // reset cached state changes.
@@ -569,12 +562,7 @@ impl App {
         // cometbft expects a result for every tx in the block, so we need to return a
         // tx result for the commitments, even though they're not actually user txs.
         let mut tx_results: Vec<ExecTxResult> = Vec::with_capacity(finalize_block.txs.len());
-        tx_results.push(ExecTxResult {
-            ..Default::default()
-        });
-        tx_results.push(ExecTxResult {
-            ..Default::default()
-        });
+        tx_results.extend(std::iter::repeat(ExecTxResult::default()).take(2));
 
         // When the hash is not empty, we have already executed and cached the results
         let txs = if self.executed_proposal_hash.is_empty() {
@@ -585,7 +573,7 @@ impl App {
                 .context("failed to execute block")?;
 
             // we haven't executed these txs before, so execute them
-            for tx in &txs[2..] {
+            for tx in txs.iter().skip(2) {
                 let signed_tx = signed_transaction_from_bytes(tx)
                     .expect("protocol error; only valid txs should be finalized");
 
@@ -870,7 +858,7 @@ impl App {
     }
 
     #[instrument(name = "App::commit", skip_all)]
-    pub(crate) async fn commit(&mut self, storage: Storage) -> RootHash {
+    pub(crate) async fn commit(&mut self, storage: Storage) {
         // Commit the pending writes, clearing the state.
         let app_hash = storage
             .commit_batch(self.write_batch.take().expect(
@@ -884,13 +872,6 @@ impl App {
 
         // Get the latest version of the state, now that we've committed it.
         self.state = Arc::new(StateDelta::new(storage.latest_snapshot()));
-        self.app_hash = app_hash
-            .0
-            .to_vec()
-            .try_into()
-            .expect("root hash to app hash must succeed; both are 32 bytes");
-
-        app_hash
     }
 
     // StateDelta::apply only works when the StateDelta wraps an underlying
