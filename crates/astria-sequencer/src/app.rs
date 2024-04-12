@@ -1020,7 +1020,10 @@ mod test {
     use ed25519_consensus::SigningKey;
     use penumbra_ibc::params::IBCParameters;
     use tendermint::{
-        abci::types::CommitInfo,
+        abci::{
+            request::PrepareProposal,
+            types::CommitInfo,
+        },
         block::{
             header::Version,
             Height,
@@ -2316,5 +2319,146 @@ mod test {
         }
         assert_eq!(deposits.len(), 1);
         assert_eq!(deposits[0], expected_deposit);
+    }
+
+    #[tokio::test]
+    async fn app_execution_results_match_proposal_vs_after_proposal() {
+        let (alice_signing_key, _) = get_alice_signing_key_and_address();
+        let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
+
+        let bridge_address = Address::from([99; 20]);
+        let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
+        let asset_id = get_native_asset().id();
+
+        let mut state_tx = StateDelta::new(app.state.clone());
+        state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
+        state_tx
+            .put_bridge_account_asset_ids(&bridge_address, &[asset_id])
+            .unwrap();
+        app.apply(state_tx);
+        app.prepare_commit(storage.clone()).await.unwrap();
+        app.commit(storage.clone()).await;
+
+        let amount = 100;
+        let lock_action = BridgeLockAction {
+            to: bridge_address,
+            amount,
+            asset_id,
+            fee_asset_id: asset_id,
+            destination_chain_address: "nootwashere".to_string(),
+        };
+        let sequence_action = SequenceAction {
+            rollup_id,
+            data: b"hello world".to_vec(),
+            fee_asset_id: asset_id,
+        };
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![lock_action.into(), sequence_action.into()],
+        };
+
+        let signed_tx = tx.into_signed(&alice_signing_key);
+
+        let expected_deposit = Deposit::new(
+            bridge_address,
+            rollup_id,
+            amount,
+            asset_id,
+            "nootwashere".to_string(),
+        );
+        let deposits = HashMap::from_iter(vec![(rollup_id, vec![expected_deposit.clone()])]);
+        let commitments = generate_rollup_datas_commitment(&[signed_tx.clone()], deposits.clone());
+
+        let timestamp = Time::now();
+        let block_hash = Hash::try_from([99u8; 32].to_vec()).unwrap();
+        let finalize_block = abci::request::FinalizeBlock {
+            hash: block_hash,
+            height: 1u32.into(),
+            time: timestamp,
+            next_validators_hash: Hash::default(),
+            proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
+            txs: commitments.into_transactions(vec![signed_tx.to_raw().encode_to_vec().into()]),
+            decided_last_commit: CommitInfo {
+                votes: vec![],
+                round: Round::default(),
+            },
+            misbehavior: vec![],
+        };
+
+        // call finalize_block with the given block data, which simulates executing a block
+        // as a full node (non-validator node).
+        let finalize_block_result = app
+            .finalize_block(finalize_block.clone(), storage.clone())
+            .await
+            .unwrap();
+
+        // don't commit the result, now call prepare_proposal with the same data.
+        // this will reset the app state.
+        // this simulates executing the same block as a validator (specifically the proposer).
+        let proposer_address = [88u8; 20].to_vec().try_into().unwrap();
+        let prepare_proposal = PrepareProposal {
+            height: 1u32.into(),
+            time: timestamp,
+            next_validators_hash: Hash::default(),
+            proposer_address,
+            txs: vec![signed_tx.to_raw().encode_to_vec().into()],
+            max_tx_bytes: 1_000_000,
+            local_last_commit: None,
+            misbehavior: vec![],
+        };
+
+        let prepare_proposal_result = app
+            .prepare_proposal(prepare_proposal, storage.clone())
+            .await
+            .unwrap();
+        assert_eq!(prepare_proposal_result.txs, finalize_block.txs);
+        assert_eq!(app.executed_proposal_hash, Hash::default());
+        assert_eq!(app.validator_address.unwrap(), proposer_address);
+
+        // call process_proposal - should not re-execute anything.
+        let process_proposal = abci::request::ProcessProposal {
+            hash: block_hash,
+            height: 1u32.into(),
+            time: timestamp,
+            next_validators_hash: Hash::default(),
+            proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
+            txs: finalize_block.txs.clone(),
+            proposed_last_commit: None,
+            misbehavior: vec![],
+        };
+
+        app.process_proposal(process_proposal.clone(), storage.clone())
+            .await
+            .unwrap();
+        assert_eq!(app.executed_proposal_hash, block_hash);
+        assert!(app.validator_address.is_none());
+
+        let finalize_block_after_prepare_proposal_result = app
+            .finalize_block(finalize_block.clone(), storage.clone())
+            .await
+            .unwrap();
+
+        assert_eq!(
+            finalize_block_after_prepare_proposal_result.app_hash,
+            finalize_block_result.app_hash
+        );
+
+        // reset the app state and call process_proposal - should execute the block.
+        // this simulates executing the block as a non-proposer validator.
+        app.update_state_for_new_round(&storage);
+        app.process_proposal(process_proposal, storage.clone())
+            .await
+            .unwrap();
+        assert_eq!(app.executed_proposal_hash, block_hash);
+        assert!(app.validator_address.is_none());
+        let finalize_block_after_prepare_proposal_result = app
+            .finalize_block(finalize_block, storage.clone())
+            .await
+            .unwrap();
+
+        assert_eq!(
+            finalize_block_after_prepare_proposal_result.app_hash,
+            finalize_block_result.app_hash
+        );
     }
 }
