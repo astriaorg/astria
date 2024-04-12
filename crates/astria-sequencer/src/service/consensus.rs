@@ -210,10 +210,10 @@ impl Consensus {
 
     #[instrument(skip_all)]
     async fn commit(&mut self) -> anyhow::Result<response::Commit> {
-        let app_hash = self.app.commit(self.storage.clone()).await;
+        self.app.commit(self.storage.clone()).await;
         Ok(response::Commit {
-            // note: this field is ignored in cometbft v0.38.
-            data: app_hash.0.to_vec().into(),
+            // note: the app_hash field is ignored in cometbft v0.38,
+            // so we default everything.
             ..Default::default()
         })
     }
