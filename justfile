@@ -228,34 +228,44 @@ deploy-smoke-test tag=defaultTag:
 
 run-smoke-test:
   #!/usr/bin/env bash
+  ETH_RPC_URL="http://executor.astria.localdev.me/"
+  MAX_RUNS=30
   echo "Testing Transfer..."
-  export ETH_RPC_URL="http://executor.astria.localdev.me/"
-
-  BALANCE=$(cast balance 0x830B0e9Bb0B1ebad01F2805278Ede64c69e068FE)
-  EXPECTED_BALANCE=$(expr $BALANCE + 1000000000000000000)
-  cast send 0x830B0e9Bb0B1ebad01F2805278Ede64c69e068FE --value 1ether --legacy --private-key=8b3a7999072c9c9314c084044fe705db11714c6c4ed7cddb64da18ea270dd203 > /dev/null
-  if [ $(cast balance 0x830B0e9Bb0B1ebad01F2805278Ede64c69e068FE) -eq $EXPECTED_BALANCE ]; then 
-    echo "Transfer success"; 
-  else
+  TRANSFER_RUNS=0
+  EXPECTED_BALANCE=1000000000000000000
+  curl -X POST $ETH_RPC_URL -s -d '{"jsonrpc":"2.0","method":"eth_sendRawTransaction","params":["0xf86d80843c54e7f182520894830b0e9bb0b1ebad01f2805278ede64c69e068fe880de0b6b3a764000080820a96a045cac19cec50c92e356c665172ec70de5f3cd3721ba09bf3cbad1976d3e83487a00ff4d49607db9ac3c4bb71160be41600f8d1b56ac20b092c0e042f0d226e5277"],"id":1}' -H 'Content-Type: application/json' -s
+  balance() {
+    HEX_NUM=$(curl -X POST $ETH_RPC_URL -s -d '{"jsonrpc":"2.0","method":"eth_getBalance","params":["0x830B0e9Bb0B1ebad01F2805278Ede64c69e068FE", "latest"],"id":1}' -H 'Content-Type: application/json' | jq -r '.result')
+    echo "$(printf "%d" $HEX_NUM)"
+  }
+  while [ $TRANSFER_RUNS -lt $MAX_RUNS ]; do
+    if [ $(balance) -eq $EXPECTED_BALANCE ]; then
+      echo "Transfer success"
+      break
+    else
+      sleep 1
+    fi
+    TRANSFER_RUNS=$((TRANSFER_RUNS+1))
+  done
+  if [ $TRANSFER_RUNS -eq $MAX_RUNS ]; then
     echo "Transfer failure"
     exit 1
   fi
 
   echo "Testing finalization..."
-  RUNS=0
-  MAX_RUNS=30
+  FINALIZED_RUNS=0
   finalized() {
     HEX_NUM=$(curl -X POST $ETH_RPC_URL -s -d '{"jsonrpc":"2.0","method":"eth_getBlockByNumber","params":["finalized", false],"id":1}' -H 'Content-Type: application/json' | jq -r '.result.number')
     echo "$(printf "%d" $HEX_NUM)"
   }
-  while [ $RUNS -lt $MAX_RUNS ]; do
+  while [ $FINALIZED_RUNS -lt $MAX_RUNS ]; do
     if [ $(finalized) -gt 0 ]; then
       echo "Finalized success"
       exit 0
     else
       sleep 1
     fi
-    RUNS=$((RUNS+1))
+    FINALIZED_RUNS=$((FINALIZED_RUNS+1))
   done
   echo "Finalization failure"
   exit 1
