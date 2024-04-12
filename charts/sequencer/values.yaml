@@ -61,7 +61,7 @@ config:
 
   # Values for CometBFT node configuration
   cometBFT:
-    chainId: 'sequencer-test-chain'
+    chainId: 'sequencer-test-chain-0'
 
     # If using postgres for indexing, update to enabled and set the connection
     psql:

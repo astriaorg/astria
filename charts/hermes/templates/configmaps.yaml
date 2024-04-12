@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "hermes.fullname" . }}-config
+  namespace: {{ include "hermes.namespace" . }}
+data:
+  config.toml: |
+  {{- tpl (.Files.Get "files/config.toml") $ | nindent 4 }}
+---
+{{- if not .Values.secretProvider.enabled }}
+{{- range $chainId, $chain := .Values.chains }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "hermes.fullname" . }}-{{$chainId}}-key
+  namespace: {{ include "hermes.namespace" $ }}
+data:
+  {{ $chain.key.name }}.json: |
+  {{- toPrettyJson $chain.key.content | nindent 4 }}
+---
+{{- end }}
+{{- end }}
+{{- if .Values.createChannel.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hermes-create-channel-script
+  namespace: {{ include "hermes.namespace" . }}
+data:
+  create_channel.sh: |
+    {{- tpl (.Files.Get "files/create_channel.sh") $ | nindent 4 }}
+{{- end }}

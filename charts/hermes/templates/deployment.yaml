@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "hermes.fullname" . }}
+  labels:
+    app: astria-dev-cluster
+  namespace: {{ include "hermes.namespace" . }}
+spec:
+  replicas: {{ .Values.global.replicaCount }}
+  selector:
+    matchLabels:
+      app: astria-dev-cluster
+  template:
+    metadata:
+      name: {{ include "hermes.fullname" . }}
+      labels:
+        app: astria-dev-cluster
+    spec:
+      {{- if .Values.createChannel.enabled }}
+      initContainers:
+      - name: create-channel
+        image: {{ .Values.image }}
+        command: [ "hermes",  "create", "channel" ]
+        args:
+          - --new-client-connection
+          - --yes
+          - --a-chain={{ .Values.createChannel.chainA }}
+          - --b-chain={{ .Values.createChannel.chainB }}
+          - --a-port={{ .Values.createChannel.portA }}
+          - --b-port={{ .Values.createChannel.portB }}
+        volumeMounts:
+        - mountPath: /home/hermes/.hermes
+          name: hermes-config-volume
+        {{- range $chainId, $chain := .Values.chains }}
+        - mountPath: "/home/hermes/.hermes/keys/{{ $chainId }}/keyring-test"
+          name: hermes-{{$chainId}}-key-volume
+        {{- end }}
+      {{- end }}
+      containers:
+        - name: hermes
+          image: {{ .Values.image }}
+          command: [ "hermes", "start" ]
+          volumeMounts:
+          - mountPath: /home/hermes/.hermes
+            name: {{ include "hermes.fullname" . }}-config-volume
+          {{- range $chainId, $chain := .Values.chains }}
+          - mountPath: "/home/hermes/.hermes/keys/{{ $chainId }}/keyring-test"
+            name: {{ include "hermes.fullname" . }}-{{$chainId}}-key-volume
+          {{- end }}
+          ports:
+            - containerPort: {{ .Values.ports.rest }}
+              name: rest
+            - containerPort: {{ .Values.ports.telemetry }}
+              name: telemetry
+            - containerPort: {{ .Values.ports.tracingServer }}
+              name: tracing
+      volumes:
+        - name: {{ include "hermes.fullname" . }}-config-volume
+          configMap:
+            name: {{ include "hermes.fullname" . }}-config
+        {{- range $chainId, $chain := .Values.chains }}
+        - name: {{ include "hermes.fullname" . }}-{{$chainId}}-key-volume
+          {{- if $.Values.secretProvider.enabled }}
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: {{ include "hermes.fullname" . }}-{{ $chainId }}-secrets-store
+          {{- else }}
+          configMap:
+            name: {{ include "hermes.fullname" . }}-{{$chainId}}-key
+          {{- end }}
+        {{- end}}

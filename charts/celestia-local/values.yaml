@@ -15,7 +15,7 @@ storage:
       persistentVolumeName: "celestia-shared-storage"
       path: "/data/celestia-data"
 
-celestiaAppImage: "ghcr.io/celestiaorg/celestia-app:v1.3.0"
+celestiaAppImage: "ghcr.io/celestiaorg/celestia-app:v1.6.0"
 celestiaNodeImage: "ghcr.io/celestiaorg/celestia-node:v0.12.4"
 tokenServerImage: "busybox:1.35.0-musl"
 
@@ -29,10 +29,11 @@ evmAddress: "0x966e6f22781EF6a6A82BBB4DB3df8E225DfD9488"
 # Default private key, must correspond with above address
 privateKey: "da6ed55cb2894ac2c9c10209c09de8e8b9d109b910338d5bf3d747a7e1fc9eb9"
 # Default chain id
-chainId: "test"
+chainId: "celestia-local-0"
 # Signer info
 keyringBackend: "test"
-validatorKeyName: "validator"
+validatorKeyName: "test-validator"
+validatorMnemonic: connect soon random stable toddler tired glove drastic comfort donor struggle island cactus pole shell alpha taste able story business cross dismiss book brass
 # Genesis amount
 coins: "1000000000000000utia"
 # Staking amount
