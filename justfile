@@ -233,7 +233,7 @@ run-smoke-test:
 
   BALANCE=$(cast balance 0x830B0e9Bb0B1ebad01F2805278Ede64c69e068FE)
   EXPECTED_BALANCE=$(expr $BALANCE + 1000000000000000000)
-  cast send 0x830B0e9Bb0B1ebad01F2805278Ede64c69e068FE --value 1ether --private-key=8b3a7999072c9c9314c084044fe705db11714c6c4ed7cddb64da18ea270dd203 > /dev/null
+  cast send 0x830B0e9Bb0B1ebad01F2805278Ede64c69e068FE --value 1ether --legacy --private-key=8b3a7999072c9c9314c084044fe705db11714c6c4ed7cddb64da18ea270dd203 > /dev/null
   if [ $(cast balance 0x830B0e9Bb0B1ebad01F2805278Ede64c69e068FE) -eq $EXPECTED_BALANCE ]; then 
     echo "Transfer success"; 
   else
@@ -244,8 +244,12 @@ run-smoke-test:
   echo "Testing finalization..."
   RUNS=0
   MAX_RUNS=30
+  finalized() {
+    HEX_NUM=$(curl -X POST $ETH_RPC_URL -s -d '{"jsonrpc":"2.0","method":"eth_getBlockByNumber","params":["finalized", false],"id":1}' -H 'Content-Type: application/json' | jq -r '.result.number')
+    echo "$(printf "%d" $HEX_NUM)"
+  }
   while [ $RUNS -lt $MAX_RUNS ]; do
-    if [ $(cast block finalized --field number) -gt 0 ]; then
+    if [ $(finalized) -gt 0 ]; then
       echo "Finalized success"
       exit 0
     else
