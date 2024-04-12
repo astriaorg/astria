@@ -2302,7 +2302,9 @@ mod test {
         assert_eq!(deposits[0], expected_deposit);
     }
 
+    // it's a test, so allow a lot of lines
     #[tokio::test]
+    #[allow(clippy::too_many_lines)]
     async fn app_execution_results_match_proposal_vs_after_proposal() {
         let (alice_signing_key, _) = get_alice_signing_key_and_address();
         let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
