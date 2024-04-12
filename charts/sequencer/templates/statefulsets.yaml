@@ -17,16 +17,16 @@ spec:
         app: {{ .Values.config.moniker }}-sequencer
     spec:
       initContainers:
-        - command: [ "/bin/sh", "-c" ]
-          args:
-            - cp -LR /data/ /cometbft/data && cp -LR /config /cometbft/config && chmod -R 0777 /cometbft
+        - command: [ "/scripts/init-cometbft.sh" ]
           name: config-cometbft
           image: "ghcr.io/tomwright/dasel:alpine"
           volumeMounts:
-            - mountPath: /config/
+            - mountPath: /config
               name: cometbft-config-volume
-            - mountPath: /data/
+            - mountPath: /data
               name: cometbft-data-volume
+            - mountPath: /scripts
+              name: cometbft-init-scripts-volume
             - mountPath: /cometbft
               name: sequencer-shared-storage-vol
               subPath: {{ .Values.config.moniker }}/cometbft
@@ -66,6 +66,10 @@ spec:
             - mountPath: /cometbft
               name: sequencer-shared-storage-vol
               subPath: {{ .Values.config.moniker }}/cometbft
+            {{- if .Values.secretProvider.enabled }}
+            - mountPath: "/secrets"
+              name: sequencer-keys-provider
+            {{- end }}
           ports:
             - containerPort: {{ .Values.ports.cometBFTP2P }}
               name: cometbft-p2p
@@ -84,6 +88,10 @@ spec:
           configMap:
             name: {{ .Values.config.moniker }}-cometbft-data
             defaultMode: 0700
+        - name: cometbft-init-scripts-volume
+          configMap:
+            name: {{ .Values.config.moniker }}-cometbft-init-scripts
+            defaultMode: 0777
         - name: sequencer-shared-storage-vol
           {{- if .Values.storage.enabled }}
           persistentVolumeClaim:
@@ -91,3 +99,11 @@ spec:
           {{- else }}
           emptyDir: {}
           {{- end }}
+        {{- if .Values.secretProvider.enabled }}
+        - name: sequencer-secret-keys-vol
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: sequencer-keys-provider
+        {{- end }}

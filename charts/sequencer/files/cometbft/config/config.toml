@@ -60,8 +60,12 @@ log_format = "plain"
 # Path to the JSON file containing the initial validator set and other meta data
 genesis_file = "config/genesis.json"
 
+{{- if .Values.secretProvider.enabled }}
+priv_validator_key_file = "/secrets/priv-validator-key/{{ .Values.secretProvider.secrets.privValidatorKey.filename }}"
+{{- else }}
 # Path to the JSON file containing the private key to use as a validator in the consensus protocol
 priv_validator_key_file = "config/priv_validator_key.json"
+{{- end }}
 
 # Path to the JSON file containing the last sign state of a validator
 priv_validator_state_file = "data/priv_validator_state.json"
@@ -70,8 +74,12 @@ priv_validator_state_file = "data/priv_validator_state.json"
 # connections from an external PrivValidator process
 priv_validator_laddr = ""
 
+{{- if .Values.secretProvider.enabled }}
+node_key_file = "/secrets/node-key/{{ .Values.secretProvider.secrets.nodeKey.filename }}"
+{{- else }}
 # Path to the JSON file containing the private key to use for node authentication in the p2p protocol
 node_key_file = "config/node_key.json"
+{{- end }}
 
 # Mechanism to connect to the ABCI application: socket | grpc
 abci = "socket"
