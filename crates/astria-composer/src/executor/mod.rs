@@ -81,6 +81,10 @@ mod bundle_factory;
 #[cfg(test)]
 mod tests;
 
+// Duration to wait for the executor to drain all the remaining bundles before shutting down.
+// This is 16s because the timeout for the higher level executor task is 17s to shut down.
+// The extra second is to prevent the higher level executor task from timing out before the
+// executor has a chance to drain all the remaining bundles.
 const BUNDLE_DRAINING_DURATION: Duration = Duration::from_secs(16);
 
 type StdError = dyn std::error::Error;
@@ -268,7 +272,7 @@ impl Executor {
                             warn!(
                                 rollup_id = %rollup_id,
                                 error = &e as &StdError,
-                                "failed to bundle sequence action, dropping it."
+                                "failed to bundle transaction, dropping it."
                             );
                     }
                 }
@@ -298,7 +302,7 @@ impl Executor {
 
         match &reason {
             Ok(reason) => {
-                info!(reason, "shutting down");
+                info!(reason, "starting shutdown process");
             }
             Err(reason) => {
                 error!(%reason, "executor exited with error");
@@ -311,7 +315,7 @@ impl Executor {
         let mut bundles_to_drain: VecDeque<SizedBundle> = VecDeque::new();
         let mut bundles_drained = 0;
 
-        info!("draining sequence actions from the executor receiver channel");
+        info!("draining already received transactions");
 
         // drain the receiver channel
         while let Ok(seq_action) = self.serialized_rollup_transactions.try_recv() {
@@ -320,7 +324,7 @@ impl Executor {
                 warn!(
                     rollup_id = %rollup_id,
                     error = &e as &StdError,
-                    "failed to bundle sequence action, dropping it."
+                    "failed to bundle transaction, dropping it."
                 );
             }
         }
@@ -335,14 +339,23 @@ impl Executor {
 
             bundles_to_drain.push_back(bundle);
         }
+        info!(
+            no_of_bundles_to_drain = bundles_to_drain.len(),
+            "submitting remaining transaction bundles to sequencer"
+        );
 
         let shutdown_logic = async {
             // wait for the last bundle to be submitted
             if !submission_fut.is_terminated() {
-                info!("waiting for the last bundle to be submitted to the sequencer");
+                info!(
+                    "waiting for the last bundle of transactions to be submitted to the sequencer"
+                );
                 match submission_fut.await {
                     Ok(new_nonce) => {
-                        debug!(new_nonce = new_nonce, "drained bundle successfully");
+                        debug!(
+                            new_nonce = new_nonce,
+                            "successfully submitted bundle of transactions"
+                        );
                         nonce = new_nonce;
                     }
                     Err(error) => {
@@ -353,17 +366,13 @@ impl Executor {
                 }
             }
 
-            info!(
-                no_of_bundles_to_drain = bundles_to_drain.len(),
-                "draining remaining bundles from bundle factory"
-            );
             while let Some(bundle) = bundles_to_drain.pop_front() {
                 match self.submit_bundle(nonce, bundle.clone()).await {
                     Ok(new_nonce) => {
                         debug!(
                             bundle = %telemetry::display::json(&SizedBundleReport(&bundle)),
                             new_nonce = new_nonce,
-                            "drained bundle successfully"
+                            "successfully submitted transction bundle"
                         );
                         nonce = new_nonce;
                         bundles_drained += 1;
@@ -388,17 +397,21 @@ impl Executor {
             Err(error) => error!(%error, "executor shutdown tasks failed to complete in time"),
         }
 
-        info!(bundles_drained, "bundles drained during shutdown");
-
         if !bundles_to_drain.is_empty() {
             // log all the bundles that have not been drained
             let report: Vec<SizedBundleReport> =
                 bundles_to_drain.iter().map(SizedBundleReport).collect();
 
             warn!(
-                no_of_undrained_bundles = report.len(),
-                undrained_bundles = %telemetry::display::json(&report),
+                number_of_bundles_submitted = bundles_drained,
+                number_of_missing_bundles = report.len(),
+                missing_bundles = %telemetry::display::json(&report),
                 "unable to drain all bundles within the allocated time"
+            );
+        } else {
+            info!(
+                number_of_submitted_bundles = bundles_drained,
+                "submitted all outstanding bundles to sequencer during shutdown"
             );
         }
 
