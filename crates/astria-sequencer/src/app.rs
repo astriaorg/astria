@@ -326,9 +326,7 @@ impl App {
             .await
             .context("failed to prepare for executing block")?;
 
-        let (signed_txs, txs_to_include) = self
-            .execute_transactions_before_finalization(txs.into())
-            .await;
+        let (signed_txs, txs_to_include) = self.execute_transactions_before_finalization(txs).await;
 
         // all txs in the proposal should be deserializable and executable
         // if any txs were not deserializeable or executable, they would not have been
@@ -579,14 +577,7 @@ impl App {
         });
 
         // When the hash is not empty, we have already executed and cached the results
-        let txs = if !self.executed_proposal_hash.is_empty() {
-            let execution_results = self.execution_results.take().expect(
-                "execution results must be present if txs were already executed during proposal \
-                 phase",
-            );
-            tx_results.extend(execution_results);
-            finalize_block.txs
-        } else {
+        let txs = if self.executed_proposal_hash.is_empty() {
             // this function returns the txs inside `finalize_block` back to us unmodified.
             let txs = self
                 .pre_execute_transactions(finalize_block.into())
@@ -625,6 +616,13 @@ impl App {
             }
 
             txs
+        } else {
+            let execution_results = self.execution_results.take().expect(
+                "execution results must be present if txs were already executed during proposal \
+                 phase",
+            );
+            tx_results.extend(execution_results);
+            finalize_block.txs
         };
 
         let end_block = self
