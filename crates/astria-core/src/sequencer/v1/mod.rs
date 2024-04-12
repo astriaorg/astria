@@ -3,8 +3,6 @@ use base64::{
     prelude::BASE64_STANDARD,
 };
 use indexmap::IndexMap;
-#[cfg(feature = "serde")]
-use serde::Serialize;
 use sha2::{
     Digest as _,
     Sha256,

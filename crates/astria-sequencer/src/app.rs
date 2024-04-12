@@ -646,8 +646,8 @@ impl App {
             .await
             .context("failed to get block deposits in end_block")?;
         debug!(
-            deposits = %telemetry::display::json(&DisplayDeposits(&deposits)),
-            "end_block: got block deposits"
+            deposits = %telemetry::display::json(&deposits),
+            "got block deposits from state"
         );
         self.current_sequencer_block_builder
             .as_mut()
@@ -742,10 +742,6 @@ impl App {
         events
     }
 }
-
-/// Display wrapper for `HashMap<RollupId, Vec<Deposit>>`.
-#[derive(Debug, serde::Serialize)]
-struct DisplayDeposits<'a>(&'a HashMap<RollupId, Vec<Deposit>>);
 
 #[derive(Debug)]
 struct SequencerBlockBuilder {
