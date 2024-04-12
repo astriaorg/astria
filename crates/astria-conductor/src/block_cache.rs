@@ -45,9 +45,7 @@ impl<T> BlockCache<T> {
             next_height,
         })
     }
-}
 
-impl<T> BlockCache<T> {
     /// Returns the next sequential block if it exists in the cache.
     pub(crate) fn pop(&mut self) -> Option<T> {
         let block = self.inner.remove(&self.next_height)?;

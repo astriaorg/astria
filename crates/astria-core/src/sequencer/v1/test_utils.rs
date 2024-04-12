@@ -27,16 +27,33 @@ pub fn make_cometbft_block() -> tendermint::Block {
     .make()
 }
 
+#[derive(Default)]
+pub struct UnixTimeStamp {
+    pub secs: i64,
+    pub nanos: u32,
+}
+
+impl From<(i64, u32)> for UnixTimeStamp {
+    fn from(val: (i64, u32)) -> Self {
+        Self {
+            secs: val.0,
+            nanos: val.1,
+        }
+    }
+}
+
 /// Allows configuring a Comet BFT block setting the height, signing key and
 /// proposer address.
 ///
 /// If the proposer address is not set it will be generated from the signing key.
 #[derive(Default)]
 pub struct ConfigureCometBftBlock {
+    pub chain_id: Option<String>,
     pub height: u32,
     pub proposer_address: Option<tendermint::account::Id>,
     pub signing_key: Option<ed25519_consensus::SigningKey>,
     pub rollup_transactions: Vec<(RollupId, Vec<u8>)>,
+    pub unix_timestamp: UnixTimeStamp,
 }
 
 impl ConfigureCometBftBlock {
@@ -47,7 +64,6 @@ impl ConfigureCometBftBlock {
         use sha2::Digest as _;
         use tendermint::{
             block,
-            chain,
             evidence,
             hash::AppHash,
             merkle::simple_hash_from_byte_vectors,
@@ -55,10 +71,12 @@ impl ConfigureCometBftBlock {
             Time,
         };
         let Self {
+            chain_id,
             height,
             signing_key,
             proposer_address,
             rollup_transactions,
+            unix_timestamp,
         } = self;
 
         let signing_key =
@@ -116,9 +134,12 @@ impl ConfigureCometBftBlock {
                     block: 0,
                     app: 0,
                 },
-                chain_id: chain::Id::try_from("test").unwrap(),
+                chain_id: chain_id
+                    .unwrap_or_else(|| "test".to_string())
+                    .try_into()
+                    .unwrap(),
                 height: block::Height::from(height),
-                time: Time::now(),
+                time: Time::from_unix_timestamp(unix_timestamp.secs, unix_timestamp.nanos).unwrap(),
                 last_block_id: None,
                 last_commit_hash: (height > 1).then_some(last_commit_hash),
                 data_hash,
