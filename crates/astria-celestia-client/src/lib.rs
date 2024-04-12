@@ -56,9 +56,14 @@ pub const fn celestia_namespace_v0_from_rollup_id(
 
 #[must_use = "a celestia namespace must be used in order to be useful"]
 pub fn celestia_namespace_v0_from_str(chain_id: &str) -> Namespace {
+    celestia_namespace_v0_from_bytes(chain_id.as_bytes())
+}
+
+#[must_use = "a celestia namespace must be used in order to be useful"]
+pub fn celestia_namespace_v0_from_bytes(bytes: &[u8]) -> Namespace {
     use sha2::{
         Digest as _,
         Sha256,
     };
-    celestia_namespace_v0_from_array(Sha256::digest(chain_id.as_bytes()).into())
+    celestia_namespace_v0_from_array(Sha256::digest(bytes).into())
 }
