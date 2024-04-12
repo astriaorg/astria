@@ -61,7 +61,7 @@ async fn main() -> ExitCode {
         "initializing conductor"
     );
 
-    let conductor = match Conductor::new(cfg).await {
+    let conductor = match Conductor::new(cfg) {
         Err(error) => {
             error!(%error, "failed initializing conductor");
             return ExitCode::FAILURE;
