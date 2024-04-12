@@ -397,7 +397,12 @@ impl Executor {
             Err(error) => error!(%error, "executor shutdown tasks failed to complete in time"),
         }
 
-        if !bundles_to_drain.is_empty() {
+        if bundles_to_drain.is_empty() {
+            info!(
+                number_of_submitted_bundles = bundles_drained,
+                "submitted all outstanding bundles to sequencer during shutdown"
+            );
+        } else {
             // log all the bundles that have not been drained
             let report: Vec<SizedBundleReport> =
                 bundles_to_drain.iter().map(SizedBundleReport).collect();
@@ -407,11 +412,6 @@ impl Executor {
                 number_of_missing_bundles = report.len(),
                 missing_bundles = %telemetry::display::json(&report),
                 "unable to drain all bundles within the allocated time"
-            );
-        } else {
-            info!(
-                number_of_submitted_bundles = bundles_drained,
-                "submitted all outstanding bundles to sequencer during shutdown"
             );
         }
 
