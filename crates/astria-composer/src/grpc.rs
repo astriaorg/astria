@@ -17,6 +17,7 @@ use tokio::{
     io,
     net::TcpListener,
 };
+use tokio_util::sync::CancellationToken;
 
 use crate::{
     collectors,
@@ -30,12 +31,14 @@ use crate::{
 pub(crate) struct GrpcServer {
     listener: TcpListener,
     grpc_collector: collectors::Grpc,
+    shutdown_token: CancellationToken,
 }
 
 impl GrpcServer {
     pub(crate) async fn new(
         grpc_addr: SocketAddr,
         executor: executor::Handle,
+        shutdown_token: CancellationToken,
     ) -> eyre::Result<Self> {
         let listener = TcpListener::bind(grpc_addr)
             .await
@@ -45,6 +48,7 @@ impl GrpcServer {
         Ok(Self {
             listener,
             grpc_collector,
+            shutdown_token,
         })
     }
 
@@ -68,9 +72,10 @@ impl GrpcServer {
             .await;
 
         grpc_server
-            .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(
-                self.listener,
-            ))
+            .serve_with_incoming_shutdown(
+                tokio_stream::wrappers::TcpListenerStream::new(self.listener),
+                self.shutdown_token.cancelled(),
+            )
             .await
             .wrap_err("failed to run grpc server")
     }
