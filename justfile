@@ -1,3 +1,6 @@
+# Place recipes for local testing/development here.
+import? 'localenv.just'
+
 default:
   @just --list
 
