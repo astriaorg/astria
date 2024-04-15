@@ -5,6 +5,7 @@ use std::{
         Context,
         Poll,
     },
+    time::Duration,
 };
 
 use astria_core::sequencerblock::v1alpha1::block::SequencerBlockHeader;
@@ -34,7 +35,10 @@ use futures::{
 };
 use futures_bounded::FuturesMap;
 use pin_project_lite::pin_project;
-use sequencer_client::tendermint::block::Height as SequencerHeight;
+use sequencer_client::{
+    tendermint::block::Height as SequencerHeight,
+    HttpClient as SequencerClient,
+};
 use telemetry::display::{
     base64,
     json,
@@ -109,9 +113,6 @@ impl GetSequencerHeight for ReconstructedBlock {
 }
 
 pub(crate) struct Reader {
-    /// Validates sequencer blobs read from celestia against sequencer.
-    block_verifier: BlockVerifier,
-
     // Client to fetch heights and blocks from Celestia.
     celestia_client: CelestiaClient,
 
@@ -121,8 +122,8 @@ pub(crate) struct Reader {
     /// The channel used to send messages to the executor task.
     executor: executor::Handle,
 
-    /// The celestia namespace sequencer blobs will be read from.
-    sequencer_namespace: Namespace,
+    /// The client to get the sequencer namespace and verify blocks.
+    sequencer_cometbft_client: SequencerClient,
 
     /// Token to listen for Conductor being shut down.
     shutdown: CancellationToken,
@@ -131,6 +132,12 @@ pub(crate) struct Reader {
 impl Reader {
     #[instrument(skip(self))]
     pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
+        // Sequencer namespace is defined by the chain id of attached sequencer node
+        // which can be fetched from any block header.
+        let sequencer_namespace = get_sequencer_namespace(self.sequencer_cometbft_client.clone())
+            .await
+            .wrap_err("failed to get sequencer namespace")?;
+
         let mut executor = self
             .executor
             .wait_for_init()
@@ -142,6 +149,8 @@ impl Reader {
         let initial_celestia_height = executor.celestia_base_block_height();
         let celestia_variance = executor.celestia_block_variance();
         let rollup_namespace = celestia_namespace_v0_from_rollup_id(rollup_id);
+
+        let block_verifier = BlockVerifier::new(self.sequencer_cometbft_client.clone());
 
         debug!(
             %rollup_id,
@@ -180,16 +189,16 @@ impl Reader {
             // 1. fetch all sequencer header blobs, 2. fetch the rollup blobs, 3. verify the rollup
             // blobs.
             // XXX: This should probably have explicit retry logic instead of this futures map.
-            in_progress: FuturesMap::new(std::time::Duration::from_secs(600), 10),
+            in_progress: FuturesMap::new(Duration::from_secs(600), 10),
             client: self.celestia_client.clone(),
-            verifier: self.block_verifier.clone(),
-            sequencer_namespace: self.sequencer_namespace,
+            verifier: block_verifier.clone(),
+            sequencer_namespace,
             rollup_namespace,
         }
         .instrument(info_span!(
             "celestia_block_stream",
             namespace.rollup = %base64(&rollup_namespace.as_bytes()),
-            namespace.sequencer = %base64(&self.sequencer_namespace.as_bytes()),
+            namespace.sequencer = %base64(&sequencer_namespace.as_bytes()),
         ));
 
         // Enqueued block waiting for executor to free up. Set if the executor exhibits
@@ -586,6 +595,42 @@ async fn process_sequencer_blob(
         header: sequencer_blob.header().clone(),
         transactions,
     })
+}
+
+/// Get the sequencer namespace from the latest sequencer block.
+async fn get_sequencer_namespace(client: SequencerClient) -> eyre::Result<Namespace> {
+    use sequencer_client::SequencerClientExt as _;
+
+    let retry_config = tryhard::RetryFutureConfig::new(10)
+        .exponential_backoff(Duration::from_millis(100))
+        .max_delay(Duration::from_secs(20))
+        .on_retry(
+            |attempt: u32,
+             next_delay: Option<Duration>,
+             error: &sequencer_client::extension_trait::Error| {
+                let wait_duration = next_delay
+                    .map(humantime::format_duration)
+                    .map(tracing::field::display);
+                warn!(
+                    attempt,
+                    wait_duration,
+                    error = error as &dyn std::error::Error,
+                    "attempt to grab sequencer block failed; retrying after backoff",
+                );
+                futures::future::ready(())
+            },
+        );
+
+    let block = tryhard::retry_fn(|| client.latest_sequencer_block())
+        .with_config(retry_config)
+        .await
+        .wrap_err("failed to get latest commit from sequencer after 10 attempts")?;
+
+    Ok(
+        celestia_client::celestia_namespace_v0_from_cometbft_chain_id(
+            block.header().chain_id().as_str(),
+        ),
+    )
 }
 
 #[cfg(test)]
