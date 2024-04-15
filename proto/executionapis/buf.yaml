@@ -1,6 +1,7 @@
 version: v1
 name: buf.build/astria/execution-apis
 breaking:
+  ignore_unstable_packages: true
   use:
     - FILE
 deps:

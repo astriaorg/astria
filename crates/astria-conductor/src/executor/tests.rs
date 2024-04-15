@@ -36,8 +36,8 @@ use astria_core::{
     },
     sequencerblock::{
         v1alpha1::{
-            SequencerBlock,
             block::RollupData,
+            SequencerBlock,
         },
         Protobuf as _,
     },
