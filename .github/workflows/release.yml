@@ -37,6 +37,7 @@ jobs:
         run: |
           cd proto/sequencerblockapis
           buf mod update --only buf.build/astria/astria
+          echo "$(cat buf.lock)"
       - name: "Upload Sequencer Block API Protos"
         uses: bufbuild/buf-push-action@v1
         with:
