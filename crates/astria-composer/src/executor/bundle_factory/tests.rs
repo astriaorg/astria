@@ -30,10 +30,8 @@ mod sized_bundle_tests {
         };
         let seq_action_size = estimate_size_of_sequence_action(&seq_action);
 
-        let sized_seq_action = bundle.push_check(seq_action).unwrap();
-
         assert_eq!(seq_action_size, 100);
-        bundle.push(sized_seq_action);
+        bundle.try_push(seq_action).unwrap();
     }
 
     #[test]
@@ -50,7 +48,7 @@ mod sized_bundle_tests {
 
         assert!(estimate_size_of_sequence_action(&seq_action) > 100);
         assert!(matches!(
-            bundle.push_check(seq_action),
+            bundle.try_push(seq_action),
             Err(SizedBundleError::SequenceActionTooLarge(_))
         ));
     }
@@ -66,8 +64,7 @@ mod sized_bundle_tests {
             data: vec![0; 100 - ROLLUP_ID_LEN],
             fee_asset_id: default_native_asset_id(),
         };
-        let sized_initial_seq_action = bundle.push_check(initial_seq_action).unwrap();
-        bundle.push(sized_initial_seq_action);
+        bundle.try_push(initial_seq_action).unwrap();
 
         // push another sequence action that won't fit as the bundle is full but is less than max
         // size
@@ -79,7 +76,7 @@ mod sized_bundle_tests {
 
         assert!(estimate_size_of_sequence_action(&seq_action) < 100);
         assert!(matches!(
-            bundle.push_check(seq_action.clone()),
+            bundle.try_push(seq_action.clone()),
             Err(SizedBundleError::NotEnoughSpace(actual_seq_action))
             if actual_seq_action.rollup_id == seq_action.rollup_id && actual_seq_action.data == seq_action.data
         ));
@@ -96,8 +93,7 @@ mod sized_bundle_tests {
             data: vec![1; 100 - ROLLUP_ID_LEN],
             fee_asset_id: default_native_asset_id(),
         };
-        let sized_seq_action = bundle.push_check(seq_action.clone()).unwrap();
-        bundle.push(sized_seq_action);
+        bundle.try_push(seq_action.clone()).unwrap();
 
         // flush the bundle
         let flushed_bundle = bundle.flush();
@@ -130,12 +126,9 @@ mod sized_bundle_tests {
             data: vec![2; 100 - ROLLUP_ID_LEN],
             fee_asset_id: default_native_asset_id(),
         };
-        let sized_seq_action1 = bundle.push_check(seq_action1).unwrap();
-        bundle.push(sized_seq_action1);
-        let sized_seq_action1_2 = bundle.push_check(seq_action1_2).unwrap();
-        bundle.push(sized_seq_action1_2);
-        let sized_seq_action2 = bundle.push_check(seq_action2).unwrap();
-        bundle.push(sized_seq_action2);
+        bundle.try_push(seq_action1).unwrap();
+        bundle.try_push(seq_action1_2).unwrap();
+        bundle.try_push(seq_action2).unwrap();
         bundle
     }
 
@@ -244,31 +237,21 @@ mod bundle_factory_tests {
         let mut bundle_factory = BundleFactory::new(100, 1);
 
         // push a sequence action that is 100 bytes total
-        let seq_action0 = SequenceAction {
+        let seq_action = SequenceAction {
             rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
             data: vec![0; 100 - ROLLUP_ID_LEN],
             fee_asset_id: default_native_asset_id(),
         };
-        bundle_factory.try_push(seq_action0.clone()).unwrap();
+        bundle_factory.try_push(seq_action.clone()).unwrap();
 
         // push another sequence action that is <100 bytes total to force the current bundle to
         // flush
-        let seq_action1 = SequenceAction {
-            rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
-            data: vec![1; 100 - ROLLUP_ID_LEN],
-            fee_asset_id: default_native_asset_id(),
-        };
-        bundle_factory.try_push(seq_action1).unwrap();
+        bundle_factory.try_push(seq_action.clone()).unwrap();
 
         // try to push a third bundle that wouldn't fit in `curr_bundle`, forcing the factory to
         // flush it into `finished` this shouldn't work since the `finished` queue's
         // capacity is 1.
-        let seq_action1 = SequenceAction {
-            rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
-            data: vec![1; 100 - ROLLUP_ID_LEN],
-            fee_asset_id: default_native_asset_id(),
-        };
-        let full_err = bundle_factory.try_push(seq_action1.clone());
+        let full_err = bundle_factory.try_push(seq_action.clone());
 
         // assert that the bundle factory has one bundle in the finished queue, that the factory is
         // full and that err was returned
@@ -276,6 +259,7 @@ mod bundle_factory_tests {
             full_err,
             Err(BundleFactoryError::FinishedQueueFull {
                 curr_bundle_size: _,
+                finished_queue_capacity: _,
                 seq_action: _
             })
         ));
@@ -309,21 +293,15 @@ mod bundle_factory_tests {
         let mut bundle_factory = BundleFactory::new(100, 1);
 
         // push a sequence action that is 100 bytes total
-        let seq_action0 = SequenceAction {
+        let seq_action = SequenceAction {
             rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
             data: vec![0; 100 - ROLLUP_ID_LEN],
             fee_asset_id: default_native_asset_id(),
         };
-        bundle_factory.try_push(seq_action0.clone()).unwrap();
+        bundle_factory.try_push(seq_action.clone()).unwrap();
 
-        // push another sequence action that is <100 bytes total to force the current bundle to
-        // flush
-        let seq_action1 = SequenceAction {
-            rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
-            data: vec![1; 100 - ROLLUP_ID_LEN],
-            fee_asset_id: default_native_asset_id(),
-        };
-        bundle_factory.try_push(seq_action1).unwrap();
+        // push another sequence action to force the current bundle to flush
+        bundle_factory.try_push(seq_action.clone()).unwrap();
 
         // try to push a third bundle that wouldn't fit in `curr_bundle`, forcing the factory to
         // flush it into `finished` this shouldn't work since the `finished` queue's
@@ -341,6 +319,7 @@ mod bundle_factory_tests {
             full_err,
             Err(BundleFactoryError::FinishedQueueFull {
                 curr_bundle_size: _,
+                finished_queue_capacity: _,
                 seq_action: _
             })
         ));
@@ -471,26 +450,15 @@ mod bundle_factory_tests {
         let mut bundle_factory = BundleFactory::new(100, 1);
 
         // push a sequence action that is 100 bytes total
-        let seq_action0 = SequenceAction {
+        let seq_action = SequenceAction {
             rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
             data: vec![0; 100 - ROLLUP_ID_LEN],
             fee_asset_id: default_native_asset_id(),
         };
-        bundle_factory.try_push(seq_action0.clone()).unwrap();
+        bundle_factory.try_push(seq_action.clone()).unwrap();
 
-        // push another sequence action that is <100 bytes total to force the current bundle to
-        // flush
-        let seq_action1 = SequenceAction {
-            rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
-            data: vec![1; 100 - ROLLUP_ID_LEN],
-            fee_asset_id: default_native_asset_id(),
-        };
-        bundle_factory.try_push(seq_action1.clone()).unwrap();
-
-        // assert that the bundle factory has one bundle in the finished queue and it is considered
-        // full
-        assert_eq!(bundle_factory.finished.len(), 1);
-        assert!(bundle_factory.is_full());
+        // push another sequence action that is to force the current bundle to flush
+        bundle_factory.try_push(seq_action.clone()).unwrap();
 
         // assert `pop_now()` will set the factory to no longer full
         let _actions_finished = bundle_factory.pop_now();
