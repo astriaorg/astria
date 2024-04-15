@@ -2,7 +2,17 @@
 version: v1
 deps:
   - remote: buf.build
+    owner: astria
+    repository: astria
+    commit: c770a40390134c30826726731fe76912
+    digest: shake256:87750605078d356048942d7abd89a87fc0eb1c1cc1e97bdbfcd2f56aee28b189e2a4f5296c734f36aab6fdb22a246517dbedb79dfec6fc6c3c1128ac6a25881d
+  - remote: buf.build
+    owner: astria
+    repository: sequencerblock-apis
+    commit: 172c219fe23d410fba22fb24a1df29e5
+    digest: shake256:65152e1778e8545855bf04783be514df0dda1d34949f8c6e3b5b3b53d8260d2aa39c35ea51d7723b0bc1e3e702b031203bbc16c18fb6f364124d9d794456b7ed
+  - remote: buf.build
     owner: googleapis
     repository: googleapis
-    commit: 75b4300737fb4efca0831636be94e517
-    digest: shake256:d865f55b8ceb838c90c28b09894ab43d07f42551108c23760004a6a4e28fe24d3a1f7380a3c9278edb329a338a9cc5db8ad9f394de548e70d534e98504972d67
+    commit: 7a6bc1e3207144b38e9066861e1de0ff
+    digest: shake256:d646836485c34192401253703c4e7ce899c826fceec060bf4b2a62c4749bd9976dc960833e134a1f814725e1ffd60b1bb3cf0335a7e99ef0e8cec34b070ffb66
