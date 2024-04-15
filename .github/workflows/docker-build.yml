@@ -47,7 +47,7 @@ jobs:
       contents: read
       id-token: write
     with:
-      depot-project-id: TODO
+      depot-project-id: mhgvgvsjnx
       package-name: composer
       target-binary: astria-composer
       tag: ${{ inputs.tag }}
@@ -61,7 +61,7 @@ jobs:
       contents: read
       id-token: write
     with:
-      depot-project-id: TODO
+      depot-project-id: zrh9t1d84s
       package-name: conductor
       target-binary: astria-conductor
       tag: ${{ inputs.tag }}
@@ -75,7 +75,7 @@ jobs:
       contents: read
       id-token: write
     with:
-      depot-project-id: TODO
+      depot-project-id: brzhxfbv9b
       package-name: sequencer
       target-binary: astria-sequencer
       tag: ${{ inputs.tag }}
@@ -89,7 +89,7 @@ jobs:
       contents: read
       id-token: write
     with:
-      depot-project-id: TODO
+      depot-project-id: 86q4kz4wfs
       package-name: sequencer-relayer
       target-binary: astria-sequencer-relayer
       tag: ${{ inputs.tag }}
