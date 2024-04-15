@@ -4,7 +4,7 @@ breaking:
   use:
     - FILE
 deps:
- - buf.build/astria/astria
+  - buf.build/astria/sequencerblock-apis
 lint:
   use:
     - BASIC

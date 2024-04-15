@@ -141,7 +141,9 @@ pub struct ExecuteBlockRequest {
     pub prev_block_hash: ::prost::bytes::Bytes,
     /// List of transactions to include in the new block.
     #[prost(message, repeated, tag = "2")]
-    pub transactions: ::prost::alloc::vec::Vec<super::super::sequencer::v1::RollupData>,
+    pub transactions: ::prost::alloc::vec::Vec<
+        super::super::sequencerblock::v1alpha1::RollupData,
+    >,
     /// Timestamp to be used for new block.
     #[prost(message, optional, tag = "3")]
     pub timestamp: ::core::option::Option<::pbjson_types::Timestamp>,

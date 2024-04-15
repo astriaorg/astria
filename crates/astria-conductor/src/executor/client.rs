@@ -9,7 +9,7 @@ use astria_core::{
             v1alpha2 as raw,
             v1alpha2::execution_service_client::ExecutionServiceClient,
         },
-        sequencer::v1::RollupData,
+        sequencerblock::v1alpha1::RollupData,
     },
     sequencerblock::Protobuf as _,
 };
