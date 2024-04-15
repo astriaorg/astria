@@ -38,12 +38,12 @@ use crate::{
         ApiServer,
     },
     collectors,
-    collectors::GethCollectorBuilder,
+    collectors::geth,
     composer,
     executor,
     executor::Executor,
+    grpc,
     grpc::GrpcServer,
-    grpc_server_builder,
     rollup::Rollup,
     Config,
 };
@@ -127,7 +127,7 @@ impl Composer {
         .build()
         .wrap_err("executor construction from config failed")?;
 
-        let grpc_server = grpc_server_builder::Builder {
+        let grpc_server = grpc::Builder {
             grpc_addr: cfg.grpc_addr,
             executor: executor_handle.clone(),
             shutdown_token: shutdown_token.clone(),
@@ -159,7 +159,7 @@ impl Composer {
         let geth_collectors = rollups
             .iter()
             .map(|(rollup_name, url)| {
-                let collector = GethCollectorBuilder {
+                let collector = geth::Builder {
                     chain_name: rollup_name.clone(),
                     url: url.clone(),
                     executor_handle: executor_handle.clone(),
@@ -169,7 +169,7 @@ impl Composer {
                 (rollup_name.clone(), collector)
             })
             .collect::<HashMap<_, _>>();
-        let geth_collector_statuses: HashMap<String, watch::Receiver<collectors::geth::Status>> =
+        let geth_collector_statuses: HashMap<String, watch::Receiver<geth::Status>> =
             geth_collectors
                 .iter()
                 .map(|(rollup_name, collector)| (rollup_name.clone(), collector.subscribe()))
@@ -521,7 +521,7 @@ pub(super) fn reconnect_exited_collector(
         return;
     };
 
-    let collector = GethCollectorBuilder {
+    let collector = geth::Builder {
         chain_name: rollup.clone(),
         url: url.clone(),
         executor_handle,

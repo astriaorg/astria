@@ -64,17 +64,17 @@ const WSS_UNSUBSCRIBE_TIMEOUT: Duration = Duration::from_secs(2);
 pub(crate) struct Geth {
     // Chain ID to identify in the astria sequencer block which rollup a serialized sequencer
     // action belongs to. Created from `chain_name`.
-    pub(super) rollup_id: RollupId,
+    rollup_id: RollupId,
     // Name of the chain the transactions are read from.
-    pub(super) chain_name: String,
+    chain_name: String,
     // The channel on which the collector sends new txs to the executor.
-    pub(super) executor_handle: executor::Handle,
+    executor_handle: executor::Handle,
     // The status of this collector instance.
-    pub(super) status: watch::Sender<Status>,
+    status: watch::Sender<Status>,
     // Rollup URL
-    pub(super) url: String,
+    url: String,
     // Token to signal the geth collector to stop upon shutdown.
-    pub(super) shutdown_token: CancellationToken,
+    shutdown_token: CancellationToken,
 }
 
 #[derive(Debug)]
@@ -91,6 +91,39 @@ impl Status {
 
     pub(crate) fn is_connected(&self) -> bool {
         self.is_connected
+    }
+}
+
+pub(crate) struct Builder {
+    pub(crate) chain_name: String,
+    pub(crate) url: String,
+    pub(crate) executor_handle: executor::Handle,
+    pub(crate) shutdown_token: CancellationToken,
+}
+
+impl Builder {
+    pub(crate) fn build(self) -> Geth {
+        let Self {
+            chain_name,
+            url,
+            executor_handle,
+            shutdown_token,
+        } = self;
+        let (status, _) = watch::channel(Status::new());
+        let rollup_id = RollupId::from_unhashed_bytes(&chain_name);
+        info!(
+            rollup_name = %chain_name,
+            rollup_id = %rollup_id,
+            "created new geth collector for rollup",
+        );
+        Geth {
+            rollup_id,
+            chain_name,
+            executor_handle,
+            status,
+            url,
+            shutdown_token,
+        }
     }
 }
 

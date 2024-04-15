@@ -19,16 +19,46 @@ use tokio::{
 };
 use tokio_util::sync::CancellationToken;
 
-use crate::collectors;
+use crate::{
+    collectors,
+    executor,
+};
 
 /// Listens for incoming gRPC requests and sends the Rollup transactions to the
 /// Executor. The Executor then sends the transactions to the Astria Shared Sequencer.
 ///
 /// It implements the `GrpcCollectorServiceServer` rpc service and also the tonic health service
 pub(crate) struct GrpcServer {
-    pub(super) listener: TcpListener,
-    pub(super) grpc_collector: collectors::Grpc,
-    pub(super) shutdown_token: CancellationToken,
+    listener: TcpListener,
+    grpc_collector: collectors::Grpc,
+    shutdown_token: CancellationToken,
+}
+
+pub(crate) struct Builder {
+    pub(crate) grpc_addr: SocketAddr,
+    pub(crate) executor: executor::Handle,
+    pub(crate) shutdown_token: CancellationToken,
+}
+
+impl Builder {
+    pub(crate) async fn build(self) -> eyre::Result<GrpcServer> {
+        let Self {
+            grpc_addr,
+            executor,
+            shutdown_token,
+        } = self;
+
+        let listener = TcpListener::bind(grpc_addr)
+            .await
+            .wrap_err("failed to bind socket address")?;
+        let grpc_collector = collectors::Grpc::new(executor.clone());
+
+        Ok(GrpcServer {
+            listener,
+            grpc_collector,
+            shutdown_token,
+        })
+    }
 }
 
 impl GrpcServer {
