@@ -112,7 +112,7 @@ pub(super) struct Executor {
     // Max bytes in a sequencer action bundle
     max_bytes_per_bundle: usize,
     // Max amount of `SizedBundle`s that can be in the `BundleFactory`'s `finished` queue.
-    finished_queue_capacity: usize,
+    bundle_queue_capacity: usize,
     // Token to signal the executor to stop upon shutdown.
     shutdown_token: CancellationToken,
 }
@@ -169,7 +169,7 @@ impl Executor {
         private_key: &SecretString,
         block_time: u64,
         max_bytes_per_bundle: usize,
-        finished_queue_capacity: usize,
+        bundle_queue_capacity: usize,
         shutdown_token: CancellationToken,
     ) -> eyre::Result<(Self, Handle)> {
         let sequencer_client = sequencer_client::HttpClient::new(sequencer_url)
@@ -196,7 +196,7 @@ impl Executor {
                 address: sequencer_address,
                 block_time: Duration::from_millis(block_time),
                 max_bytes_per_bundle,
-                finished_queue_capacity,
+                bundle_queue_capacity,
                 shutdown_token,
             },
             Handle::new(serialized_rollup_transaction_tx),
@@ -239,7 +239,7 @@ impl Executor {
         let block_timer = time::sleep(self.block_time);
         tokio::pin!(block_timer);
         let mut bundle_factory =
-            BundleFactory::new(self.max_bytes_per_bundle, self.finished_queue_capacity);
+            BundleFactory::new(self.max_bytes_per_bundle, self.bundle_queue_capacity);
 
         let reset_time = || Instant::now() + self.block_time;
 

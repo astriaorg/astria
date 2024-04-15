@@ -90,7 +90,7 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
             .into(),
         block_time_ms: 2000,
         max_bytes_per_bundle: 200_000,
-        finished_queue_capacity: 10,
+        bundle_queue_capacity: 10,
         no_otel: false,
         force_stdout: false,
         no_metrics: true,

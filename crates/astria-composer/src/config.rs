@@ -41,7 +41,7 @@ pub struct Config {
     pub max_bytes_per_bundle: usize,
 
     /// Max amount of `SizedBundle`s to allow to accrue in the `BundleFactory`'s finished queue.
-    pub finished_queue_capacity: usize,
+    pub bundle_queue_capacity: usize,
 
     /// Forces writing trace data to stdout no matter if connected to a tty or not.
     pub force_stdout: bool,

@@ -51,7 +51,16 @@ config:
     # - "FirmOnly" -> blocks are only pulled from DA
     # - "SoftAndFirm" -> blocks are pulled from both the sequencer and DA
     executionCommitLevel: 'SoftAndFirm'
+    # Max bytes to encode into a single sequencer `SignedTransaction`, not including signature,
+    # public key, nonce. This is the sum of the sizes of all the `SequenceAction`s. Should be
+    # set below the sequencer's max block size to allow space for encoding, signature, public
+    # key and nonce bytes
     maxBytesPerBundle: 200000
+    # Max amount of bundles that can be in the submission queue.
+    # ASTRIA_COMPOSER_BUNDLE_QUEUE_CAPACITY * ASTRIA_COMPOSER_MAX_BYTES_PER_BUNDLE (e.g.
+    # 40 * 200KB = 8GB) is the limit on how much memory the finished bundle queue can consume.
+    # This should be lower than the resource limit enforced by Kubernetes on the pod, defined below
+    bundleQueueCapacity: 40
     maxSubmitInterval: 2000
     # Configuration specific to EVM rollup genesis
     genesis:

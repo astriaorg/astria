@@ -121,7 +121,7 @@ impl Composer {
             &cfg.private_key,
             cfg.block_time_ms,
             cfg.max_bytes_per_bundle,
-            cfg.finished_queue_capacity,
+            cfg.bundle_queue_capacity,
             shutdown_token.clone(),
         )
         .wrap_err("executor construction from config failed")?;
