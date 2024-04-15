@@ -44,7 +44,7 @@ macro_rules! filtered_sequencer_block {
             ..Default::default()
         }
         .make();
-        ::astria_core::sequencer::v1::SequencerBlock::try_from_cometbft(block)
+        ::astria_core::sequencerblock::v1alpha1::SequencerBlock::try_from_cometbft(block)
             .unwrap()
             .into_filtered_block([$crate::ROLLUP_ID])
             .into_raw()
@@ -157,7 +157,7 @@ macro_rules! mount_get_filtered_sequencer_block {
     ($test_env:ident, sequencer_height: $height:expr $(,)?) => {
         $test_env
             .mount_get_filtered_sequencer_block(
-                ::astria_core::generated::sequencer::v1::GetFilteredSequencerBlockRequest {
+                ::astria_core::generated::sequencerblock::v1alpha1::GetFilteredSequencerBlockRequest {
                     height: $height,
                     rollup_ids: vec![$crate::ROLLUP_ID.to_vec()],
                 },
