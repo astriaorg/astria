@@ -45,6 +45,7 @@ mod composer;
 pub mod config;
 mod executor;
 mod grpc;
+mod grpc_server_builder;
 mod rollup;
 
 pub use build_info::BUILD_INFO;

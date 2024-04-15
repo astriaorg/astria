@@ -64,17 +64,17 @@ const WSS_UNSUBSCRIBE_TIMEOUT: Duration = Duration::from_secs(2);
 pub(crate) struct Geth {
     // Chain ID to identify in the astria sequencer block which rollup a serialized sequencer
     // action belongs to. Created from `chain_name`.
-    rollup_id: RollupId,
+    pub(super) rollup_id: RollupId,
     // Name of the chain the transactions are read from.
-    chain_name: String,
+    pub(super) chain_name: String,
     // The channel on which the collector sends new txs to the executor.
-    executor_handle: executor::Handle,
+    pub(super) executor_handle: executor::Handle,
     // The status of this collector instance.
-    status: watch::Sender<Status>,
+    pub(super) status: watch::Sender<Status>,
     // Rollup URL
-    url: String,
+    pub(super) url: String,
     // Token to signal the geth collector to stop upon shutdown.
-    shutdown_token: CancellationToken,
+    pub(super) shutdown_token: CancellationToken,
 }
 
 #[derive(Debug)]
@@ -83,7 +83,7 @@ pub(crate) struct Status {
 }
 
 impl Status {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             is_connected: false,
         }
@@ -95,30 +95,6 @@ impl Status {
 }
 
 impl Geth {
-    /// Initializes a new collector instance
-    pub(crate) fn new(
-        chain_name: String,
-        url: String,
-        executor_handle: executor::Handle,
-        shutdown_token: CancellationToken,
-    ) -> Self {
-        let (status, _) = watch::channel(Status::new());
-        let rollup_id = RollupId::from_unhashed_bytes(&chain_name);
-        info!(
-            rollup_name = %chain_name,
-            rollup_id = %rollup_id,
-            "created new geth collector for rollup",
-        );
-        Self {
-            rollup_id,
-            chain_name,
-            executor_handle,
-            status,
-            url,
-            shutdown_token,
-        }
-    }
-
     /// Subscribe to the collector's status.
     pub(crate) fn subscribe(&self) -> watch::Receiver<Status> {
         self.status.subscribe()

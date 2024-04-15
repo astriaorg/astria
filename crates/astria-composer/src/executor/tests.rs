@@ -37,7 +37,6 @@ use wiremock::{
 
 use crate::{
     executor,
-    executor::Executor,
     Config,
 };
 
@@ -197,13 +196,14 @@ async fn full_bundle() {
     // set up the executor, channel for writing seq actions, and the sequencer mock
     let (sequencer, nonce_guard, cfg) = setup().await;
     let shutdown_token = CancellationToken::new();
-    let (executor, executor_handle) = Executor::new(
-        &cfg.sequencer_url,
-        &cfg.private_key,
-        cfg.block_time_ms,
-        cfg.max_bytes_per_bundle,
-        shutdown_token,
-    )
+    let (executor, executor_handle) = executor::Builder {
+        sequencer_url: cfg.sequencer_url.clone(),
+        private_key: cfg.private_key.clone(),
+        block_time: cfg.block_time_ms,
+        max_bytes_per_bundle: cfg.max_bytes_per_bundle,
+        shutdown_token: shutdown_token.clone(),
+    }
+    .build()
     .unwrap();
 
     let status = executor.subscribe();
@@ -285,13 +285,14 @@ async fn bundle_triggered_by_block_timer() {
     // set up the executor, channel for writing seq actions, and the sequencer mock
     let (sequencer, nonce_guard, cfg) = setup().await;
     let shutdown_token = CancellationToken::new();
-    let (executor, executor_handle) = Executor::new(
-        &cfg.sequencer_url,
-        &cfg.private_key,
-        cfg.block_time_ms,
-        cfg.max_bytes_per_bundle,
-        shutdown_token,
-    )
+    let (executor, executor_handle) = executor::Builder {
+        sequencer_url: cfg.sequencer_url.clone(),
+        private_key: cfg.private_key.clone(),
+        block_time: cfg.block_time_ms,
+        max_bytes_per_bundle: cfg.max_bytes_per_bundle,
+        shutdown_token: shutdown_token.clone(),
+    }
+    .build()
     .unwrap();
 
     let status = executor.subscribe();
@@ -366,13 +367,14 @@ async fn two_seq_actions_single_bundle() {
     // set up the executor, channel for writing seq actions, and the sequencer mock
     let (sequencer, nonce_guard, cfg) = setup().await;
     let shutdown_token = CancellationToken::new();
-    let (executor, executor_handle) = Executor::new(
-        &cfg.sequencer_url,
-        &cfg.private_key,
-        cfg.block_time_ms,
-        cfg.max_bytes_per_bundle,
-        shutdown_token.clone(),
-    )
+    let (executor, executor_handle) = executor::Builder {
+        sequencer_url: cfg.sequencer_url.clone(),
+        private_key: cfg.private_key.clone(),
+        block_time: cfg.block_time_ms,
+        max_bytes_per_bundle: cfg.max_bytes_per_bundle,
+        shutdown_token: shutdown_token.clone(),
+    }
+    .build()
     .unwrap();
 
     let status = executor.subscribe();
