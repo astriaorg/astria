@@ -43,6 +43,9 @@ jobs:
     needs: run_checker
     if: needs.run_checker.outputs.run_docker == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'composer')
     uses: "./.github/workflows/reusable-docker-build.yml"
+    permissions:
+      contents: read
+      id-token: write
     with:
       depot-project-id: TODO
       package-name: composer
@@ -54,6 +57,9 @@ jobs:
     needs: run_checker
     if: needs.run_checker.outputs.run_docker == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'conductor')
     uses: "./.github/workflows/reusable-docker-build.yml"
+    permissions:
+      contents: read
+      id-token: write
     with:
       depot-project-id: TODO
       package-name: conductor
@@ -65,6 +71,9 @@ jobs:
     needs: run_checker
     if: needs.run_checker.outputs.run_docker == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'sequencer')
     uses: "./.github/workflows/reusable-docker-build.yml"
+    permissions:
+      contents: read
+      id-token: write
     with:
       depot-project-id: TODO
       package-name: sequencer
@@ -76,6 +85,9 @@ jobs:
     needs: run_checker
     if: needs.run_checker.outputs.run_docker == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'sequencer-relayer')
     uses: "./.github/workflows/reusable-docker-build.yml"
+    permissions:
+      contents: read
+      id-token: write
     with:
       depot-project-id: TODO
       package-name: sequencer-relayer
