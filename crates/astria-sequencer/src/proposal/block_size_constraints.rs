@@ -1,4 +1,8 @@
-use anyhow::anyhow;
+use anyhow::{
+    anyhow,
+    ensure,
+    Context,
+};
 
 use super::commitment::GeneratedCommitments;
 
@@ -6,11 +10,12 @@ use super::commitment::GeneratedCommitments;
 const MAX_SEQUENCE_DATA_BYTES_PER_BLOCK: usize = 256_000;
 
 /// Struct for organizing block size constraints in prepare proposal
+#[derive(serde::Serialize)]
 pub(crate) struct BlockSizeConstraints {
-    pub(crate) max_sequencer: usize,
-    pub(crate) max_cometbft: usize,
-    pub(crate) current_sequencer: usize,
-    pub(crate) current_cometbft: usize,
+    max_size_sequencer: usize,
+    max_size_cometbft: usize,
+    current_size_sequencer: usize,
+    current_size_cometbft: usize,
 }
 
 impl BlockSizeConstraints {
@@ -22,40 +27,48 @@ impl BlockSizeConstraints {
         }
 
         Ok(BlockSizeConstraints {
-            max_sequencer: MAX_SEQUENCE_DATA_BYTES_PER_BLOCK,
-            max_cometbft: cometbft_max_size,
-            current_sequencer: 0,
-            current_cometbft: GeneratedCommitments::TOTAL_SIZE,
+            max_size_sequencer: MAX_SEQUENCE_DATA_BYTES_PER_BLOCK,
+            max_size_cometbft: cometbft_max_size,
+            current_size_sequencer: 0,
+            current_size_cometbft: GeneratedCommitments::TOTAL_SIZE,
         })
     }
 
     pub(crate) fn sequencer_has_space(&self, size: usize) -> bool {
-        size <= self.max_sequencer.saturating_sub(self.current_sequencer)
+        size <= self
+            .max_size_sequencer
+            .saturating_sub(self.current_size_sequencer)
     }
 
     pub(crate) fn cometbft_has_space(&self, size: usize) -> bool {
-        size <= self.max_cometbft.saturating_sub(self.current_cometbft)
+        size <= self
+            .max_size_cometbft
+            .saturating_sub(self.current_size_cometbft)
     }
 
     pub(crate) fn sequencer_checked_add(&mut self, size: usize) -> anyhow::Result<()> {
-        if self.current_sequencer.saturating_add(size) > self.max_sequencer {
-            return Err(anyhow!("max sequencer size reached"));
-        }
-        self.current_sequencer = self
-            .current_sequencer
+        let new_size = self
+            .current_size_sequencer
             .checked_add(size)
-            .expect("overflow in adding to sequencer size, shouldn't happen");
+            .context("overflow adding to sequencer size")?;
+        ensure!(
+            new_size <= self.max_size_sequencer,
+            "max sequencer size reached"
+        );
+        self.current_size_sequencer = new_size;
         Ok(())
     }
 
     pub(crate) fn cometbft_checked_add(&mut self, size: usize) -> anyhow::Result<()> {
-        if self.current_cometbft.saturating_add(size) > self.max_cometbft {
-            return Err(anyhow!("max cometbft size reached"));
-        }
-        self.current_cometbft = self
-            .current_cometbft
+        let new_size = self
+            .current_size_cometbft
             .checked_add(size)
-            .expect("overflow in adding to cometbft size, shouldn't happen");
+            .context("overflow adding to cometBFT size")?;
+        ensure!(
+            new_size <= self.max_size_cometbft,
+            "max cometBFT size reached"
+        );
+        self.current_size_cometbft = new_size;
         Ok(())
     }
 }

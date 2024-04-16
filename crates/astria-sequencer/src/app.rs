@@ -35,6 +35,7 @@ use sha2::{
     Digest as _,
     Sha256,
 };
+use telemetry::display::json;
 use tendermint::{
     abci::{
         self,
@@ -368,8 +369,7 @@ impl App {
             if !block_size_constraints.cometbft_has_space(tx.len()) {
                 debug!(
                     transaction_hash = %telemetry::display::base64(&tx_hash),
-                    max_cometbft_bytes = block_size_constraints.max_cometbft,
-                    included_data_bytes = block_size_constraints.current_cometbft,
+                    block_size_constraints = %json(&block_size_constraints),
                     tx_data_bytes = tx.len(),
                     "excluding transactions: max cometBFT data limit reached"
                 );
@@ -401,8 +401,7 @@ impl App {
             if !block_size_constraints.sequencer_has_space(tx_sequence_data_bytes) {
                 debug!(
                     transaction_hash = %telemetry::display::base64(&tx_hash),
-                    max_sequencer_bytes = block_size_constraints.max_sequencer,
-                    included_data_bytes = block_size_constraints.current_sequencer,
+                    block_size_constraints = %json(&block_size_constraints),
                     tx_data_bytes = tx_sequence_data_bytes,
                     "excluding transaction: max block sequenced data limit reached"
                 );
