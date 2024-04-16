@@ -33,8 +33,6 @@ on:
       - synchronize
       - reopened
       - labeled
-    branches:
-      - "main"
 
 jobs:
   run_checker:
