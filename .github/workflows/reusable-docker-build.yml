@@ -77,7 +77,7 @@ jobs:
           build-args: |
             TARGETBINARY=${{ inputs.target-binary }}
           platforms: "linux/amd64,linux/arm64"
-          push: true
+          push: ${{ env.LOGIN_DOCKER }}
           tags: ${{ steps.metadata.outputs.tags }}
           labels: ${{ steps.metadata.outputs.labels }}
           project: ${{ inputs.depot-project-id }}
