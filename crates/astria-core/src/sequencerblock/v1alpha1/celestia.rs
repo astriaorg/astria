@@ -30,10 +30,9 @@ pub(super) struct CelestiaBlobBundle {
 impl CelestiaBlobBundle {
     /// Construct a bundle of celestia blobs from a [`super::SequencerBlock`].
     #[must_use]
-    #[allow(clippy::missing_panics_doc)] // the proofs are guaranteed to exist; revisit if refactoring
     pub(super) fn from_sequencer_block(block: SequencerBlock) -> Self {
-        let block_hash = block.block_hash();
         let super::block::SequencerBlockParts {
+            block_hash,
             header,
             rollup_transactions,
             rollup_transactions_proof,
@@ -534,7 +533,6 @@ impl CelestiaSequencerBlob {
             rollup_ids,
             rollup_transactions_proof,
             rollup_ids_proof,
-            ..
         } = self;
         UncheckedCelestiaSequencerBlob {
             block_hash,

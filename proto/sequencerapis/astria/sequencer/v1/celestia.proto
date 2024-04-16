@@ -45,9 +45,9 @@ message CelestiaSequencerBlob {
   // Always 32 bytes.
   bytes rollup_transactions_root = 3;
   // The proof that the rollup transactions are included in sequencer block.
-  // Corresponds to `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions_proof`.
+  // Corresponds to `astria.sequencerblock.v1alpha1.SequencerBlock.rollup_transactions_proof`.
   astria.sequencer.v1.Proof rollup_transactions_proof = 4;
   // The proof that the rollup IDs are included in sequencer block.
-  // Corresponds to `astria.sequencer.v1alpha.SequencerBlock.rollup_ids_proof`.
+  // Corresponds to `astria.sequencerblock.v1alpha1.SequencerBlock.rollup_ids_proof`.
   astria.sequencer.v1.Proof rollup_ids_proof = 5;
 }

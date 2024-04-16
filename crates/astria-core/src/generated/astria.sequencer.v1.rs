@@ -343,11 +343,11 @@ pub struct CelestiaSequencerBlob {
     #[prost(bytes = "vec", tag = "3")]
     pub rollup_transactions_root: ::prost::alloc::vec::Vec<u8>,
     /// The proof that the rollup transactions are included in sequencer block.
-    /// Corresponds to `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions_proof`.
+    /// Corresponds to `astria.sequencerblock.v1alpha1.SequencerBlock.rollup_transactions_proof`.
     #[prost(message, optional, tag = "4")]
     pub rollup_transactions_proof: ::core::option::Option<Proof>,
     /// The proof that the rollup IDs are included in sequencer block.
-    /// Corresponds to `astria.sequencer.v1alpha.SequencerBlock.rollup_ids_proof`.
+    /// Corresponds to `astria.sequencerblock.v1alpha1.SequencerBlock.rollup_ids_proof`.
     #[prost(message, optional, tag = "5")]
     pub rollup_ids_proof: ::core::option::Option<Proof>,
 }

@@ -537,6 +537,7 @@ enum SequencerBlockHeaderErrorKind {
 #[derive(Clone, Debug, PartialEq)]
 #[allow(clippy::module_name_repetitions)]
 pub struct SequencerBlockParts {
+    pub block_hash: [u8; 32],
     pub header: SequencerBlockHeader,
     pub rollup_transactions: IndexMap<RollupId, RollupTransactions>,
     pub rollup_transactions_proof: merkle::Proof,
@@ -599,13 +600,14 @@ impl SequencerBlock {
     #[must_use]
     pub fn into_parts(self) -> SequencerBlockParts {
         let Self {
+            block_hash,
             header,
             rollup_transactions,
             rollup_transactions_proof,
             rollup_ids_proof,
-            ..
         } = self;
         SequencerBlockParts {
+            block_hash,
             header,
             rollup_transactions,
             rollup_transactions_proof,
@@ -627,7 +629,6 @@ impl SequencerBlock {
             rollup_transactions,
             rollup_transactions_proof,
             rollup_ids_proof,
-            ..
         } = self;
         raw::SequencerBlock {
             block_hash: block_hash.to_vec(),
