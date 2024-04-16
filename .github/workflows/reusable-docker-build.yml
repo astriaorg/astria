@@ -1,6 +1,5 @@
 name: Reusable Docker Build && Push Workflow
 
-# TODO: Add a trust relationship for each Depot project
 permissions:
   contents: read
   id-token: write
@@ -8,7 +7,6 @@ permissions:
 on:
   workflow_call:
     inputs:
-      # TODO: Create a Depot project for each image to build
       depot-project-id:
         required: true
         type: string
@@ -76,7 +74,7 @@ jobs:
           build-args: |
             TARGETBINARY=${{ inputs.target-binary }}
           platforms: "linux/amd64,linux/arm64"
-          push: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == 'astriaorg/astria'
+          push: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == 'astriaorg/astria' }}
           tags: ${{ steps.metadata.outputs.tags }}
           labels: ${{ steps.metadata.outputs.labels }}
           project: ${{ inputs.depot-project-id }}
