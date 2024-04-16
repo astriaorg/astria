@@ -241,12 +241,8 @@ impl App {
         let mut block_size_constraints = BlockSizeConstraints::new(
             usize::try_from(prepare_proposal.max_tx_bytes)
                 .context("failed to convert max_tx_bytes to usize")?,
-        );
-        block_size_constraints
-            .cometbft_checked_add(std::mem::size_of::<GeneratedCommitments>())
-            .context(
-                "commitment size should not be larger than the prepare proposal's max bytes",
-            )?;
+        )
+        .context("failed to create block size constraints")?;
 
         let (signed_txs, txs_to_include) = self
             .execute_and_filter_block_data(prepare_proposal.txs, &mut block_size_constraints)
@@ -2273,18 +2269,6 @@ mod test {
                 rollup_ids_root,
             },
         )
-    }
-
-    #[tokio::test]
-    async fn app_cometbft_block_size_commitmemts_() {
-        // ensure that the returned size of the commimtments is what is intended.
-        // we need the size of whatever is being put into the cometBFT block
-        assert_eq!(
-            std::mem::size_of::<GeneratedCommitments>(),
-            64,
-            "expecting the size to be equal to the length of the commitments being appended to \
-             the cometBFT block"
-        );
     }
 
     #[tokio::test]
