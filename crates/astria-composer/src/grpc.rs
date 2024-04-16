@@ -34,24 +34,34 @@ pub(crate) struct GrpcServer {
     shutdown_token: CancellationToken,
 }
 
-impl GrpcServer {
-    pub(crate) async fn new(
-        grpc_addr: SocketAddr,
-        executor: executor::Handle,
-        shutdown_token: CancellationToken,
-    ) -> eyre::Result<Self> {
+pub(crate) struct Builder {
+    pub(crate) grpc_addr: SocketAddr,
+    pub(crate) executor: executor::Handle,
+    pub(crate) shutdown_token: CancellationToken,
+}
+
+impl Builder {
+    pub(crate) async fn build(self) -> eyre::Result<GrpcServer> {
+        let Self {
+            grpc_addr,
+            executor,
+            shutdown_token,
+        } = self;
+
         let listener = TcpListener::bind(grpc_addr)
             .await
-            .wrap_err("failed to bind grpc listener")?;
+            .wrap_err("failed to bind socket address")?;
         let grpc_collector = collectors::Grpc::new(executor.clone());
 
-        Ok(Self {
+        Ok(GrpcServer {
             listener,
             grpc_collector,
             shutdown_token,
         })
     }
+}
 
+impl GrpcServer {
     /// Returns the socket address the grpc server is served over
     /// # Errors
     /// Returns an error if the listener is not bound

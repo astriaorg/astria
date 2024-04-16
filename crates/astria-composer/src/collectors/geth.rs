@@ -94,14 +94,21 @@ impl Status {
     }
 }
 
-impl Geth {
-    /// Initializes a new collector instance
-    pub(crate) fn new(
-        chain_name: String,
-        url: String,
-        executor_handle: executor::Handle,
-        shutdown_token: CancellationToken,
-    ) -> Self {
+pub(crate) struct Builder {
+    pub(crate) chain_name: String,
+    pub(crate) url: String,
+    pub(crate) executor_handle: executor::Handle,
+    pub(crate) shutdown_token: CancellationToken,
+}
+
+impl Builder {
+    pub(crate) fn build(self) -> Geth {
+        let Self {
+            chain_name,
+            url,
+            executor_handle,
+            shutdown_token,
+        } = self;
         let (status, _) = watch::channel(Status::new());
         let rollup_id = RollupId::from_unhashed_bytes(&chain_name);
         info!(
@@ -109,7 +116,7 @@ impl Geth {
             rollup_id = %rollup_id,
             "created new geth collector for rollup",
         );
-        Self {
+        Geth {
             rollup_id,
             chain_name,
             executor_handle,
@@ -118,7 +125,9 @@ impl Geth {
             shutdown_token,
         }
     }
+}
 
+impl Geth {
     /// Subscribe to the collector's status.
     pub(crate) fn subscribe(&self) -> watch::Receiver<Status> {
         self.status.subscribe()
