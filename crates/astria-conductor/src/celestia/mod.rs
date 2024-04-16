@@ -627,7 +627,7 @@ async fn get_sequencer_namespace(client: SequencerClient) -> eyre::Result<Namesp
         .wrap_err("failed to get latest commit from sequencer after 10 attempts")?;
 
     Ok(
-        celestia_client::celestia_namespace_v0_from_cometbft_chain_id(
+        celestia_client::celestia_namespace_v0_from_str(
             block.header().chain_id().as_str(),
         ),
     )

@@ -261,7 +261,6 @@ run-smoke-test:
   while [ $SOFT_RUNS -lt $MAX_RUNS ]; do
     if [ $(soft) -gt 0 ]; then
       echo "Soft commit success"
-      exit 0
     else
       sleep 1
     fi
