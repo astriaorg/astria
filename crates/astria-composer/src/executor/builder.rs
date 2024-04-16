@@ -8,14 +8,14 @@ use astria_eyre::{
     eyre,
     eyre::{
         eyre,
-        Context,
+        WrapErr as _,
     },
 };
 use ed25519_consensus::SigningKey;
-use ethers::core::k256::elliptic_curve::zeroize::Zeroize;
 use secrecy::{
     ExposeSecret,
     SecretString,
+    Zeroize,
 };
 use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
@@ -28,7 +28,7 @@ use crate::{
 pub(crate) struct Builder {
     pub(crate) sequencer_url: String,
     pub(crate) private_key: SecretString,
-    pub(crate) block_time: u64,
+    pub(crate) block_time_ms: u64,
     pub(crate) max_bytes_per_bundle: usize,
     pub(crate) shutdown_token: CancellationToken,
 }
@@ -38,7 +38,7 @@ impl Builder {
         let Self {
             sequencer_url,
             private_key,
-            block_time,
+            block_time_ms,
             max_bytes_per_bundle,
             shutdown_token,
         } = self;
@@ -64,7 +64,7 @@ impl Builder {
                 sequencer_client,
                 sequencer_key,
                 address: sequencer_address,
-                block_time: Duration::from_millis(block_time),
+                block_time: Duration::from_millis(block_time_ms),
                 max_bytes_per_bundle,
                 shutdown_token,
             },

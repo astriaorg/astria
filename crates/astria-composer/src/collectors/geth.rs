@@ -83,7 +83,7 @@ pub(crate) struct Status {
 }
 
 impl Status {
-    pub(crate) fn new() -> Self {
+    fn new() -> Self {
         Self {
             is_connected: false,
         }

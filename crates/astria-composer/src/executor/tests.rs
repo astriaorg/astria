@@ -199,7 +199,7 @@ async fn full_bundle() {
     let (executor, executor_handle) = executor::Builder {
         sequencer_url: cfg.sequencer_url.clone(),
         private_key: cfg.private_key.clone(),
-        block_time: cfg.block_time_ms,
+        block_time_ms: cfg.block_time_ms,
         max_bytes_per_bundle: cfg.max_bytes_per_bundle,
         shutdown_token: shutdown_token.clone(),
     }
@@ -288,7 +288,7 @@ async fn bundle_triggered_by_block_timer() {
     let (executor, executor_handle) = executor::Builder {
         sequencer_url: cfg.sequencer_url.clone(),
         private_key: cfg.private_key.clone(),
-        block_time: cfg.block_time_ms,
+        block_time_ms: cfg.block_time_ms,
         max_bytes_per_bundle: cfg.max_bytes_per_bundle,
         shutdown_token: shutdown_token.clone(),
     }
@@ -370,7 +370,7 @@ async fn two_seq_actions_single_bundle() {
     let (executor, executor_handle) = executor::Builder {
         sequencer_url: cfg.sequencer_url.clone(),
         private_key: cfg.private_key.clone(),
-        block_time: cfg.block_time_ms,
+        block_time_ms: cfg.block_time_ms,
         max_bytes_per_bundle: cfg.max_bytes_per_bundle,
         shutdown_token: shutdown_token.clone(),
     }
