@@ -267,7 +267,6 @@ run-smoke-test:
     fi
     SOFT_RUNS=$((SOFT_RUNS+1))
   done
-  echo "Soft commit failure"
 
   echo "Testing finalization..."
   FINALIZED_RUNS=0
