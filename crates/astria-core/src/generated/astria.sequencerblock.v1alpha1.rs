@@ -35,7 +35,7 @@ pub struct RollupTransactions {
     #[prost(bytes = "vec", repeated, tag = "2")]
     pub transactions: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
     /// The proof that these rollup transactions are included in sequencer block.
-    /// `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions_proof`.
+    /// `astria.SequencerBlock.rollup_transactions_proof`.
     #[prost(message, optional, tag = "3")]
     pub proof: ::core::option::Option<Proof>,
 }
@@ -105,7 +105,7 @@ pub struct SequencerBlockHeader {
     #[prost(bytes = "vec", tag = "5")]
     pub proposer_address: ::prost::alloc::vec::Vec<u8>,
     /// The 32-byte merkle root of all the rollup transactions in the block,
-    /// Corresponds to `MHT(astria.sequencer.v1alpha.SequencerBlock.rollup_transactions)`,
+    /// Corresponds to `MHT(astria.SequencerBlock.rollup_transactions)`,
     #[prost(bytes = "vec", tag = "6")]
     pub rollup_transactions_root: ::prost::alloc::vec::Vec<u8>,
 }
@@ -176,7 +176,7 @@ pub struct FilteredSequencerBlock {
     pub rollup_transactions_proof: ::core::option::Option<Proof>,
     /// The rollup IDs for which `CelestiaRollupBlob`s were submitted to celestia.
     /// Corresponds to the `astria.sequencer.v1.RollupTransactions.rollup_id` field
-    /// and is extracted from `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions`.
+    /// and is extracted from `astria.SequencerBlock.rollup_transactions`.
     /// Note that these are all the rollup IDs in the sequencer block, not merely those in
     /// `rollup_transactions` field. This is necessary to prove that no rollup IDs were omitted.
     #[prost(bytes = "vec", repeated, tag = "5")]
@@ -249,7 +249,7 @@ pub struct CelestiaRollupBlob {
     #[prost(bytes = "vec", repeated, tag = "3")]
     pub transactions: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
     /// The proof that these rollup transactions are included in sequencer block.
-    /// `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions_proof`.
+    /// `astria.SequencerBlock.rollup_transactions_proof`.
     #[prost(message, optional, tag = "4")]
     pub proof: ::core::option::Option<Proof>,
 }
@@ -262,7 +262,7 @@ impl ::prost::Name for CelestiaRollupBlob {
 }
 /// The metadata of a sequencer block that is submitted to celestia.
 ///
-/// It is created by splitting a `astria.sequencer.v1alpha.SequencerBlock` into a
+/// It is created by splitting a `astria.SequencerBlock` into a
 /// `CelestiaSequencerBlob` (which can be thought of as a header), and a sequence ofj
 /// `CelestiaRollupBlob`s.
 ///
@@ -279,15 +279,15 @@ pub struct CelestiaSequencerBlob {
     pub header: ::core::option::Option<SequencerBlockHeader>,
     /// The rollup IDs for which `CelestiaRollupBlob`s were submitted to celestia.
     /// Corresponds to the `astria.sequencer.v1.RollupTransactions.rollup_id` field
-    /// and is extracted from `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions`.
+    /// and is extracted from `astria.SequencerBlock.rollup_transactions`.
     #[prost(bytes = "vec", repeated, tag = "3")]
     pub rollup_ids: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
     /// The proof that the rollup transactions are included in sequencer block.
-    /// Corresponds to `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions_proof`.
+    /// Corresponds to `astria.SequencerBlock.rollup_transactions_proof`.
     #[prost(message, optional, tag = "4")]
     pub rollup_transactions_proof: ::core::option::Option<Proof>,
     /// The proof that the rollup IDs are included in sequencer block.
-    /// Corresponds to `astria.sequencer.v1alpha.SequencerBlock.rollup_ids_proof`.
+    /// Corresponds to `astria.SequencerBlock.rollup_ids_proof`.
     #[prost(message, optional, tag = "5")]
     pub rollup_ids_proof: ::core::option::Option<Proof>,
 }

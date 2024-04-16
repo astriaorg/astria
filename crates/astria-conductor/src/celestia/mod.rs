@@ -564,10 +564,10 @@ async fn process_sequencer_blob(
     rollup_namespace: Namespace,
     sequencer_blob: CelestiaSequencerBlob,
 ) -> eyre::Result<ReconstructedBlock> {
-    // verifier
-    //     .verify_blob(&sequencer_blob)
-    //     .await
-    //     .wrap_err("failed validating sequencer blob retrieved from celestia")?;
+    verifier
+        .verify_blob(&sequencer_blob)
+        .await
+        .wrap_err("failed validating sequencer blob retrieved from celestia")?;
     let mut rollup_blobs = client
         .get_rollup_blobs_matching_sequencer_blob(
             celestia_height,

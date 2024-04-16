@@ -35,7 +35,7 @@ pub struct RollupTransactions {
     #[prost(bytes = "vec", repeated, tag = "2")]
     pub transactions: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
     /// The proof that these rollup transactions are included in sequencer block.
-    /// `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions_proof`.
+    /// `astria.SequencerBlock.rollup_transactions_proof`.
     #[prost(message, optional, tag = "3")]
     pub proof: ::core::option::Option<Proof>,
 }
@@ -91,7 +91,7 @@ pub struct SequencerBlockHeader {
     #[prost(message, optional, tag = "1")]
     pub cometbft_header: ::core::option::Option<::tendermint_proto::types::Header>,
     /// The 32-byte merkle root of all the rollup transactions in the block,
-    /// Corresponds to `MHT(astria.sequencer.v1alpha.SequencerBlock.rollup_transactions)`,
+    /// Corresponds to `MHT(astria.SequencerBlock.rollup_transactions)`,
     #[prost(bytes = "vec", tag = "2")]
     pub rollup_transactions_root: ::prost::alloc::vec::Vec<u8>,
     /// The 32-byte merkle root of all the rollup IDs in the block.
@@ -154,7 +154,7 @@ pub struct FilteredSequencerBlock {
     #[prost(message, repeated, tag = "2")]
     pub rollup_transactions: ::prost::alloc::vec::Vec<RollupTransactions>,
     /// The Merkle Tree Hash of all the rollup transactions in the block (not just the
-    /// subset included). Corresponds to `MHT(astria.sequencer.v1alpha.SequencerBlock.rollup_transactions)`,
+    /// subset included). Corresponds to `MHT(astria.SequencerBlock.rollup_transactions)`,
     /// the Merkle Tree Hash derived from the rollup transactions.
     /// Always 32 bytes.
     #[prost(bytes = "vec", tag = "3")]
@@ -168,7 +168,7 @@ pub struct FilteredSequencerBlock {
     pub rollup_transactions_proof: ::core::option::Option<Proof>,
     /// The rollup IDs for which `CelestiaRollupBlob`s were submitted to celestia.
     /// Corresponds to the `astria.sequencer.v1.RollupTransactions.rollup_id` field
-    /// and is extracted from `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions`.
+    /// and is extracted from `astria.SequencerBlock.rollup_transactions`.
     /// Note that these are all the rollup IDs in the sequencer block, not merely those in
     /// `rollup_transactions` field. This is necessary to prove that no rollup IDs were omitted.
     #[prost(bytes = "vec", repeated, tag = "5")]
@@ -305,7 +305,7 @@ pub struct CelestiaRollupBlob {
     #[prost(bytes = "vec", repeated, tag = "3")]
     pub transactions: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
     /// The proof that these rollup transactions are included in sequencer block.
-    /// `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions_proof`.
+    /// `astria.sequencerblock.v1alpha1.SequencerBlock.rollup_transactions_proof`.
     #[prost(message, optional, tag = "4")]
     pub proof: ::core::option::Option<Proof>,
 }
@@ -318,7 +318,7 @@ impl ::prost::Name for CelestiaRollupBlob {
 }
 /// The metadata of a sequencer block that is submitted to celestia.
 ///
-/// It is created by splitting a `astria.sequencer.v1alpha.SequencerBlock` into a
+/// It is created by splitting a `astria.SequencerBlock` into a
 /// `CelestiaSequencerBlob` (which can be thought of as a header), and a sequence ofj
 /// `CelestiaRollupBlob`s.
 ///
@@ -328,16 +328,16 @@ impl ::prost::Name for CelestiaRollupBlob {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CelestiaSequencerBlob {
     /// The original CometBFT header that is the input to this blob's original sequencer block.
-    /// Corresponds to `astria.sequencer.v1alpha.SequencerBlock.header`.
+    /// Corresponds to `astria.SequencerBlock.header`.
     #[prost(message, optional, tag = "1")]
     pub header: ::core::option::Option<::tendermint_proto::types::Header>,
     /// The rollup IDs for which `CelestiaRollupBlob`s were submitted to celestia.
     /// Corresponds to the `astria.sequencer.v1.RollupTransactions.rollup_id` field
-    /// and is extracted from `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions`.
+    /// and is extracted from `astria.SequencerBlock.rollup_transactions`.
     #[prost(bytes = "vec", repeated, tag = "2")]
     pub rollup_ids: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
     /// The Merkle Tree Hash of the rollup transactions. Corresponds to
-    /// `MHT(astria.sequencer.v1alpha.SequencerBlock.rollup_transactions)`, the Merkle
+    /// `MHT(astria.SequencerBlock.rollup_transactions)`, the Merkle
     /// Tree Hash deriveed from the rollup transactions.
     /// Always 32 bytes.
     #[prost(bytes = "vec", tag = "3")]

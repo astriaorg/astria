@@ -19,13 +19,13 @@ message CelestiaRollupBlob {
   // A list of opaque bytes that are serialized rollup transactions.
   repeated bytes transactions = 3;
   // The proof that these rollup transactions are included in sequencer block.
-  // `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions_proof`.
+  // `astria.sequencerblock.v1alpha1.SequencerBlock.rollup_transactions_proof`.
   astria.sequencer.v1.Proof proof = 4;
 }
 
 // The metadata of a sequencer block that is submitted to celestia.
 //
-// It is created by splitting a `astria.sequencer.v1alpha.SequencerBlock` into a
+// It is created by splitting a `astria.SequencerBlock` into a
 // `CelestiaSequencerBlob` (which can be thought of as a header), and a sequence ofj
 // `CelestiaRollupBlob`s.
 //
@@ -33,14 +33,14 @@ message CelestiaRollupBlob {
 // block hash calculated from `header`.
 message CelestiaSequencerBlob {
   // The original CometBFT header that is the input to this blob's original sequencer block.
-  // Corresponds to `astria.sequencer.v1alpha.SequencerBlock.header`.
+  // Corresponds to `astria.SequencerBlock.header`.
   astria_vendored.tendermint.types.Header header = 1;
   // The rollup IDs for which `CelestiaRollupBlob`s were submitted to celestia.
   // Corresponds to the `astria.sequencer.v1.RollupTransactions.rollup_id` field
-  // and is extracted from `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions`.
+  // and is extracted from `astria.SequencerBlock.rollup_transactions`.
   repeated bytes rollup_ids = 2;
   // The Merkle Tree Hash of the rollup transactions. Corresponds to
-  // `MHT(astria.sequencer.v1alpha.SequencerBlock.rollup_transactions)`, the Merkle
+  // `MHT(astria.SequencerBlock.rollup_transactions)`, the Merkle
   // Tree Hash deriveed from the rollup transactions.
   // Always 32 bytes.
   bytes rollup_transactions_root = 3;

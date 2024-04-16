@@ -279,22 +279,22 @@ fn convert_and_filter_rollup_blobs(
             }
             Ok(rollup_blob) => rollup_blob,
         };
-        // if rollup_blob.sequencer_block_hash() != sequencer_blob.block_hash() {
-        //     debug!(
-        //         block_hash.rollup = hex::encode(rollup_blob.sequencer_block_hash()),
-        //         block_hash.sequencer = hex::encode(sequencer_blob.block_hash()),
-        //         "block hash in rollup blob does not match block hash in sequencer blob; dropping \
-        //          blob"
-        //     );
-        //     continue;
-        // }
-        // if !does_rollup_blob_verify_against_sequencer_blob(&rollup_blob, sequencer_blob) {
-        //     debug!(
-        //         "the rollup blob proof applied to its chain ID and transactions did not match the \
-        //          rollup transactions root in the sequencer blob; dropping the blob"
-        //     );
-        //     continue;
-        // }
+        if rollup_blob.sequencer_block_hash() != sequencer_blob.block_hash() {
+            debug!(
+                block_hash.rollup = hex::encode(rollup_blob.sequencer_block_hash()),
+                block_hash.sequencer = hex::encode(sequencer_blob.block_hash()),
+                "block hash in rollup blob does not match block hash in sequencer blob; dropping \
+                 blob"
+            );
+            continue;
+        }
+        if !does_rollup_blob_verify_against_sequencer_blob(&rollup_blob, sequencer_blob) {
+            debug!(
+                "the rollup blob proof applied to its chain ID and transactions did not match the \
+                 rollup transactions root in the sequencer blob; dropping the blob"
+            );
+            continue;
+        }
         rollups.push(rollup_blob);
     }
     rollups

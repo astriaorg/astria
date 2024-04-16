@@ -331,7 +331,7 @@ impl CelestiaSequencerBlobError {
 
     fn rollup_transactions_not_in_cometbft_block() -> Self {
         Self {
-            kind: CelestiaSequencerBlobErrorKind::RollupTransactiosnNotInCometBftBlock,
+            kind: CelestiaSequencerBlobErrorKind::RollupTransactionsNotInCometBftBlock,
         }
     }
 
@@ -372,7 +372,7 @@ enum CelestiaSequencerBlobErrorKind {
         "the Merkle Tree Hash of the rollup transactions was not a leaf in the sequencer block \
          data"
     )]
-    RollupTransactiosnNotInCometBftBlock,
+    RollupTransactionsNotInCometBftBlock,
     #[error("the Merkle Tree Hash of the rollup IDs was not a leaf in the sequencer block data")]
     RollupIdsNotInCometBftBlock,
 }
@@ -385,21 +385,21 @@ enum CelestiaSequencerBlobErrorKind {
 pub struct UncheckedCelestiaSequencerBlob {
     pub block_hash: [u8; 32],
     /// The original `CometBFT` header that is the input to this blob's original sequencer block.
-    /// Corresponds to `astria.sequencer.v1alpha.SequencerBlock.header`.
+    /// Corresponds to `astria.SequencerBlock.header`.
     pub header: SequencerBlockHeader,
     /// The rollup rollup IDs for which `CelestiaRollupBlob`s were submitted to celestia.
     /// Corresponds to the `astria.sequencer.v1.RollupTransactions.id` field
-    /// and is extracted from `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions`.
+    /// and is extracted from `astria.SequencerBlock.rollup_transactions`.
     pub rollup_ids: Vec<RollupId>,
     /// The proof that the rollup transactions are included in sequencer block.
-    /// Corresponds to `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions_proof`.
+    /// Corresponds to `astria.SequencerBlock.rollup_transactions_proof`.
     pub rollup_transactions_proof: merkle::Proof,
     /// The proof that this sequencer blob includes all rollup IDs of the original sequencer
     /// block it was derived from. This proof together with `Sha256(MHT(rollup_ids))` (Sha256
     /// applied to the Merkle Tree Hash of the rollup ID sequence) must be equal to
     /// `header.data_hash` which itself must match
-    /// `astria.sequencer.v1alpha.SequencerBlock.header.data_hash`. This field corresponds to
-    /// `astria.sequencer.v1alpha.SequencerBlock.rollup_ids_proof`.
+    /// `astria.SequencerBlock.header.data_hash`. This field corresponds to
+    /// `astria.SequencerBlock.rollup_ids_proof`.
     pub rollup_ids_proof: merkle::Proof,
 }
 
@@ -484,17 +484,17 @@ pub struct CelestiaSequencerBlob {
     header: SequencerBlockHeader,
     /// The rollup IDs for which `CelestiaRollupBlob`s were submitted to celestia.
     /// Corresponds to the `astria.sequencer.v1.RollupTransactions.id` field
-    /// and is extracted from `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions`.
+    /// and is extracted from `astria.SequencerBlock.rollup_transactions`.
     rollup_ids: Vec<RollupId>,
     /// The proof that the rollup transactions are included in sequencer block.
-    /// Corresponds to `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions_proof`.
+    /// Corresponds to `astria.SequencerBlock.rollup_transactions_proof`.
     rollup_transactions_proof: merkle::Proof,
     /// The proof that this sequencer blob includes all rollup IDs of the original sequencer
     /// block it was derived from. This proof together with `Sha256(MHT(rollup_ids))` (Sha256
     /// applied to the Merkle Tree Hash of the rollup ID sequence) must be equal to
     /// `header.data_hash` which itself must match
-    /// `astria.sequencer.v1alpha.SequencerBlock.header.data_hash`. This field corresponds to
-    /// `astria.sequencer.v1alpha.SequencerBlock.rollup_ids_proof`.
+    /// `astria.SequencerBlock.header.data_hash`. This field corresponds to
+    /// `astria.SequencerBlock.rollup_ids_proof`.
     rollup_ids_proof: merkle::Proof,
 }
 
@@ -558,20 +558,20 @@ impl CelestiaSequencerBlob {
             rollup_ids_proof,
         } = unchecked;
 
-        // if !rollup_transactions_proof.verify(
-        //     &Sha256::digest(header.rollup_transactions_root()),
-        //     header.data_hash(),
-        // ) {
-        //     return Err(CelestiaSequencerBlobError::rollup_transactions_not_in_cometbft_block());
-        // }
+        if !rollup_transactions_proof.verify(
+            &Sha256::digest(header.rollup_transactions_root()),
+            header.data_hash(),
+        ) {
+            return Err(CelestiaSequencerBlobError::rollup_transactions_not_in_cometbft_block());
+        }
 
-        // if !super::are_rollup_ids_included(
-        //     rollup_ids.iter().copied(),
-        //     &rollup_ids_proof,
-        //     header.data_hash(),
-        // ) {
-        //     return Err(CelestiaSequencerBlobError::rollup_ids_not_in_cometbft_block());
-        // }
+        if !super::are_rollup_ids_included(
+            rollup_ids.iter().copied(),
+            &rollup_ids_proof,
+            header.data_hash(),
+        ) {
+            return Err(CelestiaSequencerBlobError::rollup_ids_not_in_cometbft_block());
+        }
 
         Ok(Self {
             block_hash,
