@@ -63,7 +63,10 @@ fn main() {
         .build_client(true)
         .build_server(true)
         .emit_rerun_if_changed(false)
-        .bytes([".astria.execution.v1alpha2"])
+        .bytes([
+            ".astria.execution.v1alpha2",
+            ".astria.sequencerblock.v1alpha1",
+        ])
         .client_mod_attribute(".", "#[cfg(feature=\"client\")]")
         .server_mod_attribute(".", "#[cfg(feature=\"server\")]")
         .extern_path(
@@ -112,12 +115,7 @@ fn main() {
             ".astria.sequencer.v1.RollupData",
             ".astria.sequencer.v1.RollupTransactions",
             ".astria.primitive.v1.Uint128",
-            ".astria.sequencerblock.v1alpha1.Deposit",
-            ".astria.sequencerblock.v1alpha1.SequencerBlockHeader",
-            ".astria.sequencerblock.v1alpha1.FilteredSequencerBlock",
-            ".astria.sequencerblock.v1alpha1.GetFilteredSequencerBlockRequest",
-            ".astria.sequencerblock.v1alpha1.RollupData",
-            ".astria.sequencerblock.v1alpha1.RollupTransactions",
+            ".astria.sequencerblock.v1alpha1",
         ])
         .unwrap();
 
