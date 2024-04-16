@@ -18,6 +18,9 @@ pub(crate) struct GeneratedCommitments {
 }
 
 impl GeneratedCommitments {
+    /// The total size of the commitments in bytes.
+    pub(crate) const TOTAL_SIZE: usize = 64;
+
     /// Converts the commitments plus external transaction data into a vector of bytes
     /// which can be used as the block's transactions.
     #[must_use]
