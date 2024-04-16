@@ -252,6 +252,23 @@ run-smoke-test:
     exit 1
   fi
 
+  echo "Testing soft commits..."
+  SOFT_RUNS=0
+  soft() {
+    HEX_NUM=$(curl -X POST $ETH_RPC_URL -s -d '{"jsonrpc":"2.0","method":"eth_getBlockByNumber","params":["safe", false],"id":1}' -H 'Content-Type: application/json' | jq -r '.result.number')
+    echo "$(printf "%d" $HEX_NUM)"
+  }
+  while [ $SOFT_RUNS -lt $MAX_RUNS ]; do
+    if [ $(soft) -gt 0 ]; then
+      echo "Soft commit success"
+      exit 0
+    else
+      sleep 1
+    fi
+    SOFT_RUNS=$((SOFT_RUNS+1))
+  done
+  echo "Soft commit failure"
+
   echo "Testing finalization..."
   FINALIZED_RUNS=0
   finalized() {

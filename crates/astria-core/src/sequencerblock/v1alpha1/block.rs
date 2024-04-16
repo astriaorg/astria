@@ -347,8 +347,6 @@ pub struct SequencerBlockHeaderParts {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SequencerBlockHeader {
-    // the cometbft header for this sequencer block
-    // cometbft_header: tendermint::block::header::Header,
     chain_id: tendermint::chain::Id,
     height: tendermint::block::Height,
     time: Time,
