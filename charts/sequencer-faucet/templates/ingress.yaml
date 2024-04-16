@@ -18,7 +18,9 @@ metadata:
     {{- end }}
   {{- with .Values.ingress.annotations }}
   annotations:
+    {{- if not $ingressSupportsIngressClassName }}
     kubernetes.io/ingress.class: {{ $.Values.ingress.className }}
+    {{- end }}
     {{- range $key, $value := . }}
     {{ $key }}: {{ tpl $value $ | quote }}
     {{- end }}

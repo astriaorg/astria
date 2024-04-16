@@ -26,7 +26,6 @@ on:
       - "**-v[0-9]+.[0-9]+.[0-9]+-beta.[0-9]+"
       - "**-v[0-9]+.[0-9]+.[0-9]+-rc[0-9]+"
     
-  # trigger on pull request updates when target is `main` branch
   pull_request:
     types:
       - opened
@@ -80,7 +79,7 @@ jobs:
   
   smoke-test:
     needs: [run_checker, composer, conductor, sequencer, sequencer-relayer]
-    if: github.event_name == 'merge_group' || needs.run_checker.outputs.run_docker == 'true'
+    if: github.repository_owner == 'astriaorg' && (github.event_name == 'merge_group' || needs.run_checker.outputs.run_docker == 'true')
     runs-on: buildjet-8vcpu-ubuntu-2204
     steps:
       - uses: actions/checkout@v4

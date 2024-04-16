@@ -38,10 +38,11 @@ use crate::{
         ApiServer,
     },
     collectors,
-    collectors::Geth,
+    collectors::geth,
     composer,
     executor,
     executor::Executor,
+    grpc,
     grpc::GrpcServer,
     rollup::Rollup,
     Config,
@@ -116,22 +117,24 @@ impl Composer {
         let (composer_status_sender, _) = watch::channel(Status::default());
         let shutdown_token = CancellationToken::new();
 
-        let (executor, executor_handle) = Executor::new(
-            &cfg.sequencer_url,
-            &cfg.private_key,
-            cfg.block_time_ms,
-            cfg.max_bytes_per_bundle,
-            shutdown_token.clone(),
-        )
+        let (executor, executor_handle) = executor::Builder {
+            sequencer_url: cfg.sequencer_url.clone(),
+            private_key: cfg.private_key.clone(),
+            block_time_ms: cfg.block_time_ms,
+            max_bytes_per_bundle: cfg.max_bytes_per_bundle,
+            shutdown_token: shutdown_token.clone(),
+        }
+        .build()
         .wrap_err("executor construction from config failed")?;
 
-        let grpc_server = GrpcServer::new(
-            cfg.grpc_addr,
-            executor_handle.clone(),
-            shutdown_token.clone(),
-        )
+        let grpc_server = grpc::Builder {
+            grpc_addr: cfg.grpc_addr,
+            executor: executor_handle.clone(),
+            shutdown_token: shutdown_token.clone(),
+        }
+        .build()
         .await
-        .wrap_err("grpc collector construction from config failed")?;
+        .wrap_err("grpc server construction from config failed")?;
 
         info!(
             listen_addr = %grpc_server.local_addr().wrap_err("grpc server listener not bound")?,
@@ -156,16 +159,17 @@ impl Composer {
         let geth_collectors = rollups
             .iter()
             .map(|(rollup_name, url)| {
-                let collector = Geth::new(
-                    rollup_name.clone(),
-                    url.clone(),
-                    executor_handle.clone(),
-                    shutdown_token.clone(),
-                );
+                let collector = geth::Builder {
+                    chain_name: rollup_name.clone(),
+                    url: url.clone(),
+                    executor_handle: executor_handle.clone(),
+                    shutdown_token: shutdown_token.clone(),
+                }
+                .build();
                 (rollup_name.clone(), collector)
             })
             .collect::<HashMap<_, _>>();
-        let geth_collector_statuses: HashMap<String, watch::Receiver<collectors::geth::Status>> =
+        let geth_collector_statuses: HashMap<String, watch::Receiver<geth::Status>> =
             geth_collectors
                 .iter()
                 .map(|(rollup_name, collector)| (rollup_name.clone(), collector.subscribe()))
@@ -517,7 +521,13 @@ pub(super) fn reconnect_exited_collector(
         return;
     };
 
-    let collector = Geth::new(rollup.clone(), url.clone(), executor_handle, shutdown_token);
+    let collector = geth::Builder {
+        chain_name: rollup.clone(),
+        url: url.clone(),
+        executor_handle,
+        shutdown_token,
+    }
+    .build();
     collector_statuses.insert(rollup.clone(), collector.subscribe());
     collector_tasks.spawn(rollup, collector.run_until_stopped());
 }
