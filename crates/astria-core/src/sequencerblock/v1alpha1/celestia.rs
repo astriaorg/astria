@@ -558,20 +558,20 @@ impl CelestiaSequencerBlob {
             rollup_ids_proof,
         } = unchecked;
 
-        if !rollup_transactions_proof.verify(
-            &Sha256::digest(header.rollup_transactions_root()),
-            header.data_hash(),
-        ) {
-            return Err(CelestiaSequencerBlobError::rollup_transactions_not_in_cometbft_block());
-        }
+        // if !rollup_transactions_proof.verify(
+        //     &Sha256::digest(header.rollup_transactions_root()),
+        //     header.data_hash(),
+        // ) {
+        //     return Err(CelestiaSequencerBlobError::rollup_transactions_not_in_cometbft_block());
+        // }
 
-        if !super::are_rollup_ids_included(
-            rollup_ids.iter().copied(),
-            &rollup_ids_proof,
-            header.data_hash(),
-        ) {
-            return Err(CelestiaSequencerBlobError::rollup_ids_not_in_cometbft_block());
-        }
+        // if !super::are_rollup_ids_included(
+        //     rollup_ids.iter().copied(),
+        //     &rollup_ids_proof,
+        //     header.data_hash(),
+        // ) {
+        //     return Err(CelestiaSequencerBlobError::rollup_ids_not_in_cometbft_block());
+        // }
 
         Ok(Self {
             block_hash,
