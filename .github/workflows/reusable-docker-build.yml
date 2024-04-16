@@ -53,6 +53,7 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: depot/setup-action@v1
       # Generate correct tabs and labels
       - name: Docker metadata
         id: metadata
