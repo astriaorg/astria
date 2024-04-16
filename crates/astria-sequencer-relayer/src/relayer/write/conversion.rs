@@ -59,8 +59,8 @@ pub(super) fn convert(block: SequencerBlock) -> eyre::Result<Converted> {
     // Allocate extra space: one blob for the sequencer blob "header",
     // the rest for the rollup blobs.
     let mut blobs = Vec::with_capacity(rollup_blobs.len() + 1);
-    let sequencer_namespace = celestia_client::celestia_namespace_v0_from_str(
-        sequencer_blob.header().chain_id().as_str(),
+    let sequencer_namespace = celestia_client::celestia_namespace_v0_from_bytes(
+        sequencer_blob.header().chain_id().as_bytes(),
     );
 
     let header_blob = Blob::new(

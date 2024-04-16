@@ -550,6 +550,11 @@ impl CelestiaSequencerBlob {
         &self.header
     }
 
+    #[must_use]
+    pub fn contains_rollup_id(&self, rollup_id: RollupId) -> bool {
+        self.rollup_ids.contains(&rollup_id)
+    }
+
     /// Returns the Merkle Tree Hash constructed from the rollup transactions of the original
     /// [`SequencerBlock`] this blob was derived from.
     #[must_use]

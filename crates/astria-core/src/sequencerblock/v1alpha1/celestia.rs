@@ -524,6 +524,11 @@ impl CelestiaSequencerBlob {
         &self.header
     }
 
+    #[must_use]
+    pub fn contains_rollup_id(&self, rollup_id: RollupId) -> bool {
+        self.rollup_ids.contains(&rollup_id)
+    }
+    
     /// Converts into the unchecked representation fo this type.
     #[must_use]
     pub fn into_unchecked(self) -> UncheckedCelestiaSequencerBlob {
