@@ -216,7 +216,7 @@ deploy-smoke-test tag=defaultTag:
   @echo "Setting up single astria sequencer..." && helm install \
     -n astria-validator-single single-sequencer-chart ./charts/sequencer \
     -f dev/values/validators/single.yml \
-    {{ if tag != '' { replace('--set images.sequencer.devTag=# --set sequencer-relayer.images.sequencer-relayer.devTag=#', '#', tag) } else { '' } }} \
+    {{ if tag != '' { replace('--set images.sequencer.devTag=# --set images.sequencer-relayer.devTag=#', '#', tag) } else { '' } }} \
     --create-namespace > /dev/null
   @just wait-for-sequencer > /dev/null
   @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart ./charts/evm-rollup -f dev/values/rollup/dev.yaml \
