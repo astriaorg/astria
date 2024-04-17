@@ -14,7 +14,7 @@
 apiVersion: {{ include "hermes.ingress.apiVersion" $ }}
 kind: Ingress
 metadata:
-  name: {{{ include "hermes.fullname" $  }}-{{ $service }}-ingress
+  name: {{ include "hermes.fullname" $  }}-{{ $service }}-ingress
   namespace: {{ include "hermes.namespace" $  }}
   labels:
     {{- with $ingress.labels }}

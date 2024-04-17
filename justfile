@@ -146,9 +146,9 @@ deploy-sequencers: (deploy-sequencer "node0") (deploy-sequencer "node1") (deploy
 deploy-hermes-local:
   helm install hermes-local-chart ./charts/hermes \
     -n astria-dev-cluster \
-    -f dev/values/hermes/local.yaml
+    -f dev/values/hermes/local.yml
 delete-hermes-local:
-  @just delete chart hermes-local-chart
+  @just delete chart hermes-local
 
 delete-sequencer name=validatorName:
   @just delete chart {{name}}-sequencer astria-validator-{{name}}

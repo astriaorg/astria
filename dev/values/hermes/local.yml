@@ -108,13 +108,13 @@ chains:
         resourceName: projects/$PROJECT_ID/secrets/celestia-ibc-relay-key/versions/latest
         filename: celestia.json
         key: token
-    gasPrice: 0.0026
     denom: "utia"
-    gasMultiplier: 1.1
-    defaultGas: 1000000
-    maxGas: 10000000
+    gasPrice: 0.1
+    gasMultiplier: 1.5
+    defaultGas: "100000"
+    maxGas: "400000"
     maxMsgNum: 30
-    maxTxSize: 2097152
-    clockDrift: 20s
-    maxBlockTime: 10s
-    trustThreshold: 2/3
+    maxTxSize: "180000"
+    clockDrift: 5s
+    maxBlockTime: 30s
+    trustThreshold: 1/3

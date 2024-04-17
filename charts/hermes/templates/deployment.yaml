@@ -30,10 +30,10 @@ spec:
           - --b-port={{ .Values.createChannel.portB }}
         volumeMounts:
         - mountPath: /home/hermes/.hermes
-          name: hermes-config-volume
+          name: {{ include "hermes.fullname" . }}-config-volume
         {{- range $chainId, $chain := .Values.chains }}
         - mountPath: "/home/hermes/.hermes/keys/{{ $chainId }}/keyring-test"
-          name: hermes-{{$chainId}}-key-volume
+          name: {{ include "hermes.fullname" $ }}-{{$chainId}}-key-volume
         {{- end }}
       {{- end }}
       containers:
@@ -45,7 +45,7 @@ spec:
             name: {{ include "hermes.fullname" . }}-config-volume
           {{- range $chainId, $chain := .Values.chains }}
           - mountPath: "/home/hermes/.hermes/keys/{{ $chainId }}/keyring-test"
-            name: {{ include "hermes.fullname" . }}-{{$chainId}}-key-volume
+            name: {{ include "hermes.fullname" $ }}-{{$chainId}}-key-volume
           {{- end }}
           ports:
             - containerPort: {{ .Values.ports.rest }}
@@ -59,15 +59,15 @@ spec:
           configMap:
             name: {{ include "hermes.fullname" . }}-config
         {{- range $chainId, $chain := .Values.chains }}
-        - name: {{ include "hermes.fullname" . }}-{{$chainId}}-key-volume
+        - name: {{ include "hermes.fullname" $ }}-{{$chainId}}-key-volume
           {{- if $.Values.secretProvider.enabled }}
           csi:
             driver: secrets-store.csi.k8s.io
             readOnly: true
             volumeAttributes:
-              secretProviderClass: {{ include "hermes.fullname" . }}-{{ $chainId }}-secrets-store
+              secretProviderClass: {{ include "hermes.fullname" $ }}-{{ $chainId }}-secrets-store
           {{- else }}
           configMap:
-            name: {{ include "hermes.fullname" . }}-{{$chainId}}-key
+            name: {{ include "hermes.fullname" $ }}-{{$chainId}}-key
           {{- end }}
         {{- end}}

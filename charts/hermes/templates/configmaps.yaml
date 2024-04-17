@@ -12,7 +12,7 @@ data:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "hermes.fullname" . }}-{{$chainId}}-key
+  name: {{ include "hermes.fullname" $ }}-{{$chainId}}-key
   namespace: {{ include "hermes.namespace" $ }}
 data:
   {{ $chain.key.name }}.json: |
