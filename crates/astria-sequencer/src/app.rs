@@ -30,6 +30,7 @@ use sha2::{
     Digest as _,
     Sha256,
 };
+use telemetry::display::json;
 use tendermint::{
     abci::{
         self,
@@ -73,9 +74,12 @@ use crate::{
     component::Component as _,
     genesis::GenesisState,
     ibc::component::IbcComponent,
-    proposal::commitment::{
-        generate_rollup_datas_commitment,
-        GeneratedCommitments,
+    proposal::{
+        block_size_constraints::BlockSizeConstraints,
+        commitment::{
+            generate_rollup_datas_commitment,
+            GeneratedCommitments,
+        },
     },
     state_ext::{
         StateReadExt as _,
@@ -87,9 +91,6 @@ use crate::{
 
 /// The inter-block state being written to by the application.
 type InterBlockState = Arc<StateDelta<Snapshot>>;
-
-/// The maximum number of bytes allowed in sequencer action data.
-const MAX_SEQUENCE_DATA_BYTES_PER_BLOCK: usize = 256_000;
 
 /// The Sequencer application, written as a bundle of [`Component`]s.
 ///
@@ -242,12 +243,21 @@ impl App {
         self.validator_address = Some(prepare_proposal.proposer_address);
         self.update_state_for_new_round(&storage);
 
+        let mut block_size_constraints = BlockSizeConstraints::new(
+            usize::try_from(prepare_proposal.max_tx_bytes)
+                .context("failed to convert max_tx_bytes to usize")?,
+        )
+        .context("failed to create block size constraints")?;
+
         let txs = self
             .pre_execute_transactions(prepare_proposal.into())
             .await
             .context("failed to prepare for executing block")?;
 
-        let (signed_txs, txs_to_include) = self.execute_transactions_before_finalization(txs).await;
+        let (signed_txs, txs_to_include) = self
+            .execute_transactions_before_finalization(txs, &mut block_size_constraints)
+            .await
+            .context("failed to execute transactions")?;
 
         let deposits = self
             .state
@@ -325,7 +335,17 @@ impl App {
             .await
             .context("failed to prepare for executing block")?;
 
-        let (signed_txs, txs_to_include) = self.execute_transactions_before_finalization(txs).await;
+        // we don't care about the cometbft max_tx_bytes here, as cometbft would have
+        // rejected the proposal if it was too large.
+        // however, we should still validate the other constraints, namely
+        // the max sequenced data bytes.
+        let mut block_size_constraints = BlockSizeConstraints::new(usize::MAX)
+            .context("failed to create block size constraints")?;
+
+        let (signed_txs, txs_to_include) = self
+            .execute_transactions_before_finalization(txs, &mut block_size_constraints)
+            .await
+            .context("failed to execute transactions")?;
 
         // all txs in the proposal should be deserializable and executable
         // if any txs were not deserializeable or executable, they would not have been
@@ -361,7 +381,7 @@ impl App {
         Ok(())
     }
 
-    /// Executes the given transaction data, writing it to the app's `StateDelta`.
+    /// Executes and filters the given transaction data, writing it to the app's `StateDelta`.
     ///
     /// The result of execution of every transaction which is successfully decoded
     /// is stored in `self.execution_results`.
@@ -374,19 +394,34 @@ impl App {
     async fn execute_transactions_before_finalization(
         &mut self,
         txs: Vec<bytes::Bytes>,
-    ) -> (Vec<SignedTransaction>, Vec<bytes::Bytes>) {
-        let mut signed_txs = Vec::with_capacity(txs.len());
+        block_size_constraints: &mut BlockSizeConstraints,
+    ) -> anyhow::Result<(Vec<SignedTransaction>, Vec<bytes::Bytes>)> {
+        let mut signed_txs: Vec<SignedTransaction> = Vec::with_capacity(txs.len());
         let mut validated_txs = Vec::with_capacity(txs.len());
-        let mut block_sequence_data_bytes: usize = 0;
         let mut excluded_tx_count: usize = 0;
         let mut execution_results = Vec::with_capacity(txs.len());
 
         for tx in txs {
+            let tx_hash = Sha256::digest(&tx);
+
+            // don't include tx if it would make the cometBFT block too large
+            if !block_size_constraints.cometbft_has_space(tx.len()) {
+                debug!(
+                    transaction_hash = %telemetry::display::base64(&tx_hash),
+                    block_size_constraints = %json(&block_size_constraints),
+                    tx_data_bytes = tx.len(),
+                    "excluding transactions: max cometBFT data limit reached"
+                );
+                excluded_tx_count += 1;
+                continue;
+            }
+
+            // try to decode the tx
             let signed_tx = match signed_transaction_from_bytes(&tx) {
                 Err(e) => {
                     debug!(
                         error = AsRef::<dyn std::error::Error>::as_ref(&e),
-                        "failed to decode deliver tx payload to signed transaction; ignoring it",
+                        "failed to decode deliver tx payload to signed transaction; excluding it",
                     );
                     excluded_tx_count += 1;
                     continue;
@@ -394,8 +429,7 @@ impl App {
                 Ok(tx) => tx,
             };
 
-            let tx_hash = Sha256::digest(&tx);
-
+            // check if tx's sequence data will fit into sequence block
             let tx_sequence_data_bytes = signed_tx
                 .unsigned_transaction()
                 .actions
@@ -403,15 +437,11 @@ impl App {
                 .filter_map(Action::as_sequence)
                 .fold(0usize, |acc, seq| acc + seq.data.len());
 
-            // Don't include tx if it would make the sequenced block data too large.
-            if block_sequence_data_bytes + tx_sequence_data_bytes
-                > MAX_SEQUENCE_DATA_BYTES_PER_BLOCK
-            {
+            if !block_size_constraints.sequencer_has_space(tx_sequence_data_bytes) {
                 debug!(
                     transaction_hash = %telemetry::display::base64(&tx_hash),
-                    included_data_bytes = block_sequence_data_bytes,
+                    block_size_constraints = %json(&block_size_constraints),
                     tx_data_bytes = tx_sequence_data_bytes,
-                    max_data_bytes = MAX_SEQUENCE_DATA_BYTES_PER_BLOCK,
                     "excluding transaction: max block sequenced data limit reached"
                 );
                 excluded_tx_count += 1;
@@ -425,9 +455,14 @@ impl App {
                         events,
                         ..Default::default()
                     });
+                    block_size_constraints
+                        .sequencer_checked_add(tx_sequence_data_bytes)
+                        .context("error growing sequencer block size")?;
+                    block_size_constraints
+                        .cometbft_checked_add(tx.len())
+                        .context("error growing cometBFT block size")?;
                     signed_txs.push(signed_tx);
                     validated_txs.push(tx);
-                    block_sequence_data_bytes += tx_sequence_data_bytes;
                 }
                 Err(e) => {
                     debug!(
@@ -460,7 +495,7 @@ impl App {
         }
 
         self.execution_results = Some(execution_results);
-        (signed_txs, validated_txs)
+        Ok((signed_txs, validated_txs))
     }
 
     // sets up the state for execution of the block's transactions.
@@ -566,6 +601,7 @@ impl App {
 
         // When the hash is not empty, we have already executed and cached the results
         let txs = if self.executed_proposal_hash.is_empty() {
+            // w ehaven't executed anything yet, so set up the state for execution.
             // this function returns the txs inside `finalize_block` back to us unmodified.
             let txs = self
                 .pre_execute_transactions(finalize_block.into())
@@ -849,7 +885,6 @@ impl App {
         state_tx.clear_block_fees().await;
 
         let events = self.apply(state_tx);
-
         Ok(abci::response::EndBlock {
             validator_updates: validator_updates.into_tendermint_validator_updates(),
             events,
@@ -869,6 +904,11 @@ impl App {
             app_hash = %telemetry::display::base64(&app_hash),
             "finished committing state",
         );
+        self.app_hash = app_hash
+            .0
+            .to_vec()
+            .try_into()
+            .expect("root hash to app hash conversion must succeed");
 
         // Get the latest version of the state, now that we've committed it.
         self.state = Arc::new(StateDelta::new(storage.latest_snapshot()));
@@ -2442,6 +2482,154 @@ mod test {
         assert_eq!(
             finalize_block_after_prepare_proposal_result.app_hash,
             finalize_block_result.app_hash
+        );
+    }
+
+    #[tokio::test]
+    async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
+        let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
+
+        // update storage with initalized genesis app state
+        let intermediate_state = StateDelta::new(storage.latest_snapshot());
+        let state = Arc::try_unwrap(std::mem::replace(
+            &mut app.state,
+            Arc::new(intermediate_state),
+        ))
+        .expect("we have exclusive ownership of the State at commit()");
+        storage
+            .commit(state)
+            .await
+            .expect("applying genesis state should be okay");
+
+        // create txs which will cause cometBFT overflow
+        let (alice_signing_key, _) = get_alice_signing_key_and_address();
+        let tx_pass = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![
+                SequenceAction {
+                    rollup_id: RollupId::from([1u8; 32]),
+                    data: vec![1u8; 100_000],
+                    fee_asset_id: get_native_asset().id(),
+                }
+                .into(),
+            ],
+        }
+        .into_signed(&alice_signing_key);
+        let tx_overflow = UnsignedTransaction {
+            nonce: 1,
+            actions: vec![
+                SequenceAction {
+                    rollup_id: RollupId::from([1u8; 32]),
+                    data: vec![1u8; 100_000],
+                    fee_asset_id: get_native_asset().id(),
+                }
+                .into(),
+            ],
+        }
+        .into_signed(&alice_signing_key);
+
+        let txs: Vec<bytes::Bytes> = vec![
+            tx_pass.to_raw().encode_to_vec().into(),
+            tx_overflow.to_raw().encode_to_vec().into(),
+        ];
+
+        // send to prepare_proposal
+        let prepare_args = abci::request::PrepareProposal {
+            max_tx_bytes: 200_000,
+            txs,
+            local_last_commit: None,
+            misbehavior: vec![],
+            height: Height::default(),
+            time: Time::now(),
+            next_validators_hash: Hash::default(),
+            proposer_address: account::Id::new([1u8; 20]),
+        };
+
+        let result = app
+            .prepare_proposal(prepare_args, storage)
+            .await
+            .expect("too large transactions should not cause prepare proposal to fail");
+
+        // see only first tx made it in
+        assert_eq!(
+            result.txs.len(),
+            3,
+            "total transaciton length should be three, including the two commitments and the one \
+             tx that fit"
+        );
+    }
+
+    #[tokio::test]
+    async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
+        let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
+
+        // update storage with initalized genesis app state
+        let intermediate_state = StateDelta::new(storage.latest_snapshot());
+        let state = Arc::try_unwrap(std::mem::replace(
+            &mut app.state,
+            Arc::new(intermediate_state),
+        ))
+        .expect("we have exclusive ownership of the State at commit()");
+        storage
+            .commit(state)
+            .await
+            .expect("applying genesis state should be okay");
+
+        // create txs which will cause sequencer overflow (max is currently 256_000 bytes)
+        let (alice_signing_key, _) = get_alice_signing_key_and_address();
+        let tx_pass = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![
+                SequenceAction {
+                    rollup_id: RollupId::from([1u8; 32]),
+                    data: vec![1u8; 200_000],
+                    fee_asset_id: get_native_asset().id(),
+                }
+                .into(),
+            ],
+        }
+        .into_signed(&alice_signing_key);
+        let tx_overflow = UnsignedTransaction {
+            nonce: 1,
+            actions: vec![
+                SequenceAction {
+                    rollup_id: RollupId::from([1u8; 32]),
+                    data: vec![1u8; 100_000],
+                    fee_asset_id: get_native_asset().id(),
+                }
+                .into(),
+            ],
+        }
+        .into_signed(&alice_signing_key);
+
+        let txs: Vec<bytes::Bytes> = vec![
+            tx_pass.to_raw().encode_to_vec().into(),
+            tx_overflow.to_raw().encode_to_vec().into(),
+        ];
+
+        // send to prepare_proposal
+        let prepare_args = abci::request::PrepareProposal {
+            max_tx_bytes: 600_000, // make large enough to overflow sequencer bytes first
+            txs,
+            local_last_commit: None,
+            misbehavior: vec![],
+            height: Height::default(),
+            time: Time::now(),
+            next_validators_hash: Hash::default(),
+            proposer_address: account::Id::new([1u8; 20]),
+        };
+
+        let result = app
+            .prepare_proposal(prepare_args, storage)
+            .await
+            .expect("too large transactions should not cause prepare proposal to fail");
+
+        // see only first tx made it in
+        assert_eq!(
+            result.txs.len(),
+            3,
+            "total transaciton length should be three, including the two commitments and the one \
+             tx that fit"
         );
     }
 }

@@ -349,9 +349,9 @@ pub(crate) trait StateWriteExt: StateWrite {
                 .context("failed to serialize rollup IDs list")?,
         );
 
-        let block_hash = block.block_hash();
         let key = sequencer_block_header_by_hash_key(&block.block_hash());
         let SequencerBlockParts {
+            block_hash,
             header,
             rollup_transactions,
             rollup_transactions_proof,

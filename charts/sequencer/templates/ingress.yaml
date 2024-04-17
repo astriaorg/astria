@@ -26,7 +26,6 @@ metadata:
     {{- end }}
   {{- end }}
   {{- else }}
-    kubernetes.io/ingress.class: nginx
   {{- end }}
 spec:
   {{- if and $ingressSupportsIngressClassName $ingress.ingressClassName }}
@@ -103,7 +102,6 @@ metadata:
     {{- end }}
   {{- end }}
   {{- else }}
-    kubernetes.io/ingress.class: nginx
   {{- end }}
 spec:
   {{- if and $ingressSupportsIngressClassName $ingress.ingressClassName }}

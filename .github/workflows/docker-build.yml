@@ -26,15 +26,12 @@ on:
       - "**-v[0-9]+.[0-9]+.[0-9]+-beta.[0-9]+"
       - "**-v[0-9]+.[0-9]+.[0-9]+-rc[0-9]+"
     
-  # trigger on pull request updates when target is `main` branch
   pull_request:
     types:
       - opened
       - synchronize
       - reopened
       - labeled
-    branches:
-      - "main"
 
 jobs:
   run_checker:
@@ -82,7 +79,7 @@ jobs:
   
   smoke-test:
     needs: [run_checker, composer, conductor, sequencer, sequencer-relayer]
-    if: github.event_name == 'merge_group' || needs.run_checker.outputs.run_docker == 'true'
+    if: github.repository_owner == 'astriaorg' && (github.event_name == 'merge_group' || needs.run_checker.outputs.run_docker == 'true')
     runs-on: buildjet-8vcpu-ubuntu-2204
     steps:
       - uses: actions/checkout@v4
@@ -92,11 +89,6 @@ jobs:
         uses: helm/kind-action@v1 
         with:
           install_only: true
-      - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1
-        with:
-          version: nightly-14daacfe40565b19bdfc3b78c6cf1775f54529da
-          cache: false
       - name: Log in to GHCR
         uses: docker/login-action@v2
         with:
@@ -109,7 +101,7 @@ jobs:
           TAG=sha-$(git rev-parse --short HEAD)
           just deploy cluster
           kubectl create secret generic regcred --from-file=.dockerconfigjson=$HOME/.docker/config.json --type=kubernetes.io/dockerconfigjson
-          echo "Deploying with astria images tagged $TAG"
+          echo -e "\n\nDeploying with astria images tagged $TAG"
           just deploy smoke-test $TAG
       - name: Run Smoke test
         timeout-minutes: 1

@@ -67,7 +67,7 @@ fn convert(block: SequencerBlock, blobs: &mut Vec<Blob>) -> Result<(), ToBlobsEr
     // the rest for the rollup blobs.
     blobs.reserve(rollup_blobs.len() + 1);
     let sequencer_namespace =
-        crate::celestia_namespace_v0_from_cometbft_str(sequencer_blob.header().chain_id().as_str());
+        crate::celestia_namespace_v0_from_str(sequencer_blob.header().chain_id().as_str());
 
     let header_blob = Blob::new(
         sequencer_namespace,

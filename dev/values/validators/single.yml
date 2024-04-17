@@ -10,10 +10,10 @@ sequencer-relayer:
       cometbftRpc: http://node0-sequencer-rpc-service.astria-dev-cluster.svc.cluster.local:26657
       sequencerGrpc: http://node0-sequencer-grpc-service.astria-dev-cluster.svc.cluster.local:8080
   storage:
-    enabled: true
+    enabled: false
 
 storage:
-  enabled: true
+  enabled: false
 
 ingress:
   rpc:
