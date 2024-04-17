@@ -560,6 +560,7 @@ dependencies = [
  "humantime",
  "hyper",
  "insta",
+ "itertools 0.11.0",
  "once_cell",
  "pin-project-lite",
  "prost",
@@ -593,6 +594,7 @@ dependencies = [
  "astria-config",
  "astria-core",
  "astria-eyre",
+ "astria-grpc-mock",
  "astria-merkle",
  "astria-sequencer-client",
  "astria-telemetry",
@@ -611,6 +613,7 @@ dependencies = [
  "itertools 0.12.1",
  "itoa",
  "jsonrpsee",
+ "once_cell",
  "pbjson-types",
  "pin-project-lite",
  "prost",
@@ -626,6 +629,7 @@ dependencies = [
  "tracing",
  "tracing-futures",
  "tryhard",
+ "wiremock",
 ]
 
 [[package]]

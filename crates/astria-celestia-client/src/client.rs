@@ -260,7 +260,7 @@ fn convert_and_filter_rollup_blobs(
                 Err(e) => {
                     debug!(
                         error = &e as &dyn std::error::Error,
-                        target = "astria.sequencer.v1alpha.CelestiaRollupBlob",
+                        target = "astria.sequencerblock.v1alpha1.CelestiaRollupBlob",
                         blob.commitment = %Base64Display::new(&blob.commitment.0, &STANDARD),
                         "failed decoding blob as protobuf; skipping"
                     );

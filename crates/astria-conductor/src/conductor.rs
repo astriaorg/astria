@@ -5,7 +5,6 @@ use astria_eyre::eyre::{
     eyre,
     WrapErr as _,
 };
-use celestia_client::celestia_types::nmt::Namespace;
 use itertools::Itertools as _;
 use sequencer_client::HttpClient;
 use tokio::{
@@ -23,6 +22,7 @@ use tokio_util::{
 use tracing::{
     error,
     info,
+    instrument,
     warn,
 };
 
@@ -53,7 +53,7 @@ impl Conductor {
     /// Returns an error in the following cases if one of its constituent
     /// actors could not be spawned (executor, sequencer reader, or data availability reader).
     /// This usually happens if the actors failed to connect to their respective endpoints.
-    pub async fn new(cfg: Config) -> eyre::Result<Self> {
+    pub fn new(cfg: Config) -> eyre::Result<Self> {
         let mut tasks = JoinMap::new();
 
         let sequencer_cometbft_client = HttpClient::new(&*cfg.sequencer_cometbft_url)
@@ -95,19 +95,12 @@ impl Conductor {
         }
 
         if !cfg.execution_commit_level.is_soft_only() {
-            // Sequencer namespace is defined by the chain id of attached sequencer node
-            // which can be fetched from any block header.
-            let sequencer_namespace = get_sequencer_namespace(sequencer_cometbft_client.clone())
-                .await
-                .wrap_err("failed to get sequencer namespace")?;
-
             let reader = celestia::Builder {
                 celestia_http_endpoint: cfg.celestia_node_http_url,
                 celestia_token: cfg.celestia_bearer_token,
                 celestia_block_time: Duration::from_millis(cfg.celestia_block_time_ms),
                 executor: executor_handle.clone(),
                 sequencer_cometbft_client: sequencer_cometbft_client.clone(),
-                sequencer_namespace,
                 shutdown: shutdown.clone(),
             }
             .build()
@@ -126,7 +119,10 @@ impl Conductor {
     ///
     /// # Panics
     /// Panics if it could not install a signal handler.
+    #[instrument(skip_all)]
     pub async fn run_until_stopped(mut self) {
+        info!("conductor is running");
+
         let mut sigterm = signal(SignalKind::terminate()).expect(
             "setting a SIGTERM listener should always work on unix; is this running on unix?",
         );
@@ -187,38 +183,4 @@ impl Conductor {
         }
         info!("shutting down");
     }
-}
-
-/// Get the sequencer namespace from the latest sequencer block.
-async fn get_sequencer_namespace(client: HttpClient) -> eyre::Result<Namespace> {
-    use sequencer_client::SequencerClientExt as _;
-
-    let retry_config = tryhard::RetryFutureConfig::new(10)
-        .exponential_backoff(Duration::from_millis(100))
-        .max_delay(Duration::from_secs(20))
-        .on_retry(
-            |attempt: u32,
-             next_delay: Option<Duration>,
-             error: &sequencer_client::extension_trait::Error| {
-                let wait_duration = next_delay
-                    .map(humantime::format_duration)
-                    .map(tracing::field::display);
-                warn!(
-                    attempt,
-                    wait_duration,
-                    error = error as &dyn std::error::Error,
-                    "attempt to grab sequencer block failed; retrying after backoff",
-                );
-                futures::future::ready(())
-            },
-        );
-
-    let block = tryhard::retry_fn(|| client.latest_sequencer_block())
-        .with_config(retry_config)
-        .await
-        .wrap_err("failed to get block from sequencer after 10 attempts")?;
-
-    Ok(celestia_client::celestia_namespace_v0_from_cometbft_str(
-        block.header().chain_id().as_str(),
-    ))
 }
