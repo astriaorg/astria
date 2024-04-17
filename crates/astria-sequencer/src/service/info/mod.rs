@@ -13,8 +13,8 @@ use futures::{
     Future,
     FutureExt,
 };
-use penumbra_tower_trace::v037::RequestExt as _;
-use tendermint::v0_37::abci::{
+use penumbra_tower_trace::v038::RequestExt as _;
+use tendermint::v0_38::abci::{
     request,
     response::{
         self,
@@ -27,7 +27,7 @@ use tower::Service;
 use tower_abci::BoxError;
 use tracing::{
     instrument,
-    Instrument,
+    Instrument as _,
 };
 
 mod abci_query_router;
@@ -153,7 +153,7 @@ mod test {
         Address,
     };
     use cnidarium::StateDelta;
-    use tendermint::v0_37::abci::{
+    use tendermint::v0_38::abci::{
         request,
         InfoRequest,
         InfoResponse,
