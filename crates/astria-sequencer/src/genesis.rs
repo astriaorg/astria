@@ -1,4 +1,4 @@
-use astria_core::sequencer::v1::{
+use astria_core::primitive::v1::{
     asset,
     Address,
 };

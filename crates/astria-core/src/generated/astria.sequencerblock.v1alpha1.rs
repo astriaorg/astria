@@ -1,24 +1,3 @@
-/// A proof for a tree of the given size containing the audit path from a leaf to the root.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct Proof {
-    /// A sequence of 32 byte hashes used to reconstruct a Merkle Tree Hash.
-    #[prost(bytes = "vec", tag = "1")]
-    pub audit_path: ::prost::alloc::vec::Vec<u8>,
-    /// The index of the leaf this proof applies to.
-    #[prost(uint64, tag = "2")]
-    pub leaf_index: u64,
-    /// The total size of the tree this proof was derived from.
-    #[prost(uint64, tag = "3")]
-    pub tree_size: u64,
-}
-impl ::prost::Name for Proof {
-    const NAME: &'static str = "Proof";
-    const PACKAGE: &'static str = "astria.sequencerblock.v1alpha1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)
-    }
-}
 /// `RollupTransactions` are a sequence of opaque bytes together with a 32 byte
 /// identifier of that rollup.
 ///
@@ -35,9 +14,9 @@ pub struct RollupTransactions {
     #[prost(bytes = "vec", repeated, tag = "2")]
     pub transactions: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
     /// The proof that these rollup transactions are included in sequencer block.
-    /// `astria.SequencerBlock.rollup_transactions_proof`.
+    /// `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions_proof`.
     #[prost(message, optional, tag = "3")]
-    pub proof: ::core::option::Option<Proof>,
+    pub proof: ::core::option::Option<super::super::primitive::v1::Proof>,
 }
 impl ::prost::Name for RollupTransactions {
     const NAME: &'static str = "RollupTransactions";
@@ -63,7 +42,9 @@ pub struct SequencerBlock {
     /// `MTH(rollup_transactions)` is the Merkle Tree Hash derived from the
     /// rollup transactions.
     #[prost(message, optional, tag = "3")]
-    pub rollup_transactions_proof: ::core::option::Option<Proof>,
+    pub rollup_transactions_proof: ::core::option::Option<
+        super::super::primitive::v1::Proof,
+    >,
     /// The proof that the rollup IDs listed in `rollup_transactions` are included
     /// in the CometBFT block this sequencer block is derived form.
     ///
@@ -74,7 +55,7 @@ pub struct SequencerBlock {
     /// `MTH(rollup_ids)` is the Merkle Tree Hash derived from the rollup IDs listed in
     /// the rollup transactions.
     #[prost(message, optional, tag = "4")]
-    pub rollup_ids_proof: ::core::option::Option<Proof>,
+    pub rollup_ids_proof: ::core::option::Option<super::super::primitive::v1::Proof>,
     /// / The block hash of the cometbft block that corresponds to this sequencer block.
     #[prost(bytes = "vec", tag = "5")]
     pub block_hash: ::prost::alloc::vec::Vec<u8>,
@@ -173,7 +154,9 @@ pub struct FilteredSequencerBlock {
     /// `MTH(rollup_transactions)` is the Merkle Tree Hash derived from the
     /// rollup transactions.
     #[prost(message, optional, tag = "4")]
-    pub rollup_transactions_proof: ::core::option::Option<Proof>,
+    pub rollup_transactions_proof: ::core::option::Option<
+        super::super::primitive::v1::Proof,
+    >,
     /// The rollup IDs for which `CelestiaRollupBlob`s were submitted to celestia.
     /// Corresponds to the `astria.sequencer.v1.RollupTransactions.rollup_id` field
     /// and is extracted from `astria.SequencerBlock.rollup_transactions`.
@@ -191,7 +174,7 @@ pub struct FilteredSequencerBlock {
     /// `MTH(rollup_ids)` is the Merkle Tree Hash derived from the rollup IDs listed in
     /// the rollup transactions.
     #[prost(message, optional, tag = "6")]
-    pub rollup_ids_proof: ::core::option::Option<Proof>,
+    pub rollup_ids_proof: ::core::option::Option<super::super::primitive::v1::Proof>,
 }
 impl ::prost::Name for FilteredSequencerBlock {
     const NAME: &'static str = "FilteredSequencerBlock";
@@ -249,9 +232,9 @@ pub struct CelestiaRollupBlob {
     #[prost(bytes = "vec", repeated, tag = "3")]
     pub transactions: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
     /// The proof that these rollup transactions are included in sequencer block.
-    /// `astria.SequencerBlock.rollup_transactions_proof`.
+    /// `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions_proof`.
     #[prost(message, optional, tag = "4")]
-    pub proof: ::core::option::Option<Proof>,
+    pub proof: ::core::option::Option<super::super::primitive::v1::Proof>,
 }
 impl ::prost::Name for CelestiaRollupBlob {
     const NAME: &'static str = "CelestiaRollupBlob";
@@ -283,13 +266,15 @@ pub struct CelestiaSequencerBlob {
     #[prost(bytes = "vec", repeated, tag = "3")]
     pub rollup_ids: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
     /// The proof that the rollup transactions are included in sequencer block.
-    /// Corresponds to `astria.SequencerBlock.rollup_transactions_proof`.
+    /// Corresponds to `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions_proof`.
     #[prost(message, optional, tag = "4")]
-    pub rollup_transactions_proof: ::core::option::Option<Proof>,
+    pub rollup_transactions_proof: ::core::option::Option<
+        super::super::primitive::v1::Proof,
+    >,
     /// The proof that the rollup IDs are included in sequencer block.
-    /// Corresponds to `astria.SequencerBlock.rollup_ids_proof`.
+    /// Corresponds to `astria.sequencer.v1alpha.SequencerBlock.rollup_ids_proof`.
     #[prost(message, optional, tag = "5")]
-    pub rollup_ids_proof: ::core::option::Option<Proof>,
+    pub rollup_ids_proof: ::core::option::Option<super::super::primitive::v1::Proof>,
 }
 impl ::prost::Name for CelestiaSequencerBlob {
     const NAME: &'static str = "CelestiaSequencerBlob";

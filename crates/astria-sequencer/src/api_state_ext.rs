@@ -5,17 +5,18 @@ use anyhow::{
     Result,
 };
 use astria_core::{
-    generated::sequencerblock::v1alpha1 as raw,
-    sequencer::v1::RollupId,
-    sequencerblock::{
-        v1alpha1::block::{
-            RollupTransactions,
-            SequencerBlock,
-            SequencerBlockHeader,
-            SequencerBlockParts,
-        },
-        Protobuf as _,
+    generated::{
+        primitive::v1 as primitiveRaw,
+        sequencerblock::v1alpha1 as raw,
     },
+    primitive::v1::RollupId,
+    sequencerblock::v1alpha1::block::{
+        RollupTransactions,
+        SequencerBlock,
+        SequencerBlockHeader,
+        SequencerBlockParts,
+    },
+    Protobuf as _,
 };
 use async_trait::async_trait;
 use borsh::{
@@ -225,8 +226,9 @@ pub(crate) trait StateReadExt: StateRead {
             bail!("rollup transactions proof not found for given block hash");
         };
 
-        let rollup_transactions_proof = raw::Proof::decode(rollup_transactions_proof.as_slice())
-            .context("failed to decode rollup transactions proof from raw bytes")?;
+        let rollup_transactions_proof =
+            primitiveRaw::Proof::decode(rollup_transactions_proof.as_slice())
+                .context("failed to decode rollup transactions proof from raw bytes")?;
 
         let Some(rollup_ids_proof) = self
             .get_raw(&rollup_ids_proof_by_hash_key(hash))
@@ -236,7 +238,7 @@ pub(crate) trait StateReadExt: StateRead {
             bail!("rollup IDs proof not found for given block hash");
         };
 
-        let rollup_ids_proof = raw::Proof::decode(rollup_ids_proof.as_slice())
+        let rollup_ids_proof = primitiveRaw::Proof::decode(rollup_ids_proof.as_slice())
             .context("failed to decode rollup IDs proof from raw bytes")?;
 
         let raw = raw::SequencerBlock {
@@ -291,7 +293,7 @@ pub(crate) trait StateReadExt: StateRead {
     async fn get_block_proofs_by_block_hash(
         &self,
         hash: &[u8],
-    ) -> Result<(raw::Proof, raw::Proof)> {
+    ) -> Result<(primitiveRaw::Proof, primitiveRaw::Proof)> {
         let Some(rollup_transactions_proof) = self
             .get_raw(&rollup_transactions_proof_by_hash_key(hash))
             .await
@@ -300,8 +302,9 @@ pub(crate) trait StateReadExt: StateRead {
             bail!("rollup transactions proof not found for given block hash");
         };
 
-        let rollup_transactions_proof = raw::Proof::decode(rollup_transactions_proof.as_slice())
-            .context("failed to decode rollup transactions proof from raw bytes")?;
+        let rollup_transactions_proof =
+            primitiveRaw::Proof::decode(rollup_transactions_proof.as_slice())
+                .context("failed to decode rollup transactions proof from raw bytes")?;
 
         let Some(rollup_ids_proof) = self
             .get_raw(&rollup_ids_proof_by_hash_key(hash))
@@ -311,7 +314,7 @@ pub(crate) trait StateReadExt: StateRead {
             bail!("rollup IDs proof not found for given block hash");
         };
 
-        let rollup_ids_proof = raw::Proof::decode(rollup_ids_proof.as_slice())
+        let rollup_ids_proof = primitiveRaw::Proof::decode(rollup_ids_proof.as_slice())
             .context("failed to decode rollup IDs proof from raw bytes")?;
 
         Ok((rollup_transactions_proof, rollup_ids_proof))
@@ -383,7 +386,7 @@ mod test {
     use std::collections::HashMap;
 
     use astria_core::{
-        sequencer::v1::{
+        primitive::v1::{
             asset::Id,
             Address,
         },

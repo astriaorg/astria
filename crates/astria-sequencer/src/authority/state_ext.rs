@@ -5,7 +5,7 @@ use anyhow::{
     Context,
     Result,
 };
-use astria_core::sequencer::v1::{
+use astria_core::primitive::v1::{
     Address,
     ADDRESS_LEN,
 };
@@ -181,7 +181,7 @@ impl<T: StateWrite> StateWriteExt for T {}
 
 #[cfg(test)]
 mod test {
-    use astria_core::sequencer::v1::Address;
+    use astria_core::primitive::v1::Address;
     use cnidarium::StateDelta;
     use tendermint::{
         validator,

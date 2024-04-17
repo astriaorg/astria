@@ -10,7 +10,7 @@ use anyhow::{
 };
 use astria_core::{
     generated::sequencerblock::v1alpha1::Deposit as RawDeposit,
-    sequencer::v1::{
+    primitive::v1::{
         asset,
         Address,
         RollupId,
@@ -252,7 +252,7 @@ impl<T: StateWrite> StateWriteExt for T {}
 #[cfg(test)]
 mod test {
     use astria_core::{
-        sequencer::v1::{
+        primitive::v1::{
             asset::Id,
             Address,
             RollupId,

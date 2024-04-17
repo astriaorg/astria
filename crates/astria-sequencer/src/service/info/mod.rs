@@ -7,7 +7,7 @@ use std::{
 };
 
 use anyhow::Context as _;
-use astria_core::sequencer::v1::AbciErrorCode;
+use astria_core::protocol::abci::AbciErrorCode;
 use cnidarium::Storage;
 use futures::{
     Future,
@@ -145,7 +145,7 @@ impl Service<InfoRequest> for Info {
 
 #[cfg(test)]
 mod test {
-    use astria_core::sequencer::v1::{
+    use astria_core::primitive::v1::{
         asset::{
             Denom,
             DEFAULT_NATIVE_ASSET_DENOM,

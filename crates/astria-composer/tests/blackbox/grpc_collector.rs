@@ -2,13 +2,13 @@ use std::time::Duration;
 
 use astria_core::{
     generated::{
+        protocol::account::v1alpha1::NonceResponse,
         composer::v1alpha1::{
             grpc_collector_service_client::GrpcCollectorServiceClient,
             SubmitRollupTransactionRequest,
         },
-        sequencer::v1::NonceResponse,
     },
-    sequencer::v1::RollupId,
+    primitive::v1::RollupId,
 };
 use ethers::prelude::Transaction;
 

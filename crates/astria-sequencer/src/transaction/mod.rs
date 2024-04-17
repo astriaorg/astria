@@ -9,11 +9,13 @@ use anyhow::{
     ensure,
     Context as _,
 };
-use astria_core::sequencer::v1::{
-    transaction::action::Action,
-    Address,
-    SignedTransaction,
-    UnsignedTransaction,
+use astria_core::{
+    primitive::v1::Address,
+    protocol::transaction::v1alpha1::{
+        action::Action,
+        SignedTransaction,
+        UnsignedTransaction,
+    },
 };
 use tracing::instrument;
 
@@ -396,17 +398,19 @@ impl ActionHandler for UnsignedTransaction {
 
 #[cfg(test)]
 mod test {
-    use astria_core::sequencer::v1::{
-        asset::{
-            Denom,
-            DEFAULT_NATIVE_ASSET_DENOM,
+    use astria_core::{
+        primitive::v1::{
+            asset::{
+                Denom,
+                DEFAULT_NATIVE_ASSET_DENOM,
+            },
+            RollupId,
+            ADDRESS_LEN,
         },
-        transaction::action::{
+        protocol::transaction::v1alpha1::action::{
             SequenceAction,
             TransferAction,
         },
-        RollupId,
-        ADDRESS_LEN,
     };
     use cnidarium::StateDelta;
 

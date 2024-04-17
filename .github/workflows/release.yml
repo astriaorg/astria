@@ -27,16 +27,16 @@ jobs:
           draft: ${{ github.ref_name != 'main'}}
           input: "proto/composerapis"
           buf_token: ${{ secrets.BUF_TOKEN }}
-      - name: "Upload Sequencer API Protos"
+      - name: "Upload Primitive API Protos"
         uses: bufbuild/buf-push-action@v1
         with:
           draft:  ${{ github.ref_name != 'main'}}
-          input: "proto/sequencerapis"
-          buf_token: ${{ secrets.BUF_TOKEN }}
+          input: "proto/primitives"
+          buf_token: ${{ secrets.BUF_TOKEN }}   
       - name: "Update Sequencer Block API dependency"
         run: |
           cd proto/sequencerblockapis
-          buf mod update --only buf.build/astria/astria
+          buf mod update --only buf.build/astria/primitives
       - name: "Upload Sequencer Block API Protos"
         uses: bufbuild/buf-push-action@v1
         with:
@@ -53,6 +53,16 @@ jobs:
           draft:  ${{ github.ref_name != 'main'}}
           input: "proto/executionapis"
           buf_token: ${{ secrets.BUF_TOKEN }}
+      - name: "Update Protocol API dependency"
+        run: |
+          cd proto/protocolapis
+          buf mod update --only buf.build/astria/primitives
+      - name: "Upload Protocol API Protos"
+        uses: bufbuild/buf-push-action@v1
+        with:
+          draft: ${{ github.ref_name != 'main'}}
+          input: "proto/protocolapis"
+          buf_token: ${{ secrets.BUF_TOKEN }} 
 
   charts:
     permissions:

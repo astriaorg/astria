@@ -11,12 +11,10 @@ use super::{
         SequencerBlockHeaderError,
     },
     raw,
+    IncorrectRollupIdLength,
     RollupId,
 };
-use crate::{
-    sequencer::v1::IncorrectRollupIdLength,
-    sequencerblock::Protobuf,
-};
+use crate::Protobuf;
 
 /// A bundle of blobs constructed from a [`super::SequencerBlock`].
 ///

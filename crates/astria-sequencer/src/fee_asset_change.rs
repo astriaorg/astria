@@ -4,9 +4,9 @@ use anyhow::{
     Context as _,
     Result,
 };
-use astria_core::sequencer::v1::{
-    transaction::action::FeeAssetChangeAction,
-    Address,
+use astria_core::{
+    primitive::v1::Address,
+    protocol::transaction::v1alpha1::action::FeeAssetChangeAction,
 };
 use async_trait::async_trait;
 use cnidarium::{

@@ -8,13 +8,15 @@ use std::{
     mem,
 };
 
-use astria_core::sequencer::v1::{
-    transaction::{
+use astria_core::{
+    primitive::v1::{
+        RollupId,
+        ROLLUP_ID_LEN,
+    },
+    protocol::transaction::v1alpha1::{
         action::SequenceAction,
         Action,
     },
-    RollupId,
-    ROLLUP_ID_LEN,
 };
 use serde::ser::{
     Serialize,

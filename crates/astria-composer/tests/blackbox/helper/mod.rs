@@ -8,10 +8,12 @@ use astria_composer::{
     config::Config,
     Composer,
 };
-use astria_core::sequencer::v1::{
-    AbciErrorCode,
-    RollupId,
-    SignedTransaction,
+use astria_core::{
+    primitive::v1::RollupId,
+    protocol::{
+        abci::AbciErrorCode,
+        transaction::v1alpha1::SignedTransaction,
+    },
 };
 use astria_eyre::eyre;
 use ethers::prelude::Transaction;
@@ -143,7 +145,7 @@ pub async fn loop_until_composer_is_ready(addr: SocketAddr) {
 }
 
 fn signed_tx_from_request(request: &Request) -> SignedTransaction {
-    use astria_core::generated::sequencer::v1::SignedTransaction as RawSignedTransaction;
+    use astria_core::generated::protocol::transaction::v1alpha1::SignedTransaction as RawSignedTransaction;
     use prost::Message as _;
 
     let wrapped_tx_sync_req: request::Wrapper<tx_sync::Request> =

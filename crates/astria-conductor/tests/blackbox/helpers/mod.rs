@@ -12,7 +12,7 @@ use astria_core::{
         },
         sequencerblock::v1alpha1::FilteredSequencerBlock,
     },
-    sequencer::v1::RollupId,
+    primitive::v1::RollupId,
 };
 use bytes::Bytes;
 use once_cell::sync::Lazy;

@@ -3,11 +3,11 @@ use pbjson_types::Timestamp;
 
 use crate::{
     generated::execution::v1alpha2 as raw,
-    sequencer::v1::{
+    primitive::v1::{
         IncorrectRollupIdLength,
         RollupId,
     },
-    sequencerblock::Protobuf,
+    Protobuf,
 };
 
 // An error when transforming a [`raw::GenesisInfo`] into a [`GenesisInfo`].

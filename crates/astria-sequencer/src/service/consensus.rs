@@ -222,12 +222,16 @@ mod test {
         str::FromStr,
     };
 
-    use astria_core::sequencer::v1::{
-        asset::DEFAULT_NATIVE_ASSET_DENOM,
-        transaction::action::SequenceAction,
-        Address,
-        RollupId,
-        UnsignedTransaction,
+    use astria_core::{
+        primitive::v1::{
+            asset::DEFAULT_NATIVE_ASSET_DENOM,
+            Address,
+            RollupId,
+        },
+        protocol::transaction::v1alpha1::{
+            action::SequenceAction,
+            UnsignedTransaction,
+        },
     };
     use bytes::Bytes;
     use ed25519_consensus::{

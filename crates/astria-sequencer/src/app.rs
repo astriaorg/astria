@@ -13,12 +13,14 @@ use anyhow::{
     Context,
 };
 use astria_core::{
-    generated::sequencer::v1 as raw,
-    sequencer::v1::{
-        transaction::Action,
-        AbciErrorCode,
-        Address,
-        SignedTransaction,
+    generated::protocol::transaction::v1alpha1 as raw,
+    primitive::v1::Address,
+    protocol::{
+        abci::AbciErrorCode,
+        transaction::v1alpha1::{
+            Action,
+            SignedTransaction,
+        },
     },
     sequencerblock::v1alpha1::block::SequencerBlock,
 };
@@ -786,7 +788,7 @@ impl App {
     ))]
     pub(crate) async fn deliver_tx(
         &mut self,
-        signed_tx: astria_core::sequencer::v1::SignedTransaction,
+        signed_tx: astria_core::protocol::transaction::v1alpha1::SignedTransaction,
     ) -> anyhow::Result<Vec<abci::Event>> {
         let signed_tx_2 = signed_tx.clone();
         let stateless =
@@ -947,7 +949,7 @@ fn signed_transaction_from_bytes(bytes: &[u8]) -> anyhow::Result<SignedTransacti
 
 #[cfg(test)]
 pub(crate) mod test_utils {
-    use astria_core::sequencer::v1::{
+    use astria_core::primitive::v1::{
         Address,
         ADDRESS_LEN,
     };
@@ -980,19 +982,21 @@ pub(crate) mod test_utils {
 #[cfg(test)]
 mod test {
     #[cfg(feature = "mint")]
-    use astria_core::sequencer::v1::transaction::action::MintAction;
+    use astria_core::protocol::transaction::v1alpha1::action::MintAction;
     use astria_core::{
-        sequencer::v1::{
+        primitive::v1::{
             asset,
             asset::DEFAULT_NATIVE_ASSET_DENOM,
-            transaction::action::{
+            RollupId,
+        },
+        protocol::transaction::v1alpha1::{
+            action::{
                 BridgeLockAction,
                 IbcRelayerChangeAction,
                 SequenceAction,
                 SudoAddressChangeAction,
                 TransferAction,
             },
-            RollupId,
             UnsignedTransaction,
         },
         sequencerblock::v1alpha1::block::Deposit,
@@ -1593,7 +1597,7 @@ mod test {
 
     #[tokio::test]
     async fn app_deliver_tx_fee_asset_change_addition() {
-        use astria_core::sequencer::v1::transaction::action::FeeAssetChangeAction;
+        use astria_core::protocol::transaction::v1alpha1::action::FeeAssetChangeAction;
 
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
 
@@ -1626,7 +1630,7 @@ mod test {
 
     #[tokio::test]
     async fn app_deliver_tx_fee_asset_change_removal() {
-        use astria_core::sequencer::v1::transaction::action::FeeAssetChangeAction;
+        use astria_core::protocol::transaction::v1alpha1::action::FeeAssetChangeAction;
 
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
         let test_asset = asset::Denom::from_base_denom("test");
@@ -1666,7 +1670,7 @@ mod test {
 
     #[tokio::test]
     async fn app_deliver_tx_fee_asset_change_invalid() {
-        use astria_core::sequencer::v1::transaction::action::FeeAssetChangeAction;
+        use astria_core::protocol::transaction::v1alpha1::action::FeeAssetChangeAction;
 
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
 
@@ -1700,7 +1704,7 @@ mod test {
 
     #[tokio::test]
     async fn app_deliver_tx_init_bridge_account_ok() {
-        use astria_core::sequencer::v1::transaction::action::InitBridgeAccountAction;
+        use astria_core::protocol::transaction::v1alpha1::action::InitBridgeAccountAction;
 
         use crate::bridge::init_bridge_account_action::INIT_BRIDGE_ACCOUNT_FEE;
 
@@ -1754,7 +1758,7 @@ mod test {
 
     #[tokio::test]
     async fn app_deliver_tx_init_bridge_account_empty_asset_ids() {
-        use astria_core::sequencer::v1::transaction::action::InitBridgeAccountAction;
+        use astria_core::protocol::transaction::v1alpha1::action::InitBridgeAccountAction;
 
         let (alice_signing_key, _) = get_alice_signing_key_and_address();
         let mut app = initialize_app(None, vec![]).await;
@@ -1777,7 +1781,7 @@ mod test {
 
     #[tokio::test]
     async fn app_deliver_tx_init_bridge_account_account_already_registered() {
-        use astria_core::sequencer::v1::transaction::action::InitBridgeAccountAction;
+        use astria_core::protocol::transaction::v1alpha1::action::InitBridgeAccountAction;
 
         let (alice_signing_key, _) = get_alice_signing_key_and_address();
         let mut app = initialize_app(None, vec![]).await;
@@ -1885,7 +1889,7 @@ mod test {
 
     #[tokio::test]
     async fn app_deliver_tx_bridge_lock_action_invalid_for_eoa() {
-        use astria_core::sequencer::v1::transaction::action::BridgeLockAction;
+        use astria_core::protocol::transaction::v1alpha1::action::BridgeLockAction;
 
         let (alice_signing_key, _) = get_alice_signing_key_and_address();
         let mut app = initialize_app(None, vec![]).await;

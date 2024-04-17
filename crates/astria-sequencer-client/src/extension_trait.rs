@@ -27,11 +27,13 @@ use std::{
 };
 
 pub use astria_core::{
-    sequencer::v1::{
-        Address,
-        BalanceResponse,
-        NonceResponse,
-        SignedTransaction,
+    primitive::v1::Address,
+    protocol::{
+        account::v1alpha1::{
+            BalanceResponse,
+            NonceResponse,
+        },
+        transaction::v1alpha1::SignedTransaction,
     },
     sequencerblock::v1alpha1::{
         block::SequencerBlockError,
@@ -454,14 +456,14 @@ pub trait SequencerClientExt: Client {
             .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
 
         let proto_response =
-            astria_core::generated::sequencer::v1::BalanceResponse::decode(&*response.value)
+            astria_core::generated::protocol::account::v1alpha1::BalanceResponse::decode(&*response.value)
                 .map_err(|e| {
-                    Error::abci_query_deserialization(
-                        "astria.sequencer.v1.BalanceResponse",
-                        response,
-                        e,
-                    )
-                })?;
+                Error::abci_query_deserialization(
+                    "astria.sequencer.v1.BalanceResponse",
+                    response,
+                    e,
+                )
+            })?;
         Ok(proto_response.to_native())
     }
 
@@ -505,7 +507,7 @@ pub trait SequencerClientExt: Client {
             .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
 
         let proto_response =
-            astria_core::generated::sequencer::v1::NonceResponse::decode(&*response.value)
+            astria_core::generated::protocol::account::v1alpha1::NonceResponse::decode(&*response.value)
                 .map_err(|e| {
                     Error::abci_query_deserialization(
                         "astria.sequencer.v1.NonceResponse",

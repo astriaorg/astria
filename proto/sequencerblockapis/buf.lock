@@ -2,11 +2,6 @@
 version: v1
 deps:
   - remote: buf.build
-    owner: astria
-    repository: astria
-    commit: c770a40390134c30826726731fe76912
-    digest: shake256:87750605078d356048942d7abd89a87fc0eb1c1cc1e97bdbfcd2f56aee28b189e2a4f5296c734f36aab6fdb22a246517dbedb79dfec6fc6c3c1128ac6a25881d
-  - remote: buf.build
     owner: googleapis
     repository: googleapis
     commit: 7a6bc1e3207144b38e9066861e1de0ff

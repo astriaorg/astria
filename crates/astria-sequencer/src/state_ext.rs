@@ -3,7 +3,7 @@ use anyhow::{
     Context as _,
     Result,
 };
-use astria_core::sequencer::v1::asset;
+use astria_core::primitive::v1::asset;
 use async_trait::async_trait;
 use cnidarium::{
     StateRead,
@@ -575,7 +575,7 @@ mod test {
         assert!(fee_balances_orig.is_empty());
 
         // can write
-        let asset = astria_core::sequencer::v1::asset::Id::from_denom("asset_0");
+        let asset = astria_core::primitive::v1::asset::Id::from_denom("asset_0");
         let amount = 100u128;
         state
             .get_and_increase_block_fees(asset, amount)
@@ -598,8 +598,8 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         // can write
-        let asset_first = astria_core::sequencer::v1::asset::Id::from_denom("asset_0");
-        let asset_second = astria_core::sequencer::v1::asset::Id::from_denom("asset_1");
+        let asset_first = astria_core::primitive::v1::asset::Id::from_denom("asset_0");
+        let asset_second = astria_core::primitive::v1::asset::Id::from_denom("asset_1");
         let amount_first = 100u128;
         let amount_second = 200u128;
 
@@ -637,7 +637,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         // non-existent fees assets return false
-        let asset = astria_core::sequencer::v1::asset::Id::from_denom("asset_0");
+        let asset = astria_core::primitive::v1::asset::Id::from_denom("asset_0");
         assert!(
             !state
                 .is_allowed_fee_asset(asset)
@@ -664,7 +664,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         // setup fee asset
-        let asset = astria_core::sequencer::v1::asset::Id::from_denom("asset_0");
+        let asset = astria_core::primitive::v1::asset::Id::from_denom("asset_0");
         state.put_allowed_fee_asset(asset);
         assert!(
             state
@@ -697,7 +697,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         // setup fee assets
-        let asset_first = astria_core::sequencer::v1::asset::Id::from_denom("asset_0");
+        let asset_first = astria_core::primitive::v1::asset::Id::from_denom("asset_0");
         state.put_allowed_fee_asset(asset_first);
         assert!(
             state
@@ -706,7 +706,7 @@ mod test {
                 .expect("checking for allowed fee asset should not fail"),
             "fee asset was expected to be allowed"
         );
-        let asset_second = astria_core::sequencer::v1::asset::Id::from_denom("asset_1");
+        let asset_second = astria_core::primitive::v1::asset::Id::from_denom("asset_1");
         state.put_allowed_fee_asset(asset_second);
         assert!(
             state
@@ -715,7 +715,7 @@ mod test {
                 .expect("checking for allowed fee asset should not fail"),
             "fee asset was expected to be allowed"
         );
-        let asset_third = astria_core::sequencer::v1::asset::Id::from_denom("asset_3");
+        let asset_third = astria_core::primitive::v1::asset::Id::from_denom("asset_3");
         state.put_allowed_fee_asset(asset_third);
         assert!(
             state

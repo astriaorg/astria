@@ -15,10 +15,12 @@
 
 use std::time::Duration;
 
-use astria_core::sequencer::v1::{
-    asset::default_native_asset_id,
-    transaction::action::SequenceAction,
-    RollupId,
+use astria_core::{
+    primitive::v1::{
+        asset::default_native_asset_id,
+        RollupId,
+    },
+    protocol::transaction::v1alpha1::action::SequenceAction,
 };
 use astria_eyre::eyre::{
     self,
