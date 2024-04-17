@@ -2,7 +2,7 @@ pub mod client;
 pub mod metrics_init;
 pub mod submission;
 
-pub use astria_core::sequencer::v1::{
+pub use astria_core::sequencerblock::v1alpha1::{
     CelestiaRollupBlob,
     CelestiaSequencerBlob,
 };
@@ -55,10 +55,10 @@ pub const fn celestia_namespace_v0_from_rollup_id(
 }
 
 #[must_use = "a celestia namespace must be used in order to be useful"]
-pub fn celestia_namespace_v0_from_cometbft_header(header: &tendermint::block::Header) -> Namespace {
+pub fn celestia_namespace_v0_from_str(chain_id: &str) -> Namespace {
     use sha2::{
         Digest as _,
         Sha256,
     };
-    celestia_namespace_v0_from_array(Sha256::digest(header.chain_id.as_bytes()).into())
+    celestia_namespace_v0_from_array(Sha256::digest(chain_id.as_bytes()).into())
 }

@@ -1,4 +1,4 @@
-use astria_core::sequencer::v1::{
+use astria_core::sequencerblock::v1alpha1::{
     celestia::CelestiaSequencerBlobError,
     CelestiaRollupBlob,
     CelestiaSequencerBlob,
@@ -103,7 +103,7 @@ pub trait CelestiaClientExt: BlobClient {
             }
             'blob: {
                 let raw_blob =
-                    match astria_core::generated::sequencer::v1::CelestiaSequencerBlob::decode(
+                    match astria_core::generated::sequencerblock::v1alpha1::CelestiaSequencerBlob::decode(
                         &*blob.data,
                     ) {
                         Ok(blob) => blob,
@@ -254,11 +254,13 @@ fn convert_and_filter_rollup_blobs(
             continue;
         }
         let proto_blob =
-            match astria_core::generated::sequencer::v1::CelestiaRollupBlob::decode(&*blob.data) {
+            match astria_core::generated::sequencerblock::v1alpha1::CelestiaRollupBlob::decode(
+                &*blob.data,
+            ) {
                 Err(e) => {
                     debug!(
                         error = &e as &dyn std::error::Error,
-                        target = "astria.sequencer.v1alpha.CelestiaRollupBlob",
+                        target = "astria.sequencerblock.v1alpha1.CelestiaRollupBlob",
                         blob.commitment = %Base64Display::new(&blob.commitment.0, &STANDARD),
                         "failed decoding blob as protobuf; skipping"
                     );
@@ -305,7 +307,7 @@ fn does_rollup_blob_verify_against_sequencer_blob(
     rollup_blob
         .proof()
         .audit()
-        .with_root(sequencer_blob.rollup_transactions_root())
+        .with_root(sequencer_blob.header().rollup_transactions_root())
         .with_leaf_builder()
         .write(&rollup_blob.rollup_id().get())
         .write(&merkle::Tree::from_leaves(rollup_blob.transactions()).root())

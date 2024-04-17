@@ -274,10 +274,13 @@ fn verify_vote_signature(
 mod test {
     use std::collections::BTreeMap;
 
-    use astria_core::sequencer::v1::{
-        celestia::UncheckedCelestiaSequencerBlob,
-        test_utils::make_cometbft_block,
-        RollupId,
+    use astria_core::{
+        generated::sequencerblock::v1alpha1::SequencerBlockHeader as RawSequencerBlockHeader,
+        sequencer::v1::RollupId,
+        sequencerblock::v1alpha1::{
+            block::SequencerBlockHeader,
+            celestia::UncheckedCelestiaSequencerBlob,
+        },
     };
     use prost::Message as _;
     use sequencer_client::{
@@ -371,24 +374,33 @@ mod test {
     #[test]
     fn validate_sequencer_blob_last_commit_none_ok() {
         let rollup_transactions_root = merkle::Tree::from_leaves([[1, 2, 3], [4, 5, 6]]).root();
-        let chain_ids_commitment = merkle::Tree::new().root();
+        let rollup_ids_root = merkle::Tree::new().root();
 
-        let tree = merkle_tree_from_transactions([rollup_transactions_root, chain_ids_commitment]);
+        let tree = merkle_tree_from_transactions([rollup_transactions_root, rollup_ids_root]);
         let data_hash = tree.root();
         let rollup_transactions_proof = tree.construct_proof(0).unwrap();
         let rollup_ids_proof = tree.construct_proof(1).unwrap();
 
-        let mut header = make_cometbft_block().header;
-        let height = header.height.value().try_into().unwrap();
-        header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
-
         let (validator_set, proposer_address, commit) =
-            make_test_validator_set_and_commit(height, header.chain_id.clone());
-        header.proposer_address = proposer_address;
+            make_test_validator_set_and_commit(1, "test-chain".try_into().unwrap());
+
+        let header = RawSequencerBlockHeader {
+            chain_id: "test-chain".to_string(),
+            height: 1,
+            time: Some(pbjson_types::Timestamp {
+                seconds: 1,
+                nanos: 0,
+            }),
+            data_hash: data_hash.to_vec(),
+            rollup_transactions_root: rollup_transactions_root.to_vec(),
+            proposer_address: proposer_address.as_bytes().to_vec(),
+        };
+        let header = SequencerBlockHeader::try_from_raw(header).unwrap();
+
         let sequencer_blob = UncheckedCelestiaSequencerBlob {
+            block_hash: [0u8; 32],
             header,
             rollup_ids: vec![],
-            rollup_transactions_root,
             rollup_transactions_proof,
             rollup_ids_proof,
         }
@@ -414,18 +426,26 @@ mod test {
         let rollup_transactions_proof = tree.construct_proof(0).unwrap();
         let rollup_ids_proof = tree.construct_proof(1).unwrap();
 
-        let mut header = make_cometbft_block().header;
-        let height = header.height.value().try_into().unwrap();
-        header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
-
         let (validator_set, proposer_address, commit) =
-            make_test_validator_set_and_commit(height, header.chain_id.clone());
-        header.proposer_address = proposer_address;
+            make_test_validator_set_and_commit(1, "test-chain".try_into().unwrap());
+
+        let header = RawSequencerBlockHeader {
+            chain_id: "test-chain".to_string(),
+            height: 1,
+            time: Some(pbjson_types::Timestamp {
+                seconds: 1,
+                nanos: 0,
+            }),
+            data_hash: data_hash.to_vec(),
+            rollup_transactions_root: rollup_transactions_root.to_vec(),
+            proposer_address: proposer_address.as_bytes().to_vec(),
+        };
+        let header = SequencerBlockHeader::try_from_raw(header).unwrap();
 
         let sequencer_blob = UncheckedCelestiaSequencerBlob {
+            block_hash: [0u8; 32],
             header,
             rollup_ids: vec![rollup_id],
-            rollup_transactions_root,
             rollup_transactions_proof,
             rollup_ids_proof,
         }

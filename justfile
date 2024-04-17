@@ -216,7 +216,7 @@ deploy-smoke-test tag=defaultTag:
   @echo "Setting up single astria sequencer..." && helm install \
     -n astria-validator-single single-sequencer-chart ./charts/sequencer \
     -f dev/values/validators/single.yml \
-    {{ if tag != '' { replace('--set images.sequencer.devTag=# --set sequencer-relayer.images.sequencer-relayer.devTag=#', '#', tag) } else { '' } }} \
+    {{ if tag != '' { replace('--set images.sequencer.devTag=# --set sequencer-relayer.images.sequencerRelayer.devTag=#', '#', tag) } else { '' } }} \
     --create-namespace > /dev/null
   @just wait-for-sequencer > /dev/null
   @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart ./charts/evm-rollup -f dev/values/rollup/dev.yaml \
@@ -251,6 +251,22 @@ run-smoke-test:
     echo "Transfer failure"
     exit 1
   fi
+
+  echo "Testing soft commits..."
+  SOFT_RUNS=0
+  soft() {
+    HEX_NUM=$(curl -X POST $ETH_RPC_URL -s -d '{"jsonrpc":"2.0","method":"eth_getBlockByNumber","params":["safe", false],"id":1}' -H 'Content-Type: application/json' | jq -r '.result.number')
+    echo "$(printf "%d" $HEX_NUM)"
+  }
+  while [ $SOFT_RUNS -lt $MAX_RUNS ]; do
+    if [ $(soft) -gt 0 ]; then
+      echo "Soft commit success"
+      break
+    else
+      sleep 1
+    fi
+    SOFT_RUNS=$((SOFT_RUNS+1))
+  done
 
   echo "Testing finalization..."
   FINALIZED_RUNS=0

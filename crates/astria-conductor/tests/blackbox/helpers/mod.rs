@@ -10,7 +10,7 @@ use astria_core::{
             CommitmentState,
             GenesisInfo,
         },
-        sequencer::v1::FilteredSequencerBlock,
+        sequencerblock::v1alpha1::FilteredSequencerBlock,
     },
     sequencer::v1::RollupId,
 };

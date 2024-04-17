@@ -53,6 +53,19 @@ pub mod sequencer {
 }
 
 #[path = ""]
+pub mod sequencerblock {
+    pub mod v1alpha1 {
+        include!("astria.sequencerblock.v1alpha1.rs");
+
+        #[cfg(feature = "serde")]
+        mod _serde_impl {
+            use super::*;
+            include!("astria.sequencerblock.v1alpha1.serde.rs");
+        }
+    }
+}
+
+#[path = ""]
 pub mod composer {
     #[path = "astria.composer.v1alpha1.rs"]
     pub mod v1alpha1;

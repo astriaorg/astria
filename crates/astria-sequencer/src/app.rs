@@ -15,12 +15,14 @@ use anyhow::{
 use astria_core::{
     generated::sequencer::v1 as raw,
     sequencer::v1::{
-        block::Deposit,
         transaction::Action,
         Address,
         RollupId,
-        SequencerBlock,
         SignedTransaction,
+    },
+    sequencerblock::v1alpha1::block::{
+        Deposit,
+        SequencerBlock,
     },
 };
 use cnidarium::{
@@ -895,6 +897,7 @@ mod test {
         asset,
         asset::DEFAULT_NATIVE_ASSET_DENOM,
         transaction::action::{
+            BridgeLockAction,
             IbcRelayerChangeAction,
             SequenceAction,
             SudoAddressChangeAction,
@@ -1713,11 +1716,6 @@ mod test {
 
     #[tokio::test]
     async fn app_deliver_tx_bridge_lock_action_ok() {
-        use astria_core::sequencer::v1::{
-            block::Deposit,
-            transaction::action::BridgeLockAction,
-        };
-
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
         let mut app = initialize_app(None, vec![]).await;
 
@@ -2126,11 +2124,6 @@ mod test {
 
     #[tokio::test]
     async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
-        use astria_core::sequencer::v1::{
-            block::Deposit,
-            transaction::action::BridgeLockAction,
-        };
-
         let (alice_signing_key, _) = get_alice_signing_key_and_address();
         let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
 

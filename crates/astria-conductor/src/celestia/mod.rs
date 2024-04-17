@@ -8,6 +8,7 @@ use std::{
     time::Duration,
 };
 
+use astria_core::sequencerblock::v1alpha1::block::SequencerBlockHeader;
 use astria_eyre::eyre::{
     self,
     bail,
@@ -35,10 +36,7 @@ use futures::{
 use futures_bounded::FuturesMap;
 use pin_project_lite::pin_project;
 use sequencer_client::{
-    tendermint::{
-        self,
-        block::Height as SequencerHeight,
-    },
+    tendermint::block::Height as SequencerHeight,
     HttpClient as SequencerClient,
 };
 use telemetry::display::{
@@ -97,14 +95,14 @@ struct ReconstructedBlocks {
 #[derive(Clone, Debug)]
 pub(crate) struct ReconstructedBlock {
     pub(crate) block_hash: [u8; 32],
-    pub(crate) header: tendermint::block::Header,
+    pub(crate) header: SequencerBlockHeader,
     pub(crate) transactions: Vec<Vec<u8>>,
     pub(crate) celestia_height: u64,
 }
 
 impl ReconstructedBlock {
     pub(crate) fn sequencer_height(&self) -> SequencerHeight {
-        self.header.height
+        self.header.height()
     }
 }
 
@@ -628,8 +626,8 @@ async fn get_sequencer_namespace(client: SequencerClient) -> eyre::Result<Namesp
         .await
         .wrap_err("failed to get latest commit from sequencer after 10 attempts")?;
 
-    Ok(celestia_client::celestia_namespace_v0_from_cometbft_header(
-        block.header().cometbft_header(),
+    Ok(celestia_client::celestia_namespace_v0_from_str(
+        block.header().chain_id().as_str(),
     ))
 }
 

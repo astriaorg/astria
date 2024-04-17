@@ -208,6 +208,7 @@ mod test {
         asset::{
             Denom,
             Id,
+            DEFAULT_NATIVE_ASSET_DENOM,
         },
         Address,
     };
@@ -506,9 +507,9 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         // need to set native asset in order to use `get_account_balances()`
-        crate::asset::initialize_native_asset("asset_0");
+        crate::asset::initialize_native_asset(DEFAULT_NATIVE_ASSET_DENOM);
 
-        let asset_0 = Id::from_denom("asset_0");
+        let asset_0 = Id::from_denom(DEFAULT_NATIVE_ASSET_DENOM);
         let asset_1 = Id::from_denom("asset_1");
         let asset_2 = Id::from_denom("asset_2");
 
@@ -516,7 +517,7 @@ mod test {
         asset::state_ext::StateWriteExt::put_ibc_asset(
             &mut state,
             asset_0,
-            &Denom::from_base_denom("asset_0"),
+            &Denom::from_base_denom(DEFAULT_NATIVE_ASSET_DENOM),
         )
         .expect("should be able to call other trait method on state object");
         asset::state_ext::StateWriteExt::put_ibc_asset(
@@ -558,7 +559,7 @@ mod test {
             balances,
             vec![
                 AssetBalance {
-                    denom: Denom::from_base_denom("asset_0"),
+                    denom: Denom::from_base_denom(DEFAULT_NATIVE_ASSET_DENOM),
                     balance: amount_expected_0,
                 },
                 AssetBalance {

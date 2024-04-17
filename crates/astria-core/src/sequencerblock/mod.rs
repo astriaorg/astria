@@ -1,4 +1,4 @@
-pub mod v1;
+pub mod v1alpha1;
 
 /// A trait to convert from raw decoded protobuf types to idiomatic astria types.
 ///
