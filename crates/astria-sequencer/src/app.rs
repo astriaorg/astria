@@ -762,7 +762,7 @@ impl App {
         }
 
         let signed_tx = signed_transaction_from_bytes(tx)
-            .expect("protocol error; only valid txs should be finalized");
+            .context("protocol error; only valid txs should be finalized")?;
         self.deliver_tx(signed_tx).await
     }
 
