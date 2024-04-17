@@ -211,11 +211,7 @@ impl Consensus {
     #[instrument(skip_all)]
     async fn commit(&mut self) -> anyhow::Result<response::Commit> {
         self.app.commit(self.storage.clone()).await;
-        Ok(response::Commit {
-            // note: the app_hash field is ignored in cometbft v0.38,
-            // so we default everything.
-            ..Default::default()
-        })
+        Ok(response::Commit::default())
     }
 }
 
