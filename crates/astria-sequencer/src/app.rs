@@ -507,11 +507,6 @@ impl App {
         &mut self,
         block_data: BlockData,
     ) -> anyhow::Result<Vec<bytes::Bytes>> {
-        let data_hash = astria_core::sequencerblock::v1alpha1::block::merkle_tree_from_data(
-            block_data.txs.iter().map(std::convert::AsRef::as_ref),
-        )
-        .root();
-
         let chain_id: tendermint::chain::Id = self
             .state
             .get_chain_id()
@@ -531,7 +526,7 @@ impl App {
                 app_hash: self.app_hash.clone(),
                 chain_id: chain_id.clone(),
                 consensus_hash: Hash::default(), // unused
-                data_hash: Some(Hash::try_from(data_hash.to_vec()).unwrap()),
+                data_hash: Some(Hash::default()), // unused
                 evidence_hash: Some(Hash::default()), // unused
                 height: block_data.height,
                 last_block_id: None,                      // unused
