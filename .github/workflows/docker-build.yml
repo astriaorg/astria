@@ -44,6 +44,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      packages: write
     with:
       depot-project-id: mhgvgvsjnx
       package-name: composer
@@ -58,6 +59,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      packages: write
     with:
       depot-project-id: zrh9t1d84s
       package-name: conductor
@@ -72,6 +74,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      packages: write
     with:
       depot-project-id: brzhxfbv9b
       package-name: sequencer
@@ -86,6 +89,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      packages: write
     with:
       depot-project-id: 86q4kz4wfs
       package-name: sequencer-relayer
