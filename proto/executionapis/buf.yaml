@@ -1,10 +1,11 @@
 version: v1
 name: buf.build/astria/execution-apis
 breaking:
+  ignore_unstable_packages: true
   use:
-    - FILE
+    - WIRE_JSON
 deps:
- - buf.build/astria/astria
+  - buf.build/astria/sequencerblock-apis
 lint:
   use:
     - BASIC

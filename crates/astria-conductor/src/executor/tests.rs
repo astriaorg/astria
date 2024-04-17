@@ -28,17 +28,17 @@ use astria_core::{
             GetGenesisInfoRequest,
             UpdateCommitmentStateRequest,
         },
-        sequencer::v1::RollupData as RawRollupData,
+        sequencerblock::v1alpha1::RollupData as RawRollupData,
     },
-    sequencer::v1::{
-        block::RollupData,
-        test_utils::{
-            make_cometbft_block,
-            ConfigureCometBftBlock,
-        },
+    sequencer::v1::test_utils::{
+        make_cometbft_block,
+        ConfigureCometBftBlock,
     },
     sequencerblock::{
-        v1alpha1::SequencerBlock,
+        v1alpha1::{
+            block::RollupData,
+            SequencerBlock,
+        },
         Protobuf as _,
     },
 };

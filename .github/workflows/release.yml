@@ -21,33 +21,37 @@ jobs:
         with:
           version: "1.15.1"
           github_token: ${{ github.token }}
-      - uses: bufbuild/buf-push-action@v1
-        with:
-          draft:  ${{ github.ref_name != 'main'}}
-          input: "proto/sequencerapis"
-          buf_token: ${{ secrets.BUF_TOKEN }}
-      - name: "Update Execution API dependency"
-        run: |
-          cd proto/executionapis
-          buf mod update --only buf.build/astria/astria
-      - uses: bufbuild/buf-push-action@v1
-        with:
-          draft:  ${{ github.ref_name != 'main'}}
-          input: "proto/executionapis"
-          buf_token: ${{ secrets.BUF_TOKEN }}
-      - uses: bufbuild/buf-push-action@v1
+      - name: "Upload Composer API Protos"
+        uses: bufbuild/buf-push-action@v1
         with:
           draft: ${{ github.ref_name != 'main'}}
           input: "proto/composerapis"
+          buf_token: ${{ secrets.BUF_TOKEN }}
+      - name: "Upload Sequencer API Protos"
+        uses: bufbuild/buf-push-action@v1
+        with:
+          draft:  ${{ github.ref_name != 'main'}}
+          input: "proto/sequencerapis"
           buf_token: ${{ secrets.BUF_TOKEN }}
       - name: "Update Sequencer Block API dependency"
         run: |
           cd proto/sequencerblockapis
           buf mod update --only buf.build/astria/astria
-      - uses: bufbuild/buf-push-action@v1
+      - name: "Upload Sequencer Block API Protos"
+        uses: bufbuild/buf-push-action@v1
         with:
           draft: ${{ github.ref_name != 'main'}}
           input: "proto/sequencerblockapis"
+          buf_token: ${{ secrets.BUF_TOKEN }}
+      - name: "Update Execution API dependency"
+        run: |
+          cd proto/executionapis
+          buf mod update --only buf.build/astria/sequencerblock-apis
+      - name: "Upload Execution API Protos"
+        uses: bufbuild/buf-push-action@v1
+        with:
+          draft:  ${{ github.ref_name != 'main'}}
+          input: "proto/executionapis"
           buf_token: ${{ secrets.BUF_TOKEN }}
 
   charts:
