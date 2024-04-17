@@ -3,6 +3,7 @@ name: Reusable Docker Build && Push Workflow
 permissions:
   contents: read
   id-token: write
+  packages: write
 
 on:
   workflow_call:
