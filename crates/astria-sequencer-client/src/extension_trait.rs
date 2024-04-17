@@ -456,8 +456,10 @@ pub trait SequencerClientExt: Client {
             .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
 
         let proto_response =
-            astria_core::generated::protocol::account::v1alpha1::BalanceResponse::decode(&*response.value)
-                .map_err(|e| {
+            astria_core::generated::protocol::account::v1alpha1::BalanceResponse::decode(
+                &*response.value,
+            )
+            .map_err(|e| {
                 Error::abci_query_deserialization(
                     "astria.sequencer.v1.BalanceResponse",
                     response,
@@ -507,14 +509,12 @@ pub trait SequencerClientExt: Client {
             .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
 
         let proto_response =
-            astria_core::generated::protocol::account::v1alpha1::NonceResponse::decode(&*response.value)
-                .map_err(|e| {
-                    Error::abci_query_deserialization(
-                        "astria.sequencer.v1.NonceResponse",
-                        response,
-                        e,
-                    )
-                })?;
+            astria_core::generated::protocol::account::v1alpha1::NonceResponse::decode(
+                &*response.value,
+            )
+            .map_err(|e| {
+                Error::abci_query_deserialization("astria.sequencer.v1.NonceResponse", response, e)
+            })?;
         Ok(proto_response.to_native())
     }
 

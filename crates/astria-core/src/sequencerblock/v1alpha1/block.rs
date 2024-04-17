@@ -802,8 +802,10 @@ impl SequencerBlock {
         let mut rollup_datas = IndexMap::new();
         for elem in data_list {
             let raw_tx =
-                crate::generated::protocol::transaction::v1alpha1::SignedTransaction::decode(&*elem)
-                    .map_err(SequencerBlockError::signed_transaction_protobuf_decode)?;
+                crate::generated::protocol::transaction::v1alpha1::SignedTransaction::decode(
+                    &*elem,
+                )
+                .map_err(SequencerBlockError::signed_transaction_protobuf_decode)?;
             let signed_tx = SignedTransaction::try_from_raw(raw_tx)
                 .map_err(SequencerBlockError::raw_signed_transaction_conversion)?;
             for action in signed_tx.into_unsigned().actions {

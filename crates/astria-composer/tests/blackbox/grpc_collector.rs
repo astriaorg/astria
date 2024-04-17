@@ -2,11 +2,11 @@ use std::time::Duration;
 
 use astria_core::{
     generated::{
-        protocol::account::v1alpha1::NonceResponse,
         composer::v1alpha1::{
             grpc_collector_service_client::GrpcCollectorServiceClient,
             SubmitRollupTransactionRequest,
         },
+        protocol::account::v1alpha1::NonceResponse,
     },
     primitive::v1::RollupId,
 };
