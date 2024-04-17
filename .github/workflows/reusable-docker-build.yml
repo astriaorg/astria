@@ -1,10 +1,5 @@
 name: Reusable Docker Build && Push Workflow
 
-permissions:
-  contents: read
-  id-token: write
-  packages: write
-
 on:
   workflow_call:
     inputs:
@@ -32,6 +27,10 @@ env:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
     if: startsWith(inputs.tag, inputs.package-name) || !inputs.tag && (startsWith(github.ref, format('refs/tags/{0}-v', inputs.package-name)) || github.ref == 'refs/heads/main' || github.event_name == 'pull_request' || github.event_name == 'merge_group')
     steps:
       # Checking out the repo
