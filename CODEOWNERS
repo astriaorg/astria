@@ -19,7 +19,6 @@ proto/*/LICENSE @astriaorg/api-reviewers
 buf.lock @astriaorg/api-reviewers
 buf.yaml @astriaorg/api-reviewers
 buf.work.yaml @astriaorg/api-reviewers
-proto/*/LICENSE @astriaorg/api-reviewers
 
 *.rs @astriaorg/rust-reviewers
 Cargo.toml @astriaorg/rust-reviewers
