@@ -160,6 +160,8 @@ impl Status {
     }
 }
 
+type TrackedSubmitFut = Pin<Box<dyn Future<Output = eyre::Result<u32>> + Send>>;
+
 impl Executor {
     /// Return a reader to the status reporting channel
     pub(super) fn subscribe(&self) -> watch::Receiver<Status> {
@@ -168,7 +170,7 @@ impl Executor {
 
     /// Create a future to submit a bundle to the sequencer.
     #[instrument(skip_all, fields(nonce.initial = %nonce))]
-    fn submit_bundle(&self, nonce: u32, bundle: SizedBundle) -> Fuse<Instrumented<SubmitFut>> {
+    fn submit_bundle(&self, nonce: u32, bundle: SizedBundle) -> Instrumented<SubmitFut> {
         #[allow(clippy::cast_precision_loss)]
         metrics::histogram!(crate::metrics_init::BUNDLES_OUTGOING_BYTES)
             .record(bundle.get_size() as f64);
@@ -186,7 +188,6 @@ impl Executor {
             bundle,
         }
         .in_current_span()
-        .fuse()
     }
 
     /// Run the Executor loop, calling `process_bundle` on each bundle received from the channel.
@@ -195,7 +196,7 @@ impl Executor {
     /// An error is returned if connecting to the sequencer fails.
     #[instrument(skip_all, fields(address = %self.address))]
     pub(super) async fn run_until_stopped(mut self) -> eyre::Result<()> {
-        let mut submission_fut: Fuse<Instrumented<SubmitFut>> = Fuse::terminated();
+        let mut submission_fut: Fuse<Instrumented<TrackedSubmitFut>> = Fuse::terminated();
         let mut nonce = get_latest_nonce(self.sequencer_client.clone(), self.address)
             .await
             .wrap_err("failed getting initial nonce from sequencer")?;
@@ -232,7 +233,8 @@ impl Executor {
                 Some(next_bundle) = future::ready(bundle_factory.next_finished()), if submission_fut.is_terminated() => {
                     let bundle = next_bundle.pop();
                     if !bundle.is_empty() {
-                        submission_fut = self.submit_bundle(nonce, bundle);
+                        let inner_submit_fut = self.submit_bundle(nonce, bundle.clone());
+                        submission_fut = tracked_submit_bundle(inner_submit_fut);
                     }
                 }
 
@@ -259,7 +261,8 @@ impl Executor {
                         debug!(
                             "forcing bundle submission to sequencer due to block timer"
                         );
-                        submission_fut = self.submit_bundle(nonce, bundle);
+                        let inner_submit_fut = self.submit_bundle(nonce, bundle.clone());
+                        submission_fut = tracked_submit_bundle(inner_submit_fut);
                     }
                 }
             }
@@ -343,7 +346,8 @@ impl Executor {
             }
 
             while let Some(bundle) = bundles_to_drain.pop_front() {
-                match self.submit_bundle(nonce, bundle.clone()).await {
+                let inner_submit_fut = self.submit_bundle(nonce, bundle.clone());
+                match tracked_submit_bundle(inner_submit_fut).await {
                     Ok(new_nonce) => {
                         debug!(
                             bundle = %telemetry::display::json(&SizedBundleReport(&bundle)),
@@ -399,6 +403,24 @@ impl Executor {
 
         reason.map(|_| ())
     }
+}
+
+#[instrument(skip_all)]
+fn tracked_submit_bundle(
+    submit_fut: Instrumented<SubmitFut>,
+) -> Fuse<Instrumented<TrackedSubmitFut>> {
+    async move {
+        let start = Instant::now();
+        let nonce = submit_fut
+            .await
+            .wrap_err("failed submitting bundle to sequencer")?;
+        let duration = start.elapsed();
+        metrics::histogram!(crate::metrics_init::TOTAL_BUNDLE_SUBMISSION_LATENCY).record(duration);
+        Ok(nonce)
+    }
+    .boxed()
+    .in_current_span()
+    .fuse()
 }
 
 /// Queries the sequencer for the latest nonce with an exponential backoff
