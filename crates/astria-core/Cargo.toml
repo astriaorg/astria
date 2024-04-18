@@ -53,7 +53,6 @@ insta = { workspace = true, features = ["json"] }
 rand = { workspace = true }
 tonic-build = "0.10"
 walkdir = "2.4.0"
-insta = { workspace = true, features = ["json"] }
 
 tempfile = { workspace = true }
 which = { workspace = true }
