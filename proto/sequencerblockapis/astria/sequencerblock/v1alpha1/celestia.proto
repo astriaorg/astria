@@ -2,8 +2,8 @@ syntax = "proto3";
 
 package astria.sequencerblock.v1alpha1;
 
-import "astria/sequencerblock/v1alpha1/block.proto";
 import "astria/primitive/v1/types.proto";
+import "astria/sequencerblock/v1alpha1/block.proto";
 
 // A collection of transactions belonging to a specific rollup that are submitted to celestia.
 //

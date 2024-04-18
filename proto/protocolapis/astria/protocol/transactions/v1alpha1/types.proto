@@ -42,7 +42,7 @@ message Action {
     SudoAddressChangeAction sudo_address_change_action = 50;
     astria_vendored.tendermint.abci.ValidatorUpdate validator_update_action = 51;
     IbcRelayerChangeAction ibc_relayer_change_action = 52;
-    FeeAssetChangeAction fee_asset_change_action = 53;   
+    FeeAssetChangeAction fee_asset_change_action = 53;
     MintAction mint_action = 54;
   }
   reserved 3 to 10;

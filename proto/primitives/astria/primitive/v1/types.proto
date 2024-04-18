@@ -34,4 +34,3 @@ message Denom {
   bytes id = 1;
   string base_denom = 2;
 }
-
