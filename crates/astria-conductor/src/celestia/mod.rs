@@ -118,8 +118,6 @@ impl GetSequencerHeight for ReconstructedBlock {
 
 pub(super) struct ReconstructedBlocks {
     celestia_height: u64,
-    sequencer_namespace: Namespace,
-    rollup_namespace: Namespace,
     blocks: Vec<ReconstructedBlock>,
 }
 
@@ -532,8 +530,6 @@ impl FetchConvertAndVerify {
 
         let reconstructed_blocks = ReconstructedBlocks {
             celestia_height,
-            sequencer_namespace,
-            rollup_namespace,
             blocks: reconstructed,
         };
 

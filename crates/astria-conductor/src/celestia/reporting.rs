@@ -36,17 +36,10 @@ impl<'a> Serialize for ReportReconstructedBlocks<'a> {
     where
         S: serde::Serializer,
     {
-        const FIELDS: [&str; 4] = [
-            "celestia_height",
-            "sequencer_namespace",
-            "rollup_namespace",
-            "reconstructed_blocks",
-        ];
+        const FIELDS: [&str; 2] = ["celestia_height", "reconstructed_blocks"];
         let mut state = serializer.serialize_struct("ReconstructedBlocksInfo", FIELDS.len())?;
         state.serialize_field(FIELDS[0], &self.0.celestia_height)?;
-        state.serialize_field(FIELDS[1], &base64(&self.0.sequencer_namespace.as_bytes()))?;
-        state.serialize_field(FIELDS[2], &base64(self.0.rollup_namespace.as_bytes()))?;
-        state.serialize_field(FIELDS[3], &ReportReconstructedBlocksSeq(&self.0.blocks))?;
+        state.serialize_field(FIELDS[1], &ReportReconstructedBlocksSeq(&self.0.blocks))?;
         state.end()
     }
 }
