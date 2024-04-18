@@ -53,6 +53,7 @@ itertools = "0.12.1"
 pin-project-lite = "0.2"
 tokio-stream = "0.1.14"
 tracing-futures = { version = "0.2.5", features = ["futures-03"] }
+moka = { version = "0.12.5", features = ["future"] }
 
 [dev-dependencies]
 astria-core = { path = "../astria-core", features = ["server", "test-utils"] }
@@ -68,6 +69,7 @@ wiremock = { workspace = true }
 
 chrono = "0.4.35"
 tokio-stream = { version = "0.1.15", features = ["net"] }
+rand_chacha = "0.3.1"
 
 [build-dependencies]
 astria-build-info = { path = "../astria-build-info", features = ["build"] }

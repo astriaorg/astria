@@ -10,10 +10,7 @@ use celestia_client::jsonrpsee::http_client::HttpClient as CelestiaClient;
 use sequencer_client::HttpClient as SequencerClient;
 use tokio_util::sync::CancellationToken;
 
-use super::{
-    latest_height_stream::stream_latest_heights,
-    Reader,
-};
+use super::Reader;
 use crate::executor;
 
 pub(crate) struct Builder {
@@ -40,12 +37,9 @@ impl Builder {
         let celestia_client = create_celestia_client(celestia_http_endpoint, &celestia_token)
             .wrap_err("failed initializing client for Celestia HTTP RPC")?;
 
-        let latest_celestia_heights =
-            stream_latest_heights(celestia_client.clone(), celestia_block_time);
-
         Ok(Reader {
+            celestia_block_time,
             celestia_client,
-            latest_celestia_heights,
             executor,
             sequencer_cometbft_client,
             shutdown,
