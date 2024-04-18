@@ -48,6 +48,8 @@ test-utils = ["dep:rand"]
 base64-serde = ["dep:base64-serde"]
 
 [dev-dependencies]
+astria-core = { path = ".", features = ["serde"] }
+insta = { workspace = true, features = ["json"] }
 rand = { workspace = true }
 tonic-build = "0.10"
 walkdir = "2.4.0"

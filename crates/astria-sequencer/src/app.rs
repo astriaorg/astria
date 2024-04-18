@@ -624,6 +624,11 @@ impl App {
             .await
             .context("failed to clear block deposits")?;
 
+        debug!(
+            deposits = %telemetry::display::json(&deposits),
+            "got block deposits from state"
+        );
+
         let Hash::Sha256(block_hash) = finalize_block.hash else {
             anyhow::bail!("finalized block hash is empty; this should not occur")
         };

@@ -227,7 +227,11 @@ pub struct IncorrectAddressLength {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Address([u8; ADDRESS_LEN]);
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+pub struct Address(
+    #[cfg_attr(feature = "serde", serde(serialize_with = "crate::serde::base64"))]
+    [u8; ADDRESS_LEN],
+);
 
 impl Address {
     #[must_use]
@@ -309,4 +313,45 @@ where
         tree.build_leaf().write(rollup_id.as_ref()).write(&root);
     }
     tree
+}
+
+#[cfg(test)]
+mod tests {
+    use insta::assert_json_snapshot;
+
+    use super::{
+        Address,
+        IncorrectAddressLength,
+    };
+
+    #[test]
+    fn account_of_20_bytes_is_converted_correctly() {
+        let expected = Address([42; 20]);
+        let account_vec = expected.0.to_vec();
+        let actual = Address::try_from_slice(&account_vec).unwrap();
+        assert_eq!(expected, actual);
+    }
+
+    #[track_caller]
+    fn account_conversion_check(bad_account: &[u8]) {
+        let error = Address::try_from_slice(bad_account);
+        assert!(
+            matches!(error, Err(IncorrectAddressLength { .. })),
+            "converting form incorrect sized account succeeded where it should have failed"
+        );
+    }
+
+    #[test]
+    fn account_of_incorrect_length_gives_error() {
+        account_conversion_check(&[42; 0]);
+        account_conversion_check(&[42; 19]);
+        account_conversion_check(&[42; 21]);
+        account_conversion_check(&[42; 100]);
+    }
+
+    #[test]
+    fn snapshots() {
+        let address = Address([42; 20]);
+        assert_json_snapshot!(address);
+    }
 }
