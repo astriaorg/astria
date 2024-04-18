@@ -15,7 +15,7 @@ storage:
       persistentVolumeName: "celestia-shared-storage"
       path: "/data/celestia-data"
 
-celestiaAppImage: "ghcr.io/celestiaorg/celestia-app:v1.6.0"
+celestiaAppImage: "ghcr.io/celestiaorg/celestia-app:v1.8.0"
 celestiaNodeImage: "ghcr.io/celestiaorg/celestia-node:v0.12.4"
 tokenServerImage: "busybox:1.35.0-musl"
 
@@ -35,7 +35,7 @@ keyringBackend: "test"
 validatorKeyName: "test-validator"
 validatorMnemonic: connect soon random stable toddler tired glove drastic comfort donor struggle island cactus pole shell alpha taste able story business cross dismiss book brass
 # Genesis amount
-coins: "1000000000000000utia"
+coins: "10000000000000000000000000utia"
 # Staking amount
 validatorStake: "5000000000utia"
 

@@ -35,3 +35,10 @@ celestia-appd gentx \
   --home "$home_dir"
 
 celestia-appd collect-gentxs --home "$home_dir"
+
+# Enable transaction indexing
+sed -i'.bak' 's#"null"#"kv"#g' "${home_dir}"/config/config.toml
+# Persist ABCI responses
+sed -i'.bak' 's#discard_abci_responses = true#discard_abci_responses = false#g' "${home_dir}"/config/config.toml
+# Override the VotingPeriod from 1 week to 1 minute
+sed -i'.bak' 's#"604800s"#"60s"#g' "${home_dir}"/config/genesis.json
