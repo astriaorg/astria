@@ -13,6 +13,8 @@
 //! { "id": 1, "jsonrpc": "2.0", "method": "eth_subscribe", "params": ["newPendingTransactions"] }
 //! ```
 
+use std::time::Duration;
+
 use astria_core::sequencer::v1::{
     asset::default_native_asset_id,
     transaction::action::SequenceAction,
@@ -20,6 +22,8 @@ use astria_core::sequencer::v1::{
 };
 use astria_eyre::eyre::{
     self,
+    eyre,
+    Report,
     WrapErr as _,
 };
 use ethers::providers::{
@@ -27,19 +31,29 @@ use ethers::providers::{
     ProviderError,
     Ws,
 };
-use tokio::sync::{
-    mpsc::error::SendTimeoutError,
-    watch,
+use tokio::{
+    select,
+    sync::{
+        mpsc::error::SendTimeoutError,
+        watch,
+    },
 };
+use tokio_util::sync::CancellationToken;
 use tracing::{
     debug,
+    error,
     info,
     instrument,
     warn,
 };
 
-use crate::executor;
+use crate::{
+    collectors::EXECUTOR_SEND_TIMEOUT,
+    executor,
+};
 type StdError = dyn std::error::Error;
+
+const WSS_UNSUBSCRIBE_TIMEOUT: Duration = Duration::from_secs(2);
 
 /// `GethCollector` Collects transactions submitted to a Geth rollup node and passes
 /// them downstream for further processing.
@@ -57,8 +71,10 @@ pub(crate) struct Geth {
     executor_handle: executor::Handle,
     // The status of this collector instance.
     status: watch::Sender<Status>,
-    /// Rollup URL
+    // Rollup URL
     url: String,
+    // Token to signal the geth collector to stop upon shutdown.
+    shutdown_token: CancellationToken,
 }
 
 #[derive(Debug)]
@@ -78,9 +94,21 @@ impl Status {
     }
 }
 
-impl Geth {
-    /// Initializes a new collector instance
-    pub(crate) fn new(chain_name: String, url: String, executor_handle: executor::Handle) -> Self {
+pub(crate) struct Builder {
+    pub(crate) chain_name: String,
+    pub(crate) url: String,
+    pub(crate) executor_handle: executor::Handle,
+    pub(crate) shutdown_token: CancellationToken,
+}
+
+impl Builder {
+    pub(crate) fn build(self) -> Geth {
+        let Self {
+            chain_name,
+            url,
+            executor_handle,
+            shutdown_token,
+        } = self;
         let (status, _) = watch::channel(Status::new());
         let rollup_id = RollupId::from_unhashed_bytes(&chain_name);
         info!(
@@ -88,15 +116,18 @@ impl Geth {
             rollup_id = %rollup_id,
             "created new geth collector for rollup",
         );
-        Self {
+        Geth {
             rollup_id,
             chain_name,
             executor_handle,
             status,
             url,
+            shutdown_token,
         }
     }
+}
 
+impl Geth {
     /// Subscribe to the collector's status.
     pub(crate) fn subscribe(&self) -> watch::Receiver<Status> {
         self.status.subscribe()
@@ -116,6 +147,7 @@ impl Geth {
             executor_handle,
             status,
             url,
+            shutdown_token,
             ..
         } = self;
 
@@ -155,37 +187,79 @@ impl Geth {
 
         status.send_modify(|status| status.is_connected = true);
 
-        while let Some(tx) = tx_stream.next().await {
-            let tx_hash = tx.hash;
-            debug!(transaction.hash = %tx_hash, "collected transaction from rollup");
-            let data = tx.rlp().to_vec();
-            let seq_action = SequenceAction {
-                rollup_id,
-                data,
-                fee_asset_id: default_native_asset_id(),
-            };
+        let reason = loop {
+            select! {
+                biased;
+                () = shutdown_token.cancelled() => {
+                    break Ok("shutdown signal received");
+                },
+                tx_res = tx_stream.next() => {
+                    if let Some(tx) = tx_res {
+                        let tx_hash = tx.hash;
+                        debug!(transaction.hash = %tx_hash, "collected transaction from rollup");
+                        let data = tx.rlp().to_vec();
+                        let seq_action = SequenceAction {
+                            rollup_id,
+                            data,
+                            fee_asset_id: default_native_asset_id(),
+                        };
 
-            match executor_handle
-                .send_timeout(seq_action, Duration::from_millis(500))
-                .await
-            {
-                Ok(()) => {}
-                Err(SendTimeoutError::Timeout(_seq_action)) => {
-                    warn!(
-                        transaction.hash = %tx_hash,
-                        "timed out sending new transaction to executor after 500ms; dropping tx"
-                    );
-                }
-                Err(SendTimeoutError::Closed(_seq_action)) => {
-                    warn!(
-                        transaction.hash = %tx_hash,
-                        "executor channel closed while sending transaction; dropping transaction \
-                         and exiting event loop"
-                    );
-                    break;
+                        match executor_handle
+                            .send_timeout(seq_action, EXECUTOR_SEND_TIMEOUT)
+                            .await
+                        {
+                            Ok(()) => {}
+                            Err(SendTimeoutError::Timeout(_seq_action)) => {
+                                warn!(
+                                    transaction.hash = %tx_hash,
+                                    timeout_ms = EXECUTOR_SEND_TIMEOUT.as_millis(),
+                                    "timed out sending new transaction to executor; dropping tx",
+                                );
+                            }
+                            Err(SendTimeoutError::Closed(_seq_action)) => {
+                                warn!(
+                                    transaction.hash = %tx_hash,
+                                    "executor channel closed while sending transaction; dropping transaction \
+                                     and exiting event loop"
+                                );
+                                break Err(eyre!("executor channel closed while sending transaction"));
+                            }
+                        }
+                    } else {
+                        break Err(eyre!("geth tx stream ended"));
+                    }
                 }
             }
+        };
+
+        match &reason {
+            Ok(reason) => {
+                info!(reason, "shutting down");
+            }
+            Err(reason) => {
+                error!(%reason, "shutting down");
+            }
+        };
+
+        status.send_modify(|status| status.is_connected = false);
+
+        // if the loop exits with an error, we can still proceed with unsubscribing the WSS
+        // stream as we could have exited due to an error in sending messages via the executor
+        // channel.
+
+        // give 2s for the websocket connection to be unsubscribed as we want to avoid having
+        // this hang for too long
+        match tokio::time::timeout(WSS_UNSUBSCRIBE_TIMEOUT, tx_stream.unsubscribe()).await {
+            Ok(Ok(true)) => info!("unsubscribed from geth tx stream"),
+            Ok(Ok(false)) => warn!("failed to unsubscribe from geth tx stream"),
+            Ok(Err(err)) => {
+                error!(error = %Report::new(err), "failed unsubscribing from the geth tx stream");
+            }
+            Err(err) => {
+                error!(error = %Report::new(err), "timed out while unsubscribing from the geth tx stream");
+            }
         }
-        Ok(())
+
+        reason.map(|_| ())
     }
 }

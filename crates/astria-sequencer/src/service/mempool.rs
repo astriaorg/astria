@@ -19,7 +19,7 @@ use futures::{
     FutureExt,
 };
 use prost::Message as _;
-use tendermint::v0_37::abci::{
+use tendermint::v0_38::abci::{
     request,
     response,
     MempoolRequest,
@@ -27,7 +27,7 @@ use tendermint::v0_37::abci::{
 };
 use tower::Service;
 use tower_abci::BoxError;
-use tracing::Instrument;
+use tracing::Instrument as _;
 
 use crate::{
     accounts::state_ext::StateReadExt,
@@ -39,7 +39,7 @@ const MAX_TX_SIZE: usize = 256_000; // 256 KB
 /// Mempool handles [`request::CheckTx`] abci requests.
 //
 /// It performs a stateless check of the given transaction,
-/// returning a [`tendermint::v0_37::abci::response::CheckTx`].
+/// returning a [`tendermint::v0_38::abci::response::CheckTx`].
 #[derive(Clone)]
 pub(crate) struct Mempool {
     storage: Storage,
@@ -63,7 +63,7 @@ impl Service<MempoolRequest> for Mempool {
     }
 
     fn call(&mut self, req: MempoolRequest) -> Self::Future {
-        use penumbra_tower_trace::v037::RequestExt as _;
+        use penumbra_tower_trace::v038::RequestExt as _;
         let span = req.create_span();
         let storage = self.storage.clone();
         async move {

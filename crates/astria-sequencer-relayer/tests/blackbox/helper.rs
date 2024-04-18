@@ -11,7 +11,7 @@ use std::{
 
 use assert_json_diff::assert_json_include;
 use astria_core::{
-    generated::sequencer::v1::{
+    generated::sequencerblock::v1alpha1::{
         sequencer_service_server::{
             SequencerService,
             SequencerServiceServer,
@@ -21,10 +21,8 @@ use astria_core::{
         GetSequencerBlockRequest,
         SequencerBlock as RawSequencerBlock,
     },
-    sequencer::v1::{
-        test_utils::make_cometbft_block,
-        SequencerBlock,
-    },
+    sequencer::v1::test_utils::make_cometbft_block,
+    sequencerblock::v1alpha1::SequencerBlock,
 };
 use astria_sequencer_relayer::{
     config::Config,
@@ -271,13 +269,7 @@ impl TestSequencerRelayer {
             .into_raw();
 
         // make the block bad!!
-        let cometbft_header = block
-            .header
-            .as_mut()
-            .unwrap()
-            .cometbft_header
-            .as_mut()
-            .unwrap();
+        let cometbft_header = block.header.as_mut().unwrap();
         cometbft_header.data_hash = [0; 32].to_vec();
 
         let mut blocks = self.sequencer_server_blocks.lock().unwrap();

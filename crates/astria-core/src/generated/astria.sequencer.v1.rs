@@ -1,227 +1,3 @@
-/// A proof for a tree of the given size containing the audit path from a leaf to the root.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct Proof {
-    /// A sequence of 32 byte hashes used to reconstruct a Merkle Tree Hash.
-    #[prost(bytes = "vec", tag = "1")]
-    pub audit_path: ::prost::alloc::vec::Vec<u8>,
-    /// The index of the leaf this proof applies to.
-    #[prost(uint64, tag = "2")]
-    pub leaf_index: u64,
-    /// The total size of the tree this proof was derived from.
-    #[prost(uint64, tag = "3")]
-    pub tree_size: u64,
-}
-impl ::prost::Name for Proof {
-    const NAME: &'static str = "Proof";
-    const PACKAGE: &'static str = "astria.sequencer.v1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencer.v1.{}", Self::NAME)
-    }
-}
-/// `RollupTransactions` are a sequence of opaque bytes together with a 32 byte
-/// identifier of that rollup.
-///
-/// The binary encoding is understood as an implementation detail of the
-/// services sending and receiving the transactions.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct RollupTransactions {
-    /// The 32 bytes identifying a rollup. Usually the sha256 hash of a plain rollup name.
-    #[prost(bytes = "vec", tag = "1")]
-    pub id: ::prost::alloc::vec::Vec<u8>,
-    /// The serialized bytes of the rollup data.
-    /// Each entry is a protobuf-encoded `RollupData` message.
-    #[prost(bytes = "vec", repeated, tag = "2")]
-    pub transactions: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
-    /// The proof that these rollup transactions are included in sequencer block.
-    /// `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions_proof`.
-    #[prost(message, optional, tag = "3")]
-    pub proof: ::core::option::Option<Proof>,
-}
-impl ::prost::Name for RollupTransactions {
-    const NAME: &'static str = "RollupTransactions";
-    const PACKAGE: &'static str = "astria.sequencer.v1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencer.v1.{}", Self::NAME)
-    }
-}
-/// `SequencerBlock` is constructed from a tendermint/cometbft block by
-/// converting its opaque `data` bytes into sequencer specific types.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct SequencerBlock {
-    /// / the block header, which contains the cometbft header and additional sequencer-specific
-    /// / commitments.
-    #[prost(message, optional, tag = "1")]
-    pub header: ::core::option::Option<SequencerBlockHeader>,
-    /// The collection of rollup transactions that were included in this block.
-    #[prost(message, repeated, tag = "2")]
-    pub rollup_transactions: ::prost::alloc::vec::Vec<RollupTransactions>,
-    /// The proof that the rollup transactions are included in the CometBFT block this
-    /// sequencer block is derived form. This proof together with
-    /// `Sha256(MTH(rollup_transactions))` must match `header.data_hash`.
-    /// `MTH(rollup_transactions)` is the Merkle Tree Hash derived from the
-    /// rollup transactions.
-    #[prost(message, optional, tag = "3")]
-    pub rollup_transactions_proof: ::core::option::Option<Proof>,
-    /// The proof that the rollup IDs listed in `rollup_transactions` are included
-    /// in the CometBFT block this sequencer block is derived form.
-    ///
-    /// This proof is used to verify that the relayer that posts to celestia
-    /// includes all rollup IDs and does not censor any.
-    ///
-    /// This proof together with `Sha256(MTH(rollup_ids))` must match `header.data_hash`.
-    /// `MTH(rollup_ids)` is the Merkle Tree Hash derived from the rollup IDs listed in
-    /// the rollup transactions.
-    #[prost(message, optional, tag = "4")]
-    pub rollup_ids_proof: ::core::option::Option<Proof>,
-}
-impl ::prost::Name for SequencerBlock {
-    const NAME: &'static str = "SequencerBlock";
-    const PACKAGE: &'static str = "astria.sequencer.v1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencer.v1.{}", Self::NAME)
-    }
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct SequencerBlockHeader {
-    /// The original CometBFT header that was the input to this sequencer block.
-    #[prost(message, optional, tag = "1")]
-    pub cometbft_header: ::core::option::Option<::tendermint_proto::types::Header>,
-    /// The 32-byte merkle root of all the rollup transactions in the block,
-    /// Corresponds to `MHT(astria.sequencer.v1alpha.SequencerBlock.rollup_transactions)`,
-    #[prost(bytes = "vec", tag = "2")]
-    pub rollup_transactions_root: ::prost::alloc::vec::Vec<u8>,
-    /// The 32-byte merkle root of all the rollup IDs in the block.
-    #[prost(bytes = "vec", tag = "3")]
-    pub rollup_ids_root: ::prost::alloc::vec::Vec<u8>,
-}
-impl ::prost::Name for SequencerBlockHeader {
-    const NAME: &'static str = "SequencerBlockHeader";
-    const PACKAGE: &'static str = "astria.sequencer.v1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencer.v1.{}", Self::NAME)
-    }
-}
-/// `Deposit` represents a deposit from the sequencer
-/// to a rollup.
-///
-/// A `Deposit` is similar to an emitted event, in that the sequencer application detects
-/// transfers to bridge accounts and the corresponding rollup ID and includes a `Deposit`
-/// corresponding to that within the respective rollup's data.
-///
-/// A `Deposit` notifies a rollup that funds were locked to some account on the sequencer,
-/// however it's up to the rollup what to do with that info.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct Deposit {
-    /// the address the funds were locked in on the sequencer.
-    /// this is required as initializing an account as a bridge account
-    /// is permissionless, so the rollup consensus needs to know and enshrine
-    /// which accounts it accepts as valid bridge accounts.
-    #[prost(bytes = "vec", tag = "1")]
-    pub bridge_address: ::prost::alloc::vec::Vec<u8>,
-    /// the rollup_id which the funds are being deposited to
-    #[prost(bytes = "vec", tag = "2")]
-    pub rollup_id: ::prost::alloc::vec::Vec<u8>,
-    #[prost(message, optional, tag = "3")]
-    pub amount: ::core::option::Option<super::super::primitive::v1::Uint128>,
-    #[prost(bytes = "vec", tag = "4")]
-    pub asset_id: ::prost::alloc::vec::Vec<u8>,
-    /// the address on the destination chain which
-    /// will receive the bridged funds
-    #[prost(string, tag = "5")]
-    pub destination_chain_address: ::prost::alloc::string::String,
-}
-impl ::prost::Name for Deposit {
-    const NAME: &'static str = "Deposit";
-    const PACKAGE: &'static str = "astria.sequencer.v1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencer.v1.{}", Self::NAME)
-    }
-}
-/// `FilteredSequencerBlock` is similar to `SequencerBlock` but with a subset
-/// of the rollup transactions.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct FilteredSequencerBlock {
-    /// The original CometBFT header that was the input to this sequencer block.
-    #[prost(message, optional, tag = "1")]
-    pub cometbft_header: ::core::option::Option<::tendermint_proto::types::Header>,
-    /// A subset of rollup transactions that were included in this block.
-    #[prost(message, repeated, tag = "2")]
-    pub rollup_transactions: ::prost::alloc::vec::Vec<RollupTransactions>,
-    /// The Merkle Tree Hash of all the rollup transactions in the block (not just the
-    /// subset included). Corresponds to `MHT(astria.sequencer.v1alpha.SequencerBlock.rollup_transactions)`,
-    /// the Merkle Tree Hash derived from the rollup transactions.
-    /// Always 32 bytes.
-    #[prost(bytes = "vec", tag = "3")]
-    pub rollup_transactions_root: ::prost::alloc::vec::Vec<u8>,
-    /// The proof that the rollup transactions are included in the CometBFT block this
-    /// sequencer block is derived form. This proof together with
-    /// `rollup_transactions_root = Sha256(MTH(rollup_transactions))` must match `header.data_hash`.
-    /// `MTH(rollup_transactions)` is the Merkle Tree Hash derived from the
-    /// rollup transactions.
-    #[prost(message, optional, tag = "4")]
-    pub rollup_transactions_proof: ::core::option::Option<Proof>,
-    /// The rollup IDs for which `CelestiaRollupBlob`s were submitted to celestia.
-    /// Corresponds to the `astria.sequencer.v1.RollupTransactions.rollup_id` field
-    /// and is extracted from `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions`.
-    /// Note that these are all the rollup IDs in the sequencer block, not merely those in
-    /// `rollup_transactions` field. This is necessary to prove that no rollup IDs were omitted.
-    #[prost(bytes = "vec", repeated, tag = "5")]
-    pub all_rollup_ids: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
-    /// The proof that the `rollup_ids` are included
-    /// in the CometBFT block this sequencer block is derived form.
-    ///
-    /// This proof is used to verify that the relayer that posts to celestia
-    /// includes all rollup IDs and does not censor any.
-    ///
-    /// This proof together with `Sha256(MTH(rollup_ids))` must match `header.data_hash`.
-    /// `MTH(rollup_ids)` is the Merkle Tree Hash derived from the rollup IDs listed in
-    /// the rollup transactions.
-    #[prost(message, optional, tag = "6")]
-    pub rollup_ids_proof: ::core::option::Option<Proof>,
-}
-impl ::prost::Name for FilteredSequencerBlock {
-    const NAME: &'static str = "FilteredSequencerBlock";
-    const PACKAGE: &'static str = "astria.sequencer.v1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencer.v1.{}", Self::NAME)
-    }
-}
-/// A piece of data that is sent to a rollup execution node.
-///
-/// The data can be either sequenced data (originating from a `SequenceAction`
-/// submitted by a user) or a `Deposit` originating from a `BridgeLockAction`.
-///
-/// The rollup node receives this type from conductor and must decode them accordingly.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct RollupData {
-    #[prost(oneof = "rollup_data::Value", tags = "1, 2")]
-    pub value: ::core::option::Option<rollup_data::Value>,
-}
-/// Nested message and enum types in `RollupData`.
-pub mod rollup_data {
-    #[allow(clippy::derive_partial_eq_without_eq)]
-    #[derive(Clone, PartialEq, ::prost::Oneof)]
-    pub enum Value {
-        #[prost(bytes, tag = "1")]
-        SequencedData(::prost::alloc::vec::Vec<u8>),
-        #[prost(message, tag = "2")]
-        Deposit(super::Deposit),
-    }
-}
-impl ::prost::Name for RollupData {
-    const NAME: &'static str = "RollupData";
-    const PACKAGE: &'static str = "astria.sequencer.v1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencer.v1.{}", Self::NAME)
-    }
-}
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AssetBalance {
@@ -286,6 +62,230 @@ impl ::prost::Name for Denom {
         ::prost::alloc::format!("astria.sequencer.v1.{}", Self::NAME)
     }
 }
+/// A proof for a tree of the given size containing the audit path from a leaf to the root.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Proof {
+    /// A sequence of 32 byte hashes used to reconstruct a Merkle Tree Hash.
+    #[prost(bytes = "vec", tag = "1")]
+    pub audit_path: ::prost::alloc::vec::Vec<u8>,
+    /// The index of the leaf this proof applies to.
+    #[prost(uint64, tag = "2")]
+    pub leaf_index: u64,
+    /// The total size of the tree this proof was derived from.
+    #[prost(uint64, tag = "3")]
+    pub tree_size: u64,
+}
+impl ::prost::Name for Proof {
+    const NAME: &'static str = "Proof";
+    const PACKAGE: &'static str = "astria.sequencer.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.sequencer.v1.{}", Self::NAME)
+    }
+}
+/// `RollupTransactions` are a sequence of opaque bytes together with a 32 byte
+/// identifier of that rollup.
+///
+/// The binary encoding is understood as an implementation detail of the
+/// services sending and receiving the transactions.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RollupTransactions {
+    /// The 32 bytes identifying a rollup. Usually the sha256 hash of a plain rollup name.
+    #[prost(bytes = "vec", tag = "1")]
+    pub id: ::prost::alloc::vec::Vec<u8>,
+    /// The serialized bytes of the rollup data.
+    /// Each entry is a protobuf-encoded `RollupData` message.
+    #[prost(bytes = "vec", repeated, tag = "2")]
+    pub transactions: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+    /// The proof that these rollup transactions are included in sequencer block.
+    /// `astria.SequencerBlock.rollup_transactions_proof`.
+    #[prost(message, optional, tag = "3")]
+    pub proof: ::core::option::Option<Proof>,
+}
+impl ::prost::Name for RollupTransactions {
+    const NAME: &'static str = "RollupTransactions";
+    const PACKAGE: &'static str = "astria.sequencer.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.sequencer.v1.{}", Self::NAME)
+    }
+}
+/// `SequencerBlock` is constructed from a tendermint/cometbft block by
+/// converting its opaque `data` bytes into sequencer specific types.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct SequencerBlock {
+    /// / the block header, which contains the cometbft header and additional sequencer-specific
+    /// / commitments.
+    #[prost(message, optional, tag = "1")]
+    pub header: ::core::option::Option<SequencerBlockHeader>,
+    /// The collection of rollup transactions that were included in this block.
+    #[prost(message, repeated, tag = "2")]
+    pub rollup_transactions: ::prost::alloc::vec::Vec<RollupTransactions>,
+    /// The proof that the rollup transactions are included in the CometBFT block this
+    /// sequencer block is derived form. This proof together with
+    /// `Sha256(MTH(rollup_transactions))` must match `header.data_hash`.
+    /// `MTH(rollup_transactions)` is the Merkle Tree Hash derived from the
+    /// rollup transactions.
+    #[prost(message, optional, tag = "3")]
+    pub rollup_transactions_proof: ::core::option::Option<Proof>,
+    /// The proof that the rollup IDs listed in `rollup_transactions` are included
+    /// in the CometBFT block this sequencer block is derived form.
+    ///
+    /// This proof is used to verify that the relayer that posts to celestia
+    /// includes all rollup IDs and does not censor any.
+    ///
+    /// This proof together with `Sha256(MTH(rollup_ids))` must match `header.data_hash`.
+    /// `MTH(rollup_ids)` is the Merkle Tree Hash derived from the rollup IDs listed in
+    /// the rollup transactions.
+    #[prost(message, optional, tag = "4")]
+    pub rollup_ids_proof: ::core::option::Option<Proof>,
+}
+impl ::prost::Name for SequencerBlock {
+    const NAME: &'static str = "SequencerBlock";
+    const PACKAGE: &'static str = "astria.sequencer.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.sequencer.v1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct SequencerBlockHeader {
+    /// The original CometBFT header that was the input to this sequencer block.
+    #[prost(message, optional, tag = "1")]
+    pub cometbft_header: ::core::option::Option<::tendermint_proto::types::Header>,
+    /// The 32-byte merkle root of all the rollup transactions in the block,
+    /// Corresponds to `MHT(astria.SequencerBlock.rollup_transactions)`,
+    #[prost(bytes = "vec", tag = "2")]
+    pub rollup_transactions_root: ::prost::alloc::vec::Vec<u8>,
+    /// The 32-byte merkle root of all the rollup IDs in the block.
+    #[prost(bytes = "vec", tag = "3")]
+    pub rollup_ids_root: ::prost::alloc::vec::Vec<u8>,
+}
+impl ::prost::Name for SequencerBlockHeader {
+    const NAME: &'static str = "SequencerBlockHeader";
+    const PACKAGE: &'static str = "astria.sequencer.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.sequencer.v1.{}", Self::NAME)
+    }
+}
+/// `Deposit` represents a deposit from the sequencer
+/// to a rollup.
+///
+/// A `Deposit` is similar to an emitted event, in that the sequencer application detects
+/// transfers to bridge accounts and the corresponding rollup ID and includes a `Deposit`
+/// corresponding to that within the respective rollup's data.
+///
+/// A `Deposit` notifies a rollup that funds were locked to some account on the sequencer,
+/// however it's up to the rollup what to do with that info.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Deposit {
+    /// the address the funds were locked in on the sequencer.
+    /// this is required as initializing an account as a bridge account
+    /// is permissionless, so the rollup consensus needs to know and enshrine
+    /// which accounts it accepts as valid bridge accounts.
+    #[prost(bytes = "vec", tag = "1")]
+    pub bridge_address: ::prost::alloc::vec::Vec<u8>,
+    /// the rollup_id which the funds are being deposited to
+    #[prost(bytes = "vec", tag = "2")]
+    pub rollup_id: ::prost::alloc::vec::Vec<u8>,
+    #[prost(message, optional, tag = "3")]
+    pub amount: ::core::option::Option<super::super::primitive::v1::Uint128>,
+    #[prost(bytes = "vec", tag = "4")]
+    pub asset_id: ::prost::alloc::vec::Vec<u8>,
+    /// the address on the destination chain which
+    /// will receive the bridged funds
+    #[prost(string, tag = "5")]
+    pub destination_chain_address: ::prost::alloc::string::String,
+}
+impl ::prost::Name for Deposit {
+    const NAME: &'static str = "Deposit";
+    const PACKAGE: &'static str = "astria.sequencer.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.sequencer.v1.{}", Self::NAME)
+    }
+}
+/// `FilteredSequencerBlock` is similar to `SequencerBlock` but with a subset
+/// of the rollup transactions.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct FilteredSequencerBlock {
+    /// The original CometBFT header that was the input to this sequencer block.
+    #[prost(message, optional, tag = "1")]
+    pub cometbft_header: ::core::option::Option<::tendermint_proto::types::Header>,
+    /// A subset of rollup transactions that were included in this block.
+    #[prost(message, repeated, tag = "2")]
+    pub rollup_transactions: ::prost::alloc::vec::Vec<RollupTransactions>,
+    /// The Merkle Tree Hash of all the rollup transactions in the block (not just the
+    /// subset included). Corresponds to `MHT(astria.SequencerBlock.rollup_transactions)`,
+    /// the Merkle Tree Hash derived from the rollup transactions.
+    /// Always 32 bytes.
+    #[prost(bytes = "vec", tag = "3")]
+    pub rollup_transactions_root: ::prost::alloc::vec::Vec<u8>,
+    /// The proof that the rollup transactions are included in the CometBFT block this
+    /// sequencer block is derived form. This proof together with
+    /// `rollup_transactions_root = Sha256(MTH(rollup_transactions))` must match `header.data_hash`.
+    /// `MTH(rollup_transactions)` is the Merkle Tree Hash derived from the
+    /// rollup transactions.
+    #[prost(message, optional, tag = "4")]
+    pub rollup_transactions_proof: ::core::option::Option<Proof>,
+    /// The rollup IDs for which `CelestiaRollupBlob`s were submitted to celestia.
+    /// Corresponds to the `astria.sequencer.v1.RollupTransactions.rollup_id` field
+    /// and is extracted from `astria.SequencerBlock.rollup_transactions`.
+    /// Note that these are all the rollup IDs in the sequencer block, not merely those in
+    /// `rollup_transactions` field. This is necessary to prove that no rollup IDs were omitted.
+    #[prost(bytes = "vec", repeated, tag = "5")]
+    pub all_rollup_ids: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+    /// The proof that the `rollup_ids` are included
+    /// in the CometBFT block this sequencer block is derived form.
+    ///
+    /// This proof is used to verify that the relayer that posts to celestia
+    /// includes all rollup IDs and does not censor any.
+    ///
+    /// This proof together with `Sha256(MTH(rollup_ids))` must match `header.data_hash`.
+    /// `MTH(rollup_ids)` is the Merkle Tree Hash derived from the rollup IDs listed in
+    /// the rollup transactions.
+    #[prost(message, optional, tag = "6")]
+    pub rollup_ids_proof: ::core::option::Option<Proof>,
+}
+impl ::prost::Name for FilteredSequencerBlock {
+    const NAME: &'static str = "FilteredSequencerBlock";
+    const PACKAGE: &'static str = "astria.sequencer.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.sequencer.v1.{}", Self::NAME)
+    }
+}
+/// A piece of data that is sent to a rollup execution node.
+///
+/// The data can be either sequenced data (originating from a `SequenceAction`
+/// submitted by a user) or a `Deposit` originating from a `BridgeLockAction`.
+///
+/// The rollup node receives this type from conductor and must decode them accordingly.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RollupData {
+    #[prost(oneof = "rollup_data::Value", tags = "1, 2")]
+    pub value: ::core::option::Option<rollup_data::Value>,
+}
+/// Nested message and enum types in `RollupData`.
+pub mod rollup_data {
+    #[allow(clippy::derive_partial_eq_without_eq)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Value {
+        #[prost(bytes, tag = "1")]
+        SequencedData(::prost::alloc::vec::Vec<u8>),
+        #[prost(message, tag = "2")]
+        Deposit(super::Deposit),
+    }
+}
+impl ::prost::Name for RollupData {
+    const NAME: &'static str = "RollupData";
+    const PACKAGE: &'static str = "astria.sequencer.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.sequencer.v1.{}", Self::NAME)
+    }
+}
 /// A collection of transactions belonging to a specific rollup that are submitted to celestia.
 ///
 /// The transactions contained in the item belong to a rollup identified
@@ -305,7 +305,7 @@ pub struct CelestiaRollupBlob {
     #[prost(bytes = "vec", repeated, tag = "3")]
     pub transactions: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
     /// The proof that these rollup transactions are included in sequencer block.
-    /// `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions_proof`.
+    /// `astria.sequencerblock.v1alpha1.SequencerBlock.rollup_transactions_proof`.
     #[prost(message, optional, tag = "4")]
     pub proof: ::core::option::Option<Proof>,
 }
@@ -318,7 +318,7 @@ impl ::prost::Name for CelestiaRollupBlob {
 }
 /// The metadata of a sequencer block that is submitted to celestia.
 ///
-/// It is created by splitting a `astria.sequencer.v1alpha.SequencerBlock` into a
+/// It is created by splitting a `astria.SequencerBlock` into a
 /// `CelestiaSequencerBlob` (which can be thought of as a header), and a sequence ofj
 /// `CelestiaRollupBlob`s.
 ///
@@ -328,26 +328,26 @@ impl ::prost::Name for CelestiaRollupBlob {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CelestiaSequencerBlob {
     /// The original CometBFT header that is the input to this blob's original sequencer block.
-    /// Corresponds to `astria.sequencer.v1alpha.SequencerBlock.header`.
+    /// Corresponds to `astria.SequencerBlock.header`.
     #[prost(message, optional, tag = "1")]
     pub header: ::core::option::Option<::tendermint_proto::types::Header>,
     /// The rollup IDs for which `CelestiaRollupBlob`s were submitted to celestia.
     /// Corresponds to the `astria.sequencer.v1.RollupTransactions.rollup_id` field
-    /// and is extracted from `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions`.
+    /// and is extracted from `astria.SequencerBlock.rollup_transactions`.
     #[prost(bytes = "vec", repeated, tag = "2")]
     pub rollup_ids: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
     /// The Merkle Tree Hash of the rollup transactions. Corresponds to
-    /// `MHT(astria.sequencer.v1alpha.SequencerBlock.rollup_transactions)`, the Merkle
+    /// `MHT(astria.SequencerBlock.rollup_transactions)`, the Merkle
     /// Tree Hash deriveed from the rollup transactions.
     /// Always 32 bytes.
     #[prost(bytes = "vec", tag = "3")]
     pub rollup_transactions_root: ::prost::alloc::vec::Vec<u8>,
     /// The proof that the rollup transactions are included in sequencer block.
-    /// Corresponds to `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions_proof`.
+    /// Corresponds to `astria.sequencerblock.v1alpha1.SequencerBlock.rollup_transactions_proof`.
     #[prost(message, optional, tag = "4")]
     pub rollup_transactions_proof: ::core::option::Option<Proof>,
     /// The proof that the rollup IDs are included in sequencer block.
-    /// Corresponds to `astria.sequencer.v1alpha.SequencerBlock.rollup_ids_proof`.
+    /// Corresponds to `astria.sequencerblock.v1alpha1.SequencerBlock.rollup_ids_proof`.
     #[prost(message, optional, tag = "5")]
     pub rollup_ids_proof: ::core::option::Option<Proof>,
 }

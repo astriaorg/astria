@@ -21,7 +21,9 @@ metadata:
       {{- toYaml . | nindent 4 }}
     {{- end }}
   annotations:
+    {{- if not $ingressSupportsIngressClassName }}
     kubernetes.io/ingress.class: {{ $.Values.ingress.className }}
+    {{- end }}
   {{- if $ingressApiIsStable }}
   {{- range $key, $value := $ingress.annotations }}
     {{ $key }}: {{ tpl $value $ | quote }}

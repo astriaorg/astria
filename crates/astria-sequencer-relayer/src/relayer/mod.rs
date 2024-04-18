@@ -8,8 +8,8 @@ use std::{
 };
 
 use astria_core::{
-    generated::sequencer::v1::sequencer_service_client::SequencerServiceClient,
-    sequencer::v1::SequencerBlock,
+    generated::sequencerblock::v1alpha1::sequencer_service_client::SequencerServiceClient,
+    sequencerblock::v1alpha1::SequencerBlock,
 };
 use astria_eyre::eyre::{
     self,
@@ -225,7 +225,7 @@ impl Relayer {
     fn block_does_not_match_validator(&self, block: &SequencerBlock) -> bool {
         self.validator
             .as_ref()
-            .is_some_and(|val| val.address != block.header().cometbft_header().proposer_address)
+            .is_some_and(|val| &val.address != block.header().proposer_address())
     }
 
     #[instrument(skip_all, fields(%height))]
@@ -248,7 +248,7 @@ impl Relayer {
         if self.block_does_not_match_validator(&block) {
             info!(
                 address.validator = self.report_validator(),
-                address.block_proposer = %block.header().cometbft_header().proposer_address,
+                address.block_proposer = %block.header().proposer_address(),
                 "block proposer does not match internal validator; dropping",
             );
             return Ok(());

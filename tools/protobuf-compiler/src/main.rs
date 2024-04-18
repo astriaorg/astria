@@ -102,7 +102,6 @@ fn main() {
         .unwrap()
         .preserve_proto_field_names()
         .out_dir(&out_dir)
-        // only add JSON to types required for the execution API for now
         .build(&[
             ".astria.execution.v1alpha2",
             ".astria.sequencer.v1.Deposit",
@@ -114,10 +113,13 @@ fn main() {
             ".astria.primitive.v1.Uint128",
             ".astria.sequencerblock.v1alpha1.Deposit",
             ".astria.sequencerblock.v1alpha1.SequencerBlockHeader",
+            ".astria.sequencerblock.v1alpha1.SequencerBlock",
+            ".astria.sequencerblock.v1alpha1.GetSequencerBlockRequest",
             ".astria.sequencerblock.v1alpha1.FilteredSequencerBlock",
             ".astria.sequencerblock.v1alpha1.GetFilteredSequencerBlockRequest",
             ".astria.sequencerblock.v1alpha1.RollupData",
             ".astria.sequencerblock.v1alpha1.RollupTransactions",
+            ".astria.sequencerblock.v1alpha1.Proof",
         ])
         .unwrap();
 

@@ -26,13 +26,17 @@ use std::{
     sync::Arc,
 };
 
-pub use astria_core::sequencer::v1::{
-    block::SequencerBlockError,
-    Address,
-    BalanceResponse,
-    NonceResponse,
-    SequencerBlock,
-    SignedTransaction,
+pub use astria_core::{
+    sequencer::v1::{
+        Address,
+        BalanceResponse,
+        NonceResponse,
+        SignedTransaction,
+    },
+    sequencerblock::v1alpha1::{
+        block::SequencerBlockError,
+        SequencerBlock,
+    },
 };
 use async_trait::async_trait;
 use futures::Stream;
@@ -430,7 +434,7 @@ pub trait SequencerClientExt: Client {
     ///
     /// - If calling tendermint `abci_query` RPC fails.
     /// - If the bytes contained in the abci query response cannot be read as an
-    ///   `astria.sequencer.v1alpha1.BalanceResponse`.
+    ///   `astria.sequencer.v1.BalanceResponse`.
     async fn get_balance<AddressT, HeightT>(
         &self,
         address: AddressT,
@@ -453,7 +457,7 @@ pub trait SequencerClientExt: Client {
             astria_core::generated::sequencer::v1::BalanceResponse::decode(&*response.value)
                 .map_err(|e| {
                     Error::abci_query_deserialization(
-                        "astria.sequencer.v1alpha1.BalanceResponse",
+                        "astria.sequencer.v1.BalanceResponse",
                         response,
                         e,
                     )
@@ -481,7 +485,7 @@ pub trait SequencerClientExt: Client {
     ///
     /// - If calling tendermint `abci_query` RPC fails.
     /// - If the bytes contained in the abci query response cannot be read as an
-    ///   `astria.sequencer.v1alpha1.NonceResponse`.
+    ///   `astria.sequencer.v1.NonceResponse`.
     async fn get_nonce<AddressT, HeightT>(
         &self,
         address: AddressT,
@@ -504,7 +508,7 @@ pub trait SequencerClientExt: Client {
             astria_core::generated::sequencer::v1::NonceResponse::decode(&*response.value)
                 .map_err(|e| {
                     Error::abci_query_deserialization(
-                        "astria.sequencer.v1alpha1.NonceResponse",
+                        "astria.sequencer.v1.NonceResponse",
                         response,
                         e,
                     )

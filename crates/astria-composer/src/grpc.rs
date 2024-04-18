@@ -17,6 +17,7 @@ use tokio::{
     io,
     net::TcpListener,
 };
+use tokio_util::sync::CancellationToken;
 
 use crate::{
     collectors,
@@ -30,24 +31,37 @@ use crate::{
 pub(crate) struct GrpcServer {
     listener: TcpListener,
     grpc_collector: collectors::Grpc,
+    shutdown_token: CancellationToken,
+}
+
+pub(crate) struct Builder {
+    pub(crate) grpc_addr: SocketAddr,
+    pub(crate) executor: executor::Handle,
+    pub(crate) shutdown_token: CancellationToken,
+}
+
+impl Builder {
+    pub(crate) async fn build(self) -> eyre::Result<GrpcServer> {
+        let Self {
+            grpc_addr,
+            executor,
+            shutdown_token,
+        } = self;
+
+        let listener = TcpListener::bind(grpc_addr)
+            .await
+            .wrap_err("failed to bind socket address")?;
+        let grpc_collector = collectors::Grpc::new(executor.clone());
+
+        Ok(GrpcServer {
+            listener,
+            grpc_collector,
+            shutdown_token,
+        })
+    }
 }
 
 impl GrpcServer {
-    pub(crate) async fn new(
-        grpc_addr: SocketAddr,
-        executor: executor::Handle,
-    ) -> eyre::Result<Self> {
-        let listener = TcpListener::bind(grpc_addr)
-            .await
-            .wrap_err("failed to bind grpc listener")?;
-        let grpc_collector = collectors::Grpc::new(executor.clone());
-
-        Ok(Self {
-            listener,
-            grpc_collector,
-        })
-    }
-
     /// Returns the socket address the grpc server is served over
     /// # Errors
     /// Returns an error if the listener is not bound
@@ -68,9 +82,10 @@ impl GrpcServer {
             .await;
 
         grpc_server
-            .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(
-                self.listener,
-            ))
+            .serve_with_incoming_shutdown(
+                tokio_stream::wrappers::TcpListenerStream::new(self.listener),
+                self.shutdown_token.cancelled(),
+            )
             .await
             .wrap_err("failed to run grpc server")
     }

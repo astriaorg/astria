@@ -26,15 +26,12 @@ on:
       - "**-v[0-9]+.[0-9]+.[0-9]+-beta.[0-9]+"
       - "**-v[0-9]+.[0-9]+.[0-9]+-rc[0-9]+"
     
-  # trigger on pull request updates when target is `main` branch
   pull_request:
     types:
       - opened
       - synchronize
       - reopened
       - labeled
-    branches:
-      - "main"
 
 jobs:
   run_checker:
@@ -43,8 +40,13 @@ jobs:
   composer:
     needs: run_checker
     if: needs.run_checker.outputs.run_docker == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'composer')
-    uses: './.github/workflows/reusable-docker-build.yml'
+    uses: "./.github/workflows/reusable-docker-build.yml"
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
     with:
+      depot-project-id: mhgvgvsjnx
       package-name: composer
       target-binary: astria-composer
       tag: ${{ inputs.tag }}
@@ -53,8 +55,13 @@ jobs:
   conductor:
     needs: run_checker
     if: needs.run_checker.outputs.run_docker == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'conductor')
-    uses: './.github/workflows/reusable-docker-build.yml'
+    uses: "./.github/workflows/reusable-docker-build.yml"
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
     with:
+      depot-project-id: zrh9t1d84s
       package-name: conductor
       target-binary: astria-conductor
       tag: ${{ inputs.tag }}
@@ -63,8 +70,13 @@ jobs:
   sequencer:
     needs: run_checker
     if: needs.run_checker.outputs.run_docker == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'sequencer')
-    uses: './.github/workflows/reusable-docker-build.yml'
+    uses: "./.github/workflows/reusable-docker-build.yml"
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
     with:
+      depot-project-id: brzhxfbv9b
       package-name: sequencer
       target-binary: astria-sequencer
       tag: ${{ inputs.tag }}
@@ -73,23 +85,28 @@ jobs:
   sequencer-relayer:
     needs: run_checker
     if: needs.run_checker.outputs.run_docker == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'sequencer-relayer')
-    uses: './.github/workflows/reusable-docker-build.yml'
+    uses: "./.github/workflows/reusable-docker-build.yml"
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
     with:
+      depot-project-id: 86q4kz4wfs
       package-name: sequencer-relayer
       target-binary: astria-sequencer-relayer
       tag: ${{ inputs.tag }}
     secrets: inherit
-  
+
   smoke-test:
     needs: [run_checker, composer, conductor, sequencer, sequencer-relayer]
-    if: github.event_name == 'merge_group' || needs.run_checker.outputs.run_docker == 'true'
+    if: (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == 'astriaorg/astria') && (github.event_name == 'merge_group' || needs.run_checker.outputs.run_docker == 'true')
     runs-on: buildjet-8vcpu-ubuntu-2204
     steps:
       - uses: actions/checkout@v4
       - name: Install just
         uses: taiki-e/install-action@just
       - name: Install kind
-        uses: helm/kind-action@v1 
+        uses: helm/kind-action@v1
         with:
           install_only: true
       - name: Log in to GHCR

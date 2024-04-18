@@ -8,24 +8,24 @@ use std::{
 
 use anyhow::{
     anyhow,
+    bail,
     ensure,
     Context,
 };
 use astria_core::{
     generated::sequencer::v1 as raw,
     sequencer::v1::{
-        block::Deposit,
         transaction::Action,
+        AbciErrorCode,
         Address,
-        RollupId,
-        SequencerBlock,
         SignedTransaction,
     },
+    sequencerblock::v1alpha1::block::SequencerBlock,
 };
 use cnidarium::{
     ArcStateDeltaExt,
-    RootHash,
     Snapshot,
+    StagedWriteBatch,
     StateDelta,
     Storage,
 };
@@ -34,12 +34,14 @@ use sha2::{
     Digest as _,
     Sha256,
 };
+use telemetry::display::json;
 use tendermint::{
     abci::{
         self,
         Event,
     },
     account,
+    AppHash,
     Hash,
 };
 use tracing::{
@@ -56,6 +58,7 @@ use crate::{
             StateWriteExt as _,
         },
     },
+    api_state_ext::StateWriteExt as _,
     authority::{
         component::{
             AuthorityComponent,
@@ -73,9 +76,12 @@ use crate::{
     component::Component as _,
     genesis::GenesisState,
     ibc::component::IbcComponent,
-    proposal::commitment::{
-        generate_rollup_datas_commitment,
-        GeneratedCommitments,
+    proposal::{
+        block_size_constraints::BlockSizeConstraints,
+        commitment::{
+            generate_rollup_datas_commitment,
+            GeneratedCommitments,
+        },
     },
     state_ext::{
         StateReadExt as _,
@@ -87,9 +93,6 @@ use crate::{
 /// The inter-block state being written to by the application.
 type InterBlockState = Arc<StateDelta<Snapshot>>;
 
-/// The maximum number of bytes allowed in sequencer action data.
-const MAX_SEQUENCE_DATA_BYTES_PER_BLOCK: usize = 256_000;
-
 /// The Sequencer application, written as a bundle of [`Component`]s.
 ///
 /// Note: this is called `App` because this is a Tendermint ABCI application,
@@ -98,7 +101,6 @@ const MAX_SEQUENCE_DATA_BYTES_PER_BLOCK: usize = 256_000;
 /// See also the [Penumbra reference] implementation.
 ///
 /// [Penumbra reference]: https://github.com/penumbra-zone/penumbra/blob/9cc2c644e05c61d21fdc7b507b96016ba6b9a935/app/src/app/mod.rs#L42
-#[derive(Debug)]
 pub(crate) struct App {
     state: InterBlockState,
 
@@ -125,25 +127,24 @@ pub(crate) struct App {
     // cleared at the end of each block.
     execution_result: HashMap<[u8; 32], anyhow::Result<Vec<abci::Event>>>,
 
-    /// set to `0` when `begin_block` is called, and set to `1` or `2` when
-    /// `deliver_tx` is called for the first two times.
-    /// this is a hack to allow the `sequence_actions_commitment` and `chain_ids_commitment`
-    /// to pass `deliver_tx`, as they're the first two "tx"s delivered.
-    ///
-    /// when the app is fully updated to ABCI++, `begin_block`, `deliver_tx`,
-    /// and `end_block` will all become one function `finalize_block`, so
-    /// this will not be needed.
-    processed_txs: u32,
-
     // proposer of the block being currently executed; set in begin_block
     // and cleared in end_block.
     // this is used only to determine who to transfer the block fees to
     // at the end of the block.
     current_proposer: Option<account::Id>,
 
-    // builder of the current `SequencerBlock`.
-    // initialized during `begin_block`, completed and written to state during `end_block`.
-    current_sequencer_block_builder: Option<SequencerBlockBuilder>,
+    // the current `StagedWriteBatch` which contains the rocksdb write batch
+    // of the current block being executed, created from the state delta,
+    // and set after `finalize_block`.
+    // this is committed to the state when `commit` is called, and set to `None`.
+    write_batch: Option<StagedWriteBatch>,
+
+    // the currently committed `AppHash` of the application state.
+    // set whenever `commit` is called.
+    //
+    // allow clippy because we need be specific as to what hash this is.
+    #[allow(clippy::struct_field_names)]
+    app_hash: AppHash,
 }
 
 impl App {
@@ -159,19 +160,20 @@ impl App {
             validator_address: None,
             executed_proposal_hash: Hash::default(),
             execution_result: HashMap::new(),
-            processed_txs: 0,
             current_proposer: None,
-            current_sequencer_block_builder: None,
+            write_batch: None,
+            app_hash: AppHash::default(),
         }
     }
 
     #[instrument(name = "App:init_chain", skip_all)]
     pub(crate) async fn init_chain(
         &mut self,
+        storage: Storage,
         genesis_state: GenesisState,
         genesis_validators: Vec<tendermint::validator::Update>,
         chain_id: String,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<AppHash> {
         let mut state_tx = self
             .state
             .try_begin_transaction()
@@ -204,7 +206,13 @@ impl App {
             .context("failed to call init_chain on IbcComponent")?;
 
         state_tx.apply();
-        Ok(())
+
+        let app_hash = self
+            .prepare_commit(storage)
+            .await
+            .context("failed to prepare commit")?;
+        debug!(app_hash = %telemetry::display::base64(&app_hash), "init_chain completed");
+        Ok(app_hash)
     }
 
     fn update_state_for_new_round(&mut self, storage: &Storage) {
@@ -216,7 +224,6 @@ impl App {
 
         // clear the cache of transaction execution results
         self.execution_result.clear();
-        self.processed_txs = 0;
         self.executed_proposal_hash = Hash::default();
     }
 
@@ -237,7 +244,16 @@ impl App {
         self.validator_address = Some(prepare_proposal.proposer_address);
         self.update_state_for_new_round(&storage);
 
-        let (signed_txs, txs_to_include) = self.execute_block_data(prepare_proposal.txs).await;
+        let mut block_size_constraints = BlockSizeConstraints::new(
+            usize::try_from(prepare_proposal.max_tx_bytes)
+                .context("failed to convert max_tx_bytes to usize")?,
+        )
+        .context("failed to create block size constraints")?;
+
+        let (signed_txs, txs_to_include) = self
+            .execute_and_filter_block_data(prepare_proposal.txs, &mut block_size_constraints)
+            .await
+            .context("failed to execute and filter transactions in prepare_proposal")?;
 
         let deposits = self
             .state
@@ -299,18 +315,10 @@ impl App {
             .try_into()
             .map_err(|_| anyhow!("chain IDs commitment must be 32 bytes"))?;
 
-        let expected_txs_len = txs.len();
-
-        let (signed_txs, txs_to_include) = self.execute_block_data(txs.into()).await;
-
-        // all txs in the proposal should be deserializable and executable
-        // if any txs were not deserializeable or executable, they would not have been
-        // returned by `execute_block_data`, thus the length of `txs_to_include`
-        // will be shorter than that of `txs`.
-        ensure!(
-            txs_to_include.len() == expected_txs_len,
-            "transactions to be included do not match expected",
-        );
+        let signed_txs = self
+            .execute_block_data(txs)
+            .await
+            .context("transactions failed to decode and execute")?;
 
         let deposits = self
             .state
@@ -337,31 +345,49 @@ impl App {
         Ok(())
     }
 
-    /// Executes the given transaction data, writing it to the app's `StateDelta`.
+    /// Executes and filters the given transaction data, writing it to the app's `StateDelta`.
     ///
     /// The result of execution of every transaction which is successfully decoded
     /// is stored in `self.execution_result`.
     ///
     /// Returns the transactions which were successfully decoded and executed
     /// in both their [`SignedTransaction`] and raw bytes form.
-    #[instrument(name = "App::execute_block_data", skip_all, fields(
+    ///
+    /// Will filter transactions that are too large for the sequencer block or
+    /// the cometBFT block.
+    #[instrument(name = "App::execute_and_filter_block_data", skip_all, fields(
         tx_count = txs.len()
     ))]
-    async fn execute_block_data(
+    async fn execute_and_filter_block_data(
         &mut self,
         txs: Vec<bytes::Bytes>,
-    ) -> (Vec<SignedTransaction>, Vec<bytes::Bytes>) {
-        let mut signed_txs = Vec::with_capacity(txs.len());
+        block_size_constraints: &mut BlockSizeConstraints,
+    ) -> anyhow::Result<(Vec<SignedTransaction>, Vec<bytes::Bytes>)> {
+        let mut signed_txs: Vec<SignedTransaction> = Vec::with_capacity(txs.len());
         let mut validated_txs = Vec::with_capacity(txs.len());
-        let mut block_sequence_data_bytes: usize = 0;
         let mut excluded_tx_count: usize = 0;
 
         for tx in txs {
+            let tx_hash = Sha256::digest(&tx);
+
+            // don't include tx if it would make the cometBFT block too large
+            if !block_size_constraints.cometbft_has_space(tx.len()) {
+                debug!(
+                    transaction_hash = %telemetry::display::base64(&tx_hash),
+                    block_size_constraints = %json(&block_size_constraints),
+                    tx_data_bytes = tx.len(),
+                    "excluding transactions: max cometBFT data limit reached"
+                );
+                excluded_tx_count += 1;
+                continue;
+            }
+
+            // try to decode the tx
             let signed_tx = match signed_transaction_from_bytes(&tx) {
                 Err(e) => {
                     debug!(
                         error = AsRef::<dyn std::error::Error>::as_ref(&e),
-                        "failed to decode deliver tx payload to signed transaction; ignoring it",
+                        "failed to decode deliver tx payload to signed transaction; excluding it",
                     );
                     excluded_tx_count += 1;
                     continue;
@@ -369,8 +395,7 @@ impl App {
                 Ok(tx) => tx,
             };
 
-            let tx_hash = Sha256::digest(&tx);
-
+            // check if tx's sequence data will fit into sequence block
             let tx_sequence_data_bytes = signed_tx
                 .unsigned_transaction()
                 .actions
@@ -378,38 +403,34 @@ impl App {
                 .filter_map(Action::as_sequence)
                 .fold(0usize, |acc, seq| acc + seq.data.len());
 
-            // Don't include tx if it would make the sequenced block data too large.
-            if block_sequence_data_bytes + tx_sequence_data_bytes
-                > MAX_SEQUENCE_DATA_BYTES_PER_BLOCK
-            {
+            if !block_size_constraints.sequencer_has_space(tx_sequence_data_bytes) {
                 debug!(
                     transaction_hash = %telemetry::display::base64(&tx_hash),
-                    included_data_bytes = block_sequence_data_bytes,
+                    block_size_constraints = %json(&block_size_constraints),
                     tx_data_bytes = tx_sequence_data_bytes,
-                    max_data_bytes = MAX_SEQUENCE_DATA_BYTES_PER_BLOCK,
                     "excluding transaction: max block sequenced data limit reached"
                 );
                 excluded_tx_count += 1;
                 continue;
             }
 
-            // store transaction execution result, indexed by tx hash
-            match self.deliver_tx(signed_tx.clone()).await {
-                Ok(events) => {
-                    self.execution_result.insert(tx_hash.into(), Ok(events));
-                    signed_txs.push(signed_tx);
-                    validated_txs.push(tx);
-                    block_sequence_data_bytes += tx_sequence_data_bytes;
-                }
-                Err(e) => {
-                    debug!(
-                        transaction_hash = %telemetry::display::base64(&tx_hash),
-                        error = AsRef::<dyn std::error::Error>::as_ref(&e),
-                        "failed to execute transaction, not including in block"
-                    );
-                    excluded_tx_count += 1;
-                    self.execution_result.insert(tx_hash.into(), Err(e));
-                }
+            // execute the tx and include it if it succeeds
+            let tx_hash = self.execute_and_store_signed_tx(&signed_tx).await;
+            if let Some(Err(_e)) = self.execution_result.get(&tx_hash) {
+                debug!(
+                    transaction_hash = %telemetry::display::base64(&tx_hash),
+                    "failed to execute transaction, not including in block"
+                );
+                excluded_tx_count += 1;
+            } else {
+                block_size_constraints
+                    .sequencer_checked_add(tx_sequence_data_bytes)
+                    .context("error growing sequencer block size")?;
+                block_size_constraints
+                    .cometbft_checked_add(tx.len())
+                    .context("error growing cometBFT block size")?;
+                signed_txs.push(signed_tx);
+                validated_txs.push(tx);
             }
         }
 
@@ -421,7 +442,257 @@ impl App {
             );
         }
 
-        (signed_txs, validated_txs)
+        Ok((signed_txs, validated_txs))
+    }
+
+    /// Executes the given transaction data, writing it to the app's `StateDelta`
+    /// and stores the results in `self.execution_result`.
+    ///
+    /// Will throw error if any transaction fails to decode or execute as these
+    /// transactions should've been filtered in prepare proposal.
+    ///
+    /// Returns the transactions which were [`SignedTransaction`] form.
+    #[instrument(name = "App::execute_block_data", skip_all, fields(
+        tx_count = txs.len()
+    ))]
+    async fn execute_block_data(
+        &mut self,
+        txs: VecDeque<bytes::Bytes>,
+    ) -> anyhow::Result<Vec<SignedTransaction>, anyhow::Error> {
+        let mut signed_txs = Vec::new();
+        for tx in txs {
+            // all txs in the proposal should be deserializable and executable,
+            // if any txs were not deserializeable or executable, they would not have been
+            // returned by `execute_and_filter_block_data`
+            let signed_tx = signed_transaction_from_bytes(&tx).context(
+                "failed to decode tx bytes to signed transaction, should've been filtered out in \
+                 prepare proposal",
+            )?;
+
+            // execute transaction and ensure that it succeeded
+            let tx_hash = self.execute_and_store_signed_tx(&signed_tx).await;
+            if let Some(Err(_e)) = self.execution_result.get(&tx_hash) {
+                bail!(
+                    "transaction failed during execution, should've been filtered out in prepare \
+                     proposal"
+                )
+            }
+            signed_txs.push(signed_tx);
+        }
+        Ok(signed_txs)
+    }
+
+    /// Executes the given transaction data, writing it to the app's `StateDelta`
+    /// and stores the results in `self.execution_result`.
+    ///
+    /// Returns the transaction's hash that can be used to look up the result.
+    #[instrument(name = "App::execute_and_store_signed_tx", skip_all)]
+    async fn execute_and_store_signed_tx(&mut self, signed_tx: &SignedTransaction) -> [u8; 32] {
+        // store transaction execution result, indexed by tx hash
+        let tx_hash: [u8; 32] = Sha256::digest(signed_tx.to_raw().encode_to_vec()).into();
+        match self.deliver_tx(signed_tx.clone()).await {
+            Ok(events) => {
+                self.execution_result.insert(tx_hash, Ok(events));
+            }
+            Err(e) => {
+                debug!(
+                    transaction_hash = %telemetry::display::base64(&tx_hash),
+                    error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                    "failed to execute transaction"
+                );
+                self.execution_result.insert(tx_hash, Err(e));
+            }
+        }
+        tx_hash
+    }
+
+    #[instrument(name = "App::finalize_block", skip_all)]
+    pub(crate) async fn finalize_block(
+        &mut self,
+        finalize_block: abci::request::FinalizeBlock,
+        storage: Storage,
+    ) -> anyhow::Result<abci::response::FinalizeBlock> {
+        use tendermint::{
+            abci::types::ExecTxResult,
+            block::Header,
+        };
+
+        use crate::transaction::InvalidNonce;
+
+        let data_hash = astria_core::sequencerblock::v1alpha1::block::merkle_tree_from_data(
+            finalize_block.txs.iter().map(std::convert::AsRef::as_ref),
+        )
+        .root();
+
+        let chain_id: tendermint::chain::Id = self
+            .state
+            .get_chain_id()
+            .await
+            .context("failed to get chain ID from state")?
+            .try_into()
+            .context("invalid chain ID")?;
+
+        // call begin_block on all components
+        // NOTE: the fields marked `unused` are not used by any of the components;
+        // however, we need to still construct a `BeginBlock` type for now as
+        // the penumbra IBC implementation still requires it as a parameter.
+        let begin_block = abci::request::BeginBlock {
+            hash: finalize_block.hash,
+            byzantine_validators: finalize_block.misbehavior.clone(),
+            header: Header {
+                app_hash: self.app_hash.clone(),
+                chain_id: chain_id.clone(),
+                consensus_hash: Hash::default(), // unused
+                data_hash: Some(Hash::try_from(data_hash.to_vec()).unwrap()),
+                evidence_hash: Some(Hash::default()), // unused
+                height: finalize_block.height,
+                last_block_id: None,                      // unused
+                last_commit_hash: Some(Hash::default()),  // unused
+                last_results_hash: Some(Hash::default()), // unused
+                next_validators_hash: finalize_block.next_validators_hash,
+                proposer_address: finalize_block.proposer_address,
+                time: finalize_block.time,
+                validators_hash: Hash::default(), // unused
+                version: tendermint::block::header::Version {
+                    // unused
+                    app: 0,
+                    block: 0,
+                },
+            },
+            last_commit_info: finalize_block.decided_last_commit.clone(),
+        };
+
+        self.begin_block(&begin_block, storage.clone())
+            .await
+            .context("failed to call begin_block")?;
+
+        ensure!(
+            finalize_block.txs.len() >= 2,
+            "block must contain at least two transactions: the rollup transactions commitment and \
+             rollup IDs commitment"
+        );
+
+        // cometbft expects a result for every tx in the block, so we need to return a
+        // tx result for the commitments, even though they're not actually user txs.
+        let mut tx_results: Vec<ExecTxResult> = Vec::with_capacity(finalize_block.txs.len());
+        tx_results.extend(std::iter::repeat(ExecTxResult::default()).take(2));
+
+        for tx in finalize_block.txs.iter().skip(2) {
+            match self.deliver_tx_after_proposal(tx).await {
+                Ok(events) => tx_results.push(ExecTxResult {
+                    events,
+                    ..Default::default()
+                }),
+                Err(e) => {
+                    // this is actually a protocol error, as only valid txs should be finalized
+                    tracing::error!(
+                        error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                        "failed to finalize transaction; ignoring it",
+                    );
+                    let code = if e.downcast_ref::<InvalidNonce>().is_some() {
+                        AbciErrorCode::INVALID_NONCE
+                    } else {
+                        AbciErrorCode::INTERNAL_ERROR
+                    };
+                    tx_results.push(ExecTxResult {
+                        code: code.into(),
+                        info: code.to_string(),
+                        log: format!("{e:?}"),
+                        ..Default::default()
+                    });
+                }
+            }
+        }
+
+        let end_block = self
+            .end_block(&abci::request::EndBlock {
+                height: finalize_block.height.into(),
+            })
+            .await?;
+
+        // get and clear block deposits from state
+        let mut state_tx = StateDelta::new(self.state.clone());
+        let deposits = self
+            .state
+            .get_block_deposits()
+            .await
+            .context("failed to get block deposits in end_block")?;
+        state_tx
+            .clear_block_deposits()
+            .await
+            .context("failed to clear block deposits")?;
+
+        let Hash::Sha256(block_hash) = finalize_block.hash else {
+            anyhow::bail!("finalized block hash is empty; this should not occur")
+        };
+
+        let sequencer_block = SequencerBlock::try_from_block_info_and_data(
+            block_hash,
+            chain_id,
+            finalize_block.height,
+            finalize_block.time,
+            finalize_block.proposer_address,
+            finalize_block
+                .txs
+                .into_iter()
+                .map(std::convert::Into::into)
+                .collect(),
+            deposits,
+        )
+        .context("failed to convert block info and data to SequencerBlock")?;
+        state_tx
+            .put_sequencer_block(sequencer_block)
+            .context("failed to write sequencer block to state")?;
+        // events that occur after end_block are ignored here;
+        // there should be none anyways.
+        let _ = self.apply(state_tx);
+
+        // prepare the `StagedWriteBatch` for a later commit.
+        let app_hash = self
+            .prepare_commit(storage.clone())
+            .await
+            .context("failed to prepare commit")?;
+
+        Ok(abci::response::FinalizeBlock {
+            events: end_block.events,
+            validator_updates: end_block.validator_updates,
+            consensus_param_updates: end_block.consensus_param_updates,
+            tx_results,
+            app_hash,
+        })
+    }
+
+    async fn prepare_commit(&mut self, storage: Storage) -> anyhow::Result<AppHash> {
+        // extract the state we've built up to so we can prepare it as a `StagedWriteBatch`.
+        let dummy_state = StateDelta::new(storage.latest_snapshot());
+        let mut state = Arc::try_unwrap(std::mem::replace(&mut self.state, Arc::new(dummy_state)))
+            .expect("we have exclusive ownership of the State at commit()");
+
+        // store the storage version indexed by block height
+        let new_version = storage.latest_version().wrapping_add(1);
+        let height = state
+            .get_block_height()
+            .await
+            .expect("block height must be set, as `put_block_height` was already called");
+        state.put_storage_version_by_height(height, new_version);
+        debug!(
+            height,
+            version = new_version,
+            "stored storage version for height"
+        );
+
+        let write_batch = storage
+            .prepare_commit(state)
+            .await
+            .context("failed to prepare commit")?;
+        let app_hash = write_batch
+            .root_hash()
+            .0
+            .to_vec()
+            .try_into()
+            .context("failed to convert app hash")?;
+        self.write_batch = Some(write_batch);
+        Ok(app_hash)
     }
 
     #[instrument(name = "App::begin_block", skip_all)]
@@ -430,16 +701,11 @@ impl App {
         begin_block: &abci::request::BeginBlock,
         storage: Storage,
     ) -> anyhow::Result<Vec<abci::Event>> {
-        // clear the processed_txs count when beginning block execution
-        self.processed_txs = 0;
         // set the current proposer
         self.current_proposer = Some(begin_block.header.proposer_address);
 
-        self.current_sequencer_block_builder =
-            Some(SequencerBlockBuilder::new(begin_block.header.clone()));
-
-        // If we previously executed txs in a different proposal than is being processed reset
-        // cached state changes.
+        // If we previously executed txs in a different proposal than is being processed,
+        // reset cached state changes.
         if self.executed_proposal_hash != begin_block.hash {
             self.update_state_for_new_round(&storage);
         }
@@ -480,44 +746,24 @@ impl App {
     /// Note that the first two "transactions" in the block, which are the proposer-generated
     /// commitments, are ignored.
     #[instrument(name = "App::deliver_tx_after_proposal", skip_all, fields(
-        tx_hash =  %telemetry::display::base64(&Sha256::digest(&tx.tx)),
+        tx_hash =  %telemetry::display::base64(&Sha256::digest(tx)),
     ))]
     pub(crate) async fn deliver_tx_after_proposal(
         &mut self,
-        tx: abci::request::DeliverTx,
-    ) -> Option<anyhow::Result<Vec<abci::Event>>> {
-        self.current_sequencer_block_builder
-            .as_mut()
-            .expect(
-                "begin_block must be called before deliver_tx, thus \
-                 current_sequencer_block_builder must be set",
-            )
-            .push_transaction(tx.tx.to_vec());
-
-        if self.processed_txs < 2 {
-            self.processed_txs += 1;
-            return Some(Ok(vec![]));
-        }
-
+        tx: &bytes::Bytes,
+    ) -> anyhow::Result<Vec<abci::Event>> {
         // When the hash is not empty, we have already executed and cached the results
         if !self.executed_proposal_hash.is_empty() {
-            let tx_hash: [u8; 32] = sha2::Sha256::digest(&tx.tx).into();
-            return self.execution_result.remove(&tx_hash);
+            let tx_hash: [u8; 32] = sha2::Sha256::digest(tx).into();
+            return self
+                .execution_result
+                .remove(&tx_hash)
+                .unwrap_or_else(|| Err(anyhow!("transaction not executed during proposal phase")));
         }
 
-        let signed_tx = match signed_transaction_from_bytes(&tx.tx) {
-            Err(e) => {
-                // this is actually a protocol error, as only valid txs should be finalized
-                debug!(
-                    error = AsRef::<dyn std::error::Error>::as_ref(&e),
-                    "failed to decode deliver tx payload to signed transaction; ignoring it",
-                );
-                return None;
-            }
-            Ok(tx) => tx,
-        };
-
-        Some(self.deliver_tx(signed_tx).await)
+        let signed_tx = signed_transaction_from_bytes(tx)
+            .context("protocol error; only valid txs should be finalized")?;
+        self.deliver_tx(signed_tx).await
     }
 
     /// Executes a signed transaction.
@@ -579,8 +825,6 @@ impl App {
         &mut self,
         end_block: &abci::request::EndBlock,
     ) -> anyhow::Result<abci::response::EndBlock> {
-        use crate::api_state_ext::StateWriteExt as _;
-
         let state_tx = StateDelta::new(self.state.clone());
         let mut arc_state_tx = Arc::new(state_tx);
 
@@ -639,42 +883,6 @@ impl App {
         state_tx.clear_block_fees().await;
         self.current_proposer = None;
 
-        // get and clear block deposits from state
-        let deposits = self
-            .state
-            .get_block_deposits()
-            .await
-            .context("failed to get block deposits in end_block")?;
-        debug!(
-            deposits = %telemetry::display::json(&deposits),
-            "got block deposits from state"
-        );
-        self.current_sequencer_block_builder
-            .as_mut()
-            .expect(
-                "begin_block must be called before end_block, thus \
-                 current_sequencer_block_builder must be set",
-            )
-            .deposits(deposits);
-        state_tx
-            .clear_block_deposits()
-            .await
-            .context("failed to clear block deposits")?;
-
-        // store the `SequencerBlock` in the state
-        let sequencer_block = self
-            .current_sequencer_block_builder
-            .take()
-            .expect(
-                "begin_block must be called before end_block, thus \
-                 current_sequencer_block_builder must be set",
-            )
-            .build()
-            .context("failed to build sequencer block")?;
-        state_tx
-            .put_sequencer_block(sequencer_block)
-            .context("failed to write sequencer block to state")?;
-
         let events = self.apply(state_tx);
 
         Ok(abci::response::EndBlock {
@@ -685,40 +893,25 @@ impl App {
     }
 
     #[instrument(name = "App::commit", skip_all)]
-    pub(crate) async fn commit(&mut self, storage: Storage) -> RootHash {
-        // We need to extract the State we've built up to commit it.  Fill in a dummy state.
-        let dummy_state = StateDelta::new(storage.latest_snapshot());
-
-        let mut state = Arc::try_unwrap(std::mem::replace(&mut self.state, Arc::new(dummy_state)))
-            .expect("we have exclusive ownership of the State at commit()");
-
-        // store the storage version indexed by block height
-        let new_version = storage.latest_version().wrapping_add(1);
-        let height = state
-            .get_block_height()
-            .await
-            .expect("block height must be set, as `begin_block` is always called before `commit`");
-        state.put_storage_version_by_height(height, new_version);
-        debug!(
-            height,
-            version = new_version,
-            "stored storage version for height"
-        );
-
+    pub(crate) async fn commit(&mut self, storage: Storage) {
         // Commit the pending writes, clearing the state.
         let app_hash = storage
-            .commit(state)
-            .await
+            .commit_batch(self.write_batch.take().expect(
+                "write batch must be set, as `finalize_block` is always called before `commit`",
+            ))
             .expect("must be able to successfully commit to storage");
         tracing::debug!(
             app_hash = %telemetry::display::base64(&app_hash),
             "finished committing state",
         );
+        self.app_hash = app_hash
+            .0
+            .to_vec()
+            .try_into()
+            .expect("root hash to app hash conversion must succeed");
 
         // Get the latest version of the state, now that we've committed it.
         self.state = Arc::new(StateDelta::new(storage.latest_snapshot()));
-
-        app_hash
     }
 
     // StateDelta::apply only works when the StateDelta wraps an underlying
@@ -740,36 +933,6 @@ impl App {
         );
 
         events
-    }
-}
-
-#[derive(Debug)]
-struct SequencerBlockBuilder {
-    header: tendermint::block::Header,
-    data: Vec<Vec<u8>>,
-    deposits: HashMap<RollupId, Vec<Deposit>>,
-}
-
-impl SequencerBlockBuilder {
-    fn new(header: tendermint::block::Header) -> Self {
-        Self {
-            header,
-            data: Vec::new(),
-            deposits: HashMap::new(),
-        }
-    }
-
-    fn push_transaction(&mut self, tx: Vec<u8>) {
-        self.data.push(tx);
-    }
-
-    fn deposits(&mut self, deposits: HashMap<RollupId, Vec<Deposit>>) {
-        self.deposits = deposits;
-    }
-
-    fn build(self) -> anyhow::Result<SequencerBlock> {
-        SequencerBlock::try_from_cometbft_header_and_data(self.header, self.data, self.deposits)
-            .map_err(Into::into)
     }
 }
 
@@ -818,16 +981,21 @@ pub(crate) mod test_utils {
 mod test {
     #[cfg(feature = "mint")]
     use astria_core::sequencer::v1::transaction::action::MintAction;
-    use astria_core::sequencer::v1::{
-        asset,
-        asset::DEFAULT_NATIVE_ASSET_DENOM,
-        transaction::action::{
-            IbcRelayerChangeAction,
-            SequenceAction,
-            SudoAddressChangeAction,
-            TransferAction,
+    use astria_core::{
+        sequencer::v1::{
+            asset,
+            asset::DEFAULT_NATIVE_ASSET_DENOM,
+            transaction::action::{
+                BridgeLockAction,
+                IbcRelayerChangeAction,
+                SequenceAction,
+                SudoAddressChangeAction,
+                TransferAction,
+            },
+            RollupId,
+            UnsignedTransaction,
         },
-        UnsignedTransaction,
+        sequencerblock::v1alpha1::block::Deposit,
     };
     use ed25519_consensus::SigningKey;
     use penumbra_ibc::params::IBCParameters;
@@ -839,7 +1007,6 @@ mod test {
             Height,
             Round,
         },
-        AppHash,
         Time,
     };
 
@@ -914,9 +1081,15 @@ mod test {
             allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
         });
 
-        app.init_chain(genesis_state, genesis_validators, "test".to_string())
-            .await
-            .unwrap();
+        app.init_chain(
+            storage.clone(),
+            genesis_state,
+            genesis_validators,
+            "test".to_string(),
+        )
+        .await
+        .unwrap();
+        app.commit(storage.clone()).await;
 
         (app, storage.clone())
     }
@@ -1640,11 +1813,6 @@ mod test {
 
     #[tokio::test]
     async fn app_deliver_tx_bridge_lock_action_ok() {
-        use astria_core::sequencer::v1::{
-            block::Deposit,
-            transaction::action::BridgeLockAction,
-        };
-
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
         let mut app = initialize_app(None, vec![]).await;
 
@@ -1861,9 +2029,6 @@ mod test {
             .unwrap();
         app.apply(state_tx);
 
-        let (_, sequencer_block_builder) = block_data_from_txs_no_sequence_actions(vec![]);
-        app.current_sequencer_block_builder = Some(sequencer_block_builder);
-
         let resp = app
             .end_block(&abci::request::EndBlock {
                 height: 1u32.into(),
@@ -1962,9 +2127,12 @@ mod test {
         }
 
         // commit should write the changes to the underlying storage
+        app.prepare_commit(storage.clone()).await.unwrap();
         app.commit(storage.clone()).await;
+
         let snapshot = storage.latest_snapshot();
         assert_eq!(snapshot.get_block_height().await.unwrap(), 0);
+
         for Account {
             address,
             balance,
@@ -2004,46 +2172,35 @@ mod test {
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
-        let (header, sequencer_block_builder) =
-            block_data_from_txs_no_sequence_actions(vec![signed_tx.to_raw().encode_to_vec()]);
 
-        let mut begin_block = abci::request::BeginBlock {
-            header,
-            hash: Hash::default(),
-            last_commit_info: CommitInfo {
+        let proposer_address: tendermint::account::Id = [99u8; 20].to_vec().try_into().unwrap();
+        let sequencer_proposer_address =
+            Address::try_from_slice(proposer_address.as_bytes()).unwrap();
+
+        let commitments = generate_rollup_datas_commitment(&[signed_tx.clone()], HashMap::new());
+
+        let finalize_block = abci::request::FinalizeBlock {
+            hash: Hash::try_from([0u8; 32].to_vec()).unwrap(),
+            height: 1u32.into(),
+            time: Time::now(),
+            next_validators_hash: Hash::default(),
+            proposer_address,
+            txs: commitments.into_transactions(vec![signed_tx.to_raw().encode_to_vec().into()]),
+            decided_last_commit: CommitInfo {
                 votes: vec![],
                 round: Round::default(),
             },
-            byzantine_validators: vec![],
+            misbehavior: vec![],
         };
-        begin_block.header.height = 1u8.into();
-        let proposer_address =
-            Address::try_from_slice(begin_block.header.proposer_address.as_bytes()).unwrap();
-
-        app.begin_block(&begin_block, storage).await.unwrap();
-        assert_eq!(app.state.get_block_height().await.unwrap(), 1);
-        assert_eq!(
-            app.state.get_block_timestamp().await.unwrap(),
-            begin_block.header.time
-        );
-        assert_eq!(
-            app.current_proposer.unwrap(),
-            begin_block.header.proposer_address
-        );
-
-        app.deliver_tx(signed_tx).await.unwrap();
-
-        app.current_sequencer_block_builder = Some(sequencer_block_builder);
-        app.end_block(&abci::request::EndBlock {
-            height: 1u32.into(),
-        })
-        .await
-        .unwrap();
+        app.finalize_block(finalize_block, storage.clone())
+            .await
+            .unwrap();
+        app.commit(storage).await;
 
         // assert that transaction fees were transferred to the block proposer
         assert_eq!(
             app.state
-                .get_account_balance(proposer_address, native_asset)
+                .get_account_balance(sequencer_proposer_address, native_asset)
                 .await
                 .unwrap(),
             TRANSFER_FEE,
@@ -2053,10 +2210,12 @@ mod test {
 
     #[tokio::test]
     async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
-        use astria_core::sequencer::v1::{
-            block::Deposit,
-            transaction::action::BridgeLockAction,
+        use astria_core::{
+            generated::sequencerblock::v1alpha1::RollupData as RawRollupData,
+            sequencerblock::v1alpha1::block::RollupData,
         };
+
+        use crate::api_state_ext::StateReadExt as _;
 
         let (alice_signing_key, _) = get_alice_signing_key_and_address();
         let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
@@ -2071,6 +2230,8 @@ mod test {
             .put_bridge_account_asset_ids(&bridge_address, &[asset_id])
             .unwrap();
         app.apply(state_tx);
+        app.prepare_commit(storage.clone()).await.unwrap();
+        app.commit(storage.clone()).await;
 
         let amount = 100;
         let lock_action = BridgeLockAction {
@@ -2100,100 +2261,191 @@ mod test {
             "nootwashere".to_string(),
         );
         let deposits = HashMap::from_iter(vec![(rollup_id, vec![expected_deposit.clone()])]);
+        let commitments = generate_rollup_datas_commitment(&[signed_tx.clone()], deposits.clone());
 
-        let (header, commitments) =
-            block_data_from_txs_with_sequence_actions_and_deposits(&[signed_tx.clone()], deposits);
-
-        let begin_block = abci::request::BeginBlock {
-            header,
-            hash: Hash::default(),
-            last_commit_info: CommitInfo {
+        let finalize_block = abci::request::FinalizeBlock {
+            hash: Hash::try_from([0u8; 32].to_vec()).unwrap(),
+            height: 1u32.into(),
+            time: Time::now(),
+            next_validators_hash: Hash::default(),
+            proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
+            txs: commitments.into_transactions(vec![signed_tx.to_raw().encode_to_vec().into()]),
+            decided_last_commit: CommitInfo {
                 votes: vec![],
                 round: Round::default(),
             },
-            byzantine_validators: vec![],
+            misbehavior: vec![],
         };
-        app.begin_block(&begin_block, storage).await.unwrap();
-
-        // deliver the commitments and the signed tx to simulate the
-        // action block execution and put them in the `app.current_sequencer_block_builder`
-        app.deliver_tx_after_proposal(abci::request::DeliverTx {
-            tx: commitments.rollup_datas_root.to_vec().into(),
-        })
-        .await
-        .unwrap()
-        .unwrap();
-        app.deliver_tx_after_proposal(abci::request::DeliverTx {
-            tx: commitments.rollup_ids_root.to_vec().into(),
-        })
-        .await
-        .unwrap()
-        .unwrap();
-        app.deliver_tx_after_proposal(abci::request::DeliverTx {
-            tx: signed_tx.to_raw().encode_to_vec().into(),
-        })
-        .await
-        .unwrap()
-        .unwrap();
-        let deposits = app.state.get_deposit_events(&rollup_id).await.unwrap();
-        assert_eq!(deposits.len(), 1);
-        assert_eq!(deposits[0], expected_deposit);
-
-        app.end_block(&abci::request::EndBlock {
-            height: 1u32.into(),
-        })
-        .await
-        .unwrap();
+        app.finalize_block(finalize_block, storage.clone())
+            .await
+            .unwrap();
+        app.commit(storage).await;
 
         // ensure deposits are cleared at the end of the block
         let deposit_events = app.state.get_deposit_events(&rollup_id).await.unwrap();
         assert_eq!(deposit_events.len(), 0);
+
+        let block = app.state.get_sequencer_block_by_height(1).await.unwrap();
+        let mut deposits = vec![];
+        for (_, rollup_data) in block.rollup_transactions() {
+            for tx in rollup_data.transactions() {
+                let rollup_data =
+                    RollupData::try_from_raw(RawRollupData::decode(tx.as_slice()).unwrap())
+                        .unwrap();
+                if let RollupData::Deposit(deposit) = rollup_data {
+                    deposits.push(deposit);
+                }
+            }
+        }
+        assert_eq!(deposits.len(), 1);
+        assert_eq!(deposits[0], expected_deposit);
     }
 
-    fn block_data_from_txs_no_sequence_actions(
-        txs: Vec<Vec<u8>>,
-    ) -> (Header, SequencerBlockBuilder) {
-        let empty_hash = merkle::Tree::from_leaves(Vec::<Vec<u8>>::new()).root();
-        let mut block_data = vec![empty_hash.to_vec(), empty_hash.to_vec()];
-        block_data.extend(txs);
+    #[tokio::test]
+    async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
+        let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
 
-        let data_hash = merkle::Tree::from_leaves(block_data.iter().map(Sha256::digest)).root();
-        let mut header = default_header();
-        header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
+        // update storage with initalized genesis app state
+        let intermediate_state = StateDelta::new(storage.latest_snapshot());
+        let state = Arc::try_unwrap(std::mem::replace(
+            &mut app.state,
+            Arc::new(intermediate_state),
+        ))
+        .expect("we have exclusive ownership of the State at commit()");
+        storage
+            .commit(state)
+            .await
+            .expect("applying genesis state should be okay");
 
-        let mut sequencer_block_builder = SequencerBlockBuilder::new(header.clone());
-        for tx in block_data {
-            sequencer_block_builder.push_transaction(tx);
+        // create txs which will cause cometBFT overflow
+        let (alice_signing_key, _) = get_alice_signing_key_and_address();
+        let tx_pass = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![
+                SequenceAction {
+                    rollup_id: RollupId::from([1u8; 32]),
+                    data: vec![1u8; 100_000],
+                    fee_asset_id: get_native_asset().id(),
+                }
+                .into(),
+            ],
         }
-        (header, sequencer_block_builder)
+        .into_signed(&alice_signing_key);
+        let tx_overflow = UnsignedTransaction {
+            nonce: 1,
+            actions: vec![
+                SequenceAction {
+                    rollup_id: RollupId::from([1u8; 32]),
+                    data: vec![1u8; 100_000],
+                    fee_asset_id: get_native_asset().id(),
+                }
+                .into(),
+            ],
+        }
+        .into_signed(&alice_signing_key);
+
+        let txs: Vec<bytes::Bytes> = vec![
+            tx_pass.to_raw().encode_to_vec().into(),
+            tx_overflow.to_raw().encode_to_vec().into(),
+        ];
+
+        // send to prepare_proposal
+        let prepare_args = abci::request::PrepareProposal {
+            max_tx_bytes: 200_000,
+            txs,
+            local_last_commit: None,
+            misbehavior: vec![],
+            height: Height::default(),
+            time: Time::now(),
+            next_validators_hash: Hash::default(),
+            proposer_address: account::Id::new([1u8; 20]),
+        };
+
+        let result = app
+            .prepare_proposal(prepare_args, storage)
+            .await
+            .expect("too large transactions should not cause prepare proposal to fail");
+
+        // see only first tx made it in
+        assert_eq!(
+            result.txs.len(),
+            3,
+            "total transaciton length should be three, including the two commitments and the one \
+             tx that fit"
+        );
     }
 
-    fn block_data_from_txs_with_sequence_actions_and_deposits(
-        txs: &[SignedTransaction],
-        deposits: HashMap<RollupId, Vec<Deposit>>,
-    ) -> (Header, GeneratedCommitments) {
-        let GeneratedCommitments {
-            rollup_datas_root,
-            rollup_ids_root,
-        } = generate_rollup_datas_commitment(txs, deposits.clone());
-        let mut block_data = vec![rollup_datas_root.to_vec(), rollup_ids_root.to_vec()];
-        block_data.extend(txs.iter().map(|tx| tx.to_raw().encode_to_vec()));
+    #[tokio::test]
+    async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
+        let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
 
-        let data_hash = merkle::Tree::from_leaves(block_data.iter().map(Sha256::digest)).root();
-        let mut header = default_header();
-        header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
+        // update storage with initalized genesis app state
+        let intermediate_state = StateDelta::new(storage.latest_snapshot());
+        let state = Arc::try_unwrap(std::mem::replace(
+            &mut app.state,
+            Arc::new(intermediate_state),
+        ))
+        .expect("we have exclusive ownership of the State at commit()");
+        storage
+            .commit(state)
+            .await
+            .expect("applying genesis state should be okay");
 
-        let mut sequencer_block_builder = SequencerBlockBuilder::new(header.clone());
-        for tx in block_data {
-            sequencer_block_builder.push_transaction(tx);
+        // create txs which will cause sequencer overflow (max is currently 256_000 bytes)
+        let (alice_signing_key, _) = get_alice_signing_key_and_address();
+        let tx_pass = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![
+                SequenceAction {
+                    rollup_id: RollupId::from([1u8; 32]),
+                    data: vec![1u8; 200_000],
+                    fee_asset_id: get_native_asset().id(),
+                }
+                .into(),
+            ],
         }
-        sequencer_block_builder.deposits = deposits;
-        (
-            header,
-            GeneratedCommitments {
-                rollup_datas_root,
-                rollup_ids_root,
-            },
-        )
+        .into_signed(&alice_signing_key);
+        let tx_overflow = UnsignedTransaction {
+            nonce: 1,
+            actions: vec![
+                SequenceAction {
+                    rollup_id: RollupId::from([1u8; 32]),
+                    data: vec![1u8; 100_000],
+                    fee_asset_id: get_native_asset().id(),
+                }
+                .into(),
+            ],
+        }
+        .into_signed(&alice_signing_key);
+
+        let txs: Vec<bytes::Bytes> = vec![
+            tx_pass.to_raw().encode_to_vec().into(),
+            tx_overflow.to_raw().encode_to_vec().into(),
+        ];
+
+        // send to prepare_proposal
+        let prepare_args = abci::request::PrepareProposal {
+            max_tx_bytes: 600_000, // make large enough to overflow sequencer bytes first
+            txs,
+            local_last_commit: None,
+            misbehavior: vec![],
+            height: Height::default(),
+            time: Time::now(),
+            next_validators_hash: Hash::default(),
+            proposer_address: account::Id::new([1u8; 20]),
+        };
+
+        let result = app
+            .prepare_proposal(prepare_args, storage)
+            .await
+            .expect("too large transactions should not cause prepare proposal to fail");
+
+        // see only first tx made it in
+        assert_eq!(
+            result.txs.len(),
+            3,
+            "total transaciton length should be three, including the two commitments and the one \
+             tx that fit"
+        );
     }
 }

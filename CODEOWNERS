@@ -1,6 +1,29 @@
-*	@joroshiba @noot @SuperFluffy @Fraser999
+* @joroshiba @SuperFluffy @noot
 
-/.github/	@astriaorg/infra
-/containerfiles/	@astriaorg/infra
+specs/ @astriaorg/engineering
+justfile @astriaorg/engineering
+README.md @astriaorg/engineering
+taplo.toml @astriaorg/engineering
+.gitattributes @astriaorg/engineering
+.gitignore @astriaorg/engineering
+
+/.github/ @astriaorg/infra
+/containerfiles/ @astriaorg/infra
 /charts/ @astriaorg/infra
 /dev/ @astriaorg/infra
+.dockerignore @astriaorg/infra
+*.env.example @astriaorg/infra
+
+*.proto @astriaorg/api-reviewers
+proto/*/LICENSE @astriaorg/api-reviewers
+buf.lock @astriaorg/api-reviewers
+buf.yaml @astriaorg/api-reviewers
+buf.work.yaml @astriaorg/api-reviewers
+
+*.rs @astriaorg/rust-reviewers
+Cargo.toml @astriaorg/rust-reviewers
+Cargo.lock @astriaorg/rust-reviewers
+rust-toolchain @astriaorg/rust-reviewers
+.cargo/ @astriaorg/rust-reviewers
+nextest.toml @astriaorg/rust-reviewers
+rusfmt.toml @astriaorg/rust-reviewers

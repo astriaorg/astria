@@ -1,13 +1,15 @@
 use std::collections::HashMap;
 
-use astria_core::sequencer::v1::{
-    block::{
+use astria_core::{
+    sequencer::v1::{
+        group_sequence_actions_in_signed_transaction_transactions_by_rollup_id,
+        RollupId,
+        SignedTransaction,
+    },
+    sequencerblock::v1alpha1::block::{
         Deposit,
         RollupData,
     },
-    group_sequence_actions_in_signed_transaction_transactions_by_rollup_id,
-    RollupId,
-    SignedTransaction,
 };
 use bytes::Bytes;
 
@@ -18,6 +20,9 @@ pub(crate) struct GeneratedCommitments {
 }
 
 impl GeneratedCommitments {
+    /// The total size of the commitments in bytes.
+    pub(crate) const TOTAL_SIZE: usize = 64;
+
     /// Converts the commitments plus external transaction data into a vector of bytes
     /// which can be used as the block's transactions.
     #[must_use]
