@@ -185,7 +185,7 @@ struct RunningReader {
     shutdown: CancellationToken,
 
     /// Tasks reconstructing Sequencer block information from Celestia blobs.
-    tasks: JoinMap<u64, eyre::Result<ReconstructedBlocks>>,
+    reconstruction_tasks: JoinMap<u64, eyre::Result<ReconstructedBlocks>>,
 
     /// The stream of latest Celestia head heights (so that only Celestia blobs up to that height
     /// are fetched).
@@ -267,7 +267,7 @@ impl RunningReader {
             executor,
             latest_heights,
             shutdown,
-            tasks: JoinMap::new(),
+            reconstruction_tasks: JoinMap::new(),
 
             celestia_head_height: None,
             celestia_next_height,
@@ -320,7 +320,7 @@ impl RunningReader {
                     }
                 }
 
-                Some((celestia_height, res)) = self.tasks.join_next() => {
+                Some((celestia_height, res)) = self.reconstruction_tasks.join_next() => {
                     match flatten(res) {
                         Ok(blocks) => self.cache_reconstructed_blocks(blocks),
                         Err(error) => break Err(error).wrap_err_with(|| format!(
@@ -386,7 +386,7 @@ impl RunningReader {
 
         let is_next_below_head = self.celestia_next_height <= head_height;
         let is_next_in_window = self.celestia_next_height <= self.max_permitted_celestia_height();
-        let is_capacity_in_task_set = self.tasks.len() < 10;
+        let is_capacity_in_task_set = self.reconstruction_tasks.len() < 10;
 
         is_next_below_head && is_next_in_window && is_capacity_in_task_set
     }
@@ -404,7 +404,7 @@ impl RunningReader {
                 rollup_namespace: self.rollup_namespace,
                 sequencer_namespace: self.sequencer_namespace,
             };
-            self.tasks.spawn(height, task.execute());
+            self.reconstruction_tasks.spawn(height, task.execute());
             scheduled.push(height);
         }
         if !scheduled.is_empty() {
