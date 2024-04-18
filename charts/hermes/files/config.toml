@@ -1,0 +1,146 @@
+[global]
+log_level = '{{ .Values.global.logLevel }}'
+
+[rest]
+
+# Whether or not to enable the REST service. Default: false
+enabled = {{ .Values.rest.enabled }}
+
+# Specify the IPv4/6 host over which the built-in HTTP server will serve the RESTful
+# API requests. Default: 127.0.0.1
+host = '127.0.0.1'
+
+# Specify the port over which the built-in HTTP server will serve the restful API
+# requests. Default: 3000
+port = {{ .Values.ports.rest }}
+
+[mode]
+
+[mode.clients]
+enabled = {{ .Values.mode.clients.enabled }}
+refresh = {{ .Values.mode.clients.refresh }}
+misbehaviour = {{ .Values.mode.clients.misbehaviour }}
+
+[mode.connections]
+enabled = {{ .Values.mode.connections.enabled }}
+
+[mode.channels]
+enabled = {{ .Values.mode.channels.enabled }}
+
+[mode.packets]
+enabled = {{ .Values.mode.packets.enabled }}
+clear_interval = {{ .Values.mode.packets.clearInterval }}
+clear_on_start = {{ .Values.mode.packets.clearOnStart }}
+tx_confirmation = {{ .Values.mode.packets.txConfirmation }}
+
+[telemetry]
+enabled = {{ .Values.telemetry.enabled }}
+host = '127.0.0.1'
+port = {{ .Values.ports.telemetry }}
+
+[telemetry.buckets]
+latency_submitted = { start = {{ .Values.telemetry.latencySubmittedBuckets.start }}, end = {{ .Values.telemetry.latencySubmittedBuckets.end }}, buckets = {{ .Values.telemetry.latencySubmittedBuckets.count }} }
+latency_confirmed = { start = {{ .Values.telemetry.latencyConfirmedBuckets.start }}, end = {{ .Values.telemetry.latencyConfirmedBuckets.end }}, buckets = {{ .Values.telemetry.latencyConfirmedBuckets.count }} }
+
+[tracing_server]
+enabled = {{ .Values.tracingServer.enabled }}
+port = {{ .Values.ports.tracingServer }}
+
+{{ range $chainId, $chain := .Values.chains}}
+[[chains]]
+id = '{{ $chainId }}'
+type = '{{ $chain.type }}'
+rpc_addr = '{{ $chain.rpcAddr }}'
+grpc_addr = '{{ $chain.grpcAddr }}'
+rpc_timeout = '{{ $chain.rpcTimeout }}'
+account_prefix = '{{ $chain.accountPrefix }}'                             
+key_name = '{{ $chain.key.name }}'                                    
+store_prefix = '{{ $chain.storePrefix }}'
+ccv_consumer_chain = {{ default false $chain.ccvConsumerChain }}
+ccv_consumer_chain = {{ default false $chain.trustedNode }}
+{{- if eq $chain.eventSource.mode "push" }}
+event_source = { mode = 'push', url = '{{ $chain.eventSource.url }}', batch_delay='{{ $chain.eventSource.batchDelay }}' }
+{{- else if eq $chain.eventSource.mode "pull" }}
+event_source = { mode = 'pull', interval = '{{ $chain.eventSource.interval }}' }
+{{- end }}
+{{- if $chain.addressType }}
+  {{- if eq $chain.addressType.derivation "cosmos" }}
+address_type = { derivation = 'cosmos' }
+  {{- else if eq $chain.addressType.derivation "ethermint" }}
+address_type = { derivation = 'ethermint', proto_type = { pk_type = '{{ $chain.addressType.protoType.pkType }}' }
+  {{- end }}
+{{- end }}
+
+gas_price = { price = {{ $chain.gasPrice }}, denom = '{{ $chain.gasDenom }}' }  
+{{- if $chain.defaultGas }}
+default_gas = {{ $chain.defaultGas }}
+{{- end }}
+{{ if $chain.gasMultiplier }}
+gas_multiplier = {{ $chain.gasMultiplier }}
+{{- end }} # not used
+{{- if $chain.maxGas }}
+max_gas = {{ $chain.maxGas }}
+{{ end }}
+{{- if $chain.dynamicGasPrice }}
+dynamic_gas_price = { enabled = true, multiplier = {{ $chain.dynamicGasPrice.multiplier }}, max = {{ $chain.dynamicGasPrice.max }} }
+{{- end }}
+{{- if $chain.maxMsgNumber }}
+max_msg_number = {{ $chain.maxMsgNumber }}
+{{- end }}
+{{- if $chain.maxTxSize }}
+max_tx_size = {{ $chain.maxTxSize }}
+{{- end }}
+{{- if $chain.queryPacketsChunkSize }}
+query_packets_chunk_size = {{ $chain.queryPacketsChunkSize }}
+{{- end }}
+{{- if $chain.clock_drift}}
+clock_drift = '{{ $chain.clockDrift }}'
+{{- end }}
+{{- if $chain.maxBlockTime }}
+max_block_time = '{{ $chain.maxBlockTime }}'
+{{- end }}
+{{- if $chain.trustingPeriod }}
+trusting_period = '{{ $chain.trustingPeriod }}'
+{{- end }}
+{{- if $chain.clientRefreshRate }}
+client_refresh_rate = '{{ $chain.clientRefreshRate }}'
+{{- end }}
+{{- if $chain.trustThreshold }}
+trust_threshold = '{{ $chain.trustThreshold }}'
+{{- end }}
+{{- if $chain.memoPrefix }}
+memo_prefix = '{{ $chain.memoPrefix }}'
+{{- end }}
+
+{{- if $chain.packetFilter }}
+{{- if $chain.packetFilter.policy }}
+[[chains.packet_filter]]
+policy = '{{ $chain.packetFilter.policy }}'
+list = [
+  {{- range $index, $filter := $chain.packetFilter.list }}
+  ['{{ $filter.portId }}', '{{ $filter.channelId }}'],
+  {{- end }}
+]
+{{- end }}
+{{- if $chain.packetFilter.fees }}
+  {{- range $channel, $filter := $chain.packetFilter.fees }}
+[[chains.packet_filter.min_fees.'{{ $channel }}']]
+recv = [
+    {{- range $index, $denom := $filter.denoms }}
+  { amount = '{{ $denom.amount }}' {{- if $denom.denom }}, denom = '{{ $denom.denom }}' {{- end }} },
+    {{- end }}
+]
+  {{- end }}
+{{- end }}
+{{- end }}
+{{- if $chain.feeGranter }}
+fee_granter = '{{ $chain.feeGranter }}'
+{{- end }}
+{{- if $chain.compatMode }}
+compat_mode = '{{ $chain.compatMode }}'
+{{- end }}
+{{- if $chain.clearInterval }}
+clear_interval = '{{ $chain.clearInterval }}'
+{{- end }}
+
+{{ end }}
