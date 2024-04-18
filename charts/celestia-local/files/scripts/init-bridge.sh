@@ -9,8 +9,6 @@ fi
 
 celestia bridge init \
   --node.store "$home_dir/bridge" \
-  --keyring.accname $validator_key_name \
-  --keyring.backend $keyring_backend \
   --core.ip 127.0.0.1 \
   --core.rpc.port $celestia_app_host_port \
   --core.grpc.port $celestia_app_grpc_port \
