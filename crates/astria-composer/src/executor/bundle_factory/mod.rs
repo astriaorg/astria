@@ -73,9 +73,7 @@ impl SizedBundle {
         }
     }
 
-    /// Buffer `seq_action` into the bundle. Requires calling `push_check` first on `seq_action` to
-    /// validate its size
-    ///
+    /// Buffer `seq_action` into the bundle.
     /// # Errors
     /// - `seq_action` is beyond the max size allowed for the entire bundle
     /// - `seq_action` does not fit in the remaining space in the bundle
@@ -141,11 +139,6 @@ pub(super) struct BundleFactory {
     finished: VecDeque<SizedBundle>,
     /// Max amount of `SizedBundle`s that can be in the `finished` queue.
     finished_queue_capacity: usize,
-    /// Indicates whether the `BundleFactory` is at capacity. Specifically, if the `finished`
-    /// queue is full and an attempt to push a `SequenceAction` into `curr_bundle` returns
-    /// `SizedBundleError::NotEnoughSpace`. Popping a bundle using `pop_now` or
-    /// `NextFinishedBundle` will set the factory to not full.
-    full: bool,
 }
 
 impl BundleFactory {
@@ -154,7 +147,6 @@ impl BundleFactory {
             curr_bundle: SizedBundle::new(max_bytes_per_bundle),
             finished: VecDeque::new(),
             finished_queue_capacity,
-            full: false,
         }
     }
 
@@ -184,11 +176,6 @@ impl BundleFactory {
                     })
                 } else {
                     self.finished.push_back(self.curr_bundle.flush());
-                    // if the finished queue is full after the flush mark it as such
-                    if self.finished.len() == self.finished_queue_capacity {
-                        self.full = true;
-                    }
-
                     self.curr_bundle.try_push(seq_action).expect(
                         "seq_action should not be larger than max bundle size, this is a bug",
                     );
@@ -231,17 +218,14 @@ impl BundleFactory {
     ///
     /// Returns an empty bundle if there are no bundled transactions.
     pub(super) fn pop_now(&mut self) -> SizedBundle {
-        let bundle = self
-            .finished
+        self.finished
             .pop_front()
             .or_else(|| Some(self.curr_bundle.flush()))
-            .unwrap_or(SizedBundle::new(self.curr_bundle.max_size));
-        self.full = false;
-        bundle
+            .unwrap_or(SizedBundle::new(self.curr_bundle.max_size))
     }
 
     pub(super) fn is_full(&self) -> bool {
-        self.full
+        self.finished.len() >= self.finished_queue_capacity
     }
 }
 
@@ -251,13 +235,10 @@ pub(super) struct NextFinishedBundle<'a> {
 
 impl<'a> NextFinishedBundle<'a> {
     pub(super) fn pop(self) -> SizedBundle {
-        let bundle = self
-            .bundle_factory
+        self.bundle_factory
             .finished
             .pop_front()
-            .expect("next bundle exists. this is a bug.");
-        self.bundle_factory.full = false;
-        bundle
+            .expect("next bundle exists. this is a bug.")
     }
 }
 
