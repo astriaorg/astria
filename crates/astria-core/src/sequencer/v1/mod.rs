@@ -44,7 +44,7 @@ pub const ROLLUP_ID_LEN: usize = 32;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
-pub struct Address([u8; ADDRESS_LEN]);
+pub struct Address(#[cfg_attr(feature = "serde", serde(serialize_with = "crate::serde::base64"))] [u8; ADDRESS_LEN]);
 
 impl Address {
     #[must_use]
@@ -411,6 +411,8 @@ mod tests {
         IncorrectAddressLength,
     };
 
+    use insta::assert_json_snapshot;
+
     #[test]
     fn account_of_20_bytes_is_converted_correctly() {
         let expected = Address([42; 20]);
@@ -434,5 +436,11 @@ mod tests {
         account_conversion_check(&[42; 19]);
         account_conversion_check(&[42; 21]);
         account_conversion_check(&[42; 100]);
+    }
+
+    #[test]
+    fn snapshots() {
+        let address = Address([42; 20]);
+        assert_json_snapshot!(address);
     }
 }
