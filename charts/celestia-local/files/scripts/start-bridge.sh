@@ -30,7 +30,11 @@ function wait_for_genesis() {
   echo "$genesis_hash"
 }
 
-set_token
+# only create token if it does not already exist
+# FIXME - would it be bad to get a new token on every start?
+if [ ! -f "$home_dir"/token-server/index.html ]; then
+  set_token
+fi
 
 echo "waiting for genesis hash from celestia..."
 genesis_hash=$(wait_for_genesis)

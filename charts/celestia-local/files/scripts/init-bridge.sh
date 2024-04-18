@@ -3,9 +3,9 @@
 set -o errexit -o nounset
 
 # if bridge config already exists then exit early
-rm -rf $home_dir/bridge/
-mkdir -p "$home_dir/bridge/keys"
-cp -r "$home_dir/keyring-test" "$home_dir/bridge/keys/"
+if [ -f "$home_dir/bridge/config.toml" ]; then
+  exit 0
+fi
 
 celestia bridge init \
   --node.store "$home_dir/bridge" \

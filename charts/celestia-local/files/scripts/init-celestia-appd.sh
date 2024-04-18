@@ -2,7 +2,9 @@
 
 set -o errexit -o nounset
 
-rm -rf $home_dir/*
+if [ -f "$home_dir/config/config.toml" ]; then
+  exit 0
+fi
 
 celestia-appd init "$chainid" \
   --chain-id "$chainid" \
