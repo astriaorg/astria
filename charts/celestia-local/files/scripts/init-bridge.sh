@@ -15,6 +15,7 @@ celestia bridge init \
   --core.rpc.port $celestia_app_host_port \
   --core.grpc.port $celestia_app_grpc_port \
   --gateway.port $bridge_host_port
+cp -r "$home_dir/keyring-test" "$home_dir/bridge/keys/"
 
 sed -i 's/PeersLimit = 5/PeersLimit = 1/' $home_dir/bridge/config.toml
 sed -i 's/Low = 50/Low = 0/' $home_dir/bridge/config.toml
