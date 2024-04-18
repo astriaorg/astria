@@ -24,15 +24,16 @@ use super::{
 /// The `verified_blobs` are guaranteed to have unique Sequencer block hashes.
 ///
 /// This process works in the following way:
-/// 1. Each rollup blob contains a sequencer block hash that is matched against `verified_blocks`
+/// 1. Block execution containing rollup data: each rollup blob contains a sequencer block hash that
+///    is matched against `verified_blocks`
 ///    - The rollup blob's rollup ID, transactions, and proof area used to reconstruct a Merkle Tree
 ///      Hash, which must match the root stored in the Sequencer header blob. If it does, a block is
 ///      reconstructed from the information stored in the header and rollup blobs. The sequencer
 ///      header blob is removed from the map.
 ///    - If no sequencer header blob matches the rollup blob (no matching block hash or the Merkle
 ///      path audit failing), then the rollup blob is dropped.
-/// 2. The remaining Sequencer blobs (i.e. those that had no matching rollup blob) are checked for
-///    `rollup_id`:
+/// 2. Empty block execution (no rollup data): The remaining Sequencer blobs (i.e. those that had no
+///    matching rollup blob) are checked for `rollup_id`:
 ///    - if they contained `rollup_id` they are dropped (as they should have had a matching blob but
 ///      none was found).
 ///    - if they did not contain `rollup_id` a Sequencer block is reconstructed.
@@ -75,7 +76,7 @@ pub(super) fn reconstruct_blocks_from_verified_blobs(
         if header_blob.contains_rollup_id(rollup_id) {
             warn!(
                 block_hash = %base64(&header_blob.block_hash()),
-                "sequencer header blob contains the target rollup ID, but no matching rollup blob was found; the blob",
+                "sequencer header blob contains the target rollup ID, but no matching rollup blob was found; dropping it",
             );
         } else {
             reconstructed_blocks.push(ReconstructedBlock {
