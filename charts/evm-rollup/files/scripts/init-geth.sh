@@ -2,6 +2,10 @@
 
 set -o errexit -o nounset
 
+if [ ! -d $data_dir ] ; then
+  mkdir -p $data_dir
+fi
+
 if [ -z "$(ls -A $data_dir/)" ]; then
   echo "Initializing geth db..."
 
