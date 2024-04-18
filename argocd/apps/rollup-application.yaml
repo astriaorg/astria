@@ -1,0 +1,143 @@
+# Source: https://github.com/argoproj/argo-cd/blob/master/docs/operator-manual/application.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: main-rollup
+  namespace: argocd
+spec:
+  project: default
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: main-dev-cluster
+  sources:
+    - repoURL: https://github.com/astriaorg/astria.git
+      targetRevision: main
+      path: charts/evm-rollup
+      helm: 
+        # https://argo-cd.readthedocs.io/en/stable/user-guide/helm/#helm-value-precedence
+        # Order of precedence is as follows: 
+        #       lowest  -> valueFiles
+        #               -> values
+        #               -> valuesObject
+        #       highest -> parameters
+
+
+        # valueFiles:
+        # - $values/apps/rollup/dusk-4/values.yaml
+
+
+        valuesObject:
+          global:
+            dev: false
+            rollup: 
+              metrics: 
+                enabled: false
+              serviceMonitor:
+                enabled: false
+          # celestia-node:
+          #   enabled: false
+          # ingress:
+          #   services:
+          #     rpc:
+          #       annotations:
+          #         external-dns.alpha.kubernetes.io/ttl: "120"
+          #         external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+          #         kubernetes.io/ingress.class: nginx
+          #         nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+          #     ws:
+          #       annotations:
+          #         external-dns.alpha.kubernetes.io/ttl: "120"
+          #         external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+          #         kubernetes.io/ingress.class: nginx
+          #         nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+          #     faucet:
+          #       annotations:
+          #         external-dns.alpha.kubernetes.io/ttl: "120"
+          #         external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+          #         kubernetes.io/ingress.class: nginx
+          #         nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+          #     explorer:
+          #       annotations:
+          #         external-dns.alpha.kubernetes.io/ttl: "120"
+          #         external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+          #         kubernetes.io/ingress.class: nginx
+          #         nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+
+          
+        parameters:
+          # Use parameter overrides w/ strings because templating with values/valuesObjects doesn't work
+        - name: global.namespace
+          value: $ARGOCD_APP_NAMESPACE
+        - name: ingress.hostname
+          value: $ARGOCD_APP_NAMESPACE.dev.astria.org
+
+        - name: config.rollup.name
+          value: $ARGOCD_APP_NAME
+        - name: config.rollup.chainId
+          value: $ARGOCD_APP_NAME
+
+        - name: config.sequencer.chainId
+          value: "astria-pr-{{.number}}"
+        - name: config.sequencer.grpc
+          value: "http://node0-sequencer-grpc-service.$ARGOCD_APP_NAMESPACE.svc.cluster.local:8080"
+        - name: config.sequencer.rpc
+          value: "http://node0-sequencer-rpc-service.$ARGOCD_APP_NAMESPACE.svc.cluster.local:26657"
+        
+        - name: config.celestia.rpc 
+          value: "http://celestia-service.$ARGOCD_APP_NAMESPACE.svc.cluster.local:26658"
+        - name: config.celestia.ws
+          value: "ws://celestia-service.$ARGOCD_APP_NAMESPACE.svc.cluster.local:26658"
+        - name: config.celestia.token
+          value: "http://celestia-service.$ARGOCD_APP_NAMESPACE.svc.cluster.local:5353"
+
+          # https://github.com/argoproj/argo-cd/issues/6940
+          # https://github.com/argoproj/argo-cd/issues/8464
+        - name: ingress.services.rpc.annotations\.external-dns\.alpha\.kubernetes\.io/hostname
+          value: "rpc.evm.$ARGOCD_APP_NAMESPACE.dev.astria.org"
+        - name: ingress.services.rpc.hosts[0]
+          value: "rpc.evm.$ARGOCD_APP_NAMESPACE.dev.astria.org"
+
+        - name: ingress.services.ws.annotations\.external-dns\.alpha\.kubernetes\.io/hostname
+          value: "ws.evm.$ARGOCD_APP_NAMESPACE.dev.astria.org"
+        - name: ingress.services.ws.hosts[0]
+          value: "ws.evm.$ARGOCD_APP_NAMESPACE.dev.astria.org"
+
+        - name: ingress.services.faucet.annotations\.external-dns\.alpha\.kubernetes\.io/hostname
+          value: "faucet.evm.$ARGOCD_APP_NAMESPACE.dev.astria.org"
+        - name: ingress.services.faucet.hosts[0]
+          value: "faucet.evm.$ARGOCD_APP_NAMESPACE.dev.astria.org"
+
+        - name: ingress.services.explorer.annotations\.external-dns\.alpha\.kubernetes\.io/hostname
+          value: "explorer.evm.$ARGOCD_APP_NAMESPACE.dev.astria.org"
+        - name: ingress.services.explorer.hosts[0]
+          value: "explorer.evm.$ARGOCD_APP_NAMESPACE.dev.astria.org"
+
+
+    # - repoURL: https://github.com/astriaorg/argocd-apps.git
+    #   ref: values
+    #   targetRevision: main
+  
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: false
+      allowEmpty: true
+    # For automatic namespace cleanup, ensure argocd-cm sets application.resourceTrackingMethod to 
+    # 
+    #   application.resourceTrackingMethod: annotation
+    #
+    #   or
+    # 
+    #   application.resourceTrackingMethod: annotation+label
+    #
+    # https://github.com/argoproj/argo-cd/issues/7875#issuecomment-1948588656
+    # managedNamespaceMetadata:
+    #   labels:
+    #     # # <$ARGOCD_APP_NAME>
+    #     argocd.argoproj.io/instance: main-rollup
+    #   annotations:
+    #     # <$ARGOCD_APP_NAME>:/Namespace:$ARGOCD_APP_NAMESPACE
+    #     argocd.argoproj.io/tracking-id: >-
+    #       main-rollup:/Namespace:main-dev-cluster
+    syncOptions:
+    - CreateNamespace=true

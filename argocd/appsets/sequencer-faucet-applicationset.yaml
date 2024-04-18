@@ -1,0 +1,96 @@
+# Source: https://github.com/argoproj/argo-cd/blob/master/docs/operator-manual/applicationset.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: pr-sequencer-faucet
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+  - pullRequest:
+      github:
+        owner: astriaorg
+        repo: astria
+        tokenRef:
+          key: token
+          secretName: github-pat
+        labels:
+          # All of the following labels are required to be set on the PR for the app to be created
+          - demo 
+          - sequencer-faucet
+          - docker-build
+      requeueAfterSeconds: 60
+  template:
+    metadata:
+      name: pr-{{.number}}-sequencer-faucet
+    spec:
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: pr-{{.number}}
+      project: default
+      sources:
+        - repoURL: https://github.com/astriaorg/astria.git
+          targetRevision: 'pull/{{.number}}/head' # '{{.head_sha}}'
+          path: charts/sequencer-faucet
+          helm:
+            # https://argo-cd.readthedocs.io/en/stable/user-guide/helm/#helm-value-precedence
+            # Order of precedence is as follows: 
+            #       lowest  -> valueFiles
+            #               -> values
+            #               -> valuesObject
+            #       highest -> parameters
+
+
+            # valueFiles: 
+            # - $values/apps/sequencer-faucet/dev/values.yaml
+
+
+            # valuesObject:
+            #   ingress:
+            #     annotations:
+            #         external-dns.alpha.kubernetes.io/ttl: "120"
+            #         external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+            #         kubernetes.io/ingress.class: nginx
+            #         nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+
+
+            parameters: 
+              # Use parameter overrides w/ strings because templating with values/valuesObjects doesn't work
+            - name: global.namespace
+              value: pr-{{.number}}
+            - name: ingress.hostname
+              value: "pr-{{.number}}.dev.astria.org"
+
+            # https://github.com/astriaorg/astria/pkgs/container/seq-faucet
+            # Image not currently built per PR (so use only latest or default chart value)
+            # - name: images.sequencerFaucet
+            #   value: "ghcr.io/astriaorg/seq-faucet:latest" # ghcr.io/astriaorg/seq-faucet:pr-{{.number}} 
+
+            - name: config.sequencerRpcUrl
+              value: "http://node0-sequencer-rpc-service.pr-{{.number}}.svc.cluster.local:26657"
+
+            - name: ingress.services.faucet.hosts[0]
+              value: "faucet.sequencer.pr-{{.number}}.dev.astria.org"
+            - name: ingress.hosts[0]
+              value: "faucet.sequencer.pr-{{.number}}.dev.astria.org"
+
+        # - repoURL: https://github.com/astriaorg/argocd-apps.git
+        #   path: apps/sequencer-faucet/dev
+        #   ref: values
+        #   targetRevision: main
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: false
+          allowEmpty: true
+        # managedNamespaceMetadata:
+        #   labels:
+        #     # <$ARGOCD_APP_NAME>
+        #     argocd.argoproj.io/instance: pr-{{.number}}-sequencer-faucet
+        #   annotations:
+        #     # <$ARGOCD_APP_NAME>:/Namespace:$ARGOCD_APP_NAMESPACE
+        #     argocd.argoproj.io/tracking-id: >-
+        #       pr-{{.number}}-sequencer-faucet:/Namespace:pr-{{.number}}
+        syncOptions:
+        - CreateNamespace=true

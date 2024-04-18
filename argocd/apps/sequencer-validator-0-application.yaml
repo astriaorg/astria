@@ -1,0 +1,90 @@
+# Source: https://github.com/argoproj/argo-cd/blob/master/docs/operator-manual/application.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: main-sequencer-0
+  namespace: argocd
+spec:
+  project: default
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: main-dev-cluster
+  sources:
+    - repoURL: https://github.com/astriaorg/astria.git
+      targetRevision: main
+      path: charts/sequencer
+      helm: 
+        # https://argo-cd.readthedocs.io/en/stable/user-guide/helm/#helm-value-precedence
+        # Note: Order of precedence is as follows: 
+        #       lowest  -> valueFiles
+        #               -> values
+        #               -> valuesObject
+        #       highest -> parameters
+
+
+        # valueFiles:
+        # - $values/apps/sequencer/dev/values-node-0.yaml
+
+
+        valuesObject:
+          global:
+            dev: false
+          ingress:
+            grpc:
+              enabled: true
+          # config:
+          #   sequencer: 
+          #     metrics: 
+          #       enabled: true
+          # serviceMonitor:
+          #   enabled: true
+          # sequencer-relayer:
+          #   enabled: true
+
+
+        parameters:
+          # Use parameter overrides w/ strings because templating with values/valuesObjects doesn't work
+        - name: global.namespace
+          value: $ARGOCD_APP_NAMESPACE
+        - name: ingress.hostname
+          value: $ARGOCD_APP_NAMESPACE.dev.astria.org
+        - name: ingress.rpc.hostname
+          value: $ARGOCD_APP_NAMESPACE.dev.astria.org
+        - name: ingress.grpc.hostname
+          value: $ARGOCD_APP_NAMESPACE.dev.astria.org
+
+        - name: sequencer-relayer.config.relayer.celestiaRpc
+          value: http://celestia-service.$ARGOCD_APP_NAMESPACE.svc.cluster.local:26658
+        - name: sequencer-relayer.config.relayer.cometbftRpc
+          value: http://node0-sequencer-rpc-service.$ARGOCD_APP_NAMESPACE.svc.cluster.local:26657
+        - name: sequencer-relayer.config.relayer.sequencerGrpc
+          value: http://node0-sequencer-grpc-service.$ARGOCD_APP_NAMESPACE.svc.cluster.local:8080
+
+
+    # - repoURL: https://github.com/astriaorg/argocd-apps.git
+    #   ref: values
+    #   targetRevision: main
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: false
+      allowEmpty: true
+    # For automatic namespace cleanup, ensure argocd-cm sets application.resourceTrackingMethod to 
+    # 
+    #   application.resourceTrackingMethod: annotation
+    #
+    #   or
+    # 
+    #   application.resourceTrackingMethod: annotation+label
+    #
+    # https://github.com/argoproj/argo-cd/issues/7875#issuecomment-1948588656
+    # managedNamespaceMetadata:
+    #   labels:
+    #     # # <$ARGOCD_APP_NAME>
+    #     argocd.argoproj.io/instance: main-sequencer-0
+    #   annotations:
+    #     # <$ARGOCD_APP_NAME>:/Namespace:$ARGOCD_APP_NAMESPACE
+    #     argocd.argoproj.io/tracking-id: >-
+    #       main-sequencer-0:/Namespace:main-dev-cluster
+    syncOptions:
+    - CreateNamespace=true

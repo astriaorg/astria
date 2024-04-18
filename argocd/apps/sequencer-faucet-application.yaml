@@ -1,0 +1,79 @@
+# Source: https://github.com/argoproj/argo-cd/blob/master/docs/operator-manual/application.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: main-sequencer-faucet
+  namespace: argocd
+spec:
+  project: default
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: main-dev-cluster
+  sources:
+    - repoURL: https://github.com/astriaorg/astria.git
+      targetRevision: main
+      path: charts/sequencer-faucet
+      helm: 
+        # https://argo-cd.readthedocs.io/en/stable/user-guide/helm/#helm-value-precedence
+        # Order of precedence is as follows: 
+        #       lowest  -> valueFiles
+        #               -> values
+        #               -> valuesObject
+        #       highest -> parameters
+
+
+        # valueFiles: 
+        # - $values/apps/sequencer-faucet/dev/values.yaml
+
+
+        # valuesObject:
+        #   ingress:
+        #     annotations:
+        #         external-dns.alpha.kubernetes.io/ttl: "120"
+        #         external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+        #         kubernetes.io/ingress.class: nginx
+        #         nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+
+
+        parameters:
+          # Use parameter overrides w/ strings because templating with values/valuesObjects doesn't work
+        - name: global.namespace
+          value: $ARGOCD_APP_NAMESPACE
+        - name: ingress.hostname
+          value: $ARGOCD_APP_NAMESPACE.dev.astria.org
+
+        - name: config.sequencerRpcUrl
+          value: http://node0-sequencer-rpc-service.$ARGOCD_APP_NAMESPACE.svc.cluster.local:26657
+
+        # - name: ingress.annotations\.external-dns\.alpha\.kubernetes\.io/hostname
+        #   value: "faucet.sequencer.$ARGOCD_APP_NAMESPACE.dev.astria.org"
+        # - name: ingress.hosts[0]
+        #   value: "faucet.sequencer.$ARGOCD_APP_NAMESPACE.dev.astria.org"
+
+    # - repoURL: https://github.com/astriaorg/argocd-apps.git
+    #   ref: values
+    #   targetRevision: main
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: false
+      allowEmpty: true
+    # For automatic namespace cleanup, ensure argocd-cm sets application.resourceTrackingMethod to 
+    # 
+    #   application.resourceTrackingMethod: annotation
+    #
+    #   or
+    # 
+    #   application.resourceTrackingMethod: annotation+label
+    #
+    # https://github.com/argoproj/argo-cd/issues/7875#issuecomment-1948588656
+    # managedNamespaceMetadata:
+    #   labels:
+    #     # # <$ARGOCD_APP_NAME>
+    #     argocd.argoproj.io/instance: main-sequencer-faucet
+    #   annotations:
+    #     # <$ARGOCD_APP_NAME>:/Namespace:$ARGOCD_APP_NAMESPACE
+    #     argocd.argoproj.io/tracking-id: >-
+    #       main-sequencer-faucet:/Namespace:main-dev-cluster
+    syncOptions:
+    - CreateNamespace=true

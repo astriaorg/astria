@@ -1,0 +1,160 @@
+# Source: https://github.com/argoproj/argo-cd/blob/master/docs/operator-manual/applicationset.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: pr-rollup
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+  - pullRequest:
+      github:
+        owner: astriaorg
+        repo: astria
+        tokenRef:
+          key: token
+          secretName: github-pat
+        labels:
+        - demo 
+        - evm
+        - docker-build
+      requeueAfterSeconds: 60
+  template:
+    metadata:
+      name: pr-{{.number}}-rollup
+    spec:
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: pr-{{.number}}
+      project: default
+      sources:
+        - repoURL: https://github.com/astriaorg/astria.git
+          targetRevision: 'pull/{{.number}}/head' # '{{.head_sha}}'
+          path: charts/evm-rollup
+          helm: 
+            # https://argo-cd.readthedocs.io/en/stable/user-guide/helm/#helm-value-precedence
+            # Order of precedence is as follows: 
+            #       lowest  -> valueFiles
+            #               -> values
+            #               -> valuesObject
+            #       highest -> parameters
+
+
+            # valueFiles:
+            # - $values/apps/rollup/dusk-4/values.yaml
+
+
+            valuesObject:
+              global:
+                useTTY: true
+                dev: false
+              #   rollup: 
+              #     metrics: 
+              #       enabled: true
+              #     serviceMonitor:
+              #       enabled: true
+              # celestia-node:
+              #   enabled: false
+              # storage:
+              #   enabled: false
+              # ingress:
+              #   services:
+              #     rpc:
+              #       annotations:
+              #         external-dns.alpha.kubernetes.io/ttl: "120"
+              #         external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+              #         kubernetes.io/ingress.class: nginx
+              #         nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+              #     ws:
+              #       annotations:
+              #         external-dns.alpha.kubernetes.io/ttl: "120"
+              #         external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+              #         kubernetes.io/ingress.class: nginx
+              #         nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+              #     faucet:
+              #       annotations:
+              #         external-dns.alpha.kubernetes.io/ttl: "120"
+              #         external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+              #         kubernetes.io/ingress.class: nginx
+              #         nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+              #     explorer:
+              #       annotations:
+              #         external-dns.alpha.kubernetes.io/ttl: "120"
+              #         external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+              #         kubernetes.io/ingress.class: nginx
+              #         nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+
+
+            parameters: 
+              # Use parameter overrides w/ strings because templating with values/valuesObjects doesn't work
+            - name: global.namespace
+              value: pr-{{.number}}
+            - name: ingress.hostname
+              value: "pr-{{.number}}.dev.astria.org"
+
+            # PR images not currently working reliably; using defaults for now
+            # - name: images.conductor.tag
+            #   value: pr-{{.number}}
+            # - name: images.composer.tag
+            #   value: pr-{{.number}}
+
+            - name: config.rollup.name
+              value: "astria-pr-{{.number}}"
+            - name: config.rollup.chainId
+              value: "astria-pr-{{.number}}"
+
+            - name: config.sequencer.chainId
+              value: "astria-pr-{{.number}}"
+            - name: config.sequencer.grpc
+              value: "http://node0-sequencer-grpc-service.pr-{{.number}}.svc.cluster.local:8080"
+            - name: config.sequencer.rpc
+              value: "http://node0-sequencer-rpc-service.pr-{{.number}}.svc.cluster.local:26657"
+
+            - name: config.celestia.rpc 
+              value: "http://celestia-service.pr-{{.number}}.svc.cluster.local:26658"
+            - name: config.celestia.ws
+              value: "ws://celestia-service.pr-{{.number}}.svc.cluster.local:26658"
+            - name: config.celestia.token
+              value: "http://celestia-service.pr-{{.number}}.svc.cluster.local:5353"
+
+            # https://github.com/argoproj/argo-cd/issues/6940
+            # https://github.com/argoproj/argo-cd/issues/8464
+            # - name: ingress.services.rpc.annotations\.external-dns\.alpha\.kubernetes\.io/hostname
+            #   value: "rpc.evm.pr-{{.number}}.dev.astria.org"
+            # - name: ingress.services.rpc.hosts[0]
+            #   value: "rpc.evm.pr-{{.number}}.dev.astria.org"
+
+            # - name: ingress.services.ws.annotations\.external-dns\.alpha\.kubernetes\.io/hostname
+            #   value: "ws.evm.pr-{{.number}}.dev.astria.org"
+            # - name: ingress.services.ws.hosts[0]
+            #   value: "ws.evm.pr-{{.number}}.dev.astria.org"
+
+            # - name: ingress.services.faucet.annotations\.external-dns\.alpha\.kubernetes\.io/hostname
+            #   value: "faucet.evm.pr-{{.number}}.dev.astria.org"
+            # - name: ingress.services.faucet.hosts[0]
+            #   value: "faucet.evm.pr-{{.number}}.dev.astria.org"
+
+            # - name: ingress.services.explorer.annotations\.external-dns\.alpha\.kubernetes\.io/hostname
+            #   value: "explorer.evm.pr-{{.number}}.dev.astria.org"
+            # - name: ingress.services.explorer.hosts[0]
+            #   value: "explorer.evm.pr-{{.number}}.dev.astria.org"
+
+        # - repoURL: https://github.com/astriaorg/argocd-apps.git
+        #   ref: values
+        #   targetRevision: main
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: false
+          allowEmpty: true
+        # managedNamespaceMetadata:
+        #   labels:
+        #     # <$ARGOCD_APP_NAME>
+        #     argocd.argoproj.io/instance: pr-{{.number}}-rollup
+        #   annotations:
+        #     # <$ARGOCD_APP_NAME>:/Namespace:$ARGOCD_APP_NAMESPACE
+        #     argocd.argoproj.io/tracking-id: >-
+        #       pr-{{.number}}-rollup:/Namespace:pr-{{.number}}
+        syncOptions:
+        - CreateNamespace=true

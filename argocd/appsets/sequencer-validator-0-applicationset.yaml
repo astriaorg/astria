@@ -1,0 +1,114 @@
+# Source: https://github.com/argoproj/argo-cd/blob/master/docs/operator-manual/applicationset.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: pr-sequencer-0
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+  - pullRequest:
+      github:
+        owner: astriaorg
+        repo: astria
+        tokenRef:
+          key: token
+          secretName: github-pat
+        labels:
+          # All of the following labels are required to be set on the PR for the app to be created
+        - demo 
+        - sequencer
+        - docker-build
+      requeueAfterSeconds: 60
+  template:
+    metadata:
+      name: pr-{{.number}}-sequencer-0
+    spec:
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: pr-{{.number}}
+      project: default
+      sources:
+        - repoURL: https://github.com/astriaorg/astria.git
+          targetRevision: 'pull/{{.number}}/head' # '{{.head_sha}}'
+          path: charts/sequencer
+          helm: 
+            # https://argo-cd.readthedocs.io/en/stable/user-guide/helm/#helm-value-precedence
+            # Note: Order of precedence is as follows: 
+            #       lowest  -> valueFiles
+            #               -> values
+            #               -> valuesObject
+            #       highest -> parameters
+
+
+            # valueFiles:
+            # - $values/apps/sequencer/dusk-4/values-all.yaml
+            # - $values/apps/sequencer/dusk-4/values-node-0.yaml
+
+
+            valuesObject:
+              ingress:
+                grpc:
+                  enabled: true
+            #   config:
+            #     sequencer: 
+            #       metrics: 
+            #         enabled: true
+            #   serviceMonitor:
+            #     enabled: true
+
+
+            parameters:
+              # Use parameter overrides w/ strings because templating with values/valuesObjects doesn't work
+            - name: global.namespace
+              value: pr-{{.number}}
+            - name: ingress.hostname
+              value: "pr-{{.number}}.dev.astria.org"
+
+            - name: images.sequencer.tag
+              value: pr-{{.number}}
+          
+            - name: sequencer-relayer.config.relayer.celestiaRpc
+              value: "http://celestia-service.pr-{{.number}}.svc.cluster.local:26658"
+            - name: sequencer-relayer.config.relayer.cometbftRpc
+              value: "http://node0-sequencer-rpc-service.pr-{{.number}}.svc.cluster.local:26657"
+            - name: sequencer-relayer.config.relayer.sequencerGrpc
+              value: "http://node0-sequencer-grpc-service.pr-{{.number}}.svc.cluster.local:8080"
+
+ 
+            - name: ingress.rpc.hostname
+              value: "sequencer.pr-{{.number}}.dev.astria.org"
+            - name: ingress.rpc.annotations\.external-dns\.alpha\.kubernetes\.io/hostname
+              value: "rpc.sequencer.pr-{{.number}}.dev.astria.org"
+
+            #   value: "pr-{{.number}}.dev.astria.org"  
+            # - name: ingress.rpc.tls.hosts[3]
+            #   value: "sequencer.pr-{{.number}}.dev.astria.org" 
+            # - name: ingress.rpc.tls.hosts[4]
+            #   value: "rpc.sequencer.pr-{{.number}}.dev.astria.org" 
+
+            - name: ingress.grpc.hostname
+              value: "sequencer.pr-{{.number}}.dev.astria.org"
+            - name: ingress.grpc.annotations\.external-dns\.alpha\.kubernetes\.io/hostname
+              value: "grpc.sequencer.pr-{{.number}}.dev.astria.org"
+
+
+        # - repoURL: https://github.com/astriaorg/argocd-apps.git
+        #   ref: values
+        #   targetRevision: main
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: false
+          allowEmpty: true
+        # managedNamespaceMetadata:
+        #   labels:
+        #     # <$ARGOCD_APP_NAME>
+        #     argocd.argoproj.io/instance: pr-{{.number}}-sequencer-0
+        #   annotations:
+        #     # <$ARGOCD_APP_NAME>:/Namespace:$ARGOCD_APP_NAMESPACE
+        #     argocd.argoproj.io/tracking-id: >-
+        #       pr-{{.number}}-sequencer-0:/Namespace:pr-{{.number}}
+        syncOptions:
+        - CreateNamespace=true
