@@ -576,13 +576,11 @@ impl App {
         finalize_block: abci::request::FinalizeBlock,
         storage: Storage,
     ) -> anyhow::Result<abci::response::FinalizeBlock> {
-        let chain_id: tendermint::chain::Id = self
+        let chain_id = self
             .state
             .get_chain_id()
             .await
-            .context("failed to get chain ID from state")?
-            .try_into()
-            .context("invalid chain ID")?;
+            .context("failed to get chain ID from state")?;
 
         // convert tendermint id to astria address; this assumes they are
         // the same address, as they are both ed25519 keys
@@ -667,7 +665,7 @@ impl App {
         };
 
         let end_block = self
-            .end_block(height.value() as u32, astria_proposer_address)
+            .end_block(height.value(), astria_proposer_address)
             .await?;
 
         // get and clear block deposits from state
@@ -829,14 +827,16 @@ impl App {
     #[instrument(name = "App::end_block", skip_all)]
     pub(crate) async fn end_block(
         &mut self,
-        height: u32,
+        height: u64,
         proposer_address: Address,
     ) -> anyhow::Result<abci::response::EndBlock> {
         let state_tx = StateDelta::new(self.state.clone());
         let mut arc_state_tx = Arc::new(state_tx);
 
         let end_block = abci::request::EndBlock {
-            height: height.into(),
+            height: height
+                .try_into()
+                .expect("a block height should be able to fit in an i64"),
         };
 
         // call end_block on all components
@@ -2021,7 +2021,7 @@ mod test {
         ];
 
         let mut app = initialize_app(None, initial_validator_set).await;
-        let proposer_address = Address::try_from_slice(&[0u8; 20].to_vec()).unwrap();
+        let proposer_address = Address::try_from_slice([0u8; 20].as_ref()).unwrap();
 
         let validator_updates = vec![
             validator::Update {
