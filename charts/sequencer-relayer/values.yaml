@@ -36,7 +36,7 @@ config:
       traceHeaders:
 
   celestiaKeyFile:
-    content: "455411866852444ed669d63edd8ddb8a956a8911918c8d90d513333df4ab3a8f"
+    content: "8241386890823ca14743e5d4d583f879a5236af29f454ed4da6fe62b8439e2ab"
 
   celestiaPrivateKey:
     filename: "key.hex"
