@@ -126,12 +126,6 @@ pub(crate) struct App {
     // cleared at the end of each block.
     execution_results: Option<Vec<tendermint::abci::types::ExecTxResult>>,
 
-    // proposer of the block being currently executed; set in begin_block
-    // and cleared in end_block.
-    // this is used only to determine who to transfer the block fees to
-    // at the end of the block.
-    current_proposer: Option<account::Id>,
-
     // the current `StagedWriteBatch` which contains the rocksdb write batch
     // of the current block being executed, created from the state delta,
     // and set after `finalize_block`.
@@ -159,7 +153,6 @@ impl App {
             validator_address: None,
             executed_proposal_hash: Hash::default(),
             execution_results: None,
-            current_proposer: None,
             write_batch: None,
             app_hash: AppHash::default(),
         }
@@ -180,7 +173,7 @@ impl App {
 
         crate::asset::initialize_native_asset(&genesis_state.native_asset_base_denomination);
         state_tx.put_native_asset_denom(&genesis_state.native_asset_base_denomination);
-        state_tx.put_chain_id_and_revision_number(chain_id);
+        state_tx.put_chain_id_and_revision_number(chain_id.try_into().context("invalid chain ID")?);
         state_tx.put_block_height(0);
 
         for fee_asset in &genesis_state.allowed_fee_assets {
@@ -339,8 +332,7 @@ impl App {
         // rejected the proposal if it was too large.
         // however, we should still validate the other constraints, namely
         // the max sequenced data bytes.
-        let mut block_size_constraints = BlockSizeConstraints::new(usize::MAX)
-            .context("failed to create block size constraints")?;
+        let mut block_size_constraints = BlockSizeConstraints::new_unlimited_cometbft();
 
         let (signed_txs, txs_to_include) = self
             .execute_transactions_before_finalization(txs, &mut block_size_constraints)
@@ -388,6 +380,17 @@ impl App {
     ///
     /// Returns the transactions which were successfully decoded and executed
     /// in both their [`SignedTransaction`] and raw bytes form.
+    ///     
+    /// Unlike the usual flow of an ABCI application, this is called during
+    /// the proposal phase, ie. `prepare_proposal` or `process_proposal`.
+    ///
+    /// This is because we disallow transactions that fail execution to be included
+    /// in a block's transaction data, as this would allow `sequence::Action`s to be
+    /// included for free. Instead, we execute transactions during the proposal phase,
+    /// and only include them in the block if they succeed.
+    ///
+    /// As a result, all transactions in a sequencer block are guaranteed to execute
+    /// successfully.
     #[instrument(name = "App::execute_transactions_before_finalization", skip_all, fields(
         tx_count = txs.len()
     ))]
@@ -448,7 +451,7 @@ impl App {
                 continue;
             }
 
-            // store transaction execution result, indexed by tx hash
+            // execute tx and store in `execution_results` list
             match self.execute_transaction(signed_tx.clone()).await {
                 Ok(events) => {
                     execution_results.push(ExecTxResult {
@@ -497,28 +500,27 @@ impl App {
         Ok((signed_txs, validated_txs))
     }
 
-    // sets up the state for execution of the block's transactions.
-    // set the current height and timestamp, and calls `begin_block` on all components.
-    //
-    // this *must* be called anytime before a block's txs are executed, whether it's
-    // during the proposal phase, or finalize_block phase.
+    /// sets up the state for execution of the block's transactions.
+    /// set the current height and timestamp, and calls `begin_block` on all components.
+    ///
+    /// this *must* be called anytime before a block's txs are executed, whether it's
+    /// during the proposal phase, or finalize_block phase.
+    #[instrument(name = "App::pre_execute_transactions", skip_all)]
     async fn pre_execute_transactions(
         &mut self,
         block_data: BlockData,
     ) -> anyhow::Result<Vec<bytes::Bytes>> {
-        let chain_id: tendermint::chain::Id = self
+        let chain_id = self
             .state
             .get_chain_id()
             .await
-            .context("failed to get chain ID from state")?
-            .try_into()
-            .context("invalid chain ID")?;
+            .context("failed to get chain ID from state")?;
 
         // call begin_block on all components
         // NOTE: the fields marked `unused` are not used by any of the components;
         // however, we need to still construct a `BeginBlock` type for now as
         // the penumbra IBC implementation still requires it as a parameter.
-        let begin_block = abci::request::BeginBlock {
+        let begin_block: abci::request::BeginBlock = abci::request::BeginBlock {
             hash: Hash::default(), // unused
             byzantine_validators: block_data.misbehavior.clone(),
             header: Header {
@@ -554,6 +556,12 @@ impl App {
         Ok(block_data.txs)
     }
 
+    /// Executes the given block, but does not write it to disk.
+    ///
+    /// `commit` must be called after this to write the block to disk.
+    ///
+    /// This is called by cometbft after the block has already been
+    /// finalized by the network.
     #[instrument(name = "App::finalize_block", skip_all)]
     pub(crate) async fn finalize_block(
         &mut self,
@@ -568,8 +576,13 @@ impl App {
             .try_into()
             .context("invalid chain ID")?;
 
-        // set the current proposer
-        self.current_proposer = Some(finalize_block.proposer_address);
+        // convert tendermint id to astria address; this assumes they are
+        // the same address, as they are both ed25519 keys
+        let proposer_address = finalize_block.proposer_address;
+        let astria_proposer_address =
+            Address::try_from_slice(finalize_block.proposer_address.as_bytes())
+                .context("failed to convert proposer tendermint id to astria address")?;
+
         let height = finalize_block.height;
         let time = finalize_block.time;
         let Hash::Sha256(block_hash) = finalize_block.hash else {
@@ -643,9 +656,7 @@ impl App {
         };
 
         let end_block = self
-            .end_block(&abci::request::EndBlock {
-                height: height.into(),
-            })
+            .end_block(height.value() as u32, astria_proposer_address)
             .await?;
 
         // get and clear block deposits from state
@@ -663,12 +674,6 @@ impl App {
             deposits = %telemetry::display::json(&deposits),
             "got block deposits from state"
         );
-
-        // reset proposer address for fee payment
-        let proposer_address = self
-            .current_proposer
-            .take()
-            .expect("current proposer must be set at the start of finalize_block");
 
         let sequencer_block = SequencerBlock::try_from_block_info_and_data(
             block_hash,
@@ -766,19 +771,6 @@ impl App {
     }
 
     /// Executes a signed transaction.
-    ///
-    /// Unlike the usual flow of an ABCI application, this is called during
-    /// the proposal phase, ie. `prepare_proposal` or `process_proposal`.
-    ///
-    /// This is because we disallow transactions that fail execution to be included
-    /// in a block's transaction data, as this would allow `sequence::Action`s to be
-    /// included for free. Instead, we execute transactions during the proposal phase,
-    /// and only include them in the block if they succeed.
-    ///
-    /// As a result, all transactions in a sequencer block are guaranteed to execute
-    /// successfully.
-    ///
-    /// Note that `begin_block` is now called *after* transaction execution.
     #[instrument(name = "App::execute_transaction", skip_all, fields(
         signed_transaction_hash = %telemetry::display::base64(&signed_tx.sha256_of_proto_encoding()),
         sender = %Address::from_verification_key(signed_tx.verification_key()),
@@ -822,19 +814,24 @@ impl App {
     #[instrument(name = "App::end_block", skip_all)]
     pub(crate) async fn end_block(
         &mut self,
-        end_block: &abci::request::EndBlock,
+        height: u32,
+        proposer_address: Address,
     ) -> anyhow::Result<abci::response::EndBlock> {
         let state_tx = StateDelta::new(self.state.clone());
         let mut arc_state_tx = Arc::new(state_tx);
 
+        let end_block = abci::request::EndBlock {
+            height: height.into(),
+        };
+
         // call end_block on all components
-        AccountsComponent::end_block(&mut arc_state_tx, end_block)
+        AccountsComponent::end_block(&mut arc_state_tx, &end_block)
             .await
             .context("failed to call end_block on AccountsComponent")?;
-        AuthorityComponent::end_block(&mut arc_state_tx, end_block)
+        AuthorityComponent::end_block(&mut arc_state_tx, &end_block)
             .await
             .context("failed to call end_block on AuthorityComponent")?;
-        IbcComponent::end_block(&mut arc_state_tx, end_block)
+        IbcComponent::end_block(&mut arc_state_tx, &end_block)
             .await
             .context("failed to call end_block on IbcComponent")?;
 
@@ -857,14 +854,7 @@ impl App {
             .get_block_fees()
             .await
             .context("failed to get block fees")?;
-        let proposer = self
-            .current_proposer
-            .expect("current proposer must be set in `begin_block`");
 
-        // convert tendermint id to astria address; this assumes they are
-        // the same address, as they are both ed25519 keys
-        let proposer_address = Address::try_from_slice(proposer.as_bytes())
-            .context("failed to convert proposer tendermint id to astria address")?;
         for (asset, amount) in fees {
             let balance = state_tx
                 .get_account_balance(proposer_address, asset)
@@ -2044,7 +2034,7 @@ mod test {
         ];
 
         let mut app = initialize_app(None, initial_validator_set).await;
-        app.current_proposer = Some(account::Id::try_from([0u8; 20].to_vec()).unwrap());
+        let proposer_address = Address::try_from_slice(&[0u8; 20].to_vec()).unwrap();
 
         let validator_updates = vec![
             validator::Update {
@@ -2067,12 +2057,7 @@ mod test {
             .unwrap();
         app.apply(state_tx);
 
-        let resp = app
-            .end_block(&abci::request::EndBlock {
-                height: 1u32.into(),
-            })
-            .await
-            .unwrap();
+        let resp = app.end_block(1, proposer_address).await.unwrap();
         // we only assert length here as the ordering of the updates is not guaranteed
         // and validator::Update does not implement Ord
         assert_eq!(resp.validator_updates.len(), validator_updates.len());
