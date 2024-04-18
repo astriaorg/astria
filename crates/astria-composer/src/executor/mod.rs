@@ -229,9 +229,7 @@ impl Executor {
                 // process submission result and update nonce
                 rsp = &mut submission_fut, if !submission_fut.is_terminated() => {
                     match rsp {
-                        Ok(new_nonce) => nonce = {
-                            new_nonce
-                        },
+                        Ok(new_nonce) => nonce = new_nonce,
                         Err(error) => {
                             error!(%error, "failed submitting bundle to sequencer; aborting executor");
                             break Err(error).wrap_err("failed submitting bundle to sequencer");
@@ -429,6 +427,8 @@ async fn get_latest_nonce(
             |attempt,
              next_delay: Option<Duration>,
              err: &sequencer_client::extension_trait::Error| {
+                metrics::counter!(crate::metrics_init::NONCE_FETCH_FAILURE_COUNT).increment(1);
+
                 let wait_duration = next_delay
                     .map(humantime::format_duration)
                     .map(tracing::field::display);
@@ -450,10 +450,6 @@ async fn get_latest_nonce(
     .with_config(retry_config)
     .await
     .wrap_err("failed getting latest nonce from sequencer after 1024 attempts");
-
-    if res.is_err() {
-        metrics::counter!(crate::metrics_init::NONCE_FETCH_FAILURE_COUNT).increment(1);
-    }
 
     metrics::histogram!(crate::metrics_init::NONCE_FETCH_LATENCY).record(start.elapsed());
 
@@ -484,6 +480,9 @@ async fn submit_tx(
             |attempt,
              next_delay: Option<Duration>,
              err: &sequencer_client::extension_trait::Error| {
+                metrics::counter!(crate::metrics_init::TRANSACTION_SUBMISSION_FAILURE_COUNT)
+                    .increment(1);
+
                 let wait_duration = next_delay
                     .map(humantime::format_duration)
                     .map(tracing::field::display);
@@ -506,10 +505,6 @@ async fn submit_tx(
     .with_config(retry_config)
     .await
     .wrap_err("failed sending transaction after 1024 attempts");
-
-    if res.is_err() {
-        metrics::counter!(crate::metrics_init::TRANSACTION_SUBMISSION_FAILURE_COUNT).increment(1);
-    }
 
     metrics::histogram!(crate::metrics_init::TRANSACTION_SUBMISSION_LATENCY)
         .record(start.elapsed());
