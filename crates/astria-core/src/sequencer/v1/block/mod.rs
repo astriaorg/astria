@@ -1239,6 +1239,11 @@ impl FilteredSequencerBlockError {
 /// A [`Deposit`] is constructed whenever a [`BridgeLockAction`] is executed
 /// and stored as part of the block's events.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+#[cfg_attr(
+    feature = "serde",
+    serde(into = "crate::generated::sequencer::v1::Deposit")
+)]
 pub struct Deposit {
     // the address on the sequencer to which the funds were sent to.
     bridge_address: Address,
@@ -1250,6 +1255,12 @@ pub struct Deposit {
     asset_id: asset::Id,
     // the address on the destination chain (rollup) which to send the bridged funds to
     destination_chain_address: String,
+}
+
+impl From<Deposit> for crate::generated::sequencer::v1::Deposit {
+    fn from(deposit: Deposit) -> Self {
+        deposit.into_raw()
+    }
 }
 
 impl Deposit {
