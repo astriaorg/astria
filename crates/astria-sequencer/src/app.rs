@@ -467,7 +467,6 @@ impl App {
                 Err(e) => {
                     debug!(
                         transaction_hash = %telemetry::display::base64(&tx_hash),
-                        error = AsRef::<dyn std::error::Error>::as_ref(&e),
                         "failed to execute transaction, not including in block"
                     );
                     excluded_tx_count += 1;
@@ -525,8 +524,8 @@ impl App {
             header: Header {
                 app_hash: self.app_hash.clone(),
                 chain_id: chain_id.clone(),
-                consensus_hash: Hash::default(), // unused
-                data_hash: Some(Hash::default()), // unused
+                consensus_hash: Hash::default(),      // unused
+                data_hash: Some(Hash::default()),     // unused
                 evidence_hash: Some(Hash::default()), // unused
                 height: block_data.height,
                 last_block_id: None,                      // unused
@@ -596,17 +595,16 @@ impl App {
 
         // When the hash is not empty, we have already executed and cached the results
         let txs = if self.executed_proposal_hash.is_empty() {
-            // w ehaven't executed anything yet, so set up the state for execution.
+            // we haven't executed anything yet, so set up the state for execution.
             // this function returns the txs inside `finalize_block` back to us unmodified.
             let txs = self
                 .pre_execute_transactions(finalize_block.into())
                 .await
                 .context("failed to execute block")?;
 
-            // we haven't executed these txs before, so execute them
             for tx in txs.iter().skip(2) {
                 let signed_tx = signed_transaction_from_bytes(tx)
-                    .expect("protocol error; only valid txs should be finalized");
+                    .context("protocol error; only valid txs should be finalized")?;
 
                 match self.execute_transaction(signed_tx).await {
                     Ok(events) => tx_results.push(ExecTxResult {
