@@ -143,6 +143,12 @@ pub fn register() {
         "The total number of transactions in finished bundles constructed over the composer's \
          lifetime"
     );
+
+    describe_histogram!(
+        TOTAL_BUNDLE_SUBMISSION_LATENCY,
+        Unit::Milliseconds,
+        "The total latency of submitting a bundle to the sequencer including nonce refetches"
+    );
 }
 
 // We configure buckets for manually, in order to ensure Prometheus metrics are structured as a
@@ -237,3 +243,6 @@ pub const BUNDLES_TOTAL_TRANSACTIONS_COUNT: &str = concat!(
     env!("CARGO_CRATE_NAME"),
     "_bundles_total_transactions_count"
 );
+
+pub const TOTAL_BUNDLE_SUBMISSION_LATENCY: &str =
+    concat!(env!("CARGO_CRATE_NAME"), "_total_bundle_submission_latency");
