@@ -189,19 +189,49 @@ struct RunningReader {
     /// Tasks reconstructing Sequencer block information from Celestia blobs.
     tasks: JoinMap<u64, eyre::Result<ReconstructedBlocks>>,
 
+    /// The stream of latest Celestia head heights (so that only Celestia blobs up to that height
+    /// are fetched).
     latest_heights: LatestHeightStream,
 
+    /// A block (reconstructed from Celestia blobs) that's waiting for the executor task to have
+    /// capacity again. Used as a back pressure mechanism so that this task does not fetch more
+    /// blobs if there is no capacity in the executor to execute them against the rollup in
+    /// time.
     enqueued_block: Fuse<BoxFuture<'static, Result<u64, SendError<ReconstructedBlock>>>>,
 
+    /// The latest observed head height of the Celestia network. Set by values read from
+    /// the `latest_height` stream.
     celestia_head_height: Option<u64>,
+
+    /// The next Celestia height that will be fetched.
     celestia_next_height: u64,
+
+    /// The reference Celestia height. celestia_reference_height + celestia_variance = C is the
+    /// maximum Celestia height up to which Celestias blobs will be fetched.
+    /// celestia_reference_height is initialized to the base Celestia height stored in the
+    /// rollup genesis. It is later advanced to that Celestia height from which the next block
+    /// is derived that will be executed against the rollup (only if greater than the current
+    /// value; it will never go down).
     celestia_reference_height: u64,
+
+    /// celestia_variance + celestia_reference_height define the maximum Celestia height from
+    /// Celestia blobs can be fetched. Set once during initialization to the value stored in
+    /// the rollup genesis.
     celestia_variance: u64,
 
+    /// The rollup ID of the rollup that conductor is driving. Set once during initialization to
+    /// the value stored in the
     rollup_id: RollupId,
+
+    /// The Celestia namespace for which rollup-specific blobs will be requested. Derived from
+    /// `rollup_id`.
     rollup_namespace: Namespace,
 
+    /// The cometbft ID of Sequencer. Set once during initialization by querying sequencer.
     sequencer_chain_id: tendermint::chain::Id,
+
+    /// The Celestia namespace for which Sequencer header blobs will be requested. Derived from
+    /// `sequencer_chain_id`.
     sequencer_namespace: Namespace,
 }
 
