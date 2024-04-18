@@ -242,13 +242,23 @@ impl App {
         )
         .context("failed to create block size constraints")?;
 
-        let txs = self
-            .pre_execute_transactions(prepare_proposal.into())
+        let block_data = BlockData {
+            misbehavior: prepare_proposal.misbehavior,
+            height: prepare_proposal.height,
+            time: prepare_proposal.time,
+            next_validators_hash: prepare_proposal.next_validators_hash,
+            proposer_address: prepare_proposal.proposer_address,
+        };
+
+        self.pre_execute_transactions(block_data)
             .await
             .context("failed to prepare for executing block")?;
 
         let (signed_txs, txs_to_include) = self
-            .execute_transactions_before_finalization(txs, &mut block_size_constraints)
+            .execute_transactions_before_finalization(
+                prepare_proposal.txs,
+                &mut block_size_constraints,
+            )
             .await
             .context("failed to execute transactions")?;
 
@@ -315,7 +325,6 @@ impl App {
         let expected_txs_len = txs.len();
 
         let block_data = BlockData {
-            txs: txs.into_iter().collect(),
             misbehavior: process_proposal.misbehavior,
             height: process_proposal.height,
             time: process_proposal.time,
@@ -323,8 +332,7 @@ impl App {
             proposer_address: process_proposal.proposer_address,
         };
 
-        let txs = self
-            .pre_execute_transactions(block_data)
+        self.pre_execute_transactions(block_data)
             .await
             .context("failed to prepare for executing block")?;
 
@@ -335,7 +343,10 @@ impl App {
         let mut block_size_constraints = BlockSizeConstraints::new_unlimited_cometbft();
 
         let (signed_txs, txs_to_include) = self
-            .execute_transactions_before_finalization(txs, &mut block_size_constraints)
+            .execute_transactions_before_finalization(
+                txs.into_iter().collect(),
+                &mut block_size_constraints,
+            )
             .await
             .context("failed to execute transactions")?;
 
@@ -506,10 +517,7 @@ impl App {
     /// this *must* be called anytime before a block's txs are executed, whether it's
     /// during the proposal phase, or finalize_block phase.
     #[instrument(name = "App::pre_execute_transactions", skip_all)]
-    async fn pre_execute_transactions(
-        &mut self,
-        block_data: BlockData,
-    ) -> anyhow::Result<Vec<bytes::Bytes>> {
+    async fn pre_execute_transactions(&mut self, block_data: BlockData) -> anyhow::Result<()> {
         let chain_id = self
             .state
             .get_chain_id()
@@ -553,7 +561,7 @@ impl App {
             .await
             .context("failed to call begin_block")?;
 
-        Ok(block_data.txs)
+        Ok(())
     }
 
     /// Executes the given block, but does not write it to disk.
@@ -607,15 +615,21 @@ impl App {
         tx_results.extend(std::iter::repeat(ExecTxResult::default()).take(2));
 
         // When the hash is not empty, we have already executed and cached the results
-        let txs = if self.executed_proposal_hash.is_empty() {
+        if self.executed_proposal_hash.is_empty() {
             // we haven't executed anything yet, so set up the state for execution.
-            // this function returns the txs inside `finalize_block` back to us unmodified.
-            let txs = self
-                .pre_execute_transactions(finalize_block.into())
+            let block_data = BlockData {
+                misbehavior: finalize_block.misbehavior,
+                height,
+                time,
+                next_validators_hash: finalize_block.next_validators_hash,
+                proposer_address,
+            };
+
+            self.pre_execute_transactions(block_data)
                 .await
                 .context("failed to execute block")?;
 
-            for tx in txs.iter().skip(2) {
+            for tx in finalize_block.txs.iter().skip(2) {
                 let signed_tx = signed_transaction_from_bytes(tx)
                     .context("protocol error; only valid txs should be finalized")?;
 
@@ -644,15 +658,12 @@ impl App {
                     }
                 }
             }
-
-            txs
         } else {
             let execution_results = self.execution_results.take().expect(
                 "execution results must be present if txs were already executed during proposal \
                  phase",
             );
             tx_results.extend(execution_results);
-            finalize_block.txs
         };
 
         let end_block = self
@@ -681,7 +692,11 @@ impl App {
             height,
             time,
             proposer_address,
-            txs.into_iter().map(std::convert::Into::into).collect(),
+            finalize_block
+                .txs
+                .into_iter()
+                .map(std::convert::Into::into)
+                .collect(),
             deposits,
         )
         .context("failed to convert block info and data to SequencerBlock")?;
@@ -928,38 +943,11 @@ impl App {
 /// used to setup the state before execution of transactions.
 #[derive(Debug, Clone)]
 struct BlockData {
-    txs: Vec<bytes::Bytes>,
     misbehavior: Vec<tendermint::abci::types::Misbehavior>,
     height: tendermint::block::Height,
     time: tendermint::Time,
     next_validators_hash: Hash,
     proposer_address: account::Id,
-}
-
-impl From<abci::request::FinalizeBlock> for BlockData {
-    fn from(finalize_block: abci::request::FinalizeBlock) -> Self {
-        Self {
-            txs: finalize_block.txs,
-            misbehavior: finalize_block.misbehavior,
-            height: finalize_block.height,
-            time: finalize_block.time,
-            next_validators_hash: finalize_block.next_validators_hash,
-            proposer_address: finalize_block.proposer_address,
-        }
-    }
-}
-
-impl From<abci::request::PrepareProposal> for BlockData {
-    fn from(prepare_proposal: abci::request::PrepareProposal) -> Self {
-        Self {
-            txs: prepare_proposal.txs,
-            misbehavior: prepare_proposal.misbehavior,
-            height: prepare_proposal.height,
-            time: prepare_proposal.time,
-            next_validators_hash: prepare_proposal.next_validators_hash,
-            proposer_address: prepare_proposal.proposer_address,
-        }
-    }
 }
 
 fn signed_transaction_from_bytes(bytes: &[u8]) -> anyhow::Result<SignedTransaction> {
@@ -1162,7 +1150,6 @@ mod test {
         let mut app = initialize_app(None, vec![]).await;
 
         let block_data = BlockData {
-            txs: vec![],
             misbehavior: vec![],
             height: 1u8.into(),
             time: Time::now(),
