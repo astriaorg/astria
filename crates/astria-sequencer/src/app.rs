@@ -659,6 +659,10 @@ impl App {
             .clear_block_deposits()
             .await
             .context("failed to clear block deposits")?;
+        debug!(
+            deposits = %telemetry::display::json(&deposits),
+            "got block deposits from state"
+        );
 
         // reset proposer address for fee payment
         let proposer_address = self

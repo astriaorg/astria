@@ -99,7 +99,11 @@ pub const ADDRESS_LEN: usize = 20;
 pub const ROLLUP_ID_LEN: usize = 32;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Address([u8; ADDRESS_LEN]);
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+pub struct Address(
+    #[cfg_attr(feature = "serde", serde(serialize_with = "crate::serde::base64"))]
+    [u8; ADDRESS_LEN],
+);
 
 impl Address {
     #[must_use]
@@ -404,6 +408,8 @@ fn are_rollup_txs_included(
 
 #[cfg(test)]
 mod tests {
+    use insta::assert_json_snapshot;
+
     use super::{
         Address,
         IncorrectAddressLength,
@@ -432,5 +438,11 @@ mod tests {
         account_conversion_check(&[42; 19]);
         account_conversion_check(&[42; 21]);
         account_conversion_check(&[42; 100]);
+    }
+
+    #[test]
+    fn snapshots() {
+        let address = Address([42; 20]);
+        assert_json_snapshot!(address);
     }
 }
