@@ -16,7 +16,6 @@ echo "$validator_mnemonic" | celestia-appd keys add \
   --keyring-backend="$keyring_backend" \
   --recover
 
-
 validator_key=$(celestia-appd keys show "$validator_key_name" -a --keyring-backend="$keyring_backend" --home "$home_dir")
 celestia-appd add-genesis-account \
   "$validator_key" \

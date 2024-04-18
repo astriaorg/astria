@@ -32,7 +32,7 @@ privateKey: "da6ed55cb2894ac2c9c10209c09de8e8b9d109b910338d5bf3d747a7e1fc9eb9"
 chainId: "celestia-local-0"
 # Signer info
 keyringBackend: "test"
-validatorKeyName: "test-validator"
+validatorKeyName: "validator"
 validatorMnemonic: connect soon random stable toddler tired glove drastic comfort donor struggle island cactus pole shell alpha taste able story business cross dismiss book brass
 # Genesis amount
 coins: "10000000000000000000000000utia"
