@@ -42,6 +42,9 @@ pub enum Command {
 }
 
 /// Commands for managing rollup configs.
+// Allowing large enum size variation here because this is a CLI tool
+// not huge performance critical code.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Subcommand)]
 pub enum ConfigCommand {
     /// Create a new rollup config

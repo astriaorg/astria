@@ -292,6 +292,7 @@ pub struct TransactionParams {
 }
 
 impl TransactionParams {
+    #[must_use]
     pub fn into_raw(self) -> raw::TransactionParams {
         let Self {
             nonce,
@@ -304,6 +305,7 @@ impl TransactionParams {
     }
 
     /// Convert from a raw protobuf [`raw::UnsignedTransaction`].
+    #[must_use]
     pub fn from_raw(proto: raw::TransactionParams) -> Self {
         let raw::TransactionParams {
             nonce,
