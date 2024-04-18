@@ -31,6 +31,8 @@ spec:
               name: relayer-scripts-volume
             - mountPath: {{ include "sequencer-relayer.storage.mountPath" . }}
               name: relayer-storage-vol
+            - mountPath: /celestia-key/
+              name: relayer-celestia-key-volume
           ports:
             - containerPort: {{ .Values.ports.metrics }}
               name: metrics
@@ -46,3 +48,6 @@ spec:
           {{- else }}
           emptyDir: {}
           {{- end }}
+        - name: relayer-celestia-key-volume
+          configMap:
+            name: relayer-celestia-key
