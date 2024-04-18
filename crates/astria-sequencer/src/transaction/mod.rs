@@ -33,6 +33,7 @@ use crate::{
         ics20_withdrawal::ICS20_WITHDRAWAL_FEE,
         state_ext::StateReadExt as _,
     },
+    state_ext::StateReadExt as _,
 };
 
 pub(crate) async fn check_nonce_mempool<S: StateReadExt + 'static>(
@@ -45,8 +46,23 @@ pub(crate) async fn check_nonce_mempool<S: StateReadExt + 'static>(
         .await
         .context("failed to get account nonce")?;
     ensure!(
-        tx.unsigned_transaction().nonce >= curr_nonce,
+        tx.unsigned_transaction().params.nonce >= curr_nonce,
         "nonce already used by account"
+    );
+    Ok(())
+}
+
+pub(crate) async fn check_chain_id_mempool<S: StateReadExt + 'static>(
+    tx: &SignedTransaction,
+    state: &S,
+) -> anyhow::Result<()> {
+    let chain_id = state
+        .get_chain_id()
+        .await
+        .context("failed to get chain id")?;
+    ensure!(
+        tx.unsigned_transaction().params.chain_id == chain_id,
+        "chain id mismatch"
     );
     Ok(())
 }
@@ -158,6 +174,21 @@ pub(crate) async fn execute<S: StateWriteExt>(
 }
 
 #[derive(Debug)]
+pub(crate) struct InvalidChainId(pub(crate) String);
+
+impl fmt::Display for InvalidChainId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "provided chain id {} does not match expected chain id",
+            self.0,
+        )
+    }
+}
+
+impl std::error::Error for InvalidChainId {}
+
+#[derive(Debug)]
 pub(crate) struct InvalidNonce(pub(crate) u32);
 
 impl fmt::Display for InvalidNonce {
@@ -241,10 +272,20 @@ impl ActionHandler for UnsignedTransaction {
         state: &S,
         from: Address,
     ) -> anyhow::Result<()> {
+        // Transactions must match the chain id of the node.
+        let chain_id = state.get_chain_id().await?;
+        ensure!(
+            self.params.chain_id == chain_id,
+            InvalidChainId(self.params.chain_id.clone())
+        );
+
         // Nonce should be equal to the number of executed transactions before this tx.
         // First tx has nonce 0.
         let curr_nonce = state.get_account_nonce(from).await?;
-        ensure!(curr_nonce == self.nonce, InvalidNonce(self.nonce));
+        ensure!(
+            curr_nonce == self.params.nonce,
+            InvalidNonce(self.params.nonce)
+        );
 
         for action in &self.actions {
             match action {
@@ -309,7 +350,7 @@ impl ActionHandler for UnsignedTransaction {
     #[instrument(
         skip_all,
         fields(
-            nonce = self.nonce,
+            nonce = self.params.nonce,
             from = from.to_string(),
         )
     )]
@@ -407,9 +448,12 @@ mod test {
             RollupId,
             ADDRESS_LEN,
         },
-        protocol::transaction::v1alpha1::action::{
-            SequenceAction,
-            TransferAction,
+        protocol::transaction::v1alpha1::{
+            action::{
+                SequenceAction,
+                TransferAction,
+            },
+            TransactionParams,
         },
     };
     use cnidarium::StateDelta;
@@ -457,9 +501,13 @@ mod test {
             }),
         ];
 
-        let tx = UnsignedTransaction {
+        let params = TransactionParams {
             nonce: 0,
+            chain_id: "test-chain-id".to_string(),
+        };
+        let tx = UnsignedTransaction {
             actions,
+            params,
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -504,9 +552,13 @@ mod test {
             }),
         ];
 
-        let tx = UnsignedTransaction {
+        let params = TransactionParams {
             nonce: 0,
+            chain_id: "test-chain-id".to_string(),
+        };
+        let tx = UnsignedTransaction {
             actions,
+            params,
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);

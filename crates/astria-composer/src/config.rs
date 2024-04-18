@@ -25,6 +25,9 @@ pub struct Config {
     /// Address of the RPC server for the sequencer chain
     pub sequencer_url: String,
 
+    /// The chain ID of the sequencer chain
+    pub sequencer_chain_id: String,
+
     /// A list of <rollup_name>::<url> pairs
     pub rollups: String,
 

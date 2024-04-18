@@ -985,8 +985,10 @@ mod test {
     use astria_core::protocol::transaction::v1alpha1::action::MintAction;
     use astria_core::{
         primitive::v1::{
-            asset,
-            asset::DEFAULT_NATIVE_ASSET_DENOM,
+            asset::{
+                self,
+                DEFAULT_NATIVE_ASSET_DENOM,
+            },
             RollupId,
         },
         protocol::transaction::v1alpha1::{
@@ -997,6 +999,7 @@ mod test {
                 SudoAddressChangeAction,
                 TransferAction,
             },
+            TransactionParams,
             UnsignedTransaction,
         },
         sequencerblock::v1alpha1::block::Deposit,
@@ -1023,7 +1026,10 @@ mod test {
         genesis::Account,
         ibc::state_ext::StateReadExt as _,
         sequence::calculate_fee,
-        transaction::InvalidNonce,
+        transaction::{
+            InvalidChainId,
+            InvalidNonce,
+        },
     };
 
     fn default_genesis_accounts() -> Vec<Account> {
@@ -1224,7 +1230,10 @@ mod test {
         let bob_address = address_from_hex_string(BOB_ADDRESS);
         let value = 333_333;
         let tx = UnsignedTransaction {
-            nonce: 0,
+            params: TransactionParams {
+                nonce: 0,
+                chain_id: "test".to_string(),
+            },
             actions: vec![
                 TransferAction {
                     to: bob_address,
@@ -1277,7 +1286,10 @@ mod test {
         // transfer funds from Alice to Bob; use native token for fee payment
         let bob_address = address_from_hex_string(BOB_ADDRESS);
         let tx = UnsignedTransaction {
-            nonce: 0,
+            params: TransactionParams {
+                nonce: 0,
+                chain_id: "test".to_string(),
+            },
             actions: vec![
                 TransferAction {
                     to: bob_address,
@@ -1339,7 +1351,10 @@ mod test {
 
         // 0-value transfer; only fee is deducted from sender
         let tx = UnsignedTransaction {
-            nonce: 0,
+            params: TransactionParams {
+                nonce: 0,
+                chain_id: "test".to_string(),
+            },
             actions: vec![
                 TransferAction {
                     to: bob,
@@ -1370,7 +1385,10 @@ mod test {
         let fee = calculate_fee(&data).unwrap();
 
         let tx = UnsignedTransaction {
-            nonce: 0,
+            params: TransactionParams {
+                nonce: 0,
+                chain_id: "test".to_string(),
+            },
             actions: vec![
                 SequenceAction {
                     rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
@@ -1404,7 +1422,10 @@ mod test {
         let fee_asset_id = asset::Id::from_denom("test");
 
         let tx = UnsignedTransaction {
-            nonce: 0,
+            params: TransactionParams {
+                nonce: 0,
+                chain_id: "test".to_string(),
+            },
             actions: vec![
                 SequenceAction {
                     rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
@@ -1441,7 +1462,10 @@ mod test {
         };
 
         let tx = UnsignedTransaction {
-            nonce: 0,
+            params: TransactionParams {
+                nonce: 0,
+                chain_id: "test".to_string(),
+            },
             actions: vec![Action::ValidatorUpdate(update.clone())],
         };
 
@@ -1470,7 +1494,10 @@ mod test {
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
         let tx = UnsignedTransaction {
-            nonce: 0,
+            params: TransactionParams {
+                nonce: 0,
+                chain_id: "test".to_string(),
+            },
             actions: vec![IbcRelayerChangeAction::Addition(alice_address).into()],
         };
 
@@ -1496,7 +1523,10 @@ mod test {
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
         let tx = UnsignedTransaction {
-            nonce: 0,
+            params: TransactionParams {
+                nonce: 0,
+                chain_id: "test".to_string(),
+            },
             actions: vec![IbcRelayerChangeAction::Removal(alice_address).into()],
         };
 
@@ -1522,7 +1552,10 @@ mod test {
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
         let tx = UnsignedTransaction {
-            nonce: 0,
+            params: TransactionParams {
+                nonce: 0,
+                chain_id: "test".to_string(),
+            },
             actions: vec![IbcRelayerChangeAction::Removal(alice_address).into()],
         };
 
@@ -1548,7 +1581,10 @@ mod test {
         let new_address = address_from_hex_string(BOB_ADDRESS);
 
         let tx = UnsignedTransaction {
-            nonce: 0,
+            params: TransactionParams {
+                nonce: 0,
+                chain_id: "test".to_string(),
+            },
             actions: vec![Action::SudoAddressChange(SudoAddressChangeAction {
                 new_address,
             })],
@@ -1579,7 +1615,10 @@ mod test {
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
         let tx = UnsignedTransaction {
-            nonce: 0,
+            params: TransactionParams {
+                nonce: 0,
+                chain_id: "test".to_string(),
+            },
             actions: vec![Action::SudoAddressChange(SudoAddressChangeAction {
                 new_address: alice_address,
             })],
@@ -1615,7 +1654,10 @@ mod test {
         let new_asset = asset::Id::from_denom("test");
 
         let tx = UnsignedTransaction {
-            nonce: 0,
+            params: TransactionParams {
+                nonce: 0,
+                chain_id: "test".to_string(),
+            },
             actions: vec![Action::FeeAssetChange(FeeAssetChangeAction::Addition(
                 new_asset,
             ))],
@@ -1650,7 +1692,10 @@ mod test {
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
         let tx = UnsignedTransaction {
-            nonce: 0,
+            params: TransactionParams {
+                nonce: 0,
+                chain_id: "test".to_string(),
+            },
             actions: vec![Action::FeeAssetChange(FeeAssetChangeAction::Removal(
                 test_asset.id(),
             ))],
@@ -1686,7 +1731,10 @@ mod test {
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
         let tx = UnsignedTransaction {
-            nonce: 0,
+            params: TransactionParams {
+                nonce: 0,
+                chain_id: "test".to_string(),
+            },
             actions: vec![Action::FeeAssetChange(FeeAssetChangeAction::Removal(
                 get_native_asset().id(),
             ))],
@@ -1719,7 +1767,10 @@ mod test {
             fee_asset_id: asset_id,
         };
         let tx = UnsignedTransaction {
-            nonce: 0,
+            params: TransactionParams {
+                nonce: 0,
+                chain_id: "test".to_string(),
+            },
             actions: vec![action.into()],
         };
 
@@ -1771,7 +1822,10 @@ mod test {
             fee_asset_id: asset_id,
         };
         let tx = UnsignedTransaction {
-            nonce: 0,
+            params: TransactionParams {
+                nonce: 0,
+                chain_id: "test".to_string(),
+            },
             actions: vec![action.into()],
         };
 
@@ -1794,7 +1848,10 @@ mod test {
             fee_asset_id: asset_id,
         };
         let tx = UnsignedTransaction {
-            nonce: 0,
+            params: TransactionParams {
+                nonce: 0,
+                chain_id: "test".to_string(),
+            },
             actions: vec![action.into()],
         };
 
@@ -1807,7 +1864,10 @@ mod test {
             fee_asset_id: asset_id,
         };
         let tx = UnsignedTransaction {
-            nonce: 1,
+            params: TransactionParams {
+                nonce: 1,
+                chain_id: "test".to_string(),
+            },
             actions: vec![action.into()],
         };
 
@@ -1840,7 +1900,10 @@ mod test {
             destination_chain_address: "nootwashere".to_string(),
         };
         let tx = UnsignedTransaction {
-            nonce: 0,
+            params: TransactionParams {
+                nonce: 0,
+                chain_id: "test".to_string(),
+            },
             actions: vec![action.into()],
         };
 
@@ -1907,7 +1970,10 @@ mod test {
             destination_chain_address: "nootwashere".to_string(),
         };
         let tx = UnsignedTransaction {
-            nonce: 0,
+            params: TransactionParams {
+                nonce: 0,
+                chain_id: "test".to_string(),
+            },
             actions: vec![action.into()],
         };
 
@@ -1939,7 +2005,10 @@ mod test {
             fee_asset_id: asset_id,
         };
         let tx = UnsignedTransaction {
-            nonce: 0,
+            params: TransactionParams {
+                nonce: 0,
+                chain_id: "test".to_string(),
+            },
             actions: vec![action.into()],
         };
 
@@ -1966,7 +2035,10 @@ mod test {
         let bob_address = address_from_hex_string(BOB_ADDRESS);
         let value = 333_333;
         let tx = UnsignedTransaction {
-            nonce: 0,
+            params: TransactionParams {
+                nonce: 0,
+                chain_id: "test".to_string(),
+            },
             actions: vec![
                 MintAction {
                     to: bob_address,
@@ -2066,7 +2138,10 @@ mod test {
         // create tx with invalid nonce 1
         let data = b"hello world".to_vec();
         let tx = UnsignedTransaction {
-            nonce: 1,
+            params: TransactionParams {
+                nonce: 1,
+                chain_id: "test".to_string(),
+            },
             actions: vec![
                 SequenceAction {
                     rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
@@ -2097,6 +2172,52 @@ mod test {
                 .map(|nonce_err| nonce_err.0)
                 .unwrap(),
             1
+        );
+    }
+
+    #[tokio::test]
+    async fn app_deliver_tx_invalid_chain_id() {
+        let mut app = initialize_app(None, vec![]).await;
+
+        let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
+
+        // create tx with invalid nonce 1
+        let data = b"hello world".to_vec();
+        let tx = UnsignedTransaction {
+            params: TransactionParams {
+                nonce: 0,
+                chain_id: "wrong-chain".to_string(),
+            },
+            actions: vec![
+                SequenceAction {
+                    rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
+                    data,
+                    fee_asset_id: get_native_asset().id(),
+                }
+                .into(),
+            ],
+        };
+
+        let signed_tx = tx.into_signed(&alice_signing_key);
+        let response = app.deliver_tx(signed_tx).await;
+
+        // check that tx was not executed by checking nonce and balance are unchanged
+        assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 0);
+        assert_eq!(
+            app.state
+                .get_account_balance(alice_address, get_native_asset().id())
+                .await
+                .unwrap(),
+            10u128.pow(19),
+        );
+
+        assert_eq!(
+            response
+                .unwrap_err()
+                .downcast_ref::<InvalidChainId>()
+                .map(|chain_id_err| &chain_id_err.0)
+                .unwrap(),
+            "wrong-chain"
         );
     }
 
@@ -2163,7 +2284,10 @@ mod test {
         let bob_address = address_from_hex_string(BOB_ADDRESS);
         let amount = 333_333;
         let tx = UnsignedTransaction {
-            nonce: 0,
+            params: TransactionParams {
+                nonce: 0,
+                chain_id: "test".to_string(),
+            },
             actions: vec![
                 TransferAction {
                     to: bob_address,
@@ -2251,7 +2375,10 @@ mod test {
             fee_asset_id: asset_id,
         };
         let tx = UnsignedTransaction {
-            nonce: 0,
+            params: TransactionParams {
+                nonce: 0,
+                chain_id: "test".to_string(),
+            },
             actions: vec![lock_action.into(), sequence_action.into()],
         };
 
@@ -2324,7 +2451,10 @@ mod test {
         // create txs which will cause cometBFT overflow
         let (alice_signing_key, _) = get_alice_signing_key_and_address();
         let tx_pass = UnsignedTransaction {
-            nonce: 0,
+            params: TransactionParams {
+                nonce: 0,
+                chain_id: "test".to_string(),
+            },
             actions: vec![
                 SequenceAction {
                     rollup_id: RollupId::from([1u8; 32]),
@@ -2336,7 +2466,10 @@ mod test {
         }
         .into_signed(&alice_signing_key);
         let tx_overflow = UnsignedTransaction {
-            nonce: 1,
+            params: TransactionParams {
+                nonce: 1,
+                chain_id: "test".to_string(),
+            },
             actions: vec![
                 SequenceAction {
                     rollup_id: RollupId::from([1u8; 32]),
@@ -2398,7 +2531,10 @@ mod test {
         // create txs which will cause sequencer overflow (max is currently 256_000 bytes)
         let (alice_signing_key, _) = get_alice_signing_key_and_address();
         let tx_pass = UnsignedTransaction {
-            nonce: 0,
+            params: TransactionParams {
+                nonce: 0,
+                chain_id: "test".to_string(),
+            },
             actions: vec![
                 SequenceAction {
                     rollup_id: RollupId::from([1u8; 32]),
@@ -2410,7 +2546,10 @@ mod test {
         }
         .into_signed(&alice_signing_key);
         let tx_overflow = UnsignedTransaction {
-            nonce: 1,
+            params: TransactionParams {
+                nonce: 1,
+                chain_id: "test".to_string(),
+            },
             actions: vec![
                 SequenceAction {
                     rollup_id: RollupId::from([1u8; 32]),

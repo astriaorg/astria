@@ -119,6 +119,13 @@ pub struct ConfigCreateArgs {
         default_value = crate::cli::DEFAULT_SEQUENCER_RPC
     )]
     pub sequencer_rpc: String,
+    /// The chain id of the sequencing chain being used
+    #[clap(
+        long = "sequencer.chain-id",
+        env = "ROLLUP_SEQUENCER_CHAIN_ID",
+        default_value = crate::cli::DEFAULT_SEQUENCER_CHAIN_ID
+    )]
+    pub sequencer_chain_id: String,
     /// Optional. Will default to 'localdev.me' for local deployments. Will need to separately
     /// configure other hosts
     #[clap(

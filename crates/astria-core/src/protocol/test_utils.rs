@@ -6,6 +6,7 @@ use super::{
     group_sequence_actions_in_signed_transaction_transactions_by_rollup_id,
     transaction::v1alpha1::{
         action::SequenceAction,
+        TransactionParams,
         UnsignedTransaction,
     },
 };
@@ -86,8 +87,11 @@ impl ConfigureCometBftBlock {
             })
             .collect();
         let unsigned_transaction = UnsignedTransaction {
-            nonce: 1,
             actions,
+            params: TransactionParams {
+                nonce: 1,
+                chain_id: "test-1".to_string(),
+            },
         };
 
         let signed_transaction = unsigned_transaction.into_signed(&signing_key);

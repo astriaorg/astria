@@ -16,6 +16,7 @@ impl AbciErrorCode {
     pub const INVALID_NONCE: Self = Self(4);
     pub const TRANSACTION_TOO_LARGE: Self = Self(5);
     pub const INSUFFICIENT_FUNDS: Self = Self(6);
+    pub const INVALID_CHAIN_ID: Self = Self(7);
 }
 
 impl AbciErrorCode {

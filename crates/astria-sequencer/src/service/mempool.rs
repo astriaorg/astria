@@ -147,6 +147,15 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
         };
     };
 
+    if let Err(e) = transaction::check_chain_id_mempool(&signed_tx, &state).await {
+        return response::CheckTx {
+            code: AbciErrorCode::INVALID_CHAIN_ID.into(),
+            info: "failed verifying chain id".into(),
+            log: e.to_string(),
+            ..response::CheckTx::default()
+        };
+    }
+
     if let Err(e) = transaction::check_balance_mempool(&signed_tx, &state).await {
         return response::CheckTx {
             code: AbciErrorCode::INSUFFICIENT_FUNDS.into(),

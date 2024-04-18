@@ -3,6 +3,8 @@ global:
   dev: true
 
 config:
+  sequencer:
+    chainId: 'sequencer-test-chain'
   celestia:
     rpc: "http://celestia-service.astria-dev-cluster.svc.cluster.local:26658"
     ws: "ws://celestia-service.astria-dev-cluster.svc.cluster.local:26658"
