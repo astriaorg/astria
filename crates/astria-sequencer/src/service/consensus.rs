@@ -257,7 +257,7 @@ mod test {
         UnsignedTransaction {
             params: TransactionParams {
                 nonce: 0,
-                chain_id: "test-chain-1".to_string(),
+                chain_id: "test".to_string(),
             },
             actions: vec![
                 SequenceAction {

@@ -655,6 +655,7 @@ dependencies = [
  "ed25519-consensus",
  "ibc-types",
  "indexmap 2.2.6",
+ "insta",
  "pbjson",
  "pbjson-types",
  "penumbra-ibc",

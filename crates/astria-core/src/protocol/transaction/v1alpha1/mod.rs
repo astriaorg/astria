@@ -340,10 +340,6 @@ mod test {
             117, 134, 105, 2, 90, 151, 35, 241, 136, 200, 46, 222, 37, 124, 219, 195, 20, 195, 24,
             227, 96, 127, 152, 22, 47, 146, 10,
         ]);
-        let expected_hash: [u8; 32] = [
-            208, 68, 247, 226, 65, 50, 227, 180, 178, 51, 28, 119, 212, 205, 148, 83, 27, 229, 238,
-            45, 192, 139, 169, 239, 16, 3, 103, 132, 220, 87, 150, 229,
-        ];
 
         let transfer = TransferAction {
             to: Address::from([0; 20]),
@@ -367,6 +363,6 @@ mod test {
             transaction: unsigned,
         };
 
-        assert_eq!(tx.sha256_of_proto_encoding(), expected_hash);
+        insta::assert_json_snapshot!(tx.sha256_of_proto_encoding());
     }
 }
