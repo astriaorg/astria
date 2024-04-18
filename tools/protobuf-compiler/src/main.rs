@@ -63,7 +63,10 @@ fn main() {
         .build_client(true)
         .build_server(true)
         .emit_rerun_if_changed(false)
-        .bytes([".astria.execution.v1alpha2"])
+        .bytes([
+            ".astria.execution.v1alpha2",
+            ".astria.sequencerblock.v1alpha1",
+        ])
         .client_mod_attribute(".", "#[cfg(feature=\"client\")]")
         .server_mod_attribute(".", "#[cfg(feature=\"server\")]")
         .extern_path(

@@ -7,12 +7,12 @@
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RollupTransactions {
     /// The 32 bytes identifying a rollup. Usually the sha256 hash of a plain rollup name.
-    #[prost(bytes = "vec", tag = "1")]
-    pub rollup_id: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "bytes", tag = "1")]
+    pub rollup_id: ::prost::bytes::Bytes,
     /// The serialized bytes of the rollup data.
     /// Each entry is a protobuf-encoded `RollupData` message.
-    #[prost(bytes = "vec", repeated, tag = "2")]
-    pub transactions: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+    #[prost(bytes = "bytes", repeated, tag = "2")]
+    pub transactions: ::prost::alloc::vec::Vec<::prost::bytes::Bytes>,
     /// The proof that these rollup transactions are included in sequencer block.
     /// `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions_proof`.
     #[prost(message, optional, tag = "3")]
@@ -57,8 +57,8 @@ pub struct SequencerBlock {
     #[prost(message, optional, tag = "4")]
     pub rollup_ids_proof: ::core::option::Option<super::super::primitive::v1::Proof>,
     /// / The block hash of the cometbft block that corresponds to this sequencer block.
-    #[prost(bytes = "vec", tag = "5")]
-    pub block_hash: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "bytes", tag = "5")]
+    pub block_hash: ::prost::bytes::Bytes,
 }
 impl ::prost::Name for SequencerBlock {
     const NAME: &'static str = "SequencerBlock";
@@ -80,15 +80,15 @@ pub struct SequencerBlockHeader {
     #[prost(message, optional, tag = "3")]
     pub time: ::core::option::Option<::pbjson_types::Timestamp>,
     /// the data_hash of the sequencer block (merkle root of all transaction hashes)
-    #[prost(bytes = "vec", tag = "4")]
-    pub data_hash: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "bytes", tag = "4")]
+    pub data_hash: ::prost::bytes::Bytes,
     /// the cometbft proposer address of the sequencer block
-    #[prost(bytes = "vec", tag = "5")]
-    pub proposer_address: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "bytes", tag = "5")]
+    pub proposer_address: ::prost::bytes::Bytes,
     /// The 32-byte merkle root of all the rollup transactions in the block,
     /// Corresponds to `MHT(astria.SequencerBlock.rollup_transactions)`,
-    #[prost(bytes = "vec", tag = "6")]
-    pub rollup_transactions_root: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "bytes", tag = "6")]
+    pub rollup_transactions_root: ::prost::bytes::Bytes,
 }
 impl ::prost::Name for SequencerBlockHeader {
     const NAME: &'static str = "SequencerBlockHeader";
@@ -113,15 +113,15 @@ pub struct Deposit {
     /// this is required as initializing an account as a bridge account
     /// is permissionless, so the rollup consensus needs to know and enshrine
     /// which accounts it accepts as valid bridge accounts.
-    #[prost(bytes = "vec", tag = "1")]
-    pub bridge_address: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "bytes", tag = "1")]
+    pub bridge_address: ::prost::bytes::Bytes,
     /// the rollup_id which the funds are being deposited to
-    #[prost(bytes = "vec", tag = "2")]
-    pub rollup_id: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "bytes", tag = "2")]
+    pub rollup_id: ::prost::bytes::Bytes,
     #[prost(message, optional, tag = "3")]
     pub amount: ::core::option::Option<super::super::primitive::v1::Uint128>,
-    #[prost(bytes = "vec", tag = "4")]
-    pub asset_id: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "bytes", tag = "4")]
+    pub asset_id: ::prost::bytes::Bytes,
     /// the address on the destination chain which
     /// will receive the bridged funds
     #[prost(string, tag = "5")]
@@ -140,8 +140,8 @@ impl ::prost::Name for Deposit {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FilteredSequencerBlock {
     /// / The block hash of the cometbft block that corresponds to this sequencer block.
-    #[prost(bytes = "vec", tag = "1")]
-    pub block_hash: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "bytes", tag = "1")]
+    pub block_hash: ::prost::bytes::Bytes,
     /// the block header, which contains sequencer-specific commitments.
     #[prost(message, optional, tag = "2")]
     pub header: ::core::option::Option<SequencerBlockHeader>,
@@ -162,8 +162,8 @@ pub struct FilteredSequencerBlock {
     /// and is extracted from `astria.SequencerBlock.rollup_transactions`.
     /// Note that these are all the rollup IDs in the sequencer block, not merely those in
     /// `rollup_transactions` field. This is necessary to prove that no rollup IDs were omitted.
-    #[prost(bytes = "vec", repeated, tag = "5")]
-    pub all_rollup_ids: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+    #[prost(bytes = "bytes", repeated, tag = "5")]
+    pub all_rollup_ids: ::prost::alloc::vec::Vec<::prost::bytes::Bytes>,
     /// The proof that the `rollup_ids` are included
     /// in the CometBFT block this sequencer block is derived form.
     ///
@@ -201,7 +201,7 @@ pub mod rollup_data {
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Value {
         #[prost(bytes, tag = "1")]
-        SequencedData(::prost::alloc::vec::Vec<u8>),
+        SequencedData(::prost::bytes::Bytes),
         #[prost(message, tag = "2")]
         Deposit(super::Deposit),
     }
@@ -222,15 +222,15 @@ impl ::prost::Name for RollupData {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CelestiaRollupBlob {
     /// The hash of the sequencer block. Must be 32 bytes.
-    #[prost(bytes = "vec", tag = "1")]
-    pub sequencer_block_hash: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "bytes", tag = "1")]
+    pub sequencer_block_hash: ::prost::bytes::Bytes,
     /// The 32 bytes identifying the rollup this blob belongs to. Matches
     /// `astria.sequencer.v1.RollupTransactions.rollup_id`
-    #[prost(bytes = "vec", tag = "2")]
-    pub rollup_id: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "bytes", tag = "2")]
+    pub rollup_id: ::prost::bytes::Bytes,
     /// A list of opaque bytes that are serialized rollup transactions.
-    #[prost(bytes = "vec", repeated, tag = "3")]
-    pub transactions: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+    #[prost(bytes = "bytes", repeated, tag = "3")]
+    pub transactions: ::prost::alloc::vec::Vec<::prost::bytes::Bytes>,
     /// The proof that these rollup transactions are included in sequencer block.
     /// `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions_proof`.
     #[prost(message, optional, tag = "4")]
@@ -255,16 +255,16 @@ impl ::prost::Name for CelestiaRollupBlob {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CelestiaSequencerBlob {
     /// the 32-byte block hash of the sequencer block.
-    #[prost(bytes = "vec", tag = "1")]
-    pub block_hash: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "bytes", tag = "1")]
+    pub block_hash: ::prost::bytes::Bytes,
     /// the block header, which contains sequencer-specific commitments.
     #[prost(message, optional, tag = "2")]
     pub header: ::core::option::Option<SequencerBlockHeader>,
     /// The rollup IDs for which `CelestiaRollupBlob`s were submitted to celestia.
     /// Corresponds to the `astria.sequencer.v1.RollupTransactions.rollup_id` field
     /// and is extracted from `astria.SequencerBlock.rollup_transactions`.
-    #[prost(bytes = "vec", repeated, tag = "3")]
-    pub rollup_ids: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+    #[prost(bytes = "bytes", repeated, tag = "3")]
+    pub rollup_ids: ::prost::alloc::vec::Vec<::prost::bytes::Bytes>,
     /// The proof that the rollup transactions are included in sequencer block.
     /// Corresponds to `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions_proof`.
     #[prost(message, optional, tag = "4")]
@@ -304,8 +304,8 @@ pub struct GetFilteredSequencerBlockRequest {
     #[prost(uint64, tag = "1")]
     pub height: u64,
     /// The 32 bytes identifying a rollup. Usually the sha256 hash of a plain rollup name.
-    #[prost(bytes = "vec", repeated, tag = "2")]
-    pub rollup_ids: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+    #[prost(bytes = "bytes", repeated, tag = "2")]
+    pub rollup_ids: ::prost::alloc::vec::Vec<::prost::bytes::Bytes>,
 }
 impl ::prost::Name for GetFilteredSequencerBlockRequest {
     const NAME: &'static str = "GetFilteredSequencerBlockRequest";
