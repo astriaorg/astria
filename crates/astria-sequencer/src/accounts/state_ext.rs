@@ -20,10 +20,7 @@ use cnidarium::{
 };
 use futures::StreamExt;
 use hex::ToHex as _;
-use tracing::{
-    debug,
-    instrument,
-};
+use tracing::instrument;
 
 /// Newtype wrapper to read and write a u32 from rocksdb.
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
@@ -110,7 +107,6 @@ pub(crate) trait StateReadExt: StateRead {
             .await
             .context("failed reading raw account balance from state")?
         else {
-            debug!("account balance not found, returning 0");
             return Ok(0);
         };
         let Balance(balance) = Balance::try_from_slice(&bytes).context("invalid balance bytes")?;

@@ -16,7 +16,7 @@ default = []
 mint = []
 
 [dependencies]
-astria-core = { path = "../astria-core", features = ["server"] }
+astria-core = { path = "../astria-core", features = ["server", "serde"] }
 astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
 config = { package = "astria-config", path = "../astria-config" }
 merkle = { package = "astria-merkle", path = "../astria-merkle" }
