@@ -179,11 +179,10 @@ impl Executor {
         #[allow(clippy::cast_precision_loss)]
         metrics::histogram!(crate::metrics_init::BUNDLES_OUTGOING_BYTES)
             .record(bundle.get_size() as f64);
-        let no_of_seq_actions = bundle.no_of_seq_actions();
 
         #[allow(clippy::cast_precision_loss)]
         metrics::histogram!(crate::metrics_init::BUNDLES_OUTGOING_TRANSACTIONS_COUNT)
-            .record(no_of_seq_actions as f64);
+            .record(bundle.no_of_seq_actions() as f64);
 
         SubmitFut {
             client: self.sequencer_client.clone(),
@@ -564,6 +563,7 @@ pin_project! {
 impl Future for SubmitFut {
     type Output = eyre::Result<u32>;
 
+    #[allow(clippy::too_many_lines)]
     fn poll(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
         loop {
             let this = self.as_mut().project();
