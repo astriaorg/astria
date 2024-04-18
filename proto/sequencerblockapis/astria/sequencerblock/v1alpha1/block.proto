@@ -18,7 +18,7 @@ message RollupTransactions {
   // Each entry is a protobuf-encoded `RollupData` message.
   repeated bytes transactions = 2;
   // The proof that these rollup transactions are included in sequencer block.
-  // `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions_proof`.
+  // `astria.SequencerBlock.rollup_transactions_proof`.
   astria.sequencerblock.v1alpha1.Proof proof = 3;
 }
 
@@ -61,7 +61,7 @@ message SequencerBlockHeader {
   // the cometbft proposer address of the sequencer block
   bytes proposer_address = 5;
   // The 32-byte merkle root of all the rollup transactions in the block,
-  // Corresponds to `MHT(astria.sequencer.v1alpha.SequencerBlock.rollup_transactions)`,
+  // Corresponds to `MHT(astria.SequencerBlock.rollup_transactions)`,
   bytes rollup_transactions_root = 6;
 }
 
@@ -106,7 +106,7 @@ message FilteredSequencerBlock {
   astria.sequencerblock.v1alpha1.Proof rollup_transactions_proof = 4;
   // The rollup IDs for which `CelestiaRollupBlob`s were submitted to celestia.
   // Corresponds to the `astria.sequencer.v1.RollupTransactions.rollup_id` field
-  // and is extracted from `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions`.
+  // and is extracted from `astria.SequencerBlock.rollup_transactions`.
   // Note that these are all the rollup IDs in the sequencer block, not merely those in
   // `rollup_transactions` field. This is necessary to prove that no rollup IDs were omitted.
   repeated bytes all_rollup_ids = 5;

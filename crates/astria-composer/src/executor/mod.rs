@@ -34,11 +34,7 @@ use futures::{
 };
 use pin_project_lite::pin_project;
 use prost::Message as _;
-use secrecy::{
-    ExposeSecret as _,
-    SecretString,
-    Zeroize as _,
-};
+use secrecy::Zeroize as _;
 use sequencer_client::{
     tendermint_rpc::endpoint::broadcast::tx_sync,
     Address,
@@ -78,8 +74,11 @@ use crate::executor::bundle_factory::{
 
 mod bundle_factory;
 
+pub(crate) mod builder;
 #[cfg(test)]
 mod tests;
+
+pub(crate) use builder::Builder;
 
 // Duration to wait for the executor to drain all the remaining bundles before shutting down.
 // This is 16s because the timeout for the higher level executor task is 17s to shut down.
@@ -164,45 +163,6 @@ impl Status {
 }
 
 impl Executor {
-    pub(super) fn new(
-        sequencer_url: &str,
-        private_key: &SecretString,
-        block_time: u64,
-        max_bytes_per_bundle: usize,
-        bundle_queue_capacity: usize,
-        shutdown_token: CancellationToken,
-    ) -> eyre::Result<(Self, Handle)> {
-        let sequencer_client = sequencer_client::HttpClient::new(sequencer_url)
-            .wrap_err("failed constructing sequencer client")?;
-        let (status, _) = watch::channel(Status::new());
-        let mut private_key_bytes: [u8; 32] = hex::decode(private_key.expose_secret())
-            .wrap_err("failed to decode private key bytes from hex string")?
-            .try_into()
-            .map_err(|_| eyre!("invalid private key length; must be 32 bytes"))?;
-        let sequencer_key = SigningKey::from(private_key_bytes);
-        private_key_bytes.zeroize();
-
-        let sequencer_address = Address::from_verification_key(sequencer_key.verification_key());
-
-        let (serialized_rollup_transaction_tx, serialized_rollup_transaction_rx) =
-            tokio::sync::mpsc::channel::<SequenceAction>(256);
-
-        Ok((
-            Self {
-                status,
-                serialized_rollup_transactions: serialized_rollup_transaction_rx,
-                sequencer_client,
-                sequencer_key,
-                address: sequencer_address,
-                block_time: Duration::from_millis(block_time),
-                max_bytes_per_bundle,
-                bundle_queue_capacity,
-                shutdown_token,
-            },
-            Handle::new(serialized_rollup_transaction_tx),
-        ))
-    }
-
     /// Return a reader to the status reporting channel
     pub(super) fn subscribe(&self) -> watch::Receiver<Status> {
         self.status.subscribe()

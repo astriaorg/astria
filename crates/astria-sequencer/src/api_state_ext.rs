@@ -5,17 +5,17 @@ use anyhow::{
     Result,
 };
 use astria_core::{
-    generated::sequencer::v1 as raw,
-    sequencer::v1::{
-        block::{
+    generated::sequencerblock::v1alpha1 as raw,
+    sequencer::v1::RollupId,
+    sequencerblock::{
+        v1alpha1::block::{
             RollupTransactions,
             SequencerBlock,
             SequencerBlockHeader,
             SequencerBlockParts,
         },
-        RollupId,
+        Protobuf as _,
     },
-    Protobuf,
 };
 use async_trait::async_trait;
 use borsh::{
@@ -240,6 +240,7 @@ pub(crate) trait StateReadExt: StateRead {
             .context("failed to decode rollup IDs proof from raw bytes")?;
 
         let raw = raw::SequencerBlock {
+            block_hash: hash.to_vec(),
             header: header_raw.into(),
             rollup_transactions,
             rollup_transactions_proof: rollup_transactions_proof.into(),
@@ -348,9 +349,9 @@ pub(crate) trait StateWriteExt: StateWrite {
                 .context("failed to serialize rollup IDs list")?,
         );
 
-        let block_hash = block.block_hash();
         let key = sequencer_block_header_by_hash_key(&block.block_hash());
         let SequencerBlockParts {
+            block_hash,
             header,
             rollup_transactions,
             rollup_transactions_proof,
@@ -381,10 +382,12 @@ mod test {
 
     use std::collections::HashMap;
 
-    use astria_core::sequencer::v1::{
-        asset::Id,
-        block::Deposit,
-        Address,
+    use astria_core::{
+        sequencer::v1::{
+            asset::Id,
+            Address,
+        },
+        sequencerblock::v1alpha1::block::Deposit,
     };
     use cnidarium::StateDelta;
     use rand::Rng;

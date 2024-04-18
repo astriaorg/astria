@@ -1,119 +1,74 @@
 use std::collections::HashMap;
 
-use astria_eyre::eyre::{
-    self,
-    bail,
-    ensure,
-    WrapErr as _,
-};
-use celestia_client::CelestiaSequencerBlob;
 use ed25519_consensus::{
     Signature,
     VerificationKey,
 };
 use prost::Message;
 use sequencer_client::{
-    tendermint,
+    tendermint::{
+        self,
+        block::Height,
+    },
     tendermint_rpc,
-    Client as _,
-    HttpClient,
 };
-use tracing::instrument;
 
-/// `BlockVerifier` is verifying blocks received from celestia.
-#[derive(Clone)]
-pub(super) struct BlockVerifier {
-    client: HttpClient,
-}
+#[derive(Debug, thiserror::Error)]
+pub(super) enum QuorumError {
+    #[error("commit height mismatch; expected `{expected_height}`, got `{actual_height}`")]
+    CommitHeightMismatch {
+        expected_height: Height,
+        actual_height: Height,
+    },
 
-impl BlockVerifier {
-    pub(super) fn new(client: HttpClient) -> Self {
-        Self {
-            client,
-        }
-    }
+    #[error(
+        "commit voting power is greater than total voting power: {commit_voting_power} > \
+         {total_voting_power}"
+    )]
+    CommitVotingPowerExceedsTotal {
+        commit_voting_power: u64,
+        total_voting_power: u64,
+    },
 
-    #[instrument(skip_all, fields(
-        height.in_blob = %blob.height(),
-        block_hash.in_blob = %telemetry::display::base64(&blob.block_hash()),
-    ))]
-    pub(super) async fn verify_blob(&self, blob: &CelestiaSequencerBlob) -> eyre::Result<()> {
-        Verify::at_height(self.client.clone(), blob.height())
-            .await
-            .wrap_err("failed getting the required objects to verify blob")?
-            .verify(blob)
-    }
-}
-struct Verify {
-    block_hash: tendermint::Hash,
-    commit_header: tendermint::block::signed_header::SignedHeader,
-}
+    #[error("commit contained an empty signature field for validator `{validator}`")]
+    EmptySignature { validator: tendermint::account::Id },
 
-impl Verify {
-    async fn at_height(
-        client: HttpClient,
-        height: tendermint::block::Height,
-    ) -> eyre::Result<Self> {
-        use futures::TryFutureExt as _;
-        ensure!(
-            height != tendermint::block::Height::from(0u32),
-            "cannot validate sequencer blocks at height 0",
-        );
-        // the validators at height h-1 vote for the block at height h.
-        let prev_height: tendermint::block::Height = (height.value() - 1).try_into().wrap_err(
-            "failed converting decremented height tendermint value to tendermint height type",
-        )?;
-        let (block, commit, validator_set) = tokio::try_join!(
-            client
-                .block(height)
-                .map_err(|e| eyre::Report::new(e).wrap_err("failed fetching sequencer block")),
-            client
-                .commit(height)
-                .map_err(|e| eyre::Report::new(e).wrap_err("failed fetching commit")),
-            client
-                .validators(prev_height, tendermint_rpc::Paging::Default)
-                .map_err(|e| eyre::Report::new(e).wrap_err("failed fetching validator set")),
-        )?;
-        let block_hash = block.block_id.hash;
-        let commit_header = commit.signed_header;
-        Self::new(block_hash, commit_header, &validator_set)
-    }
+    #[error(
+        "commit voting power is less than 2/3 of total voting power: {commit_voting_power} <= 2/3 \
+         {total_voting_power}"
+    )]
+    NoQuorum {
+        commit_voting_power: u64,
+        total_voting_power: u64,
+    },
 
-    fn new(
-        block_hash: tendermint::Hash,
-        commit_header: tendermint::block::signed_header::SignedHeader,
-        validator_set: &tendermint_rpc::endpoint::validators::Response,
-    ) -> eyre::Result<Self> {
-        ensure!(
-            block_hash == commit_header.header.hash(),
-            "block hash stored in commit header does not match block hash of sequencer block",
-        );
-        ensure_commit_has_quorum(
-            &commit_header.commit,
-            validator_set,
-            &commit_header.header.chain_id,
-        )
-        .wrap_err("unable to verify that commit had quorum")?;
-        Ok(Self {
-            block_hash,
-            commit_header,
-        })
-    }
+    #[error("validator `{validator}` was present in commit but not in validator set")]
+    NoSuchValidator { validator: tendermint::account::Id },
 
-    fn verify(&self, blob: &CelestiaSequencerBlob) -> eyre::Result<()> {
-        ensure!(
-            &self.commit_header.header.chain_id == blob.cometbft_chain_id(),
-            "expected cometbft chain ID `{}`, got {}",
-            self.commit_header.header.chain_id,
-            blob.cometbft_chain_id(),
-        );
-        ensure!(
-            blob.block_hash() == self.block_hash.as_bytes(),
-            "block hash in blob does not match block hash of sequencer block",
-        );
+    #[error(
+        "failed to recreate signature for validator from validator set to verify vote signature"
+    )]
+    Signature(#[source] ed25519_consensus::Error),
 
-        Ok(())
-    }
+    #[error("total voting power overflowed u64")]
+    TotalVotingPowerOverflowed,
+
+    #[error(
+        "validator `{expected}` in commit does not address `{actual}` derived from signature in \
+         validator set"
+    )]
+    ValidatorAddressMismatch {
+        expected: tendermint::account::Id,
+        actual: tendermint::account::Id,
+    },
+
+    #[error(
+        "failed to recreate public key for validator from validator set to verify vote signature"
+    )]
+    VerificationKey(#[source] ed25519_consensus::Error),
+
+    #[error("failed to verify vote signature")]
+    VerifyVoteSignature(#[source] ed25519_consensus::Error),
 }
 
 /// This function ensures that the given Commit has quorum, ie that the Commit contains >2/3 voting
@@ -128,26 +83,26 @@ impl Verify {
 /// # Errors
 ///
 /// If any of the above conditions are not satisfied, an error is returned.
-fn ensure_commit_has_quorum(
+pub(super) fn ensure_commit_has_quorum(
     commit: &tendermint::block::Commit,
     validator_set: &tendermint_rpc::endpoint::validators::Response,
     chain_id: &tendermint::chain::Id,
-) -> eyre::Result<()> {
+) -> Result<(), QuorumError> {
     // Validator set at Block N-1 is used for block N
     let expected_height = validator_set.block_height.increment();
     let actual_height = commit.height;
-    ensure!(
-        expected_height == actual_height,
-        "commit height mismatch; expected `{expected_height}`, got `{actual_height}`"
-    );
+    if expected_height != actual_height {
+        return Err(QuorumError::CommitHeightMismatch {
+            expected_height,
+            actual_height,
+        });
+    }
 
-    let Some(total_voting_power) = validator_set
+    let total_voting_power = validator_set
         .validators
         .iter()
         .try_fold(0u64, |acc, validator| acc.checked_add(validator.power()))
-    else {
-        bail!("total voting power exceeded u64:MAX");
-    };
+        .ok_or(QuorumError::TotalVotingPowerOverflowed)?;
 
     let validator_map = validator_set
         .validators
@@ -172,27 +127,27 @@ fn ensure_commit_has_quorum(
         };
 
         let Some(signature) = signature else {
-            bail!(
-                "signature should not be empty for commit with validator {}",
-                validator_address
-            )
+            return Err(QuorumError::EmptySignature {
+                validator: *validator_address,
+            });
         };
 
         // verify validator exists in validator set
         let Some(validator) = validator_map.get(validator_address) else {
-            bail!("validator {} not found in validator set", validator_address);
+            return Err(QuorumError::NoSuchValidator {
+                validator: *validator_address,
+            });
         };
 
         // verify address in signature matches validator pubkey
         let address_from_pubkey = tendermint::account::Id::from(validator.pub_key);
 
-        ensure!(
-            &address_from_pubkey == validator_address,
-            format!(
-                "validator address mismatch: expected {}, got {}",
-                validator_address, address_from_pubkey
-            )
-        );
+        if address_from_pubkey != *validator_address {
+            return Err(QuorumError::ValidatorAddressMismatch {
+                expected: *validator_address,
+                actual: address_from_pubkey,
+            });
+        }
 
         // verify vote signature
         verify_vote_signature(
@@ -201,38 +156,33 @@ fn ensure_commit_has_quorum(
             chain_id,
             &validator.pub_key,
             signature.as_bytes(),
-        )
-        .wrap_err("failed to verify vote signature")?;
+        )?;
 
-        commit_voting_power += validator.power();
+        commit_voting_power = commit_voting_power.saturating_add(validator.power());
     }
 
-    ensure!(
-        commit_voting_power <= total_voting_power,
-        format!(
-            "commit voting power is greater than total voting power: {} > {}",
-            commit_voting_power, total_voting_power
-        )
-    );
-
-    ensure!(
-        does_commit_voting_power_have_quorum(commit_voting_power, total_voting_power),
-        format!(
-            "commit voting power is less than 2/3 of total voting power: {} <= {}",
+    if commit_voting_power > total_voting_power {
+        return Err(QuorumError::CommitVotingPowerExceedsTotal {
             commit_voting_power,
-            total_voting_power * 2 / 3,
-        )
-    );
+            total_voting_power,
+        });
+    }
 
+    if !does_commit_voting_power_have_quorum(commit_voting_power, total_voting_power) {
+        return Err(QuorumError::NoQuorum {
+            commit_voting_power,
+            total_voting_power,
+        });
+    }
     Ok(())
 }
 
 fn does_commit_voting_power_have_quorum(commited: u64, total: u64) -> bool {
     if total < 3 {
-        return commited * 3 > total * 2;
+        commited.saturating_mul(3) > total.saturating_mul(2)
+    } else {
+        commited > total.saturating_div(3).saturating_mul(2)
     }
-
-    commited > total / 3 * 2
 }
 
 // see https://github.com/tendermint/tendermint/blob/35581cf54ec436b8c37fabb43fdaa3f48339a170/types/vote.go#L147
@@ -242,20 +192,16 @@ fn verify_vote_signature(
     chain_id: &tendermint::chain::Id,
     public_key: &tendermint::PublicKey,
     signature_bytes: &[u8],
-) -> eyre::Result<()> {
+) -> Result<(), QuorumError> {
     let public_key = VerificationKey::try_from(public_key.to_bytes().as_slice())
-        .wrap_err("failed to create public key from vote")?;
-    let signature =
-        Signature::try_from(signature_bytes).wrap_err("failed to create signature from vote")?;
+        .map_err(QuorumError::VerificationKey)?;
+    let signature = Signature::try_from(signature_bytes).map_err(QuorumError::Signature)?;
 
     let canonical_vote = tendermint::vote::CanonicalVote {
         vote_type: tendermint::vote::Type::Precommit,
         height: commit.height,
         round: commit.round,
-        block_id: Some(tendermint::block::Id {
-            hash: commit.block_id.hash,
-            part_set_header: commit.block_id.part_set_header,
-        }),
+        block_id: Some(commit.block_id),
         timestamp: Some(timestamp),
         chain_id: chain_id.clone(),
     };
@@ -266,7 +212,7 @@ fn verify_vote_signature(
             &sequencer_client::tendermint_proto::types::CanonicalVote::from(canonical_vote)
                 .encode_length_delimited_to_vec(),
         )
-        .wrap_err("failed to verify vote signature")?;
+        .map_err(QuorumError::VerifyVoteSignature)?;
     Ok(())
 }
 
@@ -274,10 +220,13 @@ fn verify_vote_signature(
 mod test {
     use std::collections::BTreeMap;
 
-    use astria_core::sequencer::v1::{
-        celestia::UncheckedCelestiaSequencerBlob,
-        test_utils::make_cometbft_block,
-        RollupId,
+    use astria_core::{
+        generated::sequencerblock::v1alpha1::SequencerBlockHeader as RawSequencerBlockHeader,
+        sequencer::v1::RollupId,
+        sequencerblock::v1alpha1::{
+            block::SequencerBlockHeader,
+            celestia::UncheckedCelestiaSequencerBlob,
+        },
     };
     use prost::Message as _;
     use sequencer_client::{
@@ -371,24 +320,33 @@ mod test {
     #[test]
     fn validate_sequencer_blob_last_commit_none_ok() {
         let rollup_transactions_root = merkle::Tree::from_leaves([[1, 2, 3], [4, 5, 6]]).root();
-        let chain_ids_commitment = merkle::Tree::new().root();
+        let rollup_ids_root = merkle::Tree::new().root();
 
-        let tree = merkle_tree_from_transactions([rollup_transactions_root, chain_ids_commitment]);
+        let tree = merkle_tree_from_transactions([rollup_transactions_root, rollup_ids_root]);
         let data_hash = tree.root();
         let rollup_transactions_proof = tree.construct_proof(0).unwrap();
         let rollup_ids_proof = tree.construct_proof(1).unwrap();
 
-        let mut header = make_cometbft_block().header;
-        let height = header.height.value().try_into().unwrap();
-        header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
-
         let (validator_set, proposer_address, commit) =
-            make_test_validator_set_and_commit(height, header.chain_id.clone());
-        header.proposer_address = proposer_address;
+            make_test_validator_set_and_commit(1, "test-chain".try_into().unwrap());
+
+        let header = RawSequencerBlockHeader {
+            chain_id: "test-chain".to_string(),
+            height: 1,
+            time: Some(pbjson_types::Timestamp {
+                seconds: 1,
+                nanos: 0,
+            }),
+            data_hash: data_hash.to_vec(),
+            rollup_transactions_root: rollup_transactions_root.to_vec(),
+            proposer_address: proposer_address.as_bytes().to_vec(),
+        };
+        let header = SequencerBlockHeader::try_from_raw(header).unwrap();
+
         let sequencer_blob = UncheckedCelestiaSequencerBlob {
+            block_hash: [0u8; 32],
             header,
             rollup_ids: vec![],
-            rollup_transactions_root,
             rollup_transactions_proof,
             rollup_ids_proof,
         }
@@ -414,18 +372,26 @@ mod test {
         let rollup_transactions_proof = tree.construct_proof(0).unwrap();
         let rollup_ids_proof = tree.construct_proof(1).unwrap();
 
-        let mut header = make_cometbft_block().header;
-        let height = header.height.value().try_into().unwrap();
-        header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
-
         let (validator_set, proposer_address, commit) =
-            make_test_validator_set_and_commit(height, header.chain_id.clone());
-        header.proposer_address = proposer_address;
+            make_test_validator_set_and_commit(1, "test-chain".try_into().unwrap());
+
+        let header = RawSequencerBlockHeader {
+            chain_id: "test-chain".to_string(),
+            height: 1,
+            time: Some(pbjson_types::Timestamp {
+                seconds: 1,
+                nanos: 0,
+            }),
+            data_hash: data_hash.to_vec(),
+            rollup_transactions_root: rollup_transactions_root.to_vec(),
+            proposer_address: proposer_address.as_bytes().to_vec(),
+        };
+        let header = SequencerBlockHeader::try_from_raw(header).unwrap();
 
         let sequencer_blob = UncheckedCelestiaSequencerBlob {
+            block_hash: [0u8; 32],
             header,
             rollup_ids: vec![rollup_id],
-            rollup_transactions_root,
             rollup_transactions_proof,
             rollup_ids_proof,
         }

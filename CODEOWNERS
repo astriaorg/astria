@@ -1,23 +1,29 @@
-/.github/  @astriaorg/infra
-/containerfiles/  @astriaorg/infra
-/charts/  @astriaorg/infra
-/dev/  @astriaorg/infra
-.dockerignore  @astriaorg/infra
+* @joroshiba @SuperFluffy @noot
 
-*.rs  @astriaorg/rust-reviewers
-Cargo.toml  @astriaorg/rust-reviewers
-Cargo.lock  @astriaorg/rust-reviewers
-rust-toolchain  @astriaorg/rust-reviewers
-.cargo/  @astriaorg/rust-reviewers
-nextest.toml  @astriaorg/rust-reviewers
-rusfmt.toml  @astriaorg/rust-reviewers
+specs/ @astriaorg/engineering
+justfile @astriaorg/engineering
+README.md @astriaorg/engineering
+taplo.toml @astriaorg/engineering
+.gitattributes @astriaorg/engineering
+.gitignore @astriaorg/engineering
+
+/.github/ @astriaorg/infra
+/containerfiles/ @astriaorg/infra
+/charts/ @astriaorg/infra
+/dev/ @astriaorg/infra
+.dockerignore @astriaorg/infra
+*.env.example @astriaorg/infra
 
 *.proto @astriaorg/api-reviewers
+proto/*/LICENSE @astriaorg/api-reviewers
 buf.lock @astriaorg/api-reviewers
 buf.yaml @astriaorg/api-reviewers
 buf.work.yaml @astriaorg/api-reviewers
 
-specs/  @astriaorg/engineering
-justfile  @astriaorg/engineering
-
-* @joroshiba @SuperFluffy @noot
+*.rs @astriaorg/rust-reviewers
+Cargo.toml @astriaorg/rust-reviewers
+Cargo.lock @astriaorg/rust-reviewers
+rust-toolchain @astriaorg/rust-reviewers
+.cargo/ @astriaorg/rust-reviewers
+nextest.toml @astriaorg/rust-reviewers
+rusfmt.toml @astriaorg/rust-reviewers

@@ -2,13 +2,8 @@ use anyhow::{
     bail,
     Context,
 };
-use astria_core::sequencer::v1::AbciErrorCode;
 use cnidarium::Storage;
-use sha2::{
-    Digest as _,
-    Sha256,
-};
-use tendermint::v0_37::abci::{
+use tendermint::v0_38::abci::{
     request,
     response,
     ConsensusRequest,
@@ -62,7 +57,7 @@ impl Consensus {
                 warn!(
                     parent: &span,
                     error = e,
-                    "failed processing concensus request; returning error back to sender",
+                    "failed processing consensus request; returning error back to sender",
                 );
             }
             // `send` returns the sent message if sending fail, so we are dropping it.
@@ -108,18 +103,18 @@ impl Consensus {
                     },
                 )
             }
-            ConsensusRequest::BeginBlock(begin_block) => ConsensusResponse::BeginBlock(
-                self.begin_block(begin_block)
-                    .await
-                    .context("failed to begin block")?,
-            ),
-            ConsensusRequest::DeliverTx(deliver_tx) => {
-                ConsensusResponse::DeliverTx(self.deliver_tx(deliver_tx).await)
+            ConsensusRequest::ExtendVote(_) => {
+                ConsensusResponse::ExtendVote(response::ExtendVote {
+                    vote_extension: vec![].into(),
+                })
             }
-            ConsensusRequest::EndBlock(end_block) => ConsensusResponse::EndBlock(
-                self.end_block(end_block)
+            ConsensusRequest::VerifyVoteExtension(_) => {
+                ConsensusResponse::VerifyVoteExtension(response::VerifyVoteExtension::Accept)
+            }
+            ConsensusRequest::FinalizeBlock(finalize_block) => ConsensusResponse::FinalizeBlock(
+                self.finalize_block(finalize_block)
                     .await
-                    .context("failed to end block")?,
+                    .context("failed to finalize block")?,
             ),
             ConsensusRequest::Commit => {
                 ConsensusResponse::Commit(self.commit().await.context("failed to commit")?)
@@ -143,23 +138,20 @@ impl Consensus {
 
         let genesis_state: GenesisState = serde_json::from_slice(&init_chain.app_state_bytes)
             .context("failed to parse app_state in genesis file")?;
-        self.app
+        let app_hash = self
+            .app
             .init_chain(
+                self.storage.clone(),
                 genesis_state,
                 init_chain.validators.clone(),
                 init_chain.chain_id,
             )
             .await
             .context("failed to call init_chain")?;
+        self.app.commit(self.storage.clone()).await;
 
-        // commit the state and return the app hash
-        let app_hash = self.app.commit(self.storage.clone()).await;
         Ok(response::InitChain {
-            app_hash: app_hash
-                .0
-                .to_vec()
-                .try_into()
-                .context("failed to convert app hash")?,
+            app_hash,
             consensus_params: Some(init_chain.consensus_params),
             validators: init_chain.validators,
         })
@@ -193,80 +185,33 @@ impl Consensus {
     ) -> anyhow::Result<()> {
         self.app
             .process_proposal(process_proposal, self.storage.clone())
-            .await
+            .await?;
+        tracing::debug!("proposal processed");
+        Ok(())
     }
 
     #[instrument(skip_all, fields(
-        hash = %begin_block.hash,
-        height = %begin_block.header.height,
-        time = %begin_block.header.time,
-        proposer = %begin_block.header.proposer_address
+        hash = %finalize_block.hash,
+        height = %finalize_block.height,
+        time = %finalize_block.time,
+        proposer = %finalize_block.proposer_address
     ))]
-    async fn begin_block(
+    async fn finalize_block(
         &mut self,
-        begin_block: request::BeginBlock,
-    ) -> anyhow::Result<response::BeginBlock> {
-        let events = self
+        finalize_block: request::FinalizeBlock,
+    ) -> anyhow::Result<response::FinalizeBlock> {
+        let finalize_block = self
             .app
-            .begin_block(&begin_block, self.storage.clone())
+            .finalize_block(finalize_block, self.storage.clone())
             .await
-            .context("failed to call App::begin_block")?;
-        Ok(response::BeginBlock {
-            events,
-        })
-    }
-
-    #[instrument(skip_all, fields(
-        tx_hash = %telemetry::display::base64(&Sha256::digest(&deliver_tx.tx))
-    ))]
-    async fn deliver_tx(&mut self, deliver_tx: request::DeliverTx) -> response::DeliverTx {
-        use crate::transaction::InvalidNonce;
-
-        match self
-            .app
-            .deliver_tx_after_proposal(deliver_tx)
-            .await
-            .expect("transactions must be executable or previously executed during proposal phases")
-        {
-            Ok(events) => response::DeliverTx {
-                events,
-                ..Default::default()
-            },
-            Err(e) => {
-                let code = if e.downcast_ref::<InvalidNonce>().is_some() {
-                    AbciErrorCode::INVALID_NONCE
-                } else {
-                    AbciErrorCode::INTERNAL_ERROR
-                };
-                tracing::warn!(
-                    error = AsRef::<dyn std::error::Error>::as_ref(&e),
-                    "failed serving deliver tx request"
-                );
-                response::DeliverTx {
-                    code: code.into(),
-                    info: code.to_string(),
-                    log: e.to_string(),
-                    ..Default::default()
-                }
-            }
-        }
-    }
-
-    #[instrument(skip_all, fields(height = %end_block.height))]
-    async fn end_block(
-        &mut self,
-        end_block: request::EndBlock,
-    ) -> anyhow::Result<response::EndBlock> {
-        self.app.end_block(&end_block).await
+            .context("failed to call App::finalize_block")?;
+        Ok(finalize_block)
     }
 
     #[instrument(skip_all)]
     async fn commit(&mut self) -> anyhow::Result<response::Commit> {
-        let app_hash = self.app.commit(self.storage.clone()).await;
-        Ok(response::Commit {
-            data: app_hash.0.to_vec().into(),
-            ..Default::default()
-        })
+        self.app.commit(self.storage.clone()).await;
+        Ok(response::Commit::default())
     }
 }
 
@@ -536,7 +481,7 @@ mod test {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut app = App::new(snapshot);
-        app.init_chain(genesis_state, vec![], "test".to_string())
+        app.init_chain(storage.clone(), genesis_state, vec![], "test".to_string())
             .await
             .unwrap();
         app.commit(storage.clone()).await;
@@ -547,6 +492,8 @@ mod test {
 
     #[tokio::test]
     async fn block_lifecycle() {
+        use sha2::Digest as _;
+
         let signing_key = SigningKey::new(OsRng);
         let mut consensus_service =
             new_consensus_service(Some(signing_key.verification_key())).await;
@@ -558,7 +505,8 @@ mod test {
         let res = generate_rollup_datas_commitment(&vec![signed_tx], HashMap::new());
 
         let block_data = res.into_transactions(txs.clone());
-        let data_hash = merkle::Tree::from_leaves(block_data.iter().map(Sha256::digest)).root();
+        let data_hash =
+            merkle::Tree::from_leaves(block_data.iter().map(sha2::Sha256::digest)).root();
         let mut header = default_header();
         header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
 
@@ -568,39 +516,21 @@ mod test {
             .await
             .unwrap();
 
-        let begin_block = request::BeginBlock {
-            hash: Hash::default(),
-            header,
-            last_commit_info: tendermint::abci::types::CommitInfo {
+        let finalize_block = request::FinalizeBlock {
+            hash: Hash::try_from([0u8; 32].to_vec()).unwrap(),
+            height: 1u32.into(),
+            time: Time::now(),
+            next_validators_hash: Hash::default(),
+            proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
+            decided_last_commit: tendermint::abci::types::CommitInfo {
                 round: 0u16.into(),
                 votes: vec![],
             },
-            byzantine_validators: vec![],
+            misbehavior: vec![],
+            txs: block_data,
         };
         consensus_service
-            .handle_request(ConsensusRequest::BeginBlock(begin_block))
-            .await
-            .unwrap();
-
-        for tx in block_data {
-            let deliver_tx = request::DeliverTx {
-                tx,
-            };
-            consensus_service
-                .handle_request(ConsensusRequest::DeliverTx(deliver_tx))
-                .await
-                .unwrap();
-        }
-
-        let end_block = request::EndBlock {
-            height: 1u32.into(),
-        };
-        consensus_service
-            .handle_request(ConsensusRequest::EndBlock(end_block))
-            .await
-            .unwrap();
-        consensus_service
-            .handle_request(ConsensusRequest::Commit)
+            .handle_request(ConsensusRequest::FinalizeBlock(finalize_block))
             .await
             .unwrap();
     }

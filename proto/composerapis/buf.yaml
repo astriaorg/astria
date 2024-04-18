@@ -2,7 +2,7 @@ version: v1
 name: buf.build/astria/composer-apis
 breaking:
   use:
-    - FILE
+    - WIRE_JSON
 lint:
   use:
     - BASIC

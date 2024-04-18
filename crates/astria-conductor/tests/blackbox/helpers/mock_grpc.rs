@@ -20,7 +20,7 @@ use astria_core::generated::{
         GetGenesisInfoRequest,
         UpdateCommitmentStateRequest,
     },
-    sequencer::v1::{
+    sequencerblock::v1alpha1::{
         sequencer_service_server::{
             SequencerService,
             SequencerServiceServer,

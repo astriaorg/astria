@@ -28,17 +28,19 @@ use astria_core::{
             GetGenesisInfoRequest,
             UpdateCommitmentStateRequest,
         },
-        sequencer::v1::RollupData as RawRollupData,
+        sequencerblock::v1alpha1::RollupData as RawRollupData,
     },
-    sequencer::v1::{
-        block::RollupData,
-        test_utils::{
-            make_cometbft_block,
-            ConfigureCometBftBlock,
+    sequencer::v1::test_utils::{
+        make_cometbft_block,
+        ConfigureCometBftBlock,
+    },
+    sequencerblock::{
+        v1alpha1::{
+            block::RollupData,
+            SequencerBlock,
         },
-        SequencerBlock,
+        Protobuf as _,
     },
-    Protobuf,
 };
 use bytes::Bytes;
 use prost::Message;
@@ -214,20 +216,17 @@ fn get_expected_execution_hash(
     Bytes::copy_from_slice(&hasher.finalize())
 }
 
-fn hash(s: &[u8]) -> [u8; 32] {
-    use sha2::{
-        Digest as _,
-        Sha256,
-    };
-    Sha256::digest(s).into()
-}
+fn make_reconstructed_block(height: u32) -> ReconstructedBlock {
+    let block = ConfigureCometBftBlock {
+        height,
+        ..Default::default()
+    }
+    .make();
+    let block = SequencerBlock::try_from_cometbft(block).unwrap();
 
-fn make_reconstructed_block() -> ReconstructedBlock {
-    let mut block = make_cometbft_block();
-    block.header.height = SequencerHeight::from(100u32);
     ReconstructedBlock {
-        block_hash: hash(b"block1"),
-        header: block.header,
+        block_hash: block.block_hash(),
+        header: block.header().clone(),
         transactions: vec![],
         celestia_height: 1,
     }
@@ -278,13 +277,15 @@ fn make_rollup_data(data: &str) -> RawRollupData {
 async fn firm_blocks_at_expected_heights_are_executed() {
     let mut mock = start_mock().await;
 
-    let mut block = make_reconstructed_block();
+    let height = 100;
+
+    let mut block = make_reconstructed_block(height);
     let rollup_data = make_rollup_data("test_transaction");
     block.transactions.push(rollup_data.encode_to_vec());
 
     let expected_exection_hash = get_expected_execution_hash(
         mock.executor.state.borrow().firm().hash(),
-        vec![rollup_data],
+        vec![rollup_data.clone()],
     );
 
     mock.executor
@@ -296,9 +297,7 @@ async fn firm_blocks_at_expected_heights_are_executed() {
         mock.executor.state.borrow().firm().hash(),
     );
 
-    let mut block = make_reconstructed_block();
-    block.header.height = block.header.height.increment();
-    let rollup_data = make_rollup_data("test_transaction");
+    let mut block = make_reconstructed_block(height + 1);
     block.transactions.push(rollup_data.encode_to_vec());
     let expected_exection_hash = get_expected_execution_hash(
         mock.executor.state.borrow().firm().hash(),
@@ -364,7 +363,7 @@ async fn first_firm_then_soft_leads_to_soft_being_dropped() {
 
     let firm_block = ReconstructedBlock {
         block_hash: soft_block.block_hash(),
-        header: soft_block.cometbft_header().clone(),
+        header: soft_block.header().clone(),
         transactions: soft_block
             .rollup_transactions()
             .get(&ROLLUP_ID)
@@ -419,7 +418,7 @@ async fn first_soft_then_firm_update_state_correctly() {
 
     let firm_block = ReconstructedBlock {
         block_hash: soft_block.block_hash(),
-        header: soft_block.cometbft_header().clone(),
+        header: soft_block.header().clone(),
         transactions: soft_block
             .rollup_transactions()
             .get(&ROLLUP_ID)
@@ -527,9 +526,7 @@ async fn non_sequential_future_soft_blocks_give_error() {
 #[tokio::test]
 async fn out_of_order_firm_blocks_are_rejected() {
     let mut mock = start_mock().await;
-    let mut block = make_reconstructed_block();
-
-    block.header.height = SequencerHeight::from(99u32);
+    let block = make_reconstructed_block(99);
     assert!(
         mock.executor
             .execute_firm(mock.client.clone(), block.clone())
@@ -537,7 +534,7 @@ async fn out_of_order_firm_blocks_are_rejected() {
             .is_err()
     );
 
-    block.header.height = SequencerHeight::from(101u32);
+    let block = make_reconstructed_block(101);
     assert!(
         mock.executor
             .execute_firm(mock.client.clone(), block.clone())
@@ -545,7 +542,7 @@ async fn out_of_order_firm_blocks_are_rejected() {
             .is_err()
     );
 
-    block.header.height = SequencerHeight::from(100u32);
+    let block = make_reconstructed_block(100);
     assert!(
         mock.executor
             .execute_firm(mock.client.clone(), block.clone())
