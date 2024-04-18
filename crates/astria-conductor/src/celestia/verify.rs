@@ -73,8 +73,10 @@ struct VerificationTaskKey {
     sequencer_height: SequencerHeight,
 }
 
-/// Returns blobs that could be verified against Sequencer.
-pub(super) async fn verify_and_filter_decoded_blobs(
+/// Verifies Sequencer header blobs against Sequencer commits and validator sets.
+///
+/// Drops blobs that could not be verified.
+pub(super) async fn verify_header_blobs(
     blob_verifier: Arc<BlobVerifier>,
     converted_blobs: ConvertedBlobs,
 ) -> VerifiedBlobs {
