@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     sync::Arc,
     time::Duration,
 };
@@ -28,7 +29,9 @@ use telemetry::display::base64;
 use tokio_util::task::JoinMap;
 use tracing::{
     info,
+    instrument,
     warn,
+    Instrument,
 };
 use tryhard::{
     backoff_strategies::BackoffStrategy,
@@ -45,7 +48,7 @@ use crate::utils::flatten;
 
 pub(super) struct VerifiedBlobs {
     celestia_height: u64,
-    header_blobs: Vec<CelestiaSequencerBlob>,
+    header_blobs: HashMap<[u8; 32], CelestiaSequencerBlob>,
     rollup_blobs: Vec<CelestiaRollupBlob>,
 }
 
@@ -58,7 +61,13 @@ impl VerifiedBlobs {
         self.rollup_blobs.len()
     }
 
-    pub(super) fn into_parts(self) -> (u64, Vec<CelestiaSequencerBlob>, Vec<CelestiaRollupBlob>) {
+    pub(super) fn into_parts(
+        self,
+    ) -> (
+        u64,
+        HashMap<[u8; 32], CelestiaSequencerBlob>,
+        Vec<CelestiaRollupBlob>,
+    ) {
         (self.celestia_height, self.header_blobs, self.rollup_blobs)
     }
 }
@@ -76,6 +85,7 @@ struct VerificationTaskKey {
 /// Verifies Sequencer header blobs against Sequencer commits and validator sets.
 ///
 /// Drops blobs that could not be verified.
+#[instrument(skip_all)]
 pub(super) async fn verify_header_blobs(
     blob_verifier: Arc<BlobVerifier>,
     converted_blobs: ConvertedBlobs,
@@ -83,7 +93,7 @@ pub(super) async fn verify_header_blobs(
     let (celestia_height, header_blobs, rollup_blobs) = converted_blobs.into_parts();
 
     let mut verification_tasks = JoinMap::new();
-    let mut verified_header_blobs = Vec::with_capacity(header_blobs.len());
+    let mut verified_header_blobs = HashMap::with_capacity(header_blobs.len());
 
     for (index, blob) in header_blobs.into_iter().enumerate() {
         verification_tasks.spawn(
@@ -92,13 +102,32 @@ pub(super) async fn verify_header_blobs(
                 block_hash: blob.block_hash(),
                 sequencer_height: blob.height(),
             },
-            blob_verifier.clone().verify_header_blob(blob),
+            blob_verifier
+                .clone()
+                .verify_header_blob(blob)
+                .in_current_span(),
         );
     }
 
     while let Some((key, verification_result)) = verification_tasks.join_next().await {
         match flatten(verification_result) {
-            Ok(verified_blob) => verified_header_blobs.push(verified_blob),
+            Ok(verified_blob) => {
+                if let Some(dropped_entry) =
+                    verified_header_blobs.insert(verified_blob.block_hash(), verified_blob)
+                {
+                    let accepted_entry = verified_header_blobs
+                        .get(&dropped_entry.block_hash())
+                        .expect("must exist; just inserted an item under the same key");
+                    info!(
+                        block_hash = %base64(&dropped_entry.block_hash()),
+                        dropped_blob.sequencer_height = dropped_entry.height().value(),
+                        accepted_blob.sequencer_height = accepted_entry.height().value(),
+                        "two Sequencer header blobs were well formed and validated against \
+                         Sequencer, but shared the same block hash, potentially duplicates? \
+                         Dropping one",
+                    );
+                }
+            }
             Err(error) => {
                 info!(
                     block_hash = %base64(&key.block_hash),

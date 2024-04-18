@@ -396,7 +396,7 @@ impl RunningReader {
         while self.can_schedule_blobs() {
             let height = self.celestia_next_height;
             self.celestia_next_height = self.celestia_next_height.saturating_add(1);
-            let task = FetchConvertAndVerify {
+            let task = FetchConvertVerifyAndReconstruct {
                 blob_verifier: self.blob_verifier.clone(),
                 celestia_client: self.celestia_client.clone(),
                 celestia_height: height,
@@ -458,7 +458,7 @@ impl RunningReader {
     }
 }
 
-struct FetchConvertAndVerify {
+struct FetchConvertVerifyAndReconstruct {
     blob_verifier: Arc<BlobVerifier>,
     celestia_client: CelestiaClient,
     celestia_height: u64,
@@ -467,7 +467,7 @@ struct FetchConvertAndVerify {
     sequencer_namespace: Namespace,
 }
 
-impl FetchConvertAndVerify {
+impl FetchConvertVerifyAndReconstruct {
     #[instrument( skip_all, fields(
         celestia_height = self.celestia_height,
         rollup_namespace = %base64(self.rollup_namespace.as_bytes()),
