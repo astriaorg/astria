@@ -115,8 +115,7 @@ spec:
             {{- toYaml .Values.resources.composer | trim | nindent 12 }}
         - name: conductor
           image: {{ include "conductor.image" . }}
-          command: [ "tail", "-f", "/dev/null" ]
-          # command: [ "/scripts/start-conductor.sh" ]
+          command: [ "/scripts/start-conductor.sh" ]
           stdin: {{ .Values.global.useTTY }}
           tty: {{ .Values.global.useTTY }}
           volumeMounts:
