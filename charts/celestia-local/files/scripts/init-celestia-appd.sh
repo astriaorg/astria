@@ -10,18 +10,12 @@ celestia-appd init "$chainid" \
   --chain-id "$chainid" \
   --home "$home_dir"
 
-if [ -n "$validator_mnemonic" ]; then
-  echo $validator_mnemonic | celestia-appd keys add \
-    "$validator_key_name" \
-    --home "$home_dir" \
-    --keyring-backend="$keyring_backend" \
-    --recover
-else
-  celestia-appd keys add \
-    "$validator_key_name" \
-    --keyring-backend="$keyring_backend" \
-    --home "$home_dir"
-fi
+echo "$validator_mnemonic" | celestia-appd keys add \
+  "$validator_key_name" \
+  --home "$home_dir" \
+  --keyring-backend="$keyring_backend" \
+  --recover
+
 
 validator_key=$(celestia-appd keys show "$validator_key_name" -a --keyring-backend="$keyring_backend" --home "$home_dir")
 celestia-appd add-genesis-account \
