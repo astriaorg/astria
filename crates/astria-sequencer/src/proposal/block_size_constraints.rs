@@ -34,6 +34,15 @@ impl BlockSizeConstraints {
         })
     }
 
+    pub(crate) fn new_unlimited_cometbft() -> Self {
+        BlockSizeConstraints {
+            max_size_sequencer: MAX_SEQUENCE_DATA_BYTES_PER_BLOCK,
+            max_size_cometbft: usize::MAX,
+            current_size_sequencer: 0,
+            current_size_cometbft: GeneratedCommitments::TOTAL_SIZE,
+        }
+    }
+
     pub(crate) fn sequencer_has_space(&self, size: usize) -> bool {
         size <= self
             .max_size_sequencer

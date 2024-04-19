@@ -9,7 +9,7 @@ pub(crate) struct AstriaHost;
 #[async_trait::async_trait]
 impl HostInterface for AstriaHost {
     async fn get_chain_id<S: StateRead>(state: S) -> anyhow::Result<String> {
-        state.get_chain_id().await
+        state.get_chain_id().await.map(|s| s.to_string())
     }
 
     async fn get_revision_number<S: StateRead>(state: S) -> anyhow::Result<u64> {
