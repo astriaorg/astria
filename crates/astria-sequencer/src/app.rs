@@ -569,7 +569,7 @@ impl App {
     /// `commit` must be called after this to write the block to disk.
     ///
     /// This is called by cometbft after the block has already been
-    /// finalized by the network.
+    /// committed by the network's consensus.
     #[instrument(name = "App::finalize_block", skip_all)]
     pub(crate) async fn finalize_block(
         &mut self,
@@ -627,6 +627,7 @@ impl App {
                 .await
                 .context("failed to execute block")?;
 
+            // skip the first two transactions, as they are the rollup data commitments
             for tx in finalize_block.txs.iter().skip(2) {
                 let signed_tx = signed_transaction_from_bytes(tx)
                     .context("protocol error; only valid txs should be finalized")?;
