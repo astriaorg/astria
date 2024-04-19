@@ -2,10 +2,12 @@ use anyhow::{
     Context,
     Result,
 };
-use astria_core::sequencer::v1::{
-    account::AssetBalance,
-    asset,
-    Address,
+use astria_core::{
+    primitive::v1::{
+        asset,
+        Address,
+    },
+    protocol::account::v1alpha1::AssetBalance,
 };
 use async_trait::async_trait;
 use borsh::{
@@ -81,7 +83,7 @@ pub(crate) trait StateReadExt: StateRead {
             if asset_id == native_asset.id() {
                 // TODO: this is jank, just have 1 denom type.
                 balances.push(AssetBalance {
-                    denom: astria_core::sequencer::v1::asset::Denom::from(
+                    denom: astria_core::primitive::v1::asset::Denom::from(
                         native_asset.base_denom().to_owned(),
                     ),
                     balance,
@@ -199,14 +201,16 @@ impl<T: StateWrite> StateWriteExt for T {}
 
 #[cfg(test)]
 mod test {
-    use astria_core::sequencer::v1::{
-        account::AssetBalance,
-        asset::{
-            Denom,
-            Id,
-            DEFAULT_NATIVE_ASSET_DENOM,
+    use astria_core::{
+        primitive::v1::{
+            asset::{
+                Denom,
+                Id,
+                DEFAULT_NATIVE_ASSET_DENOM,
+            },
+            Address,
         },
-        Address,
+        protocol::account::v1alpha1::AssetBalance,
     };
     use cnidarium::StateDelta;
 

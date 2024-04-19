@@ -8,7 +8,7 @@ use astria_core::{
         GetSequencerBlockRequest,
         SequencerBlock as RawSequencerBlock,
     },
-    sequencer::v1::RollupId,
+    primitive::v1::RollupId,
 };
 use cnidarium::Storage;
 use tonic::{

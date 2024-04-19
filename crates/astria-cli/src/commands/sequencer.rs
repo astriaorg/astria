@@ -1,16 +1,18 @@
-use astria_core::sequencer::v1::{
-    asset,
-    transaction::action::{
-        Action,
-        BridgeLockAction,
-        FeeAssetChangeAction,
-        IbcRelayerChangeAction,
-        InitBridgeAccountAction,
-        MintAction,
-        SudoAddressChangeAction,
-        TransferAction,
+use astria_core::{
+    primitive::v1::asset,
+    protocol::transaction::v1alpha1::{
+        action::{
+            Action,
+            BridgeLockAction,
+            FeeAssetChangeAction,
+            IbcRelayerChangeAction,
+            InitBridgeAccountAction,
+            MintAction,
+            SudoAddressChangeAction,
+            TransferAction,
+        },
+        UnsignedTransaction,
     },
-    UnsignedTransaction,
 };
 use astria_sequencer_client::{
     tendermint,
@@ -175,7 +177,7 @@ pub(crate) async fn get_block_height(args: &BlockHeightGetArgs) -> eyre::Result<
 /// * If the http client cannot be created
 /// * If the latest block height cannot be retrieved
 pub(crate) async fn send_transfer(args: &TransferArgs) -> eyre::Result<()> {
-    use astria_core::sequencer::v1::asset::default_native_asset_id;
+    use astria_core::primitive::v1::asset::default_native_asset_id;
 
     let res = submit_transaction(
         args.sequencer_url.as_str(),
@@ -263,7 +265,7 @@ pub(crate) async fn ibc_relayer_remove(args: &IbcRelayerChangeArgs) -> eyre::Res
 /// * If the http client cannot be created
 /// * If the transaction failed to be included
 pub(crate) async fn init_bridge_account(args: &InitBridgeAccountArgs) -> eyre::Result<()> {
-    use astria_core::sequencer::v1::{
+    use astria_core::primitive::v1::{
         asset::default_native_asset_id,
         RollupId,
     };
@@ -300,7 +302,7 @@ pub(crate) async fn init_bridge_account(args: &InitBridgeAccountArgs) -> eyre::R
 /// * If the http client cannot be created
 /// * If the transaction failed to be included
 pub(crate) async fn bridge_lock(args: &BridgeLockArgs) -> eyre::Result<()> {
-    use astria_core::sequencer::v1::asset::default_native_asset_id;
+    use astria_core::primitive::v1::asset::default_native_asset_id;
 
     let res = submit_transaction(
         args.sequencer_url.as_str(),

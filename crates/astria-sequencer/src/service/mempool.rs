@@ -7,10 +7,10 @@ use std::{
 };
 
 use astria_core::{
-    generated::sequencer::v1 as raw,
-    sequencer::v1::{
-        AbciErrorCode,
-        SignedTransaction,
+    generated::protocol::transaction::v1alpha1 as raw,
+    protocol::{
+        abci::AbciErrorCode,
+        transaction::v1alpha1::SignedTransaction,
     },
 };
 use cnidarium::Storage;

@@ -104,22 +104,8 @@ fn main() {
         .out_dir(&out_dir)
         .build(&[
             ".astria.execution.v1alpha2",
-            ".astria.sequencer.v1.Deposit",
-            ".astria.sequencer.v1.FilteredSequencerBlock",
-            ".astria.sequencer.v1.GetFilteredSequencerBlockRequest",
-            ".astria.sequencer.v1.Proof",
-            ".astria.sequencer.v1.RollupData",
-            ".astria.sequencer.v1.RollupTransactions",
-            ".astria.primitive.v1.Uint128",
-            ".astria.sequencerblock.v1alpha1.Deposit",
-            ".astria.sequencerblock.v1alpha1.SequencerBlockHeader",
-            ".astria.sequencerblock.v1alpha1.SequencerBlock",
-            ".astria.sequencerblock.v1alpha1.GetSequencerBlockRequest",
-            ".astria.sequencerblock.v1alpha1.FilteredSequencerBlock",
-            ".astria.sequencerblock.v1alpha1.GetFilteredSequencerBlockRequest",
-            ".astria.sequencerblock.v1alpha1.RollupData",
-            ".astria.sequencerblock.v1alpha1.RollupTransactions",
-            ".astria.sequencerblock.v1alpha1.Proof",
+            ".astria.primitive.v1",
+            ".astria.sequencerblock.v1alpha1",
         ])
         .unwrap();
 

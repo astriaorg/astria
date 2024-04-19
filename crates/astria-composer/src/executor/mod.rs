@@ -10,11 +10,13 @@ use std::{
     time::Duration,
 };
 
-use astria_core::sequencer::v1::{
-    transaction::action::SequenceAction,
-    AbciErrorCode,
-    SignedTransaction,
-    UnsignedTransaction,
+use astria_core::protocol::{
+    abci::AbciErrorCode,
+    transaction::v1alpha1::{
+        action::SequenceAction,
+        SignedTransaction,
+        UnsignedTransaction,
+    },
 };
 use astria_eyre::eyre::{
     self,
