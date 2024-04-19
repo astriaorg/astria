@@ -44,12 +44,12 @@ async fn simple() {
 
     mount_abci_info!(
         test_conductor,
-        latest_sequencer_height: 2,
+        latest_sequencer_height: 3,
     );
 
     mount_get_filtered_sequencer_block!(
         test_conductor,
-        sequencer_height: 2,
+        sequencer_height: 3,
     );
 
     let execute_block = mount_executed_block!(
@@ -114,12 +114,7 @@ async fn submits_two_heights_in_sucession() {
 
     mount_abci_info!(
         test_conductor,
-        latest_sequencer_height: 3,
-    );
-
-    mount_get_filtered_sequencer_block!(
-        test_conductor,
-        sequencer_height: 2,
+        latest_sequencer_height: 4,
     );
 
     mount_get_filtered_sequencer_block!(
@@ -127,8 +122,14 @@ async fn submits_two_heights_in_sucession() {
         sequencer_height: 3,
     );
 
+    mount_get_filtered_sequencer_block!(
+        test_conductor,
+        sequencer_height: 4,
+    );
+
     let execute_block_number_2 = mount_executed_block!(
         test_conductor,
+        mock_name: "first_execute",
         number: 2,
         hash: [2; 64],
         parent: [1; 64],
@@ -136,6 +137,7 @@ async fn submits_two_heights_in_sucession() {
 
     let update_commitment_state_number_2 = mount_update_commitment_state!(
         test_conductor,
+        mock_name: "first_update",
         firm: (
             number: 1,
             hash: [1; 64],
@@ -150,6 +152,7 @@ async fn submits_two_heights_in_sucession() {
 
     let execute_block_number_3 = mount_executed_block!(
         test_conductor,
+        mock_name: "second_execute",
         number: 3,
         hash: [3; 64],
         parent: [2; 64],
@@ -157,6 +160,7 @@ async fn submits_two_heights_in_sucession() {
 
     let update_commitment_state_number_3 = mount_update_commitment_state!(
         test_conductor,
+        mock_name: "second_update",
         firm: (
             number: 1,
             hash: [1; 64],
@@ -212,12 +216,12 @@ async fn skips_already_executed_heights() {
 
     mount_abci_info!(
         test_conductor,
-        latest_sequencer_height: 6,
+        latest_sequencer_height: 7,
     );
 
     mount_get_filtered_sequencer_block!(
         test_conductor,
-        sequencer_height: 6,
+        sequencer_height: 7,
     );
 
     let execute_block = mount_executed_block!(
@@ -282,12 +286,12 @@ async fn requests_from_later_genesis_height() {
 
     mount_abci_info!(
         test_conductor,
-        latest_sequencer_height: 11,
+        latest_sequencer_height: 12,
     );
 
     mount_get_filtered_sequencer_block!(
         test_conductor,
-        sequencer_height: 11,
+        sequencer_height: 12,
     );
 
     let execute_block = mount_executed_block!(

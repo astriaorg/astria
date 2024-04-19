@@ -1,3 +1,5 @@
+use std::ops::RangeInclusive;
+
 use astria_core::{
     execution::v1alpha2::{
         Block,
@@ -40,6 +42,37 @@ impl Client {
             uri,
             inner,
         })
+    }
+
+    #[instrument(skip_all, fields(
+        uri = %self.uri,
+        from = block_numbers.start(),
+        to = block_numbers.end(),
+    ))]
+    pub(crate) async fn batch_get_blocks(
+        &mut self,
+        block_numbers: RangeInclusive<u32>,
+    ) -> eyre::Result<Vec<Block>> {
+        fn identifier(number: u32) -> raw::BlockIdentifier {
+            raw::BlockIdentifier {
+                identifier: Some(raw::block_identifier::Identifier::BlockNumber(number)),
+            }
+        }
+        let request = raw::BatchGetBlocksRequest {
+            identifiers: block_numbers.into_iter().map(identifier).collect(),
+        };
+        let blocks = self
+            .inner
+            .batch_get_blocks(request)
+            .await
+            .wrap_err("failed to execute batch get blocks RPC")?
+            .into_inner()
+            .blocks
+            .into_iter()
+            .map(Block::try_from_raw)
+            .collect::<Result<_, _>>()
+            .wrap_err("failed validating received blocks")?;
+        Ok(blocks)
     }
 
     /// Calls remote procedure `astria.execution.v1alpha2.GetGenesisInfo`
