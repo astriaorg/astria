@@ -7,8 +7,8 @@
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RollupTransactions {
     /// The 32 bytes identifying a rollup. Usually the sha256 hash of a plain rollup name.
-    #[prost(bytes = "vec", tag = "1")]
-    pub rollup_id: ::prost::alloc::vec::Vec<u8>,
+    #[prost(message, optional, tag = "1")]
+    pub rollup_id: ::core::option::Option<super::super::primitive::v1::RollupId>,
     /// The serialized bytes of the rollup data.
     /// Each entry is a protobuf-encoded `RollupData` message.
     #[prost(bytes = "vec", repeated, tag = "2")]
@@ -113,11 +113,11 @@ pub struct Deposit {
     /// this is required as initializing an account as a bridge account
     /// is permissionless, so the rollup consensus needs to know and enshrine
     /// which accounts it accepts as valid bridge accounts.
-    #[prost(bytes = "vec", tag = "1")]
-    pub bridge_address: ::prost::alloc::vec::Vec<u8>,
+    #[prost(message, optional, tag = "1")]
+    pub bridge_address: ::core::option::Option<super::super::primitive::v1::Address>,
     /// the rollup_id which the funds are being deposited to
-    #[prost(bytes = "vec", tag = "2")]
-    pub rollup_id: ::prost::alloc::vec::Vec<u8>,
+    #[prost(message, optional, tag = "2")]
+    pub rollup_id: ::core::option::Option<super::super::primitive::v1::RollupId>,
     #[prost(message, optional, tag = "3")]
     pub amount: ::core::option::Option<super::super::primitive::v1::Uint128>,
     #[prost(bytes = "vec", tag = "4")]
@@ -226,8 +226,8 @@ pub struct CelestiaRollupBlob {
     pub sequencer_block_hash: ::prost::alloc::vec::Vec<u8>,
     /// The 32 bytes identifying the rollup this blob belongs to. Matches
     /// `astria.sequencer.v1.RollupTransactions.rollup_id`
-    #[prost(bytes = "vec", tag = "2")]
-    pub rollup_id: ::prost::alloc::vec::Vec<u8>,
+    #[prost(message, optional, tag = "2")]
+    pub rollup_id: ::core::option::Option<super::super::primitive::v1::RollupId>,
     /// A list of opaque bytes that are serialized rollup transactions.
     #[prost(bytes = "vec", repeated, tag = "3")]
     pub transactions: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
@@ -263,8 +263,8 @@ pub struct CelestiaSequencerBlob {
     /// The rollup IDs for which `CelestiaRollupBlob`s were submitted to celestia.
     /// Corresponds to the `astria.sequencer.v1.RollupTransactions.rollup_id` field
     /// and is extracted from `astria.SequencerBlock.rollup_transactions`.
-    #[prost(bytes = "vec", repeated, tag = "3")]
-    pub rollup_ids: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+    #[prost(message, repeated, tag = "3")]
+    pub rollup_ids: ::prost::alloc::vec::Vec<super::super::primitive::v1::RollupId>,
     /// The proof that the rollup transactions are included in sequencer block.
     /// Corresponds to `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions_proof`.
     #[prost(message, optional, tag = "4")]
@@ -304,8 +304,8 @@ pub struct GetFilteredSequencerBlockRequest {
     #[prost(uint64, tag = "1")]
     pub height: u64,
     /// The 32 bytes identifying a rollup. Usually the sha256 hash of a plain rollup name.
-    #[prost(bytes = "vec", repeated, tag = "2")]
-    pub rollup_ids: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+    #[prost(message, repeated, tag = "2")]
+    pub rollup_ids: ::prost::alloc::vec::Vec<super::super::primitive::v1::RollupId>,
 }
 impl ::prost::Name for GetFilteredSequencerBlockRequest {
     const NAME: &'static str = "GetFilteredSequencerBlockRequest";

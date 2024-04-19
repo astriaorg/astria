@@ -113,7 +113,7 @@ impl RollupTransactions {
             proof,
         } = self;
         raw::RollupTransactions {
-            rollup_id: rollup_id.get().to_vec(),
+            rollup_id: Some(rollup_id.into_raw()),
             transactions,
             proof: Some(proof.into_raw()),
         }
@@ -129,8 +129,11 @@ impl RollupTransactions {
             transactions,
             proof,
         } = raw;
+        let Some(rollup_id) = rollup_id else {
+            return Err(RollupTransactionsError::field_not_set("rollup_id"));
+        };
         let rollup_id =
-            RollupId::try_from_slice(&rollup_id).map_err(RollupTransactionsError::rollup_id)?;
+            RollupId::try_from_raw(rollup_id).map_err(RollupTransactionsError::rollup_id)?;
         let proof = 'proof: {
             let Some(proof) = proof else {
                 break 'proof Err(RollupTransactionsError::field_not_set("proof"));
@@ -1400,8 +1403,8 @@ impl Deposit {
             destination_chain_address,
         } = self;
         raw::Deposit {
-            bridge_address: bridge_address.to_vec(),
-            rollup_id: rollup_id.to_vec(),
+            bridge_address: Some(bridge_address.into_raw()),
+            rollup_id: Some(rollup_id.into_raw()),
             amount: Some(amount.into()),
             asset_id: asset_id.get().to_vec(),
             destination_chain_address,
@@ -1424,11 +1427,17 @@ impl Deposit {
             asset_id,
             destination_chain_address,
         } = raw;
-        let bridge_address = Address::try_from_slice(&bridge_address)
+        let Some(bridge_address) = bridge_address else {
+            return Err(DepositError::field_not_set("bridge_address"));
+        };
+        let bridge_address = Address::try_from_raw(bridge_address)
             .map_err(DepositError::incorrect_address_length)?;
         let amount = amount.ok_or(DepositError::field_not_set("amount"))?.into();
-        let rollup_id = RollupId::try_from_slice(&rollup_id)
-            .map_err(DepositError::incorrect_rollup_id_length)?;
+        let Some(rollup_id) = rollup_id else {
+            return Err(DepositError::field_not_set("rollup_id"));
+        };
+        let rollup_id =
+            RollupId::try_from_raw(rollup_id).map_err(DepositError::incorrect_rollup_id_length)?;
         let asset_id = asset::Id::try_from_slice(&asset_id)
             .map_err(DepositError::incorrect_asset_id_length)?;
         Ok(Self {

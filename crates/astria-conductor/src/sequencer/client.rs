@@ -89,7 +89,7 @@ impl SequencerGrpcClient {
             let mut client = client.clone();
             let req = GetFilteredSequencerBlockRequest {
                 height,
-                rollup_ids: vec![rollup_id.to_vec()],
+                rollup_ids: vec![rollup_id.to_raw()],
             };
             async move { client.get_filtered_sequencer_block(req).await }
         })
