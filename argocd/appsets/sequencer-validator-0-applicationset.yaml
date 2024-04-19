@@ -8,18 +8,18 @@ spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]
   generators:
-    # PR template vars for this generator:
-    # https://argo-cd.readthedocs.io/en/stable/operator-manual/applicationset/Generators-Pull-Request/  
-    # https://github.com/argoproj/argo-cd/blob/33f5714c832eebee420dad6e14a638915b9ba872/applicationset/generators/pull_request.go#L104
-    # {{ .number }}
-    # {{ .branch }}
-    # {{ .branch_slug }}
-    # {{ .target_branch_slug }}
-    # {{ .head_sha }}
-    # {{ .head_short_sha }}
-    # {{ .head_short_sha_7 }}
-    # {{ .labels }}
   - pullRequest:
+      # PR template vars for this generator:
+      # https://argo-cd.readthedocs.io/en/stable/operator-manual/applicationset/Generators-Pull-Request/  
+      # https://github.com/argoproj/argo-cd/blob/33f5714c832eebee420dad6e14a638915b9ba872/applicationset/generators/pull_request.go#L104
+      # {{ .number }}
+      # {{ .branch }}
+      # {{ .branch_slug }}
+      # {{ .target_branch_slug }}
+      # {{ .head_sha }}
+      # {{ .head_short_sha }}
+      # {{ .head_short_sha_7 }}
+      # {{ .labels }}
       github:
         owner: astriaorg
         repo: astria
