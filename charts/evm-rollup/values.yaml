@@ -60,7 +60,7 @@ config:
     # ASTRIA_COMPOSER_BUNDLE_QUEUE_CAPACITY * ASTRIA_COMPOSER_MAX_BYTES_PER_BUNDLE (e.g.
     # 40 * 200KB = 8GB) is the limit on how much memory the finished bundle queue can consume.
     # This should be lower than the resource limit enforced by Kubernetes on the pod, defined below
-    bundleQueueCapacity: 40
+    bundleQueueCapacity: 400
     maxSubmitInterval: 2000
     # Configuration specific to EVM rollup genesis
     genesis:

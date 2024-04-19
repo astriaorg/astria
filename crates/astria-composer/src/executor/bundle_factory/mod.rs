@@ -119,11 +119,14 @@ pub(super) enum BundleFactoryError {
     #[error("sequence action is larger than the max bundle size. seq_action size: {size}")]
     SequenceActionTooLarge { size: usize, max_size: usize },
     #[error(
-        "finished bundle queue is full and the sequence action does not fit in the current bundle"
+        "finished bundle queue is at capactiy and the sequence action does not fit in the current \
+         bundle. finished queue capacity: {finished_queue_capacity}, curr bundle size: \
+         {curr_bundle_size}, sequence action size: {sequence_action_size}"
     )]
     FinishedQueueFull {
         curr_bundle_size: usize,
         finished_queue_capacity: usize,
+        sequence_action_size: usize,
         seq_action: SequenceAction,
     },
 }
@@ -172,6 +175,7 @@ impl BundleFactory {
                     Err(BundleFactoryError::FinishedQueueFull {
                         curr_bundle_size: self.curr_bundle.curr_size,
                         finished_queue_capacity: self.finished_queue_capacity,
+                        sequence_action_size: seq_action_size,
                         seq_action,
                     })
                 } else {
