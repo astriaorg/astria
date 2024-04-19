@@ -23,7 +23,8 @@ set -o errexit -o nounset
 } &
 
 exec celestia-appd start --home "${home_dir}" \
-  --grpc.address "127.0.0.1:$celestia_app_grpc_port" \
+  --grpc.address "0.0.0.0:$celestia_app_grpc_port" \
+  --rpc.laddr "tcp://0.0.0.0:$celestia_app_host_port" \
   --api.enable \
   --grpc.enable \
   --grpc-web.enable
