@@ -2,7 +2,6 @@
 
 set -o errexit -o nounset
 
-# if app config already exists then we have already ran initialization.
 if [ -f "$home_dir/config/config.toml" ]; then
   exit 0
 fi
@@ -11,10 +10,11 @@ celestia-appd init "$chainid" \
   --chain-id "$chainid" \
   --home "$home_dir"
 
-celestia-appd keys add \
+echo "$validator_mnemonic" | celestia-appd keys add \
   "$validator_key_name" \
+  --home "$home_dir" \
   --keyring-backend="$keyring_backend" \
-  --home "$home_dir"
+  --recover
 
 validator_key=$(celestia-appd keys show "$validator_key_name" -a --keyring-backend="$keyring_backend" --home "$home_dir")
 celestia-appd add-genesis-account \
@@ -27,6 +27,13 @@ celestia-appd gentx \
   "$validator_stake" \
   --keyring-backend="$keyring_backend" \
   --chain-id "$chainid" \
-  --home "$home_dir" \
+  --home "$home_dir"
 
 celestia-appd collect-gentxs --home "$home_dir"
+
+# Enable transaction indexing
+sed -i'.bak' 's#"null"#"kv"#g' "${home_dir}"/config/config.toml
+# Persist ABCI responses
+sed -i'.bak' 's#discard_abci_responses = true#discard_abci_responses = false#g' "${home_dir}"/config/config.toml
+# Override the VotingPeriod from 1 week to 1 minute
+sed -i'.bak' 's#"604800s"#"60s"#g' "${home_dir}"/config/genesis.json
