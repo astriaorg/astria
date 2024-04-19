@@ -1,6 +1,6 @@
 apiVersion: v2
-name: sequencer
-description: A Helm chart for deploying a k8s node of Astria Sequencer
+name: hermes
+description: A Helm chart for deploying a k8s node of hermes
 
 # A chart can be either an 'application' or a 'library' chart.
 #
@@ -15,24 +15,16 @@ type: application
 # This is the chart version. This version number should be incremented each time you make changes
 # to the chart and its templates, including the app version.
 # Versions are expected to follow Semantic Versioning (https://semver.org/)
-version: 0.11.7
+version: 0.1.0
 
 # This is the version number of the application being deployed. This version number should be
 # incremented each time you make changes to the application. Versions are not expected to
 # follow Semantic Versioning. They should reflect the version the application is using.
 # It is recommended to use it with quotes.
-appVersion: "0.10.1"
-
-dependencies:
-  - name: sequencer-relayer
-    version: "0.5.0"
-    repository: "file://../sequencer-relayer"
-    condition: sequencer-relayer.enabled
+appVersion: "1.8.2"
 
 maintainers:
   - name: wafflesvonmaple
-    url: astria.org
-  - name: steezeburger
     url: astria.org
   - name: joroshiba
     url: astria.org

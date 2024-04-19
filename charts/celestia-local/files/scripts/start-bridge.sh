@@ -40,7 +40,7 @@ echo "waiting for genesis hash from celestia..."
 genesis_hash=$(wait_for_genesis)
 echo "genesis hash received: $genesis_hash"
 
-export CELESTIA_CUSTOM="test:$genesis_hash"
+export CELESTIA_CUSTOM="$chainid:$genesis_hash"
 export GOLOG_LOG_LEVEL="debug"
 
 # fixes: keystore: permissions of key 'p2p-key' are too relaxed: required: 0600, got: 0660

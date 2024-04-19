@@ -7,6 +7,7 @@ default_docker_tag := 'local'
 docker-build crate tag=default_docker_tag:
   docker buildx build --load --build-arg TARGETBINARY={{crate}} -f containerfiles/Dockerfile -t {{crate}}:{{tag}} .
 
+# Installs the astria rust cli from local codebase
 install-cli:
   cargo install --path ./crates/astria-cli --locked
 
@@ -141,6 +142,13 @@ deploy-sequencer name=validatorName:
     -n astria-validator-{{name}} --create-namespace \
     {{name}}-sequencer-chart ./charts/sequencer
 deploy-sequencers: (deploy-sequencer "node0") (deploy-sequencer "node1") (deploy-sequencer "node2")
+
+deploy-hermes-local:
+  helm install hermes-local-chart ./charts/hermes \
+    -n astria-dev-cluster \
+    -f dev/values/hermes/local.yml
+delete-hermes-local:
+  @just delete chart hermes-local
 
 delete-sequencer name=validatorName:
   @just delete chart {{name}}-sequencer astria-validator-{{name}}
