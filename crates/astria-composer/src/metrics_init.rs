@@ -149,6 +149,12 @@ pub fn register() {
         Unit::Milliseconds,
         "The total latency of submitting a bundle to the sequencer including nonce refetches"
     );
+
+    describe_histogram!(
+        NONCE_FETCH_PER_BUNDLE,
+        Unit::Count,
+        "The number of nonce fetches per bundle"
+    );
 }
 
 // We configure buckets for manually, in order to ensure Prometheus metrics are structured as a
@@ -246,3 +252,6 @@ pub const BUNDLES_TOTAL_TRANSACTIONS_COUNT: &str = concat!(
 
 pub const TOTAL_BUNDLE_SUBMISSION_LATENCY: &str =
     concat!(env!("CARGO_CRATE_NAME"), "_total_bundle_submission_latency");
+
+pub const NONCE_FETCH_PER_BUNDLE: &str =
+    concat!(env!("CARGO_CRATE_NAME"), "_nonce_fetch_per_bundle");
