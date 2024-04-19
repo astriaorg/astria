@@ -10,9 +10,8 @@ use serde::{
 /// The single config for creating an astria-sequencer-relayer service.
 pub struct Config {
     pub cometbft_endpoint: String,
+    #[serde(default, rename = "sequenecer_block_time_seconds")]
     pub block_time: u64,
-    #[serde(default)]
-    pub validator_key_file: String,
     // The socket address at which sequencer relayer will server healthz, readyz, and status calls.
     pub api_addr: String,
     pub log: String,
