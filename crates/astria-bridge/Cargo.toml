@@ -1,0 +1,41 @@
+[package]
+name = "astria-bridge"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.73"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/astriaorg/astria"
+homepage = "https://astria.org"
+
+[[bin]]
+name = "astria-bridge"
+
+[dependencies]
+http = "0.2.9"
+
+axum = { workspace = true }
+hyper = { workspace = true }
+metrics = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal"] }
+tokio-util = { workspace = true }
+
+astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
+astria-eyre = { path = "../astria-eyre" }
+config = { package = "astria-config", path = "../astria-config" }
+telemetry = { package = "astria-telemetry", path = "../astria-telemetry", features = [
+    "display",
+] }
+
+[dev-dependencies]
+astria-core = { path = "../astria-core", features = ["server", "test-utils"] }
+astria-grpc-mock = { path = "../astria-grpc-mock" }
+config = { package = "astria-config", path = "../astria-config", features = [
+    "tests",
+] }
+
+[build-dependencies]
+astria-build-info = { path = "../astria-build-info", features = ["build"] }

@@ -2,7 +2,9 @@
 exclude = ["tools/protobuf-compiler"]
 
 members = [
+  "crates/astria-bridge",
   "crates/astria-build-info",
+  "crates/astria-bridge",
   "crates/astria-celestia-client",
   "crates/astria-celestia-mock",
   "crates/astria-cli",
@@ -26,6 +28,7 @@ members = [
 # Specify default members so that cargo invocations in github actions will
 # not act on lints
 default-members = [
+  "crates/astria-bridge",
   "crates/astria-build-info",
   "crates/astria-celestia-client",
   "crates/astria-celestia-mock",

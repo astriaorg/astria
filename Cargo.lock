@@ -479,6 +479,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "astria-bridge"
+version = "0.1.0"
+dependencies = [
+ "astria-build-info",
+ "astria-config",
+ "astria-core",
+ "astria-eyre",
+ "astria-grpc-mock",
+ "astria-telemetry",
+ "axum",
+ "http",
+ "hyper",
+ "metrics",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-util 0.7.10",
+ "tracing",
+]
+
+[[package]]
 name = "astria-build-info"
 version = "0.1.0"
 dependencies = [
