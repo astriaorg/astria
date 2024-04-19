@@ -427,7 +427,7 @@ fn make_config() -> Config {
 #[must_use]
 pub fn make_sequencer_block(height: u32) -> astria_core::sequencerblock::v1alpha1::SequencerBlock {
     astria_core::sequencerblock::v1alpha1::SequencerBlock::try_from_cometbft(
-        astria_core::sequencer::v1::test_utils::ConfigureCometBftBlock {
+        astria_core::protocol::test_utils::ConfigureCometBftBlock {
             chain_id: Some(crate::SEQUENCER_CHAIN_ID.to_string()),
             height,
             rollup_transactions: vec![(crate::ROLLUP_ID, data())],
