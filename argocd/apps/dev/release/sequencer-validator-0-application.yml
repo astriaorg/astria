@@ -1,0 +1,22 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: sequencer-dusk4-node0
+  labels:
+    network: dusk-4
+spec:
+  project: default
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: astria-dusk4-cluster
+  sources:
+    - repoURL: https://astriaorg.github.io/charts/
+      targetRevision: 0.11.2
+      chart: sequencer
+      helm:
+        valueFiles:
+          - $values/apps/sequencer/dusk-4/values-all.yaml
+          - $values/apps/sequencer/dusk-4/values-node-0.yaml
+    - repoURL: 'git@github.com/astriaorg/argocd-apps.git'
+      ref: values
+      targetRevision: HEAD
