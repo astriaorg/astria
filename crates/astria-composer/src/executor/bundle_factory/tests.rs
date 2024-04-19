@@ -260,6 +260,7 @@ mod bundle_factory_tests {
             Err(BundleFactoryError::FinishedQueueFull {
                 curr_bundle_size: _,
                 finished_queue_capacity: _,
+                sequence_action_size: _,
                 seq_action: _
             })
         ));
@@ -320,6 +321,7 @@ mod bundle_factory_tests {
             Err(BundleFactoryError::FinishedQueueFull {
                 curr_bundle_size: _,
                 finished_queue_capacity: _,
+                sequence_action_size: _,
                 seq_action: _
             })
         ));
