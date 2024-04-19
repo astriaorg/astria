@@ -411,11 +411,15 @@ fn tracked_submit_bundle(
 ) -> Fuse<Instrumented<TrackedSubmitFut>> {
     async move {
         let start = Instant::now();
-        let nonce = submit_fut
+        let (nonce, total_nonce_fetches) = submit_fut
             .await
             .wrap_err("failed submitting bundle to sequencer")?;
         let duration = start.elapsed();
+
         metrics::histogram!(crate::metrics_init::TOTAL_BUNDLE_SUBMISSION_LATENCY).record(duration);
+        metrics::histogram!(crate::metrics_init::NONCE_FETCH_PER_BUNDLE)
+            .record(total_nonce_fetches as f64);
+
         Ok(nonce)
     }
     .boxed()
@@ -568,10 +572,11 @@ pin_project! {
 }
 
 impl Future for SubmitFut {
-    type Output = eyre::Result<u32>;
+    type Output = eyre::Result<(u32, u32)>;
 
     #[allow(clippy::too_many_lines)]
     fn poll(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+        let mut total_nonce_fetches: u32 = 0;
         loop {
             let this = self.as_mut().project();
 
@@ -607,7 +612,7 @@ impl Future for SubmitFut {
                             )
                             .increment(1);
 
-                            return Poll::Ready(Ok(*this.nonce + 1));
+                            return Poll::Ready(Ok((*this.nonce + 1, total_nonce_fetches)));
                         };
                         match AbciErrorCode::from(code) {
                             AbciErrorCode::INVALID_NONCE => {
@@ -615,6 +620,7 @@ impl Future for SubmitFut {
                                     "sequencer rejected transaction due to invalid nonce; \
                                      fetching new nonce"
                                 );
+                                total_nonce_fetches += 1;
                                 SubmitState::WaitingForNonce {
                                     fut: get_latest_nonce(this.client.clone(), *this.address)
                                         .boxed(),
@@ -634,7 +640,7 @@ impl Future for SubmitFut {
                                 )
                                 .increment(1);
 
-                                return Poll::Ready(Ok(*this.nonce));
+                                return Poll::Ready(Ok((*this.nonce, total_nonce_fetches)));
                             }
                         }
                     }
