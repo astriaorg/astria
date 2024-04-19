@@ -66,6 +66,16 @@ spec:
           
         parameters:
           # Use parameter overrides w/ strings because templating with values/valuesObjects doesn't work
+          # https://argo-cd.readthedocs.io/en/stable/user-guide/build-environment
+          # Build environment vars:
+          #   ARGOCD_APP_NAME
+          #   ARGOCD_APP_NAMESPACE
+          #   ARGOCD_APP_REVISION
+          #   ARGOCD_APP_REVISION_SHORT
+          #   ARGOCD_APP_SOURCE_PATH
+          #   ARGOCD_APP_SOURCE_REPO_URL
+          #   ARGOCD_APP_SOURCE_TARGET_REVISION)
+
         - name: global.namespace
           value: $ARGOCD_APP_NAMESPACE
         - name: ingress.hostname
