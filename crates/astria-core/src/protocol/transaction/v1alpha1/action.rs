@@ -378,7 +378,7 @@ impl SequenceAction {
             return Err(SequenceActionError::field_not_set("rollup_id"));
         };
         let rollup_id =
-            RollupId::try_from_raw(rollup_id).map_err(SequenceActionError::rollup_id_length)?;
+            RollupId::try_from_raw(&rollup_id).map_err(SequenceActionError::rollup_id_length)?;
         let fee_asset_id =
             asset::Id::try_from_slice(&fee_asset_id).map_err(SequenceActionError::fee_asset_id)?;
         Ok(Self {
@@ -449,7 +449,7 @@ impl TransferAction {
         let Some(to) = to else {
             return Err(TransferActionError::field_not_set("to"));
         };
-        let to = Address::try_from_raw(to).map_err(TransferActionError::address_length)?;
+        let to = Address::try_from_raw(&to).map_err(TransferActionError::address_length)?;
         let amount = amount.map_or(0, Into::into);
         let asset_id =
             asset::Id::try_from_slice(&asset_id).map_err(TransferActionError::asset_id)?;
@@ -542,7 +542,7 @@ impl SudoAddressChangeAction {
             return Err(SudoAddressChangeActionError::field_not_set("new_address"));
         };
         let new_address =
-            Address::try_from_raw(new_address).map_err(SudoAddressChangeActionError::address)?;
+            Address::try_from_raw(&new_address).map_err(SudoAddressChangeActionError::address)?;
         Ok(Self {
             new_address,
         })
@@ -557,6 +557,7 @@ impl SudoAddressChangeActionError {
     fn field_not_set(field: &'static str) -> Self {
         Self(SudoAddressChangeActionErrorKind::FieldNotSet(field))
     }
+
     fn address(inner: IncorrectAddressLength) -> Self {
         Self(SudoAddressChangeActionErrorKind::Address(inner))
     }
@@ -616,7 +617,7 @@ impl MintAction {
         let Some(to) = to else {
             return Err(MintActionError::field_not_set("to"));
         };
-        let to = Address::try_from_raw(to).map_err(MintActionError::address_length)?;
+        let to = Address::try_from_raw(&to).map_err(MintActionError::address_length)?;
         let amount = amount.map_or(0, Into::into);
         Ok(Self {
             to,
@@ -917,14 +918,14 @@ impl IbcRelayerChangeAction {
             raw::IbcRelayerChangeAction {
                 value: Some(raw::ibc_relayer_change_action::Value::Addition(address)),
             } => {
-                let address = Address::try_from_raw(address.clone())
+                let address = Address::try_from_raw(address)
                     .map_err(IbcRelayerChangeActionError::invalid_address)?;
                 Ok(IbcRelayerChangeAction::Addition(address))
             }
             raw::IbcRelayerChangeAction {
                 value: Some(raw::ibc_relayer_change_action::Value::Removal(address)),
             } => {
-                let address = Address::try_from_raw(address.clone())
+                let address = Address::try_from_raw(address)
                     .map_err(IbcRelayerChangeActionError::invalid_address)?;
                 Ok(IbcRelayerChangeAction::Removal(address))
             }
@@ -1091,7 +1092,7 @@ impl InitBridgeAccountAction {
         let Some(rollup_id) = proto.rollup_id else {
             return Err(InitBridgeAccountActionError::field_not_set("rollup_id"));
         };
-        let rollup_id = RollupId::try_from_raw(rollup_id)
+        let rollup_id = RollupId::try_from_raw(&rollup_id)
             .map_err(InitBridgeAccountActionError::invalid_rollup_id)?;
         let asset_ids = proto
             .asset_ids
@@ -1200,7 +1201,7 @@ impl BridgeLockAction {
         let Some(to) = proto.to else {
             return Err(BridgeLockActionError::field_not_set("to"));
         };
-        let to = Address::try_from_raw(to).map_err(BridgeLockActionError::invalid_address)?;
+        let to = Address::try_from_raw(&to).map_err(BridgeLockActionError::invalid_address)?;
         let amount = proto
             .amount
             .ok_or(BridgeLockActionError::missing_amount())?;

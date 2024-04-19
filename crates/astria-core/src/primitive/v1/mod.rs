@@ -197,7 +197,7 @@ impl RollupId {
     /// # Errors
     ///
     /// Returns an error if the byte slice was not 32 bytes long.
-    pub fn try_from_raw(raw: raw::RollupId) -> Result<Self, IncorrectRollupIdLength> {
+    pub fn try_from_raw(raw: &raw::RollupId) -> Result<Self, IncorrectRollupIdLength> {
         Self::try_from_slice(&raw.inner)
     }
 }
@@ -320,7 +320,7 @@ impl Address {
     /// # Errors
     ///
     /// Returns an error if the account buffer was not 20 bytes long.
-    pub fn try_from_raw(raw: raw::Address) -> Result<Self, IncorrectAddressLength> {
+    pub fn try_from_raw(raw: &raw::Address) -> Result<Self, IncorrectAddressLength> {
         Self::try_from_slice(&raw.inner)
     }
 }

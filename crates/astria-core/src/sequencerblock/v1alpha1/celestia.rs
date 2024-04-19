@@ -258,7 +258,7 @@ impl CelestiaRollupBlob {
             return Err(CelestiaRollupBlobError::field_not_set("rollup_id"));
         };
         let rollup_id =
-            RollupId::try_from_raw(rollup_id).map_err(CelestiaRollupBlobError::rollup_id)?;
+            RollupId::try_from_raw(&rollup_id).map_err(CelestiaRollupBlobError::rollup_id)?;
         let sequencer_block_hash = sequencer_block_hash
             .try_into()
             .map_err(|bytes: Vec<u8>| CelestiaRollupBlobError::sequencer_block_hash(bytes.len()))?;
@@ -438,7 +438,7 @@ impl UncheckedCelestiaSequencerBlob {
         }?;
         let rollup_ids: Vec<_> = rollup_ids
             .into_iter()
-            .map(RollupId::try_from_raw)
+            .map(|raw| RollupId::try_from_raw(&raw))
             .collect::<Result<_, _>>()
             .map_err(CelestiaSequencerBlobError::rollup_ids)?;
 
