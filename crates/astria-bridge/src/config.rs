@@ -7,12 +7,11 @@ use serde::{
 // for deserialization. Making this a builder-pattern is not actionable.
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-/// The single config for creating an astria-sequencer-relayer service.
+/// The single config for creating an astria-bridge service.
 pub struct Config {
     pub cometbft_endpoint: String,
-    #[serde(default, rename = "sequenecer_block_time_seconds")]
-    pub block_time: u64,
-    // The socket address at which sequencer relayer will server healthz, readyz, and status calls.
+    // The socket address at which the bridge service will server healthz, readyz, and status
+    // calls.
     pub api_addr: String,
     pub log: String,
     /// Forces writing trace data to stdout no matter if connected to a tty or not.
@@ -28,7 +27,7 @@ pub struct Config {
 }
 
 impl config::Config for Config {
-    const PREFIX: &'static str = "ASTRIA_SEQUENCER_RELAYER_";
+    const PREFIX: &'static str = "ASTRIA_BRIDGE_";
 }
 
 #[cfg(test)]
