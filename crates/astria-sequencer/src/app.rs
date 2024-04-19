@@ -2206,7 +2206,7 @@ mod test {
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
-        let response = app.deliver_tx(signed_tx).await;
+        let response = app.execute_transaction(signed_tx).await;
 
         // check that tx was not executed by checking nonce and balance are unchanged
         assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 0);
@@ -2473,7 +2473,10 @@ mod test {
             fee_asset_id: asset_id,
         };
         let tx = UnsignedTransaction {
-            nonce: 0,
+            params: TransactionParams {
+                nonce: 0,
+                chain_id: "test".to_string(),
+            },
             actions: vec![lock_action.into(), sequence_action.into()],
         };
 

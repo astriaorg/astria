@@ -61,7 +61,7 @@ pub(crate) async fn check_chain_id_mempool<S: StateReadExt + 'static>(
         .await
         .context("failed to get chain id")?;
     ensure!(
-        tx.unsigned_transaction().params.chain_id == chain_id,
+        tx.unsigned_transaction().params.chain_id == chain_id.as_str(),
         "chain id mismatch"
     );
     Ok(())
@@ -275,7 +275,7 @@ impl ActionHandler for UnsignedTransaction {
         // Transactions must match the chain id of the node.
         let chain_id = state.get_chain_id().await?;
         ensure!(
-            self.params.chain_id == chain_id,
+            self.params.chain_id == chain_id.as_str(),
             InvalidChainId(self.params.chain_id.clone())
         );
 
