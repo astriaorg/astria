@@ -348,12 +348,12 @@ async fn execute_ics20_transfer_bridge_lock<S: StateWriteExt>(
         "packet memo field must be set for bridge account recipient",
     );
 
-    let allowed_asset_ids = state
+    let allowed_asset_id = state
         .get_bridge_account_asset_ids(recipient)
         .await
-        .context("failed to get bridge account asset IDs")?;
+        .context("failed to get bridge account asset ID")?;
     ensure!(
-        allowed_asset_ids.contains(&denom.id()),
+        allowed_asset_id == denom.id(),
         "asset ID is not authorized for transfer to bridge account",
     );
 
@@ -575,7 +575,7 @@ mod test {
 
         state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
         state_tx
-            .put_bridge_account_asset_ids(&bridge_address, &[denom.id()])
+            .put_bridge_account_asset_id(&bridge_address, &denom.id())
             .unwrap();
 
         let packet = FungibleTokenPacketData {
@@ -628,7 +628,7 @@ mod test {
 
         state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
         state_tx
-            .put_bridge_account_asset_ids(&bridge_address, &[denom.id()])
+            .put_bridge_account_asset_id(&bridge_address, &denom.id())
             .unwrap();
 
         // use empty memo, which should fail
@@ -666,7 +666,7 @@ mod test {
 
         state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
         state_tx
-            .put_bridge_account_asset_ids(&bridge_address, &[denom.id()])
+            .put_bridge_account_asset_id(&bridge_address, &denom.id())
             .unwrap();
 
         // use invalid asset, which should fail

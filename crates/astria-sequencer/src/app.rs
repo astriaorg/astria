@@ -1731,7 +1731,7 @@ mod test {
         let asset_id = get_native_asset().id();
         let action = InitBridgeAccountAction {
             rollup_id,
-            asset_ids: vec![asset_id],
+            asset_id: asset_id,
             fee_asset_id: asset_id,
         };
         let tx = UnsignedTransaction {
@@ -1761,7 +1761,7 @@ mod test {
                 .get_bridge_account_asset_ids(&alice_address)
                 .await
                 .unwrap(),
-            vec![asset_id]
+            asset_id
         );
         assert_eq!(
             app.state
@@ -1770,29 +1770,6 @@ mod test {
                 .unwrap(),
             before_balance - INIT_BRIDGE_ACCOUNT_FEE
         );
-    }
-
-    #[tokio::test]
-    async fn app_execute_transaction_init_bridge_account_empty_asset_ids() {
-        use astria_core::protocol::transaction::v1alpha1::action::InitBridgeAccountAction;
-
-        let (alice_signing_key, _) = get_alice_signing_key_and_address();
-        let mut app = initialize_app(None, vec![]).await;
-
-        let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
-        let asset_id = get_native_asset().id();
-        let action = InitBridgeAccountAction {
-            rollup_id,
-            asset_ids: vec![],
-            fee_asset_id: asset_id,
-        };
-        let tx = UnsignedTransaction {
-            nonce: 0,
-            actions: vec![action.into()],
-        };
-
-        let signed_tx = tx.into_signed(&alice_signing_key);
-        assert!(app.execute_transaction(signed_tx).await.is_err());
     }
 
     #[tokio::test]
@@ -1806,7 +1783,7 @@ mod test {
         let asset_id = get_native_asset().id();
         let action = InitBridgeAccountAction {
             rollup_id,
-            asset_ids: vec![asset_id],
+            asset_id: asset_id,
             fee_asset_id: asset_id,
         };
         let tx = UnsignedTransaction {
@@ -1819,7 +1796,7 @@ mod test {
 
         let action = InitBridgeAccountAction {
             rollup_id,
-            asset_ids: vec![asset_id],
+            asset_id: asset_id,
             fee_asset_id: asset_id,
         };
         let tx = UnsignedTransaction {
@@ -1843,7 +1820,7 @@ mod test {
         let mut state_tx = StateDelta::new(app.state.clone());
         state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
         state_tx
-            .put_bridge_account_asset_ids(&bridge_address, &[asset_id])
+            .put_bridge_account_asset_id(&bridge_address, &asset_id)
             .unwrap();
         app.apply(state_tx);
 
@@ -1943,7 +1920,7 @@ mod test {
         let mut state_tx = StateDelta::new(app.state.clone());
         state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
         state_tx
-            .put_bridge_account_asset_ids(&bridge_address, &[asset_id])
+            .put_bridge_account_asset_id(&bridge_address, &asset_id)
             .unwrap();
         app.apply(state_tx);
 
@@ -2242,7 +2219,7 @@ mod test {
         let mut state_tx = StateDelta::new(app.state.clone());
         state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
         state_tx
-            .put_bridge_account_asset_ids(&bridge_address, &[asset_id])
+            .put_bridge_account_asset_id(&bridge_address, &asset_id)
             .unwrap();
         app.apply(state_tx);
         app.prepare_commit(storage.clone()).await.unwrap();
@@ -2330,7 +2307,7 @@ mod test {
         let mut state_tx = StateDelta::new(app.state.clone());
         state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
         state_tx
-            .put_bridge_account_asset_ids(&bridge_address, &[asset_id])
+            .put_bridge_account_asset_id(&bridge_address, &asset_id)
             .unwrap();
         app.apply(state_tx);
         app.prepare_commit(storage.clone()).await.unwrap();

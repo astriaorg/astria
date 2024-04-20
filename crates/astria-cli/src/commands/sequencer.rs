@@ -276,7 +276,7 @@ pub(crate) async fn init_bridge_account(args: &InitBridgeAccountArgs) -> eyre::R
         args.private_key.as_str(),
         Action::InitBridgeAccount(InitBridgeAccountAction {
             rollup_id,
-            asset_ids: vec![default_native_asset_id()],
+            asset_id: default_native_asset_id(),
             fee_asset_id: default_native_asset_id(),
         }),
     )
