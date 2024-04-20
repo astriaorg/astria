@@ -15,6 +15,7 @@ use astria_core::protocol::{
     transaction::v1alpha1::{
         action::SequenceAction,
         SignedTransaction,
+        TransactionParams,
         UnsignedTransaction,
     },
 };
@@ -104,6 +105,8 @@ pub(super) struct Executor {
     // The client for submitting wrapped and signed pending eth transactions to the astria
     // sequencer.
     sequencer_client: sequencer_client::HttpClient,
+    // The chain id used for submission of transactions to the sequencer.
+    sequencer_chain_id: String,
     // Private key used to sign sequencer transactions
     sequencer_key: SigningKey,
     // The sequencer address associated with the private key
@@ -175,6 +178,7 @@ impl Executor {
             client: self.sequencer_client.clone(),
             address: self.address,
             nonce,
+            chain_id: self.sequencer_chain_id.clone(),
             signing_key: self.sequencer_key.clone(),
             state: SubmitState::NotStarted,
             bundle,
@@ -425,7 +429,7 @@ async fn get_latest_nonce(
     name = "submit signed transaction",
     skip_all,
     fields(
-        nonce = tx.unsigned_transaction().nonce,
+        nonce = tx.unsigned_transaction().params.nonce,
         transaction.hash = hex::encode(sha256(&tx.to_raw().encode_to_vec())),
     )
 )]
@@ -481,6 +485,7 @@ pin_project! {
     struct SubmitFut {
         client: sequencer_client::HttpClient,
         address: Address,
+        chain_id: String,
         nonce: u32,
         signing_key: SigningKey,
         #[pin]
@@ -519,9 +524,13 @@ impl Future for SubmitFut {
 
             let new_state = match this.state.project() {
                 SubmitStateProj::NotStarted => {
-                    let tx = UnsignedTransaction {
+                    let params = TransactionParams {
                         nonce: *this.nonce,
+                        chain_id: this.chain_id.clone(),
+                    };
+                    let tx = UnsignedTransaction {
                         actions: this.bundle.clone().into_actions(),
+                        params,
                     }
                     .into_signed(this.signing_key);
                     info!(
@@ -577,9 +586,13 @@ impl Future for SubmitFut {
                 } => match ready!(fut.poll(cx)) {
                     Ok(nonce) => {
                         *this.nonce = nonce;
-                        let tx = UnsignedTransaction {
+                        let params = TransactionParams {
                             nonce: *this.nonce,
+                            chain_id: this.chain_id.clone(),
+                        };
+                        let tx = UnsignedTransaction {
                             actions: this.bundle.clone().into_actions(),
+                            params,
                         }
                         .into_signed(this.signing_key);
                         info!(

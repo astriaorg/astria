@@ -20,8 +20,15 @@ message SignedTransaction {
 // not have an attached signature.
 // Note: `value` must be set, it cannot be `None`.
 message UnsignedTransaction {
+  repeated Action actions = 1;
+  TransactionParams params = 2;
+}
+
+// `TransactionParams` contains parameters that define the
+// validity of the transaction.
+message TransactionParams {
   uint32 nonce = 1;
-  repeated Action actions = 2;
+  string chain_id = 2;
 }
 
 message Action {
