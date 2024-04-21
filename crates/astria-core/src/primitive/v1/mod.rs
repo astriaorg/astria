@@ -299,7 +299,7 @@ impl std::fmt::Display for Address {
 
 /// Derive a [`merkle::Tree`] from an iterable.
 ///
-/// It is the responsbility if the caller to ensure that the iterable is
+/// It is the responsibility if the caller to ensure that the iterable is
 /// deterministic. Prefer types like `Vec`, `BTreeMap` or `IndexMap` over
 /// `HashMap`.
 pub fn derive_merkle_tree_from_rollup_txs<'a, T: 'a, U: 'a>(rollup_ids_to_txs: T) -> merkle::Tree

@@ -5,7 +5,7 @@ it contains definitions to convert Rust sources generated from the Astria protob
 spececifications to idiomatic Rust types.
 
 The Rust sources generated from protobuf specifications at
-[`../proto/`](../proto) are commited to this crate under
+[`../proto/`](../proto) are committed to this crate under
 [`./src/proto/generated/`](./src/proto/generated/).
 
 This repo contains all the protobuf packages for Astria. All rust code generated
