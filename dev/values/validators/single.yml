@@ -13,7 +13,7 @@ sequencer-relayer:
     enabled: false
 
 storage:
-  enabled: false
+  enabled: true
 
 ingress:
   rpc:
