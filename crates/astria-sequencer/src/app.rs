@@ -483,20 +483,10 @@ impl App {
                 Err(e) => {
                     debug!(
                         transaction_hash = %telemetry::display::base64(&tx_hash),
+                        error = AsRef::<dyn std::error::Error>::as_ref(&e),
                         "failed to execute transaction, not including in block"
                     );
                     excluded_tx_count += 1;
-                    let code = if e.downcast_ref::<InvalidNonce>().is_some() {
-                        AbciErrorCode::INVALID_NONCE
-                    } else {
-                        AbciErrorCode::INTERNAL_ERROR
-                    };
-                    execution_results.push(ExecTxResult {
-                        code: code.into(),
-                        info: code.to_string(),
-                        log: format!("{e:?}"),
-                        ..Default::default()
-                    });
                 }
             }
         }
