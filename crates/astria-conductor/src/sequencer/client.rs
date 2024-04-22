@@ -7,7 +7,7 @@ use astria_core::{
         sequencer_service_client::SequencerServiceClient,
         GetFilteredSequencerBlockRequest,
     },
-    sequencer::v1::RollupId,
+    primitive::v1::RollupId,
     sequencerblock::v1alpha1::block::FilteredSequencerBlock,
 };
 use astria_eyre::eyre::{

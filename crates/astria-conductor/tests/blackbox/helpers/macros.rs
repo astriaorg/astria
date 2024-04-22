@@ -14,6 +14,45 @@ macro_rules! block {
 }
 
 #[macro_export]
+macro_rules! celestia_network_head {
+    (height: $height:expr) => {
+        ::celestia_client::celestia_types::ExtendedHeader {
+            header: ::celestia_client::celestia_tendermint::block::header::Header {
+                height: $height.into(),
+                version: ::celestia_client::celestia_tendermint::block::header::Version {
+                    block: 0,
+                    app: 0,
+                },
+                chain_id: "test_celestia-1000".try_into().unwrap(),
+                time: ::celestia_client::celestia_tendermint::Time::from_unix_timestamp(1, 1)
+                    .unwrap(),
+                last_block_id: None,
+                last_commit_hash: ::celestia_client::celestia_tendermint::Hash::Sha256([0; 32]),
+                data_hash: ::celestia_client::celestia_tendermint::Hash::Sha256([0; 32]),
+                validators_hash: ::celestia_client::celestia_tendermint::Hash::Sha256([0; 32]),
+                next_validators_hash: ::celestia_client::celestia_tendermint::Hash::Sha256([0; 32]),
+                consensus_hash: ::celestia_client::celestia_tendermint::Hash::Sha256([0; 32]),
+                app_hash: vec![0; 32].try_into().unwrap(),
+                last_results_hash: ::celestia_client::celestia_tendermint::Hash::Sha256([0; 32]),
+                evidence_hash: ::celestia_client::celestia_tendermint::Hash::Sha256([0; 32]),
+                proposer_address: vec![0u8; 20].try_into().unwrap(),
+            },
+            commit: ::celestia_client::celestia_tendermint::block::Commit {
+                height: $height.into(),
+                ..Default::default()
+            },
+            validator_set: ::celestia_client::celestia_tendermint::validator::Set::without_proposer(
+                vec![],
+            ),
+            dah: ::celestia_client::celestia_types::DataAvailabilityHeader {
+                row_roots: vec![],
+                column_roots: vec![],
+            },
+        }
+    };
+}
+
+#[macro_export]
 macro_rules! commitment_state {
     (
         firm: (number: $firm_number:expr,hash: $firm_hash:expr,parent: $firm_parent:expr $(,)?),
@@ -38,9 +77,9 @@ macro_rules! commitment_state {
 #[macro_export]
 macro_rules! filtered_sequencer_block {
     (sequencer_height: $height:expr) => {{
-        let block = ::astria_core::sequencer::v1::test_utils::ConfigureCometBftBlock {
+        let block = ::astria_core::protocol::test_utils::ConfigureCometBftBlock {
             height: $height,
-            rollup_transactions: vec![($crate::ROLLUP_ID, b"hello_world".to_vec())],
+            rollup_transactions: vec![($crate::ROLLUP_ID, $crate::helpers::data())],
             ..Default::default()
         }
         .make();
@@ -69,6 +108,46 @@ macro_rules! genesis_info {
             celestia_block_variance: $variance,
         }
     };
+}
+
+#[macro_export]
+macro_rules! signed_header {
+    (height: $height:expr,block_hash: $block_hash:expr $(,)?) => {};
+}
+
+#[macro_export]
+macro_rules! mount_celestia_blobs {
+    (
+        $test_env:ident,celestia_height:
+        $celestia_height:expr,sequencer_height:
+        $sequencer_height:expr $(,)?
+    ) => {{
+        let blobs = $crate::helpers::make_blobs($sequencer_height);
+        $test_env
+            .mount_celestia_blob_get_all(
+                $celestia_height,
+                $crate::sequencer_namespace(),
+                blobs.header,
+            )
+            .await;
+        $test_env
+            .mount_celestia_blob_get_all($celestia_height, $crate::rollup_namespace(), blobs.rollup)
+            .await
+    }};
+}
+
+#[macro_export]
+macro_rules! mount_celestia_header_network_head {
+    (
+        $test_env:ident,
+        height: $height:expr $(,)?
+    ) => {
+        $test_env
+            .mount_celestia_header_network_head(
+                $crate::celestia_network_head!(height: $height)
+            )
+            .await;
+    }
 }
 
 #[macro_export]
@@ -140,7 +219,7 @@ macro_rules! mount_executed_block {
         $test_env.mount_execute_block(
             ::serde_json::json!({
                 "prev_block_hash": BASE64_STANDARD.encode($parent),
-                "transactions": [{"sequenced_data": BASE64_STANDARD.encode(b"hello_world")}],
+                "transactions": [{"sequenced_data": BASE64_STANDARD.encode($crate::helpers::data())}],
             }),
             $crate::block!(
                 number: $number,
@@ -183,5 +262,30 @@ macro_rules! mount_get_genesis_info {
                 celestia_block_variance: $variance,
             )
         ).await;
+    };
+}
+
+#[macro_export]
+macro_rules! mount_sequencer_commit {
+    ($test_env:ident,height: $height:expr $(,)?) => {
+        $test_env
+            .mount_commit($crate::helpers::make_signed_header($height))
+            .await;
+    };
+}
+
+#[macro_export]
+macro_rules! mount_sequencer_validator_set {
+    ($test_env:ident,height: $height:expr $(,)?) => {
+        $test_env
+            .mount_validator_set($crate::helpers::make_validator_set($height))
+            .await
+    };
+}
+
+#[macro_export]
+macro_rules! mount_sequencer_genesis {
+    ($test_env:ident) => {
+        $test_env.mount_genesis().await;
     };
 }

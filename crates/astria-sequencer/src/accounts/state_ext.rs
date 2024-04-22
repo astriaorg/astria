@@ -2,10 +2,12 @@ use anyhow::{
     Context,
     Result,
 };
-use astria_core::sequencer::v1::{
-    account::AssetBalance,
-    asset,
-    Address,
+use astria_core::{
+    primitive::v1::{
+        asset,
+        Address,
+    },
+    protocol::account::v1alpha1::AssetBalance,
 };
 use async_trait::async_trait;
 use borsh::{
@@ -18,10 +20,7 @@ use cnidarium::{
 };
 use futures::StreamExt;
 use hex::ToHex as _;
-use tracing::{
-    debug,
-    instrument,
-};
+use tracing::instrument;
 
 /// Newtype wrapper to read and write a u32 from rocksdb.
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
@@ -84,7 +83,7 @@ pub(crate) trait StateReadExt: StateRead {
             if asset_id == native_asset.id() {
                 // TODO: this is jank, just have 1 denom type.
                 balances.push(AssetBalance {
-                    denom: astria_core::sequencer::v1::asset::Denom::from(
+                    denom: astria_core::primitive::v1::asset::Denom::from(
                         native_asset.base_denom().to_owned(),
                     ),
                     balance,
@@ -108,7 +107,6 @@ pub(crate) trait StateReadExt: StateRead {
             .await
             .context("failed reading raw account balance from state")?
         else {
-            debug!("account balance not found, returning 0");
             return Ok(0);
         };
         let Balance(balance) = Balance::try_from_slice(&bytes).context("invalid balance bytes")?;
@@ -203,14 +201,16 @@ impl<T: StateWrite> StateWriteExt for T {}
 
 #[cfg(test)]
 mod test {
-    use astria_core::sequencer::v1::{
-        account::AssetBalance,
-        asset::{
-            Denom,
-            Id,
-            DEFAULT_NATIVE_ASSET_DENOM,
+    use astria_core::{
+        primitive::v1::{
+            asset::{
+                Denom,
+                Id,
+                DEFAULT_NATIVE_ASSET_DENOM,
+            },
+            Address,
         },
-        Address,
+        protocol::account::v1alpha1::AssetBalance,
     };
     use cnidarium::StateDelta;
 

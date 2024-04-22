@@ -16,7 +16,7 @@ use anyhow::{
     Result,
 };
 use astria_core::{
-    sequencer::v1::{
+    primitive::v1::{
         asset::Denom,
         Address,
     },
@@ -501,7 +501,7 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
 
 #[cfg(test)]
 mod test {
-    use astria_core::sequencer::v1::RollupId;
+    use astria_core::primitive::v1::RollupId;
     use cnidarium::StateDelta;
 
     use super::*;

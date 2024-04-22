@@ -49,16 +49,21 @@ pub const fn celestia_namespace_v0_from_array<const N: usize>(bytes: [u8; N]) ->
 
 #[must_use = "a celestia namespace must be used in order to be useful"]
 pub const fn celestia_namespace_v0_from_rollup_id(
-    rollup_id: astria_core::sequencer::v1::RollupId,
+    rollup_id: astria_core::primitive::v1::RollupId,
 ) -> Namespace {
     celestia_namespace_v0_from_array(rollup_id.get())
 }
 
 #[must_use = "a celestia namespace must be used in order to be useful"]
 pub fn celestia_namespace_v0_from_str(chain_id: &str) -> Namespace {
+    celestia_namespace_v0_from_bytes(chain_id.as_bytes())
+}
+
+#[must_use = "a celestia namespace must be used in order to be useful"]
+pub fn celestia_namespace_v0_from_bytes(bytes: &[u8]) -> Namespace {
     use sha2::{
         Digest as _,
         Sha256,
     };
-    celestia_namespace_v0_from_array(Sha256::digest(chain_id.as_bytes()).into())
+    celestia_namespace_v0_from_array(Sha256::digest(bytes).into())
 }

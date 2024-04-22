@@ -11,12 +11,10 @@ use super::{
         SequencerBlockHeaderError,
     },
     raw,
+    IncorrectRollupIdLength,
     RollupId,
 };
-use crate::{
-    sequencer::v1::IncorrectRollupIdLength,
-    sequencerblock::Protobuf,
-};
+use crate::Protobuf;
 
 /// A bundle of blobs constructed from a [`super::SequencerBlock`].
 ///
@@ -522,6 +520,18 @@ impl CelestiaSequencerBlob {
     #[must_use]
     pub fn header(&self) -> &SequencerBlockHeader {
         &self.header
+    }
+
+    /// Returns the Merkle Tree Hash constructed from the rollup transactions of the original
+    /// [`SequencerBlock`] this blob was derived from.
+    #[must_use]
+    pub fn rollup_transactions_root(&self) -> [u8; 32] {
+        self.header.rollup_transactions_root()
+    }
+
+    #[must_use]
+    pub fn contains_rollup_id(&self, rollup_id: RollupId) -> bool {
+        self.rollup_ids.contains(&rollup_id)
     }
 
     /// Converts into the unchecked representation fo this type.

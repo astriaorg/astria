@@ -4,12 +4,10 @@ use anyhow::{
     Result,
 };
 use astria_core::{
-    sequencer::v1::{
-        transaction::action::{
-            BridgeLockAction,
-            TransferAction,
-        },
-        Address,
+    primitive::v1::Address,
+    protocol::transaction::v1alpha1::action::{
+        BridgeLockAction,
+        TransferAction,
     },
     sequencerblock::v1alpha1::block::Deposit,
 };

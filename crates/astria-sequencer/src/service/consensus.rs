@@ -222,12 +222,17 @@ mod test {
         str::FromStr,
     };
 
-    use astria_core::sequencer::v1::{
-        asset::DEFAULT_NATIVE_ASSET_DENOM,
-        transaction::action::SequenceAction,
-        Address,
-        RollupId,
-        UnsignedTransaction,
+    use astria_core::{
+        primitive::v1::{
+            asset::DEFAULT_NATIVE_ASSET_DENOM,
+            Address,
+            RollupId,
+        },
+        protocol::transaction::v1alpha1::{
+            action::SequenceAction,
+            TransactionParams,
+            UnsignedTransaction,
+        },
     };
     use bytes::Bytes;
     use ed25519_consensus::{
@@ -250,7 +255,10 @@ mod test {
 
     fn make_unsigned_tx() -> UnsignedTransaction {
         UnsignedTransaction {
-            nonce: 0,
+            params: TransactionParams {
+                nonce: 0,
+                chain_id: "test".to_string(),
+            },
             actions: vec![
                 SequenceAction {
                     rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),

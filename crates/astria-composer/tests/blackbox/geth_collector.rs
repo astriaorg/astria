@@ -1,8 +1,8 @@
 use std::time::Duration;
 
 use astria_core::{
-    generated::sequencer::v1::NonceResponse,
-    sequencer::v1::RollupId,
+    generated::protocol::account::v1alpha1::NonceResponse,
+    primitive::v1::RollupId,
 };
 use ethers::types::Transaction;
 

@@ -7,10 +7,10 @@ use std::{
 };
 
 use astria_core::{
-    generated::sequencer::v1 as raw,
-    sequencer::v1::{
-        AbciErrorCode,
-        SignedTransaction,
+    generated::protocol::transaction::v1alpha1 as raw,
+    protocol::{
+        abci::AbciErrorCode,
+        transaction::v1alpha1::SignedTransaction,
     },
 };
 use cnidarium::Storage;
@@ -146,6 +146,15 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
             ..response::CheckTx::default()
         };
     };
+
+    if let Err(e) = transaction::check_chain_id_mempool(&signed_tx, &state).await {
+        return response::CheckTx {
+            code: AbciErrorCode::INVALID_CHAIN_ID.into(),
+            info: "failed verifying chain id".into(),
+            log: e.to_string(),
+            ..response::CheckTx::default()
+        };
+    }
 
     if let Err(e) = transaction::check_balance_mempool(&signed_tx, &state).await {
         return response::CheckTx {

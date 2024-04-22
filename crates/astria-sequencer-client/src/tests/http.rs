@@ -1,9 +1,14 @@
-use astria_core::sequencer::v1::{
-    asset::default_native_asset_id,
-    transaction::action::TransferAction,
-    Address,
-    SignedTransaction,
-    UnsignedTransaction,
+use astria_core::{
+    primitive::v1::{
+        asset::default_native_asset_id,
+        Address,
+    },
+    protocol::transaction::v1alpha1::{
+        action::TransferAction,
+        SignedTransaction,
+        TransactionParams,
+        UnsignedTransaction,
+    },
 };
 use ed25519_consensus::SigningKey;
 use hex_literal::hex;
@@ -133,7 +138,10 @@ fn create_signed_transaction() -> SignedTransaction {
         .into(),
     ];
     UnsignedTransaction {
-        nonce: 1,
+        params: TransactionParams {
+            nonce: 1,
+            chain_id: "test".to_string(),
+        },
         actions,
     }
     .into_signed(&alice_key)
@@ -141,7 +149,7 @@ fn create_signed_transaction() -> SignedTransaction {
 
 #[tokio::test]
 async fn get_latest_nonce() {
-    use astria_core::generated::sequencer::v1::NonceResponse;
+    use astria_core::generated::protocol::account::v1alpha1::NonceResponse;
     let MockSequencer {
         server,
         client,
@@ -164,7 +172,7 @@ async fn get_latest_nonce() {
 
 #[tokio::test]
 async fn get_latest_balance() {
-    use astria_core::generated::sequencer::v1::{
+    use astria_core::generated::protocol::account::v1alpha1::{
         AssetBalance,
         BalanceResponse,
     };

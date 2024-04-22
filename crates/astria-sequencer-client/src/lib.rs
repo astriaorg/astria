@@ -13,11 +13,13 @@ use std::{
 #[cfg(any(feature = "http", feature = "websocket"))]
 pub use __feature_gated_exports::*;
 pub use astria_core::{
-    sequencer::v1::{
-        Address,
-        BalanceResponse,
-        NonceResponse,
-        SignedTransaction,
+    primitive::v1::Address,
+    protocol::{
+        account::v1alpha1::{
+            BalanceResponse,
+            NonceResponse,
+        },
+        transaction::v1alpha1::SignedTransaction,
     },
     sequencerblock::v1alpha1::SequencerBlock,
 };

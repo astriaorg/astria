@@ -6,7 +6,6 @@ use tendermint::{
     account,
     Time,
 };
-use transaction::SignedTransaction;
 
 use super::{
     are_rollup_ids_included,
@@ -19,17 +18,20 @@ use super::{
     raw,
 };
 use crate::{
-    sequencer::v1::{
+    primitive::v1::{
         asset,
         derive_merkle_tree_from_rollup_txs,
-        transaction,
-        transaction::action,
         Address,
         IncorrectAddressLength,
         IncorrectRollupIdLength,
         RollupId,
     },
-    sequencerblock::Protobuf as _,
+    protocol::transaction::v1alpha1::{
+        action,
+        SignedTransaction,
+        SignedTransactionError,
+    },
+    Protobuf as _,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -225,7 +227,7 @@ impl SequencerBlockError {
         ))
     }
 
-    fn raw_signed_transaction_conversion(source: transaction::SignedTransactionError) -> Self {
+    fn raw_signed_transaction_conversion(source: SignedTransactionError) -> Self {
         Self(SequencerBlockErrorKind::RawSignedTransactionConversion(
             source,
         ))
@@ -308,7 +310,7 @@ enum SequencerBlockErrorKind {
         "failed converting a raw protobuf signed transaction decoded from the cometbft block.data
         field to a native astria signed transaction"
     )]
-    RawSignedTransactionConversion(#[source] transaction::SignedTransactionError),
+    RawSignedTransactionConversion(#[source] SignedTransactionError),
     #[error(
         "the root derived from the rollup transactions in the cometbft block.data field did not \
          match the root stored in the same block.data field"
@@ -799,7 +801,10 @@ impl SequencerBlock {
 
         let mut rollup_datas = IndexMap::new();
         for elem in data_list {
-            let raw_tx = crate::generated::sequencer::v1::SignedTransaction::decode(&*elem)
+            let raw_tx =
+                crate::generated::protocol::transaction::v1alpha1::SignedTransaction::decode(
+                    &*elem,
+                )
                 .map_err(SequencerBlockError::signed_transaction_protobuf_decode)?;
             let signed_tx = SignedTransaction::try_from_raw(raw_tx)
                 .map_err(SequencerBlockError::raw_signed_transaction_conversion)?;
@@ -1318,6 +1323,11 @@ impl FilteredSequencerBlockError {
 /// A [`Deposit`] is constructed whenever a [`BridgeLockAction`] is executed
 /// and stored as part of the block's events.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+#[cfg_attr(
+    feature = "serde",
+    serde(into = "crate::generated::sequencerblock::v1alpha1::Deposit")
+)]
 pub struct Deposit {
     // the address on the sequencer to which the funds were sent to.
     bridge_address: Address,
@@ -1329,6 +1339,12 @@ pub struct Deposit {
     asset_id: asset::Id,
     // the address on the destination chain (rollup) which to send the bridged funds to
     destination_chain_address: String,
+}
+
+impl From<Deposit> for crate::generated::sequencerblock::v1alpha1::Deposit {
+    fn from(deposit: Deposit) -> Self {
+        deposit.into_raw()
+    }
 }
 
 impl Deposit {

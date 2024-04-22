@@ -335,6 +335,7 @@ mod test {
             sequencer_initial_block_height: Some(1),
             sequencer_grpc: String::new(),
             sequencer_rpc: String::new(),
+            sequencer_chain_id: "test-chain-1".to_string(),
             log_level: String::new(),
             hostname: String::new(),
             namespace: "namespace_test".to_string(),

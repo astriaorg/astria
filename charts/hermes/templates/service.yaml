@@ -1,0 +1,27 @@
+{{- if or .Values.rest.enabled .Values.telemetry.enabled .Values.tracingServer.enabled }}
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ include "hermes.fullname" . }}-service
+  namespace: {{ include "hermes.namespace" . }}
+spec:
+  selector:
+    app: {{ include "hermes.fullname" . }}
+  ports:
+    {{- if .Values.rest.enabled }}
+    - name: rest-svc
+      port: {{ .Values.ports.rest }}
+      targetPort: rest
+    {{- end }}
+    {{- if .Values.telemetry.enabled }}
+    - name: telemetry-svc
+      port: {{ .Values.ports.telemetry }}
+      targetPort: telemetry
+    {{- end }}
+    {{- if .Values.tracingServer.enabled }}
+    - name: tracing-svc
+      port: {{ .Values.ports.tracingServer }}
+      targetPort: tracing
+    {{- end }}
+---
+{{- end }}

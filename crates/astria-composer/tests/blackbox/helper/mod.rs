@@ -8,10 +8,12 @@ use astria_composer::{
     config::Config,
     Composer,
 };
-use astria_core::sequencer::v1::{
-    AbciErrorCode,
-    RollupId,
-    SignedTransaction,
+use astria_core::{
+    primitive::v1::RollupId,
+    protocol::{
+        abci::AbciErrorCode,
+        transaction::v1alpha1::SignedTransaction,
+    },
 };
 use astria_eyre::eyre;
 use ethers::prelude::Transaction;
@@ -83,6 +85,7 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
     let config = Config {
         log: String::new(),
         api_listen_addr: "127.0.0.1:0".parse().unwrap(),
+        sequencer_chain_id: "test-chain-1".to_string(),
         rollups,
         sequencer_url,
         private_key: "2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90"
@@ -143,7 +146,7 @@ pub async fn loop_until_composer_is_ready(addr: SocketAddr) {
 }
 
 fn signed_tx_from_request(request: &Request) -> SignedTransaction {
-    use astria_core::generated::sequencer::v1::SignedTransaction as RawSignedTransaction;
+    use astria_core::generated::protocol::transaction::v1alpha1::SignedTransaction as RawSignedTransaction;
     use prost::Message as _;
 
     let wrapped_tx_sync_req: request::Wrapper<tx_sync::Request> =
@@ -171,7 +174,7 @@ fn rollup_id_nonce_from_request(request: &Request) -> (RollupId, u32) {
 
     (
         sequence_action.rollup_id,
-        signed_tx.unsigned_transaction().nonce,
+        signed_tx.unsigned_transaction().params.nonce,
     )
 }
 
