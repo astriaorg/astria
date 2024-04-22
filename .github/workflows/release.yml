@@ -25,7 +25,7 @@ jobs:
         if: github.event_name == 'pull_request'
         run: |
           if [ "${{ github.event_name }}" == "pull_request" ]; then
-            echo "buf_repo_ending=pr/${{ github.event.number }}" >> $GITHUB_ENV
+            echo "buf_repo_ending=${{ github.event.number }}/merge" >> $GITHUB_ENV
           else
             echo "buf_repo_ending=main" >> $GITHUB_ENV
           fi
