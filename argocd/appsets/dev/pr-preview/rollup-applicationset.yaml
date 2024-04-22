@@ -67,12 +67,12 @@ spec:
                 rollup:
                   genesis:
                     alloc:
-                      # - address: "0x95E696aFDc14970b342A2e677A31cb73B0774290"
-                      #   value:
-                      #     balance: "1"
-                      # - address: "0x830B0e9Bb0B1ebad01F2805278Ede64c69e068FE"
-                      #   value:
-                      #     balance: "1"
+                      - address: "0x95E696aFDc14970b342A2e677A31cb73B0774290"
+                        value:
+                          balance: "1"
+                      - address: "0x830B0e9Bb0B1ebad01F2805278Ede64c69e068FE"
+                        value:
+                          balance: "1"
                       - address: "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
                         value:
                           balance: "100000000000000000000000000"
