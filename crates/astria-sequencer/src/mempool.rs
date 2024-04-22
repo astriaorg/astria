@@ -89,6 +89,7 @@ impl BasicMempool {
         self.hash_to_tx.insert(hash, tx);
     }
 
+    // changes the priority of a transaction in the mempool, if it exists
     pub(crate) fn change_priority(
         &mut self,
         tx: &SignedTransaction,

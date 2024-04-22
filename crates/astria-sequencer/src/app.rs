@@ -263,7 +263,7 @@ impl App {
 
         // ignore the txs passed by cometbft in favour of our app-side mempool
         let signed_txs = self.mempool.lock().await.take_all();
-        let txs_to_include = self
+        let (txs_to_include, txs_to_readd_to_mempool) = self
             .execute_transactions_before_finalization(
                 signed_txs.clone(),
                 &mut block_size_constraints,
@@ -271,10 +271,10 @@ impl App {
             .await
             .context("failed to execute transactions")?;
 
-        // update any txs remaining in the mempool that were not included in the block:
-        // update the priority based on any transactions that were executed this block
+        // update the priority of any txs in the mempool based on any transactions
+        // that were executed this block
         let mut mempool = self.mempool.lock().await;
-        for tx in mempool.iter() {
+        for tx in txs_to_readd_to_mempool {
             let Ok(priority) = crate::mempool::TransactionPriority::new(
                 tx.nonce(),
                 self.state
@@ -288,9 +288,8 @@ impl App {
                 );
                 continue;
             };
-            let mut mempool = self.mempool.lock().await;
             mempool
-                .change_priority(tx, priority)
+                .change_priority(&tx, priority)
                 .expect("transaction must be in the mempool, as we're iterating over it");
         }
 
@@ -383,7 +382,7 @@ impl App {
             .filter_map(|bytes| signed_transaction_from_bytes(bytes.as_ref()).ok())
             .collect::<Vec<_>>();
 
-        let txs_to_include = self
+        let (txs_to_include, txs_to_readd_to_mempool) = self
             .execute_transactions_before_finalization(
                 signed_txs.clone(),
                 &mut block_size_constraints,
@@ -398,6 +397,11 @@ impl App {
         ensure!(
             txs_to_include.len() == expected_txs_len,
             "transactions to be included do not match expected",
+        );
+
+        ensure!(
+            txs_to_readd_to_mempool.is_empty(),
+            "should not have txs to re-add to mempool; all transactions should succeed",
         );
 
         let deposits = self
@@ -450,10 +454,11 @@ impl App {
         &mut self,
         txs: Vec<SignedTransaction>,
         block_size_constraints: &mut BlockSizeConstraints,
-    ) -> anyhow::Result<Vec<bytes::Bytes>> {
+    ) -> anyhow::Result<(Vec<bytes::Bytes>, Vec<SignedTransaction>)> {
         let mut validated_txs: Vec<bytes::Bytes> = Vec::with_capacity(txs.len());
         let mut excluded_tx_count: usize = 0;
         let mut execution_results = Vec::with_capacity(txs.len());
+        let mut txs_to_readd_to_mempool = Vec::new();
 
         for tx in txs {
             let bytes = tx.to_raw().encode_to_vec();
@@ -469,6 +474,7 @@ impl App {
                     "excluding transactions: max cometBFT data limit reached"
                 );
                 excluded_tx_count += 1;
+                txs_to_readd_to_mempool.push(tx);
                 continue;
             }
 
@@ -488,6 +494,7 @@ impl App {
                     "excluding transaction: max block sequenced data limit reached"
                 );
                 excluded_tx_count += 1;
+                txs_to_readd_to_mempool.push(tx);
                 continue;
             }
 
@@ -513,6 +520,7 @@ impl App {
                     );
                     excluded_tx_count += 1;
                     let code = if e.downcast_ref::<InvalidNonce>().is_some() {
+                        txs_to_readd_to_mempool.push(tx);
                         AbciErrorCode::INVALID_NONCE
                     } else {
                         AbciErrorCode::INTERNAL_ERROR
@@ -536,7 +544,7 @@ impl App {
         }
 
         self.execution_results = Some(execution_results);
-        Ok(validated_txs)
+        Ok((validated_txs, txs_to_readd_to_mempool))
     }
 
     /// sets up the state for execution of the block's transactions.
