@@ -1,0 +1,19 @@
+name: Reusable Proto Deploy Workflow
+
+on:
+  workflow_call:
+    inputs:
+      proto-directory:
+        required: true
+        type: string
+      updateable-deps:
+        description: 'csv of local dependencies which may need to be updated'
+        required: false
+        type: string
+    secrets:
+      BUF_TOKEN:
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
