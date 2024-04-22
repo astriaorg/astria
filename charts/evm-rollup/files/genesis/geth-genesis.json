@@ -28,7 +28,7 @@
         {{- else }}
         {{- end }}
     },
-    "difficulty": "10000000",
+    "difficulty": "0",
     "gasLimit": "8000000",
     "alloc": {
     {{- range $index, $value := .Values.config.rollup.genesis.alloc }}
