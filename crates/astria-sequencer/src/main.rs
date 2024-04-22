@@ -2,6 +2,7 @@ use std::process::ExitCode;
 
 use anyhow::Context as _;
 use astria_sequencer::{
+    metrics_init,
     Config,
     Sequencer,
     BUILD_INFO,
@@ -37,6 +38,7 @@ async fn main() -> ExitCode {
             .metrics_addr(&cfg.metrics_http_listener_addr)
             .service_name(env!("CARGO_PKG_NAME"));
     }
+    metrics_init::register();
 
     if let Err(e) = telemetry_conf
         .try_init()
