@@ -12,7 +12,7 @@ import "google/protobuf/timestamp.proto";
 // services sending and receiving the transactions.
 message RollupTransactions {
   // The 32 bytes identifying a rollup. Usually the sha256 hash of a plain rollup name.
-  bytes rollup_id = 1;
+  astria.primitive.v1.RollupId rollup_id = 1;
   // The serialized bytes of the rollup data.
   // Each entry is a protobuf-encoded `RollupData` message.
   repeated bytes transactions = 2;
@@ -78,9 +78,9 @@ message Deposit {
   // this is required as initializing an account as a bridge account
   // is permissionless, so the rollup consensus needs to know and enshrine
   // which accounts it accepts as valid bridge accounts.
-  bytes bridge_address = 1;
+  astria.primitive.v1.Address bridge_address = 1;
   // the rollup_id which the funds are being deposited to
-  bytes rollup_id = 2;
+  astria.primitive.v1.RollupId rollup_id = 2;
   astria.primitive.v1.Uint128 amount = 3;
   bytes asset_id = 4;
   // the address on the destination chain which

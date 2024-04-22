@@ -9,7 +9,7 @@ impl serde::Serialize for CelestiaRollupBlob {
         if !self.sequencer_block_hash.is_empty() {
             len += 1;
         }
-        if !self.rollup_id.is_empty() {
+        if self.rollup_id.is_some() {
             len += 1;
         }
         if !self.transactions.is_empty() {
@@ -23,9 +23,8 @@ impl serde::Serialize for CelestiaRollupBlob {
             #[allow(clippy::needless_borrow)]
             struct_ser.serialize_field("sequencer_block_hash", pbjson::private::base64::encode(&self.sequencer_block_hash).as_str())?;
         }
-        if !self.rollup_id.is_empty() {
-            #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("rollup_id", pbjson::private::base64::encode(&self.rollup_id).as_str())?;
+        if let Some(v) = self.rollup_id.as_ref() {
+            struct_ser.serialize_field("rollup_id", v)?;
         }
         if !self.transactions.is_empty() {
             struct_ser.serialize_field("transactions", &self.transactions.iter().map(pbjson::private::base64::encode).collect::<Vec<_>>())?;
@@ -119,9 +118,7 @@ impl<'de> serde::Deserialize<'de> for CelestiaRollupBlob {
                             if rollup_id__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("rollupId"));
                             }
-                            rollup_id__ = 
-                                Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
-                            ;
+                            rollup_id__ = map_.next_value()?;
                         }
                         GeneratedField::Transactions => {
                             if transactions__.is_some() {
@@ -142,7 +139,7 @@ impl<'de> serde::Deserialize<'de> for CelestiaRollupBlob {
                 }
                 Ok(CelestiaRollupBlob {
                     sequencer_block_hash: sequencer_block_hash__.unwrap_or_default(),
-                    rollup_id: rollup_id__.unwrap_or_default(),
+                    rollup_id: rollup_id__,
                     transactions: transactions__.unwrap_or_default(),
                     proof: proof__,
                 })
@@ -183,7 +180,7 @@ impl serde::Serialize for CelestiaSequencerBlob {
             struct_ser.serialize_field("header", v)?;
         }
         if !self.rollup_ids.is_empty() {
-            struct_ser.serialize_field("rollup_ids", &self.rollup_ids.iter().map(pbjson::private::base64::encode).collect::<Vec<_>>())?;
+            struct_ser.serialize_field("rollup_ids", &self.rollup_ids)?;
         }
         if let Some(v) = self.rollup_transactions_proof.as_ref() {
             struct_ser.serialize_field("rollup_transactions_proof", v)?;
@@ -289,10 +286,7 @@ impl<'de> serde::Deserialize<'de> for CelestiaSequencerBlob {
                             if rollup_ids__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("rollupIds"));
                             }
-                            rollup_ids__ = 
-                                Some(map_.next_value::<Vec<::pbjson::private::BytesDeserialize<_>>>()?
-                                    .into_iter().map(|x| x.0).collect())
-                            ;
+                            rollup_ids__ = Some(map_.next_value()?);
                         }
                         GeneratedField::RollupTransactionsProof => {
                             if rollup_transactions_proof__.is_some() {
@@ -328,10 +322,10 @@ impl serde::Serialize for Deposit {
     {
         use serde::ser::SerializeStruct;
         let mut len = 0;
-        if !self.bridge_address.is_empty() {
+        if self.bridge_address.is_some() {
             len += 1;
         }
-        if !self.rollup_id.is_empty() {
+        if self.rollup_id.is_some() {
             len += 1;
         }
         if self.amount.is_some() {
@@ -344,13 +338,11 @@ impl serde::Serialize for Deposit {
             len += 1;
         }
         let mut struct_ser = serializer.serialize_struct("astria.sequencerblock.v1alpha1.Deposit", len)?;
-        if !self.bridge_address.is_empty() {
-            #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("bridge_address", pbjson::private::base64::encode(&self.bridge_address).as_str())?;
+        if let Some(v) = self.bridge_address.as_ref() {
+            struct_ser.serialize_field("bridge_address", v)?;
         }
-        if !self.rollup_id.is_empty() {
-            #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("rollup_id", pbjson::private::base64::encode(&self.rollup_id).as_str())?;
+        if let Some(v) = self.rollup_id.as_ref() {
+            struct_ser.serialize_field("rollup_id", v)?;
         }
         if let Some(v) = self.amount.as_ref() {
             struct_ser.serialize_field("amount", v)?;
@@ -446,17 +438,13 @@ impl<'de> serde::Deserialize<'de> for Deposit {
                             if bridge_address__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("bridgeAddress"));
                             }
-                            bridge_address__ = 
-                                Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
-                            ;
+                            bridge_address__ = map_.next_value()?;
                         }
                         GeneratedField::RollupId => {
                             if rollup_id__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("rollupId"));
                             }
-                            rollup_id__ = 
-                                Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
-                            ;
+                            rollup_id__ = map_.next_value()?;
                         }
                         GeneratedField::Amount => {
                             if amount__.is_some() {
@@ -481,8 +469,8 @@ impl<'de> serde::Deserialize<'de> for Deposit {
                     }
                 }
                 Ok(Deposit {
-                    bridge_address: bridge_address__.unwrap_or_default(),
-                    rollup_id: rollup_id__.unwrap_or_default(),
+                    bridge_address: bridge_address__,
+                    rollup_id: rollup_id__,
                     amount: amount__,
                     asset_id: asset_id__.unwrap_or_default(),
                     destination_chain_address: destination_chain_address__.unwrap_or_default(),
@@ -699,7 +687,7 @@ impl serde::Serialize for GetFilteredSequencerBlockRequest {
             struct_ser.serialize_field("height", ToString::to_string(&self.height).as_str())?;
         }
         if !self.rollup_ids.is_empty() {
-            struct_ser.serialize_field("rollup_ids", &self.rollup_ids.iter().map(pbjson::private::base64::encode).collect::<Vec<_>>())?;
+            struct_ser.serialize_field("rollup_ids", &self.rollup_ids)?;
         }
         struct_ser.end()
     }
@@ -778,10 +766,7 @@ impl<'de> serde::Deserialize<'de> for GetFilteredSequencerBlockRequest {
                             if rollup_ids__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("rollupIds"));
                             }
-                            rollup_ids__ = 
-                                Some(map_.next_value::<Vec<::pbjson::private::BytesDeserialize<_>>>()?
-                                    .into_iter().map(|x| x.0).collect())
-                            ;
+                            rollup_ids__ = Some(map_.next_value()?);
                         }
                     }
                 }
@@ -1006,7 +991,7 @@ impl serde::Serialize for RollupTransactions {
     {
         use serde::ser::SerializeStruct;
         let mut len = 0;
-        if !self.rollup_id.is_empty() {
+        if self.rollup_id.is_some() {
             len += 1;
         }
         if !self.transactions.is_empty() {
@@ -1016,9 +1001,8 @@ impl serde::Serialize for RollupTransactions {
             len += 1;
         }
         let mut struct_ser = serializer.serialize_struct("astria.sequencerblock.v1alpha1.RollupTransactions", len)?;
-        if !self.rollup_id.is_empty() {
-            #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("rollup_id", pbjson::private::base64::encode(&self.rollup_id).as_str())?;
+        if let Some(v) = self.rollup_id.as_ref() {
+            struct_ser.serialize_field("rollup_id", v)?;
         }
         if !self.transactions.is_empty() {
             struct_ser.serialize_field("transactions", &self.transactions.iter().map(pbjson::private::base64::encode).collect::<Vec<_>>())?;
@@ -1099,9 +1083,7 @@ impl<'de> serde::Deserialize<'de> for RollupTransactions {
                             if rollup_id__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("rollupId"));
                             }
-                            rollup_id__ = 
-                                Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
-                            ;
+                            rollup_id__ = map_.next_value()?;
                         }
                         GeneratedField::Transactions => {
                             if transactions__.is_some() {
@@ -1121,7 +1103,7 @@ impl<'de> serde::Deserialize<'de> for RollupTransactions {
                     }
                 }
                 Ok(RollupTransactions {
-                    rollup_id: rollup_id__.unwrap_or_default(),
+                    rollup_id: rollup_id__,
                     transactions: transactions__.unwrap_or_default(),
                     proof: proof__,
                 })

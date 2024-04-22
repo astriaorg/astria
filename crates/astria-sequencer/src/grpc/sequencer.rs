@@ -88,8 +88,8 @@ impl SequencerService for SequencerServer {
 
         let rollup_ids = request
             .rollup_ids
-            .into_iter()
-            .map(RollupId::try_from_vec)
+            .iter()
+            .map(RollupId::try_from_raw)
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| Status::invalid_argument(format!("invalid rollup ID: {e}")))?;
 

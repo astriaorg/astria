@@ -303,8 +303,12 @@ enum ActionErrorKind {
 pub struct SequenceActionError(SequenceActionErrorKind);
 
 impl SequenceActionError {
-    fn rollup_id(inner: IncorrectRollupIdLength) -> Self {
-        Self(SequenceActionErrorKind::RollupId(inner))
+    fn field_not_set(field: &'static str) -> Self {
+        Self(SequenceActionErrorKind::FieldNotSet(field))
+    }
+
+    fn rollup_id_length(inner: IncorrectRollupIdLength) -> Self {
+        Self(SequenceActionErrorKind::RollupIdLength(inner))
     }
 
     fn fee_asset_id(inner: asset::IncorrectAssetIdLength) -> Self {
@@ -314,8 +318,10 @@ impl SequenceActionError {
 
 #[derive(Debug, thiserror::Error)]
 enum SequenceActionErrorKind {
+    #[error("the expected field in the raw source type was not set: `{0}`")]
+    FieldNotSet(&'static str),
     #[error("`rollup_id` field did not contain a valid rollup ID")]
-    RollupId(IncorrectRollupIdLength),
+    RollupIdLength(IncorrectRollupIdLength),
     #[error("`fee_asset_id` field did not contain a valid asset ID")]
     FeeAssetId(asset::IncorrectAssetIdLength),
 }
@@ -338,7 +344,7 @@ impl SequenceAction {
             fee_asset_id,
         } = self;
         raw::SequenceAction {
-            rollup_id: rollup_id.to_vec(),
+            rollup_id: Some(rollup_id.to_raw()),
             data,
             fee_asset_id: fee_asset_id.as_ref().to_vec(),
         }
@@ -352,7 +358,7 @@ impl SequenceAction {
             fee_asset_id,
         } = self;
         raw::SequenceAction {
-            rollup_id: rollup_id.to_vec(),
+            rollup_id: Some(rollup_id.to_raw()),
             data: data.clone(),
             fee_asset_id: fee_asset_id.as_ref().to_vec(),
         }
@@ -368,8 +374,11 @@ impl SequenceAction {
             data,
             fee_asset_id,
         } = proto;
+        let Some(rollup_id) = rollup_id else {
+            return Err(SequenceActionError::field_not_set("rollup_id"));
+        };
         let rollup_id =
-            RollupId::try_from_slice(&rollup_id).map_err(SequenceActionError::rollup_id)?;
+            RollupId::try_from_raw(&rollup_id).map_err(SequenceActionError::rollup_id_length)?;
         let fee_asset_id =
             asset::Id::try_from_slice(&fee_asset_id).map_err(SequenceActionError::fee_asset_id)?;
         Ok(Self {
@@ -401,7 +410,7 @@ impl TransferAction {
             fee_asset_id,
         } = self;
         raw::TransferAction {
-            to: to.to_vec(),
+            to: Some(to.to_raw()),
             amount: Some(amount.into()),
             asset_id: asset_id.get().to_vec(),
             fee_asset_id: fee_asset_id.as_ref().to_vec(),
@@ -417,7 +426,7 @@ impl TransferAction {
             fee_asset_id,
         } = self;
         raw::TransferAction {
-            to: to.to_vec(),
+            to: Some(to.to_raw()),
             amount: Some((*amount).into()),
             asset_id: asset_id.get().to_vec(),
             fee_asset_id: fee_asset_id.as_ref().to_vec(),
@@ -437,7 +446,10 @@ impl TransferAction {
             asset_id,
             fee_asset_id,
         } = proto;
-        let to = Address::try_from_slice(&to).map_err(TransferActionError::address)?;
+        let Some(to) = to else {
+            return Err(TransferActionError::field_not_set("to"));
+        };
+        let to = Address::try_from_raw(&to).map_err(TransferActionError::address_length)?;
         let amount = amount.map_or(0, Into::into);
         let asset_id =
             asset::Id::try_from_slice(&asset_id).map_err(TransferActionError::asset_id)?;
@@ -458,8 +470,12 @@ impl TransferAction {
 pub struct TransferActionError(TransferActionErrorKind);
 
 impl TransferActionError {
-    fn address(inner: IncorrectAddressLength) -> Self {
-        Self(TransferActionErrorKind::Address(inner))
+    fn field_not_set(field: &'static str) -> Self {
+        Self(TransferActionErrorKind::FieldNotSet(field))
+    }
+
+    fn address_length(inner: IncorrectAddressLength) -> Self {
+        Self(TransferActionErrorKind::AddressLength(inner))
     }
 
     fn asset_id(inner: asset::IncorrectAssetIdLength) -> Self {
@@ -473,8 +489,10 @@ impl TransferActionError {
 
 #[derive(Debug, thiserror::Error)]
 enum TransferActionErrorKind {
+    #[error("the expected field in the raw source type was not set: `{0}`")]
+    FieldNotSet(&'static str),
     #[error("`to` field did not contain a valid address")]
-    Address(#[source] IncorrectAddressLength),
+    AddressLength(#[source] IncorrectAddressLength),
     #[error("`asset_id` field did not contain a valid asset ID")]
     Asset(#[source] asset::IncorrectAssetIdLength),
     #[error("`fee_asset_id` field did not contain a valid asset ID")]
@@ -494,7 +512,7 @@ impl SudoAddressChangeAction {
             new_address,
         } = self;
         raw::SudoAddressChangeAction {
-            new_address: new_address.to_vec(),
+            new_address: Some(new_address.into_raw()),
         }
     }
 
@@ -504,7 +522,7 @@ impl SudoAddressChangeAction {
             new_address,
         } = self;
         raw::SudoAddressChangeAction {
-            new_address: new_address.to_vec(),
+            new_address: Some(new_address.to_raw()),
         }
     }
 
@@ -520,8 +538,11 @@ impl SudoAddressChangeAction {
         let raw::SudoAddressChangeAction {
             new_address,
         } = proto;
+        let Some(new_address) = new_address else {
+            return Err(SudoAddressChangeActionError::field_not_set("new_address"));
+        };
         let new_address =
-            Address::try_from_slice(&new_address).map_err(SudoAddressChangeActionError::address)?;
+            Address::try_from_raw(&new_address).map_err(SudoAddressChangeActionError::address)?;
         Ok(Self {
             new_address,
         })
@@ -533,6 +554,10 @@ impl SudoAddressChangeAction {
 pub struct SudoAddressChangeActionError(SudoAddressChangeActionErrorKind);
 
 impl SudoAddressChangeActionError {
+    fn field_not_set(field: &'static str) -> Self {
+        Self(SudoAddressChangeActionErrorKind::FieldNotSet(field))
+    }
+
     fn address(inner: IncorrectAddressLength) -> Self {
         Self(SudoAddressChangeActionErrorKind::Address(inner))
     }
@@ -540,6 +565,8 @@ impl SudoAddressChangeActionError {
 
 #[derive(Debug, thiserror::Error)]
 enum SudoAddressChangeActionErrorKind {
+    #[error("the expected field in the raw source type was not set: `{0}`")]
+    FieldNotSet(&'static str),
     #[error("`new_address` field did not contain a valid address")]
     Address(#[source] IncorrectAddressLength),
 }
@@ -559,7 +586,7 @@ impl MintAction {
             amount,
         } = self;
         raw::MintAction {
-            to: to.to_vec(),
+            to: Some(to.to_raw()),
             amount: Some(amount.into()),
         }
     }
@@ -571,7 +598,7 @@ impl MintAction {
             amount,
         } = self;
         raw::MintAction {
-            to: to.to_vec(),
+            to: Some(to.to_raw()),
             amount: Some((*amount).into()),
         }
     }
@@ -587,7 +614,10 @@ impl MintAction {
             to,
             amount,
         } = proto;
-        let to = Address::try_from_slice(&to).map_err(MintActionError::address)?;
+        let Some(to) = to else {
+            return Err(MintActionError::field_not_set("to"));
+        };
+        let to = Address::try_from_raw(&to).map_err(MintActionError::address_length)?;
         let amount = amount.map_or(0, Into::into);
         Ok(Self {
             to,
@@ -602,15 +632,21 @@ impl MintAction {
 pub struct MintActionError(MintActionErrorKind);
 
 impl MintActionError {
-    fn address(inner: IncorrectAddressLength) -> Self {
-        Self(MintActionErrorKind::Address(inner))
+    fn field_not_set(field: &'static str) -> Self {
+        Self(MintActionErrorKind::FieldNotSet(field))
+    }
+
+    fn address_length(inner: IncorrectAddressLength) -> Self {
+        Self(MintActionErrorKind::AddressLength(inner))
     }
 }
 
 #[derive(Debug, thiserror::Error)]
 enum MintActionErrorKind {
+    #[error("the expected field in the raw source type was not set: `{0}`")]
+    FieldNotSet(&'static str),
     #[error("`to` field did not contain a valid address")]
-    Address(#[source] IncorrectAddressLength),
+    AddressLength(#[source] IncorrectAddressLength),
 }
 
 /// Represents an IBC withdrawal of an asset from a source chain to a destination chain.
@@ -843,12 +879,12 @@ impl IbcRelayerChangeAction {
         match self {
             IbcRelayerChangeAction::Addition(address) => raw::IbcRelayerChangeAction {
                 value: Some(raw::ibc_relayer_change_action::Value::Addition(
-                    address.to_vec(),
+                    address.to_raw(),
                 )),
             },
             IbcRelayerChangeAction::Removal(address) => raw::IbcRelayerChangeAction {
                 value: Some(raw::ibc_relayer_change_action::Value::Removal(
-                    address.to_vec(),
+                    address.to_raw(),
                 )),
             },
         }
@@ -859,12 +895,12 @@ impl IbcRelayerChangeAction {
         match self {
             IbcRelayerChangeAction::Addition(address) => raw::IbcRelayerChangeAction {
                 value: Some(raw::ibc_relayer_change_action::Value::Addition(
-                    address.to_vec(),
+                    address.to_raw(),
                 )),
             },
             IbcRelayerChangeAction::Removal(address) => raw::IbcRelayerChangeAction {
                 value: Some(raw::ibc_relayer_change_action::Value::Removal(
-                    address.to_vec(),
+                    address.to_raw(),
                 )),
             },
         }
@@ -882,14 +918,14 @@ impl IbcRelayerChangeAction {
             raw::IbcRelayerChangeAction {
                 value: Some(raw::ibc_relayer_change_action::Value::Addition(address)),
             } => {
-                let address = Address::try_from_slice(address)
+                let address = Address::try_from_raw(address)
                     .map_err(IbcRelayerChangeActionError::invalid_address)?;
                 Ok(IbcRelayerChangeAction::Addition(address))
             }
             raw::IbcRelayerChangeAction {
                 value: Some(raw::ibc_relayer_change_action::Value::Removal(address)),
             } => {
-                let address = Address::try_from_slice(address)
+                let address = Address::try_from_raw(address)
                     .map_err(IbcRelayerChangeActionError::invalid_address)?;
                 Ok(IbcRelayerChangeAction::Removal(address))
             }
@@ -1029,7 +1065,7 @@ impl InitBridgeAccountAction {
     #[must_use]
     pub fn into_raw(self) -> raw::InitBridgeAccountAction {
         raw::InitBridgeAccountAction {
-            rollup_id: self.rollup_id.to_vec(),
+            rollup_id: Some(self.rollup_id.to_raw()),
             asset_ids: self.asset_ids.iter().map(|id| id.get().to_vec()).collect(),
             fee_asset_id: self.fee_asset_id.get().to_vec(),
         }
@@ -1038,7 +1074,7 @@ impl InitBridgeAccountAction {
     #[must_use]
     pub fn to_raw(&self) -> raw::InitBridgeAccountAction {
         raw::InitBridgeAccountAction {
-            rollup_id: self.rollup_id.to_vec(),
+            rollup_id: Some(self.rollup_id.to_raw()),
             asset_ids: self.asset_ids.iter().map(|id| id.get().to_vec()).collect(),
             fee_asset_id: self.fee_asset_id.get().to_vec(),
         }
@@ -1048,11 +1084,15 @@ impl InitBridgeAccountAction {
     ///
     /// # Errors
     ///
+    /// - if the `rollup_id` field is not set
     /// - if the `rollup_id` field is invalid
     pub fn try_from_raw(
         proto: raw::InitBridgeAccountAction,
     ) -> Result<Self, InitBridgeAccountActionError> {
-        let rollup_id = RollupId::try_from_slice(&proto.rollup_id)
+        let Some(rollup_id) = proto.rollup_id else {
+            return Err(InitBridgeAccountActionError::field_not_set("rollup_id"));
+        };
+        let rollup_id = RollupId::try_from_raw(&rollup_id)
             .map_err(InitBridgeAccountActionError::invalid_rollup_id)?;
         let asset_ids = proto
             .asset_ids
@@ -1077,6 +1117,11 @@ pub struct InitBridgeAccountActionError(InitBridgeAccountActionErrorKind);
 
 impl InitBridgeAccountActionError {
     #[must_use]
+    fn field_not_set(field: &'static str) -> Self {
+        Self(InitBridgeAccountActionErrorKind::FieldNotSet(field))
+    }
+
+    #[must_use]
     fn invalid_rollup_id(err: IncorrectRollupIdLength) -> Self {
         Self(InitBridgeAccountActionErrorKind::InvalidRollupId(err))
     }
@@ -1098,6 +1143,8 @@ impl InitBridgeAccountActionError {
 #[derive(Debug, thiserror::Error)]
 #[allow(clippy::enum_variant_names)]
 enum InitBridgeAccountActionErrorKind {
+    #[error("the expected field in the raw source type was not set: `{0}`")]
+    FieldNotSet(&'static str),
     #[error("the `rollup_id` field was invalid")]
     InvalidRollupId(#[source] IncorrectRollupIdLength),
     #[error("an asset ID was invalid")]
@@ -1123,7 +1170,7 @@ impl BridgeLockAction {
     #[must_use]
     pub fn into_raw(self) -> raw::BridgeLockAction {
         raw::BridgeLockAction {
-            to: self.to.to_vec(),
+            to: Some(self.to.to_raw()),
             amount: Some(self.amount.into()),
             asset_id: self.asset_id.get().to_vec(),
             fee_asset_id: self.fee_asset_id.as_ref().to_vec(),
@@ -1134,7 +1181,7 @@ impl BridgeLockAction {
     #[must_use]
     pub fn to_raw(&self) -> raw::BridgeLockAction {
         raw::BridgeLockAction {
-            to: self.to.to_vec(),
+            to: Some(self.to.to_raw()),
             amount: Some(self.amount.into()),
             asset_id: self.asset_id.get().to_vec(),
             fee_asset_id: self.fee_asset_id.as_ref().to_vec(),
@@ -1146,12 +1193,15 @@ impl BridgeLockAction {
     ///
     /// # Errors
     ///
+    /// - if the `to` field is not set
     /// - if the `to` field is invalid
     /// - if the `asset_id` field is invalid
     /// - if the `fee_asset_id` field is invalid
     pub fn try_from_raw(proto: raw::BridgeLockAction) -> Result<Self, BridgeLockActionError> {
-        let to =
-            Address::try_from_slice(&proto.to).map_err(BridgeLockActionError::invalid_address)?;
+        let Some(to) = proto.to else {
+            return Err(BridgeLockActionError::field_not_set("to"));
+        };
+        let to = Address::try_from_raw(&to).map_err(BridgeLockActionError::invalid_address)?;
         let amount = proto
             .amount
             .ok_or(BridgeLockActionError::missing_amount())?;
@@ -1175,6 +1225,11 @@ pub struct BridgeLockActionError(BridgeLockActionErrorKind);
 
 impl BridgeLockActionError {
     #[must_use]
+    fn field_not_set(field: &'static str) -> Self {
+        Self(BridgeLockActionErrorKind::FieldNotSet(field))
+    }
+
+    #[must_use]
     fn invalid_address(err: IncorrectAddressLength) -> Self {
         Self(BridgeLockActionErrorKind::InvalidAddress(err))
     }
@@ -1197,7 +1252,9 @@ impl BridgeLockActionError {
 
 #[derive(Debug, thiserror::Error)]
 enum BridgeLockActionErrorKind {
-    #[error("the `address` field was invalid")]
+    #[error("the expected field in the raw source type was not set: `{0}`")]
+    FieldNotSet(&'static str),
+    #[error("the `to` field was invalid")]
     InvalidAddress(#[source] IncorrectAddressLength),
     #[error("the `amount` field was not set")]
     MissingAmount,

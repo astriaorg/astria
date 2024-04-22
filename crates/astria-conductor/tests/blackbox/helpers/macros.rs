@@ -238,7 +238,7 @@ macro_rules! mount_get_filtered_sequencer_block {
             .mount_get_filtered_sequencer_block(
                 ::astria_core::generated::sequencerblock::v1alpha1::GetFilteredSequencerBlockRequest {
                     height: $height,
-                    rollup_ids: vec![$crate::ROLLUP_ID.to_vec()],
+                    rollup_ids: vec![$crate::ROLLUP_ID.to_raw()],
                 },
                 $crate::filtered_sequencer_block!(sequencer_height: $height),
             )
