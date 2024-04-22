@@ -1,5 +1,8 @@
 use std::{
-    collections::VecDeque,
+    collections::{
+        HashSet,
+        VecDeque,
+    },
     sync::Arc,
 };
 
@@ -416,9 +419,24 @@ impl App {
         let mut validated_txs = Vec::with_capacity(txs.len());
         let mut excluded_tx_count: usize = 0;
         let mut execution_results = Vec::with_capacity(txs.len());
+        let mut seen_txs = HashSet::new();
 
         for tx in txs {
             let tx_hash = Sha256::digest(&tx);
+
+            if seen_txs.contains(&tx_hash) {
+                // Cometbft shouldn't pass in duplicates, but if it does we need to
+                // filter them pre-exeuction or else we'd overwrite the intial
+                // execution result with a failure. This would cause inconsistencies with
+                // the execution results in process_proposal or finalize_block.
+                debug!(
+                    transaction_hash = %telemetry::display::base64(&tx_hash),
+                    "excluding transaction: is duplicate"
+                );
+                excluded_tx_count += 1;
+                continue;
+            }
+            seen_txs.insert(tx_hash);
 
             // don't include tx if it would make the cometBFT block too large
             if !block_size_constraints.cometbft_has_space(tx.len()) {
@@ -2742,6 +2760,72 @@ mod test {
             3,
             "total transaciton length should be three, including the two commitments and the one \
              tx that fit"
+        );
+    }
+
+    #[tokio::test]
+    async fn app_prepare_proposal_duplicate_transactions_filtered() {
+        let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
+
+        // update storage with initalized genesis app state
+        let intermediate_state = StateDelta::new(storage.latest_snapshot());
+        let state = Arc::try_unwrap(std::mem::replace(
+            &mut app.state,
+            Arc::new(intermediate_state),
+        ))
+        .expect("we have exclusive ownership of the State at commit()");
+        storage
+            .commit(state)
+            .await
+            .expect("applying genesis state should be okay");
+
+        // create transcation
+        let (alice_signing_key, _) = get_alice_signing_key_and_address();
+        let tx = UnsignedTransaction {
+            params: TransactionParams {
+                nonce: 0,
+                chain_id: "test".to_string(),
+            },
+            actions: vec![
+                SequenceAction {
+                    rollup_id: RollupId::from([1u8; 32]),
+                    data: vec![1u8; 200_000],
+                    fee_asset_id: get_native_asset().id(),
+                }
+                .into(),
+            ],
+        }
+        .into_signed(&alice_signing_key);
+
+        // create two copies of the same transaction
+        let txs: Vec<bytes::Bytes> = vec![
+            tx.to_raw().encode_to_vec().into(),
+            tx.to_raw().encode_to_vec().into(),
+        ];
+
+        // send to prepare_proposal
+        let prepare_args = abci::request::PrepareProposal {
+            max_tx_bytes: 600_000, // make large enough to overflow sequencer bytes first
+            txs,
+            local_last_commit: None,
+            misbehavior: vec![],
+            height: Height::default(),
+            time: Time::now(),
+            next_validators_hash: Hash::default(),
+            proposer_address: account::Id::new([1u8; 20]),
+        };
+
+        let result = app
+            .prepare_proposal(prepare_args, storage)
+            .await
+            .expect("duplicate transactions should not cause failure");
+
+        // see only one copy of transaction made it
+        assert_eq!(
+            result.txs.len(),
+            3,
+            "total transaciton length should be three, including the two commitments and the one \
+             deduplicated tx"
         );
     }
 }
