@@ -220,6 +220,7 @@ mod test {
     use std::{
         collections::HashMap,
         str::FromStr,
+        sync::Arc,
     };
 
     use astria_core::{
@@ -245,10 +246,12 @@ mod test {
         Hash,
         Time,
     };
+    use tokio::sync::Mutex;
 
     use super::*;
     use crate::{
         asset::get_native_asset,
+        mempool::BasicMempool,
         proposal::commitment::generate_rollup_datas_commitment,
     };
 
@@ -484,7 +487,8 @@ mod test {
 
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
-        let mut app = App::new(snapshot);
+        let mempool = Arc::new(Mutex::new(BasicMempool::new()));
+        let mut app = App::new(snapshot, mempool);
         app.init_chain(storage.clone(), genesis_state, vec![], "test".to_string())
             .await
             .unwrap();

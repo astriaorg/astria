@@ -23,7 +23,7 @@ use crate::{
     Protobuf,
 };
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub enum Action {
     Sequence(SequenceAction),
     Transfer(TransferAction),
@@ -320,7 +320,7 @@ enum SequenceActionErrorKind {
     FeeAssetId(asset::IncorrectAssetIdLength),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 #[allow(clippy::module_name_repetitions)]
 pub struct SequenceAction {
     pub rollup_id: RollupId,
@@ -380,7 +380,7 @@ impl SequenceAction {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 #[allow(clippy::module_name_repetitions)]
 pub struct TransferAction {
     pub to: Address,
@@ -481,7 +481,7 @@ enum TransferActionErrorKind {
     FeeAsset(#[source] asset::IncorrectAssetIdLength),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 #[allow(clippy::module_name_repetitions)]
 pub struct SudoAddressChangeAction {
     pub new_address: Address,
@@ -545,7 +545,7 @@ enum SudoAddressChangeActionErrorKind {
 }
 
 #[allow(clippy::module_name_repetitions)]
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub struct MintAction {
     pub to: Address,
     pub amount: u128,
@@ -622,7 +622,7 @@ enum MintActionErrorKind {
 ///
 /// It also contains a `return_address` field which may or may not be the same as the signer
 /// of the packet. The funds will be returned to the `return_address` in the case of a timeout.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct Ics20Withdrawal {
     // a transparent value consisting of an amount and a denom.
     amount: u128,
@@ -831,7 +831,7 @@ enum Ics20WithdrawalErrorKind {
 }
 
 #[allow(clippy::module_name_repetitions)]
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub enum IbcRelayerChangeAction {
     Addition(Address),
     Removal(Address),
@@ -923,7 +923,7 @@ enum IbcRelayerChangeActionErrorKind {
 }
 
 #[allow(clippy::module_name_repetitions)]
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub enum FeeAssetChangeAction {
     Addition(asset::Id),
     Removal(asset::Id),
@@ -1015,7 +1015,7 @@ enum FeeAssetChangeActionErrorKind {
 }
 
 #[allow(clippy::module_name_repetitions)]
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct InitBridgeAccountAction {
     // the rollup ID to register for the sender of this action
     pub rollup_id: RollupId,
@@ -1107,7 +1107,7 @@ enum InitBridgeAccountActionErrorKind {
 }
 
 #[allow(clippy::module_name_repetitions)]
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct BridgeLockAction {
     pub to: Address,
     pub amount: u128,

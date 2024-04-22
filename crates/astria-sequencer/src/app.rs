@@ -44,6 +44,7 @@ use tendermint::{
     AppHash,
     Hash,
 };
+use tokio::sync::Mutex;
 use tracing::{
     debug,
     info,
@@ -76,6 +77,7 @@ use crate::{
     component::Component as _,
     genesis::GenesisState,
     ibc::component::IbcComponent,
+    mempool::BasicMempool,
     proposal::{
         block_size_constraints::BlockSizeConstraints,
         commitment::{
@@ -104,6 +106,8 @@ type InterBlockState = Arc<StateDelta<Snapshot>>;
 /// [Penumbra reference]: https://github.com/penumbra-zone/penumbra/blob/9cc2c644e05c61d21fdc7b507b96016ba6b9a935/app/src/app/mod.rs#L42
 pub(crate) struct App {
     state: InterBlockState,
+
+    mempool: Arc<Mutex<BasicMempool>>,
 
     // The validator address in cometbft being used to sign votes.
     //
@@ -143,7 +147,7 @@ pub(crate) struct App {
 }
 
 impl App {
-    pub(crate) fn new(snapshot: Snapshot) -> Self {
+    pub(crate) fn new(snapshot: Snapshot, mempool: Arc<Mutex<BasicMempool>>) -> Self {
         tracing::debug!("initializing App instance");
 
         // We perform the `Arc` wrapping of `State` here to ensure
@@ -152,6 +156,7 @@ impl App {
 
         Self {
             state,
+            mempool,
             validator_address: None,
             executed_proposal_hash: Hash::default(),
             execution_results: None,
@@ -256,13 +261,38 @@ impl App {
             .await
             .context("failed to prepare for executing block")?;
 
-        let (signed_txs, txs_to_include) = self
+        // ignore the txs passed by cometbft in favour of our app-side mempool
+        let signed_txs = self.mempool.lock().await.take_all();
+        let txs_to_include = self
             .execute_transactions_before_finalization(
-                prepare_proposal.txs,
+                signed_txs.clone(),
                 &mut block_size_constraints,
             )
             .await
             .context("failed to execute transactions")?;
+
+        // update any txs remaining in the mempool that were not included in the block:
+        // update the priority based on any transactions that were executed this block
+        let mut mempool = self.mempool.lock().await;
+        for tx in mempool.iter() {
+            let Ok(priority) = crate::mempool::TransactionPriority::new(
+                tx.nonce(),
+                self.state
+                    .get_account_nonce(Address::from_verification_key(tx.verification_key()))
+                    .await
+                    .expect("can fetch account nonce"),
+            ) else {
+                debug!(
+                    transaction_hash = %telemetry::display::base64(&tx.sha256_of_proto_encoding()),
+                    "account nonce is now greater than tx nonce; dropping tx from mempool",
+                );
+                continue;
+            };
+            let mut mempool = self.mempool.lock().await;
+            mempool
+                .change_priority(tx, priority)
+                .expect("transaction must be in the mempool, as we're iterating over it");
+        }
 
         let deposits = self
             .state
@@ -344,9 +374,18 @@ impl App {
         // the max sequenced data bytes.
         let mut block_size_constraints = BlockSizeConstraints::new_unlimited_cometbft();
 
-        let (signed_txs, txs_to_include) = self
+        // deserialize txs into `SignedTransaction`s;
+        // this does not error if any txs fail to be deserialized, but the `txs_to_include.len()`
+        // check below ensures that all txs in the proposal are deserializable (and
+        // executable).
+        let signed_txs = txs
+            .into_iter()
+            .filter_map(|bytes| signed_transaction_from_bytes(bytes.as_ref()).ok())
+            .collect::<Vec<_>>();
+
+        let txs_to_include = self
             .execute_transactions_before_finalization(
-                txs.into_iter().collect(),
+                signed_txs.clone(),
                 &mut block_size_constraints,
             )
             .await
@@ -409,44 +448,32 @@ impl App {
     ))]
     async fn execute_transactions_before_finalization(
         &mut self,
-        txs: Vec<bytes::Bytes>,
+        txs: Vec<SignedTransaction>,
         block_size_constraints: &mut BlockSizeConstraints,
-    ) -> anyhow::Result<(Vec<SignedTransaction>, Vec<bytes::Bytes>)> {
-        let mut signed_txs: Vec<SignedTransaction> = Vec::with_capacity(txs.len());
-        let mut validated_txs = Vec::with_capacity(txs.len());
+    ) -> anyhow::Result<Vec<bytes::Bytes>> {
+        let mut validated_txs: Vec<bytes::Bytes> = Vec::with_capacity(txs.len());
         let mut excluded_tx_count: usize = 0;
         let mut execution_results = Vec::with_capacity(txs.len());
 
         for tx in txs {
-            let tx_hash = Sha256::digest(&tx);
+            let bytes = tx.to_raw().encode_to_vec();
+            let tx_hash = Sha256::digest(&bytes);
+            let tx_len = bytes.len();
 
             // don't include tx if it would make the cometBFT block too large
-            if !block_size_constraints.cometbft_has_space(tx.len()) {
+            if !block_size_constraints.cometbft_has_space(tx_len) {
                 debug!(
                     transaction_hash = %telemetry::display::base64(&tx_hash),
                     block_size_constraints = %json(&block_size_constraints),
-                    tx_data_bytes = tx.len(),
+                    tx_data_bytes = tx_len,
                     "excluding transactions: max cometBFT data limit reached"
                 );
                 excluded_tx_count += 1;
                 continue;
             }
 
-            // try to decode the tx
-            let signed_tx = match signed_transaction_from_bytes(&tx) {
-                Err(e) => {
-                    debug!(
-                        error = AsRef::<dyn std::error::Error>::as_ref(&e),
-                        "failed to decode deliver tx payload to signed transaction; excluding it",
-                    );
-                    excluded_tx_count += 1;
-                    continue;
-                }
-                Ok(tx) => tx,
-            };
-
             // check if tx's sequence data will fit into sequence block
-            let tx_sequence_data_bytes = signed_tx
+            let tx_sequence_data_bytes = tx
                 .unsigned_transaction()
                 .actions
                 .iter()
@@ -465,7 +492,7 @@ impl App {
             }
 
             // execute tx and store in `execution_results` list
-            match self.execute_transaction(signed_tx.clone()).await {
+            match self.execute_transaction(tx.clone()).await {
                 Ok(events) => {
                     execution_results.push(ExecTxResult {
                         events,
@@ -475,10 +502,9 @@ impl App {
                         .sequencer_checked_add(tx_sequence_data_bytes)
                         .context("error growing sequencer block size")?;
                     block_size_constraints
-                        .cometbft_checked_add(tx.len())
+                        .cometbft_checked_add(tx_len)
                         .context("error growing cometBFT block size")?;
-                    signed_txs.push(signed_tx);
-                    validated_txs.push(tx);
+                    validated_txs.push(bytes.into());
                 }
                 Err(e) => {
                     debug!(
@@ -510,7 +536,7 @@ impl App {
         }
 
         self.execution_results = Some(execution_results);
-        Ok((signed_txs, validated_txs))
+        Ok(validated_txs)
     }
 
     /// sets up the state for execution of the block's transactions.
@@ -1091,7 +1117,8 @@ mod test {
             .await
             .expect("failed to create temp storage backing chain state");
         let snapshot = storage.latest_snapshot();
-        let mut app = App::new(snapshot);
+        let mempool = Arc::new(Mutex::new(BasicMempool::new()));
+        let mut app = App::new(snapshot, mempool);
 
         let genesis_state = genesis_state.unwrap_or_else(|| GenesisState {
             accounts: default_genesis_accounts(),

@@ -1,5 +1,6 @@
 use std::{
     pin::Pin,
+    sync::Arc,
     task::{
         Context,
         Poll,
@@ -25,12 +26,14 @@ use tendermint::v0_38::abci::{
     MempoolRequest,
     MempoolResponse,
 };
+use tokio::sync::Mutex;
 use tower::Service;
 use tower_abci::BoxError;
 use tracing::Instrument as _;
 
 use crate::{
     accounts::state_ext::StateReadExt,
+    mempool::BasicMempool,
     transaction,
 };
 
@@ -43,12 +46,14 @@ const MAX_TX_SIZE: usize = 256_000; // 256 KB
 #[derive(Clone)]
 pub(crate) struct Mempool {
     storage: Storage,
+    mempool: Arc<Mutex<BasicMempool>>,
 }
 
 impl Mempool {
-    pub(crate) fn new(storage: Storage) -> Self {
+    pub(crate) fn new(storage: Storage, mempool: Arc<Mutex<BasicMempool>>) -> Self {
         Self {
             storage,
+            mempool,
         }
     }
 }
@@ -66,11 +71,12 @@ impl Service<MempoolRequest> for Mempool {
         use penumbra_tower_trace::v038::RequestExt as _;
         let span = req.create_span();
         let storage = self.storage.clone();
+        let mempool = self.mempool.clone();
         async move {
             let rsp = match req {
-                MempoolRequest::CheckTx(req) => {
-                    MempoolResponse::CheckTx(handle_check_tx(req, storage.latest_snapshot()).await)
-                }
+                MempoolRequest::CheckTx(req) => MempoolResponse::CheckTx(
+                    handle_check_tx(req, storage.latest_snapshot(), mempool).await,
+                ),
             };
             Ok(rsp)
         }
@@ -88,7 +94,10 @@ impl Service<MempoolRequest> for Mempool {
 async fn handle_check_tx<S: StateReadExt + 'static>(
     req: request::CheckTx,
     state: S,
+    mempool: Arc<Mutex<BasicMempool>>,
 ) -> response::CheckTx {
+    use astria_core::primitive::v1::Address;
+
     let request::CheckTx {
         tx, ..
     } = req;
@@ -156,5 +165,19 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
         };
     };
 
+    // tx is valid, push to mempool
+    let priority = crate::mempool::TransactionPriority::new(
+        signed_tx.nonce(),
+        state
+            .get_account_nonce(Address::from_verification_key(signed_tx.verification_key()))
+            .await
+            .expect("can fetch account nonce"),
+    )
+    .expect(
+        "tx nonce is greater or equal to current account nonce; this was checked in \
+         check_nonce_mempool",
+    );
+    let mut mempool = mempool.lock().await;
+    mempool.insert(signed_tx, priority);
     response::CheckTx::default()
 }

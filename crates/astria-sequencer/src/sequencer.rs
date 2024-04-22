@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use anyhow::{
     anyhow,
     Context as _,
@@ -18,6 +20,7 @@ use tokio::{
     sync::{
         oneshot,
         watch,
+        Mutex,
     },
     task::JoinHandle,
 };
@@ -33,6 +36,7 @@ use crate::{
     config::Config,
     grpc::sequencer::SequencerServer,
     ibc::host_interface::AstriaHost,
+    mempool::BasicMempool,
     service,
     state_ext::StateReadExt as _,
 };
@@ -86,7 +90,8 @@ impl Sequencer {
             crate::asset::initialize_native_asset(&native_asset);
         }
 
-        let app = App::new(snapshot);
+        let mempool = Arc::new(Mutex::new(BasicMempool::new()));
+        let app = App::new(snapshot, mempool.clone());
 
         let consensus_service = tower::ServiceBuilder::new()
             .layer(request_span::layer(|req: &ConsensusRequest| {
@@ -96,7 +101,7 @@ impl Sequencer {
                 let storage = storage.clone();
                 async move { service::Consensus::new(storage, app, queue).run().await }
             }));
-        let mempool_service = service::Mempool::new(storage.clone());
+        let mempool_service = service::Mempool::new(storage.clone(), mempool);
         let info_service =
             service::Info::new(storage.clone()).context("failed initializing info service")?;
         let snapshot_service = service::Snapshot;

@@ -62,7 +62,7 @@ pub struct SignedTransactionParts {
 ///
 /// [`SignedTransaction`] contains an [`UnsignedTransaction`] together
 /// with its signature and public key.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 #[allow(clippy::module_name_repetitions)]
 pub struct SignedTransaction {
     signature: Signature,
@@ -187,9 +187,14 @@ impl SignedTransaction {
     pub fn unsigned_transaction(&self) -> &UnsignedTransaction {
         &self.transaction
     }
+
+    #[must_use]
+    pub fn nonce(&self) -> u32 {
+        self.transaction.nonce
+    }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 #[allow(clippy::module_name_repetitions)]
 pub struct UnsignedTransaction {
     pub nonce: u32,
