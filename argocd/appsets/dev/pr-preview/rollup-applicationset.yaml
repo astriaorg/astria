@@ -54,14 +54,32 @@ spec:
 
 
             # valueFiles:
-            # - $values/apps/rollup/dusk-4/values.yaml
+            # - $values/apps/rollup/dev/values.yaml
 
 
             valuesObject:
               global:
                 useTTY: true
                 dev: false
-              #   rollup: 
+              config:
+                sequencer:
+                  chainId: sequencer-test-chain-0
+                rollup:
+                  genesis:
+                    alloc:
+                      # - address: "0x95E696aFDc14970b342A2e677A31cb73B0774290"
+                      #   value:
+                      #     balance: "1"
+                      # - address: "0x830B0e9Bb0B1ebad01F2805278Ede64c69e068FE"
+                      #   value:
+                      #     balance: "1"
+                      - address: "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
+                        value:
+                          balance: "100000000000000000000000000"
+                faucet:
+                  # The amount of token to give per request
+                  amount: 1
+                  privateKey: "0x10fa42d1f971361677990d78fe68f1049193bc46d5dc6ade974007a357ff0ac4"
               #     metrics: 
               #       enabled: true
               #     serviceMonitor:
@@ -111,13 +129,11 @@ spec:
             # - name: images.composer.tag
             #   value: pr-{{.number}}
 
-            - name: config.rollup.name
-              value: "astria-pr-{{.number}}"
-            - name: config.rollup.chainId
-              value: "astria-pr-{{.number}}"
+            # - name: config.rollup.name
+            #   value: "astria-pr-{{.number}}"
+            # - name: config.rollup.chainId
+            #   value: "astria-pr-{{.number}}"
 
-            - name: config.sequencer.chainId
-              value: "astria-pr-{{.number}}"
             - name: config.sequencer.grpc
               value: "http://node0-sequencer-grpc-service.pr-{{.number}}.svc.cluster.local:8080"
             - name: config.sequencer.rpc

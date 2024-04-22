@@ -77,8 +77,8 @@ spec:
             - name: ingress.hostname
               value: "pr-{{.number}}.dev.astria.org"
 
-            - name: images.sequencer.tag
-              value: pr-{{.number}}
+            # - name: images.sequencer.tag
+            #   value: pr-{{.number}}
           
             - name: sequencer-relayer.config.relayer.celestiaRpc
               value: "http://celestia-service.pr-{{.number}}.svc.cluster.local:26658"
