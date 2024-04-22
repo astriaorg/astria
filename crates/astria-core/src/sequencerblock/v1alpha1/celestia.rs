@@ -437,8 +437,8 @@ impl UncheckedCelestiaSequencerBlob {
             SequencerBlockHeader::try_from_raw(header).map_err(CelestiaSequencerBlobError::header)
         }?;
         let rollup_ids: Vec<_> = rollup_ids
-            .into_iter()
-            .map(|raw| RollupId::try_from_raw(&raw))
+            .iter()
+            .map(RollupId::try_from_raw)
             .collect::<Result<_, _>>()
             .map_err(CelestiaSequencerBlobError::rollup_ids)?;
 
