@@ -17,19 +17,28 @@ run-cometbft:
   sed -i'.bak' 's/timeout_commit = "1s"/timeout_commit = "2s"/g' ~/.cometbft/config/config.toml
   cometbft node
 
+[macos]
+stop-testnet:
+  pkill cometbft || true
+  pkill astria-sequencer || true
+[macos]
 run-testnet: 
   cargo build
   ./scripts/testnet.sh
+
+[linux]
+stop-testnet:
+  pkill cometbft && pkill astria-sequencer
+[linux] 
+run-testnet: 
+  cargo build
+  ${OUT_DIR} ${NUM_VALIDATORS} ./scripts/testnet.sh
 
 cometbft-logs-testnet NODE="node0":
   tail -f sequencer_testnet/{{ NODE }}/cometbft.log
 
 sequencer-logs-testnet NODE="node0":
   tail -f sequencer_testnet/{{ NODE }}/sequencer.log
-
-stop-testnet:
-  pkill cometbft || true
-  pkill astria-sequencer || true
 
 clean-testnet DIR="sequencer_testnet": stop-testnet
   rm -r {{ DIR }} || true
