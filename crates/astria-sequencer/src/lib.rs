@@ -11,6 +11,7 @@ pub(crate) mod fee_asset_change;
 pub(crate) mod genesis;
 pub(crate) mod grpc;
 pub(crate) mod ibc;
+mod mempool;
 #[cfg(feature = "mint")]
 pub(crate) mod mint;
 pub(crate) mod proposal;
