@@ -16,6 +16,7 @@ impl AbciErrorCode {
     pub const INVALID_NONCE: Self = Self(4);
     pub const TRANSACTION_TOO_LARGE: Self = Self(5);
     pub const INSUFFICIENT_FUNDS: Self = Self(6);
+    pub const INVALID_CHAIN_ID: Self = Self(7);
 }
 
 impl AbciErrorCode {
@@ -29,6 +30,7 @@ impl AbciErrorCode {
             4 => "the provided nonce was invalid".into(),
             5 => "the provided transaction was too large".into(),
             6 => "insufficient funds".into(),
+            7 => "the provided chain id was invalid".into(),
             other => format!("unknown non-zero abci error code: {other}").into(),
         }
     }
@@ -55,6 +57,7 @@ impl From<NonZeroU32> for AbciErrorCode {
             4 => Self::INVALID_NONCE,
             5 => Self::TRANSACTION_TOO_LARGE,
             6 => Self::INSUFFICIENT_FUNDS,
+            7 => Self::INVALID_CHAIN_ID,
             other => Self(other),
         }
     }

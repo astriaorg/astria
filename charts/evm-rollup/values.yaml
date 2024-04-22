@@ -121,6 +121,7 @@ config:
 
   # Configuration related to sequencer connection for rollup
   sequencer:
+    chainId: ""
     # Block height to start syncing rollup from
     initialBlockHeight: "2"
     # Fastest block time possible in MS

@@ -80,6 +80,7 @@ async fn setup() -> (MockServer, MockGuard, Config) {
         api_listen_addr: "127.0.0.1:0".parse().unwrap(),
         rollups: String::new(),
         sequencer_url: server.uri(),
+        sequencer_chain_id: "test-chain-1".to_string(),
         private_key: "2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90"
             .to_string()
             .into(),
@@ -200,6 +201,7 @@ async fn full_bundle() {
     let shutdown_token = CancellationToken::new();
     let (executor, executor_handle) = executor::Builder {
         sequencer_url: cfg.sequencer_url.clone(),
+        sequencer_chain_id: cfg.sequencer_chain_id.clone(),
         private_key: cfg.private_key.clone(),
         block_time_ms: cfg.block_time_ms,
         max_bytes_per_bundle: cfg.max_bytes_per_bundle,
@@ -289,6 +291,7 @@ async fn bundle_triggered_by_block_timer() {
     let shutdown_token = CancellationToken::new();
     let (executor, executor_handle) = executor::Builder {
         sequencer_url: cfg.sequencer_url.clone(),
+        sequencer_chain_id: cfg.sequencer_chain_id.clone(),
         private_key: cfg.private_key.clone(),
         block_time_ms: cfg.block_time_ms,
         max_bytes_per_bundle: cfg.max_bytes_per_bundle,
@@ -371,6 +374,7 @@ async fn two_seq_actions_single_bundle() {
     let shutdown_token = CancellationToken::new();
     let (executor, executor_handle) = executor::Builder {
         sequencer_url: cfg.sequencer_url.clone(),
+        sequencer_chain_id: cfg.sequencer_chain_id.clone(),
         private_key: cfg.private_key.clone(),
         block_time_ms: cfg.block_time_ms,
         max_bytes_per_bundle: cfg.max_bytes_per_bundle,

@@ -42,6 +42,9 @@ pub enum Command {
 }
 
 /// Commands for managing rollup configs.
+// Allowing large enum size variation here because this is a CLI tool
+// not huge performance critical code.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Subcommand)]
 pub enum ConfigCommand {
     /// Create a new rollup config
@@ -119,6 +122,13 @@ pub struct ConfigCreateArgs {
         default_value = crate::cli::DEFAULT_SEQUENCER_RPC
     )]
     pub sequencer_rpc: String,
+    /// The chain id of the sequencing chain being used
+    #[clap(
+        long = "sequencer.chain-id",
+        env = "ROLLUP_SEQUENCER_CHAIN_ID",
+        default_value = crate::cli::DEFAULT_SEQUENCER_CHAIN_ID
+    )]
+    pub sequencer_chain_id: String,
     /// Optional. Will default to 'localdev.me' for local deployments. Will need to separately
     /// configure other hosts
     #[clap(
