@@ -17,7 +17,7 @@ spec:
         app: {{ .Values.config.moniker }}-sequencer
     spec:
       initContainers:
-        - command: [ "mkdir","-p", "/config", "&&", "mkdir", "-p", "/data", "&&", "/scripts/init-cometbft.sh" ]
+        - command: [ "mkdir","-p", "/config", "&&", "mkdir", "-p", "/data", ";", "/scripts/init-cometbft.sh" ]
           name: config-cometbft
           image: "ghcr.io/tomwright/dasel:alpine"
           volumeMounts:
