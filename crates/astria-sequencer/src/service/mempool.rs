@@ -109,8 +109,6 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
     let raw_signed_tx = match raw::SignedTransaction::decode(tx) {
         Ok(tx) => tx,
         Err(e) => {
-            metrics::counter!(metrics_init::CHECK_TX_REMOVED_FAILED_TO_DECODE_PROTOBUF)
-                .increment(1);
             return response::CheckTx {
                 code: AbciErrorCode::INVALID_PARAMETER.into(),
                 log: e.to_string(),
@@ -122,8 +120,6 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
     let signed_tx = match SignedTransaction::try_from_raw(raw_signed_tx) {
         Ok(tx) => tx,
         Err(e) => {
-            metrics::counter!(metrics_init::CHECK_TX_REMOVED_FAILED_TO_DECODE_SIGNED_TRANSACTION)
-                .increment(1);
             return response::CheckTx {
                 code: AbciErrorCode::INVALID_PARAMETER.into(),
                 info: "the provided bytes was not a valid protobuf-encoded SignedTransaction, or \

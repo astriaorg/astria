@@ -43,12 +43,6 @@ pub fn register() {
         "The number of excluded transactions in a proposal being prepared"
     );
 
-    describe_gauge!(
-        PROCESS_PROPOSAL_DEPOSIT_TRANSACTIONS,
-        Unit::Count,
-        "The number of deposit transactions in a proposal being processed"
-    );
-
     describe_counter!(
         PROCESS_PROPOSAL_SKIPPED_PROPOSAL,
         Unit::Count,
@@ -59,20 +53,6 @@ pub fn register() {
         CHECK_TX_REMOVED_TOO_LARGE,
         Unit::Count,
         "The number of transactions that have been removed from the mempool due to being too large"
-    );
-
-    describe_counter!(
-        CHECK_TX_REMOVED_FAILED_TO_DECODE_PROTOBUF,
-        Unit::Count,
-        "The number of transactions that have been removed from the mempool due to failing to \
-         decode from bytes into a protobuf"
-    );
-
-    describe_counter!(
-        CHECK_TX_REMOVED_FAILED_TO_DECODE_SIGNED_TRANSACTION,
-        Unit::Count,
-        "The number of transactions that have been removed from the mempool due to failing to \
-         decode from a protobuf into a valid signed transaction"
     );
 
     describe_counter!(
@@ -97,16 +77,17 @@ pub fn register() {
     );
 
     describe_histogram!(
-        PROCESS_PROPOSAL_TRANSACTIONS,
+        PROPOSAL_TRANSACTIONS,
         Unit::Count,
-        "The number of transactions in the process_proposal phase"
+        "The number of transactions in a proposal"
+    );
+
+    describe_histogram!(
+        PROPOSAL_DEPOSITS,
+        Unit::Count,
+        "The number of deposits in a proposal"
     );
 }
-
-// We configure buckets for manually, in order to ensure Prometheus metrics are structured as a
-// Histogram, rather than as a Summary. These values are loosely based on guesses
-// and may need to be updated over time.
-pub const HISTOGRAM_BUCKETS: &[f64; 5] = &[25.0, 50.0, 100.0, 200.0, 1000.0];
 
 pub const PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_DECODE_FAILURE: &str = concat!(
     env!("CARGO_CRATE_NAME"),
@@ -133,13 +114,9 @@ pub const PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS: &str = concat!(
     "_prepare_proposal_excluded_transactions"
 );
 
-pub const PROCESS_PROPOSAL_DEPOSIT_TRANSACTIONS: &str = concat!(
-    env!("CARGO_CRATE_NAME"),
-    "_process_proposal_deposit_transactions"
-);
+pub const PROPOSAL_DEPOSITS: &str = concat!(env!("CARGO_CRATE_NAME"), "_proposal_deposits");
 
-pub const PROCESS_PROPOSAL_TRANSACTIONS: &str =
-    concat!(env!("CARGO_CRATE_NAME"), "_process_proposal_transactions");
+pub const PROPOSAL_TRANSACTIONS: &str = concat!(env!("CARGO_CRATE_NAME"), "_proposal_transactions");
 
 pub const PROCESS_PROPOSAL_SKIPPED_PROPOSAL: &str = concat!(
     env!("CARGO_CRATE_NAME"),
@@ -148,16 +125,6 @@ pub const PROCESS_PROPOSAL_SKIPPED_PROPOSAL: &str = concat!(
 
 pub const CHECK_TX_REMOVED_TOO_LARGE: &str =
     concat!(env!("CARGO_CRATE_NAME"), "_check_tx_removed_too_large");
-
-pub const CHECK_TX_REMOVED_FAILED_TO_DECODE_PROTOBUF: &str = concat!(
-    env!("CARGO_CRATE_NAME"),
-    "_check_tx_removed_failed_to_decode_protobuf"
-);
-
-pub const CHECK_TX_REMOVED_FAILED_TO_DECODE_SIGNED_TRANSACTION: &str = concat!(
-    env!("CARGO_CRATE_NAME"),
-    "_check_tx_removed_failed_to_decode_signed_transaction"
-);
 
 pub const CHECK_TX_REMOVED_FAILED_STATELESS: &str = concat!(
     env!("CARGO_CRATE_NAME"),
