@@ -1775,7 +1775,7 @@ mod test {
         let asset_id = get_native_asset().id();
         let action = InitBridgeAccountAction {
             rollup_id,
-            asset_id: asset_id,
+            asset_id,
             fee_asset_id: asset_id,
         };
         let tx = UnsignedTransaction {
@@ -1830,7 +1830,7 @@ mod test {
         let asset_id = get_native_asset().id();
         let action = InitBridgeAccountAction {
             rollup_id,
-            asset_id: asset_id,
+            asset_id,
             fee_asset_id: asset_id,
         };
         let tx = UnsignedTransaction {
@@ -1846,7 +1846,7 @@ mod test {
 
         let action = InitBridgeAccountAction {
             rollup_id,
-            asset_id: asset_id,
+            asset_id,
             fee_asset_id: asset_id,
         };
         let tx = UnsignedTransaction {

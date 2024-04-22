@@ -412,7 +412,8 @@ mod test {
             .expect("original bridge asset id was written and must exist inside the database");
         assert_eq!(
             result, asset,
-            "original bridge account asset id did not match expected after new bridge account added"
+            "original bridge account asset id did not match expected after new bridge account \
+             added"
         );
     }
 

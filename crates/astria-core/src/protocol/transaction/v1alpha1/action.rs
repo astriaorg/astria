@@ -1094,7 +1094,7 @@ impl InitBridgeAccountAction {
         };
         let rollup_id = RollupId::try_from_raw(&rollup_id)
             .map_err(InitBridgeAccountActionError::invalid_rollup_id)?;
-        let asset_id =  asset::Id::try_from_slice(&proto.asset_id)
+        let asset_id = asset::Id::try_from_slice(&proto.asset_id)
             .map_err(InitBridgeAccountActionError::invalid_asset_id)?;
         let fee_asset_id = asset::Id::try_from_slice(&proto.fee_asset_id)
             .map_err(InitBridgeAccountActionError::invalid_fee_asset_id)?;
