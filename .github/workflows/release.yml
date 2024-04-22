@@ -44,7 +44,7 @@ jobs:
       - name: "Update Sequencer Block API dependency"
         run: |
           cd proto/sequencerblockapis
-          BUF_COMMIT=$(buf beta registry commit get buf.build/astria/primitives:${{ env.buf_repo_ending }} -- format=json | jq -r '.commit')
+          BUF_COMMIT=$(buf beta registry commit get buf.build/astria/primitives:${{ env.buf_repo_ending }} --format=json | jq -r '.commit')
           sed -i "s/buf.build\/astria\/primitives/buf.build\/astria\/primitives:$BUF_COMMIT/" buf.yaml
           buf mod update --only buf.build/astria/primitives
       - name: "Upload Sequencer Block API Protos"
@@ -56,7 +56,7 @@ jobs:
       - name: "Update Execution API dependency"
         run: |
           cd proto/executionapis
-          BUF_COMMIT=$(buf beta registry commit get buf.build/astria/sequencerblock-apis:${{ env.buf_repo_ending }} -- format=json | jq -r '.commit')
+          BUF_COMMIT=$(buf beta registry commit get buf.build/astria/sequencerblock-apis:${{ env.buf_repo_ending }} --format=json | jq -r '.commit')
           sed -i "s/buf.build\/astria\/primitives/buf.build\/astria\/sequencerblock-apis:$BUF_COMMIT/" buf.yaml
           buf mod update --only buf.build/astria/sequencerblock-apis
       - name: "Upload Execution API Protos"
@@ -68,7 +68,7 @@ jobs:
       - name: "Update Protocol API dependency"
         run: |
           cd proto/protocolapis
-          BUF_COMMIT=$(buf beta registry commit get buf.build/astria/primitives:${{ env.buf_repo_ending }} -- format=json | jq -r '.commit')
+          BUF_COMMIT=$(buf beta registry commit get buf.build/astria/primitives:${{ env.buf_repo_ending }} --format=json | jq -r '.commit')
           sed -i "s/buf.build\/astria\/primitives/buf.build\/astria\/primitives:$BUF_COMMIT/" buf.yaml
           buf mod update --only buf.build/astria/primitives
       - name: "Upload Protocol API Protos"
