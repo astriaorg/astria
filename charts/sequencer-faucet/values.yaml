@@ -10,7 +10,12 @@ config:
   # it corresponds with the following account:
   #     address: 00d75b270542084a54fcf0d0f6eab0402982d156
   #     pubKey: db617d4ec61726efc4d993488931b37f7774bf04ad916b8f974d33c9241ee762
-  fundingPrivateKey: 934ab488f9e1900f6a08f50605ce1409ca9d95ebdc400dafc2e8a4306419fd52
+  fundingPrivateKey:
+    devContent: 934ab488f9e1900f6a08f50605ce1409ca9d95ebdc400dafc2e8a4306419fd52
+    secret:
+      filename: sequencerPrivateKey.txt
+      resourceName: "projects/$PROJECT_ID/secrets/sequencerPrivateKey/versions/latest"
+      key: token
   # The amount of token to give per request
   amount: 1800
 
@@ -21,14 +26,25 @@ images:
 # This is configured for use with GCP, need to set own resource names
 # and keys
 secretProvider:
-  enabled: false
+  enabled: true
   provider: gcp
-  secrets:
-    # Used in place of config.fundingPrivateKey value when provider enabled
-    sequencerPrivateKey:
-      filename: sequencerPrivateKey.txt
-      resourceName: "projects/$PROJECT_ID/secrets/sequencerPrivateKey/versions/latest"
-      key: token
+  # May need to update this template to match the secret provider
+  # it will be passed an object containing:
+  # {
+  #   key: {
+  #     resourceName: <resourceName>,
+  #     filename: <filename>,
+  #     key: <key>
+  #   }
+  # }
+  #
+  # Can update set the source of each chain key at chain.<chain>.key.secret to
+  # match the secret provider's requirements. The default works for GCP.
+  # The secret file must be mapped to the <key.filename>
+  parametersTemplate: |-
+    secrets: | 
+      - resourceName: {{ .key.resourceName }}
+        fileName: "{{ .key.filename }}"
 
 ports:
   faucet: 8080
