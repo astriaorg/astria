@@ -4,6 +4,7 @@ use astria_core::{
     primitive::v1::{
         asset::default_native_asset_id,
         RollupId,
+        FEE_ASSET_ID_LEN,
         ROLLUP_ID_LEN,
     },
     protocol::transaction::v1alpha1::action::SequenceAction,
@@ -223,7 +224,7 @@ async fn full_bundle() {
     // order to make space for the second
     let seq0 = SequenceAction {
         rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
-        data: vec![0u8; cfg.max_bytes_per_bundle - ROLLUP_ID_LEN],
+        data: vec![0u8; cfg.max_bytes_per_bundle - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
         fee_asset_id: default_native_asset_id(),
     };
 

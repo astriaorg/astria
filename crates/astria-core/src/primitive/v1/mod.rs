@@ -17,6 +17,7 @@ use crate::{
 
 pub const ADDRESS_LEN: usize = 20;
 pub const ROLLUP_ID_LEN: usize = 32;
+pub const FEE_ASSET_ID_LEN: usize = 32;
 
 impl Protobuf for merkle::Proof {
     type Error = merkle::audit::InvalidProof;
