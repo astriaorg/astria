@@ -17,12 +17,14 @@ pub(crate) struct TransactionPriority {
 }
 
 impl PartialOrd for TransactionPriority {
+    #[allow(clippy::non_canonical_partial_ord_impl)]
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         let self_nonce_diff = self.transaction_nonce - self.current_account_nonce;
         let other_nonce_diff = other.transaction_nonce - other.current_account_nonce;
 
         // we want to execute the lowest nonce first,
         // so lower nonce difference means higher priority
+        #[allow(clippy::comparison_chain)]
         if self_nonce_diff > other_nonce_diff {
             Some(Ordering::Less)
         } else if self_nonce_diff < other_nonce_diff {
@@ -57,7 +59,7 @@ impl TransactionPriority {
     }
 }
 
-/// BasicMempool is a simple mempool implementation that stores transactions in a priority queue
+/// [`BasicMempool`] is a simple mempool implementation that stores transactions in a priority queue
 /// ordered by nonce.
 ///
 /// Future extensions to this mempool can include:
@@ -70,7 +72,6 @@ pub(crate) struct BasicMempool {
 }
 
 impl BasicMempool {
-    #[must_use]
     pub(crate) fn new() -> Self {
         Self {
             queue: DoublePriorityQueue::new(),

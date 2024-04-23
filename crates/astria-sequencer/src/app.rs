@@ -740,9 +740,7 @@ impl App {
             // skip the first two transactions, as they are the rollup data commitments
             for tx in finalize_block.txs.iter().skip(2) {
                 // remove any included txs from the mempool
-                let tx_hash = Sha256::digest(tx)
-                    .try_into()
-                    .expect("sha256 hash is always 32 bytes");
+                let tx_hash = Sha256::digest(tx).into();
                 let mut mempool = mempool.lock().await;
                 mempool.remove(&tx_hash);
 
