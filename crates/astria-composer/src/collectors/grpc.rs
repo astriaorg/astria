@@ -8,11 +8,11 @@ use astria_core::{
         SubmitRollupTransactionRequest,
         SubmitRollupTransactionResponse,
     },
-    sequencer::v1::{
+    primitive::v1::{
         asset::default_native_asset_id,
-        transaction::action::SequenceAction,
         RollupId,
     },
+    protocol::transaction::v1alpha1::action::SequenceAction,
 };
 use tokio::sync::mpsc::error::SendTimeoutError;
 use tonic::{

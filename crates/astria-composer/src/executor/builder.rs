@@ -1,8 +1,8 @@
 use std::time::Duration;
 
-use astria_core::sequencer::v1::{
-    transaction::action::SequenceAction,
-    Address,
+use astria_core::{
+    primitive::v1::Address,
+    protocol::transaction::v1alpha1::action::SequenceAction,
 };
 use astria_eyre::{
     eyre,
@@ -27,6 +27,7 @@ use crate::{
 
 pub(crate) struct Builder {
     pub(crate) sequencer_url: String,
+    pub(crate) sequencer_chain_id: String,
     pub(crate) private_key: SecretString,
     pub(crate) block_time_ms: u64,
     pub(crate) max_bytes_per_bundle: usize,
@@ -38,6 +39,7 @@ impl Builder {
     pub(crate) fn build(self) -> eyre::Result<(super::Executor, executor::Handle)> {
         let Self {
             sequencer_url,
+            sequencer_chain_id,
             private_key,
             block_time_ms,
             max_bytes_per_bundle,
@@ -64,6 +66,7 @@ impl Builder {
                 status,
                 serialized_rollup_transactions: serialized_rollup_transaction_rx,
                 sequencer_client,
+                sequencer_chain_id,
                 sequencer_key,
                 address: sequencer_address,
                 block_time: Duration::from_millis(block_time_ms),

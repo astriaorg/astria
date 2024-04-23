@@ -6,7 +6,6 @@ use tendermint::{
     account,
     Time,
 };
-use transaction::SignedTransaction;
 
 use super::{
     are_rollup_ids_included,
@@ -19,17 +18,20 @@ use super::{
     raw,
 };
 use crate::{
-    sequencer::v1::{
+    primitive::v1::{
         asset,
         derive_merkle_tree_from_rollup_txs,
-        transaction,
-        transaction::action,
         Address,
         IncorrectAddressLength,
         IncorrectRollupIdLength,
         RollupId,
     },
-    sequencerblock::Protobuf as _,
+    protocol::transaction::v1alpha1::{
+        action,
+        SignedTransaction,
+        SignedTransactionError,
+    },
+    Protobuf as _,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -111,7 +113,7 @@ impl RollupTransactions {
             proof,
         } = self;
         raw::RollupTransactions {
-            rollup_id: rollup_id.get().to_vec(),
+            rollup_id: Some(rollup_id.into_raw()),
             transactions,
             proof: Some(proof.into_raw()),
         }
@@ -127,8 +129,11 @@ impl RollupTransactions {
             transactions,
             proof,
         } = raw;
+        let Some(rollup_id) = rollup_id else {
+            return Err(RollupTransactionsError::field_not_set("rollup_id"));
+        };
         let rollup_id =
-            RollupId::try_from_slice(&rollup_id).map_err(RollupTransactionsError::rollup_id)?;
+            RollupId::try_from_raw(&rollup_id).map_err(RollupTransactionsError::rollup_id)?;
         let proof = 'proof: {
             let Some(proof) = proof else {
                 break 'proof Err(RollupTransactionsError::field_not_set("proof"));
@@ -225,7 +230,7 @@ impl SequencerBlockError {
         ))
     }
 
-    fn raw_signed_transaction_conversion(source: transaction::SignedTransactionError) -> Self {
+    fn raw_signed_transaction_conversion(source: SignedTransactionError) -> Self {
         Self(SequencerBlockErrorKind::RawSignedTransactionConversion(
             source,
         ))
@@ -308,7 +313,7 @@ enum SequencerBlockErrorKind {
         "failed converting a raw protobuf signed transaction decoded from the cometbft block.data
         field to a native astria signed transaction"
     )]
-    RawSignedTransactionConversion(#[source] transaction::SignedTransactionError),
+    RawSignedTransactionConversion(#[source] SignedTransactionError),
     #[error(
         "the root derived from the rollup transactions in the cometbft block.data field did not \
          match the root stored in the same block.data field"
@@ -799,7 +804,10 @@ impl SequencerBlock {
 
         let mut rollup_datas = IndexMap::new();
         for elem in data_list {
-            let raw_tx = crate::generated::sequencer::v1::SignedTransaction::decode(&*elem)
+            let raw_tx =
+                crate::generated::protocol::transaction::v1alpha1::SignedTransaction::decode(
+                    &*elem,
+                )
                 .map_err(SequencerBlockError::signed_transaction_protobuf_decode)?;
             let signed_tx = SignedTransaction::try_from_raw(raw_tx)
                 .map_err(SequencerBlockError::raw_signed_transaction_conversion)?;
@@ -1395,8 +1403,8 @@ impl Deposit {
             destination_chain_address,
         } = self;
         raw::Deposit {
-            bridge_address: bridge_address.to_vec(),
-            rollup_id: rollup_id.to_vec(),
+            bridge_address: Some(bridge_address.into_raw()),
+            rollup_id: Some(rollup_id.into_raw()),
             amount: Some(amount.into()),
             asset_id: asset_id.get().to_vec(),
             destination_chain_address,
@@ -1419,11 +1427,17 @@ impl Deposit {
             asset_id,
             destination_chain_address,
         } = raw;
-        let bridge_address = Address::try_from_slice(&bridge_address)
+        let Some(bridge_address) = bridge_address else {
+            return Err(DepositError::field_not_set("bridge_address"));
+        };
+        let bridge_address = Address::try_from_raw(&bridge_address)
             .map_err(DepositError::incorrect_address_length)?;
         let amount = amount.ok_or(DepositError::field_not_set("amount"))?.into();
-        let rollup_id = RollupId::try_from_slice(&rollup_id)
-            .map_err(DepositError::incorrect_rollup_id_length)?;
+        let Some(rollup_id) = rollup_id else {
+            return Err(DepositError::field_not_set("rollup_id"));
+        };
+        let rollup_id =
+            RollupId::try_from_raw(&rollup_id).map_err(DepositError::incorrect_rollup_id_length)?;
         let asset_id = asset::Id::try_from_slice(&asset_id)
             .map_err(DepositError::incorrect_asset_id_length)?;
         Ok(Self {

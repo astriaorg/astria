@@ -10,7 +10,7 @@ use anyhow::{
 };
 use astria_core::{
     generated::sequencerblock::v1alpha1::Deposit as RawDeposit,
-    sequencer::v1::{
+    primitive::v1::{
         asset,
         Address,
         RollupId,
@@ -44,11 +44,11 @@ struct Nonce(u32);
 
 /// Newtype wrapper to read and write a Vec<[u8; 32]> from rocksdb.
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
-struct AssetIds(Vec<[u8; 32]>);
+struct AssetId([u8; 32]);
 
-impl From<&[asset::Id]> for AssetIds {
-    fn from(ids: &[asset::Id]) -> Self {
-        Self(ids.iter().copied().map(asset::Id::get).collect())
+impl From<&asset::Id> for AssetId {
+    fn from(id: &asset::Id) -> Self {
+        Self(id.get())
     }
 }
 
@@ -63,8 +63,8 @@ fn rollup_id_storage_key(address: &Address) -> String {
     format!("{}/rollupid", storage_key(&address.encode_hex::<String>()))
 }
 
-fn asset_ids_storage_key(address: &Address) -> String {
-    format!("{}/assetids", storage_key(&address.encode_hex::<String>()))
+fn asset_id_storage_key(address: &Address) -> String {
+    format!("{}/assetid", storage_key(&address.encode_hex::<String>()))
 }
 
 fn deposit_storage_key_prefix(rollup_id: &RollupId) -> String {
@@ -98,14 +98,14 @@ pub(crate) trait StateReadExt: StateRead {
     }
 
     #[instrument(skip(self))]
-    async fn get_bridge_account_asset_ids(&self, address: &Address) -> Result<Vec<asset::Id>> {
+    async fn get_bridge_account_asset_ids(&self, address: &Address) -> Result<asset::Id> {
         let bytes = self
-            .get_raw(&asset_ids_storage_key(address))
+            .get_raw(&asset_id_storage_key(address))
             .await
             .context("failed reading raw asset IDs from state")?
             .ok_or_else(|| anyhow!("asset IDs not found"))?;
-        let asset_ids = AssetIds::try_from_slice(&bytes).context("invalid asset IDs bytes")?;
-        Ok(asset_ids.0.into_iter().map(asset::Id::from).collect())
+        let asset_id = asset::Id::try_from_slice(&bytes).context("invalid asset IDs bytes")?;
+        Ok(asset_id)
     }
 
     #[instrument(skip(self))]
@@ -189,14 +189,14 @@ pub(crate) trait StateWriteExt: StateWrite {
     }
 
     #[instrument(skip(self))]
-    fn put_bridge_account_asset_ids(
+    fn put_bridge_account_asset_id(
         &mut self,
         address: &Address,
-        asset_ids: &[asset::Id],
+        asset_id: &asset::Id,
     ) -> Result<()> {
         self.put_raw(
-            asset_ids_storage_key(address),
-            borsh::to_vec(&AssetIds::from(asset_ids)).context("failed to serialize asset IDs")?,
+            asset_id_storage_key(address),
+            borsh::to_vec(&AssetId::from(asset_id)).context("failed to serialize asset IDs")?,
         );
         Ok(())
     }
@@ -252,7 +252,7 @@ impl<T: StateWrite> StateWriteExt for T {}
 #[cfg(test)]
 mod test {
     use astria_core::{
-        sequencer::v1::{
+        primitive::v1::{
             asset::Id,
             Address,
             RollupId,
@@ -363,56 +363,57 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         let address = Address::try_from_slice(&[42u8; 20]).unwrap();
-        let mut assets = vec![Id::from_denom("asset_0"), Id::from_denom("asset_1")];
-        assets.sort();
+        let mut asset = Id::from_denom("asset_0");
 
         // can write
         state
-            .put_bridge_account_asset_ids(&address, &assets)
-            .expect("storing bridge account assets should not fail");
+            .put_bridge_account_asset_id(&address, &asset)
+            .expect("storing bridge account asset should not fail");
         let mut result = state
             .get_bridge_account_asset_ids(&address)
             .await
-            .expect("bridge asset ids were written and must exist inside the database");
-        result.sort();
+            .expect("bridge asset id wwas written and must exist inside the database");
         assert_eq!(
-            result, assets,
-            "returned bridge account asset ids did not match expected"
+            result, asset,
+            "returned bridge account asset id did not match expected"
         );
 
         // can update
-        assets.append(&mut vec![Id::from_denom("asset_2")]);
-        assets.sort();
+        asset = Id::from_denom("asset_2");
         state
-            .put_bridge_account_asset_ids(&address, &assets)
+            .put_bridge_account_asset_id(&address, &asset)
             .expect("storing bridge account assets should not fail");
-        let mut result = state
+        result = state
             .get_bridge_account_asset_ids(&address)
             .await
-            .expect("bridge asset ids were written and must exist inside the database");
-        result.sort();
+            .expect("bridge asset id was written and must exist inside the database");
         assert_eq!(
-            result, assets,
-            "returned bridge account asset ids did not match expected"
+            result, asset,
+            "returned bridge account asset id did not match expected"
         );
 
         // writing to other account also ok
         let address_1 = Address::try_from_slice(&[41u8; 20]).unwrap();
-        let assets_1 = vec![Id::from_denom("asset_0")];
+        let asset_1 = Id::from_denom("asset_0");
         state
-            .put_bridge_account_asset_ids(&address_1, &assets_1)
+            .put_bridge_account_asset_id(&address_1, &asset_1)
             .expect("storing bridge account assets should not fail");
         assert_eq!(
             state
                 .get_bridge_account_asset_ids(&address_1)
                 .await
-                .expect("bridge asset ids were written and must exist inside the database"),
-            assets_1,
-            "second bridge account assets not what was expected"
+                .expect("bridge asset id was written and must exist inside the database"),
+            asset_1,
+            "second bridge account asset not what was expected"
         );
+        result = state
+            .get_bridge_account_asset_ids(&address)
+            .await
+            .expect("original bridge asset id was written and must exist inside the database");
         assert_eq!(
-            result, assets,
-            "original bridge account asset ids did not match expected"
+            result, asset,
+            "original bridge account asset id did not match expected after new bridge account \
+             added"
         );
     }
 

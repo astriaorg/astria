@@ -8,13 +8,16 @@ use std::{
     mem,
 };
 
-use astria_core::sequencer::v1::{
-    transaction::{
+use astria_core::{
+    primitive::v1::{
+        RollupId,
+        FEE_ASSET_ID_LEN,
+        ROLLUP_ID_LEN,
+    },
+    protocol::transaction::v1alpha1::{
         action::SequenceAction,
         Action,
     },
-    RollupId,
-    ROLLUP_ID_LEN,
 };
 use serde::ser::{
     Serialize,
@@ -248,5 +251,9 @@ impl<'a> NextFinishedBundle<'a> {
 
 /// The size of the `seq_action` in bytes, including the rollup id.
 fn estimate_size_of_sequence_action(seq_action: &SequenceAction) -> usize {
-    seq_action.data.len() + ROLLUP_ID_LEN
+    seq_action
+        .data
+        .len()
+        .saturating_add(ROLLUP_ID_LEN)
+        .saturating_add(FEE_ASSET_ID_LEN)
 }

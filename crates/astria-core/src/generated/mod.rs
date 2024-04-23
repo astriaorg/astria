@@ -40,15 +40,16 @@ pub mod primitive {
 }
 
 #[path = ""]
-pub mod sequencer {
-    pub mod v1 {
-        include!("astria.sequencer.v1.rs");
-
-        #[cfg(feature = "serde")]
-        mod _serde_impl {
-            use super::*;
-            include!("astria.sequencer.v1.serde.rs");
-        }
+pub mod protocol {
+    #[path = ""]
+    pub mod account {
+        #[path = "astria.protocol.accounts.v1alpha1.rs"]
+        pub mod v1alpha1;
+    }
+    #[path = ""]
+    pub mod transaction {
+        #[path = "astria.protocol.transactions.v1alpha1.rs"]
+        pub mod v1alpha1;
     }
 }
 

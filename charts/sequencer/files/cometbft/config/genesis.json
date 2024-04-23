@@ -54,7 +54,7 @@
       "app": "0"
     }
   },
-  "genesis_time": "2023-09-22T17:22:35.092832Z",
+  "genesis_time": "{{ .Values.config.cometBFT.genesisTime }}",
   "initial_height": "0",
   "validators": [
   {{- range $index, $value := .Values.config.cometBFT.validators }}

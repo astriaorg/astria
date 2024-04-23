@@ -119,6 +119,7 @@ impl Composer {
 
         let (executor, executor_handle) = executor::Builder {
             sequencer_url: cfg.sequencer_url.clone(),
+            sequencer_chain_id: cfg.sequencer_chain_id.clone(),
             private_key: cfg.private_key.clone(),
             block_time_ms: cfg.block_time_ms,
             max_bytes_per_bundle: cfg.max_bytes_per_bundle,

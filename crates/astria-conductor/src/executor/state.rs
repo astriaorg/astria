@@ -4,7 +4,7 @@ use astria_core::{
         CommitmentState,
         GenesisInfo,
     },
-    sequencer::v1::RollupId,
+    primitive::v1::RollupId,
 };
 use bytes::Bytes;
 use celestia_client::celestia_types::Height as CelestiaHeight;
@@ -206,7 +206,7 @@ fn map_rollup_height_to_sequencer_height(
 mod tests {
     use astria_core::{
         generated::execution::v1alpha2 as raw,
-        sequencerblock::Protobuf as _,
+        Protobuf as _,
     };
     use pbjson_types::Timestamp;
 
