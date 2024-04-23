@@ -20,18 +20,6 @@ images:
     tag: "0.5.0"
     devTag: latest
 
-  # Rollup faucet
-  faucet: "ghcr.io/astriaorg/ria-faucet:0.0.1"
-
-  # Pertaining to deploying blockscout block explorer
-  blockscout:
-    core: "docker.io/blockscout/blockscout:5.1.0"
-    postgres: "docker.io/library/postgres:14"
-    redis: "docker.io/library/redis:alpine"
-    sigProvider: "ghcr.io/blockscout/sig-provider@sha256:ae371ce8d0a20993bf61ca81b3394416f4778c9edd398250fd4d81a8d6820950"
-    smartContractVerifier: "ghcr.io/blockscout/smart-contract-verifier@sha256:f07b2d874c28d45f5ba81f297c868a746a03771e8b6d9b8e96f0eba0beeb1016"
-    visualizer: "ghcr.io/blockscout/visualizer@sha256:99479da126248e0aba5c32b1e32625f8c527b72924f55cb510b50e5f854b2d15"
-
 config:
   # The level at which core astria components will log out
   # Options are: error, warn, info, and debug
@@ -125,17 +113,6 @@ config:
             summary: Slow Chain Head Finalized (instance {{ $labels.instance }})
             description: "Chain Head Finalized on {{ $labels.namespace }} is increasing at a rate slower then 20 blocks per 5 minute\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
 
-  faucet:
-    enabled: true
-    proxyCount: 1
-    # The account from which the faucet disburses funds, likely want to have
-    # the corresponding account given a balance in genesis accounts.
-    # Note: When secretProvider.enabled is true the secret provided by
-    #       `evmPrivateKey` is used instead of this value.
-    privateKey: "8b3a7999072c9c9314c084044fe705db11714c6c4ed7cddb64da18ea270dd203"
-    # The amount of token to give per request
-    amount: 1
-
   # Configuration related to sequencer connection for rollup
   sequencer:
     chainId: ""
@@ -160,9 +137,6 @@ config:
     token: ""
     initialBlockHeight: "2"
     heightVariance: "10"
-
-  blockscout:
-    enabled: true
 
 celestia-node:
   # Strongly recommend leaving enabled when not doing `SoftOnly` execution
@@ -242,42 +216,6 @@ ingress:
       #  - secretName: chart-example-tls
       #    hosts:
       #      - chart-example.local
-    faucet:
-      enabled: true
-      hosts:
-        - faucet.{{ .Values.config.rollup.name }}.{{ .Values.ingress.hostname }}
-      path: /
-      pathType: Prefix
-      service:
-        name: "{{ .Values.config.rollup.name }}-faucet-service"
-        port:
-          name: faucet-svc
-      annotations: {}
-        # kubernetes.io/ingress.class: nginx
-        # kubernetes.io/tls-acme: "true"
-      labels: {}
-      tls: {}
-      #  - secretName: chart-example-tls
-      #    hosts:
-      #      - chart-example.local
-    explorer:
-      enabled: true
-      hosts:
-        - blockscout.{{ .Values.config.rollup.name }}.{{ .Values.ingress.hostname }}
-      path: /
-      pathType: Prefix
-      service:
-        name: "{{ .Values.config.rollup.name }}-blockscout-svc"
-        port:
-          name: blockscout-svc
-      annotations: {}
-        # kubernetes.io/ingress.class: nginx
-        # kubernetes.io/tls-acme: "true"
-      labels: {}
-      tls: {}
-      #  - secretName: chart-example-tls
-      #    hosts:
-      #      - chart-example.local
 
 # Default persistent storage values
 # NOTE - `rollupName` will be used with `persistentVolumeName` to generate names for kubernetes resources.
@@ -318,7 +256,6 @@ ports:
   wsRPC: 8546
   executionGRPC: 50051
   gossipnet: 2451
-  faucet: 8080
   blockscout: 4000
   metrics: 6060
   conductorMetrics: 9000

@@ -166,20 +166,20 @@ defaultSequencerStartBlock := ""
 deploy-rollup rollupName=defaultRollupName networkId=defaultNetworkId genesisAllocAddress=defaultGenesisAllocAddress privateKey=defaultPrivateKey sequencerStartBlock=defaultSequencerStartBlock:
   helm dependency build charts/evm-rollup > /dev/null
   helm install \
-    {{ if rollupName          != '' { replace('--set config.rollup.name=# --set celestia-node.config.labelPrefix=#', '#', rollupName) } else { '' } }} \
+    {{ if rollupName          != '' { replace('--set config.rollup.name=# --set celestia-node.config.labelPrefix=# --set evm-faucet.config.rollupName=#', '#', rollupName) } else { '' } }} \
     {{ if networkId           != '' { replace('--set config.rollup.networkId=#', '#', networkId) } else { '' } }} \
     {{ if genesisAllocAddress != '' { replace('--set config.rollup.genesisAccounts[0].address=#', '#', genesisAllocAddress) } else { '' } }} \
-    {{ if privateKey          != '' { replace('--set config.faucet.privateKey=#', '#', privateKey) } else { '' } }} \
+    {{ if privateKey          != '' { replace('--set evm-faucet.config.privateKey=#', '#', privateKey) } else { '' } }} \
     {{ if sequencerStartBlock != '' { replace('--set config.sequencer.initialBlockHeight=#', '#', sequencerStartBlock) } else { '' } }} \
     {{rollupName}}-chain-chart ./charts/evm-rollup --namespace astria-dev-cluster
 
 deploy-dev-rollup rollupName=defaultRollupName networkId=defaultNetworkId genesisAllocAddress=defaultGenesisAllocAddress privateKey=defaultPrivateKey sequencerStartBlock=defaultSequencerStartBlock:
   helm dependency build charts/evm-rollup > /dev/null
   helm install \
-    {{ if rollupName          != '' { replace('--set config.rollup.name=# --set celestia-node.config.labelPrefix=#', '#', rollupName) } else { '' } }} \
+    {{ if rollupName          != '' { replace('--set config.rollup.name=# --set celestia-node.config.labelPrefix=# --set evm-faucet.config.rollupName=#', '#', rollupName) } else { '' } }} \
     {{ if networkId           != '' { replace('--set config.rollup.networkId=#', '#', networkId) } else { '' } }} \
     {{ if genesisAllocAddress != '' { replace('--set config.rollup.genesisAccounts[0].address=#', '#', genesisAllocAddress) } else { '' } }} \
-    {{ if privateKey          != '' { replace('--set config.faucet.privateKey=#', '#', privateKey) } else { '' } }} \
+    {{ if privateKey          != '' { replace('--set evm-faucet.config.privateKey=#', '#', privateKey) } else { '' } }} \
     {{ if sequencerStartBlock != '' { replace('--set config.sequencer.initialBlockHeight=#', '#', sequencerStartBlock) } else { '' } }} \
     -f dev/values/rollup/dev.yaml \
     {{rollupName}}-chain-chart ./charts/evm-rollup --namespace astria-dev-cluster
@@ -230,7 +230,7 @@ deploy-smoke-test tag=defaultTag:
   @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart ./charts/evm-rollup -f dev/values/rollup/dev.yaml \
     {{ if tag != '' { replace('--set images.conductor.devTag=# --set images.composer.devTag=#', '#', tag) } else { '' } }} \
     --set config.blockscout.enabled=false \
-    --set config.faucet.enabled=false > /dev/null
+    --set evm-faucet.enabled=false > /dev/null
   @just wait-for-rollup > /dev/null
   @sleep 15
 
