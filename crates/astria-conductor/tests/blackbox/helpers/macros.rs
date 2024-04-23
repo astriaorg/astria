@@ -77,7 +77,7 @@ macro_rules! commitment_state {
 #[macro_export]
 macro_rules! filtered_sequencer_block {
     (sequencer_height: $height:expr) => {{
-        let block = ::astria_core::sequencer::v1::test_utils::ConfigureCometBftBlock {
+        let block = ::astria_core::protocol::test_utils::ConfigureCometBftBlock {
             height: $height,
             rollup_transactions: vec![($crate::ROLLUP_ID, $crate::helpers::data())],
             ..Default::default()
@@ -238,7 +238,7 @@ macro_rules! mount_get_filtered_sequencer_block {
             .mount_get_filtered_sequencer_block(
                 ::astria_core::generated::sequencerblock::v1alpha1::GetFilteredSequencerBlockRequest {
                     height: $height,
-                    rollup_ids: vec![$crate::ROLLUP_ID.to_vec()],
+                    rollup_ids: vec![$crate::ROLLUP_ID.to_raw()],
                 },
                 $crate::filtered_sequencer_block!(sequencer_height: $height),
             )

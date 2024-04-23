@@ -283,12 +283,14 @@ run-smoke-test:
     echo "$(printf "%d" $HEX_NUM)"
   }
   while [ $FINALIZED_RUNS -lt $MAX_RUNS ]; do
-    if [ $(finalized) -gt 0 ]; then
+    FINAL=$(finalized)
+    if [ $FINAL -gt 0 ]; then
       echo "Finalized success"
       exit 0
     else
       sleep 1
     fi
+    echo "Finalized block: $FINAL, Check number: $FINALIZED_RUNS"
     FINALIZED_RUNS=$((FINALIZED_RUNS+1))
   done
   echo "Finalization failure"

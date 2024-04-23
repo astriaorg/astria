@@ -96,6 +96,13 @@ pub struct BasicAccountArgs {
         default_value = crate::cli::DEFAULT_SEQUENCER_RPC
     )]
     pub(crate) sequencer_url: String,
+    /// The chain id of the sequencing chain being used
+    #[clap(
+        long = "sequencer.chain-id",
+        env = "ROLLUP_SEQUENCER_CHAIN_ID",
+        default_value = crate::cli::DEFAULT_SEQUENCER_CHAIN_ID
+    )]
+    pub sequencer_chain_id: String,
     /// The address of the Sequencer account
     pub(crate) address: SequencerAddressArg,
 }
@@ -121,6 +128,13 @@ pub struct TransferArgs {
         default_value = crate::cli::DEFAULT_SEQUENCER_RPC
     )]
     pub(crate) sequencer_url: String,
+    /// The chain id of the sequencing chain being used
+    #[clap(
+        long = "sequencer.chain-id",
+        env = "ROLLUP_SEQUENCER_CHAIN_ID",
+        default_value = crate::cli::DEFAULT_SEQUENCER_CHAIN_ID
+    )]
+    pub sequencer_chain_id: String,
 }
 
 #[derive(Args, Debug)]
@@ -138,6 +152,13 @@ pub struct FeeAssetChangeArgs {
         default_value = crate::cli::DEFAULT_SEQUENCER_RPC
     )]
     pub(crate) sequencer_url: String,
+    /// The chain id of the sequencing chain being used
+    #[clap(
+        long = "sequencer.chain-id",
+        env = "ROLLUP_SEQUENCER_CHAIN_ID",
+        default_value = crate::cli::DEFAULT_SEQUENCER_CHAIN_ID
+    )]
+    pub sequencer_chain_id: String,
     /// Asset's denomination string
     #[clap(long)]
     pub(crate) asset: String,
@@ -158,6 +179,13 @@ pub struct IbcRelayerChangeArgs {
         default_value = crate::cli::DEFAULT_SEQUENCER_RPC
     )]
     pub(crate) sequencer_url: String,
+    /// The chain id of the sequencing chain being used
+    #[clap(
+        long = "sequencer.chain-id",
+        env = "ROLLUP_SEQUENCER_CHAIN_ID",
+        default_value = crate::cli::DEFAULT_SEQUENCER_CHAIN_ID
+    )]
+    pub sequencer_chain_id: String,
     /// The address to add or remove as an IBC relayer
     #[clap(long)]
     pub(crate) address: SequencerAddressArg,
@@ -178,6 +206,13 @@ pub struct InitBridgeAccountArgs {
         default_value = crate::cli::DEFAULT_SEQUENCER_RPC
     )]
     pub(crate) sequencer_url: String,
+    /// The chain id of the sequencing chain being used
+    #[clap(
+        long = "sequencer.chain-id",
+        env = "ROLLUP_SEQUENCER_CHAIN_ID",
+        default_value = crate::cli::DEFAULT_SEQUENCER_CHAIN_ID
+    )]
+    pub sequencer_chain_id: String,
     /// Plaintext rollup name (to be hashed into a rollup ID)
     /// to initialize the bridge account with.
     #[clap(long)]
@@ -206,6 +241,13 @@ pub struct BridgeLockArgs {
         default_value = crate::cli::DEFAULT_SEQUENCER_RPC
     )]
     pub(crate) sequencer_url: String,
+    /// The chain id of the sequencing chain being used
+    #[clap(
+        long = "sequencer.chain-id",
+        env = "ROLLUP_SEQUENCER_CHAIN_ID",
+        default_value = crate::cli::DEFAULT_SEQUENCER_CHAIN_ID
+    )]
+    pub sequencer_chain_id: String,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -241,6 +283,13 @@ pub struct BlockHeightGetArgs {
         default_value = crate::cli::DEFAULT_SEQUENCER_RPC
     )]
     pub(crate) sequencer_url: String,
+    /// The chain id of the sequencing chain being used
+    #[clap(
+        long = "sequencer.chain-id",
+        env = "ROLLUP_SEQUENCER_CHAIN_ID",
+        default_value = crate::cli::DEFAULT_SEQUENCER_CHAIN_ID
+    )]
+    pub sequencer_chain_id: String,
 }
 
 #[derive(Args, Debug)]
@@ -258,6 +307,13 @@ pub struct MintArgs {
         default_value = crate::cli::DEFAULT_SEQUENCER_RPC
     )]
     pub(crate) sequencer_url: String,
+    /// The chain id of the sequencing chain being used
+    #[clap(
+        long = "sequencer.chain-id",
+        env = "ROLLUP_SEQUENCER_CHAIN_ID",
+        default_value = crate::cli::DEFAULT_SEQUENCER_CHAIN_ID
+    )]
+    pub sequencer_chain_id: String,
     /// The address to mint to
     #[clap(long)]
     pub(crate) to_address: SequencerAddressArg,
@@ -281,6 +337,13 @@ pub struct SudoAddressChangeArgs {
         default_value = crate::cli::DEFAULT_SEQUENCER_RPC
     )]
     pub(crate) sequencer_url: String,
+    /// The chain id of the sequencing chain being used
+    #[clap(
+        long = "sequencer.chain-id",
+        env = "ROLLUP_SEQUENCER_CHAIN_ID",
+        default_value = crate::cli::DEFAULT_SEQUENCER_CHAIN_ID
+    )]
+    pub sequencer_chain_id: String,
     /// The new address to take over sudo privileges
     #[clap(long)]
     pub(crate) address: SequencerAddressArg,
@@ -295,6 +358,13 @@ pub struct ValidatorUpdateArgs {
         default_value = crate::cli::DEFAULT_SEQUENCER_RPC
     )]
     pub(crate) sequencer_url: String,
+    /// The chain id of the sequencing chain being used
+    #[clap(
+        long = "sequencer.chain-id",
+        env = "ROLLUP_SEQUENCER_CHAIN_ID",
+        default_value = crate::cli::DEFAULT_SEQUENCER_CHAIN_ID
+    )]
+    pub sequencer_chain_id: String,
     /// The private key of the sudo account authorizing change
     #[clap(long, env = "SEQUENCER_PRIVATE_KEY")]
     // TODO: https://github.com/astriaorg/astria/issues/594

@@ -2,8 +2,8 @@ syntax = "proto3";
 
 package astria.sequencerblock.v1alpha1;
 
+import "astria/primitive/v1/types.proto";
 import "astria/sequencerblock/v1alpha1/block.proto";
-import "astria/sequencerblock/v1alpha1/merkle.proto";
 
 // A collection of transactions belonging to a specific rollup that are submitted to celestia.
 //
@@ -15,12 +15,12 @@ message CelestiaRollupBlob {
   bytes sequencer_block_hash = 1;
   // The 32 bytes identifying the rollup this blob belongs to. Matches
   // `astria.sequencer.v1.RollupTransactions.rollup_id`
-  bytes rollup_id = 2;
+  astria.primitive.v1.RollupId rollup_id = 2;
   // A list of opaque bytes that are serialized rollup transactions.
   repeated bytes transactions = 3;
   // The proof that these rollup transactions are included in sequencer block.
-  // `astria.SequencerBlock.rollup_transactions_proof`.
-  astria.sequencerblock.v1alpha1.Proof proof = 4;
+  // `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions_proof`.
+  astria.primitive.v1.Proof proof = 4;
 }
 
 // The metadata of a sequencer block that is submitted to celestia.
@@ -39,11 +39,11 @@ message CelestiaSequencerBlob {
   // The rollup IDs for which `CelestiaRollupBlob`s were submitted to celestia.
   // Corresponds to the `astria.sequencer.v1.RollupTransactions.rollup_id` field
   // and is extracted from `astria.SequencerBlock.rollup_transactions`.
-  repeated bytes rollup_ids = 3;
+  repeated astria.primitive.v1.RollupId rollup_ids = 3;
   // The proof that the rollup transactions are included in sequencer block.
-  // Corresponds to `astria.SequencerBlock.rollup_transactions_proof`.
-  astria.sequencerblock.v1alpha1.Proof rollup_transactions_proof = 4;
+  // Corresponds to `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions_proof`.
+  astria.primitive.v1.Proof rollup_transactions_proof = 4;
   // The proof that the rollup IDs are included in sequencer block.
-  // Corresponds to `astria.SequencerBlock.rollup_ids_proof`.
-  astria.sequencerblock.v1alpha1.Proof rollup_ids_proof = 5;
+  // Corresponds to `astria.sequencer.v1alpha.SequencerBlock.rollup_ids_proof`.
+  astria.primitive.v1.Proof rollup_ids_proof = 5;
 }

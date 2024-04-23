@@ -22,7 +22,7 @@ use astria_core::{
         GetSequencerBlockRequest,
         SequencerBlock as RawSequencerBlock,
     },
-    sequencer::v1::test_utils::make_cometbft_block,
+    protocol::test_utils::make_cometbft_block,
     sequencerblock::v1alpha1::SequencerBlock,
 };
 use astria_sequencer_relayer::{

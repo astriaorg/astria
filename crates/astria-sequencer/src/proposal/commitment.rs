@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
 use astria_core::{
-    sequencer::v1::{
+    primitive::v1::RollupId,
+    protocol::{
         group_sequence_actions_in_signed_transaction_transactions_by_rollup_id,
-        RollupId,
-        SignedTransaction,
+        transaction::v1alpha1::SignedTransaction,
     },
     sequencerblock::v1alpha1::block::{
         Deposit,
@@ -78,7 +78,7 @@ pub(crate) fn generate_rollup_datas_commitment(
     // with the same `rollup_id`, prepended with `rollup_id`.
     // the leaves are sorted in ascending order by `rollup_id`.
     let rollup_datas_root =
-        astria_core::sequencer::v1::derive_merkle_tree_from_rollup_txs(&rollup_ids_to_txs).root();
+        astria_core::primitive::v1::derive_merkle_tree_from_rollup_txs(&rollup_ids_to_txs).root();
     GeneratedCommitments {
         rollup_datas_root,
         rollup_ids_root,
@@ -87,17 +87,22 @@ pub(crate) fn generate_rollup_datas_commitment(
 
 #[cfg(test)]
 mod test {
-    use astria_core::sequencer::v1::{
-        asset::{
-            Denom,
-            DEFAULT_NATIVE_ASSET_DENOM,
+    use astria_core::{
+        primitive::v1::{
+            asset::{
+                Denom,
+                DEFAULT_NATIVE_ASSET_DENOM,
+            },
+            Address,
         },
-        transaction::action::{
-            SequenceAction,
-            TransferAction,
+        protocol::transaction::v1alpha1::{
+            action::{
+                SequenceAction,
+                TransferAction,
+            },
+            TransactionParams,
+            UnsignedTransaction,
         },
-        Address,
-        UnsignedTransaction,
     };
     use ed25519_consensus::SigningKey;
     use rand::rngs::OsRng;
@@ -126,7 +131,10 @@ mod test {
 
         let signing_key = SigningKey::new(OsRng);
         let tx = UnsignedTransaction {
-            nonce: 0,
+            params: TransactionParams {
+                nonce: 0,
+                chain_id: "test-chain-1".to_string(),
+            },
             actions: vec![sequence_action.clone().into(), transfer_action.into()],
         };
 
@@ -139,7 +147,10 @@ mod test {
 
         let signing_key = SigningKey::new(OsRng);
         let tx = UnsignedTransaction {
-            nonce: 0,
+            params: TransactionParams {
+                nonce: 0,
+                chain_id: "test-chain-1".to_string(),
+            },
             actions: vec![sequence_action.into()],
         };
 
@@ -175,7 +186,10 @@ mod test {
 
         let signing_key = SigningKey::new(OsRng);
         let tx = UnsignedTransaction {
-            nonce: 0,
+            params: TransactionParams {
+                nonce: 0,
+                chain_id: "test-chain-1".to_string(),
+            },
             actions: vec![sequence_action.into(), transfer_action.into()],
         };
 

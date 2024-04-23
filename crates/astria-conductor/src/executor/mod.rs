@@ -5,7 +5,7 @@ use astria_core::{
         Block,
         CommitmentState,
     },
-    sequencer::v1::RollupId,
+    primitive::v1::RollupId,
     sequencerblock::v1alpha1::block::{
         FilteredSequencerBlock,
         FilteredSequencerBlockParts,

@@ -3,7 +3,7 @@ use anyhow::{
     Context as _,
     Result,
 };
-use astria_core::sequencer::v1::asset;
+use astria_core::primitive::v1::asset;
 use async_trait::async_trait;
 use cnidarium::{
     StateRead,
@@ -33,7 +33,7 @@ fn fee_asset_key(asset: asset::Id) -> Vec<u8> {
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip(self))]
-    async fn get_chain_id(&self) -> Result<String> {
+    async fn get_chain_id(&self) -> Result<tendermint::chain::Id> {
         let Some(bytes) = self
             .get_raw("chain_id")
             .await
@@ -42,7 +42,10 @@ pub(crate) trait StateReadExt: StateRead {
             bail!("chain id not found in state");
         };
 
-        String::from_utf8(bytes).context("failed to parse chain id from raw bytes")
+        Ok(String::from_utf8(bytes)
+            .context("failed to parse chain id from raw bytes")?
+            .try_into()
+            .expect("only valid chain ids should be stored in the state"))
     }
 
     #[instrument(skip(self))]
@@ -185,9 +188,9 @@ impl<T: StateRead> StateReadExt for T {}
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip(self))]
-    fn put_chain_id_and_revision_number(&mut self, chain_id: String) {
-        let revision_number = revision_number_from_chain_id(&chain_id);
-        self.put_raw("chain_id".into(), chain_id.into_bytes());
+    fn put_chain_id_and_revision_number(&mut self, chain_id: tendermint::chain::Id) {
+        let revision_number = revision_number_from_chain_id(chain_id.as_str());
+        self.put_raw("chain_id".into(), chain_id.as_bytes().to_vec());
         self.put_revision_number(revision_number);
     }
 
@@ -331,8 +334,8 @@ mod test {
             .expect_err("no chain ID should exist at first");
 
         // can write new
-        let chain_id_orig = "test-chain-orig";
-        state.put_chain_id_and_revision_number(chain_id_orig.to_string());
+        let chain_id_orig: tendermint::chain::Id = "test-chain-orig".try_into().unwrap();
+        state.put_chain_id_and_revision_number(chain_id_orig.clone());
         assert_eq!(
             state
                 .get_chain_id()
@@ -352,8 +355,8 @@ mod test {
         );
 
         // can rewrite with new value
-        let chain_id_update = "test-chain-update";
-        state.put_chain_id_and_revision_number(chain_id_update.to_string());
+        let chain_id_update: tendermint::chain::Id = "test-chain-update".try_into().unwrap();
+        state.put_chain_id_and_revision_number(chain_id_update.clone());
         assert_eq!(
             state
                 .get_chain_id()
@@ -373,8 +376,8 @@ mod test {
         );
 
         // can rewrite with chain id with revision number
-        let chain_id_update = "test-chain-99";
-        state.put_chain_id_and_revision_number(chain_id_update.to_string());
+        let chain_id_update: tendermint::chain::Id = "test-chain-99".try_into().unwrap();
+        state.put_chain_id_and_revision_number(chain_id_update.clone());
         assert_eq!(
             state
                 .get_chain_id()
@@ -575,7 +578,7 @@ mod test {
         assert!(fee_balances_orig.is_empty());
 
         // can write
-        let asset = astria_core::sequencer::v1::asset::Id::from_denom("asset_0");
+        let asset = astria_core::primitive::v1::asset::Id::from_denom("asset_0");
         let amount = 100u128;
         state
             .get_and_increase_block_fees(asset, amount)
@@ -598,8 +601,8 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         // can write
-        let asset_first = astria_core::sequencer::v1::asset::Id::from_denom("asset_0");
-        let asset_second = astria_core::sequencer::v1::asset::Id::from_denom("asset_1");
+        let asset_first = astria_core::primitive::v1::asset::Id::from_denom("asset_0");
+        let asset_second = astria_core::primitive::v1::asset::Id::from_denom("asset_1");
         let amount_first = 100u128;
         let amount_second = 200u128;
 
@@ -637,7 +640,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         // non-existent fees assets return false
-        let asset = astria_core::sequencer::v1::asset::Id::from_denom("asset_0");
+        let asset = astria_core::primitive::v1::asset::Id::from_denom("asset_0");
         assert!(
             !state
                 .is_allowed_fee_asset(asset)
@@ -664,7 +667,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         // setup fee asset
-        let asset = astria_core::sequencer::v1::asset::Id::from_denom("asset_0");
+        let asset = astria_core::primitive::v1::asset::Id::from_denom("asset_0");
         state.put_allowed_fee_asset(asset);
         assert!(
             state
@@ -697,7 +700,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         // setup fee assets
-        let asset_first = astria_core::sequencer::v1::asset::Id::from_denom("asset_0");
+        let asset_first = astria_core::primitive::v1::asset::Id::from_denom("asset_0");
         state.put_allowed_fee_asset(asset_first);
         assert!(
             state
@@ -706,7 +709,7 @@ mod test {
                 .expect("checking for allowed fee asset should not fail"),
             "fee asset was expected to be allowed"
         );
-        let asset_second = astria_core::sequencer::v1::asset::Id::from_denom("asset_1");
+        let asset_second = astria_core::primitive::v1::asset::Id::from_denom("asset_1");
         state.put_allowed_fee_asset(asset_second);
         assert!(
             state
@@ -715,7 +718,7 @@ mod test {
                 .expect("checking for allowed fee asset should not fail"),
             "fee asset was expected to be allowed"
         );
-        let asset_third = astria_core::sequencer::v1::asset::Id::from_denom("asset_3");
+        let asset_third = astria_core::primitive::v1::asset::Id::from_denom("asset_3");
         state.put_allowed_fee_asset(asset_third);
         assert!(
             state

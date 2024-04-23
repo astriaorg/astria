@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use astria_core::sequencer::v1::RollupId;
+use astria_core::primitive::v1::RollupId;
 use celestia_client::{
     CelestiaRollupBlob,
     CelestiaSequencerBlob,

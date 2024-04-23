@@ -8,13 +8,20 @@ data:
     {{- tpl (.Files.Get "files/cometbft/config/genesis.json") $ | nindent 4 }}
   config.toml: |
     {{- tpl (.Files.Get "files/cometbft/config/config.toml") $ | nindent 4 }}
-  {{- if not .Values.secretProvider.enabled }}
-  node_key.json: |
-    {{- tpl (.Files.Get "files/cometbft/config/node_key.json") $ | nindent 4 }}
-  priv_validator_key.json: |
-    {{- tpl (.Files.Get "files/cometbft/config/priv_validator_key.json") $ | nindent 4 }}
+---
+{{- if not .Values.secretProvider.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.config.moniker }}-cometbft-secrets
+  namespace: {{ include "sequencer.namespace" . }}
+data:
+  {{- range $secret := .Values.config.cometBFT.secrets }}
+  {{ $secret.filename }}: |
+    {{- toJson $secret.devContent | nindent 4 }}
   {{- end }}
 ---
+{{- end }}
 apiVersion: v1
 kind: ConfigMap
 metadata:

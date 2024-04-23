@@ -1,5 +1,5 @@
 use anyhow::Result;
-use astria_core::sequencer::v1::Address;
+use astria_core::primitive::v1::Address;
 use async_trait::async_trait;
 use cnidarium::{
     StateRead,

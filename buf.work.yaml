@@ -1,8 +1,9 @@
 version: v1
 directories:
+  - proto/primitives
   - proto/executionapis
-  - proto/sequencerapis
   - proto/composerapis
+  - proto/protocolapis
   - proto/sequencerblockapis
   - proto/vendored/celestia_app
   - proto/vendored/celestia_core

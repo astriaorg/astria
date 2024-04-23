@@ -49,7 +49,7 @@ pub const fn celestia_namespace_v0_from_array<const N: usize>(bytes: [u8; N]) ->
 
 #[must_use = "a celestia namespace must be used in order to be useful"]
 pub const fn celestia_namespace_v0_from_rollup_id(
-    rollup_id: astria_core::sequencer::v1::RollupId,
+    rollup_id: astria_core::primitive::v1::RollupId,
 ) -> Namespace {
     celestia_namespace_v0_from_array(rollup_id.get())
 }

@@ -3,7 +3,7 @@ use anyhow::{
     Context,
     Result,
 };
-use astria_core::sequencer::v1::{
+use astria_core::primitive::v1::{
     asset,
     Address,
     ADDRESS_LEN,
@@ -127,7 +127,7 @@ impl<T: StateWrite> StateWriteExt for T {}
 
 #[cfg(test)]
 mod test {
-    use astria_core::sequencer::v1::{
+    use astria_core::primitive::v1::{
         asset::Id,
         Address,
     };

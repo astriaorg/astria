@@ -4,10 +4,12 @@ use anyhow::{
     Context as _,
     Result,
 };
-use astria_core::sequencer::v1::{
-    asset::Denom,
-    transaction::action,
-    Address,
+use astria_core::{
+    primitive::v1::{
+        asset::Denom,
+        Address,
+    },
+    protocol::transaction::v1alpha1::action,
 };
 use ibc_types::core::channel::{
     ChannelId,
