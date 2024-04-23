@@ -28,7 +28,7 @@ spec:
 
         valuesObject:
           global:
-            dev: false
+            dev: true
             rollup: 
               metrics: 
                 enabled: false
