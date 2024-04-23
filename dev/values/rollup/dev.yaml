@@ -10,6 +10,29 @@ config:
     ws: "ws://celestia-service.astria-dev-cluster.svc.cluster.local:26658"
     token: "http://celestia-service.astria-dev-cluster.svc.cluster.local:5353"
 
+resources:
+  conductor:
+    requests:
+      cpu: 0.01
+      memory: 1Mi
+    limits:
+      cpu: 0.1
+      memory: 20Mi
+  composer:
+    requests:
+      cpu: 0.01
+      memory: 1Mi
+    limits:
+      cpu: 0.1
+      memory: 20Mi
+  geth:
+    requests:
+      cpu: 0.25
+      memory: 256Mi
+    limits:
+      cpu: 2
+      memory: 1Gi
+
 celestia-node:
   enabled: false
 

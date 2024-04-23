@@ -11,6 +11,18 @@
         "istanbulBlock": 0,
         "berlinBlock": 0,
         "londonBlock": 0,
+        {{- if .Values.config.rollup.genesis.shanghaiTime}}
+        "shanghaiTime": {{ toString .Values.config.rollup.genesis.shanghaiTime | replace "\"" "" }},
+        {{- end }}
+        {{- if .Values.config.rollup.genesis.cancunTime}
+        "cancunTime": {{ toString .Values.config.rollup.genesis.cancunTime | replace "\"" "" }},
+        {{- end }}
+        {{- if .Values.config.rollup.genesis.cancunTime}
+        "pragueTime": {{ toString .Values.config.rollup.genesis.pragueTime | replace "\"" "" }},
+        {{- end }}
+        {{- if .Values.config.rollup.genesis.cancunTime}
+        "verkleTime": {{ toString .Values.config.rollup.genesis.verkleTime | replace "\"" "" }},
+        {{- end }}
         "terminalTotalDifficulty": 0,
         "terminalTotalDifficultyPassed": true,
         "ethash": {},
@@ -29,7 +41,7 @@
         {{- end }}
     },
     "difficulty": "0",
-    "gasLimit": "8000000",
+    "gasLimit": "{{ .Values.config.rollup.genesis.gasLimit }}",
     "alloc": {
     {{- range $index, $value := .Values.config.rollup.genesis.alloc }}
         {{- if $index }},{{- end }}
