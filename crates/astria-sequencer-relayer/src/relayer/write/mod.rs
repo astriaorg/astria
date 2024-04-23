@@ -9,6 +9,7 @@
 //! another task sends sequencer blocks ordered by their heights, then
 //! they will be written in that order.
 use std::{
+    collections::HashSet,
     future::Future,
     mem,
     sync::Arc,
@@ -16,6 +17,7 @@ use std::{
     time::Duration,
 };
 
+use astria_core::primitive::v1::RollupId;
 use astria_eyre::eyre::{
     self,
     WrapErr as _,
@@ -187,6 +189,9 @@ pub(super) struct BlobSubmitter {
     // The client to submit blobs to Celestia.
     client: HttpClient,
 
+    // The rollup IDs to include in submissions (all rollups if filter is empty).
+    rollup_id_filter: HashSet<RollupId>,
+
     // The channel over which sequencer blocks are received.
     blocks: Receiver<SequencerBlock>,
 
@@ -211,6 +216,7 @@ pub(super) struct BlobSubmitter {
 impl BlobSubmitter {
     pub(super) fn new(
         client: HttpClient,
+        rollup_id_filter: HashSet<RollupId>,
         state: Arc<super::State>,
         submission_state: super::SubmissionState,
         shutdown_token: CancellationToken,
@@ -220,6 +226,7 @@ impl BlobSubmitter {
         let (tx, rx) = mpsc::channel(128);
         let submitter = Self {
             client,
+            rollup_id_filter,
             blocks: rx,
             conversions: Conversions::new(8),
             blobs: QueuedConvertedBlocks::with_max_blobs(128),
@@ -295,7 +302,7 @@ impl BlobSubmitter {
                         height = %block.height(),
                         "received sequencer block for submission",
                     );
-                    self.conversions.push(block);
+                    self.conversions.push(block, self.rollup_id_filter.clone());
                 }
 
             );
@@ -343,7 +350,7 @@ async fn submit_blobs(
     let start = std::time::Instant::now();
 
     metrics::counter!(crate::metrics_init::CELESTIA_SUBMISSION_COUNT).increment(1);
-    // XXX: The number of blocks per celestia tx is equal to the number of heights passed
+    // XXX: The number of sequencer blocks per celestia tx is equal to the number of heights passed
     // into this function. This comes from the way that `QueuedBlocks::take` is implemented.
     //
     // allow: the number of blocks should always be low enough to not cause precision loss
@@ -384,7 +391,7 @@ async fn submit_blobs(
     metrics::counter!(crate::metrics_init::CELESTIA_SUBMISSION_HEIGHT).absolute(celestia_height);
     metrics::histogram!(crate::metrics_init::CELESTIA_SUBMISSION_LATENCY).record(start.elapsed());
 
-    info!(%celestia_height, "successfully submitted blocks to Celestia");
+    info!(%celestia_height, "successfully submitted blobs to Celestia");
 
     state.set_celestia_connected(true);
     state.set_latest_confirmed_celestia_height(celestia_height);
@@ -497,9 +504,9 @@ impl Conversions {
         self.active.len() < self.max_conversions
     }
 
-    fn push(&mut self, block: SequencerBlock) {
+    fn push(&mut self, block: SequencerBlock, include: HashSet<RollupId>) {
         let height = block.height();
-        let conversion = tokio::task::spawn_blocking(move || convert(block));
+        let conversion = tokio::task::spawn_blocking(move || convert(block, include));
         let fut = async move {
             let res = crate::utils::flatten(conversion.await);
             (height, res)

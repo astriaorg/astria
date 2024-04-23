@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     path::{
         Path,
         PathBuf,
@@ -9,6 +10,7 @@ use std::{
 
 use astria_core::{
     generated::sequencerblock::v1alpha1::sequencer_service_client::SequencerServiceClient,
+    primitive::v1::RollupId,
     sequencerblock::v1alpha1::SequencerBlock,
 };
 use astria_eyre::eyre::{
@@ -82,6 +84,9 @@ pub(crate) struct Relayer {
     // If this is set, only relay blocks to DA which are proposed by the same validator key.
     validator: Option<Validator>,
 
+    // The rollup IDs to include in submissions (all rollups if filter is empty).
+    rollup_id_filter: HashSet<RollupId>,
+
     // A watch channel to track the state of the relayer. Used by the API service.
     state: Arc<State>,
 
@@ -116,6 +121,7 @@ impl Relayer {
 
         let (submitter_task, submitter) = spawn_submitter(
             self.celestia_client.clone(),
+            self.rollup_id_filter.clone(),
             self.state.clone(),
             submission_state,
             self.shutdown_token.clone(),
@@ -295,12 +301,18 @@ async fn read_submission_state<P1: AsRef<Path>, P2: AsRef<Path>>(
 
 fn spawn_submitter(
     client: CelestiaClient,
+    rollup_id_filter: HashSet<RollupId>,
     state: Arc<State>,
     submission_state: submission::SubmissionState,
     shutdown_token: CancellationToken,
 ) -> (JoinHandle<eyre::Result<()>>, write::BlobSubmitterHandle) {
-    let (submitter, handle) =
-        write::BlobSubmitter::new(client, state, submission_state, shutdown_token);
+    let (submitter, handle) = write::BlobSubmitter::new(
+        client,
+        rollup_id_filter,
+        state,
+        submission_state,
+        shutdown_token,
+    );
     (tokio::spawn(submitter.run()), handle)
 }
 

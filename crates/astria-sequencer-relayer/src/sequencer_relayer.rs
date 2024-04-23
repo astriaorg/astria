@@ -45,6 +45,7 @@ impl SequencerRelayer {
     /// Returns an error if constructing the inner relayer type failed.
     pub fn new(cfg: Config) -> eyre::Result<(Self, ShutdownHandle)> {
         let shutdown_handle = ShutdownHandle::new();
+        let rollup_id_filter = cfg.rollup_id_filter()?;
         let Config {
             cometbft_endpoint,
             sequencer_grpc_endpoint,
@@ -68,6 +69,7 @@ impl SequencerRelayer {
             sequencer_poll_period: Duration::from_millis(block_time),
             sequencer_grpc_endpoint,
             validator_key_path,
+            rollup_id_filter,
             pre_submit_path,
             post_submit_path,
         }

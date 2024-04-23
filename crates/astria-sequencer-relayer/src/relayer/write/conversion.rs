@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use astria_core::primitive::v1::RollupId;
 use astria_eyre::eyre::{
     self,
@@ -36,23 +38,33 @@ pub(super) struct RollupInfo {
     sequencer_rollup_id: RollupId,
 }
 
-/// Information about the a block that was converted to blobs.
+/// Information about a sequencer block that was converted to blobs.
 #[derive(Debug, serde::Serialize)]
 pub(super) struct ConversionInfo {
     #[serde(serialize_with = "serialize_height")]
     pub(super) sequencer_height: SequencerHeight,
     #[serde(serialize_with = "serialize_namespace")]
     pub(super) sequencer_namespace: Namespace,
-    pub(super) rollups: Vec<RollupInfo>,
+    pub(super) rollups_included: Vec<RollupInfo>,
+    pub(super) rollups_excluded: Vec<RollupInfo>,
 }
 
-/// The result of a block that was converted to blobs.
+/// The result of a sequencer block that was converted to blobs.
 pub(super) struct Converted {
     pub(super) blobs: Vec<Blob>,
     pub(super) info: ConversionInfo,
 }
 
-pub(super) fn convert(block: SequencerBlock) -> eyre::Result<Converted> {
+/// Convert the given sequencer block into a collection of blobs and related metadata.
+///
+/// If `include` is empty, blobs from all rollups will be included.  Otherwise only blobs from the
+/// rollups specified in `include` will be included.
+// allow: we'd need static lifetime on a ref to avoid pass-by-value here.
+#[allow(clippy::needless_pass_by_value)]
+pub(super) fn convert(
+    block: SequencerBlock,
+    include: HashSet<RollupId>,
+) -> eyre::Result<Converted> {
     let sequencer_height = block.height();
 
     let (sequencer_blob, rollup_blobs) = block.into_celestia_blobs();
@@ -69,26 +81,32 @@ pub(super) fn convert(block: SequencerBlock) -> eyre::Result<Converted> {
     )
     .wrap_err("failed creating head Celestia blob")?;
     blobs.push(header_blob);
-    let mut rollups = Vec::new();
+    let mut rollups_included = Vec::new();
+    let mut rollups_excluded = Vec::new();
     for blob in rollup_blobs {
         let rollup_id = blob.rollup_id();
         let namespace = celestia_client::celestia_namespace_v0_from_rollup_id(rollup_id);
         let info = RollupInfo {
             number_of_transactions: blob.transactions().len(),
             celestia_namespace: namespace,
-            sequencer_rollup_id: blob.rollup_id(),
+            sequencer_rollup_id: rollup_id,
         };
-        let blob = Blob::new(namespace, blob.into_raw().encode_to_vec())
-            .wrap_err_with(|| format!("failed creating blob for rollup `{rollup_id}`"))?;
-        blobs.push(blob);
-        rollups.push(info);
+        if include.is_empty() || include.contains(&rollup_id) {
+            let blob = Blob::new(namespace, blob.into_raw().encode_to_vec())
+                .wrap_err_with(|| format!("failed creating blob for rollup `{rollup_id}`"))?;
+            blobs.push(blob);
+            rollups_included.push(info);
+        } else {
+            rollups_excluded.push(info);
+        }
     }
     Ok(Converted {
         blobs,
         info: ConversionInfo {
             sequencer_height,
             sequencer_namespace,
-            rollups,
+            rollups_included,
+            rollups_excluded,
         },
     })
 }

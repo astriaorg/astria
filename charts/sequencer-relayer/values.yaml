@@ -23,6 +23,7 @@ config:
     tokenServer: http://celestia-service.astria-dev-cluster.svc.cluster.local:5353
     cometbftRpc: ""
     sequencerGrpc: ""
+    rollupIdFilter: ""
 
     metrics:
       enabled: false

@@ -27,6 +27,7 @@ futures = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 humantime = { workspace = true }
 hyper = { workspace = true }
+itertools = { workspace = true }
 itoa = { workspace = true }
 metrics = { workspace = true }
 prost = { workspace = true }

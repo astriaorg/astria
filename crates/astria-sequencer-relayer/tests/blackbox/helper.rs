@@ -1,5 +1,8 @@
 use std::{
-    collections::VecDeque,
+    collections::{
+        HashSet,
+        VecDeque,
+    },
     mem,
     net::SocketAddr,
     sync::{
@@ -21,6 +24,7 @@ use astria_core::{
         GetSequencerBlockRequest,
         SequencerBlock as RawSequencerBlock,
     },
+    primitive::v1::RollupId,
     protocol::test_utils::make_cometbft_block,
     sequencerblock::v1alpha1::SequencerBlock,
 };
@@ -34,6 +38,7 @@ use celestia_client::celestia_types::{
     Blob,
 };
 use ed25519_consensus::SigningKey;
+use itertools::Itertools;
 use once_cell::sync::Lazy;
 use serde_json::json;
 use tempfile::NamedTempFile;
@@ -230,36 +235,30 @@ impl TestSequencerRelayer {
             .await
     }
 
-    pub fn mount_block_response<const RELAY_SELF: bool>(&mut self, height: u32) -> BlockGuard {
+    pub fn mount_block_response<const RELAY_SELF: bool>(
+        &mut self,
+        block_to_mount: CometBftBlockToMount,
+    ) -> BlockGuard {
         let proposer = if RELAY_SELF {
             self.account
         } else {
             tendermint::account::Id::try_from(vec![0u8; 20]).unwrap()
         };
 
-        let mut cometbft_block = make_cometbft_block();
-        cometbft_block.header.height = height.into();
-        cometbft_block.header.proposer_address = proposer;
-
-        let (tx, rx) = oneshot::channel();
-
-        let block = SequencerBlock::try_from_cometbft(cometbft_block).unwrap();
-        let mut blocks = self.sequencer_server_blocks.lock().unwrap();
-        blocks.push_back((tx, block.into_raw()));
-        BlockGuard {
-            inner: rx,
-        }
-    }
-
-    pub fn mount_bad_block_response<const RELAY_SELF: bool>(&mut self, height: u32) -> BlockGuard {
-        let proposer = if RELAY_SELF {
-            self.account
-        } else {
-            tendermint::account::Id::try_from(vec![0u8; 20]).unwrap()
+        let (mut cometbft_block, should_corrupt) = match block_to_mount {
+            CometBftBlockToMount::GoodAtHeight(height) => {
+                let mut block = make_cometbft_block();
+                block.header.height = height.into();
+                (block, false)
+            }
+            CometBftBlockToMount::BadAtHeight(height) => {
+                let mut block = make_cometbft_block();
+                block.header.height = height.into();
+                (block, true)
+            }
+            CometBftBlockToMount::Block(block) => (block, false),
         };
 
-        let mut cometbft_block = make_cometbft_block();
-        cometbft_block.header.height = height.into();
         cometbft_block.header.proposer_address = proposer;
 
         let (tx, rx) = oneshot::channel();
@@ -268,9 +267,10 @@ impl TestSequencerRelayer {
             .unwrap()
             .into_raw();
 
-        // make the block bad!!
-        let cometbft_header = block.header.as_mut().unwrap();
-        cometbft_header.data_hash = [0; 32].to_vec();
+        if should_corrupt {
+            let cometbft_header = block.header.as_mut().unwrap();
+            cometbft_header.data_hash = [0; 32].to_vec();
+        }
 
         let mut blocks = self.sequencer_server_blocks.lock().unwrap();
         blocks.push_back((tx, block));
@@ -307,6 +307,14 @@ impl TestSequencerRelayer {
     }
 }
 
+// allow: this is not performance-critical, with likely only one instance per test fixture.
+#[allow(clippy::large_enum_variant)]
+pub enum CometBftBlockToMount {
+    GoodAtHeight(u32),
+    BadAtHeight(u32),
+    Block(tendermint::Block),
+}
+
 pub struct TestSequencerRelayerConfig {
     // Sets up the test relayer to ignore all blocks except those proposed by the same address
     // stored in its validator key.
@@ -314,6 +322,8 @@ pub struct TestSequencerRelayerConfig {
     // Sets the start height of relayer and configures the on-disk pre- and post-submit files to
     // look accordingly.
     pub last_written_sequencer_height: Option<u64>,
+    // The rollup ID filter, to be stringified and provided as `Config::rollup_id_filter` value.
+    pub rollup_id_filter: HashSet<RollupId>,
 }
 
 impl TestSequencerRelayerConfig {
@@ -378,6 +388,8 @@ impl TestSequencerRelayerConfig {
                 create_files_for_fresh_start()
             };
 
+        let rollup_id_filter = self.rollup_id_filter.iter().join(",").to_string();
+
         let config = Config {
             cometbft_endpoint: cometbft.uri(),
             sequencer_grpc_endpoint: format!("http://{grpc_addr}"),
@@ -386,6 +398,7 @@ impl TestSequencerRelayerConfig {
             block_time: 1000,
             relay_only_validator_key_blocks: self.relay_only_self,
             validator_key_file: keyfile.path().to_string_lossy().to_string(),
+            rollup_id_filter,
             api_addr: "0.0.0.0:0".into(),
             log: String::new(),
             force_stdout: false,
