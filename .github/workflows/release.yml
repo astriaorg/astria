@@ -22,7 +22,6 @@ jobs:
           version: "1.15.1"
           github_token: ${{ github.token }}
       - name: "Get Buf Branch Annotation"
-        if: github.event_name == 'pull_request'
         run: |
           if [ "${{ github.event_name }}" == "pull_request" ]; then
             echo "buf_repo_ending=${{ github.event.number }}/merge" >> $GITHUB_ENV
