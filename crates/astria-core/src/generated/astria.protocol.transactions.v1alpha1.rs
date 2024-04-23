@@ -304,9 +304,9 @@ pub struct InitBridgeAccountAction {
     /// the rollup ID to register with the bridge account (the tx sender)
     #[prost(message, optional, tag = "1")]
     pub rollup_id: ::core::option::Option<super::super::super::primitive::v1::RollupId>,
-    /// the asset IDs accepted as an incoming transfer by the bridge account
-    #[prost(bytes = "vec", repeated, tag = "2")]
-    pub asset_ids: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+    /// the asset ID accepted as an incoming transfer by the bridge account
+    #[prost(bytes = "vec", tag = "2")]
+    pub asset_id: ::prost::alloc::vec::Vec<u8>,
     /// the asset used to pay the transaction fee
     #[prost(bytes = "vec", tag = "3")]
     pub fee_asset_id: ::prost::alloc::vec::Vec<u8>,

@@ -157,8 +157,8 @@ message FeeAssetChangeAction {
 message InitBridgeAccountAction {
   // the rollup ID to register with the bridge account (the tx sender)
   astria.primitive.v1.RollupId rollup_id = 1;
-  // the asset IDs accepted as an incoming transfer by the bridge account
-  repeated bytes asset_ids = 2;
+  // the asset ID accepted as an incoming transfer by the bridge account
+  bytes asset_id = 2;
   // the asset used to pay the transaction fee
   bytes fee_asset_id = 3;
 }

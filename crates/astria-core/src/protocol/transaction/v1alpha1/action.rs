@@ -1056,7 +1056,7 @@ pub struct InitBridgeAccountAction {
     // the rollup ID to register for the sender of this action
     pub rollup_id: RollupId,
     // the assets accepted by the bridge account
-    pub asset_ids: Vec<asset::Id>,
+    pub asset_id: asset::Id,
     // the fee asset which to pay this action's fees with
     pub fee_asset_id: asset::Id,
 }
@@ -1066,7 +1066,7 @@ impl InitBridgeAccountAction {
     pub fn into_raw(self) -> raw::InitBridgeAccountAction {
         raw::InitBridgeAccountAction {
             rollup_id: Some(self.rollup_id.to_raw()),
-            asset_ids: self.asset_ids.iter().map(|id| id.get().to_vec()).collect(),
+            asset_id: self.asset_id.get().to_vec(),
             fee_asset_id: self.fee_asset_id.get().to_vec(),
         }
     }
@@ -1075,7 +1075,7 @@ impl InitBridgeAccountAction {
     pub fn to_raw(&self) -> raw::InitBridgeAccountAction {
         raw::InitBridgeAccountAction {
             rollup_id: Some(self.rollup_id.to_raw()),
-            asset_ids: self.asset_ids.iter().map(|id| id.get().to_vec()).collect(),
+            asset_id: self.asset_id.get().to_vec(),
             fee_asset_id: self.fee_asset_id.get().to_vec(),
         }
     }
@@ -1094,18 +1094,14 @@ impl InitBridgeAccountAction {
         };
         let rollup_id = RollupId::try_from_raw(&rollup_id)
             .map_err(InitBridgeAccountActionError::invalid_rollup_id)?;
-        let asset_ids = proto
-            .asset_ids
-            .into_iter()
-            .map(|bytes| asset::Id::try_from_slice(&bytes))
-            .collect::<Result<Vec<asset::Id>, asset::IncorrectAssetIdLength>>()
+        let asset_id = asset::Id::try_from_slice(&proto.asset_id)
             .map_err(InitBridgeAccountActionError::invalid_asset_id)?;
         let fee_asset_id = asset::Id::try_from_slice(&proto.fee_asset_id)
             .map_err(InitBridgeAccountActionError::invalid_fee_asset_id)?;
 
         Ok(Self {
             rollup_id,
-            asset_ids,
+            asset_id,
             fee_asset_id,
         })
     }
