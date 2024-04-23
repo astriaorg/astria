@@ -222,6 +222,7 @@ mod test {
         mempool.insert(tx1.clone(), priority1.clone()).unwrap();
 
         assert!(priority0 > priority1);
+        assert_eq!(mempool.len(), 2);
 
         let (tx, priority) = mempool.pop().unwrap();
         assert_eq!(

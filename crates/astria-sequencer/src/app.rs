@@ -264,7 +264,7 @@ impl App {
             .context("failed to prepare for executing block")?;
 
         // ignore the txs passed by cometbft in favour of our app-side mempool
-        let (txs_to_include, signed_txs_included) = self
+        let (included_tx_bytes, signed_txs_included) = self
             .execute_transactions_prepare_proposal(&mut block_size_constraints)
             .await
             .context("failed to execute transactions")?;
@@ -280,7 +280,7 @@ impl App {
         let res = generate_rollup_datas_commitment(&signed_txs_included, deposits);
 
         Ok(abci::response::PrepareProposal {
-            txs: res.into_transactions(txs_to_include),
+            txs: res.into_transactions(included_tx_bytes),
         })
     }
 
@@ -350,7 +350,7 @@ impl App {
         let mut block_size_constraints = BlockSizeConstraints::new_unlimited_cometbft();
 
         // deserialize txs into `SignedTransaction`s;
-        // this does not error if any txs fail to be deserialized, but the `txs_to_include.len()`
+        // this does not error if any txs fail to be deserialized, but the `execution_results.len()`
         // check below ensures that all txs in the proposal are deserializable (and
         // executable).
         let signed_txs = txs
@@ -435,7 +435,6 @@ impl App {
         let mut included_signed_txs = Vec::new();
         let mut failed_tx_count: usize = 0;
         let mut execution_results = Vec::new();
-
         let mut txs_to_readd_to_mempool = Vec::new();
 
         while let Some((tx, priority)) = mempool.pop() {
@@ -736,13 +735,15 @@ impl App {
                 .await
                 .context("failed to execute block")?;
 
-            // skip the first two transactions, as they are the rollup data commitments
             let mempool = self.mempool.clone();
-            let mut mempool = mempool.lock().await;
+
+            // skip the first two transactions, as they are the rollup data commitments
             for tx in finalize_block.txs.iter().skip(2) {
+                // remove any included txs from the mempool
                 let tx_hash = Sha256::digest(tx)
                     .try_into()
                     .expect("sha256 hash is always 32 bytes");
+                let mut mempool = mempool.lock().await;
                 mempool.remove(&tx_hash);
 
                 let signed_tx = signed_transaction_from_bytes(tx)
@@ -828,8 +829,7 @@ impl App {
             .await
             .context("failed to prepare commit")?;
 
-        // update the priority of any txs in the mempool based on any transactions
-        // that were executed this block
+        // update the priority of any txs in the mempool based on the updated app state
         update_mempool_after_finalization(self.mempool.clone(), self.state.clone())
             .await
             .context("failed to update mempool after finalization")?;
