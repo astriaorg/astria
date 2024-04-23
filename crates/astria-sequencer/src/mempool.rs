@@ -6,7 +6,7 @@ use std::{
 use astria_core::protocol::transaction::v1alpha1::SignedTransaction;
 use priority_queue::double_priority_queue::DoublePriorityQueue;
 
-#[derive(PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct TransactionPriority {
     transaction_nonce: u32,
     current_account_nonce: u32,
@@ -74,22 +74,40 @@ impl BasicMempool {
         }
     }
 
+    /// returns the number of transactions in the mempool
     #[must_use]
-    pub(crate) fn iter(&mut self) -> BasicMempoolIterator {
+    pub(crate) fn len(&self) -> usize {
+        self.queue.len()
+    }
+
+    #[must_use]
+    pub(crate) fn iter(&self) -> BasicMempoolIterator {
         BasicMempoolIterator {
             mempool_iter: self.queue.iter(),
-            mempool: self,
+            hash_to_tx: &self.hash_to_tx,
         }
     }
 
-    // inserts a transaction into the mempool
+    #[must_use]
+    pub(crate) fn get(&self, hash: &[u8; 32]) -> Option<&SignedTransaction> {
+        self.hash_to_tx.get(hash)
+    }
+
+    /// inserts a transaction into the mempool
     pub(crate) fn insert(&mut self, tx: SignedTransaction, priority: TransactionPriority) {
         let hash = tx.sha256_of_proto_encoding();
         self.queue.push(hash, priority);
         self.hash_to_tx.insert(hash, tx);
     }
 
-    // changes the priority of a transaction in the mempool, if it exists
+    /// inserts multiple transactions into the mempool
+    pub(crate) fn insert_all(&mut self, txs: Vec<(SignedTransaction, TransactionPriority)>) {
+        for (tx, priority) in txs {
+            self.insert(tx, priority);
+        }
+    }
+
+    /// changes the priority of a transaction in the mempool, if it exists
     pub(crate) fn change_priority(
         &mut self,
         tx: &SignedTransaction,
@@ -104,26 +122,47 @@ impl BasicMempool {
         Ok(())
     }
 
-    // pops the transaction with the highest priority from the mempool
+    /// pops the transaction with the highest priority from the mempool
     #[must_use]
-    fn pop(&mut self) -> Option<SignedTransaction> {
-        let (hash, _) = self.queue.pop_max()?;
-        self.hash_to_tx.remove(&hash)
+    fn pop(&mut self) -> Option<(SignedTransaction, TransactionPriority)> {
+        let (hash, priority) = self.queue.pop_max()?;
+        let tx = self.hash_to_tx.remove(&hash)?;
+        Some((tx, priority))
     }
 
-    // takes all transactions out of the mempool, leaving the mempool empty
+    /// takes all transactions out of the mempool, leaving the mempool empty
     #[must_use]
-    pub(crate) fn take_all(&mut self) -> Vec<SignedTransaction> {
-        self.queue
-            .iter()
-            .filter_map(|(hash, _)| self.hash_to_tx.remove(hash))
-            .collect()
+    pub(crate) fn take_all(&mut self) -> Vec<(SignedTransaction, TransactionPriority)> {
+        let mut txs = Vec::with_capacity(self.queue.len());
+        while self.queue.peek_max().is_some() {
+            txs.push(
+                self.pop()
+                    .expect("queue is not empty; we peeked and saw a value"),
+            );
+        }
+        txs
+    }
+
+    /// iter which mutates the mempool by popping transactions out of its queue
+    #[must_use]
+    pub(crate) fn iter_pop(&mut self) -> BasicMempoolIterPop {
+        BasicMempoolIterPop {
+            mempool: self,
+        }
+    }
+
+    #[must_use]
+    pub(crate) fn iter_mut(&mut self) -> BasicMempoolIterMut {
+        BasicMempoolIterMut {
+            iter: self.queue.iter_mut(),
+            hash_to_tx: &mut self.hash_to_tx,
+        }
     }
 }
 
 pub(crate) struct BasicMempoolIterator<'a> {
     mempool_iter: priority_queue::core_iterators::Iter<'a, [u8; 32], TransactionPriority>,
-    mempool: &'a BasicMempool,
+    hash_to_tx: &'a HashMap<[u8; 32], SignedTransaction>,
 }
 
 impl<'a> Iterator for BasicMempoolIterator<'a> {
@@ -131,34 +170,45 @@ impl<'a> Iterator for BasicMempoolIterator<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         self.mempool_iter.next().map(|(hash, _)| {
-            self.mempool
-                .hash_to_tx
+            self.hash_to_tx
                 .get(hash)
                 .expect("if the hash is in the queue, it must be in the hash_to_tx map")
         })
     }
 }
 
-pub(crate) struct BasicMempoolIntoIterator {
-    mempool: BasicMempool,
+pub(crate) struct BasicMempoolIterMut<'a> {
+    iter: priority_queue::double_priority_queue::iterators::IterMut<
+        'a,
+        [u8; 32],
+        TransactionPriority,
+    >,
+    hash_to_tx: &'a HashMap<[u8; 32], SignedTransaction>,
 }
 
-impl Iterator for BasicMempoolIntoIterator {
-    type Item = SignedTransaction;
+impl<'a> Iterator for BasicMempoolIterMut<'a> {
+    type Item = (&'a SignedTransaction, &'a mut TransactionPriority);
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.mempool.pop()
+        self.iter.next().map(|(hash, priority)| {
+            let tx = self
+                .hash_to_tx
+                .get(hash)
+                .expect("hash in queue must be in hash_to_tx");
+            (tx, priority)
+        })
     }
 }
 
-impl IntoIterator for BasicMempool {
-    type IntoIter = BasicMempoolIntoIterator;
-    type Item = SignedTransaction;
+pub(crate) struct BasicMempoolIterPop<'a> {
+    mempool: &'a mut BasicMempool,
+}
 
-    fn into_iter(self) -> Self::IntoIter {
-        BasicMempoolIntoIterator {
-            mempool: self,
-        }
+impl<'a> Iterator for BasicMempoolIterPop<'a> {
+    type Item = (SignedTransaction, TransactionPriority);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.mempool.pop()
     }
 }
 
