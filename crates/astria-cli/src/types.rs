@@ -190,6 +190,7 @@ impl TryFrom<&ConfigCreateArgs> for RollupDeploymentConfig {
                 initial_block_height: sequencer_initial_block_height.to_string(),
                 grpc: args.sequencer_grpc.clone(),
                 rpc: args.sequencer_rpc.clone(),
+                chain_id: args.sequencer_chain_id.clone(),
             },
         })
     }
@@ -247,6 +248,7 @@ struct SequencerConfig {
     initial_block_height: String,
     rpc: String,
     grpc: String,
+    chain_id: String,
 }
 
 #[cfg(test)]
@@ -282,6 +284,7 @@ mod tests {
             sequencer_initial_block_height: Some(127_689_000_000),
             sequencer_grpc: "http://localhost:8080".to_string(),
             sequencer_rpc: "http://localhost:8081".to_string(),
+            sequencer_chain_id: "test-chain-1".to_string(),
             hostname: "test.com".to_string(),
             namespace: "test-cluster".to_string(),
             enable_celestia_node: false,
@@ -322,6 +325,7 @@ mod tests {
                     initial_block_height: "127689000000".to_string(),
                     grpc: "http://localhost:8080".to_string(),
                     rpc: "http://localhost:8081".to_string(),
+                    chain_id: "test-chain-1".to_string(),
                 },
             },
             ingress_config: IngressConfig {
@@ -363,6 +367,7 @@ mod tests {
             sequencer_initial_block_height: None,
             sequencer_grpc: "http://localhost:8082".to_string(),
             sequencer_rpc: "http://localhost:8083".to_string(),
+            sequencer_chain_id: "test-chain-1".to_string(),
             hostname: "localdev.me".to_string(),
             namespace: "astria-dev-cluster".to_string(),
             enable_celestia_node: false,
@@ -395,6 +400,7 @@ mod tests {
                     initial_block_height: "2".to_string(), // Default value
                     grpc: "http://localhost:8082".to_string(),
                     rpc: "http://localhost:8083".to_string(),
+                    chain_id: "test-chain-1".to_string(),
                 },
             },
             ingress_config: IngressConfig {

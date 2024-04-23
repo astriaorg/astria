@@ -30,8 +30,8 @@ impl ::prost::Name for Uint128 {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Proof {
     /// A sequence of 32 byte hashes used to reconstruct a Merkle Tree Hash.
-    #[prost(bytes = "vec", tag = "1")]
-    pub audit_path: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "bytes", tag = "1")]
+    pub audit_path: ::prost::bytes::Bytes,
     /// The index of the leaf this proof applies to.
     #[prost(uint64, tag = "2")]
     pub leaf_index: u64,
@@ -51,13 +51,46 @@ impl ::prost::Name for Proof {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Denom {
-    #[prost(bytes = "vec", tag = "1")]
-    pub id: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "bytes", tag = "1")]
+    pub id: ::prost::bytes::Bytes,
     #[prost(string, tag = "2")]
     pub base_denom: ::prost::alloc::string::String,
 }
 impl ::prost::Name for Denom {
     const NAME: &'static str = "Denom";
+    const PACKAGE: &'static str = "astria.primitive.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.primitive.v1.{}", Self::NAME)
+    }
+}
+/// A `RollupId` is a unique identifier for a rollup chain.
+/// It must be 32 bytes long. It can be derived from a string
+/// using a sha256 hash.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RollupId {
+    #[prost(bytes = "bytes", tag = "1")]
+    pub inner: ::prost::bytes::Bytes,
+}
+impl ::prost::Name for RollupId {
+    const NAME: &'static str = "RollupId";
+    const PACKAGE: &'static str = "astria.primitive.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.primitive.v1.{}", Self::NAME)
+    }
+}
+/// An Astria `Address`.
+///
+/// Astria addresses are derived from the ed25519 public key,
+/// using the first 20 bytes of the sha256 hash.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Address {
+    #[prost(bytes = "bytes", tag = "1")]
+    pub inner: ::prost::bytes::Bytes,
+}
+impl ::prost::Name for Address {
+    const NAME: &'static str = "Address";
     const PACKAGE: &'static str = "astria.primitive.v1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.primitive.v1.{}", Self::NAME)

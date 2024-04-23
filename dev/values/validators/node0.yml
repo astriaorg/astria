@@ -8,7 +8,18 @@ config:
 
   # Values for CometBFT node configuration
   cometBFT:
-    privNodeKey: HGWRtLbV8WLGFgbYhaGyaLe++DC+DBoc7O3bri81vs2ZlpR28IFfQScoO1aNOE/ygs8LIPM9UzLzbaab4VMggQ==
+    secrets:
+      node_key:
+        devContent:
+          priv_key:
+            value: HGWRtLbV8WLGFgbYhaGyaLe++DC+DBoc7O3bri81vs2ZlpR28IFfQScoO1aNOE/ygs8LIPM9UzLzbaab4VMggQ==
+      priv_validator_key:
+        devContent:
+          address: 091E47761C58C474534F4D414AF104A6CAF90C22
+          pub_key:
+            value: lV57+rGs2vac7mvkGHP1oBFGHPJM3a+WoAzeFDCJDNU=
+          priv_key:
+            value: dGOTAweQV8Do9P2n+A8m5EnboDrlxgD3dg4vrYpdIRqVXnv6saza9pzua+QYc/WgEUYc8kzdr5agDN4UMIkM1Q==
     p2p:
       laddr: "tcp://0.0.0.0"
       # Address to advertise to peers for them to dial. If empty, will use the same
@@ -22,14 +33,6 @@ config:
         - 2490c1fc41736a357c523fe049c319386d59d759@node0-sequencer-p2p-service.astria-dev-cluster.svc.cluster.local:26656
         - 96c652f63b5d5d5027b42e9af906082ee7c598d9@node1-sequencer-p2p-service.astria-validator-node1.svc.cluster.local:26656
         - 4a4345939744d64ca370dff266e2913dd41b4e88@node2-sequencer-p2p-service.astria-validator-node2.svc.cluster.local:26656
-    validator: 
-      # Ed25519 address of validator
-      address: 091E47761C58C474534F4D414AF104A6CAF90C22
-      # public key for the validator address
-      pubKey: lV57+rGs2vac7mvkGHP1oBFGHPJM3a+WoAzeFDCJDNU=
-      # private key for the validator address
-      # This is a secret key, should use a secret manager for production deployments
-      privKey: dGOTAweQV8Do9P2n+A8m5EnboDrlxgD3dg4vrYpdIRqVXnv6saza9pzua+QYc/WgEUYc8kzdr5agDN4UMIkM1Q==
     validators:
       - name: node0
         power: '1'

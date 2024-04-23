@@ -49,12 +49,12 @@ impl ActionHandler for BridgeLockAction {
             "bridge lock must be sent to a bridge account",
         );
 
-        let allowed_asset_ids = state
+        let allowed_asset_id = state
             .get_bridge_account_asset_ids(&self.to)
             .await
-            .context("failed to get bridge account asset IDs")?;
+            .context("failed to get bridge account asset ID")?;
         ensure!(
-            allowed_asset_ids.contains(&self.asset_id),
+            allowed_asset_id == self.asset_id,
             "asset ID is not authorized for transfer to bridge account",
         );
 

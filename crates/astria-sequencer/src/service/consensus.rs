@@ -231,6 +231,7 @@ mod test {
         },
         protocol::transaction::v1alpha1::{
             action::SequenceAction,
+            TransactionParams,
             UnsignedTransaction,
         },
     };
@@ -257,7 +258,10 @@ mod test {
 
     fn make_unsigned_tx() -> UnsignedTransaction {
         UnsignedTransaction {
-            nonce: 0,
+            params: TransactionParams {
+                nonce: 0,
+                chain_id: "test".to_string(),
+            },
             actions: vec![
                 SequenceAction {
                     rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),

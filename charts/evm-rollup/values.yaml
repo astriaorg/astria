@@ -55,6 +55,14 @@ config:
     maxSubmitInterval: 2000
     # Configuration specific to EVM rollup genesis
     genesis:
+      # Configuration of Eth forks, setting to 0 will enable form height,
+      # left as is these forks will not activate.
+      shanghaiTime: ""
+      cancunTime: ""
+      pragueTime: ""
+      verkleTime: ""
+      # Configure the gas Limit
+      gasLimit: "8000000"
       # Set to a hex set of bytes if your rollup has manually configured extra data
       extraDataOverride: ""
       # If set to true the genesis block will contain extra data
@@ -63,11 +71,20 @@ config:
       # the astria canonical bridge. Recommend removing alloc values if so.
       bridgeAddress: ""
       bridgeAllowedAssetDenom: nria
+      # Can configure the genesis allocs for the chain
       alloc:
         - address: "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
           value:
             # The balance must be a string due to size
             balance: "1000000000000000000000000000"
+        # Deploying the deterministic deploy proxy contract in genesis
+        # Forge and other tools use this for their CREATE2 usage, but
+        # can only be included through the genesis block after EIP-155
+        # https://github.com/Arachnid/deterministic-deployment-proxy
+        - address: "0x4e59b44847b379578588920cA78FbF26c0B4956C"
+          value:
+            balance: "0"
+            data: "0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf3"
     metrics:
       # set to enable prometheus metrics
       enabled: false
@@ -121,6 +138,7 @@ config:
 
   # Configuration related to sequencer connection for rollup
   sequencer:
+    chainId: ""
     # Block height to start syncing rollup from
     initialBlockHeight: "2"
     # Fastest block time possible in MS
@@ -268,25 +286,22 @@ ingress:
 resources:
   conductor:
     requests:
-      cpu: 0.01
-      memory: 1Mi
-    limits:
       cpu: 0.1
       memory: 20Mi
+    limits:
+      cpu: 1
+      memory: 200Mi
   composer:
     requests:
-      cpu: 0.01
-      memory: 1Mi
-    limits:
       cpu: 0.1
       memory: 20Mi
+    limits:
+      cpu: 1
+      memory: 200Mi
   geth:
     requests:
-      cpu: 0.25
-      memory: 256Mi
-    limits:
-      cpu: 2
-      memory: 1Gi
+      cpu: 4
+      memory: 16Gi
 
 storage:
   enabled: false

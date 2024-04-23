@@ -56,11 +56,6 @@ impl ActionHandler for InitBridgeAccountAction {
             bail!("bridge account already exists");
         }
 
-        ensure!(
-            !self.asset_ids.is_empty(),
-            "must initialize with at least one asset ID",
-        );
-
         let balance = state
             .get_account_balance(from, self.fee_asset_id)
             .await
@@ -78,8 +73,8 @@ impl ActionHandler for InitBridgeAccountAction {
     async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> Result<()> {
         state.put_bridge_account_rollup_id(&from, &self.rollup_id);
         state
-            .put_bridge_account_asset_ids(&from, &self.asset_ids)
-            .context("failed to put asset IDs")?;
+            .put_bridge_account_asset_id(&from, &self.asset_id)
+            .context("failed to put asset ID")?;
 
         state
             .decrease_balance(from, self.fee_asset_id, INIT_BRIDGE_ACCOUNT_FEE)

@@ -81,6 +81,7 @@ data:
   {{- if not .Values.global.dev }}
   {{- else }}
   ASTRIA_COMPOSER_GRPC_ADDR: "0.0.0.0:0"
+  ASTRIA_COMPOSER_SEQUENCER_CHAIN_ID: "{{ .Values.config.sequencer.chainId }}"
   {{- end }}
 ---
 apiVersion: v1

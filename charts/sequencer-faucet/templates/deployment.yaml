@@ -35,7 +35,7 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: sequencer-private-key-faucet
-                  key: {{ .Values.secretProvider.secrets.sequencerPrivateKey.key }}
+                  key: {{ .Values.config.fundingPrivateKey.secret.key }}
           {{- end }}
           volumeMounts:
           {{- if .Values.secretProvider.enabled }}

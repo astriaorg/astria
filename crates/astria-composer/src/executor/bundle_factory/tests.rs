@@ -4,6 +4,7 @@ mod sized_bundle_tests {
         primitive::v1::{
             asset::default_native_asset_id,
             RollupId,
+            FEE_ASSET_ID_LEN,
             ROLLUP_ID_LEN,
         },
         protocol::transaction::v1alpha1::action::SequenceAction,
@@ -27,7 +28,7 @@ mod sized_bundle_tests {
         // push a sequence action that is 100 bytes total
         let seq_action = SequenceAction {
             rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
-            data: vec![0; 100 - ROLLUP_ID_LEN],
+            data: vec![0; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
             fee_asset_id: default_native_asset_id(),
         };
 
@@ -43,7 +44,7 @@ mod sized_bundle_tests {
         // push a sequence action that is >100 bytes total
         let seq_action = SequenceAction {
             rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
-            data: vec![0; 100 - ROLLUP_ID_LEN + 1],
+            data: vec![0; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN + 1],
             fee_asset_id: default_native_asset_id(),
         };
 
@@ -62,7 +63,7 @@ mod sized_bundle_tests {
         // push a sequence action that is 100 bytes total
         let initial_seq_action = SequenceAction {
             rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
-            data: vec![0; 100 - ROLLUP_ID_LEN],
+            data: vec![0; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
             fee_asset_id: default_native_asset_id(),
         };
         bundle.push(initial_seq_action).unwrap();
@@ -91,7 +92,7 @@ mod sized_bundle_tests {
         // push a sequence action sucessfully
         let seq_action = SequenceAction {
             rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
-            data: vec![1; 100 - ROLLUP_ID_LEN],
+            data: vec![1; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
             fee_asset_id: default_native_asset_id(),
         };
         bundle.push(seq_action.clone()).unwrap();
@@ -111,7 +112,7 @@ mod sized_bundle_tests {
     }
 
     fn snapshot_bundle() -> SizedBundle {
-        let mut bundle = SizedBundle::new(200);
+        let mut bundle = SizedBundle::new(264);
         let seq_action1 = SequenceAction {
             rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
             data: vec![1; 50 - ROLLUP_ID_LEN],
@@ -124,7 +125,7 @@ mod sized_bundle_tests {
         };
         let seq_action2 = SequenceAction {
             rollup_id: RollupId::new([2; ROLLUP_ID_LEN]),
-            data: vec![2; 100 - ROLLUP_ID_LEN],
+            data: vec![2; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
             fee_asset_id: default_native_asset_id(),
         };
         bundle.push(seq_action1).unwrap();
@@ -152,6 +153,7 @@ mod bundle_factory_tests {
         primitive::v1::{
             asset::default_native_asset_id,
             RollupId,
+            FEE_ASSET_ID_LEN,
             ROLLUP_ID_LEN,
         },
         protocol::transaction::v1alpha1::action::SequenceAction,
@@ -171,7 +173,7 @@ mod bundle_factory_tests {
         // push a sequence action that is 100 bytes total
         let seq_action = SequenceAction {
             rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
-            data: vec![0; 100 - ROLLUP_ID_LEN],
+            data: vec![0; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
             fee_asset_id: default_native_asset_id(),
         };
         bundle_factory.try_push(seq_action).unwrap();
@@ -188,7 +190,7 @@ mod bundle_factory_tests {
         // push a sequence action that is >100 bytes total
         let seq_action = SequenceAction {
             rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
-            data: vec![0; 100 - ROLLUP_ID_LEN + 1],
+            data: vec![0; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN + 1],
             fee_asset_id: default_native_asset_id(),
         };
         let actual_size = estimate_size_of_sequence_action(&seq_action);
@@ -210,7 +212,7 @@ mod bundle_factory_tests {
         // push a sequence action that is 100 bytes total
         let seq_action0 = SequenceAction {
             rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
-            data: vec![0; 100 - ROLLUP_ID_LEN],
+            data: vec![0; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
             fee_asset_id: default_native_asset_id(),
         };
         bundle_factory.try_push(seq_action0.clone()).unwrap();
@@ -219,7 +221,7 @@ mod bundle_factory_tests {
         // flush
         let seq_action1 = SequenceAction {
             rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
-            data: vec![1; 100 - ROLLUP_ID_LEN],
+            data: vec![1; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
             fee_asset_id: default_native_asset_id(),
         };
         bundle_factory.try_push(seq_action1).unwrap();
@@ -242,7 +244,7 @@ mod bundle_factory_tests {
         // push a sequence action that is 100 bytes total so it doesn't flush
         let seq_action = SequenceAction {
             rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
-            data: vec![0; 100 - ROLLUP_ID_LEN],
+            data: vec![0; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
             fee_asset_id: default_native_asset_id(),
         };
         bundle_factory.try_push(seq_action.clone()).unwrap();
@@ -262,7 +264,7 @@ mod bundle_factory_tests {
         // push a sequence action that is 100 bytes total so it doesn't flush
         let seq_action = SequenceAction {
             rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
-            data: vec![0; 100 - ROLLUP_ID_LEN],
+            data: vec![0; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
             fee_asset_id: default_native_asset_id(),
         };
         bundle_factory.try_push(seq_action.clone()).unwrap();
@@ -284,7 +286,7 @@ mod bundle_factory_tests {
         // push a sequence action that is 100 bytes total
         let seq_action0 = SequenceAction {
             rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
-            data: vec![0; 100 - ROLLUP_ID_LEN],
+            data: vec![0; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
             fee_asset_id: default_native_asset_id(),
         };
         bundle_factory.try_push(seq_action0.clone()).unwrap();
@@ -293,7 +295,7 @@ mod bundle_factory_tests {
         // flush
         let seq_action1 = SequenceAction {
             rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
-            data: vec![1; 100 - ROLLUP_ID_LEN],
+            data: vec![1; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
             fee_asset_id: default_native_asset_id(),
         };
         bundle_factory.try_push(seq_action1).unwrap();
@@ -327,7 +329,7 @@ mod bundle_factory_tests {
         // push a sequence action that is 100 bytes total
         let seq_action0 = SequenceAction {
             rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
-            data: vec![0; 100 - ROLLUP_ID_LEN],
+            data: vec![0; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
             fee_asset_id: default_native_asset_id(),
         };
         bundle_factory.try_push(seq_action0.clone()).unwrap();
@@ -336,7 +338,7 @@ mod bundle_factory_tests {
         // flush
         let seq_action1 = SequenceAction {
             rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
-            data: vec![1; 100 - ROLLUP_ID_LEN],
+            data: vec![1; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
             fee_asset_id: default_native_asset_id(),
         };
         bundle_factory.try_push(seq_action1.clone()).unwrap();

@@ -197,8 +197,8 @@ impl SignedTransaction {
 #[derive(Clone, Debug)]
 #[allow(clippy::module_name_repetitions)]
 pub struct UnsignedTransaction {
-    pub nonce: u32,
     pub actions: Vec<Action>,
+    pub params: TransactionParams,
 }
 
 impl UnsignedTransaction {
@@ -216,25 +216,26 @@ impl UnsignedTransaction {
 
     pub fn into_raw(self) -> raw::UnsignedTransaction {
         let Self {
-            nonce,
             actions,
+            params,
         } = self;
         let actions = actions.into_iter().map(Action::into_raw).collect();
         raw::UnsignedTransaction {
-            nonce,
             actions,
+            params: Some(params.into_raw()),
         }
     }
 
     pub fn to_raw(&self) -> raw::UnsignedTransaction {
         let Self {
-            nonce,
             actions,
+            params,
         } = self;
         let actions = actions.iter().map(Action::to_raw).collect();
+        let params = params.clone().into_raw();
         raw::UnsignedTransaction {
-            nonce: *nonce,
             actions,
+            params: Some(params),
         }
     }
 
@@ -246,9 +247,13 @@ impl UnsignedTransaction {
     /// [`Action`].
     pub fn try_from_raw(proto: raw::UnsignedTransaction) -> Result<Self, UnsignedTransactionError> {
         let raw::UnsignedTransaction {
-            nonce,
             actions,
+            params,
         } = proto;
+        let Some(params) = params else {
+            return Err(UnsignedTransactionError::unset_params());
+        };
+        let params = TransactionParams::from_raw(params);
         let actions: Vec<_> = actions
             .into_iter()
             .map(Action::try_from_raw)
@@ -256,8 +261,8 @@ impl UnsignedTransaction {
             .map_err(UnsignedTransactionError::action)?;
 
         Ok(Self {
-            nonce,
             actions,
+            params,
         })
     }
 }
@@ -270,12 +275,52 @@ impl UnsignedTransactionError {
     fn action(inner: action::ActionError) -> Self {
         Self(UnsignedTransactionErrorKind::Action(inner))
     }
+
+    fn unset_params() -> Self {
+        Self(UnsignedTransactionErrorKind::UnsetParams())
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
 enum UnsignedTransactionErrorKind {
     #[error("`actions` field is invalid")]
     Action(#[source] action::ActionError),
+    #[error("`params` field is unset")]
+    UnsetParams(),
+}
+
+#[derive(Clone, Debug)]
+#[allow(clippy::module_name_repetitions)]
+pub struct TransactionParams {
+    pub nonce: u32,
+    pub chain_id: String,
+}
+
+impl TransactionParams {
+    #[must_use]
+    pub fn into_raw(self) -> raw::TransactionParams {
+        let Self {
+            nonce,
+            chain_id,
+        } = self;
+        raw::TransactionParams {
+            nonce,
+            chain_id,
+        }
+    }
+
+    /// Convert from a raw protobuf [`raw::UnsignedTransaction`].
+    #[must_use]
+    pub fn from_raw(proto: raw::TransactionParams) -> Self {
+        let raw::TransactionParams {
+            nonce,
+            chain_id,
+        } = proto;
+        Self {
+            nonce,
+            chain_id,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -302,10 +347,6 @@ mod test {
             117, 134, 105, 2, 90, 151, 35, 241, 136, 200, 46, 222, 37, 124, 219, 195, 20, 195, 24,
             227, 96, 127, 152, 22, 47, 146, 10,
         ]);
-        let expected_hash: [u8; 32] = [
-            208, 68, 247, 226, 65, 50, 227, 180, 178, 51, 28, 119, 212, 205, 148, 83, 27, 229, 238,
-            45, 192, 139, 169, 239, 16, 3, 103, 132, 220, 87, 150, 229,
-        ];
 
         let transfer = TransferAction {
             to: Address::from([0; 20]),
@@ -314,9 +355,13 @@ mod test {
             fee_asset_id: default_native_asset_id(),
         };
 
+        let params = TransactionParams {
+            nonce: 1,
+            chain_id: "test-1".to_string(),
+        };
         let unsigned = UnsignedTransaction {
-            nonce: 0,
             actions: vec![transfer.into()],
+            params,
         };
 
         let tx = SignedTransaction {
@@ -325,6 +370,6 @@ mod test {
             transaction: unsigned,
         };
 
-        assert_eq!(tx.sha256_of_proto_encoding(), expected_hash);
+        insta::assert_json_snapshot!(tx.sha256_of_proto_encoding());
     }
 }

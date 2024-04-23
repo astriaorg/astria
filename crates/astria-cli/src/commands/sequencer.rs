@@ -11,6 +11,7 @@ use astria_core::{
             SudoAddressChangeAction,
             TransferAction,
         },
+        TransactionParams,
         UnsignedTransaction,
     },
 };
@@ -181,6 +182,7 @@ pub(crate) async fn send_transfer(args: &TransferArgs) -> eyre::Result<()> {
 
     let res = submit_transaction(
         args.sequencer_url.as_str(),
+        args.sequencer_chain_id.clone(),
         args.private_key.as_str(),
         Action::Transfer(TransferAction {
             to: args.to_address.0,
@@ -211,6 +213,7 @@ pub(crate) async fn send_transfer(args: &TransferArgs) -> eyre::Result<()> {
 pub(crate) async fn ibc_relayer_add(args: &IbcRelayerChangeArgs) -> eyre::Result<()> {
     let res = submit_transaction(
         args.sequencer_url.as_str(),
+        args.sequencer_chain_id.clone(),
         args.private_key.as_str(),
         Action::IbcRelayerChange(IbcRelayerChangeAction::Addition(args.address.0)),
     )
@@ -239,6 +242,7 @@ pub(crate) async fn ibc_relayer_add(args: &IbcRelayerChangeArgs) -> eyre::Result
 pub(crate) async fn ibc_relayer_remove(args: &IbcRelayerChangeArgs) -> eyre::Result<()> {
     let res = submit_transaction(
         args.sequencer_url.as_str(),
+        args.sequencer_chain_id.clone(),
         args.private_key.as_str(),
         Action::IbcRelayerChange(IbcRelayerChangeAction::Removal(args.address.0)),
     )
@@ -273,10 +277,11 @@ pub(crate) async fn init_bridge_account(args: &InitBridgeAccountArgs) -> eyre::R
     let rollup_id = RollupId::from_unhashed_bytes(args.rollup_name.as_bytes());
     let res = submit_transaction(
         args.sequencer_url.as_str(),
+        args.sequencer_chain_id.clone(),
         args.private_key.as_str(),
         Action::InitBridgeAccount(InitBridgeAccountAction {
             rollup_id,
-            asset_ids: vec![default_native_asset_id()],
+            asset_id: default_native_asset_id(),
             fee_asset_id: default_native_asset_id(),
         }),
     )
@@ -306,6 +311,7 @@ pub(crate) async fn bridge_lock(args: &BridgeLockArgs) -> eyre::Result<()> {
 
     let res = submit_transaction(
         args.sequencer_url.as_str(),
+        args.sequencer_chain_id.clone(),
         args.private_key.as_str(),
         Action::BridgeLock(BridgeLockAction {
             to: args.to_address.0,
@@ -337,6 +343,7 @@ pub(crate) async fn bridge_lock(args: &BridgeLockArgs) -> eyre::Result<()> {
 pub(crate) async fn fee_asset_add(args: &FeeAssetChangeArgs) -> eyre::Result<()> {
     let res = submit_transaction(
         args.sequencer_url.as_str(),
+        args.sequencer_chain_id.clone(),
         args.private_key.as_str(),
         Action::FeeAssetChange(FeeAssetChangeAction::Addition(asset::Id::from_denom(
             &args.asset,
@@ -367,6 +374,7 @@ pub(crate) async fn fee_asset_add(args: &FeeAssetChangeArgs) -> eyre::Result<()>
 pub(crate) async fn fee_asset_remove(args: &FeeAssetChangeArgs) -> eyre::Result<()> {
     let res = submit_transaction(
         args.sequencer_url.as_str(),
+        args.sequencer_chain_id.clone(),
         args.private_key.as_str(),
         Action::FeeAssetChange(FeeAssetChangeAction::Removal(asset::Id::from_denom(
             &args.asset,
@@ -397,6 +405,7 @@ pub(crate) async fn fee_asset_remove(args: &FeeAssetChangeArgs) -> eyre::Result<
 pub(crate) async fn mint(args: &MintArgs) -> eyre::Result<()> {
     let res = submit_transaction(
         args.sequencer_url.as_str(),
+        args.sequencer_chain_id.clone(),
         args.private_key.as_str(),
         Action::Mint(MintAction {
             to: args.to_address.0,
@@ -425,6 +434,7 @@ pub(crate) async fn mint(args: &MintArgs) -> eyre::Result<()> {
 pub(crate) async fn sudo_address_change(args: &SudoAddressChangeArgs) -> eyre::Result<()> {
     let res = submit_transaction(
         args.sequencer_url.as_str(),
+        args.sequencer_chain_id.clone(),
         args.private_key.as_str(),
         Action::SudoAddressChange(SudoAddressChangeAction {
             new_address: args.address.0,
@@ -463,6 +473,7 @@ pub(crate) async fn validator_update(args: &ValidatorUpdateArgs) -> eyre::Result
 
     let res = submit_transaction(
         args.sequencer_url.as_str(),
+        args.sequencer_chain_id.clone(),
         args.private_key.as_str(),
         Action::ValidatorUpdate(validator_update),
     )
@@ -477,6 +488,7 @@ pub(crate) async fn validator_update(args: &ValidatorUpdateArgs) -> eyre::Result
 
 async fn submit_transaction(
     sequencer_url: &str,
+    chain_id: String,
     private_key: &str,
     action: Action,
 ) -> eyre::Result<endpoint::broadcast::tx_commit::Response> {
@@ -497,7 +509,10 @@ async fn submit_transaction(
         .wrap_err("failed to get nonce")?;
 
     let tx = UnsignedTransaction {
-        nonce: nonce_res.nonce,
+        params: TransactionParams {
+            nonce: nonce_res.nonce,
+            chain_id,
+        },
         actions: vec![action],
     }
     .into_signed(&sequencer_key);
