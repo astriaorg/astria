@@ -34,3 +34,18 @@ message Denom {
   bytes id = 1;
   string base_denom = 2;
 }
+
+// A `RollupId` is a unique identifier for a rollup chain.
+// It must be 32 bytes long. It can be derived from a string
+// using a sha256 hash.
+message RollupId {
+  bytes inner = 1;
+}
+
+// An Astria `Address`.
+//
+// Astria addresses are derived from the ed25519 public key,
+// using the first 20 bytes of the sha256 hash.
+message Address {
+  bytes inner = 1;
+}

@@ -17,6 +17,7 @@ use crate::{
 
 pub const ADDRESS_LEN: usize = 20;
 pub const ROLLUP_ID_LEN: usize = 32;
+pub const FEE_ASSET_ID_LEN: usize = 32;
 
 impl Protobuf for merkle::Proof {
     type Error = merkle::audit::InvalidProof;
@@ -43,7 +44,7 @@ impl Protobuf for merkle::Proof {
              usize",
         );
         Self::unchecked()
-            .audit_path(audit_path)
+            .audit_path(audit_path.to_vec())
             .leaf_index(leaf_index)
             .tree_size(tree_size)
             .try_into_proof()
@@ -62,7 +63,7 @@ impl Protobuf for merkle::Proof {
             tree_size,
         } = self.into_unchecked();
         Self::Raw {
-            audit_path,
+            audit_path: audit_path.into(),
             leaf_index: leaf_index.try_into().expect(
                 "running on a machine with at most 64 bit pointer width and can convert from \
                  usize to u64",
@@ -177,6 +178,29 @@ impl RollupId {
             })?;
         Ok(Self::new(inner))
     }
+
+    #[must_use]
+    pub fn to_raw(&self) -> raw::RollupId {
+        raw::RollupId {
+            inner: self.to_vec().into(),
+        }
+    }
+
+    #[must_use]
+    pub fn into_raw(self) -> raw::RollupId {
+        raw::RollupId {
+            inner: self.to_vec().into(),
+        }
+    }
+
+    /// Converts from protobuf type to rust type for a rollup ID.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the byte slice was not 32 bytes long.
+    pub fn try_from_raw(raw: &raw::RollupId) -> Result<Self, IncorrectRollupIdLength> {
+        Self::try_from_slice(&raw.inner)
+    }
 }
 
 impl AsRef<[u8]> for RollupId {
@@ -276,6 +300,29 @@ impl Address {
     #[must_use]
     pub const fn from_array(array: [u8; ADDRESS_LEN]) -> Self {
         Self(array)
+    }
+
+    #[must_use]
+    pub fn to_raw(&self) -> raw::Address {
+        raw::Address {
+            inner: self.to_vec().into(),
+        }
+    }
+
+    #[must_use]
+    pub fn into_raw(self) -> raw::Address {
+        raw::Address {
+            inner: self.to_vec().into(),
+        }
+    }
+
+    /// Convert from protobuf to rust type an address.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the account buffer was not 20 bytes long.
+    pub fn try_from_raw(raw: &raw::Address) -> Result<Self, IncorrectAddressLength> {
+        Self::try_from_slice(&raw.inner)
     }
 }
 

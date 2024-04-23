@@ -66,10 +66,9 @@ spec:
             - mountPath: /cometbft
               name: sequencer-shared-storage-vol
               subPath: {{ .Values.config.moniker }}/cometbft
-            {{- if .Values.secretProvider.enabled }}
-            - mountPath: "/secrets"
-              name: sequencer-keys-provider
-            {{- end }}
+            - mountPath: /secrets
+              readOnly: true
+              name: sequencer-secret-keys-vol
           ports:
             - containerPort: {{ .Values.ports.cometBFTP2P }}
               name: cometbft-p2p
@@ -99,11 +98,14 @@ spec:
           {{- else }}
           emptyDir: {}
           {{- end }}
-        {{- if .Values.secretProvider.enabled }}
         - name: sequencer-secret-keys-vol
+          {{- if .Values.secretProvider.enabled }}
           csi:
             driver: secrets-store.csi.k8s.io
             readOnly: true
             volumeAttributes:
               secretProviderClass: sequencer-keys-provider
-        {{- end }}
+          {{- else }}
+          configMap:
+            name: {{ .Values.config.moniker }}-cometbft-secrets
+          {{- end }}

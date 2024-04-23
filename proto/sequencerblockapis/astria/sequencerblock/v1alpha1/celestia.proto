@@ -15,7 +15,7 @@ message CelestiaRollupBlob {
   bytes sequencer_block_hash = 1;
   // The 32 bytes identifying the rollup this blob belongs to. Matches
   // `astria.sequencer.v1.RollupTransactions.rollup_id`
-  bytes rollup_id = 2;
+  astria.primitive.v1.RollupId rollup_id = 2;
   // A list of opaque bytes that are serialized rollup transactions.
   repeated bytes transactions = 3;
   // The proof that these rollup transactions are included in sequencer block.
@@ -39,7 +39,7 @@ message CelestiaSequencerBlob {
   // The rollup IDs for which `CelestiaRollupBlob`s were submitted to celestia.
   // Corresponds to the `astria.sequencer.v1.RollupTransactions.rollup_id` field
   // and is extracted from `astria.SequencerBlock.rollup_transactions`.
-  repeated bytes rollup_ids = 3;
+  repeated astria.primitive.v1.RollupId rollup_ids = 3;
   // The proof that the rollup transactions are included in sequencer block.
   // Corresponds to `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions_proof`.
   astria.primitive.v1.Proof rollup_transactions_proof = 4;
