@@ -59,6 +59,8 @@ spec:
 
 
             valuesObject:
+              global:
+                dev: true
               ingress:
                 grpc:
                   enabled: true
