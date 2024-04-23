@@ -62,8 +62,10 @@ spec:
                 useTTY: true
                 dev: false
               config:
+                rollup: 
+                  chainId: "sequencer-test-chain-0"
                 sequencer:
-                  chainId: sequencer-test-chain-0
+                  chainId: "sequencer-test-chain-0"
                 # rollup:
                 #   genesis:
                 #     alloc:
