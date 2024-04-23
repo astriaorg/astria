@@ -42,7 +42,7 @@ secretProvider:
   # match the secret provider's requirements. The default works for GCP.
   # The secret file must be mapped to the <key.filename>
   parametersTemplate: |-
-    secrets: | 
+    secrets: |
       - resourceName: {{ .key.resourceName }}
         fileName: "{{ .key.filename }}"
 

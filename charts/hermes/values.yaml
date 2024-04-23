@@ -141,10 +141,9 @@ secretProvider:
   # match the secret provider's requirements. The default works for GCP.
   # The secret file must be mapped to the <key.name>.json.
   parametersTemplate: |-
-    secrets: | 
+    secrets: |
       - resourceName: {{ .key.secret.resourceName }}
         fileName: "{{ .key.name }}.json"
-  
 
 ports:
   rest: 3000

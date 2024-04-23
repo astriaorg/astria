@@ -142,7 +142,7 @@ secretProvider:
   # match the secret provider's requirements. The default works for GCP.
   # The secret file must be mapped to the <secret_name>.filename value.
   parametersTemplate: |-
-    secrets: | 
+    secrets: |
       {{- range $value := .Values.config.cometBFT.secrets }}
       - resourceName: {{ $value.secret.resourceName }}
         fileName: "{{ $value.filename }}"
