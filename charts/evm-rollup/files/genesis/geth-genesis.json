@@ -14,13 +14,13 @@
         {{- if .Values.config.rollup.genesis.shanghaiTime}}
         "shanghaiTime": {{ toString .Values.config.rollup.genesis.shanghaiTime | replace "\"" "" }},
         {{- end }}
-        {{- if .Values.config.rollup.genesis.cancunTime}
+        {{- if .Values.config.rollup.genesis.cancunTime }}
         "cancunTime": {{ toString .Values.config.rollup.genesis.cancunTime | replace "\"" "" }},
         {{- end }}
-        {{- if .Values.config.rollup.genesis.cancunTime}
+        {{- if .Values.config.rollup.genesis.cancunTime }}
         "pragueTime": {{ toString .Values.config.rollup.genesis.pragueTime | replace "\"" "" }},
         {{- end }}
-        {{- if .Values.config.rollup.genesis.cancunTime}
+        {{- if .Values.config.rollup.genesis.cancunTime }}
         "verkleTime": {{ toString .Values.config.rollup.genesis.verkleTime | replace "\"" "" }},
         {{- end }}
         "terminalTotalDifficulty": 0,
