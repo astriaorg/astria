@@ -7,11 +7,7 @@ data:
   genesis.json: |
     {{- tpl (.Files.Get "files/cometbft/config/genesis.json") $ | nindent 4 }}
   config.toml: |
-    {{- if not .Values.global.dev }}
     {{- tpl (.Files.Get "files/cometbft/config/config.toml") $ | nindent 4 }}
-    {{- else }}
-    {{- tpl (.Files.Get "files/cometbft/config/config_38.toml") $ | nindent 4 }}
-    {{- end }}
 ---
 {{- if not .Values.secretProvider.enabled }}
 apiVersion: v1

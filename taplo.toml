@@ -1,6 +1,5 @@
 exclude = [
   "charts/celestia-node/files/config.toml",
   "charts/sequencer/files/cometbft/config/config.toml",
-  "charts/sequencer/files/cometbft/config/config_38.toml",
   "charts/hermes/files/config.toml",
 ]

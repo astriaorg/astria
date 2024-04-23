@@ -91,7 +91,7 @@ config:
     # Where the secret parameters should be then updated to suit your secret provider
     # parameter template.
     secrets:
-      node_key:
+      nodeKey:
         filename: nodeKey.json
         devContent:
           priv_key:
@@ -99,8 +99,7 @@ config:
             value: HGWRtLbV8WLGFgbYhaGyaLe++DC+DBoc7O3bri81vs2ZlpR28IFfQScoO1aNOE/ygs8LIPM9UzLzbaab4VMggQ==
         secret:
           resourceName: "projects/$PROJECT_ID/secrets/privValidatorKey/versions/latest"
-          key: token
-      priv_validator_key:
+      privValidatorKey:
         filename: privValidatorKey.json
         devContent:
           # Ed25519 address of validator
@@ -116,7 +115,6 @@ config:
             value: dGOTAweQV8Do9P2n+A8m5EnboDrlxgD3dg4vrYpdIRqVXnv6saza9pzua+QYc/WgEUYc8kzdr5agDN4UMIkM1Q==
         secret:
           resourceName: "projects/$PROJECT_ID/secrets/privValidatorKey/versions/latest"
-          key: token
     validators:
       - name: core
         power: '1'
@@ -136,7 +134,7 @@ secretProvider:
   # it will be passed an object of the form:
   # { <secret_name>: {
   #     filename: <filename>,
-  #     secret: { resourceName: <resourceName>, key: <key> }
+  #     secret: { resourceName: <resourceName> }
   #   }
   # }
   #

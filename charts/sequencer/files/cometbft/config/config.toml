@@ -6,6 +6,10 @@
 # "$HOME/.cometbft" by default, but could be changed via $CMTHOME env variable
 # or --home cmd flag.
 
+# The version of the CometBFT binary that created or
+# last modified the config file. Do not modify this.
+version = "0.38.6"
+# edit
 #######################################################################
 ###                   Main Base Config Options                      ###
 #######################################################################
@@ -16,14 +20,6 @@ proxy_app = "tcp://127.0.0.1:{{ .Values.ports.sequencerABCI }}"
 
 # A custom human readable name for this node
 moniker = "{{ .Values.config.moniker }}"
-
-# If this node is many blocks behind the tip of the chain, BlockSync
-# allows them to catchup quickly by downloading blocks in parallel
-# and verifying their commits
-#
-# Deprecated: this key will be removed and BlockSync will be enabled 
-# unconditionally in the next major release.
-block_sync = true
 
 # Database backend: goleveldb | cleveldb | boltdb | rocksdb | badgerdb
 # * goleveldb (github.com/syndtr/goleveldb - most popular implementation)
@@ -61,7 +57,7 @@ log_format = "plain"
 genesis_file = "config/genesis.json"
 
 # Path to the JSON file containing the private key to use as a validator in the consensus protocol
-priv_validator_key_file = "/secrets/{{ .Values.config.cometBFT.secrets.priv_validator_key.filename }}"
+priv_validator_key_file = "/secrets/{{ .Values.config.cometBFT.secrets.privValidatorKey.filename }}"
 
 # Path to the JSON file containing the last sign state of a validator
 priv_validator_state_file = "data/priv_validator_state.json"
@@ -71,7 +67,7 @@ priv_validator_state_file = "data/priv_validator_state.json"
 priv_validator_laddr = ""
 
 # Path to the JSON file containing the private key to use for node authentication in the p2p protocol
-node_key_file = "/secrets/{{ .Values.config.cometBFT.secrets.node_key.filename }}"
+node_key_file = "/secrets/{{ .Values.config.cometBFT.secrets.nodeKey.filename }}"
 
 # Mechanism to connect to the ABCI application: socket | grpc
 abci = "socket"
@@ -132,7 +128,7 @@ max_open_connections = 900
 # Maximum number of unique clientIDs that can /subscribe
 # If you're using /broadcast_tx_commit, set to the estimated maximum number
 # of broadcast_tx_commit calls per block.
-max_subscription_clients = 10000
+max_subscription_clients = 100
 
 # Maximum number of unique queries a given client can /subscribe to
 # If you're using GRPC (or Local RPC client) and /broadcast_tx_commit, set to
@@ -270,13 +266,34 @@ dial_timeout = "3s"
 #######################################################
 [mempool]
 
-# Mempool version to use:
-#   1) "v0" - (default) FIFO mempool.
-#   2) "v1" - prioritized mempool (deprecated; will be removed in the next release).
-version = "v0"
+# The type of mempool for this node to use.
+#
+#  Possible types:
+#  - "flood" : concurrent linked list mempool with flooding gossip protocol
+#  (default)
+#  - "nop"   : nop-mempool (short for no operation; the ABCI app is responsible
+#  for storing, disseminating and proposing txs). "create_empty_blocks=false" is
+#  not supported.
+type = "flood"
 
+# Recheck (default: true) defines whether CometBFT should recheck the
+# validity for all remaining transaction in the mempool after a block.
+# Since a block affects the application state, some transactions in the
+# mempool may become invalid. If this does not apply to your application,
+# you can disable rechecking.
 recheck = true
+
+# Broadcast (default: true) defines whether the mempool should relay
+# transactions to other peers. Setting this to false will stop the mempool
+# from relaying transactions to other peers until they are included in a
+# block. In other words, if Broadcast is disabled, only the peer you send
+# the tx to will see it until it is included in a block.
 broadcast = true
+
+# WalPath (default: "") configures the location of the Write Ahead Log
+# (WAL) for the mempool. The WAL is disabled by default. To enable, set
+# WalPath to where you want the WAL to be written (e.g.
+# "data/mempool.wal").
 wal_dir = ""
 
 # Maximum number of transactions in the mempool
@@ -304,21 +321,20 @@ max_tx_bytes = 1048576
 # XXX: Unused due to https://github.com/tendermint/tendermint/issues/5796
 max_batch_bytes = 0
 
-# ttl-duration, if non-zero, defines the maximum amount of time a transaction
-# can exist for in the mempool.
-#
-# Note, if ttl-num-blocks is also defined, a transaction will be removed if it
-# has existed in the mempool at least ttl-num-blocks number of blocks or if it's
-# insertion time into the mempool is beyond ttl-duration.
-ttl-duration = "0s"
-
-# ttl-num-blocks, if non-zero, defines the maximum number of blocks a transaction
-# can exist for in the mempool.
-#
-# Note, if ttl-duration is also defined, a transaction will be removed if it
-# has existed in the mempool at least ttl-num-blocks number of blocks or if
-# it's insertion time into the mempool is beyond ttl-duration.
-ttl-num-blocks = 0
+# Experimental parameters to limit gossiping txs to up to the specified number of peers.
+# We use two independent upper values for persistent and non-persistent peers.
+# Unconditional peers are not affected by this feature.
+# If we are connected to more than the specified number of persistent peers, only send txs to
+# ExperimentalMaxGossipConnectionsToPersistentPeers of them. If one of those
+# persistent peers disconnects, activate another persistent peer.
+# Similarly for non-persistent peers, with an upper limit of
+# ExperimentalMaxGossipConnectionsToNonPersistentPeers.
+# If set to 0, the feature is disabled for the corresponding group of peers, that is, the
+# number of active connections to that group of peers is not bounded.
+# For non-persistent peers, if enabled, a value of 10 is recommended based on experimental
+# performance results using the default P2P configuration.
+experimental_max_gossip_connections_to_persistent_peers = 0
+experimental_max_gossip_connections_to_non_persistent_peers = 0
 
 #######################################################
 ###         State Sync Configuration Options        ###
@@ -362,7 +378,7 @@ chunk_fetchers = "4"
 [blocksync]
 
 # Block Sync version to use:
-# 
+#
 # In v0.37, v1 and v2 of the block sync protocols were deprecated.
 # Please use v0 instead.
 #
@@ -439,15 +455,17 @@ discard_abci_responses = false
 # When "kv" or "psql" is chosen "tx.height" and "tx.hash" will always be indexed.
 {{- if .Values.config.cometBFT.psql.enabled }}
 indexer = "psql"
+{{- else }}
+indexer = "kv"
+{{- end }}
 
 # The PostgreSQL connection configuration, the connection format:
 #   postgresql://<user>:<password>@<host>:<port>/<db>?<opts>
+{{- if .Values.config.cometBFT.psql.enabled }}
 psql-conn = "{{ .Values.config.cometBFt.psql.conn }}"
 {{- else }}
-indexer = "kv"
 psql-conn = ""
 {{- end }}
-
 #######################################################
 ###       Instrumentation Configuration Options     ###
 #######################################################
