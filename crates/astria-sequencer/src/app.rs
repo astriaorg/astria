@@ -436,6 +436,8 @@ impl App {
         let mut failed_tx_count: usize = 0;
         let mut execution_results = Vec::new();
 
+        let mut txs_to_readd_to_mempool = Vec::new();
+
         while let Some((tx, priority)) = mempool.pop() {
             let bytes = tx.to_raw().encode_to_vec();
             let tx_hash = Sha256::digest(&bytes);
@@ -449,7 +451,8 @@ impl App {
                     tx_data_bytes = tx_len,
                     "excluding remaining transactions: max cometBFT data limit reached"
                 );
-                mempool.insert(tx, priority);
+                txs_to_readd_to_mempool.push((tx, priority));
+
                 // break from loop, as the block is full
                 break;
             }
@@ -469,7 +472,8 @@ impl App {
                     tx_data_bytes = tx_sequence_data_bytes,
                     "excluding transaction: max block sequenced data limit reached"
                 );
-                mempool.insert(tx, priority);
+                txs_to_readd_to_mempool.push((tx, priority));
+
                 // continue as there might be non-sequence txs that can fit
                 continue;
             }
@@ -503,7 +507,7 @@ impl App {
                     // if it's invalid due to the nonce being too low, it'll be
                     // removed from the mempool in `update_mempool_after_finalization`.
                     if e.downcast_ref::<InvalidNonce>().is_some() {
-                        mempool.insert(tx, priority);
+                        txs_to_readd_to_mempool.push((tx, priority));
                     }
                 }
             }
@@ -516,6 +520,11 @@ impl App {
                 "excluded transactions from block due to execution failure"
             );
         }
+
+        mempool.insert_all(txs_to_readd_to_mempool).expect(
+            "priority transaction nonce and transaction nonce matches for each tx, as they were \
+             just popped from the mempool and not modified",
+        );
 
         debug!(
             mempool_len = mempool.len(),
@@ -728,7 +737,14 @@ impl App {
                 .context("failed to execute block")?;
 
             // skip the first two transactions, as they are the rollup data commitments
+            let mempool = self.mempool.clone();
+            let mut mempool = mempool.lock().await;
             for tx in finalize_block.txs.iter().skip(2) {
+                let tx_hash = Sha256::digest(tx)
+                    .try_into()
+                    .expect("sha256 hash is always 32 bytes");
+                mempool.remove(&tx_hash);
+
                 let signed_tx = signed_transaction_from_bytes(tx)
                     .context("protocol error; only valid txs should be finalized")?;
 
@@ -1171,6 +1187,7 @@ mod test {
         authority::state_ext::ValidatorSet,
         genesis::Account,
         ibc::state_ext::StateReadExt as _,
+        mempool::TransactionPriority,
         sequence::calculate_fee,
         transaction::InvalidChainId,
     };
@@ -2622,13 +2639,19 @@ mod test {
         // don't commit the result, now call prepare_proposal with the same data.
         // this will reset the app state.
         // this simulates executing the same block as a validator (specifically the proposer).
+        let mut mempool = app.mempool.lock().await;
+        mempool
+            .insert(signed_tx, TransactionPriority::new(0, 0).unwrap())
+            .unwrap();
+        drop(mempool);
+
         let proposer_address = [88u8; 20].to_vec().try_into().unwrap();
         let prepare_proposal = PrepareProposal {
             height: 1u32.into(),
             time: timestamp,
             next_validators_hash: Hash::default(),
             proposer_address,
-            txs: vec![signed_tx.to_raw().encode_to_vec().into()],
+            txs: vec![],
             max_tx_bytes: 1_000_000,
             local_last_commit: None,
             misbehavior: vec![],
@@ -2738,15 +2761,19 @@ mod test {
         }
         .into_signed(&alice_signing_key);
 
-        let txs: Vec<bytes::Bytes> = vec![
-            tx_pass.to_raw().encode_to_vec().into(),
-            tx_overflow.to_raw().encode_to_vec().into(),
-        ];
+        let mut mempool = app.mempool.lock().await;
+        mempool
+            .insert(tx_pass, TransactionPriority::new(0, 0).unwrap())
+            .unwrap();
+        mempool
+            .insert(tx_overflow, TransactionPriority::new(1, 0).unwrap())
+            .unwrap();
+        drop(mempool);
 
         // send to prepare_proposal
         let prepare_args = abci::request::PrepareProposal {
             max_tx_bytes: 200_000,
-            txs,
+            txs: vec![],
             local_last_commit: None,
             misbehavior: vec![],
             height: Height::default(),
@@ -2818,15 +2845,19 @@ mod test {
         }
         .into_signed(&alice_signing_key);
 
-        let txs: Vec<bytes::Bytes> = vec![
-            tx_pass.to_raw().encode_to_vec().into(),
-            tx_overflow.to_raw().encode_to_vec().into(),
-        ];
+        let mut mempool = app.mempool.lock().await;
+        mempool
+            .insert(tx_pass, TransactionPriority::new(0, 0).unwrap())
+            .unwrap();
+        mempool
+            .insert(tx_overflow, TransactionPriority::new(1, 0).unwrap())
+            .unwrap();
+        drop(mempool);
 
         // send to prepare_proposal
         let prepare_args = abci::request::PrepareProposal {
             max_tx_bytes: 600_000, // make large enough to overflow sequencer bytes first
-            txs,
+            txs: vec![],
             local_last_commit: None,
             misbehavior: vec![],
             height: Height::default(),

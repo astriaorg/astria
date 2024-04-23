@@ -18,14 +18,14 @@ pub(crate) struct TransactionPriority {
 
 impl PartialOrd for TransactionPriority {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        let self_priority = self.transaction_nonce - self.current_account_nonce;
-        let other_priority = other.transaction_nonce - other.current_account_nonce;
+        let self_nonce_diff = self.transaction_nonce - self.current_account_nonce;
+        let other_nonce_diff = other.transaction_nonce - other.current_account_nonce;
 
         // we want to execute the lowest nonce first,
         // so lower nonce difference means higher priority
-        if self_priority > other_priority {
+        if self_nonce_diff > other_nonce_diff {
             Some(Ordering::Less)
-        } else if self_priority < other_priority {
+        } else if self_nonce_diff < other_nonce_diff {
             Some(Ordering::Greater)
         } else {
             Some(Ordering::Equal)
@@ -85,10 +85,32 @@ impl BasicMempool {
     }
 
     /// inserts a transaction into the mempool
-    pub(crate) fn insert(&mut self, tx: SignedTransaction, priority: TransactionPriority) {
+    ///
+    /// note: if the tx already exists in the mempool, it's overwritten with the new priority.
+    pub(crate) fn insert(
+        &mut self,
+        tx: SignedTransaction,
+        priority: TransactionPriority,
+    ) -> anyhow::Result<()> {
+        if tx.nonce() != priority.transaction_nonce {
+            anyhow::bail!("transaction nonce does not match `transaction_nonce` in priority");
+        }
+
         let hash = tx.sha256_of_proto_encoding();
         self.queue.push(hash, priority);
         self.hash_to_tx.insert(hash, tx);
+        Ok(())
+    }
+
+    /// inserts all the given transactions into the mempool
+    pub(crate) fn insert_all(
+        &mut self,
+        txs: Vec<(SignedTransaction, TransactionPriority)>,
+    ) -> anyhow::Result<()> {
+        for (tx, priority) in txs {
+            self.insert(tx, priority)?;
+        }
+        Ok(())
     }
 
     /// pops the transaction with the highest priority from the mempool
@@ -97,6 +119,12 @@ impl BasicMempool {
         let (hash, priority) = self.queue.pop_max()?;
         let tx = self.hash_to_tx.remove(&hash)?;
         Some((tx, priority))
+    }
+
+    /// removes a transaction from the mempool
+    pub(crate) fn remove(&mut self, tx_hash: &[u8; 32]) {
+        self.queue.remove(tx_hash);
+        self.hash_to_tx.remove(tx_hash);
     }
 
     #[must_use]
@@ -143,23 +171,20 @@ mod test {
     };
 
     use super::*;
-    use crate::{
-        app::test_utils::get_alice_signing_key_and_address,
-        asset::get_native_asset,
-    };
+    use crate::app::test_utils::get_alice_signing_key_and_address;
 
-    fn get_mock_tx() -> SignedTransaction {
+    fn get_mock_tx(nonce: u32) -> SignedTransaction {
         let (alice_signing_key, _) = get_alice_signing_key_and_address();
         let tx = UnsignedTransaction {
             params: TransactionParams {
-                nonce: 0,
+                nonce,
                 chain_id: "test".to_string(),
             },
             actions: vec![
                 SequenceAction {
                     rollup_id: RollupId::from_unhashed_bytes([0; 32]),
                     data: vec![0x99],
-                    fee_asset_id: get_native_asset().id(),
+                    fee_asset_id: astria_core::primitive::v1::asset::default_native_asset_id(),
                 }
                 .into(),
             ],
@@ -180,26 +205,36 @@ mod test {
         };
 
         assert!(priority_0 > priority_1);
+        assert!(priority_0 == priority_0);
+        assert!(priority_1 < priority_0);
     }
 
     #[test]
     fn mempool_insert_pop() {
         let mut mempool = BasicMempool::new();
 
-        let tx1 = SignedTransaction::default();
-        let priority1 = TransactionPriority::new(0, 0).unwrap();
-        mempool.insert(tx1.clone(), priority1);
+        let tx0 = get_mock_tx(0);
+        let priority0 = TransactionPriority::new(0, 0).unwrap();
+        mempool.insert(tx0.clone(), priority0.clone()).unwrap();
 
-        let tx2 = SignedTransaction::default();
-        let priority2 = TransactionPriority::new(1, 0).unwrap();
-        mempool.insert(tx2.clone(), priority2);
+        let tx1 = get_mock_tx(1);
+        let priority1 = TransactionPriority::new(1, 0).unwrap();
+        mempool.insert(tx1.clone(), priority1.clone()).unwrap();
 
-        let (popped_tx2, popped_priority2) = mempool.pop().unwrap();
-        assert_eq!(popped_tx2, tx2);
-        assert_eq!(popped_priority2, priority2);
+        assert!(priority0 > priority1);
 
-        let (popped_tx1, popped_priority1) = mempool.pop().unwrap();
-        assert_eq!(popped_tx1, tx1);
-        assert_eq!(popped_priority1, priority1);
+        let (tx, priority) = mempool.pop().unwrap();
+        assert_eq!(
+            tx.sha256_of_proto_encoding(),
+            tx0.sha256_of_proto_encoding()
+        );
+        assert_eq!(priority, priority0);
+
+        let (tx, priority) = mempool.pop().unwrap();
+        assert_eq!(
+            tx.sha256_of_proto_encoding(),
+            tx1.sha256_of_proto_encoding()
+        );
+        assert_eq!(priority, priority1);
     }
 }

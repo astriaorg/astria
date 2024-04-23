@@ -187,6 +187,8 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
          check_nonce_mempool",
     );
     let mut mempool = mempool.lock().await;
-    mempool.insert(signed_tx, priority);
+    mempool
+        .insert(signed_tx, priority)
+        .expect("priority transaction nonce and transaction nonce match, as we set them above");
     response::CheckTx::default()
 }
