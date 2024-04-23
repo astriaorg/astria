@@ -190,7 +190,7 @@ impl SignedTransaction {
 
     #[must_use]
     pub fn nonce(&self) -> u32 {
-        self.transaction.nonce
+        self.transaction.params.nonce
     }
 }
 
