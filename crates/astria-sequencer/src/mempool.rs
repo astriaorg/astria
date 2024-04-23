@@ -42,7 +42,6 @@ impl Ord for TransactionPriority {
 }
 
 impl TransactionPriority {
-    #[must_use]
     pub(crate) fn new(transaction_nonce: u32, current_account_nonce: u32) -> anyhow::Result<Self> {
         if transaction_nonce < current_account_nonce {
             return Err(anyhow::anyhow!(
@@ -72,6 +71,7 @@ pub(crate) struct BasicMempool {
 }
 
 impl BasicMempool {
+    #[must_use]
     pub(crate) fn new() -> Self {
         Self {
             queue: DoublePriorityQueue::new(),
