@@ -84,6 +84,7 @@ use tonic::{
 };
 use tracing::{
     debug,
+    info,
     trace,
     warn,
 };
@@ -139,17 +140,10 @@ impl CelestiaClient {
         let msg_pay_for_blobs = new_msg_pay_for_blobs(blobs.iter(), self.address.clone())?;
 
         let base_account = self.fetch_account().await?;
-        debug!(
-            account_number = base_account.account_number,
-            sequence = base_account.sequence,
-            "got account info"
-        );
 
         let cost_params = state.celestia_cost_params();
         let gas_limit = estimate_gas(&msg_pay_for_blobs.blob_sizes, cost_params);
         let fee = calculate_fee(cost_params, gas_limit, maybe_last_error);
-        trace!(?cost_params, gas_limit = gas_limit.0, fee_utia = fee);
-        debug!(fee_utia = fee, "estimated fee");
 
         let signed_tx = new_signed_tx(
             &msg_pay_for_blobs,
@@ -162,6 +156,11 @@ impl CelestiaClient {
 
         let blob_tx = new_blob_tx(&signed_tx, blobs.iter());
 
+        info!(
+            gas_limit = gas_limit.0,
+            fee_utia = fee,
+            "broadcasting blob transaction to celestia app"
+        );
         let tx_hash = self.broadcast_tx(blob_tx).await?;
 
         loop {
@@ -181,9 +180,14 @@ impl CelestiaClient {
     /// `CelestiaClientBuilder::try_build`), but will also be called if an attempt to submit blobs
     /// fails.
     async fn fetch_and_cache_cost_params(&mut self, state: Arc<super::State>) -> Result<(), Error> {
+        info!("fetching cost params from celestia app");
         let gas_per_blob_byte = self.fetch_blob_params().await?.gas_per_blob_byte;
         let tx_size_cost_per_byte = self.fetch_auth_params().await?.tx_size_cost_per_byte;
         let min_gas_price = self.fetch_min_gas_price().await?;
+        info!(
+            gas_per_blob_byte,
+            tx_size_cost_per_byte, min_gas_price, "fetched cost params from celestia app"
+        );
         let cost_params =
             CelestiaCostParams::new(gas_per_blob_byte, tx_size_cost_per_byte, min_gas_price);
         state.set_celestia_cost_params(cost_params);
@@ -191,12 +195,19 @@ impl CelestiaClient {
     }
 
     async fn fetch_account(&mut self) -> Result<BaseAccount, Error> {
+        info!("fetching account info from celestia app");
         let request = QueryAccountRequest {
             address: self.address.0.clone(),
         };
         let response = self.auth_query_client.account(request).await;
         trace!(?response);
-        account_from_response(response)
+        let base_account = account_from_response(response)?;
+        info!(
+            account_number = base_account.account_number,
+            sequence = base_account.sequence,
+            "got account info from celestia app"
+        );
+        Ok(base_account)
     }
 
     async fn fetch_blob_params(&mut self) -> Result<BlobParams, Error> {
@@ -361,7 +372,7 @@ fn tx_hash_from_response(
         };
         return Err(error);
     }
-    debug!(tx_hash = %tx_response.txhash, "broadcast transaction succeeded");
+    info!(tx_hash = %tx_response.txhash, "broadcast transaction succeeded");
     Ok(TxHash(tx_response.txhash))
 }
 

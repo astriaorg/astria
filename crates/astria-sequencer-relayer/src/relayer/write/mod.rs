@@ -417,6 +417,7 @@ async fn submit_blobs(
     Ok(final_state)
 }
 
+#[instrument(skip_all)]
 async fn init_with_retry(client_builder: CelestiaClientBuilder) -> eyre::Result<CelestiaClient> {
     let span = Span::current();
 
