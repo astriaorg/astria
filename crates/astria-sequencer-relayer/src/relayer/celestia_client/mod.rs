@@ -61,15 +61,17 @@ use astria_core::generated::{
         BlobTx,
     },
 };
-pub(super) use builder::Builder as CelestiaClientBuilder;
+pub(super) use builder::{
+    Builder as CelestiaClientBuilder,
+    BuilderError,
+};
 use celestia_client::celestia_types::Blob;
 use celestia_cost_params::CelestiaCostParams;
 pub(crate) use celestia_keys::CelestiaKeys;
 pub(super) use error::{
-    Bech32EncodeError,
-    Error,
     GrpcResponseError,
     ProtobufDecodeError,
+    TrySubmitError,
 };
 use itertools::Itertools;
 use prost::{
@@ -121,8 +123,8 @@ impl CelestiaClient {
     pub(super) async fn try_submit(
         mut self,
         blobs: Arc<Vec<Blob>>,
-        last_error_receiver: watch::Receiver<Option<Error>>,
-    ) -> Result<u64, Error> {
+        last_error_receiver: watch::Receiver<Option<TrySubmitError>>,
+    ) -> Result<u64, TrySubmitError> {
         info!("fetching cost params and account info from celestia app");
         let (blob_params, auth_params, min_gas_price, base_account) = tokio::try_join!(
             self.fetch_blob_params(),
@@ -179,7 +181,7 @@ impl CelestiaClient {
         }
     }
 
-    async fn fetch_account(&self) -> Result<BaseAccount, Error> {
+    async fn fetch_account(&self) -> Result<BaseAccount, TrySubmitError> {
         let mut auth_query_client = AuthQueryClient::new(self.grpc_channel.clone());
         let request = QueryAccountRequest {
             address: self.address.0.clone(),
@@ -189,29 +191,33 @@ impl CelestiaClient {
         account_from_response(response)
     }
 
-    async fn fetch_blob_params(&self) -> Result<BlobParams, Error> {
+    async fn fetch_blob_params(&self) -> Result<BlobParams, TrySubmitError> {
         let mut blob_query_client = BlobQueryClient::new(self.grpc_channel.clone());
         let response = blob_query_client.params(QueryBlobParamsRequest {}).await;
         trace!(?response);
         response
-            .map_err(|status| Error::FailedToGetBlobParams(GrpcResponseError::from(status)))?
+            .map_err(|status| {
+                TrySubmitError::FailedToGetBlobParams(GrpcResponseError::from(status))
+            })?
             .into_inner()
             .params
-            .ok_or_else(|| Error::EmptyBlobParams)
+            .ok_or_else(|| TrySubmitError::EmptyBlobParams)
     }
 
-    async fn fetch_auth_params(&self) -> Result<AuthParams, Error> {
+    async fn fetch_auth_params(&self) -> Result<AuthParams, TrySubmitError> {
         let mut auth_query_client = AuthQueryClient::new(self.grpc_channel.clone());
         let response = auth_query_client.params(QueryAuthParamsRequest {}).await;
         trace!(?response);
         response
-            .map_err(|status| Error::FailedToGetAuthParams(GrpcResponseError::from(status)))?
+            .map_err(|status| {
+                TrySubmitError::FailedToGetAuthParams(GrpcResponseError::from(status))
+            })?
             .into_inner()
             .params
-            .ok_or_else(|| Error::EmptyAuthParams)
+            .ok_or_else(|| TrySubmitError::EmptyAuthParams)
     }
 
-    async fn fetch_min_gas_price(&self) -> Result<f64, Error> {
+    async fn fetch_min_gas_price(&self) -> Result<f64, TrySubmitError> {
         let mut min_gas_price_client = MinGasPriceClient::new(self.grpc_channel.clone());
         let response = min_gas_price_client.config(MinGasPriceRequest {}).await;
         trace!(?response);
@@ -219,7 +225,7 @@ impl CelestiaClient {
     }
 
     /// Returns the tx hash on success.
-    async fn broadcast_tx(&mut self, blob_tx: BlobTx) -> Result<TxHash, Error> {
+    async fn broadcast_tx(&mut self, blob_tx: BlobTx) -> Result<TxHash, TrySubmitError> {
         let request = BroadcastTxRequest {
             tx_bytes: blob_tx.encode_to_vec(),
             mode: i32::from(BroadcastMode::Sync),
@@ -231,7 +237,7 @@ impl CelestiaClient {
 
     /// Returns `Some(height)` if the tx submission has completed, or `None` if it is still
     /// pending.
-    async fn get_tx(&mut self, tx_hash: TxHash) -> Result<Option<i64>, Error> {
+    async fn get_tx(&mut self, tx_hash: TxHash) -> Result<Option<i64>, TrySubmitError> {
         let request = GetTxRequest {
             hash: tx_hash.0.clone(),
         };
@@ -244,7 +250,7 @@ impl CelestiaClient {
 fn new_msg_pay_for_blobs<'a>(
     blobs: impl Iterator<Item = &'a Blob>,
     signer: Bech32Address,
-) -> Result<MsgPayForBlobs, Error> {
+) -> Result<MsgPayForBlobs, TrySubmitError> {
     // Gather the required fields of the blobs into separate collections, one collection per
     // field.
     let (blob_sizes, namespaces, share_commitments, share_versions): (
@@ -267,7 +273,7 @@ fn new_msg_pay_for_blobs<'a>(
     let blob_sizes = blob_sizes
         .into_iter()
         .map(|blob_size| {
-            u32::try_from(blob_size).map_err(|_| Error::BlobTooLarge {
+            u32::try_from(blob_size).map_err(|_| TrySubmitError::BlobTooLarge {
                 byte_count: blob_size,
             })
         })
@@ -285,22 +291,23 @@ fn new_msg_pay_for_blobs<'a>(
 /// Extracts a `BaseAccount` from the given response.
 fn account_from_response(
     response: Result<Response<QueryAccountResponse>, Status>,
-) -> Result<BaseAccount, Error> {
-    let account_info = response
-        .map_err(|status| Error::FailedToGetAccountInfo(GrpcResponseError::from(status)))?;
+) -> Result<BaseAccount, TrySubmitError> {
+    let account_info = response.map_err(|status| {
+        TrySubmitError::FailedToGetAccountInfo(GrpcResponseError::from(status))
+    })?;
 
     let account_as_any = account_info
         .into_inner()
         .account
-        .ok_or_else(|| Error::EmptyAccountInfo)?;
+        .ok_or_else(|| TrySubmitError::EmptyAccountInfo)?;
     let expected_type_url = BaseAccount::type_url();
 
     if expected_type_url == account_as_any.type_url {
         return BaseAccount::decode(&*account_as_any.value)
-            .map_err(|error| Error::DecodeAccountInfo(ProtobufDecodeError::from(error)));
+            .map_err(|error| TrySubmitError::DecodeAccountInfo(ProtobufDecodeError::from(error)));
     }
 
-    Err(Error::AccountInfoTypeMismatch {
+    Err(TrySubmitError::AccountInfoTypeMismatch {
         expected: expected_type_url,
         received: account_as_any.type_url,
     })
@@ -309,21 +316,21 @@ fn account_from_response(
 /// Extracts the minimum gas price from the given response.
 fn min_gas_price_from_response(
     response: Result<Response<MinGasPriceResponse>, Status>,
-) -> Result<f64, Error> {
+) -> Result<f64, TrySubmitError> {
     const UNITS_SUFFIX: &str = "utia";
     let min_gas_price_with_suffix = response
-        .map_err(|status| Error::FailedToGetMinGasPrice(GrpcResponseError::from(status)))?
+        .map_err(|status| TrySubmitError::FailedToGetMinGasPrice(GrpcResponseError::from(status)))?
         .into_inner()
         .minimum_gas_price;
     let min_gas_price_str = min_gas_price_with_suffix
         .strip_suffix(UNITS_SUFFIX)
-        .ok_or_else(|| Error::MinGasPriceBadSuffix {
+        .ok_or_else(|| TrySubmitError::MinGasPriceBadSuffix {
             min_gas_price: min_gas_price_with_suffix.clone(),
             expected_suffix: UNITS_SUFFIX,
         })?;
     min_gas_price_str
         .parse::<f64>()
-        .map_err(|source| Error::FailedToParseMinGasPrice {
+        .map_err(|source| TrySubmitError::FailedToParseMinGasPrice {
             min_gas_price: min_gas_price_str.to_string(),
             source,
         })
@@ -332,14 +339,14 @@ fn min_gas_price_from_response(
 /// Extracts the tx hash from the given response.
 fn tx_hash_from_response(
     response: Result<Response<BroadcastTxResponse>, Status>,
-) -> Result<TxHash, Error> {
+) -> Result<TxHash, TrySubmitError> {
     let tx_response = response
-        .map_err(|status| Error::FailedToBroadcastTx(GrpcResponseError::from(status)))?
+        .map_err(|status| TrySubmitError::FailedToBroadcastTx(GrpcResponseError::from(status)))?
         .into_inner()
         .tx_response
-        .ok_or_else(|| Error::EmptyBroadcastTxResponse)?;
+        .ok_or_else(|| TrySubmitError::EmptyBroadcastTxResponse)?;
     if tx_response.code != 0 {
-        let error = Error::BroadcastTxResponseErrorCode {
+        let error = TrySubmitError::BroadcastTxResponseErrorCode {
             tx_hash: tx_response.txhash,
             code: tx_response.code,
             namespace: tx_response.codespace,
@@ -355,7 +362,7 @@ fn tx_hash_from_response(
 /// not available yet.
 fn block_height_from_response(
     response: Result<Response<GetTxResponse>, Status>,
-) -> Result<Option<i64>, Error> {
+) -> Result<Option<i64>, TrySubmitError> {
     let ok_response = match response {
         Ok(resp) => resp,
         Err(status) => {
@@ -364,15 +371,17 @@ fn block_height_from_response(
                 debug!(msg = status.message(), "transaction still pending");
                 return Ok(None);
             }
-            return Err(Error::FailedToGetTx(GrpcResponseError::from(status)));
+            return Err(TrySubmitError::FailedToGetTx(GrpcResponseError::from(
+                status,
+            )));
         }
     };
     let tx_response = ok_response
         .into_inner()
         .tx_response
-        .ok_or_else(|| Error::EmptyGetTxResponse)?;
+        .ok_or_else(|| TrySubmitError::EmptyGetTxResponse)?;
     if tx_response.code != 0 {
-        let error = Error::GetTxResponseErrorCode {
+        let error = TrySubmitError::GetTxResponseErrorCode {
             tx_hash: tx_response.txhash,
             code: tx_response.code,
             namespace: tx_response.codespace,
@@ -457,11 +466,11 @@ fn estimate_gas(blob_sizes: &[u32], cost_params: CelestiaCostParams) -> GasLimit
 fn calculate_fee(
     cost_params: CelestiaCostParams,
     gas_limit: GasLimit,
-    maybe_last_error: Option<Error>,
+    maybe_last_error: Option<TrySubmitError>,
 ) -> u64 {
     // Try to extract the required fee from the last error.
     let maybe_required_fee = match maybe_last_error {
-        Some(Error::BroadcastTxResponseErrorCode {
+        Some(TrySubmitError::BroadcastTxResponseErrorCode {
             code,
             log,
             ..

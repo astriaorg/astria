@@ -60,9 +60,10 @@ mod write;
 
 pub(crate) use builder::Builder;
 use celestia_client::{
+    BuilderError,
     CelestiaClientBuilder,
     CelestiaKeys,
-    Error as CelestiaClientError,
+    TrySubmitError,
 };
 use state::State;
 pub(crate) use state::StateSnapshot;

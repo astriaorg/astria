@@ -63,7 +63,7 @@ fn new_msg_pay_for_blobs_should_fail_for_large_blob() {
         new_msg_pay_for_blobs(iter::once(&blob), Bech32Address("a".to_string())).unwrap_err();
     assert!(matches!(
         error,
-        Error::BlobTooLarge { byte_count } if byte_count == u32::MAX as usize + 1
+        TrySubmitError::BlobTooLarge { byte_count } if byte_count == u32::MAX as usize + 1
     ));
 }
 
@@ -91,14 +91,14 @@ fn account_from_good_response_should_succeed() {
 fn account_from_bad_response_should_fail() {
     // Should return `FailedToGetAccountInfo` if outer response is an error.
     let error = account_from_response(Err(Status::internal(""))).unwrap_err();
-    assert!(matches!(error, Error::FailedToGetAccountInfo(_)));
+    assert!(matches!(error, TrySubmitError::FailedToGetAccountInfo(_)));
 
     // Should return `EmptyAccountInfo` if the inner response's `account` is `None`.
     let response = Ok(Response::new(QueryAccountResponse {
         account: None,
     }));
     let error = account_from_response(response).unwrap_err();
-    assert!(matches!(error, Error::EmptyAccountInfo));
+    assert!(matches!(error, TrySubmitError::EmptyAccountInfo));
 
     // Should return `AccountInfoTypeMismatch` if the inner response's `account` has the wrong
     // type URL.
@@ -112,7 +112,7 @@ fn account_from_bad_response_should_fail() {
     }));
     let error = account_from_response(response).unwrap_err();
     match error {
-        Error::AccountInfoTypeMismatch {
+        TrySubmitError::AccountInfoTypeMismatch {
             expected,
             received,
         } => {
@@ -131,7 +131,7 @@ fn account_from_bad_response_should_fail() {
         account: Some(bad_value_account),
     }));
     let error = account_from_response(response).unwrap_err();
-    assert!(matches!(error, Error::DecodeAccountInfo(_)));
+    assert!(matches!(error, TrySubmitError::DecodeAccountInfo(_)));
 }
 
 #[test]
@@ -152,7 +152,7 @@ fn min_gas_price_from_good_response_should_succeed() {
 fn min_gas_price_from_bad_response_should_fail() {
     // Should return `FailedToGetMinGasPrice` if outer response is an error.
     let error = min_gas_price_from_response(Err(Status::internal(""))).unwrap_err();
-    assert!(matches!(error, Error::FailedToGetMinGasPrice(_)));
+    assert!(matches!(error, TrySubmitError::FailedToGetMinGasPrice(_)));
 
     // Should return `MinGasPriceBadSuffix` if the inner response's `minimum_gas_price` doesn't
     // have the suffix "utia".
@@ -162,7 +162,7 @@ fn min_gas_price_from_bad_response_should_fail() {
     }));
     let error = min_gas_price_from_response(response).unwrap_err();
     match error {
-        Error::MinGasPriceBadSuffix {
+        TrySubmitError::MinGasPriceBadSuffix {
             min_gas_price,
             expected_suffix,
         } => {
@@ -180,7 +180,7 @@ fn min_gas_price_from_bad_response_should_fail() {
     }));
     let error = min_gas_price_from_response(response).unwrap_err();
     match error {
-        Error::FailedToParseMinGasPrice {
+        TrySubmitError::FailedToParseMinGasPrice {
             min_gas_price, ..
         } => {
             assert_eq!(min_gas_price, bad_value,);
@@ -263,14 +263,14 @@ fn tx_hash_from_good_response_should_succeed() {
 fn tx_hash_from_bad_response_should_fail() {
     // Should return `FailedToBroadcastTx` if outer response is an error.
     let error = tx_hash_from_response(Err(Status::internal(""))).unwrap_err();
-    assert!(matches!(error, Error::FailedToBroadcastTx(_)));
+    assert!(matches!(error, TrySubmitError::FailedToBroadcastTx(_)));
 
     // Should return `EmptyBroadcastTxResponse` if the inner response's `tx_response` is `None`.
     let response = Ok(Response::new(BroadcastTxResponse {
         tx_response: None,
     }));
     let error = tx_hash_from_response(response).unwrap_err();
-    assert!(matches!(error, Error::EmptyBroadcastTxResponse));
+    assert!(matches!(error, TrySubmitError::EmptyBroadcastTxResponse));
 
     // Should return `BroadcastTxResponseErrorCode` if the inner response's `tx_response.code` is
     // not 0.
@@ -289,7 +289,7 @@ fn tx_hash_from_bad_response_should_fail() {
     }));
     let error = tx_hash_from_response(response).unwrap_err();
     match error {
-        Error::BroadcastTxResponseErrorCode {
+        TrySubmitError::BroadcastTxResponseErrorCode {
             tx_hash: received_tx_hash,
             code: received_code,
             namespace: received_namespace,
@@ -321,7 +321,7 @@ fn block_height_from_good_response_should_succeed() {
 fn block_height_from_bad_response_should_fail() {
     // Should return `FailedToGetTx` if outer response is an error other than `NotFound`.
     let error = block_height_from_response(Err(Status::internal(""))).unwrap_err();
-    assert!(matches!(error, Error::FailedToGetTx(_)));
+    assert!(matches!(error, TrySubmitError::FailedToGetTx(_)));
 
     // Should return `EmptyGetTxResponse` if the inner response's `tx_response` is `None`.
     let response = Ok(Response::new(GetTxResponse {
@@ -329,7 +329,7 @@ fn block_height_from_bad_response_should_fail() {
         tx_response: None,
     }));
     let error = block_height_from_response(response).unwrap_err();
-    assert!(matches!(error, Error::EmptyGetTxResponse));
+    assert!(matches!(error, TrySubmitError::EmptyGetTxResponse));
 
     // Should return `GetTxResponseErrorCode` if the inner response's `tx_response.code` is not 0.
     let tx_hash = "abc";
@@ -348,7 +348,7 @@ fn block_height_from_bad_response_should_fail() {
     }));
     let error = block_height_from_response(response).unwrap_err();
     match error {
-        Error::GetTxResponseErrorCode {
+        TrySubmitError::GetTxResponseErrorCode {
             tx_hash: received_tx_hash,
             code: received_code,
             namespace: received_namespace,
@@ -393,13 +393,13 @@ fn should_use_calculated_fee() {
     let fee = calculate_fee(
         cost_params,
         GasLimit(100),
-        Some(Error::EmptyBroadcastTxResponse),
+        Some(TrySubmitError::EmptyBroadcastTxResponse),
     );
     assert_eq!(fee, calculated_fee);
 
     // If last error was `BroadcastTxResponseErrorCode` but the code was not
     // `INSUFFICIENT_FEE_CODE`, should use calculated fee.
-    let error = Error::BroadcastTxResponseErrorCode {
+    let error = TrySubmitError::BroadcastTxResponseErrorCode {
         tx_hash: String::new(),
         code: INSUFFICIENT_FEE_CODE - 1,
         namespace: String::new(),
@@ -410,7 +410,7 @@ fn should_use_calculated_fee() {
 
     // If last error was `BroadcastTxResponseErrorCode` and the code was `INSUFFICIENT_FEE_CODE`,
     // but the log couldn't be parsed, should use calculated fee.
-    let error = Error::BroadcastTxResponseErrorCode {
+    let error = TrySubmitError::BroadcastTxResponseErrorCode {
         tx_hash: String::new(),
         code: INSUFFICIENT_FEE_CODE,
         namespace: String::new(),
@@ -428,7 +428,7 @@ fn should_use_fee_from_error_log() {
     let required_fee = 99;
     let log =
         format!("insufficient fees; got: 1234utia required: {required_fee}utia: insufficient fee");
-    let error = Error::BroadcastTxResponseErrorCode {
+    let error = TrySubmitError::BroadcastTxResponseErrorCode {
         tx_hash: String::new(),
         code: INSUFFICIENT_FEE_CODE,
         namespace: String::new(),

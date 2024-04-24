@@ -8,27 +8,13 @@ use std::{
 };
 
 use prost::DecodeError;
-use tendermint::account::Id as AccountId;
 use thiserror::Error;
 use tonic::Status;
 
 /// An error in sending or executing a gRPC via the `CelestiaClient`.
 #[derive(Error, Clone, Debug)]
 #[non_exhaustive]
-pub(in crate::relayer) enum Error {
-    /// Failed to Bech32-encode our Celestia address.
-    #[error("failed to Bech32-encode our celestia address {address}")]
-    EncodeAddress {
-        address: AccountId,
-        #[source]
-        source: Bech32EncodeError,
-    },
-    /// The celestia app responded with the given error status to a `GetNodeInfoRequest`.
-    #[error("failed to get celestia node info")]
-    FailedToGetNodeInfo(#[source] GrpcResponseError),
-    /// The node info response was empty.
-    #[error("the celestia node info response was empty")]
-    EmptyNodeInfo,
+pub(in crate::relayer) enum TrySubmitError {
     /// The celestia app responded with the given error status to a `QueryBlobParamsRequest`.
     #[error("failed to get blob params")]
     FailedToGetBlobParams(#[source] GrpcResponseError),
@@ -110,11 +96,6 @@ pub(in crate::relayer) enum Error {
         log: String,
     },
 }
-
-/// An error while encoding a Bech32 string.
-#[derive(Error, Clone, Debug)]
-#[error(transparent)]
-pub(in crate::relayer) struct Bech32EncodeError(#[from] bech32::EncodeError);
 
 /// A gRPC status representing an error response from an RPC call.
 #[derive(Clone, Debug)]

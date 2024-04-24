@@ -9,6 +9,7 @@ use astria_core::generated::cosmos::{
 };
 use http::Uri;
 use tendermint::account::Id as AccountId;
+use thiserror::Error;
 use tonic::transport::{
     Channel,
     Endpoint,
@@ -18,12 +19,34 @@ use tracing::trace;
 use super::{
     super::State,
     Bech32Address,
-    Bech32EncodeError,
     CelestiaClient,
     CelestiaKeys,
-    Error,
     GrpcResponseError,
 };
+
+/// An error when building the `CelestiaClient`.
+#[derive(Error, Clone, Debug)]
+#[non_exhaustive]
+pub(in crate::relayer) enum BuilderError {
+    /// Failed to Bech32-encode our Celestia address.
+    #[error("failed to Bech32-encode our celestia address {address}")]
+    EncodeAddress {
+        address: AccountId,
+        #[source]
+        source: Bech32EncodeError,
+    },
+    /// The celestia app responded with the given error status to a `GetNodeInfoRequest`.
+    #[error("failed to get celestia node info")]
+    FailedToGetNodeInfo(#[source] GrpcResponseError),
+    /// The node info response was empty.
+    #[error("the celestia node info response was empty")]
+    EmptyNodeInfo,
+}
+
+/// An error while encoding a Bech32 string.
+#[derive(Error, Clone, Debug)]
+#[error(transparent)]
+pub(in crate::relayer) struct Bech32EncodeError(#[from] bech32::EncodeError);
 
 /// A builder for a [`CelestiaClient`].
 #[derive(Clone)]
@@ -44,7 +67,7 @@ impl Builder {
         uri: Uri,
         signing_keys: CelestiaKeys,
         state: Arc<State>,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self, BuilderError> {
         let grpc_channel = Endpoint::from(uri).connect_lazy();
         let address = bech32_encode(&signing_keys.address)?;
         Ok(Self {
@@ -56,9 +79,7 @@ impl Builder {
     }
 
     /// Returns a new `CelestiaClient` initialized with info retrieved from the Celestia app.
-    ///
-    /// On failure, the builder is returned along with the error in order to support retrying.
-    pub(in crate::relayer) async fn try_build(self) -> Result<CelestiaClient, Error> {
+    pub(in crate::relayer) async fn try_build(self) -> Result<CelestiaClient, BuilderError> {
         let chain_id = self.fetch_chain_id().await?;
 
         let Self {
@@ -79,27 +100,27 @@ impl Builder {
         })
     }
 
-    async fn fetch_chain_id(&self) -> Result<String, Error> {
+    async fn fetch_chain_id(&self) -> Result<String, BuilderError> {
         let mut node_info_client = NodeInfoClient::new(self.grpc_channel.clone());
         let response = node_info_client.get_node_info(GetNodeInfoRequest {}).await;
         trace!(?response);
         let chain_id = response
-            .map_err(|status| Error::FailedToGetNodeInfo(GrpcResponseError::from(status)))?
+            .map_err(|status| BuilderError::FailedToGetNodeInfo(GrpcResponseError::from(status)))?
             .into_inner()
             .default_node_info
-            .ok_or_else(|| Error::EmptyNodeInfo)?
+            .ok_or_else(|| BuilderError::EmptyNodeInfo)?
             .network;
         Ok(chain_id)
     }
 }
 
-fn bech32_encode(address: &AccountId) -> Result<Bech32Address, Error> {
+fn bech32_encode(address: &AccountId) -> Result<Bech32Address, BuilderError> {
     // From https://github.com/celestiaorg/celestia-app/blob/v1.4.0/app/app.go#L104
     const ACCOUNT_ADDRESS_PREFIX: bech32::Hrp = bech32::Hrp::parse_unchecked("celestia");
 
     let encoded_address =
         bech32::encode::<bech32::Bech32>(ACCOUNT_ADDRESS_PREFIX, address.as_bytes()).map_err(
-            |error| Error::EncodeAddress {
+            |error| BuilderError::EncodeAddress {
                 address: *address,
                 source: Bech32EncodeError::from(error),
             },

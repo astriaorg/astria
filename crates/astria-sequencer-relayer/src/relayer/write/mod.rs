@@ -61,9 +61,10 @@ use tracing::{
 
 use super::{
     celestia_client::CelestiaClient,
+    BuilderError,
     CelestiaClientBuilder,
-    CelestiaClientError,
     SubmissionState,
+    TrySubmitError,
 };
 
 mod conversion;
@@ -425,7 +426,7 @@ async fn init_with_retry(client_builder: CelestiaClientBuilder) -> eyre::Result<
         .exponential_backoff(Duration::from_secs(1))
         .max_delay(Duration::from_secs(30))
         .on_retry(
-            |attempt: u32, next_delay: Option<Duration>, error: &CelestiaClientError| {
+            |attempt: u32, next_delay: Option<Duration>, error: &BuilderError| {
                 let wait_duration = next_delay
                     .map(humantime::format_duration)
                     .map(tracing::field::display);
@@ -459,7 +460,7 @@ async fn submit_with_retry(
     let span = Span::current();
 
     // Create a watch channel to allow the `on_retry` function to provide the received
-    // `CelestiaClientError` to the next attempt of the `retry_fn`.
+    // `TrySubmitError` to the next attempt of the `retry_fn`.
     let (last_error_sender, last_error_receiver) = watch::channel(None);
 
     let retry_config = tryhard::RetryFutureConfig::new(u32::MAX)
@@ -467,7 +468,7 @@ async fn submit_with_retry(
         // 12 seconds is the Celestia block time
         .max_delay(Duration::from_secs(12))
         .on_retry(
-            |attempt: u32, next_delay: Option<Duration>, error: &CelestiaClientError| {
+            |attempt: u32, next_delay: Option<Duration>, error: &TrySubmitError| {
                 metrics::counter!(crate::metrics_init::CELESTIA_SUBMISSION_FAILURE_COUNT)
                     .increment(1);
 
