@@ -101,7 +101,9 @@ impl ConfigureSequencerBlock {
                 .into()
             })
             .collect();
-        let txs = if !actions.is_empty() {
+        let txs = if actions.is_empty() {
+            vec![]
+        } else {
             let unsigned_transaction = UnsignedTransaction {
                 actions,
                 params: TransactionParams {
@@ -110,18 +112,16 @@ impl ConfigureSequencerBlock {
                 },
             };
             vec![unsigned_transaction.into_signed(&signing_key)]
-        } else {
-            vec![]
         };
 
         let mut deposits_map: HashMap<RollupId, Vec<Deposit>> = HashMap::new();
-        deposits.into_iter().for_each(|deposit| {
+        for deposit in deposits {
             if let Some(entry) = deposits_map.get_mut(deposit.rollup_id()) {
                 entry.push(deposit);
             } else {
-                deposits_map.insert(deposit.rollup_id().clone(), vec![deposit]);
+                deposits_map.insert(*deposit.rollup_id(), vec![deposit]);
             }
-        });
+        }
 
         let mut rollup_transactions =
             group_sequence_actions_in_signed_transaction_transactions_by_rollup_id(&txs);
