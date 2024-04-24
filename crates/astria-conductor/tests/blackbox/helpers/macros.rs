@@ -79,7 +79,7 @@ macro_rules! filtered_sequencer_block {
     (sequencer_height: $height:expr) => {{
         let block = ::astria_core::protocol::test_utils::ConfigureSequencerBlock {
             height: $height,
-            rollup_transactions: vec![($crate::ROLLUP_ID, $crate::helpers::data())],
+            sequence_data: vec![($crate::ROLLUP_ID, $crate::helpers::data())],
             ..Default::default()
         }
         .make();

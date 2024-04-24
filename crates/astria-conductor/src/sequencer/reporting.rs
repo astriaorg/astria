@@ -60,7 +60,7 @@ mod tests {
     fn snapshot_block() -> FilteredSequencerBlock {
         let block = ConfigureSequencerBlock {
             height: 100,
-            rollup_transactions: vec![
+            sequence_data: vec![
                 (ROLLUP_42, b"hello".to_vec()),
                 (ROLLUP_42, b"hello world".to_vec()),
                 (ROLLUP_69, b"hello world".to_vec()),

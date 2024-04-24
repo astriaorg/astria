@@ -344,7 +344,7 @@ async fn first_firm_then_soft_leads_to_soft_being_dropped() {
 
     let block = ConfigureSequencerBlock {
         height: 100,
-        rollup_transactions: vec![(ROLLUP_ID, b"hello_world".to_vec())],
+        sequence_data: vec![(ROLLUP_ID, b"hello_world".to_vec())],
         ..Default::default()
     }
     .make();
@@ -397,7 +397,7 @@ async fn first_soft_then_firm_update_state_correctly() {
 
     let block = ConfigureSequencerBlock {
         height: 100,
-        rollup_transactions: vec![(ROLLUP_ID, b"hello_world".to_vec())],
+        sequence_data: vec![(ROLLUP_ID, b"hello_world".to_vec())],
         ..Default::default()
     }
     .make();
@@ -447,7 +447,7 @@ async fn old_soft_blocks_are_ignored() {
     let mut mock = start_mock().await;
     let block = ConfigureSequencerBlock {
         height: 99,
-        rollup_transactions: vec![(ROLLUP_ID, b"hello_world".to_vec())],
+        sequence_data: vec![(ROLLUP_ID, b"hello_world".to_vec())],
         ..Default::default()
     }
     .make();
@@ -479,7 +479,7 @@ async fn non_sequential_future_soft_blocks_give_error() {
 
     let block = ConfigureSequencerBlock {
         height: 101,
-        rollup_transactions: vec![(ROLLUP_ID, b"hello_world".to_vec())],
+        sequence_data: vec![(ROLLUP_ID, b"hello_world".to_vec())],
         ..Default::default()
     }
     .make();
@@ -493,7 +493,7 @@ async fn non_sequential_future_soft_blocks_give_error() {
 
     let block = ConfigureSequencerBlock {
         height: 100,
-        rollup_transactions: vec![(ROLLUP_ID, b"hello_world".to_vec())],
+        sequence_data: vec![(ROLLUP_ID, b"hello_world".to_vec())],
         ..Default::default()
     }
     .make();

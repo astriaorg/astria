@@ -230,6 +230,11 @@ impl TestSequencerRelayer {
     }
 
     pub fn mount_block_response<const RELAY_SELF: bool>(&mut self, height: u32) -> BlockGuard {
+        use astria_core::primitive::v1::RollupId;
+        use rand::Rng;
+
+        let mut rng = rand::thread_rng();
+
         let proposer = if RELAY_SELF {
             self.account
         } else {
@@ -239,11 +244,17 @@ impl TestSequencerRelayer {
         let (tx, rx) = oneshot::channel();
 
         let block = ConfigureSequencerBlock {
+            block_hash: Some(rng.gen::<[u8; 32]>()),
             height,
             proposer_address: Some(proposer),
+            sequence_data: vec![(
+                RollupId::from_unhashed_bytes(b"some_rollup_id"),
+                vec![99u8; 32],
+            )],
             ..Default::default()
         }
         .make();
+
         let mut blocks = self.sequencer_server_blocks.lock().unwrap();
         blocks.push_back((tx, block.into_raw()));
         BlockGuard {

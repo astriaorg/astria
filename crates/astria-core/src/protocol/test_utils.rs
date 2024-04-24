@@ -50,7 +50,7 @@ pub struct ConfigureSequencerBlock {
     pub height: u32,
     pub proposer_address: Option<tendermint::account::Id>,
     pub signing_key: Option<ed25519_consensus::SigningKey>,
-    pub rollup_transactions: Vec<(RollupId, Vec<u8>)>,
+    pub sequence_data: Vec<(RollupId, Vec<u8>)>,
     pub deposits: Vec<Deposit>,
     pub unix_timestamp: UnixTimeStamp,
 }
@@ -62,7 +62,10 @@ impl ConfigureSequencerBlock {
     pub fn make(self) -> SequencerBlock {
         use tendermint::Time;
 
-        use crate::sequencerblock::v1alpha1::block::RollupData;
+        use crate::{
+            protocol::transaction::v1alpha1::Action,
+            sequencerblock::v1alpha1::block::RollupData,
+        };
 
         let Self {
             block_hash,
@@ -70,7 +73,7 @@ impl ConfigureSequencerBlock {
             height,
             signing_key,
             proposer_address,
-            rollup_transactions,
+            sequence_data,
             unix_timestamp,
             deposits,
         } = self;
@@ -87,7 +90,7 @@ impl ConfigureSequencerBlock {
             tendermint::account::Id::from(public_key)
         });
 
-        let actions = rollup_transactions
+        let actions: Vec<Action> = sequence_data
             .into_iter()
             .map(|(rollup_id, data)| {
                 SequenceAction {
@@ -98,12 +101,17 @@ impl ConfigureSequencerBlock {
                 .into()
             })
             .collect();
-        let unsigned_transaction = UnsignedTransaction {
-            actions,
-            params: TransactionParams {
-                nonce: 1,
-                chain_id: "test-1".to_string(),
-            },
+        let txs = if !actions.is_empty() {
+            let unsigned_transaction = UnsignedTransaction {
+                actions,
+                params: TransactionParams {
+                    nonce: 1,
+                    chain_id: chain_id.clone(),
+                },
+            };
+            vec![unsigned_transaction.into_signed(&signing_key)]
+        } else {
+            vec![]
         };
 
         let mut deposits_map: HashMap<RollupId, Vec<Deposit>> = HashMap::new();
@@ -115,11 +123,8 @@ impl ConfigureSequencerBlock {
             }
         });
 
-        let signed_transaction = unsigned_transaction.into_signed(&signing_key);
         let mut rollup_transactions =
-            group_sequence_actions_in_signed_transaction_transactions_by_rollup_id(&[
-                signed_transaction.clone(),
-            ]);
+            group_sequence_actions_in_signed_transaction_transactions_by_rollup_id(&txs);
         for (rollup_id, deposit) in deposits_map.clone() {
             rollup_transactions.entry(rollup_id).or_default().extend(
                 deposit
@@ -136,11 +141,11 @@ impl ConfigureSequencerBlock {
                 .map(|rollup_id| rollup_id.as_ref().to_vec()),
         )
         .root();
-        let data = vec![
+        let mut data = vec![
             rollup_transactions_tree.root().to_vec(),
             rollup_ids_root.to_vec(),
-            signed_transaction.into_raw().encode_to_vec(),
         ];
+        data.extend(txs.into_iter().map(|tx| tx.into_raw().encode_to_vec()));
 
         SequencerBlock::try_from_block_info_and_data(
             block_hash,

@@ -429,7 +429,7 @@ pub fn make_sequencer_block(height: u32) -> astria_core::sequencerblock::v1alpha
     astria_core::protocol::test_utils::ConfigureSequencerBlock {
         chain_id: Some(crate::SEQUENCER_CHAIN_ID.to_string()),
         height,
-        rollup_transactions: vec![(crate::ROLLUP_ID, data())],
+        sequence_data: vec![(crate::ROLLUP_ID, data())],
         unix_timestamp: (1i64, 1u32).into(),
         signing_key: Some(signing_key()),
         proposer_address: None,
