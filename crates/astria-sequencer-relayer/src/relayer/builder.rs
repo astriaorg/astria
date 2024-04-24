@@ -24,8 +24,8 @@ use crate::validator::Validator;
 
 pub(crate) struct Builder {
     pub(crate) shutdown_token: tokio_util::sync::CancellationToken,
-    pub(crate) celestia_endpoint: String,
-    pub(crate) celestia_key_file: String,
+    pub(crate) celestia_app_grpc_endpoint: String,
+    pub(crate) celestia_app_key_file: String,
     pub(crate) cometbft_endpoint: String,
     pub(crate) sequencer_poll_period: Duration,
     pub(crate) sequencer_grpc_endpoint: String,
@@ -39,8 +39,8 @@ impl Builder {
     pub(crate) fn build(self) -> eyre::Result<super::Relayer> {
         let Self {
             shutdown_token,
-            celestia_endpoint,
-            celestia_key_file,
+            celestia_app_grpc_endpoint,
+            celestia_app_key_file,
             cometbft_endpoint,
             sequencer_grpc_endpoint,
             validator_key_path,
@@ -67,10 +67,10 @@ impl Builder {
         let state = Arc::new(State::new());
 
         let celestia_client_builder = {
-            let uri: Uri = celestia_endpoint
+            let uri: Uri = celestia_app_grpc_endpoint
                 .parse()
-                .wrap_err("failed parsing provided celestia endpoint as Uri")?;
-            let celestia_keys = CelestiaKeys::from_path(celestia_key_file)
+                .wrap_err("failed parsing provided celestia app grpc endpoint as Uri")?;
+            let celestia_keys = CelestiaKeys::from_path(celestia_app_key_file)
                 .wrap_err("failed to get celestia keys from file")?;
             CelestiaClientBuilder::new(uri, celestia_keys, state.clone())
                 .wrap_err("failed to create celestia client")?

@@ -376,8 +376,8 @@ impl TestSequencerRelayerConfig {
         let config = Config {
             cometbft_endpoint: cometbft.uri(),
             sequencer_grpc_endpoint: format!("http://{grpc_addr}"),
-            celestia_endpoint: format!("http://{celestia_addr}"),
-            celestia_key_file: celestia_keyfile.path().to_string_lossy().to_string(),
+            celestia_app_grpc_endpoint: format!("http://{celestia_addr}"),
+            celestia_app_key_file: celestia_keyfile.path().to_string_lossy().to_string(),
             block_time: 1000,
             relay_only_validator_key_blocks: self.relay_only_self,
             validator_key_file: validator_keyfile.path().to_string_lossy().to_string(),

@@ -48,8 +48,8 @@ impl SequencerRelayer {
         let Config {
             cometbft_endpoint,
             sequencer_grpc_endpoint,
-            celestia_endpoint,
-            celestia_key_file,
+            celestia_app_grpc_endpoint,
+            celestia_app_key_file,
             block_time,
             relay_only_validator_key_blocks,
             validator_key_file,
@@ -62,8 +62,8 @@ impl SequencerRelayer {
         let validator_key_path = relay_only_validator_key_blocks.then_some(validator_key_file);
         let relayer = relayer::Builder {
             shutdown_token: shutdown_handle.token(),
-            celestia_endpoint,
-            celestia_key_file,
+            celestia_app_grpc_endpoint,
+            celestia_app_key_file,
             cometbft_endpoint,
             sequencer_poll_period: Duration::from_millis(block_time),
             sequencer_grpc_endpoint,

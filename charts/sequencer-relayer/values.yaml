@@ -38,7 +38,7 @@ config:
   celestiaKeyFile:
     content: "8241386890823ca14743e5d4d583f879a5236af29f454ed4da6fe62b8439e2ab"
 
-  celestiaPrivateKey:
+  celestiaAppPrivateKey:
     filename: "key.hex"
 
 ports:
