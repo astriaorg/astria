@@ -128,6 +128,13 @@ impl BasicMempool {
         self.hash_to_tx.remove(tx_hash);
     }
 
+    /// removes all the given transactions from the mempool
+    pub(crate) fn remove_all(&mut self, tx_hashes: &Vec<[u8; 32]>) {
+        for tx_hash in tx_hashes {
+            self.remove(tx_hash);
+        }
+    }
+
     #[must_use]
     pub(crate) fn iter_mut(&mut self) -> BasicMempoolIterMut {
         BasicMempoolIterMut {
@@ -162,37 +169,8 @@ impl<'a> Iterator for BasicMempoolIterMut<'a> {
 
 #[cfg(test)]
 mod test {
-    use astria_core::{
-        primitive::v1::RollupId,
-        protocol::transaction::v1alpha1::{
-            action::SequenceAction,
-            TransactionParams,
-            UnsignedTransaction,
-        },
-    };
-
     use super::*;
-    use crate::app::test_utils::get_alice_signing_key_and_address;
-
-    fn get_mock_tx(nonce: u32) -> SignedTransaction {
-        let (alice_signing_key, _) = get_alice_signing_key_and_address();
-        let tx = UnsignedTransaction {
-            params: TransactionParams {
-                nonce,
-                chain_id: "test".to_string(),
-            },
-            actions: vec![
-                SequenceAction {
-                    rollup_id: RollupId::from_unhashed_bytes([0; 32]),
-                    data: vec![0x99],
-                    fee_asset_id: astria_core::primitive::v1::asset::default_native_asset_id(),
-                }
-                .into(),
-            ],
-        };
-
-        tx.into_signed(&alice_signing_key)
-    }
+    use crate::app::test_utils::get_mock_tx;
 
     #[test]
     fn mempool_nonce_priority() {

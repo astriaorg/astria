@@ -525,7 +525,7 @@ mod test {
         let signed_tx = tx.into_signed(&signing_key);
         let tx_bytes = signed_tx.clone().into_raw().encode_to_vec();
         let txs = vec![tx_bytes.clone().into()];
-        let res = generate_rollup_datas_commitment(&vec![signed_tx], HashMap::new());
+        let res = generate_rollup_datas_commitment(&vec![signed_tx.clone()], HashMap::new());
 
         let block_data = res.into_transactions(txs.clone());
         let data_hash =
@@ -539,6 +539,11 @@ mod test {
             .await
             .unwrap();
 
+        mempool
+            .lock()
+            .await
+            .insert(signed_tx, TransactionPriority::new(0, 0).unwrap())
+            .unwrap();
         let finalize_block = request::FinalizeBlock {
             hash: Hash::try_from([0u8; 32].to_vec()).unwrap(),
             height: 1u32.into(),
@@ -557,6 +562,7 @@ mod test {
             .await
             .unwrap();
 
+        // ensure that txs included in a block are removed from the mempool
         assert_eq!(mempool.lock().await.len(), 0);
     }
 }
