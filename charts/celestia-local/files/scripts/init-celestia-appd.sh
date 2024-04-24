@@ -10,9 +10,6 @@ celestia-appd init "$chainid" \
   --chain-id "$chainid" \
   --home "$home_dir"
 
-# enable tx indexing
-sed -i -e 's|^indexer *=.*|indexer = "kv"|' "$home_dir/config/config.toml"
-
 echo "$validator_mnemonic" | celestia-appd keys add \
   "$validator_key_name" \
   --home "$home_dir" \
