@@ -73,7 +73,7 @@ impl Builder {
             let celestia_keys = CelestiaKeys::from_path(celestia_app_key_file)
                 .wrap_err("failed to get celestia keys from file")?;
             CelestiaClientBuilder::new(uri, celestia_keys, state.clone())
-                .wrap_err("failed to create celestia client")?
+                .wrap_err("failed to create celestia client builder")?
         };
 
         Ok(super::Relayer {

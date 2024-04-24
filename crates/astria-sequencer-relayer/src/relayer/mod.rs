@@ -234,7 +234,7 @@ impl Relayer {
             .is_some_and(|val| &val.address != block.header().proposer_address())
     }
 
-    #[instrument(skip_all, fields(% height))]
+    #[instrument(skip_all, fields(%height))]
     fn forward_block_for_submission(
         &self,
         height: SequencerHeight,
