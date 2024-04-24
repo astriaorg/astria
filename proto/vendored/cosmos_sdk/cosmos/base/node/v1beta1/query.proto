@@ -2,7 +2,8 @@ syntax = "proto3";
 package cosmos.base.node.v1beta1;
 
 // This file contains types which are copied from
-// https://github.com/celestiaorg/cosmos-sdk/blob/v1.18.3-sdk-v0.46.14/proto/cosmos/base/node/v1beta1/query.proto
+// https://github.com/celestiaorg/cosmos-sdk/blob/76bcf5af73b0a166552b64f9df0f87cc813aba76/proto/cosmos/base/node/v1beta1/query.proto
+// (v1.18.3-sdk-v0.46.14 tag).
 
 // Service defines the gRPC querier service for node related queries.
 service Service {

@@ -2,7 +2,8 @@ syntax = "proto3";
 package tendermint.types;
 
 // This file contains types which are copied from
-// https://github.com/celestiaorg/celestia-core/blob/v1.35.0-tm-v0.34.29/proto/tendermint/types/types.proto
+// https://github.com/celestiaorg/celestia-core/blob/f95a434e674610b3a2c5e7d26bd87da69ccaa213/proto/tendermint/types/types.proto
+// (v1.35.0-tm-v0.34.29 tag).
 
 // Blob (named after binary large object) is a chunk of data submitted by a user
 // to be published to the Celestia blockchain. The data of a Blob is published

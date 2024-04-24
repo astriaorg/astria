@@ -5,7 +5,8 @@ import "cosmos/auth/v1beta1/auth.proto";
 import "google/protobuf/any.proto";
 
 // This file contains types which are copied from
-// https://github.com/celestiaorg/cosmos-sdk/blob/v1.18.3-sdk-v0.46.14/proto/cosmos/auth/v1beta1/query.proto
+// https://github.com/celestiaorg/cosmos-sdk/blob/76bcf5af73b0a166552b64f9df0f87cc813aba76/proto/cosmos/auth/v1beta1/query.proto
+// (v1.18.3-sdk-v0.46.14 tag).
 
 // Query defines the gRPC querier service.
 service Query {

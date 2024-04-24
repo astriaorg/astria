@@ -4,7 +4,8 @@ package cosmos.base.tendermint.v1beta1;
 import "tendermint/p2p/types.proto";
 
 // This file contains types which are copied from
-// https://github.com/celestiaorg/cosmos-sdk/blob/v1.18.3-sdk-v0.46.14/proto/cosmos/base/tendermint/v1beta1/query.proto
+// https://github.com/celestiaorg/cosmos-sdk/blob/76bcf5af73b0a166552b64f9df0f87cc813aba76/proto/cosmos/base/tendermint/v1beta1/query.proto
+// (v1.18.3-sdk-v0.46.14 tag).
 
 // Service defines the gRPC querier service for tendermint queries.
 service Service {

@@ -5,7 +5,8 @@ import "google/protobuf/any.proto";
 import "tendermint/abci/types.proto";
 
 // This file contains types which are copied from
-// https://github.com/celestiaorg/cosmos-sdk/blob/v1.18.3-sdk-v0.46.14/proto/cosmos/base/abci/v1beta1/abci.proto
+// https://github.com/celestiaorg/cosmos-sdk/blob/76bcf5af73b0a166552b64f9df0f87cc813aba76/proto/cosmos/base/abci/v1beta1/abci.proto
+// (v1.18.3-sdk-v0.46.14 tag).
 
 // TxResponse defines a structure containing relevant tx data and metadata. The
 // tags are stringified and the log is JSON decoded.

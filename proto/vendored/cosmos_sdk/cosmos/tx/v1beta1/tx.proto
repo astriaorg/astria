@@ -7,7 +7,8 @@ import "cosmos/tx/signing/v1beta1/signing.proto";
 import "google/protobuf/any.proto";
 
 // This file contains types which are copied from
-// https://github.com/celestiaorg/cosmos-sdk/blob/v1.18.3-sdk-v0.46.14/proto/cosmos/tx/v1beta1/tx.proto
+// https://github.com/celestiaorg/cosmos-sdk/blob/76bcf5af73b0a166552b64f9df0f87cc813aba76/proto/cosmos/tx/v1beta1/tx.proto
+// (v1.18.3-sdk-v0.46.14 tag).
 
 // Tx is the standard type used for broadcasting transactions.
 message Tx {

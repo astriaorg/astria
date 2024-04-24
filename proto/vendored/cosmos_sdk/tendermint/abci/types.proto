@@ -2,7 +2,8 @@ syntax = "proto3";
 package tendermint.abci;
 
 // This file contains types which are copied from
-// https://github.com/celestiaorg/cosmos-sdk/blob/v1.18.3-sdk-v0.46.14/proto/tendermint/types/types.proto
+// https://github.com/celestiaorg/cosmos-sdk/blob/76bcf5af73b0a166552b64f9df0f87cc813aba76/proto/tendermint/types/types.proto
+// (v1.18.3-sdk-v0.46.14 tag).
 
 // Event allows application developers to attach additional information to
 // ResponseBeginBlock, ResponseEndBlock, ResponseCheckTx and ResponseDeliverTx.
