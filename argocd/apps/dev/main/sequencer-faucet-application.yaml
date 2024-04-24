@@ -26,7 +26,9 @@ spec:
         # - $values/apps/sequencer-faucet/dev/values.yaml
 
 
-        # valuesObject:
+        valuesObject:
+          secretProvider:
+            enabled: false
         #   ingress:
         #     annotations:
         #         external-dns.alpha.kubernetes.io/ttl: "120"
