@@ -8,7 +8,10 @@ mod tests;
 use std::{
     convert::TryInto,
     sync::Arc,
-    time::Duration,
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 use astria_core::generated::{
@@ -170,15 +173,10 @@ impl CelestiaClient {
             "broadcasting blob transaction to celestia app"
         );
         let tx_hash = self.broadcast_tx(blob_tx).await?;
+        info!(tx_hash = %tx_hash.0, "broadcast blob transaction succeeded");
 
-        loop {
-            tokio::time::sleep(Duration::from_secs(1)).await;
-            if let Some(height) = self.get_tx(tx_hash.clone()).await? {
-                // allow: the height is never negative.
-                #[allow(clippy::cast_sign_loss)]
-                return Ok(height as u64);
-            }
-        }
+        let height = self.confirm_submission(tx_hash).await;
+        Ok(height)
     }
 
     async fn fetch_account(&self) -> Result<BaseAccount, TrySubmitError> {
@@ -244,6 +242,59 @@ impl CelestiaClient {
         let response = self.tx_client.get_tx(request).await;
         trace!(?response);
         block_height_from_response(response)
+    }
+
+    /// Repeatedly sends `GetTx` until a successful response is received.  Returns the height of the
+    /// Celestia block in which the blobs were submitted.
+    async fn confirm_submission(&mut self, tx_hash: TxHash) -> u64 {
+        // The min seconds to sleep after receiving a GetTx response and sending the next request.
+        const MIN_POLL_INTERVAL_SECS: u64 = 1;
+        // The max seconds to sleep after receiving a GetTx response and sending the next request.
+        const MAX_POLL_INTERVAL_SECS: u64 = 30;
+        // How long to wait after starting `confirm_submission` before starting to log errors.
+        const START_LOGGING_DELAY: Duration = Duration::from_secs(15);
+        // The minimum duration between logging errors.
+        const LOG_ERROR_INTERVAL: Duration = Duration::from_secs(5);
+
+        let start = Instant::now();
+        let mut logged_at = start;
+
+        let mut log_if_due = |maybe_error: Option<TrySubmitError>| {
+            if start.elapsed() <= START_LOGGING_DELAY || logged_at.elapsed() <= LOG_ERROR_INTERVAL {
+                return;
+            }
+            let reason = maybe_error.map_or("transaction still pending".to_string(), |error| {
+                astria_eyre::eyre::Report::new(error).to_string()
+            });
+            warn!(
+                reason,
+                tx_hash = tx_hash.0,
+                elapsed_seconds = start.elapsed().as_secs_f32(),
+                "waiting to confirm blob submission"
+            );
+            logged_at = Instant::now();
+        };
+
+        let mut sleep_secs = MIN_POLL_INTERVAL_SECS;
+        loop {
+            tokio::time::sleep(Duration::from_secs(sleep_secs)).await;
+            match self.get_tx(tx_hash.clone()).await {
+                Ok(Some(height)) => {
+                    // allow: the height is never negative.
+                    #[allow(clippy::cast_sign_loss)]
+                    return height as u64;
+                }
+                Ok(None) => {
+                    sleep_secs = MIN_POLL_INTERVAL_SECS;
+                    log_if_due(None);
+                }
+                Err(error) => {
+                    sleep_secs =
+                        std::cmp::min(sleep_secs.saturating_mul(2), MAX_POLL_INTERVAL_SECS);
+                    log_if_due(Some(error));
+                }
+            }
+        }
     }
 }
 
@@ -354,7 +405,6 @@ fn tx_hash_from_response(
         };
         return Err(error);
     }
-    info!(tx_hash = %tx_response.txhash, "broadcast transaction succeeded");
     Ok(TxHash(tx_response.txhash))
 }
 
