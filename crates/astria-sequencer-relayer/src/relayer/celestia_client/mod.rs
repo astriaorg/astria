@@ -222,7 +222,7 @@ impl CelestiaClient {
         min_gas_price_from_response(response)
     }
 
-    /// Returns the tx hash on success.
+    /// Returns the tx hash if the tx is successfully placed into the node's mempool.
     async fn broadcast_tx(&mut self, blob_tx: BlobTx) -> Result<TxHash, TrySubmitError> {
         let request = BroadcastTxRequest {
             tx_bytes: blob_tx.encode_to_vec(),
@@ -449,6 +449,8 @@ fn block_height_from_response(
 }
 
 // Copied from https://github.com/celestiaorg/celestia-app/blob/v1.4.0/x/blob/types/payforblob.go#L174
+//
+// `blob_sizes` is the collection of sizes in bytes of all the blobs' `data` fields.
 fn estimate_gas(blob_sizes: &[u32], cost_params: CelestiaCostParams) -> GasLimit {
     // From https://github.com/celestiaorg/celestia-app/blob/v1.4.0/pkg/appconsts/global_consts.go#L28
     const SHARE_SIZE: u64 = 512;
@@ -462,6 +464,8 @@ fn estimate_gas(blob_sizes: &[u32], cost_params: CelestiaCostParams) -> GasLimit
     const BYTES_PER_BLOB_INFO: u64 = 70;
 
     // From https://github.com/celestiaorg/celestia-app/blob/v1.4.0/pkg/shares/share_sequence.go#L126
+    //
+    // `blob_len` is the size in bytes of one blob's `data` field.
     //
     // allow: we want pass-by-ref here to use it inside `Iterator::map`
     #[allow(clippy::trivially_copy_pass_by_ref)]
