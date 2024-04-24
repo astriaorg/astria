@@ -5,12 +5,6 @@ package tendermint.p2p;
 // https://github.com/celestiaorg/cosmos-sdk/blob/76bcf5af73b0a166552b64f9df0f87cc813aba76/proto/tendermint/p2p/types.proto
 // (v1.18.3-sdk-v0.46.14 tag).
 
-message NetAddress {
-  string id = 1;
-  string ip = 2;
-  uint32 port = 3;
-}
-
 message ProtocolVersion {
   uint64 p2p = 1;
   uint64 block = 2;

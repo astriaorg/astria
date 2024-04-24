@@ -1,22 +1,5 @@
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct NetAddress {
-    #[prost(string, tag = "1")]
-    pub id: ::prost::alloc::string::String,
-    #[prost(string, tag = "2")]
-    pub ip: ::prost::alloc::string::String,
-    #[prost(uint32, tag = "3")]
-    pub port: u32,
-}
-impl ::prost::Name for NetAddress {
-    const NAME: &'static str = "NetAddress";
-    const PACKAGE: &'static str = "tendermint.p2p";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("tendermint.p2p.{}", Self::NAME)
-    }
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ProtocolVersion {
     #[prost(uint64, tag = "1")]
     pub p2p: u64,
