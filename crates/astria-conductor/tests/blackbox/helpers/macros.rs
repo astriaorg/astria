@@ -77,16 +77,13 @@ macro_rules! commitment_state {
 #[macro_export]
 macro_rules! filtered_sequencer_block {
     (sequencer_height: $height:expr) => {{
-        let block = ::astria_core::protocol::test_utils::ConfigureCometBftBlock {
+        let block = ::astria_core::protocol::test_utils::ConfigureSequencerBlock {
             height: $height,
             rollup_transactions: vec![($crate::ROLLUP_ID, $crate::helpers::data())],
             ..Default::default()
         }
         .make();
-        ::astria_core::sequencerblock::v1alpha1::SequencerBlock::try_from_cometbft(block)
-            .unwrap()
-            .into_filtered_block([$crate::ROLLUP_ID])
-            .into_raw()
+        block.into_filtered_block([$crate::ROLLUP_ID]).into_raw()
     }};
 }
 
