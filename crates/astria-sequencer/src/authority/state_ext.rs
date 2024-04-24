@@ -47,12 +47,10 @@ impl ValidatorSet {
         Self(validator_set)
     }
 
-    #[cfg(test)]
     pub(crate) fn len(&self) -> usize {
         self.0.len()
     }
 
-    #[cfg(test)]
     pub(crate) fn get(&self, address: &account::Id) -> Option<&validator::Update> {
         self.0.get(address)
     }
