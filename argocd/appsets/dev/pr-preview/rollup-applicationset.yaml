@@ -122,10 +122,10 @@ spec:
               value: "pr-{{.number}}.dev.astria.org"
 
             # PR images not currently working reliably; using defaults for now
-            # - name: images.conductor.tag
-            #   value: pr-{{.number}}
-            # - name: images.composer.tag
-            #   value: pr-{{.number}}
+            - name: images.conductor.tag
+              value: pr-{{.number}}
+            - name: images.composer.tag
+              value: pr-{{.number}}
 
             # - name: config.rollup.name
             #   value: "astria-pr-{{.number}}"
