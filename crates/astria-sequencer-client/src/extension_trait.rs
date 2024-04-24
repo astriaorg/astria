@@ -108,7 +108,7 @@ impl Error {
     pub fn as_tendermint_rpc(&self) -> Option<&TendermintRpcError> {
         match self.kind() {
             ErrorKind::TendermintRpc(e) => Some(e),
-            _ => None,
+            ErrorKind::AbciQueryDeserialization(_) => None,
         }
     }
 

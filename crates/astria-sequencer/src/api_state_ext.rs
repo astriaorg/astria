@@ -420,7 +420,7 @@ mod test {
 
         ConfigureSequencerBlock {
             block_hash: Some(block_hash),
-            height: height.into(),
+            height,
             deposits,
             ..Default::default()
         }
