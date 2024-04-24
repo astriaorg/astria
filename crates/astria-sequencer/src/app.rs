@@ -78,6 +78,7 @@ use crate::{
     genesis::GenesisState,
     ibc::component::IbcComponent,
     mempool::BasicMempool,
+    metrics_init,
     proposal::{
         block_size_constraints::BlockSizeConstraints,
         commitment::{
@@ -268,12 +269,17 @@ impl App {
             .execute_transactions_prepare_proposal(&mut block_size_constraints)
             .await
             .context("failed to execute transactions")?;
+        #[allow(clippy::cast_precision_loss)]
+        metrics::histogram!(metrics_init::PROPOSAL_TRANSACTIONS)
+            .record(signed_txs_included.len() as f64);
 
         let deposits = self
             .state
             .get_block_deposits()
             .await
             .context("failed to get block deposits in prepare_proposal")?;
+        #[allow(clippy::cast_precision_loss)]
+        metrics::histogram!(metrics_init::PROPOSAL_DEPOSITS).record(deposits.len() as f64);
 
         // generate commitment to sequence::Actions and deposits and commitment to the rollup IDs
         // included in the block
@@ -305,6 +311,7 @@ impl App {
                 self.executed_proposal_hash = process_proposal.hash;
                 return Ok(());
             }
+            metrics::counter!(metrics_init::PROCESS_PROPOSAL_SKIPPED_PROPOSAL).increment(1);
             debug!(
                 "our validator address was set but we're not the proposer, so our previous \
                  proposal was skipped, executing block"
@@ -374,12 +381,16 @@ impl App {
             execution_results.len() == expected_txs_len,
             "transactions to be included do not match expected",
         );
+        #[allow(clippy::cast_precision_loss)]
+        metrics::histogram!(metrics_init::PROPOSAL_TRANSACTIONS).record(signed_txs.len() as f64);
 
         let deposits = self
             .state
             .get_block_deposits()
             .await
             .context("failed to get block deposits in process_proposal")?;
+        #[allow(clippy::cast_precision_loss)]
+        metrics::histogram!(metrics_init::PROPOSAL_DEPOSITS).record(deposits.len() as f64);
 
         let GeneratedCommitments {
             rollup_datas_root: expected_rollup_datas_root,
@@ -444,6 +455,10 @@ impl App {
 
             // don't include tx if it would make the cometBFT block too large
             if !block_size_constraints.cometbft_has_space(tx_len) {
+                metrics::counter!(
+                    metrics_init::PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_COMETBFT_SPACE
+                )
+                .increment(1);
                 debug!(
                     transaction_hash = %telemetry::display::base64(&tx_hash),
                     block_size_constraints = %json(&block_size_constraints),
@@ -494,6 +509,10 @@ impl App {
                     included_signed_txs.push(tx);
                 }
                 Err(e) => {
+                    metrics::counter!(
+                        metrics_init::PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_DECODE_FAILURE
+                    )
+                    .increment(1);
                     debug!(
                         transaction_hash = %telemetry::display::base64(&tx_hash),
                         error = AsRef::<dyn std::error::Error>::as_ref(&e),
@@ -572,6 +591,10 @@ impl App {
                 .fold(0usize, |acc, seq| acc + seq.data.len());
 
             if !block_size_constraints.sequencer_has_space(tx_sequence_data_bytes) {
+                metrics::counter!(
+                    metrics_init::PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_SEQUENCER_SPACE
+                )
+                .increment(1);
                 debug!(
                     transaction_hash = %telemetry::display::base64(&tx_hash),
                     block_size_constraints = %json(&block_size_constraints),
@@ -597,6 +620,10 @@ impl App {
                         .context("error growing cometBFT block size")?;
                 }
                 Err(e) => {
+                    metrics::counter!(
+                        metrics_init::PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_FAILED_EXECUTION
+                    )
+                    .increment(1);
                     debug!(
                         transaction_hash = %telemetry::display::base64(&tx_hash),
                         error = AsRef::<dyn std::error::Error>::as_ref(&e),
@@ -608,6 +635,9 @@ impl App {
         }
 
         if excluded_tx_count > 0 {
+            #[allow(clippy::cast_precision_loss)]
+            metrics::gauge!(metrics_init::PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS)
+                .set(excluded_tx_count as f64);
             info!(
                 excluded_tx_count = excluded_tx_count,
                 included_tx_count = execution_results.len(),
