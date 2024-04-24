@@ -491,14 +491,11 @@ async fn submit_with_retry(
         );
 
     let blobs = Arc::new(blobs);
-    let cloned_state = state.clone();
 
     let height = tryhard::retry_fn(move || {
-        let blobs = blobs.clone();
-        let state = cloned_state.clone();
         client
             .clone()
-            .try_submit(blobs, state, last_error_receiver.clone())
+            .try_submit(blobs.clone(), last_error_receiver.clone())
     })
     .with_config(retry_config)
     .in_current_span()

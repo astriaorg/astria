@@ -61,7 +61,7 @@ impl CelestiaKeys {
     /// The file should be a hex-encoded secp256k1 secret key, such as could be output via
     /// `celestia-appd keys export <keyname> --keyring-backend=... --home=... --unsafe
     /// --unarmored-hex`
-    #[instrument(skip_all, fields(path = % path.as_ref().display(), err))]
+    #[instrument(skip_all, fields(path = %path.as_ref().display(), err))]
     pub(crate) fn from_path(path: impl AsRef<Path>) -> Result<Self, Error> {
         let hex_encoded = fs::read_to_string(path)?;
         let bytes = hex::decode(hex_encoded.trim())

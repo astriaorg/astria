@@ -61,7 +61,6 @@ mod write;
 pub(crate) use builder::Builder;
 use celestia_client::{
     CelestiaClientBuilder,
-    CelestiaCostParams,
     CelestiaKeys,
     Error as CelestiaClientError,
 };

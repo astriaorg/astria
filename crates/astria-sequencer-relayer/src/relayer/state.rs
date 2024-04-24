@@ -1,7 +1,5 @@
 use tokio::sync::watch;
 
-use super::CelestiaCostParams;
-
 pub(super) struct State {
     inner: watch::Sender<StateSnapshot>,
 }
@@ -21,10 +19,6 @@ impl State {
     pub(super) fn subscribe(&self) -> watch::Receiver<StateSnapshot> {
         self.inner.subscribe()
     }
-
-    pub(super) fn celestia_cost_params(&self) -> CelestiaCostParams {
-        self.inner.borrow().celestia_cost_params
-    }
 }
 
 macro_rules! forward_setter {
@@ -42,7 +36,6 @@ macro_rules! forward_setter {
 
 forward_setter!(
     [set_celestia_connected <- bool],
-    [set_celestia_cost_params <- CelestiaCostParams],
     [set_sequencer_connected <- bool],
     [set_latest_confirmed_celestia_height <- u64],
     [set_latest_fetched_sequencer_height <- u64],
@@ -50,12 +43,11 @@ forward_setter!(
     [set_latest_requested_sequencer_height <- u64],
 );
 
-#[derive(Copy, Clone, Debug, Default, PartialEq, serde::Serialize)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, serde::Serialize)]
 pub(crate) struct StateSnapshot {
     ready: bool,
 
     celestia_connected: bool,
-    celestia_cost_params: CelestiaCostParams,
     sequencer_connected: bool,
 
     latest_confirmed_celestia_height: Option<u64>,
@@ -108,15 +100,6 @@ impl StateSnapshot {
     fn set_celestia_connected(&mut self, connected: bool) -> bool {
         let changed = self.celestia_connected ^ connected;
         self.celestia_connected = connected;
-        changed
-    }
-
-    /// Sets the celestia cost params.
-    ///
-    /// Returns `true` if the previous state was modified.
-    fn set_celestia_cost_params(&mut self, cost_params: CelestiaCostParams) -> bool {
-        let changed = self.celestia_cost_params != cost_params;
-        self.celestia_cost_params = cost_params;
         changed
     }
 

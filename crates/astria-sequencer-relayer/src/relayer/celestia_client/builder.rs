@@ -1,15 +1,11 @@
 use std::sync::Arc;
 
-use astria_core::generated::{
-    celestia::v1::query_client::QueryClient as BlobQueryClient,
-    cosmos::{
-        auth::v1beta1::query_client::QueryClient as AuthQueryClient,
-        base::tendermint::v1beta1::{
-            service_client::ServiceClient as NodeInfoClient,
-            GetNodeInfoRequest,
-        },
-        tx::v1beta1::service_client::ServiceClient as TxClient,
+use astria_core::generated::cosmos::{
+    base::tendermint::v1beta1::{
+        service_client::ServiceClient as NodeInfoClient,
+        GetNodeInfoRequest,
     },
+    tx::v1beta1::service_client::ServiceClient as TxClient,
 };
 use http::Uri;
 use tendermint::account::Id as AccountId;
@@ -71,23 +67,16 @@ impl Builder {
             address,
             state,
         } = self;
+        state.set_celestia_connected(true);
 
         let tx_client = TxClient::new(grpc_channel.clone());
-        let blob_query_client = BlobQueryClient::new(grpc_channel.clone());
-        let auth_query_client = AuthQueryClient::new(grpc_channel.clone());
-        let mut client = CelestiaClient {
+        Ok(CelestiaClient {
             grpc_channel,
             tx_client,
-            blob_query_client,
-            auth_query_client,
             signing_keys,
             address,
             chain_id,
-        };
-
-        client.fetch_and_cache_cost_params(state.clone()).await?;
-        state.set_celestia_connected(true);
-        Ok(client)
+        })
     }
 
     async fn fetch_chain_id(&self) -> Result<String, Error> {

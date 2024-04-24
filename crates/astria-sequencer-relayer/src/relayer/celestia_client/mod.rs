@@ -63,7 +63,7 @@ use astria_core::generated::{
 };
 pub(super) use builder::Builder as CelestiaClientBuilder;
 use celestia_client::celestia_types::Blob;
-pub(super) use celestia_cost_params::CelestiaCostParams;
+use celestia_cost_params::CelestiaCostParams;
 pub(crate) use celestia_keys::CelestiaKeys;
 pub(super) use error::{
     Bech32EncodeError,
@@ -102,12 +102,6 @@ pub(super) struct CelestiaClient {
     grpc_channel: Channel,
     /// A gRPC client to broadcast and get transactions.
     tx_client: TxClient<Channel>,
-    /// A gRPC client to query for blob params (we're interested in the `gas_per_blob_byte`).
-    blob_query_client: BlobQueryClient<Channel>,
-    /// A gRPC client to query for general account params (we're interested in the
-    /// `tx_size_cost_per_byte`) and for values specific to our account, namely the account number
-    /// and sequence number (i.e. nonce).
-    auth_query_client: AuthQueryClient<Channel>,
     /// The crypto keys associated with our Celestia account.
     signing_keys: CelestiaKeys,
     /// The Bech32-encoded address of our Celestia account.
@@ -127,22 +121,34 @@ impl CelestiaClient {
     pub(super) async fn try_submit(
         mut self,
         blobs: Arc<Vec<Blob>>,
-        state: Arc<super::State>,
         last_error_receiver: watch::Receiver<Option<Error>>,
     ) -> Result<u64, Error> {
-        // Get the error from the last attempt to `try_submit` and if `Some`, just update the
-        // cached cost params.
-        let maybe_last_error = last_error_receiver.borrow().clone();
-        if maybe_last_error.is_some() {
-            self.fetch_and_cache_cost_params(state.clone()).await?;
-        }
+        info!("fetching cost params and account info from celestia app");
+        let (blob_params, auth_params, min_gas_price, base_account) = tokio::try_join!(
+            self.fetch_blob_params(),
+            self.fetch_auth_params(),
+            self.fetch_min_gas_price(),
+            self.fetch_account(),
+        )?;
+
+        let gas_per_blob_byte = blob_params.gas_per_blob_byte;
+        let tx_size_cost_per_byte = auth_params.tx_size_cost_per_byte;
+        info!(
+            gas_per_blob_byte,
+            tx_size_cost_per_byte,
+            min_gas_price,
+            account_number = base_account.account_number,
+            sequence = base_account.sequence,
+            "fetched cost params and account info from celestia app"
+        );
 
         let msg_pay_for_blobs = new_msg_pay_for_blobs(blobs.iter(), self.address.clone())?;
 
-        let base_account = self.fetch_account().await?;
-
-        let cost_params = state.celestia_cost_params();
+        let cost_params =
+            CelestiaCostParams::new(gas_per_blob_byte, tx_size_cost_per_byte, min_gas_price);
         let gas_limit = estimate_gas(&msg_pay_for_blobs.blob_sizes, cost_params);
+        // Get the error from the last attempt to `try_submit`.
+        let maybe_last_error = last_error_receiver.borrow().clone();
         let fee = calculate_fee(cost_params, gas_limit, maybe_last_error);
 
         let signed_tx = new_signed_tx(
@@ -173,48 +179,19 @@ impl CelestiaClient {
         }
     }
 
-    /// Makes queries to the Celestia app to retrieve pricing information, which is cached in
-    /// `state` on success.
-    ///
-    /// This should ideally only be called once during the session (at startup by
-    /// `CelestiaClientBuilder::try_build`), but will also be called if an attempt to submit blobs
-    /// fails.
-    async fn fetch_and_cache_cost_params(&mut self, state: Arc<super::State>) -> Result<(), Error> {
-        info!("fetching cost params from celestia app");
-        let gas_per_blob_byte = self.fetch_blob_params().await?.gas_per_blob_byte;
-        let tx_size_cost_per_byte = self.fetch_auth_params().await?.tx_size_cost_per_byte;
-        let min_gas_price = self.fetch_min_gas_price().await?;
-        info!(
-            gas_per_blob_byte,
-            tx_size_cost_per_byte, min_gas_price, "fetched cost params from celestia app"
-        );
-        let cost_params =
-            CelestiaCostParams::new(gas_per_blob_byte, tx_size_cost_per_byte, min_gas_price);
-        state.set_celestia_cost_params(cost_params);
-        Ok(())
-    }
-
-    async fn fetch_account(&mut self) -> Result<BaseAccount, Error> {
-        info!("fetching account info from celestia app");
+    async fn fetch_account(&self) -> Result<BaseAccount, Error> {
+        let mut auth_query_client = AuthQueryClient::new(self.grpc_channel.clone());
         let request = QueryAccountRequest {
             address: self.address.0.clone(),
         };
-        let response = self.auth_query_client.account(request).await;
+        let response = auth_query_client.account(request).await;
         trace!(?response);
-        let base_account = account_from_response(response)?;
-        info!(
-            account_number = base_account.account_number,
-            sequence = base_account.sequence,
-            "got account info from celestia app"
-        );
-        Ok(base_account)
+        account_from_response(response)
     }
 
-    async fn fetch_blob_params(&mut self) -> Result<BlobParams, Error> {
-        let response = self
-            .blob_query_client
-            .params(QueryBlobParamsRequest {})
-            .await;
+    async fn fetch_blob_params(&self) -> Result<BlobParams, Error> {
+        let mut blob_query_client = BlobQueryClient::new(self.grpc_channel.clone());
+        let response = blob_query_client.params(QueryBlobParamsRequest {}).await;
         trace!(?response);
         response
             .map_err(|status| Error::FailedToGetBlobParams(GrpcResponseError::from(status)))?
@@ -223,11 +200,9 @@ impl CelestiaClient {
             .ok_or_else(|| Error::EmptyBlobParams)
     }
 
-    async fn fetch_auth_params(&mut self) -> Result<AuthParams, Error> {
-        let response = self
-            .auth_query_client
-            .params(QueryAuthParamsRequest {})
-            .await;
+    async fn fetch_auth_params(&self) -> Result<AuthParams, Error> {
+        let mut auth_query_client = AuthQueryClient::new(self.grpc_channel.clone());
+        let response = auth_query_client.params(QueryAuthParamsRequest {}).await;
         trace!(?response);
         response
             .map_err(|status| Error::FailedToGetAuthParams(GrpcResponseError::from(status)))?
@@ -236,7 +211,7 @@ impl CelestiaClient {
             .ok_or_else(|| Error::EmptyAuthParams)
     }
 
-    async fn fetch_min_gas_price(&mut self) -> Result<f64, Error> {
+    async fn fetch_min_gas_price(&self) -> Result<f64, Error> {
         let mut min_gas_price_client = MinGasPriceClient::new(self.grpc_channel.clone());
         let response = min_gas_price_client.config(MinGasPriceRequest {}).await;
         trace!(?response);
