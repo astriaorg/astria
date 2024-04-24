@@ -92,6 +92,7 @@ impl Service<MempoolRequest> for Mempool {
 /// as well as stateful checks (nonce and balance checks).
 ///
 /// If the tx passes all checks, status code 0 is returned.
+#[allow(clippy::too_many_lines)]
 async fn handle_check_tx<S: StateReadExt + 'static>(
     req: request::CheckTx,
     state: S,

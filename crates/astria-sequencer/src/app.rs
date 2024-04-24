@@ -637,7 +637,7 @@ impl App {
         if excluded_tx_count > 0 {
             #[allow(clippy::cast_precision_loss)]
             metrics::gauge!(metrics_init::PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS)
-                .set(excluded_tx_count as f64);
+                .set(f64::from(excluded_tx_count));
             info!(
                 excluded_tx_count = excluded_tx_count,
                 included_tx_count = execution_results.len(),
