@@ -1,7 +1,4 @@
-use std::{
-    collections::HashSet,
-    ops::RangeInclusive,
-};
+use std::ops::RangeInclusive;
 
 use ::astria_core::generated::execution::v1alpha2::Block as RawBlock;
 use astria_core::{
@@ -78,7 +75,7 @@ impl Client {
             .wrap_err("failed to execute batch get blocks RPC")?
             .into_inner()
             .blocks;
-        let raw_blocks = ensure_batch_get_blocks_is_correct(raw_blocks, block_numbers).wrap_err(
+        ensure_batch_get_blocks_is_correct(&raw_blocks, block_numbers).wrap_err(
             "received an incorrect response; did the rollup execution service violate the \
              batch-get-blocks contract?",
         )?;
@@ -187,60 +184,80 @@ impl Client {
 #[derive(Debug, thiserror::Error, PartialEq)]
 enum BatchGetBlocksError {
     #[error(
-        "duplicates blocks numbers: [{}]",
-        itertools::join(.0, ", "),
+        "number of returned blocks does not match requested; requested: `{expected}`, received: \
+         `{actual}`"
     )]
-    Dupes(HashSet<u32>),
+    LengthOfResponse { expected: u32, actual: u32 },
     #[error(
-        "missing blocks for numbers: [{}]",
-        itertools::join(.0, ", "),
+        "returned blocks did not match in the sequence they were requested at: [{}]",
+        itertools::join(.0, ", ")
     )]
-    Holes(HashSet<u32>),
-    #[error(
-        "extra blocks for numbers: [{}]",
-        itertools::join(.0, ", "),
-    )]
-    Extras(HashSet<u32>),
+    MismatchedBlocks(Vec<MismatchedBlock>),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct MismatchedBlock {
+    index: usize,
+    requested: u32,
+    got: u32,
+}
+
+impl std::fmt::Display for MismatchedBlock {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let Self {
+            index,
+            requested,
+            got,
+        } = self;
+        f.write_fmt(format_args!(
+            "{{\"index\": {index}, \"requested\": {requested}, \"got\": {got}}}"
+        ))
+    }
 }
 
 fn ensure_batch_get_blocks_is_correct(
-    mut blocks: Vec<RawBlock>,
+    blocks: &[RawBlock],
     requested_numbers: RangeInclusive<u32>,
-) -> Result<Vec<RawBlock>, BatchGetBlocksError> {
-    blocks.sort_unstable_by_key(|block| block.number);
-    let mut dupes = HashSet::new();
-    blocks.dedup_by(|a, b| {
-        let same = a.number == b.number;
-        if same {
-            dupes.insert(a.number);
-        };
-        same
-    });
-    if !dupes.is_empty() {
-        return Err(BatchGetBlocksError::Dupes(dupes));
+) -> Result<(), BatchGetBlocksError> {
+    let expected = requested_numbers
+        .end()
+        .saturating_sub(*requested_numbers.start())
+        .saturating_add(1);
+    // allow: the calling function can only fetch up to u32::MAX blocks, which itself
+    // is unrealistic. If the next check passes due to a u64 being truncated to u32::MAX
+    // then something is going very wrong and will be caught at the latest in the next step.
+    #[allow(clippy::cast_possible_truncation)]
+    let actual = blocks.len() as u32;
+    if expected != actual {
+        return Err(BatchGetBlocksError::LengthOfResponse {
+            expected,
+            actual,
+        });
     }
-    let mut holes = requested_numbers.collect::<HashSet<_>>();
-    let mut extras = HashSet::new();
-    for block in &blocks {
-        if !holes.remove(&block.number) {
-            extras.insert(block.number);
+    let mut mismatched = Vec::with_capacity(blocks.len());
+    for (index, (requested, got)) in requested_numbers
+        .zip(blocks.iter().map(|block| block.number))
+        .enumerate()
+    {
+        if requested != got {
+            mismatched.push(MismatchedBlock {
+                index,
+                requested,
+                got,
+            });
         }
     }
-    if !holes.is_empty() {
-        return Err(BatchGetBlocksError::Holes(holes));
+    if !mismatched.is_empty() {
+        return Err(BatchGetBlocksError::MismatchedBlocks(mismatched));
     }
-    if !extras.is_empty() {
-        return Err(BatchGetBlocksError::Extras(extras));
-    }
-    Ok(blocks)
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use maplit::hashset;
-
     use super::{
         ensure_batch_get_blocks_is_correct,
+        MismatchedBlock,
         RawBlock,
     };
     use crate::executor::client::BatchGetBlocksError;
@@ -253,49 +270,74 @@ mod tests {
     }
 
     #[test]
-    fn correct_batched_blocks_is_returned_sorted() {
-        let range = 2..=7;
-        let expected: Vec<_> = range.clone().map(block).collect();
-        let blocks: Vec<_> = range.clone().rev().map(block).collect();
+    fn mismatched_block_is_formatted_as_expected() {
+        let block = MismatchedBlock {
+            index: 1,
+            requested: 2,
+            got: 3,
+        };
+
         assert_eq!(
-            Ok(expected),
-            ensure_batch_get_blocks_is_correct(blocks, range),
+            r#"{"index": 1, "requested": 2, "got": 3}"#,
+            block.to_string()
         );
     }
 
     #[test]
-    fn batched_blocks_with_dupes_are_caught() {
+    fn expected_batch_response_passes() {
         let range = 2..=7;
-        let mut blocks: Vec<_> = range.clone().map(block).collect();
-        blocks.push(block(5));
-        blocks.push(block(3));
-        assert_eq!(
-            Err(BatchGetBlocksError::Dupes(hashset! {3, 5})),
-            ensure_batch_get_blocks_is_correct(blocks, range),
-        );
+        let blocks: Vec<_> = range.clone().map(block).collect();
+        ensure_batch_get_blocks_is_correct(&blocks, range).unwrap();
     }
 
     #[test]
-    fn batched_blocks_with_holes_are_caught() {
-        let range = 2..=7;
-        let mut blocks: Vec<_> = range.clone().map(block).collect();
-        blocks.swap_remove(2); // index 2 => block number 4
-        blocks.swap_remove(2); // index 2 => block number 7
-        assert_eq!(
-            Err(BatchGetBlocksError::Holes(hashset! {4, 7})),
-            ensure_batch_get_blocks_is_correct(blocks, range),
-        );
-    }
-
-    #[test]
-    fn batched_blocks_with_extras_are_caught() {
+    fn too_long_batch_response_is_caught() {
         let range = 2..=7;
         let mut blocks: Vec<_> = range.clone().map(block).collect();
         blocks.push(block(8));
-        blocks.push(block(9));
         assert_eq!(
-            Err(BatchGetBlocksError::Extras(hashset! {8, 9})),
-            ensure_batch_get_blocks_is_correct(blocks, range),
+            Err(BatchGetBlocksError::LengthOfResponse {
+                expected: 6,
+                actual: 7,
+            }),
+            ensure_batch_get_blocks_is_correct(&blocks, range),
+        );
+    }
+
+    #[test]
+    fn too_short_batch_response_is_caught() {
+        let range = 2..=7;
+        let mut blocks: Vec<_> = range.clone().map(block).collect();
+        blocks.pop();
+        assert_eq!(
+            Err(BatchGetBlocksError::LengthOfResponse {
+                expected: 6,
+                actual: 5,
+            }),
+            ensure_batch_get_blocks_is_correct(&blocks, range),
+        );
+    }
+
+    #[test]
+    fn mismatched_batch_response_is_caught() {
+        let range = 2..=7;
+        let mut blocks: Vec<_> = range.clone().map(block).collect();
+        blocks[2].number = 8;
+        blocks[4].number = 9;
+        assert_eq!(
+            Err(BatchGetBlocksError::MismatchedBlocks(vec![
+                MismatchedBlock {
+                    index: 2,
+                    requested: 4,
+                    got: 8
+                },
+                MismatchedBlock {
+                    index: 4,
+                    requested: 6,
+                    got: 9
+                },
+            ])),
+            ensure_batch_get_blocks_is_correct(&blocks, range),
         );
     }
 }
