@@ -23,7 +23,6 @@ use sequencer_client::tendermint::{
     block::Height as SequencerHeight,
     Time as TendermintTime,
 };
-use telemetry::display::json;
 use tokio::{
     select,
     sync::{
@@ -48,7 +47,6 @@ pub(crate) use builder::Builder;
 use channel::soft_block_channel;
 
 mod client;
-mod reporting;
 mod state;
 #[cfg(test)]
 mod tests;
@@ -518,7 +516,8 @@ impl Executor {
         fields(
             firm_number = self.state.firm_number(),
             soft_number = self.state.soft_number(),
-        )
+        ),
+        err
     )]
     async fn populate_blocks_pending_finalization(
         &mut self,
@@ -555,10 +554,7 @@ impl Executor {
             .await
             .wrap_err("failed getting blocks for not yet finalized firm heights")?;
 
-        info!(
-            pending_blocks = %json(&reporting::ReportBlocks(&blocks)),
-            "received blocks pending finalization",
-        );
+        info!("received blocks pending finalization",);
 
         for block in blocks {
             self.blocks_pending_finalization
