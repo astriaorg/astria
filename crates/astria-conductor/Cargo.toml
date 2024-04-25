@@ -26,6 +26,7 @@ telemetry = { package = "astria-telemetry", path = "../astria-telemetry", featur
 ] }
 
 base64 = { workspace = true }
+brotli = { workspace = true }
 bytes = { workspace = true }
 ed25519-consensus = { workspace = true }
 futures = { workspace = true }

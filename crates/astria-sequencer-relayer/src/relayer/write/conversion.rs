@@ -3,6 +3,7 @@ use astria_eyre::eyre::{
     self,
     WrapErr as _,
 };
+use brotli::enc::BrotliEncoderParams;
 use celestia_client::celestia_types::{
     nmt::Namespace,
     Blob,
@@ -62,12 +63,12 @@ pub(super) fn convert(block: SequencerBlock) -> eyre::Result<Converted> {
     let sequencer_namespace = celestia_client::celestia_namespace_v0_from_str(
         sequencer_blob.header().chain_id().as_str(),
     );
+    let sequencer_blob_raw = sequencer_blob.into_raw();
+    let compressed_sequencer_blob_raw = brotli_compressed_bytes(sequencer_blob_raw.encode_to_vec())
+        .wrap_err("failed compressing sequencer blob")?;
 
-    let header_blob = Blob::new(
-        sequencer_namespace,
-        sequencer_blob.into_raw().encode_to_vec(),
-    )
-    .wrap_err("failed creating head Celestia blob")?;
+    let header_blob = Blob::new(sequencer_namespace, compressed_sequencer_blob_raw)
+        .wrap_err("failed creating head Celestia blob")?;
     blobs.push(header_blob);
     let mut rollups = Vec::new();
     for blob in rollup_blobs {
@@ -78,7 +79,10 @@ pub(super) fn convert(block: SequencerBlock) -> eyre::Result<Converted> {
             celestia_namespace: namespace,
             sequencer_rollup_id: blob.rollup_id(),
         };
-        let blob = Blob::new(namespace, blob.into_raw().encode_to_vec())
+        let raw_blob = blob.into_raw();
+        let compressed_blob = brotli_compressed_bytes(raw_blob.encode_to_vec())
+            .wrap_err_with(|| format!("failed compressing rollup `{rollup_id}`"))?;
+        let blob = Blob::new(namespace, compressed_blob)
             .wrap_err_with(|| format!("failed creating blob for rollup `{rollup_id}`"))?;
         blobs.push(blob);
         rollups.push(info);
@@ -91,4 +95,23 @@ pub(super) fn convert(block: SequencerBlock) -> eyre::Result<Converted> {
             rollups,
         },
     })
+}
+
+fn brotli_compressed_bytes(data: Vec<u8>) -> eyre::Result<Vec<u8>> {
+    use std::io::Write as _;
+    let compression_params = BrotliEncoderParams {
+        quality: 5,
+        size_hint: data.len(),
+        ..Default::default()
+    };
+    let mut output = Vec::new();
+    {
+        let mut compressor =
+            brotli::CompressorWriter::with_params(&mut output, 4096, &compression_params);
+        compressor
+            .write_all(&data)
+            .wrap_err("failed compressing data")?;
+    }
+
+    Ok(output)
 }

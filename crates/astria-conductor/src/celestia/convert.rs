@@ -97,7 +97,15 @@ impl ConvertedBlobs {
 
 fn convert_header(blob: &Blob) -> Option<CelestiaSequencerBlob> {
     use astria_core::generated::sequencerblock::v1alpha1::CelestiaSequencerBlob as ProtoType;
-    let raw = ProtoType::decode(&*blob.data)
+    let data = brotli_decompress_blob_data(blob.data.to_vec())
+        .inspect_err(|err| {
+            info!(
+                error = err as &StdError,
+                "failed decompressing blob data; dropping the blob",
+            );
+        })
+        .ok()?;
+    let raw = ProtoType::decode(&*data)
         .inspect_err(|err| {
             info!(
                 error = err as &StdError,
@@ -118,7 +126,15 @@ fn convert_header(blob: &Blob) -> Option<CelestiaSequencerBlob> {
 
 fn convert_rollup(blob: &Blob) -> Option<CelestiaRollupBlob> {
     use astria_core::generated::sequencerblock::v1alpha1::CelestiaRollupBlob as ProtoType;
-    let raw_blob = ProtoType::decode(&*blob.data)
+    let data = brotli_decompress_blob_data(blob.data.to_vec())
+        .inspect_err(|err| {
+            info!(
+                error = err as &StdError,
+                "failed decompressing rollup blob data; dropping the blob",
+            );
+        })
+        .ok()?;
+    let raw_blob = ProtoType::decode(&*data)
         .inspect_err(|err| {
             info!(
                 error = err as &StdError,
@@ -135,4 +151,15 @@ fn convert_rollup(blob: &Blob) -> Option<CelestiaRollupBlob> {
             );
         })
         .ok()
+}
+
+fn brotli_decompress_blob_data(data: Vec<u8>) -> Result<Vec<u8>, std::io::Error> {
+    use std::io::Write as _;
+    let mut output = Vec::new();
+    {
+        let mut decompressor = brotli::DecompressorWriter::new(&mut output, data.len());
+        decompressor.write_all(data.as_slice())?;
+    }
+
+    Ok(output)
 }
