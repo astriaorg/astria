@@ -64,7 +64,8 @@ impl Conductor {
         // Spawn the executor task.
         let executor_handle = {
             let (executor, handle) = executor::Builder {
-                consider_commitment_spread: !cfg.execution_commit_level.is_soft_only(),
+                with_firm: !cfg.execution_commit_level.is_soft_only(),
+                with_soft: !cfg.execution_commit_level.is_firm_only(),
                 rollup_address: cfg.execution_rpc_url,
                 shutdown: shutdown.clone(),
             }

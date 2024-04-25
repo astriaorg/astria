@@ -55,15 +55,15 @@ async fn simple() {
     mount_celestia_blobs!(
         test_conductor,
         celestia_height: 1,
-        sequencer_height: 2,
+        sequencer_height: 3,
     );
 
     mount_sequencer_commit!(
         test_conductor,
-        height: 2u32,
+        height: 3u32,
     );
 
-    mount_sequencer_validator_set!(test_conductor, height: 1u32);
+    mount_sequencer_validator_set!(test_conductor, height: 2u32);
 
     let execute_block = mount_executed_block!(
         test_conductor,
@@ -135,21 +135,14 @@ async fn submits_two_heights_in_sucession() {
     mount_celestia_blobs!(
         test_conductor,
         celestia_height: 1,
-        sequencer_height: 2,
+        sequencer_height: 3,
     );
 
     mount_celestia_blobs!(
         test_conductor,
         celestia_height: 2,
-        sequencer_height: 3,
+        sequencer_height: 4,
     );
-
-    mount_sequencer_commit!(
-        test_conductor,
-        height: 2u32,
-    );
-
-    mount_sequencer_validator_set!(test_conductor, height: 1u32);
 
     mount_sequencer_commit!(
         test_conductor,
@@ -157,6 +150,13 @@ async fn submits_two_heights_in_sucession() {
     );
 
     mount_sequencer_validator_set!(test_conductor, height: 2u32);
+
+    mount_sequencer_commit!(
+        test_conductor,
+        height: 4u32,
+    );
+
+    mount_sequencer_validator_set!(test_conductor, height: 3u32);
 
     let execute_block_number_2 = mount_executed_block!(
         test_conductor,
@@ -251,21 +251,14 @@ async fn skips_already_executed_heights() {
     mount_celestia_blobs!(
         test_conductor,
         celestia_height: 1,
-        sequencer_height: 5,
+        sequencer_height: 6,
     );
 
     mount_celestia_blobs!(
         test_conductor,
         celestia_height: 2,
-        sequencer_height: 6,
+        sequencer_height: 7,
     );
-
-    mount_sequencer_commit!(
-        test_conductor,
-        height: 5u32,
-    );
-
-    mount_sequencer_validator_set!(test_conductor, height: 4u32);
 
     mount_sequencer_commit!(
         test_conductor,
@@ -273,6 +266,13 @@ async fn skips_already_executed_heights() {
     );
 
     mount_sequencer_validator_set!(test_conductor, height: 5u32);
+
+    mount_sequencer_commit!(
+        test_conductor,
+        height: 7u32,
+    );
+
+    mount_sequencer_validator_set!(test_conductor, height: 6u32);
 
     let execute_block = mount_executed_block!(
         test_conductor,
@@ -344,15 +344,15 @@ async fn fetch_from_later_celestia_height() {
     mount_celestia_blobs!(
         test_conductor,
         celestia_height: 4,
-        sequencer_height: 2,
+        sequencer_height: 3,
     );
 
     mount_sequencer_commit!(
         test_conductor,
-        height: 2u32,
+        height: 3u32,
     );
 
-    mount_sequencer_validator_set!(test_conductor, height: 1u32);
+    mount_sequencer_validator_set!(test_conductor, height: 2u32);
 
     let execute_block = mount_executed_block!(
         test_conductor,

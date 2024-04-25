@@ -128,6 +128,26 @@ impl TestConductor {
         .await;
     }
 
+    pub async fn mount_batch_get_blocks<S: serde::Serialize>(
+        &self,
+        expected_pbjson: S,
+        blocks: Vec<astria_core::generated::execution::v1alpha2::Block>,
+    ) {
+        use astria_core::generated::execution::v1alpha2::BatchGetBlocksResponse;
+        use astria_grpc_mock::{
+            matcher::message_partial_pbjson,
+            response::constant_response,
+            Mock,
+        };
+        Mock::for_rpc_given("batch_get_blocks", message_partial_pbjson(&expected_pbjson))
+            .respond_with(constant_response(BatchGetBlocksResponse {
+                blocks,
+            }))
+            .expect(1..)
+            .mount(&self.mock_grpc.mock_server)
+            .await;
+    }
+
     pub async fn mount_celestia_blob_get_all(
         &self,
         celestia_height: u64,
@@ -318,6 +338,7 @@ impl TestConductor {
 
     pub async fn mount_execute_block<S: serde::Serialize>(
         &self,
+        mock_name: Option<&str>,
         expected_pbjson: S,
         response: Block,
     ) -> astria_grpc_mock::MockGuard {
@@ -326,9 +347,13 @@ impl TestConductor {
             response::constant_response,
             Mock,
         };
-        Mock::for_rpc_given("execute_block", message_partial_pbjson(&expected_pbjson))
-            .respond_with(constant_response(response))
-            .expect(1)
+        let mut mock =
+            Mock::for_rpc_given("execute_block", message_partial_pbjson(&expected_pbjson))
+                .respond_with(constant_response(response));
+        if let Some(name) = mock_name {
+            mock = mock.with_name(name);
+        }
+        mock.expect(1)
             .mount_as_scoped(&self.mock_grpc.mock_server)
             .await
     }
@@ -355,6 +380,7 @@ impl TestConductor {
 
     pub async fn mount_update_commitment_state(
         &self,
+        mock_name: Option<&str>,
         commitment_state: CommitmentState,
     ) -> astria_grpc_mock::MockGuard {
         use astria_core::generated::execution::v1alpha2::UpdateCommitmentStateRequest;
@@ -363,16 +389,19 @@ impl TestConductor {
             response::constant_response,
             Mock,
         };
-        Mock::for_rpc_given(
+        let mut mock = Mock::for_rpc_given(
             "update_commitment_state",
             message_partial_pbjson(&UpdateCommitmentStateRequest {
                 commitment_state: Some(commitment_state.clone()),
             }),
         )
-        .respond_with(constant_response(commitment_state.clone()))
-        .expect(1)
-        .mount_as_scoped(&self.mock_grpc.mock_server)
-        .await
+        .respond_with(constant_response(commitment_state.clone()));
+        if let Some(name) = mock_name {
+            mock = mock.with_name(name);
+        }
+        mock.expect(1)
+            .mount_as_scoped(&self.mock_grpc.mock_server)
+            .await
     }
 
     pub async fn mount_validator_set(
