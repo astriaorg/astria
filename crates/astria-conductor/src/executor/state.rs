@@ -395,7 +395,7 @@ mod tests {
 
     #[test]
     fn next_firm_sequencer_height_is_correct() {
-        let (_, mut rx) = make_state();
+        let (_, rx) = make_state();
         assert_eq!(
             SequencerHeight::from(12u32),
             rx.next_expected_firm_sequencer_height(),
@@ -404,7 +404,7 @@ mod tests {
 
     #[test]
     fn next_soft_sequencer_height_is_correct() {
-        let (_, mut rx) = make_state();
+        let (_, rx) = make_state();
         assert_eq!(
             SequencerHeight::from(13u32),
             rx.next_expected_soft_sequencer_height(),

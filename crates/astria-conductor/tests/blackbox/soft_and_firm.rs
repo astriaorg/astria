@@ -136,7 +136,7 @@ async fn simple() {
     )
     .await
     .expect(
-        "conductor should have executed the soft block and updated the soft commitment state \
+        "conductor should have executed the block and updated the soft and firm commitment states \
          within 1000ms",
     );
 }
@@ -261,58 +261,4 @@ async fn pending_blocks_are_fetched() {
         "conductor should have executed the soft block and updated the soft commitment state \
          within 1000ms",
     );
-
-    // mount_get_filtered_sequencer_block!(
-    //     test_conductor,
-    //     sequencer_height: 2,
-    // );
-
-    // let execute_block = mount_executed_block!(
-    //     test_conductor,
-    //     number: 2,
-    //     hash: [2; 64],
-    //     parent: [1; 64],
-    // );
-
-    // let update_commitment_state_soft = mount_update_commitment_state!(
-    //     test_conductor,
-    //     firm: (
-    //         number: 1,
-    //         hash: [1; 64],
-    //         parent: [0; 64],
-    //     ),
-    //     soft: (
-    //         number: 2,
-    //         hash: [2; 64],
-    //         parent: [1; 64],
-    //     ),
-    // );
-
-    // let update_commitment_state_firm = mount_update_commitment_state!(
-    //     test_conductor,
-    //     firm: (
-    //         number: 2,
-    //         hash: [2; 64],
-    //         parent: [1; 64],
-    //     ),
-    //     soft: (
-    //         number: 2,
-    //         hash: [2; 64],
-    //         parent: [1; 64],
-    //     ),
-    // );
-
-    // timeout(
-    //     Duration::from_millis(1000),
-    //     join3(
-    //         execute_block.wait_until_satisfied(),
-    //         update_commitment_state_soft.wait_until_satisfied(),
-    //         update_commitment_state_firm.wait_until_satisfied(),
-    //     ),
-    // )
-    // .await
-    // .expect(
-    //     "conductor should have executed the soft block and updated the soft commitment state \
-    //      within 1000ms",
-    // );
 }

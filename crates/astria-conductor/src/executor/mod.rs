@@ -225,10 +225,10 @@ pub(crate) struct Executor {
     /// Tracks the status of the execution chain.
     state: StateSender,
 
-    /// Tracks executed blocks as soft commitments.
+    /// Tracks rollup blocks by their rollup block numbers.
     ///
     /// Required to mark firm blocks received from celestia as executed
-    /// without re-executing on top of the rollup node on top of the rollup node..
+    /// without re-executing on top of the rollup node.
     blocks_pending_finalization: HashMap<u32, Block>,
 }
 
@@ -524,6 +524,8 @@ impl Executor {
         &mut self,
         mut client: Client,
     ) -> eyre::Result<()> {
+        // Uses the presence of the firm/soft channels as a proxy for which mode
+        // executor runs in. soft-and-firm mode corresponds to both channels being set.
         if self.firm_blocks.is_none() || self.soft_blocks.is_none() {
             debug!(
                 firm = self.firm_blocks.is_some(),
