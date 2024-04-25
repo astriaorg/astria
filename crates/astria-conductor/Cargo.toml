@@ -70,7 +70,6 @@ wiremock = { workspace = true }
 chrono = "0.4.35"
 tokio-stream = { version = "0.1.15", features = ["net"] }
 rand_chacha = "0.3.1"
-maplit = "1.0.2"
 
 [build-dependencies]
 astria-build-info = { path = "../astria-build-info", features = ["build"] }
