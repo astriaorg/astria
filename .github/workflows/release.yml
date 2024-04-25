@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: BUF
     needs: run_checker
-    if: github.event_name != 'merge_group' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == 'astriaorg/astria') && needs.run_checker.outputs.run_release_proto == 'true'
+    if: github.event_name != 'merge_group' && needs.run_checker.outputs.run_release_proto == 'true' && github.repository_owner == 'astriaorg'
     steps:
       - uses: actions/checkout@v4
       - uses: bufbuild/buf-setup-action@v1
