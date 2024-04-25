@@ -59,7 +59,7 @@ impl StateReceiver {
         Ok(())
     }
 
-    pub(super) fn next_expected_firm_sequencer_height(&mut self) -> SequencerHeight {
+    pub(super) fn next_expected_firm_sequencer_height(&self) -> SequencerHeight {
         self.inner
             .borrow()
             .as_ref()
@@ -71,7 +71,7 @@ impl StateReceiver {
             )
     }
 
-    pub(super) fn next_expected_soft_sequencer_height(&mut self) -> SequencerHeight {
+    pub(super) fn next_expected_soft_sequencer_height(&self) -> SequencerHeight {
         self.inner
             .borrow()
             .as_ref()
@@ -167,7 +167,7 @@ impl StateSender {
         self.inner.borrow()
     }
 
-    pub(super) fn next_expected_firm_sequencer_height(&mut self) -> SequencerHeight {
+    pub(super) fn next_expected_firm_sequencer_height(&self) -> SequencerHeight {
         self.inner
             .borrow()
             .as_ref()
@@ -179,7 +179,7 @@ impl StateSender {
             )
     }
 
-    pub(super) fn next_expected_soft_sequencer_height(&mut self) -> SequencerHeight {
+    pub(super) fn next_expected_soft_sequencer_height(&self) -> SequencerHeight {
         self.inner
             .borrow()
             .as_ref()
@@ -196,7 +196,7 @@ macro_rules! forward_impls {
     ($target:ident: $([$fn:ident -> $ret:ty]),*$(,)?) => {
         impl $target {
             $(
-            pub(super) fn $fn(&mut self) -> $ret {
+            pub(super) fn $fn(&self) -> $ret {
                 self.inner
                     .borrow()
                     .as_ref()

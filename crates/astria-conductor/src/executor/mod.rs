@@ -328,7 +328,7 @@ impl Executor {
     /// Panics if the `u32` underlying the celestia block variance tracked in the state could
     /// not be converted to a `usize`. This should never happen on any reasonable architecture
     /// that Conductor will run on.
-    fn calculate_max_spread(&mut self) -> usize {
+    fn calculate_max_spread(&self) -> usize {
         usize::try_from(self.state.celestia_block_variance())
             .expect("converting a u32 to usize should work on any architecture conductor runs on")
             .saturating_mul(6)
@@ -338,7 +338,7 @@ impl Executor {
     /// large.
     ///
     /// Always returns `false` if this executor was configured to run without firm commitments.
-    fn is_spread_too_large(&mut self, max_spread: usize) -> bool {
+    fn is_spread_too_large(&self, max_spread: usize) -> bool {
         if self.firm_blocks.is_none() {
             return false;
         }
