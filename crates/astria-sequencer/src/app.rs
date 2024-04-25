@@ -1495,7 +1495,7 @@ mod test {
 
         transaction::check_stateful(&signed_tx_pass, &app.state)
             .await
-            .unwrap();
+            .expect("stateful check should pass since we transferred enough to cover fee");
     }
 
     #[tokio::test]
