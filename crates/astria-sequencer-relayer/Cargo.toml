@@ -12,9 +12,12 @@ homepage = "https://astria.org"
 name = "astria-sequencer-relayer"
 
 [dependencies]
+bech32 = "0.11.0"
+cosmrs = "0.16.0"
 dirs = "5.0"
 futures-bounded = "0.2.3"
 http = "0.2.9"
+k256 = "0.13.3"
 pin-project-lite = "0.2"
 serde_path_to_error = "0.1.13"
 zeroize = { version = "1.6.0", features = ["zeroize_derive"] }
@@ -29,11 +32,12 @@ humantime = { workspace = true }
 hyper = { workspace = true }
 itoa = { workspace = true }
 metrics = { workspace = true }
+pbjson-types = { workspace = true }
 prost = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
-tendermint = { workspace = true, features = ["rust-crypto"] }
+tendermint = { workspace = true, features = ["secp256k1"] }
 tendermint-config = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
