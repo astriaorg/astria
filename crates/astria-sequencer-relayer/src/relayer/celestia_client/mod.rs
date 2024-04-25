@@ -417,7 +417,7 @@ fn block_height_from_response(
     let ok_response = match response {
         Ok(resp) => resp,
         Err(status) => {
-            trace!(?status);
+            trace!(status = %format!("{:?}", status));
             if status.code() == tonic::Code::NotFound {
                 debug!(msg = status.message(), "transaction still pending");
                 return Ok(None);

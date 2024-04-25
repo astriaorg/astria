@@ -103,7 +103,7 @@ impl Builder {
     async fn fetch_chain_id(&self) -> Result<String, BuilderError> {
         let mut node_info_client = NodeInfoClient::new(self.grpc_channel.clone());
         let response = node_info_client.get_node_info(GetNodeInfoRequest {}).await;
-        trace!(?response);
+        trace!(response = %format!("{:?}", response));
         let chain_id = response
             .map_err(|status| BuilderError::FailedToGetNodeInfo(GrpcResponseError::from(status)))?
             .into_inner()
