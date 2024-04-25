@@ -219,7 +219,7 @@ fn ensure_batch_get_blocks_is_correct(
     if !dupes.is_empty() {
         return Err(BatchGetBlocksError::Dupes(dupes));
     }
-    let mut holes = HashSet::from_iter(requested_numbers);
+    let mut holes = requested_numbers.collect::<HashSet<_>>();
     let mut extras = HashSet::new();
     for block in &blocks {
         if !holes.remove(&block.number) {
