@@ -115,6 +115,8 @@ pub(super) struct Executor {
     block_time: tokio::time::Duration,
     // Max bytes in a sequencer action bundle
     max_bytes_per_bundle: usize,
+    // Max amount of `SizedBundle`s that can be in the `BundleFactory`'s `finished` queue.
+    bundle_queue_capacity: usize,
     // Token to signal the executor to stop upon shutdown.
     shutdown_token: CancellationToken,
 }
@@ -202,7 +204,8 @@ impl Executor {
 
         let block_timer = time::sleep(self.block_time);
         tokio::pin!(block_timer);
-        let mut bundle_factory = BundleFactory::new(self.max_bytes_per_bundle);
+        let mut bundle_factory =
+            BundleFactory::new(self.max_bytes_per_bundle, self.bundle_queue_capacity);
 
         let reset_time = || Instant::now() + self.block_time;
 
@@ -233,8 +236,8 @@ impl Executor {
                     }
                 }
 
-                // receive new seq_action and bundle it
-                Some(seq_action) = self.serialized_rollup_transactions.recv() => {
+                // receive new seq_action and bundle it. will not pull from the channel if `bundle_factory` is full
+                Some(seq_action) = self.serialized_rollup_transactions.recv(), if !bundle_factory.is_full() => {
                     let rollup_id = seq_action.rollup_id;
                     if let Err(e) = bundle_factory.try_push(seq_action) {
                             warn!(
