@@ -44,11 +44,8 @@ impl<'a> Serialize for ReportRollups<'a> {
 mod tests {
     use astria_core::{
         primitive::v1::RollupId,
-        protocol::test_utils::ConfigureCometBftBlock,
-        sequencerblock::v1alpha1::block::{
-            FilteredSequencerBlock,
-            SequencerBlock,
-        },
+        protocol::test_utils::ConfigureSequencerBlock,
+        sequencerblock::v1alpha1::block::FilteredSequencerBlock,
     };
     use insta::assert_json_snapshot;
 
@@ -61,9 +58,9 @@ mod tests {
     const ROLLUP_69: RollupId = RollupId::new([69u8; 32]);
 
     fn snapshot_block() -> FilteredSequencerBlock {
-        let block = ConfigureCometBftBlock {
+        let block = ConfigureSequencerBlock {
             height: 100,
-            rollup_transactions: vec![
+            sequence_data: vec![
                 (ROLLUP_42, b"hello".to_vec()),
                 (ROLLUP_42, b"hello world".to_vec()),
                 (ROLLUP_69, b"hello world".to_vec()),
@@ -72,9 +69,7 @@ mod tests {
         }
         .make();
 
-        SequencerBlock::try_from_cometbft(block)
-            .unwrap()
-            .into_filtered_block([ROLLUP_42, ROLLUP_69])
+        block.into_filtered_block([ROLLUP_42, ROLLUP_69])
     }
 
     #[test]

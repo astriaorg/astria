@@ -10,25 +10,6 @@ use super::{
     ReconstructedBlock,
     ReconstructedBlocks,
 };
-use crate::block_cache::GetSequencerHeight;
-
-pub(super) struct ReportSequencerHeights<'a, T>(pub(super) &'a [T]);
-
-impl<'a, T> Serialize for ReportSequencerHeights<'a, T>
-where
-    T: GetSequencerHeight,
-{
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let mut seq = serializer.serialize_seq(Some(self.0.len()))?;
-        for elem in self.0 {
-            seq.serialize_element(&elem.get_height())?;
-        }
-        seq.end()
-    }
-}
 
 pub(super) struct ReportReconstructedBlocks<'a>(pub(super) &'a ReconstructedBlocks);
 impl<'a> Serialize for ReportReconstructedBlocks<'a> {

@@ -13,8 +13,8 @@ use std::{
 };
 
 use astria_sequencer_client::{
+    Client,
     HttpClient,
-    SequencerClientExt,
 };
 use color_eyre::{
     eyre,
@@ -112,11 +112,11 @@ pub(crate) async fn create_config(args: &ConfigCreateArgs) -> eyre::Result<()> {
         let sequencer_client = HttpClient::new(conf.sequencer_rpc.as_str())
             .wrap_err("failed constructing http sequencer client")?;
         let res = sequencer_client
-            .latest_sequencer_block()
+            .latest_block()
             .await
             .wrap_err("failed to get sequencer block for initial sequencer height")?;
 
-        let new_height: u64 = res.height().into();
+        let new_height: u64 = res.block.header.height.into();
         conf.sequencer_initial_block_height = Some(new_height);
     }
 
