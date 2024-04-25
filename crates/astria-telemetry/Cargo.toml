@@ -39,4 +39,10 @@ tracing-subscriber = { version = "0.3.17", features = [
 tracing = { workspace = true }
 
 [features]
-display = ["dep:base64", "dep:serde", "dep:serde_json", "dep:base64-serde", "dep:serde_with"]
+display = [
+  "dep:base64",
+  "dep:serde",
+  "dep:serde_json",
+  "dep:base64-serde",
+  "dep:serde_with",
+]
