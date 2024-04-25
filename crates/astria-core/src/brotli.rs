@@ -11,9 +11,9 @@ const BROTLI_BUFFER_SIZE: usize = 4096;
 /// Decompresses the given bytes using the Brotli algorithm.
 ///
 /// Returns the decompressed bytes.
-/// 
+///
 /// # Errors
-/// 
+///
 /// Returns an error if the decompression fails.
 pub fn decompress_bytes(data: &[u8]) -> Result<Vec<u8>, std::io::Error> {
     let mut output = Vec::with_capacity(BROTLI_BUFFER_SIZE);

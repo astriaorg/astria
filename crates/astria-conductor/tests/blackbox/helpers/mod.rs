@@ -6,6 +6,7 @@ use astria_conductor::{
     Config,
 };
 use astria_core::{
+    brotli::compress_bytes,
     generated::{
         execution::v1alpha2::{
             Block,
@@ -15,7 +16,6 @@ use astria_core::{
         sequencerblock::v1alpha1::FilteredSequencerBlock,
     },
     primitive::v1::RollupId,
-    brotli::compress_bytes,
 };
 use bytes::Bytes;
 use celestia_client::celestia_types::{

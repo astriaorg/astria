@@ -1,6 +1,6 @@
 use astria_core::{
-    primitive::v1::RollupId,
     brotli::compress_bytes,
+    primitive::v1::RollupId,
 };
 use astria_eyre::eyre::{
     self,
