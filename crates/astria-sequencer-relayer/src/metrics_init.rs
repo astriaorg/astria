@@ -63,15 +63,15 @@ pub fn register() {
     );
 
     describe_gauge!(
-        TOTAL_ASTRIA_BLOB_DATA_SIZE_FOR_BLOCK,
+        TOTAL_BLOB_DATA_SIZE_FOR_ASTRIA_BLOCK,
         Unit::Bytes,
-        "The total size of the compressed data blob for a Astria blob"
+        "The size of all compressed data for all `blob.data`s in an Astria block"
     );
 
     describe_gauge!(
         COMPRESSION_RATIO_FOR_ASTRIA_BLOCK,
         Unit::Count,
-        "The ratio of the uncompressed to compressed data size for Astria data in a block"
+        "Ratio of uncompressed:compressed data size for all `blob.data`s in an Astria block"
     );
 }
 
@@ -109,8 +109,10 @@ pub const SEQUENCER_HEIGHT_FETCH_FAILURE_COUNT: &str = concat!(
     "_sequencer_height_fetch_failure_count",
 );
 
-pub const TOTAL_ASTRIA_BLOB_DATA_SIZE_FOR_BLOCK: &str =
-    concat!(env!("CARGO_CRATE_NAME"), "_total_astria_blob_data_size");
+pub const TOTAL_BLOB_DATA_SIZE_FOR_ASTRIA_BLOCK: &str = concat!(
+    env!("CARGO_CRATE_NAME"),
+    "_total_blob_data_size_for_astria_block"
+);
 pub const COMPRESSION_RATIO_FOR_ASTRIA_BLOCK: &str = concat!(
     env!("CARGO_CRATE_NAME"),
     "_compression_ratio_for_astria_block"
