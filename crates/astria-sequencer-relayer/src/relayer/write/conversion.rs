@@ -97,8 +97,7 @@ pub(super) fn convert(block: SequencerBlock) -> eyre::Result<Converted> {
         rollups.push(info);
     }
 
-    let compression_ratio =
-        total_data_uncompressed_size / total_data_compressed_size;
+    let compression_ratio = total_data_uncompressed_size / total_data_compressed_size;
     info!(
         sequencer_height = sequencer_height,
         total_data_compressed_size = total_data_compressed_size,
@@ -111,9 +110,7 @@ pub(super) fn convert(block: SequencerBlock) -> eyre::Result<Converted> {
         .set(total_data_compressed_size as f64);
     #[allow(clippy::cast_precision_loss)]
     metrics::gauge!(metrics_init::COMPRESSION_RATIO_FOR_ASTRIA_BLOCK).set(compression_ratio as f64);
-    
-    
-    
+
     Ok(Converted {
         blobs,
         info: ConversionInfo {
