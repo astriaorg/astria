@@ -67,7 +67,6 @@ tendermint-rpc = { workspace = true, features = ["http-client"] }
 
 jsonrpsee = { workspace = true, features = ["server"] }
 once_cell = { workspace = true }
-rand = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["test-util"] }
 tokio-stream = { workspace = true, features = ["net"] }
