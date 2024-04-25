@@ -5,10 +5,10 @@
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Blob {
-    #[prost(bytes = "vec", tag = "1")]
-    pub namespace_id: ::prost::alloc::vec::Vec<u8>,
-    #[prost(bytes = "vec", tag = "2")]
-    pub data: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "bytes", tag = "1")]
+    pub namespace_id: ::prost::bytes::Bytes,
+    #[prost(bytes = "bytes", tag = "2")]
+    pub data: ::prost::bytes::Bytes,
     #[prost(uint32, tag = "3")]
     pub share_version: u32,
     #[prost(uint32, tag = "4")]
@@ -27,8 +27,8 @@ impl ::prost::Name for Blob {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct BlobTx {
-    #[prost(bytes = "vec", tag = "1")]
-    pub tx: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "bytes", tag = "1")]
+    pub tx: ::prost::bytes::Bytes,
     #[prost(message, repeated, tag = "2")]
     pub blobs: ::prost::alloc::vec::Vec<Blob>,
     #[prost(string, tag = "3")]

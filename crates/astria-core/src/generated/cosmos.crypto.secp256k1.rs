@@ -6,8 +6,8 @@
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PubKey {
-    #[prost(bytes = "vec", tag = "1")]
-    pub key: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "bytes", tag = "1")]
+    pub key: ::prost::bytes::Bytes,
 }
 impl ::prost::Name for PubKey {
     const NAME: &'static str = "PubKey";

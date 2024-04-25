@@ -20,10 +20,10 @@ impl ::prost::Name for Event {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct EventAttribute {
-    #[prost(bytes = "vec", tag = "1")]
-    pub key: ::prost::alloc::vec::Vec<u8>,
-    #[prost(bytes = "vec", tag = "2")]
-    pub value: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "bytes", tag = "1")]
+    pub key: ::prost::bytes::Bytes,
+    #[prost(bytes = "bytes", tag = "2")]
+    pub value: ::prost::bytes::Bytes,
     /// nondeterministic
     #[prost(bool, tag = "3")]
     pub index: bool,

@@ -28,8 +28,8 @@ pub struct DefaultNodeInfo {
     pub network: ::prost::alloc::string::String,
     #[prost(string, tag = "5")]
     pub version: ::prost::alloc::string::String,
-    #[prost(bytes = "vec", tag = "6")]
-    pub channels: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "bytes", tag = "6")]
+    pub channels: ::prost::bytes::Bytes,
     #[prost(string, tag = "7")]
     pub moniker: ::prost::alloc::string::String,
     #[prost(message, optional, tag = "8")]

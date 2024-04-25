@@ -345,13 +345,13 @@ pub struct MsgPayForBlobs {
     /// namespaces is a list of namespaces that the blobs are associated with. A
     /// namespace is a byte slice of length 29 where the first byte is the
     /// namespaceVersion and the subsequent 28 bytes are the namespaceId.
-    #[prost(bytes = "vec", repeated, tag = "2")]
-    pub namespaces: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+    #[prost(bytes = "bytes", repeated, tag = "2")]
+    pub namespaces: ::prost::alloc::vec::Vec<::prost::bytes::Bytes>,
     #[prost(uint32, repeated, tag = "3")]
     pub blob_sizes: ::prost::alloc::vec::Vec<u32>,
     /// share_commitments is a list of share commitments (one per blob).
-    #[prost(bytes = "vec", repeated, tag = "4")]
-    pub share_commitments: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+    #[prost(bytes = "bytes", repeated, tag = "4")]
+    pub share_commitments: ::prost::alloc::vec::Vec<::prost::bytes::Bytes>,
     /// share_versions are the versions of the share format that the blobs
     /// associated with this message should use when included in a block. The
     /// share_versions specified must match the share_versions used to generate the

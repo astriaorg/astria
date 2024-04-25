@@ -4,8 +4,8 @@
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct MultiSignature {
-    #[prost(bytes = "vec", repeated, tag = "1")]
-    pub signatures: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+    #[prost(bytes = "bytes", repeated, tag = "1")]
+    pub signatures: ::prost::alloc::vec::Vec<::prost::bytes::Bytes>,
 }
 impl ::prost::Name for MultiSignature {
     const NAME: &'static str = "MultiSignature";
@@ -23,8 +23,8 @@ impl ::prost::Name for MultiSignature {
 pub struct CompactBitArray {
     #[prost(uint32, tag = "1")]
     pub extra_bits_stored: u32,
-    #[prost(bytes = "vec", tag = "2")]
-    pub elems: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "bytes", tag = "2")]
+    pub elems: ::prost::bytes::Bytes,
 }
 impl ::prost::Name for CompactBitArray {
     const NAME: &'static str = "CompactBitArray";

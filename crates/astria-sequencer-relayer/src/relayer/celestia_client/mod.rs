@@ -78,6 +78,7 @@ pub(super) use error::{
 };
 use itertools::Itertools;
 use prost::{
+    bytes::Bytes,
     Message,
     Name,
 };
@@ -225,7 +226,7 @@ impl CelestiaClient {
     /// Returns the tx hash if the tx is successfully placed into the node's mempool.
     async fn broadcast_tx(&mut self, blob_tx: BlobTx) -> Result<TxHash, TrySubmitError> {
         let request = BroadcastTxRequest {
-            tx_bytes: blob_tx.encode_to_vec(),
+            tx_bytes: Bytes::from(blob_tx.encode_to_vec()),
             mode: i32::from(BroadcastMode::Sync),
         };
         let response = self.tx_client.broadcast_tx(request).await;
@@ -312,8 +313,8 @@ fn new_msg_pay_for_blobs<'a>(
     ) = blobs
         .map(|blob| {
             let blob_size = blob.data.len();
-            let namespace = blob.namespace.as_bytes().to_vec();
-            let share_commitment = blob.commitment.0.to_vec();
+            let namespace = Bytes::from(blob.namespace.as_bytes().to_vec());
+            let share_commitment = Bytes::from(blob.commitment.0.to_vec());
             let share_version = u32::from(blob.share_version);
             (blob_size, namespace, share_commitment, share_version)
         })
@@ -628,11 +629,13 @@ fn new_signed_tx(
     };
 
     let public_key = secp256k1::PubKey {
-        key: signing_keys
-            .verification_key
-            .to_encoded_point(true)
-            .as_bytes()
-            .to_vec(),
+        key: Bytes::from(
+            signing_keys
+                .verification_key
+                .to_encoded_point(true)
+                .as_bytes()
+                .to_vec(),
+        ),
     };
     let public_key_as_any = pbjson_types::Any {
         type_url: secp256k1::PubKey::type_url(),
@@ -658,8 +661,8 @@ fn new_signed_tx(
     };
 
     let bytes_to_sign = SignDoc {
-        body_bytes: tx_body.encode_to_vec(),
-        auth_info_bytes: auth_info.encode_to_vec(),
+        body_bytes: Bytes::from(tx_body.encode_to_vec()),
+        auth_info_bytes: Bytes::from(auth_info.encode_to_vec()),
         chain_id,
         account_number: base_account.account_number,
     }
@@ -668,7 +671,7 @@ fn new_signed_tx(
     Tx {
         body: Some(tx_body),
         auth_info: Some(auth_info),
-        signatures: vec![signature.to_bytes().to_vec()],
+        signatures: vec![Bytes::from(signature.to_bytes().to_vec())],
     }
 }
 
@@ -678,14 +681,14 @@ fn new_blob_tx<'a>(signed_tx: &Tx, blobs: impl Iterator<Item = &'a Blob>) -> Blo
 
     let blobs = blobs
         .map(|blob| PbBlob {
-            namespace_id: blob.namespace.id().to_vec(),
+            namespace_id: Bytes::from(blob.namespace.id().to_vec()),
             namespace_version: u32::from(blob.namespace.version()),
-            data: blob.data.clone(),
+            data: Bytes::from(blob.data.clone()),
             share_version: u32::from(blob.share_version),
         })
         .collect();
     BlobTx {
-        tx: signed_tx.encode_to_vec(),
+        tx: Bytes::from(signed_tx.encode_to_vec()),
         blobs,
         type_id: BLOB_TX_TYPE_ID.to_string(),
     }

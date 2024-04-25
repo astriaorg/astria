@@ -12,8 +12,8 @@ pub struct Tx {
     /// signatures is a list of signatures that matches the length and order of
     /// AuthInfo's signer_infos to allow connecting signature meta information like
     /// public key and signing mode by position.
-    #[prost(bytes = "vec", repeated, tag = "3")]
-    pub signatures: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+    #[prost(bytes = "bytes", repeated, tag = "3")]
+    pub signatures: ::prost::alloc::vec::Vec<::prost::bytes::Bytes>,
 }
 impl ::prost::Name for Tx {
     const NAME: &'static str = "Tx";
@@ -28,12 +28,12 @@ impl ::prost::Name for Tx {
 pub struct SignDoc {
     /// body_bytes is protobuf serialization of a TxBody that matches the
     /// representation in TxRaw.
-    #[prost(bytes = "vec", tag = "1")]
-    pub body_bytes: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "bytes", tag = "1")]
+    pub body_bytes: ::prost::bytes::Bytes,
     /// auth_info_bytes is a protobuf serialization of an AuthInfo that matches the
     /// representation in TxRaw.
-    #[prost(bytes = "vec", tag = "2")]
-    pub auth_info_bytes: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "bytes", tag = "2")]
+    pub auth_info_bytes: ::prost::bytes::Bytes,
     /// chain_id is the unique identifier of the chain this transaction targets.
     /// It prevents signed transactions from being used on another chain by an
     /// attacker
@@ -276,8 +276,8 @@ impl ::prost::Name for Tip {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct BroadcastTxRequest {
     /// tx_bytes is the raw transaction.
-    #[prost(bytes = "vec", tag = "1")]
-    pub tx_bytes: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "bytes", tag = "1")]
+    pub tx_bytes: ::prost::bytes::Bytes,
     #[prost(enumeration = "BroadcastMode", tag = "2")]
     pub mode: i32,
 }

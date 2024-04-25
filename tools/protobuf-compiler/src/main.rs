@@ -66,6 +66,9 @@ fn main() {
         .bytes([
             ".astria.execution.v1alpha2",
             ".astria.primitive.v1",
+            ".celestia",
+            ".cosmos",
+            ".tendermint",
         ])
         .client_mod_attribute(".", "#[cfg(feature=\"client\")]")
         .server_mod_attribute(".", "#[cfg(feature=\"server\")]")
