@@ -16,9 +16,9 @@ const BROTLI_BUFFER_SIZE: usize = 4096;
 ///
 /// Returns an error if the decompression fails.
 pub fn decompress_bytes(data: &[u8]) -> Result<Vec<u8>, std::io::Error> {
-    // Capacity based on expecting best potential compression ratio of 8x (based on benchmarks)
-    // only would need to resize 2 times to reach worst case.
-    let mut output = Vec::with_capacity(data.len() * 2);
+    // Header blobs are small and occur frequently with low compression, capacity based on expecting
+    // those to be the most common case and reduce allocations.
+    let mut output = Vec::with_capacity(data.len());
     {
         let mut decompressor = DecompressorWriter::new(&mut output, BROTLI_BUFFER_SIZE);
         decompressor.write_all(data)?;
@@ -40,9 +40,9 @@ pub fn compress_bytes(data: &[u8]) -> Result<Vec<u8>, std::io::Error> {
         size_hint: data.len(),
         ..Default::default()
     };
-    // Capacity based on expecting best potential compression ratio of 8x (based on benchmarks)
-    // only would need to resize 2 times to reach worst case.
-    let mut output = Vec::with_capacity(data.len() / 8);
+    // Header blobs are small and occur frequently with low compression, capacity based on expecting
+    // those to be the most common case and reduce allocations.
+    let mut output = Vec::with_capacity(data.len());
     {
         let mut compressor =
             CompressorWriter::with_params(&mut output, BROTLI_BUFFER_SIZE, &compression_params);
