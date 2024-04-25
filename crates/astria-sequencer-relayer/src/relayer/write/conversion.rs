@@ -99,7 +99,7 @@ pub(super) fn convert(block: SequencerBlock) -> eyre::Result<Converted> {
 
     let compression_ratio = total_data_uncompressed_size / total_data_compressed_size;
     info!(
-        sequencer_height = sequencer_height,
+        sequencer_height = %sequencer_height,
         total_data_compressed_size = total_data_compressed_size,
         compression_ratio = compression_ratio,
         "converted blocks into blobs with compressed data",

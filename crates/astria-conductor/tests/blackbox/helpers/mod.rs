@@ -33,10 +33,7 @@ use sequencer_client::{
 #[macro_use]
 mod macros;
 mod mock_grpc;
-use astria_eyre::{
-    eyre,
-    eyre::Context,
-};
+use astria_eyre;
 pub use mock_grpc::MockGrpc;
 use serde_json::json;
 use tokio::task::JoinHandle;
@@ -504,7 +501,7 @@ fn validator() -> tendermint::validator::Info {
     }
 }
 
-fn brotli_compressed_bytes(data: &[u8]) -> eyre::Result<Vec<u8>> {
+fn brotli_compressed_bytes(data: &[u8]) -> Result<Vec<u8>, std::io::Error> {
     use std::io::Write as _;
     let compression_params = BrotliEncoderParams {
         quality: 5,
@@ -516,8 +513,7 @@ fn brotli_compressed_bytes(data: &[u8]) -> eyre::Result<Vec<u8>> {
         let mut compressor =
             brotli::CompressorWriter::with_params(&mut output, 4096, &compression_params);
         compressor
-            .write_all(data)
-            .wrap_err("failed compressing data")?;
+            .write_all(data)?;
     }
 
     Ok(output)
