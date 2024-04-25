@@ -512,8 +512,7 @@ fn brotli_compressed_bytes(data: &[u8]) -> Result<Vec<u8>, std::io::Error> {
     {
         let mut compressor =
             brotli::CompressorWriter::with_params(&mut output, 4096, &compression_params);
-        compressor
-            .write_all(data)?;
+        compressor.write_all(data)?;
     }
 
     Ok(output)
