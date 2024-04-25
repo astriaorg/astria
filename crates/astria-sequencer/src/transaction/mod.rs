@@ -71,11 +71,20 @@ pub(crate) async fn check_balance_mempool<S: StateReadExt + 'static>(
     tx: &SignedTransaction,
     state: &S,
 ) -> anyhow::Result<()> {
+    let signer_address = Address::from_verification_key(tx.verification_key());
+    check_balance(tx.unsigned_transaction(), signer_address, state).await?;
+    Ok(())
+}
+
+pub(crate) async fn check_balance<S: StateReadExt + 'static>(
+    tx: &UnsignedTransaction,
+    from: Address,
+    state: &S,
+) -> anyhow::Result<()> {
     use std::collections::HashMap;
 
-    let signer_address = Address::from_verification_key(tx.verification_key());
     let mut fees_by_asset = HashMap::new();
-    for action in tx.actions() {
+    for action in &tx.actions {
         match action {
             Action::Transfer(act) => {
                 fees_by_asset
@@ -133,7 +142,7 @@ pub(crate) async fn check_balance_mempool<S: StateReadExt + 'static>(
     }
     for (asset, total_fee) in fees_by_asset {
         let balance = state
-            .get_account_balance(signer_address, asset)
+            .get_account_balance(from, asset)
             .await
             .context("failed to get account balance")?;
         ensure!(
@@ -286,6 +295,9 @@ impl ActionHandler for UnsignedTransaction {
             curr_nonce == self.params.nonce,
             InvalidNonce(self.params.nonce)
         );
+
+        // Should have enough balance to cover all actions.
+        check_balance(self, from, state).await?;
 
         for action in &self.actions {
             match action {

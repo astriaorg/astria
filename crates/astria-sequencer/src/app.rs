@@ -1410,6 +1410,95 @@ mod test {
     }
 
     #[tokio::test]
+    async fn app_stateful_check_fails_insufficient_total_balance() {
+        use rand::rngs::OsRng;
+        let mut app = initialize_app(None, vec![]).await;
+
+        let (alice_signing_key, _) = get_alice_signing_key_and_address();
+
+        // create a new key; will have 0 balance
+        let keypair = SigningKey::new(OsRng);
+        let keypair_address = Address::from_verification_key(keypair.verification_key());
+
+        // figure out needed fee for a single transfer
+        let data = b"hello world".to_vec();
+        let fee = calculate_fee(&data).unwrap();
+
+        // transfer just enough to cover single sequence fee with data
+        let signed_tx = UnsignedTransaction {
+            params: TransactionParams {
+                nonce: 0,
+                chain_id: "test".to_string(),
+            },
+            actions: vec![
+                TransferAction {
+                    to: keypair_address,
+                    amount: fee,
+                    asset_id: get_native_asset().id(),
+                    fee_asset_id: get_native_asset().id(),
+                }
+                .into(),
+            ],
+        }
+        .into_signed(&alice_signing_key);
+
+        // make transfer
+        app.execute_transaction(signed_tx).await.unwrap();
+
+        // build double transfer exceeding balance
+        let signed_tx_fail = UnsignedTransaction {
+            params: TransactionParams {
+                nonce: 0,
+                chain_id: "test".to_string(),
+            },
+            actions: vec![
+                SequenceAction {
+                    rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
+                    data: data.clone(),
+                    fee_asset_id: get_native_asset().id(),
+                }
+                .into(),
+                SequenceAction {
+                    rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
+                    data: data.clone(),
+                    fee_asset_id: get_native_asset().id(),
+                }
+                .into(),
+            ],
+        }
+        .into_signed(&keypair);
+
+        // try double, see fails stateful check
+        let res = transaction::check_stateful(&signed_tx_fail, &app.state)
+            .await
+            .unwrap_err()
+            .root_cause()
+            .to_string();
+        assert!(res.contains("insufficient funds for asset"));
+
+        // build single transfer to see passes
+        let signed_tx_pass = UnsignedTransaction {
+            params: TransactionParams {
+                nonce: 0,
+                chain_id: "test".to_string(),
+            },
+            actions: vec![
+                SequenceAction {
+                    rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
+                    data,
+                    fee_asset_id: get_native_asset().id(),
+                }
+                .into(),
+            ],
+        }
+        .into_signed(&keypair);
+
+        transaction::check_stateful(&signed_tx_pass, &app.state)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
     async fn app_execute_transaction_sequence() {
         let mut app = initialize_app(None, vec![]).await;
 
