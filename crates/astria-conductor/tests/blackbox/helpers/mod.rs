@@ -455,7 +455,7 @@ pub fn make_blobs(height: u32) -> Blobs {
     let (head, tail) = make_sequencer_block(height).into_celestia_blobs();
 
     let raw_header = ::prost::Message::encode_to_vec(&head.into_raw());
-    let head_compressed = brotli_compressed_bytes(raw_header).unwrap();
+    let head_compressed = brotli_compressed_bytes(&raw_header).unwrap();
     let header = ::celestia_client::celestia_types::Blob::new(
         ::celestia_client::celestia_namespace_v0_from_bytes(crate::SEQUENCER_CHAIN_ID.as_bytes()),
         head_compressed,
@@ -465,7 +465,7 @@ pub fn make_blobs(height: u32) -> Blobs {
     let mut rollup = Vec::new();
     for elem in tail {
         let raw_rollup = ::prost::Message::encode_to_vec(&elem.into_raw());
-        let rollup_compressed = brotli_compressed_bytes(raw_rollup).unwrap();
+        let rollup_compressed = brotli_compressed_bytes(&raw_rollup).unwrap();
         let blob = ::celestia_client::celestia_types::Blob::new(
             ::celestia_client::celestia_namespace_v0_from_rollup_id(crate::ROLLUP_ID),
             rollup_compressed,
@@ -504,7 +504,7 @@ fn validator() -> tendermint::validator::Info {
     }
 }
 
-fn brotli_compressed_bytes(data: Vec<u8>) -> eyre::Result<Vec<u8>> {
+fn brotli_compressed_bytes(data: &[u8]) -> eyre::Result<Vec<u8>> {
     use std::io::Write as _;
     let compression_params = BrotliEncoderParams {
         quality: 5,
@@ -516,7 +516,7 @@ fn brotli_compressed_bytes(data: Vec<u8>) -> eyre::Result<Vec<u8>> {
         let mut compressor =
             brotli::CompressorWriter::with_params(&mut output, 4096, &compression_params);
         compressor
-            .write_all(&data)
+            .write_all(data)
             .wrap_err("failed compressing data")?;
     }
 

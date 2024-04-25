@@ -64,7 +64,7 @@ pub(super) fn convert(block: SequencerBlock) -> eyre::Result<Converted> {
         sequencer_blob.header().chain_id().as_str(),
     );
     let sequencer_blob_raw = sequencer_blob.into_raw();
-    let compressed_sequencer_blob_raw = brotli_compressed_bytes(sequencer_blob_raw.encode_to_vec())
+    let compressed_sequencer_blob_raw = brotli_compressed_bytes(&sequencer_blob_raw.encode_to_vec())
         .wrap_err("failed compressing sequencer blob")?;
 
     let header_blob = Blob::new(sequencer_namespace, compressed_sequencer_blob_raw)
@@ -80,7 +80,7 @@ pub(super) fn convert(block: SequencerBlock) -> eyre::Result<Converted> {
             sequencer_rollup_id: blob.rollup_id(),
         };
         let raw_blob = blob.into_raw();
-        let compressed_blob = brotli_compressed_bytes(raw_blob.encode_to_vec())
+        let compressed_blob = brotli_compressed_bytes(&raw_blob.encode_to_vec())
             .wrap_err_with(|| format!("failed compressing rollup `{rollup_id}`"))?;
         let blob = Blob::new(namespace, compressed_blob)
             .wrap_err_with(|| format!("failed creating blob for rollup `{rollup_id}`"))?;
@@ -97,7 +97,7 @@ pub(super) fn convert(block: SequencerBlock) -> eyre::Result<Converted> {
     })
 }
 
-fn brotli_compressed_bytes(data: Vec<u8>) -> eyre::Result<Vec<u8>> {
+fn brotli_compressed_bytes(data: &[u8]) -> eyre::Result<Vec<u8>> {
     use std::io::Write as _;
     let compression_params = BrotliEncoderParams {
         quality: 5,
@@ -109,7 +109,7 @@ fn brotli_compressed_bytes(data: Vec<u8>) -> eyre::Result<Vec<u8>> {
         let mut compressor =
             brotli::CompressorWriter::with_params(&mut output, 4096, &compression_params);
         compressor
-            .write_all(&data)
+            .write_all(data)
             .wrap_err("failed compressing data")?;
     }
 
