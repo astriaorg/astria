@@ -32,7 +32,6 @@ pub(in crate::relayer) enum BuilderError {
     #[error("failed to Bech32-encode our celestia address {address}")]
     EncodeAddress {
         address: AccountId,
-        #[source]
         source: Bech32EncodeError,
     },
     /// The celestia app responded with the given error status to a `GetNodeInfoRequest`.
@@ -104,12 +103,15 @@ impl Builder {
         let mut node_info_client = NodeInfoClient::new(self.grpc_channel.clone());
         let response = node_info_client.get_node_info(GetNodeInfoRequest {}).await;
         // trace-level logging, so using Debug format is ok.
-        trace!(response = %format!("{:?}", response));
+        #[cfg_attr(dylint_lib = "tracing_debug_field", allow(tracing_debug_field))]
+        {
+            trace!(?response);
+        }
         let chain_id = response
             .map_err(|status| BuilderError::FailedToGetNodeInfo(GrpcResponseError::from(status)))?
             .into_inner()
             .default_node_info
-            .ok_or_else(|| BuilderError::EmptyNodeInfo)?
+            .ok_or(BuilderError::EmptyNodeInfo)?
             .network;
         Ok(chain_id)
     }

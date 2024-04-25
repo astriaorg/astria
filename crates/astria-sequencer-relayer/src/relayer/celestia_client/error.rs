@@ -32,18 +32,17 @@ pub(in crate::relayer) enum TrySubmitError {
     FailedToGetMinGasPrice(#[source] GrpcResponseError),
     /// The minimum gas price response did not have the expected units suffix ("utia").
     #[error(
-        "the minimum gas price response '{min_gas_price}' did not have the expected suffix \
-         '{expected_suffix}'"
+        "the minimum gas price response `{min_gas_price}` did not have the expected suffix \
+         `{expected_suffix}`"
     )]
     MinGasPriceBadSuffix {
         min_gas_price: String,
         expected_suffix: &'static str,
     },
     /// The minimum gas price could not be parsed as a float.
-    #[error("the minimum gas price '{min_gas_price}' could not be parsed as a float")]
+    #[error("the minimum gas price `{min_gas_price}` could not be parsed as a float")]
     FailedToParseMinGasPrice {
         min_gas_price: String,
-        #[source]
         source: ParseFloatError,
     },
     /// Blob size exceeds limit.
@@ -56,7 +55,7 @@ pub(in crate::relayer) enum TrySubmitError {
     #[error("the account info response was empty")]
     EmptyAccountInfo,
     /// The account info response was of an unexpected type.
-    #[error("expected '{expected}' but received '{received}'")]
+    #[error("expected `{expected}` but received `{received}`")]
     AccountInfoTypeMismatch { expected: String, received: String },
     /// Failed to decode the received account info.
     #[error("failed to decode account info")]
@@ -69,8 +68,8 @@ pub(in crate::relayer) enum TrySubmitError {
     EmptyBroadcastTxResponse,
     /// The broadcasted transaction response contains an error code.
     #[error(
-        "broadcast transaction response contains error code {code}, tx {tx_hash}, namespace \
-         '{namespace}', log: '{log}'"
+        "broadcast transaction response contains error code `{code}`, tx `{tx_hash}`, namespace \
+         `{namespace}`, log: `{log}`"
     )]
     BroadcastTxResponseErrorCode {
         tx_hash: String,
@@ -86,8 +85,8 @@ pub(in crate::relayer) enum TrySubmitError {
     EmptyGetTxResponse,
     /// The get transaction response contains an error code.
     #[error(
-        "get transaction response contains error code {code}, tx {tx_hash}, namespace \
-         '{namespace}', log: {log}"
+        "get transaction response contains error code `{code}`, tx `{tx_hash}`, namespace \
+         `{namespace}`, log: {log}"
     )]
     GetTxResponseErrorCode {
         tx_hash: String,

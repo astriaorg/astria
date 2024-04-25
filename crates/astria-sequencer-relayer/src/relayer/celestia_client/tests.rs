@@ -1,5 +1,3 @@
-use std::iter;
-
 use astria_core::generated::cosmos::base::abci::v1beta1::TxResponse;
 use celestia_client::celestia_types::{
     blob::Commitment,
@@ -11,7 +9,7 @@ use super::*;
 
 #[test]
 fn new_msg_pay_for_blobs_should_succeed() {
-    let blobs = (0..5)
+    let blobs: Vec<_> = (0..5)
         .map(|index| {
             Blob::new(
                 Namespace::const_v0([index; 10]),
@@ -19,35 +17,32 @@ fn new_msg_pay_for_blobs_should_succeed() {
             )
             .unwrap()
         })
-        .collect_vec();
+        .collect();
     let signer = Bech32Address("a".to_string());
-    let msg = new_msg_pay_for_blobs(blobs.iter(), signer.clone()).unwrap();
+    let msg = new_msg_pay_for_blobs(&blobs, signer.clone()).unwrap();
     assert_eq!(msg.signer, signer.0);
 
-    let namespaces = blobs
+    let namespaces: Vec<_> = blobs
         .iter()
         .map(|blob| blob.namespace.as_bytes().to_vec())
-        .collect_vec();
+        .collect();
     assert_eq!(msg.namespaces, namespaces);
 
     // allow: data length is small in this test case.
     #[allow(clippy::cast_possible_truncation)]
-    let blob_sizes = blobs
-        .iter()
-        .map(|blob| blob.data.len() as u32)
-        .collect_vec();
+    let blob_sizes: Vec<_> = blobs.iter().map(|blob| blob.data.len() as u32).collect();
     assert_eq!(msg.blob_sizes, blob_sizes);
 
-    let share_commitments = blobs
+    let share_commitments: Vec<_> = blobs
         .iter()
         .map(|blob| blob.commitment.0.to_vec())
-        .collect_vec();
+        .collect();
     assert_eq!(msg.share_commitments, share_commitments);
 
-    let share_versions = blobs
+    let share_versions: Vec<_> = blobs
         .iter()
         .map(|blob| u32::from(blob.share_version))
-        .collect_vec();
+        .collect();
     assert_eq!(msg.share_versions, share_versions);
 }
 
@@ -59,12 +54,13 @@ fn new_msg_pay_for_blobs_should_fail_for_large_blob() {
         share_version: 0,
         commitment: Commitment([0; 32]),
     };
-    let error =
-        new_msg_pay_for_blobs(iter::once(&blob), Bech32Address("a".to_string())).unwrap_err();
-    assert!(matches!(
-        error,
-        TrySubmitError::BlobTooLarge { byte_count } if byte_count == u32::MAX as usize + 1
-    ));
+    let error = new_msg_pay_for_blobs(&[blob], Bech32Address("a".to_string())).unwrap_err();
+    // allow: `assert!(matches!(..))` provides poor feedback on failure.
+    #[allow(clippy::manual_assert)]
+    if !matches!(error, TrySubmitError::BlobTooLarge { byte_count } if byte_count == u32::MAX as usize + 1)
+    {
+        panic!("expected `Error::BlobTooLarge` with byte_count == u32::MAX + 1, got {error:?}");
+    }
 }
 
 #[test]
@@ -91,14 +87,22 @@ fn account_from_good_response_should_succeed() {
 fn account_from_bad_response_should_fail() {
     // Should return `FailedToGetAccountInfo` if outer response is an error.
     let error = account_from_response(Err(Status::internal(""))).unwrap_err();
-    assert!(matches!(error, TrySubmitError::FailedToGetAccountInfo(_)));
+    // allow: `assert!(matches!(..))` provides poor feedback on failure.
+    #[allow(clippy::manual_assert)]
+    if !matches!(error, TrySubmitError::FailedToGetAccountInfo(_)) {
+        panic!("expected `Error::FailedToGetAccountInfo`, got {error:?}");
+    }
 
     // Should return `EmptyAccountInfo` if the inner response's `account` is `None`.
     let response = Ok(Response::new(QueryAccountResponse {
         account: None,
     }));
     let error = account_from_response(response).unwrap_err();
-    assert!(matches!(error, TrySubmitError::EmptyAccountInfo));
+    // allow: `assert!(matches!(..))` provides poor feedback on failure.
+    #[allow(clippy::manual_assert)]
+    if !matches!(error, TrySubmitError::EmptyAccountInfo) {
+        panic!("expected `Error::EmptyAccountInfo`, got {error:?}");
+    }
 
     // Should return `AccountInfoTypeMismatch` if the inner response's `account` has the wrong
     // type URL.
@@ -131,7 +135,11 @@ fn account_from_bad_response_should_fail() {
         account: Some(bad_value_account),
     }));
     let error = account_from_response(response).unwrap_err();
-    assert!(matches!(error, TrySubmitError::DecodeAccountInfo(_)));
+    // allow: `assert!(matches!(..))` provides poor feedback on failure.
+    #[allow(clippy::manual_assert)]
+    if !matches!(error, TrySubmitError::DecodeAccountInfo(_)) {
+        panic!("expected `Error::DecodeAccountInfo`, got {error:?}");
+    }
 }
 
 #[test]
@@ -152,7 +160,11 @@ fn min_gas_price_from_good_response_should_succeed() {
 fn min_gas_price_from_bad_response_should_fail() {
     // Should return `FailedToGetMinGasPrice` if outer response is an error.
     let error = min_gas_price_from_response(Err(Status::internal(""))).unwrap_err();
-    assert!(matches!(error, TrySubmitError::FailedToGetMinGasPrice(_)));
+    // allow: `assert!(matches!(..))` provides poor feedback on failure.
+    #[allow(clippy::manual_assert)]
+    if !matches!(error, TrySubmitError::FailedToGetMinGasPrice(_)) {
+        panic!("expected `Error::FailedToGetMinGasPrice`, got {error:?}");
+    }
 
     // Should return `MinGasPriceBadSuffix` if the inner response's `minimum_gas_price` doesn't
     // have the suffix "utia".
@@ -263,14 +275,22 @@ fn tx_hash_from_good_response_should_succeed() {
 fn tx_hash_from_bad_response_should_fail() {
     // Should return `FailedToBroadcastTx` if outer response is an error.
     let error = tx_hash_from_response(Err(Status::internal(""))).unwrap_err();
-    assert!(matches!(error, TrySubmitError::FailedToBroadcastTx(_)));
+    // allow: `assert!(matches!(..))` provides poor feedback on failure.
+    #[allow(clippy::manual_assert)]
+    if !matches!(error, TrySubmitError::FailedToBroadcastTx(_)) {
+        panic!("expected `Error::FailedToBroadcastTx`, got {error:?}");
+    }
 
     // Should return `EmptyBroadcastTxResponse` if the inner response's `tx_response` is `None`.
     let response = Ok(Response::new(BroadcastTxResponse {
         tx_response: None,
     }));
     let error = tx_hash_from_response(response).unwrap_err();
-    assert!(matches!(error, TrySubmitError::EmptyBroadcastTxResponse));
+    // allow: `assert!(matches!(..))` provides poor feedback on failure.
+    #[allow(clippy::manual_assert)]
+    if !matches!(error, TrySubmitError::EmptyBroadcastTxResponse) {
+        panic!("expected `Error::EmptyBroadcastTxResponse`, got {error:?}");
+    }
 
     // Should return `BroadcastTxResponseErrorCode` if the inner response's `tx_response.code` is
     // not 0.
@@ -321,7 +341,11 @@ fn block_height_from_good_response_should_succeed() {
 fn block_height_from_bad_response_should_fail() {
     // Should return `FailedToGetTx` if outer response is an error other than `NotFound`.
     let error = block_height_from_response(Err(Status::internal(""))).unwrap_err();
-    assert!(matches!(error, TrySubmitError::FailedToGetTx(_)));
+    // allow: `assert!(matches!(..))` provides poor feedback on failure.
+    #[allow(clippy::manual_assert)]
+    if !matches!(error, TrySubmitError::FailedToGetTx(_)) {
+        panic!("expected `Error::FailedToGetTx`, got {error:?}");
+    }
 
     // Should return `EmptyGetTxResponse` if the inner response's `tx_response` is `None`.
     let response = Ok(Response::new(GetTxResponse {
@@ -329,7 +353,11 @@ fn block_height_from_bad_response_should_fail() {
         tx_response: None,
     }));
     let error = block_height_from_response(response).unwrap_err();
-    assert!(matches!(error, TrySubmitError::EmptyGetTxResponse));
+    // allow: `assert!(matches!(..))` provides poor feedback on failure.
+    #[allow(clippy::manual_assert)]
+    if !matches!(error, TrySubmitError::EmptyGetTxResponse) {
+        panic!("expected `Error::EmptyGetTxResponse`, got {error:?}");
+    }
 
     // Should return `GetTxResponseErrorCode` if the inner response's `tx_response.code` is not 0.
     let tx_hash = "abc";

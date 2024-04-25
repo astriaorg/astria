@@ -64,6 +64,7 @@ use astria_core::generated::{
         BlobTx,
     },
 };
+use astria_eyre::eyre::Report;
 pub(super) use builder::{
     Builder as CelestiaClientBuilder,
     BuilderError,
@@ -76,11 +77,10 @@ pub(super) use error::{
     ProtobufDecodeError,
     TrySubmitError,
 };
-use itertools::Itertools;
 use prost::{
     bytes::Bytes,
-    Message,
-    Name,
+    Message as _,
+    Name as _,
 };
 use tokio::sync::watch;
 use tonic::{
@@ -148,7 +148,7 @@ impl CelestiaClient {
             "fetched cost params and account info from celestia app"
         );
 
-        let msg_pay_for_blobs = new_msg_pay_for_blobs(blobs.iter(), self.address.clone())?;
+        let msg_pay_for_blobs = new_msg_pay_for_blobs(blobs.as_slice(), self.address.clone())?;
 
         let cost_params =
             CelestiaCostParams::new(gas_per_blob_byte, tx_size_cost_per_byte, min_gas_price);
@@ -187,7 +187,10 @@ impl CelestiaClient {
         };
         let response = auth_query_client.account(request).await;
         // trace-level logging, so using Debug format is ok.
-        trace!(response = %format!("{:?}", response));
+        #[cfg_attr(dylint_lib = "tracing_debug_field", allow(tracing_debug_field))]
+        {
+            trace!(?response);
+        }
         account_from_response(response)
     }
 
@@ -195,7 +198,10 @@ impl CelestiaClient {
         let mut blob_query_client = BlobQueryClient::new(self.grpc_channel.clone());
         let response = blob_query_client.params(QueryBlobParamsRequest {}).await;
         // trace-level logging, so using Debug format is ok.
-        trace!(response = %format!("{:?}", response));
+        #[cfg_attr(dylint_lib = "tracing_debug_field", allow(tracing_debug_field))]
+        {
+            trace!(?response);
+        }
         response
             .map_err(|status| {
                 TrySubmitError::FailedToGetBlobParams(GrpcResponseError::from(status))
@@ -209,7 +215,10 @@ impl CelestiaClient {
         let mut auth_query_client = AuthQueryClient::new(self.grpc_channel.clone());
         let response = auth_query_client.params(QueryAuthParamsRequest {}).await;
         // trace-level logging, so using Debug format is ok.
-        trace!(response = %format!("{:?}", response));
+        #[cfg_attr(dylint_lib = "tracing_debug_field", allow(tracing_debug_field))]
+        {
+            trace!(?response);
+        }
         response
             .map_err(|status| {
                 TrySubmitError::FailedToGetAuthParams(GrpcResponseError::from(status))
@@ -223,7 +232,10 @@ impl CelestiaClient {
         let mut min_gas_price_client = MinGasPriceClient::new(self.grpc_channel.clone());
         let response = min_gas_price_client.config(MinGasPriceRequest {}).await;
         // trace-level logging, so using Debug format is ok.
-        trace!(response = %format!("{:?}", response));
+        #[cfg_attr(dylint_lib = "tracing_debug_field", allow(tracing_debug_field))]
+        {
+            trace!(?response);
+        }
         min_gas_price_from_response(response)
     }
 
@@ -240,7 +252,10 @@ impl CelestiaClient {
         };
         let response = self.tx_client.broadcast_tx(request).await;
         // trace-level logging, so using Debug format is ok.
-        trace!(response = %format!("{:?}", response));
+        #[cfg_attr(dylint_lib = "tracing_debug_field", allow(tracing_debug_field))]
+        {
+            trace!(?response);
+        }
         tx_hash_from_response(response)
     }
 
@@ -252,7 +267,10 @@ impl CelestiaClient {
         };
         let response = self.tx_client.get_tx(request).await;
         // trace-level logging, so using Debug format is ok.
-        trace!(response = %format!("{:?}", response));
+        #[cfg_attr(dylint_lib = "tracing_debug_field", allow(tracing_debug_field))]
+        {
+            trace!(?response);
+        }
         block_height_from_response(response)
     }
 
@@ -262,9 +280,9 @@ impl CelestiaClient {
         // The min seconds to sleep after receiving a GetTx response and sending the next request.
         const MIN_POLL_INTERVAL_SECS: u64 = 1;
         // The max seconds to sleep after receiving a GetTx response and sending the next request.
-        const MAX_POLL_INTERVAL_SECS: u64 = 30;
+        const MAX_POLL_INTERVAL_SECS: u64 = 12;
         // How long to wait after starting `confirm_submission` before starting to log errors.
-        const START_LOGGING_DELAY: Duration = Duration::from_secs(15);
+        const START_LOGGING_DELAY: Duration = Duration::from_secs(12);
         // The minimum duration between logging errors.
         const LOG_ERROR_INTERVAL: Duration = Duration::from_secs(5);
 
@@ -275,11 +293,9 @@ impl CelestiaClient {
             if start.elapsed() <= START_LOGGING_DELAY || logged_at.elapsed() <= LOG_ERROR_INTERVAL {
                 return;
             }
-            let reason = maybe_error.map_or("transaction still pending".to_string(), |error| {
-                astria_eyre::eyre::Report::new(error).to_string()
-            });
+            let reason = maybe_error.map_or(Report::msg("transaction still pending"), Report::new);
             warn!(
-                reason,
+                %reason,
                 tx_hash = tx_hash.0,
                 elapsed_seconds = start.elapsed().as_secs_f32(),
                 "waiting to confirm blob submission"
@@ -306,26 +322,22 @@ impl CelestiaClient {
     }
 }
 
-fn new_msg_pay_for_blobs<'a>(
-    blobs: impl Iterator<Item = &'a Blob>,
+fn new_msg_pay_for_blobs(
+    blobs: &[Blob],
     signer: Bech32Address,
 ) -> Result<MsgPayForBlobs, TrySubmitError> {
     // Gather the required fields of the blobs into separate collections, one collection per
     // field.
-    let (blob_sizes, namespaces, share_commitments, share_versions): (
-        Vec<_>,
-        Vec<_>,
-        Vec<_>,
-        Vec<_>,
-    ) = blobs
-        .map(|blob| {
-            let blob_size = blob.data.len();
-            let namespace = Bytes::from(blob.namespace.as_bytes().to_vec());
-            let share_commitment = Bytes::from(blob.commitment.0.to_vec());
-            let share_version = u32::from(blob.share_version);
-            (blob_size, namespace, share_commitment, share_version)
-        })
-        .multiunzip();
+    let mut blob_sizes = Vec::with_capacity(blobs.len());
+    let mut namespaces = Vec::with_capacity(blobs.len());
+    let mut share_commitments = Vec::with_capacity(blobs.len());
+    let mut share_versions = Vec::with_capacity(blobs.len());
+    for blob in blobs {
+        blob_sizes.push(blob.data.len());
+        namespaces.push(Bytes::from(blob.namespace.as_bytes().to_vec()));
+        share_commitments.push(Bytes::from(blob.commitment.0.to_vec()));
+        share_versions.push(u32::from(blob.share_version));
+    }
 
     // The `MsgPayForBlobs` struct requires the blob lengths as `u32`s, so fail in the unlikely
     // event that a blob is too large.
@@ -425,7 +437,10 @@ fn block_height_from_response(
         Ok(resp) => resp,
         Err(status) => {
             // trace-level logging, so using Debug format is ok.
-            trace!(status = %format!("{:?}", status));
+            #[cfg_attr(dylint_lib = "tracing_debug_field", allow(tracing_debug_field))]
+            {
+                trace!(?status);
+            }
             if status.code() == tonic::Code::NotFound {
                 debug!(msg = status.message(), "transaction still pending");
                 return Ok(None);
@@ -478,36 +493,33 @@ fn estimate_gas(blob_sizes: &[u32], cost_params: CelestiaCostParams) -> GasLimit
     // From https://github.com/celestiaorg/celestia-app/blob/v1.4.0/pkg/shares/share_sequence.go#L126
     //
     // `blob_len` is the size in bytes of one blob's `data` field.
-    //
-    // allow: we want pass-by-ref here to use it inside `Iterator::map`
-    #[allow(clippy::trivially_copy_pass_by_ref)]
-    fn sparse_shares_needed(blob_len: &u32) -> u64 {
-        if *blob_len == 0 {
+    fn sparse_shares_needed(blob_len: u32) -> u64 {
+        if blob_len == 0 {
             return 0;
         }
 
-        if *blob_len < FIRST_SPARSE_SHARE_CONTENT_SIZE {
+        if blob_len < FIRST_SPARSE_SHARE_CONTENT_SIZE {
             return 1;
         }
 
         // Use `u64` here to avoid overflow while adding below.
         let mut bytes_available = u64::from(FIRST_SPARSE_SHARE_CONTENT_SIZE);
         let mut shares_needed = 1_u64;
-        while bytes_available < u64::from(*blob_len) {
-            // This can't overflow, as on each iteration `bytes_available < u32::MAX`, and we're
-            // adding at most `u32::MAX` to it.
+        while bytes_available < u64::from(blob_len) {
             bytes_available = bytes_available
                 .checked_add(u64::from(CONTINUATION_COMPACT_SHARE_CONTENT_SIZE))
-                .expect("bytes available cannot not overflow");
-            // This can't overflow, as the loop cannot execute for `u64::MAX` iterations.
-            shares_needed = shares_needed
-                .checked_add(1)
-                .expect("share count cannot overflow");
+                .expect(
+                    "this can't overflow, as on each iteration `bytes_available < u32::MAX`, and \
+                     we're adding at most `u32::MAX` to it",
+                );
+            shares_needed = shares_needed.checked_add(1).expect(
+                "this can't overflow, as the loop cannot execute for `u64::MAX` iterations",
+            );
         }
         shares_needed
     }
 
-    let total_shares_used: u64 = blob_sizes.iter().map(sparse_shares_needed).sum();
+    let total_shares_used: u64 = blob_sizes.iter().copied().map(sparse_shares_needed).sum();
     let blob_count = blob_sizes.len().try_into().unwrap_or(u64::MAX);
 
     let shares_gas = total_shares_used
@@ -570,7 +582,7 @@ fn calculate_fee(
                     "fee calculation yielded a low value: investigate calculation function"
                 );
             }
-            if calculated_fee > required_fee.saturating_mul(6) / 5 {
+            if calculated_fee > required_fee.saturating_mul(6).saturating_div(5) {
                 warn!(
                     calculated_fee,
                     required_fee,
@@ -588,25 +600,37 @@ fn calculate_fee(
 /// We'll make a best-effort attempt to parse, but this is just a failsafe to check the
 /// new calculated fee using updated Celestia costs is sufficient, so if parsing fails
 /// we'll just log the error and otherwise ignore.
-fn extract_required_fee_from_log(log: &str) -> Option<u64> {
+fn extract_required_fee_from_log(celestia_broadcast_tx_error_log: &str) -> Option<u64> {
     const SUFFIX: &str = "utia: insufficient fee";
     // Should be left with e.g. "insufficient fees; got: 1234utia required: 7980".
-    let Some(log_without_suffix) = log.strip_suffix(SUFFIX) else {
-        warn!(log, "insufficient gas error doesn't end with '{SUFFIX}'");
+    let Some(log_without_suffix) = celestia_broadcast_tx_error_log.strip_suffix(SUFFIX) else {
+        warn!(
+            celestia_broadcast_tx_error_log,
+            "insufficient gas error doesn't end with '{SUFFIX}'"
+        );
         return None;
     };
     // Should be left with e.g. "7980".
     let Some(required) = log_without_suffix.rsplit(' ').next() else {
         warn!(
-            log,
+            celestia_broadcast_tx_error_log,
             "insufficient gas error doesn't have a space before the required amount"
         );
         return None;
     };
     match required.parse::<u64>() {
-        Ok(value) => Some(value),
+        Ok(required_fee) => {
+            info!(
+                required_fee,
+                "extracted required fee from broadcast transaction response raw log"
+            );
+            Some(required_fee)
+        }
         Err(error) => {
-            warn!(log, %error, "insufficient gas error required amount cannot be parsed as u64");
+            warn!(
+                celestia_broadcast_tx_error_log, %error,
+                "insufficient gas error required amount cannot be parsed as u64"
+            );
             None
         }
     }
