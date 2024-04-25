@@ -1,9 +1,11 @@
-use astria_core::primitive::v1::RollupId;
+use astria_core::{
+    primitive::v1::RollupId,
+    brotli::compress_bytes,
+};
 use astria_eyre::eyre::{
     self,
     WrapErr as _,
 };
-use brotli::enc::BrotliEncoderParams;
 use celestia_client::celestia_types::{
     nmt::Namespace,
     Blob,
@@ -70,8 +72,8 @@ pub(super) fn convert(block: SequencerBlock) -> eyre::Result<Converted> {
     );
     let sequencer_blob_raw = sequencer_blob.into_raw().encode_to_vec();
     total_data_uncompressed_size += sequencer_blob_raw.len();
-    let compressed_sequencer_blob_raw = brotli_compressed_bytes(&sequencer_blob_raw)
-        .wrap_err("failed compressing sequencer blob")?;
+    let compressed_sequencer_blob_raw =
+        compress_bytes(&sequencer_blob_raw).wrap_err("failed compressing sequencer blob")?;
     total_data_compressed_size += compressed_sequencer_blob_raw.len();
 
     let header_blob = Blob::new(sequencer_namespace, compressed_sequencer_blob_raw)
@@ -88,7 +90,7 @@ pub(super) fn convert(block: SequencerBlock) -> eyre::Result<Converted> {
         };
         let raw_blob = blob.into_raw().encode_to_vec();
         total_data_uncompressed_size += raw_blob.len();
-        let compressed_blob = brotli_compressed_bytes(&raw_blob)
+        let compressed_blob = compress_bytes(&raw_blob)
             .wrap_err_with(|| format!("failed compressing rollup `{rollup_id}`"))?;
         total_data_compressed_size += compressed_blob.len();
         let blob = Blob::new(namespace, compressed_blob)
@@ -119,23 +121,4 @@ pub(super) fn convert(block: SequencerBlock) -> eyre::Result<Converted> {
             rollups,
         },
     })
-}
-
-fn brotli_compressed_bytes(data: &[u8]) -> eyre::Result<Vec<u8>> {
-    use std::io::Write as _;
-    let compression_params = BrotliEncoderParams {
-        quality: 5,
-        size_hint: data.len(),
-        ..Default::default()
-    };
-    let mut output = Vec::new();
-    {
-        let mut compressor =
-            brotli::CompressorWriter::with_params(&mut output, 4096, &compression_params);
-        compressor
-            .write_all(data)
-            .wrap_err("failed compressing data")?;
-    }
-
-    Ok(output)
 }

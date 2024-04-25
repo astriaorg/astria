@@ -13,6 +13,8 @@ pub mod sequencerblock;
 
 #[cfg(feature = "serde")]
 pub(crate) mod serde;
+#[cfg(feature = "brotli")]
+pub mod brotli;
 
 /// A trait to convert from raw decoded protobuf types to idiomatic astria types.
 ///

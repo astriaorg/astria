@@ -1,3 +1,4 @@
+use astria_core::brotli::decompress_bytes;
 use celestia_client::{
     celestia_types::{
         nmt::Namespace,
@@ -97,7 +98,7 @@ impl ConvertedBlobs {
 
 fn convert_header(blob: &Blob) -> Option<CelestiaSequencerBlob> {
     use astria_core::generated::sequencerblock::v1alpha1::CelestiaSequencerBlob as ProtoType;
-    let data = brotli_decompress_blob_data(&blob.data)
+    let data = decompress_bytes(&blob.data)
         .inspect_err(|err| {
             info!(
                 error = err as &StdError,
@@ -126,7 +127,7 @@ fn convert_header(blob: &Blob) -> Option<CelestiaSequencerBlob> {
 
 fn convert_rollup(blob: &Blob) -> Option<CelestiaRollupBlob> {
     use astria_core::generated::sequencerblock::v1alpha1::CelestiaRollupBlob as ProtoType;
-    let data = brotli_decompress_blob_data(&blob.data)
+    let data = decompress_bytes(&blob.data)
         .inspect_err(|err| {
             info!(
                 error = err as &StdError,
@@ -151,15 +152,4 @@ fn convert_rollup(blob: &Blob) -> Option<CelestiaRollupBlob> {
             );
         })
         .ok()
-}
-
-fn brotli_decompress_blob_data(data: &[u8]) -> Result<Vec<u8>, std::io::Error> {
-    use std::io::Write as _;
-    let mut output = Vec::new();
-    {
-        let mut decompressor = brotli::DecompressorWriter::new(&mut output, data.len());
-        decompressor.write_all(data)?;
-    }
-
-    Ok(output)
 }
