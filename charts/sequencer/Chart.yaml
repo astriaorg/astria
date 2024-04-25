@@ -25,7 +25,7 @@ appVersion: "0.10.1"
 
 dependencies:
   - name: sequencer-relayer
-    version: "0.5.0"
+    version: "0.5.1"
     repository: "file://../sequencer-relayer"
     condition: sequencer-relayer.enabled
 
