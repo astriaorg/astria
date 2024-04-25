@@ -1,5 +1,9 @@
-use std::ops::RangeInclusive;
+use std::{
+    collections::HashSet,
+    ops::RangeInclusive,
+};
 
+use ::astria_core::generated::execution::v1alpha2::Block as RawBlock;
 use astria_core::{
     execution::v1alpha2::{
         Block,
@@ -44,6 +48,12 @@ impl Client {
         })
     }
 
+    /// Issues the `astria.execution.v1alpha2.BatchGetBlocks` RPC for `block_numbers`.
+    ///
+    /// Returns a sequence of blocks sorted by block number and without duplicates,
+    /// holes in the requested range, or blocks outside the requested range.
+    ///
+    /// Returns an error if dupliates, holes, or extra blocks are found.
     #[instrument(skip_all, fields(
         uri = %self.uri,
         from = block_numbers.start(),
@@ -59,15 +69,20 @@ impl Client {
             }
         }
         let request = raw::BatchGetBlocksRequest {
-            identifiers: block_numbers.into_iter().map(identifier).collect(),
+            identifiers: block_numbers.clone().map(identifier).collect(),
         };
-        let blocks = self
+        let raw_blocks = self
             .inner
             .batch_get_blocks(request)
             .await
             .wrap_err("failed to execute batch get blocks RPC")?
             .into_inner()
-            .blocks
+            .blocks;
+        let raw_blocks = ensure_batch_get_blocks_is_correct(raw_blocks, block_numbers).wrap_err(
+            "received an incorrect response; did the rollup execution service violate the \
+             batch-get-blocks contract?",
+        )?;
+        let blocks = raw_blocks
             .into_iter()
             .map(Block::try_from_raw)
             .collect::<Result<_, _>>()
@@ -166,5 +181,121 @@ impl Client {
         let commitment_state = CommitmentState::try_from_raw(response)
             .wrap_err("failed converting raw response to validated commitment state")?;
         Ok(commitment_state)
+    }
+}
+
+#[derive(Debug, thiserror::Error, PartialEq)]
+enum BatchGetBlocksError {
+    #[error(
+        "duplicates blocks numbers: [{}]",
+        itertools::join(.0, ", "),
+    )]
+    Dupes(HashSet<u32>),
+    #[error(
+        "missing blocks for numbers: [{}]",
+        itertools::join(.0, ", "),
+    )]
+    Holes(HashSet<u32>),
+    #[error(
+        "extra blocks for numbers: [{}]",
+        itertools::join(.0, ", "),
+    )]
+    Extras(HashSet<u32>),
+}
+
+fn ensure_batch_get_blocks_is_correct(
+    mut blocks: Vec<RawBlock>,
+    requested_numbers: RangeInclusive<u32>,
+) -> Result<Vec<RawBlock>, BatchGetBlocksError> {
+    blocks.sort_unstable_by_key(|block| block.number);
+    let mut dupes = HashSet::new();
+    blocks.dedup_by(|a, b| {
+        let same = a.number == b.number;
+        if same {
+            dupes.insert(a.number);
+        };
+        same
+    });
+    if !dupes.is_empty() {
+        return Err(BatchGetBlocksError::Dupes(dupes));
+    }
+    let mut holes = HashSet::from_iter(requested_numbers);
+    let mut extras = HashSet::new();
+    for block in &blocks {
+        if !holes.remove(&block.number) {
+            extras.insert(block.number);
+        }
+    }
+    if !holes.is_empty() {
+        return Err(BatchGetBlocksError::Holes(holes));
+    }
+    if !extras.is_empty() {
+        return Err(BatchGetBlocksError::Extras(extras));
+    }
+    Ok(blocks)
+}
+
+#[cfg(test)]
+mod tests {
+    use maplit::hashset;
+
+    use super::{
+        ensure_batch_get_blocks_is_correct,
+        RawBlock,
+    };
+    use crate::executor::client::BatchGetBlocksError;
+
+    fn block(number: u32) -> RawBlock {
+        RawBlock {
+            number,
+            ..RawBlock::default()
+        }
+    }
+
+    #[test]
+    fn correct_batched_blocks_is_returned_sorted() {
+        let range = 2..=7;
+        let expected: Vec<_> = range.clone().map(block).collect();
+        let blocks: Vec<_> = range.clone().rev().map(block).collect();
+        assert_eq!(
+            Ok(expected),
+            ensure_batch_get_blocks_is_correct(blocks, range),
+        );
+    }
+
+    #[test]
+    fn batched_blocks_with_dupes_are_caught() {
+        let range = 2..=7;
+        let mut blocks: Vec<_> = range.clone().map(block).collect();
+        blocks.push(block(5));
+        blocks.push(block(3));
+        assert_eq!(
+            Err(BatchGetBlocksError::Dupes(hashset! {3, 5})),
+            ensure_batch_get_blocks_is_correct(blocks, range),
+        );
+    }
+
+    #[test]
+    fn batched_blocks_with_holes_are_caught() {
+        let range = 2..=7;
+        let mut blocks: Vec<_> = range.clone().map(block).collect();
+        blocks.swap_remove(2); // index 2 => block number 4
+        blocks.swap_remove(2); // index 2 => block number 7
+        assert_eq!(
+            Err(BatchGetBlocksError::Holes(hashset! {4, 7})),
+            ensure_batch_get_blocks_is_correct(blocks, range),
+        );
+    }
+
+    #[test]
+    fn batched_blocks_with_extras_are_caught() {
+        let range = 2..=7;
+        let mut blocks: Vec<_> = range.clone().map(block).collect();
+        blocks.push(block(8));
+        blocks.push(block(9));
+        assert_eq!(
+            Err(BatchGetBlocksError::Extras(hashset! {8, 9})),
+            ensure_batch_get_blocks_is_correct(blocks, range),
+        );
     }
 }
