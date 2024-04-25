@@ -13,7 +13,7 @@ use celestia_client::celestia_types::{
 use prost::Message as _;
 use sequencer_client::SequencerBlock;
 use tendermint::block::Height as SequencerHeight;
-use tracing::info;
+use tracing::debug;
 
 use crate::metrics_init;
 
@@ -102,7 +102,7 @@ pub(super) fn convert(block: SequencerBlock) -> eyre::Result<Converted> {
     // gauges require f64, it's okay if the metrics get messed up by overflow or precision loss
     #[allow(clippy::cast_precision_loss)]
     let compression_ratio = total_data_uncompressed_size as f64 / total_data_compressed_size as f64;
-    info!(
+    debug!(
         sequencer_height = %sequencer_height,
         total_data_compressed_size = total_data_compressed_size,
         compression_ratio = compression_ratio,
