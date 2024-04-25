@@ -21,7 +21,6 @@ use tracing::instrument;
 
 use crate::{
     accounts::{
-        action::TRANSFER_FEE,
         state_ext::{
             StateReadExt,
             StateWriteExt,
@@ -72,6 +71,8 @@ pub(crate) async fn check_balance_mempool<S: StateReadExt + 'static>(
     state: &S,
 ) -> anyhow::Result<()> {
     use std::collections::HashMap;
+    
+    let transfer_fee = state.get_transfer_base_fee().await.context("failed to get transfer base fee")?;
 
     let signer_address = Address::from_verification_key(tx.verification_key());
     let mut fees_by_asset = HashMap::new();
@@ -84,8 +85,8 @@ pub(crate) async fn check_balance_mempool<S: StateReadExt + 'static>(
                     .or_insert(act.amount);
                 fees_by_asset
                     .entry(act.fee_asset_id)
-                    .and_modify(|amt| *amt += TRANSFER_FEE)
-                    .or_insert(TRANSFER_FEE);
+                    .and_modify(|amt| *amt += transfer_fee)
+                    .or_insert(transfer_fee);
             }
             Action::Sequence(act) => {
                 let fee = crate::sequence::calculate_fee(&act.data)
@@ -118,8 +119,8 @@ pub(crate) async fn check_balance_mempool<S: StateReadExt + 'static>(
                     .or_insert(act.amount);
                 fees_by_asset
                     .entry(act.fee_asset_id)
-                    .and_modify(|amt| *amt += TRANSFER_FEE)
-                    .or_insert(TRANSFER_FEE);
+                    .and_modify(|amt| *amt += transfer_fee)
+                    .or_insert(transfer_fee);
             }
             Action::ValidatorUpdate(_)
             | Action::SudoAddressChange(_)
@@ -467,6 +468,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot);
 
+        state_tx.put_transfer_base_fee(crate::accounts::component::DEFAULT_TRANSFER_BASE_FEE).unwrap();
         crate::asset::initialize_native_asset(DEFAULT_NATIVE_ASSET_DENOM);
         let native_asset = crate::asset::get_native_asset().id();
         let other_asset = Denom::from_base_denom("other").id();
@@ -474,11 +476,12 @@ mod test {
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
         let amount = 100;
         let data = [0; 32].to_vec();
+        let transfer_fee = state_tx.get_transfer_base_fee().await.unwrap();
         state_tx
             .increase_balance(
                 alice_address,
                 native_asset,
-                TRANSFER_FEE + crate::sequence::calculate_fee(&data).unwrap(),
+                transfer_fee + crate::sequence::calculate_fee(&data).unwrap(),
             )
             .await
             .unwrap();
@@ -521,7 +524,8 @@ mod test {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot);
-
+        
+        state_tx.put_transfer_base_fee(crate::accounts::component::DEFAULT_TRANSFER_BASE_FEE).unwrap();
         crate::asset::initialize_native_asset(DEFAULT_NATIVE_ASSET_DENOM);
         let native_asset = crate::asset::get_native_asset().id();
         let other_asset = Denom::from_base_denom("other").id();
@@ -529,11 +533,12 @@ mod test {
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
         let amount = 100;
         let data = [0; 32].to_vec();
+        let transfer_fee = state_tx.get_transfer_base_fee().await.unwrap();
         state_tx
             .increase_balance(
                 alice_address,
                 native_asset,
-                TRANSFER_FEE + crate::sequence::calculate_fee(&data).unwrap(),
+                transfer_fee + crate::sequence::calculate_fee(&data).unwrap(),
             )
             .await
             .unwrap();

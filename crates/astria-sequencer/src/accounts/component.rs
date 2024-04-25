@@ -17,6 +17,10 @@ use crate::{
     genesis::GenesisState,
 };
 
+/// Default transfer base fee.
+/// TODO: put in app genesis state
+pub(crate) const DEFAULT_TRANSFER_BASE_FEE: u128 = 12;
+
 #[derive(Default)]
 pub(crate) struct AccountsComponent;
 
@@ -33,6 +37,7 @@ impl Component for AccountsComponent {
                 .context("failed writing account balance to state")?;
         }
 
+        state.put_transfer_base_fee(DEFAULT_TRANSFER_BASE_FEE).context("failed to put transfer base fee")?;
         Ok(())
     }
 

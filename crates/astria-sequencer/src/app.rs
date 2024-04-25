@@ -1057,7 +1057,6 @@ mod test {
 
     use super::*;
     use crate::{
-        accounts::action::TRANSFER_FEE,
         app::test_utils::*,
         asset::get_native_asset,
         authority::state_ext::ValidatorSet,
@@ -1289,12 +1288,13 @@ mod test {
                 .unwrap(),
             value + 10u128.pow(19)
         );
+        let transfer_fee = app.state.get_transfer_base_fee().await.unwrap();
         assert_eq!(
             app.state
                 .get_account_balance(alice_address, native_asset)
                 .await
                 .unwrap(),
-            10u128.pow(19) - (value + TRANSFER_FEE),
+            10u128.pow(19) - (value + transfer_fee),
         );
         assert_eq!(app.state.get_account_nonce(bob_address).await.unwrap(), 0);
         assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
@@ -1353,12 +1353,13 @@ mod test {
             value, // transferred amount
         );
 
+        let transfer_fee = app.state.get_transfer_base_fee().await.unwrap();
         assert_eq!(
             app.state
                 .get_account_balance(alice_address, native_asset)
                 .await
                 .unwrap(),
-            10u128.pow(19) - TRANSFER_FEE, // genesis balance - fee
+            10u128.pow(19) - transfer_fee, // genesis balance - fee
         );
         assert_eq!(
             app.state
@@ -1929,12 +1930,13 @@ mod test {
 
         app.execute_transaction(signed_tx).await.unwrap();
         assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
+        let transfer_fee = app.state.get_transfer_base_fee().await.unwrap();
         assert_eq!(
             app.state
                 .get_account_balance(alice_address, asset_id)
                 .await
                 .unwrap(),
-            alice_before_balance - (amount + TRANSFER_FEE)
+            alice_before_balance - (amount + transfer_fee)
         );
         assert_eq!(
             app.state
@@ -2328,12 +2330,13 @@ mod test {
         app.commit(storage).await;
 
         // assert that transaction fees were transferred to the block proposer
+        let transfer_fee = app.state.get_transfer_base_fee().await.unwrap();
         assert_eq!(
             app.state
                 .get_account_balance(sequencer_proposer_address, native_asset)
                 .await
                 .unwrap(),
-            TRANSFER_FEE,
+            transfer_fee,
         );
         assert_eq!(app.state.get_block_fees().await.unwrap().len(), 0);
     }
