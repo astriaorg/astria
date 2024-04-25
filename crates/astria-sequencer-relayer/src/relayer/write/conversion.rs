@@ -11,6 +11,7 @@ use celestia_client::celestia_types::{
 use prost::Message as _;
 use sequencer_client::SequencerBlock;
 use tendermint::block::Height as SequencerHeight;
+use tracing::info;
 
 use crate::metrics_init;
 
@@ -95,15 +96,23 @@ pub(super) fn convert(block: SequencerBlock) -> eyre::Result<Converted> {
         blobs.push(blob);
         rollups.push(info);
     }
-    
+
+    let compression_ratio =
+        total_data_uncompressed_size / total_data_compressed_size;
+    info!(
+        sequencer_height = sequencer_height,
+        total_data_compressed_size = total_data_compressed_size,
+        compression_ratio = compression_ratio,
+        "converted blocks into blobs with compressed data",
+    );
     // gauges require f64, it's okay if the metrics get messed up by overflow or precision loss
     #[allow(clippy::cast_precision_loss)]
     metrics::gauge!(metrics_init::TOTAL_ASTRIA_BLOB_DATA_SIZE_FOR_BLOCK)
         .set(total_data_compressed_size as f64);
     #[allow(clippy::cast_precision_loss)]
-    let compression_ratio: f64 =
-        total_data_compressed_size as f64 / total_data_uncompressed_size as f64;
-    metrics::gauge!(metrics_init::COMPRESSION_RATIO_FOR_ASTRIA_BLOCK).set(compression_ratio);
+    metrics::gauge!(metrics_init::COMPRESSION_RATIO_FOR_ASTRIA_BLOCK).set(compression_ratio as f64);
+    
+    
     
     Ok(Converted {
         blobs,
