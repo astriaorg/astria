@@ -1,7 +1,7 @@
 syntax = "proto3";
 package cosmos.base.tendermint.v1beta1;
 
-import "tendermint/p2p/types.proto";
+import "cosmos_sdk/tendermint/p2p/types.proto";
 
 // This file contains types which are copied from
 // https://github.com/celestiaorg/cosmos-sdk/blob/76bcf5af73b0a166552b64f9df0f87cc813aba76/proto/cosmos/base/tendermint/v1beta1/query.proto

@@ -1,8 +1,8 @@
 syntax = "proto3";
 package cosmos.tx.v1beta1;
 
-import "cosmos/base/abci/v1beta1/abci.proto";
-import "cosmos/tx/v1beta1/tx.proto";
+import "cosmos_sdk/cosmos/base/abci/v1beta1/abci.proto";
+import "cosmos_sdk/cosmos/tx/v1beta1/tx.proto";
 
 // This file contains types which are copied from
 // https://github.com/celestiaorg/cosmos-sdk/blob/76bcf5af73b0a166552b64f9df0f87cc813aba76/proto/cosmos/tx/v1beta1/service.proto

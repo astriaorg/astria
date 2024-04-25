@@ -5,6 +5,4 @@ directories:
   - proto/composerapis
   - proto/protocolapis
   - proto/sequencerblockapis
-  - proto/vendored/celestia_app
-  - proto/vendored/celestia_core
-  - proto/vendored/cosmos_sdk
+  - proto/vendored
