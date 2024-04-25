@@ -95,6 +95,9 @@ pub(in crate::relayer) enum TrySubmitError {
         namespace: String,
         log: String,
     },
+    /// The get transaction response specified a negative block height.
+    #[error("get transaction response specifies a negative block height ({0})")]
+    GetTxResponseNegativeBlockHeight(i64),
 }
 
 /// A gRPC status representing an error response from an RPC call.

@@ -229,8 +229,10 @@ impl CelestiaClient {
 
     /// Returns the tx hash if the tx is successfully placed into the node's mempool.
     ///
-    /// Note, we use `BroadcastTxSync`, i.e. `BroadcastMode::Sync` as recommended by CometBFT at
-    /// https://github.com/cometbft/cometbft/blob/b139e139ad9ae6fccb9682aa5c2de4aa952fd055/rpc/openapi/openapi.yaml#L201-L204
+    /// Note, we use `BroadcastTxSync`, i.e. `BroadcastMode::Sync` as recommended by
+    /// [`CometBFT`][cometbft].
+    ///
+    /// [cometbft]: https://github.com/cometbft/cometbft/blob/b139e139ad9ae6fccb9682aa5c2de4aa952fd055/rpc/openapi/openapi.yaml#L201-L204
     async fn broadcast_tx(&mut self, blob_tx: BlobTx) -> Result<TxHash, TrySubmitError> {
         let request = BroadcastTxRequest {
             tx_bytes: Bytes::from(blob_tx.encode_to_vec()),
@@ -244,7 +246,7 @@ impl CelestiaClient {
 
     /// Returns `Some(height)` if the tx submission has completed, or `None` if it is still
     /// pending.
-    async fn get_tx(&mut self, tx_hash: TxHash) -> Result<Option<i64>, TrySubmitError> {
+    async fn get_tx(&mut self, tx_hash: TxHash) -> Result<Option<u64>, TrySubmitError> {
         let request = GetTxRequest {
             hash: tx_hash.0.clone(),
         };
@@ -289,11 +291,7 @@ impl CelestiaClient {
         loop {
             tokio::time::sleep(Duration::from_secs(sleep_secs)).await;
             match self.get_tx(tx_hash.clone()).await {
-                Ok(Some(height)) => {
-                    // allow: the height is never negative.
-                    #[allow(clippy::cast_sign_loss)]
-                    return height as u64;
-                }
+                Ok(Some(height)) => return height,
                 Ok(None) => {
                     sleep_secs = MIN_POLL_INTERVAL_SECS;
                     log_if_due(None);
@@ -422,7 +420,7 @@ fn tx_hash_from_response(
 /// not available yet.
 fn block_height_from_response(
     response: Result<Response<GetTxResponse>, Status>,
-) -> Result<Option<i64>, TrySubmitError> {
+) -> Result<Option<u64>, TrySubmitError> {
     let ok_response = match response {
         Ok(resp) => resp,
         Err(status) => {
@@ -455,8 +453,11 @@ fn block_height_from_response(
         return Ok(None);
     }
 
-    debug!(tx_hash = %tx_response.txhash, height = tx_response.height, "transaction succeeded");
-    Ok(Some(tx_response.height))
+    let height = u64::try_from(tx_response.height)
+        .map_err(|_| TrySubmitError::GetTxResponseNegativeBlockHeight(tx_response.height))?;
+
+    debug!(tx_hash = %tx_response.txhash, height, "transaction succeeded");
+    Ok(Some(height))
 }
 
 // Copied from https://github.com/celestiaorg/celestia-app/blob/v1.4.0/x/blob/types/payforblob.go#L174

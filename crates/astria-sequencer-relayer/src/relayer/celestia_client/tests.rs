@@ -314,7 +314,7 @@ fn block_height_from_good_response_should_succeed() {
     });
 
     let extracted_height = block_height_from_response(Ok(response)).unwrap();
-    assert_eq!(Some(height), extracted_height);
+    assert_eq!(Some(u64::try_from(height).unwrap()), extracted_height);
 }
 
 #[test]
@@ -358,6 +358,24 @@ fn block_height_from_bad_response_should_fail() {
             assert_eq!(code, received_code,);
             assert_eq!(namespace, received_namespace,);
             assert_eq!(log, received_log,);
+        }
+        _ => panic!("expected `GetTxResponseErrorCode` error, but got {error:?}"),
+    }
+}
+
+#[test]
+fn block_height_from_response_with_negative_height_should_fail() {
+    let height = -9;
+    let tx_response = TxResponseBuilder::new().with_height(height).build();
+    let response = Response::new(GetTxResponse {
+        tx: None,
+        tx_response: Some(tx_response),
+    });
+
+    let error = block_height_from_response(Ok(response)).unwrap_err();
+    match error {
+        TrySubmitError::GetTxResponseNegativeBlockHeight(received_height) => {
+            assert_eq!(height, received_height);
         }
         _ => panic!("expected `GetTxResponseErrorCode` error, but got {error:?}"),
     }
