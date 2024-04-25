@@ -47,7 +47,11 @@ tokio-util = { workspace = true }
 tonic = { workspace = true }
 
 astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
-astria-core = { path = "../astria-core", features = ["client", "serde"] }
+astria-core = { path = "../astria-core", features = [
+  "client",
+  "serde",
+  "brotli",
+] }
 astria-eyre = { path = "../astria-eyre" }
 celestia-client = { package = "astria-celestia-client", path = "../astria-celestia-client" }
 config = { package = "astria-config", path = "../astria-config" }

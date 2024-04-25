@@ -1,3 +1,4 @@
+use astria_core::brotli::decompress_bytes;
 use celestia_client::{
     celestia_types::{
         nmt::Namespace,
@@ -97,7 +98,15 @@ impl ConvertedBlobs {
 
 fn convert_header(blob: &Blob) -> Option<CelestiaSequencerBlob> {
     use astria_core::generated::sequencerblock::v1alpha1::CelestiaSequencerBlob as ProtoType;
-    let raw = ProtoType::decode(&*blob.data)
+    let data = decompress_bytes(&blob.data)
+        .inspect_err(|err| {
+            info!(
+                error = err as &StdError,
+                "failed decompressing blob data; dropping the blob",
+            );
+        })
+        .ok()?;
+    let raw = ProtoType::decode(&*data)
         .inspect_err(|err| {
             info!(
                 error = err as &StdError,
@@ -118,7 +127,15 @@ fn convert_header(blob: &Blob) -> Option<CelestiaSequencerBlob> {
 
 fn convert_rollup(blob: &Blob) -> Option<CelestiaRollupBlob> {
     use astria_core::generated::sequencerblock::v1alpha1::CelestiaRollupBlob as ProtoType;
-    let raw_blob = ProtoType::decode(&*blob.data)
+    let data = decompress_bytes(&blob.data)
+        .inspect_err(|err| {
+            info!(
+                error = err as &StdError,
+                "failed decompressing rollup blob data; dropping the blob",
+            );
+        })
+        .ok()?;
+    let raw_blob = ProtoType::decode(&*data)
         .inspect_err(|err| {
             info!(
                 error = err as &StdError,

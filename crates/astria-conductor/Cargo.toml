@@ -13,7 +13,11 @@ name = "astria-conductor"
 
 [dependencies]
 astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
-astria-core = { path = "../astria-core", features = ["client", "serde"] }
+astria-core = { path = "../astria-core", features = [
+  "client",
+  "serde",
+  "brotli",
+] }
 astria-eyre = { path = "../astria-eyre" }
 celestia-client = { package = "astria-celestia-client", path = "../astria-celestia-client" }
 config = { package = "astria-config", path = "../astria-config" }
@@ -56,7 +60,11 @@ tracing-futures = { version = "0.2.5", features = ["futures-03"] }
 moka = { version = "0.12.5", features = ["future"] }
 
 [dev-dependencies]
-astria-core = { path = "../astria-core", features = ["server", "test-utils"] }
+astria-core = { path = "../astria-core", features = [
+  "server",
+  "test-utils",
+  "brotli",
+] }
 astria-grpc-mock = { path = "../astria-grpc-mock" }
 config = { package = "astria-config", path = "../astria-config", features = [
   "tests",
