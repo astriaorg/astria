@@ -21,8 +21,7 @@ use astria_core::{
         GetSequencerBlockRequest,
         SequencerBlock as RawSequencerBlock,
     },
-    protocol::test_utils::make_cometbft_block,
-    sequencerblock::v1alpha1::SequencerBlock,
+    protocol::test_utils::ConfigureSequencerBlock,
 };
 use astria_sequencer_relayer::{
     config::Config,
@@ -231,19 +230,28 @@ impl TestSequencerRelayer {
     }
 
     pub fn mount_block_response<const RELAY_SELF: bool>(&mut self, height: u32) -> BlockGuard {
+        use astria_core::primitive::v1::RollupId;
+
         let proposer = if RELAY_SELF {
             self.account
         } else {
             tendermint::account::Id::try_from(vec![0u8; 20]).unwrap()
         };
 
-        let mut cometbft_block = make_cometbft_block();
-        cometbft_block.header.height = height.into();
-        cometbft_block.header.proposer_address = proposer;
-
         let (tx, rx) = oneshot::channel();
 
-        let block = SequencerBlock::try_from_cometbft(cometbft_block).unwrap();
+        let block = ConfigureSequencerBlock {
+            block_hash: Some([99u8; 32]),
+            height,
+            proposer_address: Some(proposer),
+            sequence_data: vec![(
+                RollupId::from_unhashed_bytes(b"some_rollup_id"),
+                vec![99u8; 32],
+            )],
+            ..Default::default()
+        }
+        .make();
+
         let mut blocks = self.sequencer_server_blocks.lock().unwrap();
         blocks.push_back((tx, block.into_raw()));
         BlockGuard {
@@ -258,19 +266,19 @@ impl TestSequencerRelayer {
             tendermint::account::Id::try_from(vec![0u8; 20]).unwrap()
         };
 
-        let mut cometbft_block = make_cometbft_block();
-        cometbft_block.header.height = height.into();
-        cometbft_block.header.proposer_address = proposer;
-
         let (tx, rx) = oneshot::channel();
 
-        let mut block = SequencerBlock::try_from_cometbft(cometbft_block)
-            .unwrap()
-            .into_raw();
+        let block = ConfigureSequencerBlock {
+            height,
+            proposer_address: Some(proposer),
+            ..Default::default()
+        }
+        .make();
+        let mut block = block.into_raw();
 
         // make the block bad!!
-        let cometbft_header = block.header.as_mut().unwrap();
-        cometbft_header.data_hash = [0; 32].to_vec();
+        let header = block.header.as_mut().unwrap();
+        header.data_hash = [0; 32].to_vec();
 
         let mut blocks = self.sequencer_server_blocks.lock().unwrap();
         blocks.push_back((tx, block));
