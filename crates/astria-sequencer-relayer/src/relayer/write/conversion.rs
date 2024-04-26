@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use astria_core::{
     brotli::compress_bytes,
     primitive::v1::RollupId,
@@ -17,7 +15,10 @@ use sequencer_client::SequencerBlock;
 use tendermint::block::Height as SequencerHeight;
 use tracing::debug;
 
-use crate::metrics_init;
+use crate::{
+    metrics_init,
+    IncludeRollup,
+};
 
 // allow: the signature is dictated by the `serde(serialize_with = ...)` attribute.
 #[allow(clippy::trivially_copy_pass_by_ref)]
@@ -63,13 +64,12 @@ pub(super) struct Converted {
 
 /// Convert the given sequencer block into a collection of blobs and related metadata.
 ///
-/// If `include` is empty, blobs from all rollups will be included.  Otherwise only blobs from the
-/// rollups specified in `include` will be included.
+/// Only blobs from the rollups specified in `rollup_filter` will be included.
 // allow: we'd need static lifetime on a ref to avoid pass-by-value here.
 #[allow(clippy::needless_pass_by_value)]
 pub(super) fn convert(
     block: SequencerBlock,
-    include: HashSet<RollupId>,
+    rollup_filter: IncludeRollup,
 ) -> eyre::Result<Converted> {
     let sequencer_height = block.height();
     let mut total_data_uncompressed_size = 0;
@@ -101,7 +101,7 @@ pub(super) fn convert(
             celestia_namespace: namespace,
             sequencer_rollup_id: rollup_id,
         };
-        if include.is_empty() || include.contains(&rollup_id) {
+        if rollup_filter.should_include(&rollup_id) {
             let raw_blob = blob.into_raw().encode_to_vec();
             total_data_uncompressed_size += raw_blob.len();
             let compressed_blob = compress_bytes(&raw_blob)

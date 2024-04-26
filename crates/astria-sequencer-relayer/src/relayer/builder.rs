@@ -1,14 +1,10 @@
 use std::{
-    collections::HashSet,
     path::PathBuf,
     sync::Arc,
     time::Duration,
 };
 
-use astria_core::{
-    generated::sequencerblock::v1alpha1::sequencer_service_client::SequencerServiceClient,
-    primitive::v1::RollupId,
-};
+use astria_core::generated::sequencerblock::v1alpha1::sequencer_service_client::SequencerServiceClient;
 use astria_eyre::eyre::{
     self,
     WrapErr as _,
@@ -24,7 +20,10 @@ use super::{
     CelestiaClientBuilder,
     CelestiaKeys,
 };
-use crate::validator::Validator;
+use crate::{
+    validator::Validator,
+    IncludeRollup,
+};
 
 pub(crate) struct Builder {
     pub(crate) shutdown_token: tokio_util::sync::CancellationToken,
@@ -34,7 +33,7 @@ pub(crate) struct Builder {
     pub(crate) sequencer_poll_period: Duration,
     pub(crate) sequencer_grpc_endpoint: String,
     pub(crate) validator_key_path: Option<String>,
-    pub(crate) rollup_id_filter: HashSet<RollupId>,
+    pub(crate) rollup_filter: IncludeRollup,
     pub(crate) pre_submit_path: PathBuf,
     pub(crate) post_submit_path: PathBuf,
 }
@@ -50,7 +49,7 @@ impl Builder {
             sequencer_poll_period,
             sequencer_grpc_endpoint,
             validator_key_path,
-            rollup_id_filter,
+            rollup_filter,
             pre_submit_path,
             post_submit_path,
         } = self;
@@ -89,7 +88,7 @@ impl Builder {
             sequencer_poll_period,
             celestia_client_builder,
             validator,
-            rollup_id_filter,
+            rollup_filter,
             state,
             pre_submit_path,
             post_submit_path,

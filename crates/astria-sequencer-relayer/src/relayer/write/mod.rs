@@ -9,7 +9,6 @@
 //! another task sends sequencer blocks ordered by their heights, then
 //! they will be written in that order.
 use std::{
-    collections::HashSet,
     future::Future,
     mem,
     sync::Arc,
@@ -17,7 +16,6 @@ use std::{
     time::Duration,
 };
 
-use astria_core::primitive::v1::RollupId;
 use astria_eyre::eyre::{
     self,
     WrapErr as _,
@@ -68,6 +66,7 @@ use super::{
     SubmissionState,
     TrySubmitError,
 };
+use crate::IncludeRollup;
 
 mod conversion;
 
@@ -193,8 +192,8 @@ pub(super) struct BlobSubmitter {
     /// The builder for a client to submit blobs to Celestia.
     client_builder: CelestiaClientBuilder,
 
-    /// The rollup IDs to include in submissions (all rollups if filter is empty).
-    rollup_id_filter: HashSet<RollupId>,
+    /// The rollups whose data should be included in submissions.
+    rollup_filter: IncludeRollup,
 
     /// The channel over which sequencer blocks are received.
     blocks: mpsc::Receiver<SequencerBlock>,
@@ -221,7 +220,7 @@ pub(super) struct BlobSubmitter {
 impl BlobSubmitter {
     pub(super) fn new(
         client_builder: CelestiaClientBuilder,
-        rollup_id_filter: HashSet<RollupId>,
+        rollup_filter: IncludeRollup,
         state: Arc<super::State>,
         submission_state: SubmissionState,
         shutdown_token: CancellationToken,
@@ -231,7 +230,7 @@ impl BlobSubmitter {
         let (tx, rx) = mpsc::channel(128);
         let submitter = Self {
             client_builder,
-            rollup_id_filter,
+            rollup_filter,
             blocks: rx,
             conversions: Conversions::new(8),
             blobs: QueuedConvertedBlocks::with_max_blobs(128),
@@ -317,7 +316,7 @@ impl BlobSubmitter {
                         height = %block.height(),
                         "received sequencer block for submission",
                     );
-                    self.conversions.push(block, self.rollup_id_filter.clone());
+                    self.conversions.push(block, self.rollup_filter.clone());
                 }
 
             );
@@ -543,9 +542,9 @@ impl Conversions {
         self.active.len() < self.max_conversions
     }
 
-    fn push(&mut self, block: SequencerBlock, include: HashSet<RollupId>) {
+    fn push(&mut self, block: SequencerBlock, rollup_filter: IncludeRollup) {
         let height = block.height();
-        let conversion = tokio::task::spawn_blocking(move || convert(block, include));
+        let conversion = tokio::task::spawn_blocking(move || convert(block, rollup_filter));
         let fut = async move {
             let res = crate::utils::flatten(conversion.await);
             (height, res)
