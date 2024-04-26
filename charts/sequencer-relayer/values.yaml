@@ -39,7 +39,7 @@ config:
 
   celestiaAppPrivateKey:
     devContent: "8241386890823ca14743e5d4d583f879a5236af29f454ed4da6fe62b8439e2ab"
-    secret: 
+    secret:
       filename: "key.hex"
       resourceName: "projects/$PROJECT_ID/secrets/celestiaPrivateKey/versions/latest"
       key: token
