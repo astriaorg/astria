@@ -59,4 +59,3 @@ spec:
           configMap:
             name: relayer-celestia-key
           {{- end }}
-        {{- end}}
