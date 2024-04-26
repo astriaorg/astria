@@ -14,7 +14,13 @@ use astria_core::{
 use tracing::instrument;
 
 use crate::{
-    accounts::action::transfer_check_stateful,
+    accounts::{
+        action::transfer_check_stateful,
+        state_ext::{
+            StateReadExt as _,
+            StateWriteExt as _,
+        },
+    },
     bridge::state_ext::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -25,6 +31,8 @@ use crate::{
     },
     transaction::action_handler::ActionHandler,
 };
+
+pub(crate) const DEPOSIT_BYTE_LEN: u128 = std::mem::size_of::<Deposit>() as u128;
 
 #[async_trait::async_trait]
 impl ActionHandler for BridgeLockAction {
@@ -58,6 +66,22 @@ impl ActionHandler for BridgeLockAction {
             "asset ID is not authorized for transfer to bridge account",
         );
 
+        let from_balance = state
+            .get_account_balance(from, self.fee_asset_id)
+            .await
+            .context("failed to get sender account balance")?;
+        let transfer_fee = state
+            .get_transfer_base_fee()
+            .await
+            .context("failed to get transfer base fee")?;
+
+        let byte_cost_multiplier = state
+            .get_bridge_lock_byte_cost_multiplier()
+            .await
+            .context("failed to get byte cost multiplier")?;
+        let fee = byte_cost_multiplier * DEPOSIT_BYTE_LEN + transfer_fee;
+        ensure!(from_balance >= fee, "insuffient funds for fee payment",);
+
         // this performs the same checks as a normal `TransferAction`,
         // but without the check that prevents transferring to a bridge account,
         // as we are explicitly transferring to a bridge account here.
@@ -77,6 +101,19 @@ impl ActionHandler for BridgeLockAction {
             .execute(state, from)
             .await
             .context("failed to execute bridge lock action as transfer action")?;
+
+        // the transfer fee is already deducted in `transfer_action.execute()`,
+        // so we just deduct the bridge lock byte multiplier fee.
+        let byte_cost_multiplier = state
+            .get_bridge_lock_byte_cost_multiplier()
+            .await
+            .context("failed to get byte cost multiplier")?;
+        let fee = byte_cost_multiplier * DEPOSIT_BYTE_LEN;
+
+        state
+            .decrease_balance(from, self.fee_asset_id, fee)
+            .await
+            .context("failed to deduct fee from account balance")?;
 
         let rollup_id = state
             .get_bridge_account_rollup_id(&self.to)

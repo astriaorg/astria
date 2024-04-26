@@ -35,7 +35,10 @@ pub(crate) async fn transfer_check_stateful<S: StateReadExt + 'static>(
         "invalid fee asset",
     );
 
-    let fee = state.get_transfer_base_fee().await.context("failed to get transfer base fee")?;
+    let fee = state
+        .get_transfer_base_fee()
+        .await
+        .context("failed to get transfer base fee")?;
     let transfer_asset_id = action.asset_id;
 
     let from_fee_balance = state
@@ -107,7 +110,10 @@ impl ActionHandler for TransferAction {
         )
     )]
     async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> Result<()> {
-        let fee = state.get_transfer_base_fee().await.context("failed to get transfer base fee")?;
+        let fee = state
+            .get_transfer_base_fee()
+            .await
+            .context("failed to get transfer base fee")?;
         state
             .get_and_increase_block_fees(self.fee_asset_id, fee)
             .await

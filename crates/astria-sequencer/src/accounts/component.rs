@@ -37,7 +37,9 @@ impl Component for AccountsComponent {
                 .context("failed writing account balance to state")?;
         }
 
-        state.put_transfer_base_fee(DEFAULT_TRANSFER_BASE_FEE).context("failed to put transfer base fee")?;
+        state
+            .put_transfer_base_fee(DEFAULT_TRANSFER_BASE_FEE)
+            .context("failed to put transfer base fee")?;
         Ok(())
     }
 

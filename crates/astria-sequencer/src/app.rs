@@ -69,9 +69,12 @@ use crate::{
             StateWriteExt as _,
         },
     },
-    bridge::state_ext::{
-        StateReadExt as _,
-        StateWriteExt,
+    bridge::{
+        component::BridgeComponent,
+        state_ext::{
+            StateReadExt as _,
+            StateWriteExt,
+        },
     },
     component::Component as _,
     genesis::GenesisState,
@@ -84,6 +87,7 @@ use crate::{
             GeneratedCommitments,
         },
     },
+    sequence::component::SequenceComponent,
     state_ext::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -198,9 +202,15 @@ impl App {
         )
         .await
         .context("failed to call init_chain on AuthorityComponent")?;
+        BridgeComponent::init_chain(&mut state_tx, &genesis_state)
+            .await
+            .context("failed to call init_chain on BridgeComponent")?;
         IbcComponent::init_chain(&mut state_tx, &genesis_state)
             .await
             .context("failed to call init_chain on IbcComponent")?;
+        SequenceComponent::init_chain(&mut state_tx, &genesis_state)
+            .await
+            .context("failed to call init_chain on SequenceComponent")?;
 
         state_tx.apply();
 
@@ -797,9 +807,15 @@ impl App {
         AuthorityComponent::begin_block(&mut arc_state_tx, begin_block)
             .await
             .context("failed to call begin_block on AuthorityComponent")?;
+        BridgeComponent::begin_block(&mut arc_state_tx, begin_block)
+            .await
+            .context("failed to call begin_block on BridgeComponent")?;
         IbcComponent::begin_block(&mut arc_state_tx, begin_block)
             .await
             .context("failed to call begin_block on IbcComponent")?;
+        SequenceComponent::begin_block(&mut arc_state_tx, begin_block)
+            .await
+            .context("failed to call begin_block on SequenceComponent")?;
 
         let state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
@@ -870,9 +886,15 @@ impl App {
         AuthorityComponent::end_block(&mut arc_state_tx, &end_block)
             .await
             .context("failed to call end_block on AuthorityComponent")?;
+        BridgeComponent::end_block(&mut arc_state_tx, &end_block)
+            .await
+            .context("failed to call end_block on BridgeComponent")?;
         IbcComponent::end_block(&mut arc_state_tx, &end_block)
             .await
             .context("failed to call end_block on IbcComponent")?;
+        SequenceComponent::end_block(&mut arc_state_tx, &end_block)
+            .await
+            .context("failed to call end_block on SequenceComponent")?;
 
         let mut state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
@@ -1062,7 +1084,7 @@ mod test {
         authority::state_ext::ValidatorSet,
         genesis::Account,
         ibc::state_ext::StateReadExt as _,
-        sequence::calculate_fee,
+        sequence::calculate_fee_from_state,
         transaction::InvalidChainId,
     };
 
@@ -1412,11 +1434,17 @@ mod test {
 
     #[tokio::test]
     async fn app_execute_transaction_sequence() {
+        use crate::sequence::state_ext::StateWriteExt as _;
+
         let mut app = initialize_app(None, vec![]).await;
+        let mut state_tx = StateDelta::new(app.state.clone());
+        state_tx.put_sequence_action_base_fee(0);
+        state_tx.put_sequence_action_byte_cost_multiplier(1);
+        app.apply(state_tx);
 
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
         let data = b"hello world".to_vec();
-        let fee = calculate_fee(&data).unwrap();
+        let fee = calculate_fee_from_state(&data, &app.state).await.unwrap();
 
         let tx = UnsignedTransaction {
             params: TransactionParams {
@@ -1788,10 +1816,12 @@ mod test {
     async fn app_execute_transaction_init_bridge_account_ok() {
         use astria_core::protocol::transaction::v1alpha1::action::InitBridgeAccountAction;
 
-        use crate::bridge::init_bridge_account_action::INIT_BRIDGE_ACCOUNT_FEE;
-
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
         let mut app = initialize_app(None, vec![]).await;
+        let mut state_tx = StateDelta::new(app.state.clone());
+        let fee = 12; // arbitrary
+        state_tx.put_init_bridge_account_base_fee(fee);
+        app.apply(state_tx);
 
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
         let asset_id = get_native_asset().id();
@@ -1837,7 +1867,7 @@ mod test {
                 .get_account_balance(alice_address, asset_id)
                 .await
                 .unwrap(),
-            before_balance - INIT_BRIDGE_ACCOUNT_FEE
+            before_balance - fee,
         );
     }
 
@@ -1931,12 +1961,19 @@ mod test {
         app.execute_transaction(signed_tx).await.unwrap();
         assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
         let transfer_fee = app.state.get_transfer_base_fee().await.unwrap();
+        let fee = transfer_fee
+            + app
+                .state
+                .get_bridge_lock_byte_cost_multiplier()
+                .await
+                .unwrap()
+                * crate::bridge::DEPOSIT_BYTE_LEN;
         assert_eq!(
             app.state
                 .get_account_balance(alice_address, asset_id)
                 .await
                 .unwrap(),
-            alice_before_balance - (amount + transfer_fee)
+            alice_before_balance - (amount + fee)
         );
         assert_eq!(
             app.state

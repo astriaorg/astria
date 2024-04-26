@@ -20,16 +20,13 @@ use astria_core::{
 use tracing::instrument;
 
 use crate::{
-    accounts::{
-        state_ext::{
-            StateReadExt,
-            StateWriteExt,
-        },
+    accounts::state_ext::{
+        StateReadExt,
+        StateWriteExt,
     },
-    bridge::init_bridge_account_action::INIT_BRIDGE_ACCOUNT_FEE,
+    bridge::state_ext::StateReadExt as _,
     ibc::{
         host_interface::AstriaHost,
-        ics20_withdrawal::ICS20_WITHDRAWAL_FEE,
         state_ext::StateReadExt as _,
     },
     state_ext::StateReadExt as _,
@@ -71,8 +68,19 @@ pub(crate) async fn check_balance_mempool<S: StateReadExt + 'static>(
     state: &S,
 ) -> anyhow::Result<()> {
     use std::collections::HashMap;
-    
-    let transfer_fee = state.get_transfer_base_fee().await.context("failed to get transfer base fee")?;
+
+    let transfer_fee = state
+        .get_transfer_base_fee()
+        .await
+        .context("failed to get transfer base fee")?;
+    let ics20_withdrawal_fee = state
+        .get_ics20_withdrawal_base_fee()
+        .await
+        .context("failed to get ics20 withdrawal base fee")?;
+    let init_bridge_account_fee = state
+        .get_init_bridge_account_base_fee()
+        .await
+        .context("failed to get init bridge account base fee")?;
 
     let signer_address = Address::from_verification_key(tx.verification_key());
     let mut fees_by_asset = HashMap::new();
@@ -89,7 +97,8 @@ pub(crate) async fn check_balance_mempool<S: StateReadExt + 'static>(
                     .or_insert(transfer_fee);
             }
             Action::Sequence(act) => {
-                let fee = crate::sequence::calculate_fee(&act.data)
+                let fee = crate::sequence::calculate_fee_from_state(&act.data, state)
+                    .await
                     .context("fee for sequence action overflowed; data too large")?;
                 fees_by_asset
                     .entry(act.fee_asset_id)
@@ -103,14 +112,14 @@ pub(crate) async fn check_balance_mempool<S: StateReadExt + 'static>(
                     .or_insert(act.amount());
                 fees_by_asset
                     .entry(*act.fee_asset_id())
-                    .and_modify(|amt| *amt += ICS20_WITHDRAWAL_FEE)
-                    .or_insert(ICS20_WITHDRAWAL_FEE);
+                    .and_modify(|amt| *amt += ics20_withdrawal_fee)
+                    .or_insert(ics20_withdrawal_fee);
             }
             Action::InitBridgeAccount(act) => {
                 fees_by_asset
                     .entry(act.fee_asset_id)
-                    .and_modify(|amt| *amt += INIT_BRIDGE_ACCOUNT_FEE)
-                    .or_insert(INIT_BRIDGE_ACCOUNT_FEE);
+                    .and_modify(|amt| *amt += init_bridge_account_fee)
+                    .or_insert(init_bridge_account_fee);
             }
             Action::BridgeLock(act) => {
                 fees_by_asset
@@ -460,7 +469,13 @@ mod test {
     use cnidarium::StateDelta;
 
     use super::*;
-    use crate::app::test_utils::*;
+    use crate::{
+        accounts::state_ext::StateWriteExt as _,
+        app::test_utils::*,
+        bridge::state_ext::StateWriteExt,
+        ibc::state_ext::StateWriteExt as _,
+        sequence::state_ext::StateWriteExt as _,
+    };
 
     #[tokio::test]
     async fn check_balance_mempool_ok() {
@@ -468,7 +483,15 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot);
 
-        state_tx.put_transfer_base_fee(crate::accounts::component::DEFAULT_TRANSFER_BASE_FEE).unwrap();
+        state_tx
+            .put_transfer_base_fee(crate::accounts::component::DEFAULT_TRANSFER_BASE_FEE)
+            .unwrap();
+        state_tx.put_sequence_action_base_fee(0);
+        state_tx.put_sequence_action_byte_cost_multiplier(1);
+        state_tx.put_ics20_withdrawal_base_fee(1).unwrap();
+        state_tx.put_init_bridge_account_base_fee(12);
+        state_tx.put_bridge_lock_byte_cost_multiplier(1);
+
         crate::asset::initialize_native_asset(DEFAULT_NATIVE_ASSET_DENOM);
         let native_asset = crate::asset::get_native_asset().id();
         let other_asset = Denom::from_base_denom("other").id();
@@ -481,7 +504,10 @@ mod test {
             .increase_balance(
                 alice_address,
                 native_asset,
-                transfer_fee + crate::sequence::calculate_fee(&data).unwrap(),
+                transfer_fee
+                    + crate::sequence::calculate_fee_from_state(&data, &state_tx)
+                        .await
+                        .unwrap(),
             )
             .await
             .unwrap();
@@ -524,8 +550,16 @@ mod test {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot);
-        
-        state_tx.put_transfer_base_fee(crate::accounts::component::DEFAULT_TRANSFER_BASE_FEE).unwrap();
+
+        state_tx
+            .put_transfer_base_fee(crate::accounts::component::DEFAULT_TRANSFER_BASE_FEE)
+            .unwrap();
+        state_tx.put_sequence_action_base_fee(0);
+        state_tx.put_sequence_action_byte_cost_multiplier(1);
+        state_tx.put_ics20_withdrawal_base_fee(1).unwrap();
+        state_tx.put_init_bridge_account_base_fee(12);
+        state_tx.put_bridge_lock_byte_cost_multiplier(1);
+
         crate::asset::initialize_native_asset(DEFAULT_NATIVE_ASSET_DENOM);
         let native_asset = crate::asset::get_native_asset().id();
         let other_asset = Denom::from_base_denom("other").id();
@@ -538,7 +572,10 @@ mod test {
             .increase_balance(
                 alice_address,
                 native_asset,
-                transfer_fee + crate::sequence::calculate_fee(&data).unwrap(),
+                transfer_fee
+                    + crate::sequence::calculate_fee_from_state(&data, &state_tx)
+                        .await
+                        .unwrap(),
             )
             .await
             .unwrap();
