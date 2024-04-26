@@ -149,10 +149,10 @@ mod tests {
     fn should_fail_to_create_filter_from_bad_input() {
         // Invalid base64 encoding.
         let input = "CAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAg!";
-        assert!(create_filter(input).is_err());
+        let _ = create_filter(input).unwrap_err();
 
         // Invalid decoded length (31 bytes).
         let input = BASE64_STANDARD.encode([0; 31]);
-        assert!(create_filter(&input).is_err());
+        let _ = create_filter(&input).unwrap_err();
     }
 }
