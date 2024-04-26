@@ -176,24 +176,41 @@ macro_rules! mount_get_commitment_state {
 macro_rules! mount_update_commitment_state {
     (
         $test_env:ident,
+        mock_name: $mock_name:expr,
         firm: ( number: $firm_number:expr, hash: $firm_hash:expr, parent: $firm_parent:expr$(,)? ),
         soft: ( number: $soft_number:expr, hash: $soft_hash:expr, parent: $soft_parent:expr$(,)? )
         $(,)?
     ) => {
         $test_env
-            .mount_update_commitment_state($crate::commitment_state!(
-                firm: (
-                    number: $firm_number,
-                    hash: $firm_hash,
-                    parent: $firm_parent,
+            .mount_update_commitment_state(
+                $mock_name.into(),
+                $crate::commitment_state!(
+                    firm: (
+                        number: $firm_number,
+                        hash: $firm_hash,
+                        parent: $firm_parent,
+                    ),
+                    soft: (
+                        number: $soft_number,
+                        hash: $soft_hash,
+                        parent: $soft_parent,
+                    ),
                 ),
-                soft: (
-                    number: $soft_number,
-                    hash: $soft_hash,
-                    parent: $soft_parent,
-                ),
-        ))
+        )
         .await
+    };
+    (
+        $test_env:ident,
+        firm: ( number: $firm_number:expr, hash: $firm_hash:expr, parent: $firm_parent:expr$(,)? ),
+        soft: ( number: $soft_number:expr, hash: $soft_hash:expr, parent: $soft_parent:expr$(,)? )
+        $(,)?
+    ) => {
+        mount_update_commitment_state!(
+            $test_env,
+            mock_name: None,
+            firm: ( number: $firm_number, hash: $firm_hash, parent: $firm_parent, ),
+            soft: ( number: $soft_number, hash: $soft_hash, parent: $soft_parent, ),
+        )
     };
 }
 
@@ -208,12 +225,14 @@ macro_rules! mount_abci_info {
 macro_rules! mount_executed_block {
     (
         $test_env:ident,
+        mock_name: $mock_name:expr,
         number: $number:expr,
         hash: $hash:expr,
         parent: $parent:expr $(,)?
     ) => {{
         use ::base64::prelude::*;
         $test_env.mount_execute_block(
+            $mock_name.into(),
             ::serde_json::json!({
                 "prev_block_hash": BASE64_STANDARD.encode($parent),
                 "transactions": [{"sequenced_data": BASE64_STANDARD.encode($crate::helpers::data())}],
@@ -225,7 +244,21 @@ macro_rules! mount_executed_block {
             )
         )
         .await
-    }}
+    }};
+    (
+        $test_env:ident,
+        number: $number:expr,
+        hash: $hash:expr,
+        parent: $parent:expr $(,)?
+    ) => {
+        mount_executed_block!(
+            $test_env,
+            mock_name: None,
+            number: $number,
+            hash: $hash,
+            parent: $parent,
+        )
+    };
 }
 
 #[macro_export]
@@ -285,4 +318,39 @@ macro_rules! mount_sequencer_genesis {
     ($test_env:ident) => {
         $test_env.mount_genesis().await;
     };
+}
+
+#[macro_export]
+macro_rules! mount_pending_blocks {
+    (
+        $test_env:ident,
+        [$(
+            (
+            number: $number:expr,
+            hash: $hash:expr,
+            parent: $parent:expr $(,)?
+            )
+        ),+ $(,)?
+        ]
+        $(,)?
+    ) => {{
+        let blocks = vec![$(
+            $crate::block!(
+                number: $number,
+                hash: $hash,
+                parent: $parent,
+            )),*
+        ];
+        let identifiers: Vec<_> = blocks.iter().map(
+            |block| ::astria_core::generated::execution::v1alpha2::BlockIdentifier {
+                identifier: Some(::astria_core::generated::execution::v1alpha2::block_identifier::Identifier::BlockNumber(block.number)),
+        }).collect();
+        $test_env.mount_batch_get_blocks(
+            ::astria_core::generated::execution::v1alpha2::BatchGetBlocksRequest {
+                identifiers,
+            },
+            blocks,
+        )
+        .await
+    }};
 }

@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: BUF
     needs: run_checker
-    if: github.event_name != 'merge_group' && needs.run_checker.outputs.run_release_proto == 'true' && github.repository_owner == 'astriaorg'
+    if: github.event_name != 'merge_group' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == 'astriaorg/astria') && needs.run_checker.outputs.run_release_proto == 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: bufbuild/buf-setup-action@v1
@@ -39,7 +39,7 @@ jobs:
         with:
           draft:  ${{ github.ref_name != 'main'}}
           input: "proto/primitives"
-          buf_token: ${{ secrets.BUF_TOKEN }}   
+          buf_token: ${{ secrets.BUF_TOKEN }}
       - name: "Update Sequencer Block API dependency"
         run: |
           cd proto/sequencerblockapis
@@ -75,7 +75,7 @@ jobs:
         with:
           draft: ${{ github.ref_name != 'main'}}
           input: "proto/protocolapis"
-          buf_token: ${{ secrets.BUF_TOKEN }} 
+          buf_token: ${{ secrets.BUF_TOKEN }}
 
   charts:
     permissions:
@@ -113,7 +113,7 @@ jobs:
     with:
       package-name: 'composer'
       display-name: 'Composer'
-  
+
   sequencer:
     needs: run_checker
     if: needs.run_checker.outputs.run_release_services == 'true'

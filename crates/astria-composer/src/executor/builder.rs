@@ -31,6 +31,7 @@ pub(crate) struct Builder {
     pub(crate) private_key: SecretString,
     pub(crate) block_time_ms: u64,
     pub(crate) max_bytes_per_bundle: usize,
+    pub(crate) bundle_queue_capacity: usize,
     pub(crate) shutdown_token: CancellationToken,
 }
 
@@ -42,6 +43,7 @@ impl Builder {
             private_key,
             block_time_ms,
             max_bytes_per_bundle,
+            bundle_queue_capacity,
             shutdown_token,
         } = self;
         let sequencer_client = sequencer_client::HttpClient::new(sequencer_url.as_str())
@@ -69,6 +71,7 @@ impl Builder {
                 address: sequencer_address,
                 block_time: Duration::from_millis(block_time_ms),
                 max_bytes_per_bundle,
+                bundle_queue_capacity,
                 shutdown_token,
             },
             executor::Handle::new(serialized_rollup_transaction_tx),

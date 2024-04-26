@@ -1,5 +1,6 @@
 use std::{
     collections::VecDeque,
+    io::Write,
     mem,
     net::SocketAddr,
     sync::{
@@ -91,7 +92,7 @@ static TELEMETRY: Lazy<()> = Lazy::new(|| {
 });
 
 /// Copied verbatim from
-/// [tendermint-rs](https://github.com/informalsystems/tendermint-rs/blob/main/config/tests/support/config/priv_validator_key.json)
+/// [tendermint-rs](https://github.com/informalsystems/tendermint-rs/blob/main/config/tests/support/config/priv_validator_key.ed25519.json)
 const PRIVATE_VALIDATOR_KEY: &str = r#"
 {
   "address": "AD7DAE5FEC609CF02F9BDE7D81D0C3CD66141563",
@@ -179,7 +180,7 @@ pub struct TestSequencerRelayer {
 
     pub account: tendermint::account::Id,
 
-    pub keyfile: NamedTempFile,
+    pub validator_keyfile: NamedTempFile,
 
     pub pre_submit_file: NamedTempFile,
     pub post_submit_file: NamedTempFile,
@@ -231,9 +232,6 @@ impl TestSequencerRelayer {
 
     pub fn mount_block_response<const RELAY_SELF: bool>(&mut self, height: u32) -> BlockGuard {
         use astria_core::primitive::v1::RollupId;
-        use rand::Rng;
-
-        let mut rng = rand::thread_rng();
 
         let proposer = if RELAY_SELF {
             self.account
@@ -244,7 +242,7 @@ impl TestSequencerRelayer {
         let (tx, rx) = oneshot::channel();
 
         let block = ConfigureSequencerBlock {
-            block_hash: Some(rng.gen::<[u8; 32]>()),
+            block_hash: Some([99u8; 32]),
             height,
             proposer_address: Some(proposer),
             sequence_data: vec![(
@@ -339,18 +337,12 @@ impl TestSequencerRelayerConfig {
 
         let mut celestia = MockCelestia::start().await;
         let celestia_addr = (&mut celestia.addr_rx).await.unwrap();
+        let celestia_keyfile = write_file(
+            b"c8076374e2a4a58db1c924e3dafc055e9685481054fe99e58ed67f5c6ed80e62".as_slice(),
+        )
+        .await;
 
-        let keyfile = tokio::task::spawn_blocking(|| {
-            use std::io::Write as _;
-
-            let keyfile = NamedTempFile::new().unwrap();
-            (&keyfile)
-                .write_all(PRIVATE_VALIDATOR_KEY.as_bytes())
-                .unwrap();
-            keyfile
-        })
-        .await
-        .unwrap();
+        let validator_keyfile = write_file(PRIVATE_VALIDATOR_KEY.as_bytes()).await;
         let PrivValidatorKey {
             address,
             priv_key,
@@ -392,11 +384,11 @@ impl TestSequencerRelayerConfig {
         let config = Config {
             cometbft_endpoint: cometbft.uri(),
             sequencer_grpc_endpoint: format!("http://{grpc_addr}"),
-            celestia_endpoint: format!("http://{celestia_addr}"),
-            celestia_bearer_token: CELESTIA_BEARER_TOKEN.into(),
+            celestia_app_grpc_endpoint: format!("http://{celestia_addr}"),
+            celestia_app_key_file: celestia_keyfile.path().to_string_lossy().to_string(),
             block_time: 1000,
             relay_only_validator_key_blocks: self.relay_only_self,
-            validator_key_file: keyfile.path().to_string_lossy().to_string(),
+            validator_key_file: validator_keyfile.path().to_string_lossy().to_string(),
             api_addr: "0.0.0.0:0".into(),
             log: String::new(),
             force_stdout: false,
@@ -425,11 +417,21 @@ impl TestSequencerRelayerConfig {
             sequencer_relayer,
             signing_key,
             account: address,
-            keyfile,
+            validator_keyfile,
             pre_submit_file,
             post_submit_file,
         }
     }
+}
+
+async fn write_file(data: &'static [u8]) -> NamedTempFile {
+    tokio::task::spawn_blocking(|| {
+        let keyfile = NamedTempFile::new().unwrap();
+        (&keyfile).write_all(data).unwrap();
+        keyfile
+    })
+    .await
+    .unwrap()
 }
 
 fn create_files_for_fresh_start() -> (NamedTempFile, NamedTempFile) {

@@ -1,6 +1,6 @@
 [package]
 name = "astria-conductor"
-version = "0.13.1"
+version = "0.14.0"
 edition = "2021"
 rust-version = "1.73"
 license = "MIT OR Apache-2.0"
@@ -13,7 +13,11 @@ name = "astria-conductor"
 
 [dependencies]
 astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
-astria-core = { path = "../astria-core", features = ["client", "serde"] }
+astria-core = { path = "../astria-core", features = [
+  "client",
+  "serde",
+  "brotli",
+] }
 astria-eyre = { path = "../astria-eyre" }
 celestia-client = { package = "astria-celestia-client", path = "../astria-celestia-client" }
 config = { package = "astria-config", path = "../astria-config" }
@@ -32,6 +36,7 @@ futures = { workspace = true }
 hex = { workspace = true }
 humantime = { workspace = true }
 indexmap = { workspace = true }
+itertools = { workspace = true }
 itoa = { workspace = true }
 pbjson-types = { workspace = true }
 prost = { workspace = true }
@@ -49,14 +54,17 @@ tryhard = { workspace = true }
 async-trait = "0.1.73"
 futures-bounded = "0.2.3"
 http = "0.2.9"
-itertools = "0.12.1"
 pin-project-lite = "0.2"
 tokio-stream = "0.1.14"
 tracing-futures = { version = "0.2.5", features = ["futures-03"] }
 moka = { version = "0.12.5", features = ["future"] }
 
 [dev-dependencies]
-astria-core = { path = "../astria-core", features = ["server", "test-utils"] }
+astria-core = { path = "../astria-core", features = [
+  "server",
+  "test-utils",
+  "brotli",
+] }
 astria-grpc-mock = { path = "../astria-grpc-mock" }
 config = { package = "astria-config", path = "../astria-config", features = [
   "tests",

@@ -56,7 +56,7 @@ pub struct ConfigureSequencerBlock {
 }
 
 impl ConfigureSequencerBlock {
-    /// Construct a Comet BFT block with the configured parameters.
+    /// Construct a [`SequencerBlock`] with the configured parameters.
     #[must_use]
     #[allow(clippy::missing_panics_doc)] // This should only be used in tests, so everything here is unwrapped
     pub fn make(self) -> SequencerBlock {

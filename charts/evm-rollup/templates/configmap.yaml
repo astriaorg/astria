@@ -63,6 +63,7 @@ data:
   ASTRIA_COMPOSER_SEQUENCER_URL: "{{ .Values.config.sequencer.rpc }}"
   ASTRIA_COMPOSER_ROLLUPS: "{{ .Values.config.rollup.name }}::ws://127.0.0.1:{{ .Values.ports.wsRPC }}"
   ASTRIA_COMPOSER_MAX_BYTES_PER_BUNDLE: "{{ .Values.config.rollup.maxBytesPerBundle }}"
+  ASTRIA_COMPOSER_BUNDLE_QUEUE_CAPACITY: "{{ .Values.config.rollup.bundleQueueCapacity }}"
   ASTRIA_COMPOSER_MAX_SUBMIT_INTERVAL_MS: "{{ .Values.config.rollup.maxSubmitInterval }}"
   ASTRIA_COMPOSER_NO_METRICS: "{{ not .Values.config.rollup.metrics.enabled }}"
   ASTRIA_COMPOSER_METRICS_HTTP_LISTENER_ADDR: "127.0.0.1:{{ .Values.ports.composerMetrics }}"
