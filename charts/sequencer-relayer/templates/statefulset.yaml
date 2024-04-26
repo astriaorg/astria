@@ -49,5 +49,14 @@ spec:
           emptyDir: {}
           {{- end }}
         - name: relayer-celestia-key-volume
+          {{- if $.Values.secretProvider.enabled }}
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: relayer-celestia-secrets-store
+          {{- else }}
           configMap:
             name: relayer-celestia-key
+          {{- end }}
+        {{- end}}
