@@ -11,7 +11,7 @@ config:
   chainId: mocha-4
   coreIp: "full.consensus.mocha-4.celestia-mocha.com"
   type: light
-  tokenAuthLevel: read # can set to nil or false to disable rpc auth
+  tokenAuthLevel: read  # can set to nil or false to disable rpc auth
   coreGrpcPort: 9090
   customInfo: ''
 
