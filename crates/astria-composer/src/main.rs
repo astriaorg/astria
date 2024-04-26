@@ -68,7 +68,7 @@ async fn main() -> ExitCode {
             ExitCode::SUCCESS
         }
         Err(error) => {
-            error!(%error, "Composer exited with errro");
+            error!(%error, "Composer exited with error");
             ExitCode::FAILURE
         }
     };

@@ -33,7 +33,7 @@ astria-build-info = { path = "../astria-build-info", features = ["build"] }
 And then use `emit` in the binary's build.rs, specifying the git tag which is
 used for the service. For example, if the service is tagged with
 `shaving-cats-v0.1.2`, then provide `emit("shaving-cats-v")` (supplying
-`"shaving-cats"` also works, but it is recommened to use `"shaving-cats-v"` in
+`"shaving-cats"` also works, but it is recommended to use `"shaving-cats-v"` in
 case there is another service/tag named `"shaving-cats-and-dogs-v1.2.3"`).
 
 ```rust,ignore
