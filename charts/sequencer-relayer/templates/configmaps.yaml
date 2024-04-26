@@ -31,7 +31,7 @@ data:
   {{- else }}
   ASTRIA_SEQUENCER_RELAYER_CELESTIA_APP_GRPC_ENDPOINT: "{{ .Values.config.relayer.celestiaAppGrpc }}"
   ASTRIA_SEQUENCER_RELAYER_CELESTIA_APP_KEY_FILE: "/celestia-key/{{ .Values.config.celestiaAppPrivateKey.filename }}"
-  ASTRIA_SEQUENCER_RELAYER_ROLLUP_ID_FILTER: "{{ .Values.config.relayer.rollupIdFilter }}"
+  ASTRIA_SEQUENCER_RELAYER_ONLY_INCLUDE_ROLLUPS: "{{ .Values.config.relayer.onlyIncludeRollups }}"
   {{- end }}
 ---
 apiVersion: v1

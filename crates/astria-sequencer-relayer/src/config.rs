@@ -35,7 +35,7 @@ pub struct Config {
     // Would ideally be private; accessed via the public getter which converts this to a collection
     // of `RollupId`s.  Left public for integration tests.
     #[doc(hidden)]
-    pub rollup_id_filter: String,
+    pub only_include_rollups: String,
     // The socket address at which sequencer relayer will server healthz, readyz, and status calls.
     pub api_addr: String,
     pub log: String,
@@ -61,8 +61,8 @@ impl Config {
     ///
     /// # Errors
     /// Returns an error if any of the values cannot be parsed to a rollup ID.
-    pub fn rollup_id_filter(&self) -> eyre::Result<IncludeRollup> {
-        IncludeRollup::parse(&self.rollup_id_filter)
+    pub fn only_include_rollups(&self) -> eyre::Result<IncludeRollup> {
+        IncludeRollup::parse(&self.only_include_rollups)
     }
 }
 
@@ -73,8 +73,9 @@ impl config::Config for Config {
 /// A filter which can be used to determine whether a given rollup should have its data submitted
 /// to Celestia or not.
 ///
-/// It is constructed from the `ASTRIA_SEQUENCER_RELAYER_ROLLUP_ID_FILTER` env var.  A given rollup
-/// should have its data submitted if it is listed in the env var, or if the env var is empty.
+/// It is constructed from the `ASTRIA_SEQUENCER_RELAYER_ONLY_INCLUDE_ROLLUPS` env var.  A given
+/// rollup should have its data submitted if it is listed in the env var, or if the env var is
+/// empty.
 #[derive(Clone, Debug)]
 pub struct IncludeRollup(Arc<HashSet<RollupId>>);
 
@@ -95,14 +96,14 @@ impl IncludeRollup {
                     .wrap_err_with(|| {
                         format!(
                             "failed to base64-decode rollup id `{base64_encoded_id}` in \
-                             configured rollup_id_filter"
+                             configured only_include_rollups"
                         )
                     })
                     .and_then(|raw_id| {
                         RollupId::try_from_slice(&raw_id).wrap_err_with(|| {
                             format!(
                                 "failed to parse `{base64_encoded_id}` as a rollup id in \
-                                 configured rollup_id_filter"
+                                 configured only_include_rollups"
                             )
                         })
                     })

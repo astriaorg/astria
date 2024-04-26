@@ -45,7 +45,7 @@ impl SequencerRelayer {
     /// Returns an error if constructing the inner relayer type failed.
     pub fn new(cfg: Config) -> eyre::Result<(Self, ShutdownHandle)> {
         let shutdown_handle = ShutdownHandle::new();
-        let rollup_filter = cfg.rollup_id_filter()?;
+        let rollup_filter = cfg.only_include_rollups()?;
         let Config {
             cometbft_endpoint,
             sequencer_grpc_endpoint,

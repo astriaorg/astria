@@ -26,7 +26,7 @@ async fn report_degraded_if_block_fetch_fails() {
     let mut sequencer_relayer = TestSequencerRelayerConfig {
         relay_only_self: false,
         last_written_sequencer_height: None,
-        rollup_id_filter: HashSet::new(),
+        only_include_rollups: HashSet::new(),
     }
     .spawn_relayer()
     .await;

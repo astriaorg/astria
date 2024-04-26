@@ -322,8 +322,9 @@ pub struct TestSequencerRelayerConfig {
     // Sets the start height of relayer and configures the on-disk pre- and post-submit files to
     // look accordingly.
     pub last_written_sequencer_height: Option<u64>,
-    // The rollup ID filter, to be stringified and provided as `Config::rollup_id_filter` value.
-    pub rollup_id_filter: HashSet<RollupId>,
+    // The rollup ID filter, to be stringified and provided as `Config::only_include_rollups`
+    // value.
+    pub only_include_rollups: HashSet<RollupId>,
 }
 
 impl TestSequencerRelayerConfig {
@@ -382,7 +383,7 @@ impl TestSequencerRelayerConfig {
                 create_files_for_fresh_start()
             };
 
-        let rollup_id_filter = self.rollup_id_filter.iter().join(",").to_string();
+        let only_include_rollups = self.only_include_rollups.iter().join(",").to_string();
 
         let config = Config {
             cometbft_endpoint: cometbft.uri(),
@@ -392,7 +393,7 @@ impl TestSequencerRelayerConfig {
             block_time: 1000,
             relay_only_validator_key_blocks: self.relay_only_self,
             validator_key_file: validator_keyfile.path().to_string_lossy().to_string(),
-            rollup_id_filter,
+            only_include_rollups,
             api_addr: "0.0.0.0:0".into(),
             log: String::new(),
             force_stdout: false,
