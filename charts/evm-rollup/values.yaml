@@ -179,7 +179,7 @@ celestia-node:
   config:
     labelPrefix: astria
     type: light
-    tokenAuthLevel: read
+    tokenAuthLevel: false # Set to false to disable auth
     # You can deploy on top of a custom celestia network, uncomment below and
     # update fields with notes
     # network: custom
