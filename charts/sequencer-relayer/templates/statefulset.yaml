@@ -54,7 +54,7 @@ spec:
             driver: secrets-store.csi.k8s.io
             readOnly: true
             volumeAttributes:
-              secretProviderClass: relayer-celestia-secrets-store
+              secretProviderClass: relayer-private-key-celestia
           {{- else }}
           configMap:
             name: relayer-celestia-key
