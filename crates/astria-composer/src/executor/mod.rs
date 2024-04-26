@@ -83,6 +83,8 @@ mod tests;
 
 pub(crate) use builder::Builder;
 
+use crate::metrics_init::ROLLUP_ID_LABEL;
+
 // Duration to wait for the executor to drain all the remaining bundles before shutting down.
 // This is 16s because the timeout for the higher level executor task is 17s to shut down.
 // The extra second is to prevent the higher level executor task from timing out before the
@@ -176,14 +178,6 @@ impl Executor {
     /// Create a future to submit a bundle to the sequencer.
     #[instrument(skip_all, fields(nonce.initial = %nonce))]
     fn submit_bundle(&self, nonce: u32, bundle: SizedBundle) -> Fuse<Instrumented<SubmitFut>> {
-        #[allow(clippy::cast_precision_loss)]
-        metrics::histogram!(crate::metrics_init::BUNDLES_OUTGOING_BYTES)
-            .record(bundle.get_size() as f64);
-
-        #[allow(clippy::cast_precision_loss)]
-        metrics::histogram!(crate::metrics_init::BUNDLES_OUTGOING_TRANSACTIONS_COUNT)
-            .record(bundle.no_of_seq_actions() as f64);
-
         SubmitFut {
             client: self.sequencer_client.clone(),
             address: self.address,
@@ -250,6 +244,11 @@ impl Executor {
                     let rollup_id = seq_action.rollup_id;
 
                     if let Err(e) = bundle_factory.try_push(seq_action) {
+                            metrics::gauge!(
+                                crate::metrics_init::TRANSACTIONS_DROPPED_TOO_LARGE,
+                                ROLLUP_ID_LABEL => rollup_id.to_string()
+                            )
+                            .increment(1);
                             warn!(
                                 rollup_id = %rollup_id,
                                 error = &e as &StdError,
@@ -303,6 +302,11 @@ impl Executor {
             let rollup_id = seq_action.rollup_id;
 
             if let Err(e) = bundle_factory.try_push(seq_action) {
+                metrics::gauge!(
+                    crate::metrics_init::TRANSACTIONS_DROPPED_TOO_LARGE,
+                    ROLLUP_ID_LABEL => rollup_id.to_string()
+                )
+                .increment(1);
                 warn!(
                     rollup_id = %rollup_id,
                     error = &e as &StdError,
@@ -394,8 +398,6 @@ impl Executor {
             let report: Vec<SizedBundleReport> =
                 bundles_to_drain.iter().map(SizedBundleReport).collect();
 
-            metrics::counter!(crate::metrics_init::BUNDLES_NOT_DRAINED)
-                .increment(report.len() as u64);
             warn!(
                 number_of_bundles_submitted = bundles_drained,
                 number_of_missing_bundles = report.len(),
@@ -403,8 +405,6 @@ impl Executor {
                 "unable to drain all bundles within the allocated time"
             );
         }
-
-        metrics::counter!(crate::metrics_init::BUNDLES_DRAINED).increment(bundles_drained);
 
         reason.map(|_| ())
     }
@@ -480,7 +480,7 @@ async fn submit_tx(
             |attempt,
              next_delay: Option<Duration>,
              err: &sequencer_client::extension_trait::Error| {
-                metrics::counter!(crate::metrics_init::TRANSACTION_SUBMISSION_FAILURE_COUNT)
+                metrics::counter!(crate::metrics_init::SEQUENCER_SUBMISSION_FAILURE_COUNT)
                     .increment(1);
 
                 let wait_duration = next_delay
@@ -506,8 +506,7 @@ async fn submit_tx(
     .await
     .wrap_err("failed sending transaction after 1024 attempts");
 
-    metrics::histogram!(crate::metrics_init::TRANSACTION_SUBMISSION_LATENCY)
-        .record(start.elapsed());
+    metrics::histogram!(crate::metrics_init::SEQUENCER_SUBMISSION_LATENCY).record(start.elapsed());
 
     res
 }
@@ -598,6 +597,20 @@ impl Future for SubmitFut {
                                 crate::metrics_init::BUNDLES_SUBMISSION_SUCCESS_COUNT
                             )
                             .increment(1);
+
+                            // allow: the number of bytes in a bundle will be large enough to not
+                            // cause a precision loss
+                            #[allow(clippy::cast_precision_loss)]
+                            metrics::histogram!(crate::metrics_init::BUNDLES_SUBMITTED_BYTES)
+                                .record(this.bundle.get_size() as f64);
+
+                            // allow: a bundle will have at least 1 transaction which will not cause
+                            // a precision loss
+                            #[allow(clippy::cast_precision_loss)]
+                            metrics::histogram!(
+                                crate::metrics_init::BUNDLES_SUBMITTED_TRANSACTIONS_COUNT
+                            )
+                            .record(this.bundle.no_of_seq_actions() as f64);
 
                             return Poll::Ready(Ok(*this.nonce + 1));
                         };

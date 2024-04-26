@@ -11,50 +11,29 @@ use metrics::{
 
 /// Labels
 pub(crate) const ROLLUP_ID_LABEL: &str = "rollup_id";
+pub(crate) const COLLECTOR_TYPE_LABEL: &str = "collector_type";
 
 /// Registers all metrics used by this crate.
 #[allow(clippy::too_many_lines)]
 pub fn register() {
-    // geth collectors metrics
+    // collectors metrics
     describe_counter!(
-        GETH_COLLECTOR_TRANSACTIONS_COLLECTED,
+        TRANSACTIONS_COLLECTED,
         Unit::Count,
-        "The number of transactions received by the geth collector labelled by rollup"
+        "The number of transactions received by the collectors labelled by rollup and collector \
+         type"
     );
     describe_counter!(
-        GETH_COLLECTOR_TRANSACTIONS_DROPPED,
+        TRANSACTIONS_DROPPED,
         Unit::Count,
-        "The number of transactions dropped by the geth collector before bundling it labelled by \
-         rollup"
+        "The number of transactions dropped by the collectors before bundling it labelled by \
+         rollup and collector type"
     );
     describe_counter!(
-        GETH_COLLECTOR_TRANSACTIONS_FORWARDED,
+        TRANSACTIONS_FORWARDED,
         Unit::Count,
-        "The number of transactions successfully sent by the geth collector to be bundled \
-         labelled by rollup"
-    );
-    describe_histogram!(
-        GETH_COLLECTOR_CONNECTION_LATENCY,
-        Unit::Milliseconds,
-        "The time taken to connect to geth"
-    );
-
-    // grpc collector metrics
-    describe_counter!(
-        GRPC_COLLECTOR_TRANSACTIONS_COLLECTED,
-        Unit::Count,
-        "The number of transactions received by the grpc collector"
-    );
-    describe_counter!(
-        GRPC_COLLECTOR_TRANSACTIONS_DROPPED,
-        Unit::Count,
-        "The number of transactions dropped by the grpc collector before sending it to be bundled"
-    );
-    describe_counter!(
-        GRPC_COLLECTOR_TRANSACTIONS_FORWARDED,
-        Unit::Count,
-        "The number of transactions successfully sent by the grpc collector before sending it to \
-         be bundled"
+        "The number of transactions successfully sent by the collectors to be bundled labelled by \
+         rollup and collector type"
     );
 
     // executor metrics
@@ -86,12 +65,12 @@ pub fn register() {
     );
     describe_gauge!(CURRENT_NONCE, Unit::Count, "The current nonce");
     describe_histogram!(
-        TRANSACTION_SUBMISSION_LATENCY,
+        SEQUENCER_SUBMISSION_LATENCY,
         Unit::Milliseconds,
         "The latency of submitting a transaction to the sequencer"
     );
     describe_counter!(
-        TRANSACTION_SUBMISSION_FAILURE_COUNT,
+        SEQUENCER_SUBMISSION_FAILURE_COUNT,
         Unit::Count,
         "The number of failed transaction submissions to the sequencer"
     );
@@ -106,24 +85,14 @@ pub fn register() {
         "The number of failed bundle submissions to the sequencer"
     );
     describe_histogram!(
-        BUNDLES_OUTGOING_TRANSACTIONS_COUNT,
+        BUNDLES_SUBMITTED_TRANSACTIONS_COUNT,
         Unit::Count,
         "The number of outgoing transactions to the sequencer"
     );
     describe_histogram!(
-        BUNDLES_OUTGOING_BYTES,
+        BUNDLES_SUBMITTED_BYTES,
         Unit::Bytes,
         "The size of bundles in the outgoing bundle"
-    );
-    describe_counter!(
-        BUNDLES_NOT_DRAINED,
-        Unit::Count,
-        "The number of bundles not drained during shutdown"
-    );
-    describe_counter!(
-        BUNDLES_DRAINED,
-        Unit::Count,
-        "The number of bundles drained successfully during shutdown"
     );
 
     // bundle factory metrics
@@ -145,40 +114,13 @@ pub fn register() {
     );
 }
 
-pub const GETH_COLLECTOR_TRANSACTIONS_COLLECTED: &str = concat!(
-    env!("CARGO_CRATE_NAME"),
-    "_geth_collector_transactions_collected"
-);
+pub const TRANSACTIONS_COLLECTED: &str =
+    concat!(env!("CARGO_CRATE_NAME"), "_transactions_collected");
 
-pub const GETH_COLLECTOR_TRANSACTIONS_DROPPED: &str = concat!(
-    env!("CARGO_CRATE_NAME"),
-    "_geth_collector_transactions_dropped"
-);
+pub const TRANSACTIONS_DROPPED: &str = concat!(env!("CARGO_CRATE_NAME"), "_transactions_dropped");
 
-pub const GETH_COLLECTOR_TRANSACTIONS_FORWARDED: &str = concat!(
-    env!("CARGO_CRATE_NAME"),
-    "_geth_collector_transactions_forwarded"
-);
-
-pub const GETH_COLLECTOR_CONNECTION_LATENCY: &str = concat!(
-    env!("CARGO_CRATE_NAME"),
-    "_geth_collector_connection_latency"
-);
-
-pub const GRPC_COLLECTOR_TRANSACTIONS_COLLECTED: &str = concat!(
-    env!("CARGO_CRATE_NAME"),
-    "_grpc_collector_transactions_collected"
-);
-
-pub const GRPC_COLLECTOR_TRANSACTIONS_DROPPED: &str = concat!(
-    env!("CARGO_CRATE_NAME"),
-    "_grpc_collector_transactions_dropped"
-);
-
-pub const GRPC_COLLECTOR_TRANSACTIONS_FORWARDED: &str = concat!(
-    env!("CARGO_CRATE_NAME"),
-    "_grpc_collector_transactions_forwarded"
-);
+pub const TRANSACTIONS_FORWARDED: &str =
+    concat!(env!("CARGO_CRATE_NAME"), "_transactions_forwarded");
 
 pub const TRANSACTIONS_RECEIVED: &str = concat!(env!("CARGO_CRATE_NAME"), "_transactions_received");
 
@@ -194,12 +136,12 @@ pub const NONCE_FETCH_LATENCY: &str = concat!(env!("CARGO_CRATE_NAME"), "_nonce_
 
 pub const CURRENT_NONCE: &str = concat!(env!("CARGO_CRATE_NAME"), "_current_nonce");
 
-pub const TRANSACTION_SUBMISSION_LATENCY: &str =
-    concat!(env!("CARGO_CRATE_NAME"), "_transaction_submission_latency");
+pub const SEQUENCER_SUBMISSION_LATENCY: &str =
+    concat!(env!("CARGO_CRATE_NAME"), "_sequencer_submission_latency");
 
-pub const TRANSACTION_SUBMISSION_FAILURE_COUNT: &str = concat!(
+pub const SEQUENCER_SUBMISSION_FAILURE_COUNT: &str = concat!(
     env!("CARGO_CRATE_NAME"),
-    "_transaction_submission_failure_count"
+    "_sequencer_submission_failure_count"
 );
 
 pub const BUNDLES_SUBMISSION_SUCCESS_COUNT: &str = concat!(
@@ -212,17 +154,13 @@ pub const BUNDLES_SUBMISSION_FAILURE_COUNT: &str = concat!(
     "_bundles_submission_failure_count"
 );
 
-pub const BUNDLES_OUTGOING_TRANSACTIONS_COUNT: &str = concat!(
+pub const BUNDLES_SUBMITTED_TRANSACTIONS_COUNT: &str = concat!(
     env!("CARGO_CRATE_NAME"),
-    "_bundles_outgoing_transactions_count"
+    "_bundles_submitted_transactions_count"
 );
 
-pub const BUNDLES_OUTGOING_BYTES: &str =
-    concat!(env!("CARGO_CRATE_NAME"), "_bundles_outgoing_bytes");
-
-pub const BUNDLES_NOT_DRAINED: &str = concat!(env!("CARGO_CRATE_NAME"), "_bundles_not_drained");
-
-pub const BUNDLES_DRAINED: &str = concat!(env!("CARGO_CRATE_NAME"), "_bundles_drained");
+pub const BUNDLES_SUBMITTED_BYTES: &str =
+    concat!(env!("CARGO_CRATE_NAME"), "_bundles_submitted_bytes");
 
 pub const BUNDLES_TOTAL_COUNT: &str = concat!(env!("CARGO_CRATE_NAME"), "_bundles_total_count");
 

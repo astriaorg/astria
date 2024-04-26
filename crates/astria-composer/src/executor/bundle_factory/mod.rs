@@ -86,9 +86,6 @@ impl SizedBundle {
         let seq_action_size = estimate_size_of_sequence_action(&seq_action);
 
         if seq_action_size > self.max_size {
-            metrics::gauge!(crate::metrics_init::TRANSACTIONS_DROPPED_TOO_LARGE,
-                ROLLUP_ID_LABEL => seq_action.rollup_id.to_string())
-            .increment(1);
             return Err(SizedBundleError::SequenceActionTooLarge(seq_action));
         }
 
@@ -265,10 +262,14 @@ impl BundleFactory {
         if !bundle.is_empty() {
             metrics::counter!(crate::metrics_init::BUNDLES_TOTAL_COUNT).increment(1);
 
+            // allow: the number of bytes in a bundle will be large enough to not cause a precision
+            // loss
             #[allow(clippy::cast_precision_loss)]
             metrics::histogram!(crate::metrics_init::BUNDLES_TOTAL_BYTES)
                 .record(bundle.get_size() as f64);
 
+            // allow: a bundle will have at least 1 transaction which will not cause a precision
+            // loss
             #[allow(clippy::cast_precision_loss)]
             metrics::histogram!(crate::metrics_init::BUNDLES_TOTAL_TRANSACTIONS_COUNT)
                 .record(bundle.no_of_seq_actions() as f64);
