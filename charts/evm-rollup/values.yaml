@@ -8,16 +8,16 @@ global:
 
 images:
   geth:
-    repo: ghcr.io/astriaorg/go-ethereum
-    tag: "0.9.1"
+    repo: ghcr.io/astriaorg/astria-geth
+    tag: 0.9.1
     devTag: latest
   conductor:
     repo: ghcr.io/astriaorg/conductor
-    tag: "0.13.1"
+    tag: "0.14.0"
     devTag: latest
   composer:
     repo: ghcr.io/astriaorg/composer
-    tag: "0.5.0"
+    tag: "0.6.0"
     devTag: latest
 
   # Rollup faucet
@@ -165,7 +165,6 @@ config:
     # if config.rollup.executionLevel is NOT 'SoftOnly' AND celestia-node is not enabled
     # the rpc, ws, and token fields must be set to access celestia network.
     rpc: ""
-    ws: ""
     token: ""
     initialBlockHeight: "2"
     heightVariance: "10"
@@ -326,6 +325,7 @@ ports:
   jsonRPC: 8545
   wsRPC: 8546
   executionGRPC: 50051
+  composerGRPC: 50052
   gossipnet: 2451
   faucet: 8080
   blockscout: 4000
