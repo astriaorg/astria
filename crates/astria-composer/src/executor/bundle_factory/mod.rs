@@ -25,6 +25,8 @@ use serde::ser::{
 };
 use tracing::trace;
 
+use crate::metrics_init::ROLLUP_ID_LABEL;
+
 mod tests;
 
 #[derive(Debug, thiserror::Error)]
@@ -84,6 +86,9 @@ impl SizedBundle {
         let seq_action_size = estimate_size_of_sequence_action(&seq_action);
 
         if seq_action_size > self.max_size {
+            metrics::gauge!(crate::metrics_init::TRANSACTIONS_DROPPED_TOO_LARGE,
+                ROLLUP_ID_LABEL => seq_action.rollup_id.to_string())
+            .increment(1);
             return Err(SizedBundleError::SequenceActionTooLarge(seq_action));
         }
 
@@ -106,9 +111,19 @@ impl SizedBundle {
         mem::replace(self, Self::new(self.max_size))
     }
 
+    /// Returns the current size of the bundle.
+    pub(super) fn get_size(&self) -> usize {
+        self.curr_size
+    }
+
     /// Consume self and return the underlying buffer of actions.
     pub(super) fn into_actions(self) -> Vec<Action> {
         self.buffer
+    }
+
+    /// Returns the number of sequence actions in the bundle.
+    pub(super) fn no_of_seq_actions(&self) -> usize {
+        self.buffer.len()
     }
 
     /// Returns true if the bundle is empty.
@@ -164,6 +179,11 @@ impl BundleFactory {
         seq_action: SequenceAction,
     ) -> Result<(), BundleFactoryError> {
         let seq_action_size = estimate_size_of_sequence_action(&seq_action);
+        let rollup_id = seq_action.rollup_id;
+
+        metrics::counter!(crate::metrics_init::TRANSACTIONS_RECEIVED,
+                        ROLLUP_ID_LABEL => rollup_id.to_string())
+        .increment(1);
 
         match self.curr_bundle.try_push(seq_action) {
             Err(SizedBundleError::SequenceActionTooLarge(_seq_action)) => {
@@ -182,6 +202,17 @@ impl BundleFactory {
                         seq_action,
                     })
                 } else {
+                    // if the bundle is full, flush it and start a new one
+                    metrics::counter!(crate::metrics_init::BUNDLES_TOTAL_COUNT).increment(1);
+
+                    #[allow(clippy::cast_precision_loss)]
+                    metrics::histogram!(crate::metrics_init::BUNDLES_TOTAL_BYTES)
+                        .record(self.curr_bundle.get_size() as f64);
+
+                    #[allow(clippy::cast_precision_loss)]
+                    metrics::histogram!(crate::metrics_init::BUNDLES_TOTAL_TRANSACTIONS_COUNT)
+                        .record(self.curr_bundle.no_of_seq_actions() as f64);
+
                     self.finished.push_back(self.curr_bundle.flush());
                     self.curr_bundle.try_push(seq_action).expect(
                         "seq_action should not be larger than max bundle size, this is a bug",
@@ -225,10 +256,25 @@ impl BundleFactory {
     ///
     /// Returns an empty bundle if there are no bundled transactions.
     pub(super) fn pop_now(&mut self) -> SizedBundle {
-        self.finished
+        let bundle = self
+            .finished
             .pop_front()
             .or_else(|| Some(self.curr_bundle.flush()))
-            .unwrap_or(SizedBundle::new(self.curr_bundle.max_size))
+            .unwrap_or(SizedBundle::new(self.curr_bundle.max_size));
+
+        if !bundle.is_empty() {
+            metrics::counter!(crate::metrics_init::BUNDLES_TOTAL_COUNT).increment(1);
+
+            #[allow(clippy::cast_precision_loss)]
+            metrics::histogram!(crate::metrics_init::BUNDLES_TOTAL_BYTES)
+                .record(bundle.get_size() as f64);
+
+            #[allow(clippy::cast_precision_loss)]
+            metrics::histogram!(crate::metrics_init::BUNDLES_TOTAL_TRANSACTIONS_COUNT)
+                .record(bundle.no_of_seq_actions() as f64);
+        }
+
+        bundle
     }
 
     pub(super) fn is_full(&self) -> bool {

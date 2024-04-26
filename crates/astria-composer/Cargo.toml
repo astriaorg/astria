@@ -55,6 +55,7 @@ tracing = { workspace = true, features = ["attributes"] }
 tryhard = { workspace = true }
 tonic = { workspace = true }
 tokio-stream = { workspace = true, features = ["net"] }
+metrics = { workspace = true }
 
 [dependencies.sequencer-client]
 package = "astria-sequencer-client"

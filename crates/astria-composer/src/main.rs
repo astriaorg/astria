@@ -1,6 +1,7 @@
 use std::process::ExitCode;
 
 use astria_composer::{
+    metrics_init,
     Composer,
     Config,
     BUILD_INFO,
@@ -40,6 +41,8 @@ async fn main() -> ExitCode {
             .service_name(env!("CARGO_PKG_NAME"));
     }
 
+    metrics_init::register();
+
     if let Err(e) = telemetry_conf
         .try_init()
         .wrap_err("failed to setup telemetry")
@@ -51,7 +54,6 @@ async fn main() -> ExitCode {
     let cfg_ser = serde_json::to_string(&cfg)
         .expect("the json serializer should never fail when serializing to a string");
     eprintln!("config:\n{cfg_ser}");
-
     info!(config = cfg_ser, "initializing composer",);
 
     let composer = match Composer::from_config(&cfg).await {

@@ -52,7 +52,9 @@ use tracing::{
 use crate::{
     collectors::EXECUTOR_SEND_TIMEOUT,
     executor,
+    metrics_init::ROLLUP_ID_LABEL,
 };
+
 type StdError = dyn std::error::Error;
 
 const WSS_UNSUBSCRIBE_TIMEOUT: Duration = Duration::from_secs(2);
@@ -150,7 +152,7 @@ impl Geth {
             status,
             url,
             shutdown_token,
-            ..
+            chain_name,
         } = self;
 
         let retry_config = tryhard::RetryFutureConfig::new(1024)
@@ -171,6 +173,7 @@ impl Geth {
                 },
             );
 
+        let start = std::time::Instant::now();
         let client = tryhard::retry_fn(|| {
             let url = url.clone();
             async move {
@@ -186,6 +189,10 @@ impl Geth {
             .subscribe_full_pending_txs()
             .await
             .wrap_err("failed to subscribe eth client to full pending transactions")?;
+
+        metrics::histogram!(crate::metrics_init::GETH_COLLECTOR_CONNECTION_LATENCY,
+            ROLLUP_ID_LABEL => chain_name.clone())
+        .record(start.elapsed());
 
         status.send_modify(|status| status.is_connected = true);
 
@@ -206,17 +213,25 @@ impl Geth {
                             fee_asset_id: default_native_asset_id(),
                         };
 
+                        metrics::counter!(crate::metrics_init::GETH_COLLECTOR_TRANSACTIONS_COLLECTED,
+                            ROLLUP_ID_LABEL => chain_name.clone()).increment(1);
+
                         match executor_handle
                             .send_timeout(seq_action, EXECUTOR_SEND_TIMEOUT)
                             .await
                         {
-                            Ok(()) => {}
+                            Ok(()) => {
+                                metrics::counter!(crate::metrics_init::GETH_COLLECTOR_TRANSACTIONS_FORWARDED,
+                                    ROLLUP_ID_LABEL => chain_name.clone()).increment(1);
+                            },
                             Err(SendTimeoutError::Timeout(_seq_action)) => {
                                 warn!(
                                     transaction.hash = %tx_hash,
                                     timeout_ms = EXECUTOR_SEND_TIMEOUT.as_millis(),
                                     "timed out sending new transaction to executor; dropping tx",
                                 );
+                                metrics::counter!(crate::metrics_init::GETH_COLLECTOR_TRANSACTIONS_DROPPED,
+                                    ROLLUP_ID_LABEL => chain_name.clone()).increment(1);
                             }
                             Err(SendTimeoutError::Closed(_seq_action)) => {
                                 warn!(
@@ -224,6 +239,8 @@ impl Geth {
                                     "executor channel closed while sending transaction; dropping transaction \
                                      and exiting event loop"
                                 );
+                                metrics::counter!(crate::metrics_init::GETH_COLLECTOR_TRANSACTIONS_DROPPED,
+                                    ROLLUP_ID_LABEL => chain_name.clone()).increment(1);
                                 break Err(eyre!("executor channel closed while sending transaction"));
                             }
                         }
