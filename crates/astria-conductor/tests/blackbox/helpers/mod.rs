@@ -6,6 +6,7 @@ use astria_conductor::{
     Config,
 };
 use astria_core::{
+    brotli::compress_bytes,
     generated::{
         execution::v1alpha2::{
             Block,
@@ -32,6 +33,7 @@ use sequencer_client::{
 #[macro_use]
 mod macros;
 mod mock_grpc;
+use astria_eyre;
 pub use mock_grpc::MockGrpc;
 use serde_json::json;
 use tokio::task::JoinHandle;
@@ -126,6 +128,26 @@ impl TestConductor {
         .expect(1..)
         .mount(&self.mock_http)
         .await;
+    }
+
+    pub async fn mount_batch_get_blocks<S: serde::Serialize>(
+        &self,
+        expected_pbjson: S,
+        blocks: Vec<astria_core::generated::execution::v1alpha2::Block>,
+    ) {
+        use astria_core::generated::execution::v1alpha2::BatchGetBlocksResponse;
+        use astria_grpc_mock::{
+            matcher::message_partial_pbjson,
+            response::constant_response,
+            Mock,
+        };
+        Mock::for_rpc_given("batch_get_blocks", message_partial_pbjson(&expected_pbjson))
+            .respond_with(constant_response(BatchGetBlocksResponse {
+                blocks,
+            }))
+            .expect(1..)
+            .mount(&self.mock_grpc.mock_server)
+            .await;
     }
 
     pub async fn mount_celestia_blob_get_all(
@@ -318,6 +340,7 @@ impl TestConductor {
 
     pub async fn mount_execute_block<S: serde::Serialize>(
         &self,
+        mock_name: Option<&str>,
         expected_pbjson: S,
         response: Block,
     ) -> astria_grpc_mock::MockGuard {
@@ -326,9 +349,13 @@ impl TestConductor {
             response::constant_response,
             Mock,
         };
-        Mock::for_rpc_given("execute_block", message_partial_pbjson(&expected_pbjson))
-            .respond_with(constant_response(response))
-            .expect(1)
+        let mut mock =
+            Mock::for_rpc_given("execute_block", message_partial_pbjson(&expected_pbjson))
+                .respond_with(constant_response(response));
+        if let Some(name) = mock_name {
+            mock = mock.with_name(name);
+        }
+        mock.expect(1)
             .mount_as_scoped(&self.mock_grpc.mock_server)
             .await
     }
@@ -355,6 +382,7 @@ impl TestConductor {
 
     pub async fn mount_update_commitment_state(
         &self,
+        mock_name: Option<&str>,
         commitment_state: CommitmentState,
     ) -> astria_grpc_mock::MockGuard {
         use astria_core::generated::execution::v1alpha2::UpdateCommitmentStateRequest;
@@ -363,16 +391,19 @@ impl TestConductor {
             response::constant_response,
             Mock,
         };
-        Mock::for_rpc_given(
+        let mut mock = Mock::for_rpc_given(
             "update_commitment_state",
             message_partial_pbjson(&UpdateCommitmentStateRequest {
                 commitment_state: Some(commitment_state.clone()),
             }),
         )
-        .respond_with(constant_response(commitment_state.clone()))
-        .expect(1)
-        .mount_as_scoped(&self.mock_grpc.mock_server)
-        .await
+        .respond_with(constant_response(commitment_state.clone()));
+        if let Some(name) = mock_name {
+            mock = mock.with_name(name);
+        }
+        mock.expect(1)
+            .mount_as_scoped(&self.mock_grpc.mock_server)
+            .await
     }
 
     pub async fn mount_validator_set(
@@ -426,18 +457,16 @@ fn make_config() -> Config {
 
 #[must_use]
 pub fn make_sequencer_block(height: u32) -> astria_core::sequencerblock::v1alpha1::SequencerBlock {
-    astria_core::sequencerblock::v1alpha1::SequencerBlock::try_from_cometbft(
-        astria_core::protocol::test_utils::ConfigureCometBftBlock {
-            chain_id: Some(crate::SEQUENCER_CHAIN_ID.to_string()),
-            height,
-            rollup_transactions: vec![(crate::ROLLUP_ID, data())],
-            unix_timestamp: (1i64, 1u32).into(),
-            signing_key: Some(signing_key()),
-            proposer_address: None,
-        }
-        .make(),
-    )
-    .unwrap()
+    astria_core::protocol::test_utils::ConfigureSequencerBlock {
+        chain_id: Some(crate::SEQUENCER_CHAIN_ID.to_string()),
+        height,
+        sequence_data: vec![(crate::ROLLUP_ID, data())],
+        unix_timestamp: (1i64, 1u32).into(),
+        signing_key: Some(signing_key()),
+        proposer_address: None,
+        ..Default::default()
+    }
+    .make()
 }
 
 pub struct Blobs {
@@ -449,17 +478,21 @@ pub struct Blobs {
 pub fn make_blobs(height: u32) -> Blobs {
     let (head, tail) = make_sequencer_block(height).into_celestia_blobs();
 
+    let raw_header = ::prost::Message::encode_to_vec(&head.into_raw());
+    let head_compressed = compress_bytes(&raw_header).unwrap();
     let header = ::celestia_client::celestia_types::Blob::new(
         ::celestia_client::celestia_namespace_v0_from_bytes(crate::SEQUENCER_CHAIN_ID.as_bytes()),
-        ::prost::Message::encode_to_vec(&head.into_raw()),
+        head_compressed,
     )
     .unwrap();
 
     let mut rollup = Vec::new();
     for elem in tail {
+        let raw_rollup = ::prost::Message::encode_to_vec(&elem.into_raw());
+        let rollup_compressed = compress_bytes(&raw_rollup).unwrap();
         let blob = ::celestia_client::celestia_types::Blob::new(
             ::celestia_client::celestia_namespace_v0_from_rollup_id(crate::ROLLUP_ID),
-            ::prost::Message::encode_to_vec(&elem.into_raw()),
+            rollup_compressed,
         )
         .unwrap();
         rollup.push(blob);

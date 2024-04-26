@@ -61,6 +61,18 @@ pub fn register() {
         Unit::Seconds,
         "The time it takes to submit a blob to Celestia"
     );
+
+    describe_gauge!(
+        TOTAL_BLOB_DATA_SIZE_FOR_ASTRIA_BLOCK,
+        Unit::Bytes,
+        "The size of all compressed data for all `blob.data`s in an Astria block"
+    );
+
+    describe_gauge!(
+        COMPRESSION_RATIO_FOR_ASTRIA_BLOCK,
+        Unit::Count,
+        "Ratio of uncompressed:compressed data size for all `blob.data`s in an Astria block"
+    );
 }
 
 // We configure buckets for manually, in order to ensure Prometheus metrics are structured as a
@@ -95,4 +107,13 @@ pub const SEQUENCER_BLOCK_FETCH_FAILURE_COUNT: &str = concat!(
 pub const SEQUENCER_HEIGHT_FETCH_FAILURE_COUNT: &str = concat!(
     env!("CARGO_CRATE_NAME"),
     "_sequencer_height_fetch_failure_count",
+);
+
+pub const TOTAL_BLOB_DATA_SIZE_FOR_ASTRIA_BLOCK: &str = concat!(
+    env!("CARGO_CRATE_NAME"),
+    "_total_blob_data_size_for_astria_block"
+);
+pub const COMPRESSION_RATIO_FOR_ASTRIA_BLOCK: &str = concat!(
+    env!("CARGO_CRATE_NAME"),
+    "_compression_ratio_for_astria_block"
 );

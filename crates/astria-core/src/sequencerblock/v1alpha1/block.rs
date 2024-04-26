@@ -172,14 +172,6 @@ impl SequencerBlockError {
         Self(SequencerBlockErrorKind::InvalidBlockHash(length))
     }
 
-    fn comet_bft_data_hash_does_not_match_reconstructed() -> Self {
-        Self(SequencerBlockErrorKind::CometBftDataHashDoesNotMatchReconstructed)
-    }
-
-    fn comet_bft_block_hash_is_none() -> Self {
-        Self(SequencerBlockErrorKind::CometBftBlockHashIsNone)
-    }
-
     fn field_not_set(field: &'static str) -> Self {
         Self(SequencerBlockErrorKind::FieldNotSet(field))
     }
@@ -257,13 +249,6 @@ impl SequencerBlockError {
 enum SequencerBlockErrorKind {
     #[error("the block hash was expected to be 32 bytes long, but was actually `{0}`")]
     InvalidBlockHash(usize),
-    #[error(
-        "the CometBFT block.header.data_hash does not match the Merkle Tree Hash derived from \
-         block.data"
-    )]
-    CometBftDataHashDoesNotMatchReconstructed,
-    #[error("hashing the CometBFT block.header returned an empty hash which is not permitted")]
-    CometBftBlockHashIsNone,
     #[error("the expected field in the raw source type was not set: `{0}`")]
     FieldNotSet(&'static str),
     #[error("failed constructing a sequencer block header from the raw protobuf header")]
@@ -704,65 +689,6 @@ impl SequencerBlock {
     #[must_use]
     pub fn into_celestia_blobs(self) -> (CelestiaSequencerBlob, Vec<CelestiaRollupBlob>) {
         celestia::CelestiaBlobBundle::from_sequencer_block(self).into_parts()
-    }
-
-    /// Converts from a [`tendermint::Block`].
-    ///
-    /// # Errors
-    /// TODO(https://github.com/astriaorg/astria/issues/612)
-    #[allow(clippy::missing_panics_doc)] // the panic sources are checked before hand; revisit if refactoring
-    pub fn try_from_cometbft(block: tendermint::Block) -> Result<Self, SequencerBlockError> {
-        let tendermint::Block {
-            header,
-            data,
-            ..
-        } = block;
-
-        // TODO: see https://github.com/astriaorg/astria/issues/774#issuecomment-1981584681
-        // deposits are not included in a block pulled from cometbft, so they don't match what's
-        // stored in the sequencer any more.
-        // this function can be removed after relayer/conductor are updated to use the sequencer
-        // API.
-        Self::try_from_cometbft_header_and_data(header, data, HashMap::new())
-    }
-
-    /// Converts from a [`tendermint::block::Header`] and the block data.
-    ///
-    /// # Errors
-    /// TODO(https://github.com/astriaorg/astria/issues/612)
-    ///
-    /// # Panics
-    ///
-    /// - if a rollup data merkle proof cannot be constructed.
-    pub fn try_from_cometbft_header_and_data(
-        cometbft_header: tendermint::block::Header,
-        data: Vec<Vec<u8>>,
-        deposits: HashMap<RollupId, Vec<Deposit>>,
-    ) -> Result<Self, SequencerBlockError> {
-        let Some(tendermint::Hash::Sha256(data_hash)) = cometbft_header.data_hash else {
-            // header.data_hash is Option<Hash> and Hash itself has
-            // variants Sha256([u8; 32]) or None.
-            return Err(SequencerBlockError::field_not_set("header.data_hash"));
-        };
-
-        let tendermint::Hash::Sha256(block_hash) = cometbft_header.hash() else {
-            return Err(SequencerBlockError::comet_bft_block_hash_is_none());
-        };
-
-        let tree = merkle_tree_from_data(&data);
-        if tree.root() != data_hash {
-            return Err(SequencerBlockError::comet_bft_data_hash_does_not_match_reconstructed());
-        }
-
-        Self::try_from_block_info_and_data(
-            block_hash,
-            cometbft_header.chain_id,
-            cometbft_header.height,
-            cometbft_header.time,
-            cometbft_header.proposer_address,
-            data,
-            deposits,
-        )
     }
 
     /// Converts from relevant header fields and the block data.

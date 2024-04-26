@@ -1,6 +1,6 @@
 [package]
 name = "astria-sequencer-relayer"
-version = "0.11.0"
+version = "0.12.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 rust-version = "1.73"
@@ -12,9 +12,12 @@ homepage = "https://astria.org"
 name = "astria-sequencer-relayer"
 
 [dependencies]
+bech32 = "0.11.0"
+cosmrs = "0.16.0"
 dirs = "5.0"
 futures-bounded = "0.2.3"
 http = "0.2.9"
+k256 = "0.13.3"
 pin-project-lite = "0.2"
 serde_path_to_error = "0.1.13"
 zeroize = { version = "1.6.0", features = ["zeroize_derive"] }
@@ -30,11 +33,12 @@ hyper = { workspace = true }
 itertools = { workspace = true }
 itoa = { workspace = true }
 metrics = { workspace = true }
+pbjson-types = { workspace = true }
 prost = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
-tendermint = { workspace = true, features = ["rust-crypto"] }
+tendermint = { workspace = true, features = ["secp256k1"] }
 tendermint-config = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
@@ -44,7 +48,11 @@ tokio-util = { workspace = true }
 tonic = { workspace = true }
 
 astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
-astria-core = { path = "../astria-core", features = ["client", "serde"] }
+astria-core = { path = "../astria-core", features = [
+  "client",
+  "serde",
+  "brotli",
+] }
 astria-eyre = { path = "../astria-eyre" }
 celestia-client = { package = "astria-celestia-client", path = "../astria-celestia-client" }
 config = { package = "astria-config", path = "../astria-config" }

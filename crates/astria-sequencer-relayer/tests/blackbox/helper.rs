@@ -3,6 +3,7 @@ use std::{
         HashSet,
         VecDeque,
     },
+    io::Write,
     mem,
     net::SocketAddr,
     sync::{
@@ -25,7 +26,7 @@ use astria_core::{
         SequencerBlock as RawSequencerBlock,
     },
     primitive::v1::RollupId,
-    protocol::test_utils::make_cometbft_block,
+    protocol::test_utils::ConfigureSequencerBlock,
     sequencerblock::v1alpha1::SequencerBlock,
 };
 use astria_sequencer_relayer::{
@@ -97,7 +98,7 @@ static TELEMETRY: Lazy<()> = Lazy::new(|| {
 });
 
 /// Copied verbatim from
-/// [tendermint-rs](https://github.com/informalsystems/tendermint-rs/blob/main/config/tests/support/config/priv_validator_key.json)
+/// [tendermint-rs](https://github.com/informalsystems/tendermint-rs/blob/main/config/tests/support/config/priv_validator_key.ed25519.json)
 const PRIVATE_VALIDATOR_KEY: &str = r#"
 {
   "address": "AD7DAE5FEC609CF02F9BDE7D81D0C3CD66141563",
@@ -185,7 +186,7 @@ pub struct TestSequencerRelayer {
 
     pub account: tendermint::account::Id,
 
-    pub keyfile: NamedTempFile,
+    pub validator_keyfile: NamedTempFile,
 
     pub pre_submit_file: NamedTempFile,
     pub post_submit_file: NamedTempFile,
@@ -245,31 +246,30 @@ impl TestSequencerRelayer {
             tendermint::account::Id::try_from(vec![0u8; 20]).unwrap()
         };
 
-        let (mut cometbft_block, should_corrupt) = match block_to_mount {
-            CometBftBlockToMount::GoodAtHeight(height) => {
-                let mut block = make_cometbft_block();
-                block.header.height = height.into();
-                (block, false)
-            }
-            CometBftBlockToMount::BadAtHeight(height) => {
-                let mut block = make_cometbft_block();
-                block.header.height = height.into();
-                (block, true)
-            }
-            CometBftBlockToMount::Block(block) => (block, false),
-        };
+        let should_corrupt = matches!(block_to_mount, CometBftBlockToMount::BadAtHeight(_));
 
-        cometbft_block.header.proposer_address = proposer;
+        let block = match block_to_mount {
+            CometBftBlockToMount::GoodAtHeight(height)
+            | CometBftBlockToMount::BadAtHeight(height) => ConfigureSequencerBlock {
+                block_hash: Some([99u8; 32]),
+                height,
+                proposer_address: Some(proposer),
+                sequence_data: vec![(
+                    RollupId::from_unhashed_bytes(b"some_rollup_id"),
+                    vec![99u8; 32],
+                )],
+                ..Default::default()
+            }
+            .make(),
+            CometBftBlockToMount::Block(block) => block,
+        };
 
         let (tx, rx) = oneshot::channel();
 
-        let mut block = SequencerBlock::try_from_cometbft(cometbft_block)
-            .unwrap()
-            .into_raw();
-
+        let mut block = block.into_raw();
         if should_corrupt {
-            let cometbft_header = block.header.as_mut().unwrap();
-            cometbft_header.data_hash = [0; 32].to_vec();
+            let header = block.header.as_mut().unwrap();
+            header.data_hash = [0; 32].to_vec();
         }
 
         let mut blocks = self.sequencer_server_blocks.lock().unwrap();
@@ -312,7 +312,7 @@ impl TestSequencerRelayer {
 pub enum CometBftBlockToMount {
     GoodAtHeight(u32),
     BadAtHeight(u32),
-    Block(tendermint::Block),
+    Block(SequencerBlock),
 }
 
 pub struct TestSequencerRelayerConfig {
@@ -338,18 +338,12 @@ impl TestSequencerRelayerConfig {
 
         let mut celestia = MockCelestia::start().await;
         let celestia_addr = (&mut celestia.addr_rx).await.unwrap();
+        let celestia_keyfile = write_file(
+            b"c8076374e2a4a58db1c924e3dafc055e9685481054fe99e58ed67f5c6ed80e62".as_slice(),
+        )
+        .await;
 
-        let keyfile = tokio::task::spawn_blocking(|| {
-            use std::io::Write as _;
-
-            let keyfile = NamedTempFile::new().unwrap();
-            (&keyfile)
-                .write_all(PRIVATE_VALIDATOR_KEY.as_bytes())
-                .unwrap();
-            keyfile
-        })
-        .await
-        .unwrap();
+        let validator_keyfile = write_file(PRIVATE_VALIDATOR_KEY.as_bytes()).await;
         let PrivValidatorKey {
             address,
             priv_key,
@@ -393,11 +387,11 @@ impl TestSequencerRelayerConfig {
         let config = Config {
             cometbft_endpoint: cometbft.uri(),
             sequencer_grpc_endpoint: format!("http://{grpc_addr}"),
-            celestia_endpoint: format!("http://{celestia_addr}"),
-            celestia_bearer_token: CELESTIA_BEARER_TOKEN.into(),
+            celestia_app_grpc_endpoint: format!("http://{celestia_addr}"),
+            celestia_app_key_file: celestia_keyfile.path().to_string_lossy().to_string(),
             block_time: 1000,
             relay_only_validator_key_blocks: self.relay_only_self,
-            validator_key_file: keyfile.path().to_string_lossy().to_string(),
+            validator_key_file: validator_keyfile.path().to_string_lossy().to_string(),
             rollup_id_filter,
             api_addr: "0.0.0.0:0".into(),
             log: String::new(),
@@ -427,11 +421,21 @@ impl TestSequencerRelayerConfig {
             sequencer_relayer,
             signing_key,
             account: address,
-            keyfile,
+            validator_keyfile,
             pre_submit_file,
             post_submit_file,
         }
     }
+}
+
+async fn write_file(data: &'static [u8]) -> NamedTempFile {
+    tokio::task::spawn_blocking(|| {
+        let keyfile = NamedTempFile::new().unwrap();
+        (&keyfile).write_all(data).unwrap();
+        keyfile
+    })
+    .await
+    .unwrap()
 }
 
 fn create_files_for_fresh_start() -> (NamedTempFile, NamedTempFile) {

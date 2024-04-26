@@ -31,6 +31,7 @@ use tracing::Instrument as _;
 
 use crate::{
     accounts::state_ext::StateReadExt,
+    metrics_init,
     transaction,
 };
 
@@ -93,6 +94,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
         tx, ..
     } = req;
     if tx.len() > MAX_TX_SIZE {
+        metrics::counter!(metrics_init::CHECK_TX_REMOVED_TOO_LARGE).increment(1);
         return response::CheckTx {
             code: AbciErrorCode::TRANSACTION_TOO_LARGE.into(),
             log: format!(
@@ -130,6 +132,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
     };
 
     if let Err(e) = transaction::check_stateless(&signed_tx).await {
+        metrics::counter!(metrics_init::CHECK_TX_REMOVED_FAILED_STATELESS).increment(1);
         return response::CheckTx {
             code: AbciErrorCode::INVALID_PARAMETER.into(),
             info: "transaction failed stateless check".into(),
@@ -139,6 +142,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
     };
 
     if let Err(e) = transaction::check_nonce_mempool(&signed_tx, &state).await {
+        metrics::counter!(metrics_init::CHECK_TX_REMOVED_STALE_NONCE).increment(1);
         return response::CheckTx {
             code: AbciErrorCode::INVALID_NONCE.into(),
             info: "failed verifying transaction nonce".into(),
@@ -157,6 +161,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
     }
 
     if let Err(e) = transaction::check_balance_mempool(&signed_tx, &state).await {
+        metrics::counter!(metrics_init::CHECK_TX_REMOVED_ACCOUNT_BALANCE).increment(1);
         return response::CheckTx {
             code: AbciErrorCode::INSUFFICIENT_FUNDS.into(),
             info: "failed verifying account balance".into(),

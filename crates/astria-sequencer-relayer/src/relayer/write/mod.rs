@@ -22,10 +22,7 @@ use astria_eyre::eyre::{
     self,
     WrapErr as _,
 };
-use celestia_client::{
-    celestia_types::Blob,
-    jsonrpsee::http_client::HttpClient,
-};
+use celestia_client::celestia_types::Blob;
 use futures::{
     future::{
         BoxFuture,
@@ -42,14 +39,15 @@ use sequencer_client::{
 };
 use tokio::{
     select,
-    sync::mpsc::{
-        self,
-        error::{
-            SendError,
-            TrySendError,
+    sync::{
+        mpsc::{
+            self,
+            error::{
+                SendError,
+                TrySendError,
+            },
         },
-        Receiver,
-        Sender,
+        watch,
     },
 };
 use tokio_util::sync::CancellationToken;
@@ -63,7 +61,13 @@ use tracing::{
     Span,
 };
 
-use super::submission::SubmissionState;
+use super::{
+    celestia_client::CelestiaClient,
+    BuilderError,
+    CelestiaClientBuilder,
+    SubmissionState,
+    TrySubmitError,
+};
 
 mod conversion;
 
@@ -156,13 +160,13 @@ impl<'a> Future for TakeQueued<'a> {
 
 #[derive(Clone)]
 pub(super) struct BlobSubmitterHandle {
-    tx: Sender<SequencerBlock>,
+    tx: mpsc::Sender<SequencerBlock>,
 }
 
 impl BlobSubmitterHandle {
     /// Send a block to the blob submitter immediately.
     ///
-    /// This is a thin wrapper around [`Sender::try_send`].
+    /// This is a thin wrapper around [`mpsc::Sender::try_send`].
     // allow: just forwarding the error type
     #[allow(clippy::result_large_err)]
     pub(super) fn try_send(
@@ -174,7 +178,7 @@ impl BlobSubmitterHandle {
 
     /// Sends a block to the blob submitter.
     ///
-    /// This is a thin wrapper around [`Sender::send`].
+    /// This is a thin wrapper around [`mpsc::Sender::send`].
     // allow: just forwarding the error type
     #[allow(clippy::result_large_err)]
     pub(super) async fn send(
@@ -186,46 +190,47 @@ impl BlobSubmitterHandle {
 }
 
 pub(super) struct BlobSubmitter {
-    // The client to submit blobs to Celestia.
-    client: HttpClient,
+    /// The builder for a client to submit blobs to Celestia.
+    client_builder: CelestiaClientBuilder,
 
-    // The rollup IDs to include in submissions (all rollups if filter is empty).
+    /// The rollup IDs to include in submissions (all rollups if filter is empty).
     rollup_id_filter: HashSet<RollupId>,
 
-    // The channel over which sequencer blocks are received.
-    blocks: Receiver<SequencerBlock>,
+    /// The channel over which sequencer blocks are received.
+    blocks: mpsc::Receiver<SequencerBlock>,
 
-    // The collection of tasks converting from sequencer blocks to celestia blobs,
-    // with the sequencer blocks' heights used as keys.
+    /// The collection of tasks converting from sequencer blocks to celestia blobs,
+    /// with the sequencer blocks' heights used as keys.
     conversions: Conversions,
 
-    // Celestia blobs waiting to be submitted after conversion from sequencer blocks.
+    /// Celestia blobs waiting to be submitted after conversion from sequencer blocks.
     blobs: QueuedConvertedBlocks,
 
-    // The state of the relayer.
+    /// The state of the relayer.
     state: Arc<super::State>,
 
-    // Tracks the submission state and writes it to disk before and after each Celestia submission.
-    submission_state: super::SubmissionState,
+    /// Tracks the submission state and writes it to disk before and after each Celestia
+    /// submission.
+    submission_state: SubmissionState,
 
-    // The shutdown token to signal that blob submitter should finish its current submission and
-    // exit.
+    /// The shutdown token to signal that blob submitter should finish its current submission and
+    /// exit.
     shutdown_token: CancellationToken,
 }
 
 impl BlobSubmitter {
     pub(super) fn new(
-        client: HttpClient,
+        client_builder: CelestiaClientBuilder,
         rollup_id_filter: HashSet<RollupId>,
         state: Arc<super::State>,
-        submission_state: super::SubmissionState,
+        submission_state: SubmissionState,
         shutdown_token: CancellationToken,
     ) -> (Self, BlobSubmitterHandle) {
         // XXX: The channel size here is just a number. It should probably be based on some
         // heuristic about the number of expected blobs in a block.
         let (tx, rx) = mpsc::channel(128);
         let submitter = Self {
-            client,
+            client_builder,
             rollup_id_filter,
             blocks: rx,
             conversions: Conversions::new(8),
@@ -241,6 +246,16 @@ impl BlobSubmitter {
     }
 
     pub(super) async fn run(mut self) -> eyre::Result<()> {
+        let init_result = select!(
+            () = self.shutdown_token.cancelled() => return Ok(()),
+            init_result = init_with_retry(self.client_builder.clone()) => init_result,
+        );
+        let client = init_result.map_err(|error| {
+            let message = "failed to initialize celestia client";
+            error!(%error, message);
+            error.wrap_err(message)
+        })?;
+
         let mut submission = Fuse::terminated();
 
         let reason = loop {
@@ -270,7 +285,7 @@ impl BlobSubmitter {
                 // submit blocks to Celestia, if no submission in flight
                 Some(blobs) = self.blobs.take(), if submission.is_terminated() => {
                     submission = submit_blobs(
-                        self.client.clone(),
+                        client.clone(),
                         blobs,
                         self.state.clone(),
                         self.submission_state.clone(),
@@ -337,7 +352,7 @@ impl BlobSubmitter {
 /// submit.
 #[instrument(skip_all)]
 async fn submit_blobs(
-    client: HttpClient,
+    client: CelestiaClient,
     blocks: QueuedConvertedBlocks,
     state: Arc<super::State>,
     submission_state: SubmissionState,
@@ -410,29 +425,63 @@ async fn submit_blobs(
     Ok(final_state)
 }
 
+#[instrument(skip_all)]
+async fn init_with_retry(client_builder: CelestiaClientBuilder) -> eyre::Result<CelestiaClient> {
+    let span = Span::current();
+
+    let retry_config = tryhard::RetryFutureConfig::new(u32::MAX)
+        .exponential_backoff(Duration::from_secs(1))
+        .max_delay(Duration::from_secs(30))
+        .on_retry(
+            |attempt: u32, next_delay: Option<Duration>, error: &BuilderError| {
+                let wait_duration = next_delay
+                    .map(humantime::format_duration)
+                    .map(tracing::field::display);
+                warn!(
+                    parent: &span,
+                    attempt,
+                    wait_duration,
+                    error = %eyre::Report::new(error.clone()),
+                    "failed to initialize celestia client; retrying after backoff",
+                );
+                futures::future::ready(())
+            },
+        );
+
+    let celestia_client = tryhard::retry_fn(move || client_builder.clone().try_build())
+        .with_config(retry_config)
+        .in_current_span()
+        .await
+        .wrap_err("retry attempts exhausted; bailing")?;
+    info!("initialized celestia client");
+    Ok(celestia_client)
+}
+
 async fn submit_with_retry(
-    client: HttpClient,
+    client: CelestiaClient,
     blobs: Vec<Blob>,
     state: Arc<super::State>,
 ) -> eyre::Result<u64> {
-    use celestia_client::{
-        celestia_rpc::BlobClient as _,
-        celestia_types::blob::SubmitOptions,
-    };
     // Moving the span into `on_retry`, because tryhard spawns these in a tokio
     // task, losing the span.
     let span = Span::current();
+
+    // Create a watch channel to allow the `on_retry` function to provide the received
+    // `TrySubmitError` to the next attempt of the `retry_fn`.
+    let (last_error_sender, last_error_receiver) = watch::channel(None);
+
     let retry_config = tryhard::RetryFutureConfig::new(u32::MAX)
         .exponential_backoff(Duration::from_millis(100))
         // 12 seconds is the Celestia block time
         .max_delay(Duration::from_secs(12))
         .on_retry(
-            |attempt: u32, next_delay: Option<Duration>, error: &eyre::Report| {
+            |attempt: u32, next_delay: Option<Duration>, error: &TrySubmitError| {
                 metrics::counter!(crate::metrics_init::CELESTIA_SUBMISSION_FAILURE_COUNT)
                     .increment(1);
 
                 let state = Arc::clone(&state);
                 state.set_celestia_connected(false);
+                let _ = last_error_sender.send(Some(error.clone()));
 
                 let wait_duration = next_delay
                     .map(humantime::format_duration)
@@ -442,7 +491,7 @@ async fn submit_with_retry(
                     parent: &span,
                     attempt,
                     wait_duration,
-                    %error,
+                    error = %eyre::Report::new(error.clone()),
                     "failed submitting blobs to Celestia; retrying after backoff",
                 );
                 futures::future::ready(())
@@ -450,21 +499,11 @@ async fn submit_with_retry(
         );
 
     let blobs = Arc::new(blobs);
+
     let height = tryhard::retry_fn(move || {
-        let client = client.clone();
-        let blobs = blobs.clone();
-        async move {
-            client
-                .blob_submit(
-                    &blobs,
-                    SubmitOptions {
-                        fee: None,
-                        gas_limit: None,
-                    },
-                )
-                .await
-                .wrap_err("failed submitting sequencer blocks to celestia")
-        }
+        client
+            .clone()
+            .try_submit(blobs.clone(), last_error_receiver.clone())
     })
     .with_config(retry_config)
     .in_current_span()
