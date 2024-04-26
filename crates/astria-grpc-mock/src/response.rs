@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use super::{
     clone_response,
     AnyMessage,
@@ -50,6 +52,52 @@ impl Respond for DefaultResponse {
         Ok(MockResponse {
             type_name: self.type_name,
             inner: clone_response(&self.response),
+        })
+    }
+}
+
+pub fn dynamic_response<I, O, F>(responder: F) -> DynamicResponse<I, O, F>
+where
+    O: erased_serde::Serialize + prost::Name + Clone + 'static,
+    F: Fn(&I) -> O,
+{
+    DynamicResponse {
+        type_name: std::any::type_name::<O>(),
+        responder: Box::new(responder),
+        _phantom_data: PhantomData,
+    }
+}
+
+pub struct DynamicResponse<I, O, F> {
+    type_name: &'static str,
+    responder: Box<F>,
+    _phantom_data: PhantomData<(I, O)>,
+}
+
+impl<I, O, F> Respond for DynamicResponse<I, O, F>
+where
+    I: Send + Sync + 'static,
+    O: erased_serde::Serialize + prost::Name + Clone + 'static,
+    F: Send + Sync + Fn(&I) -> O,
+{
+    fn respond(&self, outer_req: &tonic::Request<AnyMessage>) -> ResponseResult {
+        let erased_req = outer_req.get_ref();
+        let Some(req) = erased_req.as_any().downcast_ref::<I>() else {
+            let actual = erased_req.as_name().full_name();
+            let expected = std::any::type_name::<I>();
+            let req_as_json = serde_json::to_string(erased_req.as_serialize())
+                .expect("can map registered protobuf response to json");
+            let msg = format!(
+                "failed downcasting request to concrete type; expected type of request: \
+                 `{expected}`, actual type of request: `{actual}`, request: {req_as_json}",
+            );
+            return Err(tonic::Status::internal(msg));
+        };
+
+        let resp = (self.responder)(req);
+        Ok(MockResponse {
+            type_name: self.type_name,
+            inner: erase_response(tonic::Response::new(resp)),
         })
     }
 }

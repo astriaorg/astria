@@ -833,6 +833,7 @@ dependencies = [
  "astria-config",
  "astria-core",
  "astria-eyre",
+ "astria-grpc-mock",
  "astria-merkle",
  "astria-sequencer-client",
  "astria-telemetry",

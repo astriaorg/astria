@@ -33,6 +33,7 @@ pub struct Mock {
     pub(crate) rpc: &'static str,
     pub(crate) matchers: Vec<Matcher>,
     pub(crate) response: Box<dyn Respond>,
+    pub(crate) max_n_matches: Option<u64>,
     pub(crate) expectation_range: Times,
     pub(crate) name: Option<String>,
 }
@@ -43,6 +44,13 @@ impl Mock {
             rpc,
             matchers: vec![Matcher(Box::new(matcher))],
         }
+    }
+
+    #[must_use = "a mock must be mounted on a server to be useful"]
+    pub fn up_to_n_times(mut self, n: u64) -> Self {
+        assert!(n > 0, "n must be strictly greater than 0!");
+        self.max_n_matches = Some(n);
+        self
     }
 
     #[must_use = "a mock must be mounted on a server to be useful"]
@@ -87,6 +95,7 @@ impl MockBuilder {
             rpc,
             matchers,
             response: Box::new(rsp),
+            max_n_matches: None,
             name: None,
             expectation_range: Times(TimesEnum::Unbounded(RangeFull)),
         }

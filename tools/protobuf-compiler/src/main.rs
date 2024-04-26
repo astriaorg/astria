@@ -112,6 +112,19 @@ fn main() {
             ".astria.execution.v1alpha2",
             ".astria.primitive.v1",
             ".astria.sequencerblock.v1alpha1",
+            ".celestia.blob.v1",
+            ".cosmos.auth.v1beta1",
+            ".cosmos.base.abci.v1beta1",
+            ".cosmos.base.node.v1beta1",
+            ".cosmos.base.tendermint.v1beta1",
+            ".cosmos.base.v1beta1",
+            ".cosmos.crypto.multisig.v1beta1",
+            ".cosmos.crypto.secp256k1",
+            ".cosmos.tx.signing.v1beta1",
+            ".cosmos.tx.v1beta1",
+            ".tendermint.abci",
+            ".tendermint.p2p",
+            ".tendermint.types",
         ])
         .unwrap();
 

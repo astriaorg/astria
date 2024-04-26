@@ -66,6 +66,7 @@ telemetry = { package = "astria-telemetry", path = "../astria-telemetry", featur
 tokio-stream = { workspace = true }
 
 [dev-dependencies]
+astria-grpc-mock = { path = "../astria-grpc-mock" }
 celestia-mock = { package = "astria-celestia-mock", path = "../astria-celestia-mock" }
 config = { package = "astria-config", path = "../astria-config", features = [
   "tests",
