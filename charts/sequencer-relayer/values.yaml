@@ -42,7 +42,6 @@ config:
     secret:
       filename: "key.hex"
       resourceName: "projects/$PROJECT_ID/secrets/celestiaPrivateKey/versions/latest"
-      key: token
 ports:
   relayerRPC: 2450
   metrics: 9000
