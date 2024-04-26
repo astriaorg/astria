@@ -36,7 +36,7 @@ config:
 
   celestiaAppPrivateKey:
     filename: "key.hex"
-    content: "8241386890823ca14743e5d4d583f879a5236af29f454ed4da6fe62b8439e2ab"
+    content: ""
 
 ports:
   relayerRPC: 2450

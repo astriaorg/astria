@@ -36,6 +36,8 @@ sequencer-relayer:
       celestiaAppGrpc: http://celestia-app-service.astria-dev-cluster.svc.cluster.local:9090
       cometbftRpc: http://node0-sequencer-rpc-service.astria-dev-cluster.svc.cluster.local:26657
       sequencerGrpc: http://node0-sequencer-grpc-service.astria-dev-cluster.svc.cluster.local:8080
+    celestiaAppPrivateKey:
+      content: 8241386890823ca14743e5d4d583f879a5236af29f454ed4da6fe62b8439e2ab
       
   storage:
     enabled: false
