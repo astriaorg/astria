@@ -72,11 +72,13 @@ pub(crate) async fn check_balance_mempool<S: StateReadExt + 'static>(
     state: &S,
 ) -> anyhow::Result<()> {
     let signer_address = Address::from_verification_key(tx.verification_key());
-    check_balance(tx.unsigned_transaction(), signer_address, state).await?;
+    check_balance_for_total_fees(tx.unsigned_transaction(), signer_address, state).await?;
     Ok(())
 }
 
-pub(crate) async fn check_balance<S: StateReadExt + 'static>(
+// Checks that the account has enough balance to cover the total fees for all actions in the
+// transaction.
+pub(crate) async fn check_balance_for_total_fees<S: StateReadExt + 'static>(
     tx: &UnsignedTransaction,
     from: Address,
     state: &S,
@@ -297,7 +299,7 @@ impl ActionHandler for UnsignedTransaction {
         );
 
         // Should have enough balance to cover all actions.
-        check_balance(self, from, state).await?;
+        check_balance_for_total_fees(self, from, state).await?;
 
         for action in &self.actions {
             match action {
