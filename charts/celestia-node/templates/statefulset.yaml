@@ -72,24 +72,6 @@ spec:
               subPath: {{ $secret.filename }}
             {{- end }}
             {{- end }}
-        {{- if .Values.config.tokenAuthLevel }}
-        - name: token-server
-          image: {{ .Values.images.tokenServer }}
-          command: [ "/bin/httpd", "-v", "-f", "-p", "{{ .Values.ports.tokenServer }}", "-h", "/celestia/token-server/" ]
-          ports:
-            - containerPort: {{ .Values.ports.tokenServer }}
-              name: token-svc
-          volumeMounts:
-            - mountPath: /celestia
-              name: {{ $label }}-vol
-              readOnly: true
-          startupProbe:
-            httpGet:
-              path: /
-              port: token-svc
-            failureThreshold: 30
-            periodSeconds: 5
-        {{- end }}
       volumes:
         # ------------ Startup scripts -------------
         - name: {{ $label }}-scripts-vol
