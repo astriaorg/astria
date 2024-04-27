@@ -11,7 +11,7 @@ data:
   ASTRIA_SEQUENCER_RELAYER_COMETBFT_ENDPOINT: "{{ .Values.config.relayer.cometbftRpc }}"
   ASTRIA_SEQUENCER_RELAYER_SEQUENCER_GRPC_ENDPOINT: "{{ .Values.config.relayer.sequencerGrpc }}"
   ASTRIA_SEQUENCER_RELAYER_CELESTIA_APP_GRPC_ENDPOINT: "{{ .Values.config.relayer.celestiaAppGrpc }}"
-  ASTRIA_SEQUENCER_RELAYER_CELESTIA_APP_KEY_FILE: "/celestia-key/{{ .Values.config.celestiaAppPrivateKey.filename }}"
+  ASTRIA_SEQUENCER_RELAYER_CELESTIA_APP_KEY_FILE: "/celestia-key/{{ .Values.config.celestiaAppPrivateKey.secret.filename }}"
   ASTRIA_SEQUENCER_RELAYER_API_ADDR: "127.0.0.1:{{ .Values.ports.relayerRPC }}"
   ASTRIA_SEQUENCER_RELAYER_PRE_SUBMIT_PATH: "{{ include "sequencer-relayer.storage.preSubmitPath" . }}"
   ASTRIA_SEQUENCER_RELAYER_POST_SUBMIT_PATH: "{{ include "sequencer-relayer.storage.postSubmitPath" . }}"
@@ -46,6 +46,6 @@ metadata:
   name: relayer-celestia-key
   namespace: {{ include "sequencer-relayer.namespace" . }}
 data:
-  {{ .Values.config.celestiaAppPrivateKey.filename }}: |
-    {{ .Values.config.celestiaAppPrivateKey.content }}
+  {{ .Values.config.celestiaAppPrivateKey.secret.filename }}: |
+    {{ .Values.config.celestiaAppPrivateKey.devContent }}
 ---
