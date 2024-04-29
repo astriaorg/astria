@@ -215,7 +215,7 @@ impl Geth {
                         };
 
                         metrics::counter!(
-                            crate::metrics_init::TRANSACTIONS_COLLECTED,
+                            crate::metrics_init::TRANSACTIONS_RECEIVED,
                             &[
                                 (ROLLUP_ID_LABEL, chain_name.clone()),
                                 (COLLECTOR_TYPE_LABEL, CollectorType::Geth.to_string())
@@ -225,15 +225,7 @@ impl Geth {
                             .send_timeout(seq_action, EXECUTOR_SEND_TIMEOUT)
                             .await
                         {
-                            Ok(()) => {
-                                metrics::counter!(
-                                    crate::metrics_init::TRANSACTIONS_FORWARDED,
-                                    &[
-                                        (ROLLUP_ID_LABEL, chain_name.clone()),
-                                        (COLLECTOR_TYPE_LABEL, CollectorType::Geth.to_string())
-                                    ]
-                                ).increment(1);
-                            },
+                            Ok(()) => {},
                             Err(SendTimeoutError::Timeout(_seq_action)) => {
                                 warn!(
                                     transaction.hash = %tx_hash,

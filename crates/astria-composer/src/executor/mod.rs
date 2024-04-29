@@ -593,24 +593,18 @@ impl Future for SubmitFut {
 
                             metrics::gauge!(crate::metrics_init::CURRENT_NONCE)
                                 .set(*this.nonce + 1);
-                            metrics::counter!(
-                                crate::metrics_init::BUNDLES_SUBMISSION_SUCCESS_COUNT
-                            )
-                            .increment(1);
 
                             // allow: the number of bytes in a bundle will be large enough to not
                             // cause a precision loss
                             #[allow(clippy::cast_precision_loss)]
-                            metrics::histogram!(crate::metrics_init::BUNDLES_SUBMITTED_BYTES)
+                            metrics::histogram!(crate::metrics_init::BYTES_PER_SUBMISSION)
                                 .record(this.bundle.get_size() as f64);
 
                             // allow: a bundle will have at least 1 transaction which will not cause
                             // a precision loss
                             #[allow(clippy::cast_precision_loss)]
-                            metrics::histogram!(
-                                crate::metrics_init::BUNDLES_SUBMITTED_TRANSACTIONS_COUNT
-                            )
-                            .record(this.bundle.no_of_seq_actions() as f64);
+                            metrics::histogram!(crate::metrics_init::TRANSACTIONS_PER_SUBMISSION)
+                                .record(this.bundle.no_of_seq_actions() as f64);
 
                             return Poll::Ready(Ok(*this.nonce + 1));
                         };
@@ -632,12 +626,12 @@ impl Future for SubmitFut {
                                     "sequencer rejected the transaction; the bundle is likely lost",
                                 );
 
-                                metrics::gauge!(crate::metrics_init::CURRENT_NONCE)
-                                    .set(*this.nonce);
                                 metrics::counter!(
-                                    crate::metrics_init::BUNDLES_SUBMISSION_FAILURE_COUNT
+                                    crate::metrics_init::SEQUENCER_SUBMISSION_FAILURE_COUNT
                                 )
                                 .increment(1);
+                                metrics::gauge!(crate::metrics_init::CURRENT_NONCE)
+                                    .set(*this.nonce);
 
                                 return Poll::Ready(Ok(*this.nonce));
                             }
@@ -645,9 +639,6 @@ impl Future for SubmitFut {
                     }
                     Err(error) => {
                         error!(%error, "failed sending transaction to sequencer");
-
-                        metrics::counter!(crate::metrics_init::BUNDLES_SUBMISSION_FAILURE_COUNT)
-                            .increment(1);
 
                         return Poll::Ready(
                             Err(error).wrap_err("failed sending transaction to sequencer"),
@@ -681,9 +672,6 @@ impl Future for SubmitFut {
                     }
                     Err(error) => {
                         error!(%error, "critically failed getting a new nonce from the sequencer");
-
-                        metrics::counter!(crate::metrics_init::BUNDLES_SUBMISSION_FAILURE_COUNT)
-                            .increment(1);
 
                         return Poll::Ready(
                             Err(error).wrap_err("failed getting nonce from sequencer"),

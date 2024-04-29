@@ -67,7 +67,7 @@ impl GrpcCollectorService for Grpc {
         };
 
         metrics::counter!(
-            crate::metrics_init::TRANSACTIONS_COLLECTED,
+            crate::metrics_init::TRANSACTIONS_RECEIVED,
             &[
                 (ROLLUP_ID_LABEL, rollup_id.to_string()),
                 (COLLECTOR_TYPE_LABEL, CollectorType::Grpc.to_string())
@@ -79,16 +79,7 @@ impl GrpcCollectorService for Grpc {
             .send_timeout(sequence_action, EXECUTOR_SEND_TIMEOUT)
             .await
         {
-            Ok(()) => {
-                metrics::counter!(
-                    crate::metrics_init::TRANSACTIONS_FORWARDED,
-                    &[
-                        (ROLLUP_ID_LABEL, rollup_id.to_string()),
-                        (COLLECTOR_TYPE_LABEL, CollectorType::Grpc.to_string())
-                    ]
-                )
-                .increment(1);
-            }
+            Ok(()) => {}
             Err(SendTimeoutError::Timeout(_seq_action)) => {
                 metrics::counter!(
                     crate::metrics_init::TRANSACTIONS_DROPPED,

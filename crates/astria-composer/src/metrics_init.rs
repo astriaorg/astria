@@ -16,32 +16,17 @@ pub(crate) const COLLECTOR_TYPE_LABEL: &str = "collector_type";
 /// Registers all metrics used by this crate.
 #[allow(clippy::too_many_lines)]
 pub fn register() {
-    // collectors metrics
     describe_counter!(
-        TRANSACTIONS_COLLECTED,
+        TRANSACTIONS_RECEIVED,
         Unit::Count,
-        "The number of transactions received by the collectors labelled by rollup and collector \
-         type"
+        "The number of transactions successfully received from collectors and bundled labelled by \
+         rollup"
     );
     describe_counter!(
         TRANSACTIONS_DROPPED,
         Unit::Count,
         "The number of transactions dropped by the collectors before bundling it labelled by \
          rollup and collector type"
-    );
-    describe_counter!(
-        TRANSACTIONS_FORWARDED,
-        Unit::Count,
-        "The number of transactions successfully sent by the collectors to be bundled labelled by \
-         rollup and collector type"
-    );
-
-    // executor metrics
-    describe_counter!(
-        TRANSACTIONS_RECEIVED,
-        Unit::Count,
-        "The number of transactions successfully received from collectors and bundled labelled by \
-         rollup"
     );
     describe_counter!(
         TRANSACTIONS_DROPPED_TOO_LARGE,
@@ -74,55 +59,22 @@ pub fn register() {
         Unit::Count,
         "The number of failed transaction submissions to the sequencer"
     );
-    describe_counter!(
-        BUNDLES_SUBMISSION_SUCCESS_COUNT,
+    describe_histogram!(
+        TRANSACTIONS_PER_SUBMISSION,
         Unit::Count,
-        "The number of successful bundle submissions to the sequencer"
-    );
-    describe_counter!(
-        BUNDLES_SUBMISSION_FAILURE_COUNT,
-        Unit::Count,
-        "The number of failed bundle submissions to the sequencer"
+        "The number of rollup transactions successfully sent to the sequencer in a single \
+         submission"
     );
     describe_histogram!(
-        BUNDLES_SUBMITTED_TRANSACTIONS_COUNT,
-        Unit::Count,
-        "The number of outgoing transactions to the sequencer"
-    );
-    describe_histogram!(
-        BUNDLES_SUBMITTED_BYTES,
+        BYTES_PER_SUBMISSION,
         Unit::Bytes,
-        "The size of bundles in the outgoing bundle"
-    );
-
-    // bundle factory metrics
-    describe_counter!(
-        BUNDLES_TOTAL_COUNT,
-        Unit::Count,
-        "The total number of finished bundles constructed over the composer's lifetime"
-    );
-    describe_histogram!(
-        BUNDLES_TOTAL_BYTES,
-        Unit::Bytes,
-        "The distribution of sizes of finished bundles constructed over the composer's lifetime"
-    );
-    describe_histogram!(
-        BUNDLES_TOTAL_TRANSACTIONS_COUNT,
-        Unit::Count,
-        "The total number of transactions in finished bundles constructed over the composer's \
-         lifetime"
+        "The total bytes successfully sent to the sequencer in a single submission"
     );
 }
 
-pub const TRANSACTIONS_COLLECTED: &str =
-    concat!(env!("CARGO_CRATE_NAME"), "_transactions_collected");
+pub const TRANSACTIONS_RECEIVED: &str = concat!(env!("CARGO_CRATE_NAME"), "_transactions_received");
 
 pub const TRANSACTIONS_DROPPED: &str = concat!(env!("CARGO_CRATE_NAME"), "_transactions_dropped");
-
-pub const TRANSACTIONS_FORWARDED: &str =
-    concat!(env!("CARGO_CRATE_NAME"), "_transactions_forwarded");
-
-pub const TRANSACTIONS_RECEIVED: &str = concat!(env!("CARGO_CRATE_NAME"), "_transactions_received");
 
 pub const TRANSACTIONS_DROPPED_TOO_LARGE: &str =
     concat!(env!("CARGO_CRATE_NAME"), "_transactions_dropped_too_large");
@@ -144,29 +96,7 @@ pub const SEQUENCER_SUBMISSION_FAILURE_COUNT: &str = concat!(
     "_sequencer_submission_failure_count"
 );
 
-pub const BUNDLES_SUBMISSION_SUCCESS_COUNT: &str = concat!(
-    env!("CARGO_CRATE_NAME"),
-    "_bundles_submission_success_count"
-);
+pub const TRANSACTIONS_PER_SUBMISSION: &str =
+    concat!(env!("CARGO_CRATE_NAME"), "_transaction_per_submission");
 
-pub const BUNDLES_SUBMISSION_FAILURE_COUNT: &str = concat!(
-    env!("CARGO_CRATE_NAME"),
-    "_bundles_submission_failure_count"
-);
-
-pub const BUNDLES_SUBMITTED_TRANSACTIONS_COUNT: &str = concat!(
-    env!("CARGO_CRATE_NAME"),
-    "_bundles_submitted_transactions_count"
-);
-
-pub const BUNDLES_SUBMITTED_BYTES: &str =
-    concat!(env!("CARGO_CRATE_NAME"), "_bundles_submitted_bytes");
-
-pub const BUNDLES_TOTAL_COUNT: &str = concat!(env!("CARGO_CRATE_NAME"), "_bundles_total_count");
-
-pub const BUNDLES_TOTAL_BYTES: &str = concat!(env!("CARGO_CRATE_NAME"), "_bundles_total_bytes");
-
-pub const BUNDLES_TOTAL_TRANSACTIONS_COUNT: &str = concat!(
-    env!("CARGO_CRATE_NAME"),
-    "_bundles_total_transactions_count"
-);
+pub const BYTES_PER_SUBMISSION: &str = concat!(env!("CARGO_CRATE_NAME"), "_bytes_per_submission");

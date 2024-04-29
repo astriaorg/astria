@@ -25,8 +25,6 @@ use serde::ser::{
 };
 use tracing::trace;
 
-use crate::metrics_init::ROLLUP_ID_LABEL;
-
 mod tests;
 
 #[derive(Debug, thiserror::Error)]
@@ -176,11 +174,6 @@ impl BundleFactory {
         seq_action: SequenceAction,
     ) -> Result<(), BundleFactoryError> {
         let seq_action_size = estimate_size_of_sequence_action(&seq_action);
-        let rollup_id = seq_action.rollup_id;
-
-        metrics::counter!(crate::metrics_init::TRANSACTIONS_RECEIVED,
-                        ROLLUP_ID_LABEL => rollup_id.to_string())
-        .increment(1);
 
         match self.curr_bundle.try_push(seq_action) {
             Err(SizedBundleError::SequenceActionTooLarge(_seq_action)) => {
@@ -200,16 +193,6 @@ impl BundleFactory {
                     })
                 } else {
                     // if the bundle is full, flush it and start a new one
-                    metrics::counter!(crate::metrics_init::BUNDLES_TOTAL_COUNT).increment(1);
-
-                    #[allow(clippy::cast_precision_loss)]
-                    metrics::histogram!(crate::metrics_init::BUNDLES_TOTAL_BYTES)
-                        .record(self.curr_bundle.get_size() as f64);
-
-                    #[allow(clippy::cast_precision_loss)]
-                    metrics::histogram!(crate::metrics_init::BUNDLES_TOTAL_TRANSACTIONS_COUNT)
-                        .record(self.curr_bundle.no_of_seq_actions() as f64);
-
                     self.finished.push_back(self.curr_bundle.flush());
                     self.curr_bundle.try_push(seq_action).expect(
                         "seq_action should not be larger than max bundle size, this is a bug",
@@ -253,29 +236,10 @@ impl BundleFactory {
     ///
     /// Returns an empty bundle if there are no bundled transactions.
     pub(super) fn pop_now(&mut self) -> SizedBundle {
-        let bundle = self
-            .finished
+        self.finished
             .pop_front()
             .or_else(|| Some(self.curr_bundle.flush()))
-            .unwrap_or(SizedBundle::new(self.curr_bundle.max_size));
-
-        if !bundle.is_empty() {
-            metrics::counter!(crate::metrics_init::BUNDLES_TOTAL_COUNT).increment(1);
-
-            // allow: the number of bytes in a bundle will be large enough to not cause a precision
-            // loss
-            #[allow(clippy::cast_precision_loss)]
-            metrics::histogram!(crate::metrics_init::BUNDLES_TOTAL_BYTES)
-                .record(bundle.get_size() as f64);
-
-            // allow: a bundle will have at least 1 transaction which will not cause a precision
-            // loss
-            #[allow(clippy::cast_precision_loss)]
-            metrics::histogram!(crate::metrics_init::BUNDLES_TOTAL_TRANSACTIONS_COUNT)
-                .record(bundle.no_of_seq_actions() as f64);
-        }
-
-        bundle
+            .unwrap_or(SizedBundle::new(self.curr_bundle.max_size))
     }
 
     pub(super) fn is_full(&self) -> bool {
