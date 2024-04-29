@@ -136,7 +136,7 @@ wait-for-ingress-controller:
 
 validatorName := "single"
 deploy-sequencer name=validatorName:
-  helm dependency build charts/sequencer > /dev/null
+  helm dependency update charts/sequencer > /dev/null
   helm install --debug \
     {{ replace('-f dev/values/validators/#.yml' , '#', name) }} \
     -n astria-validator-{{name}} --create-namespace \
@@ -164,7 +164,7 @@ defaultGenesisAllocAddress := ""
 defaultPrivateKey          := ""
 defaultSequencerStartBlock := ""
 deploy-rollup rollupName=defaultRollupName networkId=defaultNetworkId genesisAllocAddress=defaultGenesisAllocAddress privateKey=defaultPrivateKey sequencerStartBlock=defaultSequencerStartBlock:
-  helm dependency build charts/evm-rollup > /dev/null
+  helm dependency update charts/evm-rollup > /dev/null
   helm install \
     {{ if rollupName          != '' { replace('--set config.rollup.name=# --set celestia-node.config.labelPrefix=#', '#', rollupName) } else { '' } }} \
     {{ if networkId           != '' { replace('--set config.rollup.networkId=#', '#', networkId) } else { '' } }} \
@@ -174,7 +174,7 @@ deploy-rollup rollupName=defaultRollupName networkId=defaultNetworkId genesisAll
     {{rollupName}}-chain-chart ./charts/evm-rollup --namespace astria-dev-cluster
 
 deploy-dev-rollup rollupName=defaultRollupName networkId=defaultNetworkId genesisAllocAddress=defaultGenesisAllocAddress privateKey=defaultPrivateKey sequencerStartBlock=defaultSequencerStartBlock:
-  helm dependency build charts/evm-rollup > /dev/null
+  helm dependency update charts/evm-rollup > /dev/null
   helm install \
     {{ if rollupName          != '' { replace('--set config.rollup.name=# --set celestia-node.config.labelPrefix=#', '#', rollupName) } else { '' } }} \
     {{ if networkId           != '' { replace('--set config.rollup.networkId=#', '#', networkId) } else { '' } }} \
@@ -219,8 +219,8 @@ deploy-smoke-test tag=defaultTag:
   @echo "Deploying ingress controller..." && just deploy-ingress-controller > /dev/null
   @just wait-for-ingress-controller > /dev/null
   @echo "Deploying local celestia instance..." && just deploy celestia-local > /dev/null
-  @helm dependency build charts/sequencer > /dev/null
-  @helm dependency build charts/evm-rollup > /dev/null
+  @helm dependency update charts/sequencer > /dev/null
+  @helm dependency update charts/evm-rollup > /dev/null
   @echo "Setting up single astria sequencer..." && helm install \
     -n astria-validator-single single-sequencer-chart ./charts/sequencer \
     -f dev/values/validators/single.yml \

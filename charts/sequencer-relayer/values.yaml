@@ -13,15 +13,12 @@ global:
 images:
   sequencerRelayer:
     repo: ghcr.io/astriaorg/sequencer-relayer
-    tag: "0.11.0"
+    tag: "0.12.0"
     devTag: latest
 
 config:
   relayer:
-    celestiaBearerToken: ""
-    celestiaRpc: http://celestia-service.astria-dev-cluster.svc.cluster.local:26658
-    celestiaAppGrpc: http://celestia-app-service.astria-dev-cluster.svc.cluster.local:9090
-    tokenServer: http://celestia-service.astria-dev-cluster.svc.cluster.local:5353
+    celestiaAppGrpc: ""
     cometbftRpc: ""
     sequencerGrpc: ""
 
@@ -38,9 +35,10 @@ config:
       traceHeaders:
 
   celestiaAppPrivateKey:
-    filename: "key.hex"
-    content: "8241386890823ca14743e5d4d583f879a5236af29f454ed4da6fe62b8439e2ab"
-
+    devContent: ""
+    secret:
+      filename: "key.hex"
+      resourceName: "projects/$PROJECT_ID/secrets/celestiaPrivateKey/versions/latest"
 ports:
   relayerRPC: 2450
   metrics: 9000
@@ -59,3 +57,27 @@ storage:
       size: "1Gi"
       persistentVolumeName: "sequencer-relayer-storage"
       path: "/data/sequencer-relayer-data"
+
+# When deploying in a production environment should use a secret provider
+# This is configured for use with GCP, need to set own resource names
+# and keys
+secretProvider:
+  enabled: false
+  provider: gcp
+  # May need to update this template to match the secret provider
+  # it will be passed an object containing:
+  # {
+  #   key: {
+  #     resourceName: <resourceName>,
+  #     filename: <filename>,
+  #     key: <key>
+  #   }
+  # }
+  #
+  # Can update set the source of each chain key at chain.<chain>.key.secret to
+  # match the secret provider's requirements. The default works for GCP.
+  # The secret file must be mapped to the <key.filename>
+  parametersTemplate: |-
+    secrets: |
+      - resourceName: {{ .key.resourceName }}
+        fileName: "{{ .key.filename }}"
