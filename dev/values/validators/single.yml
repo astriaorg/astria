@@ -2,13 +2,43 @@ global:
   namespaceOverride: astria-dev-cluster
   dev: true
 
+config:
+  moniker: node0
+  cometBFT:
+    validators:
+      - name: core
+        power: '1'
+        address: 091E47761C58C474534F4D414AF104A6CAF90C22
+        pubKey: lV57+rGs2vac7mvkGHP1oBFGHPJM3a+WoAzeFDCJDNU=
+    secrets:
+      nodeKey:
+        filename: nodeKey.json
+        devContent:
+          priv_key:
+            value: HGWRtLbV8WLGFgbYhaGyaLe++DC+DBoc7O3bri81vs2ZlpR28IFfQScoO1aNOE/ygs8LIPM9UzLzbaab4VMggQ==
+      privValidatorKey:
+        filename: privValidatorKey.json
+        devContent:
+          # Ed25519 address of validator
+          address: 091E47761C58C474534F4D414AF104A6CAF90C22
+          # public key for the validator address
+          pub_key:
+            value: lV57+rGs2vac7mvkGHP1oBFGHPJM3a+WoAzeFDCJDNU=
+          # private key for the validator address
+          # This is a secret key, should use a secret manager for production deployments
+          priv_key:
+            value: dGOTAweQV8Do9P2n+A8m5EnboDrlxgD3dg4vrYpdIRqVXnv6saza9pzua+QYc/WgEUYc8kzdr5agDN4UMIkM1Q==
+
 sequencer-relayer:
   enabled: true
   config:
     relayer:
-      celestiaRpc: http://celestia-service.astria-dev-cluster.svc.cluster.local:26658
+      celestiaAppGrpc: http://celestia-app-service.astria-dev-cluster.svc.cluster.local:9090
       cometbftRpc: http://node0-sequencer-rpc-service.astria-dev-cluster.svc.cluster.local:26657
       sequencerGrpc: http://node0-sequencer-grpc-service.astria-dev-cluster.svc.cluster.local:8080
+    celestiaAppPrivateKey:
+      devContent: 8241386890823ca14743e5d4d583f879a5236af29f454ed4da6fe62b8439e2ab
+      
   storage:
     enabled: false
 

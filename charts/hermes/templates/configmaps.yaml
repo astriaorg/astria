@@ -16,7 +16,7 @@ metadata:
   namespace: {{ include "hermes.namespace" $ }}
 data:
   {{ $chain.key.name }}.json: |
-  {{- toPrettyJson $chain.key.content | nindent 4 }}
+  {{- toPrettyJson $chain.key.devContent | nindent 4 }}
 ---
 {{- end }}
 {{- end }}

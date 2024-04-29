@@ -13,9 +13,6 @@ spec:
     - name: bridge-jsonrpc
       port: {{ .Values.ports.bridgeRPC }}
       targetPort: bridge-jsonrpc
-    - name: token-svc
-      port: {{ .Values.ports.celestiaTokenService }}
-      targetPort: token-svc
 ---
 apiVersion: v1
 kind: Service

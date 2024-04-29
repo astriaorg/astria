@@ -12,6 +12,7 @@ data:
   TOKEN_SERVER_URL: "{{ .Values.config.celestia.token }}"
   ASTRIA_CONDUCTOR_CELESTIA_NODE_HTTP_URL: "{{ .Values.config.celestia.rpc }}"
   {{- end }}
+  ASTRIA_CONDUCTOR_CELESTIA_BLOCK_TIME_MS: "12000"
   ASTRIA_CONDUCTOR_EXECUTION_RPC_URL: "http://127.0.0.1:{{ .Values.ports.executionGRPC }}"
   ASTRIA_CONDUCTOR_EXECUTION_COMMIT_LEVEL: "{{ .Values.config.rollup.executionCommitLevel }}"
   ASTRIA_CONDUCTOR_INITIAL_SEQUENCER_BLOCK_HEIGHT: "{{ .Values.config.sequencer.initialBlockHeight }}"
@@ -23,6 +24,7 @@ data:
   ASTRIA_CONDUCTOR_FORCE_STDOUT: "{{ .Values.global.useTTY }}"
   ASTRIA_CONDUCTOR_PRETTY_PRINT: "{{ .Values.global.useTTY }}"
   ASTRIA_CONDUCTOR_NO_OTEL: "{{ not .Values.config.rollup.otel.enabled }}"
+  ASTRIA_CONDUCTOR_CELESTIA_BEARER_TOKEN: "{{ .Values.config.celestia.token }}"
   OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.config.rollup.otel.endpoint }}"
   OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "{{ .Values.config.rollup.otel.tracesEndpoint }}"
   OTEL_EXPORTER_OTLP_TRACES_TIMEOUT: "{{ .Values.config.rollup.otel.tracesTimeout }}"
@@ -30,27 +32,8 @@ data:
   OTEL_EXPORTER_OTLP_HEADERS: "{{ .Values.config.rollup.otel.otlpHeaders }}"
   OTEL_EXPORTER_OTLP_TRACE_HEADERS: "{{ .Values.config.rollup.otel.traceHeaders }}"
   {{- if not .Values.global.dev }}
-
-  # This block is for removing `ASTRIA_CONDUCTOR_CELESTIA_NODE_WEBSOCKET_URL`.
-  # 
-  {{- if (index .Values "celestia-node").enabled }}
-  ASTRIA_CONDUCTOR_CELESTIA_NODE_WEBSOCKET_URL: "{{ include "celestiaNode.service.addresses.ws" (index .Subcharts "celestia-node") }}"
   {{- else }}
-  ASTRIA_CONDUCTOR_CELESTIA_NODE_WEBSOCKET_URL: "{{ .Values.config.celestia.ws }}"
   {{- end }}
-
-  {{- else }}
-  ASTRIA_CONDUCTOR_CELESTIA_BLOCK_TIME_MS: "12000"
-  {{- end }}
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: {{ .Values.config.rollup.name }}-conductor-scripts
-  namespace: {{ include "rollup.namespace" .  }}
-data:
-  start-conductor.sh: |
-    {{- .Files.Get "files/scripts/start-conductor.sh" | nindent 4 }}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -60,6 +43,8 @@ metadata:
 data:
   ASTRIA_COMPOSER_LOG: "astria_composer={{ .Values.config.logLevel }}"
   ASTRIA_COMPOSER_API_LISTEN_ADDR: "0.0.0.0:0"
+  ASTRIA_COMPOSER_GRPC_ADDR: "0.0.0.0:{{ .Values.ports.composerGRPC }}"
+  ASTRIA_COMPOSER_SEQUENCER_CHAIN_ID: "{{ .Values.config.sequencer.chainId }}"
   ASTRIA_COMPOSER_SEQUENCER_URL: "{{ .Values.config.sequencer.rpc }}"
   ASTRIA_COMPOSER_ROLLUPS: "{{ .Values.config.rollup.name }}::ws://127.0.0.1:{{ .Values.ports.wsRPC }}"
   ASTRIA_COMPOSER_MAX_BYTES_PER_BUNDLE: "{{ .Values.config.rollup.maxBytesPerBundle }}"
@@ -81,8 +66,6 @@ data:
   {{- end }}
   {{- if not .Values.global.dev }}
   {{- else }}
-  ASTRIA_COMPOSER_GRPC_ADDR: "0.0.0.0:0"
-  ASTRIA_COMPOSER_SEQUENCER_CHAIN_ID: "{{ .Values.config.sequencer.chainId }}"
   {{- end }}
 ---
 apiVersion: v1
