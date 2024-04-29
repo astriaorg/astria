@@ -86,7 +86,7 @@ impl ActionHandler for BridgeLockAction {
         let fee = byte_cost_multiplier
             .saturating_mul(get_deposit_byte_len(&deposit))
             .saturating_add(transfer_fee);
-        ensure!(from_balance >= fee, "insuffient funds for fee payment",);
+        ensure!(from_balance >= fee, "insufficient funds for fee payment");
 
         // this performs the same checks as a normal `TransferAction`,
         // but without the check that prevents transferring to a bridge account,
@@ -148,4 +148,144 @@ pub(crate) fn get_deposit_byte_len(deposit: &Deposit) -> u128 {
     use prost::Message as _;
     let raw = deposit.clone().into_raw();
     raw.encoded_len() as u128
+}
+
+#[cfg(test)]
+mod test {
+    use astria_core::primitive::v1::{
+        asset,
+        RollupId,
+    };
+    use cnidarium::StateDelta;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn bridge_lock_check_stateful_fee_calc() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+        state.put_transfer_base_fee(12).unwrap();
+        state.put_bridge_lock_byte_cost_multiplier(2);
+
+        let bridge_address = Address::from([1; 20]);
+        let asset_id = asset::Id::from_denom("test");
+        let bridge_lock = BridgeLockAction {
+            to: bridge_address,
+            asset_id,
+            amount: 100,
+            fee_asset_id: asset_id,
+            destination_chain_address: "someaddress".to_string(),
+        };
+
+        let rollup_id = RollupId::from_unhashed_bytes(b"test_rollup_id");
+        state.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
+        state
+            .put_bridge_account_asset_id(&bridge_address, &asset_id)
+            .unwrap();
+        state.put_allowed_fee_asset(asset_id);
+
+        let from_address = Address::from([2; 20]);
+
+        // not enough balance; should fail
+        state
+            .put_account_balance(from_address, asset_id, 100)
+            .unwrap();
+        println!(
+            "{}",
+            bridge_lock
+                .check_stateful(&state, from_address)
+                .await
+                .unwrap_err()
+                .to_string()
+        );
+        assert!(
+            bridge_lock
+                .check_stateful(&state, from_address)
+                .await
+                .unwrap_err()
+                .to_string()
+                .contains("insufficient funds for fee payment")
+        );
+
+        // enough balance; should pass
+        let expected_deposit_fee = 12
+            + get_deposit_byte_len(&Deposit::new(
+                bridge_address,
+                rollup_id,
+                100,
+                asset_id,
+                "someaddress".to_string(),
+            )) * 2;
+        state
+            .put_account_balance(from_address, asset_id, 100 + expected_deposit_fee)
+            .unwrap();
+        bridge_lock
+            .check_stateful(&state, from_address)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn bridge_lock_execute_fee_calc() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+        state.put_transfer_base_fee(12).unwrap();
+        state.put_bridge_lock_byte_cost_multiplier(2);
+
+        let bridge_address = Address::from([1; 20]);
+        let asset_id = asset::Id::from_denom("test");
+        let bridge_lock = BridgeLockAction {
+            to: bridge_address,
+            asset_id,
+            amount: 100,
+            fee_asset_id: asset_id,
+            destination_chain_address: "someaddress".to_string(),
+        };
+
+        let rollup_id = RollupId::from_unhashed_bytes(b"test_rollup_id");
+        state.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
+        state
+            .put_bridge_account_asset_id(&bridge_address, &asset_id)
+            .unwrap();
+        state.put_allowed_fee_asset(asset_id);
+
+        let from_address = Address::from([2; 20]);
+
+        // not enough balance; should fail
+        state
+            .put_account_balance(from_address, asset_id, 100)
+            .unwrap();
+        println!(
+            "{}",
+            bridge_lock
+                .check_stateful(&state, from_address)
+                .await
+                .unwrap_err()
+                .to_string()
+        );
+        assert!(
+            bridge_lock
+                .execute(&mut state, from_address)
+                .await
+                .unwrap_err()
+                .to_string()
+                .contains("failed to deduct fee from account balance")
+        );
+
+        // enough balance; should pass
+        let expected_deposit_fee = 12
+            + get_deposit_byte_len(&Deposit::new(
+                bridge_address,
+                rollup_id,
+                100,
+                asset_id,
+                "someaddress".to_string(),
+            )) * 2;
+        state
+            .put_account_balance(from_address, asset_id, 100 + expected_deposit_fee)
+            .unwrap();
+        bridge_lock.execute(&mut state, from_address).await.unwrap();
+    }
 }

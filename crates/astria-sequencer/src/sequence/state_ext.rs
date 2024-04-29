@@ -68,3 +68,41 @@ pub(crate) trait StateWriteExt: StateWrite {
 }
 
 impl<T: StateWrite> StateWriteExt for T {}
+
+#[cfg(test)]
+mod test {
+    use cnidarium::StateDelta;
+
+    use super::{
+        StateReadExt as _,
+        StateWriteExt as _,
+    };
+
+    #[tokio::test]
+    async fn sequence_action_base_fee() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let fee = 42;
+        state.put_sequence_action_base_fee(fee);
+        assert_eq!(state.get_sequence_action_base_fee().await.unwrap(), fee);
+    }
+
+    #[tokio::test]
+    async fn sequence_action_byte_cost_multiplier() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let fee = 42;
+        state.put_sequence_action_byte_cost_multiplier(fee);
+        assert_eq!(
+            state
+                .get_sequence_action_byte_cost_multiplier()
+                .await
+                .unwrap(),
+            fee
+        );
+    }
+}
