@@ -98,9 +98,9 @@ config:
       # set to enable prometheus metrics
       enabled: false
     otel:
-      enabled: false
-      endpoint:
-      tracesEndpoint:
+      enabled: true
+      endpoint: 'http://otel-collector.monitoring.svc.cluster.local:4317'
+      tracesEndpoint: 'http://otel-collector.monitoring.svc.cluster.local:4317'
       tracesCompression: gzip
       tracesTimeout: 10
       otlpHeaders:
