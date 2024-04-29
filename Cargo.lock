@@ -605,7 +605,6 @@ name = "astria-conductor"
 version = "0.14.0"
 dependencies = [
  "astria-build-info",
- "astria-celestia-client",
  "astria-config",
  "astria-core",
  "astria-eyre",
@@ -616,6 +615,9 @@ dependencies = [
  "async-trait",
  "base64 0.21.7",
  "bytes",
+ "celestia-rpc",
+ "celestia-tendermint",
+ "celestia-types",
  "chrono",
  "ed25519-consensus",
  "futures",
@@ -671,6 +673,7 @@ dependencies = [
  "brotli",
  "bytes",
  "celestia-tendermint",
+ "celestia-types",
  "ed25519-consensus",
  "ibc-types",
  "indexmap 2.2.6",
@@ -825,7 +828,6 @@ version = "0.12.0"
 dependencies = [
  "assert-json-diff",
  "astria-build-info",
- "astria-celestia-client",
  "astria-celestia-mock",
  "astria-config",
  "astria-core",
@@ -838,6 +840,8 @@ dependencies = [
  "base64 0.21.7",
  "base64-serde",
  "bech32 0.11.0",
+ "celestia-tendermint",
+ "celestia-types",
  "cosmrs",
  "dirs",
  "ed25519-consensus",

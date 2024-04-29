@@ -13,10 +13,7 @@ use astria_eyre::eyre::{
     bail,
     WrapErr as _,
 };
-use celestia_client::{
-    celestia_types::nmt::Namespace,
-    jsonrpsee::http_client::HttpClient as CelestiaClient,
-};
+use celestia_types::nmt::Namespace;
 use futures::{
     future::{
         BoxFuture,
@@ -25,6 +22,7 @@ use futures::{
     },
     FutureExt as _,
 };
+use jsonrpsee::http_client::HttpClient as CelestiaClient;
 use sequencer_client::{
     tendermint,
     tendermint::block::Height as SequencerHeight,
@@ -253,9 +251,9 @@ impl RunningReader {
 
         let latest_heights = stream_latest_heights(celestia_client.clone(), celestia_block_time);
         let rollup_id = executor.rollup_id();
-        let rollup_namespace = celestia_client::celestia_namespace_v0_from_rollup_id(rollup_id);
+        let rollup_namespace = astria_core::celestia::namespace_v0_from_rollup_id(rollup_id);
         let sequencer_namespace =
-            celestia_client::celestia_namespace_v0_from_bytes(sequencer_chain_id.as_bytes());
+            astria_core::celestia::namespace_v0_from_sha256_of_bytes(sequencer_chain_id.as_bytes());
 
         let celestia_next_height = executor.celestia_base_block_height().value();
         let celestia_reference_height = executor.celestia_base_block_height().value();

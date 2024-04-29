@@ -18,7 +18,7 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use bytes::Bytes;
-use celestia_client::celestia_types::Height as CelestiaHeight;
+use celestia_types::Height as CelestiaHeight;
 use sequencer_client::tendermint::{
     block::Height as SequencerHeight,
     Time as TendermintTime,

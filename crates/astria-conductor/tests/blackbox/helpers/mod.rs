@@ -18,7 +18,7 @@ use astria_core::{
     primitive::v1::RollupId,
 };
 use bytes::Bytes;
-use celestia_client::celestia_types::{
+use celestia_types::{
     nmt::Namespace,
     Blob,
 };
@@ -192,7 +192,7 @@ impl TestConductor {
 
     pub async fn mount_celestia_header_network_head(
         &self,
-        extended_header: celestia_client::celestia_types::ExtendedHeader,
+        extended_header: celestia_types::ExtendedHeader,
     ) {
         use wiremock::{
             matchers::{
@@ -480,21 +480,13 @@ pub fn make_blobs(height: u32) -> Blobs {
 
     let raw_header = ::prost::Message::encode_to_vec(&head.into_raw());
     let head_compressed = compress_bytes(&raw_header).unwrap();
-    let header = ::celestia_client::celestia_types::Blob::new(
-        ::celestia_client::celestia_namespace_v0_from_bytes(crate::SEQUENCER_CHAIN_ID.as_bytes()),
-        head_compressed,
-    )
-    .unwrap();
+    let header = Blob::new(sequencer_namespace(), head_compressed).unwrap();
 
     let mut rollup = Vec::new();
     for elem in tail {
         let raw_rollup = ::prost::Message::encode_to_vec(&elem.into_raw());
         let rollup_compressed = compress_bytes(&raw_rollup).unwrap();
-        let blob = ::celestia_client::celestia_types::Blob::new(
-            ::celestia_client::celestia_namespace_v0_from_rollup_id(crate::ROLLUP_ID),
-            rollup_compressed,
-        )
-        .unwrap();
+        let blob = Blob::new(rollup_namespace(), rollup_compressed).unwrap();
         rollup.push(blob);
     }
     Blobs {
@@ -606,10 +598,10 @@ pub fn make_validator_set(height: u32) -> tendermint_rpc::endpoint::validators::
 
 #[must_use]
 pub fn rollup_namespace() -> Namespace {
-    celestia_client::celestia_namespace_v0_from_rollup_id(ROLLUP_ID)
+    astria_core::celestia::namespace_v0_from_rollup_id(ROLLUP_ID)
 }
 
 #[must_use]
 pub fn sequencer_namespace() -> Namespace {
-    celestia_client::celestia_namespace_v0_from_bytes(SEQUENCER_CHAIN_ID.as_bytes())
+    astria_core::celestia::namespace_v0_from_sha256_of_bytes(SEQUENCER_CHAIN_ID.as_bytes())
 }
