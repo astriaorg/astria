@@ -32,8 +32,6 @@ use crate::{
     transaction::action_handler::ActionHandler,
 };
 
-pub(crate) const DEPOSIT_BYTE_LEN: u128 = std::mem::size_of::<Deposit>() as u128;
-
 #[async_trait::async_trait]
 impl ActionHandler for BridgeLockAction {
     async fn check_stateful<S: StateReadExt + 'static>(
@@ -49,13 +47,11 @@ impl ActionHandler for BridgeLockAction {
         };
 
         // ensure the recipient is a bridge account.
-        ensure!(
-            state
-                .get_bridge_account_rollup_id(&self.to)
-                .await?
-                .is_some(),
-            "bridge lock must be sent to a bridge account",
-        );
+        let rollup_id = state
+            .get_bridge_account_rollup_id(&self.to)
+            .await
+            .context("failed to get bridge account rollup id")?
+            .ok_or_else(|| anyhow::anyhow!("bridge lock must be sent to a bridge account"))?;
 
         let allowed_asset_id = state
             .get_bridge_account_asset_ids(&self.to)
@@ -75,11 +71,21 @@ impl ActionHandler for BridgeLockAction {
             .await
             .context("failed to get transfer base fee")?;
 
+        let deposit = Deposit::new(
+            self.to,
+            rollup_id,
+            self.amount,
+            self.asset_id,
+            self.destination_chain_address.clone(),
+        );
+
         let byte_cost_multiplier = state
             .get_bridge_lock_byte_cost_multiplier()
             .await
             .context("failed to get byte cost multiplier")?;
-        let fee = byte_cost_multiplier * DEPOSIT_BYTE_LEN + transfer_fee;
+        let fee = byte_cost_multiplier
+            .saturating_mul(get_deposit_byte_len(&deposit))
+            .saturating_add(transfer_fee);
         ensure!(from_balance >= fee, "insuffient funds for fee payment",);
 
         // this performs the same checks as a normal `TransferAction`,
@@ -102,22 +108,10 @@ impl ActionHandler for BridgeLockAction {
             .await
             .context("failed to execute bridge lock action as transfer action")?;
 
-        // the transfer fee is already deducted in `transfer_action.execute()`,
-        // so we just deduct the bridge lock byte multiplier fee.
-        let byte_cost_multiplier = state
-            .get_bridge_lock_byte_cost_multiplier()
-            .await
-            .context("failed to get byte cost multiplier")?;
-        let fee = byte_cost_multiplier * DEPOSIT_BYTE_LEN;
-
-        state
-            .decrease_balance(from, self.fee_asset_id, fee)
-            .await
-            .context("failed to deduct fee from account balance")?;
-
         let rollup_id = state
             .get_bridge_account_rollup_id(&self.to)
-            .await?
+            .await
+            .context("failed to get bridge account rollup id")?
             .expect("recipient must be a bridge account; this is a bug in check_stateful");
 
         let deposit = Deposit::new(
@@ -127,10 +121,31 @@ impl ActionHandler for BridgeLockAction {
             self.asset_id,
             self.destination_chain_address.clone(),
         );
+
+        // the transfer fee is already deducted in `transfer_action.execute()`,
+        // so we just deduct the bridge lock byte multiplier fee.
+        let byte_cost_multiplier = state
+            .get_bridge_lock_byte_cost_multiplier()
+            .await
+            .context("failed to get byte cost multiplier")?;
+        let fee = byte_cost_multiplier.saturating_mul(get_deposit_byte_len(&deposit));
+
+        state
+            .decrease_balance(from, self.fee_asset_id, fee)
+            .await
+            .context("failed to deduct fee from account balance")?;
+
         state
             .put_deposit_event(deposit)
             .await
             .context("failed to put deposit event into state")?;
         Ok(())
     }
+}
+
+/// returns the length of a serialized `Deposit` message.
+pub(crate) fn get_deposit_byte_len(deposit: &Deposit) -> u128 {
+    use prost::Message as _;
+    let raw = deposit.clone().into_raw();
+    raw.encoded_len() as u128
 }

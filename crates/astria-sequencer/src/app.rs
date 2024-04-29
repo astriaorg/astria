@@ -2052,13 +2052,21 @@ mod test {
         app.execute_transaction(signed_tx).await.unwrap();
         assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
         let transfer_fee = app.state.get_transfer_base_fee().await.unwrap();
+        let expected_deposit = Deposit::new(
+            bridge_address,
+            rollup_id,
+            amount,
+            asset_id,
+            "nootwashere".to_string(),
+        );
+
         let fee = transfer_fee
             + app
                 .state
                 .get_bridge_lock_byte_cost_multiplier()
                 .await
                 .unwrap()
-                * crate::bridge::DEPOSIT_BYTE_LEN;
+                * crate::bridge::get_deposit_byte_len(&expected_deposit);
         assert_eq!(
             app.state
                 .get_account_balance(alice_address, asset_id)
@@ -2072,14 +2080,6 @@ mod test {
                 .await
                 .unwrap(),
             bridge_before_balance + amount
-        );
-
-        let expected_deposit = Deposit::new(
-            bridge_address,
-            rollup_id,
-            amount,
-            asset_id,
-            "nootwashere".to_string(),
         );
 
         let deposits = app.state.get_deposit_events(&rollup_id).await.unwrap();

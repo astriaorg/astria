@@ -100,11 +100,11 @@ pub(crate) async fn check_balance_for_total_fees<S: StateReadExt + 'static>(
             Action::Transfer(act) => {
                 fees_by_asset
                     .entry(act.asset_id)
-                    .and_modify(|amt| *amt += act.amount)
+                    .and_modify(|amt: &mut u128| *amt = amt.saturating_add(act.amount))
                     .or_insert(act.amount);
                 fees_by_asset
                     .entry(act.fee_asset_id)
-                    .and_modify(|amt| *amt += transfer_fee)
+                    .and_modify(|amt| *amt = amt.saturating_add(transfer_fee))
                     .or_insert(transfer_fee);
             }
             Action::Sequence(act) => {
@@ -113,33 +113,33 @@ pub(crate) async fn check_balance_for_total_fees<S: StateReadExt + 'static>(
                     .context("fee for sequence action overflowed; data too large")?;
                 fees_by_asset
                     .entry(act.fee_asset_id)
-                    .and_modify(|amt| *amt += fee)
+                    .and_modify(|amt| *amt = amt.saturating_add(fee))
                     .or_insert(fee);
             }
             Action::Ics20Withdrawal(act) => {
                 fees_by_asset
                     .entry(act.denom().id())
-                    .and_modify(|amt| *amt += act.amount())
+                    .and_modify(|amt| *amt = amt.saturating_add(act.amount()))
                     .or_insert(act.amount());
                 fees_by_asset
                     .entry(*act.fee_asset_id())
-                    .and_modify(|amt| *amt += ics20_withdrawal_fee)
+                    .and_modify(|amt| *amt = amt.saturating_add(ics20_withdrawal_fee))
                     .or_insert(ics20_withdrawal_fee);
             }
             Action::InitBridgeAccount(act) => {
                 fees_by_asset
                     .entry(act.fee_asset_id)
-                    .and_modify(|amt| *amt += init_bridge_account_fee)
+                    .and_modify(|amt| *amt = amt.saturating_add(init_bridge_account_fee))
                     .or_insert(init_bridge_account_fee);
             }
             Action::BridgeLock(act) => {
                 fees_by_asset
                     .entry(act.asset_id)
-                    .and_modify(|amt| *amt += act.amount)
+                    .and_modify(|amt| *amt = amt.saturating_add(act.amount))
                     .or_insert(act.amount);
                 fees_by_asset
                     .entry(act.fee_asset_id)
-                    .and_modify(|amt| *amt += transfer_fee)
+                    .and_modify(|amt| *amt = amt.saturating_add(transfer_fee))
                     .or_insert(transfer_fee);
             }
             Action::ValidatorUpdate(_)
