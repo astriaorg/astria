@@ -165,7 +165,8 @@ mod test {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
-        state.put_transfer_base_fee(12).unwrap();
+        let transfer_fee = 12;
+        state.put_transfer_base_fee(transfer_fee).unwrap();
         state.put_bridge_lock_byte_cost_multiplier(2);
 
         let bridge_address = Address::from([1; 20]);
@@ -201,7 +202,7 @@ mod test {
         );
 
         // enough balance; should pass
-        let expected_deposit_fee = 12
+        let expected_deposit_fee = transfer_fee
             + get_deposit_byte_len(&Deposit::new(
                 bridge_address,
                 rollup_id,
@@ -223,7 +224,8 @@ mod test {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
-        state.put_transfer_base_fee(12).unwrap();
+        let transfer_fee = 12;
+        state.put_transfer_base_fee(transfer_fee).unwrap();
         state.put_bridge_lock_byte_cost_multiplier(2);
 
         let bridge_address = Address::from([1; 20]);
@@ -247,7 +249,7 @@ mod test {
 
         // not enough balance; should fail
         state
-            .put_account_balance(from_address, asset_id, 100)
+            .put_account_balance(from_address, asset_id, 100 + transfer_fee)
             .unwrap();
         assert!(
             bridge_lock
@@ -255,11 +257,11 @@ mod test {
                 .await
                 .unwrap_err()
                 .to_string()
-                .contains("failed to deduct fee from account balance")
+                .eq("failed to deduct fee from account balance")
         );
 
         // enough balance; should pass
-        let expected_deposit_fee = 12
+        let expected_deposit_fee = transfer_fee
             + get_deposit_byte_len(&Deposit::new(
                 bridge_address,
                 rollup_id,
