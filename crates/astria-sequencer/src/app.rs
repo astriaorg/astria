@@ -1445,7 +1445,9 @@ mod test {
 
         // figure out needed fee for a single transfer
         let data = b"hello world".to_vec();
-        let fee = calculate_fee_from_state(&data, &app.state.clone()).await.unwrap();
+        let fee = calculate_fee_from_state(&data, &app.state.clone())
+            .await
+            .unwrap();
 
         // transfer just enough to cover single sequence fee with data
         let signed_tx = UnsignedTransaction {
