@@ -191,14 +191,6 @@ mod test {
         state
             .put_account_balance(from_address, asset_id, 100)
             .unwrap();
-        println!(
-            "{}",
-            bridge_lock
-                .check_stateful(&state, from_address)
-                .await
-                .unwrap_err()
-                .to_string()
-        );
         assert!(
             bridge_lock
                 .check_stateful(&state, from_address)
@@ -257,14 +249,6 @@ mod test {
         state
             .put_account_balance(from_address, asset_id, 100)
             .unwrap();
-        println!(
-            "{}",
-            bridge_lock
-                .check_stateful(&state, from_address)
-                .await
-                .unwrap_err()
-                .to_string()
-        );
         assert!(
             bridge_lock
                 .execute(&mut state, from_address)
