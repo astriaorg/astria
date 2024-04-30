@@ -11,8 +11,6 @@ use metrics::{
 
 /// Registers all metrics used by this crate.
 pub fn register() {
-    celestia_client::metrics_init::register();
-
     describe_counter!(
         CELESTIA_SUBMISSION_COUNT,
         Unit::Count,

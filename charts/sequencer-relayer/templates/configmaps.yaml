@@ -28,6 +28,7 @@ data:
   OTEL_EXPORTER_OTLP_TRACE_HEADERS: "{{ .Values.config.relayer.otel.traceHeaders }}"
   {{- if not .Values.global.dev }}
   {{- else }}
+  ASTRIA_SEQUENCER_RELAYER_ONLY_INCLUDE_ROLLUPS: "{{ .Values.config.relayer.onlyIncludeRollups }}"
   {{- end }}
 ---
 apiVersion: v1
@@ -39,7 +40,7 @@ data:
   start-relayer.sh: |
     {{- .Files.Get "files/scripts/start-relayer.sh" | nindent 4 }}
 ---
----
+{{- if not .Values.secretProvider.enabled }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -49,3 +50,4 @@ data:
   {{ .Values.config.celestiaAppPrivateKey.secret.filename }}: |
     {{ .Values.config.celestiaAppPrivateKey.devContent }}
 ---
+{{- end }}

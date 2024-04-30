@@ -22,9 +22,6 @@ use crate::{
     transaction::action_handler::ActionHandler,
 };
 
-/// Fee charged for a `Transfer` action.
-pub(crate) const TRANSFER_FEE: u128 = 12;
-
 pub(crate) async fn transfer_check_stateful<S: StateReadExt + 'static>(
     action: &TransferAction,
     state: &S,
@@ -38,6 +35,10 @@ pub(crate) async fn transfer_check_stateful<S: StateReadExt + 'static>(
         "invalid fee asset",
     );
 
+    let fee = state
+        .get_transfer_base_fee()
+        .await
+        .context("failed to get transfer base fee")?;
     let transfer_asset_id = action.asset_id;
 
     let from_fee_balance = state
@@ -50,7 +51,7 @@ pub(crate) async fn transfer_check_stateful<S: StateReadExt + 'static>(
     if action.fee_asset_id == transfer_asset_id {
         let payment_amount = action
             .amount
-            .checked_add(TRANSFER_FEE)
+            .checked_add(fee)
             .context("transfer amount plus fee overflowed")?;
 
         ensure!(
@@ -61,7 +62,7 @@ pub(crate) async fn transfer_check_stateful<S: StateReadExt + 'static>(
         // otherwise, check the fee asset account has enough to cover the fees,
         // and the transfer asset account has enough to cover the transfer
         ensure!(
-            from_fee_balance >= TRANSFER_FEE,
+            from_fee_balance >= fee,
             "insufficient funds for fee payment"
         );
 
@@ -109,8 +110,12 @@ impl ActionHandler for TransferAction {
         )
     )]
     async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> Result<()> {
+        let fee = state
+            .get_transfer_base_fee()
+            .await
+            .context("failed to get transfer base fee")?;
         state
-            .get_and_increase_block_fees(self.fee_asset_id, TRANSFER_FEE)
+            .get_and_increase_block_fees(self.fee_asset_id, fee)
             .await
             .context("failed to add to block fees")?;
 
@@ -122,7 +127,7 @@ impl ActionHandler for TransferAction {
             // check_stateful should have already checked this arithmetic
             let payment_amount = self
                 .amount
-                .checked_add(TRANSFER_FEE)
+                .checked_add(fee)
                 .expect("transfer amount plus fee should not overflow");
 
             state
@@ -147,7 +152,7 @@ impl ActionHandler for TransferAction {
 
             // deduct fee from fee asset balance
             state
-                .decrease_balance(from, self.fee_asset_id, TRANSFER_FEE)
+                .decrease_balance(from, self.fee_asset_id, fee)
                 .await
                 .context("failed decreasing `from` account balance for fee payment")?;
         }

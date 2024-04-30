@@ -76,7 +76,8 @@ pub fn example_env_config_is_up_to_date<C: Config>(example_env: &str) {
 
     Jail::expect_with(|jail| {
         populate_environment_from_example(jail, unique_test_prefix, example_env);
-        C::get_with_prefix(&full_test_prefix, _internal::Internal).unwrap();
+        C::get_with_prefix(&full_test_prefix, _internal::Internal)
+            .unwrap_or_else(|error| panic!("failed to parse config: {error}"));
         Ok(())
     });
 }

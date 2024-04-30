@@ -18,7 +18,7 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use bytes::Bytes;
-use celestia_client::celestia_types::Height as CelestiaHeight;
+use celestia_types::Height as CelestiaHeight;
 use sequencer_client::tendermint::{
     block::Height as SequencerHeight,
     Time as TendermintTime,
@@ -38,7 +38,10 @@ use tracing::{
     instrument,
 };
 
-use crate::celestia::ReconstructedBlock;
+use crate::{
+    celestia::ReconstructedBlock,
+    config::CommitLevel,
+};
 
 mod builder;
 pub(crate) mod channel;
@@ -212,7 +215,17 @@ impl Handle<StateIsInit> {
 }
 
 pub(crate) struct Executor {
+    /// The mode under which this executor (and hence conductor) runs.
+    mode: CommitLevel,
+
+    /// The channel of which this executor receives blocks for executing
+    /// firm commitments.
+    /// Only set if `mode` is `FirmOnly` or `SoftAndFirm`.
     firm_blocks: Option<mpsc::Receiver<ReconstructedBlock>>,
+
+    /// The channel of which this executor receives blocks for executing
+    /// soft commitments.
+    /// Only set if `mode` is `SoftOnly` or `SoftAndFirm`.
     soft_blocks: Option<channel::Receiver<FilteredSequencerBlock>>,
 
     /// Token to listen for Conductor being shut down.
@@ -447,29 +460,49 @@ impl Executor {
             )
         };
 
-        let update_type =
-            if let Some(block) = self.blocks_pending_finalization.remove(&block_number) {
-                info!(
-                    block_number,
-                    "found pending block; updating state but not not re-executing it"
-                );
-                Update::OnlyFirm(block)
-            } else {
-                info!(
-                    block_number,
-                    "did not find pending block; executing firm block"
-                );
-                // The parent hash of the next block is the hash of the block at the current head.
-                let parent_hash = self.state.firm_hash();
-                let executed_block = self
-                    .execute_block(client.clone(), parent_hash, executable_block)
-                    .await
-                    .wrap_err("failed to execute block")?;
-                self.does_block_response_fulfill_contract(ExecutionKind::Firm, &executed_block)
-                    .wrap_err("execution API server violated contract")?;
-                Update::ToSame(executed_block)
-            };
-        self.update_commitment_state(client.clone(), update_type)
+        let update = if self.should_execute_firm_block() {
+            let parent_hash = self.state.firm_hash();
+            let executed_block = self
+                .execute_block(client.clone(), parent_hash, executable_block)
+                .await
+                .wrap_err("failed to execute block")?;
+            self.does_block_response_fulfill_contract(ExecutionKind::Firm, &executed_block)
+                .wrap_err("execution API server violated contract")?;
+            Update::ToSame(executed_block)
+        } else if let Some(block) = self.blocks_pending_finalization.remove(&block_number) {
+            info!(
+                block_number,
+                "found pending block; updating state but not not re-executing it"
+            );
+            Update::OnlyFirm(block)
+        } else {
+            // XXX: This case should never be reached because the firm block *must* exist in the
+            // cache - either due to being pre-populated at startup (via
+            // `populate_blocks_pending_finalization`), or during normal operation (as part of
+            // `execute_soft`).
+            // This code is here as a fall-back mechanism in case there is a bug.
+            error!(
+                block_number,
+                "pending block not found for block number in cache. THIS SHOULD NOT HAPPEN. \
+                 Trying to fetch the already-executed block from the rollup before giving up."
+            );
+            match client.clone().get_block(block_number).await {
+                Ok(block) => Update::OnlyFirm(block),
+                Err(error) => {
+                    error!(
+                        block_number,
+                        %error,
+                        "failed to fetch block missing from rollup and will not be able to update \
+                        the firm commitment state. Giving up."
+                    );
+                    return Err(error).wrap_err_with(|| {
+                        format!("failed to get block at number `{block_number}` from rollup")
+                    });
+                }
+            }
+        };
+
+        self.update_commitment_state(client.clone(), update)
             .await
             .wrap_err("failed to setting both commitment states to executed block")?;
         Ok(())
@@ -523,15 +556,12 @@ impl Executor {
         &mut self,
         mut client: Client,
     ) -> eyre::Result<()> {
-        // Uses the presence of the firm/soft channels as a proxy for which mode
-        // executor runs in. soft-and-firm mode corresponds to both channels being set.
-        if self.firm_blocks.is_none() || self.soft_blocks.is_none() {
+        if !self.mode.is_soft_and_firm() {
             debug!(
-                firm = self.firm_blocks.is_some(),
-                soft = self.soft_blocks.is_some(),
-                "configured without firm or soft commitments; ignoring blocks pending \
-                 finalization and not requesting them from the rollup (only activated in \
-                 soft-and-firm mode)"
+                mode = %self.mode,
+                "blocks pending finalization only relevant in `{}` mode; not requesting them from \
+                the rollup and continuing with initialization",
+                CommitLevel::SoftAndFirm,
             );
             return Ok(());
         }
@@ -639,6 +669,19 @@ impl Executor {
         block: &Block,
     ) -> Result<(), ContractViolation> {
         does_block_response_fulfill_contract(&mut self.state, kind, block)
+    }
+
+    /// Returns whether a firm block should be executed.
+    ///
+    /// Firm blocks should be executed if:
+    /// 1. executor runs in firm only mode (blocks are always executed).
+    /// 2. executor runs in soft-and-firm mode and the soft and firm rollup numbers are equal.
+    fn should_execute_firm_block(&self) -> bool {
+        should_execute_firm_block(
+            self.state.next_expected_firm_sequencer_height().value(),
+            self.state.next_expected_soft_sequencer_height().value(),
+            self.mode,
+        )
     }
 }
 
@@ -754,5 +797,17 @@ fn does_block_response_fulfill_contract(
             expected,
             actual,
         })
+    }
+}
+
+fn should_execute_firm_block(
+    firm_sequencer_height: u64,
+    soft_sequencer_height: u64,
+    executor_mode: CommitLevel,
+) -> bool {
+    match executor_mode {
+        CommitLevel::SoftAndFirm if firm_sequencer_height == soft_sequencer_height => true,
+        CommitLevel::SoftOnly | CommitLevel::SoftAndFirm => false,
+        CommitLevel::FirmOnly => true,
     }
 }

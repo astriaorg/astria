@@ -23,7 +23,6 @@ telemetry = { package = "astria-telemetry", path = "../astria-telemetry", featur
 pin-project-lite = "0.2.13"
 secrecy = { version = "0.8", features = ["serde"] }
 tonic-health = "0.10.2"
-itertools = "0.11.0"
 
 async-trait = { workspace = true }
 axum = { workspace = true }
@@ -33,6 +32,7 @@ futures = { workspace = true }
 humantime = { workspace = true }
 hyper = { workspace = true }
 hex = { workspace = true }
+itertools = { workspace = true }
 once_cell = { workspace = true }
 prost = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
@@ -55,6 +55,7 @@ tracing = { workspace = true, features = ["attributes"] }
 tryhard = { workspace = true }
 tonic = { workspace = true }
 tokio-stream = { workspace = true, features = ["net"] }
+metrics = { workspace = true }
 
 [dependencies.sequencer-client]
 package = "astria-sequencer-client"

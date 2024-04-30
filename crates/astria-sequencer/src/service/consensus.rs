@@ -54,11 +54,7 @@ impl Consensus {
             // for some reason -- but that's not our problem.
             let rsp = self.handle_request(req).instrument(span.clone()).await;
             if let Err(e) = rsp.as_ref() {
-                warn!(
-                    parent: &span,
-                    error = e,
-                    "failed processing consensus request; returning error back to sender",
-                );
+                panic!("failed to handle consensus request, this is a bug: {e:?}");
             }
             // `send` returns the sent message if sending fail, so we are dropping it.
             if rsp_sender.send(rsp).is_err() {
@@ -488,7 +484,7 @@ mod test {
 
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
-        let mut app = App::new(snapshot);
+        let mut app = App::new(snapshot).await.unwrap();
         app.init_chain(storage.clone(), genesis_state, vec![], "test".to_string())
             .await
             .unwrap();

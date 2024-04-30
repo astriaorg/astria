@@ -6,7 +6,7 @@ use astria_eyre::eyre::{
     self,
     WrapErr as _,
 };
-use celestia_client::celestia_types::{
+use celestia_types::{
     nmt::Namespace,
     Blob,
 };
@@ -15,7 +15,10 @@ use sequencer_client::SequencerBlock;
 use tendermint::block::Height as SequencerHeight;
 use tracing::debug;
 
-use crate::metrics_init;
+use crate::{
+    metrics_init,
+    IncludeRollup,
+};
 
 // allow: the signature is dictated by the `serde(serialize_with = ...)` attribute.
 #[allow(clippy::trivially_copy_pass_by_ref)]
@@ -42,23 +45,32 @@ pub(super) struct RollupInfo {
     sequencer_rollup_id: RollupId,
 }
 
-/// Information about the a block that was converted to blobs.
+/// Information about a sequencer block that was converted to blobs.
 #[derive(Debug, serde::Serialize)]
 pub(super) struct ConversionInfo {
     #[serde(serialize_with = "serialize_height")]
     pub(super) sequencer_height: SequencerHeight,
     #[serde(serialize_with = "serialize_namespace")]
     pub(super) sequencer_namespace: Namespace,
-    pub(super) rollups: Vec<RollupInfo>,
+    pub(super) rollups_included: Vec<RollupInfo>,
+    pub(super) rollups_excluded: Vec<RollupInfo>,
 }
 
-/// The result of a block that was converted to blobs.
+/// The result of a sequencer block that was converted to blobs.
 pub(super) struct Converted {
     pub(super) blobs: Vec<Blob>,
     pub(super) info: ConversionInfo,
 }
 
-pub(super) fn convert(block: SequencerBlock) -> eyre::Result<Converted> {
+/// Convert the given sequencer block into a collection of blobs and related metadata.
+///
+/// Only blobs from the rollups specified in `rollup_filter` will be included.
+// allow: we'd need static lifetime on a ref to avoid pass-by-value here.
+#[allow(clippy::needless_pass_by_value)]
+pub(super) fn convert(
+    block: SequencerBlock,
+    rollup_filter: IncludeRollup,
+) -> eyre::Result<Converted> {
     let sequencer_height = block.height();
     let mut total_data_uncompressed_size = 0;
     let mut total_data_compressed_size = 0;
@@ -67,7 +79,7 @@ pub(super) fn convert(block: SequencerBlock) -> eyre::Result<Converted> {
     // Allocate extra space: one blob for the sequencer blob "header",
     // the rest for the rollup blobs.
     let mut blobs = Vec::with_capacity(rollup_blobs.len() + 1);
-    let sequencer_namespace = celestia_client::celestia_namespace_v0_from_str(
+    let sequencer_namespace = astria_core::celestia::namespace_v0_from_sha256_of_bytes(
         sequencer_blob.header().chain_id().as_str(),
     );
     let sequencer_blob_raw = sequencer_blob.into_raw().encode_to_vec();
@@ -79,24 +91,29 @@ pub(super) fn convert(block: SequencerBlock) -> eyre::Result<Converted> {
     let header_blob = Blob::new(sequencer_namespace, compressed_sequencer_blob_raw)
         .wrap_err("failed creating head Celestia blob")?;
     blobs.push(header_blob);
-    let mut rollups = Vec::new();
+    let mut rollups_included = Vec::new();
+    let mut rollups_excluded = Vec::new();
     for blob in rollup_blobs {
         let rollup_id = blob.rollup_id();
-        let namespace = celestia_client::celestia_namespace_v0_from_rollup_id(rollup_id);
+        let namespace = astria_core::celestia::namespace_v0_from_rollup_id(rollup_id);
         let info = RollupInfo {
             number_of_transactions: blob.transactions().len(),
             celestia_namespace: namespace,
-            sequencer_rollup_id: blob.rollup_id(),
+            sequencer_rollup_id: rollup_id,
         };
-        let raw_blob = blob.into_raw().encode_to_vec();
-        total_data_uncompressed_size += raw_blob.len();
-        let compressed_blob = compress_bytes(&raw_blob)
-            .wrap_err_with(|| format!("failed compressing rollup `{rollup_id}`"))?;
-        total_data_compressed_size += compressed_blob.len();
-        let blob = Blob::new(namespace, compressed_blob)
-            .wrap_err_with(|| format!("failed creating blob for rollup `{rollup_id}`"))?;
-        blobs.push(blob);
-        rollups.push(info);
+        if rollup_filter.should_include(&rollup_id) {
+            let raw_blob = blob.into_raw().encode_to_vec();
+            total_data_uncompressed_size += raw_blob.len();
+            let compressed_blob = compress_bytes(&raw_blob)
+                .wrap_err_with(|| format!("failed compressing rollup `{rollup_id}`"))?;
+            total_data_compressed_size += compressed_blob.len();
+            let blob = Blob::new(namespace, compressed_blob)
+                .wrap_err_with(|| format!("failed creating blob for rollup `{rollup_id}`"))?;
+            blobs.push(blob);
+            rollups_included.push(info);
+        } else {
+            rollups_excluded.push(info);
+        }
     }
 
     // gauges require f64, it's okay if the metrics get messed up by overflow or precision loss
@@ -118,7 +135,8 @@ pub(super) fn convert(block: SequencerBlock) -> eyre::Result<Converted> {
         info: ConversionInfo {
             sequencer_height,
             sequencer_namespace,
-            rollups,
+            rollups_included,
+            rollups_excluded,
         },
     })
 }

@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 
-use astria_core::primitive::v1::RollupId;
-use celestia_client::{
-    CelestiaRollupBlob,
-    CelestiaSequencerBlob,
+use astria_core::{
+    primitive::v1::RollupId,
+    sequencerblock::v1alpha1::{
+        CelestiaRollupBlob,
+        CelestiaSequencerBlob,
+    },
 };
 use telemetry::display::base64;
 use tracing::{

@@ -16,35 +16,32 @@ macro_rules! block {
 #[macro_export]
 macro_rules! celestia_network_head {
     (height: $height:expr) => {
-        ::celestia_client::celestia_types::ExtendedHeader {
-            header: ::celestia_client::celestia_tendermint::block::header::Header {
+        ::celestia_types::ExtendedHeader {
+            header: ::celestia_tendermint::block::header::Header {
                 height: $height.into(),
-                version: ::celestia_client::celestia_tendermint::block::header::Version {
+                version: ::celestia_tendermint::block::header::Version {
                     block: 0,
                     app: 0,
                 },
                 chain_id: "test_celestia-1000".try_into().unwrap(),
-                time: ::celestia_client::celestia_tendermint::Time::from_unix_timestamp(1, 1)
-                    .unwrap(),
+                time: ::celestia_tendermint::Time::from_unix_timestamp(1, 1).unwrap(),
                 last_block_id: None,
-                last_commit_hash: ::celestia_client::celestia_tendermint::Hash::Sha256([0; 32]),
-                data_hash: ::celestia_client::celestia_tendermint::Hash::Sha256([0; 32]),
-                validators_hash: ::celestia_client::celestia_tendermint::Hash::Sha256([0; 32]),
-                next_validators_hash: ::celestia_client::celestia_tendermint::Hash::Sha256([0; 32]),
-                consensus_hash: ::celestia_client::celestia_tendermint::Hash::Sha256([0; 32]),
+                last_commit_hash: ::celestia_tendermint::Hash::Sha256([0; 32]),
+                data_hash: ::celestia_tendermint::Hash::Sha256([0; 32]),
+                validators_hash: ::celestia_tendermint::Hash::Sha256([0; 32]),
+                next_validators_hash: ::celestia_tendermint::Hash::Sha256([0; 32]),
+                consensus_hash: ::celestia_tendermint::Hash::Sha256([0; 32]),
                 app_hash: vec![0; 32].try_into().unwrap(),
-                last_results_hash: ::celestia_client::celestia_tendermint::Hash::Sha256([0; 32]),
-                evidence_hash: ::celestia_client::celestia_tendermint::Hash::Sha256([0; 32]),
+                last_results_hash: ::celestia_tendermint::Hash::Sha256([0; 32]),
+                evidence_hash: ::celestia_tendermint::Hash::Sha256([0; 32]),
                 proposer_address: vec![0u8; 20].try_into().unwrap(),
             },
-            commit: ::celestia_client::celestia_tendermint::block::Commit {
+            commit: ::celestia_tendermint::block::Commit {
                 height: $height.into(),
                 ..Default::default()
             },
-            validator_set: ::celestia_client::celestia_tendermint::validator::Set::without_proposer(
-                vec![],
-            ),
-            dah: ::celestia_client::celestia_types::DataAvailabilityHeader {
+            validator_set: ::celestia_tendermint::validator::Set::without_proposer(vec![]),
+            dah: ::celestia_types::DataAvailabilityHeader {
                 row_roots: vec![],
                 column_roots: vec![],
             },

@@ -20,7 +20,10 @@ use super::{
     CelestiaClientBuilder,
     CelestiaKeys,
 };
-use crate::validator::Validator;
+use crate::{
+    validator::Validator,
+    IncludeRollup,
+};
 
 pub(crate) struct Builder {
     pub(crate) shutdown_token: tokio_util::sync::CancellationToken,
@@ -30,6 +33,7 @@ pub(crate) struct Builder {
     pub(crate) sequencer_poll_period: Duration,
     pub(crate) sequencer_grpc_endpoint: String,
     pub(crate) validator_key_path: Option<String>,
+    pub(crate) rollup_filter: IncludeRollup,
     pub(crate) pre_submit_path: PathBuf,
     pub(crate) post_submit_path: PathBuf,
 }
@@ -42,9 +46,10 @@ impl Builder {
             celestia_app_grpc_endpoint,
             celestia_app_key_file,
             cometbft_endpoint,
+            sequencer_poll_period,
             sequencer_grpc_endpoint,
             validator_key_path,
-            sequencer_poll_period,
+            rollup_filter,
             pre_submit_path,
             post_submit_path,
         } = self;
@@ -83,6 +88,7 @@ impl Builder {
             sequencer_poll_period,
             celestia_client_builder,
             validator,
+            rollup_filter,
             state,
             pre_submit_path,
             post_submit_path,
