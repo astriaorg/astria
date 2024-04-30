@@ -782,7 +782,6 @@ impl App {
             .to_vec()
             .try_into()
             .context("failed to convert app hash")?;
-        info!(app_hash = %telemetry::display::hex(app_hash.as_bytes()), "prepared commit");
         self.write_batch = Some(write_batch);
         Ok(app_hash)
     }
