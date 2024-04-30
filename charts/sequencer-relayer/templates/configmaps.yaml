@@ -28,6 +28,7 @@ data:
   OTEL_EXPORTER_OTLP_TRACE_HEADERS: "{{ .Values.config.relayer.otel.traceHeaders }}"
   {{- if not .Values.global.dev }}
   {{- else }}
+  ASTRIA_SEQUENCER_RELAYER_ONLY_INCLUDE_ROLLUPS: "{{ .Values.config.relayer.onlyIncludeRollups }}"
   {{- end }}
 ---
 apiVersion: v1

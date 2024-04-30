@@ -21,6 +21,7 @@ config:
     celestiaAppGrpc: ""
     cometbftRpc: ""
     sequencerGrpc: ""
+    onlyIncludeRollups: ""
 
     metrics:
       enabled: false

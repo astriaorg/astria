@@ -49,7 +49,10 @@ use tracing::{
     warn,
 };
 
-use crate::validator::Validator;
+use crate::{
+    validator::Validator,
+    IncludeRollup,
+};
 
 mod builder;
 mod celestia_client;
@@ -89,6 +92,9 @@ pub(crate) struct Relayer {
     /// If this is set, only relay blocks to DA which are proposed by the same validator key.
     validator: Option<Validator>,
 
+    /// The rollups whose data should be included in submissions.
+    rollup_filter: IncludeRollup,
+
     /// A watch channel to track the state of the relayer. Used by the API service.
     state: Arc<State>,
 
@@ -123,6 +129,7 @@ impl Relayer {
 
         let (submitter_task, submitter) = spawn_submitter(
             self.celestia_client_builder.clone(),
+            self.rollup_filter.clone(),
             self.state.clone(),
             submission_state,
             self.shutdown_token.clone(),
@@ -302,12 +309,18 @@ async fn read_submission_state<P1: AsRef<Path>, P2: AsRef<Path>>(
 
 fn spawn_submitter(
     client_builder: CelestiaClientBuilder,
+    rollup_filter: IncludeRollup,
     state: Arc<State>,
     submission_state: SubmissionState,
     shutdown_token: CancellationToken,
 ) -> (JoinHandle<eyre::Result<()>>, write::BlobSubmitterHandle) {
-    let (submitter, handle) =
-        write::BlobSubmitter::new(client_builder, state, submission_state, shutdown_token);
+    let (submitter, handle) = write::BlobSubmitter::new(
+        client_builder,
+        rollup_filter,
+        state,
+        submission_state,
+        shutdown_token,
+    );
     (tokio::spawn(submitter.run()), handle)
 }
 

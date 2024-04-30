@@ -66,6 +66,7 @@ use super::{
     SubmissionState,
     TrySubmitError,
 };
+use crate::IncludeRollup;
 
 mod conversion;
 
@@ -191,6 +192,9 @@ pub(super) struct BlobSubmitter {
     /// The builder for a client to submit blobs to Celestia.
     client_builder: CelestiaClientBuilder,
 
+    /// The rollups whose data should be included in submissions.
+    rollup_filter: IncludeRollup,
+
     /// The channel over which sequencer blocks are received.
     blocks: mpsc::Receiver<SequencerBlock>,
 
@@ -216,6 +220,7 @@ pub(super) struct BlobSubmitter {
 impl BlobSubmitter {
     pub(super) fn new(
         client_builder: CelestiaClientBuilder,
+        rollup_filter: IncludeRollup,
         state: Arc<super::State>,
         submission_state: SubmissionState,
         shutdown_token: CancellationToken,
@@ -225,6 +230,7 @@ impl BlobSubmitter {
         let (tx, rx) = mpsc::channel(128);
         let submitter = Self {
             client_builder,
+            rollup_filter,
             blocks: rx,
             conversions: Conversions::new(8),
             blobs: QueuedConvertedBlocks::with_max_blobs(128),
@@ -310,7 +316,7 @@ impl BlobSubmitter {
                         height = %block.height(),
                         "received sequencer block for submission",
                     );
-                    self.conversions.push(block);
+                    self.conversions.push(block, self.rollup_filter.clone());
                 }
 
             );
@@ -358,7 +364,7 @@ async fn submit_blobs(
     let start = std::time::Instant::now();
 
     metrics::counter!(crate::metrics_init::CELESTIA_SUBMISSION_COUNT).increment(1);
-    // XXX: The number of blocks per celestia tx is equal to the number of heights passed
+    // XXX: The number of sequencer blocks per celestia tx is equal to the number of heights passed
     // into this function. This comes from the way that `QueuedBlocks::take` is implemented.
     //
     // allow: the number of blocks should always be low enough to not cause precision loss
@@ -399,7 +405,7 @@ async fn submit_blobs(
     metrics::counter!(crate::metrics_init::CELESTIA_SUBMISSION_HEIGHT).absolute(celestia_height);
     metrics::histogram!(crate::metrics_init::CELESTIA_SUBMISSION_LATENCY).record(start.elapsed());
 
-    info!(%celestia_height, "successfully submitted blocks to Celestia");
+    info!(%celestia_height, "successfully submitted blobs to Celestia");
 
     state.set_celestia_connected(true);
     state.set_latest_confirmed_celestia_height(celestia_height);
@@ -536,9 +542,9 @@ impl Conversions {
         self.active.len() < self.max_conversions
     }
 
-    fn push(&mut self, block: SequencerBlock) {
+    fn push(&mut self, block: SequencerBlock, rollup_filter: IncludeRollup) {
         let height = block.height();
-        let conversion = tokio::task::spawn_blocking(move || convert(block));
+        let conversion = tokio::task::spawn_blocking(move || convert(block, rollup_filter));
         let fut = async move {
             let res = crate::utils::flatten(conversion.await);
             (height, res)
