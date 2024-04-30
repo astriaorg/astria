@@ -40,7 +40,7 @@ data:
   start-relayer.sh: |
     {{- .Files.Get "files/scripts/start-relayer.sh" | nindent 4 }}
 ---
----
+{{- if not .Values.secretProvider.enabled }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -50,3 +50,4 @@ data:
   {{ .Values.config.celestiaAppPrivateKey.secret.filename }}: |
     {{ .Values.config.celestiaAppPrivateKey.devContent }}
 ---
+{{- end }}

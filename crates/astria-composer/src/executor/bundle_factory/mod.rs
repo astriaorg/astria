@@ -106,9 +106,19 @@ impl SizedBundle {
         mem::replace(self, Self::new(self.max_size))
     }
 
+    /// Returns the current size of the bundle.
+    pub(super) fn get_size(&self) -> usize {
+        self.curr_size
+    }
+
     /// Consume self and return the underlying buffer of actions.
     pub(super) fn into_actions(self) -> Vec<Action> {
         self.buffer
+    }
+
+    /// Returns the number of sequence actions in the bundle.
+    pub(super) fn actions_count(&self) -> usize {
+        self.buffer.len()
     }
 
     /// Returns true if the bundle is empty.
@@ -182,6 +192,7 @@ impl BundleFactory {
                         seq_action,
                     })
                 } else {
+                    // if the bundle is full, flush it and start a new one
                     self.finished.push_back(self.curr_bundle.flush());
                     self.curr_bundle.try_push(seq_action).expect(
                         "seq_action should not be larger than max bundle size, this is a bug",

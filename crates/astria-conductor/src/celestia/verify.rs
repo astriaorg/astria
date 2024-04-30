@@ -4,16 +4,16 @@ use std::{
     time::Duration,
 };
 
+use astria_core::sequencerblock::v1alpha1::{
+    CelestiaRollupBlob,
+    CelestiaSequencerBlob,
+};
 use astria_eyre::{
     eyre,
     eyre::{
         ensure,
         WrapErr as _,
     },
-};
-use celestia_client::{
-    CelestiaRollupBlob,
-    CelestiaSequencerBlob,
 };
 use moka::future::Cache;
 use sequencer_client::{

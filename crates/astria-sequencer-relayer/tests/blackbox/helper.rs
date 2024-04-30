@@ -34,7 +34,7 @@ use astria_sequencer_relayer::{
     SequencerRelayer,
     ShutdownHandle,
 };
-use celestia_client::celestia_types::{
+use celestia_types::{
     blob::SubmitOptions,
     Blob,
 };
@@ -538,19 +538,17 @@ struct HeaderServerImpl;
 impl HeaderServer for HeaderServerImpl {
     async fn header_network_head(
         &self,
-    ) -> Result<celestia_client::celestia_types::ExtendedHeader, ErrorObjectOwned> {
-        use celestia_client::{
-            celestia_tendermint::{
-                block::{
-                    header::Header,
-                    Commit,
-                },
-                validator,
+    ) -> Result<celestia_types::ExtendedHeader, ErrorObjectOwned> {
+        use celestia_tendermint::{
+            block::{
+                header::Header,
+                Commit,
             },
-            celestia_types::{
-                DataAvailabilityHeader,
-                ExtendedHeader,
-            },
+            validator,
+        };
+        use celestia_types::{
+            DataAvailabilityHeader,
+            ExtendedHeader,
         };
         let header = ExtendedHeader {
             header: Header {
@@ -590,8 +588,8 @@ impl BlobServer for BlobServerImpl {
 #[allow(clippy::missing_panics_doc)]
 #[must_use]
 /// Returns a default tendermint block header for test purposes.
-pub fn make_celestia_tendermint_header() -> celestia_client::celestia_tendermint::block::Header {
-    use celestia_client::celestia_tendermint::{
+pub fn make_celestia_tendermint_header() -> celestia_tendermint::block::Header {
+    use celestia_tendermint::{
         account,
         block::{
             header::Version,

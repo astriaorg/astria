@@ -6,7 +6,7 @@ use astria_eyre::eyre::{
     self,
     WrapErr as _,
 };
-use celestia_client::celestia_types::{
+use celestia_types::{
     nmt::Namespace,
     Blob,
 };
@@ -79,7 +79,7 @@ pub(super) fn convert(
     // Allocate extra space: one blob for the sequencer blob "header",
     // the rest for the rollup blobs.
     let mut blobs = Vec::with_capacity(rollup_blobs.len() + 1);
-    let sequencer_namespace = celestia_client::celestia_namespace_v0_from_str(
+    let sequencer_namespace = astria_core::celestia::namespace_v0_from_sha256_of_bytes(
         sequencer_blob.header().chain_id().as_str(),
     );
     let sequencer_blob_raw = sequencer_blob.into_raw().encode_to_vec();
@@ -95,7 +95,7 @@ pub(super) fn convert(
     let mut rollups_excluded = Vec::new();
     for blob in rollup_blobs {
         let rollup_id = blob.rollup_id();
-        let namespace = celestia_client::celestia_namespace_v0_from_rollup_id(rollup_id);
+        let namespace = astria_core::celestia::namespace_v0_from_rollup_id(rollup_id);
         let info = RollupInfo {
             number_of_transactions: blob.transactions().len(),
             celestia_namespace: namespace,

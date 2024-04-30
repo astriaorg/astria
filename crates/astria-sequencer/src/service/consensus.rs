@@ -488,7 +488,7 @@ mod test {
 
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
-        let mut app = App::new(snapshot);
+        let mut app = App::new(snapshot).await.unwrap();
         app.init_chain(storage.clone(), genesis_state, vec![], "test".to_string())
             .await
             .unwrap();

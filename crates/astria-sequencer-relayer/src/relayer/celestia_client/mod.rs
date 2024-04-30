@@ -69,9 +69,9 @@ pub(super) use builder::{
     Builder as CelestiaClientBuilder,
     BuilderError,
 };
-use celestia_client::celestia_types::Blob;
 use celestia_cost_params::CelestiaCostParams;
 pub(crate) use celestia_keys::CelestiaKeys;
+use celestia_types::Blob;
 pub(super) use error::{
     GrpcResponseError,
     ProtobufDecodeError,

@@ -18,6 +18,7 @@ use astria_core::{
 };
 use astria_eyre::eyre::{
     self,
+    ensure,
     WrapErr as _,
 };
 use bytes::Bytes;
@@ -60,13 +61,8 @@ impl Client {
         &mut self,
         block_numbers: RangeInclusive<u32>,
     ) -> eyre::Result<Vec<Block>> {
-        fn identifier(number: u32) -> raw::BlockIdentifier {
-            raw::BlockIdentifier {
-                identifier: Some(raw::block_identifier::Identifier::BlockNumber(number)),
-            }
-        }
         let request = raw::BatchGetBlocksRequest {
-            identifiers: block_numbers.clone().map(identifier).collect(),
+            identifiers: block_numbers.clone().map(block_identifier).collect(),
         };
         let raw_blocks = self
             .inner
@@ -85,6 +81,25 @@ impl Client {
             .collect::<Result<_, _>>()
             .wrap_err("failed validating received blocks")?;
         Ok(blocks)
+    }
+
+    #[instrument(skip_all, fields(uri = %self.uri), err)]
+    pub(crate) async fn get_block(&mut self, block_number: u32) -> eyre::Result<Block> {
+        let request = raw::GetBlockRequest {
+            identifier: Some(block_identifier(block_number)),
+        };
+        let raw_block = self
+            .inner
+            .get_block(request)
+            .await
+            .wrap_err("failed to execute astria.execution.v1alpha2.GetBlocks RPC")?
+            .into_inner();
+        ensure!(
+            block_number == raw_block.number,
+            "requested block at number `{block_number}`, but received block contained `{}`",
+            raw_block.number
+        );
+        Block::try_from_raw(raw_block).wrap_err("failed validating received block")
     }
 
     /// Calls remote procedure `astria.execution.v1alpha2.GetGenesisInfo`
@@ -251,6 +266,14 @@ fn ensure_batch_get_blocks_is_correct(
         return Err(BatchGetBlocksError::MismatchedBlocks(mismatched));
     }
     Ok(())
+}
+
+/// Utility function to construct a `astria.execution.v1alpha2.BlockIdentifier` from `number`
+/// to use in RPC requests.
+fn block_identifier(number: u32) -> raw::BlockIdentifier {
+    raw::BlockIdentifier {
+        identifier: Some(raw::block_identifier::Identifier::BlockNumber(number)),
+    }
 }
 
 #[cfg(test)]
