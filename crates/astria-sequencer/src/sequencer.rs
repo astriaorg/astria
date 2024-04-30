@@ -86,7 +86,9 @@ impl Sequencer {
             crate::asset::initialize_native_asset(&native_asset);
         }
 
-        let app = App::new(snapshot);
+        let app = App::new(snapshot)
+            .await
+            .context("failed to initialize app")?;
 
         let consensus_service = tower::ServiceBuilder::new()
             .layer(request_span::layer(|req: &ConsensusRequest| {
