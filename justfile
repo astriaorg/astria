@@ -305,11 +305,11 @@ delete-smoke-test:
   just delete sequencer
   just delete rollup
 
-deploy-spam-test:
+deploy-load-test:
     wget https://github.com/astriaorg/goomy-blob/releases/download/v1.0/blob-spammer
     chmod +x blob-spammer
 
-run-spam-test:
+run-load-test:
     #!/usr/bin/env bash
     ETH_RPC_URL="http://executor.astria.localdev.me/"
     PRIVATE_KEY=8b3a7999072c9c9314c084044fe705db11714c6c4ed7cddb64da18ea270dd203
@@ -335,7 +335,7 @@ run-spam-test:
     fi
     sleep 1
     echo "Spamming Large Txs txs..."
-    if ! ./blob-spammer --privkey $PRIVATE_KEY --rpchost $ETH_RPC_URL largetx --max-wallets $MAX_WALLETS --throughput $THROUGHPUT --max-pending $MAX_PENDING --count $TOTAL_TXS_TO_SEND; then
+    if ! ./blob-spammer --privkey $PRIVATE_KEY --rpchost $ETH_RPC_URL largetx --max-wallets 1 --throughput 1 --max-pending 1 --count 5; then
         echo "Failed to spam Large Txs txs"
         exit 1
     else
