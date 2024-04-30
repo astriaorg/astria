@@ -472,8 +472,7 @@ async fn submit_tx(
     tx: SignedTransaction,
 ) -> eyre::Result<tx_sync::Response> {
     let nonce = tx.unsigned_transaction().params.nonce;
-    metrics::gauge!(crate::metrics_init::CURRENT_NONCE)
-        .set(nonce);
+    metrics::gauge!(crate::metrics_init::CURRENT_NONCE).set(nonce);
 
     // TODO: change to info and log tx hash (to match info log in `SubmitFut`'s response handling
     // logic)
