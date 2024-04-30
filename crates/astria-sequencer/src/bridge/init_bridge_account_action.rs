@@ -38,7 +38,10 @@ impl ActionHandler for InitBridgeAccountAction {
             "invalid fee asset",
         );
 
-        let fee = state.get_init_bridge_account_base_fee().await?;
+        let fee = state
+            .get_init_bridge_account_base_fee()
+            .await
+            .context("failed to get base fee for initializing bridge account")?;
 
         // this prevents the address from being registered as a bridge account
         // if it's been previously initialized as a bridge account.
@@ -70,7 +73,10 @@ impl ActionHandler for InitBridgeAccountAction {
 
     #[instrument(skip_all)]
     async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> Result<()> {
-        let fee = state.get_init_bridge_account_base_fee().await?;
+        let fee = state
+            .get_init_bridge_account_base_fee()
+            .await
+            .context("failed to get base fee for initializing bridge account")?;
 
         state.put_bridge_account_rollup_id(&from, &self.rollup_id);
         state
