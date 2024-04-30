@@ -5,12 +5,21 @@ package astria.sequencerblock.v1alpha1;
 import "astria/primitive/v1/types.proto";
 import "astria/sequencerblock/v1alpha1/block.proto";
 
+// A sequence of `astria.sequencerblock.v1alpha1.CelestiaRollup` that are posted to Celestia.
+message CelestiaRollupDataList {
+  repeated astria.sequencerblock.v1alpha1.CelestiaRollupData entries = 1;
+}
+
 // A collection of transactions belonging to a specific rollup that are submitted to celestia.
+//
+// It is created by splitting an `astria.sequencerblock.v1alpha1.SequencerBlock` into a
+// `astria.sequencerblock.v1alpha1.CelestiaHeader`, and a sequence of
+// `astria.sequencerblock.v1alpha.CelestiaRollup` (this object).
 //
 // The transactions contained in the item belong to a rollup identified
 // by `rollup_id`, and were included in the sequencer block identified
 // by `sequencer_block_hash`.
-message CelestiaRollupBlob {
+message CelestiaRollupData {
   // The hash of the sequencer block. Must be 32 bytes.
   bytes sequencer_block_hash = 1;
   // The 32 bytes identifying the rollup this blob belongs to. Matches
@@ -23,15 +32,21 @@ message CelestiaRollupBlob {
   astria.primitive.v1.Proof proof = 4;
 }
 
+// A sequence of `astria.sequencerblock.v1alpha1.CelestiaHeader` that are posted to Celestia.
+message CelestiaHeaderList {
+  repeated astria.sequencerblock.v1alpha1.CelestiaHeader headers = 1;
+}
+
 // The metadata of a sequencer block that is submitted to celestia.
 //
-// It is created by splitting a `astria.SequencerBlock` into a
-// `CelestiaSequencerBlob` (which can be thought of as a header), and a sequence ofj
-// `CelestiaRollupBlob`s.
+// It is created by splitting an `astria.sequencerblock.v1alpha1.SequencerBlock` into a
+// `astria.sequencerblock.v1alphha1.CelestiaHeader` (this object), and a sequence of
+// `astria.sequencerblock.v1alpha.CelestiaRollupData` (one object per rollup that had data
+// included in the sequencer block).
 //
 // The original sequencer block (and in turn CometBFT block) can be identified by the
-// block hash calculated from `header`.
-message CelestiaSequencerBlob {
+// `block_hash` field.
+message CelestiaHeader {
   // the 32-byte block hash of the sequencer block.
   bytes block_hash = 1;
   // the block header, which contains sequencer-specific commitments.

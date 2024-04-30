@@ -5,8 +5,8 @@ use std::{
 };
 
 use astria_core::sequencerblock::v1alpha1::{
-    CelestiaRollupBlob,
-    CelestiaSequencerBlob,
+    CelestiaHeader,
+    CelestiaRollupData,
 };
 use astria_eyre::{
     eyre,
@@ -48,8 +48,8 @@ use crate::utils::flatten;
 
 pub(super) struct VerifiedBlobs {
     celestia_height: u64,
-    header_blobs: HashMap<[u8; 32], CelestiaSequencerBlob>,
-    rollup_blobs: Vec<CelestiaRollupBlob>,
+    header_blobs: HashMap<[u8; 32], CelestiaHeader>,
+    rollup_blobs: Vec<CelestiaRollupData>,
 }
 
 impl VerifiedBlobs {
@@ -65,8 +65,8 @@ impl VerifiedBlobs {
         self,
     ) -> (
         u64,
-        HashMap<[u8; 32], CelestiaSequencerBlob>,
-        Vec<CelestiaRollupBlob>,
+        HashMap<[u8; 32], CelestiaHeader>,
+        Vec<CelestiaRollupData>,
     ) {
         (self.celestia_height, self.header_blobs, self.rollup_blobs)
     }
@@ -234,8 +234,8 @@ impl BlobVerifier {
 
     async fn verify_header_blob(
         self: Arc<Self>,
-        blob: CelestiaSequencerBlob,
-    ) -> eyre::Result<CelestiaSequencerBlob> {
+        blob: CelestiaHeader,
+    ) -> eyre::Result<CelestiaHeader> {
         use base64::prelude::*;
         let height = blob.height();
         let meta = self

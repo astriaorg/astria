@@ -1,8 +1,8 @@
 use astria_core::{
     brotli::decompress_bytes,
     sequencerblock::v1alpha1::{
-        CelestiaRollupBlob,
-        CelestiaSequencerBlob,
+        CelestiaHeader,
+        CelestiaRollupData,
     },
 };
 use celestia_types::{
@@ -64,8 +64,8 @@ pub(super) fn decode_raw_blobs(
 /// An unsorted [`CelestiaSequencerBlob`] and [`CelestiaRollupBlob`].
 pub(super) struct ConvertedBlobs {
     celestia_height: u64,
-    header_blobs: Vec<CelestiaSequencerBlob>,
-    rollup_blobs: Vec<CelestiaRollupBlob>,
+    header_blobs: Vec<CelestiaHeader>,
+    rollup_blobs: Vec<CelestiaRollupData>,
 }
 
 impl ConvertedBlobs {
@@ -77,7 +77,7 @@ impl ConvertedBlobs {
         self.rollup_blobs.len()
     }
 
-    pub(super) fn into_parts(self) -> (u64, Vec<CelestiaSequencerBlob>, Vec<CelestiaRollupBlob>) {
+    pub(super) fn into_parts(self) -> (u64, Vec<CelestiaHeader>, Vec<CelestiaRollupData>) {
         (self.celestia_height, self.header_blobs, self.rollup_blobs)
     }
 
@@ -89,17 +89,17 @@ impl ConvertedBlobs {
         }
     }
 
-    fn push_header(&mut self, header: CelestiaSequencerBlob) {
+    fn push_header(&mut self, header: CelestiaHeader) {
         self.header_blobs.push(header);
     }
 
-    fn push_rollup(&mut self, rollup: CelestiaRollupBlob) {
+    fn push_rollup(&mut self, rollup: CelestiaRollupData) {
         self.rollup_blobs.push(rollup);
     }
 }
 
-fn convert_header(blob: &Blob) -> Option<CelestiaSequencerBlob> {
-    use astria_core::generated::sequencerblock::v1alpha1::CelestiaSequencerBlob as ProtoType;
+fn convert_header(blob: &Blob) -> Option<CelestiaHeader> {
+    use astria_core::generated::sequencerblock::v1alpha1::CelestiaHeader as ProtoType;
     let data = decompress_bytes(&blob.data)
         .inspect_err(|err| {
             info!(
@@ -117,7 +117,7 @@ fn convert_header(blob: &Blob) -> Option<CelestiaSequencerBlob> {
             );
         })
         .ok()?;
-    CelestiaSequencerBlob::try_from_raw(raw)
+    CelestiaHeader::try_from_raw(raw)
         .inspect_err(|err| {
             info!(
                 error = err as &StdError,
@@ -127,8 +127,8 @@ fn convert_header(blob: &Blob) -> Option<CelestiaSequencerBlob> {
         .ok()
 }
 
-fn convert_rollup(blob: &Blob) -> Option<CelestiaRollupBlob> {
-    use astria_core::generated::sequencerblock::v1alpha1::CelestiaRollupBlob as ProtoType;
+fn convert_rollup(blob: &Blob) -> Option<CelestiaRollupData> {
+    use astria_core::generated::sequencerblock::v1alpha1::CelestiaRollupData as ProtoType;
     let data = decompress_bytes(&blob.data)
         .inspect_err(|err| {
             info!(
@@ -146,7 +146,7 @@ fn convert_rollup(blob: &Blob) -> Option<CelestiaRollupBlob> {
             );
         })
         .ok()?;
-    CelestiaRollupBlob::try_from_raw(raw_blob)
+    CelestiaRollupData::try_from_raw(raw_blob)
         .inspect_err(|err| {
             info!(
                 error = err as &StdError,

@@ -21,8 +21,8 @@ use crate::Protobuf;
 /// Consists of a head [`CelestiaSequencerBlob`] and a tail of [`CelestiaRollupBlob`]s.
 /// Used as a pass-through data structure to
 pub(super) struct CelestiaBlobBundle {
-    head: CelestiaSequencerBlob,
-    tail: Vec<CelestiaRollupBlob>,
+    head: CelestiaHeader,
+    tail: Vec<CelestiaRollupData>,
 }
 
 impl CelestiaBlobBundle {
@@ -37,7 +37,7 @@ impl CelestiaBlobBundle {
             rollup_ids_proof,
         } = block.into_parts();
 
-        let head = CelestiaSequencerBlob {
+        let head = CelestiaHeader {
             block_hash,
             header,
             rollup_ids: rollup_transactions.keys().copied().collect(),
@@ -52,7 +52,7 @@ impl CelestiaBlobBundle {
                 proof,
                 ..
             } = rollup_txs.into_parts();
-            tail.push(CelestiaRollupBlob {
+            tail.push(CelestiaRollupData {
                 sequencer_block_hash: block_hash,
                 rollup_id,
                 transactions,
@@ -66,7 +66,7 @@ impl CelestiaBlobBundle {
     }
 
     /// Returns the head and the tail of the celestia blob bundle, consuming it.
-    pub(super) fn into_parts(self) -> (CelestiaSequencerBlob, Vec<CelestiaRollupBlob>) {
+    pub(super) fn into_parts(self) -> (CelestiaHeader, Vec<CelestiaRollupData>) {
         (self.head, self.tail)
     }
 }
@@ -146,14 +146,14 @@ pub struct UncheckedCelestiaRollupBlob {
 
 impl UncheckedCelestiaRollupBlob {
     #[must_use]
-    pub fn into_celestia_rollup_blob(self) -> CelestiaRollupBlob {
-        CelestiaRollupBlob::from_unchecked(self)
+    pub fn into_celestia_rollup_blob(self) -> CelestiaRollupData {
+        CelestiaRollupData::from_unchecked(self)
     }
 }
 
 #[derive(Clone, Debug)]
 #[allow(clippy::module_name_repetitions)]
-pub struct CelestiaRollupBlob {
+pub struct CelestiaRollupData {
     /// The hash of the sequencer block. Must be 32 bytes.
     sequencer_block_hash: [u8; 32],
     /// The 32 bytes identifying the rollup this blob belongs to. Matches
@@ -165,7 +165,7 @@ pub struct CelestiaRollupBlob {
     proof: merkle::Proof,
 }
 
-impl CelestiaRollupBlob {
+impl CelestiaRollupData {
     #[must_use]
     pub fn proof(&self) -> &merkle::Proof {
         &self.proof
@@ -228,14 +228,14 @@ impl CelestiaRollupBlob {
     ///
     /// Useful for then encoding it as protobuf.
     #[must_use]
-    pub fn into_raw(self) -> raw::CelestiaRollupBlob {
+    pub fn into_raw(self) -> raw::CelestiaRollupData {
         let Self {
             sequencer_block_hash,
             rollup_id,
             transactions,
             proof,
         } = self;
-        raw::CelestiaRollupBlob {
+        raw::CelestiaRollupData {
             sequencer_block_hash: sequencer_block_hash.to_vec(),
             rollup_id: Some(rollup_id.to_raw()),
             transactions,
@@ -247,8 +247,8 @@ impl CelestiaRollupBlob {
     ///
     /// # Errors
     /// TODO(https://github.com/astriaorg/astria/issues/612)
-    pub fn try_from_raw(raw: raw::CelestiaRollupBlob) -> Result<Self, CelestiaRollupBlobError> {
-        let raw::CelestiaRollupBlob {
+    pub fn try_from_raw(raw: raw::CelestiaRollupData) -> Result<Self, CelestiaRollupBlobError> {
+        let raw::CelestiaRollupData {
             sequencer_block_hash,
             rollup_id,
             transactions,
@@ -411,18 +411,16 @@ impl UncheckedCelestiaSequencerBlob {
     /// TODO(https://github.com/astriaorg/astria/issues/612)
     pub fn try_into_celestia_sequencer_blob(
         self,
-    ) -> Result<CelestiaSequencerBlob, CelestiaSequencerBlobError> {
-        CelestiaSequencerBlob::try_from_unchecked(self)
+    ) -> Result<CelestiaHeader, CelestiaSequencerBlobError> {
+        CelestiaHeader::try_from_unchecked(self)
     }
 
     /// Converts from the raw decoded protobuf representation of this type.
     ///
     /// # Errors
     /// TODO(https://github.com/astriaorg/astria/issues/612)
-    pub fn try_from_raw(
-        raw: raw::CelestiaSequencerBlob,
-    ) -> Result<Self, CelestiaSequencerBlobError> {
-        let raw::CelestiaSequencerBlob {
+    pub fn try_from_raw(raw: raw::CelestiaHeader) -> Result<Self, CelestiaSequencerBlobError> {
+        let raw::CelestiaHeader {
             block_hash,
             header,
             rollup_ids,
@@ -478,7 +476,7 @@ impl UncheckedCelestiaSequencerBlob {
 
 #[derive(Clone, Debug)]
 #[allow(clippy::module_name_repetitions)]
-pub struct CelestiaSequencerBlob {
+pub struct CelestiaHeader {
     /// The block hash obtained from hashing `.header`.
     block_hash: [u8; 32],
     /// The sequencer block header.
@@ -499,7 +497,7 @@ pub struct CelestiaSequencerBlob {
     rollup_ids_proof: merkle::Proof,
 }
 
-impl CelestiaSequencerBlob {
+impl CelestiaHeader {
     /// Returns the block hash of the tendermint header stored in this blob.
     #[must_use]
     pub fn block_hash(&self) -> [u8; 32] {
@@ -596,7 +594,7 @@ impl CelestiaSequencerBlob {
     }
 
     /// Converts into the raw decoded protobuf representation of this type.
-    pub fn into_raw(self) -> raw::CelestiaSequencerBlob {
+    pub fn into_raw(self) -> raw::CelestiaHeader {
         let Self {
             block_hash,
             header,
@@ -605,7 +603,7 @@ impl CelestiaSequencerBlob {
             rollup_ids_proof,
             ..
         } = self;
-        raw::CelestiaSequencerBlob {
+        raw::CelestiaHeader {
             block_hash: block_hash.to_vec(),
             header: Some(header.into_raw()),
             rollup_ids: rollup_ids.into_iter().map(RollupId::into_raw).collect(),
@@ -618,9 +616,7 @@ impl CelestiaSequencerBlob {
     ///
     /// # Errors
     /// TODO(https://github.com/astriaorg/astria/issues/612)
-    pub fn try_from_raw(
-        raw: raw::CelestiaSequencerBlob,
-    ) -> Result<Self, CelestiaSequencerBlobError> {
+    pub fn try_from_raw(raw: raw::CelestiaHeader) -> Result<Self, CelestiaSequencerBlobError> {
         UncheckedCelestiaSequencerBlob::try_from_raw(raw)
             .and_then(UncheckedCelestiaSequencerBlob::try_into_celestia_sequencer_blob)
     }

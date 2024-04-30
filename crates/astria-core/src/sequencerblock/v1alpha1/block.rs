@@ -12,8 +12,8 @@ use super::{
     are_rollup_txs_included,
     celestia::{
         self,
-        CelestiaRollupBlob,
-        CelestiaSequencerBlob,
+        CelestiaHeader,
+        CelestiaRollupData,
     },
     raw,
 };
@@ -687,7 +687,7 @@ impl SequencerBlock {
     /// Turn the sequencer block into a [`CelestiaSequencerBlob`] and its associated list of
     /// [`CelestiaRollupBlob`]s.
     #[must_use]
-    pub fn into_celestia_blobs(self) -> (CelestiaSequencerBlob, Vec<CelestiaRollupBlob>) {
+    pub fn into_celestia_blobs(self) -> (CelestiaHeader, Vec<CelestiaRollupData>) {
         celestia::CelestiaBlobBundle::from_sequencer_block(self).into_parts()
     }
 

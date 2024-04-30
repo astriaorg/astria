@@ -6,8 +6,8 @@ pub use block::{
     SequencerBlock,
 };
 pub use celestia::{
-    CelestiaRollupBlob,
-    CelestiaSequencerBlob,
+    CelestiaHeader,
+    CelestiaRollupData,
 };
 use indexmap::IndexMap;
 use sha2::{

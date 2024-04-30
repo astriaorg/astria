@@ -213,14 +213,32 @@ impl ::prost::Name for RollupData {
         ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)
     }
 }
+/// A sequence of `astria.sequencerblock.v1alpha1.CelestiaRollup` that are posted to Celestia.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CelestiaRollupDataList {
+    #[prost(message, repeated, tag = "1")]
+    pub entries: ::prost::alloc::vec::Vec<CelestiaRollupData>,
+}
+impl ::prost::Name for CelestiaRollupDataList {
+    const NAME: &'static str = "CelestiaRollupDataList";
+    const PACKAGE: &'static str = "astria.sequencerblock.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)
+    }
+}
 /// A collection of transactions belonging to a specific rollup that are submitted to celestia.
+///
+/// It is created by splitting an `astria.sequencerblock.v1alpha1.SequencerBlock` into a
+/// `astria.sequencerblock.v1alpha1.CelestiaHeader`, and a sequence of
+/// `astria.sequencerblock.v1alpha.CelestiaRollup` (this object).
 ///
 /// The transactions contained in the item belong to a rollup identified
 /// by `rollup_id`, and were included in the sequencer block identified
 /// by `sequencer_block_hash`.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct CelestiaRollupBlob {
+pub struct CelestiaRollupData {
     /// The hash of the sequencer block. Must be 32 bytes.
     #[prost(bytes = "vec", tag = "1")]
     pub sequencer_block_hash: ::prost::alloc::vec::Vec<u8>,
@@ -236,8 +254,22 @@ pub struct CelestiaRollupBlob {
     #[prost(message, optional, tag = "4")]
     pub proof: ::core::option::Option<super::super::primitive::v1::Proof>,
 }
-impl ::prost::Name for CelestiaRollupBlob {
-    const NAME: &'static str = "CelestiaRollupBlob";
+impl ::prost::Name for CelestiaRollupData {
+    const NAME: &'static str = "CelestiaRollupData";
+    const PACKAGE: &'static str = "astria.sequencerblock.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)
+    }
+}
+/// A sequence of `astria.sequencerblock.v1alpha1.CelestiaHeader` that are posted to Celestia.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CelestiaHeaderList {
+    #[prost(message, repeated, tag = "1")]
+    pub headers: ::prost::alloc::vec::Vec<CelestiaHeader>,
+}
+impl ::prost::Name for CelestiaHeaderList {
+    const NAME: &'static str = "CelestiaHeaderList";
     const PACKAGE: &'static str = "astria.sequencerblock.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)
@@ -245,15 +277,16 @@ impl ::prost::Name for CelestiaRollupBlob {
 }
 /// The metadata of a sequencer block that is submitted to celestia.
 ///
-/// It is created by splitting a `astria.SequencerBlock` into a
-/// `CelestiaSequencerBlob` (which can be thought of as a header), and a sequence ofj
-/// `CelestiaRollupBlob`s.
+/// It is created by splitting an `astria.sequencerblock.v1alpha1.SequencerBlock` into a
+/// `astria.sequencerblock.v1alphha1.CelestiaHeader` (this object), and a sequence of
+/// `astria.sequencerblock.v1alpha.CelestiaRollupData` (one object per rollup that had data
+/// included in the sequencer block).
 ///
 /// The original sequencer block (and in turn CometBFT block) can be identified by the
-/// block hash calculated from `header`.
+/// `block_hash` field.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct CelestiaSequencerBlob {
+pub struct CelestiaHeader {
     /// the 32-byte block hash of the sequencer block.
     #[prost(bytes = "vec", tag = "1")]
     pub block_hash: ::prost::alloc::vec::Vec<u8>,
@@ -276,8 +309,8 @@ pub struct CelestiaSequencerBlob {
     #[prost(message, optional, tag = "5")]
     pub rollup_ids_proof: ::core::option::Option<super::super::primitive::v1::Proof>,
 }
-impl ::prost::Name for CelestiaSequencerBlob {
-    const NAME: &'static str = "CelestiaSequencerBlob";
+impl ::prost::Name for CelestiaHeader {
+    const NAME: &'static str = "CelestiaHeader";
     const PACKAGE: &'static str = "astria.sequencerblock.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)
