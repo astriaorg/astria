@@ -13,10 +13,7 @@ use astria_eyre::eyre::{
     bail,
     WrapErr as _,
 };
-use celestia_client::{
-    celestia_types::nmt::Namespace,
-    jsonrpsee::http_client::HttpClient as CelestiaClient,
-};
+use celestia_types::nmt::Namespace;
 use futures::{
     future::{
         BoxFuture,
@@ -25,6 +22,7 @@ use futures::{
     },
     FutureExt as _,
 };
+use jsonrpsee::http_client::HttpClient as CelestiaClient;
 use sequencer_client::{
     tendermint,
     tendermint::block::Height as SequencerHeight,
@@ -37,10 +35,7 @@ use telemetry::display::{
 };
 use tokio::{
     select,
-    sync::mpsc::error::{
-        SendError,
-        TrySendError,
-    },
+    sync::mpsc,
     task::spawn_blocking,
     try_join,
 };
@@ -60,7 +55,11 @@ use tracing::{
 
 use crate::{
     block_cache::GetSequencerHeight,
-    executor::StateIsInit,
+    executor::{
+        FirmSendError,
+        FirmTrySendError,
+        StateIsInit,
+    },
     utils::flatten,
 };
 
@@ -195,7 +194,7 @@ struct RunningReader {
     /// capacity again. Used as a back pressure mechanism so that this task does not fetch more
     /// blobs if there is no capacity in the executor to execute them against the rollup in
     /// time.
-    enqueued_block: Fuse<BoxFuture<'static, Result<u64, SendError<ReconstructedBlock>>>>,
+    enqueued_block: Fuse<BoxFuture<'static, Result<u64, FirmSendError>>>,
 
     /// The latest observed head height of the Celestia network. Set by values read from
     /// the `latest_height` stream.
@@ -246,14 +245,15 @@ impl RunningReader {
             shutdown,
             ..
         } = exposed_reader;
-        let block_cache = BlockCache::with_next_height(executor.next_expected_firm_height())
-            .wrap_err("failed constructing sequential block cache")?;
+        let block_cache =
+            BlockCache::with_next_height(executor.next_expected_firm_sequencer_height())
+                .wrap_err("failed constructing sequential block cache")?;
 
         let latest_heights = stream_latest_heights(celestia_client.clone(), celestia_block_time);
         let rollup_id = executor.rollup_id();
-        let rollup_namespace = celestia_client::celestia_namespace_v0_from_rollup_id(rollup_id);
+        let rollup_namespace = astria_core::celestia::namespace_v0_from_rollup_id(rollup_id);
         let sequencer_namespace =
-            celestia_client::celestia_namespace_v0_from_bytes(sequencer_chain_id.as_bytes());
+            astria_core::celestia::namespace_v0_from_sha256_of_bytes(sequencer_chain_id.as_bytes());
 
         let celestia_next_height = executor.celestia_base_block_height().value();
         let celestia_reference_height = executor.celestia_base_block_height().value();
@@ -424,14 +424,23 @@ impl RunningReader {
         let celestia_height = block.celestia_height;
         match self.executor.try_send_firm_block(block) {
             Ok(()) => self.advance_reference_celestia_height(celestia_height),
-            Err(TrySendError::Full(block)) => {
+            Err(FirmTrySendError::Channel {
+                source: mpsc::error::TrySendError::Full(block),
+            }) => {
                 trace!(
                     "executor channel is full; rescheduling block fetch until the channel opens up"
                 );
                 self.enqueued_block = enqueue_block(self.executor.clone(), block).boxed().fuse();
             }
 
-            Err(TrySendError::Closed(_)) => bail!("exiting because executor channel is closed"),
+            Err(FirmTrySendError::Channel {
+                source: mpsc::error::TrySendError::Closed(_),
+            }) => bail!("exiting because executor channel is closed"),
+
+            Err(FirmTrySendError::NotSet) => bail!(
+                "exiting because executor was configured without firm commitments; this Celestia \
+                 reader should have never been started"
+            ),
         }
         Ok(())
     }
@@ -546,7 +555,7 @@ impl FetchConvertVerifyAndReconstruct {
 async fn enqueue_block(
     executor: executor::Handle<StateIsInit>,
     block: ReconstructedBlock,
-) -> Result<u64, SendError<ReconstructedBlock>> {
+) -> Result<u64, FirmSendError> {
     let celestia_height = block.celestia_height;
     executor.send_firm_block(block).await?;
     Ok(celestia_height)

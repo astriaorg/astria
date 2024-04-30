@@ -91,7 +91,9 @@ impl Sequencer {
         }
 
         let mempool = Arc::new(Mutex::new(BasicMempool::new()));
-        let app = App::new(snapshot, mempool.clone());
+        let app = App::new(snapshot, mempool.clone())
+            .await
+            .context("failed to initialize app")?;
 
         let consensus_service = tower::ServiceBuilder::new()
             .layer(request_span::layer(|req: &ConsensusRequest| {

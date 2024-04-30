@@ -76,9 +76,11 @@ impl SizedBundle {
         }
     }
 
-    /// Buffer `seq_action` into the bundle. If the bundle won't fit `seq_action`, flush `buffer`,
-    /// returning it, and start building up a new buffer using `seq_action`.
-    fn push(&mut self, seq_action: SequenceAction) -> Result<(), SizedBundleError> {
+    /// Buffer `seq_action` into the bundle.
+    /// # Errors
+    /// - `seq_action` is beyond the max size allowed for the entire bundle
+    /// - `seq_action` does not fit in the remaining space in the bundle
+    fn try_push(&mut self, seq_action: SequenceAction) -> Result<(), SizedBundleError> {
         let seq_action_size = estimate_size_of_sequence_action(&seq_action);
 
         if seq_action_size > self.max_size {
@@ -95,6 +97,7 @@ impl SizedBundle {
             .or_insert(1);
         self.buffer.push(Action::Sequence(seq_action));
         self.curr_size += seq_action_size;
+
         Ok(())
     }
 
@@ -103,9 +106,19 @@ impl SizedBundle {
         mem::replace(self, Self::new(self.max_size))
     }
 
+    /// Returns the current size of the bundle.
+    pub(super) fn get_size(&self) -> usize {
+        self.curr_size
+    }
+
     /// Consume self and return the underlying buffer of actions.
     pub(super) fn into_actions(self) -> Vec<Action> {
         self.buffer
+    }
+
+    /// Returns the number of sequence actions in the bundle.
+    pub(super) fn actions_count(&self) -> usize {
+        self.buffer.len()
     }
 
     /// Returns true if the bundle is empty.
@@ -118,6 +131,17 @@ impl SizedBundle {
 pub(super) enum BundleFactoryError {
     #[error("sequence action is larger than the max bundle size. seq_action size: {size}")]
     SequenceActionTooLarge { size: usize, max_size: usize },
+    #[error(
+        "finished bundle queue is at capactiy and the sequence action does not fit in the current \
+         bundle. finished queue capacity: {finished_queue_capacity}, curr bundle size: \
+         {curr_bundle_size}, sequence action size: {sequence_action_size}"
+    )]
+    FinishedQueueFull {
+        curr_bundle_size: usize,
+        finished_queue_capacity: usize,
+        sequence_action_size: usize,
+        seq_action: SequenceAction,
+    },
 }
 
 /// Manages the bundling of sequence actions into `SizedBundle`s. A `Vec<Action>` is flushed and
@@ -129,25 +153,29 @@ pub(super) struct BundleFactory {
     curr_bundle: SizedBundle,
     /// The queue of bundles that have been built but not yet sent to the sequencer.
     finished: VecDeque<SizedBundle>,
+    /// Max amount of `SizedBundle`s that can be in the `finished` queue.
+    finished_queue_capacity: usize,
 }
 
 impl BundleFactory {
-    pub(super) fn new(max_bytes_per_bundle: usize) -> Self {
+    pub(super) fn new(max_bytes_per_bundle: usize, finished_queue_capacity: usize) -> Self {
         Self {
             curr_bundle: SizedBundle::new(max_bytes_per_bundle),
             finished: VecDeque::new(),
+            finished_queue_capacity,
         }
     }
 
     /// Buffer `seq_action` into the current bundle. If the bundle won't fit `seq_action`, flush
-    /// `curr_bundle` into the `finished` queue and start a new bundle
+    /// `curr_bundle` into the `finished` queue and start a new bundle, unless the `finished` queue
+    /// is at capacity.
     pub(super) fn try_push(
         &mut self,
         seq_action: SequenceAction,
     ) -> Result<(), BundleFactoryError> {
         let seq_action_size = estimate_size_of_sequence_action(&seq_action);
 
-        match self.curr_bundle.push(seq_action) {
+        match self.curr_bundle.try_push(seq_action) {
             Err(SizedBundleError::SequenceActionTooLarge(_seq_action)) => {
                 // reject the sequence action if it is larger than the max bundle size
                 Err(BundleFactoryError::SequenceActionTooLarge {
@@ -156,12 +184,28 @@ impl BundleFactory {
                 })
             }
             Err(SizedBundleError::NotEnoughSpace(seq_action)) => {
-                // if the bundle is full, flush it and start a new one
-                self.finished.push_back(self.curr_bundle.flush());
-                self.curr_bundle
-                    .push(seq_action)
-                    .expect("seq_action should not be larger than max bundle size, this is a bug");
-                Ok(())
+                if self.finished.len() >= self.finished_queue_capacity {
+                    Err(BundleFactoryError::FinishedQueueFull {
+                        curr_bundle_size: self.curr_bundle.curr_size,
+                        finished_queue_capacity: self.finished_queue_capacity,
+                        sequence_action_size: seq_action_size,
+                        seq_action,
+                    })
+                } else {
+                    // if the bundle is full, flush it and start a new one
+                    self.finished.push_back(self.curr_bundle.flush());
+                    self.curr_bundle.try_push(seq_action).expect(
+                        "seq_action should not be larger than max bundle size, this is a bug",
+                    );
+                    trace!(
+                        new_bundle_size = self.curr_bundle.curr_size,
+                        seq_action_size = seq_action_size,
+                        finished_queue.current_size = self.finished.len(),
+                        finished_queue.capacity = self.finished_queue_capacity,
+                        "created new bundle and bundled new sequence action"
+                    );
+                    Ok(())
+                }
             }
             Ok(()) => {
                 trace!(
@@ -196,6 +240,10 @@ impl BundleFactory {
             .pop_front()
             .or_else(|| Some(self.curr_bundle.flush()))
             .unwrap_or(SizedBundle::new(self.curr_bundle.max_size))
+    }
+
+    pub(super) fn is_full(&self) -> bool {
+        self.finished.len() >= self.finished_queue_capacity
     }
 }
 

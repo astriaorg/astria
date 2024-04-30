@@ -8,16 +8,16 @@ global:
 
 images:
   geth:
-    repo: ghcr.io/astriaorg/go-ethereum
-    tag: "0.9.1"
+    repo: ghcr.io/astriaorg/astria-geth
+    tag: 0.9.1
     devTag: latest
   conductor:
     repo: ghcr.io/astriaorg/conductor
-    tag: "0.13.1"
+    tag: "0.14.0"
     devTag: latest
   composer:
     repo: ghcr.io/astriaorg/composer
-    tag: "0.5.0"
+    tag: "0.6.0"
     devTag: latest
 
   # Rollup faucet
@@ -51,7 +51,16 @@ config:
     # - "FirmOnly" -> blocks are only pulled from DA
     # - "SoftAndFirm" -> blocks are pulled from both the sequencer and DA
     executionCommitLevel: 'SoftAndFirm'
+    # Max bytes to encode into a single sequencer `SignedTransaction`, not including signature,
+    # public key, nonce. This is the sum of the sizes of all the `SequenceAction`s. Should be
+    # set below the sequencer's max block size to allow space for encoding, signature, public
+    # key and nonce bytes
     maxBytesPerBundle: 200000
+    # Max amount of bundles that can be in the submission queue.
+    # ASTRIA_COMPOSER_BUNDLE_QUEUE_CAPACITY * ASTRIA_COMPOSER_MAX_BYTES_PER_BUNDLE (e.g.
+    # 40000 * 200KB = 8GB) is the limit on how much memory the finished bundle queue can consume.
+    # This should be lower than the resource limit enforced by Kubernetes on the pod, defined below
+    bundleQueueCapacity: 40000
     maxSubmitInterval: 2000
     # Configuration specific to EVM rollup genesis
     genesis:
@@ -156,7 +165,6 @@ config:
     # if config.rollup.executionLevel is NOT 'SoftOnly' AND celestia-node is not enabled
     # the rpc, ws, and token fields must be set to access celestia network.
     rpc: ""
-    ws: ""
     token: ""
     initialBlockHeight: "2"
     heightVariance: "10"
@@ -171,7 +179,7 @@ celestia-node:
   config:
     labelPrefix: astria
     type: light
-    tokenAuthLevel: read
+    tokenAuthLevel: false  # Set to false to disable auth
     # You can deploy on top of a custom celestia network, uncomment below and
     # update fields with notes
     # network: custom
@@ -317,6 +325,7 @@ ports:
   jsonRPC: 8545
   wsRPC: 8546
   executionGRPC: 50051
+  composerGRPC: 50052
   gossipnet: 2451
   faucet: 8080
   blockscout: 4000

@@ -20,6 +20,7 @@ use tonic::transport::{
     Uri,
 };
 use tracing::{
+    debug,
     instrument,
     warn,
     Instrument,
@@ -63,6 +64,8 @@ impl SequencerGrpcClient {
         height: u64,
         rollup_id: RollupId,
     ) -> eyre::Result<FilteredSequencerBlock> {
+        debug!("requesting filtered block from sequencer");
+
         let span = tracing::Span::current();
         let retry_cfg = tryhard::RetryFutureConfig::new(u32::MAX)
             .exponential_backoff(Duration::from_millis(100))

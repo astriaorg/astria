@@ -11,6 +11,7 @@ use std::{
 };
 
 use base64_serde::base64_serde_type;
+use serde_with::SerializeDisplay;
 
 /// Format `bytes` using standard base64 formatting.
 ///
@@ -47,8 +48,27 @@ impl<'a> serde::Serialize for Base64<'a> {
 /// ```
 /// use astria_telemetry::display;
 /// let signature = vec![1u8, 2, 3, 4, 5, 6, 7, 8];
-/// tracing::info!(signature = %display::base64(&signature), "received signature");
+/// tracing::info!(signature = %display::hex(&signature), "received signature");
 /// ```
+pub fn hex<T: AsRef<[u8]> + ?Sized>(bytes: &T) -> Hex<'_> {
+    Hex(bytes.as_ref())
+}
+
+/// A newtype wrapper of a byte slice that implements [`std::fmt::Display`].
+///
+/// To be used in tracing contexts. See the [`self::hex`] utility.
+#[derive(SerializeDisplay)]
+pub struct Hex<'a>(&'a [u8]);
+
+impl<'a> Display for Hex<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        for byte in self.0 {
+            f.write_fmt(format_args!("{byte:02x}"))?;
+        }
+        Ok(())
+    }
+}
+
 pub fn json<T>(serializable: &T) -> Json<'_, T>
 where
     T: serde::Serialize,

@@ -1,0 +1,20 @@
+syntax = "proto3";
+package cosmos.base.node.v1beta1;
+
+// This file contains types which are copied from
+// https://github.com/celestiaorg/cosmos-sdk/blob/76bcf5af73b0a166552b64f9df0f87cc813aba76/proto/cosmos/base/node/v1beta1/query.proto
+// (v1.18.3-sdk-v0.46.14 tag).
+
+// Service defines the gRPC querier service for node related queries.
+service Service {
+  // Config queries for the operator configuration.
+  rpc Config(ConfigRequest) returns (ConfigResponse);
+}
+
+// ConfigRequest defines the request structure for the Config gRPC query.
+message ConfigRequest {}
+
+// ConfigResponse defines the response structure for the Config gRPC query.
+message ConfigResponse {
+  string minimum_gas_price = 1;
+}

@@ -11,15 +11,13 @@ config:
   chainId: mocha-4
   coreIp: "full.consensus.mocha-4.celestia-mocha.com"
   type: light
+  tokenAuthLevel: read  # can set to nil or false to disable rpc auth
   coreGrpcPort: 9090
-  tokenAuthLevel: 'read'
   customInfo: ''
 
 images:
   pullPolicy: IfNotPresent
-  node: ghcr.io/celestiaorg/celestia-node:v0.12.4
-  tokenServer: "busybox:1.35.0-musl"
-
+  node: ghcr.io/celestiaorg/celestia-node:v0.13.4
 
 ports:
   celestia:

@@ -17,7 +17,6 @@ use astria_eyre::eyre::{
     eyre,
     WrapErr as _,
 };
-use celestia_client::jsonrpsee::http_client::HttpClient as CelestiaClient;
 use futures::{
     future::{
         BoxFuture,
@@ -40,6 +39,7 @@ use tokio::{
 };
 use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
+use tonic::transport::Channel;
 use tracing::{
     debug,
     error,
@@ -49,15 +49,25 @@ use tracing::{
     warn,
 };
 
-use crate::validator::Validator;
+use crate::{
+    validator::Validator,
+    IncludeRollup,
+};
 
 mod builder;
+mod celestia_client;
 mod read;
 mod state;
 mod submission;
 mod write;
 
 pub(crate) use builder::Builder;
+use celestia_client::{
+    BuilderError,
+    CelestiaClientBuilder,
+    CelestiaKeys,
+    TrySubmitError,
+};
 use state::State;
 pub(crate) use state::StateSnapshot;
 
@@ -65,24 +75,27 @@ use self::submission::SubmissionState;
 
 pub(crate) struct Relayer {
     /// A token to notify relayer that it should shut down.
-    shutdown_token: tokio_util::sync::CancellationToken,
+    shutdown_token: CancellationToken,
 
     /// The client used to query the sequencer cometbft endpoint.
     sequencer_cometbft_client: SequencerClient,
 
     /// The client used to poll the sequencer via the sequencer gRPC API.
-    sequencer_grpc_client: SequencerServiceClient<tonic::transport::Channel>,
+    sequencer_grpc_client: SequencerServiceClient<Channel>,
 
     /// The poll period defines the fixed interval at which the sequencer is polled.
     sequencer_poll_period: Duration,
 
-    // The http client for submitting sequencer blocks to celestia.
-    celestia_client: CelestiaClient,
+    /// The gRPC client for submitting sequencer blocks to celestia.
+    celestia_client_builder: CelestiaClientBuilder,
 
-    // If this is set, only relay blocks to DA which are proposed by the same validator key.
+    /// If this is set, only relay blocks to DA which are proposed by the same validator key.
     validator: Option<Validator>,
 
-    // A watch channel to track the state of the relayer. Used by the API service.
+    /// The rollups whose data should be included in submissions.
+    rollup_filter: IncludeRollup,
+
+    /// A watch channel to track the state of the relayer. Used by the API service.
     state: Arc<State>,
 
     pre_submit_path: PathBuf,
@@ -115,7 +128,8 @@ impl Relayer {
         };
 
         let (submitter_task, submitter) = spawn_submitter(
-            self.celestia_client.clone(),
+            self.celestia_client_builder.clone(),
+            self.rollup_filter.clone(),
             self.state.clone(),
             submission_state,
             self.shutdown_token.clone(),
@@ -283,7 +297,7 @@ async fn read_submission_state<P1: AsRef<Path>, P2: AsRef<Path>>(
     let post = post.as_ref().to_path_buf();
     crate::utils::flatten(
         tokio::task::spawn_blocking(move || {
-            submission::SubmissionState::from_paths::<LEANIENT_CONSISTENCY_CHECK, _, _>(pre, post)
+            SubmissionState::from_paths::<LEANIENT_CONSISTENCY_CHECK, _, _>(pre, post)
         })
         .await,
     )
@@ -294,17 +308,24 @@ async fn read_submission_state<P1: AsRef<Path>, P2: AsRef<Path>>(
 }
 
 fn spawn_submitter(
-    client: CelestiaClient,
+    client_builder: CelestiaClientBuilder,
+    rollup_filter: IncludeRollup,
     state: Arc<State>,
-    submission_state: submission::SubmissionState,
+    submission_state: SubmissionState,
     shutdown_token: CancellationToken,
 ) -> (JoinHandle<eyre::Result<()>>, write::BlobSubmitterHandle) {
-    let (submitter, handle) =
-        write::BlobSubmitter::new(client, state, submission_state, shutdown_token);
+    let (submitter, handle) = write::BlobSubmitter::new(
+        client_builder,
+        rollup_filter,
+        state,
+        submission_state,
+        shutdown_token,
+    );
     (tokio::spawn(submitter.run()), handle)
 }
 
 struct ReportValidator<'a>(&'a Validator);
+
 impl<'a> std::fmt::Display for ReportValidator<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!("{}", self.0.address))

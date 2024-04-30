@@ -11,6 +11,10 @@ pub mod primitive;
 pub mod protocol;
 pub mod sequencerblock;
 
+#[cfg(feature = "brotli")]
+pub mod brotli;
+#[cfg(feature = "celestia")]
+pub mod celestia;
 #[cfg(feature = "serde")]
 pub(crate) mod serde;
 

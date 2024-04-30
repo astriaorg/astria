@@ -77,7 +77,7 @@ async fn get_readyz(State(relayer_state): State<RelayerState>) -> Readyz {
 
 #[allow(clippy::unused_async)] // Permit because axum handlers must be async
 async fn get_status(State(relayer_state): State<RelayerState>) -> Json<relayer::StateSnapshot> {
-    Json(relayer_state.borrow().clone())
+    Json(*relayer_state.borrow())
 }
 
 enum Healthz {

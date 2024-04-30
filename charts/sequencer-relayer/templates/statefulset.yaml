@@ -31,6 +31,8 @@ spec:
               name: relayer-scripts-volume
             - mountPath: {{ include "sequencer-relayer.storage.mountPath" . }}
               name: relayer-storage-vol
+            - mountPath: /celestia-key/
+              name: relayer-celestia-key-volume
           ports:
             - containerPort: {{ .Values.ports.metrics }}
               name: metrics
@@ -45,4 +47,15 @@ spec:
             claimName: {{ .Values.storage.entities.sequencerRelayerStorage.persistentVolumeName }}-pvc
           {{- else }}
           emptyDir: {}
+          {{- end }}
+        - name: relayer-celestia-key-volume
+          {{- if $.Values.secretProvider.enabled }}
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: relayer-private-key-celestia
+          {{- else }}
+          configMap:
+            name: relayer-celestia-key
           {{- end }}

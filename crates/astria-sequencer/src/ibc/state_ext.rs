@@ -32,7 +32,12 @@ struct Balance(u128);
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
 struct SudoAddress([u8; ADDRESS_LEN]);
 
+/// Newtype wrapper to read and write a u128 from rocksdb.
+#[derive(BorshSerialize, BorshDeserialize, Debug)]
+struct Fee(u128);
+
 const IBC_SUDO_STORAGE_KEY: &str = "ibcsudo";
+const ICS20_WITHDRAWAL_BASE_FEE_STORAGE_KEY: &str = "ics20withdrawalfee";
 
 fn channel_balance_storage_key(channel: &ChannelId, asset: asset::Id) -> String {
     format!(
@@ -84,6 +89,19 @@ pub(crate) trait StateReadExt: StateRead {
             .context("failed to read ibc relayer key from state")?
             .is_some())
     }
+
+    #[instrument(skip(self))]
+    async fn get_ics20_withdrawal_base_fee(&self) -> Result<u128> {
+        let Some(bytes) = self
+            .get_raw(ICS20_WITHDRAWAL_BASE_FEE_STORAGE_KEY)
+            .await
+            .context("failed reading ics20 withdrawal fee from state")?
+        else {
+            bail!("ics20 withdrawal fee not found");
+        };
+        let Fee(fee) = Fee::try_from_slice(&bytes).context("invalid fee bytes")?;
+        Ok(fee)
+    }
 }
 
 impl<T: StateRead> StateReadExt for T {}
@@ -120,6 +138,15 @@ pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip(self))]
     fn delete_ibc_relayer_address(&mut self, address: &Address) {
         self.delete(ibc_relayer_key(address));
+    }
+
+    #[instrument(skip(self))]
+    fn put_ics20_withdrawal_base_fee(&mut self, fee: u128) -> Result<()> {
+        self.put_raw(
+            ICS20_WITHDRAWAL_BASE_FEE_STORAGE_KEY.to_string(),
+            borsh::to_vec(&Fee(fee)).context("failed to serialize fee")?,
+        );
+        Ok(())
     }
 }
 

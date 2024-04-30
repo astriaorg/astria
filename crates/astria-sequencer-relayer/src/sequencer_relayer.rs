@@ -45,11 +45,12 @@ impl SequencerRelayer {
     /// Returns an error if constructing the inner relayer type failed.
     pub fn new(cfg: Config) -> eyre::Result<(Self, ShutdownHandle)> {
         let shutdown_handle = ShutdownHandle::new();
+        let rollup_filter = cfg.only_include_rollups()?;
         let Config {
             cometbft_endpoint,
             sequencer_grpc_endpoint,
-            celestia_endpoint,
-            celestia_bearer_token,
+            celestia_app_grpc_endpoint,
+            celestia_app_key_file,
             block_time,
             relay_only_validator_key_blocks,
             validator_key_file,
@@ -62,12 +63,13 @@ impl SequencerRelayer {
         let validator_key_path = relay_only_validator_key_blocks.then_some(validator_key_file);
         let relayer = relayer::Builder {
             shutdown_token: shutdown_handle.token(),
-            celestia_endpoint,
-            celestia_bearer_token,
+            celestia_app_grpc_endpoint,
+            celestia_app_key_file,
             cometbft_endpoint,
             sequencer_poll_period: Duration::from_millis(block_time),
             sequencer_grpc_endpoint,
             validator_key_path,
+            rollup_filter,
             pre_submit_path,
             post_submit_path,
         }
