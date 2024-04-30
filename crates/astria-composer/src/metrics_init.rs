@@ -14,6 +14,7 @@ pub(crate) const ROLLUP_ID_LABEL: &str = "rollup_id";
 pub(crate) const COLLECTOR_TYPE_LABEL: &str = "collector_type";
 
 /// Registers all metrics used by this crate.
+// allow: refactor this. being tracked in https://github.com/astriaorg/astria/issues/1027
 #[allow(clippy::too_many_lines)]
 pub fn register() {
     describe_counter!(

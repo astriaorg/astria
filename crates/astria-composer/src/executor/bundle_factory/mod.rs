@@ -117,7 +117,7 @@ impl SizedBundle {
     }
 
     /// Returns the number of sequence actions in the bundle.
-    pub(super) fn no_of_seq_actions(&self) -> usize {
+    pub(super) fn actions_count(&self) -> usize {
         self.buffer.len()
     }
 

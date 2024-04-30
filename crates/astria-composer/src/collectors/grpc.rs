@@ -23,8 +23,8 @@ use tonic::{
 
 use crate::{
     collectors::{
-        CollectorType,
         EXECUTOR_SEND_TIMEOUT,
+        GRPC,
     },
     executor,
     metrics_init::{
@@ -70,7 +70,7 @@ impl GrpcCollectorService for Grpc {
             crate::metrics_init::TRANSACTIONS_RECEIVED,
             &[
                 (ROLLUP_ID_LABEL, rollup_id.to_string()),
-                (COLLECTOR_TYPE_LABEL, CollectorType::Grpc.to_string())
+                (COLLECTOR_TYPE_LABEL, GRPC.to_string())
             ]
         )
         .increment(1);
@@ -85,7 +85,7 @@ impl GrpcCollectorService for Grpc {
                     crate::metrics_init::TRANSACTIONS_DROPPED,
                     &[
                         (ROLLUP_ID_LABEL, rollup_id.to_string()),
-                        (COLLECTOR_TYPE_LABEL, CollectorType::Grpc.to_string())
+                        (COLLECTOR_TYPE_LABEL, GRPC.to_string())
                     ]
                 )
                 .increment(1);
@@ -99,7 +99,7 @@ impl GrpcCollectorService for Grpc {
                     crate::metrics_init::TRANSACTIONS_DROPPED,
                     &[
                         (ROLLUP_ID_LABEL, rollup_id.to_string()),
-                        (COLLECTOR_TYPE_LABEL, CollectorType::Grpc.to_string())
+                        (COLLECTOR_TYPE_LABEL, GRPC.to_string())
                     ]
                 )
                 .increment(1);

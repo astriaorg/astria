@@ -368,9 +368,12 @@ impl Executor {
                         bundles_drained += 1;
                     }
                     Err(error) => {
-                        error!(bundle =  %telemetry::display::json(&SizedBundleReport(&bundle)),
-                            %error, "failed submitting bundle to sequencer during shutdown; \
-                                aborting shutdown");
+                        error!(
+                            bundle =  %telemetry::display::json(&SizedBundleReport(&bundle)),
+                            %error,
+                            "failed submitting bundle to sequencer during shutdown; \
+                                aborting shutdown"
+                        );
                         // if we can't submit a bundle after multiple retries, we can abort
                         // the shutdown process
 
@@ -468,6 +471,10 @@ async fn submit_tx(
     client: sequencer_client::HttpClient,
     tx: SignedTransaction,
 ) -> eyre::Result<tx_sync::Response> {
+    let nonce = tx.unsigned_transaction().params.nonce;
+    metrics::gauge!(crate::metrics_init::CURRENT_NONCE)
+        .set(nonce);
+
     // TODO: change to info and log tx hash (to match info log in `SubmitFut`'s response handling
     // logic)
     let start = std::time::Instant::now();
@@ -591,20 +598,17 @@ impl Future for SubmitFut {
                         let tendermint::abci::Code::Err(code) = rsp.code else {
                             info!("sequencer responded with ok; submission successful");
 
-                            metrics::gauge!(crate::metrics_init::CURRENT_NONCE)
-                                .set(*this.nonce + 1);
-
-                            // allow: the number of bytes in a bundle will be large enough to not
-                            // cause a precision loss
+                            // allow: precision loss is unlikely (values too small) but also
+                            // unimportant in histograms
                             #[allow(clippy::cast_precision_loss)]
                             metrics::histogram!(crate::metrics_init::BYTES_PER_SUBMISSION)
                                 .record(this.bundle.get_size() as f64);
 
-                            // allow: a bundle will have at least 1 transaction which will not cause
-                            // a precision loss
+                            // allow: precision loss is unlikely (values too small) but also
+                            // unimportant in histograms
                             #[allow(clippy::cast_precision_loss)]
                             metrics::histogram!(crate::metrics_init::TRANSACTIONS_PER_SUBMISSION)
-                                .record(this.bundle.no_of_seq_actions() as f64);
+                                .record(this.bundle.actions_count() as f64);
 
                             return Poll::Ready(Ok(*this.nonce + 1));
                         };
@@ -630,8 +634,6 @@ impl Future for SubmitFut {
                                     crate::metrics_init::SEQUENCER_SUBMISSION_FAILURE_COUNT
                                 )
                                 .increment(1);
-                                metrics::gauge!(crate::metrics_init::CURRENT_NONCE)
-                                    .set(*this.nonce);
 
                                 return Poll::Ready(Ok(*this.nonce));
                             }

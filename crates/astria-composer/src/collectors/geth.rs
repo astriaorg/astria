@@ -51,8 +51,8 @@ use tracing::{
 
 use crate::{
     collectors::{
-        CollectorType,
         EXECUTOR_SEND_TIMEOUT,
+        GETH,
     },
     executor,
     metrics_init::{
@@ -218,7 +218,7 @@ impl Geth {
                             crate::metrics_init::TRANSACTIONS_RECEIVED,
                             &[
                                 (ROLLUP_ID_LABEL, chain_name.clone()),
-                                (COLLECTOR_TYPE_LABEL, CollectorType::Geth.to_string())
+                                (COLLECTOR_TYPE_LABEL, GETH.to_string())
                             ]).increment(1);
 
                         match executor_handle
@@ -236,7 +236,7 @@ impl Geth {
                                     crate::metrics_init::TRANSACTIONS_DROPPED,
                                     &[
                                         (ROLLUP_ID_LABEL, chain_name.clone()),
-                                        (COLLECTOR_TYPE_LABEL, CollectorType::Geth.to_string())
+                                        (COLLECTOR_TYPE_LABEL, GETH.to_string())
                                     ]
                                 ).increment(1);
                             }
@@ -250,7 +250,7 @@ impl Geth {
                                     crate::metrics_init::TRANSACTIONS_DROPPED,
                                     &[
                                         (ROLLUP_ID_LABEL, chain_name.clone()),
-                                        (COLLECTOR_TYPE_LABEL, CollectorType::Geth.to_string())
+                                        (COLLECTOR_TYPE_LABEL, GETH.to_string())
                                     ]
                                 ).increment(1);
                                 break Err(eyre!("executor channel closed while sending transaction"));
