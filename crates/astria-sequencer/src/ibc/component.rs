@@ -23,6 +23,8 @@ use crate::{
     },
 };
 
+pub(crate) const DEFAULT_ICS20_WITHDRAWAL_FEE: u128 = 24;
+
 #[derive(Default)]
 pub(crate) struct IbcComponent;
 
@@ -48,6 +50,9 @@ impl Component for IbcComponent {
             state.put_ibc_relayer_address(address);
         }
 
+        state
+            .put_ics20_withdrawal_base_fee(DEFAULT_ICS20_WITHDRAWAL_FEE)
+            .context("failed to put ics20 withdrawal base fee")?;
         Ok(())
     }
 

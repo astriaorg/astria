@@ -52,8 +52,14 @@ impl From<&asset::Id> for AssetId {
     }
 }
 
+/// Newtype wrapper to read and write a u128 from rocksdb.
+#[derive(BorshSerialize, BorshDeserialize, Debug)]
+struct Fee(u128);
+
 const BRIDGE_ACCOUNT_PREFIX: &str = "bridgeacc";
 const DEPOSIT_PREFIX: &str = "deposit";
+const INIT_BRIDGE_ACCOUNT_BASE_FEE_STORAGE_KEY: &str = "initbridgeaccfee";
+const BRIDGE_LOCK_BYTE_COST_MULTIPLIER_STORAGE_KEY: &str = "bridgelockmultiplier";
 
 fn storage_key(address: &str) -> String {
     format!("{BRIDGE_ACCOUNT_PREFIX}/{address}")
@@ -177,6 +183,28 @@ pub(crate) trait StateReadExt: StateRead {
         }
         Ok(deposit_events)
     }
+
+    #[instrument(skip(self))]
+    async fn get_init_bridge_account_base_fee(&self) -> Result<u128> {
+        let bytes = self
+            .get_raw(INIT_BRIDGE_ACCOUNT_BASE_FEE_STORAGE_KEY)
+            .await
+            .context("failed reading raw init bridge account base fee from state")?
+            .ok_or_else(|| anyhow!("init bridge account base fee not found"))?;
+        let Fee(fee) = Fee::try_from_slice(&bytes).context("invalid fee bytes")?;
+        Ok(fee)
+    }
+
+    #[instrument(skip(self))]
+    async fn get_bridge_lock_byte_cost_multiplier(&self) -> Result<u128> {
+        let bytes = self
+            .get_raw(BRIDGE_LOCK_BYTE_COST_MULTIPLIER_STORAGE_KEY)
+            .await
+            .context("failed reading raw bridge lock byte cost multiplier from state")?
+            .ok_or_else(|| anyhow!("bridge lock byte cost multiplier not found"))?;
+        let Fee(fee) = Fee::try_from_slice(&bytes).context("invalid fee bytes")?;
+        Ok(fee)
+    }
 }
 
 impl<T: StateRead + ?Sized> StateReadExt for T {}
@@ -244,6 +272,22 @@ pub(crate) trait StateWriteExt: StateWrite {
             self.clear_deposit_info(&rollup_id).await;
         }
         Ok(())
+    }
+
+    #[instrument(skip(self))]
+    fn put_init_bridge_account_base_fee(&mut self, fee: u128) {
+        self.put_raw(
+            INIT_BRIDGE_ACCOUNT_BASE_FEE_STORAGE_KEY.to_string(),
+            borsh::to_vec(&Fee(fee)).expect("failed to serialize fee"),
+        );
+    }
+
+    #[instrument(skip(self))]
+    fn put_bridge_lock_byte_cost_multiplier(&mut self, fee: u128) {
+        self.put_raw(
+            BRIDGE_LOCK_BYTE_COST_MULTIPLIER_STORAGE_KEY.to_string(),
+            borsh::to_vec(&Fee(fee)).expect("failed to serialize fee"),
+        );
     }
 }
 

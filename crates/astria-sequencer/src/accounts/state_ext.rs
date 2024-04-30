@@ -30,7 +30,12 @@ struct Nonce(u32);
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
 struct Balance(u128);
 
+/// Newtype wrapper to read and write a u128 from rocksdb.
+#[derive(BorshSerialize, BorshDeserialize, Debug)]
+struct Fee(u128);
+
 const ACCOUNTS_PREFIX: &str = "accounts";
+const TRANSFER_BASE_FEE_STORAGE_KEY: &str = "transferfee";
 
 fn storage_key(address: &str) -> String {
     format!("{ACCOUNTS_PREFIX}/{address}")
@@ -127,6 +132,20 @@ pub(crate) trait StateReadExt: StateRead {
         let Nonce(nonce) = Nonce::try_from_slice(&bytes).context("invalid nonce bytes")?;
         Ok(nonce)
     }
+
+    #[instrument(skip_all)]
+    async fn get_transfer_base_fee(&self) -> Result<u128> {
+        let bytes = self
+            .get_raw(TRANSFER_BASE_FEE_STORAGE_KEY)
+            .await
+            .context("failed reading raw transfer base fee from state")?;
+        let Some(bytes) = bytes else {
+            return Err(anyhow::anyhow!("transfer base fee not set"));
+        };
+
+        let Fee(fee) = Fee::try_from_slice(&bytes).context("invalid fee bytes")?;
+        Ok(fee)
+    }
 }
 
 impl<T: StateRead + ?Sized> StateReadExt for T {}
@@ -193,6 +212,13 @@ pub(crate) trait StateWriteExt: StateWrite {
                 .context("subtracting from account balance failed due to insufficient funds")?,
         )
         .context("failed to store updated account balance in database")?;
+        Ok(())
+    }
+
+    #[instrument(skip(self))]
+    fn put_transfer_base_fee(&mut self, fee: u128) -> Result<()> {
+        let bytes = borsh::to_vec(&Fee(fee)).context("failed to serialize fee")?;
+        self.put_raw(TRANSFER_BASE_FEE_STORAGE_KEY.to_string(), bytes);
         Ok(())
     }
 }
