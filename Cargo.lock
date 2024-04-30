@@ -576,6 +576,7 @@ dependencies = [
  "hyper",
  "insta",
  "itertools 0.11.0",
+ "metrics",
  "once_cell",
  "pin-project-lite",
  "prost",
