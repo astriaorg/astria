@@ -5,20 +5,35 @@ use serde::{
     Serialize,
 };
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
 pub enum CommitLevel {
-    SoftOnly,
     FirmOnly,
+    SoftOnly,
     SoftAndFirm,
 }
 
 impl CommitLevel {
-    pub(crate) fn is_soft_only(&self) -> bool {
-        matches!(self, Self::SoftOnly)
+    pub(crate) fn is_soft_and_firm(self) -> bool {
+        matches!(self, Self::SoftAndFirm)
     }
 
-    pub(crate) fn is_firm_only(&self) -> bool {
-        matches!(self, Self::FirmOnly)
+    pub(crate) fn is_with_firm(self) -> bool {
+        matches!(self, Self::FirmOnly | Self::SoftAndFirm)
+    }
+
+    pub(crate) fn is_with_soft(self) -> bool {
+        matches!(self, Self::SoftOnly | Self::SoftAndFirm)
+    }
+}
+
+impl std::fmt::Display for CommitLevel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            CommitLevel::SoftOnly => "soft",
+            CommitLevel::FirmOnly => "firm",
+            CommitLevel::SoftAndFirm => "soft-and-firm",
+        };
+        f.write_str(s)
     }
 }
 
@@ -76,12 +91,37 @@ impl config::Config for Config {
 
 #[cfg(test)]
 mod tests {
-    use super::Config;
+    use super::{
+        CommitLevel,
+        Config,
+    };
 
     const EXAMPLE_ENV: &str = include_str!("../local.env.example");
 
     #[test]
     fn example_env_config_is_up_to_date() {
         config::tests::example_env_config_is_up_to_date::<Config>(EXAMPLE_ENV);
+    }
+
+    #[test]
+    fn do_commit_levels_correctly_report_mode() {
+        use CommitLevel::{
+            FirmOnly,
+            SoftAndFirm,
+            SoftOnly,
+        };
+
+        assert!(!FirmOnly.is_soft_and_firm());
+        assert!(!SoftOnly.is_soft_and_firm());
+        assert!(SoftAndFirm.is_soft_and_firm());
+
+        assert!(FirmOnly.is_with_firm());
+        assert!(!FirmOnly.is_with_soft());
+
+        assert!(!SoftOnly.is_with_firm());
+        assert!(SoftOnly.is_with_soft());
+
+        assert!(SoftAndFirm.is_with_firm());
+        assert!(SoftAndFirm.is_with_soft());
     }
 }
