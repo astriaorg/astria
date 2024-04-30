@@ -28,11 +28,11 @@ run-testnet:
 
 [linux]
 stop-testnet:
-  pkill cometbft && pkill astria-sequencer
+  pkill cometbft && pkill -f astria-sequencer
 [linux] 
 run-testnet: 
   cargo build
-  ${OUT_DIR} ${NUM_VALIDATORS} ./scripts/testnet.sh
+  ./scripts/testnet.sh
 
 cometbft-logs-testnet NODE="node0":
   tail -f sequencer_testnet/{{ NODE }}/cometbft.log
@@ -40,6 +40,6 @@ cometbft-logs-testnet NODE="node0":
 sequencer-logs-testnet NODE="node0":
   tail -f sequencer_testnet/{{ NODE }}/sequencer.log
 
-clean-testnet DIR="sequencer_testnet": stop-testnet
+clean-testnet DIR="sequencer_testnet": 
   rm -r {{ DIR }} || true
   rm -r /tmp/astria_db_* || true
