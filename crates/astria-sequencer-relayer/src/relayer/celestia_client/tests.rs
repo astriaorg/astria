@@ -1,5 +1,5 @@
 use astria_core::generated::cosmos::base::abci::v1beta1::TxResponse;
-use celestia_client::celestia_types::{
+use celestia_types::{
     blob::Commitment,
     nmt::Namespace,
 };

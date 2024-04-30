@@ -150,21 +150,30 @@ pub(crate) struct App {
 }
 
 impl App {
-    pub(crate) fn new(snapshot: Snapshot) -> Self {
+    pub(crate) async fn new(snapshot: Snapshot) -> anyhow::Result<Self> {
         tracing::debug!("initializing App instance");
+
+        let app_hash: AppHash = snapshot
+            .root_hash()
+            .await
+            .context("failed to get current root hash")?
+            .0
+            .to_vec()
+            .try_into()
+            .expect("root hash conversion must succeed; should be 32 bytes");
 
         // We perform the `Arc` wrapping of `State` here to ensure
         // there should be no unexpected copies elsewhere.
         let state = Arc::new(StateDelta::new(snapshot));
 
-        Self {
+        Ok(Self {
             state,
             validator_address: None,
             executed_proposal_hash: Hash::default(),
             execution_results: None,
             write_batch: None,
-            app_hash: AppHash::default(),
-        }
+            app_hash,
+        })
     }
 
     #[instrument(name = "App:init_chain", skip_all)]
@@ -777,7 +786,7 @@ impl App {
             .prepare_commit(state)
             .await
             .context("failed to prepare commit")?;
-        let app_hash = write_batch
+        let app_hash: AppHash = write_batch
             .root_hash()
             .0
             .to_vec()
@@ -949,7 +958,7 @@ impl App {
             ))
             .expect("must be able to successfully commit to storage");
         tracing::debug!(
-            app_hash = %telemetry::display::base64(&app_hash),
+            app_hash = %telemetry::display::hex(&app_hash),
             "finished committing state",
         );
         self.app_hash = app_hash
@@ -1135,7 +1144,7 @@ mod test {
             .await
             .expect("failed to create temp storage backing chain state");
         let snapshot = storage.latest_snapshot();
-        let mut app = App::new(snapshot);
+        let mut app = App::new(snapshot).await.unwrap();
 
         let genesis_state = genesis_state.unwrap_or_else(|| GenesisState {
             accounts: default_genesis_accounts(),

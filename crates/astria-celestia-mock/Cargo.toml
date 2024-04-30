@@ -12,5 +12,4 @@ homepage = "https://astria.org"
 
 [dependencies]
 celestia-client = { package = "astria-celestia-client", path = "../astria-celestia-client" }
-
 jsonrpsee = { workspace = true, features = ["macros", "server"] }

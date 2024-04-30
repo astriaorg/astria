@@ -2,10 +2,16 @@
 
 pub mod helper;
 
-use std::time::Duration;
+use std::{
+    collections::HashSet,
+    time::Duration,
+};
 
 use assert_json_diff::assert_json_include;
-use helper::TestSequencerRelayerConfig;
+use helper::{
+    CometBftBlockToMount,
+    TestSequencerRelayerConfig,
+};
 use reqwest::StatusCode;
 use serde_json::json;
 use tokio::time::{
@@ -20,6 +26,7 @@ async fn report_degraded_if_block_fetch_fails() {
     let mut sequencer_relayer = TestSequencerRelayerConfig {
         relay_only_self: false,
         last_written_sequencer_height: None,
+        only_include_rollups: HashSet::new(),
     }
     .spawn_relayer()
     .await;
@@ -52,7 +59,8 @@ async fn report_degraded_if_block_fetch_fails() {
 
     // mount a bad block next, so the relayer will fail to fetch the block
     let abci_guard = sequencer_relayer.mount_abci_response(1).await;
-    let block_guard = sequencer_relayer.mount_bad_block_response::<RELAY_ALL>(1);
+    let block_guard =
+        sequencer_relayer.mount_block_response::<RELAY_ALL>(CometBftBlockToMount::BadAtHeight(1));
     timeout(
         Duration::from_millis(2 * sequencer_relayer.config.block_time),
         futures::future::join(
