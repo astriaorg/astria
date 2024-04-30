@@ -6,7 +6,7 @@ use astria_eyre::eyre::{
     self,
     WrapErr as _,
 };
-use celestia_client::jsonrpsee::http_client::HttpClient as CelestiaClient;
+use jsonrpsee::http_client::HttpClient as CelestiaClient;
 use sequencer_client::HttpClient as SequencerClient;
 use tokio_util::sync::CancellationToken;
 
@@ -48,7 +48,7 @@ impl Builder {
 }
 
 fn create_celestia_client(endpoint: String, bearer_token: &str) -> eyre::Result<CelestiaClient> {
-    use celestia_client::jsonrpsee::http_client::{
+    use jsonrpsee::http_client::{
         HeaderMap,
         HttpClientBuilder,
     };

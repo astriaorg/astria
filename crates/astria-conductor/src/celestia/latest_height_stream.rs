@@ -7,16 +7,14 @@ use astria_eyre::eyre::{
     Result,
     WrapErr as _,
 };
-use celestia_client::{
-    celestia_rpc::HeaderClient as _,
-    jsonrpsee::http_client::HttpClient,
-};
+use celestia_rpc::HeaderClient as _;
 use futures::{
     Future,
     FutureExt as _,
     Stream,
     StreamExt as _,
 };
+use jsonrpsee::http_client::HttpClient;
 use tokio_stream::wrappers::IntervalStream;
 
 pub(super) fn stream_latest_heights(

@@ -1,11 +1,13 @@
-use astria_core::brotli::decompress_bytes;
-use celestia_client::{
-    celestia_types::{
-        nmt::Namespace,
-        Blob,
+use astria_core::{
+    brotli::decompress_bytes,
+    sequencerblock::v1alpha1::{
+        CelestiaRollupBlob,
+        CelestiaSequencerBlob,
     },
-    CelestiaRollupBlob,
-    CelestiaSequencerBlob,
+};
+use celestia_types::{
+    nmt::Namespace,
+    Blob,
 };
 use prost::{
     Message as _,

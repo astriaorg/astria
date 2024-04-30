@@ -20,7 +20,7 @@ use astria_eyre::eyre::{
     self,
     WrapErr as _,
 };
-use celestia_client::celestia_types::Blob;
+use celestia_types::Blob;
 use futures::{
     future::{
         BoxFuture,
