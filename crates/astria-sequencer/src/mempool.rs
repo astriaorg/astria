@@ -124,7 +124,7 @@ impl Mempool {
         let mut inner = self.inner.lock().await;
         inner.queue.push(hash, priority);
         inner.hash_to_tx.insert(hash, tx);
-        tracing::info!(tx_hash = %telemetry::display::hex(hash.as_ref()), "inserted transaction into mempool");
+        tracing::debug!(tx_hash = %telemetry::display::hex(hash.as_ref()), "inserted transaction into mempool");
         Ok(())
     }
 

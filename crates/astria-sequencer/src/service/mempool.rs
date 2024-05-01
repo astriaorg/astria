@@ -200,11 +200,9 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
         "tx nonce is greater or equal to current account nonce; this was checked in \
          check_nonce_mempool",
     );
-    tracing::info!("inserting tx into mempool");
     mempool
         .insert(signed_tx, priority)
         .await
         .expect("priority transaction nonce and transaction nonce match, as we set them above");
-    tracing::info!("inserted tx into mempool");
     response::CheckTx::default()
 }
