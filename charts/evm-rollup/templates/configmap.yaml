@@ -31,6 +31,8 @@ data:
   OTEL_EXPORTER_OTLP_TRACES_COMPRESSION: "{{ .Values.config.rollup.otel.tracesCompression }}"
   OTEL_EXPORTER_OTLP_HEADERS: "{{ .Values.config.rollup.otel.otlpHeaders }}"
   OTEL_EXPORTER_OTLP_TRACE_HEADERS: "{{ .Values.config.rollup.otel.traceHeaders }}"
+  OTEL_SERVICE_NAME: "{{ .Values.config.rollup.otel.serviceNamePrefix }}-conductor"
+  {{- if not .Values.secretProvider.enabled
   {{- if not .Values.global.dev }}
   {{- else }}
   {{- end }}
@@ -61,6 +63,7 @@ data:
   OTEL_EXPORTER_OTLP_TRACES_COMPRESSION: "{{ .Values.config.rollup.otel.tracesCompression }}"
   OTEL_EXPORTER_OTLP_HEADERS: "{{ .Values.config.rollup.otel.otlpHeaders }}"
   OTEL_EXPORTER_OTLP_TRACE_HEADERS: "{{ .Values.config.rollup.otel.traceHeaders }}"
+  OTEL_SERVICE_NAME: "{{ .Values.config.rollup.otel.serviceNamePrefix }}-composer"
   {{- if not .Values.secretProvider.enabled }}
   ASTRIA_COMPOSER_PRIVATE_KEY: "{{ .Values.config.sequencer.privateKey }}"
   {{- end }}

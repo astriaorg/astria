@@ -52,6 +52,7 @@ config:
 
     otel:
       enabled: false
+      serviceName: "{{ include 'sequencer.name' . }}"
       endpoint:
       tracesEndpoint:
       tracesCompression: gzip

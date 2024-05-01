@@ -112,6 +112,7 @@ config:
       enabled: false
     otel:
       enabled: false
+      serviceNamePrefix: "{{ .Values.config.rollup.name }}"
       endpoint:
       tracesEndpoint:
       tracesCompression: gzip
