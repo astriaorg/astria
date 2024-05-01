@@ -684,10 +684,9 @@ impl SequencerBlock {
         }
     }
 
-    /// Turn the sequencer block into a [`CelestiaSequencerBlob`] and its associated list of
-    /// [`CelestiaRollupBlob`]s.
+    /// Turn the sequencer block into a [`CelestiaHeader`] and list of [`CelestiaRollupData`].
     #[must_use]
-    pub fn into_celestia_blobs(self) -> (CelestiaHeader, Vec<CelestiaRollupData>) {
+    pub fn split_for_celestia(self) -> (CelestiaHeader, Vec<CelestiaRollupData>) {
         celestia::CelestiaBlobBundle::from_sequencer_block(self).into_parts()
     }
 

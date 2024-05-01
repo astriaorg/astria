@@ -1,6 +1,14 @@
 use astria_core::{
     brotli::decompress_bytes,
+    generated::sequencerblock::v1alpha1::{
+        CelestiaHeaderList,
+        CelestiaRollupDataList,
+    },
     sequencerblock::v1alpha1::{
+        celestia::{
+            CelestiaRollupBlobError,
+            CelestiaSequencerBlobError,
+        },
         CelestiaHeader,
         CelestiaRollupData,
     },
@@ -33,8 +41,8 @@ pub(super) fn decode_raw_blobs(
     let mut converted_blobs = ConvertedBlobs::new(raw_blobs.celestia_height);
     for blob in raw_blobs.header_blobs {
         if blob.namespace == sequencer_namespace {
-            if let Some(header) = convert_header(&blob) {
-                converted_blobs.push_header(header);
+            if let Some(header_list) = convert_blob_to_header_list(&blob) {
+                converted_blobs.extend_from_header_list_if_welformed(header_list);
             }
         } else {
             warn!(
@@ -47,8 +55,8 @@ pub(super) fn decode_raw_blobs(
 
     for blob in raw_blobs.rollup_blobs {
         if blob.namespace == rollup_namespace {
-            if let Some(rollup) = convert_rollup(&blob) {
-                converted_blobs.push_rollup(rollup);
+            if let Some(rollup_list) = convert_blob_to_rollup_data_list(&blob) {
+                converted_blobs.extend_from_rollup_data_list_if_welformed(rollup_list);
             }
         } else {
             warn!(
@@ -64,42 +72,73 @@ pub(super) fn decode_raw_blobs(
 /// An unsorted [`CelestiaSequencerBlob`] and [`CelestiaRollupBlob`].
 pub(super) struct ConvertedBlobs {
     celestia_height: u64,
-    header_blobs: Vec<CelestiaHeader>,
-    rollup_blobs: Vec<CelestiaRollupData>,
+    headers: Vec<CelestiaHeader>,
+    rollup_data_entries: Vec<CelestiaRollupData>,
 }
 
 impl ConvertedBlobs {
-    pub(super) fn len_header_blobs(&self) -> usize {
-        self.header_blobs.len()
+    pub(super) fn len_headers(&self) -> usize {
+        self.headers.len()
     }
 
-    pub(super) fn len_rollup_blobs(&self) -> usize {
-        self.rollup_blobs.len()
+    pub(super) fn len_rollup_data_entries(&self) -> usize {
+        self.rollup_data_entries.len()
     }
 
     pub(super) fn into_parts(self) -> (u64, Vec<CelestiaHeader>, Vec<CelestiaRollupData>) {
-        (self.celestia_height, self.header_blobs, self.rollup_blobs)
+        (self.celestia_height, self.headers, self.rollup_data_entries)
     }
 
     fn new(celestia_height: u64) -> Self {
         Self {
             celestia_height,
-            header_blobs: Vec::new(),
-            rollup_blobs: Vec::new(),
+            headers: Vec::new(),
+            rollup_data_entries: Vec::new(),
         }
     }
 
     fn push_header(&mut self, header: CelestiaHeader) {
-        self.header_blobs.push(header);
+        self.headers.push(header);
     }
 
-    fn push_rollup(&mut self, rollup: CelestiaRollupData) {
-        self.rollup_blobs.push(rollup);
+    fn push_rollup_data(&mut self, rollup: CelestiaRollupData) {
+        self.rollup_data_entries.push(rollup);
+    }
+
+    fn extend_from_header_list_if_welformed(&mut self, list: CelestiaHeaderList) {
+        let initial_len = self.headers.len();
+        if let Err(err) = list.headers.into_iter().try_for_each(|raw| {
+            let header = CelestiaHeader::try_from_raw(raw)?;
+            self.push_header(header);
+            Ok::<(), CelestiaSequencerBlobError>(())
+        }) {
+            info!(
+                error = &err as &StdError,
+                "one header in {} was not well-formed; dropping all",
+                CelestiaHeaderList::full_name(),
+            );
+            self.headers.truncate(initial_len);
+        }
+    }
+
+    fn extend_from_rollup_data_list_if_welformed(&mut self, list: CelestiaRollupDataList) {
+        let initial_len = self.rollup_data_entries.len();
+        if let Err(err) = list.entries.into_iter().try_for_each(|raw| {
+            let entry = CelestiaRollupData::try_from_raw(raw)?;
+            self.push_rollup_data(entry);
+            Ok::<(), CelestiaRollupBlobError>(())
+        }) {
+            info!(
+                error = &err as &StdError,
+                "one entry in {} was not well-formed; dropping all",
+                CelestiaRollupDataList::full_name(),
+            );
+            self.rollup_data_entries.truncate(initial_len);
+        }
     }
 }
 
-fn convert_header(blob: &Blob) -> Option<CelestiaHeader> {
-    use astria_core::generated::sequencerblock::v1alpha1::CelestiaHeader as ProtoType;
+fn convert_blob_to_header_list(blob: &Blob) -> Option<CelestiaHeaderList> {
     let data = decompress_bytes(&blob.data)
         .inspect_err(|err| {
             info!(
@@ -108,27 +147,19 @@ fn convert_header(blob: &Blob) -> Option<CelestiaHeader> {
             );
         })
         .ok()?;
-    let raw = ProtoType::decode(&*data)
+    let raw = CelestiaHeaderList::decode(&*data)
         .inspect_err(|err| {
             info!(
                 error = err as &StdError,
-                target = ProtoType::full_name(),
-                "failed decoding blob bytes as sequencer header; dropping the blob",
+                target = CelestiaHeaderList::full_name(),
+                "failed decoding blob bytes; dropping the blob",
             );
         })
         .ok()?;
-    CelestiaHeader::try_from_raw(raw)
-        .inspect_err(|err| {
-            info!(
-                error = err as &StdError,
-                "failed verifying decoded sequencer header; dropping it"
-            );
-        })
-        .ok()
+    Some(raw)
 }
 
-fn convert_rollup(blob: &Blob) -> Option<CelestiaRollupData> {
-    use astria_core::generated::sequencerblock::v1alpha1::CelestiaRollupData as ProtoType;
+fn convert_blob_to_rollup_data_list(blob: &Blob) -> Option<CelestiaRollupDataList> {
     let data = decompress_bytes(&blob.data)
         .inspect_err(|err| {
             info!(
@@ -137,21 +168,14 @@ fn convert_rollup(blob: &Blob) -> Option<CelestiaRollupData> {
             );
         })
         .ok()?;
-    let raw_blob = ProtoType::decode(&*data)
+    let raw = CelestiaRollupDataList::decode(&*data)
         .inspect_err(|err| {
             info!(
                 error = err as &StdError,
-                target = ProtoType::full_name(),
-                "failed decoding blob bytes as rollup element; dropping the blob",
+                target = CelestiaRollupDataList::full_name(),
+                "failed decoding blob bytes; dropping the blob",
             );
         })
         .ok()?;
-    CelestiaRollupData::try_from_raw(raw_blob)
-        .inspect_err(|err| {
-            info!(
-                error = err as &StdError,
-                "failed verifying decoded rollup element; dropping it"
-            );
-        })
-        .ok()
+    Some(raw)
 }

@@ -811,6 +811,7 @@ dependencies = [
  "bech32 0.11.0",
  "celestia-tendermint",
  "celestia-types",
+ "const_format",
  "cosmrs",
  "dirs",
  "ed25519-consensus",
