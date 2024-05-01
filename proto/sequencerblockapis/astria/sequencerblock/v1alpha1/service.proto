@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package astria.sequencerblock.v1alpha1;
+
+import "astria/primitive/v1/types.proto";
+import "astria/sequencerblock/v1alpha1/block.proto";
+import "google/api/annotations.proto";
+import "google/api/field_behavior.proto";
+
+message GetSequencerBlockRequest {
+  // The height of the block to retrieve.
+  uint64 height = 1 [(google.api.field_behavior) = REQUIRED];
+}
+
+message GetFilteredSequencerBlockRequest {
+  // The height of the block to retrieve.
+  uint64 height = 1 [(google.api.field_behavior) = REQUIRED];
+  // The 32 bytes identifying a rollup. Usually the sha256 hash of a plain rollup name.
+  repeated astria.primitive.v1.RollupId rollup_ids = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
+service SequencerService {
+  // Given a block height, returns the sequencer block at that height.
+  rpc GetSequencerBlock(GetSequencerBlockRequest) returns (SequencerBlock) {
+    option (google.api.http) = {get: "/v1alpha1/sequencer/{height}"};
+  }
+
+  // Given a block height and set of rollup ids, returns a SequencerBlock which
+  // is filtered to contain only the transactions that are relevant to the given rollup.
+  rpc GetFilteredSequencerBlock(GetFilteredSequencerBlockRequest) returns (FilteredSequencerBlock) {
+    option (google.api.http) = {
+      post: "/v1alpha1/sequencer/{height}:filtered"
+      body: "*"
+    };
+  }
+}

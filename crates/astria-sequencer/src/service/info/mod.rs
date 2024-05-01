@@ -7,13 +7,14 @@ use std::{
 };
 
 use anyhow::Context as _;
+use astria_core::protocol::abci::AbciErrorCode;
+use cnidarium::Storage;
 use futures::{
     Future,
     FutureExt,
 };
-use penumbra_storage::Storage;
-use penumbra_tower_trace::v037::RequestExt as _;
-use tendermint::v0_37::abci::{
+use penumbra_tower_trace::v038::RequestExt as _;
+use tendermint::v0_38::abci::{
     request,
     response::{
         self,
@@ -26,12 +27,10 @@ use tower::Service;
 use tower_abci::BoxError;
 use tracing::{
     instrument,
-    Instrument,
+    Instrument as _,
 };
 
 mod abci_query_router;
-
-use sequencer_types::abci_code::AbciCode;
 
 use crate::state_ext::StateReadExt;
 
@@ -72,13 +71,12 @@ impl Info {
                     .get_block_height()
                     .await
                     .unwrap_or(0);
-                let app_hash = crate::app_hash::AppHash::from(
-                    self.storage
-                        .latest_snapshot()
-                        .root_hash()
-                        .await
-                        .context("failed to get app hash")?,
-                );
+                let app_hash = self
+                    .storage
+                    .latest_snapshot()
+                    .root_hash()
+                    .await
+                    .context("failed to get app hash")?;
 
                 let response = InfoResponse::Info(response::Info {
                     version: env!("CARGO_PKG_VERSION").to_string(),
@@ -103,8 +101,8 @@ impl Info {
         let (handler, params) = match self.query_router.at(&request.path) {
             Err(err) => {
                 return response::Query {
-                    code: AbciCode::UNKNOWN_PATH.into(),
-                    info: format!("{}", AbciCode::UNKNOWN_PATH),
+                    code: AbciErrorCode::UNKNOWN_PATH.into(),
+                    info: AbciErrorCode::UNKNOWN_PATH.to_string(),
                     log: format!("provided path `{}` is unknown: {err:?}", request.path),
                     ..response::Query::default()
                 };
@@ -147,9 +145,15 @@ impl Service<InfoRequest> for Info {
 
 #[cfg(test)]
 mod test {
-    use penumbra_storage::StateDelta;
-    use proto::native::sequencer::v1alpha1::Address;
-    use tendermint::v0_37::abci::{
+    use astria_core::primitive::v1::{
+        asset::{
+            Denom,
+            DEFAULT_NATIVE_ASSET_DENOM,
+        },
+        Address,
+    };
+    use cnidarium::StateDelta;
+    use tendermint::v0_38::abci::{
         request,
         InfoRequest,
         InfoResponse,
@@ -158,12 +162,16 @@ mod test {
     use super::Info;
     use crate::{
         accounts::state_ext::StateWriteExt as _,
+        asset::{
+            get_native_asset,
+            NATIVE_ASSET,
+        },
         state_ext::StateWriteExt as _,
     };
 
     #[tokio::test]
     async fn handle_query() {
-        let storage = penumbra_storage::TempStorage::new()
+        let storage = cnidarium::TempStorage::new()
             .await
             .expect("failed to create temp storage backing chain state");
         let height = 99;
@@ -171,11 +179,15 @@ mod test {
         let mut state = StateDelta::new(storage.latest_snapshot());
         state.put_storage_version_by_height(height, version);
 
+        let _ = NATIVE_ASSET.set(Denom::from_base_denom(DEFAULT_NATIVE_ASSET_DENOM));
+
         let address = Address::try_from_slice(
             &hex::decode("a034c743bed8f26cb8ee7b8db2230fd8347ae131").unwrap(),
         )
         .unwrap();
-        state.put_account_balance(address, 1000).unwrap();
+        state
+            .put_account_balance(address, get_native_asset().id(), 1000)
+            .unwrap();
         state.put_block_height(height);
 
         storage.commit(state).await.unwrap();
@@ -187,14 +199,15 @@ mod test {
             prove: false,
         });
 
-        let query_response = match {
+        let response = {
             let storage = (*storage).clone();
             let info_service = Info::new(storage).unwrap();
             info_service
                 .handle_info_request(info_request)
                 .await
                 .unwrap()
-        } {
+        };
+        let query_response = match response {
             InfoResponse::Query(query) => query,
             other => panic!("expected InfoResponse::Query, got {other:?}"),
         };

@@ -20,7 +20,6 @@
 //! };
 //!
 //! #[derive(Clone, Debug, Serialize, Deserialize)]
-//! #[serde(deny_unknown_fields)]
 //! pub struct MyConfig {
 //!     pub log: String,
 //!     pub api_listen_addr: SocketAddr,
@@ -113,7 +112,7 @@ pub fn get<T: Config>() -> Result<T, Error> {
 /// let config: MyConfig = config::get()?;
 /// # Ok::<_, Error>(())
 /// ```
-pub trait Config: core::fmt::Debug + DeserializeOwned {
+pub trait Config: ::core::fmt::Debug + DeserializeOwned {
     const PREFIX: &'static str;
 
     /// Creates `Self` by reading its fields from the environment.

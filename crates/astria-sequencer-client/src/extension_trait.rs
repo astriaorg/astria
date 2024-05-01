@@ -26,15 +26,27 @@ use std::{
     sync::Arc,
 };
 
+pub use astria_core::{
+    primitive::v1::Address,
+    protocol::{
+        account::v1alpha1::{
+            BalanceResponse,
+            NonceResponse,
+        },
+        transaction::v1alpha1::SignedTransaction,
+    },
+    sequencerblock::v1alpha1::{
+        block::SequencerBlockError,
+        SequencerBlock,
+    },
+};
 use async_trait::async_trait;
 use futures::Stream;
-pub use proto::native::sequencer::v1alpha1::{
-    Address,
-    BalanceResponse,
-    NonceResponse,
-    SignedTransaction,
+use prost::{
+    DecodeError,
+    Message as _,
 };
-use sequencer_types::SequencerBlockData;
+use tendermint::block::Height;
 #[cfg(feature = "http")]
 use tendermint_rpc::HttpClient;
 #[cfg(feature = "websocket")]
@@ -65,7 +77,7 @@ const _: () = {
 /// 2. the returned bytes contained in an `abci_query` RPC response cannot be deserialized as a
 ///    sequencer query response.
 /// 3. the sequencer query response is not the expected one.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Error {
     inner: ErrorKind,
 }
@@ -81,7 +93,6 @@ impl std::error::Error for Error {
         match &self.inner {
             ErrorKind::AbciQueryDeserialization(e) => Some(e),
             ErrorKind::TendermintRpc(e) => Some(e),
-            ErrorKind::Deserialization(e) => Some(e),
         }
     }
 }
@@ -97,7 +108,7 @@ impl Error {
     pub fn as_tendermint_rpc(&self) -> Option<&TendermintRpcError> {
         match self.kind() {
             ErrorKind::TendermintRpc(e) => Some(e),
-            _ => None,
+            ErrorKind::AbciQueryDeserialization(_) => None,
         }
     }
 
@@ -105,19 +116,10 @@ impl Error {
     fn abci_query_deserialization(
         target: &'static str,
         response: tendermint_rpc::endpoint::abci_query::AbciQuery,
-        inner: proto::DecodeError,
+        inner: DecodeError,
     ) -> Self {
         Self {
             inner: ErrorKind::abci_query_deserialization(target, response, inner),
-        }
-    }
-
-    fn deserialization<T: std::error::Error + Send + Sync + 'static>(
-        target: &'static str,
-        inner: T,
-    ) -> Self {
-        Self {
-            inner: ErrorKind::deserialization(target, inner),
         }
     }
 
@@ -132,7 +134,7 @@ impl Error {
 /// Error if deserialization of the bytes in an abci query response failed.
 #[derive(Clone, Debug)]
 pub struct AbciQueryDeserializationError {
-    inner: proto::DecodeError,
+    inner: DecodeError,
     response: Box<tendermint_rpc::endpoint::abci_query::AbciQuery>,
     target: &'static str,
 }
@@ -242,10 +244,9 @@ impl std::error::Error for DeserializationError {
 /// The collection of different errors that can occur when using the extension trait.
 ///
 /// Note that none of the errors contained herein are constructable outside this crate.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub enum ErrorKind {
     AbciQueryDeserialization(AbciQueryDeserializationError),
-    Deserialization(DeserializationError),
     TendermintRpc(TendermintRpcError),
 }
 
@@ -254,21 +255,11 @@ impl ErrorKind {
     fn abci_query_deserialization(
         target: &'static str,
         response: tendermint_rpc::endpoint::abci_query::AbciQuery,
-        inner: proto::DecodeError,
+        inner: DecodeError,
     ) -> Self {
         Self::AbciQueryDeserialization(AbciQueryDeserializationError {
             inner,
             response: Box::new(response),
-            target,
-        })
-    }
-
-    fn deserialization<T: std::error::Error + Send + Sync + 'static>(
-        target: &'static str,
-        inner: T,
-    ) -> Self {
-        Self::Deserialization(DeserializationError {
-            inner: Arc::new(inner),
             target,
         })
     }
@@ -285,7 +276,7 @@ impl ErrorKind {
 #[derive(Debug, thiserror::Error)]
 pub enum NewBlockStreamError {
     #[error("failed converting new block received from CometBft to sequencer block")]
-    CometBftConversion(#[source] sequencer_types::sequencer_block_data::Error),
+    CometBftConversion(#[source] SequencerBlockError),
     #[error("expected a `new-block` event, but got `{received}`")]
     UnexpectedEvent { received: &'static str },
     #[error("received a `new-block` event, but block field was not set")]
@@ -324,11 +315,26 @@ impl NewBlockStreamError {
 }
 
 pub struct NewBlocksStream {
-    inner: Pin<Box<dyn Stream<Item = Result<SequencerBlockData, NewBlockStreamError>> + Send>>,
+    inner: Pin<Box<dyn Stream<Item = Result<SequencerBlock, NewBlockStreamError>> + Send>>,
 }
 
 impl Stream for NewBlocksStream {
-    type Item = Result<SequencerBlockData, NewBlockStreamError>;
+    type Item = Result<SequencerBlock, NewBlockStreamError>;
+
+    fn poll_next(
+        mut self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Self::Item>> {
+        self.inner.as_mut().poll_next(cx)
+    }
+}
+
+pub struct LatestHeightStream {
+    inner: Pin<Box<dyn Stream<Item = Result<Height, NewBlockStreamError>> + Send>>,
+}
+
+impl Stream for LatestHeightStream {
+    type Item = Result<Height, NewBlockStreamError>;
 
     fn poll_next(
         mut self: Pin<&mut Self>,
@@ -340,12 +346,7 @@ impl Stream for NewBlocksStream {
 
 #[async_trait]
 pub trait SequencerSubscriptionClientExt: SubscriptionClient {
-    /// Subscribe to sequencer blocks from cometbft, returning a stream.
-    ///
-    /// This trait method calls the cometbft `/subscribe` endpoint with a
-    /// `tm.event = 'NewBlock'` argument, and then attempts to convert each
-    /// cometbft block to a `SequencerBlockData` type.
-    async fn subscribe_new_block_data(&self) -> Result<NewBlocksStream, SubscriptionFailed> {
+    async fn subscribe_latest_height(&self) -> Result<LatestHeightStream, SubscriptionFailed> {
         use futures::stream::{
             StreamExt as _,
             TryStreamExt as _,
@@ -363,8 +364,7 @@ pub trait SequencerSubscriptionClientExt: SubscriptionClient {
                     EventData::LegacyNewBlock {
                         block: Some(block),
                         ..
-                    } => SequencerBlockData::from_tendermint_block(*block)
-                        .map_err(NewBlockStreamError::CometBftConversion),
+                    } => Ok(block.header.height),
 
                     EventData::LegacyNewBlock {
                         block: None, ..
@@ -374,7 +374,7 @@ pub trait SequencerSubscriptionClientExt: SubscriptionClient {
                 })
             })
             .boxed();
-        Ok(NewBlocksStream {
+        Ok(LatestHeightStream {
             inner: stream,
         })
     }
@@ -389,7 +389,7 @@ pub trait SequencerClientExt: Client {
     ///
     /// - If calling tendermint `abci_query` RPC fails.
     /// - If the bytes contained in the abci query response cannot be read as an
-    ///   `astria.sequencer.v1alpha1.BalanceResponse`.
+    ///   `astria.sequencer.v1.BalanceResponse`.
     async fn get_balance<AddressT, HeightT>(
         &self,
         address: AddressT,
@@ -399,10 +399,9 @@ pub trait SequencerClientExt: Client {
         AddressT: Into<Address> + Send,
         HeightT: Into<tendermint::block::Height> + Send,
     {
-        use proto::Message as _;
         const PREFIX: &[u8] = b"accounts/balance/";
 
-        let path = make_path_from_prefix_and_address(PREFIX, address.into().0);
+        let path = make_path_from_prefix_and_address(PREFIX, address.into().get());
 
         let response = self
             .abci_query(Some(path), vec![], Some(height.into()), false)
@@ -410,14 +409,16 @@ pub trait SequencerClientExt: Client {
             .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
 
         let proto_response =
-            proto::generated::sequencer::v1alpha1::BalanceResponse::decode(&*response.value)
-                .map_err(|e| {
-                    Error::abci_query_deserialization(
-                        "astria.sequencer.v1alpha1.BalanceResponse",
-                        response,
-                        e,
-                    )
-                })?;
+            astria_core::generated::protocol::account::v1alpha1::BalanceResponse::decode(
+                &*response.value,
+            )
+            .map_err(|e| {
+                Error::abci_query_deserialization(
+                    "astria.sequencer.v1.BalanceResponse",
+                    response,
+                    e,
+                )
+            })?;
         Ok(proto_response.to_native())
     }
 
@@ -441,7 +442,7 @@ pub trait SequencerClientExt: Client {
     ///
     /// - If calling tendermint `abci_query` RPC fails.
     /// - If the bytes contained in the abci query response cannot be read as an
-    ///   `astria.sequencer.v1alpha1.NonceResponse`.
+    ///   `astria.sequencer.v1.NonceResponse`.
     async fn get_nonce<AddressT, HeightT>(
         &self,
         address: AddressT,
@@ -451,10 +452,9 @@ pub trait SequencerClientExt: Client {
         AddressT: Into<Address> + Send,
         HeightT: Into<tendermint::block::Height> + Send,
     {
-        use proto::Message as _;
         const PREFIX: &[u8] = b"accounts/nonce/";
 
-        let path = make_path_from_prefix_and_address(PREFIX, address.into().0);
+        let path = make_path_from_prefix_and_address(PREFIX, address.into().get());
 
         let response = self
             .abci_query(Some(path), vec![], Some(height.into()), false)
@@ -462,14 +462,12 @@ pub trait SequencerClientExt: Client {
             .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
 
         let proto_response =
-            proto::generated::sequencer::v1alpha1::NonceResponse::decode(&*response.value)
-                .map_err(|e| {
-                    Error::abci_query_deserialization(
-                        "astria.sequencer.v1alpha1.NonceResponse",
-                        response,
-                        e,
-                    )
-                })?;
+            astria_core::generated::protocol::account::v1alpha1::NonceResponse::decode(
+                &*response.value,
+            )
+            .map_err(|e| {
+                Error::abci_query_deserialization("astria.sequencer.v1.NonceResponse", response, e)
+            })?;
         Ok(proto_response.to_native())
     }
 
@@ -487,35 +485,6 @@ pub trait SequencerClientExt: Client {
         self.get_nonce(address, 0u32).await
     }
 
-    /// Get the latest sequencer block.
-    ///
-    /// This is a convenience method that converts the result [`Client::latest_block`]
-    /// to `SequencerBlockData`.
-    async fn latest_sequencer_block(&self) -> Result<SequencerBlockData, Error> {
-        let rsp = self
-            .latest_block()
-            .await
-            .map_err(|e| Error::tendermint_rpc("latest_block", e))?;
-        SequencerBlockData::from_tendermint_block(rsp.block)
-            .map_err(|e| Error::deserialization("SequencerBlockData", e))
-    }
-
-    /// Get the sequencer block at the provided height.
-    ///
-    /// This is a convenience method that converts the result [`Client::block`]
-    /// to `SequencerBlockData`.
-    async fn sequencer_block<HeightT>(&self, height: HeightT) -> Result<SequencerBlockData, Error>
-    where
-        HeightT: Into<tendermint::block::Height> + Send,
-    {
-        let rsp = self
-            .block(height.into())
-            .await
-            .map_err(|e| Error::tendermint_rpc("block", e))?;
-        SequencerBlockData::from_tendermint_block(rsp.block)
-            .map_err(|e| Error::deserialization("SequencerBlockData", e))
-    }
-
     /// Submits the given transaction to the Sequencer node.
     ///
     /// This method blocks until the transaction is checked, but not until it's committed.
@@ -528,7 +497,6 @@ pub trait SequencerClientExt: Client {
         &self,
         tx: SignedTransaction,
     ) -> Result<tx_sync::Response, Error> {
-        use proto::Message as _;
         let tx_bytes = tx.into_raw().encode_to_vec();
         self.broadcast_tx_sync(tx_bytes)
             .await
@@ -547,7 +515,6 @@ pub trait SequencerClientExt: Client {
         &self,
         tx: SignedTransaction,
     ) -> Result<tx_commit::Response, Error> {
-        use proto::Message as _;
         let tx_bytes = tx.into_raw().encode_to_vec();
         self.broadcast_tx_commit(tx_bytes)
             .await

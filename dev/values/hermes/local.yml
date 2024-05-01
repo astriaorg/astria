@@ -1,0 +1,64 @@
+createChannel:
+  enabled: true
+  chainA: sequencer-test-chain-0
+  portA: transfer
+  chainB: celestia-local-0
+  portB: transfer
+
+chains:
+  sequencer-test-chain-0:
+    type: Astria
+    rpcAddr: http://node0-sequencer-rpc-service.astria-dev-cluster.svc.cluster.local:26657
+    grpcAddr: http://node0-sequencer-grpc-service.astria-dev-cluster.svc.cluster.local:8080
+    accountPrefix: not_used
+    rpcTimeout: 15s
+    storePrefix: ibc_data
+    key:
+      name: astria-wallet
+      devContent:
+        signing_key: [43, 216, 6, 201, 127, 14, 0, 175, 26, 31, 195, 50, 143, 167, 99, 169, 38, 151, 35, 200, 219, 143, 172, 79, 147, 175, 113, 219, 24, 109, 110, 144]
+        address_type: Astria
+      secret:
+        resourceName: projects/$PROJECT_ID/secrets/astria-ibc-relay-key/versions/latest
+        filename: astria-wallet.json
+        key: token
+    eventSource:
+      mode: pull
+      interval: 1s
+    gasPrice: 1
+    gasDenom: nria
+    trustThreshold: 2/3
+
+  celestia-local-0:
+    type: CosmosSdk
+    compatMode: "0.34"
+    rpcAddr: http://celestia-app-service.astria-dev-cluster.svc.cluster.local:26657
+    grpcAddr: http://celestia-app-service.astria-dev-cluster.svc.cluster.local:9090
+    eventSource:
+      mode: push
+      url: http://celestia-app-service.astria-dev-cluster.svc.cluster.local:26657/websocket
+      batchDelay: 500ms
+    rpcTimeout: 15s
+    accountPrefix: celestia
+    key:
+      name: celestia
+      devContent:
+        private_key: 8241386890823ca14743e5d4d583f879a5236af29f454ed4da6fe62b8439e2ab
+        public_key: 03b0effa59e7eee365a888b4d2fa4c9be82a4925df255d4443151d61b11ac63714
+        address: [39, 166, 219, 243, 73, 131, 245, 143, 2, 206, 64, 203, 217, 165, 252, 194, 189, 5, 171, 220]
+        address_type: Cosmos
+        account: celestia1y7ndhu6fs06c7qkwgr9anf0uc27st27uwdj6vq
+      secret:
+        resourceName: projects/$PROJECT_ID/secrets/celestia-ibc-relay-key/versions/latest
+        filename: celestia.json
+        key: token
+    denom: "utia"
+    gasPrice: 0.1
+    gasMultiplier: 1.5
+    defaultGas: "100000"
+    maxGas: "400000"
+    maxMsgNum: 30
+    maxTxSize: "180000"
+    clockDrift: 5s
+    maxBlockTime: 30s
+    trustThreshold: 1/3

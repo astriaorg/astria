@@ -1,0 +1,183 @@
+syntax = "proto3";
+
+package astria.protocol.transactions.v1alpha1;
+
+import "astria/primitive/v1/types.proto";
+import "astria_vendored/penumbra/core/component/ibc/v1/ibc.proto";
+import "astria_vendored/tendermint/abci/types.proto";
+
+// `SignedTransaction` is a transaction that has
+// been signed by the given public key.
+// It wraps an `UnsignedTransaction` with a
+// signature and public key.
+message SignedTransaction {
+  bytes signature = 1;
+  bytes public_key = 2;
+  UnsignedTransaction transaction = 3;
+}
+
+// `UnsignedTransaction` is a transaction that does
+// not have an attached signature.
+// Note: `value` must be set, it cannot be `None`.
+message UnsignedTransaction {
+  repeated Action actions = 1;
+  TransactionParams params = 2;
+}
+
+// `TransactionParams` contains parameters that define the
+// validity of the transaction.
+message TransactionParams {
+  uint32 nonce = 1;
+  string chain_id = 2;
+}
+
+message Action {
+  oneof value {
+    // Core protocol actions are defined on 1-10
+    TransferAction transfer_action = 1;
+    SequenceAction sequence_action = 2;
+
+    // Bridge actions are defined on 11-20
+    InitBridgeAccountAction init_bridge_account_action = 11;
+    BridgeLockAction bridge_lock_action = 12;
+
+    // IBC user actions are defined on 21-30
+    astria_vendored.penumbra.core.component.ibc.v1.IbcRelay ibc_action = 21;
+    Ics20Withdrawal ics20_withdrawal = 22;
+
+    // POA sudo actions are defined of 50-60
+    SudoAddressChangeAction sudo_address_change_action = 50;
+    astria_vendored.tendermint.abci.ValidatorUpdate validator_update_action = 51;
+    IbcRelayerChangeAction ibc_relayer_change_action = 52;
+    FeeAssetChangeAction fee_asset_change_action = 53;
+    MintAction mint_action = 54;
+  }
+  reserved 3 to 10;
+  reserved 13 to 20;
+  reserved 23 to 30;
+  reserved 55 to 60;
+}
+
+// `TransferAction` represents a value transfer transaction.
+//
+// Note: all values must be set (ie. not `None`), otherwise it will
+// be considered invalid by the sequencer.
+message TransferAction {
+  astria.primitive.v1.Address to = 1;
+  astria.primitive.v1.Uint128 amount = 2;
+  // the asset to be transferred
+  bytes asset_id = 3;
+  // the asset used to pay the transaction fee
+  bytes fee_asset_id = 4;
+}
+
+// `SequenceAction` represents a transaction destined for another
+// chain, ordered by the sequencer.
+//
+// It contains the rollup ID of the destination chain, and the
+// opaque transaction data.
+message SequenceAction {
+  astria.primitive.v1.RollupId rollup_id = 1;
+  bytes data = 2;
+  // the asset used to pay the transaction fee
+  bytes fee_asset_id = 3;
+}
+
+/// `SudoAddressChangeAction` represents a transaction that changes
+/// the sudo address of the chain, which is the address authorized to
+/// make validator update actions.
+///
+/// It contains the new sudo address.
+message SudoAddressChangeAction {
+  astria.primitive.v1.Address new_address = 1;
+}
+
+// `MintAction` represents a minting transaction.
+// It can only be executed by the chain's sudo address.
+//
+// It contains the address to mint to, and the amount to mint.
+message MintAction {
+  astria.primitive.v1.Address to = 1;
+  astria.primitive.v1.Uint128 amount = 2;
+}
+
+message Ics20Withdrawal {
+  // first two fields are a transparent value consisting of an amount and a denom.
+  astria.primitive.v1.Uint128 amount = 1;
+  string denom = 2;
+  // the address on the destination chain to send the transfer to.
+  // this is not validated by Astria; it is up to the destination chain
+  // to interpret it.
+  string destination_chain_address = 3;
+  // an Astria address to use to return funds from this withdrawal
+  // in the case it fails.
+  bytes return_address = 4;
+  // the height (on Astria) at which this transfer expires.
+  IbcHeight timeout_height = 5;
+  // the unix timestamp (in nanoseconds) at which this transfer expires.
+  uint64 timeout_time = 6;
+  // the source channel used for the withdrawal.
+  string source_channel = 7;
+  // the asset used to pay the transaction fee
+  bytes fee_asset_id = 8;
+}
+
+message IbcHeight {
+  uint64 revision_number = 1;
+  uint64 revision_height = 2;
+}
+
+// `IbcRelayerChangeAction` represents a transaction that adds
+// or removes an IBC relayer address.
+// The bytes contained in each variant are the address to add or remove.
+message IbcRelayerChangeAction {
+  oneof value {
+    astria.primitive.v1.Address addition = 1;
+    astria.primitive.v1.Address removal = 2;
+  }
+}
+
+// `FeeAssetChangeAction` represents a transaction that adds
+// or removes an asset for fee payments.
+// The bytes contained in each variant are the 32-byte asset ID
+// to add or remove.
+message FeeAssetChangeAction {
+  oneof value {
+    bytes addition = 1;
+    bytes removal = 2;
+  }
+}
+
+// `InitBridgeAccountAction` represents a transaction that initializes
+// a bridge account for the given rollup on the chain.
+//
+// The sender of the transaction is used as the owner of the bridge account
+// and is the only actor authorized to transfer out of this account via
+// a `TransferAction`.
+message InitBridgeAccountAction {
+  // the rollup ID to register with the bridge account (the tx sender)
+  astria.primitive.v1.RollupId rollup_id = 1;
+  // the asset ID accepted as an incoming transfer by the bridge account
+  bytes asset_id = 2;
+  // the asset used to pay the transaction fee
+  bytes fee_asset_id = 3;
+}
+
+// `BridgeLockAction` represents a transaction that transfers
+// funds from a sequencer account to a bridge account.
+//
+// It's the same as a `TransferAction` but with the added
+// `destination_chain_address` field.
+message BridgeLockAction {
+  // the address of the bridge account to transfer to
+  astria.primitive.v1.Address to = 1;
+  // the amount to transfer
+  astria.primitive.v1.Uint128 amount = 2;
+  // the asset to be transferred
+  bytes asset_id = 3;
+  // the asset used to pay the transaction fee
+  bytes fee_asset_id = 4;
+  // the address on the destination chain which
+  // will receive the bridged funds
+  string destination_chain_address = 5;
+}

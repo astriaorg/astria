@@ -2,29 +2,38 @@
 name = "astria-sequencer-client"
 version = "0.1.0"
 edition = "2021"
+license = "MIT OR Apache-2.0"
+rust-version = "1.73"
+repository = "https://github.com/astriaorg/astria"
+homepage = "https://astria.org"
 
 [dependencies]
-proto = { package = "astria-proto", path = "../astria-proto" }
-sequencer-types = { package = "astria-sequencer-types", path = "../astria-sequencer-types" }
+astria-core = { path = "../astria-core" }
 
 async-trait = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
+prost = { workspace = true }
 tendermint = { workspace = true }
+tendermint-proto = { workspace = true }
 tendermint-rpc = { workspace = true }
+tokio = { version = "1.3.6", default-features = false, features = ["time"] }
 tracing = { workspace = true }
 thiserror = { workspace = true }
+tokio-stream = { workspace = true }
+futures-util = "0.3.30"
 
 [features]
+default = ["http", "websocket"]
 http = ["tendermint-rpc/http-client"]
 websocket = ["tendermint-rpc/websocket-client"]
 
 [dev-dependencies]
 ed25519-consensus = { workspace = true }
-hex-literal = "0.4.1"
+hex-literal = { workspace = true }
 regex = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 tokio = { workspace = true }
-tokio-test = "0.4.2"
+tokio-test = { workspace = true }
 wiremock = { workspace = true }

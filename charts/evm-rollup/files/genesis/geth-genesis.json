@@ -1,0 +1,52 @@
+{
+    "config": {
+        "chainId": {{ toString .Values.config.rollup.networkId | replace "\"" "" }},
+        "homesteadBlock": 0,
+        "eip150Block": 0,
+        "eip155Block": 0,
+        "eip158Block": 0,
+        "byzantiumBlock": 0,
+        "constantinopleBlock": 0,
+        "petersburgBlock": 0,
+        "istanbulBlock": 0,
+        "berlinBlock": 0,
+        "londonBlock": 0,
+        {{- if .Values.config.rollup.genesis.shanghaiTime}}
+        "shanghaiTime": {{ toString .Values.config.rollup.genesis.shanghaiTime | replace "\"" "" }},
+        {{- end }}
+        {{- if .Values.config.rollup.genesis.cancunTime }}
+        "cancunTime": {{ toString .Values.config.rollup.genesis.cancunTime | replace "\"" "" }},
+        {{- end }}
+        {{- if .Values.config.rollup.genesis.cancunTime }}
+        "pragueTime": {{ toString .Values.config.rollup.genesis.pragueTime | replace "\"" "" }},
+        {{- end }}
+        {{- if .Values.config.rollup.genesis.cancunTime }}
+        "verkleTime": {{ toString .Values.config.rollup.genesis.verkleTime | replace "\"" "" }},
+        {{- end }}
+        "terminalTotalDifficulty": 0,
+        "terminalTotalDifficultyPassed": true,
+        "ethash": {},
+        {{- if .Values.config.rollup.genesis.extraDataOverride }}
+        "astriaExtraDataOverride": "{{ .Values.config.rollup.genesis.extraDataOverride }}",
+        {{- end }}
+        "astriaOverrideGenesisExtraData": {{ .Values.config.rollup.genesis.overrideGenesisExtraData }},
+        "astriaSequencerInitialHeight": {{ toString .Values.config.sequencer.initialBlockHeight | replace "\"" "" }},
+        "astriaRollupName": "{{ .Values.config.rollup.name }}",
+        "astriaCelestiaInitialHeight": {{ toString .Values.config.celestia.initialBlockHeight | replace "\"" "" }},
+        "astriaCelestiaHeightVariance": {{ toString .Values.config.celestia.heightVariance | replace "\"" "" }},
+        "astriaBridgeAddresses": {{ toPrettyJson .Values.config.rollup.genesis.bridgeAddresses | indent 8 | trim }},
+        "astriaFeeCollectors": {{ toPrettyJson .Values.config.rollup.genesis.feeCollectors | indent 8 | trim }},
+        "astriaEIP1559Params": {{ toPrettyJson .Values.config.rollup.genesis.eip1559Params | indent 8 | trim }}
+        {{- if not .Values.global.dev }}
+        {{- else }}
+        {{- end }}
+    },
+    "difficulty": "0",
+    "gasLimit": "{{ .Values.config.rollup.genesis.gasLimit }}",
+    "alloc": {
+    {{- range $index, $value := .Values.config.rollup.genesis.alloc }}
+        {{- if $index }},{{- end }}
+        "{{ $value.address }}": {{ toPrettyJson $value.value | indent 8 | trim }}
+    {{- end }}
+    }
+}

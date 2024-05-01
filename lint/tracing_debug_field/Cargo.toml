@@ -1,0 +1,25 @@
+[package]
+name = "tracing_debug_field"
+version = "0.1.0"
+authors = ["https://astria.org"]
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[[example]]
+name = "ui"
+path = "ui/main.rs"
+
+[dependencies]
+clippy_utils = { git = "https://github.com/rust-lang/rust-clippy", rev = "ac4c2094a6030530661bee3876e0228ddfeb6b8b" }
+dylint_linting = "2.6.1"
+if_chain = "1.0.2"
+
+[dev-dependencies]
+dylint_testing = "2.6.1"
+tracing = "0.1"
+
+[package.metadata.rust-analyzer]
+rustc_private = true

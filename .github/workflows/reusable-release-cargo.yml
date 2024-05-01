@@ -1,0 +1,57 @@
+name: Reusable Cargo Version Check
+
+on:
+  workflow_call:
+    inputs:
+      package-name:
+        required: true
+        type: string
+      display-name:
+        required: true
+        type: string
+
+jobs:
+  rust-version-release:
+    runs-on: ubuntu-latest
+    outputs: 
+      release-cut: ${{ steps.output.outputs.release_cut }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: git fetch --all --tags
+      - name: Check Release Version
+        id: release_version
+        uses: joroshiba/version-check@v2
+        with:
+          file: ${{ format('crates/astria-{0}/Cargo.toml', inputs.package-name) }}
+          tagFormat: ${{ format('{0}-v${{version}}', inputs.package-name) }}
+          failBuild: false
+      # Notice appears when the version has changed on a PR to main
+      - name: Release Notice
+        if: |
+          steps.release_version.outputs.versionChanged == 'true' &&
+          github.event_name == 'pull_request' &&
+          github.base_ref == 'main' 
+        run: |
+          FILE="${{ format('crates/astria-{0}/Cargo.toml', inputs.package-name) }}"
+          TITLE="New ${{ inputs.display-name}} Release"
+          MESSAGE=("This PR updates the version of ${{ inputs.package-name }}."
+                   "After merging a new release ${{steps.release_version.outputs.rawVersion}}"
+                   "will be created with tag ${{ steps.release_version.outputs.releaseVersion }}."
+                   )
+          echo "::warning file=$FILE,title=$TITLE::${MESSAGE[*]}"
+      # Actually release when version has changed on a push to main
+      - name: Release
+        if: |
+          steps.release_version.outputs.versionChanged == 'true' &&
+          github.event_name == 'push' &&
+          github.ref == 'refs/heads/main'
+        uses: actions/create-release@latest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.release_version.outputs.releaseVersion }}
+          release_name: ${{ inputs.display-name }} ${{ steps.release_version.outputs.rawVersion }}
+          draft: true
+          prerelease: true
+    
+

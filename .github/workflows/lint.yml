@@ -1,6 +1,7 @@
 name: Lint
 on: 
   pull_request:
+  merge_group:
   push:
     branches:
       - "main"
@@ -9,49 +10,52 @@ jobs:
   run_checker:
     uses: ./.github/workflows/reusable-run-checker.yml
 
-  pr_title:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    steps:
-      - uses: actions/checkout@v2
-      - uses: CondeNast/conventional-pull-request-action@v0.2.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          ignoreCommits: "true"
-
   proto:
     runs-on: ubuntu-latest
     needs: run_checker
     if: needs.run_checker.outputs.run_lint_proto == 'true'
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: bufbuild/buf-setup-action@v1
         with:
           version: "1.15.1"
           github_token: ${{ github.token }}
       - uses: bufbuild/buf-lint-action@v1
-        with:
-          input: "crates/astria-proto"
+      - run: buf format -d --exit-code
+      # Run breaking changes against each module, running against whole workspace
+      # fails if new packages are added
       - uses: bufbuild/buf-breaking-action@v1
         with:
-          # The 'main' branch of the GitHub repository that defines the module.
-          input: "crates/astria-proto/proto"
-          against: "https://github.com/astriaorg/astria.git#branch=main,ref=HEAD,subdir=crates/astria-proto/proto"
+          input: "proto/primitives"
+          against: "buf.build/astria/primitives"
+      - uses: bufbuild/buf-breaking-action@v1
+        with:
+          input: "proto/executionapis"
+          against: "buf.build/astria/execution-apis"
+      - uses: bufbuild/buf-breaking-action@v1
+        with:
+          input: "proto/sequencerblockapis"
+          against: "buf.build/astria/sequencerblock-apis"
+      - uses: bufbuild/buf-breaking-action@v1
+        with:
+          input: "proto/protocolapis"
+          against: "buf.build/astria/protocol-apis"
+      - uses: bufbuild/buf-breaking-action@v1
+        with:
+          input: "proto/composerapis"
+          against: "buf.build/astria/composer-apis"
 
   rust:
     runs-on: ubuntu-22.04
     needs: run_checker
     if: needs.run_checker.outputs.run_lint_rust == 'true'
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: nightly-2023-08-18
+          toolchain: nightly-2024-02-07
           components: rustfmt
       - name: run rustfmt
-        # note: for local development usually `cargo +nightly fmt` is sufficient;
-        # or `cargo +nightly-2023-08-18 fmt` for specifying the exactly release.
         run: cargo fmt --all -- --check
 
   toml:
@@ -59,7 +63,7 @@ jobs:
     needs: run_checker
     if: needs.run_checker.outputs.run_lint_toml == 'true'
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: download taplo
         run: |
           curl -fsSL https://github.com/tamasfe/taplo/releases/download/0.8.1/taplo-full-linux-x86_64.gz \
@@ -73,15 +77,43 @@ jobs:
     needs: run_checker
     if: needs.run_checker.outputs.run_lint_markdown == 'true'
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: DavidAnson/markdownlint-cli2-action@v11
         with:
           globs: |
             **/*.md
             #.github
 
+  charts:
+    runs-on: ubuntu-latest
+    needs: run_checker
+    if: needs.run_checker.outputs.run_lint_charts == 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+          check-latest: true
+      - name: Set up chart-testing
+        uses: helm/chart-testing-action@v2.6.1
+      - name: Run chart-testing (list-changed)
+        id: list-changed
+        run: |
+          changed=$(ct list-changed --target-branch ${{ github.event.repository.default_branch }})
+          if [[ -n "$changed" ]]; then
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Run chart-testing (lint)
+        if: steps.list-changed.outputs.changed == 'true'
+        run: ct lint --target-branch ${{ github.event.repository.default_branch }}
+
   lint:
-    needs: [proto, rust, toml, markdown, pr_title]
+    needs: [proto, rust, toml, markdown, charts]
     if: ${{ always() && !cancelled() }}
     uses: ./.github/workflows/reusable-success.yml
     with:

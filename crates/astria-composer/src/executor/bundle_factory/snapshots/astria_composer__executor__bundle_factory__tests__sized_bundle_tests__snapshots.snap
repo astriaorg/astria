@@ -1,0 +1,8 @@
+---
+source: crates/astria-composer/src/executor/bundle_factory/tests.rs
+expression: bundle.rollup_counts
+---
+{
+  "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=": 2,
+  "AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI=": 1
+}

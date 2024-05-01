@@ -5,8 +5,10 @@ use serde::{
     Serialize,
 };
 
+// Allowed `struct_excessive_bools` because this is used as a container
+// for deserialization. Making this a builder-pattern is not actionable.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
 pub struct Config {
     /// The endpoint on which Sequencer will listen for ABCI requests
     pub listen_addr: String,
@@ -17,6 +19,18 @@ pub struct Config {
     /// Set to true to enable the mint component
     /// Only used if the "mint" feature is enabled
     pub enable_mint: bool,
+    /// The gRPC endpoint
+    pub grpc_addr: String,
+    /// Forces writing trace data to stdout no matter if connected to a tty or not.
+    pub force_stdout: bool,
+    /// Disables writing trace data to an opentelemetry endpoint.
+    pub no_otel: bool,
+    /// Set to true to disable the metrics server
+    pub no_metrics: bool,
+    /// The endpoint which will be listened on for serving prometheus metrics
+    pub metrics_http_listener_addr: String,
+    /// Writes a human readable format to stdout instead of JSON formatted OTEL trace data.
+    pub pretty_print: bool,
 }
 
 impl config::Config for Config {
@@ -32,10 +46,5 @@ mod tests {
     #[test]
     fn example_env_config_is_up_to_date() {
         config::tests::example_env_config_is_up_to_date::<Config>(EXAMPLE_ENV);
-    }
-
-    #[test]
-    fn config_should_reject_unknown_var() {
-        config::tests::config_should_reject_unknown_var::<Config>(EXAMPLE_ENV);
     }
 }

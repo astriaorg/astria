@@ -6,6 +6,9 @@ on:
       run_tests:
         description: If tests need to be run, will be 'true'
         value: ${{ github.event_name != 'pull_request' || jobs.changes.outputs.test_workflow == 'true' || jobs.changes.outputs.crates == 'true' }}
+      run_audit:
+        description: If cargo audit needs to be run, will be 'true'
+        value: ${{ github.event_name != 'pull_request' || jobs.changes.outputs.test_workflow == 'true' || jobs.changes.outputs.lockfile == 'true' }}
       run_docker:
         description: If docker workflow needs to be run, will be 'true'
         value: ${{ github.event_name != 'pull_request' || jobs.changes.outputs.docker_workflow == 'true' || contains(github.event.pull_request.labels.*.name, 'docker-build') }}
@@ -21,12 +24,19 @@ on:
       run_lint_markdown:
         description: If lint for markdown needs to be run, will be 'true'
         value: ${{ github.event_name != 'pull_request' || jobs.changes.outputs.lint_workflow == 'true' || jobs.changes.outputs.markdown == 'true' }}
+      run_lint_charts:
+        description: If lint for charts needs to be run, will be 'true'
+        value: ${{ github.event_name != 'pull_request' || jobs.changes.outputs.lint_workflow == 'true' || jobs.changes.outputs.charts == 'true' }}
       run_release_proto:
         description: If release for protos needs to be run, will be 'true'
         value: ${{ github.event_name != 'pull_request' || jobs.changes.outputs.release_workflow == 'true' || jobs.changes.outputs.proto == 'true' }}
       run_release_services:
         description: If release for services needs to be run, will be 'true'
         value: ${{ github.event_name != 'pull_request' || jobs.changes.outputs.release_workflow == 'true' || jobs.changes.outputs.crates == 'true' }}
+      run_release_charts:
+        description: If release for charts needs to be run, will be 'true'
+        value: ${{ github.event_name != 'pull_request' && (jobs.changes.outputs.release_workflow == 'true' || jobs.changes.outputs.charts == 'true') }}
+
 
 jobs:
   changes:
@@ -44,9 +54,11 @@ jobs:
       toml: ${{ steps.filters.outputs.toml }}
       markdown: ${{ steps.filters.outputs.markdown }}
       rustfmt: ${{ steps.filters.outputs.rustfmt }}
+      charts: ${{ steps.filters.outputs.charts }}
+      lockfile: ${{ steps.filters.outputs.lockfile }}
     steps:
-      - uses: actions/checkout@v3
-      - uses: dorny/paths-filter@v2
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
         id: filters
         with:
           list-files: json
@@ -61,6 +73,7 @@ jobs:
               - '.github/workflows/reusable-docker-build.yml'
               - 'containerfiles/**'
               - '.dockerignore'
+              - 'Cargo.lock'
             lint_workflow:
               - '.github/workflows/lint.yml'
             crates:
@@ -69,7 +82,11 @@ jobs:
               - 'Cargo.lock'
               - '.cargo/**'
             proto:
-              - '**/*.proto'
+              - 'proto/composerapis/**'
+              - 'proto/executionapis/**'
+              - 'proto/primitives/**'
+              - 'proto/protocolapis/**'
+              - 'proto/sequencerblockapis/**'
             rust:
               - '**/*.rs'
             toml:
@@ -78,3 +95,7 @@ jobs:
               - '**/*.md'
             rustfmt:
               - 'rustfmt.toml'
+            charts:
+              - 'charts/**'
+            lockfile:
+              - 'Cargo.lock'

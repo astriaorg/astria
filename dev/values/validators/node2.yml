@@ -1,0 +1,53 @@
+# Override value example for second validator from main chart
+global:
+  dev: true
+
+config:
+  moniker: 'node2'
+
+  # Values for CometBFT node configuration
+  cometBFT:
+    secrets:
+      nodeKey:
+        devContent:
+          priv_key:
+            value: 1yh4XrMHn75sSW5cOhGDTVgv5BbqXlhrLduxHcE2t1osbwKQzo7xlvSK1vh5CVDvHESPYK/56uTKXM/1ifqHbw==
+      privValidatorKey:
+        devContent:
+          address: 8C17BBDC7C350C83C550163458FC9B7A5B54A64E
+          pub_key:
+            value: 4v1RdMiKkWgBBTTP26iRSLOEkAY99gMVfZijm6OCzjs=
+          priv_key:
+            value: WxsUPI2QASIwK+XV547R8xzL66a5oBR2G8h53t0Gcl7i/VF0yIqRaAEFNM/bqJFIs4SQBj32AxV9mKObo4LOOw==
+    p2p:
+      laddr: "tcp://0.0.0.0"
+      # Address to advertise to peers for them to dial. If empty, will use the same
+      # port as the laddr, and will introspect on the listener to figure out the
+      # address. IP and port are required. Example: 159.89.10.97:26656
+      externalAddress: ""
+      # List of seeds to connect to
+      seeds: []
+      # List of nodes to keep persistent connections to
+      persistentPeers:
+        - 2490c1fc41736a357c523fe049c319386d59d759@node0-sequencer-p2p-service.astria-dev-cluster.svc.cluster.local:26656
+        - 96c652f63b5d5d5027b42e9af906082ee7c598d9@node1-sequencer-p2p-service.astria-validator-node1.svc.cluster.local:26656
+        - 4a4345939744d64ca370dff266e2913dd41b4e88@node2-sequencer-p2p-service.astria-validator-node2.svc.cluster.local:26656
+    validators:
+      - name: node0
+        power: '1'
+        address: 091E47761C58C474534F4D414AF104A6CAF90C22
+        pubKey: lV57+rGs2vac7mvkGHP1oBFGHPJM3a+WoAzeFDCJDNU=
+      - name: node1
+        address: E82D827830B163D5179291FB27BB58E605DF2FA2
+        pubKey: NDE9F44v3l4irmkZxNmrZkywoGmggLlaBo5rE/Cis8M=
+        power: '1'
+      - name: node2
+        power: '1'
+        address: 8C17BBDC7C350C83C550163458FC9B7A5B54A64E
+        pubKey: 4v1RdMiKkWgBBTTP26iRSLOEkAY99gMVfZijm6OCzjs=
+
+ingress:
+  rpc:
+    enabled: false
+  grpc:
+    enabled: false

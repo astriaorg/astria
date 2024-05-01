@@ -2,8 +2,9 @@ name: Test
 env:
   CI: true
   RUSTFLAGS: "-D warnings -D unreachable-pub --cfg tokio_unstable"
-on: 
+on:
   pull_request:
+  merge_group:
   push:
     branches:
       - "main"
@@ -12,72 +13,113 @@ on:
 jobs:
   run_checker:
     uses: ./.github/workflows/reusable-run-checker.yml
-              
+
+  protos-compiled:
+    runs-on: ubuntu-22.04
+    needs: run_checker
+    if: needs.run_checker.outputs.run_tests == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install `buf` protobuf manager
+        uses: bufbuild/buf-setup-action@v1
+        with:
+          version: "1.17.0"
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@1.76.0
+      - uses: Swatinem/rust-cache@v2.7.3
+        with:
+          cache-provider: "buildjet"
+      - name: Install just
+        uses:  taiki-e/install-action@just
+      - name: Check if protobuf specs compile to commited Rust sources
+        run: |
+          just compile-protos
+          modified=$(git status --porcelain)
+          if [[ -n "$modified" ]]; then
+            echo "ERROR: protobuf specs are out of sync with the commited Rust sources"
+            echo "Recompile locally with \`just compile-protos\` and commit to the repository."
+            echo "Files that reported differences:"
+            echo "$modified"
+            exit 1
+          fi
+
   compiles:
     runs-on: buildjet-4vcpu-ubuntu-2204
     needs: run_checker
     if: needs.run_checker.outputs.run_tests == 'true'
     steps:
-      - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@1.72.0
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.76.0
       - uses: taiki-e/install-action@v2.15.2
         with:
           tool: cargo-hack@0.5.29
-      - uses: Swatinem/rust-cache@v2.6.1
+      - uses: Swatinem/rust-cache@v2.7.3
         with:
           cache-provider: "buildjet"
-      - uses: arduino/setup-protoc@v2
+      - uses: arduino/setup-protoc@v3
         with:
           version: "24.4"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Check that each crate compiles individually (circumventing workspace wide dependency resolution)
-        run: cargo hack check --all --all-features
+        run: |
+          : # exclude all lints because cargo-hack ignores default-members and operates on all workspace members
+          cargo hack check --workspace --all-targets --all-features \
+          --exclude tracing_debug_field
 
   lockfile:
     runs-on: ubuntu-22.04
     needs: run_checker
     if: needs.run_checker.outputs.run_tests == 'true'
     steps:
-      - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@1.72.0
-      - uses: Swatinem/rust-cache@v2.6.1
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.76.0
+      - uses: Swatinem/rust-cache@v2.7.3
         with:
           cache-provider: "github"
       - name: Check that the lockfile is updated
         run: cargo fetch --locked
-    
+
+  audit:
+    runs-on: ubuntu-22.04
+    needs: run_checker
+    if: needs.run_checker.outputs.run_audit == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.76.0
+      - uses: rustsec/audit-check@v1.4.1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
   rust:
     runs-on: buildjet-8vcpu-ubuntu-2204
     needs: run_checker
     if: needs.run_checker.outputs.run_tests == 'true'
     steps:
-      - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@1.72.0
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.76.0
         with:
           components: llvm-tools-preview
-      - uses: Swatinem/rust-cache@v2.6.1
+      - uses: Swatinem/rust-cache@v2.7.3
         with:
           cache-provider: "buildjet"
-      - name: Install buf cli
-        uses: bufbuild/buf-setup-action@v1
-        with:
-          version: "1.17.0"
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install latest nextest release
+      - name: Install nextest
         uses: taiki-e/install-action@nextest
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
-      - uses: arduino/setup-protoc@v2
+      - uses: arduino/setup-protoc@v3
         with:
           version: "24.4"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Build & Run tests
         timeout-minutes: 20
         run: |
           cargo llvm-cov nextest --release --workspace \
-          --locked \
-          --all-features \
-          --all-targets \
-          --no-fail-fast \
-          --codecov --output-path codecov.json
+            --locked \
+            --all-features \
+            --all-targets \
+            --no-fail-fast \
+            --codecov --output-path codecov.json
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
         with:
@@ -91,27 +133,27 @@ jobs:
     needs: run_checker
     if: needs.run_checker.outputs.run_tests == 'true'
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly
-      - uses: Swatinem/rust-cache@v2.6.1
+      - uses: Swatinem/rust-cache@v2.7.3
         with:
           cache-provider: "buildjet"
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
-      - uses: arduino/setup-protoc@v2
+      - uses: arduino/setup-protoc@v3
         with:
           version: "24.4"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: run doctests
         run: |
          cargo +nightly llvm-cov test --doc \
-         --all-features \
-         --codecov --output-path codecov.json
+           --all-features \
+           --codecov --output-path codecov.json
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
         with:
-          token: ${{ secrets.CODECOV_TOKEN }} # not required for public repos
           files: codecov.json
           flags: doctest
           fail_ci_if_error: true
@@ -121,39 +163,65 @@ jobs:
     needs: run_checker
     if: needs.run_checker.outputs.run_tests == 'true' && needs.run_checker.outputs.run_lint_rust == 'true'
     steps:
-      - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@1.72.0
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.76.0
         with:
           components: clippy
-      - uses: Swatinem/rust-cache@v2.6.1
+      - uses: Swatinem/rust-cache@v2.7.3
         with:
           cache-provider: "buildjet"
-      - uses: bufbuild/buf-setup-action@v1
-        with:
-          version: "1.17.0"
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: arduino/setup-protoc@v2
+      - uses: arduino/setup-protoc@v3
         with:
           version: "24.4"
-      - name: run pedantic clippy
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: run pedantic clippy on workspace crates
         run: |
-          cargo clippy --workspace \
-          --all-targets \
-          --all-features \
-          --exclude astria-conductor \
-          --exclude astria-sequencer-relayer \
-          -- --warn clippy::pedantic \
-             --deny warnings
-      - name: run default clippy
+          cargo clippy --all-targets --all-features \
+          -- --warn clippy::pedantic --deny warnings
+      - name: run pedantic clippy on tools/protobuf-compiler
         run: |
-          cargo clippy --workspace \
-          --all-targets \
-          --all-features \
-          -- --deny warnings
+          cargo clippy --manifest-path tools/protobuf-compiler/Cargo.toml \
+          --all-targets --all-features \
+          -- --warn clippy::pedantic --deny warnings
+
+  custom-lints:
+    runs-on: buildjet-8vcpu-ubuntu-2204
+    needs: run_checker
+    if: needs.run_checker.outputs.run_tests == 'true' && needs.run_checker.outputs.run_lint_rust == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@v1
+        with:
+          # This has to match `rust-toolchain` in the rust-toolchain file of the dylint lints
+          toolchain: nightly-2023-12-28
+          components: "clippy, llvm-tools-preview, rustc-dev"
+      - uses: Swatinem/rust-cache@v2.7.3
+        with:
+          cache-provider: "buildjet"
+      - name: install cargo-dylint and dylint-link
+        run: cargo install cargo-dylint@2.6.1 dylint-link@2.6.1 --locked
+      - uses: arduino/setup-protoc@v3
+        with:
+          version: "24.4"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: run clippy against custom lints
+        run: |
+          : # list all lint packages here to have clippy explicitly test them
+          cargo clippy --all-targets --all-features \
+          -p tracing_debug_field \
+          -- --warn clippy::pedantic --deny warnings
+      - name: run dylint clippy on workspace crates
+        env:
+          # set the dylint driver path to the target/ directory so that it's hopefully cached by rust-cache
+          DYLINT_DRIVER_PATH: ${{ github.workspace }}/target/dylint_drivers/
+          DYLINT_RUSTFLAGS: "-D warnings"
+        run: |
+          mkdir -p "$DYLINT_DRIVER_PATH"
+          cargo dylint --all --workspace
 
   test:
     if: ${{ always() && !cancelled() }}
-    needs: [compiles, rust, doctest, clippy, lockfile]
+    needs: [compiles, protos-compiled, rust, doctest, clippy, lockfile, custom-lints]
     uses: ./.github/workflows/reusable-success.yml
     with:
       success: ${{ !contains(needs.*.result, 'failure') }}

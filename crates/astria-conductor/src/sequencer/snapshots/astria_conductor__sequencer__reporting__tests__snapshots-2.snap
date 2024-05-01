@@ -1,0 +1,11 @@
+---
+source: crates/astria-conductor/src/sequencer/reporting.rs
+expression: ReportFilteredSequencerBlock(&block)
+---
+{
+  "sequencer_height": 100,
+  "rollups": {
+    "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=": 2,
+    "RUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUU=": 1
+  }
+}

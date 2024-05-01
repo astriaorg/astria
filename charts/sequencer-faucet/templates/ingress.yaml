@@ -1,0 +1,64 @@
+{{- if .Values.ingress.enabled -}}
+{{- $ingressApiIsStable := eq (include "sequencer.ingress.isStable" .) "true" -}}
+{{- $ingressSupportsIngressClassName := eq (include "sequencer.ingress.supportsIngressClassName" .) "true" -}}
+{{- $ingressSupportsPathType := eq (include "sequencer.ingress.supportsPathType" .) "true" -}}
+{{- $servicePort := tpl .Values.ingress.service.port.name . -}}
+{{- $serviceName := tpl .Values.ingress.service.name . -}}
+{{- $ingressPath := .Values.ingress.path -}}
+{{- $ingressPathType := .Values.ingress.pathType -}}
+{{- $extraPaths := .Values.ingress.extraPaths -}}
+apiVersion: {{ include "sequencer.ingress.apiVersion" . }}
+kind: Ingress
+metadata:
+  name: sequencer-faucet-ingress
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- with .Values.ingress.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- if not $ingressSupportsIngressClassName }}
+    kubernetes.io/ingress.class: {{ $.Values.ingress.className }}
+    {{- end }}
+    {{- range $key, $value := . }}
+    {{ $key }}: {{ tpl $value $ | quote }}
+    {{- end }}
+  {{- end }}
+spec:
+  {{- if and $ingressSupportsIngressClassName .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- end -}}
+  {{- with .Values.ingress.service }}
+  defaultBackend:
+    service:
+      {{- tpl (toYaml .) $ | nindent 6 }}
+  {{- end }}
+  rules:
+    {{- if .Values.ingress.hosts  }}
+  {{- range .Values.ingress.hosts }}
+    - host: {{ tpl . $ }}
+      http:
+        paths:
+          {{- with $extraPaths }}
+          {{- toYaml . | nindent 10 }}
+          {{- end }}
+          - path: {{ $ingressPath }}
+            {{- if $ingressSupportsPathType }}
+            pathType: {{ $ingressPathType }}
+            {{- end }}
+            backend:
+              {{- if $ingressApiIsStable }}
+              service:
+                {{- tpl (toYaml $.Values.ingress.service) $ | nindent 16 }}
+              {{- else }}
+              serviceName: {{ $serviceName }}
+              servicePort: {{ $servicePort }}
+              {{- end }}
+  {{- end }}
+  {{- with .Values.ingress.tls }}
+  tls:
+    {{- tpl (toYaml .) $ | nindent 4 }}
+  {{- end }}
+  {{- end -}}
+{{- end }}

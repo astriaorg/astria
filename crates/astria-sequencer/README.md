@@ -50,7 +50,7 @@ Ensure `~/go` is in your `PATH`, or `GOPATH` is set to some other place in your
 ```sh
 git clone https://github.com/cometbft/cometbft
 cd cometbft
-git checkout origin/v0.37.x
+git checkout origin/v0.38.6
 export GOPATH=~/go
 make install
 ```
@@ -105,7 +105,8 @@ cometbft init
 # application state
 ../../target/debug/astria-sequencer-utils \
     --genesis-app-state-file=test-genesis-app-state.json \
-    --destination-genesis-file=$HOME/.cometbft/config/genesis.json
+    --destination-genesis-file=$HOME/.cometbft/config/genesis.json \
+    --chain-id <desired_test_chain_id>
 
 # set the block time to 15s
 sed -i'.bak' 's/timeout_commit = "1s"/timeout_commit = "15s"/g' ~/.cometbft/config/config.toml

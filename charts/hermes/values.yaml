@@ -1,0 +1,189 @@
+global:
+  namespaceOverride: ""
+  replicaCount: 1
+  logLevel: debug
+
+image: ghcr.io/penumbra-zone/hermes:main
+
+fullnameOverride: ""
+nameOverride: ""
+
+# For local testing purposes may want to create a channel on startup
+# this is not recommended for production since channel updates change
+# the destination chain assets
+createChannel:
+  enabled: false
+  chainA: ''  # For local test is equencer-test-chain-0
+  portA: ''   # likely "transfer"
+  chainB: ''  # For default local test celestia-local-0
+  portB: ''   # likely "transfer"
+
+rest:
+  enabled: false
+telemetry:
+  enabled: false
+  latencySubmittedBuckets:
+    start: 500
+    end: 20000
+    count: 10
+  latencyConfirmedBuckets:
+    start: 1000
+    end: 30000
+    count: 10
+tracingServer:
+  enabled: false
+
+mode:
+  clients:
+    enabled: true
+    refresh: true
+    misbehaviour: false
+  connections:
+    enabled: true
+  channels:
+    enabled: true
+  packets:
+    enabled: true
+    clearInterval: 100
+    clearOnStart: true
+    txConfirmation: true
+
+# A map of chain ids to chain configs, see example in the comments
+# note that supplying key as plain text is not recommended outside of local
+# testing environments should utilize a secret provider to pass in a
+# key. You can input all potential values from hermes config.toml for chains
+# here.
+chains:
+  # sequencer-test-chain-0:
+  #   type: Astria
+  #   rpcAddr: http://node0-sequencer-rpc-service.astria-dev-cluster.svc.cluster.local:26657
+  #   grpcAddr: http://node0-sequencer-grpc-service.astria-dev-cluster.svc.cluster.local:8080
+  #   accountPrefix: not_used
+  #   rpcTimeout: 15s
+  #   storePrefix: ibc_data
+  #   key:
+  #     name: astria-wallet
+  #     devContent:
+  #       signing_key: [43, 216, 6, 201, 127, 14, 0, 175, 26, 31, 195, 50, 143, 167, 99, 169, 38, 151, 35, 200, 219, 143, 172, 79, 147, 175, 113, 219, 24, 109, 110, 144]
+  #       address_type: Astria
+  #     secret:
+  #       resourceName: projects/$PROJECT_ID/secrets/astria-ibc-relay-key/versions/latest
+  #   eventSource:
+  #     mode: pull
+  #     interval: 1s
+  #   gasPrice: 1
+  #   gasDenom: nria
+  #   trustThreshold: 2/3
+  #
+  # celestia-local-0:
+  #   type: CosmosSdk
+  #   compatMode: '0.34'
+  #   rpcAddr: http://celestia-app-service.astria-dev-cluster.svc.cluster.local:26657
+  #   grpcAddr: http://celestia-app-service.astria-dev-cluster.svc.cluster.local:9090
+  #   eventSource:
+  #     mode: pull
+  #     interval: 5s
+  #   rpcTimeout: 15s
+  #   accountPrefix: celestia
+  #   key:
+  #     name: celestia
+  #     devContent:
+  #       private_key: 8241386890823ca14743e5d4d583f879a5236af29f454ed4da6fe62b8439e2ab
+  #       public_key: 03b0effa59e7eee365a888b4d2fa4c9be82a4925df255d4443151d61b11ac63714
+  #       address: [39, 166, 219, 243, 73, 131, 245, 143, 2, 206, 64, 203, 217, 165, 252, 194, 189, 5, 171, 220]
+  #       address_type: Cosmos
+  #       account: celestia1y7ndhu6fs06c7qkwgr9anf0uc27st27uwdj6vq
+  #     secret:
+  #       resourceName: projects/$PROJECT_ID/secrets/celestia-ibc-relay-key/versions/latest
+  #   gasPrice: 0.12
+  #   denom: 'utia'
+  #   gasMultiplier: 1.1
+  #   clockDrift: 20s
+  #   maxBlockTime: 10s
+  #   trustThreshold: 2/3
+
+# When deploying in a production environment should use a secret provider
+# This is configured for use with GCP, need to set own resource names
+# and keys
+secretProvider:
+  enabled: true
+  provider: gcp
+  # May need to update this template to match the secret provider
+  # it will be passed an object of the form:
+  # {
+  #   key: {
+  #     name: <name>,
+  #     secret: { resourceName: <resourceName> }
+  #   }
+  # }
+  #
+  # Can update set the source of each chain key at chain.<chain>.key.secret to
+  # match the secret provider's requirements. The default works for GCP.
+  # The secret file must be mapped to the <key.name>.json.
+  parametersTemplate: |-
+    secrets: |
+      - resourceName: {{ .key.secret.resourceName }}
+        fileName: "{{ .key.name }}.json"
+
+ports:
+  rest: 3000
+  telemetry: 3001
+  tracingServer: 5555
+
+ingress:
+  enabled: false
+  labels: {}
+  hostname: localdev.me
+  className: nginx
+  services:
+    rest:
+      enabled: false
+      hosts:
+        - rest.hermes.{{ .Values.ingress.hostname }}
+      path: /
+      pathType: Prefix
+      service:
+        name: '{{ include "hermes.fullname" . }}-service'
+        port: '{{ .Values.ports.rest }}'
+      annotations: {}
+        # kubernetes.io/ingress.class: nginx
+        # kubernetes.io/tls-acme: "true"
+      labels: {}
+      tls: {}
+      #  - secretName: chart-example-tls
+      #    hosts:
+      #      - chart-example.local
+    telemetry:
+      enabled: false
+      hosts:
+        - telemetry.hermes.{{ .Values.ingress.hostname }}
+      path: /
+      pathType: Prefix
+      service:
+        name: '{{ include "hermes.fullname" . }}-service'
+        port: '{{ .Values.ports.telemetry }}'
+      annotations: {}
+        # kubernetes.io/ingress.class: nginx
+        # kubernetes.io/tls-acme: "true"
+      labels: {}
+      tls: {}
+      #  - secretName: chart-example-tls
+      #    hosts:
+      #      - chart-example.local
+    tracing:
+      enabled: false
+      hosts:
+        - tracing.hermes.{{ .Values.ingress.hostname }}
+      path: /
+      pathType: Prefix
+      service:
+        name: '{{ include "hermes.fullname" . }}-service'
+        port: '{{ .Values.ports.tracingServer }}'
+      annotations: {}
+        # kubernetes.io/ingress.class: nginx
+        # kubernetes.io/tls-acme: "true"
+      labels: {}
+      tls: {}
+      #  - secretName: chart-example-tls
+      #    hosts:
+      #      - chart-example.local

@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sequencer-faucet
+  labels:
+    app: astria-dev-cluster
+  namespace: {{ .Values.global.namespace }}
+spec:
+  replicas: {{ .Values.global.replicaCount }}
+  selector:
+    matchLabels:
+      app: astria-dev-cluster
+  template:
+    metadata:
+      name: sequencer-faucet
+      labels:
+        app: astria-dev-cluster
+    spec:
+      containers:
+        - name: sequencer-faucet
+          image: {{ .Values.images.sequencerFaucet }}
+          command: [ "/app/seq-faucet" ]
+          args:
+            - -httpport=$(SEQUENCER_FAUCET_PORT)
+            - -wallet.provider=$(SEQUENCER_FAUCET_SEQUENCER_RPC_URL)
+            - -wallet.privkey=$(SEQUENCER_FAUCET_PRIVATE_KEY)
+            - -faucet.amount=$(SEQUENCER_FAUCET_AMOUNT)
+            - -proxycount=$(SEQUENCER_FAUCET_PROXYCOUNT)
+          envFrom:
+            - configMapRef:
+                name: sequencer-faucet-env
+          {{- if .Values.secretProvider.enabled }}
+          env:
+            - name: SEQUENCER_FAUCET_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: sequencer-private-key-faucet
+                  key: {{ .Values.config.fundingPrivateKey.secret.key }}
+          {{- end }}
+          volumeMounts:
+          {{- if .Values.secretProvider.enabled }}
+          - mountPath: "/var/secrets"
+            name: sequencer-private-key-faucet
+          {{- end }}
+          ports:
+            - containerPort: {{ .Values.ports.faucet }}
+              name: seq-faucet
+      volumes:
+        {{- if .Values.secretProvider.enabled }}
+        - name: sequencer-private-key-faucet
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: sequencer-private-key-faucet
+        {{- end }}

@@ -1,0 +1,53 @@
+name: Build Binaries
+on:
+  # TODO: allow workflow dispatch to specify which binaries to build
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Git branch, or tag to build from
+        required: false
+
+  push:
+    tags:
+      - "**-v[0-9]+.[0-9]+.[0-9]+"
+      - "**-v[0-9]+.[0-9]+.[0-9]+-alpha.[0-9]+"
+      - "**-v[0-9]+.[0-9]+.[0-9]+-beta.[0-9]+"
+      - "**-v[0-9]+.[0-9]+.[0-9]+-rc[0-9]+"
+
+jobs:
+  cli:
+    uses: './.github/workflows/reusable-build.yml'
+    with:
+      package-name: 'cli'
+      tag: ${{ inputs.tag }}
+
+  conductor:
+    uses: './.github/workflows/reusable-build.yml'
+    with:
+      package-name: 'conductor'
+      tag: ${{ inputs.tag }}
+  
+  composer:
+    uses: './.github/workflows/reusable-build.yml'
+    with:
+      package-name: 'composer'
+      tag: ${{ inputs.tag }}
+
+  sequencer:
+    uses: './.github/workflows/reusable-build.yml'
+    with:
+      package-name: 'sequencer'
+      tag: ${{ inputs.tag }}
+
+  relayer:
+    uses: './.github/workflows/reusable-build.yml'
+    with:
+      package-name: 'sequencer-relayer'
+      tag: ${{ inputs.tag }}
+
+  build:
+    if: ${{ always() && !cancelled() }}
+    needs: [cli, composer, conductor, sequencer, relayer]
+    uses: ./.github/workflows/reusable-success.yml
+    with:
+      success: ${{ !contains(needs.*.result, 'failure') }}

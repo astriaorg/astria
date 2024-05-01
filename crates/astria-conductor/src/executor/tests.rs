@@ -1,277 +1,208 @@
-use std::net::SocketAddr;
-
-use proto::generated::execution::v1alpha2::{
-    execution_service_server::{
-        ExecutionService,
-        ExecutionServiceServer,
+use astria_core::{
+    self,
+    execution::v1alpha2::{
+        Block,
+        CommitmentState,
+        GenesisInfo,
     },
-    BatchGetBlocksRequest,
-    BatchGetBlocksResponse,
-    Block,
-    CommitmentState,
-    ExecuteBlockRequest,
-    GetBlockRequest,
-    GetCommitmentStateRequest,
-    UpdateCommitmentStateRequest,
+    generated::execution::v1alpha2 as raw,
+    Protobuf as _,
 };
-use sha2::Digest as _;
-use tokio::{
-    sync::{
-        mpsc,
-        oneshot,
+use bytes::Bytes;
+
+use super::{
+    should_execute_firm_block,
+    state::{
+        StateReceiver,
+        StateSender,
     },
-    task::JoinHandle,
+    RollupId,
 };
-use tonic::transport::Server;
+use crate::config::CommitLevel;
 
-use super::*;
+const ROLLUP_ID: RollupId = RollupId::new([42u8; 32]);
 
-#[derive(Debug)]
-struct MockExecutionServer {
-    _server_handle: JoinHandle<()>,
-    local_addr: SocketAddr,
-}
-
-impl MockExecutionServer {
-    async fn spawn() -> Self {
-        use tokio_stream::wrappers::TcpListenerStream;
-
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let local_addr = listener.local_addr().unwrap();
-
-        let server_handle = tokio::spawn(async move {
-            let _ = Server::builder()
-                .add_service(ExecutionServiceServer::new(ExecutionServiceImpl))
-                .serve_with_incoming(TcpListenerStream::new(listener))
-                .await;
-        });
-        Self {
-            _server_handle: server_handle,
-            local_addr,
-        }
-    }
-
-    fn local_addr(&self) -> SocketAddr {
-        self.local_addr
+fn make_block(number: u32) -> raw::Block {
+    raw::Block {
+        number,
+        hash: Bytes::from_static(&[0u8; 32]),
+        parent_block_hash: Bytes::from_static(&[0u8; 32]),
+        timestamp: Some(pbjson_types::Timestamp {
+            seconds: 0,
+            nanos: 0,
+        }),
     }
 }
 
-fn new_basic_block() -> Block {
-    Block {
-        number: 0,
-        hash: vec![],
-        parent_block_hash: vec![],
-        timestamp: None,
-    }
+struct MakeState {
+    firm: u32,
+    soft: u32,
 }
 
-struct ExecutionServiceImpl;
-
-#[tonic::async_trait]
-impl ExecutionService for ExecutionServiceImpl {
-    async fn get_block(
-        &self,
-        _request: tonic::Request<GetBlockRequest>,
-    ) -> std::result::Result<tonic::Response<Block>, tonic::Status> {
-        unimplemented!("get_block")
-    }
-
-    async fn batch_get_blocks(
-        &self,
-        _request: tonic::Request<BatchGetBlocksRequest>,
-    ) -> std::result::Result<tonic::Response<BatchGetBlocksResponse>, tonic::Status> {
-        unimplemented!("batch_get_blocks")
-    }
-
-    async fn execute_block(
-        &self,
-        request: tonic::Request<ExecuteBlockRequest>,
-    ) -> std::result::Result<tonic::Response<Block>, tonic::Status> {
-        let loc_request = request.into_inner();
-        let parent_block_hash = loc_request.prev_block_hash.clone();
-        let hash = hash(&parent_block_hash);
-        let timestamp = loc_request.timestamp.unwrap_or_default();
-        Ok(tonic::Response::new(Block {
-            number: 0, // we don't do anything with the number in the mock, can always be 0
-            hash,
-            parent_block_hash,
-            timestamp: Some(timestamp),
-        }))
-    }
-
-    async fn get_commitment_state(
-        &self,
-        _request: tonic::Request<GetCommitmentStateRequest>,
-    ) -> std::result::Result<tonic::Response<CommitmentState>, tonic::Status> {
-        Ok(tonic::Response::new(CommitmentState {
-            soft: Some(new_basic_block()),
-            firm: Some(new_basic_block()),
-        }))
-    }
-
-    async fn update_commitment_state(
-        &self,
-        request: tonic::Request<UpdateCommitmentStateRequest>,
-    ) -> std::result::Result<tonic::Response<CommitmentState>, tonic::Status> {
-        Ok(tonic::Response::new(
-            request.into_inner().commitment_state.unwrap(),
-        ))
-    }
-}
-
-fn hash(s: &[u8]) -> Vec<u8> {
-    let mut hasher = sha2::Sha256::new();
-    hasher.update(s);
-    hasher.finalize().to_vec()
-}
-
-fn get_test_block_subset() -> SequencerBlockSubset {
-    SequencerBlockSubset {
-        block_hash: hash(b"block1").try_into().unwrap(),
-        header: astria_sequencer_types::test_utils::default_header(),
-        rollup_transactions: vec![],
-    }
-}
-
-struct MockEnvironment {
-    _server: MockExecutionServer,
-    _block_tx: super::Sender,
-    _shutdown_tx: oneshot::Sender<()>,
-    executor: Executor,
-}
-
-async fn start_mock(disable_empty_block_execution: bool) -> MockEnvironment {
-    let _server = MockExecutionServer::spawn().await;
-    let chain_id = ChainId::new(b"test".to_vec()).unwrap();
-    let server_url = format!("http://{}", _server.local_addr());
-
-    let (_block_tx, block_rx) = mpsc::unbounded_channel();
-    let (_shutdown_tx, shutdown_rx) = oneshot::channel();
-    let executor = Executor::new(
-        &server_url,
-        chain_id,
-        disable_empty_block_execution,
-        block_rx,
-        shutdown_rx,
-    )
-    .await
+fn make_state(
+    MakeState {
+        firm,
+        soft,
+    }: MakeState,
+) -> (StateSender, StateReceiver) {
+    let genesis_info = GenesisInfo::try_from_raw(raw::GenesisInfo {
+        rollup_id: Bytes::copy_from_slice(ROLLUP_ID.as_ref()),
+        sequencer_genesis_block_height: 1,
+        celestia_base_block_height: 1,
+        celestia_block_variance: 1,
+    })
     .unwrap();
-
-    MockEnvironment {
-        _server,
-        _block_tx,
-        _shutdown_tx,
-        executor,
-    }
+    let commitment_state = CommitmentState::try_from_raw(raw::CommitmentState {
+        firm: Some(make_block(firm)),
+        soft: Some(make_block(soft)),
+    })
+    .unwrap();
+    let (mut tx, rx) = super::state::channel();
+    tx.try_init(genesis_info, commitment_state).unwrap();
+    (tx, rx)
 }
 
-#[tokio::test]
-async fn execute_sequencer_block_without_txs() {
-    let mut mock = start_mock(false).await;
-
-    // using soft hash here as sequencer blocks are executed on top of the soft commitment
-    let expected_exection_hash = hash(&mock.executor.commitment_state.soft.hash);
-    let block = get_test_block_subset();
-
-    let execution_block_hash = mock
-        .executor
-        .execute_block(block)
-        .await
-        .unwrap()
-        .expect("expected execution block hash")
-        .hash;
-    assert_eq!(expected_exection_hash, execution_block_hash);
+#[track_caller]
+fn assert_contract_fulfilled(kind: super::ExecutionKind, state: MakeState, number: u32) {
+    let block = Block::try_from_raw(make_block(number)).unwrap();
+    let mut state = make_state(state);
+    super::does_block_response_fulfill_contract(&mut state.0, kind, &block)
+        .expect("number stored in response block must be one more than in tracked state");
 }
 
-#[tokio::test]
-async fn skip_sequencer_block_without_txs() {
-    let mut mock = start_mock(true).await;
-
-    let block = get_test_block_subset();
-    let execution_block_hash = mock.executor.execute_block(block).await.unwrap();
-    assert!(execution_block_hash.is_none());
-}
-
-#[tokio::test]
-async fn execute_unexecuted_da_block_with_transactions() {
-    let mut mock = start_mock(false).await;
-
-    let mut block = get_test_block_subset();
-    block.rollup_transactions.push(b"test_transaction".to_vec());
-
-    // using firm hash here as da blocks are executed on top of the firm commitment
-    let expected_exection_hash = hash(&mock.executor.commitment_state.firm.hash);
-
-    mock.executor
-        .execute_and_finalize_blocks_from_celestia(vec![block])
-        .await
-        .unwrap();
-
-    assert_eq!(
-        expected_exection_hash,
-        mock.executor.commitment_state.firm.hash
+#[track_caller]
+fn assert_contract_violated(kind: super::ExecutionKind, state: MakeState, number: u32) {
+    let block = Block::try_from_raw(make_block(number)).unwrap();
+    let mut state = make_state(state);
+    super::does_block_response_fulfill_contract(&mut state.0, kind, &block).expect_err(
+        "number stored in response block must not be one more than in tracked
+state",
     );
-    // should be empty because 1 block was executed and finalized, which
-    // deletes it from the map
-    assert!(mock.executor.sequencer_hash_to_execution_block.is_empty());
 }
 
-#[tokio::test]
-async fn skip_unexecuted_da_block_with_no_transactions() {
-    let mut mock = start_mock(true).await;
-
-    let block = get_test_block_subset();
-    // using firm hash here as da blocks are executed on top of the firm commitment
-    let previous_execution_state = mock.executor.commitment_state.firm.hash.clone();
-
-    mock.executor
-        .execute_and_finalize_blocks_from_celestia(vec![block])
-        .await
-        .unwrap();
-
-    assert_eq!(
-        previous_execution_state,
-        mock.executor.commitment_state.firm.hash,
+#[test]
+fn execute_block_contract_violation() {
+    use super::ExecutionKind::{
+        Firm,
+        Soft,
+    };
+    assert_contract_fulfilled(
+        Firm,
+        MakeState {
+            firm: 2,
+            soft: 3,
+        },
+        3,
     );
-    // should be empty because nothing was executed
-    assert!(mock.executor.sequencer_hash_to_execution_block.is_empty());
+
+    assert_contract_fulfilled(
+        Soft,
+        MakeState {
+            firm: 2,
+            soft: 3,
+        },
+        4,
+    );
+
+    assert_contract_violated(
+        Firm,
+        MakeState {
+            firm: 2,
+            soft: 3,
+        },
+        1,
+    );
+
+    assert_contract_violated(
+        Firm,
+        MakeState {
+            firm: 2,
+            soft: 3,
+        },
+        2,
+    );
+
+    assert_contract_violated(
+        Firm,
+        MakeState {
+            firm: 2,
+            soft: 3,
+        },
+        4,
+    );
+
+    assert_contract_violated(
+        Soft,
+        MakeState {
+            firm: 2,
+            soft: 3,
+        },
+        2,
+    );
+
+    assert_contract_violated(
+        Soft,
+        MakeState {
+            firm: 2,
+            soft: 3,
+        },
+        3,
+    );
+
+    assert_contract_violated(
+        Soft,
+        MakeState {
+            firm: 2,
+            soft: 3,
+        },
+        5,
+    );
 }
 
-#[tokio::test]
-async fn execute_unexecuted_da_block_with_no_transactions() {
-    let mut mock = start_mock(false).await;
-    let block = get_test_block_subset();
-    // using firm hash here as da blocks are executed on top of the firm commitment
-    let expected_execution_state = hash(&mock.executor.commitment_state.firm.hash);
+#[test]
+fn should_execute_firm() {
+    use CommitLevel::{
+        FirmOnly,
+        SoftAndFirm,
+        SoftOnly,
+    };
 
-    mock.executor
-        .execute_and_finalize_blocks_from_celestia(vec![block])
-        .await
-        .unwrap();
-
-    assert_eq!(
-        expected_execution_state,
-        mock.executor.commitment_state.firm.hash
+    assert!(
+        should_execute_firm_block(1, 1, FirmOnly),
+        "firm-mode conductors should always execute firm blocks"
     );
-    // should be empty because block was executed and finalized, which
-    // deletes it from the map
-    assert!(mock.executor.sequencer_hash_to_execution_block.is_empty());
-}
-
-#[tokio::test]
-async fn empty_message_from_data_availability_is_dropped() {
-    let mut mock = start_mock(false).await;
-    // using firm hash here as da blocks are executed on top of the firm commitment
-    let expected_execution_state = mock.executor.commitment_state.firm.hash.clone();
-
-    mock.executor
-        .execute_and_finalize_blocks_from_celestia(vec![])
-        .await
-        .unwrap();
-
-    assert_eq!(
-        expected_execution_state,
-        mock.executor.commitment_state.firm.hash
+    assert!(
+        should_execute_firm_block(0, 1, FirmOnly),
+        "firm-mode conductors should always execute firm blocks"
     );
-    assert!(mock.executor.sequencer_hash_to_execution_block.is_empty());
+    assert!(
+        should_execute_firm_block(1, 0, FirmOnly),
+        "firm-mode conductors should always execute firm blocks"
+    );
+    assert!(
+        !should_execute_firm_block(1, 1, SoftOnly),
+        "soft-mode conductors should never execute firm blocks"
+    );
+    assert!(
+        !should_execute_firm_block(0, 1, SoftOnly),
+        "soft-mode conductors should never execute firm blocks"
+    );
+    assert!(
+        !should_execute_firm_block(1, 0, SoftOnly),
+        "soft-mode conductors should never execute firm blocks"
+    );
+    assert!(
+        should_execute_firm_block(1, 1, SoftAndFirm),
+        "firm-and-soft-mode conductors should execute firm blocks if soft and firm numbers match"
+    );
+    assert!(
+        !should_execute_firm_block(0, 1, SoftAndFirm),
+        "firm-and-soft-mode conductors should not execute firm blocks if soft and firm numbers \
+         don't match"
+    );
+    assert!(
+        !should_execute_firm_block(1, 0, SoftAndFirm),
+        "firm-and-soft-mode conductors should not execute firm blocks if soft and firm numbers \
+         don't match"
+    );
 }

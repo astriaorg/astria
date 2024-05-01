@@ -1,0 +1,46 @@
+# Default values for celestia-local.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+global:
+  namespace: "astria-dev-cluster"
+  replicaCount: 1
+
+# Default storage type for local development workflow.
+storage:
+  enabled: false
+  local: true
+  entities:
+    celestiaSharedStorage:
+      size: "5Gi"
+      persistentVolumeName: "celestia-shared-storage"
+      path: "/data/celestia-data"
+
+celestiaAppImage: "ghcr.io/celestiaorg/celestia-app:v1.8.0"
+celestiaNodeImage: "ghcr.io/celestiaorg/celestia-node:v0.13.4"
+
+podSecurityContext:
+  runAsUser: 10001
+  fsGroup: 10001
+  fsGroupChangePolicy: "OnRootMismatch"
+
+# Default address where funds get allocated on genesis
+evmAddress: "0x966e6f22781EF6a6A82BBB4DB3df8E225DfD9488"
+# Default private key, must correspond with above address
+privateKey: "da6ed55cb2894ac2c9c10209c09de8e8b9d109b910338d5bf3d747a7e1fc9eb9"
+# Default chain id
+chainId: "celestia-local-0"
+# Signer info
+keyringBackend: "test"
+validatorKeyName: "validator"
+validatorMnemonic: connect soon random stable toddler tired glove drastic comfort donor struggle island cactus pole shell alpha taste able story business cross dismiss book brass
+# Genesis amount
+coins: "10000000000000000000000000utia"
+# Staking amount
+validatorStake: "5000000000utia"
+
+# Default service ports
+ports:
+  celestiaAppHostPort: 26657
+  celestiaAppGrpcPort: 9090
+  bridgeRPC: 26658
+  bridgeHTTP: 26659

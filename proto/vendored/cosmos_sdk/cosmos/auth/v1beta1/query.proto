@@ -1,0 +1,39 @@
+syntax = "proto3";
+package cosmos.auth.v1beta1;
+
+import "cosmos_sdk/cosmos/auth/v1beta1/auth.proto";
+import "google/protobuf/any.proto";
+
+// This file contains types which are copied from
+// https://github.com/celestiaorg/cosmos-sdk/blob/76bcf5af73b0a166552b64f9df0f87cc813aba76/proto/cosmos/auth/v1beta1/query.proto
+// (v1.18.3-sdk-v0.46.14 tag).
+
+// Query defines the gRPC querier service.
+service Query {
+  // Account returns account details based on address.
+  rpc Account(QueryAccountRequest) returns (QueryAccountResponse);
+
+  // Params queries all parameters.
+  rpc Params(QueryParamsRequest) returns (QueryParamsResponse);
+}
+
+// QueryAccountRequest is the request type for the Query/Account RPC method.
+message QueryAccountRequest {
+  // address defines the address to query for.
+  string address = 1;
+}
+
+// QueryAccountResponse is the response type for the Query/Account RPC method.
+message QueryAccountResponse {
+  // account defines the account of the corresponding address.
+  google.protobuf.Any account = 1;
+}
+
+// QueryParamsRequest is the request type for the Query/Params RPC method.
+message QueryParamsRequest {}
+
+// QueryParamsResponse is the response type for the Query/Params RPC method.
+message QueryParamsResponse {
+  // params defines the parameters of the module.
+  Params params = 1;
+}

@@ -1,0 +1,17 @@
+[package]
+name = "astria-merkle"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.71.1"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/astriaorg/astria"
+homepage = "https://astria.org"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+serde = { workspace = true, features = ["derive"], optional = true }
+sha2 = { workspace = true }
+
+[dev-dependencies]
+hex-literal = { workspace = true }

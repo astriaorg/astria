@@ -1,14 +1,14 @@
 use anyhow::Result;
+use astria_core::primitive::v1::Address;
 use async_trait::async_trait;
-use penumbra_storage::{
+use cnidarium::{
     StateRead,
     StateWrite,
 };
-use proto::native::sequencer::v1alpha1::Address;
 
 #[async_trait]
 pub(crate) trait ActionHandler {
-    fn check_stateless(&self) -> Result<()> {
+    async fn check_stateless(&self) -> Result<()> {
         Ok(())
     }
     async fn check_stateful<S: StateRead + 'static>(

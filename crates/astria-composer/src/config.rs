@@ -11,9 +11,10 @@ use serde::{
     Serializer,
 };
 
-/// The high-level config for creating an astria-composer service.
+// this is a config, may have many boolean values
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
+/// The high-level config for creating an astria-composer service.
 pub struct Config {
     /// Log level. One of debug, info, warn, or error
     pub log: String,
@@ -24,12 +25,44 @@ pub struct Config {
     /// Address of the RPC server for the sequencer chain
     pub sequencer_url: String,
 
-    /// A list of <chain_id>::<url> pairs
+    /// The chain ID of the sequencer chain
+    pub sequencer_chain_id: String,
+
+    /// A list of <rollup_name>::<url> pairs
     pub rollups: String,
 
     /// Private key for the sequencer account used for signing transactions
     #[serde(serialize_with = "serialize_private_key")]
     pub private_key: SecretString,
+
+    /// Sequencer block time in milliseconds
+    #[serde(alias = "max_submit_interval_ms")]
+    pub block_time_ms: u64,
+
+    /// Max bytes to encode into a single sequencer `SignedTransaction`, not including signature,
+    /// public key, nonce. This is the sum of the sizes of all the `SequenceAction`s
+    pub max_bytes_per_bundle: usize,
+
+    /// Max amount of `SizedBundle`s to allow to accrue in the `BundleFactory`'s finished queue.
+    pub bundle_queue_capacity: usize,
+
+    /// Forces writing trace data to stdout no matter if connected to a tty or not.
+    pub force_stdout: bool,
+
+    /// Disables writing trace data to an opentelemetry endpoint.
+    pub no_otel: bool,
+
+    /// Set to true to disable the metrics server
+    pub no_metrics: bool,
+
+    /// The endpoint which will be listened on for serving prometheus metrics
+    pub metrics_http_listener_addr: String,
+
+    /// Writes a human readable format to stdout instead of JSON formatted OTEL trace data.
+    pub pretty_print: bool,
+
+    /// The address at which the gRPC server is listening
+    pub grpc_addr: SocketAddr,
 }
 
 impl config::Config for Config {
@@ -61,10 +94,5 @@ mod tests {
     #[test]
     fn example_env_config_is_up_to_date() {
         config::tests::example_env_config_is_up_to_date::<Config>(EXAMPLE_ENV);
-    }
-
-    #[test]
-    fn config_should_reject_unknown_var() {
-        config::tests::config_should_reject_unknown_var::<Config>(EXAMPLE_ENV);
     }
 }

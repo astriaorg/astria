@@ -4,7 +4,7 @@ use anyhow::{
     Context,
     Result,
 };
-use proto::native::sequencer::v1alpha1::Address;
+use astria_core::primitive::v1::Address;
 use tendermint::{
     abci::request::{
         BeginBlock,
@@ -26,7 +26,7 @@ pub(crate) struct AuthorityComponent;
 
 #[derive(Debug)]
 pub(crate) struct AuthorityComponentAppState {
-    pub(crate) authority_sudo_key: Address,
+    pub(crate) authority_sudo_address: Address,
     pub(crate) genesis_validators: Vec<validator::Update>,
 }
 
@@ -38,7 +38,7 @@ impl Component for AuthorityComponent {
     async fn init_chain<S: StateWriteExt>(mut state: S, app_state: &Self::AppState) -> Result<()> {
         // set sudo key and initial validator set
         state
-            .put_sudo_address(app_state.authority_sudo_key)
+            .put_sudo_address(app_state.authority_sudo_address)
             .context("failed to set sudo key")?;
         state
             .put_validator_set(ValidatorSet::new_from_updates(

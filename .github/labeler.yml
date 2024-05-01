@@ -1,19 +1,41 @@
 ci:
-  - '.github/**'
+  - changed-files:
+    - any-glob-to-any-file:
+      - '.github/**'
+cd:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'charts/**'
+      - 'dev/**'
 conductor:
-  - 'crates/astria-conductor/**'
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'crates/astria-conductor/**'
 composer:
-  - 'crates/astria-composer/**'
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'crates/astria-composer/**'
 docker:
-  - 'containerfiles/**'
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'containerfiles/**'
 proto:
-  - 'crates/astria-proto/**'
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'proto/**'
+      - 'crates/astria-core/src/generated/**'
+      - 'buf.work.yaml'
 sequencer:
-  - 'crates/astria-sequencer/**'
-  - 'crates/astria-sequencer-client/**'
-  - 'crates/astria-sequencer-utils/**'
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'crates/astria-sequencer/**'
+      - 'crates/astria-sequencer-client/**'
+      - 'crates/astria-sequencer-utils/**'
 sequencer-relayer:
-  - 'crates/astria-sequencer-relayer/**'
-  - 'crates/astria-gossipnet/**'
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'crates/astria-sequencer-relayer/**'
 documentation:
-  - 'specs/**'
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'specs/**'

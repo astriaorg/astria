@@ -1,12 +1,13 @@
 use std::path::Path;
 
+use astria_eyre::eyre::{
+    self,
+    bail,
+    WrapErr as _,
+};
 use ed25519_consensus::{
     SigningKey,
     VerificationKey,
-};
-use eyre::{
-    bail,
-    WrapErr as _,
 };
 use tendermint::account;
 use tendermint_config::PrivValidatorKey;

@@ -1,0 +1,104 @@
+{{- $label := include "celestiaNode.baseLabel" . }}
+{{- $isCustomNetwork := eq .Values.config.network "custom" }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $label }}
+  labels:
+    app: {{ $label }}
+  namespace: {{ include "celestiaNode.namespace" . }}
+spec:
+  replicas: {{ .Values.global.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ $label }}
+  template:
+    metadata:
+      name: {{ $label }}
+      labels:
+        app: {{ $label }}
+    spec:
+      securityContext:
+        runAsUser: 10001
+        fsGroup: 10001
+        fsGroupChangePolicy: "OnRootMismatch"
+      initContainers:
+        - name: init-{{ $label }}
+          image: {{ .Values.images.node }}
+          command: [/bin/celestia, "{{ .Values.config.type }}", init]
+          args:
+            - --node.store
+            - /celestia
+          imagePullPolicy: {{ .Values.images.pullPolicy }}
+          volumeMounts:
+            - name: {{ $label }}-vol
+              mountPath: /celestia
+      containers:
+        - name: {{ $label }}
+          image: {{ .Values.images.node }}
+          command: ["./celestia/scripts/start-node.sh"]
+          securityContext:
+            runAsUser: 10001
+            runAsGroup: 10001
+          {{- if $isCustomNetwork }}
+          envFrom:
+            - configMapRef:
+                name: {{ $label }}-env
+          {{- end }}
+          {{- if .Values.ports.celestia }}
+          ports:
+          {{- range $name, $port := .Values.ports.celestia }}
+            - containerPort: {{ $port }}
+              name: {{ $name }}
+              protocol: TCP
+          {{- end }}
+          {{- end }}
+        {{- if .Values.resources }}
+          resources:
+            {{- toYaml .Values.resources | trim | nindent 12 }}
+        {{- end }}          
+          volumeMounts:
+            - name: {{ $label }}-scripts-vol
+              mountPath: /celestia/scripts
+            - name: {{ $label }}-vol
+              mountPath: /celestia
+            - name: {{ $label }}-files-volume
+              mountPath: /celestia/config.toml
+              subPath: config.toml
+            {{- if .Values.secretProvider.enabled }}
+            {{- range $index, $secret := .Values.secretProvider.secrets }}
+            - name: {{ $secret.name }}
+              mountPath: /celestia/{{ $secret.mountPath }}/{{ $secret.filename }}
+              subPath: {{ $secret.filename }}
+            {{- end }}
+            {{- end }}
+      volumes:
+        # ------------ Startup scripts -------------
+        - name: {{ $label }}-scripts-vol
+          configMap:
+            defaultMode: 0744
+            name: {{ $label }}-scripts-env
+        # ------------ Config file -------------
+        - name: {{ $label }}-files-volume
+          configMap:
+            name: {{ $label }}-files-env
+            defaultMode: 420
+        # ------------ Primary storage -------------
+        - name: {{ $label }}-vol
+          {{- if .Values.storage.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ $label }}-storage-pvc
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        # ------------ Celestia keys, if provided -------------
+        {{- if .Values.secretProvider.enabled }}
+        {{- range $index, $secret := .Values.secretProvider.secrets }}
+        - name: {{ $secret.name }}
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: {{ $secret.name }}
+        {{- end }}
+        {{- end }}

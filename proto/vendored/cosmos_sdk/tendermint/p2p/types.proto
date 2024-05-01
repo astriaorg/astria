@@ -1,0 +1,28 @@
+syntax = "proto3";
+package tendermint.p2p;
+
+// This file contains types which are copied from
+// https://github.com/celestiaorg/cosmos-sdk/blob/76bcf5af73b0a166552b64f9df0f87cc813aba76/proto/tendermint/p2p/types.proto
+// (v1.18.3-sdk-v0.46.14 tag).
+
+message ProtocolVersion {
+  uint64 p2p = 1;
+  uint64 block = 2;
+  uint64 app = 3;
+}
+
+message DefaultNodeInfo {
+  ProtocolVersion protocol_version = 1;
+  string default_node_id = 2;
+  string listen_addr = 3;
+  string network = 4;
+  string version = 5;
+  bytes channels = 6;
+  string moniker = 7;
+  DefaultNodeInfoOther other = 8;
+}
+
+message DefaultNodeInfoOther {
+  string tx_index = 1;
+  string rpc_address = 2;
+}

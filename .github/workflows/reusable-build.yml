@@ -1,0 +1,52 @@
+name: Reusable Binary Build && Push Workflow
+
+on:
+  workflow_call:
+    inputs:
+      package-name:
+        required: true
+        type: string
+      tag:
+        required: false
+        type: string
+
+env:
+  REGISTRY: ghcr.io
+  FULL_REF: ${{ inputs.tag && format('refs/tags/{0}', inputs.tag) || github.ref }}
+
+jobs:
+  upload-binaries:
+    if: startsWith(github.ref, format('refs/tags/{0}-v', inputs.package-name)) || !inputs.tag && github.event_name == 'workflow_dispatch' || startsWith(inputs.tag, inputs.package-name)
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: buildjet-4vcpu-ubuntu-2004
+            build-tool: cargo
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            build-tool: cargo
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            build-tool: cargo
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+      - uses: dtolnay/rust-toolchain@1.76.0
+      - uses: arduino/setup-protoc@v3
+        with:
+          version: "24.4"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: taiki-e/upload-rust-binary-action@v1
+        with:
+          ref: ${{ env.FULL_REF }}
+          bin: astria-${{ inputs.package-name }}
+          dry-run: ${{ !startsWith(env.FULL_REF, format('refs/tags/{0}-v', inputs.package-name)) }}
+          # (optional) Target triple, default is host triple.
+          target: ${{ matrix.target }}
+          # (optional) Tool to build binaries (cargo, cross, or cargo-zigbuild)
+          build-tool: ${{ matrix.build-tool }}
+          # (required) GitHub token for uploading assets to GitHub Releases.
+          token: ${{ secrets.GITHUB_TOKEN }}

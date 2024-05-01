@@ -24,11 +24,14 @@
 //!     .expect("the json serializer should never fail when serializing to a string");
 //! eprintln!("config:\n{cfg_ser}");
 //!
-//! telemetry::init(std::io::stdout, &cfg.log).expect("failed to initialize tracing");
-//!
+//! telemetry::configure()
+//!     .filter_directives(&cfg.log)
+//!     .try_init()
+//!     .expect("failed to setup telemetry");
 //! info!(config = cfg_ser, "initializing composer",);
 //!
 //! let _composer = Composer::from_config(&cfg)
+//!     .await
 //!     .expect("failed creating composer")
 //!     .run_until_stopped()
 //!     .await;
@@ -36,10 +39,16 @@
 //! ```
 
 pub(crate) mod api;
+mod build_info;
+mod collectors;
 mod composer;
 pub mod config;
-pub(crate) mod searcher;
+mod executor;
+mod grpc;
+pub mod metrics_init;
+mod rollup;
 
+pub use build_info::BUILD_INFO;
 pub use composer::Composer;
 pub use config::Config;
 pub use telemetry;

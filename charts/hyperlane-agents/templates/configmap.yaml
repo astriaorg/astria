@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.config.name }}-hyperlane-agent-config
+  namespace: {{ .Values.global.namespace }}
+data:
+  agent-config.json: |
+    {{ toPrettyJson .Values.config.agentConfigData | nindent 4 | trim }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.config.name }}-hyperlane-agent-env
+  namespace: {{ .Values.global.namespace }}
+data:
+  CONFIG_FILES: "/config/agent-config.json"
+  HYP_TRACING_LEVEL: "{{ .Values.config.tracing.level }}"
+  HYP_TRACING_FMT: "{{ .Values.config.tracing.format }}"
+  HYP_INTERVAL: "{{ .Values.config.interval }}"
+  HYP_RELAYCHAINS: "{{ join "," .Values.config.relayer.chains }}"
+  HYP_ALLOWLOCALCHECKPOINTSYNCERS: "true"
+  HYP_CHECKPOINTSYNCER_TYPE: "localStorage"
+  HYP_DEFAULTSIGNER_TYPE: "hexKey"
+  HYP_VALIDATOR_TYPE: "hexKey"
+  {{- if not .Values.secretProvider.enabled }}
+  HYP_DEFAULTSIGNER_KEY: "{{ .Values.config.relayer.privateKey }}"
+  HYP_VALIDATOR_KEY: "{{ .Values.config.validator.privateKey }}"
+  {{- end }}
+---

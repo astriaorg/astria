@@ -9,7 +9,6 @@
 //! };
 //!
 //! #[derive(Clone, Debug, Serialize, Deserialize)]
-//! #[serde(deny_unknown_fields)]
 //! pub struct MyConfig {
 //!     pub log: String,
 //!     pub api_listen_addr: std::net::SocketAddr,
@@ -27,12 +26,6 @@
 //! #[test]
 //! fn example_env_config_is_up_to_date() {
 //!     astria_config::tests::example_env_config_is_up_to_date::<Config>(EXAMPLE_ENV);
-//! }
-//!
-//! #[test]
-//! #[should_panic]
-//! fn config_should_reject_unknown_var() {
-//!     astria_config::tests::config_should_reject_unknown_var::<Config>(EXAMPLE_ENV);
 //! }
 //! ```
 
@@ -83,36 +76,8 @@ pub fn example_env_config_is_up_to_date<C: Config>(example_env: &str) {
 
     Jail::expect_with(|jail| {
         populate_environment_from_example(jail, unique_test_prefix, example_env);
-        C::get_with_prefix(&full_test_prefix, _internal::Internal).unwrap();
-        Ok(())
-    });
-}
-
-/// Asserts that a config `C` would reject unknown env vars in string holding env vars.
-///
-/// An environment string could, for example, be produced by the `include_str!`
-/// macro with an dotenv file documenting the env vars a service takes as config.
-///
-/// The test is performed by injecting a variable named `<PREFIX>FOOBAR=BAZ` into
-/// `example_env`.
-///
-/// This effectively tests that a config has `#[serde(deny_unknown_vars)]` set
-/// as other solutions require more work.
-///
-/// # Panics
-/// Panics if a config was succesfully created: this function checks if the serde
-/// implementation of the config `C` rejects unknown vars resulting in the deserializer
-/// returning an error.
-#[track_caller]
-pub fn config_should_reject_unknown_var<C: Config>(example_env: &str) {
-    let unique_test_prefix = Lazy::force(&TEST_PREFIX);
-    let full_test_prefix = format!("{unique_test_prefix}_{}", C::PREFIX);
-
-    Jail::expect_with(|jail| {
-        populate_environment_from_example(jail, unique_test_prefix, example_env);
-        let bad_var = format!("{full_test_prefix}_FOOBAR");
-        jail.set_env(bad_var, "BAZ");
-        C::get_with_prefix(&full_test_prefix, _internal::Internal).unwrap_err();
+        C::get_with_prefix(&full_test_prefix, _internal::Internal)
+            .unwrap_or_else(|error| panic!("failed to parse config: {error}"));
         Ok(())
     });
 }

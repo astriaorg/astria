@@ -1,0 +1,57 @@
+{{- if .Values.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: cometbft-metrics
+  labels:
+    {{- include "sequencer.labels" . | nindent 4 }}
+    {{- with .Values.serviceMonitor.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  jobLabel: cometbft-metric
+  namespaceSelector:
+    matchNames:
+      - {{ include "sequencer.namespace" . }}
+  selector:
+    matchLabels:
+      {{- include "sequencer.selectorLabels" . | nindent 6 }}
+  endpoints:
+    - port: cometbft-metric
+      path: /metrics
+      {{- with .Values.serviceMonitor.interval }}
+      interval: {{ . }}
+      {{- end }}
+      {{- with .Values.serviceMonitor.scrapeTimeout  }}
+      scrapeTimeout: {{ . }}
+      {{- end }}
+---
+{{- if .Values.config.sequencer.metrics.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: sequencer-metrics
+  labels:
+    {{- include "sequencer.labels" . | nindent 4 }}
+    {{- with .Values.serviceMonitor.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  jobLabel: sequencer-metric
+  namespaceSelector:
+    matchNames:
+      - {{ include "sequencer.namespace" . }}
+  selector:
+    matchLabels:
+      {{- include "sequencer.selectorLabels" . | nindent 6 }}
+  endpoints:
+    - port: sequencer-metric
+      path: /
+      {{- with .Values.serviceMonitor.interval }}
+      interval: {{ . }}
+      {{- end }}
+      {{- with .Values.serviceMonitor.scrapeTimeout  }}
+      scrapeTimeout: {{ . }}
+      {{- end }}
+{{- end }}
+{{- end }}

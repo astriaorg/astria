@@ -6,12 +6,20 @@ use std::{
     },
 };
 
+use astria_core::{
+    generated::protocol::transaction::v1alpha1 as raw,
+    protocol::{
+        abci::AbciErrorCode,
+        transaction::v1alpha1::SignedTransaction,
+    },
+};
+use cnidarium::Storage;
 use futures::{
     Future,
     FutureExt,
 };
-use penumbra_storage::Storage;
-use tendermint::v0_37::abci::{
+use prost::Message as _;
+use tendermint::v0_38::abci::{
     request,
     response,
     MempoolRequest,
@@ -19,14 +27,20 @@ use tendermint::v0_37::abci::{
 };
 use tower::Service;
 use tower_abci::BoxError;
-use tracing::Instrument;
+use tracing::Instrument as _;
 
-use crate::accounts::state_ext::StateReadExt;
+use crate::{
+    accounts::state_ext::StateReadExt,
+    metrics_init,
+    transaction,
+};
+
+const MAX_TX_SIZE: usize = 256_000; // 256 KB
 
 /// Mempool handles [`request::CheckTx`] abci requests.
 //
 /// It performs a stateless check of the given transaction,
-/// returning a [`tendermint::v0_37::abci::response::CheckTx`].
+/// returning a [`tendermint::v0_38::abci::response::CheckTx`].
 #[derive(Clone)]
 pub(crate) struct Mempool {
     storage: Storage,
@@ -50,7 +64,7 @@ impl Service<MempoolRequest> for Mempool {
     }
 
     fn call(&mut self, req: MempoolRequest) -> Self::Future {
-        use penumbra_tower_trace::v037::RequestExt as _;
+        use penumbra_tower_trace::v038::RequestExt as _;
         let span = req.create_span();
         let storage = self.storage.clone();
         async move {
@@ -66,28 +80,38 @@ impl Service<MempoolRequest> for Mempool {
     }
 }
 
+/// Handles a [`request::CheckTx`] request.
+///
+/// Performs stateless checks (decoding and signature check),
+/// as well as stateful checks (nonce and balance checks).
+///
+/// If the tx passes all checks, status code 0 is returned.
 async fn handle_check_tx<S: StateReadExt + 'static>(
     req: request::CheckTx,
     state: S,
 ) -> response::CheckTx {
-    use proto::{
-        generated::sequencer::v1alpha1 as raw,
-        native::sequencer::v1alpha1::SignedTransaction,
-        Message as _,
-    };
-    use sequencer_types::abci_code::AbciCode;
-
-    use crate::transaction;
-
     let request::CheckTx {
         tx, ..
     } = req;
+    if tx.len() > MAX_TX_SIZE {
+        metrics::counter!(metrics_init::CHECK_TX_REMOVED_TOO_LARGE).increment(1);
+        return response::CheckTx {
+            code: AbciErrorCode::TRANSACTION_TOO_LARGE.into(),
+            log: format!(
+                "transaction size too large; allowed: {MAX_TX_SIZE} bytes, got {}",
+                tx.len()
+            ),
+            info: AbciErrorCode::TRANSACTION_TOO_LARGE.to_string(),
+            ..response::CheckTx::default()
+        };
+    }
+
     let raw_signed_tx = match raw::SignedTransaction::decode(tx) {
         Ok(tx) => tx,
         Err(e) => {
             return response::CheckTx {
-                code: AbciCode::INVALID_PARAMETER.into(),
-                log: format!("{e:?}"),
+                code: AbciErrorCode::INVALID_PARAMETER.into(),
+                log: e.to_string(),
                 info: "failed decoding bytes as a protobuf SignedTransaction".into(),
                 ..response::CheckTx::default()
             };
@@ -97,36 +121,54 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
         Ok(tx) => tx,
         Err(e) => {
             return response::CheckTx {
-                code: AbciCode::INVALID_PARAMETER.into(),
+                code: AbciErrorCode::INVALID_PARAMETER.into(),
                 info: "the provided bytes was not a valid protobuf-encoded SignedTransaction, or \
                        the signature was invalid"
                     .into(),
-                log: format!("{e:?}"),
+                log: e.to_string(),
                 ..response::CheckTx::default()
             };
         }
     };
 
-    // if the tx passes the check, status code 0 is returned.
-    // TODO(https://github.com/astriaorg/astria/issues/228): status codes for various errors
-    // TODO(https://github.com/astriaorg/astria/issues/319): offload `check_stateless` using `deliver_tx_bytes` mechanism
-    //       and a worker task similar to penumbra
-    if let Err(e) = transaction::check_nonce_mempool(&signed_tx, &state).await {
+    if let Err(e) = transaction::check_stateless(&signed_tx).await {
+        metrics::counter!(metrics_init::CHECK_TX_REMOVED_FAILED_STATELESS).increment(1);
         return response::CheckTx {
-            code: AbciCode::INVALID_NONCE.into(),
-            info: "failed verifying transaction nonce".into(),
-            log: format!("{e:?}"),
+            code: AbciErrorCode::INVALID_PARAMETER.into(),
+            info: "transaction failed stateless check".into(),
+            log: e.to_string(),
             ..response::CheckTx::default()
         };
     };
 
-    match transaction::check_stateless(&signed_tx) {
-        Ok(_) => response::CheckTx::default(),
-        Err(e) => response::CheckTx {
-            code: AbciCode::INVALID_PARAMETER.into(),
-            info: "transaction failed stateless check".into(),
-            log: format!("{e:?}"),
+    if let Err(e) = transaction::check_nonce_mempool(&signed_tx, &state).await {
+        metrics::counter!(metrics_init::CHECK_TX_REMOVED_STALE_NONCE).increment(1);
+        return response::CheckTx {
+            code: AbciErrorCode::INVALID_NONCE.into(),
+            info: "failed verifying transaction nonce".into(),
+            log: e.to_string(),
             ..response::CheckTx::default()
-        },
+        };
+    };
+
+    if let Err(e) = transaction::check_chain_id_mempool(&signed_tx, &state).await {
+        return response::CheckTx {
+            code: AbciErrorCode::INVALID_CHAIN_ID.into(),
+            info: "failed verifying chain id".into(),
+            log: e.to_string(),
+            ..response::CheckTx::default()
+        };
     }
+
+    if let Err(e) = transaction::check_balance_mempool(&signed_tx, &state).await {
+        metrics::counter!(metrics_init::CHECK_TX_REMOVED_ACCOUNT_BALANCE).increment(1);
+        return response::CheckTx {
+            code: AbciErrorCode::INSUFFICIENT_FUNDS.into(),
+            info: "failed verifying account balance".into(),
+            log: e.to_string(),
+            ..response::CheckTx::default()
+        };
+    };
+
+    response::CheckTx::default()
 }

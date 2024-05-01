@@ -1,11 +1,17 @@
+use astria_core::{
+    primitive::v1::{
+        asset::default_native_asset_id,
+        Address,
+    },
+    protocol::transaction::v1alpha1::{
+        action::TransferAction,
+        SignedTransaction,
+        TransactionParams,
+        UnsignedTransaction,
+    },
+};
 use ed25519_consensus::SigningKey;
 use hex_literal::hex;
-use proto::native::sequencer::v1alpha1::{
-    Address,
-    SignedTransaction,
-    TransferAction,
-    UnsignedTransaction,
-};
 use serde_json::json;
 use tendermint::{
     block::Height,
@@ -34,7 +40,7 @@ use crate::{
 };
 
 const ALICE_ADDRESS: [u8; 20] = hex!("1c0c490f1b5528d8173c5de46d131160e4b2c0c3");
-const BOB_ADDRESS: Address = Address(hex!("34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a"));
+const BOB_ADDRESS: Address = Address::from_array(hex!("34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a"));
 
 struct MockSequencer {
     server: MockServer,
@@ -55,7 +61,7 @@ impl MockSequencer {
 async fn register_abci_query_response(
     server: &MockServer,
     query_path: &str,
-    raw: impl proto::Message,
+    raw: impl prost::Message,
 ) -> MockGuard {
     let response = tendermint_rpc::endpoint::abci_query::Response {
         response: tendermint_rpc::endpoint::abci_query::AbciQuery {
@@ -126,11 +132,16 @@ fn create_signed_transaction() -> SignedTransaction {
         TransferAction {
             to: BOB_ADDRESS,
             amount: 333_333,
+            asset_id: default_native_asset_id(),
+            fee_asset_id: default_native_asset_id(),
         }
         .into(),
     ];
     UnsignedTransaction {
-        nonce: 1,
+        params: TransactionParams {
+            nonce: 1,
+            chain_id: "test".to_string(),
+        },
         actions,
     }
     .into_signed(&alice_key)
@@ -138,7 +149,7 @@ fn create_signed_transaction() -> SignedTransaction {
 
 #[tokio::test]
 async fn get_latest_nonce() {
-    use proto::generated::sequencer::v1alpha1::NonceResponse;
+    use astria_core::generated::protocol::account::v1alpha1::NonceResponse;
     let MockSequencer {
         server,
         client,
@@ -161,7 +172,11 @@ async fn get_latest_nonce() {
 
 #[tokio::test]
 async fn get_latest_balance() {
-    use proto::generated::sequencer::v1alpha1::BalanceResponse;
+    use astria_core::generated::protocol::account::v1alpha1::{
+        AssetBalance,
+        BalanceResponse,
+    };
+
     let MockSequencer {
         server,
         client,
@@ -169,7 +184,10 @@ async fn get_latest_balance() {
 
     let expected_response = BalanceResponse {
         height: 10,
-        balance: Some(10u128.pow(18).into()),
+        balances: vec![AssetBalance {
+            denom: "nria".to_string(),
+            balance: Some(10u128.pow(18).into()),
+        }],
     };
     let _guard =
         register_abci_query_response(&server, "accounts/balance/", expected_response.clone()).await;

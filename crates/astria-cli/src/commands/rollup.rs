@@ -13,8 +13,8 @@ use std::{
 };
 
 use astria_sequencer_client::{
+    Client,
     HttpClient,
-    SequencerClientExt,
 };
 use color_eyre::{
     eyre,
@@ -112,11 +112,11 @@ pub(crate) async fn create_config(args: &ConfigCreateArgs) -> eyre::Result<()> {
         let sequencer_client = HttpClient::new(conf.sequencer_rpc.as_str())
             .wrap_err("failed constructing http sequencer client")?;
         let res = sequencer_client
-            .latest_sequencer_block()
+            .latest_block()
             .await
             .wrap_err("failed to get sequencer block for initial sequencer height")?;
 
-        let new_height: u64 = res.header().height.into();
+        let new_height: u64 = res.block.header.height.into();
         conf.sequencer_initial_block_height = Some(new_height);
     }
 
@@ -194,14 +194,17 @@ pub(crate) fn create_deployment(args: &DeploymentCreateArgs) -> eyre::Result<()>
     let helm = helm_from_env();
     let mut cmd = Command::new(helm.clone());
     cmd.arg("install")
-        .arg("--debug")
         .arg("--values")
         .arg(rollup.deployment_config.get_filename())
+        // TODO: https://github.com/astriaorg/astria/issues/594
+        // Use a secret manager or inject the private key into the environment
         .arg("--set")
         .arg(format!(
             "config.faucet.privateKey={}",
             args.faucet_private_key.clone()
         ))
+        // TODO: https://github.com/astriaorg/astria/issues/594
+        // Use a secret manager or inject the private key into the environment
         .arg("--set")
         .arg(format!(
             "config.sequencer.privateKey={}",
@@ -209,13 +212,15 @@ pub(crate) fn create_deployment(args: &DeploymentCreateArgs) -> eyre::Result<()>
         ))
         .arg(rollup.deployment_config.get_chart_release_name())
         .arg(&args.chart_path)
-        .arg("--set")
-        .arg(format!("namespace={}", rollup.namespace))
-        .arg(format!("--namespace={}", rollup.namespace))
+        .arg(format!("--namespace={}", rollup.globals_config.namespace))
         .arg("--create-namespace");
 
     if args.dry_run {
         cmd.arg("--dry-run");
+    }
+
+    if args.debug {
+        cmd.arg("--debug");
     }
 
     match cmd.output() {
@@ -259,7 +264,7 @@ pub(crate) fn delete_deployment(args: &DeploymentDeleteArgs) -> eyre::Result<()>
     let mut cmd = Command::new(helm.clone());
     cmd.arg("uninstall")
         .arg(rollup.deployment_config.get_chart_release_name())
-        .arg(format!("--namespace={}", rollup.namespace));
+        .arg(format!("--namespace={}", rollup.globals_config.namespace));
 
     match cmd.output() {
         Err(e) => {
@@ -321,16 +326,20 @@ mod test {
         ConfigCreateArgs {
             use_tty: false,
             name: "test".to_string(),
-            chain_id: None,
             network_id: 0,
-            skip_empty_blocks: false,
+            execution_commit_level: "SoftOnly".to_string(),
+            override_genesis_extra_data: false,
+            bridge_address: None,
+            bridge_allowed_asset_denom: "nria".to_string(),
             genesis_accounts: vec![],
             sequencer_initial_block_height: Some(1),
-            sequencer_websocket: String::new(),
+            sequencer_grpc: String::new(),
             sequencer_rpc: String::new(),
+            sequencer_chain_id: "test-chain-1".to_string(),
             log_level: String::new(),
             hostname: String::new(),
-            namespace: String::new(),
+            namespace: "namespace_test".to_string(),
+            enable_celestia_node: false,
         }
     }
 
@@ -342,6 +351,11 @@ mod test {
 
             let file_path = PathBuf::from("test-rollup-conf.yaml");
             assert!(file_path.exists());
+
+            let file = File::open(&file_path).unwrap();
+            let rollup: Rollup = serde_yaml::from_reader(file).unwrap();
+            assert_eq!(rollup.globals_config.namespace, args.namespace);
+            assert_eq!(rollup.deployment_config.get_rollup_name(), args.name);
         })
         .await;
     }
@@ -402,22 +416,22 @@ mod test {
     #[test]
     fn test_update_yaml_value() {
         let mut yaml_value: serde_yaml::Value = serde_yaml::from_str(
-            r#"
+            r"
             config:
                 rollup:
                     name: test
-            "#,
+            ",
         )
         .unwrap();
 
         update_yaml_value(&mut yaml_value, "config.rollup.name", "bugbug").unwrap();
 
         let updated: serde_yaml::Value = serde_yaml::from_str(
-            r#"
+            "
                 config:
                     rollup:
                         name: bugbug
-                "#,
+                ",
         )
         .unwrap();
         assert_eq!(yaml_value, updated);
@@ -426,11 +440,11 @@ mod test {
     #[test]
     fn test_update_yaml_value_errors() {
         let mut yaml_value: serde_yaml::Value = serde_yaml::from_str(
-            r#"
+            r"
             config:
                 rollup:
                     name: test
-            "#,
+            ",
         )
         .unwrap();
 

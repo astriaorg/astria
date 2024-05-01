@@ -2,10 +2,14 @@
 name = "astria-celestia-mock"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.73"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/astriaorg/astria"
+homepage = "https://astria.org"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 celestia-client = { package = "astria-celestia-client", path = "../astria-celestia-client" }
-
 jsonrpsee = { workspace = true, features = ["macros", "server"] }

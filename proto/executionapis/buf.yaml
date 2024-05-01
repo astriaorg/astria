@@ -1,0 +1,17 @@
+version: v1
+name: buf.build/astria/execution-apis
+breaking:
+  ignore_unstable_packages: true
+  use:
+    - WIRE_JSON
+deps:
+  - buf.build/astria/sequencerblock-apis
+lint:
+  use:
+    - BASIC
+    - ENUM_VALUE_PREFIX
+    - ENUM_ZERO_VALUE_SUFFIX
+    - FILE_LOWER_SNAKE_CASE
+    - RPC_REQUEST_STANDARD_NAME
+    - PACKAGE_VERSION_SUFFIX
+    - SERVICE_SUFFIX

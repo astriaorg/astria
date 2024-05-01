@@ -29,27 +29,225 @@ pub enum Command {
         #[clap(subcommand)]
         command: BlockHeightCommand,
     },
+    /// Commands requiring authority for Sequencer
+    Sudo {
+        #[clap(subcommand)]
+        command: SudoCommand,
+    },
+    /// Command for sending balance between accounts
+    Transfer(TransferArgs),
+    /// Command for initializing a bridge account
+    InitBridgeAccount(InitBridgeAccountArgs),
+    /// Command for transferring to a bridge account
+    BridgeLock(BridgeLockArgs),
 }
 
 #[derive(Debug, Subcommand)]
 pub enum AccountCommand {
     /// Create a new Sequencer account
     Create,
+    Balance(BasicAccountArgs),
+    Nonce(BasicAccountArgs),
 }
 
 #[derive(Debug, Subcommand)]
 pub enum BalanceCommand {
     /// Get the balance of a Sequencer account
-    Get(BalanceGetArgs),
+    Get(BasicAccountArgs),
+}
+
+#[derive(Debug, Subcommand)]
+pub enum SudoCommand {
+    IbcRelayer {
+        #[clap(subcommand)]
+        command: IbcRelayerChangeCommand,
+    },
+    FeeAsset {
+        #[clap(subcommand)]
+        command: FeeAssetChangeCommand,
+    },
+    Mint(MintArgs),
+    SudoAddressChange(SudoAddressChangeArgs),
+    ValidatorUpdate(ValidatorUpdateArgs),
+}
+
+#[derive(Debug, Subcommand)]
+pub enum IbcRelayerChangeCommand {
+    /// Add IBC Relayer
+    Add(IbcRelayerChangeArgs),
+    /// Remove IBC Relayer
+    Remove(IbcRelayerChangeArgs),
+}
+
+#[derive(Debug, Subcommand)]
+pub enum FeeAssetChangeCommand {
+    /// Add Fee Asset
+    Add(FeeAssetChangeArgs),
+    /// Remove Fee ASset
+    Remove(FeeAssetChangeArgs),
 }
 
 #[derive(Args, Debug)]
-pub struct BalanceGetArgs {
+pub struct BasicAccountArgs {
     /// The url of the Sequencer node
-    #[clap(long)]
+    #[clap(
+        long,
+        env = "SEQUENCER_URL", 
+        default_value = crate::cli::DEFAULT_SEQUENCER_RPC
+    )]
     pub(crate) sequencer_url: String,
+    /// The chain id of the sequencing chain being used
+    #[clap(
+        long = "sequencer.chain-id",
+        env = "ROLLUP_SEQUENCER_CHAIN_ID",
+        default_value = crate::cli::DEFAULT_SEQUENCER_CHAIN_ID
+    )]
+    pub sequencer_chain_id: String,
     /// The address of the Sequencer account
     pub(crate) address: SequencerAddressArg,
+}
+
+#[derive(Args, Debug)]
+pub struct TransferArgs {
+    // The address of the Sequencer account to send amount to
+    pub(crate) to_address: SequencerAddressArg,
+    // The amount being sent
+    #[clap(long)]
+    pub(crate) amount: u128,
+    /// The private key of account being sent from
+    #[clap(long, env = "SEQUENCER_PRIVATE_KEY")]
+    // TODO: https://github.com/astriaorg/astria/issues/594
+    // Don't use a plain text private, prefer wrapper like from
+    // the secrecy crate with specialized `Debug` and `Drop` implementations
+    // that overwrite the key on drop and don't reveal it when printing.
+    pub(crate) private_key: String,
+    /// The url of the Sequencer node
+    #[clap(
+        long,
+        env = "SEQUENCER_URL", 
+        default_value = crate::cli::DEFAULT_SEQUENCER_RPC
+    )]
+    pub(crate) sequencer_url: String,
+    /// The chain id of the sequencing chain being used
+    #[clap(
+        long = "sequencer.chain-id",
+        env = "ROLLUP_SEQUENCER_CHAIN_ID",
+        default_value = crate::cli::DEFAULT_SEQUENCER_CHAIN_ID
+    )]
+    pub sequencer_chain_id: String,
+}
+
+#[derive(Args, Debug)]
+pub struct FeeAssetChangeArgs {
+    // TODO: https://github.com/astriaorg/astria/issues/594
+    // Don't use a plain text private, prefer wrapper like from
+    // the secrecy crate with specialized `Debug` and `Drop` implementations
+    // that overwrite the key on drop and don't reveal it when printing.
+    #[clap(long, env = "SEQUENCER_PRIVATE_KEY")]
+    pub(crate) private_key: String,
+    /// The url of the Sequencer node
+    #[clap(
+        long,
+        env = "SEQUENCER_URL", 
+        default_value = crate::cli::DEFAULT_SEQUENCER_RPC
+    )]
+    pub(crate) sequencer_url: String,
+    /// The chain id of the sequencing chain being used
+    #[clap(
+        long = "sequencer.chain-id",
+        env = "ROLLUP_SEQUENCER_CHAIN_ID",
+        default_value = crate::cli::DEFAULT_SEQUENCER_CHAIN_ID
+    )]
+    pub sequencer_chain_id: String,
+    /// Asset's denomination string
+    #[clap(long)]
+    pub(crate) asset: String,
+}
+
+#[derive(Args, Debug)]
+pub struct IbcRelayerChangeArgs {
+    // TODO: https://github.com/astriaorg/astria/issues/594
+    // Don't use a plain text private, prefer wrapper like from
+    // the secrecy crate with specialized `Debug` and `Drop` implementations
+    // that overwrite the key on drop and don't reveal it when printing.
+    #[clap(long, env = "SEQUENCER_PRIVATE_KEY")]
+    pub(crate) private_key: String,
+    /// The url of the Sequencer node
+    #[clap(
+        long,
+        env = "SEQUENCER_URL", 
+        default_value = crate::cli::DEFAULT_SEQUENCER_RPC
+    )]
+    pub(crate) sequencer_url: String,
+    /// The chain id of the sequencing chain being used
+    #[clap(
+        long = "sequencer.chain-id",
+        env = "ROLLUP_SEQUENCER_CHAIN_ID",
+        default_value = crate::cli::DEFAULT_SEQUENCER_CHAIN_ID
+    )]
+    pub sequencer_chain_id: String,
+    /// The address to add or remove as an IBC relayer
+    #[clap(long)]
+    pub(crate) address: SequencerAddressArg,
+}
+
+#[derive(Args, Debug)]
+pub struct InitBridgeAccountArgs {
+    // TODO: https://github.com/astriaorg/astria/issues/594
+    // Don't use a plain text private, prefer wrapper like from
+    // the secrecy crate with specialized `Debug` and `Drop` implementations
+    // that overwrite the key on drop and don't reveal it when printing.
+    #[clap(long, env = "SEQUENCER_PRIVATE_KEY")]
+    pub(crate) private_key: String,
+    /// The url of the Sequencer node
+    #[clap(
+        long,
+        env = "SEQUENCER_URL", 
+        default_value = crate::cli::DEFAULT_SEQUENCER_RPC
+    )]
+    pub(crate) sequencer_url: String,
+    /// The chain id of the sequencing chain being used
+    #[clap(
+        long = "sequencer.chain-id",
+        env = "ROLLUP_SEQUENCER_CHAIN_ID",
+        default_value = crate::cli::DEFAULT_SEQUENCER_CHAIN_ID
+    )]
+    pub sequencer_chain_id: String,
+    /// Plaintext rollup name (to be hashed into a rollup ID)
+    /// to initialize the bridge account with.
+    #[clap(long)]
+    pub(crate) rollup_name: String,
+}
+
+#[derive(Args, Debug)]
+pub struct BridgeLockArgs {
+    /// The address of the Sequencer account to lock amount to
+    pub(crate) to_address: SequencerAddressArg,
+    /// The amount being locked
+    #[clap(long)]
+    pub(crate) amount: u128,
+    #[clap(long)]
+    pub(crate) destination_chain_address: String,
+    // TODO: https://github.com/astriaorg/astria/issues/594
+    // Don't use a plain text private, prefer wrapper like from
+    // the secrecy crate with specialized `Debug` and `Drop` implementations
+    // that overwrite the key on drop and don't reveal it when printing.
+    #[clap(long, env = "SEQUENCER_PRIVATE_KEY")]
+    pub(crate) private_key: String,
+    /// The url of the Sequencer node
+    #[clap(
+        long,
+        env = "SEQUENCER_URL", 
+        default_value = crate::cli::DEFAULT_SEQUENCER_RPC
+    )]
+    pub(crate) sequencer_url: String,
+    /// The chain id of the sequencing chain being used
+    #[clap(
+        long = "sequencer.chain-id",
+        env = "ROLLUP_SEQUENCER_CHAIN_ID",
+        default_value = crate::cli::DEFAULT_SEQUENCER_CHAIN_ID
+    )]
+    pub sequencer_chain_id: String,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -79,8 +277,107 @@ pub enum BlockHeightCommand {
 #[derive(Args, Debug)]
 pub struct BlockHeightGetArgs {
     /// The url of the Sequencer node
-    #[clap(long)]
+    #[clap(
+        long,
+        env = "SEQUENCER_URL",
+        default_value = crate::cli::DEFAULT_SEQUENCER_RPC
+    )]
     pub(crate) sequencer_url: String,
+    /// The chain id of the sequencing chain being used
+    #[clap(
+        long = "sequencer.chain-id",
+        env = "ROLLUP_SEQUENCER_CHAIN_ID",
+        default_value = crate::cli::DEFAULT_SEQUENCER_CHAIN_ID
+    )]
+    pub sequencer_chain_id: String,
+}
+
+#[derive(Args, Debug)]
+pub struct MintArgs {
+    // TODO: https://github.com/astriaorg/astria/issues/594
+    // Don't use a plain text private, prefer wrapper like from
+    // the secrecy crate with specialized `Debug` and `Drop` implementations
+    // that overwrite the key on drop and don't reveal it when printing.
+    #[clap(long, env = "SEQUENCER_PRIVATE_KEY")]
+    pub(crate) private_key: String,
+    /// The url of the Sequencer node
+    #[clap(
+        long,
+        env = "SEQUENCER_URL", 
+        default_value = crate::cli::DEFAULT_SEQUENCER_RPC
+    )]
+    pub(crate) sequencer_url: String,
+    /// The chain id of the sequencing chain being used
+    #[clap(
+        long = "sequencer.chain-id",
+        env = "ROLLUP_SEQUENCER_CHAIN_ID",
+        default_value = crate::cli::DEFAULT_SEQUENCER_CHAIN_ID
+    )]
+    pub sequencer_chain_id: String,
+    /// The address to mint to
+    #[clap(long)]
+    pub(crate) to_address: SequencerAddressArg,
+    /// The amount to mint
+    #[clap(long)]
+    pub(crate) amount: u128,
+}
+
+#[derive(Args, Debug)]
+pub struct SudoAddressChangeArgs {
+    // TODO: https://github.com/astriaorg/astria/issues/594
+    // Don't use a plain text private, prefer wrapper like from
+    // the secrecy crate with specialized `Debug` and `Drop` implementations
+    // that overwrite the key on drop and don't reveal it when printing.
+    #[clap(long, env = "SEQUENCER_PRIVATE_KEY")]
+    pub(crate) private_key: String,
+    /// The url of the Sequencer node
+    #[clap(
+        long,
+        env = "SEQUENCER_URL", 
+        default_value = crate::cli::DEFAULT_SEQUENCER_RPC
+    )]
+    pub(crate) sequencer_url: String,
+    /// The chain id of the sequencing chain being used
+    #[clap(
+        long = "sequencer.chain-id",
+        env = "ROLLUP_SEQUENCER_CHAIN_ID",
+        default_value = crate::cli::DEFAULT_SEQUENCER_CHAIN_ID
+    )]
+    pub sequencer_chain_id: String,
+    /// The new address to take over sudo privileges
+    #[clap(long)]
+    pub(crate) address: SequencerAddressArg,
+}
+
+#[derive(Args, Debug)]
+pub struct ValidatorUpdateArgs {
+    /// The url of the Sequencer node
+    #[clap(
+        long,
+        env = "SEQUENCER_URL", 
+        default_value = crate::cli::DEFAULT_SEQUENCER_RPC
+    )]
+    pub(crate) sequencer_url: String,
+    /// The chain id of the sequencing chain being used
+    #[clap(
+        long = "sequencer.chain-id",
+        env = "ROLLUP_SEQUENCER_CHAIN_ID",
+        default_value = crate::cli::DEFAULT_SEQUENCER_CHAIN_ID
+    )]
+    pub sequencer_chain_id: String,
+    /// The private key of the sudo account authorizing change
+    #[clap(long, env = "SEQUENCER_PRIVATE_KEY")]
+    // TODO: https://github.com/astriaorg/astria/issues/594
+    // Don't use a plain text private, prefer wrapper like from
+    // the secrecy crate with specialized `Debug` and `Drop` implementations
+    // that overwrite the key on drop and don't reveal it when printing.
+    pub(crate) private_key: String,
+    /// The address of the Validator being updated
+    #[clap(long)]
+    pub(crate) validator_public_key: String,
+    /// The power the validator is being updated to
+    #[clap(long)]
+    pub(crate) power: u32,
 }
 
 #[cfg(test)]

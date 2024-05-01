@@ -11,13 +11,25 @@ copy-env type=default_env:
 run:
   cargo run
 
-
 run-cometbft:
   cometbft init
-  ../../target/debug/astria-sequencer-utils --genesis-app-state-file=test-genesis-app-state.json --destination-genesis-file=$HOME/.cometbft/config/genesis.json
-  sed -i'.bak' 's/timeout_commit = "0s"/timeout_commit = "15s"/g' ~/.cometbft/config/config.toml
+  ../../target/debug/astria-sequencer-utils --genesis-app-state-file=test-genesis-app-state.json --destination-genesis-file=$HOME/.cometbft/config/genesis.json --chain-id=astria
+  sed -i'.bak' 's/timeout_commit = "1s"/timeout_commit = "2s"/g' ~/.cometbft/config/config.toml
   cometbft node
 
+[macos]
+stop-testnet:
+  pkill cometbft || true
+  pkill astria-sequencer || true
+[macos]
+run-testnet: 
+  cargo build
+  ./scripts/testnet.sh
+
+[linux]
+stop-testnet:
+  pkill cometbft && pkill astria-sequencer
+[linux] 
 run-testnet: 
   cargo build
   ${OUT_DIR} ${NUM_VALIDATORS} ./scripts/testnet.sh
@@ -28,8 +40,6 @@ cometbft-logs-testnet NODE="node0":
 sequencer-logs-testnet NODE="node0":
   tail -f sequencer_testnet/{{ NODE }}/sequencer.log
 
-stop-testnet:
-  pkill cometbft && pkill astria-sequencer
-
 clean-testnet DIR="sequencer_testnet": stop-testnet
-  rm -r {{ DIR }}
+  rm -r {{ DIR }} || true
+  rm -r /tmp/astria_db_* || true

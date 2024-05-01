@@ -5,37 +5,59 @@ use serde::{
     Serialize,
 };
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
 pub enum CommitLevel {
-    SoftOnly,
     FirmOnly,
+    SoftOnly,
     SoftAndFirm,
 }
 
 impl CommitLevel {
-    pub fn is_soft_only(&self) -> bool {
-        matches!(self, Self::SoftOnly)
+    pub(crate) fn is_soft_and_firm(self) -> bool {
+        matches!(self, Self::SoftAndFirm)
     }
 
-    pub fn is_firm_only(&self) -> bool {
-        matches!(self, Self::FirmOnly)
+    pub(crate) fn is_with_firm(self) -> bool {
+        matches!(self, Self::FirmOnly | Self::SoftAndFirm)
+    }
+
+    pub(crate) fn is_with_soft(self) -> bool {
+        matches!(self, Self::SoftOnly | Self::SoftAndFirm)
     }
 }
 
+impl std::fmt::Display for CommitLevel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            CommitLevel::SoftOnly => "soft",
+            CommitLevel::FirmOnly => "firm",
+            CommitLevel::SoftAndFirm => "soft-and-firm",
+        };
+        f.write_str(s)
+    }
+}
+
+// Allowed `struct_excessive_bools` because this is used as a container
+// for deserialization. Making this a builder-pattern is not actionable.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct Config {
-    /// URL of the Celestia Node
-    pub celestia_node_url: String,
+    /// The block time of Celestia network in milliseconds.
+    pub celestia_block_time_ms: u64,
+
+    /// URL of the Celestia Node HTTP RPC
+    pub celestia_node_http_url: String,
 
     /// The JWT bearer token supplied with each jsonrpc call
     pub celestia_bearer_token: String,
 
-    /// URL of the sequencer cometbft websocket
-    pub sequencer_url: String,
+    /// URL of the Sequencer Cometbft gRPC service.
+    pub sequencer_grpc_url: String,
 
-    /// Chain ID that we want to work in
-    pub chain_id: String,
+    /// URL of the Sequencer Cometbft HTTP RPC.
+    pub sequencer_cometbft_url: String,
+
+    pub sequencer_block_time_ms: u64,
 
     /// Address of the RPC server for execution
     pub execution_rpc_url: String,
@@ -43,15 +65,24 @@ pub struct Config {
     /// log directive to use for telemetry.
     pub log: String,
 
-    /// Choose to execute empty blocks or not
-    pub disable_empty_block_execution: bool,
-
-    /// The Sequencer block height that the rollup genesis block was in
-    pub initial_sequencer_block_height: u32,
-
     /// The execution commit level used for controlling how blocks are sent to
     /// the execution layer.
     pub execution_commit_level: CommitLevel,
+
+    /// Forces writing trace data to stdout no matter if connected to a tty or not.
+    pub force_stdout: bool,
+
+    /// Disables writing trace data to an opentelemetry endpoint.
+    pub no_otel: bool,
+
+    /// Set to true to disable the metrics server
+    pub no_metrics: bool,
+
+    /// The endpoint which will be listened on for serving prometheus metrics
+    pub metrics_http_listener_addr: String,
+
+    /// Writes a human readable format to stdout instead of JSON formatted OTEL trace data.
+    pub pretty_print: bool,
 }
 
 impl config::Config for Config {
@@ -60,7 +91,10 @@ impl config::Config for Config {
 
 #[cfg(test)]
 mod tests {
-    use super::Config;
+    use super::{
+        CommitLevel,
+        Config,
+    };
 
     const EXAMPLE_ENV: &str = include_str!("../local.env.example");
 
@@ -70,7 +104,24 @@ mod tests {
     }
 
     #[test]
-    fn config_should_reject_unknown_var() {
-        config::tests::config_should_reject_unknown_var::<Config>(EXAMPLE_ENV);
+    fn do_commit_levels_correctly_report_mode() {
+        use CommitLevel::{
+            FirmOnly,
+            SoftAndFirm,
+            SoftOnly,
+        };
+
+        assert!(!FirmOnly.is_soft_and_firm());
+        assert!(!SoftOnly.is_soft_and_firm());
+        assert!(SoftAndFirm.is_soft_and_firm());
+
+        assert!(FirmOnly.is_with_firm());
+        assert!(!FirmOnly.is_with_soft());
+
+        assert!(!SoftOnly.is_with_firm());
+        assert!(SoftOnly.is_with_soft());
+
+        assert!(SoftAndFirm.is_with_firm());
+        assert!(SoftAndFirm.is_with_soft());
     }
 }

@@ -1,124 +1,90 @@
+#![allow(clippy::missing_panics_doc)]
+
 pub mod helper;
 
-use std::time::Duration;
+use std::{
+    collections::HashSet,
+    time::Duration,
+};
 
+use assert_json_diff::assert_json_include;
 use helper::{
-    spawn_sequencer_relayer,
-    CelestiaMode,
-    TestSequencerRelayer,
+    CometBftBlockToMount,
+    TestSequencerRelayerConfig,
 };
-use tokio::{
-    sync::mpsc::error::TryRecvError,
-    time::{
-        self,
-        timeout,
-    },
+use reqwest::StatusCode;
+use serde_json::json;
+use tokio::time::{
+    sleep,
+    timeout,
 };
-use wiremock::MockGuard;
 
-/// Small hack because sometimes test choreography doesn't work properly, with
-/// sequencer-relayer trying to get the latest block too early or too late.
-/// This ensures that 1. the guard times out (so the test does not run indefinitely),
-/// but that 2. sequencer-relayer's timer is triggered, pulling a new block from the mock.
-async fn timeout_guard(test_env: &TestSequencerRelayer, guard: MockGuard) {
-    if timeout(Duration::from_millis(100), guard.wait_until_satisfied())
-        .await
-        .is_ok()
-    {
-        return;
+const RELAY_ALL: bool = false;
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn report_degraded_if_block_fetch_fails() {
+    let mut sequencer_relayer = TestSequencerRelayerConfig {
+        relay_only_self: false,
+        last_written_sequencer_height: None,
+        only_include_rollups: HashSet::new(),
     }
-    time::pause();
-    test_env.advance_by_block_time().await;
-    time::resume();
-    timeout(Duration::from_millis(100), guard.wait_until_satisfied())
+    .spawn_relayer()
+    .await;
+
+    // Relayer reports 200 on /readyz after start
+    let wait_for_readyz = async {
+        loop {
+            let readyz = reqwest::get(format!("http://{}/readyz", sequencer_relayer.api_address))
+                .await
+                .unwrap();
+            if readyz.status().is_success() {
+                break readyz;
+            }
+            sleep(Duration::from_millis(100)).await;
+        }
+    };
+    let readyz = timeout(Duration::from_secs(1), wait_for_readyz)
+        .await
+        .expect("sequencer must report ready for test to work");
+
+    assert_eq!(
+        StatusCode::OK,
+        readyz.status(),
+        "relayer should report 200 after start"
+    );
+    assert_json_include!(
+        expected: json!({"status": "ok"}),
+        actual: readyz.json::<serde_json::Value>().await.unwrap(),
+    );
+
+    // mount a bad block next, so the relayer will fail to fetch the block
+    let abci_guard = sequencer_relayer.mount_abci_response(1).await;
+    let block_guard =
+        sequencer_relayer.mount_block_response::<RELAY_ALL>(CometBftBlockToMount::BadAtHeight(1));
+    timeout(
+        Duration::from_millis(2 * sequencer_relayer.config.block_time),
+        futures::future::join(
+            abci_guard.wait_until_satisfied(),
+            block_guard.wait_until_satisfied(),
+        ),
+    )
+    .await
+    .expect("requesting abci info and block must have occurred")
+    .1
+    .unwrap();
+
+    // Relayer reports 500 on /healthz after fetching the block failed
+    let readyz = reqwest::get(format!("http://{}/healthz", sequencer_relayer.api_address))
         .await
         .unwrap();
-}
 
-#[tokio::test(flavor = "current_thread")]
-async fn one_block_is_relayed_to_celestia() {
-    let mut sequencer_relayer = spawn_sequencer_relayer(CelestiaMode::Immediate).await;
-    let guard = sequencer_relayer.mount_block_response(1).await;
-    timeout_guard(&sequencer_relayer, guard).await;
-
-    let Some(blobs_seen_by_celestia) = sequencer_relayer
-        .celestia
-        .state_rpc_confirmed_rx
-        .recv()
-        .await
-    else {
-        panic!("celestia must have seen blobs")
-    };
-    // We can reconstruct the individual blobs here, but let's just assert that it's
-    // two blobs for now: one transaction in the original block + sequencer namespace
-    // data.
-    assert_eq!(blobs_seen_by_celestia.len(), 2);
-
-    // TODO: we should shut down and join all outstanding tasks here.
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn same_block_is_dropped() {
-    let mut sequencer_relayer = spawn_sequencer_relayer(CelestiaMode::Immediate).await;
-    let guard = sequencer_relayer.mount_block_response(1).await;
-    timeout_guard(&sequencer_relayer, guard).await;
-
-    // The first block should be received immediately
-    let Some(blobs_seen_by_celestia) = sequencer_relayer
-        .celestia
-        .state_rpc_confirmed_rx
-        .recv()
-        .await
-    else {
-        panic!("celestia must have seen blobs")
-    };
-    assert_eq!(blobs_seen_by_celestia.len(), 2);
-
-    // Mount the same block again and advance by the block time to ensure its picked up.
-    let guard = sequencer_relayer.mount_block_response(1).await;
-    timeout_guard(&sequencer_relayer, guard).await;
-
-    match sequencer_relayer.celestia.state_rpc_confirmed_rx.try_recv() {
-        Err(TryRecvError::Empty) => {}
-        other => panic!("celestia should have not seen a blob, but returned {other:?}"),
-    }
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn slow_celestia_leads_to_bundled_blobs() {
-    // Start the environment with celestia delaying responses by 4 times the sequencer block time
-    // (it takes 4000 ms to respond if the sequencer block time is 1000 ms).
-    let mut sequencer_relayer = spawn_sequencer_relayer(CelestiaMode::Delayed(4)).await;
-
-    let guard = sequencer_relayer.mount_block_response(1).await;
-    timeout_guard(&sequencer_relayer, guard).await;
-
-    let guard = sequencer_relayer.mount_block_response(2).await;
-    timeout_guard(&sequencer_relayer, guard).await;
-
-    let guard = sequencer_relayer.mount_block_response(3).await;
-    timeout_guard(&sequencer_relayer, guard).await;
-
-    let guard = sequencer_relayer.mount_block_response(4).await;
-    timeout_guard(&sequencer_relayer, guard).await;
-
-    // But celestia sees a pair of blobs (1 block + sequencer namespace data)
-    if let Some(blobs_seen_by_celestia) = sequencer_relayer
-        .celestia
-        .state_rpc_confirmed_rx
-        .recv()
-        .await
-    {
-        assert_eq!(2, blobs_seen_by_celestia.len());
-    }
-
-    // And then all the remaining blobs arrive
-    if let Some(blobs_seen_by_celestia) = sequencer_relayer
-        .celestia
-        .state_rpc_confirmed_rx
-        .recv()
-        .await
-    {
-        assert_eq!(6, blobs_seen_by_celestia.len());
-    }
+    assert_eq!(
+        StatusCode::INTERNAL_SERVER_ERROR,
+        readyz.status(),
+        "relayer should report 500 when failing to fetch block"
+    );
+    assert_json_include!(
+        expected: json!({"status": "degraded"}),
+        actual: readyz.json::<serde_json::Value>().await.unwrap(),
+    );
 }

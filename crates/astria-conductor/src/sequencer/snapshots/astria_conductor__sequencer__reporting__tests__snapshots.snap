@@ -1,0 +1,8 @@
+---
+source: crates/astria-conductor/src/sequencer/reporting.rs
+expression: ReportRollups(block.rollup_transactions())
+---
+{
+  "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=": 2,
+  "RUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUU=": 1
+}

@@ -1,0 +1,73 @@
+{
+  "app_hash": "",
+  "app_state": {
+    "accounts": [
+      {{- range $index, $value := .Values.config.sequencer.genesisAccounts }}
+      {{- if $index }},{{- end }}
+      {
+        "address": "{{  $value.address }}",
+        "balance": {{ toString $value.balance | replace "\"" "" }}
+      }
+      {{- end }}
+    ],
+    "authority_sudo_address": "{{ .Values.config.sequencer.authoritySudoAddress }}",
+    "native_asset_base_denomination": "{{ .Values.config.sequencer.nativeAssetBaseDenomination }}",
+    "allowed_fee_assets": [
+      {{- range $index, $value := .Values.config.sequencer.allowedFeeAssets }}
+      {{- if $index }},{{- end }}
+      "{{ $value }}"
+      {{- end }}
+    ],
+    "ibc_sudo_address": "{{ .Values.config.sequencer.ibc.sudoAddress }}",
+    "ibc_relayer_addresses": [
+      {{- range $index, $value := .Values.config.sequencer.ibc.relayerAddresses }}
+      {{- if $index }},{{- end }}
+      "{{ $value }}"
+      {{- end }}
+    ],
+    "ibc_params": {
+      "ibc_enabled": {{ .Values.config.sequencer.ibc.enabled }},
+      "inbound_ics20_transfers_enabled": {{ .Values.config.sequencer.ibc.inboundEnabled }},
+      "outbound_ics20_transfers_enabled": {{ .Values.config.sequencer.ibc.outboundEnabled }}
+    }
+    {{- if not .Values.global.dev }}
+    {{- else }}
+    {{- end}}
+  },
+  "chain_id": "{{ .Values.config.cometBFT.chainId }}",
+  "consensus_params": {
+    "block": {
+      "max_bytes": "22020096",
+      "max_gas": "-1"
+    },
+    "evidence": {
+      "max_age_duration": "172800000000000",
+      "max_age_num_blocks": "100000",
+      "max_bytes": "1048576"
+    },
+    "validator": {
+      "pub_key_types": [
+        "ed25519"
+      ]
+    },
+    "version": {
+      "app": "0"
+    }
+  },
+  "genesis_time": "{{ .Values.config.cometBFT.genesisTime }}",
+  "initial_height": "0",
+  "validators": [
+  {{- range $index, $value := .Values.config.cometBFT.validators }}
+      {{- if $index }},{{- end }}
+      {
+        "address": "{{ $value.address }}",
+        "name": "{{ $value.name }}",
+        "power": "{{ $value.power }}",
+        "pub_key": {
+          "type": "tendermint/PubKeyEd25519",
+          "value": "{{ $value.pubKey }}"
+        }
+      }
+  {{- end }}
+  ]
+}
