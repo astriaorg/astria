@@ -187,6 +187,7 @@ pub mod cosmos {
 
         pub mod v1beta1 {
             include!("cosmos.tx.v1beta1.rs");
+            #[cfg(feature = "serde")]
             use super::signing;
 
             #[cfg(feature = "serde")]
