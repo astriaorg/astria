@@ -44,7 +44,6 @@ use tendermint::{
     AppHash,
     Hash,
 };
-use tokio::sync::Mutex;
 use tracing::{
     debug,
     info,
@@ -80,7 +79,7 @@ use crate::{
     component::Component as _,
     genesis::GenesisState,
     ibc::component::IbcComponent,
-    mempool::BasicMempool,
+    mempool::Mempool,
     metrics_init,
     proposal::{
         block_size_constraints::BlockSizeConstraints,
@@ -114,7 +113,10 @@ type InterBlockState = Arc<StateDelta<Snapshot>>;
 pub(crate) struct App {
     state: InterBlockState,
 
-    mempool: Arc<Mutex<BasicMempool>>,
+    // The mempool of the application.
+    //
+    // Transactions are pulled from this mempool during `prepare_proposal`.
+    mempool: Mempool,
 
     // The validator address in cometbft being used to sign votes.
     //
@@ -154,10 +156,7 @@ pub(crate) struct App {
 }
 
 impl App {
-    pub(crate) async fn new(
-        snapshot: Snapshot,
-        mempool: Arc<Mutex<BasicMempool>>,
-    ) -> anyhow::Result<Self> {
+    pub(crate) async fn new(snapshot: Snapshot, mempool: Mempool) -> anyhow::Result<Self> {
         tracing::debug!("initializing App instance");
 
         let app_hash: AppHash = snapshot
@@ -457,12 +456,8 @@ impl App {
         &mut self,
         block_size_constraints: &mut BlockSizeConstraints,
     ) -> anyhow::Result<(Vec<bytes::Bytes>, Vec<SignedTransaction>)> {
-        let mempool = self.mempool.clone();
-        let mut mempool = mempool.lock().await;
-        debug!(
-            mempool_len = mempool.len(),
-            "executing transactions from mempool"
-        );
+        let mempool_len = self.mempool.len().await;
+        debug!(mempool_len, "executing transactions from mempool");
 
         let mut validated_txs: Vec<bytes::Bytes> = Vec::new();
         let mut included_signed_txs = Vec::new();
@@ -470,10 +465,11 @@ impl App {
         let mut execution_results = Vec::new();
         let mut txs_to_readd_to_mempool = Vec::new();
 
-        while let Some((tx, priority)) = mempool.pop() {
+        while let Some((tx, priority)) = self.mempool.pop().await {
             let bytes = tx.to_raw().encode_to_vec();
             let tx_hash = Sha256::digest(&bytes);
             let tx_len = bytes.len();
+            info!(tx_hash = %telemetry::display::hex(&tx_hash), "executing transaction");
 
             // don't include tx if it would make the cometBFT block too large
             if !block_size_constraints.cometbft_has_space(tx_len) {
@@ -561,15 +557,16 @@ impl App {
             );
         }
 
-        mempool.insert_all(txs_to_readd_to_mempool).expect(
-            "priority transaction nonce and transaction nonce matches for each tx, as they were \
-             just popped from the mempool and not modified",
-        );
+        self.mempool
+            .insert_all(txs_to_readd_to_mempool)
+            .await
+            .expect(
+                "priority transaction nonce and transaction nonce matches for each tx, as they \
+                 were just popped from the mempool and not modified",
+            );
 
-        debug!(
-            mempool_len = mempool.len(),
-            "finished executing transactions from mempool"
-        );
+        let mempool_len = self.mempool.len().await;
+        debug!(mempool_len, "finished executing transactions from mempool");
 
         self.execution_results = Some(execution_results);
         Ok((validated_txs, included_signed_txs))
@@ -787,14 +784,11 @@ impl App {
                 .await
                 .context("failed to execute block")?;
 
-            let mempool = self.mempool.clone();
-
             // skip the first two transactions, as they are the rollup data commitments
             for tx in finalize_block.txs.iter().skip(2) {
                 // remove any included txs from the mempool
                 let tx_hash = Sha256::digest(tx).into();
-                let mut mempool = mempool.lock().await;
-                mempool.remove(&tx_hash);
+                self.mempool.remove(&tx_hash).await;
 
                 let signed_tx = signed_transaction_from_bytes(tx)
                     .context("protocol error; only valid txs should be finalized")?;
@@ -880,7 +874,7 @@ impl App {
             .context("failed to prepare commit")?;
 
         // update the priority of any txs in the mempool based on the updated app state
-        update_mempool_after_finalization(self.mempool.clone(), self.state.clone())
+        update_mempool_after_finalization(&mut self.mempool, self.state.clone())
             .await
             .context("failed to update mempool after finalization")?;
 
@@ -1126,14 +1120,42 @@ impl App {
 // updates the priority of the txs in the mempool based on the current state,
 // and removes any txs that are now invalid.
 async fn update_mempool_after_finalization<S: StateReadExt>(
-    mempool: Arc<Mutex<BasicMempool>>,
+    mempool: &mut Mempool,
     state: S,
 ) -> anyhow::Result<()> {
-    let mut mempool = mempool.lock().await;
+    use crate::mempool::TransactionPriority;
+
     let mut txs_to_remove = Vec::new();
 
-    for (tx, priority) in mempool.iter_mut() {
-        let Ok(new_priority) = crate::mempool::TransactionPriority::new(
+    // let patch = |tx: &SignedTransaction, priority: &mut TransactionPriority| async {
+    //     let Ok(current_nonce) = state
+    //         .get_account_nonce(Address::from_verification_key(tx.verification_key()))
+    //         .await
+    //     else {
+    //         let tx_hash = tx.sha256_of_proto_encoding();
+    //         debug!(
+    //             transaction_hash = %telemetry::display::base64(&tx_hash),
+    //             "failed to fetch account nonce; not patching tx in mempool",
+    //         );
+    //         return;
+    //     };
+
+    //     let Ok(new_priority) = TransactionPriority::new(tx.nonce(), current_nonce) else {
+    //         let tx_hash = tx.sha256_of_proto_encoding();
+    //         debug!(
+    //             transaction_hash = %telemetry::display::base64(&tx_hash),
+    //             "account nonce is now greater than tx nonce; dropping tx from mempool",
+    //         );
+    //         txs_to_remove.push(tx_hash);
+    //         return;
+    //     };
+    //     *priority = new_priority;
+    // };
+
+    // mempool.patch(patch).await;
+
+    for (tx, priority) in mempool.inner().await.iter_mut() {
+        let Ok(new_priority) = TransactionPriority::new(
             tx.nonce(),
             state
                 .get_account_nonce(Address::from_verification_key(tx.verification_key()))
@@ -1150,7 +1172,7 @@ async fn update_mempool_after_finalization<S: StateReadExt>(
         };
         *priority = new_priority;
     }
-    mempool.remove_all(&txs_to_remove);
+    mempool.remove_all(&txs_to_remove).await;
     Ok(())
 }
 
@@ -1335,7 +1357,7 @@ mod test {
             .await
             .expect("failed to create temp storage backing chain state");
         let snapshot = storage.latest_snapshot();
-        let mempool = Arc::new(Mutex::new(BasicMempool::new()));
+        let mempool = Mempool::new();
         let mut app = App::new(snapshot, mempool).await.unwrap();
 
         let genesis_state = genesis_state.unwrap_or_else(|| GenesisState {
@@ -2845,11 +2867,10 @@ mod test {
         // don't commit the result, now call prepare_proposal with the same data.
         // this will reset the app state.
         // this simulates executing the same block as a validator (specifically the proposer).
-        let mut mempool = app.mempool.lock().await;
-        mempool
+        app.mempool
             .insert(signed_tx, TransactionPriority::new(0, 0).unwrap())
+            .await
             .unwrap();
-        drop(mempool);
 
         let proposer_address = [88u8; 20].to_vec().try_into().unwrap();
         let prepare_proposal = PrepareProposal {
@@ -2870,7 +2891,7 @@ mod test {
         assert_eq!(prepare_proposal_result.txs, finalize_block.txs);
         assert_eq!(app.executed_proposal_hash, Hash::default());
         assert_eq!(app.validator_address.unwrap(), proposer_address);
-        assert_eq!(app.mempool.lock().await.len(), 0);
+        assert_eq!(app.mempool.len().await, 0);
 
         // call process_proposal - should not re-execute anything.
         let process_proposal = abci::request::ProcessProposal {
@@ -2958,14 +2979,14 @@ mod test {
         }
         .into_signed(&alice_signing_key);
 
-        let mut mempool = app.mempool.lock().await;
-        mempool
+        app.mempool
             .insert(tx_pass, TransactionPriority::new(0, 0).unwrap())
+            .await
             .unwrap();
-        mempool
+        app.mempool
             .insert(tx_overflow, TransactionPriority::new(1, 0).unwrap())
+            .await
             .unwrap();
-        drop(mempool);
 
         // send to prepare_proposal
         let prepare_args = abci::request::PrepareProposal {
@@ -2992,7 +3013,7 @@ mod test {
              tx that fit"
         );
         assert_eq!(
-            app.mempool.lock().await.len(),
+            app.mempool.len().await,
             1,
             "mempool should have re-added the tx that was too large"
         );
@@ -3037,14 +3058,14 @@ mod test {
         }
         .into_signed(&alice_signing_key);
 
-        let mut mempool = app.mempool.lock().await;
-        mempool
+        app.mempool
             .insert(tx_pass, TransactionPriority::new(0, 0).unwrap())
+            .await
             .unwrap();
-        mempool
+        app.mempool
             .insert(tx_overflow, TransactionPriority::new(1, 0).unwrap())
+            .await
             .unwrap();
-        drop(mempool);
 
         // send to prepare_proposal
         let prepare_args = abci::request::PrepareProposal {
@@ -3071,7 +3092,7 @@ mod test {
              tx that fit"
         );
         assert_eq!(
-            app.mempool.lock().await.len(),
+            app.mempool.len().await,
             1,
             "mempool should have re-added the tx that was too large"
         );
@@ -3079,7 +3100,7 @@ mod test {
 
     #[tokio::test]
     async fn update_mempool_after_finalization_update_account_nonce() {
-        let mempool = Arc::new(Mutex::new(BasicMempool::new()));
+        let mut mempool = Mempool::new();
 
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
@@ -3088,12 +3109,7 @@ mod test {
         let tx = get_mock_tx(1);
         let address = Address::from_verification_key(tx.verification_key());
         let priority = TransactionPriority::new(1, 0).unwrap();
-        mempool
-            .clone()
-            .lock()
-            .await
-            .insert(tx.clone(), priority)
-            .unwrap();
+        mempool.insert(tx.clone(), priority).await.unwrap();
 
         // update account nonce to 1
         let mut state_tx = StateDelta::new(snapshot.clone());
@@ -3101,16 +3117,16 @@ mod test {
         storage.commit(state_tx).await.unwrap();
 
         // ensure that mempool tx priority was updated
-        update_mempool_after_finalization(mempool.clone(), storage.latest_snapshot())
+        update_mempool_after_finalization(&mut mempool, storage.latest_snapshot())
             .await
             .unwrap();
-        let (_, priority) = mempool.clone().lock().await.pop().unwrap();
+        let (_, priority) = mempool.pop().await.unwrap();
         assert_eq!(priority, TransactionPriority::new(1, 1).unwrap());
     }
 
     #[tokio::test]
     async fn update_mempool_after_finalization_remove_tx_if_nonce_too_low() {
-        let mempool = Arc::new(Mutex::new(BasicMempool::new()));
+        let mut mempool = Mempool::new();
 
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
@@ -3119,12 +3135,7 @@ mod test {
         let tx = get_mock_tx(1);
         let address = Address::from_verification_key(tx.verification_key());
         let priority = TransactionPriority::new(1, 1).unwrap();
-        mempool
-            .clone()
-            .lock()
-            .await
-            .insert(tx.clone(), priority)
-            .unwrap();
+        mempool.insert(tx.clone(), priority).await.unwrap();
 
         // update account nonce to 2
         let mut state_tx = StateDelta::new(snapshot.clone());
@@ -3132,9 +3143,9 @@ mod test {
         storage.commit(state_tx).await.unwrap();
 
         // ensure that tx was removed from mempool
-        update_mempool_after_finalization(mempool.clone(), storage.latest_snapshot())
+        update_mempool_after_finalization(&mut mempool, storage.latest_snapshot())
             .await
             .unwrap();
-        assert!(mempool.clone().lock().await.pop().is_none());
+        assert!(mempool.pop().await.is_none());
     }
 }

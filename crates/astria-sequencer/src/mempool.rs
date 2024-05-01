@@ -1,10 +1,12 @@
 use std::{
     cmp::Ordering,
     collections::HashMap,
+    sync::Arc,
 };
 
 use astria_core::protocol::transaction::v1alpha1::SignedTransaction;
 use priority_queue::double_priority_queue::DoublePriorityQueue;
+use tokio::sync::Mutex;
 
 /// Used to prioritize transactions in the mempool.
 ///
@@ -72,66 +74,10 @@ pub(crate) struct BasicMempool {
 
 impl BasicMempool {
     #[must_use]
-    pub(crate) fn new() -> Self {
+    fn new() -> Self {
         Self {
             queue: DoublePriorityQueue::new(),
             hash_to_tx: HashMap::new(),
-        }
-    }
-
-    /// returns the number of transactions in the mempool
-    #[must_use]
-    pub(crate) fn len(&self) -> usize {
-        self.queue.len()
-    }
-
-    /// inserts a transaction into the mempool
-    ///
-    /// note: if the tx already exists in the mempool, it's overwritten with the new priority.
-    pub(crate) fn insert(
-        &mut self,
-        tx: SignedTransaction,
-        priority: TransactionPriority,
-    ) -> anyhow::Result<()> {
-        if tx.nonce() != priority.transaction_nonce {
-            anyhow::bail!("transaction nonce does not match `transaction_nonce` in priority");
-        }
-
-        let hash = tx.sha256_of_proto_encoding();
-        self.queue.push(hash, priority);
-        self.hash_to_tx.insert(hash, tx);
-        Ok(())
-    }
-
-    /// inserts all the given transactions into the mempool
-    pub(crate) fn insert_all(
-        &mut self,
-        txs: Vec<(SignedTransaction, TransactionPriority)>,
-    ) -> anyhow::Result<()> {
-        for (tx, priority) in txs {
-            self.insert(tx, priority)?;
-        }
-        Ok(())
-    }
-
-    /// pops the transaction with the highest priority from the mempool
-    #[must_use]
-    pub(crate) fn pop(&mut self) -> Option<(SignedTransaction, TransactionPriority)> {
-        let (hash, priority) = self.queue.pop_max()?;
-        let tx = self.hash_to_tx.remove(&hash)?;
-        Some((tx, priority))
-    }
-
-    /// removes a transaction from the mempool
-    pub(crate) fn remove(&mut self, tx_hash: &[u8; 32]) {
-        self.queue.remove(tx_hash);
-        self.hash_to_tx.remove(tx_hash);
-    }
-
-    /// removes all the given transactions from the mempool
-    pub(crate) fn remove_all(&mut self, tx_hashes: &Vec<[u8; 32]>) {
-        for tx_hash in tx_hashes {
-            self.remove(tx_hash);
         }
     }
 
@@ -142,6 +88,101 @@ impl BasicMempool {
             hash_to_tx: &mut self.hash_to_tx,
         }
     }
+}
+
+/// [`Mempool`] is a wrapper around [`BasicMempool`] that isolates the
+/// locking mechanism for the mempool.
+#[derive(Clone)]
+pub(crate) struct Mempool {
+    inner: Arc<Mutex<BasicMempool>>,
+}
+
+impl Mempool {
+    #[must_use]
+    pub(crate) fn new() -> Self {
+        Self {
+            inner: Arc::new(Mutex::new(BasicMempool::new())),
+        }
+    }
+
+    /// returns the number of transactions in the mempool
+    #[must_use]
+    pub(crate) async fn len(&self) -> usize {
+        let inner = self.inner.lock().await;
+        inner.queue.len()
+    }
+
+    /// inserts a transaction into the mempool
+    ///
+    /// note: if the tx already exists in the mempool, it's overwritten with the new priority.
+    pub(crate) async fn insert(
+        &mut self,
+        tx: SignedTransaction,
+        priority: TransactionPriority,
+    ) -> anyhow::Result<()> {
+        if tx.nonce() != priority.transaction_nonce {
+            anyhow::bail!("transaction nonce does not match `transaction_nonce` in priority");
+        }
+
+        let hash = tx.sha256_of_proto_encoding();
+        let mut inner = self.inner.lock().await;
+        inner.queue.push(hash, priority);
+        inner.hash_to_tx.insert(hash, tx);
+        tracing::info!(tx_hash = %telemetry::display::hex(hash.as_ref()), "inserted transaction into mempool");
+        Ok(())
+    }
+
+    /// inserts all the given transactions into the mempool
+    pub(crate) async fn insert_all(
+        &mut self,
+        txs: Vec<(SignedTransaction, TransactionPriority)>,
+    ) -> anyhow::Result<()> {
+        for (tx, priority) in txs {
+            self.insert(tx, priority).await?;
+        }
+        Ok(())
+    }
+
+    /// pops the transaction with the highest priority from the mempool
+    #[must_use]
+    pub(crate) async fn pop(&mut self) -> Option<(SignedTransaction, TransactionPriority)> {
+        let mut inner = self.inner.lock().await;
+        let (hash, priority) = inner.queue.pop_max()?;
+        let tx = inner.hash_to_tx.remove(&hash)?;
+        Some((tx, priority))
+    }
+
+    /// removes a transaction from the mempool
+    pub(crate) async fn remove(&mut self, tx_hash: &[u8; 32]) {
+        let mut inner = self.inner.lock().await;
+        inner.queue.remove(tx_hash);
+        inner.hash_to_tx.remove(tx_hash);
+    }
+
+    /// removes all the given transactions from the mempool
+    pub(crate) async fn remove_all(&mut self, tx_hashes: &Vec<[u8; 32]>) {
+        for tx_hash in tx_hashes {
+            self.remove(tx_hash).await;
+        }
+    }
+
+    /// returns the inner mempool, locked.
+    /// required so that `BasicMempool::iter_mut()` can be called.
+    #[must_use]
+    pub(crate) async fn inner(&self) -> tokio::sync::MutexGuard<'_, BasicMempool> {
+        self.inner.lock().await
+    }
+
+    // /// applies the given `patch` function to all transactions in the mempool.
+    // pub(crate) async fn patch(
+    //     &mut self,
+    //     mut patch: impl async FnMut(&SignedTransaction, &mut TransactionPriority),
+    // ) {
+    //     let mut inner = self.inner.lock().await;
+    //     for (tx, priority) in inner.iter_mut() {
+    //         patch(tx, priority).await;
+    //     }
+    // }
 }
 
 pub(crate) struct BasicMempoolIterMut<'a> {
@@ -188,29 +229,35 @@ mod test {
         assert!(priority_1 < priority_0);
     }
 
-    #[test]
-    fn mempool_insert_pop() {
-        let mut mempool = BasicMempool::new();
+    #[tokio::test]
+    async fn mempool_insert_pop() {
+        let mut mempool = Mempool::new();
 
         let tx0 = get_mock_tx(0);
         let priority0 = TransactionPriority::new(0, 0).unwrap();
-        mempool.insert(tx0.clone(), priority0.clone()).unwrap();
+        mempool
+            .insert(tx0.clone(), priority0.clone())
+            .await
+            .unwrap();
 
         let tx1 = get_mock_tx(1);
         let priority1 = TransactionPriority::new(1, 0).unwrap();
-        mempool.insert(tx1.clone(), priority1.clone()).unwrap();
+        mempool
+            .insert(tx1.clone(), priority1.clone())
+            .await
+            .unwrap();
 
         assert!(priority0 > priority1);
-        assert_eq!(mempool.len(), 2);
+        assert_eq!(mempool.len().await, 2);
 
-        let (tx, priority) = mempool.pop().unwrap();
+        let (tx, priority) = mempool.pop().await.unwrap();
         assert_eq!(
             tx.sha256_of_proto_encoding(),
             tx0.sha256_of_proto_encoding()
         );
         assert_eq!(priority, priority0);
 
-        let (tx, priority) = mempool.pop().unwrap();
+        let (tx, priority) = mempool.pop().await.unwrap();
         assert_eq!(
             tx.sha256_of_proto_encoding(),
             tx1.sha256_of_proto_encoding()

@@ -216,7 +216,6 @@ mod test {
     use std::{
         collections::HashMap,
         str::FromStr,
-        sync::Arc,
     };
 
     use astria_core::{
@@ -243,13 +242,12 @@ mod test {
         Hash,
         Time,
     };
-    use tokio::sync::Mutex;
 
     use super::*;
     use crate::{
         asset::get_native_asset,
         mempool::{
-            BasicMempool,
+            Mempool,
             TransactionPriority,
         },
         proposal::commitment::generate_rollup_datas_commitment,
@@ -301,18 +299,14 @@ mod test {
     #[tokio::test]
     async fn prepare_and_process_proposal() {
         let signing_key = SigningKey::new(OsRng);
-        let (mut consensus_service, mempool) =
+        let (mut consensus_service, mut mempool) =
             new_consensus_service(Some(signing_key.verification_key())).await;
         let tx = make_unsigned_tx();
         let signed_tx = tx.into_signed(&signing_key);
         let tx_bytes = signed_tx.clone().into_raw().encode_to_vec();
         let txs = vec![tx_bytes.into()];
         let priority = TransactionPriority::new(0, 0).unwrap();
-        mempool
-            .lock()
-            .await
-            .insert(signed_tx.clone(), priority)
-            .unwrap();
+        mempool.insert(signed_tx.clone(), priority).await.unwrap();
 
         let res = generate_rollup_datas_commitment(&vec![signed_tx], HashMap::new());
 
@@ -480,9 +474,7 @@ mod test {
         }
     }
 
-    async fn new_consensus_service(
-        funded_key: Option<VerificationKey>,
-    ) -> (Consensus, Arc<Mutex<BasicMempool>>) {
+    async fn new_consensus_service(funded_key: Option<VerificationKey>) -> (Consensus, Mempool) {
         let accounts = if funded_key.is_some() {
             vec![crate::genesis::Account {
                 address: Address::from_verification_key(funded_key.unwrap()),
@@ -498,7 +490,7 @@ mod test {
 
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
-        let mempool = Arc::new(Mutex::new(BasicMempool::new()));
+        let mempool = Mempool::new();
         let mut app = App::new(snapshot, mempool.clone()).await.unwrap();
         app.init_chain(storage.clone(), genesis_state, vec![], "test".to_string())
             .await
@@ -514,7 +506,7 @@ mod test {
         use sha2::Digest as _;
 
         let signing_key = SigningKey::new(OsRng);
-        let (mut consensus_service, mempool) =
+        let (mut consensus_service, mut mempool) =
             new_consensus_service(Some(signing_key.verification_key())).await;
 
         let tx = make_unsigned_tx();
@@ -536,9 +528,8 @@ mod test {
             .unwrap();
 
         mempool
-            .lock()
-            .await
             .insert(signed_tx, TransactionPriority::new(0, 0).unwrap())
+            .await
             .unwrap();
         let finalize_block = request::FinalizeBlock {
             hash: Hash::try_from([0u8; 32].to_vec()).unwrap(),
@@ -559,6 +550,6 @@ mod test {
             .unwrap();
 
         // ensure that txs included in a block are removed from the mempool
-        assert_eq!(mempool.lock().await.len(), 0);
+        assert_eq!(mempool.len().await, 0);
     }
 }

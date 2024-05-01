@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use anyhow::{
     anyhow,
     Context as _,
@@ -20,7 +18,6 @@ use tokio::{
     sync::{
         oneshot,
         watch,
-        Mutex,
     },
     task::JoinHandle,
 };
@@ -36,7 +33,7 @@ use crate::{
     config::Config,
     grpc::sequencer::SequencerServer,
     ibc::host_interface::AstriaHost,
-    mempool::BasicMempool,
+    mempool::Mempool,
     service,
     state_ext::StateReadExt as _,
 };
@@ -90,7 +87,7 @@ impl Sequencer {
             crate::asset::initialize_native_asset(&native_asset);
         }
 
-        let mempool = Arc::new(Mutex::new(BasicMempool::new()));
+        let mempool = Mempool::new();
         let app = App::new(snapshot, mempool.clone())
             .await
             .context("failed to initialize app")?;

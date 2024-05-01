@@ -1,3 +1,5 @@
+#![feature(async_closure)]
+
 pub(crate) mod accounts;
 mod api_state_ext;
 pub(crate) mod app;

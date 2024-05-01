@@ -1,6 +1,5 @@
 use std::{
     pin::Pin,
-    sync::Arc,
     task::{
         Context,
         Poll,
@@ -26,14 +25,13 @@ use tendermint::v0_38::abci::{
     MempoolRequest,
     MempoolResponse,
 };
-use tokio::sync::Mutex;
 use tower::Service;
 use tower_abci::BoxError;
 use tracing::Instrument as _;
 
 use crate::{
     accounts::state_ext::StateReadExt,
-    mempool::BasicMempool,
+    mempool::Mempool as AppMempool,
     metrics_init,
     transaction,
 };
@@ -47,11 +45,11 @@ const MAX_TX_SIZE: usize = 256_000; // 256 KB
 #[derive(Clone)]
 pub(crate) struct Mempool {
     storage: Storage,
-    mempool: Arc<Mutex<BasicMempool>>,
+    mempool: AppMempool,
 }
 
 impl Mempool {
-    pub(crate) fn new(storage: Storage, mempool: Arc<Mutex<BasicMempool>>) -> Self {
+    pub(crate) fn new(storage: Storage, mempool: AppMempool) -> Self {
         Self {
             storage,
             mempool,
@@ -72,11 +70,11 @@ impl Service<MempoolRequest> for Mempool {
         use penumbra_tower_trace::v038::RequestExt as _;
         let span = req.create_span();
         let storage = self.storage.clone();
-        let mempool = self.mempool.clone();
+        let mut mempool = self.mempool.clone();
         async move {
             let rsp = match req {
                 MempoolRequest::CheckTx(req) => MempoolResponse::CheckTx(
-                    handle_check_tx(req, storage.latest_snapshot(), mempool).await,
+                    handle_check_tx(req, storage.latest_snapshot(), &mut mempool).await,
                 ),
             };
             Ok(rsp)
@@ -96,7 +94,7 @@ impl Service<MempoolRequest> for Mempool {
 async fn handle_check_tx<S: StateReadExt + 'static>(
     req: request::CheckTx,
     state: S,
-    mempool: Arc<Mutex<BasicMempool>>,
+    mempool: &mut AppMempool,
 ) -> response::CheckTx {
     use astria_core::primitive::v1::Address;
     use sha2::Digest as _;
@@ -107,7 +105,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
         tx, ..
     } = req;
     if tx.len() > MAX_TX_SIZE {
-        remove_from_mempool(&tx_hash, mempool.clone()).await;
+        mempool.remove(&tx_hash).await;
         metrics::counter!(metrics_init::CHECK_TX_REMOVED_TOO_LARGE).increment(1);
         return response::CheckTx {
             code: AbciErrorCode::TRANSACTION_TOO_LARGE.into(),
@@ -123,7 +121,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
     let raw_signed_tx = match raw::SignedTransaction::decode(tx) {
         Ok(tx) => tx,
         Err(e) => {
-            remove_from_mempool(&tx_hash, mempool.clone()).await;
+            mempool.remove(&tx_hash).await;
             return response::CheckTx {
                 code: AbciErrorCode::INVALID_PARAMETER.into(),
                 log: e.to_string(),
@@ -135,7 +133,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
     let signed_tx = match SignedTransaction::try_from_raw(raw_signed_tx) {
         Ok(tx) => tx,
         Err(e) => {
-            remove_from_mempool(&tx_hash, mempool.clone()).await;
+            mempool.remove(&tx_hash).await;
             return response::CheckTx {
                 code: AbciErrorCode::INVALID_PARAMETER.into(),
                 info: "the provided bytes was not a valid protobuf-encoded SignedTransaction, or \
@@ -148,7 +146,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
     };
 
     if let Err(e) = transaction::check_stateless(&signed_tx).await {
-        remove_from_mempool(&tx_hash, mempool.clone()).await;
+        mempool.remove(&tx_hash).await;
         metrics::counter!(metrics_init::CHECK_TX_REMOVED_FAILED_STATELESS).increment(1);
         return response::CheckTx {
             code: AbciErrorCode::INVALID_PARAMETER.into(),
@@ -159,7 +157,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
     };
 
     if let Err(e) = transaction::check_nonce_mempool(&signed_tx, &state).await {
-        remove_from_mempool(&tx_hash, mempool.clone()).await;
+        mempool.remove(&tx_hash).await;
         metrics::counter!(metrics_init::CHECK_TX_REMOVED_STALE_NONCE).increment(1);
         return response::CheckTx {
             code: AbciErrorCode::INVALID_NONCE.into(),
@@ -170,7 +168,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
     };
 
     if let Err(e) = transaction::check_chain_id_mempool(&signed_tx, &state).await {
-        remove_from_mempool(&tx_hash, mempool.clone()).await;
+        mempool.remove(&tx_hash).await;
         return response::CheckTx {
             code: AbciErrorCode::INVALID_CHAIN_ID.into(),
             info: "failed verifying chain id".into(),
@@ -180,7 +178,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
     }
 
     if let Err(e) = transaction::check_balance_mempool(&signed_tx, &state).await {
-        remove_from_mempool(&tx_hash, mempool.clone()).await;
+        mempool.remove(&tx_hash).await;
         metrics::counter!(metrics_init::CHECK_TX_REMOVED_ACCOUNT_BALANCE).increment(1);
         return response::CheckTx {
             code: AbciErrorCode::INSUFFICIENT_FUNDS.into(),
@@ -202,14 +200,11 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
         "tx nonce is greater or equal to current account nonce; this was checked in \
          check_nonce_mempool",
     );
-    let mut mempool = mempool.lock().await;
+    tracing::info!("inserting tx into mempool");
     mempool
         .insert(signed_tx, priority)
+        .await
         .expect("priority transaction nonce and transaction nonce match, as we set them above");
+    tracing::info!("inserted tx into mempool");
     response::CheckTx::default()
-}
-
-async fn remove_from_mempool(tx_hash: &[u8; 32], mempool: Arc<Mutex<BasicMempool>>) {
-    let mut mempool = mempool.lock().await;
-    mempool.remove(tx_hash);
 }
