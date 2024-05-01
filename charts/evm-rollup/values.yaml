@@ -76,10 +76,23 @@ config:
       extraDataOverride: ""
       # If set to true the genesis block will contain extra data
       overrideGenesisExtraData: true
-      # Configure the sequencer bridge address and allowed asset denom if using
+      # Configure the sequencer bridge addresses and allowed assets if using
       # the astria canonical bridge. Recommend removing alloc values if so.
-      bridgeAddress: ""
-      bridgeAllowedAssetDenom: nria
+      bridgeAddresses: []
+        # - address: "684ae50c49a434199199c9c698115391152d7b3f"
+        #   startHeight: 1
+        #   assetDenom: "nria"
+        #   assetPrecision: 9
+      # Configure the fee collector for the evm tx fees, activated at block heights.
+      # If not configured, all tx fees will be burned.
+      feeCollectors:
+        1: "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
+      # Configure EIP-1559 params, activated at block heights
+      eip1559Params: {}
+        # 1:
+        #   minBaseFee: 0
+        #   elasticityMultiplier: 2
+        #   baseFeeChangeDenominator: 8
       # Can configure the genesis allocs for the chain
       alloc:
         - address: "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
