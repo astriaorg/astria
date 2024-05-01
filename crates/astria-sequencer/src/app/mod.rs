@@ -1,3 +1,10 @@
+#[cfg(test)]
+pub(crate) mod test_utils;
+#[cfg(test)]
+mod tests;
+#[cfg(test)]
+mod tests_execute_transaction;
+
 use std::{
     collections::VecDeque,
     sync::Arc,
@@ -1012,36 +1019,4 @@ fn signed_transaction_from_bytes(bytes: &[u8]) -> anyhow::Result<SignedTransacti
         .context("failed to transform raw signed transaction to verified type")?;
 
     Ok(tx)
-}
-
-#[cfg(test)]
-pub(crate) mod test_utils {
-    use astria_core::primitive::v1::{
-        Address,
-        ADDRESS_LEN,
-    };
-    use ed25519_consensus::SigningKey;
-
-    // attempts to decode the given hex string into an address.
-    pub(crate) fn address_from_hex_string(s: &str) -> Address {
-        let bytes = hex::decode(s).unwrap();
-        let arr: [u8; ADDRESS_LEN] = bytes.try_into().unwrap();
-        Address::from_array(arr)
-    }
-
-    pub(crate) const ALICE_ADDRESS: &str = "1c0c490f1b5528d8173c5de46d131160e4b2c0c3";
-    pub(crate) const BOB_ADDRESS: &str = "34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a";
-    pub(crate) const CAROL_ADDRESS: &str = "60709e2d391864b732b4f0f51e387abb76743871";
-
-    pub(crate) fn get_alice_signing_key_and_address() -> (SigningKey, Address) {
-        // this secret key corresponds to ALICE_ADDRESS
-        let alice_secret_bytes: [u8; 32] =
-            hex::decode("2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90")
-                .unwrap()
-                .try_into()
-                .unwrap();
-        let alice_signing_key = SigningKey::from(alice_secret_bytes);
-        let alice = Address::from_verification_key(alice_signing_key.verification_key());
-        (alice_signing_key, alice)
-    }
 }
