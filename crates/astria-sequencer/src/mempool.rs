@@ -199,6 +199,17 @@ mod test {
     use crate::app::test_utils::get_mock_tx;
 
     #[test]
+    fn transaction_priority_invalid() {
+        let priority = TransactionPriority::new(0, 1);
+        assert!(
+            priority
+                .unwrap_err()
+                .to_string()
+                .contains("less than current account nonce")
+        );
+    }
+
+    #[test]
     fn mempool_nonce_priority() {
         let priority_0 = TransactionPriority {
             transaction_nonce: 0,
