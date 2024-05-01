@@ -1127,33 +1127,6 @@ async fn update_mempool_after_finalization<S: StateReadExt>(
 
     let mut txs_to_remove = Vec::new();
 
-    // let patch = |tx: &SignedTransaction, priority: &mut TransactionPriority| async {
-    //     let Ok(current_nonce) = state
-    //         .get_account_nonce(Address::from_verification_key(tx.verification_key()))
-    //         .await
-    //     else {
-    //         let tx_hash = tx.sha256_of_proto_encoding();
-    //         debug!(
-    //             transaction_hash = %telemetry::display::base64(&tx_hash),
-    //             "failed to fetch account nonce; not patching tx in mempool",
-    //         );
-    //         return;
-    //     };
-
-    //     let Ok(new_priority) = TransactionPriority::new(tx.nonce(), current_nonce) else {
-    //         let tx_hash = tx.sha256_of_proto_encoding();
-    //         debug!(
-    //             transaction_hash = %telemetry::display::base64(&tx_hash),
-    //             "account nonce is now greater than tx nonce; dropping tx from mempool",
-    //         );
-    //         txs_to_remove.push(tx_hash);
-    //         return;
-    //     };
-    //     *priority = new_priority;
-    // };
-
-    // mempool.patch(patch).await;
-
     for (tx, priority) in mempool.inner().await.iter_mut() {
         let Ok(new_priority) = TransactionPriority::new(
             tx.nonce(),

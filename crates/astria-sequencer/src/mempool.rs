@@ -18,28 +18,24 @@ pub(crate) struct TransactionPriority {
     current_account_nonce: u32,
 }
 
-impl PartialOrd for TransactionPriority {
-    #[allow(clippy::non_canonical_partial_ord_impl)]
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        let self_nonce_diff = self.transaction_nonce - self.current_account_nonce;
-        let other_nonce_diff = other.transaction_nonce - other.current_account_nonce;
-
-        // we want to execute the lowest nonce first,
-        // so lower nonce difference means higher priority
-        #[allow(clippy::comparison_chain)]
-        if self_nonce_diff > other_nonce_diff {
-            Some(Ordering::Less)
-        } else if self_nonce_diff < other_nonce_diff {
-            Some(Ordering::Greater)
-        } else {
-            Some(Ordering::Equal)
-        }
+impl TransactionPriority {
+    fn nonce_diff(&self) -> u32 {
+        self.transaction_nonce - self.current_account_nonce
     }
 }
 
 impl Ord for TransactionPriority {
+    #[allow(clippy::non_canonical_partial_ord_impl)]
     fn cmp(&self, other: &Self) -> Ordering {
-        self.partial_cmp(other).unwrap()
+        // we want to execute the lowest nonce first,
+        // so lower nonce difference means higher priority
+        self.nonce_diff().cmp(&other.nonce_diff()).reverse()
+    }
+}
+
+impl PartialOrd for TransactionPriority {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 
@@ -172,17 +168,6 @@ impl Mempool {
     pub(crate) async fn inner(&self) -> tokio::sync::MutexGuard<'_, BasicMempool> {
         self.inner.lock().await
     }
-
-    // /// applies the given `patch` function to all transactions in the mempool.
-    // pub(crate) async fn patch(
-    //     &mut self,
-    //     mut patch: impl async FnMut(&SignedTransaction, &mut TransactionPriority),
-    // ) {
-    //     let mut inner = self.inner.lock().await;
-    //     for (tx, priority) in inner.iter_mut() {
-    //         patch(tx, priority).await;
-    //     }
-    // }
 }
 
 pub(crate) struct BasicMempoolIterMut<'a> {
