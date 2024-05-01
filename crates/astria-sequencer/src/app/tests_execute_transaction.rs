@@ -29,11 +29,7 @@ use crate::{
     accounts::state_ext::StateReadExt as _,
     app::test_utils::*,
     asset::get_native_asset,
-    authority::state_ext::{
-        StateReadExt as _,
-        StateWriteExt as _,
-        ValidatorSet,
-    },
+    authority::state_ext::StateReadExt as _,
     bridge::state_ext::{
         StateReadExt as _,
         StateWriteExt,
@@ -879,68 +875,6 @@ async fn app_execute_transaction_mint() {
     );
     assert_eq!(app.state.get_account_nonce(bob_address).await.unwrap(), 0);
     assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
-}
-
-#[tokio::test]
-async fn app_end_block_validator_updates() {
-    use tendermint::validator;
-
-    let pubkey_a = tendermint::public_key::PublicKey::from_raw_ed25519(&[1; 32]).unwrap();
-    let pubkey_b = tendermint::public_key::PublicKey::from_raw_ed25519(&[2; 32]).unwrap();
-    let pubkey_c = tendermint::public_key::PublicKey::from_raw_ed25519(&[3; 32]).unwrap();
-
-    let initial_validator_set = vec![
-        validator::Update {
-            pub_key: pubkey_a,
-            power: 100u32.into(),
-        },
-        validator::Update {
-            pub_key: pubkey_b,
-            power: 1u32.into(),
-        },
-    ];
-
-    let mut app = initialize_app(None, initial_validator_set).await;
-    let proposer_address = Address::try_from_slice([0u8; 20].as_ref()).unwrap();
-
-    let validator_updates = vec![
-        validator::Update {
-            pub_key: pubkey_a,
-            power: 0u32.into(),
-        },
-        validator::Update {
-            pub_key: pubkey_b,
-            power: 100u32.into(),
-        },
-        validator::Update {
-            pub_key: pubkey_c,
-            power: 100u32.into(),
-        },
-    ];
-
-    let mut state_tx = StateDelta::new(app.state.clone());
-    state_tx
-        .put_validator_updates(ValidatorSet::new_from_updates(validator_updates.clone()))
-        .unwrap();
-    app.apply(state_tx);
-
-    let resp = app.end_block(1, proposer_address).await.unwrap();
-    // we only assert length here as the ordering of the updates is not guaranteed
-    // and validator::Update does not implement Ord
-    assert_eq!(resp.validator_updates.len(), validator_updates.len());
-
-    // validator with pubkey_a should be removed (power set to 0)
-    // validator with pubkey_b should be updated
-    // validator with pubkey_c should be added
-    let validator_set = app.state.get_validator_set().await.unwrap();
-    assert_eq!(validator_set.len(), 2);
-    let validator_b = validator_set.get(&pubkey_b.into()).unwrap();
-    assert_eq!(validator_b.pub_key, pubkey_b);
-    assert_eq!(validator_b.power, 100u32.into());
-    let validator_c = validator_set.get(&pubkey_c.into()).unwrap();
-    assert_eq!(validator_c.pub_key, pubkey_c);
-    assert_eq!(validator_c.power, 100u32.into());
-    assert_eq!(app.state.get_validator_updates().await.unwrap().len(), 0);
 }
 
 #[tokio::test]
