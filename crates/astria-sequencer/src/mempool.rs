@@ -164,7 +164,6 @@ impl Mempool {
 
     /// returns the inner mempool, locked.
     /// required so that `BasicMempool::iter_mut()` can be called.
-    #[must_use]
     pub(crate) async fn inner(&self) -> tokio::sync::MutexGuard<'_, BasicMempool> {
         self.inner.lock().await
     }
