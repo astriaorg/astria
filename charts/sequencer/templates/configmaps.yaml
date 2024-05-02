@@ -71,6 +71,7 @@ data:
   OTEL_EXPORTER_OTLP_TRACES_COMPRESSION: "{{ .Values.config.sequencer.otel.tracesCompression }}"
   OTEL_EXPORTER_OTLP_HEADERS: "{{ .Values.config.sequencer.otel.otlpHeaders }}"
   OTEL_EXPORTER_OTLP_TRACE_HEADERS: "{{ .Values.config.sequencer.otel.traceHeaders }}"
+  OTEL_SERVICE_NAME: "{{ tpl .Values.config.sequencer.otel.serviceName . }}"
   {{- if not .Values.global.dev }}
   {{- else }}
   {{- end }}

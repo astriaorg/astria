@@ -28,6 +28,7 @@ config:
 
     otel:
       enabled: false
+      serviceName: "astria-sequencer-relayer"
       endpoint:
       tracesEndpoint:
       tracesCompression: gzip
