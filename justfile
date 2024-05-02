@@ -70,8 +70,10 @@ _fmt-proto:
 _lint-proto:
   buf lint
   buf format -d --exit-code
+  buf breaking proto/primitives --against 'buf.build/astria/primitives'
   buf breaking proto/executionapis --against 'buf.build/astria/execution-apis'
-  buf breaking proto/sequencerapis --against 'buf.build/astria/astria'
+  buf breaking proto/sequencerblockapis --against 'buf.build/astria/sequencerblock-apis'
+  buf breaking proto/protocolapis --against 'buf.build/astria/protocol-apis'
   buf breaking proto/composerapis --against 'buf.build/astria/composer-apis'
 
 ##############################################
