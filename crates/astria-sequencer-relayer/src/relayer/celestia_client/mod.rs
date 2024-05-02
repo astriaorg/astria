@@ -442,7 +442,7 @@ fn block_height_from_response(
                 trace!(?status);
             }
             if status.code() == tonic::Code::NotFound {
-                debug!(msg = status.message(), "transaction still pending");
+                trace!(msg = status.message(), "transaction still pending");
                 return Ok(None);
             }
             return Err(TrySubmitError::FailedToGetTx(GrpcResponseError::from(
@@ -464,7 +464,7 @@ fn block_height_from_response(
         return Err(error);
     }
     if tx_response.height == 0 {
-        debug!(tx_hash = %tx_response.txhash, "transaction still pending");
+        trace!(tx_hash = %tx_response.txhash, "transaction still pending");
         return Ok(None);
     }
 

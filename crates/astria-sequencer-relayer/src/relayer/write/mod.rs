@@ -377,13 +377,13 @@ async fn submit_blobs(
     let blobs_per_celestia_tx = blocks.num_blobs() as f64;
     metrics::gauge!(crate::metrics_init::BLOBS_PER_CELESTIA_TX).set(blobs_per_celestia_tx);
 
-    let largest_height = blocks.greatest_sequencer_height.expect(
+    let largest_sequencer_height = blocks.greatest_sequencer_height.expect(
         "there should always be blobs and accompanying sequencer heights when this function is \
          called",
     );
 
     let submission_started = match crate::utils::flatten(
-        tokio::task::spawn_blocking(move || submission_state.initialize(largest_height))
+        tokio::task::spawn_blocking(move || submission_state.initialize(largest_sequencer_height))
             .in_current_span()
             .await,
     ) {
@@ -402,6 +402,8 @@ async fn submit_blobs(
         }
         Ok(height) => height,
     };
+    metrics::counter!(crate::metrics_init::SEQUENCER_SUBMISSION_HEIGHT)
+        .absolute(largest_sequencer_height.value());
     metrics::counter!(crate::metrics_init::CELESTIA_SUBMISSION_HEIGHT).absolute(celestia_height);
     metrics::histogram!(crate::metrics_init::CELESTIA_SUBMISSION_LATENCY).record(start.elapsed());
 
