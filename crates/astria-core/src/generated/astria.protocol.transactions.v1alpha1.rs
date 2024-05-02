@@ -57,7 +57,10 @@ impl ::prost::Name for TransactionParams {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Action {
-    #[prost(oneof = "action::Value", tags = "1, 2, 11, 12, 21, 22, 50, 51, 52, 53, 54")]
+    #[prost(
+        oneof = "action::Value",
+        tags = "1, 2, 11, 12, 21, 22, 50, 51, 52, 53, 54, 55"
+    )]
     pub value: ::core::option::Option<action::Value>,
 }
 /// Nested message and enum types in `Action`.
@@ -91,6 +94,8 @@ pub mod action {
         FeeAssetChangeAction(super::FeeAssetChangeAction),
         #[prost(message, tag = "54")]
         MintAction(super::MintAction),
+        #[prost(message, tag = "55")]
+        FeeChangeAction(super::FeeChangeAction),
     }
 }
 impl ::prost::Name for Action {
@@ -345,6 +350,54 @@ pub struct BridgeLockAction {
 }
 impl ::prost::Name for BridgeLockAction {
     const NAME: &'static str = "BridgeLockAction";
+    const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct FeeChangeAction {
+    #[prost(message, optional, tag = "101")]
+    pub new_value: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
+    #[prost(
+        oneof = "fee_change_action::Value",
+        tags = "1, 2, 3, 4, 11, 12, 13, 14, 21, 22"
+    )]
+    pub value: ::core::option::Option<fee_change_action::Value>,
+}
+/// Nested message and enum types in `FeeChangeAction`.
+pub mod fee_change_action {
+    #[allow(clippy::derive_partial_eq_without_eq)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Value {
+        /// core protocol fees are defined on 1-10
+        #[prost(bytes, tag = "1")]
+        TransferBaseFee(::prost::alloc::vec::Vec<u8>),
+        #[prost(bytes, tag = "2")]
+        TransferByteCostMultiplier(::prost::alloc::vec::Vec<u8>),
+        #[prost(bytes, tag = "3")]
+        SequenceBaseFee(::prost::alloc::vec::Vec<u8>),
+        #[prost(bytes, tag = "4")]
+        SequenceByteCostMultiplier(::prost::alloc::vec::Vec<u8>),
+        /// bridge fees are defined on 11-20
+        #[prost(bytes, tag = "11")]
+        InitBridgeAccountBaseFee(::prost::alloc::vec::Vec<u8>),
+        #[prost(bytes, tag = "12")]
+        InitBridgeAccountByteCostMultiplier(::prost::alloc::vec::Vec<u8>),
+        #[prost(bytes, tag = "13")]
+        BridgeLockBaseFee(::prost::alloc::vec::Vec<u8>),
+        #[prost(bytes, tag = "14")]
+        BridgeLockByteCostMultiplier(::prost::alloc::vec::Vec<u8>),
+        /// ibc fees are defined on 21-30
+        #[prost(bytes, tag = "21")]
+        Ics20WithdrawalBaseFee(::prost::alloc::vec::Vec<u8>),
+        #[prost(bytes, tag = "22")]
+        Ics20WithdrawalByteCostMultiplier(::prost::alloc::vec::Vec<u8>),
+    }
+}
+impl ::prost::Name for FeeChangeAction {
+    const NAME: &'static str = "FeeChangeAction";
     const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)

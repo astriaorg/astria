@@ -51,11 +51,12 @@ message Action {
     IbcRelayerChangeAction ibc_relayer_change_action = 52;
     FeeAssetChangeAction fee_asset_change_action = 53;
     MintAction mint_action = 54;
+    FeeChangeAction fee_change_action = 55;
   }
   reserved 3 to 10;
   reserved 13 to 20;
   reserved 23 to 30;
-  reserved 55 to 60;
+  reserved 56 to 60;
 }
 
 // `TransferAction` represents a value transfer transaction.
@@ -180,4 +181,25 @@ message BridgeLockAction {
   // the address on the destination chain which
   // will receive the bridged funds
   string destination_chain_address = 5;
+}
+
+message FeeChangeAction {
+  oneof value {
+    // core protocol fees are defined on 1-10
+    bytes transfer_base_fee = 1;
+    bytes transfer_byte_cost_multiplier = 2;
+    bytes sequence_base_fee = 3;
+    bytes sequence_byte_cost_multiplier = 4;
+
+    // bridge fees are defined on 11-20
+    bytes init_bridge_account_base_fee = 11;
+    bytes init_bridge_account_byte_cost_multiplier = 12;
+    bytes bridge_lock_base_fee = 13;
+    bytes bridge_lock_byte_cost_multiplier = 14;
+
+    // ibc fees are defined on 21-30
+    bytes ics20_withdrawal_base_fee = 21;
+    bytes ics20_withdrawal_byte_cost_multiplier = 22;
+  }
+  astria.primitive.v1.Uint128 new_value = 101;
 }
