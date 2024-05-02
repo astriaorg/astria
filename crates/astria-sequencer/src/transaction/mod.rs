@@ -77,6 +77,9 @@ pub(crate) async fn check_balance_mempool<S: StateReadExt + 'static>(
 
 // Checks that the account has enough balance to cover the total fees and transferred values
 // for all actions in the transaction.
+//
+// allow too many lines because of the number of actions and the need to check each one.
+#[allow(clippy::too_many_lines)]
 pub(crate) async fn check_balance_for_total_fees<S: StateReadExt + 'static>(
     tx: &UnsignedTransaction,
     from: Address,
