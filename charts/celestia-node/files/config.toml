@@ -72,7 +72,7 @@
     AdvertiseInterval = "22h0m0s"
 
 [Header]
-  TrustedHash = ""
+  TrustedHash = {{ .Values.config.trustedHash | quote }}
   TrustedPeers = []
   [Header.Store]
     StoreCacheSize = 4096
@@ -90,18 +90,16 @@
     RangeRequestTimeout = "8s"
 {{- end }}
 
-{{- if eq .Values.config.type "light" }}
 [DASer]
   SamplingRange = 100
-  ConcurrencyLimit = 16
   BackgroundStoreInterval = "10m0s"
-  SampleFrom = 1
+  SampleFrom = {{ toString .Values.config.startHeight | replace "\"" "" }}
+{{- if eq .Values.config.type "light" }}
+  ConcurrencyLimit = 16
   SampleTimeout = "4m0s"
 {{- else if eq .Values.config.type "full" }}
   SamplingRange = 100
   ConcurrencyLimit = 6
-  BackgroundStoreInterval = "10m0s"
-  SampleFrom = 1
   SampleTimeout = "3m0s"  
 {{- end }}
 

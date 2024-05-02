@@ -87,16 +87,17 @@ jobs:
       - name: Checkout Repo
         uses: actions/checkout@v4
       - name: Publish to Charts Repo
-        uses: nkoppel/push-files-to-another-repository@v1.1.2
+        uses: cpina/push-files-to-another-repository@v1.7.2
         env:
           API_TOKEN_GITHUB: ${{ secrets.CHARTS_REPO_TOKEN }}
         with:
-          source-files: 'charts/'
-          destination-username: 'astriaorg'
-          destination-branch: 'main'
-          destination-repository: 'charts'
-          commit-email: '${{ github.actor }}@users.noreply.github.com'
-          commit-username: '${{ github.actor }}'
+          source-directory: 'charts/'
+          target-directory: 'charts/'
+          target-branch: 'main'
+          destination-github-username: 'astriaorg'
+          destination-repository-name: 'charts'
+          user-email: '${{ github.actor }}@users.noreply.github.com'
+          user-name: '${{ github.actor }}'
 
   conductor:
     needs: run_checker
