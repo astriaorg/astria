@@ -1291,21 +1291,11 @@ pub enum FeeChange {
 #[allow(clippy::module_name_repetitions)]
 #[derive(Debug, Clone)]
 pub struct FeeChangeAction {
-    fee_change: FeeChange,
-    new_value: u128,
+    pub fee_change: FeeChange,
+    pub new_value: u128,
 }
 
 impl FeeChangeAction {
-    #[must_use]
-    pub fn fee_change(&self) -> &FeeChange {
-        &self.fee_change
-    }
-
-    #[must_use]
-    pub fn new_value(&self) -> u128 {
-        self.new_value
-    }
-
     #[must_use]
     pub fn into_raw(self) -> raw::FeeChangeAction {
         self.to_raw()
