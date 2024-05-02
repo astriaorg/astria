@@ -28,8 +28,8 @@ run-testnet:
 
 [linux]
 stop-testnet:
-  pkill -f [a]stria-sequencer 
-  pkill cometbft
+  pkill -f [a]stria-sequencer || true
+  pkill cometbft || true
 [linux] 
 run-testnet: 
   cargo build
