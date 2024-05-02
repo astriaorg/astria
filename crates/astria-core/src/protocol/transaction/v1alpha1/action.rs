@@ -138,7 +138,7 @@ impl Action {
                 BridgeLockAction::try_from_raw(act).map_err(ActionError::bridge_lock)?,
             ),
             Value::FeeChangeAction(act) => Self::FeeChange(
-                FeeChangeAction::try_from_raw(act).map_err(ActionError::fee_change)?,
+                FeeChangeAction::try_from_raw(&act).map_err(ActionError::fee_change)?,
             ),
         };
         Ok(action)
@@ -1288,6 +1288,7 @@ pub enum FeeChange {
     Ics20WithdrawalBaseFee,
 }
 
+#[allow(clippy::module_name_repetitions)]
 #[derive(Debug, Clone)]
 pub struct FeeChangeAction {
     fee_change: FeeChange,
@@ -1305,10 +1306,12 @@ impl FeeChangeAction {
         self.new_value
     }
 
+    #[must_use]
     pub fn into_raw(self) -> raw::FeeChangeAction {
         self.to_raw()
     }
 
+    #[must_use]
     pub fn to_raw(&self) -> raw::FeeChangeAction {
         raw::FeeChangeAction {
             value: Some(match self.fee_change {
@@ -1335,7 +1338,13 @@ impl FeeChangeAction {
         }
     }
 
-    pub fn try_from_raw(proto: raw::FeeChangeAction) -> Result<Self, FeeChangeActionError> {
+    /// Convert from a raw, unchecked protobuf [`raw::FeeChangeAction`].
+    ///
+    /// # Errors
+    ///
+    /// - if the fee change `value` field is missing
+    /// - if the `new_value` field is missing
+    pub fn try_from_raw(proto: &raw::FeeChangeAction) -> Result<Self, FeeChangeActionError> {
         let fee_change = match proto.value {
             Some(raw::fee_change_action::Value::TransferBaseFee(_)) => FeeChange::TransferBaseFee,
             Some(raw::fee_change_action::Value::SequenceBaseFee(_)) => FeeChange::SequenceBaseFee,
