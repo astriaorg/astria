@@ -36,7 +36,7 @@ spec:
       containers:
         - name: {{ $label }}
           image: {{ .Values.images.node }}
-          command: ["./celestia/scripts/start-node.sh"]
+          command: ["/celestia/scripts/start-node.sh"]
           securityContext:
             runAsUser: 10001
             runAsGroup: 10001

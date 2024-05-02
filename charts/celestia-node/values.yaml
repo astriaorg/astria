@@ -14,6 +14,8 @@ config:
   tokenAuthLevel: read  # can set to nil or false to disable rpc auth
   coreGrpcPort: 9090
   customInfo: ''
+  startHeight: "1"
+  trustedHash: "B93BBE20A0FBFDF955811B6420F8433904664D45DB4BF51022BE4200C1A1680D"
 
 images:
   pullPolicy: IfNotPresent
