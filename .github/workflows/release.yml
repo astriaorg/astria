@@ -87,7 +87,7 @@ jobs:
       - name: Checkout Repo
         uses: actions/checkout@v4
       - name: Publish to Charts Repo
-        uses: cpina/push-files-to-another-repository@v1.7.2
+        uses: cpina/github-action-push-to-another-repository@v1.7.2
         env:
           API_TOKEN_GITHUB: ${{ secrets.CHARTS_REPO_TOKEN }}
         with:
