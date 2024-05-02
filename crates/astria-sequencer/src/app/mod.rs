@@ -1,7 +1,7 @@
 #[cfg(test)]
 pub(crate) mod test_utils;
 #[cfg(test)]
-mod tests;
+mod tests_app;
 #[cfg(test)]
 mod tests_execute_transaction;
 
