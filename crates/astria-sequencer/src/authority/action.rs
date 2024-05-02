@@ -101,19 +101,6 @@ impl ActionHandler for SudoAddressChangeAction {
 
 #[async_trait::async_trait]
 impl ActionHandler for FeeChangeAction {
-    async fn check_stateless(&self) -> Result<()> {
-        // ensure fee to change can actually be changed
-        match self.fee_change() {
-            FeeChange::TransferBaseFee
-            | FeeChange::SequenceBaseFee
-            | FeeChange::SequenceByteCostMultiplier
-            | FeeChange::InitBridgeAccountBaseFee
-            | FeeChange::BridgeLockByteCostMultiplier
-            | FeeChange::Ics20WithdrawalBaseFee => Ok(()),
-            _ => bail!("invalid fee change: {:?}", self.fee_change()),
-        }
-    }
-
     /// check that the signer of the transaction is the current sudo address,
     /// as only that address can change the fee
     async fn check_stateful<S: StateReadExt + 'static>(
@@ -160,7 +147,6 @@ impl ActionHandler for FeeChangeAction {
                     .put_ics20_withdrawal_base_fee(self.new_value())
                     .context("failed to put ics20 withdrawal base fee in state")?;
             }
-            _ => bail!("invalid fee change: {:?}", self.fee_change()),
         }
 
         Ok(())

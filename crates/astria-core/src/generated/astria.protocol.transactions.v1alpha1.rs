@@ -360,40 +360,33 @@ impl ::prost::Name for BridgeLockAction {
 pub struct FeeChangeAction {
     #[prost(message, optional, tag = "101")]
     pub new_value: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
-    #[prost(
-        oneof = "fee_change_action::Value",
-        tags = "1, 2, 3, 4, 11, 12, 13, 14, 21, 22"
-    )]
+    /// note that the proto number ranges are doubled from that of `Action`.
+    /// this to accomodate both `base_fee` and `byte_cost_multiplier` for each action.
+    #[prost(oneof = "fee_change_action::Value", tags = "1, 2, 3, 20, 21, 40")]
     pub value: ::core::option::Option<fee_change_action::Value>,
 }
 /// Nested message and enum types in `FeeChangeAction`.
 pub mod fee_change_action {
+    /// note that the proto number ranges are doubled from that of `Action`.
+    /// this to accomodate both `base_fee` and `byte_cost_multiplier` for each action.
     #[allow(clippy::derive_partial_eq_without_eq)]
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Value {
-        /// core protocol fees are defined on 1-10
+        /// core protocol fees are defined on 1-20
         #[prost(bytes, tag = "1")]
         TransferBaseFee(::prost::alloc::vec::Vec<u8>),
         #[prost(bytes, tag = "2")]
-        TransferByteCostMultiplier(::prost::alloc::vec::Vec<u8>),
-        #[prost(bytes, tag = "3")]
         SequenceBaseFee(::prost::alloc::vec::Vec<u8>),
-        #[prost(bytes, tag = "4")]
+        #[prost(bytes, tag = "3")]
         SequenceByteCostMultiplier(::prost::alloc::vec::Vec<u8>),
-        /// bridge fees are defined on 11-20
-        #[prost(bytes, tag = "11")]
+        /// bridge fees are defined on 20-39
+        #[prost(bytes, tag = "20")]
         InitBridgeAccountBaseFee(::prost::alloc::vec::Vec<u8>),
-        #[prost(bytes, tag = "12")]
-        InitBridgeAccountByteCostMultiplier(::prost::alloc::vec::Vec<u8>),
-        #[prost(bytes, tag = "13")]
-        BridgeLockBaseFee(::prost::alloc::vec::Vec<u8>),
-        #[prost(bytes, tag = "14")]
-        BridgeLockByteCostMultiplier(::prost::alloc::vec::Vec<u8>),
-        /// ibc fees are defined on 21-30
         #[prost(bytes, tag = "21")]
+        BridgeLockByteCostMultiplier(::prost::alloc::vec::Vec<u8>),
+        /// ibc fees are defined on 40-59
+        #[prost(bytes, tag = "40")]
         Ics20WithdrawalBaseFee(::prost::alloc::vec::Vec<u8>),
-        #[prost(bytes, tag = "22")]
-        Ics20WithdrawalByteCostMultiplier(::prost::alloc::vec::Vec<u8>),
     }
 }
 impl ::prost::Name for FeeChangeAction {

@@ -1281,15 +1281,11 @@ enum BridgeLockActionErrorKind {
 #[derive(Debug, Clone)]
 pub enum FeeChange {
     TransferBaseFee,
-    TransferByteCostMultiplier,
     SequenceBaseFee,
     SequenceByteCostMultiplier,
     InitBridgeAccountBaseFee,
-    InitBridgeAccountByteCostMultiplier,
-    BridgeLockBaseFee,
     BridgeLockByteCostMultiplier,
     Ics20WithdrawalBaseFee,
-    Ics20WithdrawalByteCostMultiplier,
 }
 
 #[derive(Debug, Clone)]
@@ -1319,9 +1315,6 @@ impl FeeChangeAction {
                 FeeChange::TransferBaseFee => {
                     raw::fee_change_action::Value::TransferBaseFee(vec![])
                 }
-                FeeChange::TransferByteCostMultiplier => {
-                    raw::fee_change_action::Value::TransferByteCostMultiplier(vec![])
-                }
                 FeeChange::SequenceBaseFee => {
                     raw::fee_change_action::Value::SequenceBaseFee(vec![])
                 }
@@ -1331,20 +1324,11 @@ impl FeeChangeAction {
                 FeeChange::InitBridgeAccountBaseFee => {
                     raw::fee_change_action::Value::InitBridgeAccountBaseFee(vec![])
                 }
-                FeeChange::InitBridgeAccountByteCostMultiplier => {
-                    raw::fee_change_action::Value::InitBridgeAccountByteCostMultiplier(vec![])
-                }
-                FeeChange::BridgeLockBaseFee => {
-                    raw::fee_change_action::Value::BridgeLockBaseFee(vec![])
-                }
                 FeeChange::BridgeLockByteCostMultiplier => {
                     raw::fee_change_action::Value::BridgeLockByteCostMultiplier(vec![])
                 }
                 FeeChange::Ics20WithdrawalBaseFee => {
                     raw::fee_change_action::Value::Ics20WithdrawalBaseFee(vec![])
-                }
-                FeeChange::Ics20WithdrawalByteCostMultiplier => {
-                    raw::fee_change_action::Value::Ics20WithdrawalByteCostMultiplier(vec![])
                 }
             }),
             new_value: Some(self.new_value.into()),
@@ -1354,9 +1338,6 @@ impl FeeChangeAction {
     pub fn try_from_raw(proto: raw::FeeChangeAction) -> Result<Self, FeeChangeActionError> {
         let fee_change = match proto.value {
             Some(raw::fee_change_action::Value::TransferBaseFee(_)) => FeeChange::TransferBaseFee,
-            Some(raw::fee_change_action::Value::TransferByteCostMultiplier(_)) => {
-                FeeChange::TransferByteCostMultiplier
-            }
             Some(raw::fee_change_action::Value::SequenceBaseFee(_)) => FeeChange::SequenceBaseFee,
             Some(raw::fee_change_action::Value::SequenceByteCostMultiplier(_)) => {
                 FeeChange::SequenceByteCostMultiplier
@@ -1364,20 +1345,11 @@ impl FeeChangeAction {
             Some(raw::fee_change_action::Value::InitBridgeAccountBaseFee(_)) => {
                 FeeChange::InitBridgeAccountBaseFee
             }
-            Some(raw::fee_change_action::Value::InitBridgeAccountByteCostMultiplier(_)) => {
-                FeeChange::InitBridgeAccountByteCostMultiplier
-            }
-            Some(raw::fee_change_action::Value::BridgeLockBaseFee(_)) => {
-                FeeChange::BridgeLockBaseFee
-            }
             Some(raw::fee_change_action::Value::BridgeLockByteCostMultiplier(_)) => {
                 FeeChange::BridgeLockByteCostMultiplier
             }
             Some(raw::fee_change_action::Value::Ics20WithdrawalBaseFee(_)) => {
                 FeeChange::Ics20WithdrawalBaseFee
-            }
-            Some(raw::fee_change_action::Value::Ics20WithdrawalByteCostMultiplier(_)) => {
-                FeeChange::Ics20WithdrawalByteCostMultiplier
             }
             None => return Err(FeeChangeActionError::missing_value_to_change()),
         };
