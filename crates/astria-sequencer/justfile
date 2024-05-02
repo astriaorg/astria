@@ -44,6 +44,3 @@ sequencer-logs-testnet NODE="node0":
 clean-testnet DIR="sequencer_testnet": stop-testnet
   rm -r {{ DIR }} || true
   rm -r /tmp/astria_db_* || true
-
-restart: 
-  ASTRIA_SEQUENCER_DB_FILEPATH=/tmp/astria_db_0 ASTRIA_SEQUENCER_LISTEN_ADDR=127.0.0.1:26660 ASTRIA_SEQUENCER_GRPC_ADDR=127.0.0.1:8080 RUST_LOG=debug RUST_BACKTRACE=1 ../../target/debug/astria-sequencer
