@@ -1299,6 +1299,16 @@ pub struct FeeChangeAction {
 }
 
 impl FeeChangeAction {
+    #[must_use]
+    pub fn fee_change(&self) -> &FeeChange {
+        &self.fee_change
+    }
+
+    #[must_use]
+    pub fn new_value(&self) -> u128 {
+        self.new_value
+    }
+
     pub fn into_raw(self) -> raw::FeeChangeAction {
         self.to_raw()
     }

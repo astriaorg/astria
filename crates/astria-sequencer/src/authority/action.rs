@@ -6,7 +6,11 @@ use anyhow::{
 };
 use astria_core::{
     primitive::v1::Address,
-    protocol::transaction::v1alpha1::action::SudoAddressChangeAction,
+    protocol::transaction::v1alpha1::action::{
+        FeeChange,
+        FeeChangeAction,
+        SudoAddressChangeAction,
+    },
 };
 use tendermint::account;
 use tracing::instrument;
@@ -91,6 +95,74 @@ impl ActionHandler for SudoAddressChangeAction {
         state
             .put_sudo_address(self.new_address)
             .context("failed to put sudo address in state")?;
+        Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl ActionHandler for FeeChangeAction {
+    async fn check_stateless(&self) -> Result<()> {
+        // ensure fee to change can actually be changed
+        match self.fee_change() {
+            FeeChange::TransferBaseFee
+            | FeeChange::SequenceBaseFee
+            | FeeChange::SequenceByteCostMultiplier
+            | FeeChange::InitBridgeAccountBaseFee
+            | FeeChange::BridgeLockByteCostMultiplier
+            | FeeChange::Ics20WithdrawalBaseFee => Ok(()),
+            _ => bail!("invalid fee change: {:?}", self.fee_change()),
+        }
+    }
+
+    /// check that the signer of the transaction is the current sudo address,
+    /// as only that address can change the fee
+    async fn check_stateful<S: StateReadExt + 'static>(
+        &self,
+        state: &S,
+        from: Address,
+    ) -> Result<()> {
+        // ensure signer is the valid `sudo` key in state
+        let sudo_address = state
+            .get_sudo_address()
+            .await
+            .context("failed to get sudo address from state")?;
+        ensure!(sudo_address == from, "signer is not the sudo key");
+        Ok(())
+    }
+
+    #[instrument(skip_all)]
+    async fn execute<S: StateWriteExt>(&self, state: &mut S, _: Address) -> Result<()> {
+        use crate::{
+            accounts::state_ext::StateWriteExt as _,
+            bridge::state_ext::StateWriteExt as _,
+            ibc::state_ext::StateWriteExt as _,
+            sequence::state_ext::StateWriteExt as _,
+        };
+
+        match self.fee_change() {
+            FeeChange::TransferBaseFee => {
+                state
+                    .put_transfer_base_fee(self.new_value())
+                    .context("failed to put transfer base fee in state")?;
+            }
+            FeeChange::SequenceBaseFee => state.put_sequence_action_base_fee(self.new_value()),
+            FeeChange::SequenceByteCostMultiplier => {
+                state.put_sequence_action_byte_cost_multiplier(self.new_value())
+            }
+            FeeChange::InitBridgeAccountBaseFee => {
+                state.put_init_bridge_account_base_fee(self.new_value())
+            }
+            FeeChange::BridgeLockByteCostMultiplier => {
+                state.put_bridge_lock_byte_cost_multiplier(self.new_value())
+            }
+            FeeChange::Ics20WithdrawalBaseFee => {
+                state
+                    .put_ics20_withdrawal_base_fee(self.new_value())
+                    .context("failed to put ics20 withdrawal base fee in state")?;
+            }
+            _ => bail!("invalid fee change: {:?}", self.fee_change()),
+        }
+
         Ok(())
     }
 }
