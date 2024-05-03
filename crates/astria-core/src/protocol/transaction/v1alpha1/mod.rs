@@ -224,6 +224,7 @@ impl UnsignedTransaction {
         }
     }
 
+    #[must_use]
     pub fn into_any(self) -> pbjson_types::Any {
         let raw = self.into_raw();
         pbjson_types::Any {
@@ -245,6 +246,7 @@ impl UnsignedTransaction {
         }
     }
 
+    #[must_use]
     pub fn to_any(&self) -> pbjson_types::Any {
         let raw = self.to_raw();
         pbjson_types::Any {
@@ -280,6 +282,12 @@ impl UnsignedTransaction {
         })
     }
 
+    /// Attempt to convert from a protobuf [`pbjson_types::Any`].
+    ///
+    /// # Errors
+    ///
+    /// - if the type URL is not the expected type URL
+    /// - if the bytes in the [`Any`] do not decode to an [`UnsignedTransaction`]
     pub fn try_from_any(any: pbjson_types::Any) -> Result<Self, UnsignedTransactionError> {
         if any.type_url != UNSIGNED_TRANSACTION_TYPE_URL {
             return Err(UnsignedTransactionError::invalid_type_url());
