@@ -143,7 +143,38 @@ impl MockCelestiaAppServer {
         }
     }
 
-    pub async fn mount_broadcast_tx_response(&self, debug_name: impl Into<String>) -> MockGuard {
+    pub async fn mount_broadcast_tx_response(&self, debug_name: impl Into<String>) {
+        self.prepare_broadcast_tx_response(debug_name)
+            .mount(&self.mock_server)
+            .await;
+    }
+
+    pub async fn mount_broadcast_tx_response_as_scoped(
+        &self,
+        debug_name: impl Into<String>,
+    ) -> MockGuard {
+        self.prepare_broadcast_tx_response(debug_name)
+            .mount_as_scoped(&self.mock_server)
+            .await
+    }
+
+    pub async fn mount_get_tx_response(&self, height: i64, debug_name: impl Into<String>) {
+        Self::prepare_get_tx_response(height, debug_name)
+            .mount(&self.mock_server)
+            .await;
+    }
+
+    pub async fn mount_get_tx_response_as_scoped(
+        &self,
+        height: i64,
+        debug_name: impl Into<String>,
+    ) -> MockGuard {
+        Self::prepare_get_tx_response(height, debug_name)
+            .mount_as_scoped(&self.mock_server)
+            .await
+    }
+
+    fn prepare_broadcast_tx_response(&self, debug_name: impl Into<String>) -> Mock {
         let debug_name = debug_name.into();
         let txhash = debug_name.clone();
         let namespaces = self.namespaces.clone();
@@ -170,15 +201,9 @@ impl MockCelestiaAppServer {
             .expect(1)
             .up_to_n_times(1)
             .with_name(debug_name)
-            .mount_as_scoped(&self.mock_server)
-            .await
     }
 
-    pub async fn mount_get_tx_response(
-        &self,
-        height: i64,
-        debug_name: impl Into<String>,
-    ) -> MockGuard {
+    fn prepare_get_tx_response(height: i64, debug_name: impl Into<String>) -> Mock {
         let debug_name = debug_name.into();
         // We only use the `tx_response.code` and `tx_response.height` fields in the success case.
         // The `txhash` would be an actual hex-encoded SHA256 in prod, but here we can just use the
@@ -198,8 +223,6 @@ impl MockCelestiaAppServer {
             .up_to_n_times(1)
             .expect(1)
             .with_name(debug_name)
-            .mount_as_scoped(&self.mock_server)
-            .await
     }
 }
 

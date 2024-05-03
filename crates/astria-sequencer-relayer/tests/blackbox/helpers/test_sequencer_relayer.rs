@@ -52,7 +52,6 @@ use tracing::{
 };
 use wiremock::{
     matchers::body_partial_json,
-    MockGuard as WireMockGuard,
     MockServer as WireMockServer,
     ResponseTemplate,
 };
@@ -152,7 +151,7 @@ impl Drop for TestSequencerRelayer {
 
 impl TestSequencerRelayer {
     /// Mounts a `CometBFT` ABCI Info response.
-    pub async fn mount_abci_response(&self, height: u32) -> WireMockGuard {
+    pub async fn mount_abci_response(&self, height: u32) {
         use tendermint::{
             abci,
             hash::AppHash,
@@ -173,8 +172,8 @@ impl TestSequencerRelayer {
             .up_to_n_times(1)
             .expect(1..)
             .named("CometBFT abci_info")
-            .mount_as_scoped(&self.cometbft)
-            .await
+            .mount(&self.cometbft)
+            .await;
     }
 
     /// Mounts a Sequencer block response.
@@ -184,9 +183,27 @@ impl TestSequencerRelayer {
         &self,
         block_to_mount: SequencerBlockToMount,
         debug_name: impl Into<String>,
-    ) -> GrpcMockGuard {
+    ) {
         self.sequencer
             .mount_sequencer_block_response::<RELAY_SELF>(self.account, block_to_mount, debug_name)
+            .await;
+    }
+
+    /// Mounts a Sequencer block response and returns a `GrpcMockGuard` to allow for waiting for
+    /// the mock to be satisfied.
+    ///
+    /// The `debug_name` is assigned to the mock and is output on error to assist with debugging.
+    pub async fn mount_sequencer_block_response_as_scoped<const RELAY_SELF: bool>(
+        &self,
+        block_to_mount: SequencerBlockToMount,
+        debug_name: impl Into<String>,
+    ) -> GrpcMockGuard {
+        self.sequencer
+            .mount_sequencer_block_response_as_scoped::<RELAY_SELF>(
+                self.account,
+                block_to_mount,
+                debug_name,
+            )
             .await
     }
 
@@ -194,12 +211,23 @@ impl TestSequencerRelayer {
     ///
     /// The `debug_name` is assigned to the mock and is output on error to assist with debugging.
     /// It is also assigned as the `TxHash` in the response.
-    pub async fn mount_celestia_app_broadcast_tx_response(
+    pub async fn mount_celestia_app_broadcast_tx_response(&self, debug_name: impl Into<String>) {
+        self.celestia_app
+            .mount_broadcast_tx_response(debug_name)
+            .await;
+    }
+
+    /// Mounts a Celestia `BroadcastTx` response and returns a `GrpcMockGuard` to allow for waiting
+    /// for the mock to be satisfied.
+    ///
+    /// The `debug_name` is assigned to the mock and is output on error to assist with debugging.
+    /// It is also assigned as the `TxHash` in the response.
+    pub async fn mount_celestia_app_broadcast_tx_response_as_scoped(
         &self,
         debug_name: impl Into<String>,
     ) -> GrpcMockGuard {
         self.celestia_app
-            .mount_broadcast_tx_response(debug_name)
+            .mount_broadcast_tx_response_as_scoped(debug_name)
             .await
     }
 
@@ -211,9 +239,24 @@ impl TestSequencerRelayer {
         &self,
         celestia_height: i64,
         debug_name: impl Into<String>,
-    ) -> GrpcMockGuard {
+    ) {
         self.celestia_app
             .mount_get_tx_response(celestia_height, debug_name)
+            .await;
+    }
+
+    /// Mounts a Celestia `GetTx` response and returns a `GrpcMockGuard` to allow for waiting for
+    /// the mock to be satisfied.
+    ///
+    /// The `debug_name` is assigned to the mock and is output on error to assist with debugging.
+    /// It is also assigned as the `TxHash` in the request and response.
+    pub async fn mount_celestia_app_get_tx_response_as_scoped(
+        &self,
+        celestia_height: i64,
+        debug_name: impl Into<String>,
+    ) -> GrpcMockGuard {
+        self.celestia_app
+            .mount_get_tx_response_as_scoped(celestia_height, debug_name)
             .await
     }
 

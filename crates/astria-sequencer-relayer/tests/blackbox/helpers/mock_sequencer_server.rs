@@ -26,6 +26,7 @@ use astria_grpc_mock::{
     matcher::message_type,
     response::constant_response,
     Mock,
+    MockGuard,
     MockServer,
 };
 use tendermint::account::Id as AccountId;
@@ -77,47 +78,21 @@ impl MockSequencerServer {
         account: AccountId,
         block_to_mount: SequencerBlockToMount,
         debug_name: impl Into<String>,
-    ) -> astria_grpc_mock::MockGuard {
-        let proposer = if RELAY_SELF {
-            account
-        } else {
-            AccountId::try_from(vec![0u8; 20]).unwrap()
-        };
+    ) {
+        prepare_sequencer_block_response::<RELAY_SELF>(account, block_to_mount, debug_name)
+            .mount(&self.mock_server)
+            .await;
+    }
 
-        let should_corrupt = matches!(block_to_mount, SequencerBlockToMount::BadAtHeight(_));
-
-        let block = match block_to_mount {
-            SequencerBlockToMount::GoodAtHeight(height)
-            | SequencerBlockToMount::BadAtHeight(height) => ConfigureSequencerBlock {
-                block_hash: Some([99u8; 32]),
-                height,
-                proposer_address: Some(proposer),
-                sequence_data: vec![(
-                    RollupId::from_unhashed_bytes(b"some_rollup_id"),
-                    vec![99u8; 32],
-                )],
-                ..Default::default()
-            }
-            .make(),
-            SequencerBlockToMount::Block(block) => block,
-        };
-
-        let mut block = block.into_raw();
-        if should_corrupt {
-            let header = block.header.as_mut().unwrap();
-            header.data_hash[0] = header.data_hash[0].wrapping_add(1);
-        }
-
-        Mock::for_rpc_given(
-            GET_SEQUENCER_BLOCK_GRPC_NAME,
-            message_type::<GetSequencerBlockRequest>(),
-        )
-        .respond_with(constant_response(block))
-        .up_to_n_times(1)
-        .expect(1)
-        .with_name(debug_name)
-        .mount_as_scoped(&self.mock_server)
-        .await
+    pub async fn mount_sequencer_block_response_as_scoped<const RELAY_SELF: bool>(
+        &self,
+        account: AccountId,
+        block_to_mount: SequencerBlockToMount,
+        debug_name: impl Into<String>,
+    ) -> MockGuard {
+        prepare_sequencer_block_response::<RELAY_SELF>(account, block_to_mount, debug_name)
+            .mount_as_scoped(&self.mock_server)
+            .await
     }
 }
 
@@ -150,4 +125,49 @@ impl SequencerService for SequencerServiceImpl {
             .handle_request(GET_FILTERED_SEQUENCER_BLOCK_GRPC_NAME, request)
             .await
     }
+}
+
+fn prepare_sequencer_block_response<const RELAY_SELF: bool>(
+    account: AccountId,
+    block_to_mount: SequencerBlockToMount,
+    debug_name: impl Into<String>,
+) -> Mock {
+    let proposer = if RELAY_SELF {
+        account
+    } else {
+        AccountId::try_from(vec![0u8; 20]).unwrap()
+    };
+
+    let should_corrupt = matches!(block_to_mount, SequencerBlockToMount::BadAtHeight(_));
+
+    let block = match block_to_mount {
+        SequencerBlockToMount::GoodAtHeight(height)
+        | SequencerBlockToMount::BadAtHeight(height) => ConfigureSequencerBlock {
+            block_hash: Some([99u8; 32]),
+            height,
+            proposer_address: Some(proposer),
+            sequence_data: vec![(
+                RollupId::from_unhashed_bytes(b"some_rollup_id"),
+                vec![99u8; 32],
+            )],
+            ..Default::default()
+        }
+        .make(),
+        SequencerBlockToMount::Block(block) => block,
+    };
+
+    let mut block = block.into_raw();
+    if should_corrupt {
+        let header = block.header.as_mut().unwrap();
+        header.data_hash[0] = header.data_hash[0].wrapping_add(1);
+    }
+
+    Mock::for_rpc_given(
+        GET_SEQUENCER_BLOCK_GRPC_NAME,
+        message_type::<GetSequencerBlockRequest>(),
+    )
+    .respond_with(constant_response(block))
+    .up_to_n_times(1)
+    .expect(1)
+    .with_name(debug_name)
 }

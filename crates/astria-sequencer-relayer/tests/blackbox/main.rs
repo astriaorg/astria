@@ -28,16 +28,16 @@ async fn one_block_is_relayed_to_celestia() {
     .spawn_relayer()
     .await;
 
-    let _guard = sequencer_relayer.mount_abci_response(1).await;
+    sequencer_relayer.mount_abci_response(1).await;
     let block_to_mount = SequencerBlockToMount::GoodAtHeight(1);
-    let _guard = sequencer_relayer
+    sequencer_relayer
         .mount_sequencer_block_response::<RELAY_ALL>(block_to_mount, "good block 1")
         .await;
-    let _guard = sequencer_relayer
+    sequencer_relayer
         .mount_celestia_app_broadcast_tx_response("broadcast tx 1")
         .await;
     let get_tx_guard = sequencer_relayer
-        .mount_celestia_app_get_tx_response(53, "get tx 1")
+        .mount_celestia_app_get_tx_response_as_scoped(53, "get tx 1")
         .await;
     // The `MIN_POLL_INTERVAL_SECS` is 1, meaning the relayer waits for 1 second before attempting
     // the first `GetTx`, so we wait for 2 seconds.
@@ -84,16 +84,16 @@ async fn report_degraded_if_block_fetch_fails() {
     assert_eq!(readyz_status, "ok");
 
     // Mount a good block, so the relayer will report 200 on /healthz.
-    let _guard = sequencer_relayer.mount_abci_response(1).await;
+    sequencer_relayer.mount_abci_response(1).await;
     let block_to_mount = SequencerBlockToMount::GoodAtHeight(1);
-    let _guard = sequencer_relayer
+    sequencer_relayer
         .mount_sequencer_block_response::<RELAY_ALL>(block_to_mount, "good block 1")
         .await;
-    let _guard = sequencer_relayer
+    sequencer_relayer
         .mount_celestia_app_broadcast_tx_response("broadcast tx 1")
         .await;
     let get_tx_guard = sequencer_relayer
-        .mount_celestia_app_get_tx_response(53, "get tx 1")
+        .mount_celestia_app_get_tx_response_as_scoped(53, "get tx 1")
         .await;
     let healthz_status = sequencer_relayer
         .wait_for_healthz(StatusCode::OK, 2_000, "waiting for first healthz")
@@ -108,10 +108,10 @@ async fn report_degraded_if_block_fetch_fails() {
         .await;
 
     // Mount a bad block next, so the relayer will fail to fetch the block.
-    let _guard = sequencer_relayer.mount_abci_response(2).await;
+    sequencer_relayer.mount_abci_response(2).await;
     let block_to_mount = SequencerBlockToMount::BadAtHeight(2);
     let block_guard = sequencer_relayer
-        .mount_sequencer_block_response::<RELAY_ALL>(block_to_mount, "bad block 2")
+        .mount_sequencer_block_response_as_scoped::<RELAY_ALL>(block_to_mount, "bad block 2")
         .await;
 
     // Relayer reports 500 on /healthz after fetching the block failed.
@@ -143,17 +143,17 @@ async fn later_height_in_state_leads_to_expected_relay() {
     .spawn_relayer()
     .await;
 
-    let _guard = sequencer_relayer.mount_abci_response(6).await;
-    let _guard = sequencer_relayer.mount_abci_response(7).await;
+    sequencer_relayer.mount_abci_response(6).await;
+    sequencer_relayer.mount_abci_response(7).await;
     let block_to_mount = SequencerBlockToMount::GoodAtHeight(6);
-    let _guard = sequencer_relayer
+    sequencer_relayer
         .mount_sequencer_block_response::<RELAY_ALL>(block_to_mount, "good block 1")
         .await;
-    let _guard = sequencer_relayer
+    sequencer_relayer
         .mount_celestia_app_broadcast_tx_response("broadcast tx 1")
         .await;
     let get_tx_guard = sequencer_relayer
-        .mount_celestia_app_get_tx_response(53, "get tx 1")
+        .mount_celestia_app_get_tx_response_as_scoped(53, "get tx 1")
         .await;
     sequencer_relayer
         .timeout_ms(
@@ -191,41 +191,41 @@ async fn three_blocks_are_relayed() {
     .spawn_relayer()
     .await;
 
-    let _guard = sequencer_relayer.mount_abci_response(1).await;
+    sequencer_relayer.mount_abci_response(1).await;
     let block_to_mount = SequencerBlockToMount::GoodAtHeight(1);
-    let _guard = sequencer_relayer
+    sequencer_relayer
         .mount_sequencer_block_response::<RELAY_ALL>(block_to_mount, "good block 1")
         .await;
 
-    let _guard = sequencer_relayer.mount_abci_response(2).await;
+    sequencer_relayer.mount_abci_response(2).await;
     let block_to_mount = SequencerBlockToMount::GoodAtHeight(2);
-    let _guard = sequencer_relayer
+    sequencer_relayer
         .mount_sequencer_block_response::<RELAY_ALL>(block_to_mount, "good block 2")
         .await;
 
-    let _guard = sequencer_relayer.mount_abci_response(3).await;
+    sequencer_relayer.mount_abci_response(3).await;
     let block_to_mount = SequencerBlockToMount::GoodAtHeight(3);
-    let _guard = sequencer_relayer
+    sequencer_relayer
         .mount_sequencer_block_response::<RELAY_ALL>(block_to_mount, "good block 3")
         .await;
 
-    let _guard = sequencer_relayer
+    sequencer_relayer
         .mount_celestia_app_broadcast_tx_response("broadcast tx 1")
         .await;
-    let _guard = sequencer_relayer
+    sequencer_relayer
         .mount_celestia_app_get_tx_response(53, "get tx 1")
         .await;
-    let _guard = sequencer_relayer
+    sequencer_relayer
         .mount_celestia_app_broadcast_tx_response("broadcast tx 2")
         .await;
-    let _guard = sequencer_relayer
+    sequencer_relayer
         .mount_celestia_app_get_tx_response(53, "get tx 2")
         .await;
-    let _guard = sequencer_relayer
+    sequencer_relayer
         .mount_celestia_app_broadcast_tx_response("broadcast tx 3")
         .await;
     let get_tx_guard = sequencer_relayer
-        .mount_celestia_app_get_tx_response(53, "get tx 3")
+        .mount_celestia_app_get_tx_response_as_scoped(53, "get tx 3")
         .await;
     // Each block will have taken ~1 second due to the delay before each `GetTx`, so use 4.5
     // seconds.
@@ -265,36 +265,36 @@ async fn block_from_other_proposer_is_skipped() {
     .spawn_relayer()
     .await;
 
-    let _guard = sequencer_relayer.mount_abci_response(1).await;
+    sequencer_relayer.mount_abci_response(1).await;
     let block_to_mount = SequencerBlockToMount::GoodAtHeight(1);
-    let _guard = sequencer_relayer
+    sequencer_relayer
         .mount_sequencer_block_response::<RELAY_SELF>(block_to_mount, "good block 1")
         .await;
 
-    let _guard = sequencer_relayer.mount_abci_response(2).await;
+    sequencer_relayer.mount_abci_response(2).await;
     let block_to_mount = SequencerBlockToMount::GoodAtHeight(2);
-    let _guard = sequencer_relayer
+    sequencer_relayer
         .mount_sequencer_block_response::<RELAY_ALL>(block_to_mount, "good block 2")
         .await;
 
-    let _guard = sequencer_relayer.mount_abci_response(3).await;
+    sequencer_relayer.mount_abci_response(3).await;
     let block_to_mount = SequencerBlockToMount::GoodAtHeight(3);
-    let _guard = sequencer_relayer
+    sequencer_relayer
         .mount_sequencer_block_response::<RELAY_SELF>(block_to_mount, "good block 3")
         .await;
 
     // We only expect two broadcast/get Tx gRPCs - block 2 should not have been broadcast.
-    let _guard = sequencer_relayer
+    sequencer_relayer
         .mount_celestia_app_broadcast_tx_response("broadcast tx 1")
         .await;
-    let _guard = sequencer_relayer
+    sequencer_relayer
         .mount_celestia_app_get_tx_response(53, "get tx 1")
         .await;
-    let _guard = sequencer_relayer
+    sequencer_relayer
         .mount_celestia_app_broadcast_tx_response("broadcast tx 2")
         .await;
     let get_tx_guard = sequencer_relayer
-        .mount_celestia_app_get_tx_response(53, "get tx 2")
+        .mount_celestia_app_get_tx_response_as_scoped(53, "get tx 2")
         .await;
     // Each block will have taken ~1 second due to the delay before each `GetTx`, so use 4 seconds.
     sequencer_relayer
@@ -352,15 +352,15 @@ async fn should_filter_rollup() {
     .make();
     let block_to_mount = SequencerBlockToMount::Block(block);
 
-    let _guard = sequencer_relayer.mount_abci_response(1).await;
-    let _guard = sequencer_relayer
+    sequencer_relayer.mount_abci_response(1).await;
+    sequencer_relayer
         .mount_sequencer_block_response::<RELAY_ALL>(block_to_mount, "good block 1")
         .await;
-    let _guard = sequencer_relayer
+    sequencer_relayer
         .mount_celestia_app_broadcast_tx_response("broadcast tx 1")
         .await;
     let get_tx_guard = sequencer_relayer
-        .mount_celestia_app_get_tx_response(53, "get tx 1")
+        .mount_celestia_app_get_tx_response_as_scoped(53, "get tx 1")
         .await;
     sequencer_relayer
         .timeout_ms(
@@ -398,13 +398,13 @@ async fn should_shut_down() {
     .await;
 
     // Start handling a block.
-    let _guard = sequencer_relayer.mount_abci_response(1).await;
+    sequencer_relayer.mount_abci_response(1).await;
     let block_to_mount = SequencerBlockToMount::GoodAtHeight(1);
-    let _guard = sequencer_relayer
+    sequencer_relayer
         .mount_sequencer_block_response::<RELAY_ALL>(block_to_mount, "good block 1")
         .await;
     let broadcast_guard = sequencer_relayer
-        .mount_celestia_app_broadcast_tx_response("broadcast tx 1")
+        .mount_celestia_app_broadcast_tx_response_as_scoped("broadcast tx 1")
         .await;
     sequencer_relayer
         .timeout_ms(
@@ -418,7 +418,7 @@ async fn should_shut_down() {
     sequencer_relayer.relayer_shutdown_handle.take();
 
     let get_tx_guard = sequencer_relayer
-        .mount_celestia_app_get_tx_response(53, "get tx 1")
+        .mount_celestia_app_get_tx_response_as_scoped(53, "get tx 1")
         .await;
     sequencer_relayer
         .timeout_ms(
