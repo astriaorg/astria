@@ -416,7 +416,7 @@ mod test {
         let mut result = state
             .get_bridge_account_asset_ids(&address)
             .await
-            .expect("bridge asset id wwas written and must exist inside the database");
+            .expect("bridge asset id was written and must exist inside the database");
         assert_eq!(
             result, asset,
             "returned bridge account asset id did not match expected"

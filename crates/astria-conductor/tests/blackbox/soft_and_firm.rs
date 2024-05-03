@@ -28,7 +28,7 @@ use crate::{
 /// The following steps are most important:
 /// 1. a block at rollup number 1, sequencer height 2 is fetched from Sequencer
 /// 2. the block is executed against the rollup
-/// 3. the rollup's soft commitment state is updated to reflect the last exection
+/// 3. the rollup's soft commitment state is updated to reflect the last execution
 /// 4. block information for rollup number 1, sequencer height 2 is reconstructed from Celestia
 ///    height 1
 /// 5. the rollup's firm commitment state is updated (but without executing the block)

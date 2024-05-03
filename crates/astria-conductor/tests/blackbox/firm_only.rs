@@ -101,7 +101,7 @@ async fn simple() {
 }
 
 #[tokio::test]
-async fn submits_two_heights_in_sucession() {
+async fn submits_two_heights_in_succession() {
     let test_conductor = spawn_conductor(CommitLevel::FirmOnly).await;
 
     mount_get_genesis_info!(

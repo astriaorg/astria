@@ -43,7 +43,7 @@ use tracing::{
 /// is very roundabout, whereas methods on `Unpin` fields can be called directly.
 #[derive(Debug)]
 struct Heights {
-    // The last observed sequencer height. Set externally and important for dermining if another
+    // The last observed sequencer height. Set externally and important for determining if another
     // block at `next` height can be fetched.
     last_observed: Option<Height>,
     // The next sequencer height to be fetched.
@@ -157,7 +157,7 @@ impl Stream for BlockStream {
         let mut lower_limit = latest_height.saturating_sub(next_height);
 
         // A new future will be spawned as long as next_height <= latest_height. So
-        // 10 - 10 = 0, but there 1 future stil to be spawned at next height = 10.
+        // 10 - 10 = 0, but there 1 future still to be spawned at next height = 10.
         lower_limit += Into::<u64>::into(next_height <= latest_height);
 
         // Add 1 if a fetch is in-flight. Example: if requested and latest heights are

@@ -51,7 +51,7 @@ impl Client {
     /// Returns a sequence of blocks sorted by block number and without duplicates,
     /// holes in the requested range, or blocks outside the requested range.
     ///
-    /// Returns an error if dupliates, holes, or extra blocks are found.
+    /// Returns an error if duplicates, holes, or extra blocks are found.
     #[instrument(skip_all, fields(
         uri = %self.uri,
         from = block_numbers.start(),

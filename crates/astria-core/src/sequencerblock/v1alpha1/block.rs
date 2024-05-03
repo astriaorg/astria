@@ -586,7 +586,7 @@ impl SequencerBlock {
         &self.rollup_transactions
     }
 
-    /// Converst a [`SequencerBlock`] into its [`SequencerBlockParts`].
+    /// Converts a [`SequencerBlock`] into its [`SequencerBlockParts`].
     #[must_use]
     pub fn into_parts(self) -> SequencerBlockParts {
         let Self {
@@ -1139,7 +1139,7 @@ impl FilteredSequencerBlock {
         })
     }
 
-    /// Transforms the filtered blocks into its constitutent parts.
+    /// Transforms the filtered blocks into its constituent parts.
     #[must_use]
     pub fn into_parts(self) -> FilteredSequencerBlockParts {
         let Self {

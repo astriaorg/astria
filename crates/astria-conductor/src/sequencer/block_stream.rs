@@ -152,7 +152,7 @@ impl BlocksFromHeightStream {
             heights,
             // NOTE: Gives Sequencer 1h to respond, and hard code it to use 20 max in flight
             // requests. XXX: This interacts with the retry-logic in the
-            // `SequencerGrpcClient::get` method. We shoud probably remove this
+            // `SequencerGrpcClient::get` method. We should probably remove this
             // FuturesMap in favor of a plain FuturesUnordered and let the client handle
             // retries.
             in_progress: FuturesMap::new(std::time::Duration::from_secs(3600), 20),
@@ -282,7 +282,7 @@ mod tests {
         );
         assert!(
             heights.set_greatest_if_greater(next.unwrap()),
-            "a fresh heights tracker should be updateable"
+            "a fresh heights tracker should be updatable"
         );
         assert_eq!(
             Some(6),
