@@ -502,39 +502,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "astria-celestia-client"
-version = "0.1.0"
-dependencies = [
- "astria-core",
- "astria-merkle",
- "astria-telemetry",
- "async-trait",
- "base64 0.21.7",
- "base64-serde",
- "celestia-rpc",
- "celestia-tendermint",
- "celestia-types",
- "hex",
- "jsonrpsee",
- "metrics",
- "prost",
- "serde",
- "serde_json",
- "sha2 0.10.8",
- "tendermint 0.34.1",
- "thiserror",
- "tracing",
-]
-
-[[package]]
-name = "astria-celestia-mock"
-version = "0.1.0"
-dependencies = [
- "astria-celestia-client",
- "jsonrpsee",
-]
-
-[[package]]
 name = "astria-cli"
 version = "0.3.1"
 dependencies = [
@@ -829,10 +796,10 @@ version = "0.12.0"
 dependencies = [
  "assert-json-diff",
  "astria-build-info",
- "astria-celestia-mock",
  "astria-config",
  "astria-core",
  "astria-eyre",
+ "astria-grpc-mock",
  "astria-merkle",
  "astria-sequencer-client",
  "astria-telemetry",
@@ -5731,9 +5698,9 @@ checksum = "e3148f5046208a5d56bcfc03053e3ca6334e51da8dfb19b6cdc8b306fae3283e"
 
 [[package]]
 name = "pest"
-version = "2.7.9"
+version = "2.7.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "311fb059dee1a7b802f036316d790138c613a4e8b180c822e3925a662e9f0c95"
+checksum = "560131c633294438da9f7c4b08189194b20946c8274c6b9e38881a7874dc8ee8"
 dependencies = [
  "memchr",
  "thiserror",

@@ -205,7 +205,7 @@ impl Relayer {
                         &mut block_stream,
                         submitter.clone(),
                         &mut forward_once_free,
-                    ).wrap_err("submitter exited unexpectly while trying to forward block") {
+                    ).wrap_err("submitter exited unexpectedly while trying to forward block") {
                         // XXX: exiting because there is no logic to restart the blob-submitter task.
                         // With the current implementation of the task it should also never go down
                         // unless it has exhausted all u32::MAX attempts to submit to Celestia and

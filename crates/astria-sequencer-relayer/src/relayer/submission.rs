@@ -121,8 +121,8 @@ impl Started {
         } = pre
         else {
             panic!(
-                "once intialized, a submission's `pre` field must always be `Started`. Here it is \
-                 not. This is a bug"
+                "once initialized, a submission's `pre` field must always be `Started`. Here it \
+                 is not. This is a bug"
             );
         };
 
@@ -142,7 +142,7 @@ impl Started {
         );
         new.post
             .write_to_path(&new.post_path)
-            .wrap_err("failed comitting post-submission state to disk")?;
+            .wrap_err("failed committing post-submission state to disk")?;
         Ok(new)
     }
 }
