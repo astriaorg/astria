@@ -16,6 +16,7 @@ use astria_core::{
 };
 use astria_eyre::eyre::{
     self,
+    ensure,
     Report,
     WrapErr as _,
 };
@@ -238,7 +239,11 @@ async fn fetch_block(
     state.set_sequencer_connected(maybe_block.is_ok());
 
     let block = maybe_block?;
-    debug_assert_eq!(height, block.height());
+    ensure!(
+        height == block.height(),
+        "requested block at height `{height}` but received a block at height `{}`",
+        block.height()
+    );
     Ok(block)
 }
 
