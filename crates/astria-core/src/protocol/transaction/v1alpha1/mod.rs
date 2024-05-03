@@ -10,6 +10,9 @@ use super::raw;
 pub mod action;
 pub use action::Action;
 
+pub const UNSIGNED_TRANSACTION_TYPE_URL: &str =
+    "/astria.protocol.transaction.v1alpha1.UnsignedTransaction";
+
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
 pub struct SignedTransactionError(SignedTransactionErrorKind);
@@ -95,7 +98,7 @@ impl SignedTransaction {
         raw::SignedTransaction {
             signature: signature.to_bytes().to_vec(),
             public_key: verification_key.to_bytes().to_vec(),
-            transaction: Some(transaction.into_raw()),
+            transaction: Some(transaction.into_any()),
         }
     }
 
@@ -109,7 +112,7 @@ impl SignedTransaction {
         raw::SignedTransaction {
             signature: signature.to_bytes().to_vec(),
             public_key: verification_key.to_bytes().to_vec(),
-            transaction: Some(transaction.to_raw()),
+            transaction: Some(transaction.to_any()),
         }
     }
 
@@ -135,11 +138,11 @@ impl SignedTransaction {
         let Some(transaction) = transaction else {
             return Err(SignedTransactionError::unset_transaction());
         };
-        let bytes = transaction.encode_to_vec();
+        let bytes = transaction.value.clone();
         verification_key
             .verify(&signature, &bytes)
             .map_err(SignedTransactionError::verification)?;
-        let transaction = UnsignedTransaction::try_from_raw(transaction)
+        let transaction = UnsignedTransaction::try_from_any(transaction)
             .map_err(SignedTransactionError::transaction)?;
         Ok(Self {
             signature,
@@ -221,6 +224,14 @@ impl UnsignedTransaction {
         }
     }
 
+    pub fn into_any(self) -> pbjson_types::Any {
+        let raw = self.into_raw();
+        pbjson_types::Any {
+            type_url: UNSIGNED_TRANSACTION_TYPE_URL.to_string(),
+            value: raw.encode_to_vec().into(),
+        }
+    }
+
     pub fn to_raw(&self) -> raw::UnsignedTransaction {
         let Self {
             actions,
@@ -231,6 +242,14 @@ impl UnsignedTransaction {
         raw::UnsignedTransaction {
             actions,
             params: Some(params),
+        }
+    }
+
+    pub fn to_any(&self) -> pbjson_types::Any {
+        let raw = self.to_raw();
+        pbjson_types::Any {
+            type_url: UNSIGNED_TRANSACTION_TYPE_URL.to_string(),
+            value: raw.encode_to_vec().into(),
         }
     }
 
@@ -260,6 +279,16 @@ impl UnsignedTransaction {
             params,
         })
     }
+
+    pub fn try_from_any(any: pbjson_types::Any) -> Result<Self, UnsignedTransactionError> {
+        if any.type_url != UNSIGNED_TRANSACTION_TYPE_URL {
+            return Err(UnsignedTransactionError::invalid_type_url());
+        }
+
+        let raw = raw::UnsignedTransaction::decode(any.value)
+            .map_err(UnsignedTransactionError::invalid_any_bytes)?;
+        Self::try_from_raw(raw)
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -274,6 +303,14 @@ impl UnsignedTransactionError {
     fn unset_params() -> Self {
         Self(UnsignedTransactionErrorKind::UnsetParams())
     }
+
+    fn invalid_type_url() -> Self {
+        Self(UnsignedTransactionErrorKind::InvalidTypeUrl)
+    }
+
+    fn invalid_any_bytes(inner: prost::DecodeError) -> Self {
+        Self(UnsignedTransactionErrorKind::InvalidAnyBytes(inner))
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -282,6 +319,10 @@ enum UnsignedTransactionErrorKind {
     Action(#[source] action::ActionError),
     #[error("`params` field is unset")]
     UnsetParams(),
+    #[error("invalid type URL")]
+    InvalidTypeUrl,
+    #[error("invalid bytes in Any")]
+    InvalidAnyBytes(#[source] prost::DecodeError),
 }
 
 #[derive(Clone, Debug)]
@@ -366,5 +407,36 @@ mod test {
         };
 
         insta::assert_json_snapshot!(tx.sha256_of_proto_encoding());
+    }
+
+    #[test]
+    fn signed_transaction_verification_roundtrip() {
+        let signing_key = SigningKey::try_from([
+            213, 191, 74, 63, 204, 231, 23, 176, 56, 139, 204, 39, 73, 235, 193, 72, 173, 153, 105,
+            178, 63, 69, 238, 27, 96, 95, 213, 135, 120, 87, 106, 196,
+        ])
+        .unwrap();
+
+        let transfer = TransferAction {
+            to: Address::from([0; 20]),
+            amount: 0,
+            asset_id: default_native_asset_id(),
+            fee_asset_id: default_native_asset_id(),
+        };
+
+        let params = TransactionParams {
+            nonce: 1,
+            chain_id: "test-1".to_string(),
+        };
+        let unsigned = UnsignedTransaction {
+            actions: vec![transfer.into()],
+            params,
+        };
+
+        let signed_tx = unsigned.into_signed(&signing_key);
+        let raw = signed_tx.to_raw();
+
+        // `try_from_raw` verifies the signature
+        SignedTransaction::try_from_raw(raw).unwrap();
     }
 }
