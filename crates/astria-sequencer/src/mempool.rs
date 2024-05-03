@@ -124,7 +124,7 @@ impl Mempool {
         let mut inner = self.inner.lock().await;
         inner.queue.push(hash, priority);
         inner.hash_to_tx.insert(hash, tx);
-        tracing::debug!(tx_hash = %telemetry::display::hex(hash.as_ref()), "inserted transaction into mempool");
+        tracing::trace!(tx_hash = %telemetry::display::hex(hash.as_ref()), "inserted transaction into mempool");
         Ok(())
     }
 
@@ -156,7 +156,7 @@ impl Mempool {
     }
 
     /// removes all the given transactions from the mempool
-    pub(crate) async fn remove_all(&mut self, tx_hashes: &Vec<[u8; 32]>) {
+    pub(crate) async fn remove_all(&mut self, tx_hashes: &[[u8; 32]]) {
         for tx_hash in tx_hashes {
             self.remove(tx_hash).await;
         }

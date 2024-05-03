@@ -1119,6 +1119,10 @@ impl App {
 
 // updates the priority of the txs in the mempool based on the current state,
 // and removes any txs that are now invalid.
+//
+// NOTE: this function locks the mempool until every tx has been checked.
+// this could potentially stall consensus from moving to the next round if
+// the mempool is large.
 async fn update_mempool_after_finalization<S: StateReadExt>(
     mempool: &mut Mempool,
     state: S,
@@ -1128,23 +1132,26 @@ async fn update_mempool_after_finalization<S: StateReadExt>(
     let mut txs_to_remove = Vec::new();
 
     for (tx, priority) in mempool.inner().await.iter_mut() {
-        let Ok(new_priority) = TransactionPriority::new(
+        match TransactionPriority::new(
             tx.nonce(),
             state
                 .get_account_nonce(Address::from_verification_key(tx.verification_key()))
                 .await
                 .context("failed to fetch account nonce")?,
-        ) else {
-            let tx_hash = tx.sha256_of_proto_encoding();
-            debug!(
-                transaction_hash = %telemetry::display::base64(&tx_hash),
-                "account nonce is now greater than tx nonce; dropping tx from mempool",
-            );
-            txs_to_remove.push(tx_hash);
-            continue;
+        ) {
+            Ok(new_priority) => *priority = new_priority,
+            Err(e) => {
+                let tx_hash = tx.sha256_of_proto_encoding();
+                debug!(
+                    transaction_hash = %telemetry::display::base64(&tx_hash),
+                    error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                     "account nonce is now greater than tx nonce; dropping tx from mempool",
+                );
+                txs_to_remove.push(tx_hash);
+            }
         };
-        *priority = new_priority;
     }
+
     mempool.remove_all(&txs_to_remove).await;
     Ok(())
 }
