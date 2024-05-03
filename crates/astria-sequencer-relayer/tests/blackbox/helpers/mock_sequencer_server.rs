@@ -105,7 +105,7 @@ impl MockSequencerServer {
         let mut block = block.into_raw();
         if should_corrupt {
             let header = block.header.as_mut().unwrap();
-            header.data_hash = [0; 32].to_vec();
+            header.data_hash[0] = header.data_hash[0].wrapping_add(1);
         }
 
         Mock::for_rpc_given(
