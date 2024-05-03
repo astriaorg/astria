@@ -346,9 +346,7 @@ impl Tree {
     /// ```
     #[must_use]
     pub fn construct_proof(&self, leaf_index: usize) -> Option<Proof> {
-        let Some(tree_size) = NonZeroUsize::new(self.len()) else {
-            return None;
-        };
+        let tree_size = NonZeroUsize::new(self.len())?;
         if !self.is_leaf_in_tree(leaf_index) {
             return None;
         }
