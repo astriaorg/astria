@@ -14,19 +14,19 @@ pub fn register() {
     describe_counter!(
         CELESTIA_SUBMISSION_COUNT,
         Unit::Count,
-        "The number of calls made to submit to celestia"
+        "The number of calls made to submit to Celestia"
     );
 
     describe_counter!(
         CELESTIA_SUBMISSION_HEIGHT,
         Unit::Count,
-        "The height of the last blob submitted to Celestia"
+        "The height of the last blob successfully submitted to Celestia"
     );
 
     describe_counter!(
         CELESTIA_SUBMISSION_FAILURE_COUNT,
         Unit::Count,
-        "The number of calls made to submit to celestia which have failed"
+        "The number of calls made to submit to Celestia which have failed"
     );
 
     describe_counter!(
@@ -39,6 +39,12 @@ pub fn register() {
         SEQUENCER_HEIGHT_FETCH_FAILURE_COUNT,
         Unit::Count,
         "The number of calls made to fetch the current height from sequencer which have failed"
+    );
+
+    describe_counter!(
+        SEQUENCER_SUBMISSION_HEIGHT,
+        Unit::Count,
+        "The height of the highest sequencer block successfully submitted to Celestia"
     );
 
     describe_gauge!(
@@ -106,6 +112,9 @@ pub const SEQUENCER_HEIGHT_FETCH_FAILURE_COUNT: &str = concat!(
     env!("CARGO_CRATE_NAME"),
     "_sequencer_height_fetch_failure_count",
 );
+
+pub const SEQUENCER_SUBMISSION_HEIGHT: &str =
+    concat!(env!("CARGO_CRATE_NAME"), "_sequencer_submission_height");
 
 pub const TOTAL_BLOB_DATA_SIZE_FOR_ASTRIA_BLOCK: &str = concat!(
     env!("CARGO_CRATE_NAME"),
