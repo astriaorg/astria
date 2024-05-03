@@ -142,7 +142,7 @@ impl Started {
         );
         new.post
             .write_to_path(&new.post_path)
-            .wrap_err("failed commiting post-submission state to disk")?;
+            .wrap_err("failed committing post-submission state to disk")?;
         Ok(new)
     }
 }

@@ -16,6 +16,7 @@ use astria_core::{
 };
 use astria_eyre::eyre::{
     self,
+    ensure,
     Report,
     WrapErr as _,
 };
@@ -233,11 +234,16 @@ async fn fetch_block(
     .await
     .wrap_err("retry attempts exhausted; bailing")?;
 
-    state.set_sequencer_connected(true);
+    let maybe_block = SequencerBlock::try_from_raw(block.into_inner())
+        .wrap_err("failed to parse raw proto block from grpc response");
+    state.set_sequencer_connected(maybe_block.is_ok());
 
-    let block = SequencerBlock::try_from_raw(block.into_inner())
-        .wrap_err("failed to parse raw proto block from grpc response")?;
-
+    let block = maybe_block?;
+    ensure!(
+        height == block.height(),
+        "requested block at height `{height}` but received a block at height `{}`",
+        block.height()
+    );
     Ok(block)
 }
 
