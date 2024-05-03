@@ -72,7 +72,7 @@ However, apart from specifying `err(Display)` or `err(Debug)`
 formatted. This means the error is either missing its cause-chain, or the event
 is no longer machine-parseable.
 
-`astria-eyre` ensures that emitted erors contain their full JSON-formatted
+`astria-eyre` ensures that emitted errors contain their full JSON-formatted
 cause-chain.
 
 Note that the example does not install a [`tracing-subscriber`].

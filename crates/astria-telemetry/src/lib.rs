@@ -45,7 +45,7 @@ use tracing_subscriber::{
 #[cfg(feature = "display")]
 pub mod display;
 
-/// The errors that can occur when initializing telemtry.
+/// The errors that can occur when initializing telemetry.
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
 pub struct Error(ErrorKind);
@@ -264,7 +264,7 @@ impl Config {
         let mut tracer_provider = TracerProvider::builder();
         if !no_otel {
             // XXX: the endpoint is set by a hardcoded environment variable. This is a
-            //      full list of variables that opentelementry_otlp currently reads:
+            //      full list of variables that opentelemetry_otlp currently reads:
             //      OTEL_EXPORTER_OTLP_ENDPOINT
             //      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
             //      OTEL_EXPORTER_OTLP_TRACES_TIMEOUT

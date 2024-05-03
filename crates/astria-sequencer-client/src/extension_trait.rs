@@ -186,7 +186,7 @@ impl TendermintRpcError {
             //   client still in use (there is no feedback mechanism between driver and its clients
             //   other than client commands failing).
             // - ClientInternal is returned by WebSocketClient if the channel the client sent to the
-            //   websocket driver is dropped. This is the case if the driver recives the channel as
+            //   websocket driver is dropped. This is the case if the driver receives the channel as
             //   part of a client's requests to the driver to send a message over the websocket, but
             //   then exits, dropping channel.
             ErrorDetail::ChannelSend(_) | ErrorDetail::ClientInternal(_) => true,
@@ -518,7 +518,7 @@ pub trait SequencerClientExt: Client {
         let tx_bytes = tx.into_raw().encode_to_vec();
         self.broadcast_tx_commit(tx_bytes)
             .await
-            .map_err(|e| Error::tendermint_rpc("broadcast_tx_comit", e))
+            .map_err(|e| Error::tendermint_rpc("broadcast_tx_commit", e))
     }
 }
 

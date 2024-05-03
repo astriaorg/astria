@@ -141,7 +141,7 @@ impl Reader {
         let (executor, sequencer_chain_id) = self
             .initialize()
             .await
-            .wrap_err("intialization of runtime information failed")?;
+            .wrap_err("initialization of runtime information failed")?;
 
         RunningReader::from_parts(self, executor, sequencer_chain_id)
             .wrap_err("failed entering run loop")?
@@ -204,7 +204,7 @@ struct RunningReader {
     celestia_next_height: u64,
 
     /// The reference Celestia height. celestia_reference_height + celestia_variance = C is the
-    /// maximum Celestia height up to which Celestias blobs will be fetched.
+    /// maximum Celestia height up to which Celestia's blobs will be fetched.
     /// celestia_reference_height is initialized to the base Celestia height stored in the
     /// rollup genesis. It is later advanced to that Celestia height from which the next block
     /// is derived that will be executed against the rollup (only if greater than the current

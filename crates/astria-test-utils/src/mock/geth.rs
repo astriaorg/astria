@@ -14,7 +14,7 @@
 //! 3. subscribe to its mocked `eth_subscribe` JSONRPC using
 //!    [`Middleware::subscribe_full_pending_txs`];
 //! 4. push new transactions into the server using [`Geth::push_tx`], which will subsequently be
-//!    sent to all suscribers and can be observed by the client.
+//!    sent to all subscribers and can be observed by the client.
 //!
 //! # Examples
 //!
@@ -48,7 +48,7 @@
 //!
 //! let geth_client = Provider::<Ws>::connect(format!("ws://{server_addr}"))
 //!     .await
-//!     .expect("client should be able to conenct to local ws server");
+//!     .expect("client should be able to connect to local ws server");
 //! let mut new_txs = geth_client
 //!     .subscribe_full_pending_txs()
 //!     .await
@@ -150,7 +150,7 @@ impl GethServer for GethImpl {
         full_txs: Option<bool>,
     ) -> SubscriptionResult {
         use jsonrpsee::server::SubscriptionMessage;
-        tracing::debug!("received eth_subription request");
+        tracing::debug!("received eth_subscription request");
 
         assert_eq!(
             ("newPendingTransactions", Some(true)),

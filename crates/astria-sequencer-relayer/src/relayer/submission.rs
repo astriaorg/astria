@@ -186,7 +186,7 @@ impl SubmissionState {
         Ok(Started(new))
     }
 
-    pub(super) fn from_paths<const LEANIENT: bool, P1: AsRef<Path>, P2: AsRef<Path>>(
+    pub(super) fn from_paths<const LENIENT: bool, P1: AsRef<Path>, P2: AsRef<Path>>(
         pre_path: P1,
         post_path: P2,
     ) -> eyre::Result<Self> {
@@ -224,7 +224,7 @@ impl SubmissionState {
                 post,
             ) => {
                 if let Err(error) = ensure_consistent(sequencer_height, last_submission, post) {
-                    if LEANIENT {
+                    if LENIENT {
                         warn!(%error, "pre- and post-submission states were inconsistent. Setting pre-state to `ignore` and continuing from last post-state. This could to double submission!!");
                         pre = PreSubmission::Ignore;
                     } else {
@@ -296,7 +296,7 @@ fn ensure_height_pre_submission_is_height_post_submission(
         sequencer_height_started == sequencer_height,
         "the initialized `sequencer_height` in the pre-submit file does not match the sequencer \
          height in the post-submit file. This indicates that a new submission to Celestia was \
-         started but not finalized. This is becasue a succesful submission records the very same \
+         started but not finalized. This is because a successful submission records the very same \
          `sequencer_height` in the post-submit file."
     );
     Ok(())
@@ -395,7 +395,7 @@ mod tests {
     use super::SubmissionState;
     use crate::relayer::submission::PostSubmission;
 
-    const STRICT_CONCISTENCY_CHECK: bool = false;
+    const STRICT_CONSISTENCY_CHECK: bool = false;
 
     #[track_caller]
     fn create_files() -> (NamedTempFile, NamedTempFile) {
@@ -415,7 +415,7 @@ mod tests {
         let (pre, post) = create_files();
         write(&pre, &json!({ "state": "ignore" }));
         write(&post, &json!({ "state": "fresh" }));
-        SubmissionState::from_paths::<STRICT_CONCISTENCY_CHECK, _, _>(pre.path(), post.path())
+        SubmissionState::from_paths::<STRICT_CONSISTENCY_CHECK, _, _>(pre.path(), post.path())
             .expect("states `ignore` and `fresh` give a working submission state");
     }
 
@@ -427,7 +427,7 @@ mod tests {
             &post,
             &json!({ "state": "submitted", "celestia_height": 5, "sequencer_height": 2 }),
         );
-        SubmissionState::from_paths::<STRICT_CONCISTENCY_CHECK, _, _>(pre.path(), post.path())
+        SubmissionState::from_paths::<STRICT_CONSISTENCY_CHECK, _, _>(pre.path(), post.path())
             .expect("states `ignore` and `submitted` give a working submission state");
     }
 
@@ -440,7 +440,7 @@ mod tests {
         );
         write(&post, &json!({ "state": "fresh" }));
         let _ =
-            SubmissionState::from_paths::<STRICT_CONCISTENCY_CHECK, _, _>(pre.path(), post.path())
+            SubmissionState::from_paths::<STRICT_CONSISTENCY_CHECK, _, _>(pre.path(), post.path())
                 .expect_err("started state with `fresh` in last and current gives error");
     }
 
@@ -456,7 +456,7 @@ mod tests {
             &json!({ "state": "submitted", "sequencer_height": 6, "celestia_height": 2 }),
         );
         let _ =
-            SubmissionState::from_paths::<STRICT_CONCISTENCY_CHECK, _, _>(pre.path(), post.path())
+            SubmissionState::from_paths::<STRICT_CONSISTENCY_CHECK, _, _>(pre.path(), post.path())
                 .expect_err(
                     "started state with sequencer height less then sequencer height recorded \
                      submitted gives error",
@@ -475,7 +475,7 @@ mod tests {
             &json!({ "state": "submitted", "celestia_height": 5, "sequencer_height": 2 }),
         );
         let _ =
-            SubmissionState::from_paths::<STRICT_CONCISTENCY_CHECK, _, _>(pre.path(), post.path())
+            SubmissionState::from_paths::<STRICT_CONSISTENCY_CHECK, _, _>(pre.path(), post.path())
                 .expect_err(
                     "started state with the same `submitted` in last and current give an error",
                 );
@@ -493,7 +493,7 @@ mod tests {
             &json!({ "state": "submitted", "celestia_height": 5, "sequencer_height": 2 }),
         );
         let _ =
-            SubmissionState::from_paths::<STRICT_CONCISTENCY_CHECK, _, _>(pre.path(), post.path())
+            SubmissionState::from_paths::<STRICT_CONSISTENCY_CHECK, _, _>(pre.path(), post.path())
                 .expect(
                     "started state with the `fresh` in last and `submitted` in current gives \
                      working submission state",
@@ -512,7 +512,7 @@ mod tests {
             &json!({ "state": "submitted", "celestia_height": 5, "sequencer_height": 2 }),
         );
         let state =
-            SubmissionState::from_paths::<STRICT_CONCISTENCY_CHECK, _, _>(pre.path(), post.path())
+            SubmissionState::from_paths::<STRICT_CONSISTENCY_CHECK, _, _>(pre.path(), post.path())
                 .expect(
                     "started state with the `fresh` in last and `submitted` in current gives \
                      working submission state",
@@ -542,7 +542,7 @@ mod tests {
             &json!({ "state": "submitted", "celestia_height": 5, "sequencer_height": 2 }),
         );
         let state =
-            SubmissionState::from_paths::<STRICT_CONCISTENCY_CHECK, _, _>(pre.path(), post.path())
+            SubmissionState::from_paths::<STRICT_CONSISTENCY_CHECK, _, _>(pre.path(), post.path())
                 .expect(
                     "started state with `fresh` in last and `submitted` in current gives working \
                      submission state",
@@ -552,7 +552,7 @@ mod tests {
             .expect_err("trying to submit the same sequencer height is an error");
     }
 
-    mod leanient {
+    mod lenient {
         //! These test the same scenarios as the tests of the same name in the super module, but
         //! whereas those are strict and should fail, the tests in this module should pass
 
@@ -563,7 +563,7 @@ mod tests {
             SubmissionState,
         };
 
-        const LEANIENT_CONCISTENCY_CHECK: bool = true;
+        const LENIENT_CONSISTENCY_CHECK: bool = true;
 
         #[test]
         fn started_with_same_fresh_in_last_and_current_is_err() {
@@ -573,11 +573,11 @@ mod tests {
                 &json!({ "state": "started", "sequencer_height": 5, "last_submission": { "state": "fresh"} }),
             );
             write(&post, &json!({ "state": "fresh" }));
-            let _ = SubmissionState::from_paths::<LEANIENT_CONCISTENCY_CHECK, _, _>(
+            let _ = SubmissionState::from_paths::<LENIENT_CONSISTENCY_CHECK, _, _>(
                 pre.path(),
                 post.path(),
             )
-            .expect("this test should not fail when doing a leaning concistency check");
+            .expect("this test should not fail when doing a leaning consistency check");
         }
 
         #[test]
@@ -591,11 +591,11 @@ mod tests {
                 &post,
                 &json!({ "state": "submitted", "sequencer_height": 6, "celestia_height": 2 }),
             );
-            let _ = SubmissionState::from_paths::<LEANIENT_CONCISTENCY_CHECK, _, _>(
+            let _ = SubmissionState::from_paths::<LENIENT_CONSISTENCY_CHECK, _, _>(
                 pre.path(),
                 post.path(),
             )
-            .expect("this test should not fail when doing a leaning concistency check");
+            .expect("this test should not fail when doing a leaning consistency check");
         }
 
         #[test]
@@ -609,11 +609,11 @@ mod tests {
                 &post,
                 &json!({ "state": "submitted", "celestia_height": 5, "sequencer_height": 2 }),
             );
-            let _ = SubmissionState::from_paths::<LEANIENT_CONCISTENCY_CHECK, _, _>(
+            let _ = SubmissionState::from_paths::<LENIENT_CONSISTENCY_CHECK, _, _>(
                 pre.path(),
                 post.path(),
             )
-            .expect("this test should not fail when doing a leaning concistency check");
+            .expect("this test should not fail when doing a leaning consistency check");
         }
     }
 }

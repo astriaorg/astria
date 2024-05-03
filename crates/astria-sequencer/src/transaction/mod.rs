@@ -385,7 +385,7 @@ impl ActionHandler for UnsignedTransaction {
             .context("failed getting `from` nonce")?;
         let next_nonce = from_nonce
             .checked_add(1)
-            .context("overflow occured incrementing stored nonce")?;
+            .context("overflow occurred incrementing stored nonce")?;
         state
             .put_account_nonce(from, next_nonce)
             .context("failed updating `from` nonce")?;
