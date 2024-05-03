@@ -210,7 +210,7 @@ impl Protobuf for Block {
             parent_block_hash,
             timestamp,
         } = raw;
-        // Clone'ing timestamp is effectively a copy because timestamp is just a (i32, i64) tuple
+        // Cloning timestamp is effectively a copy because timestamp is just a (i32, i64) tuple
         let timestamp = timestamp
             .clone()
             .ok_or(Self::Error::field_not_set(".timestamp"))?;
@@ -234,7 +234,7 @@ impl Protobuf for Block {
             number: *number,
             hash: hash.clone(),
             parent_block_hash: parent_block_hash.clone(),
-            // Clone'ing timestamp is effectively a copy because timestamp is just a (i32, i64)
+            // Cloning timestamp is effectively a copy because timestamp is just a (i32, i64)
             // tuple
             timestamp: Some(timestamp.clone()),
         }

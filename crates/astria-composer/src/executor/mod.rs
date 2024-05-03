@@ -361,7 +361,7 @@ impl Executor {
                         debug!(
                             bundle = %telemetry::display::json(&SizedBundleReport(&bundle)),
                             new_nonce = new_nonce,
-                            "successfully submitted transction bundle"
+                            "successfully submitted transaction bundle"
                         );
 
                         nonce = new_nonce;

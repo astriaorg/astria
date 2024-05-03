@@ -258,18 +258,18 @@ mod test {
                 .expect("creating ed25519 key should not fail"),
             power: vote::Power::from(10u32),
         }];
-        let intial_validator_set = ValidatorSet::new_from_updates(initial);
+        let initial_validator_set = ValidatorSet::new_from_updates(initial);
 
         // can write new
         state
-            .put_validator_set(intial_validator_set.clone())
+            .put_validator_set(initial_validator_set.clone())
             .expect("writing initial validator set should not fail");
         assert_eq!(
             state
                 .get_validator_set()
                 .await
                 .expect("a validator set was written and must exist inside the database"),
-            intial_validator_set,
+            initial_validator_set,
             "stored validator set was not what was expected"
         );
 

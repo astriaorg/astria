@@ -196,7 +196,7 @@ impl Composer {
         self.api_server.local_addr()
     }
 
-    /// Returns the socker address the grpc server is served over
+    /// Returns the socket address the grpc server is served over
     /// # Errors
     /// Returns an error if the listener is not bound
     pub fn grpc_local_addr(&self) -> io::Result<SocketAddr> {

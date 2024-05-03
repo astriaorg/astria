@@ -112,6 +112,9 @@ fn main() {
             ".astria.execution.v1alpha2",
             ".astria.primitive.v1",
             ".astria.sequencerblock.v1alpha1",
+            ".celestia",
+            ".cosmos",
+            ".tendermint",
         ])
         .unwrap();
 

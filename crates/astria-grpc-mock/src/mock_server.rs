@@ -110,7 +110,7 @@ pub struct MockGuard {
 }
 
 impl MockGuard {
-    pub async fn wait_until_satisfied(self) {
+    pub async fn wait_until_satisfied(&self) {
         let (notify, flag) = &*self.notify;
         let mut notification = pin!(notify.notified());
 

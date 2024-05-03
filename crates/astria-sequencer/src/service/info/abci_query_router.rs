@@ -2,7 +2,7 @@
 //!
 //! This module contains types and traits to allow handling
 //! abci info queries with type erased callback functions.
-//! The implementation here is heavily inspured by axum's [`Router`]
+//! The implementation here is heavily inspired by axum's [`Router`]
 //! implementation.
 //!
 //! [`Router`]: https://docs.rs/axum/0.6.20/axum/struct.Router.html

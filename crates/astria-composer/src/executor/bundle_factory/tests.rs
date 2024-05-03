@@ -90,7 +90,7 @@ mod sized_bundle_tests {
         // create a bundle with 100 bytes of max space
         let mut bundle = SizedBundle::new(100);
 
-        // push a sequence action sucessfully
+        // push a sequence action successfully
         let seq_action = SequenceAction {
             rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
             data: vec![1; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
@@ -353,7 +353,7 @@ mod bundle_factory_tests {
         };
         bundle_factory.try_push(seq_action.clone()).unwrap();
 
-        // assert that the finished queue is empty (curr wasnt flushed)
+        // assert that the finished queue is empty (curr wasn't flushed)
         assert_eq!(bundle_factory.finished.len(), 0);
         // assert `pop_now()` returns `seq_action`
         let actions = bundle_factory.pop_now().into_actions();
