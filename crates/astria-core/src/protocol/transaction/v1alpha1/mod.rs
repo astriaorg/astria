@@ -419,11 +419,10 @@ mod test {
 
     #[test]
     fn signed_transaction_verification_roundtrip() {
-        let signing_key = SigningKey::try_from([
+        let signing_key = SigningKey::from([
             213, 191, 74, 63, 204, 231, 23, 176, 56, 139, 204, 39, 73, 235, 193, 72, 173, 153, 105,
             178, 63, 69, 238, 27, 96, 95, 213, 135, 120, 87, 106, 196,
-        ])
-        .unwrap();
+        ]);
 
         let transfer = TransferAction {
             to: Address::from([0; 20]),
