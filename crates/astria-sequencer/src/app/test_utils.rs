@@ -1,7 +1,16 @@
-use astria_core::primitive::v1::{
-    asset::DEFAULT_NATIVE_ASSET_DENOM,
-    Address,
-    ADDRESS_LEN,
+use astria_core::{
+    primitive::v1::{
+        asset::DEFAULT_NATIVE_ASSET_DENOM,
+        Address,
+        RollupId,
+        ADDRESS_LEN,
+    },
+    protocol::transaction::v1alpha1::{
+        action::SequenceAction,
+        SignedTransaction,
+        TransactionParams,
+        UnsignedTransaction,
+    },
 };
 use cnidarium::Storage;
 use ed25519_consensus::SigningKey;
@@ -13,6 +22,7 @@ use crate::{
         Account,
         GenesisState,
     },
+    mempool::Mempool,
 };
 
 // attempts to decode the given hex string into an address.
@@ -63,7 +73,8 @@ pub(crate) async fn initialize_app_with_storage(
         .await
         .expect("failed to create temp storage backing chain state");
     let snapshot = storage.latest_snapshot();
-    let mut app = App::new(snapshot).await.unwrap();
+    let mempool = Mempool::new();
+    let mut app = App::new(snapshot, mempool).await.unwrap();
 
     let genesis_state = genesis_state.unwrap_or_else(|| GenesisState {
         accounts: default_genesis_accounts(),
@@ -94,4 +105,24 @@ pub(crate) async fn initialize_app(
 ) -> App {
     let (app, _storage) = initialize_app_with_storage(genesis_state, genesis_validators).await;
     app
+}
+
+pub(crate) fn get_mock_tx(nonce: u32) -> SignedTransaction {
+    let (alice_signing_key, _) = get_alice_signing_key_and_address();
+    let tx = UnsignedTransaction {
+        params: TransactionParams {
+            nonce,
+            chain_id: "test".to_string(),
+        },
+        actions: vec![
+            SequenceAction {
+                rollup_id: RollupId::from_unhashed_bytes([0; 32]),
+                data: vec![0x99],
+                fee_asset_id: astria_core::primitive::v1::asset::default_native_asset_id(),
+            }
+            .into(),
+        ],
+    };
+
+    tx.into_signed(&alice_signing_key)
 }
