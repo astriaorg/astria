@@ -81,7 +81,7 @@ spec:
               name: execution-grpc
             {{- if .Values.config.rollup.metrics.enabled }} 
             - containerPort: {{ .Values.ports.metrics }}
-              name: geth-metrics
+              name: geth-metr
             {{- end }}
           resources:
             {{- toYaml .Values.resources.geth | trim | nindent 12 }}     
@@ -109,7 +109,7 @@ spec:
           {{- if .Values.config.rollup.metrics.enabled }} 
           ports:
             - containerPort: {{ .Values.ports.composerMetrics }}
-              name: composer-metrics
+              name: composer-metr
           {{- end }}
           resources:
             {{- toYaml .Values.resources.composer | trim | nindent 12 }}
@@ -126,7 +126,7 @@ spec:
           {{- if .Values.config.rollup.metrics.enabled }} 
           ports:
             - containerPort: {{ .Values.ports.conductorMetrics }}
-              name: conductor-metrics
+              name: conductor-metr
           {{- end }}
       volumes:
         - name: {{ .Values.config.rollup.name }}-executor-scripts-volume
