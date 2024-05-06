@@ -1330,6 +1330,7 @@ impl BridgeUnlockAction {
     ///
     /// - if the `to` field is not set
     /// - if the `to` field is invalid
+    /// - if the `amount` field is invalid
     /// - if the `asset_id` field is invalid
     /// - if the `fee_asset_id` field is invalid
     pub fn try_from_raw(proto: raw::BridgeUnlockAction) -> Result<Self, BridgeUnlockActionError> {
