@@ -50,7 +50,7 @@ spec:
               name: sequencer-grpc
             {{- if .Values.config.sequencer.metrics.enabled }}
             - containerPort: {{ .Values.ports.sequencerMetrics }}
-              name: sequencer-metric
+              name: seq-metric
             {{- end }}
         - name: cometbft
           imagePullPolicy: IfNotPresent

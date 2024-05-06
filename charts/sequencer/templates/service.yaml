@@ -61,8 +61,8 @@ spec:
       port: {{ .Values.ports.cometBFTMETRICS }}
       targetPort: cometbft-metric
     {{- if .Values.config.sequencer.metrics.enabled }}
-    - name: sequencer-metric
+    - name: seq-metric
       port: {{ .Values.ports.sequencerMetrics }}
-      targetPort: sequencer-metric
+      targetPort: seq-metric
     {{- end }}
 {{- end }}
