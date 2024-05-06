@@ -1142,7 +1142,7 @@ async fn update_mempool_after_finalization<S: StateReadExt>(
 
     for (tx, priority) in mempool.inner().await.iter_mut() {
         match TransactionPriority::new(
-            tx.nonce(),
+            (*tx).nonce(),
             state
                 .get_account_nonce(Address::from_verification_key(tx.verification_key()))
                 .await

@@ -96,6 +96,24 @@ impl ActionHandler for TransferAction {
                 .is_none(),
             "cannot send transfer to bridge account",
         );
+        // ensure that if the sender is a bridge account, that the asset being transferred is not
+        // the same asset as the bridge account's asset. The bridge account should be using
+        // the `BridgeUnlockAction` for that.
+        if state
+            .get_bridge_account_rollup_id(&from)
+            .await
+            .context("failed to get bridge account rollup ID from state")?
+            .is_some()
+        {
+            let bridged_asset_id = state
+                .get_bridge_account_asset_ids(&from)
+                .await
+                .context("failed to get bridge account asset ID")?;
+            ensure!(
+                bridged_asset_id != self.asset_id,
+                "cannot transfer bridged asset from bridge account, should use BridgeUnlockAction",
+            );
+        }
 
         transfer_check_stateful(self, state, from)
             .await
