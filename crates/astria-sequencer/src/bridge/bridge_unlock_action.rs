@@ -41,9 +41,9 @@ impl ActionHandler for BridgeUnlockAction {
             .get_bridge_account_rollup_id(&from)
             .await
             .context("failed to get bridge account rollup id")?
-            .ok_or_else(|| anyhow::anyhow!("bridge lock must be sent to a bridge account"))?;
+            .ok_or_else(|| anyhow::anyhow!("bridge unlock must be sent from a bridge account"))?;
 
-        // ensure the bridge account's tracked asset is being trasferred.
+        // ensure the bridge account's tracked asset is being transferred.
         let allowed_asset_id = state
             .get_bridge_account_asset_ids(&from)
             .await
