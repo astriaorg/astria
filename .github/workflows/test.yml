@@ -114,7 +114,7 @@ jobs:
       - name: Build & Run tests
         timeout-minutes: 20
         run: |
-          cargo llvm-cov nextest --release --workspace \
+          cargo llvm-cov nextest --release \
             --locked \
             --all-features \
             --all-targets \
@@ -137,6 +137,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly
+          components: llvm-tools-preview
       - uses: Swatinem/rust-cache@v2.7.3
         with:
           cache-provider: "buildjet"

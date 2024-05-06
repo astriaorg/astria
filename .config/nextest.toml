@@ -1,7 +1,9 @@
 [profile.default]
-retries = { backoff = "exponential", count = 10, delay = "1s", jitter = true, max-delay = "10s" }
 status-level = "all"
 final-status-level = "slow"
 failure-output = "immediate-final"
 fail-fast = false
 slow-timeout = { period = "30s", terminate-after = 4 }
+
+[profile.ci]
+retries = { backoff = "exponential", count = 10, delay = "250ms", jitter = true, max-delay = "10s" }

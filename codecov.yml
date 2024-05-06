@@ -33,18 +33,22 @@ component_management:
       name: cli
       paths:
         - crates/astria-cli/**
-    - component_id: celestia
-      name: celestia-client
+    - component_id: merkle
+      name: astria-merkle
       paths:
-        - crates/astria-celestia-client/**
+        - crates/astria-merkle/**
     - component_id: common
       name: common
       paths:
-        - crates/astria-proto/src/native/**
-        - crates/astria-sequencer-types/**
+        - crates/astria-core/src/**
         - crates/astria-sequencer-validation/**
         - crates/astria-telemetry/**
         - crates/astria-sequencer-client/**
 
 ignore:
-  - 'crates/astria-proto/src/proto/generated/**'
+  - 'crates/astria-core/src/generated/**'
+  - 'crates/astria-build-info/**'
+  - 'crates/astria-grpc-mock/**'
+  - 'crates/astria-grpc-mock-test/**'
+  - 'crates/astria-grpc-mock-test-codegen/**'
+  - 'crates/astria-test-utils/**'
