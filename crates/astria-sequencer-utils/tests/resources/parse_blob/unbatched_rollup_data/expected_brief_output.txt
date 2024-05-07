@@ -1,0 +1,6 @@
+
+rollup data 0:
+    sequencer block hash: Y2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2M=
+    rollup id: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+    transaction count: 1
+

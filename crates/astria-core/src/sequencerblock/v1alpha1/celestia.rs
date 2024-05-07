@@ -520,6 +520,11 @@ impl SubmittedMetadata {
         &self.header
     }
 
+    /// Returns the rollup IDs.
+    pub fn rollup_ids(&self) -> impl Iterator<Item = &RollupId> {
+        self.rollup_ids.iter()
+    }
+
     /// Returns the Merkle Tree Hash constructed from the rollup transactions of the original
     /// [`SequencerBlock`] this blob was derived from.
     #[must_use]

@@ -1,6 +1,6 @@
 use std::{
     fs::File,
-    path::Path,
+    path::PathBuf,
 };
 
 use astria_eyre::eyre::{
@@ -12,56 +12,68 @@ use serde_json::{
     Value,
 };
 
-use crate::config::Config;
+#[derive(clap::Args, Debug)]
+pub struct Args {
+    /// Path to app state file
+    #[arg(long, value_name = "PATH")]
+    genesis_app_state_file: PathBuf,
 
-pub struct GenesisParser;
+    /// Path to output file
+    #[arg(long, short, value_name = "PATH", alias = "destination-genesis-file")]
+    output: PathBuf,
 
-impl GenesisParser {
-    /// Copies JSON application state from a file to a genesis JSON file,
-    /// placing it at the key `app_state`.
-    ///
-    /// # Errors
-    ///
-    /// An `eyre::Result` is returned if either file cannot be opened,
-    /// or if the destination genesis file cannot be saved.
-    pub fn propagate_app_state(data: Config) -> Result<()> {
-        println!("loading genesis app state for propagation:");
-        println!(
-            "\tsource genesis app state: {}",
-            data.genesis_app_state_file
-        );
-        println!(
-            "\tdestination genesis file: {}",
-            data.destination_genesis_file
-        );
-        // load sequencer genesis data
-        let source_genesis_file_path = File::open(data.genesis_app_state_file)
-            .wrap_err("failed to open sequencer genesis file")?;
-        let source_genesis_data: Value = serde_json::from_reader(&source_genesis_file_path)
-            .wrap_err("failed deserializing sequencer genesis state from file")?;
+    /// Chain identifier (a.k.a. network name)
+    #[arg(long)]
+    chain_id: String,
+}
 
-        // load cometbft genesis data
-        let destination_genesis_file_path = File::open(data.destination_genesis_file.as_str())
-            .wrap_err("failed to open cometbft genesis file")?;
-        let mut destination_genesis_data: Value =
-            serde_json::from_reader(&destination_genesis_file_path)
-                .wrap_err("failed deserializing cometbft genesis state from file")?;
+/// Copies JSON application state from a file to a genesis JSON file,
+/// placing it at the key `app_state`.
+///
+/// # Errors
+///
+/// An `eyre::Result` is returned if either file cannot be opened,
+/// or if the destination genesis file cannot be saved.
+pub fn run(
+    Args {
+        genesis_app_state_file,
+        output,
+        chain_id,
+    }: Args,
+) -> Result<()> {
+    println!("loading genesis app state for propagation:");
+    println!(
+        "\tsource genesis app state: {}",
+        genesis_app_state_file.display()
+    );
+    println!("\tdestination genesis file: {}", output.display());
+    // load sequencer genesis data
+    let source_genesis_file_path =
+        File::open(&genesis_app_state_file).wrap_err("failed to open sequencer genesis file")?;
+    let source_genesis_data: Value = serde_json::from_reader(&source_genesis_file_path)
+        .wrap_err("failed deserializing sequencer genesis state from file")?;
 
-        // insert sequencer app genesis data into cometbft genesis data
-        insert_app_state_and_chain_id(
-            &mut destination_genesis_data,
-            &source_genesis_data,
-            data.chain_id,
-        );
+    // load cometbft genesis data
+    let destination_genesis_file_path =
+        File::open(&output).wrap_err("failed to open cometbft genesis file")?;
+    let mut destination_genesis_data: Value =
+        serde_json::from_reader(&destination_genesis_file_path)
+            .wrap_err("failed deserializing cometbft genesis state from file")?;
 
-        // write new state
-        let dest_file = File::create(Path::new(data.destination_genesis_file.as_str()))
-            .wrap_err("failed to open destination genesis json file")?;
-        to_writer_pretty(dest_file, &destination_genesis_data)
-            .wrap_err("failed to write to output json file")?;
+    // insert sequencer app genesis data into cometbft genesis data
+    insert_app_state_and_chain_id(
+        &mut destination_genesis_data,
+        &source_genesis_data,
+        chain_id,
+    );
 
-        Ok(())
-    }
+    // write new state
+    let dest_file =
+        File::create(&output).wrap_err("failed to open destination genesis json file")?;
+    to_writer_pretty(dest_file, &destination_genesis_data)
+        .wrap_err("failed to write to output json file")?;
+
+    Ok(())
 }
 
 fn insert_app_state_and_chain_id(dst: &mut Value, app_state: &Value, chain_id: String) {

@@ -1,0 +1,11 @@
+
+rollup data 0:
+    sequencer block hash: Y2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2M=
+    rollup id: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+    transactions:
+        CgEB
+    proof:
+        audit path: MNlZ2hLiZd70dUCLZo/iiZDbKE0DJb7iZ5NPUxTNbNt5fK7sp/9p267ADmDS86KtdasicQtPuLgp9swLgYFiny012CwZFMloQHQ9b68pC9PSiZjlYvcN04ar7rU7r5yw93fxRRyRBsaIaEHDdKuIUhESjEaDCrhCnNbMsDrgQmg=
+        leaf index: 0
+        tree size: 19
+
