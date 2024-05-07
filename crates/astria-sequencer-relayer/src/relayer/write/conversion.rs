@@ -38,9 +38,6 @@ use crate::IncludeRollup;
 /// Taken as half the maximum block size that Celestia currently allows (2 MB at the moment).
 const MAX_PAYLOAD_SIZE_BYTES: usize = 1_000_000;
 
-/// The maximum size that a payload can have with a single sequencer block included.
-const MAX_EXCEPTIONALLY_LARGE_PAYLOAD_BYTES: usize = 1_500_000;
-
 pub(super) struct Submission {
     input: Input,
     payload: Payload,
@@ -290,7 +287,7 @@ pub(super) enum TryAddError {
     #[error(
         "sequencer block at height `{sequencer_height}` is too large; its compressed single-block
          payload has size `{compressed_size}` bytes, which is larger than the maximum exception
-         threshold of `{MAX_EXCEPTIONALLY_LARGE_PAYLOAD_BYTES}` bytes"
+         threshold of `{MAX_PAYLOAD_SIZE_BYTES}` bytes"
     )]
     OversizedBlock {
         sequencer_height: SequencerHeight,
@@ -323,18 +320,7 @@ impl NextSubmission {
             self.payload = payload_candidate;
             Ok(())
         } else if input_candidate.num_blocks() == 1
-            && payload_candidate.compressed_size <= MAX_EXCEPTIONALLY_LARGE_PAYLOAD_BYTES
-        {
-            warn!(
-                payload_size = payload_candidate.compressed_size,
-                "payload exceeds the maximum permitted payload size, but is still within 75% of \
-                 the Celestia block size; block is added as a single-block payload batch"
-            );
-            self.input = input_candidate;
-            self.payload = payload_candidate;
-            Ok(())
-        } else if input_candidate.num_blocks() == 1
-            && payload_candidate.compressed_size > MAX_EXCEPTIONALLY_LARGE_PAYLOAD_BYTES
+            && payload_candidate.compressed_size > MAX_PAYLOAD_SIZE_BYTES
         {
             Err(TryAddError::OversizedBlock {
                 sequencer_height: block.height(),
@@ -472,7 +458,6 @@ mod tests {
     use crate::{
         relayer::write::conversion::{
             TryAddError,
-            MAX_EXCEPTIONALLY_LARGE_PAYLOAD_BYTES,
             MAX_PAYLOAD_SIZE_BYTES,
         },
         IncludeRollup,
@@ -554,37 +539,15 @@ mod tests {
     }
 
     #[test]
-    fn oversized_block_within_extended_threshold_is_permitted() {
+    fn oversized_block_is_rejected() {
         // this tests makes use of the fact that random data is essentialy incompressible so
         // that size(uncompressed_payload) ~= size(compressed_payload).
         let mut rng = ChaChaRng::seed_from_u64(0);
         let mut next_submission = NextSubmission::new(include_all_rollups());
 
-        // using the upper limit defined in the constant and shaving off some extra bytes to
-        // allow the rest of the sequencer block to fit.
-        let oversized_block =
-            block_with_random_data(10, MAX_EXCEPTIONALLY_LARGE_PAYLOAD_BYTES - 1000, &mut rng);
-        next_submission
-            .try_add(oversized_block)
-            .expect("the block should be large enough to just fit");
-        assert!(
-            next_submission.payload.compressed_size > MAX_PAYLOAD_SIZE_BYTES,
-            "the compressed payload should be larger than the max payload size because otherwise \
-             this test makes no sense"
-        );
-    }
-
-    #[test]
-    fn oversized_block_outside_of_threshold_is_rejected() {
-        // this tests makes use of the fact that random data is essentialy incompressible so
-        // that size(uncompressed_payload) ~= size(compressed_payload).
-        let mut rng = ChaChaRng::seed_from_u64(0);
-        let mut next_submission = NextSubmission::new(include_all_rollups());
-
-        // using the upper limit defined in the constant and add 100KB of extra bytes to ensure
+        // using the upper limit defined in the constant and add 1KB of extra bytes to ensure
         // the block is too large
-        let oversized_block =
-            block_with_random_data(10, MAX_EXCEPTIONALLY_LARGE_PAYLOAD_BYTES + 1_000, &mut rng);
+        let oversized_block = block_with_random_data(10, MAX_PAYLOAD_SIZE_BYTES + 1_000, &mut rng);
         match next_submission.try_add(oversized_block) {
             Err(TryAddError::OversizedBlock {
                 sequencer_height, ..
