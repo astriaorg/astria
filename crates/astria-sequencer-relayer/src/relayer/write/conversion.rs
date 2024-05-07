@@ -333,7 +333,7 @@ impl NextSubmission {
             self.input = input_candidate;
             self.payload = payload_candidate;
             Ok(())
-        } else if input_candidate.num_blocks() > 1
+        } else if input_candidate.num_blocks() == 1
             && payload_candidate.compressed_size > MAX_EXCEPTIONALLY_LARGE_PAYLOAD_BYTES
         {
             Err(TryAddError::OversizedBlock {
@@ -456,19 +456,33 @@ mod tests {
         primitive::v1::RollupId,
         protocol::test_utils::ConfigureSequencerBlock,
     };
+    use rand_chacha::{
+        rand_core::{
+            RngCore as _,
+            SeedableRng as _,
+        },
+        ChaChaRng,
+    };
     use sequencer_client::SequencerBlock;
 
     use super::{
         Input,
         NextSubmission,
     };
-    use crate::IncludeRollup;
+    use crate::{
+        relayer::write::conversion::{
+            TryAddError,
+            MAX_EXCEPTIONALLY_LARGE_PAYLOAD_BYTES,
+            MAX_PAYLOAD_SIZE_BYTES,
+        },
+        IncludeRollup,
+    };
 
     fn include_all_rollups() -> IncludeRollup {
         IncludeRollup::parse("").unwrap()
     }
 
-    fn sequencer_block(height: u32) -> SequencerBlock {
+    fn block(height: u32) -> SequencerBlock {
         ConfigureSequencerBlock {
             chain_id: Some("sequencer-0".to_string()),
             height,
@@ -481,10 +495,26 @@ mod tests {
         .make()
     }
 
+    fn block_with_random_data(
+        height: u32,
+        num_bytes: usize,
+        rng: &mut ChaChaRng,
+    ) -> SequencerBlock {
+        let mut random_bytes = vec![0; num_bytes];
+        rng.fill_bytes(&mut random_bytes);
+        ConfigureSequencerBlock {
+            chain_id: Some("sequencer-0".to_string()),
+            height,
+            sequence_data: vec![(RollupId::from_unhashed_bytes(b"rollup-0"), random_bytes)],
+            ..ConfigureSequencerBlock::default()
+        }
+        .make()
+    }
+
     #[tokio::test]
     async fn add_sequencer_block_to_empty_next_submission() {
         let mut next_submission = NextSubmission::new(include_all_rollups());
-        next_submission.try_add(sequencer_block(1)).unwrap();
+        next_submission.try_add(block(1)).unwrap();
         let submission = next_submission.take().await.unwrap();
         assert_eq!(1, submission.num_blocks());
         assert_eq!(2, submission.num_blobs());
@@ -493,25 +523,87 @@ mod tests {
     #[test]
     fn adding_three_sequencer_blocks_with_same_ids_doesnt_change_number_of_blobs() {
         let mut next_submission = NextSubmission::new(include_all_rollups());
-        next_submission.try_add(sequencer_block(1)).unwrap();
-        next_submission.try_add(sequencer_block(2)).unwrap();
-        next_submission.try_add(sequencer_block(3)).unwrap();
+        next_submission.try_add(block(1)).unwrap();
+        next_submission.try_add(block(2)).unwrap();
+        next_submission.try_add(block(3)).unwrap();
         let submission = tokio_test::block_on(next_submission.take()).unwrap();
         assert_eq!(3, submission.num_blocks());
         assert_eq!(2, submission.num_blobs());
     }
 
     #[test]
+    fn adding_block_to_full_submission_gets_rejected() {
+        // this tests makes use of the fact that random data is essentialy incompressible so
+        // that size(uncompressed_payload) ~= size(compressed_payload).
+        let mut rng = ChaChaRng::seed_from_u64(0);
+        let mut next_submission = NextSubmission::new(include_all_rollups());
+        // adding 9 blocks with 100KB random data each, which gives a (compressed) payload slightly
+        // above 900KB.
+        let num_bytes = 100_000usize;
+        for height in 1..=9 {
+            next_submission
+                .try_add(block_with_random_data(height, num_bytes, &mut rng))
+                .unwrap();
+        }
+        let overflowing_block = block_with_random_data(10, num_bytes, &mut rng);
+        let rejected_block = match next_submission.try_add(overflowing_block.clone()) {
+            Err(TryAddError::Full(block)) => *block,
+            other => panic!("expected a `Err(TryAddError::Full)`, but got `{other:?}`"),
+        };
+        assert_eq!(overflowing_block, rejected_block);
+    }
+
+    #[test]
+    fn oversized_block_within_extended_threshold_is_permitted() {
+        // this tests makes use of the fact that random data is essentialy incompressible so
+        // that size(uncompressed_payload) ~= size(compressed_payload).
+        let mut rng = ChaChaRng::seed_from_u64(0);
+        let mut next_submission = NextSubmission::new(include_all_rollups());
+
+        // using the upper limit defined in the constant and shaving off some extra bytes to
+        // allow the rest of the sequencer block to fit.
+        let oversized_block =
+            block_with_random_data(10, MAX_EXCEPTIONALLY_LARGE_PAYLOAD_BYTES - 1000, &mut rng);
+        next_submission
+            .try_add(oversized_block)
+            .expect("the block should be large enough to just fit");
+        assert!(
+            next_submission.payload.compressed_size > MAX_PAYLOAD_SIZE_BYTES,
+            "the compressed payload should be larger than the max payload size because otherwise \
+             this test makes no sense"
+        );
+    }
+
+    #[test]
+    fn oversized_block_outside_of_threshold_is_rejected() {
+        // this tests makes use of the fact that random data is essentialy incompressible so
+        // that size(uncompressed_payload) ~= size(compressed_payload).
+        let mut rng = ChaChaRng::seed_from_u64(0);
+        let mut next_submission = NextSubmission::new(include_all_rollups());
+
+        // using the upper limit defined in the constant and add 100KB of extra bytes to ensure
+        // the block is too large
+        let oversized_block =
+            block_with_random_data(10, MAX_EXCEPTIONALLY_LARGE_PAYLOAD_BYTES + 1_000, &mut rng);
+        match next_submission.try_add(oversized_block) {
+            Err(TryAddError::OversizedBlock {
+                sequencer_height, ..
+            }) => assert_eq!(sequencer_height.value(), 10),
+            other => panic!("expected a `Err(TryAddError::OversizedBlock)`, but got `{other:?}`"),
+        }
+    }
+
+    #[test]
     fn extend_empty_input_from_sequencer_block() {
         let mut input = Input::new();
-        input.extend_from_sequencer_block(sequencer_block(1), &include_all_rollups());
+        input.extend_from_sequencer_block(block(1), &include_all_rollups());
         assert_eq!(1, input.num_blocks());
     }
 
     #[test]
     fn convert_input_to_payload() {
         let mut input = Input::new();
-        input.extend_from_sequencer_block(sequencer_block(1), &include_all_rollups());
+        input.extend_from_sequencer_block(block(1), &include_all_rollups());
         let payload = input.try_into_payload().unwrap();
         assert_eq!(2, payload.num_blobs());
     }

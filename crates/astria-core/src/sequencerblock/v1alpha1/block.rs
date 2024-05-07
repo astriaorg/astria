@@ -325,7 +325,7 @@ enum SequencerBlockErrorKind {
 ///
 /// This type exists to provide convenient access to the fields of
 /// a `[SequencerBlockHeader]`.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct SequencerBlockHeaderParts {
     pub chain_id: tendermint::chain::Id,
     pub height: tendermint::block::Height,

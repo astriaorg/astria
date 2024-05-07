@@ -830,6 +830,7 @@ dependencies = [
  "pbjson-types",
  "pin-project-lite",
  "prost",
+ "rand_chacha 0.3.1",
  "rand_core 0.6.4",
  "reqwest",
  "serde",
