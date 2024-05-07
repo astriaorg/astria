@@ -107,14 +107,14 @@ run-load-test:
         echo "Spammed ERC20 txs"
     fi
     sleep 1
-    echo "Spamming Large Txs txs..."
-    if ! ./blob-spammer --privkey $PRIVATE_KEY --rpchost $ETH_RPC_URL largetx --max-wallets 1 --throughput 1 --max-pending 1 --count 5; then
-        echo "Failed to spam Large Txs txs"
+    echo "Spamming Gas Burner txs..."
+    if ! ./blob-spammer --privkey $PRIVATE_KEY --rpchost $ETH_RPC_URL gasburnertx --max-wallets 1 --throughput 1 --max-pending 1 --count 5 --gas-units-to-burn 7000000; then
+        echo "Failed to spam Gas Burner throughput"
         exit 1
     else
-        echo "Spammed Large Txs txs"
+        echo "Spammed Gas Burner txs"
     fi
-    echo "Done spamming Large Txs txs..."
+    echo "Done spamming Gas Burner Txs..."
     echo "Spamming Uniswap v2 swaps txs..."
     if ! ./blob-spammer --privkey $PRIVATE_KEY --rpchost $ETH_RPC_URL univ2tx --max-wallets $MAX_WALLETS --throughput $THROUGHPUT --max-pending $MAX_PENDING --count $TOTAL_TXS_TO_SEND; then
         echo "Failed to spam Uniswap v2 txs"
