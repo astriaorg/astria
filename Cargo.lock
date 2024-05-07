@@ -843,6 +843,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-stream",
+ "tokio-test",
  "tokio-util 0.7.10",
  "tonic 0.10.2",
  "tower",

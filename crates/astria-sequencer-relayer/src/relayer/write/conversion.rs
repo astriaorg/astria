@@ -36,6 +36,9 @@ use crate::IncludeRollup;
 /// Taken as half the maximum block size that Celestia currently allows (2 MB at the moment).
 const MAX_PAYLOAD_SIZE_BYTES: usize = 1_000_000;
 
+/// The maximum size that a payload can have with a single sequencer block included.
+const MAX_EXCEPTIONALLY_LARGE_PAYLOAD_BYTES: usize = 1_500_000;
+
 pub(super) struct Submission {
     input: Input,
     payload: Payload,
@@ -159,10 +162,6 @@ impl Input {
         Self::default()
     }
 
-    fn is_empty(&self) -> bool {
-        self.headers.is_empty()
-    }
-
     fn num_blocks(&self) -> usize {
         self.headers.len()
     }
@@ -246,6 +245,15 @@ pub(super) enum TryAddError {
     Full(Box<SequencerBlock>),
     #[error("failed converting input into payload of Celestia blobs")]
     IntoPayload(#[from] TryIntoPayloadError),
+    #[error(
+        "sequencer block at height `{sequencer_height}` is too large; its compressed single-block
+         payload has size `{compressed_size}` bytes, which is larger than the maximum exception
+         threshold of `{MAX_EXCEPTIONALLY_LARGE_PAYLOAD_BYTES}` bytes"
+    )]
+    OversizedBlock {
+        sequencer_height: SequencerHeight,
+        compressed_size: usize,
+    },
 }
 
 impl NextSubmission {
@@ -266,12 +274,28 @@ impl NextSubmission {
         input_candidate.extend_from_sequencer_block(block.clone(), &self.rollup_filter);
         let payload_candidate = input_candidate.clone().try_into_payload()?;
 
-        // Always include a block into the next submission if empty. This ensures that no blocks
-        // are dropped.
-        if self.input.is_empty() || payload_candidate.compressed_size <= MAX_PAYLOAD_SIZE_BYTES {
+        if payload_candidate.compressed_size <= MAX_PAYLOAD_SIZE_BYTES {
             self.input = input_candidate;
             self.payload = payload_candidate;
             Ok(())
+        } else if input_candidate.num_blocks() == 1
+            && payload_candidate.compressed_size <= MAX_EXCEPTIONALLY_LARGE_PAYLOAD_BYTES
+        {
+            warn!(
+                payload_size = payload_candidate.compressed_size,
+                "payload exceeds the maximum permitted payload size, but is still within 75% of \
+                 the Celestia block size; block is added as a single-block payload batch"
+            );
+            self.input = input_candidate;
+            self.payload = payload_candidate;
+            Ok(())
+        } else if input_candidate.num_blocks() > 1
+            && payload_candidate.compressed_size > MAX_EXCEPTIONALLY_LARGE_PAYLOAD_BYTES
+        {
+            Err(TryAddError::OversizedBlock {
+                sequencer_height: block.height(),
+                compressed_size: payload_candidate.compressed_size,
+            })
         } else {
             Err(TryAddError::Full(block.into()))
         }
@@ -388,13 +412,13 @@ mod tests {
         assert_eq!(2, submission.num_blobs());
     }
 
-    #[tokio::test]
-    async fn adding_three_sequencer_blocks_with_same_ids_doesnt_change_number_of_blobs() {
+    #[test]
+    fn adding_three_sequencer_blocks_with_same_ids_doesnt_change_number_of_blobs() {
         let mut next_submission = NextSubmission::new(include_all_rollups());
         next_submission.try_add(sequencer_block(1)).unwrap();
         next_submission.try_add(sequencer_block(2)).unwrap();
         next_submission.try_add(sequencer_block(3)).unwrap();
-        let submission = next_submission.take().await.unwrap();
+        let submission = tokio_test::block_on(next_submission.take()).unwrap();
         assert_eq!(3, submission.num_blocks());
         assert_eq!(2, submission.num_blobs());
     }

@@ -250,8 +250,8 @@ impl BlobSubmitter {
                 );
                 self.pending_block = Some(*block);
             }
-            err @ Err(conversion::TryAddError::IntoPayload(_)) => {
-                return err.wrap_err("failed adding sequencer block to next submission");
+            Err(err) => {
+                return Err(err).wrap_err("failed adding sequencer block to next submission");
             }
         }
         Ok(())
