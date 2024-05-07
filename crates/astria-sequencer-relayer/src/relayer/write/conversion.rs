@@ -435,7 +435,7 @@ where
     I: IntoIterator<Item = &'a SequencerHeight>,
     S: serde::ser::Serializer,
 {
-    serializer.collect_seq(heights.into_iter().map(|height| height.value()))
+    serializer.collect_seq(heights.into_iter().map(tendermint::block::Height::value))
 }
 
 fn serialize_included_rollups<'a, I: 'a, S>(rollups: I, serializer: S) -> Result<S::Ok, S::Error>
