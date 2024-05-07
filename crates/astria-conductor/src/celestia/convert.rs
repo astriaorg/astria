@@ -42,7 +42,7 @@ pub(super) fn decode_raw_blobs(
     for blob in raw_blobs.header_blobs {
         if blob.namespace == sequencer_namespace {
             if let Some(header_list) = convert_blob_to_header_list(&blob) {
-                converted_blobs.extend_from_header_list_if_welformed(header_list);
+                converted_blobs.extend_from_header_list_if_well_formed(header_list);
             }
         } else {
             warn!(
@@ -56,7 +56,7 @@ pub(super) fn decode_raw_blobs(
     for blob in raw_blobs.rollup_blobs {
         if blob.namespace == rollup_namespace {
             if let Some(rollup_list) = convert_blob_to_rollup_data_list(&blob) {
-                converted_blobs.extend_from_rollup_data_list_if_welformed(rollup_list);
+                converted_blobs.extend_from_rollup_data_list_if_well_formed(rollup_list);
             }
         } else {
             warn!(
@@ -105,7 +105,7 @@ impl ConvertedBlobs {
         self.rollup_data_entries.push(rollup);
     }
 
-    fn extend_from_header_list_if_welformed(&mut self, list: CelestiaHeaderList) {
+    fn extend_from_header_list_if_well_formed(&mut self, list: CelestiaHeaderList) {
         let initial_len = self.headers.len();
         if let Err(err) = list.headers.into_iter().try_for_each(|raw| {
             let header = CelestiaHeader::try_from_raw(raw)?;
@@ -121,7 +121,7 @@ impl ConvertedBlobs {
         }
     }
 
-    fn extend_from_rollup_data_list_if_welformed(&mut self, list: CelestiaRollupDataList) {
+    fn extend_from_rollup_data_list_if_well_formed(&mut self, list: CelestiaRollupDataList) {
         let initial_len = self.rollup_data_entries.len();
         if let Err(err) = list.entries.into_iter().try_for_each(|raw| {
             let entry = CelestiaRollupData::try_from_raw(raw)?;
