@@ -273,7 +273,7 @@ async fn submit_blobs(
     submission_state: SubmissionState,
 ) -> eyre::Result<SubmissionState> {
     info!(
-        // blocks = %telemetry::display::json(&blocks.infos),
+        blocks = %telemetry::display::json(&data.input_metadata()),
         "initiated submission of sequencer blocks converted to Celestia blobs",
     );
 

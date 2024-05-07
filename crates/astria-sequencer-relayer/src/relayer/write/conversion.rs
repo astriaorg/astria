@@ -2,6 +2,7 @@ use std::{
     collections::{
         BTreeSet,
         HashMap,
+        HashSet,
     },
     pin::Pin,
     task::Poll,
@@ -15,6 +16,7 @@ use astria_core::{
         CelestiaRollupData,
         CelestiaRollupDataList,
     },
+    primitive::v1::RollupId,
 };
 use celestia_types::{
     nmt::Namespace,
@@ -49,6 +51,10 @@ impl Submission {
         self.payload.blobs
     }
 
+    pub(super) fn input_metadata(&self) -> &InputMeta {
+        self.input.meta()
+    }
+
     pub(super) fn num_blobs(&self) -> usize {
         self.payload.num_blobs()
     }
@@ -81,7 +87,7 @@ impl Submission {
 }
 
 #[derive(Debug, thiserror::Error)]
-enum PayloadError {
+pub(super) enum PayloadError {
     #[error("failed to compress protobuf encoded bytes")]
     Compress(#[from] std::io::Error),
     #[error("failed to create Celestia blob from compressed bytes")]
@@ -144,22 +150,44 @@ impl Payload {
 }
 
 #[derive(Debug, thiserror::Error)]
-#[error("failed adding protobuf `{type_url}` to Celestia blob payload")]
-pub(super) struct TryIntoPayloadError {
-    source: PayloadError,
-    type_url: String,
+pub(super) enum TryIntoPayloadError {
+    #[error("failed adding protobuf `{type_url}` to Celestia blob payload")]
+    AddToPayload {
+        source: PayloadError,
+        type_url: String,
+    },
+    #[error(
+        "there was no sequencer namespace present in the input so a payload of Celestia blobs \
+         could not be construct"
+    )]
+    NoSequencerNamespacePresent,
+}
+
+#[derive(Clone, Debug, Default, serde::Serialize)]
+pub(super) struct InputMeta {
+    #[serde(serialize_with = "serialize_sequencer_heights")]
+    sequencer_heights: BTreeSet<SequencerHeight>,
+    #[serde(serialize_with = "serialize_opt_namespace")]
+    sequencer_namespace: Option<Namespace>,
+    #[serde(serialize_with = "serialize_included_rollups")]
+    rollups_included: HashMap<RollupId, Namespace>,
+    rollups_excluded: HashSet<RollupId>,
 }
 
 #[derive(Clone, Debug, Default)]
 struct Input {
-    sequencer_heights: BTreeSet<SequencerHeight>,
     headers: Vec<CelestiaHeader>,
     rollup_data_for_namespace: HashMap<Namespace, Vec<CelestiaRollupData>>,
+    meta: InputMeta,
 }
 
 impl Input {
     fn new() -> Self {
         Self::default()
+    }
+
+    fn meta(&self) -> &InputMeta {
+        &self.meta
     }
 
     fn num_blocks(&self) -> usize {
@@ -171,7 +199,7 @@ impl Input {
         block: SequencerBlock,
         rollup_filter: &IncludeRollup,
     ) {
-        if !self.sequencer_heights.insert(block.height()) {
+        if !self.meta.sequencer_heights.insert(block.height()) {
             warn!(
                 sequencer_height = block.height().value(),
                 "a Sequencer Block was added to the next submission input but its height was \
@@ -179,30 +207,44 @@ impl Input {
             );
         }
         let (header, rollup_elements) = block.split_for_celestia();
-        self.headers.push(header.into_raw());
+        let header = header.into_raw();
+
+        // XXX: This should really be set at the beginning of the sequencer-relayer and reused
+        // everywhere.
+        self.meta
+            .sequencer_namespace
+            .get_or_insert_with(|| sequencer_namespace(&header));
+        self.headers.push(header);
         for elem in rollup_elements {
             if rollup_filter.should_include(&elem.rollup_id()) {
                 let namespace =
                     astria_core::celestia::namespace_v0_from_rollup_id(elem.rollup_id());
+                self.meta
+                    .rollups_included
+                    .insert(elem.rollup_id(), namespace);
                 let list = self.rollup_data_for_namespace.entry(namespace).or_default();
                 list.push(elem.into_raw());
+            } else {
+                self.meta.rollups_excluded.insert(elem.rollup_id());
             }
         }
     }
 
     fn greatest_sequencer_height(&self) -> Option<SequencerHeight> {
-        self.sequencer_heights.last().copied()
+        self.meta.sequencer_heights.last().copied()
     }
 
+    /// Attempts to convert the input into a payload of Celestia blobs.
     fn try_into_payload(self) -> Result<Payload, TryIntoPayloadError> {
         use prost::Name as _;
 
         let mut payload =
             Payload::with_capacity(self.headers.len() + self.rollup_data_for_namespace.len());
 
-        let sequencer_namespace = sequencer_namespace(self.headers.last().expect(
-            "Input::try_to_payload must only be called if there is an actual input to convert",
-        ));
+        let sequencer_namespace = self
+            .meta
+            .sequencer_namespace
+            .ok_or(TryIntoPayloadError::NoSequencerNamespacePresent)?;
         payload
             .try_add(
                 sequencer_namespace,
@@ -210,7 +252,7 @@ impl Input {
                     headers: self.headers,
                 },
             )
-            .map_err(|source| TryIntoPayloadError {
+            .map_err(|source| TryIntoPayloadError::AddToPayload {
                 source,
                 type_url: CelestiaHeaderList::type_url(),
             })?;
@@ -223,7 +265,7 @@ impl Input {
                         entries,
                     },
                 )
-                .map_err(|source| TryIntoPayloadError {
+                .map_err(|source| TryIntoPayloadError::AddToPayload {
                     source,
                     type_url: CelestiaRollupDataList::full_name(),
                 })?;
@@ -267,8 +309,10 @@ impl NextSubmission {
 
     /// Adds a [`SequencerBlock`] to the next submission.
     ///
-    /// Returns the block if it was rejected by the next submission (this happens if
-    /// if adding it would exceed the hard coded limit).
+    /// This function works by cloning the current payload input, adding `block` to it,
+    /// and generating a new payload. If the new payload is sufficiently small, `block`
+    /// will be included in the next submission. If it would exceed the maximum payload
+    /// size it is returned as an error.
     pub(super) fn try_add(&mut self, block: SequencerBlock) -> Result<(), TryAddError> {
         let mut input_candidate = self.input.clone();
         input_candidate.extend_from_sequencer_block(block.clone(), &self.rollup_filter);
@@ -369,6 +413,40 @@ fn sequencer_namespace(header: &CelestiaHeader) -> Namespace {
             .expect(HEADER_EXPECT_MSG)
             .chain_id
             .as_bytes(),
+    )
+}
+
+fn serialize_opt_namespace<S>(
+    namespace: &Option<Namespace>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: serde::ser::Serializer,
+{
+    use serde::ser::Serialize as _;
+    namespace
+        .as_ref()
+        .map(|ns| telemetry::display::base64(ns.as_bytes()))
+        .serialize(serializer)
+}
+
+fn serialize_sequencer_heights<'a, I: 'a, S>(heights: I, serializer: S) -> Result<S::Ok, S::Error>
+where
+    I: IntoIterator<Item = &'a SequencerHeight>,
+    S: serde::ser::Serializer,
+{
+    serializer.collect_seq(heights.into_iter().map(|height| height.value()))
+}
+
+fn serialize_included_rollups<'a, I: 'a, S>(rollups: I, serializer: S) -> Result<S::Ok, S::Error>
+where
+    I: IntoIterator<Item = (&'a RollupId, &'a Namespace)>,
+    S: serde::ser::Serializer,
+{
+    serializer.collect_map(
+        rollups
+            .into_iter()
+            .map(|(id, ns)| (id, telemetry::display::base64(ns.as_bytes()))),
     )
 }
 
