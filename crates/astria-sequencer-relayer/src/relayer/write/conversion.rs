@@ -313,7 +313,11 @@ impl NextSubmission {
     pub(super) fn try_add(&mut self, block: SequencerBlock) -> Result<(), TryAddError> {
         let mut input_candidate = self.input.clone();
         input_candidate.extend_from_sequencer_block(block.clone(), &self.rollup_filter);
+
+        let payload_creation_start = std::time::Instant::now();
         let payload_candidate = input_candidate.clone().try_into_payload()?;
+        metrics::histogram!(crate::metrics_init::CELESTIA_PAYLOAD_CREATION_LATENCY)
+            .record(payload_creation_start.elapsed());
 
         if payload_candidate.compressed_size <= MAX_PAYLOAD_SIZE_BYTES {
             self.input = input_candidate;
