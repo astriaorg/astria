@@ -3,15 +3,15 @@ use ed25519_consensus::{
     SigningKey,
     VerificationKey,
 };
-use prost::Message as _;
+use prost::{
+    Message as _,
+    Name as _,
+};
 
 use super::raw;
 
 pub mod action;
 pub use action::Action;
-
-pub const UNSIGNED_TRANSACTION_TYPE_URL: &str =
-    "/astria.protocol.transaction.v1alpha1.UnsignedTransaction";
 
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
@@ -233,7 +233,7 @@ impl UnsignedTransaction {
     pub fn into_any(self) -> pbjson_types::Any {
         let raw = self.into_raw();
         pbjson_types::Any {
-            type_url: UNSIGNED_TRANSACTION_TYPE_URL.to_string(),
+            type_url: raw::UnsignedTransaction::type_url(),
             value: raw.encode_to_vec().into(),
         }
     }
@@ -253,11 +253,7 @@ impl UnsignedTransaction {
 
     #[must_use]
     pub fn to_any(&self) -> pbjson_types::Any {
-        let raw = self.to_raw();
-        pbjson_types::Any {
-            type_url: UNSIGNED_TRANSACTION_TYPE_URL.to_string(),
-            value: raw.encode_to_vec().into(),
-        }
+        self.clone().into_any()
     }
 
     /// Attempt to convert from a raw, unchecked protobuf [`raw::UnsignedTransaction`].
@@ -294,12 +290,12 @@ impl UnsignedTransaction {
     /// - if the type URL is not the expected type URL
     /// - if the bytes in the [`Any`] do not decode to an [`UnsignedTransaction`]
     pub fn try_from_any(any: pbjson_types::Any) -> Result<Self, UnsignedTransactionError> {
-        if any.type_url != UNSIGNED_TRANSACTION_TYPE_URL {
-            return Err(UnsignedTransactionError::invalid_type_url());
+        if any.type_url != raw::UnsignedTransaction::type_url() {
+            return Err(UnsignedTransactionError::invalid_type_url(any.type_url));
         }
 
         let raw = raw::UnsignedTransaction::decode(any.value)
-            .map_err(UnsignedTransactionError::invalid_any_bytes)?;
+            .map_err(UnsignedTransactionError::decode_any)?;
         Self::try_from_raw(raw)
     }
 }
@@ -317,12 +313,14 @@ impl UnsignedTransactionError {
         Self(UnsignedTransactionErrorKind::UnsetParams())
     }
 
-    fn invalid_type_url() -> Self {
-        Self(UnsignedTransactionErrorKind::InvalidTypeUrl)
+    fn invalid_type_url(got: String) -> Self {
+        Self(UnsignedTransactionErrorKind::InvalidTypeUrl {
+            got,
+        })
     }
 
-    fn invalid_any_bytes(inner: prost::DecodeError) -> Self {
-        Self(UnsignedTransactionErrorKind::InvalidAnyBytes(inner))
+    fn decode_any(inner: prost::DecodeError) -> Self {
+        Self(UnsignedTransactionErrorKind::DecodeAny(inner))
     }
 }
 
@@ -332,10 +330,17 @@ enum UnsignedTransactionErrorKind {
     Action(#[source] action::ActionError),
     #[error("`params` field is unset")]
     UnsetParams(),
-    #[error("invalid type URL")]
-    InvalidTypeUrl,
-    #[error("invalid bytes in Any")]
-    InvalidAnyBytes(#[source] prost::DecodeError),
+    #[error(
+        "encountered invalid type URL when converting from `google.protobuf.Any`; got `{got}`, \
+         expected `{}`",
+        raw::UnsignedTransaction::type_url()
+    )]
+    InvalidTypeUrl { got: String },
+    #[error(
+        "failed to decode `google.protobuf.Any` to `{}`",
+        raw::UnsignedTransaction::type_url()
+    )]
+    DecodeAny(#[source] prost::DecodeError),
 }
 
 #[derive(Clone, Debug)]
