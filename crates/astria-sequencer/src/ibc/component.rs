@@ -16,10 +16,7 @@ use tracing::instrument;
 
 use crate::{
     component::Component,
-    genesis::{
-        GenesisState,
-        ICS20_WITHDRAWAL_BASE_FEE_FIELD_NAME,
-    },
+    genesis::GenesisState,
     ibc::{
         host_interface::AstriaHost,
         state_ext::StateWriteExt,
@@ -52,15 +49,7 @@ impl Component for IbcComponent {
         }
 
         state
-            .put_ics20_withdrawal_base_fee(
-                *app_state
-                    .fees
-                    .get(ICS20_WITHDRAWAL_BASE_FEE_FIELD_NAME)
-                    .expect(
-                        "genesis `fees` must contain `ics20_withdrawal_base_fee`, as it was \
-                         validated during construction",
-                    ),
-            )
+            .put_ics20_withdrawal_base_fee(app_state.fees.ics20_withdrawal_base_fee)
             .context("failed to put ics20 withdrawal base fee")?;
         Ok(())
     }
