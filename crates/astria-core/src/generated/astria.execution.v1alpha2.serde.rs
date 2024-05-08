@@ -455,12 +455,24 @@ impl serde::Serialize for CommitmentState {
         if self.firm.is_some() {
             len += 1;
         }
+        if self.next_sequencer_height != 0 {
+            len += 1;
+        }
+        if self.base_celestia_height != 0 {
+            len += 1;
+        }
         let mut struct_ser = serializer.serialize_struct("astria.execution.v1alpha2.CommitmentState", len)?;
         if let Some(v) = self.soft.as_ref() {
             struct_ser.serialize_field("soft", v)?;
         }
         if let Some(v) = self.firm.as_ref() {
             struct_ser.serialize_field("firm", v)?;
+        }
+        if self.next_sequencer_height != 0 {
+            struct_ser.serialize_field("next_sequencer_height", &self.next_sequencer_height)?;
+        }
+        if self.base_celestia_height != 0 {
+            struct_ser.serialize_field("base_celestia_height", &self.base_celestia_height)?;
         }
         struct_ser.end()
     }
@@ -474,12 +486,18 @@ impl<'de> serde::Deserialize<'de> for CommitmentState {
         const FIELDS: &[&str] = &[
             "soft",
             "firm",
+            "next_sequencer_height",
+            "nextSequencerHeight",
+            "base_celestia_height",
+            "baseCelestiaHeight",
         ];
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
             Soft,
             Firm,
+            NextSequencerHeight,
+            BaseCelestiaHeight,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -503,6 +521,8 @@ impl<'de> serde::Deserialize<'de> for CommitmentState {
                         match value {
                             "soft" => Ok(GeneratedField::Soft),
                             "firm" => Ok(GeneratedField::Firm),
+                            "nextSequencerHeight" | "next_sequencer_height" => Ok(GeneratedField::NextSequencerHeight),
+                            "baseCelestiaHeight" | "base_celestia_height" => Ok(GeneratedField::BaseCelestiaHeight),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -524,6 +544,8 @@ impl<'de> serde::Deserialize<'de> for CommitmentState {
             {
                 let mut soft__ = None;
                 let mut firm__ = None;
+                let mut next_sequencer_height__ = None;
+                let mut base_celestia_height__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
                         GeneratedField::Soft => {
@@ -538,11 +560,29 @@ impl<'de> serde::Deserialize<'de> for CommitmentState {
                             }
                             firm__ = map_.next_value()?;
                         }
+                        GeneratedField::NextSequencerHeight => {
+                            if next_sequencer_height__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("nextSequencerHeight"));
+                            }
+                            next_sequencer_height__ = 
+                                Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
+                            ;
+                        }
+                        GeneratedField::BaseCelestiaHeight => {
+                            if base_celestia_height__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("baseCelestiaHeight"));
+                            }
+                            base_celestia_height__ = 
+                                Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
+                            ;
+                        }
                     }
                 }
                 Ok(CommitmentState {
                     soft: soft__,
                     firm: firm__,
+                    next_sequencer_height: next_sequencer_height__.unwrap_or_default(),
+                    base_celestia_height: base_celestia_height__.unwrap_or_default(),
                 })
             }
         }
@@ -689,12 +729,6 @@ impl serde::Serialize for GenesisInfo {
         if !self.rollup_id.is_empty() {
             len += 1;
         }
-        if self.sequencer_genesis_block_height != 0 {
-            len += 1;
-        }
-        if self.celestia_base_block_height != 0 {
-            len += 1;
-        }
         if self.celestia_block_variance != 0 {
             len += 1;
         }
@@ -702,12 +736,6 @@ impl serde::Serialize for GenesisInfo {
         if !self.rollup_id.is_empty() {
             #[allow(clippy::needless_borrow)]
             struct_ser.serialize_field("rollup_id", pbjson::private::base64::encode(&self.rollup_id).as_str())?;
-        }
-        if self.sequencer_genesis_block_height != 0 {
-            struct_ser.serialize_field("sequencer_genesis_block_height", &self.sequencer_genesis_block_height)?;
-        }
-        if self.celestia_base_block_height != 0 {
-            struct_ser.serialize_field("celestia_base_block_height", &self.celestia_base_block_height)?;
         }
         if self.celestia_block_variance != 0 {
             struct_ser.serialize_field("celestia_block_variance", &self.celestia_block_variance)?;
@@ -724,10 +752,6 @@ impl<'de> serde::Deserialize<'de> for GenesisInfo {
         const FIELDS: &[&str] = &[
             "rollup_id",
             "rollupId",
-            "sequencer_genesis_block_height",
-            "sequencerGenesisBlockHeight",
-            "celestia_base_block_height",
-            "celestiaBaseBlockHeight",
             "celestia_block_variance",
             "celestiaBlockVariance",
         ];
@@ -735,8 +759,6 @@ impl<'de> serde::Deserialize<'de> for GenesisInfo {
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
             RollupId,
-            SequencerGenesisBlockHeight,
-            CelestiaBaseBlockHeight,
             CelestiaBlockVariance,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
@@ -760,8 +782,6 @@ impl<'de> serde::Deserialize<'de> for GenesisInfo {
                     {
                         match value {
                             "rollupId" | "rollup_id" => Ok(GeneratedField::RollupId),
-                            "sequencerGenesisBlockHeight" | "sequencer_genesis_block_height" => Ok(GeneratedField::SequencerGenesisBlockHeight),
-                            "celestiaBaseBlockHeight" | "celestia_base_block_height" => Ok(GeneratedField::CelestiaBaseBlockHeight),
                             "celestiaBlockVariance" | "celestia_block_variance" => Ok(GeneratedField::CelestiaBlockVariance),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
@@ -783,8 +803,6 @@ impl<'de> serde::Deserialize<'de> for GenesisInfo {
                     V: serde::de::MapAccess<'de>,
             {
                 let mut rollup_id__ = None;
-                let mut sequencer_genesis_block_height__ = None;
-                let mut celestia_base_block_height__ = None;
                 let mut celestia_block_variance__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
@@ -794,22 +812,6 @@ impl<'de> serde::Deserialize<'de> for GenesisInfo {
                             }
                             rollup_id__ = 
                                 Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
-                            ;
-                        }
-                        GeneratedField::SequencerGenesisBlockHeight => {
-                            if sequencer_genesis_block_height__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("sequencerGenesisBlockHeight"));
-                            }
-                            sequencer_genesis_block_height__ = 
-                                Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
-                            ;
-                        }
-                        GeneratedField::CelestiaBaseBlockHeight => {
-                            if celestia_base_block_height__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("celestiaBaseBlockHeight"));
-                            }
-                            celestia_base_block_height__ = 
-                                Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
                             ;
                         }
                         GeneratedField::CelestiaBlockVariance => {
@@ -824,8 +826,6 @@ impl<'de> serde::Deserialize<'de> for GenesisInfo {
                 }
                 Ok(GenesisInfo {
                     rollup_id: rollup_id__.unwrap_or_default(),
-                    sequencer_genesis_block_height: sequencer_genesis_block_height__.unwrap_or_default(),
-                    celestia_base_block_height: celestia_base_block_height__.unwrap_or_default(),
                     celestia_block_variance: celestia_block_variance__.unwrap_or_default(),
                 })
             }

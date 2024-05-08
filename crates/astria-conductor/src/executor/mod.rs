@@ -636,8 +636,8 @@ impl Executor {
             OnlySoft,
             ToSame,
         };
-        let (firm, soft) = match update {
-            OnlyFirm(firm) => (firm, self.state.soft()),
+        let (firm, soft, next_sequencer_height, base_celestia_height) = match update {
+            OnlyFirm(firm) => (firm, self.state.soft(), self.state.next_expected_soft_sequencer_height(), ),
             OnlySoft(soft) => (self.state.firm(), soft),
             ToSame(block) => (block.clone(), block),
         };

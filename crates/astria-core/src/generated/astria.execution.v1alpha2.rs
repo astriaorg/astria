@@ -8,12 +8,6 @@ pub struct GenesisInfo {
     /// The rollup_id is the unique identifier for the rollup chain.
     #[prost(bytes = "bytes", tag = "1")]
     pub rollup_id: ::prost::bytes::Bytes,
-    /// The first block height of sequencer chain to use for rollup transactions.
-    #[prost(uint32, tag = "2")]
-    pub sequencer_genesis_block_height: u32,
-    /// The first block height of celestia chain to use for rollup transactions.
-    #[prost(uint32, tag = "3")]
-    pub celestia_base_block_height: u32,
     /// The allowed variance in celestia for sequencer blocks to have been posted.
     #[prost(uint32, tag = "4")]
     pub celestia_block_variance: u32,
@@ -172,6 +166,12 @@ pub struct CommitmentState {
     /// Firm commitment is achieved when data has been seen in DA.
     #[prost(message, optional, tag = "2")]
     pub firm: ::core::option::Option<Block>,
+    /// The next sequencer block height which can be executed.
+    #[prost(uint32, tag = "3")]
+    pub next_sequencer_height: u32,
+    /// The lowest celestia block height which can be used for next finalization.
+    #[prost(uint32, tag = "4")]
+    pub base_celestia_height: u32,
 }
 impl ::prost::Name for CommitmentState {
     const NAME: &'static str = "CommitmentState";

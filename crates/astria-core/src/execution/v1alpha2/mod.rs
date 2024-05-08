@@ -42,11 +42,6 @@ enum GenesisInfoErrorKind {
 pub struct GenesisInfo {
     /// The rollup id which is used to identify the rollup txs.
     rollup_id: RollupId,
-    /// The Sequencer block height which contains the first block of the rollup.
-    sequencer_genesis_block_height: tendermint::block::Height,
-    /// The first Celestia height within which to look for Sequencer and Rollup blobs for the
-    /// rollup.
-    celestia_base_block_height: celestia_tendermint::block::Height,
     /// The allowed variance in the block height of celestia when looking for sequencer blocks.
     celestia_block_variance: u32,
 }
@@ -55,16 +50,6 @@ impl GenesisInfo {
     #[must_use]
     pub fn rollup_id(&self) -> RollupId {
         self.rollup_id
-    }
-
-    #[must_use]
-    pub fn sequencer_genesis_block_height(&self) -> tendermint::block::Height {
-        self.sequencer_genesis_block_height
-    }
-
-    #[must_use]
-    pub fn celestia_base_block_height(&self) -> celestia_tendermint::block::Height {
-        self.celestia_base_block_height
     }
 
     #[must_use]
@@ -86,8 +71,6 @@ impl Protobuf for GenesisInfo {
     fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
         let raw::GenesisInfo {
             rollup_id,
-            sequencer_genesis_block_height,
-            celestia_base_block_height,
             celestia_block_variance,
         } = raw;
         let rollup_id =
@@ -95,8 +78,6 @@ impl Protobuf for GenesisInfo {
 
         Ok(Self {
             rollup_id,
-            sequencer_genesis_block_height: (*sequencer_genesis_block_height).into(),
-            celestia_base_block_height: (*celestia_base_block_height).into(),
             celestia_block_variance: *celestia_block_variance,
         })
     }
@@ -104,25 +85,10 @@ impl Protobuf for GenesisInfo {
     fn to_raw(&self) -> Self::Raw {
         let Self {
             rollup_id,
-            sequencer_genesis_block_height,
-            celestia_base_block_height,
             celestia_block_variance,
         } = self;
-
-        let sequencer_genesis_block_height: u32 =
-            (*sequencer_genesis_block_height).value().try_into().expect(
-                "block height overflow, this should not happen since tendermint heights are i64 \
-                 under the hood",
-            );
-        let celestia_base_block_height: u32 =
-            (*celestia_base_block_height).value().try_into().expect(
-                "block height overflow, this should not happen since tendermint heights are i64 \
-                 under the hood",
-            );
         Self::Raw {
             rollup_id: Bytes::copy_from_slice(rollup_id.as_ref()),
-            sequencer_genesis_block_height,
-            celestia_base_block_height,
             celestia_block_variance: *celestia_block_variance,
         }
     }
@@ -284,47 +250,93 @@ pub struct FirmExceedsSoft {
 
 pub struct NoFirm;
 pub struct NoSoft;
+pub struct NoNextSequencerHeight;
+pub struct NoBaseCelestiaHeight;
 pub struct WithFirm(Block);
 pub struct WithSoft(Block);
+pub struct WithNextSequencerHeight(u32);
+pub struct WithBaseCelestiaHeight(u32);
 
 #[derive(Default)]
-pub struct CommitmentStateBuilder<TFirm = NoFirm, TSoft = NoSoft> {
+pub struct CommitmentStateBuilder<TFirm = NoFirm, TSoft = NoSoft, TNextSequencerHeight = NoNextSequencerHeight, TBaseCelestiaHeight = NoBaseCelestiaHeight> {
     firm: TFirm,
     soft: TSoft,
+    next_sequencer_height: TNextSequencerHeight,
+    base_celestia_height: TBaseCelestiaHeight,
 }
 
-impl CommitmentStateBuilder<NoFirm, NoSoft> {
+impl CommitmentStateBuilder<NoFirm, NoSoft, NoNextSequencerHeight, NoBaseCelestiaHeight> {
     fn new() -> Self {
         Self {
             firm: NoFirm,
             soft: NoSoft,
+            next_sequencer_height: NoNextSequencerHeight,
+            base_celestia_height: NoBaseCelestiaHeight,
         }
     }
 }
 
-impl<TFirm, TSoft> CommitmentStateBuilder<TFirm, TSoft> {
-    pub fn firm(self, firm: Block) -> CommitmentStateBuilder<WithFirm, TSoft> {
+impl<TFirm, TSoft, TNextSequencerHeight, TBaseCelestiaHeight> CommitmentStateBuilder<TFirm, TSoft, TNextSequencerHeight, TBaseCelestiaHeight> {
+    pub fn firm(self, firm: Block) -> CommitmentStateBuilder<WithFirm, TSoft, TNextSequencerHeight, TBaseCelestiaHeight> {
         let Self {
-            soft, ..
+            soft,
+            next_sequencer_height,
+            base_celestia_height,..
         } = self;
         CommitmentStateBuilder {
             firm: WithFirm(firm),
             soft,
+            next_sequencer_height,
+            base_celestia_height,
         }
     }
 
-    pub fn soft(self, soft: Block) -> CommitmentStateBuilder<TFirm, WithSoft> {
+    pub fn soft(self, soft: Block) -> CommitmentStateBuilder<TFirm, WithSoft, TNextSequencerHeight, TBaseCelestiaHeight> {
         let Self {
-            firm, ..
+            firm,
+            next_sequencer_height,
+            base_celestia_height,..
         } = self;
         CommitmentStateBuilder {
             firm,
             soft: WithSoft(soft),
+            next_sequencer_height,
+            base_celestia_height,
         }
     }
+
+    pub fn next_sequencer_height(self, next_sequencer_height: u32) -> CommitmentStateBuilder<TFirm, TSoft, WithNextSequencerHeight, TBaseCelestiaHeight> {
+        let Self {
+            firm,
+            soft,
+            base_celestia_height,..
+        } = self;
+        CommitmentStateBuilder {
+            firm,
+            soft,
+            next_sequencer_height: WithNextSequencerHeight(next_sequencer_height),
+            base_celestia_height,
+        }
+    }
+
+    pub fn base_celestia_height(self, base_celestia_height: u32) -> CommitmentStateBuilder<TFirm, TSoft, TNextSequencerHeight, WithBaseCelestiaHeight> {
+        let Self {
+            firm,
+            soft,
+            next_sequencer_height,..
+        } = self;
+        CommitmentStateBuilder {
+            firm,
+            soft,
+            next_sequencer_height,
+            base_celestia_height: WithBaseCelestiaHeight(base_celestia_height)
+        }
+    }
+    
+    
 }
 
-impl CommitmentStateBuilder<WithFirm, WithSoft> {
+impl CommitmentStateBuilder<WithFirm, WithSoft, WithNextSequencerHeight, WithBaseCelestiaHeight> {
     /// Finalize the commitment state.
     ///
     /// # Errors
@@ -333,6 +345,8 @@ impl CommitmentStateBuilder<WithFirm, WithSoft> {
         let Self {
             firm: WithFirm(firm),
             soft: WithSoft(soft),
+            next_sequencer_height: WithNextSequencerHeight(next_sequencer_height),
+            base_celestia_height: WithBaseCelestiaHeight(base_celestia_height),
         } = self;
         if firm.number() > soft.number() {
             return Err(FirmExceedsSoft {
@@ -343,6 +357,8 @@ impl CommitmentStateBuilder<WithFirm, WithSoft> {
         Ok(CommitmentState {
             soft,
             firm,
+            next_sequencer_height,
+            base_celestia_height,
         })
     }
 }
@@ -364,6 +380,10 @@ pub struct CommitmentState {
     soft: Block,
     /// Firm commitment is achieved when data has been seen in DA.
     firm: Block,
+    
+    next_sequencer_height: u32,
+    
+    base_celestia_height: u32,
 }
 
 impl CommitmentState {
@@ -381,6 +401,16 @@ impl CommitmentState {
     pub fn soft(&self) -> &Block {
         &self.soft
     }
+
+    #[must_use]
+    pub fn next_sequencer_height(&self) -> u32 {
+        self.next_sequencer_height
+    }
+
+    #[must_use]
+    pub fn base_celestia_height(&self) -> u32 {
+        self.base_celestia_height
+    }
 }
 
 impl From<CommitmentState> for raw::CommitmentState {
@@ -397,6 +427,8 @@ impl Protobuf for CommitmentState {
         let Self::Raw {
             soft,
             firm,
+            next_sequencer_height,
+            base_celestia_height,
         } = raw;
         let soft = 'soft: {
             let Some(soft) = soft else {
@@ -413,6 +445,8 @@ impl Protobuf for CommitmentState {
         Self::builder()
             .firm(firm)
             .soft(soft)
+            .next_sequencer_height(*next_sequencer_height)
+            .base_celestia_height(*base_celestia_height)
             .build()
             .map_err(Self::Error::firm_exceeds_soft)
     }
@@ -421,12 +455,16 @@ impl Protobuf for CommitmentState {
         let Self {
             soft,
             firm,
+            next_sequencer_height,
+            base_celestia_height,
         } = self;
         let soft = soft.to_raw();
         let firm = firm.to_raw();
         Self::Raw {
             soft: Some(soft),
             firm: Some(firm),
+            next_sequencer_height: *next_sequencer_height,
+            base_celestia_height: *base_celestia_height,
         }
     }
 }
