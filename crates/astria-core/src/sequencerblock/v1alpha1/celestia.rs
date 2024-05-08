@@ -16,16 +16,15 @@ use super::{
 };
 use crate::Protobuf;
 
-/// A bundle of blobs constructed from a [`super::SequencerBlock`].
+/// A [`super::SequencerBlock`] split and prepared for submission to a data availability provider.
 ///
-/// Consists of a head [`CelestiaSequencerBlob`] and a tail of [`CelestiaRollupBlob`]s.
-/// Used as a pass-through data structure to
-pub(super) struct CelestiaBlobBundle {
-    head: CelestiaSequencerBlob,
-    tail: Vec<CelestiaRollupBlob>,
+/// Consists of a head [`SubmittedMetadata`] and a tail of [`SubmittedRollupData`]s.
+pub(super) struct PreparedBlock {
+    head: SubmittedMetadata,
+    tail: Vec<SubmittedRollupData>,
 }
 
-impl CelestiaBlobBundle {
+impl PreparedBlock {
     /// Construct a bundle of celestia blobs from a [`super::SequencerBlock`].
     #[must_use]
     pub(super) fn from_sequencer_block(block: SequencerBlock) -> Self {
@@ -37,7 +36,7 @@ impl CelestiaBlobBundle {
             rollup_ids_proof,
         } = block.into_parts();
 
-        let head = CelestiaSequencerBlob {
+        let head = SubmittedMetadata {
             block_hash,
             header,
             rollup_ids: rollup_transactions.keys().copied().collect(),
@@ -52,7 +51,7 @@ impl CelestiaBlobBundle {
                 proof,
                 ..
             } = rollup_txs.into_parts();
-            tail.push(CelestiaRollupBlob {
+            tail.push(SubmittedRollupData {
                 sequencer_block_hash: block_hash,
                 rollup_id,
                 transactions,
@@ -65,8 +64,8 @@ impl CelestiaBlobBundle {
         }
     }
 
-    /// Returns the head and the tail of the celestia blob bundle, consuming it.
-    pub(super) fn into_parts(self) -> (CelestiaSequencerBlob, Vec<CelestiaRollupBlob>) {
+    /// Returns the head and the tail of the split block, consuming it.
+    pub(super) fn into_parts(self) -> (SubmittedMetadata, Vec<SubmittedRollupData>) {
         (self.head, self.tail)
     }
 }
@@ -74,15 +73,15 @@ impl CelestiaBlobBundle {
 #[derive(Debug, thiserror::Error)]
 #[error("failed constructing a celestia rollup blob")]
 #[allow(clippy::module_name_repetitions)]
-pub struct CelestiaRollupBlobError {
+pub struct SubmittedRollupDataError {
     #[source]
-    kind: CelestiaRollupBlobErrorKind,
+    kind: SubmittedRollupDataErrorKind,
 }
 
-impl CelestiaRollupBlobError {
+impl SubmittedRollupDataError {
     fn field_not_set(field: &'static str) -> Self {
         Self {
-            kind: CelestiaRollupBlobErrorKind::FieldNotSet {
+            kind: SubmittedRollupDataErrorKind::FieldNotSet {
                 field,
             },
         }
@@ -90,7 +89,7 @@ impl CelestiaRollupBlobError {
 
     fn rollup_id(source: IncorrectRollupIdLength) -> Self {
         Self {
-            kind: CelestiaRollupBlobErrorKind::RollupId {
+            kind: SubmittedRollupDataErrorKind::RollupId {
                 source,
             },
         }
@@ -98,7 +97,7 @@ impl CelestiaRollupBlobError {
 
     fn proof(source: <merkle::Proof as Protobuf>::Error) -> Self {
         Self {
-            kind: CelestiaRollupBlobErrorKind::Proof {
+            kind: SubmittedRollupDataErrorKind::Proof {
                 source,
             },
         }
@@ -106,13 +105,13 @@ impl CelestiaRollupBlobError {
 
     fn sequencer_block_hash(actual_len: usize) -> Self {
         Self {
-            kind: CelestiaRollupBlobErrorKind::SequencerBlockHash(actual_len),
+            kind: SubmittedRollupDataErrorKind::SequencerBlockHash(actual_len),
         }
     }
 }
 
 #[derive(Debug, thiserror::Error)]
-enum CelestiaRollupBlobErrorKind {
+enum SubmittedRollupDataErrorKind {
     #[error("the expected field in the raw source type was not set: `{field}`")]
     FieldNotSet { field: &'static str },
     #[error("failed converting the provided bytes to Rollup ID")]
@@ -128,11 +127,11 @@ enum CelestiaRollupBlobErrorKind {
     SequencerBlockHash(usize),
 }
 
-/// A shadow of [`CelestiaRollupBlob`] with public access to all its fields.
+/// A shadow of [`SubmittedRollupData`] with public access to all its fields.
 ///
-/// At the moment there are no invariants upheld by [`CelestiaRollupBlob`] so
+/// At the moment there are no invariants upheld by [`SubmittedRollupData`] so
 /// they can be converted directly into one another. This can change in the future.
-pub struct UncheckedCelestiaRollupBlob {
+pub struct UncheckedSubmittedRollupData {
     /// The hash of the sequencer block. Must be 32 bytes.
     pub sequencer_block_hash: [u8; 32],
     /// The 32 bytes identifying the rollup this blob belongs to. Matches
@@ -144,16 +143,16 @@ pub struct UncheckedCelestiaRollupBlob {
     pub proof: merkle::Proof,
 }
 
-impl UncheckedCelestiaRollupBlob {
+impl UncheckedSubmittedRollupData {
     #[must_use]
-    pub fn into_celestia_rollup_blob(self) -> CelestiaRollupBlob {
-        CelestiaRollupBlob::from_unchecked(self)
+    pub fn into_celestia_rollup_blob(self) -> SubmittedRollupData {
+        SubmittedRollupData::from_unchecked(self)
     }
 }
 
 #[derive(Clone, Debug)]
 #[allow(clippy::module_name_repetitions)]
-pub struct CelestiaRollupBlob {
+pub struct SubmittedRollupData {
     /// The hash of the sequencer block. Must be 32 bytes.
     sequencer_block_hash: [u8; 32],
     /// The 32 bytes identifying the rollup this blob belongs to. Matches
@@ -165,7 +164,7 @@ pub struct CelestiaRollupBlob {
     proof: merkle::Proof,
 }
 
-impl CelestiaRollupBlob {
+impl SubmittedRollupData {
     #[must_use]
     pub fn proof(&self) -> &merkle::Proof {
         &self.proof
@@ -190,8 +189,8 @@ impl CelestiaRollupBlob {
     ///
     /// This type does not uphold any extra invariants so there are no extra checks necessary.
     #[must_use]
-    pub fn from_unchecked(unchecked: UncheckedCelestiaRollupBlob) -> Self {
-        let UncheckedCelestiaRollupBlob {
+    pub fn from_unchecked(unchecked: UncheckedSubmittedRollupData) -> Self {
+        let UncheckedSubmittedRollupData {
             sequencer_block_hash,
             rollup_id,
             transactions,
@@ -209,14 +208,14 @@ impl CelestiaRollupBlob {
     ///
     /// Useful to get public access to the type's fields.
     #[must_use]
-    pub fn into_unchecked(self) -> UncheckedCelestiaRollupBlob {
+    pub fn into_unchecked(self) -> UncheckedSubmittedRollupData {
         let Self {
             sequencer_block_hash,
             rollup_id,
             transactions,
             proof,
         } = self;
-        UncheckedCelestiaRollupBlob {
+        UncheckedSubmittedRollupData {
             sequencer_block_hash,
             rollup_id,
             transactions,
@@ -228,14 +227,14 @@ impl CelestiaRollupBlob {
     ///
     /// Useful for then encoding it as protobuf.
     #[must_use]
-    pub fn into_raw(self) -> raw::CelestiaRollupBlob {
+    pub fn into_raw(self) -> raw::SubmittedRollupData {
         let Self {
             sequencer_block_hash,
             rollup_id,
             transactions,
             proof,
         } = self;
-        raw::CelestiaRollupBlob {
+        raw::SubmittedRollupData {
             sequencer_block_hash: sequencer_block_hash.to_vec(),
             rollup_id: Some(rollup_id.to_raw()),
             transactions,
@@ -247,26 +246,26 @@ impl CelestiaRollupBlob {
     ///
     /// # Errors
     /// TODO(https://github.com/astriaorg/astria/issues/612)
-    pub fn try_from_raw(raw: raw::CelestiaRollupBlob) -> Result<Self, CelestiaRollupBlobError> {
-        let raw::CelestiaRollupBlob {
+    pub fn try_from_raw(raw: raw::SubmittedRollupData) -> Result<Self, SubmittedRollupDataError> {
+        let raw::SubmittedRollupData {
             sequencer_block_hash,
             rollup_id,
             transactions,
             proof,
         } = raw;
         let Some(rollup_id) = rollup_id else {
-            return Err(CelestiaRollupBlobError::field_not_set("rollup_id"));
+            return Err(SubmittedRollupDataError::field_not_set("rollup_id"));
         };
         let rollup_id =
-            RollupId::try_from_raw(&rollup_id).map_err(CelestiaRollupBlobError::rollup_id)?;
-        let sequencer_block_hash = sequencer_block_hash
-            .try_into()
-            .map_err(|bytes: Vec<u8>| CelestiaRollupBlobError::sequencer_block_hash(bytes.len()))?;
+            RollupId::try_from_raw(&rollup_id).map_err(SubmittedRollupDataError::rollup_id)?;
+        let sequencer_block_hash = sequencer_block_hash.try_into().map_err(|bytes: Vec<u8>| {
+            SubmittedRollupDataError::sequencer_block_hash(bytes.len())
+        })?;
         let proof = 'proof: {
             let Some(proof) = proof else {
-                break 'proof Err(CelestiaRollupBlobError::field_not_set("proof"));
+                break 'proof Err(SubmittedRollupDataError::field_not_set("proof"));
             };
-            merkle::Proof::try_from_raw(proof).map_err(CelestiaRollupBlobError::proof)
+            merkle::Proof::try_from_raw(proof).map_err(SubmittedRollupDataError::proof)
         }?;
         Ok(Self {
             sequencer_block_hash,
@@ -280,21 +279,21 @@ impl CelestiaRollupBlob {
 #[derive(Debug, thiserror::Error)]
 #[error("failed constructing a celestia sequencer blob")]
 #[allow(clippy::module_name_repetitions)]
-pub struct CelestiaSequencerBlobError {
+pub struct SubmittedMetadataError {
     #[source]
-    kind: CelestiaSequencerBlobErrorKind,
+    kind: SubmittedMetadataErrorKind,
 }
 
-impl CelestiaSequencerBlobError {
+impl SubmittedMetadataError {
     fn block_hash(actual_len: usize) -> Self {
         Self {
-            kind: CelestiaSequencerBlobErrorKind::BlockHash(actual_len),
+            kind: SubmittedMetadataErrorKind::BlockHash(actual_len),
         }
     }
 
     fn header(source: SequencerBlockHeaderError) -> Self {
         Self {
-            kind: CelestiaSequencerBlobErrorKind::Header {
+            kind: SubmittedMetadataErrorKind::Header {
                 source,
             },
         }
@@ -302,13 +301,13 @@ impl CelestiaSequencerBlobError {
 
     fn field_not_set(field: &'static str) -> Self {
         Self {
-            kind: CelestiaSequencerBlobErrorKind::FieldNotSet(field),
+            kind: SubmittedMetadataErrorKind::FieldNotSet(field),
         }
     }
 
     fn rollup_ids(source: IncorrectRollupIdLength) -> Self {
         Self {
-            kind: CelestiaSequencerBlobErrorKind::RollupIds {
+            kind: SubmittedMetadataErrorKind::RollupIds {
                 source,
             },
         }
@@ -316,7 +315,7 @@ impl CelestiaSequencerBlobError {
 
     fn rollup_transactions_proof(source: <merkle::Proof as Protobuf>::Error) -> Self {
         Self {
-            kind: CelestiaSequencerBlobErrorKind::RollupTransactionsProof {
+            kind: SubmittedMetadataErrorKind::RollupTransactionsProof {
                 source,
             },
         }
@@ -324,7 +323,7 @@ impl CelestiaSequencerBlobError {
 
     fn rollup_ids_proof(source: <merkle::Proof as Protobuf>::Error) -> Self {
         Self {
-            kind: CelestiaSequencerBlobErrorKind::RollupIdsProof {
+            kind: SubmittedMetadataErrorKind::RollupIdsProof {
                 source,
             },
         }
@@ -332,19 +331,19 @@ impl CelestiaSequencerBlobError {
 
     fn rollup_transactions_not_in_cometbft_block() -> Self {
         Self {
-            kind: CelestiaSequencerBlobErrorKind::RollupTransactionsNotInCometBftBlock,
+            kind: SubmittedMetadataErrorKind::RollupTransactionsNotInCometBftBlock,
         }
     }
 
     fn rollup_ids_not_in_cometbft_block() -> Self {
         Self {
-            kind: CelestiaSequencerBlobErrorKind::RollupIdsNotInCometBftBlock,
+            kind: SubmittedMetadataErrorKind::RollupIdsNotInCometBftBlock,
         }
     }
 }
 
 #[derive(Debug, thiserror::Error)]
-enum CelestiaSequencerBlobErrorKind {
+enum SubmittedMetadataErrorKind {
     #[error(
         "the provided bytes were too short for a block hash; expected: 32 bytes, actual: {0} bytes"
     )]
@@ -378,17 +377,17 @@ enum CelestiaSequencerBlobErrorKind {
     RollupIdsNotInCometBftBlock,
 }
 
-/// A shadow of [`CelestiaSequencerBlob`] with public access to its fields.
+/// A shadow of [`SubmittedMetadata`] with public access to its fields.
 ///
 /// This type does not guarantee any invariants and is mainly useful to get
 /// access the sequencer block's internal types.
 #[derive(Clone, Debug)]
-pub struct UncheckedCelestiaSequencerBlob {
+pub struct UncheckedSubmittedMetadata {
     pub block_hash: [u8; 32],
     /// The original `CometBFT` header that is the input to this blob's original sequencer block.
     /// Corresponds to `astria.SequencerBlock.header`.
     pub header: SequencerBlockHeader,
-    /// The rollup rollup IDs for which `CelestiaRollupBlob`s were submitted to celestia.
+    /// The rollup rollup IDs for which `SubmittedRollupData`s were submitted to celestia.
     /// Corresponds to the `astria.sequencer.v1.RollupTransactions.id` field
     /// and is extracted from `astria.SequencerBlock.rollup_transactions`.
     pub rollup_ids: Vec<RollupId>,
@@ -404,25 +403,23 @@ pub struct UncheckedCelestiaSequencerBlob {
     pub rollup_ids_proof: merkle::Proof,
 }
 
-impl UncheckedCelestiaSequencerBlob {
-    /// Converts this unchecked blob into its checked [`CelestiaSequencerBlob`] representation.
+impl UncheckedSubmittedMetadata {
+    /// Converts this unchecked blob into its checked [`SubmittedMetadata`] representation.
     ///
     /// # Errors
     /// TODO(https://github.com/astriaorg/astria/issues/612)
     pub fn try_into_celestia_sequencer_blob(
         self,
-    ) -> Result<CelestiaSequencerBlob, CelestiaSequencerBlobError> {
-        CelestiaSequencerBlob::try_from_unchecked(self)
+    ) -> Result<SubmittedMetadata, SubmittedMetadataError> {
+        SubmittedMetadata::try_from_unchecked(self)
     }
 
     /// Converts from the raw decoded protobuf representation of this type.
     ///
     /// # Errors
     /// TODO(https://github.com/astriaorg/astria/issues/612)
-    pub fn try_from_raw(
-        raw: raw::CelestiaSequencerBlob,
-    ) -> Result<Self, CelestiaSequencerBlobError> {
-        let raw::CelestiaSequencerBlob {
+    pub fn try_from_raw(raw: raw::SubmittedMetadata) -> Result<Self, SubmittedMetadataError> {
+        let raw::SubmittedMetadata {
             block_hash,
             header,
             rollup_ids,
@@ -432,39 +429,37 @@ impl UncheckedCelestiaSequencerBlob {
         } = raw;
         let header = 'header: {
             let Some(header) = header else {
-                break 'header Err(CelestiaSequencerBlobError::field_not_set("header"));
+                break 'header Err(SubmittedMetadataError::field_not_set("header"));
             };
-            SequencerBlockHeader::try_from_raw(header).map_err(CelestiaSequencerBlobError::header)
+            SequencerBlockHeader::try_from_raw(header).map_err(SubmittedMetadataError::header)
         }?;
         let rollup_ids: Vec<_> = rollup_ids
             .iter()
             .map(RollupId::try_from_raw)
             .collect::<Result<_, _>>()
-            .map_err(CelestiaSequencerBlobError::rollup_ids)?;
+            .map_err(SubmittedMetadataError::rollup_ids)?;
 
         let rollup_transactions_proof = 'transactions_proof: {
             let Some(rollup_transactions_proof) = rollup_transactions_proof else {
-                break 'transactions_proof Err(CelestiaSequencerBlobError::field_not_set(
+                break 'transactions_proof Err(SubmittedMetadataError::field_not_set(
                     "rollup_transactions_root",
                 ));
             };
             merkle::Proof::try_from_raw(rollup_transactions_proof)
-                .map_err(CelestiaSequencerBlobError::rollup_transactions_proof)
+                .map_err(SubmittedMetadataError::rollup_transactions_proof)
         }?;
 
         let rollup_ids_proof = 'ids_proof: {
             let Some(rollup_ids_proof) = rollup_ids_proof else {
-                break 'ids_proof Err(CelestiaSequencerBlobError::field_not_set(
-                    "rollup_ids_proof",
-                ));
+                break 'ids_proof Err(SubmittedMetadataError::field_not_set("rollup_ids_proof"));
             };
             merkle::Proof::try_from_raw(rollup_ids_proof)
-                .map_err(CelestiaSequencerBlobError::rollup_ids_proof)
+                .map_err(SubmittedMetadataError::rollup_ids_proof)
         }?;
 
         let block_hash = block_hash
             .try_into()
-            .map_err(|bytes: Vec<_>| CelestiaSequencerBlobError::block_hash(bytes.len()))?;
+            .map_err(|bytes: Vec<_>| SubmittedMetadataError::block_hash(bytes.len()))?;
 
         Ok(Self {
             block_hash,
@@ -478,12 +473,12 @@ impl UncheckedCelestiaSequencerBlob {
 
 #[derive(Clone, Debug)]
 #[allow(clippy::module_name_repetitions)]
-pub struct CelestiaSequencerBlob {
+pub struct SubmittedMetadata {
     /// The block hash obtained from hashing `.header`.
     block_hash: [u8; 32],
     /// The sequencer block header.
     header: SequencerBlockHeader,
-    /// The rollup IDs for which `CelestiaRollupBlob`s were submitted to celestia.
+    /// The rollup IDs for which `SubmittedRollupData`s were submitted to celestia.
     /// Corresponds to the `astria.sequencer.v1.RollupTransactions.id` field
     /// and is extracted from `astria.SequencerBlock.rollup_transactions`.
     rollup_ids: Vec<RollupId>,
@@ -499,7 +494,7 @@ pub struct CelestiaSequencerBlob {
     rollup_ids_proof: merkle::Proof,
 }
 
-impl CelestiaSequencerBlob {
+impl SubmittedMetadata {
     /// Returns the block hash of the tendermint header stored in this blob.
     #[must_use]
     pub fn block_hash(&self) -> [u8; 32] {
@@ -539,7 +534,7 @@ impl CelestiaSequencerBlob {
 
     /// Converts into the unchecked representation fo this type.
     #[must_use]
-    pub fn into_unchecked(self) -> UncheckedCelestiaSequencerBlob {
+    pub fn into_unchecked(self) -> UncheckedSubmittedMetadata {
         let Self {
             block_hash,
             header,
@@ -547,7 +542,7 @@ impl CelestiaSequencerBlob {
             rollup_transactions_proof,
             rollup_ids_proof,
         } = self;
-        UncheckedCelestiaSequencerBlob {
+        UncheckedSubmittedMetadata {
             block_hash,
             header,
             rollup_ids,
@@ -561,9 +556,9 @@ impl CelestiaSequencerBlob {
     /// # Errors
     /// TODO(https://github.com/astriaorg/astria/issues/612)
     pub fn try_from_unchecked(
-        unchecked: UncheckedCelestiaSequencerBlob,
-    ) -> Result<Self, CelestiaSequencerBlobError> {
-        let UncheckedCelestiaSequencerBlob {
+        unchecked: UncheckedSubmittedMetadata,
+    ) -> Result<Self, SubmittedMetadataError> {
+        let UncheckedSubmittedMetadata {
             block_hash,
             header,
             rollup_ids,
@@ -575,7 +570,7 @@ impl CelestiaSequencerBlob {
             &Sha256::digest(header.rollup_transactions_root()),
             header.data_hash(),
         ) {
-            return Err(CelestiaSequencerBlobError::rollup_transactions_not_in_cometbft_block());
+            return Err(SubmittedMetadataError::rollup_transactions_not_in_cometbft_block());
         }
 
         if !super::are_rollup_ids_included(
@@ -583,7 +578,7 @@ impl CelestiaSequencerBlob {
             &rollup_ids_proof,
             header.data_hash(),
         ) {
-            return Err(CelestiaSequencerBlobError::rollup_ids_not_in_cometbft_block());
+            return Err(SubmittedMetadataError::rollup_ids_not_in_cometbft_block());
         }
 
         Ok(Self {
@@ -596,7 +591,7 @@ impl CelestiaSequencerBlob {
     }
 
     /// Converts into the raw decoded protobuf representation of this type.
-    pub fn into_raw(self) -> raw::CelestiaSequencerBlob {
+    pub fn into_raw(self) -> raw::SubmittedMetadata {
         let Self {
             block_hash,
             header,
@@ -605,7 +600,7 @@ impl CelestiaSequencerBlob {
             rollup_ids_proof,
             ..
         } = self;
-        raw::CelestiaSequencerBlob {
+        raw::SubmittedMetadata {
             block_hash: block_hash.to_vec(),
             header: Some(header.into_raw()),
             rollup_ids: rollup_ids.into_iter().map(RollupId::into_raw).collect(),
@@ -618,10 +613,8 @@ impl CelestiaSequencerBlob {
     ///
     /// # Errors
     /// TODO(https://github.com/astriaorg/astria/issues/612)
-    pub fn try_from_raw(
-        raw: raw::CelestiaSequencerBlob,
-    ) -> Result<Self, CelestiaSequencerBlobError> {
-        UncheckedCelestiaSequencerBlob::try_from_raw(raw)
-            .and_then(UncheckedCelestiaSequencerBlob::try_into_celestia_sequencer_blob)
+    pub fn try_from_raw(raw: raw::SubmittedMetadata) -> Result<Self, SubmittedMetadataError> {
+        UncheckedSubmittedMetadata::try_from_raw(raw)
+            .and_then(UncheckedSubmittedMetadata::try_into_celestia_sequencer_blob)
     }
 }

@@ -116,16 +116,20 @@ macro_rules! mount_celestia_blobs {
         $celestia_height:expr,sequencer_height:
         $sequencer_height:expr $(,)?
     ) => {{
-        let blobs = $crate::helpers::make_blobs($sequencer_height);
+        let blobs = $crate::helpers::make_blobs(&[$sequencer_height]);
         $test_env
             .mount_celestia_blob_get_all(
                 $celestia_height,
                 $crate::sequencer_namespace(),
-                blobs.header,
+                vec![blobs.header],
             )
             .await;
         $test_env
-            .mount_celestia_blob_get_all($celestia_height, $crate::rollup_namespace(), blobs.rollup)
+            .mount_celestia_blob_get_all(
+                $celestia_height,
+                $crate::rollup_namespace(),
+                vec![blobs.rollup],
+            )
             .await
     }};
 }

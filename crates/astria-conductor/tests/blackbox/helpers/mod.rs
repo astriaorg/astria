@@ -470,27 +470,45 @@ pub fn make_sequencer_block(height: u32) -> astria_core::sequencerblock::v1alpha
 }
 
 pub struct Blobs {
-    pub header: Vec<Blob>,
-    pub rollup: Vec<Blob>,
+    pub header: Blob,
+    pub rollup: Blob,
 }
 
 #[must_use]
-pub fn make_blobs(height: u32) -> Blobs {
-    let (head, tail) = make_sequencer_block(height).into_celestia_blobs();
-
-    let raw_header = ::prost::Message::encode_to_vec(&head.into_raw());
-    let head_compressed = compress_bytes(&raw_header).unwrap();
-    let header = Blob::new(sequencer_namespace(), head_compressed).unwrap();
-
-    let mut rollup = Vec::new();
-    for elem in tail {
-        let raw_rollup = ::prost::Message::encode_to_vec(&elem.into_raw());
-        let rollup_compressed = compress_bytes(&raw_rollup).unwrap();
-        let blob = Blob::new(rollup_namespace(), rollup_compressed).unwrap();
-        rollup.push(blob);
+pub fn make_blobs(heights: &[u32]) -> Blobs {
+    use astria_core::generated::sequencerblock::v1alpha1::{
+        SubmittedMetadataList,
+        SubmittedRollupDataList,
+    };
+    let mut metadata = Vec::new();
+    let mut rollup_data = Vec::new();
+    for &height in heights {
+        let (head, mut tail) = make_sequencer_block(height).split_for_celestia();
+        metadata.push(head.into_raw());
+        assert_eq!(
+            1,
+            tail.len(),
+            "this test logic assumes that there is only one rollup in the mocked block"
+        );
+        rollup_data.push(tail.swap_remove(0).into_raw());
     }
+    let header_list = SubmittedMetadataList {
+        entries: metadata,
+    };
+    let rollup_data_list = SubmittedRollupDataList {
+        entries: rollup_data,
+    };
+
+    let raw_header_list = ::prost::Message::encode_to_vec(&header_list);
+    let head_list_compressed = compress_bytes(&raw_header_list).unwrap();
+    let header = Blob::new(sequencer_namespace(), head_list_compressed).unwrap();
+
+    let raw_rollup_data_list = ::prost::Message::encode_to_vec(&rollup_data_list);
+    let rollup_data_list_compressed = compress_bytes(&raw_rollup_data_list).unwrap();
+    let rollup = Blob::new(rollup_namespace(), rollup_data_list_compressed).unwrap();
+
     Blobs {
-        header: vec![header],
+        header,
         rollup,
     }
 }

@@ -66,6 +66,13 @@ pub fn register() {
         "The time it takes to submit a blob to Celestia"
     );
 
+    describe_histogram!(
+        CELESTIA_PAYLOAD_CREATION_LATENCY,
+        Unit::Microseconds,
+        "The time it takes to create a new payload for submitting to Celestia (encoding to \
+         protobuf, compression, creating blobs)"
+    );
+
     describe_gauge!(
         TOTAL_BLOB_DATA_SIZE_FOR_ASTRIA_BLOCK,
         Unit::Bytes,
@@ -99,6 +106,11 @@ pub const BLOCKS_PER_CELESTIA_TX: &str =
     concat!(env!("CARGO_CRATE_NAME"), "_blocks_per_celestia_tx");
 
 pub const BLOBS_PER_CELESTIA_TX: &str = concat!(env!("CARGO_CRATE_NAME"), "_blobs_per_celestia_tx");
+
+pub const CELESTIA_PAYLOAD_CREATION_LATENCY: &str = concat!(
+    env!("CARGO_CRATE_NAME"),
+    "_celestia_payload_creation_latency"
+);
 
 pub const CELESTIA_SUBMISSION_LATENCY: &str =
     concat!(env!("CARGO_CRATE_NAME"), "_celestia_submission_latency");
