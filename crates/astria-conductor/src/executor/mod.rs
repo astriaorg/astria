@@ -595,13 +595,15 @@ impl Executor {
             ToSame,
         };
         let (firm, soft, next_sequencer_height, base_celestia_height) = match update {
-            OnlyFirm(firm) => (firm, self.state.soft(), self.state.next_expected_soft_sequencer_height(), ),
-            OnlySoft(soft) => (self.state.firm(), soft),
-            ToSame(block) => (block.clone(), block),
+            OnlyFirm(firm, celestia_height) => (firm, self.state.soft(), self.state.next_sequencer_block_height(), celestia_height),
+            OnlySoft(soft, sequencer_height) => (self.state.firm(), soft, sequencer_height, self.state.celestia_base_block_height()),
+            ToSame(block, sequencer_height, celestia_height) => (block.clone(), block, sequencer_height, celestia_height),
         };
         let commitment_state = CommitmentState::builder()
             .firm(firm)
             .soft(soft)
+            .next_sequencer_height(next_sequencer_height.into())
+            .base_celestia_height(base_celestia_height.into())
             .build()
             .wrap_err("failed constructing commitment state")?;
         let new_state = self
@@ -645,9 +647,9 @@ impl Executor {
 }
 
 enum Update {
-    OnlyFirm(Block),
-    OnlySoft(Block),
-    ToSame(Block),
+    OnlyFirm(Block, CelestiaHeight),
+    OnlySoft(Block, SequencerHeight),
+    ToSame(Block, SequencerHeight, CelestiaHeight),
 }
 
 #[derive(Debug)]

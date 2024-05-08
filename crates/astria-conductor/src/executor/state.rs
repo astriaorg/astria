@@ -220,7 +220,8 @@ forward_impls!(
     [soft_hash -> Bytes],
     [celestia_block_variance -> u32],
     [rollup_id -> RollupId],
-    [sequencer_genesis_block_height -> SequencerHeight],
+    [next_sequencer_block_height -> SequencerHeight],
+    [celestia_base_block_height -> CelestiaHeight],
 );
 
 forward_impls!(
@@ -279,15 +280,15 @@ impl State {
     }
 
     fn celestia_base_block_height(&self) -> CelestiaHeight {
-        self.genesis_info.celestia_base_block_height()
+        self.commitment_state.base_celestia_height().into()
     }
 
     fn celestia_block_variance(&self) -> u32 {
         self.genesis_info.celestia_block_variance()
     }
 
-    fn sequencer_genesis_block_height(&self) -> SequencerHeight {
-        self.genesis_info.sequencer_genesis_block_height()
+    fn next_sequencer_block_height(&self) -> SequencerHeight {
+        self.commitment_state.next_sequencer_height().into()
     }
 
     fn rollup_id(&self) -> RollupId {
