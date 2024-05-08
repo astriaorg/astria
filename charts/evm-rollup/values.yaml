@@ -13,7 +13,7 @@ images:
     devTag: latest
   conductor:
     repo: ghcr.io/astriaorg/conductor
-    tag: "0.14.0"
+    tag: "0.15.0"
     devTag: latest
   composer:
     repo: ghcr.io/astriaorg/composer
