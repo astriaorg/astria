@@ -322,35 +322,27 @@ macro_rules! mount_sequencer_genesis {
 }
 
 #[macro_export]
-macro_rules! mount_pending_blocks {
+macro_rules! mount_get_block {
     (
         $test_env:ident,
-        [$(
-            (
-            number: $number:expr,
-            hash: $hash:expr,
-            parent: $parent:expr $(,)?
-            )
-        ),+ $(,)?
-        ]
-        $(,)?
+        number: $number:expr,
+        hash: $hash:expr,
+        parent: $parent:expr $(,)?
     ) => {{
-        let blocks = vec![$(
-            $crate::block!(
-                number: $number,
-                hash: $hash,
-                parent: $parent,
-            )),*
-        ];
-        let identifiers: Vec<_> = blocks.iter().map(
-            |block| ::astria_core::generated::execution::v1alpha2::BlockIdentifier {
-                identifier: Some(::astria_core::generated::execution::v1alpha2::block_identifier::Identifier::BlockNumber(block.number)),
-        }).collect();
-        $test_env.mount_batch_get_blocks(
-            ::astria_core::generated::execution::v1alpha2::BatchGetBlocksRequest {
-                identifiers,
+        let block = $crate::block!(
+            number: $number,
+            hash: $hash,
+            parent: $parent,
+        );
+        let identifier = ::astria_core::generated::execution::v1alpha2::BlockIdentifier {
+            identifier: Some(
+                ::astria_core::generated::execution::v1alpha2::block_identifier::Identifier::BlockNumber(block.number)
+        )};
+        $test_env.mount_get_block(
+            ::astria_core::generated::execution::v1alpha2::GetBlockRequest {
+                identifier: Some(identifier),
             },
-            blocks,
+            block,
         )
         .await
     }};

@@ -130,21 +130,18 @@ impl TestConductor {
         .await;
     }
 
-    pub async fn mount_batch_get_blocks<S: serde::Serialize>(
+    pub async fn mount_get_block<S: serde::Serialize>(
         &self,
         expected_pbjson: S,
-        blocks: Vec<astria_core::generated::execution::v1alpha2::Block>,
+        block: astria_core::generated::execution::v1alpha2::Block,
     ) {
-        use astria_core::generated::execution::v1alpha2::BatchGetBlocksResponse;
         use astria_grpc_mock::{
             matcher::message_partial_pbjson,
             response::constant_response,
             Mock,
         };
-        Mock::for_rpc_given("batch_get_blocks", message_partial_pbjson(&expected_pbjson))
-            .respond_with(constant_response(BatchGetBlocksResponse {
-                blocks,
-            }))
+        Mock::for_rpc_given("get_block", message_partial_pbjson(&expected_pbjson))
+            .respond_with(constant_response(block))
             .expect(1..)
             .mount(&self.mock_grpc.mock_server)
             .await;
