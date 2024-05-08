@@ -155,7 +155,7 @@ pub(super) enum TryIntoPayloadError {
     },
     #[error(
         "there was no sequencer namespace present in the input so a payload of Celestia blobs \
-         could not be construct"
+         could not be constructed"
     )]
     NoSequencerNamespacePresent,
 }

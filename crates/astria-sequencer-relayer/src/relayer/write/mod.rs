@@ -274,18 +274,13 @@ async fn submit_blobs(
 ) -> eyre::Result<SubmissionState> {
     info!(
         blocks = %telemetry::display::json(&data.input_metadata()),
+        total_data_uncompressed_size = data.uncompressed_size(),
+        total_data_compressed_size = data.compressed_size(),
+        compression_ratio = data.compression_ratio(),
         "initiated submission of sequencer blocks converted to Celestia blobs",
     );
 
     let start = std::time::Instant::now();
-
-    debug!(
-        // sequencer_height = %sequencer_height,
-        total_data_uncompressed_size = data.uncompressed_size(),
-        total_data_compressed_size = data.compressed_size(),
-        compression_ratio = data.compression_ratio(),
-        "converted blocks into blobs with compressed data",
-    );
 
     // allow: gauges require f64, it's okay if the metrics get messed up by overflow or precision
     // loss
