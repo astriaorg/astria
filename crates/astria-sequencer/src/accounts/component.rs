@@ -14,12 +14,11 @@ use super::state_ext::StateWriteExt;
 use crate::{
     asset::get_native_asset,
     component::Component,
-    genesis::GenesisState,
+    genesis::{
+        GenesisState,
+        TRANSFER_BASE_FEE_FIELD_NAME,
+    },
 };
-
-/// Default transfer base fee.
-/// TODO: put in app genesis state
-pub(crate) const DEFAULT_TRANSFER_BASE_FEE: u128 = 12;
 
 #[derive(Default)]
 pub(crate) struct AccountsComponent;
@@ -38,7 +37,10 @@ impl Component for AccountsComponent {
         }
 
         state
-            .put_transfer_base_fee(DEFAULT_TRANSFER_BASE_FEE)
+            .put_transfer_base_fee(*app_state.fees.get(TRANSFER_BASE_FEE_FIELD_NAME).expect(
+                "genesis `fees` must contain `transfer_base_fee`, as it was validated during \
+                 construction",
+            ))
             .context("failed to put transfer base fee")?;
         Ok(())
     }

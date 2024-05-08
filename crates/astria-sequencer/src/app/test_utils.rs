@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use astria_core::{
     primitive::v1::{
         asset::DEFAULT_NATIVE_ASSET_DENOM,
@@ -65,6 +67,17 @@ pub(crate) fn default_genesis_accounts() -> Vec<Account> {
     ]
 }
 
+pub(crate) fn default_fees() -> HashMap<String, u128> {
+    let mut fees = HashMap::new();
+    fees.insert("transfer_base_fee".to_string(), 12);
+    fees.insert("sequence_base_fee".to_string(), 32);
+    fees.insert("sequence_byte_cost_multiplier".to_string(), 1);
+    fees.insert("init_bridge_account_base_fee".to_string(), 48);
+    fees.insert("bridge_lock_byte_cost_multiplier".to_string(), 1);
+    fees.insert("ics20_withdrawal_base_fee".to_string(), 24);
+    fees
+}
+
 pub(crate) async fn initialize_app_with_storage(
     genesis_state: Option<GenesisState>,
     genesis_validators: Vec<tendermint::validator::Update>,
@@ -84,6 +97,7 @@ pub(crate) async fn initialize_app_with_storage(
         native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         ibc_params: IBCParameters::default(),
         allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
+        fees: default_fees(),
     });
 
     app.init_chain(

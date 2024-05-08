@@ -10,17 +10,12 @@ use tracing::instrument;
 use super::state_ext::StateWriteExt;
 use crate::{
     component::Component,
-    genesis::GenesisState,
+    genesis::{
+        GenesisState,
+        BRIDGE_LOCK_BYTE_COST_MULTIPLIER_FIELD_NAME,
+        INIT_BRIDGE_ACCOUNT_BASE_FEE_FIELD_NAME,
+    },
 };
-
-/// Default base fee for a [`InitBridgeAccountAction`].
-const DEFAULT_INIT_BRIDGE_ACCOUNT_BASE_FEE: u128 = 48;
-
-/// Default multiplier for the cost of a byte in a [`BridgeLockAction`].
-///
-/// Note that the base fee for a [`BridgeLockAction`] is the same as the
-/// base fee for a [`TransferAction`].
-const DEFAULT_BRIDGE_LOCK_BYTE_COST_MULTIPLIER: u128 = 1;
 
 #[derive(Default)]
 pub(crate) struct BridgeComponent;
@@ -31,8 +26,24 @@ impl Component for BridgeComponent {
 
     #[instrument(name = "BridgeComponent::init_chain", skip(state))]
     async fn init_chain<S: StateWriteExt>(mut state: S, app_state: &Self::AppState) -> Result<()> {
-        state.put_init_bridge_account_base_fee(DEFAULT_INIT_BRIDGE_ACCOUNT_BASE_FEE);
-        state.put_bridge_lock_byte_cost_multiplier(DEFAULT_BRIDGE_LOCK_BYTE_COST_MULTIPLIER);
+        state.put_init_bridge_account_base_fee(
+            *app_state
+                .fees
+                .get(INIT_BRIDGE_ACCOUNT_BASE_FEE_FIELD_NAME)
+                .expect(
+                    "genesis `fees` must contain `init_bridge_account_base_fee`, as it was \
+                     validated during construction",
+                ),
+        );
+        state.put_bridge_lock_byte_cost_multiplier(
+            *app_state
+                .fees
+                .get(BRIDGE_LOCK_BYTE_COST_MULTIPLIER_FIELD_NAME)
+                .expect(
+                    "genesis `fees` must contain `bridge_lock_byte_cost_multiplier`, as it was \
+                     validated during construction",
+                ),
+        );
         Ok(())
     }
 
