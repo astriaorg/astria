@@ -1,7 +1,4 @@
-use std::{
-    collections::HashMap,
-    sync::Arc,
-};
+use std::collections::HashMap;
 
 use astria_core::{
     primitive::v1::{
@@ -59,6 +56,7 @@ use crate::{
         Account,
         GenesisState,
     },
+    mempool::TransactionPriority,
     proposal::commitment::generate_rollup_datas_commitment,
     state_ext::StateReadExt as _,
 };
@@ -480,13 +478,18 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
     // don't commit the result, now call prepare_proposal with the same data.
     // this will reset the app state.
     // this simulates executing the same block as a validator (specifically the proposer).
+    app.mempool
+        .insert(signed_tx, TransactionPriority::new(0, 0).unwrap())
+        .await
+        .unwrap();
+
     let proposer_address = [88u8; 20].to_vec().try_into().unwrap();
     let prepare_proposal = PrepareProposal {
         height: 1u32.into(),
         time: timestamp,
         next_validators_hash: Hash::default(),
         proposer_address,
-        txs: vec![signed_tx.to_raw().encode_to_vec().into()],
+        txs: vec![],
         max_tx_bytes: 1_000_000,
         local_last_commit: None,
         misbehavior: vec![],
@@ -499,6 +502,7 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
     assert_eq!(prepare_proposal_result.txs, finalize_block.txs);
     assert_eq!(app.executed_proposal_hash, Hash::default());
     assert_eq!(app.validator_address.unwrap(), proposer_address);
+    assert_eq!(app.mempool.len().await, 0);
 
     // call process_proposal - should not re-execute anything.
     let process_proposal = abci::request::ProcessProposal {
@@ -536,13 +540,13 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
         .unwrap();
     assert_eq!(app.executed_proposal_hash, block_hash);
     assert!(app.validator_address.is_none());
-    let finalize_block_after_prepare_proposal_result = app
+    let finalize_block_after_process_proposal_result = app
         .finalize_block(finalize_block, storage.clone())
         .await
         .unwrap();
 
     assert_eq!(
-        finalize_block_after_prepare_proposal_result.app_hash,
+        finalize_block_after_process_proposal_result.app_hash,
         finalize_block_result.app_hash
     );
 }
@@ -550,18 +554,8 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
 #[tokio::test]
 async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
     let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
-
-    // update storage with initialized genesis app state
-    let intermediate_state = StateDelta::new(storage.latest_snapshot());
-    let state = Arc::try_unwrap(std::mem::replace(
-        &mut app.state,
-        Arc::new(intermediate_state),
-    ))
-    .expect("we have exclusive ownership of the State at commit()");
-    storage
-        .commit(state)
-        .await
-        .expect("applying genesis state should be okay");
+    app.prepare_commit(storage.clone()).await.unwrap();
+    app.commit(storage.clone()).await;
 
     // create txs which will cause cometBFT overflow
     let (alice_signing_key, _) = get_alice_signing_key_and_address();
@@ -596,15 +590,19 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
     }
     .into_signed(&alice_signing_key);
 
-    let txs: Vec<bytes::Bytes> = vec![
-        tx_pass.to_raw().encode_to_vec().into(),
-        tx_overflow.to_raw().encode_to_vec().into(),
-    ];
+    app.mempool
+        .insert(tx_pass, TransactionPriority::new(0, 0).unwrap())
+        .await
+        .unwrap();
+    app.mempool
+        .insert(tx_overflow, TransactionPriority::new(1, 0).unwrap())
+        .await
+        .unwrap();
 
     // send to prepare_proposal
     let prepare_args = abci::request::PrepareProposal {
         max_tx_bytes: 200_000,
-        txs,
+        txs: vec![],
         local_last_commit: None,
         misbehavior: vec![],
         height: Height::default(),
@@ -625,23 +623,18 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
         "total transaction length should be three, including the two commitments and the one tx \
          that fit"
     );
+    assert_eq!(
+        app.mempool.len().await,
+        1,
+        "mempool should have re-added the tx that was too large"
+    );
 }
 
 #[tokio::test]
 async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
     let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
-
-    // update storage with initialized genesis app state
-    let intermediate_state = StateDelta::new(storage.latest_snapshot());
-    let state = Arc::try_unwrap(std::mem::replace(
-        &mut app.state,
-        Arc::new(intermediate_state),
-    ))
-    .expect("we have exclusive ownership of the State at commit()");
-    storage
-        .commit(state)
-        .await
-        .expect("applying genesis state should be okay");
+    app.prepare_commit(storage.clone()).await.unwrap();
+    app.commit(storage.clone()).await;
 
     // create txs which will cause sequencer overflow (max is currently 256_000 bytes)
     let (alice_signing_key, _) = get_alice_signing_key_and_address();
@@ -676,15 +669,19 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
     }
     .into_signed(&alice_signing_key);
 
-    let txs: Vec<bytes::Bytes> = vec![
-        tx_pass.to_raw().encode_to_vec().into(),
-        tx_overflow.to_raw().encode_to_vec().into(),
-    ];
+    app.mempool
+        .insert(tx_pass, TransactionPriority::new(0, 0).unwrap())
+        .await
+        .unwrap();
+    app.mempool
+        .insert(tx_overflow, TransactionPriority::new(1, 0).unwrap())
+        .await
+        .unwrap();
 
     // send to prepare_proposal
     let prepare_args = abci::request::PrepareProposal {
         max_tx_bytes: 600_000, // make large enough to overflow sequencer bytes first
-        txs,
+        txs: vec![],
         local_last_commit: None,
         misbehavior: vec![],
         height: Height::default(),
@@ -704,6 +701,11 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
         3,
         "total transaction length should be three, including the two commitments and the one tx \
          that fit"
+    );
+    assert_eq!(
+        app.mempool.len().await,
+        1,
+        "mempool should have re-added the tx that was too large"
     );
 }
 
@@ -767,4 +769,55 @@ async fn app_end_block_validator_updates() {
     assert_eq!(validator_c.pub_key, pubkey_c);
     assert_eq!(validator_c.power, 100u32.into());
     assert_eq!(app.state.get_validator_updates().await.unwrap().len(), 0);
+}
+
+#[tokio::test]
+async fn update_mempool_after_finalization_update_account_nonce() {
+    let mut mempool = Mempool::new();
+
+    let storage = cnidarium::TempStorage::new().await.unwrap();
+    let snapshot = storage.latest_snapshot();
+
+    // insert tx with nonce 1, account nonce is 0
+    let tx = get_mock_tx(1);
+    let address = Address::from_verification_key(tx.verification_key());
+    let priority = TransactionPriority::new(1, 0).unwrap();
+    mempool.insert(tx.clone(), priority).await.unwrap();
+
+    // update account nonce to 1
+    let mut state_tx = StateDelta::new(snapshot.clone());
+    state_tx.put_account_nonce(address, 1).unwrap();
+    storage.commit(state_tx).await.unwrap();
+
+    // ensure that mempool tx priority was updated
+    update_mempool_after_finalization(&mut mempool, storage.latest_snapshot())
+        .await
+        .unwrap();
+    let (_, priority) = mempool.pop().await.unwrap();
+    assert_eq!(priority, TransactionPriority::new(1, 1).unwrap());
+}
+
+#[tokio::test]
+async fn update_mempool_after_finalization_remove_tx_if_nonce_too_low() {
+    let mut mempool = Mempool::new();
+
+    let storage = cnidarium::TempStorage::new().await.unwrap();
+    let snapshot = storage.latest_snapshot();
+
+    // insert tx with nonce 1, account nonce is 1
+    let tx = get_mock_tx(1);
+    let address = Address::from_verification_key(tx.verification_key());
+    let priority = TransactionPriority::new(1, 1).unwrap();
+    mempool.insert(tx.clone(), priority).await.unwrap();
+
+    // update account nonce to 2
+    let mut state_tx = StateDelta::new(snapshot.clone());
+    state_tx.put_account_nonce(address, 2).unwrap();
+    storage.commit(state_tx).await.unwrap();
+
+    // ensure that tx was removed from mempool
+    update_mempool_after_finalization(&mut mempool, storage.latest_snapshot())
+        .await
+        .unwrap();
+    assert!(mempool.pop().await.is_none());
 }

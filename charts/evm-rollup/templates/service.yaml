@@ -55,13 +55,13 @@ spec:
   selector:
     app: {{ .Values.config.rollup.name }}-astria-dev-cluster
   ports:
-    - name: geth-metrics
+    - name: geth-metr
       port: {{ .Values.ports.metrics }}
-      targetPort: geth-metrics
-    - name: composer-metrics
+      targetPort: geth-metr
+    - name: composer-metr
       port: {{ .Values.ports.composerMetrics }}
-      targetPort: composer-metrics
-    - name: conductor-metrics
+      targetPort: composer-metr
+    - name: conductor-metr
       port: {{ .Values.ports.conductorMetrics }}
-      targetPort: conductor-metrics
+      targetPort: conductor-metr
 {{- end }}

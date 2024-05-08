@@ -61,7 +61,7 @@ use crate::{
     accounts::{
         component::AccountsComponent,
         state_ext::{
-            StateReadExt as _,
+            StateReadExt,
             StateWriteExt as _,
         },
     },
@@ -86,6 +86,7 @@ use crate::{
     component::Component as _,
     genesis::GenesisState,
     ibc::component::IbcComponent,
+    mempool::Mempool,
     metrics_init,
     proposal::{
         block_size_constraints::BlockSizeConstraints,
@@ -118,6 +119,11 @@ type InterBlockState = Arc<StateDelta<Snapshot>>;
 /// [Penumbra reference]: https://github.com/penumbra-zone/penumbra/blob/9cc2c644e05c61d21fdc7b507b96016ba6b9a935/app/src/app/mod.rs#L42
 pub(crate) struct App {
     state: InterBlockState,
+
+    // The mempool of the application.
+    //
+    // Transactions are pulled from this mempool during `prepare_proposal`.
+    mempool: Mempool,
 
     // The validator address in cometbft being used to sign votes.
     //
@@ -157,7 +163,7 @@ pub(crate) struct App {
 }
 
 impl App {
-    pub(crate) async fn new(snapshot: Snapshot) -> anyhow::Result<Self> {
+    pub(crate) async fn new(snapshot: Snapshot, mempool: Mempool) -> anyhow::Result<Self> {
         tracing::debug!("initializing App instance");
 
         let app_hash: AppHash = snapshot
@@ -175,6 +181,7 @@ impl App {
 
         Ok(Self {
             state,
+            mempool,
             validator_address: None,
             executed_proposal_hash: Hash::default(),
             execution_results: None,
@@ -285,15 +292,14 @@ impl App {
             .await
             .context("failed to prepare for executing block")?;
 
-        let (signed_txs, txs_to_include) = self
-            .execute_transactions_before_finalization(
-                prepare_proposal.txs,
-                &mut block_size_constraints,
-            )
+        // ignore the txs passed by cometbft in favour of our app-side mempool
+        let (included_tx_bytes, signed_txs_included) = self
+            .execute_transactions_prepare_proposal(&mut block_size_constraints)
             .await
             .context("failed to execute transactions")?;
         #[allow(clippy::cast_precision_loss)]
-        metrics::histogram!(metrics_init::PROPOSAL_TRANSACTIONS).record(signed_txs.len() as f64);
+        metrics::histogram!(metrics_init::PROPOSAL_TRANSACTIONS)
+            .record(signed_txs_included.len() as f64);
 
         let deposits = self
             .state
@@ -305,10 +311,10 @@ impl App {
 
         // generate commitment to sequence::Actions and deposits and commitment to the rollup IDs
         // included in the block
-        let res = generate_rollup_datas_commitment(&signed_txs, deposits);
+        let res = generate_rollup_datas_commitment(&signed_txs_included, deposits);
 
         Ok(abci::response::PrepareProposal {
-            txs: res.into_transactions(txs_to_include),
+            txs: res.into_transactions(included_tx_bytes),
         })
     }
 
@@ -378,20 +384,29 @@ impl App {
         // the max sequenced data bytes.
         let mut block_size_constraints = BlockSizeConstraints::new_unlimited_cometbft();
 
-        let (signed_txs, txs_to_include) = self
-            .execute_transactions_before_finalization(
-                txs.into_iter().collect(),
-                &mut block_size_constraints,
-            )
+        // deserialize txs into `SignedTransaction`s;
+        // this does not error if any txs fail to be deserialized, but the `execution_results.len()`
+        // check below ensures that all txs in the proposal are deserializable (and
+        // executable).
+        let signed_txs = txs
+            .into_iter()
+            .filter_map(|bytes| signed_transaction_from_bytes(bytes.as_ref()).ok())
+            .collect::<Vec<_>>();
+
+        self.execute_transactions_process_proposal(signed_txs.clone(), &mut block_size_constraints)
             .await
             .context("failed to execute transactions")?;
 
+        let Some(execution_results) = self.execution_results.as_ref() else {
+            anyhow::bail!("execution results must be present after executing transactions")
+        };
+
         // all txs in the proposal should be deserializable and executable
         // if any txs were not deserializeable or executable, they would not have been
-        // returned by `execute_block_data`, thus the length of `txs_to_include`
-        // will be shorter than that of `txs`.
+        // added to the `execution_results` list, thus the length of `txs_to_include`
+        // will be shorter than that of `execution_results`.
         ensure!(
-            txs_to_include.len() == expected_txs_len,
+            execution_results.len() == expected_txs_len,
             "transactions to be included do not match expected",
         );
         #[allow(clippy::cast_precision_loss)]
@@ -424,16 +439,17 @@ impl App {
         Ok(())
     }
 
-    /// Executes and filters the given transaction data, writing it to the app's `StateDelta`.
+    /// Executes transactions from the app's mempool until the block is full,
+    /// writing to the app's `StateDelta`.
     ///
-    /// The result of execution of every transaction which is successfully decoded
+    /// The result of execution of every transaction which is successful
     /// is stored in `self.execution_results`.
     ///
-    /// Returns the transactions which were successfully decoded and executed
+    /// Returns the transactions which were successfully executed
     /// in both their [`SignedTransaction`] and raw bytes form.
     ///
     /// Unlike the usual flow of an ABCI application, this is called during
-    /// the proposal phase, ie. `prepare_proposal` or `process_proposal`.
+    /// the proposal phase, ie. `prepare_proposal`.
     ///
     /// This is because we disallow transactions that fail execution to be included
     /// in a block's transaction data, as this would allow `sequence::Action`s to be
@@ -442,24 +458,28 @@ impl App {
     ///
     /// As a result, all transactions in a sequencer block are guaranteed to execute
     /// successfully.
-    #[instrument(name = "App::execute_transactions_before_finalization", skip_all, fields(
-        tx_count = txs.len()
-    ))]
-    async fn execute_transactions_before_finalization(
+    #[instrument(name = "App::execute_transactions_prepare_proposal", skip_all)]
+    async fn execute_transactions_prepare_proposal(
         &mut self,
-        txs: Vec<bytes::Bytes>,
         block_size_constraints: &mut BlockSizeConstraints,
-    ) -> anyhow::Result<(Vec<SignedTransaction>, Vec<bytes::Bytes>)> {
-        let mut signed_txs: Vec<SignedTransaction> = Vec::with_capacity(txs.len());
-        let mut validated_txs = Vec::with_capacity(txs.len());
-        let mut excluded_tx_count: usize = 0;
-        let mut execution_results = Vec::with_capacity(txs.len());
+    ) -> anyhow::Result<(Vec<bytes::Bytes>, Vec<SignedTransaction>)> {
+        let mempool_len = self.mempool.len().await;
+        debug!(mempool_len, "executing transactions from mempool");
 
-        for tx in txs {
-            let tx_hash = Sha256::digest(&tx);
+        let mut validated_txs: Vec<bytes::Bytes> = Vec::new();
+        let mut included_signed_txs = Vec::new();
+        let mut failed_tx_count: usize = 0;
+        let mut execution_results = Vec::new();
+        let mut txs_to_readd_to_mempool = Vec::new();
+
+        while let Some((tx, priority)) = self.mempool.pop().await {
+            let bytes = tx.to_raw().encode_to_vec();
+            let tx_hash = Sha256::digest(&bytes);
+            let tx_len = bytes.len();
+            info!(tx_hash = %telemetry::display::hex(&tx_hash), "executing transaction");
 
             // don't include tx if it would make the cometBFT block too large
-            if !block_size_constraints.cometbft_has_space(tx.len()) {
+            if !block_size_constraints.cometbft_has_space(tx_len) {
                 metrics::counter!(
                     metrics_init::PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_COMETBFT_SPACE
                 )
@@ -467,32 +487,129 @@ impl App {
                 debug!(
                     transaction_hash = %telemetry::display::base64(&tx_hash),
                     block_size_constraints = %json(&block_size_constraints),
-                    tx_data_bytes = tx.len(),
-                    "excluding transactions: max cometBFT data limit reached"
+                    tx_data_bytes = tx_len,
+                    "excluding remaining transactions: max cometBFT data limit reached"
                 );
-                excluded_tx_count += 1;
+                txs_to_readd_to_mempool.push((tx, priority));
+
+                // break from loop, as the block is full
+                break;
+            }
+
+            // check if tx's sequence data will fit into sequence block
+            let tx_sequence_data_bytes = tx
+                .unsigned_transaction()
+                .actions
+                .iter()
+                .filter_map(Action::as_sequence)
+                .fold(0usize, |acc, seq| acc + seq.data.len());
+
+            if !block_size_constraints.sequencer_has_space(tx_sequence_data_bytes) {
+                debug!(
+                    transaction_hash = %telemetry::display::base64(&tx_hash),
+                    block_size_constraints = %json(&block_size_constraints),
+                    tx_data_bytes = tx_sequence_data_bytes,
+                    "excluding transaction: max block sequenced data limit reached"
+                );
+                txs_to_readd_to_mempool.push((tx, priority));
+
+                // continue as there might be non-sequence txs that can fit
                 continue;
             }
 
-            // try to decode the tx
-            let signed_tx = match signed_transaction_from_bytes(&tx) {
+            // execute tx and store in `execution_results` list on success
+            match self.execute_transaction(tx.clone()).await {
+                Ok(events) => {
+                    execution_results.push(ExecTxResult {
+                        events,
+                        ..Default::default()
+                    });
+                    block_size_constraints
+                        .sequencer_checked_add(tx_sequence_data_bytes)
+                        .context("error growing sequencer block size")?;
+                    block_size_constraints
+                        .cometbft_checked_add(tx_len)
+                        .context("error growing cometBFT block size")?;
+                    validated_txs.push(bytes.into());
+                    included_signed_txs.push(tx);
+                }
                 Err(e) => {
                     metrics::counter!(
                         metrics_init::PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_DECODE_FAILURE
                     )
                     .increment(1);
                     debug!(
+                        transaction_hash = %telemetry::display::base64(&tx_hash),
                         error = AsRef::<dyn std::error::Error>::as_ref(&e),
-                        "failed to decode deliver tx payload to signed transaction; excluding it",
+                        "failed to execute transaction, not including in block"
                     );
-                    excluded_tx_count += 1;
-                    continue;
+                    failed_tx_count += 1;
+
+                    // we re-insert the tx into the mempool if it failed to execute
+                    // due to an invalid nonce, as it may be valid in the future.
+                    // if it's invalid due to the nonce being too low, it'll be
+                    // removed from the mempool in `update_mempool_after_finalization`.
+                    if e.downcast_ref::<InvalidNonce>().is_some() {
+                        txs_to_readd_to_mempool.push((tx, priority));
+                    }
                 }
-                Ok(tx) => tx,
-            };
+            }
+        }
+
+        if failed_tx_count > 0 {
+            info!(
+                failed_tx_count = failed_tx_count,
+                included_tx_count = validated_txs.len(),
+                "excluded transactions from block due to execution failure"
+            );
+        }
+
+        self.mempool
+            .insert_all(txs_to_readd_to_mempool)
+            .await
+            .expect(
+                "priority transaction nonce and transaction nonce matches for each tx, as they \
+                 were just popped from the mempool and not modified",
+            );
+
+        let mempool_len = self.mempool.len().await;
+        debug!(mempool_len, "finished executing transactions from mempool");
+
+        self.execution_results = Some(execution_results);
+        Ok((validated_txs, included_signed_txs))
+    }
+
+    /// Executes the given transactions, writing to the app's `StateDelta`.
+    ///
+    /// The result of execution of every transaction which is successful
+    /// is stored in `self.execution_results`.
+    ///
+    /// Unlike the usual flow of an ABCI application, this is called during
+    /// the proposal phase, ie. `process_proposal`.
+    ///
+    /// This is because we disallow transactions that fail execution to be included
+    /// in a block's transaction data, as this would allow `sequence::Action`s to be
+    /// included for free. Instead, we execute transactions during the proposal phase,
+    /// and only include them in the block if they succeed.
+    ///
+    /// As a result, all transactions in a sequencer block are guaranteed to execute
+    /// successfully.
+    #[instrument(name = "App::execute_transactions_process_proposal", skip_all)]
+    async fn execute_transactions_process_proposal(
+        &mut self,
+        txs: Vec<SignedTransaction>,
+        block_size_constraints: &mut BlockSizeConstraints,
+    ) -> anyhow::Result<()> {
+        let mut excluded_tx_count = 0;
+        let mut execution_results = Vec::new();
+
+        for tx in txs {
+            let bytes = tx.to_raw().encode_to_vec();
+            let tx_hash = Sha256::digest(&bytes);
+            let tx_len = bytes.len();
 
             // check if tx's sequence data will fit into sequence block
-            let tx_sequence_data_bytes = signed_tx
+            let tx_sequence_data_bytes = tx
                 .unsigned_transaction()
                 .actions
                 .iter()
@@ -514,8 +631,8 @@ impl App {
                 continue;
             }
 
-            // execute tx and store in `execution_results` list
-            match self.execute_transaction(signed_tx.clone()).await {
+            // execute tx and store in `execution_results` list on success
+            match self.execute_transaction(tx.clone()).await {
                 Ok(events) => {
                     execution_results.push(ExecTxResult {
                         events,
@@ -525,10 +642,8 @@ impl App {
                         .sequencer_checked_add(tx_sequence_data_bytes)
                         .context("error growing sequencer block size")?;
                     block_size_constraints
-                        .cometbft_checked_add(tx.len())
+                        .cometbft_checked_add(tx_len)
                         .context("error growing cometBFT block size")?;
-                    signed_txs.push(signed_tx);
-                    validated_txs.push(tx);
                 }
                 Err(e) => {
                     metrics::counter!(
@@ -548,16 +663,16 @@ impl App {
         if excluded_tx_count > 0 {
             #[allow(clippy::cast_precision_loss)]
             metrics::gauge!(metrics_init::PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS)
-                .set(excluded_tx_count as f64);
+                .set(f64::from(excluded_tx_count));
             info!(
                 excluded_tx_count = excluded_tx_count,
-                included_tx_count = validated_txs.len(),
+                included_tx_count = execution_results.len(),
                 "excluded transactions from block"
             );
         }
 
         self.execution_results = Some(execution_results);
-        Ok((signed_txs, validated_txs))
+        Ok(())
     }
 
     /// sets up the state for execution of the block's transactions.
@@ -678,6 +793,10 @@ impl App {
 
             // skip the first two transactions, as they are the rollup data commitments
             for tx in finalize_block.txs.iter().skip(2) {
+                // remove any included txs from the mempool
+                let tx_hash = Sha256::digest(tx).into();
+                self.mempool.remove(&tx_hash).await;
+
                 let signed_tx = signed_transaction_from_bytes(tx)
                     .context("protocol error; only valid txs should be finalized")?;
 
@@ -760,6 +879,11 @@ impl App {
             .prepare_commit(storage.clone())
             .await
             .context("failed to prepare commit")?;
+
+        // update the priority of any txs in the mempool based on the updated app state
+        update_mempool_after_finalization(&mut self.mempool, self.state.clone())
+            .await
+            .context("failed to update mempool after finalization")?;
 
         Ok(abci::response::FinalizeBlock {
             events: end_block.events,
@@ -1000,11 +1124,50 @@ impl App {
     }
 }
 
+// updates the priority of the txs in the mempool based on the current state,
+// and removes any txs that are now invalid.
+//
+// NOTE: this function locks the mempool until every tx has been checked.
+// this could potentially stall consensus from moving to the next round if
+// the mempool is large.
+async fn update_mempool_after_finalization<S: StateReadExt>(
+    mempool: &mut Mempool,
+    state: S,
+) -> anyhow::Result<()> {
+    use crate::mempool::TransactionPriority;
+
+    let mut txs_to_remove = Vec::new();
+
+    for (tx, priority) in mempool.inner().await.iter_mut() {
+        match TransactionPriority::new(
+            tx.nonce(),
+            state
+                .get_account_nonce(Address::from_verification_key(tx.verification_key()))
+                .await
+                .context("failed to fetch account nonce")?,
+        ) {
+            Ok(new_priority) => *priority = new_priority,
+            Err(e) => {
+                let tx_hash = tx.sha256_of_proto_encoding();
+                debug!(
+                    transaction_hash = %telemetry::display::base64(&tx_hash),
+                    error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                     "account nonce is now greater than tx nonce; dropping tx from mempool",
+                );
+                txs_to_remove.push(tx_hash);
+            }
+        };
+    }
+
+    mempool.remove_all(&txs_to_remove).await;
+    Ok(())
+}
+
 /// relevant data of a block being executed.
 ///
 /// used to setup the state before execution of transactions.
 #[derive(Debug, Clone)]
-pub(crate) struct BlockData {
+struct BlockData {
     misbehavior: Vec<tendermint::abci::types::Misbehavior>,
     height: tendermint::block::Height,
     time: tendermint::Time,
