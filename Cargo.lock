@@ -742,6 +742,7 @@ dependencies = [
  "hex",
  "ibc-proto",
  "ibc-types",
+ "insta",
  "matchit",
  "metrics",
  "penumbra-ibc",
