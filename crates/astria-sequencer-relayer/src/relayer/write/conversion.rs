@@ -519,7 +519,7 @@ mod tests {
 
     #[test]
     fn adding_block_to_full_submission_gets_rejected() {
-        // this tests makes use of the fact that random data is essentialy incompressible so
+        // this test makes use of the fact that random data is essentially incompressible so
         // that size(uncompressed_payload) ~= size(compressed_payload).
         let mut rng = ChaChaRng::seed_from_u64(0);
         let mut next_submission = NextSubmission::new(include_all_rollups());
@@ -541,7 +541,7 @@ mod tests {
 
     #[test]
     fn oversized_block_is_rejected() {
-        // this tests makes use of the fact that random data is essentialy incompressible so
+        // this test makes use of the fact that random data is essentially incompressible so
         // that size(uncompressed_payload) ~= size(compressed_payload).
         let mut rng = ChaChaRng::seed_from_u64(0);
         let mut next_submission = NextSubmission::new(include_all_rollups());
