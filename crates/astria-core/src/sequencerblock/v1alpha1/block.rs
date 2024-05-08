@@ -12,8 +12,8 @@ use super::{
     are_rollup_txs_included,
     celestia::{
         self,
-        CelestiaRollupBlob,
-        CelestiaSequencerBlob,
+        SubmittedMetadata,
+        SubmittedRollupData,
     },
     raw,
 };
@@ -325,7 +325,7 @@ enum SequencerBlockErrorKind {
 ///
 /// This type exists to provide convenient access to the fields of
 /// a `[SequencerBlockHeader]`.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct SequencerBlockHeaderParts {
     pub chain_id: tendermint::chain::Id,
     pub height: tendermint::block::Height,
@@ -684,11 +684,10 @@ impl SequencerBlock {
         }
     }
 
-    /// Turn the sequencer block into a [`CelestiaSequencerBlob`] and its associated list of
-    /// [`CelestiaRollupBlob`]s.
+    /// Turn the sequencer block into a [`SubmittedMetadata`] and list of [`SubmittedRollupData`].
     #[must_use]
-    pub fn into_celestia_blobs(self) -> (CelestiaSequencerBlob, Vec<CelestiaRollupBlob>) {
-        celestia::CelestiaBlobBundle::from_sequencer_block(self).into_parts()
+    pub fn split_for_celestia(self) -> (SubmittedMetadata, Vec<SubmittedRollupData>) {
+        celestia::PreparedBlock::from_sequencer_block(self).into_parts()
     }
 
     /// Converts from relevant header fields and the block data.
