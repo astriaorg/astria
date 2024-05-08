@@ -254,10 +254,6 @@ impl Executor {
             .await
             .wrap_err("failed setting initial rollup node state")?;
 
-        self.populate_blocks_pending_finalization(client.clone())
-            .await
-            .wrap_err("failed getting blocks pending finalization")?;
-
         let max_spread: usize = self.calculate_max_spread();
         if let Some(channel) = self.soft_blocks.as_mut() {
             channel.set_capacity(max_spread);
@@ -470,18 +466,13 @@ impl Executor {
                 .wrap_err("execution API server violated contract")?;
             Update::ToSame(executed_block)
         } else if let Some(block) = self.blocks_pending_finalization.remove(&block_number) {
-            info!(
+            debug!(
                 block_number,
-                "found pending block; updating state but not not re-executing it"
+                "found pending block in cache; updating state but not not re-executing it"
             );
             Update::OnlyFirm(block)
         } else {
-            // XXX: This case should never be reached because the firm block *must* exist in the
-            // cache - either due to being pre-populated at startup (via
-            // `populate_blocks_pending_finalization`), or during normal operation (as part of
-            // `execute_soft`).
-            // This code is here as a fall-back mechanism in case there is a bug.
-            error!(
+            debug!(
                 block_number,
                 "pending block not found for block number in cache. THIS SHOULD NOT HAPPEN. \
                  Trying to fetch the already-executed block from the rollup before giving up."
@@ -492,8 +483,8 @@ impl Executor {
                     error!(
                         block_number,
                         %error,
-                        "failed to fetch block missing from rollup and will not be able to update \
-                        the firm commitment state. Giving up."
+                        "failed to fetch block from rollup and can will not be able to update \
+                        firm commitment state. Giving up."
                     );
                     return Err(error).wrap_err_with(|| {
                         format!("failed to get block at number `{block_number}` from rollup")
@@ -542,55 +533,6 @@ impl Executor {
         );
 
         Ok(executed_block)
-    }
-
-    #[instrument(
-        skip_all,
-        fields(
-            firm_number = self.state.firm_number(),
-            soft_number = self.state.soft_number(),
-        ),
-        err
-    )]
-    async fn populate_blocks_pending_finalization(
-        &mut self,
-        mut client: Client,
-    ) -> eyre::Result<()> {
-        if !self.mode.is_soft_and_firm() {
-            debug!(
-                mode = %self.mode,
-                "blocks pending finalization only relevant in `{}` mode; not requesting them from \
-                the rollup and continuing with initialization",
-                CommitLevel::SoftAndFirm,
-            );
-            return Ok(());
-        }
-
-        let range_of_missing_heights =
-            (self.state.firm_number().saturating_add(1))..=self.state.soft_number();
-        if range_of_missing_heights.is_empty() {
-            info!(
-                "all blocks on rollup have been finalized up to head (because firm == soft \
-                 number). Not pending blocks and continuing with normal operation."
-            );
-            return Ok(());
-        }
-        info!(
-            "rollup has not yet finalized blocks (because firm < soft number); requesting pending \
-             blocks from the rollup",
-        );
-        let blocks = client
-            .batch_get_blocks(range_of_missing_heights)
-            .await
-            .wrap_err("failed getting blocks for not yet finalized firm heights")?;
-
-        info!("received blocks pending finalization",);
-
-        for block in blocks {
-            self.blocks_pending_finalization
-                .insert(block.number(), block);
-        }
-        Ok(())
     }
 
     #[instrument(skip_all)]
