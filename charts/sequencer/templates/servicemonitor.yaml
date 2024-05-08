@@ -45,7 +45,7 @@ spec:
     matchLabels:
       {{- include "sequencer.selectorLabels" . | nindent 6 }}
   endpoints:
-    - port: sequencer-metric
+    - port: seq-metric
       path: /
       {{- with .Values.serviceMonitor.interval }}
       interval: {{ . }}

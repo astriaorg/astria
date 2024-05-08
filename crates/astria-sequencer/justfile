@@ -28,11 +28,12 @@ run-testnet:
 
 [linux]
 stop-testnet:
-  pkill cometbft && pkill astria-sequencer
+  pkill -f [a]stria-sequencer || true
+  pkill cometbft || true
 [linux] 
 run-testnet: 
   cargo build
-  ${OUT_DIR} ${NUM_VALIDATORS} ./scripts/testnet.sh
+  ./scripts/testnet.sh
 
 cometbft-logs-testnet NODE="node0":
   tail -f sequencer_testnet/{{ NODE }}/cometbft.log

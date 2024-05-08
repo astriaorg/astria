@@ -13,7 +13,7 @@ edit_in_place() {
 }
 
 : "${OUT_DIR:=sequencer_testnet}"
-: "${NUM_VALIDATORS:=3}"
+: "${NUM_VALIDATORS:=4}"
 
 # create cometbft testnet config files
 cometbft testnet --v $NUM_VALIDATORS --o $OUT_DIR
@@ -54,13 +54,15 @@ for i in $(seq 0 "$((NUM_VALIDATORS - 1))"); do
     ASTRIA_SEQUENCER_GRPC_ADDR=127.0.0.1:$((8080 + $i))
     ASTRIA_SEQUENCER_METRICS_HTTP_LISTENER_ADDR=127.0.0.1:$((9000 + $i))
 
-    export ASTRIA_SEQUENCER_DB_FILEPATH=$DB_PATH \
-    && export ASTRIA_SEQUENCER_LISTEN_ADDR=$ASTRIA_SEQUENCER_LISTEN_ADDR \
-    && export ASTRIA_SEQUENCER_GRPC_ADDR=$ASTRIA_SEQUENCER_GRPC_ADDR \
-    && RUST_LOG=debug RUST_BACKTRACE=1 ../../target/debug/astria-sequencer &> $OUT_DIR/node$i/sequencer.log &
+    ASTRIA_SEQUENCER_DB_FILEPATH=$DB_PATH \
+    ASTRIA_SEQUENCER_LISTEN_ADDR=$ASTRIA_SEQUENCER_LISTEN_ADDR \
+    ASTRIA_SEQUENCER_GRPC_ADDR=$ASTRIA_SEQUENCER_GRPC_ADDR \
+    RUST_LOG=debug RUST_BACKTRACE=1 ../../target/debug/astria-sequencer > $OUT_DIR/node$i/sequencer.log 2>&1 &
+
+    echo $! > $OUT_DIR/node$i/sequencer.pid
 done
 
 # finally, start cometbft nodes
 for i in $(seq 0 "$((NUM_VALIDATORS - 1))"); do
-    cometbft start --home $OUT_DIR/node$i &> $OUT_DIR/node$i/cometbft.log &
+    cometbft start --home $OUT_DIR/node$i > $OUT_DIR/node$i/cometbft.log 2>&1 &
 done

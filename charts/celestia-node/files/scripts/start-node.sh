@@ -24,7 +24,7 @@ export CELESTIA_CUSTOM=$CELESTIA_CUSTOM_TO_BE
 exec /bin/celestia {{ .Values.config.type }} start \
   --node.store /celestia \
   {{- if not .Values.config.tokenAuthLevel }}
-  --rpc.skipAuth \
+  --rpc.skip-auth \
   {{- end }}
   {{- if not $isCustomNetwork }}
   --core.ip {{ .Values.config.coreIp }} \

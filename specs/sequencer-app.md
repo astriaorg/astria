@@ -1,14 +1,14 @@
 # Sequencer application
 
 A sequencer blockchain node consists of two components:
-[cometbft](https://github.com/cometbft/cometbft) (formerly known as tendermint)
+[CometBFT](https://github.com/cometbft/cometbft) (formerly known as tendermint)
 and the [sequencer
 application](https://github.com/astriaorg/astria/tree/main/crates/astria-sequencer).
 This splits the node logic into two separate components that communicate over
-[ABCI](https://docs.cometbft.com/v0.37/spec/abci/). Cometbft contains the logic
+[ABCI](https://docs.cometbft.com/v0.37/spec/abci/). CometBFT contains the logic
 for consensus, including the required p2p networking, while the sequencer
 application contains the state transition (application) logic of the blockchain.
-Cometbft drives the formation of new blocks and finalization of blocks, calling
+CometBFT drives the formation of new blocks and finalization of blocks, calling
 into the application when necessary to execute the state transition logic.
 
 This document aims to specify the application logic of the sequencer chain.
@@ -16,7 +16,7 @@ This document aims to specify the application logic of the sequencer chain.
 ## Background and transaction types
 
 The sequencer chain's primary purpose is to sequence (order) data. This data is
-not executed on the sequencer chain, as it's destined for other chains (ie.
+not executed on the sequencer chain, as it's destined for other chains (i.e.
 rollups).
 
 Additionally, the sequencer chain has a native token used to pay fees for
@@ -68,7 +68,7 @@ pub struct Signed {
 ```
 
 The address corresponding to the signer is derived from the
-`ed25519_consensus::VerificationKey` (ie. the public key).
+`ed25519_consensus::VerificationKey` (i.e. the public key).
 
 ### Actions
 
@@ -101,13 +101,13 @@ is simply ordered by the sequencer and placed into a block.
 
 ## ABCI block lifecycle
 
-Cometbft makes progress through successive consensus rounds. During each round,
+CometBFT makes progress through successive consensus rounds. During each round,
 a new block is proposed, voted on by validators, and if >2/3 of validator
 staking power votes on a block, it will be committed (finalized). During each
-round, cometbft calls into the sequencer app to execute the state transition
+round, CometBFT calls into the sequencer app to execute the state transition
 logic via ABCI (application blockchain interface).
 
-As of cometbft v0.37, The ABCI methods called during a one-round period are as
+As of CometBFT v0.37, The ABCI methods called during a one-round period are as
 follows:
 
 1. [PrepareProposal](https://docs.cometbft.com/v0.37/spec/abci/abci++_methods#prepareproposal)
@@ -124,7 +124,7 @@ follows:
 
 If the node is a validator, and the proposer for this round, `PrepareProposal`
 is called. `PrepareProposal` allows the list of transactions suggested by
-cometbft to be modified. Currently, the only modification we make is adding a
+CometBFT to be modified. Currently, the only modification we make is adding a
 commitment to the rollup data for each block. See the [related
 spec](./sequencer-inclusion-proofs.md) for more details.
 
@@ -161,10 +161,10 @@ The lifecycle of a sequencer transaction is as follows:
 - a user/application constructs a `Unsigned` transaction, which they sign,
   converting it into a `Signed` transaction
 - this transaction is serialized and submitted to a sequencer node via
-  cometbft's RPC endpoints `broadcast_tx_..`
-- cometbft calls into the sequencer application to validate the transaction
+  CometBFT's RPC endpoints `broadcast_tx_..`
+- CometBFT calls into the sequencer application to validate the transaction
   using the ABCI method `CheckTx`. `CheckTx` returns either success or an error.
-  if success is returned, the transaction is added to the cometbft mempool and
+  if success is returned, the transaction is added to the CometBFT mempool and
   broadcast throughout the network; otherwise, the transaction is discarded.
 - the transaction will live in the mempool until it's included in a block
   proposal by a proposer.

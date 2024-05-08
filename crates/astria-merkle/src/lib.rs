@@ -127,7 +127,7 @@
 //! + RFC 6962: <https://datatracker.ietf.org/doc/html/rfc6962>
 //! + RFC 7574 surpassing 6962: <https://datatracker.ietf.org/doc/rfc7574>
 //! + Hypercore whitepaper introducing flat binary trees: <https://www.datprotocol.com/deps/0002-hypercore/>
-//! + Traversing rachet trees: <https://www.ietf.org/archive/id/draft-ietf-mls-protocol-14.html>
+//! + Traversing ratchet trees: <https://www.ietf.org/archive/id/draft-ietf-mls-protocol-14.html>
 //! + Flat in-order trees (the blog post this crate is based on): <https://mmapped.blog/posts/22-flat-in-order-trees>
 
 use std::num::NonZeroUsize;
@@ -346,9 +346,7 @@ impl Tree {
     /// ```
     #[must_use]
     pub fn construct_proof(&self, leaf_index: usize) -> Option<Proof> {
-        let Some(tree_size) = NonZeroUsize::new(self.len()) else {
-            return None;
-        };
+        let tree_size = NonZeroUsize::new(self.len())?;
         if !self.is_leaf_in_tree(leaf_index) {
             return None;
         }
@@ -393,7 +391,7 @@ impl Tree {
 
     /// Returns the root hash of the Merkle tree.
     ///
-    /// If the tree is empty then the root is defined as the hash of the emptry
+    /// If the tree is empty then the root is defined as the hash of the empty
     /// string, i.e. `MTH({}) = Sha256()`.
     #[must_use]
     pub fn root(&self) -> [u8; 32] {
@@ -517,7 +515,7 @@ fn last_set_bit(x: usize) -> usize {
     x - ((x - 1) & x)
 }
 
-/// Isolatest the last unset bit of an unsigned integer `x` as a mask.
+/// Isolates the last unset bit of an unsigned integer `x` as a mask.
 #[inline]
 fn last_zero_bit(x: usize) -> usize {
     last_set_bit(x + 1)

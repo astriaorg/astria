@@ -1,319 +1,3 @@
-impl serde::Serialize for CelestiaRollupBlob {
-    #[allow(deprecated)]
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use serde::ser::SerializeStruct;
-        let mut len = 0;
-        if !self.sequencer_block_hash.is_empty() {
-            len += 1;
-        }
-        if self.rollup_id.is_some() {
-            len += 1;
-        }
-        if !self.transactions.is_empty() {
-            len += 1;
-        }
-        if self.proof.is_some() {
-            len += 1;
-        }
-        let mut struct_ser = serializer.serialize_struct("astria.sequencerblock.v1alpha1.CelestiaRollupBlob", len)?;
-        if !self.sequencer_block_hash.is_empty() {
-            #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("sequencer_block_hash", pbjson::private::base64::encode(&self.sequencer_block_hash).as_str())?;
-        }
-        if let Some(v) = self.rollup_id.as_ref() {
-            struct_ser.serialize_field("rollup_id", v)?;
-        }
-        if !self.transactions.is_empty() {
-            struct_ser.serialize_field("transactions", &self.transactions.iter().map(pbjson::private::base64::encode).collect::<Vec<_>>())?;
-        }
-        if let Some(v) = self.proof.as_ref() {
-            struct_ser.serialize_field("proof", v)?;
-        }
-        struct_ser.end()
-    }
-}
-impl<'de> serde::Deserialize<'de> for CelestiaRollupBlob {
-    #[allow(deprecated)]
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        const FIELDS: &[&str] = &[
-            "sequencer_block_hash",
-            "sequencerBlockHash",
-            "rollup_id",
-            "rollupId",
-            "transactions",
-            "proof",
-        ];
-
-        #[allow(clippy::enum_variant_names)]
-        enum GeneratedField {
-            SequencerBlockHash,
-            RollupId,
-            Transactions,
-            Proof,
-        }
-        impl<'de> serde::Deserialize<'de> for GeneratedField {
-            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
-            where
-                D: serde::Deserializer<'de>,
-            {
-                struct GeneratedVisitor;
-
-                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-                    type Value = GeneratedField;
-
-                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        write!(formatter, "expected one of: {:?}", &FIELDS)
-                    }
-
-                    #[allow(unused_variables)]
-                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
-                    where
-                        E: serde::de::Error,
-                    {
-                        match value {
-                            "sequencerBlockHash" | "sequencer_block_hash" => Ok(GeneratedField::SequencerBlockHash),
-                            "rollupId" | "rollup_id" => Ok(GeneratedField::RollupId),
-                            "transactions" => Ok(GeneratedField::Transactions),
-                            "proof" => Ok(GeneratedField::Proof),
-                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
-                        }
-                    }
-                }
-                deserializer.deserialize_identifier(GeneratedVisitor)
-            }
-        }
-        struct GeneratedVisitor;
-        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = CelestiaRollupBlob;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.sequencerblock.v1alpha1.CelestiaRollupBlob")
-            }
-
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<CelestiaRollupBlob, V::Error>
-                where
-                    V: serde::de::MapAccess<'de>,
-            {
-                let mut sequencer_block_hash__ = None;
-                let mut rollup_id__ = None;
-                let mut transactions__ = None;
-                let mut proof__ = None;
-                while let Some(k) = map_.next_key()? {
-                    match k {
-                        GeneratedField::SequencerBlockHash => {
-                            if sequencer_block_hash__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("sequencerBlockHash"));
-                            }
-                            sequencer_block_hash__ = 
-                                Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
-                            ;
-                        }
-                        GeneratedField::RollupId => {
-                            if rollup_id__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("rollupId"));
-                            }
-                            rollup_id__ = map_.next_value()?;
-                        }
-                        GeneratedField::Transactions => {
-                            if transactions__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("transactions"));
-                            }
-                            transactions__ = 
-                                Some(map_.next_value::<Vec<::pbjson::private::BytesDeserialize<_>>>()?
-                                    .into_iter().map(|x| x.0).collect())
-                            ;
-                        }
-                        GeneratedField::Proof => {
-                            if proof__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("proof"));
-                            }
-                            proof__ = map_.next_value()?;
-                        }
-                    }
-                }
-                Ok(CelestiaRollupBlob {
-                    sequencer_block_hash: sequencer_block_hash__.unwrap_or_default(),
-                    rollup_id: rollup_id__,
-                    transactions: transactions__.unwrap_or_default(),
-                    proof: proof__,
-                })
-            }
-        }
-        deserializer.deserialize_struct("astria.sequencerblock.v1alpha1.CelestiaRollupBlob", FIELDS, GeneratedVisitor)
-    }
-}
-impl serde::Serialize for CelestiaSequencerBlob {
-    #[allow(deprecated)]
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use serde::ser::SerializeStruct;
-        let mut len = 0;
-        if !self.block_hash.is_empty() {
-            len += 1;
-        }
-        if self.header.is_some() {
-            len += 1;
-        }
-        if !self.rollup_ids.is_empty() {
-            len += 1;
-        }
-        if self.rollup_transactions_proof.is_some() {
-            len += 1;
-        }
-        if self.rollup_ids_proof.is_some() {
-            len += 1;
-        }
-        let mut struct_ser = serializer.serialize_struct("astria.sequencerblock.v1alpha1.CelestiaSequencerBlob", len)?;
-        if !self.block_hash.is_empty() {
-            #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("block_hash", pbjson::private::base64::encode(&self.block_hash).as_str())?;
-        }
-        if let Some(v) = self.header.as_ref() {
-            struct_ser.serialize_field("header", v)?;
-        }
-        if !self.rollup_ids.is_empty() {
-            struct_ser.serialize_field("rollup_ids", &self.rollup_ids)?;
-        }
-        if let Some(v) = self.rollup_transactions_proof.as_ref() {
-            struct_ser.serialize_field("rollup_transactions_proof", v)?;
-        }
-        if let Some(v) = self.rollup_ids_proof.as_ref() {
-            struct_ser.serialize_field("rollup_ids_proof", v)?;
-        }
-        struct_ser.end()
-    }
-}
-impl<'de> serde::Deserialize<'de> for CelestiaSequencerBlob {
-    #[allow(deprecated)]
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        const FIELDS: &[&str] = &[
-            "block_hash",
-            "blockHash",
-            "header",
-            "rollup_ids",
-            "rollupIds",
-            "rollup_transactions_proof",
-            "rollupTransactionsProof",
-            "rollup_ids_proof",
-            "rollupIdsProof",
-        ];
-
-        #[allow(clippy::enum_variant_names)]
-        enum GeneratedField {
-            BlockHash,
-            Header,
-            RollupIds,
-            RollupTransactionsProof,
-            RollupIdsProof,
-        }
-        impl<'de> serde::Deserialize<'de> for GeneratedField {
-            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
-            where
-                D: serde::Deserializer<'de>,
-            {
-                struct GeneratedVisitor;
-
-                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-                    type Value = GeneratedField;
-
-                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        write!(formatter, "expected one of: {:?}", &FIELDS)
-                    }
-
-                    #[allow(unused_variables)]
-                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
-                    where
-                        E: serde::de::Error,
-                    {
-                        match value {
-                            "blockHash" | "block_hash" => Ok(GeneratedField::BlockHash),
-                            "header" => Ok(GeneratedField::Header),
-                            "rollupIds" | "rollup_ids" => Ok(GeneratedField::RollupIds),
-                            "rollupTransactionsProof" | "rollup_transactions_proof" => Ok(GeneratedField::RollupTransactionsProof),
-                            "rollupIdsProof" | "rollup_ids_proof" => Ok(GeneratedField::RollupIdsProof),
-                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
-                        }
-                    }
-                }
-                deserializer.deserialize_identifier(GeneratedVisitor)
-            }
-        }
-        struct GeneratedVisitor;
-        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = CelestiaSequencerBlob;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.sequencerblock.v1alpha1.CelestiaSequencerBlob")
-            }
-
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<CelestiaSequencerBlob, V::Error>
-                where
-                    V: serde::de::MapAccess<'de>,
-            {
-                let mut block_hash__ = None;
-                let mut header__ = None;
-                let mut rollup_ids__ = None;
-                let mut rollup_transactions_proof__ = None;
-                let mut rollup_ids_proof__ = None;
-                while let Some(k) = map_.next_key()? {
-                    match k {
-                        GeneratedField::BlockHash => {
-                            if block_hash__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("blockHash"));
-                            }
-                            block_hash__ = 
-                                Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
-                            ;
-                        }
-                        GeneratedField::Header => {
-                            if header__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("header"));
-                            }
-                            header__ = map_.next_value()?;
-                        }
-                        GeneratedField::RollupIds => {
-                            if rollup_ids__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("rollupIds"));
-                            }
-                            rollup_ids__ = Some(map_.next_value()?);
-                        }
-                        GeneratedField::RollupTransactionsProof => {
-                            if rollup_transactions_proof__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("rollupTransactionsProof"));
-                            }
-                            rollup_transactions_proof__ = map_.next_value()?;
-                        }
-                        GeneratedField::RollupIdsProof => {
-                            if rollup_ids_proof__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("rollupIdsProof"));
-                            }
-                            rollup_ids_proof__ = map_.next_value()?;
-                        }
-                    }
-                }
-                Ok(CelestiaSequencerBlob {
-                    block_hash: block_hash__.unwrap_or_default(),
-                    header: header__,
-                    rollup_ids: rollup_ids__.unwrap_or_default(),
-                    rollup_transactions_proof: rollup_transactions_proof__,
-                    rollup_ids_proof: rollup_ids_proof__,
-                })
-            }
-        }
-        deserializer.deserialize_struct("astria.sequencerblock.v1alpha1.CelestiaSequencerBlob", FIELDS, GeneratedVisitor)
-    }
-}
 impl serde::Serialize for Deposit {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
@@ -1468,5 +1152,503 @@ impl<'de> serde::Deserialize<'de> for SequencerBlockHeader {
             }
         }
         deserializer.deserialize_struct("astria.sequencerblock.v1alpha1.SequencerBlockHeader", FIELDS, GeneratedVisitor)
+    }
+}
+impl serde::Serialize for SubmittedMetadata {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if !self.block_hash.is_empty() {
+            len += 1;
+        }
+        if self.header.is_some() {
+            len += 1;
+        }
+        if !self.rollup_ids.is_empty() {
+            len += 1;
+        }
+        if self.rollup_transactions_proof.is_some() {
+            len += 1;
+        }
+        if self.rollup_ids_proof.is_some() {
+            len += 1;
+        }
+        let mut struct_ser = serializer.serialize_struct("astria.sequencerblock.v1alpha1.SubmittedMetadata", len)?;
+        if !self.block_hash.is_empty() {
+            #[allow(clippy::needless_borrow)]
+            struct_ser.serialize_field("block_hash", pbjson::private::base64::encode(&self.block_hash).as_str())?;
+        }
+        if let Some(v) = self.header.as_ref() {
+            struct_ser.serialize_field("header", v)?;
+        }
+        if !self.rollup_ids.is_empty() {
+            struct_ser.serialize_field("rollup_ids", &self.rollup_ids)?;
+        }
+        if let Some(v) = self.rollup_transactions_proof.as_ref() {
+            struct_ser.serialize_field("rollup_transactions_proof", v)?;
+        }
+        if let Some(v) = self.rollup_ids_proof.as_ref() {
+            struct_ser.serialize_field("rollup_ids_proof", v)?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for SubmittedMetadata {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "block_hash",
+            "blockHash",
+            "header",
+            "rollup_ids",
+            "rollupIds",
+            "rollup_transactions_proof",
+            "rollupTransactionsProof",
+            "rollup_ids_proof",
+            "rollupIdsProof",
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            BlockHash,
+            Header,
+            RollupIds,
+            RollupTransactionsProof,
+            RollupIdsProof,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "blockHash" | "block_hash" => Ok(GeneratedField::BlockHash),
+                            "header" => Ok(GeneratedField::Header),
+                            "rollupIds" | "rollup_ids" => Ok(GeneratedField::RollupIds),
+                            "rollupTransactionsProof" | "rollup_transactions_proof" => Ok(GeneratedField::RollupTransactionsProof),
+                            "rollupIdsProof" | "rollup_ids_proof" => Ok(GeneratedField::RollupIdsProof),
+                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = SubmittedMetadata;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.sequencerblock.v1alpha1.SubmittedMetadata")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<SubmittedMetadata, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                let mut block_hash__ = None;
+                let mut header__ = None;
+                let mut rollup_ids__ = None;
+                let mut rollup_transactions_proof__ = None;
+                let mut rollup_ids_proof__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::BlockHash => {
+                            if block_hash__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("blockHash"));
+                            }
+                            block_hash__ = 
+                                Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
+                            ;
+                        }
+                        GeneratedField::Header => {
+                            if header__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("header"));
+                            }
+                            header__ = map_.next_value()?;
+                        }
+                        GeneratedField::RollupIds => {
+                            if rollup_ids__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("rollupIds"));
+                            }
+                            rollup_ids__ = Some(map_.next_value()?);
+                        }
+                        GeneratedField::RollupTransactionsProof => {
+                            if rollup_transactions_proof__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("rollupTransactionsProof"));
+                            }
+                            rollup_transactions_proof__ = map_.next_value()?;
+                        }
+                        GeneratedField::RollupIdsProof => {
+                            if rollup_ids_proof__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("rollupIdsProof"));
+                            }
+                            rollup_ids_proof__ = map_.next_value()?;
+                        }
+                    }
+                }
+                Ok(SubmittedMetadata {
+                    block_hash: block_hash__.unwrap_or_default(),
+                    header: header__,
+                    rollup_ids: rollup_ids__.unwrap_or_default(),
+                    rollup_transactions_proof: rollup_transactions_proof__,
+                    rollup_ids_proof: rollup_ids_proof__,
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.sequencerblock.v1alpha1.SubmittedMetadata", FIELDS, GeneratedVisitor)
+    }
+}
+impl serde::Serialize for SubmittedMetadataList {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if !self.entries.is_empty() {
+            len += 1;
+        }
+        let mut struct_ser = serializer.serialize_struct("astria.sequencerblock.v1alpha1.SubmittedMetadataList", len)?;
+        if !self.entries.is_empty() {
+            struct_ser.serialize_field("entries", &self.entries)?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for SubmittedMetadataList {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "entries",
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            Entries,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "entries" => Ok(GeneratedField::Entries),
+                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = SubmittedMetadataList;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.sequencerblock.v1alpha1.SubmittedMetadataList")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<SubmittedMetadataList, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                let mut entries__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::Entries => {
+                            if entries__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("entries"));
+                            }
+                            entries__ = Some(map_.next_value()?);
+                        }
+                    }
+                }
+                Ok(SubmittedMetadataList {
+                    entries: entries__.unwrap_or_default(),
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.sequencerblock.v1alpha1.SubmittedMetadataList", FIELDS, GeneratedVisitor)
+    }
+}
+impl serde::Serialize for SubmittedRollupData {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if !self.sequencer_block_hash.is_empty() {
+            len += 1;
+        }
+        if self.rollup_id.is_some() {
+            len += 1;
+        }
+        if !self.transactions.is_empty() {
+            len += 1;
+        }
+        if self.proof.is_some() {
+            len += 1;
+        }
+        let mut struct_ser = serializer.serialize_struct("astria.sequencerblock.v1alpha1.SubmittedRollupData", len)?;
+        if !self.sequencer_block_hash.is_empty() {
+            #[allow(clippy::needless_borrow)]
+            struct_ser.serialize_field("sequencer_block_hash", pbjson::private::base64::encode(&self.sequencer_block_hash).as_str())?;
+        }
+        if let Some(v) = self.rollup_id.as_ref() {
+            struct_ser.serialize_field("rollup_id", v)?;
+        }
+        if !self.transactions.is_empty() {
+            struct_ser.serialize_field("transactions", &self.transactions.iter().map(pbjson::private::base64::encode).collect::<Vec<_>>())?;
+        }
+        if let Some(v) = self.proof.as_ref() {
+            struct_ser.serialize_field("proof", v)?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for SubmittedRollupData {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "sequencer_block_hash",
+            "sequencerBlockHash",
+            "rollup_id",
+            "rollupId",
+            "transactions",
+            "proof",
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            SequencerBlockHash,
+            RollupId,
+            Transactions,
+            Proof,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "sequencerBlockHash" | "sequencer_block_hash" => Ok(GeneratedField::SequencerBlockHash),
+                            "rollupId" | "rollup_id" => Ok(GeneratedField::RollupId),
+                            "transactions" => Ok(GeneratedField::Transactions),
+                            "proof" => Ok(GeneratedField::Proof),
+                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = SubmittedRollupData;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.sequencerblock.v1alpha1.SubmittedRollupData")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<SubmittedRollupData, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                let mut sequencer_block_hash__ = None;
+                let mut rollup_id__ = None;
+                let mut transactions__ = None;
+                let mut proof__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::SequencerBlockHash => {
+                            if sequencer_block_hash__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("sequencerBlockHash"));
+                            }
+                            sequencer_block_hash__ = 
+                                Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
+                            ;
+                        }
+                        GeneratedField::RollupId => {
+                            if rollup_id__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("rollupId"));
+                            }
+                            rollup_id__ = map_.next_value()?;
+                        }
+                        GeneratedField::Transactions => {
+                            if transactions__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("transactions"));
+                            }
+                            transactions__ = 
+                                Some(map_.next_value::<Vec<::pbjson::private::BytesDeserialize<_>>>()?
+                                    .into_iter().map(|x| x.0).collect())
+                            ;
+                        }
+                        GeneratedField::Proof => {
+                            if proof__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("proof"));
+                            }
+                            proof__ = map_.next_value()?;
+                        }
+                    }
+                }
+                Ok(SubmittedRollupData {
+                    sequencer_block_hash: sequencer_block_hash__.unwrap_or_default(),
+                    rollup_id: rollup_id__,
+                    transactions: transactions__.unwrap_or_default(),
+                    proof: proof__,
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.sequencerblock.v1alpha1.SubmittedRollupData", FIELDS, GeneratedVisitor)
+    }
+}
+impl serde::Serialize for SubmittedRollupDataList {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if !self.entries.is_empty() {
+            len += 1;
+        }
+        let mut struct_ser = serializer.serialize_struct("astria.sequencerblock.v1alpha1.SubmittedRollupDataList", len)?;
+        if !self.entries.is_empty() {
+            struct_ser.serialize_field("entries", &self.entries)?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for SubmittedRollupDataList {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "entries",
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            Entries,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "entries" => Ok(GeneratedField::Entries),
+                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = SubmittedRollupDataList;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.sequencerblock.v1alpha1.SubmittedRollupDataList")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<SubmittedRollupDataList, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                let mut entries__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::Entries => {
+                            if entries__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("entries"));
+                            }
+                            entries__ = Some(map_.next_value()?);
+                        }
+                    }
+                }
+                Ok(SubmittedRollupDataList {
+                    entries: entries__.unwrap_or_default(),
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.sequencerblock.v1alpha1.SubmittedRollupDataList", FIELDS, GeneratedVisitor)
     }
 }

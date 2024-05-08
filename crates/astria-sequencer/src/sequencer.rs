@@ -33,6 +33,7 @@ use crate::{
     config::Config,
     grpc::sequencer::SequencerServer,
     ibc::host_interface::AstriaHost,
+    mempool::Mempool,
     service,
     state_ext::StateReadExt as _,
 };
@@ -86,7 +87,8 @@ impl Sequencer {
             crate::asset::initialize_native_asset(&native_asset);
         }
 
-        let app = App::new(snapshot)
+        let mempool = Mempool::new();
+        let app = App::new(snapshot, mempool.clone())
             .await
             .context("failed to initialize app")?;
 
@@ -98,7 +100,7 @@ impl Sequencer {
                 let storage = storage.clone();
                 async move { service::Consensus::new(storage, app, queue).run().await }
             }));
-        let mempool_service = service::Mempool::new(storage.clone());
+        let mempool_service = service::Mempool::new(storage.clone(), mempool);
         let info_service =
             service::Info::new(storage.clone()).context("failed initializing info service")?;
         let snapshot_service = service::Snapshot;

@@ -14,19 +14,19 @@ pub fn register() {
     describe_counter!(
         CELESTIA_SUBMISSION_COUNT,
         Unit::Count,
-        "The number of calls made to submit to celestia"
+        "The number of calls made to submit to Celestia"
     );
 
     describe_counter!(
         CELESTIA_SUBMISSION_HEIGHT,
         Unit::Count,
-        "The height of the last blob submitted to Celestia"
+        "The height of the last blob successfully submitted to Celestia"
     );
 
     describe_counter!(
         CELESTIA_SUBMISSION_FAILURE_COUNT,
         Unit::Count,
-        "The number of calls made to submit to celestia which have failed"
+        "The number of calls made to submit to Celestia which have failed"
     );
 
     describe_counter!(
@@ -39,6 +39,12 @@ pub fn register() {
         SEQUENCER_HEIGHT_FETCH_FAILURE_COUNT,
         Unit::Count,
         "The number of calls made to fetch the current height from sequencer which have failed"
+    );
+
+    describe_counter!(
+        SEQUENCER_SUBMISSION_HEIGHT,
+        Unit::Count,
+        "The height of the highest sequencer block successfully submitted to Celestia"
     );
 
     describe_gauge!(
@@ -58,6 +64,13 @@ pub fn register() {
         CELESTIA_SUBMISSION_LATENCY,
         Unit::Seconds,
         "The time it takes to submit a blob to Celestia"
+    );
+
+    describe_histogram!(
+        CELESTIA_PAYLOAD_CREATION_LATENCY,
+        Unit::Microseconds,
+        "The time it takes to create a new payload for submitting to Celestia (encoding to \
+         protobuf, compression, creating blobs)"
     );
 
     describe_gauge!(
@@ -94,6 +107,11 @@ pub const BLOCKS_PER_CELESTIA_TX: &str =
 
 pub const BLOBS_PER_CELESTIA_TX: &str = concat!(env!("CARGO_CRATE_NAME"), "_blobs_per_celestia_tx");
 
+pub const CELESTIA_PAYLOAD_CREATION_LATENCY: &str = concat!(
+    env!("CARGO_CRATE_NAME"),
+    "_celestia_payload_creation_latency"
+);
+
 pub const CELESTIA_SUBMISSION_LATENCY: &str =
     concat!(env!("CARGO_CRATE_NAME"), "_celestia_submission_latency");
 
@@ -106,6 +124,9 @@ pub const SEQUENCER_HEIGHT_FETCH_FAILURE_COUNT: &str = concat!(
     env!("CARGO_CRATE_NAME"),
     "_sequencer_height_fetch_failure_count",
 );
+
+pub const SEQUENCER_SUBMISSION_HEIGHT: &str =
+    concat!(env!("CARGO_CRATE_NAME"), "_sequencer_submission_height");
 
 pub const TOTAL_BLOB_DATA_SIZE_FOR_ASTRIA_BLOCK: &str = concat!(
     env!("CARGO_CRATE_NAME"),
