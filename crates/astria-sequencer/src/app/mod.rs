@@ -3,9 +3,9 @@ pub(crate) mod test_utils;
 #[cfg(test)]
 mod tests_app;
 #[cfg(test)]
-mod tests_execute_transaction;
-#[cfg(test)]
 mod tests_breaking_changes;
+#[cfg(test)]
+mod tests_execute_transaction;
 
 use std::{
     collections::VecDeque,
