@@ -12,8 +12,8 @@ use super::{
     are_rollup_txs_included,
     celestia::{
         self,
-        CelestiaHeader,
-        CelestiaRollupData,
+        SubmittedMetadata,
+        SubmittedRollupData,
     },
     raw,
 };
@@ -684,10 +684,10 @@ impl SequencerBlock {
         }
     }
 
-    /// Turn the sequencer block into a [`CelestiaHeader`] and list of [`CelestiaRollupData`].
+    /// Turn the sequencer block into a [`SubmittedMetadata`] and list of [`SubmittedRollupData`].
     #[must_use]
-    pub fn split_for_celestia(self) -> (CelestiaHeader, Vec<CelestiaRollupData>) {
-        celestia::CelestiaBlobBundle::from_sequencer_block(self).into_parts()
+    pub fn split_for_celestia(self) -> (SubmittedMetadata, Vec<SubmittedRollupData>) {
+        celestia::PreparedBlock::from_sequencer_block(self).into_parts()
     }
 
     /// Converts from relevant header fields and the block data.

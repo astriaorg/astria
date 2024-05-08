@@ -1,16 +1,16 @@
 use astria_core::{
     brotli::decompress_bytes,
     generated::sequencerblock::v1alpha1::{
-        CelestiaHeaderList,
-        CelestiaRollupDataList,
+        SubmittedMetadataList,
+        SubmittedRollupDataList,
     },
     sequencerblock::v1alpha1::{
         celestia::{
-            CelestiaRollupBlobError,
-            CelestiaSequencerBlobError,
+            SubmittedMetadataError,
+            SubmittedRollupDataError,
         },
-        CelestiaHeader,
-        CelestiaRollupData,
+        SubmittedMetadata,
+        SubmittedRollupData,
     },
 };
 use celestia_types::{
@@ -69,76 +69,76 @@ pub(super) fn decode_raw_blobs(
     converted_blobs
 }
 
-/// An unsorted [`CelestiaSequencerBlob`] and [`CelestiaRollupBlob`].
+/// An unsorted [`SubmittedMetadata`] and [`SubmittedRollupData`].
 pub(super) struct ConvertedBlobs {
     celestia_height: u64,
-    headers: Vec<CelestiaHeader>,
-    rollup_data_entries: Vec<CelestiaRollupData>,
+    metadata: Vec<SubmittedMetadata>,
+    rollup_data: Vec<SubmittedRollupData>,
 }
 
 impl ConvertedBlobs {
     pub(super) fn len_headers(&self) -> usize {
-        self.headers.len()
+        self.metadata.len()
     }
 
     pub(super) fn len_rollup_data_entries(&self) -> usize {
-        self.rollup_data_entries.len()
+        self.rollup_data.len()
     }
 
-    pub(super) fn into_parts(self) -> (u64, Vec<CelestiaHeader>, Vec<CelestiaRollupData>) {
-        (self.celestia_height, self.headers, self.rollup_data_entries)
+    pub(super) fn into_parts(self) -> (u64, Vec<SubmittedMetadata>, Vec<SubmittedRollupData>) {
+        (self.celestia_height, self.metadata, self.rollup_data)
     }
 
     fn new(celestia_height: u64) -> Self {
         Self {
             celestia_height,
-            headers: Vec::new(),
-            rollup_data_entries: Vec::new(),
+            metadata: Vec::new(),
+            rollup_data: Vec::new(),
         }
     }
 
-    fn push_header(&mut self, header: CelestiaHeader) {
-        self.headers.push(header);
+    fn push_header(&mut self, header: SubmittedMetadata) {
+        self.metadata.push(header);
     }
 
-    fn push_rollup_data(&mut self, rollup: CelestiaRollupData) {
-        self.rollup_data_entries.push(rollup);
+    fn push_rollup_data(&mut self, rollup: SubmittedRollupData) {
+        self.rollup_data.push(rollup);
     }
 
-    fn extend_from_header_list_if_well_formed(&mut self, list: CelestiaHeaderList) {
-        let initial_len = self.headers.len();
-        if let Err(err) = list.headers.into_iter().try_for_each(|raw| {
-            let header = CelestiaHeader::try_from_raw(raw)?;
+    fn extend_from_header_list_if_well_formed(&mut self, list: SubmittedMetadataList) {
+        let initial_len = self.metadata.len();
+        if let Err(err) = list.entries.into_iter().try_for_each(|raw| {
+            let header = SubmittedMetadata::try_from_raw(raw)?;
             self.push_header(header);
-            Ok::<(), CelestiaSequencerBlobError>(())
+            Ok::<(), SubmittedMetadataError>(())
         }) {
             info!(
                 error = &err as &StdError,
                 "one header in {} was not well-formed; dropping all",
-                CelestiaHeaderList::full_name(),
+                SubmittedMetadataList::full_name(),
             );
-            self.headers.truncate(initial_len);
+            self.metadata.truncate(initial_len);
         }
     }
 
-    fn extend_from_rollup_data_list_if_well_formed(&mut self, list: CelestiaRollupDataList) {
-        let initial_len = self.rollup_data_entries.len();
+    fn extend_from_rollup_data_list_if_well_formed(&mut self, list: SubmittedRollupDataList) {
+        let initial_len = self.rollup_data.len();
         if let Err(err) = list.entries.into_iter().try_for_each(|raw| {
-            let entry = CelestiaRollupData::try_from_raw(raw)?;
+            let entry = SubmittedRollupData::try_from_raw(raw)?;
             self.push_rollup_data(entry);
-            Ok::<(), CelestiaRollupBlobError>(())
+            Ok::<(), SubmittedRollupDataError>(())
         }) {
             info!(
                 error = &err as &StdError,
                 "one entry in {} was not well-formed; dropping all",
-                CelestiaRollupDataList::full_name(),
+                SubmittedRollupDataList::full_name(),
             );
-            self.rollup_data_entries.truncate(initial_len);
+            self.rollup_data.truncate(initial_len);
         }
     }
 }
 
-fn convert_blob_to_header_list(blob: &Blob) -> Option<CelestiaHeaderList> {
+fn convert_blob_to_header_list(blob: &Blob) -> Option<SubmittedMetadataList> {
     let data = decompress_bytes(&blob.data)
         .inspect_err(|err| {
             info!(
@@ -147,11 +147,11 @@ fn convert_blob_to_header_list(blob: &Blob) -> Option<CelestiaHeaderList> {
             );
         })
         .ok()?;
-    let raw = CelestiaHeaderList::decode(&*data)
+    let raw = SubmittedMetadataList::decode(&*data)
         .inspect_err(|err| {
             info!(
                 error = err as &StdError,
-                target = CelestiaHeaderList::full_name(),
+                target = SubmittedMetadataList::full_name(),
                 "failed decoding blob bytes; dropping the blob",
             );
         })
@@ -159,7 +159,7 @@ fn convert_blob_to_header_list(blob: &Blob) -> Option<CelestiaHeaderList> {
     Some(raw)
 }
 
-fn convert_blob_to_rollup_data_list(blob: &Blob) -> Option<CelestiaRollupDataList> {
+fn convert_blob_to_rollup_data_list(blob: &Blob) -> Option<SubmittedRollupDataList> {
     let data = decompress_bytes(&blob.data)
         .inspect_err(|err| {
             info!(
@@ -168,11 +168,11 @@ fn convert_blob_to_rollup_data_list(blob: &Blob) -> Option<CelestiaRollupDataLis
             );
         })
         .ok()?;
-    let raw = CelestiaRollupDataList::decode(&*data)
+    let raw = SubmittedRollupDataList::decode(&*data)
         .inspect_err(|err| {
             info!(
                 error = err as &StdError,
-                target = CelestiaRollupDataList::full_name(),
+                target = SubmittedRollupDataList::full_name(),
                 "failed decoding blob bytes; dropping the blob",
             );
         })

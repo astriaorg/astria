@@ -477,26 +477,26 @@ pub struct Blobs {
 #[must_use]
 pub fn make_blobs(heights: &[u32]) -> Blobs {
     use astria_core::generated::sequencerblock::v1alpha1::{
-        CelestiaHeaderList,
-        CelestiaRollupDataList,
+        SubmittedMetadataList,
+        SubmittedRollupDataList,
     };
-    let mut headers = Vec::new();
-    let mut entries = Vec::new();
+    let mut metadata = Vec::new();
+    let mut rollup_data = Vec::new();
     for &height in heights {
         let (head, mut tail) = make_sequencer_block(height).split_for_celestia();
-        headers.push(head.into_raw());
+        metadata.push(head.into_raw());
         assert_eq!(
             1,
             tail.len(),
             "this test logic assumes that there is only one rollup in the mocked block"
         );
-        entries.push(tail.swap_remove(0).into_raw());
+        rollup_data.push(tail.swap_remove(0).into_raw());
     }
-    let header_list = CelestiaHeaderList {
-        headers,
+    let header_list = SubmittedMetadataList {
+        entries: metadata,
     };
-    let rollup_data_list = CelestiaRollupDataList {
-        entries,
+    let rollup_data_list = SubmittedRollupDataList {
+        entries: rollup_data,
     };
 
     let raw_header_list = ::prost::Message::encode_to_vec(&header_list);

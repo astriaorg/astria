@@ -11,10 +11,10 @@ use std::{
 use astria_core::{
     brotli::compress_bytes,
     generated::sequencerblock::v1alpha1::{
-        CelestiaHeader,
-        CelestiaHeaderList,
-        CelestiaRollupData,
-        CelestiaRollupDataList,
+        SubmittedMetadata,
+        SubmittedMetadataList,
+        SubmittedRollupData,
+        SubmittedRollupDataList,
     },
     primitive::v1::RollupId,
 };
@@ -173,8 +173,8 @@ pub(super) struct InputMeta {
 
 #[derive(Clone, Debug, Default)]
 struct Input {
-    headers: Vec<CelestiaHeader>,
-    rollup_data_for_namespace: HashMap<Namespace, Vec<CelestiaRollupData>>,
+    metadata: Vec<SubmittedMetadata>,
+    rollup_data_for_namespace: HashMap<Namespace, Vec<SubmittedRollupData>>,
     meta: InputMeta,
 }
 
@@ -188,7 +188,7 @@ impl Input {
     }
 
     fn num_blocks(&self) -> usize {
-        self.headers.len()
+        self.metadata.len()
     }
 
     fn extend_from_sequencer_block(
@@ -203,16 +203,16 @@ impl Input {
                  already present; carrying on, but this shouldn't happen",
             );
         }
-        let (header, rollup_elements) = block.split_for_celestia();
-        let header = header.into_raw();
+        let (metadata, rollup_data) = block.split_for_celestia();
+        let metadata = metadata.into_raw();
 
         // XXX: This should really be set at the beginning of the sequencer-relayer and reused
         // everywhere.
         self.meta
             .sequencer_namespace
-            .get_or_insert_with(|| sequencer_namespace(&header));
-        self.headers.push(header);
-        for elem in rollup_elements {
+            .get_or_insert_with(|| sequencer_namespace(&metadata));
+        self.metadata.push(metadata);
+        for elem in rollup_data {
             if rollup_filter.should_include(&elem.rollup_id()) {
                 let namespace =
                     astria_core::celestia::namespace_v0_from_rollup_id(elem.rollup_id());
@@ -236,7 +236,7 @@ impl Input {
         use prost::Name as _;
 
         let mut payload =
-            Payload::with_capacity(self.headers.len() + self.rollup_data_for_namespace.len());
+            Payload::with_capacity(self.metadata.len() + self.rollup_data_for_namespace.len());
 
         let sequencer_namespace = self
             .meta
@@ -245,26 +245,26 @@ impl Input {
         payload
             .try_add(
                 sequencer_namespace,
-                &CelestiaHeaderList {
-                    headers: self.headers,
+                &SubmittedMetadataList {
+                    entries: self.metadata,
                 },
             )
             .map_err(|source| TryIntoPayloadError::AddToPayload {
                 source,
-                type_url: CelestiaHeaderList::type_url(),
+                type_url: SubmittedMetadataList::type_url(),
             })?;
 
         for (namespace, entries) in self.rollup_data_for_namespace {
             payload
                 .try_add(
                     namespace,
-                    &CelestiaRollupDataList {
+                    &SubmittedRollupDataList {
                         entries,
                     },
                 )
                 .map_err(|source| TryIntoPayloadError::AddToPayload {
                     source,
-                    type_url: CelestiaRollupDataList::full_name(),
+                    type_url: SubmittedRollupDataList::full_name(),
                 })?;
         }
         Ok(payload)
@@ -377,7 +377,7 @@ impl<'a> Future for TakeSubmission<'a> {
     }
 }
 
-/// Constructs a Celestia [`Namespace`] from a [`CelestiaHeader`].
+/// Constructs a Celestia [`Namespace`] from a [`SubmittedMetadata`].
 ///
 /// # Note
 /// This should be constructed once at the beginning of sequencer-relayer and then
@@ -385,15 +385,16 @@ impl<'a> Future for TakeSubmission<'a> {
 ///
 /// # Panics
 /// Panics if the `header.header` field is unset. This is OK because the argument to this
-/// function should only come from a [`CelestiaHeader`] that was created from its verified
-/// counterpart [`astria_core::sequencerblock::v1alpha1::CelestiaHeader::into_raw`].
-fn sequencer_namespace(header: &CelestiaHeader) -> Namespace {
+/// function should only come from a [`SubmittedMetadata`] that was created from its verified
+/// counterpart [`astria_core::sequencerblock::v1alpha1::SubmittedMetadata::into_raw`].
+fn sequencer_namespace(metadata: &SubmittedMetadata) -> Namespace {
     use const_format::concatcp;
     use prost::Name;
-    const HEADER_EXPECT_MSG: &str = concatcp!(CelestiaHeader::PACKAGE, ".", CelestiaHeader::NAME,);
+    const HEADER_EXPECT_MSG: &str =
+        concatcp!(SubmittedMetadata::PACKAGE, ".", SubmittedMetadata::NAME,);
 
     astria_core::celestia::namespace_v0_from_sha256_of_bytes(
-        header
+        metadata
             .header
             .as_ref()
             .expect(HEADER_EXPECT_MSG)

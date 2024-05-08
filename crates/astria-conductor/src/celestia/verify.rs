@@ -5,8 +5,8 @@ use std::{
 };
 
 use astria_core::sequencerblock::v1alpha1::{
-    CelestiaHeader,
-    CelestiaRollupData,
+    SubmittedMetadata,
+    SubmittedRollupData,
 };
 use astria_eyre::{
     eyre,
@@ -48,8 +48,8 @@ use crate::utils::flatten;
 
 pub(super) struct VerifiedBlobs {
     celestia_height: u64,
-    header_blobs: HashMap<[u8; 32], CelestiaHeader>,
-    rollup_blobs: Vec<CelestiaRollupData>,
+    header_blobs: HashMap<[u8; 32], SubmittedMetadata>,
+    rollup_blobs: Vec<SubmittedRollupData>,
 }
 
 impl VerifiedBlobs {
@@ -65,14 +65,14 @@ impl VerifiedBlobs {
         self,
     ) -> (
         u64,
-        HashMap<[u8; 32], CelestiaHeader>,
-        Vec<CelestiaRollupData>,
+        HashMap<[u8; 32], SubmittedMetadata>,
+        Vec<SubmittedRollupData>,
     ) {
         (self.celestia_height, self.header_blobs, self.rollup_blobs)
     }
 }
 
-/// Task key to track verification of multiple [`CelestiaSequencerBlob`]s.
+/// Task key to track verification of multiple [`SubmittedMetadata`] objects.
 ///
 /// The index is necessary because two keys might have clashing hashes and heights.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -231,8 +231,8 @@ impl BlobVerifier {
 
     async fn verify_header(
         self: Arc<Self>,
-        header: CelestiaHeader,
-    ) -> eyre::Result<CelestiaHeader> {
+        header: SubmittedMetadata,
+    ) -> eyre::Result<SubmittedMetadata> {
         use base64::prelude::*;
         let height = header.height();
         let meta = self
