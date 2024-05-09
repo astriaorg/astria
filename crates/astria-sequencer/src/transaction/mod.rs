@@ -143,8 +143,12 @@ pub(crate) async fn check_balance_for_total_fees<S: StateReadExt + 'static>(
                     .or_insert(transfer_fee);
             }
             Action::BridgeUnlock(act) => {
+                let asset_id = state
+                    .get_bridge_account_asset_id(&from)
+                    .await
+                    .context("must be a bridge account for BridgeUnlock action")?;
                 fees_by_asset
-                    .entry(act.asset_id)
+                    .entry(asset_id)
                     .and_modify(|amt: &mut u128| *amt = amt.saturating_add(act.amount))
                     .or_insert(act.amount);
                 fees_by_asset

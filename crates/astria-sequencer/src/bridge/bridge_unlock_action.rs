@@ -1,5 +1,4 @@
 use anyhow::{
-    ensure,
     Context as _,
     Result,
 };
@@ -29,29 +28,20 @@ impl ActionHandler for BridgeUnlockAction {
         state: &S,
         from: Address,
     ) -> Result<()> {
+        // grab the bridge account's asset
+        let asset_id = state
+            .get_bridge_account_asset_id(&from)
+            .await
+            .context("failed to get bridge's asset id, must be a bridge account")?;
+
         let transfer_action = TransferAction {
             to: self.to,
-            asset_id: self.asset_id,
+            asset_id,
             amount: self.amount,
             fee_asset_id: self.fee_asset_id,
         };
 
-        // ensure the from is a bridge account.
-        state
-            .get_bridge_account_rollup_id(&from)
-            .await
-            .context("failed to get bridge account rollup id")?
-            .ok_or_else(|| anyhow::anyhow!("bridge unlock must be sent from a bridge account"))?;
-
-        // ensure the bridge account's tracked asset is being transferred.
-        let allowed_asset_id = state
-            .get_bridge_account_asset_ids(&from)
-            .await
-            .context("failed to get bridge account asset ID")?;
-        ensure!(
-            allowed_asset_id == self.asset_id,
-            "asset ID is not the bridge's asset",
-        );
+        // TODO use the BridgeUnlock action's `memo` field.
 
         // this performs the same checks as a normal `TransferAction`,
         // but without the check that prevents transferring from a bridge account,
@@ -61,9 +51,14 @@ impl ActionHandler for BridgeUnlockAction {
 
     #[instrument(skip_all)]
     async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> Result<()> {
+        let asset_id = state
+            .get_bridge_account_asset_id(&from)
+            .await
+            .context("failed to get bridge's asset id, must be a bridge account")?;
+
         let transfer_action = TransferAction {
             to: self.to,
-            asset_id: self.asset_id,
+            asset_id,
             amount: self.amount,
             fee_asset_id: self.fee_asset_id,
         };
@@ -93,6 +88,37 @@ mod test {
     };
 
     #[tokio::test]
+    async fn bridge_unlock_fail_non_bridge_accounts() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let state = StateDelta::new(snapshot);
+
+        let asset_id = asset::Id::from_denom("test");
+        let transfer_amount = 100;
+
+        let address = Address::from([1; 20]);
+        let to_address = Address::from([2; 20]);
+
+
+        let bridge_unlock = BridgeUnlockAction {
+            to: to_address,
+            amount: transfer_amount,
+            fee_asset_id: asset_id,
+            memo: vec![0u8; 32],
+        };
+
+        // not a bridge account, should fail
+        assert!(
+            bridge_unlock
+                .check_stateful(&state, address)
+                .await
+                .unwrap_err()
+                .to_string()
+                .contains("failed to get bridge's asset id, must be a bridge account")
+        );
+    }
+
+    #[tokio::test]
     async fn bridge_unlock_fee_check_stateful() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
@@ -115,8 +141,7 @@ mod test {
 
         let bridge_unlock = BridgeUnlockAction {
             to: to_address,
-            asset_id,
-            amount: 100,
+            amount: transfer_amount,
             fee_asset_id: asset_id,
             memo: vec![0u8; 32],
         };
@@ -167,8 +192,7 @@ mod test {
 
         let bridge_unlock = BridgeUnlockAction {
             to: to_address,
-            asset_id,
-            amount: 100,
+            amount: transfer_amount,
             fee_asset_id: asset_id,
             memo: vec![0u8; 32],
         };

@@ -54,7 +54,7 @@ impl ActionHandler for BridgeLockAction {
             .ok_or_else(|| anyhow::anyhow!("bridge lock must be sent to a bridge account"))?;
 
         let allowed_asset_id = state
-            .get_bridge_account_asset_ids(&self.to)
+            .get_bridge_account_asset_id(&self.to)
             .await
             .context("failed to get bridge account asset ID")?;
         ensure!(
