@@ -1,6 +1,7 @@
 use std::process::ExitCode;
 
 use astria_conductor::{
+    metrics_init,
     Conductor,
     Config,
     BUILD_INFO,
@@ -46,9 +47,8 @@ async fn main() -> ExitCode {
         telemetry_conf = telemetry_conf
             .metrics_addr(&cfg.metrics_http_listener_addr)
             .service_name(env!("CARGO_PKG_NAME"))
-            .register_metrics(|| {}); // conductor currently has no metrics
+            .register_metrics(metrics_init::register);
     }
-
     if let Err(e) = telemetry_conf
         .try_init()
         .wrap_err("failed to setup telemetry")

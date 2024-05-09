@@ -23,6 +23,7 @@ use futures::{
     FutureExt as _,
 };
 use jsonrpsee::http_client::HttpClient as CelestiaClient;
+use metrics::histogram;
 use sequencer_client::{
     tendermint,
     tendermint::block::Height as SequencerHeight,
@@ -59,6 +60,12 @@ use crate::{
         FirmSendError,
         FirmTrySendError,
         StateIsInit,
+    },
+    metrics_init::{
+        BLOBS_PER_CELESTIA_FETCH,
+        DECODED_ITEMS_PER_CELESTIA_FETCH,
+        SEQUENCER_BLOCKS_METADATA_VERIFIED_PER_CELESTIA_FETCH,
+        SEQUENCER_BLOCK_INFORMATION_RECONSTRUCTED_PER_CELESTIA_FETCH,
     },
     utils::flatten,
 };
@@ -507,8 +514,24 @@ impl FetchConvertVerifyAndReconstruct {
         .await
         .wrap_err("failed fetching blobs from Celestia")?;
 
+        const NAMESPACE_TYPE_LABEL: &str = "namespace_type";
+        const NAMESPACE_TYPE_METADATA: &str = "metadata";
+        const NAMESPACE_TYPE_ROLLUP_DATA: &str = "rollup_data";
+
+        histogram!(
+            BLOBS_PER_CELESTIA_FETCH,
+            NAMESPACE_TYPE_LABEL => NAMESPACE_TYPE_METADATA,
+        )
+        .record(new_blobs.len_header_blobs() as f64);
+
+        histogram!(
+            BLOBS_PER_CELESTIA_FETCH,
+            NAMESPACE_TYPE_LABEL => NAMESPACE_TYPE_ROLLUP_DATA,
+        )
+        .record(new_blobs.len_rollup_blobs() as f64);
+
         info!(
-            number_of_header_blobs = new_blobs.len_header_blobs(),
+            number_of_metadata_blobs = new_blobs.len_header_blobs(),
             number_of_rollup_blobs = new_blobs.len_rollup_blobs(),
             "received new Celestia blobs"
         );
@@ -521,13 +544,28 @@ impl FetchConvertVerifyAndReconstruct {
         .await
         .wrap_err("encountered panic while decoding raw Celestia blobs")?;
 
+        histogram!(
+            DECODED_ITEMS_PER_CELESTIA_FETCH,
+            NAMESPACE_TYPE_LABEL => NAMESPACE_TYPE_METADATA,
+        )
+        .record(decoded_blobs.len_headers() as f64);
+
+        histogram!(
+            DECODED_ITEMS_PER_CELESTIA_FETCH,
+            NAMESPACE_TYPE_LABEL => NAMESPACE_TYPE_ROLLUP_DATA,
+        )
+        .record(decoded_blobs.len_rollup_data_entries() as f64);
+
         info!(
-            number_of_header_blobs = decoded_blobs.len_headers(),
+            number_of_metadata_blobs = decoded_blobs.len_headers(),
             number_of_rollup_blobs = decoded_blobs.len_rollup_data_entries(),
             "decoded Sequencer header and rollup info from raw Celestia blobs",
         );
 
         let verified_blobs = verify_headers(blob_verifier, decoded_blobs).await;
+
+        histogram!(SEQUENCER_BLOCKS_METADATA_VERIFIED_PER_CELESTIA_FETCH,)
+            .record(verified_blobs.len_header_blobs() as f64);
 
         info!(
             number_of_verified_header_blobs = verified_blobs.len_header_blobs(),
@@ -542,6 +580,9 @@ impl FetchConvertVerifyAndReconstruct {
         })
         .await
         .wrap_err("encountered panic while reconstructing blocks from verified blobs")?;
+
+        histogram!(SEQUENCER_BLOCK_INFORMATION_RECONSTRUCTED_PER_CELESTIA_FETCH,)
+            .record(reconstructed.len() as f64);
 
         let reconstructed_blocks = ReconstructedBlocks {
             celestia_height,
