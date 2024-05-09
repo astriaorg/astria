@@ -361,8 +361,8 @@ impl ::prost::Name for BridgeLockAction {
 /// `BridgeUnlockAction` represents a transaction that transfers
 /// funds from a bridge account to a sequencer account.
 ///
-/// It's the same as a `TransferAction` but with the added
-/// `memo` field.
+/// It's the same as a `TransferAction` but without the `asset_id` field
+/// and with the `memo` field.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct BridgeUnlockAction {
