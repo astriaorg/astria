@@ -9,11 +9,11 @@ config:
   # Values for CometBFT node configuration
   cometBFT:
     secrets:
-      node_key:
+      nodeKey:
         devContent:
           priv_key:
             value: HGWRtLbV8WLGFgbYhaGyaLe++DC+DBoc7O3bri81vs2ZlpR28IFfQScoO1aNOE/ygs8LIPM9UzLzbaab4VMggQ==
-      priv_validator_key:
+      privValidatorKey:
         devContent:
           address: 091E47761C58C474534F4D414AF104A6CAF90C22
           pub_key:
@@ -57,6 +57,8 @@ sequencer-relayer:
   enabled: true
   config:
     relayer:
-      celestiaRpc: http://celestia-service.astria-dev-cluster.svc.cluster.local:26658
+      celestiaAppGrpc: http://celestia-app-service.astria-dev-cluster.svc.cluster.local:9090
       cometbftRpc: http://node0-sequencer-rpc-service.astria-dev-cluster.svc.cluster.local:26657
       sequencerGrpc: http://node0-sequencer-grpc-service.astria-dev-cluster.svc.cluster.local:8080
+    celestiaAppPrivateKey:
+      devContent: 8241386890823ca14743e5d4d583f879a5236af29f454ed4da6fe62b8439e2ab

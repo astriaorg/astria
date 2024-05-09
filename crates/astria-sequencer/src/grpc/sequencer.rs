@@ -156,25 +156,11 @@ impl SequencerService for SequencerServer {
 
 #[cfg(test)]
 mod test {
-    use std::collections::HashMap;
-
-    use astria_core::sequencerblock::v1alpha1::SequencerBlock;
+    use astria_core::{
+        protocol::test_utils::ConfigureSequencerBlock,
+        sequencerblock::v1alpha1::SequencerBlock,
+    };
     use cnidarium::StateDelta;
-    use sha2::{
-        Digest as _,
-        Sha256,
-    };
-    use tendermint::{
-        account,
-        block::{
-            header::Version,
-            Header,
-            Height,
-        },
-        AppHash,
-        Hash,
-        Time,
-    };
 
     use super::*;
     use crate::{
@@ -183,33 +169,11 @@ mod test {
     };
 
     fn make_test_sequencer_block(height: u32) -> SequencerBlock {
-        let mut header = Header {
-            app_hash: AppHash::try_from(vec![]).unwrap(),
-            chain_id: "test".to_string().try_into().unwrap(),
-            consensus_hash: Hash::default(),
-            data_hash: Some(Hash::try_from([0u8; 32].to_vec()).unwrap()),
-            evidence_hash: Some(Hash::default()),
-            height: Height::default(),
-            last_block_id: None,
-            last_commit_hash: Some(Hash::default()),
-            last_results_hash: Some(Hash::default()),
-            next_validators_hash: Hash::default(),
-            proposer_address: account::Id::try_from([0u8; 20].to_vec()).unwrap(),
-            time: Time::now(),
-            validators_hash: Hash::default(),
-            version: Version {
-                app: 0,
-                block: 0,
-            },
-        };
-
-        let empty_hash = merkle::Tree::from_leaves(Vec::<Vec<u8>>::new()).root();
-        let block_data = vec![empty_hash.to_vec(), empty_hash.to_vec()];
-        let data_hash = merkle::Tree::from_leaves(block_data.iter().map(Sha256::digest)).root();
-        header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
-        header.height = height.into();
-        SequencerBlock::try_from_cometbft_header_and_data(header, block_data, HashMap::new())
-            .unwrap()
+        ConfigureSequencerBlock {
+            height,
+            ..Default::default()
+        }
+        .make()
     }
 
     #[tokio::test]

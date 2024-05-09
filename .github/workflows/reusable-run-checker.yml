@@ -82,7 +82,11 @@ jobs:
               - 'Cargo.lock'
               - '.cargo/**'
             proto:
-              - '**/*.proto'
+              - 'proto/composerapis/**'
+              - 'proto/executionapis/**'
+              - 'proto/primitives/**'
+              - 'proto/protocolapis/**'
+              - 'proto/sequencerblockapis/**'
             rust:
               - '**/*.rs'
             toml:

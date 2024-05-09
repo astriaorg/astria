@@ -19,6 +19,7 @@ use astria_sequencer_client::{
     tendermint,
     tendermint_rpc::endpoint,
     Address,
+    Client,
     HttpClient,
     SequencerClientExt,
 };
@@ -157,12 +158,12 @@ pub(crate) async fn get_block_height(args: &BlockHeightGetArgs) -> eyre::Result<
         .wrap_err("failed constructing http sequencer client")?;
 
     let res = sequencer_client
-        .latest_sequencer_block()
+        .latest_block()
         .await
-        .wrap_err("failed to get sequencer block")?;
+        .wrap_err("failed to get cometbft block")?;
 
     println!("Block Height:");
-    println!("    {}", res.height());
+    println!("    {}", res.block.header.height);
 
     Ok(())
 }

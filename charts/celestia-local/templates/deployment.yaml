@@ -92,22 +92,6 @@ spec:
             limits:
               cpu: 2
               memory: 8Gi
-        - name: token-server
-          image: {{ .Values.tokenServerImage }}
-          command: [ "/bin/httpd", "-v", "-f", "-p", "5353", "-h", "/home/celestia/token-server/" ]
-          ports:
-            - containerPort: {{ .Values.ports.celestiaTokenService }}
-              name: token-svc
-          volumeMounts:
-            - mountPath: /home/celestia
-              name: celestia-home-vol
-              readOnly: true
-          startupProbe:
-            httpGet:
-              path: /
-              port: token-svc
-            failureThreshold: 30
-            periodSeconds: 5
       volumes:
         - name: bridge-scripts-volume
           configMap:

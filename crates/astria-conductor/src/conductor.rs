@@ -64,18 +64,18 @@ impl Conductor {
         // Spawn the executor task.
         let executor_handle = {
             let (executor, handle) = executor::Builder {
-                consider_commitment_spread: !cfg.execution_commit_level.is_soft_only(),
+                mode: cfg.execution_commit_level,
                 rollup_address: cfg.execution_rpc_url,
                 shutdown: shutdown.clone(),
             }
             .build()
-            .wrap_err("failed constructing exectur")?;
+            .wrap_err("failed constructing executor")?;
 
             tasks.spawn(Self::EXECUTOR, executor.run_until_stopped());
             handle
         };
 
-        if !cfg.execution_commit_level.is_firm_only() {
+        if cfg.execution_commit_level.is_with_soft() {
             let sequencer_grpc_client =
                 sequencer::SequencerGrpcClient::new(&cfg.sequencer_grpc_url)
                     .wrap_err("failed constructing grpc client for Sequencer")?;
@@ -94,7 +94,7 @@ impl Conductor {
             tasks.spawn(Self::SEQUENCER, sequencer_reader.run_until_stopped());
         }
 
-        if !cfg.execution_commit_level.is_soft_only() {
+        if cfg.execution_commit_level.is_with_firm() {
             let reader = celestia::Builder {
                 celestia_http_endpoint: cfg.celestia_node_http_url,
                 celestia_token: cfg.celestia_bearer_token,

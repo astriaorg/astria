@@ -34,8 +34,9 @@
         "astriaRollupName": "{{ .Values.config.rollup.name }}",
         "astriaCelestiaInitialHeight": {{ toString .Values.config.celestia.initialBlockHeight | replace "\"" "" }},
         "astriaCelestiaHeightVariance": {{ toString .Values.config.celestia.heightVariance | replace "\"" "" }},
-        "astriaBridgeAddresses": [{{ .Values.config.rollup.genesis.bridgeAddress | quote }}],
-        "astriaBridgeAllowedAssetDenom": {{ .Values.config.rollup.genesis.bridgeAllowedAssetDenom | quote }}
+        "astriaBridgeAddresses": {{ toPrettyJson .Values.config.rollup.genesis.bridgeAddresses | indent 8 | trim }},
+        "astriaFeeCollectors": {{ toPrettyJson .Values.config.rollup.genesis.feeCollectors | indent 8 | trim }},
+        "astriaEIP1559Params": {{ toPrettyJson .Values.config.rollup.genesis.eip1559Params | indent 8 | trim }}
         {{- if not .Values.global.dev }}
         {{- else }}
         {{- end }}

@@ -93,6 +93,7 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
             .into(),
         block_time_ms: 2000,
         max_bytes_per_bundle: 200_000,
+        bundle_queue_capacity: 10,
         no_otel: false,
         force_stdout: false,
         no_metrics: true,
@@ -178,7 +179,7 @@ fn rollup_id_nonce_from_request(request: &Request) -> (RollupId, u32) {
     )
 }
 
-/// Deserizalizes the bytes contained in a `tx_sync::Request` to a signed sequencer transaction and
+/// Deserializes the bytes contained in a `tx_sync::Request` to a signed sequencer transaction and
 /// verifies that it contains a sequence action with `expected_payload` as its contents.
 /// # Panics
 /// Panics if the request body has no sequence actions
@@ -218,7 +219,7 @@ pub async fn mount_matcher_verifying_tx_integrity(
         .await
 }
 
-/// Deserizalizes the bytes contained in a `tx_sync::Request` to a signed sequencer transaction and
+/// Deserializes the bytes contained in a `tx_sync::Request` to a signed sequencer transaction and
 /// verifies that the contained sequence action is in the given `expected_rollup_ids` and
 /// `expected_nonces`.
 /// # Panics
@@ -256,7 +257,7 @@ pub async fn mount_broadcast_tx_sync_mock(
         .await
 }
 
-/// Deserizalizes the bytes contained in a `tx_sync::Request` to a signed sequencer transaction and
+/// Deserializes the bytes contained in a `tx_sync::Request` to a signed sequencer transaction and
 /// verifies that the contained sequence action is for the given `expected_rollup_id`. It then
 /// rejects the transaction for an invalid nonce.
 pub async fn mount_broadcast_tx_sync_invalid_nonce_mock(

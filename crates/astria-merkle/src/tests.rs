@@ -107,7 +107,7 @@ fn last_zero_bit_is_correct() {
 fn parent_is_as_expected() {
     // Assuming a tree with 8 leaves, giving a total of 15 nodes in the tree.
     // Leaf index 7 corresponds to an internal tree index of 14.
-    // According to the indexing scheme, the parenet of the leaf at index 14
+    // According to the indexing scheme, the parent of the leaf at index 14
     // is at index 13.
     let leaf_idx = 7 * 2;
     let size = 15;

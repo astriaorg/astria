@@ -7,15 +7,13 @@ use astria_eyre::{
     eyre,
     eyre::WrapErr as _,
 };
-use celestia_client::{
-    celestia_types::{
-        nmt::Namespace,
-        Blob,
-    },
-    jsonrpsee::{
-        self,
-        http_client::HttpClient as CelestiaClient,
-    },
+use celestia_types::{
+    nmt::Namespace,
+    Blob,
+};
+use jsonrpsee::{
+    self,
+    http_client::HttpClient as CelestiaClient,
 };
 use telemetry::display::base64;
 use tokio::try_join;
@@ -84,7 +82,7 @@ async fn fetch_blobs_with_retry(
     height: u64,
     namespace: Namespace,
 ) -> eyre::Result<Vec<Blob>> {
-    use celestia_client::celestia_rpc::BlobClient as _;
+    use celestia_rpc::BlobClient as _;
 
     let number_attempts = AtomicU32::new(0);
     let retry_config = tryhard::RetryFutureConfig::new(u32::MAX)
@@ -148,7 +146,10 @@ impl<'a> BackoffStrategy<'a, jsonrpsee::core::Error> for FetchBlobsRetryStrategy
 }
 
 fn should_retry(error: &jsonrpsee::core::Error) -> bool {
-    matches!(error, jsonrpsee::core::Error::Transport(_))
+    matches!(
+        error,
+        jsonrpsee::core::Error::Transport(_) | jsonrpsee::core::Error::RequestTimeout,
+    )
 }
 
 fn is_blob_not_found(error: &jsonrpsee::core::Error) -> bool {

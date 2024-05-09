@@ -16,35 +16,32 @@ macro_rules! block {
 #[macro_export]
 macro_rules! celestia_network_head {
     (height: $height:expr) => {
-        ::celestia_client::celestia_types::ExtendedHeader {
-            header: ::celestia_client::celestia_tendermint::block::header::Header {
+        ::celestia_types::ExtendedHeader {
+            header: ::celestia_tendermint::block::header::Header {
                 height: $height.into(),
-                version: ::celestia_client::celestia_tendermint::block::header::Version {
+                version: ::celestia_tendermint::block::header::Version {
                     block: 0,
                     app: 0,
                 },
                 chain_id: "test_celestia-1000".try_into().unwrap(),
-                time: ::celestia_client::celestia_tendermint::Time::from_unix_timestamp(1, 1)
-                    .unwrap(),
+                time: ::celestia_tendermint::Time::from_unix_timestamp(1, 1).unwrap(),
                 last_block_id: None,
-                last_commit_hash: ::celestia_client::celestia_tendermint::Hash::Sha256([0; 32]),
-                data_hash: ::celestia_client::celestia_tendermint::Hash::Sha256([0; 32]),
-                validators_hash: ::celestia_client::celestia_tendermint::Hash::Sha256([0; 32]),
-                next_validators_hash: ::celestia_client::celestia_tendermint::Hash::Sha256([0; 32]),
-                consensus_hash: ::celestia_client::celestia_tendermint::Hash::Sha256([0; 32]),
+                last_commit_hash: ::celestia_tendermint::Hash::Sha256([0; 32]),
+                data_hash: ::celestia_tendermint::Hash::Sha256([0; 32]),
+                validators_hash: ::celestia_tendermint::Hash::Sha256([0; 32]),
+                next_validators_hash: ::celestia_tendermint::Hash::Sha256([0; 32]),
+                consensus_hash: ::celestia_tendermint::Hash::Sha256([0; 32]),
                 app_hash: vec![0; 32].try_into().unwrap(),
-                last_results_hash: ::celestia_client::celestia_tendermint::Hash::Sha256([0; 32]),
-                evidence_hash: ::celestia_client::celestia_tendermint::Hash::Sha256([0; 32]),
+                last_results_hash: ::celestia_tendermint::Hash::Sha256([0; 32]),
+                evidence_hash: ::celestia_tendermint::Hash::Sha256([0; 32]),
                 proposer_address: vec![0u8; 20].try_into().unwrap(),
             },
-            commit: ::celestia_client::celestia_tendermint::block::Commit {
+            commit: ::celestia_tendermint::block::Commit {
                 height: $height.into(),
                 ..Default::default()
             },
-            validator_set: ::celestia_client::celestia_tendermint::validator::Set::without_proposer(
-                vec![],
-            ),
-            dah: ::celestia_client::celestia_types::DataAvailabilityHeader {
+            validator_set: ::celestia_tendermint::validator::Set::without_proposer(vec![]),
+            dah: ::celestia_types::DataAvailabilityHeader {
                 row_roots: vec![],
                 column_roots: vec![],
             },
@@ -77,16 +74,13 @@ macro_rules! commitment_state {
 #[macro_export]
 macro_rules! filtered_sequencer_block {
     (sequencer_height: $height:expr) => {{
-        let block = ::astria_core::protocol::test_utils::ConfigureCometBftBlock {
+        let block = ::astria_core::protocol::test_utils::ConfigureSequencerBlock {
             height: $height,
-            rollup_transactions: vec![($crate::ROLLUP_ID, $crate::helpers::data())],
+            sequence_data: vec![($crate::ROLLUP_ID, $crate::helpers::data())],
             ..Default::default()
         }
         .make();
-        ::astria_core::sequencerblock::v1alpha1::SequencerBlock::try_from_cometbft(block)
-            .unwrap()
-            .into_filtered_block([$crate::ROLLUP_ID])
-            .into_raw()
+        block.into_filtered_block([$crate::ROLLUP_ID]).into_raw()
     }};
 }
 
@@ -122,16 +116,20 @@ macro_rules! mount_celestia_blobs {
         $celestia_height:expr,sequencer_height:
         $sequencer_height:expr $(,)?
     ) => {{
-        let blobs = $crate::helpers::make_blobs($sequencer_height);
+        let blobs = $crate::helpers::make_blobs(&[$sequencer_height]);
         $test_env
             .mount_celestia_blob_get_all(
                 $celestia_height,
                 $crate::sequencer_namespace(),
-                blobs.header,
+                vec![blobs.header],
             )
             .await;
         $test_env
-            .mount_celestia_blob_get_all($celestia_height, $crate::rollup_namespace(), blobs.rollup)
+            .mount_celestia_blob_get_all(
+                $celestia_height,
+                $crate::rollup_namespace(),
+                vec![blobs.rollup],
+            )
             .await
     }};
 }
@@ -179,24 +177,41 @@ macro_rules! mount_get_commitment_state {
 macro_rules! mount_update_commitment_state {
     (
         $test_env:ident,
+        mock_name: $mock_name:expr,
         firm: ( number: $firm_number:expr, hash: $firm_hash:expr, parent: $firm_parent:expr$(,)? ),
         soft: ( number: $soft_number:expr, hash: $soft_hash:expr, parent: $soft_parent:expr$(,)? )
         $(,)?
     ) => {
         $test_env
-            .mount_update_commitment_state($crate::commitment_state!(
-                firm: (
-                    number: $firm_number,
-                    hash: $firm_hash,
-                    parent: $firm_parent,
+            .mount_update_commitment_state(
+                $mock_name.into(),
+                $crate::commitment_state!(
+                    firm: (
+                        number: $firm_number,
+                        hash: $firm_hash,
+                        parent: $firm_parent,
+                    ),
+                    soft: (
+                        number: $soft_number,
+                        hash: $soft_hash,
+                        parent: $soft_parent,
+                    ),
                 ),
-                soft: (
-                    number: $soft_number,
-                    hash: $soft_hash,
-                    parent: $soft_parent,
-                ),
-        ))
+        )
         .await
+    };
+    (
+        $test_env:ident,
+        firm: ( number: $firm_number:expr, hash: $firm_hash:expr, parent: $firm_parent:expr$(,)? ),
+        soft: ( number: $soft_number:expr, hash: $soft_hash:expr, parent: $soft_parent:expr$(,)? )
+        $(,)?
+    ) => {
+        mount_update_commitment_state!(
+            $test_env,
+            mock_name: None,
+            firm: ( number: $firm_number, hash: $firm_hash, parent: $firm_parent, ),
+            soft: ( number: $soft_number, hash: $soft_hash, parent: $soft_parent, ),
+        )
     };
 }
 
@@ -211,12 +226,14 @@ macro_rules! mount_abci_info {
 macro_rules! mount_executed_block {
     (
         $test_env:ident,
+        mock_name: $mock_name:expr,
         number: $number:expr,
         hash: $hash:expr,
         parent: $parent:expr $(,)?
     ) => {{
         use ::base64::prelude::*;
         $test_env.mount_execute_block(
+            $mock_name.into(),
             ::serde_json::json!({
                 "prev_block_hash": BASE64_STANDARD.encode($parent),
                 "transactions": [{"sequenced_data": BASE64_STANDARD.encode($crate::helpers::data())}],
@@ -228,7 +245,21 @@ macro_rules! mount_executed_block {
             )
         )
         .await
-    }}
+    }};
+    (
+        $test_env:ident,
+        number: $number:expr,
+        hash: $hash:expr,
+        parent: $parent:expr $(,)?
+    ) => {
+        mount_executed_block!(
+            $test_env,
+            mock_name: None,
+            number: $number,
+            hash: $hash,
+            parent: $parent,
+        )
+    };
 }
 
 #[macro_export]
@@ -288,4 +319,31 @@ macro_rules! mount_sequencer_genesis {
     ($test_env:ident) => {
         $test_env.mount_genesis().await;
     };
+}
+
+#[macro_export]
+macro_rules! mount_get_block {
+    (
+        $test_env:ident,
+        number: $number:expr,
+        hash: $hash:expr,
+        parent: $parent:expr $(,)?
+    ) => {{
+        let block = $crate::block!(
+            number: $number,
+            hash: $hash,
+            parent: $parent,
+        );
+        let identifier = ::astria_core::generated::execution::v1alpha2::BlockIdentifier {
+            identifier: Some(
+                ::astria_core::generated::execution::v1alpha2::block_identifier::Identifier::BlockNumber(block.number)
+        )};
+        $test_env.mount_get_block(
+            ::astria_core::generated::execution::v1alpha2::GetBlockRequest {
+                identifier: Some(identifier),
+            },
+            block,
+        )
+        .await
+    }};
 }

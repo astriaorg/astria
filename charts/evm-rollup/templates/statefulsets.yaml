@@ -81,7 +81,7 @@ spec:
               name: execution-grpc
             {{- if .Values.config.rollup.metrics.enabled }} 
             - containerPort: {{ .Values.ports.metrics }}
-              name: geth-metrics
+              name: geth-metr
             {{- end }}
           resources:
             {{- toYaml .Values.resources.geth | trim | nindent 12 }}     
@@ -109,19 +109,15 @@ spec:
           {{- if .Values.config.rollup.metrics.enabled }} 
           ports:
             - containerPort: {{ .Values.ports.composerMetrics }}
-              name: composer-metrics
+              name: composer-metr
           {{- end }}
           resources:
             {{- toYaml .Values.resources.composer | trim | nindent 12 }}
         - name: conductor
           image: {{ include "conductor.image" . }}
-          command: [ "/scripts/start-conductor.sh" ]
+          command: [ "/usr/local/bin/astria-conductor" ]
           stdin: {{ .Values.global.useTTY }}
           tty: {{ .Values.global.useTTY }}
-          volumeMounts:
-            - mountPath: /scripts/
-              name: {{ .Values.config.rollup.name }}-conductor-scripts-volume
-              readOnly: true
           envFrom:
             - configMapRef:
                 name: {{ .Values.config.rollup.name }}-conductor-env
@@ -130,16 +126,12 @@ spec:
           {{- if .Values.config.rollup.metrics.enabled }} 
           ports:
             - containerPort: {{ .Values.ports.conductorMetrics }}
-              name: conductor-metrics
+              name: conductor-metr
           {{- end }}
       volumes:
         - name: {{ .Values.config.rollup.name }}-executor-scripts-volume
           configMap:
             name: {{ .Values.config.rollup.name }}-executor-scripts
-            defaultMode: 0500
-        - name: {{ .Values.config.rollup.name }}-conductor-scripts-volume
-          configMap:
-            name: {{ .Values.config.rollup.name }}-conductor-scripts
             defaultMode: 0500
         - name: {{ $.Values.config.rollup.name }}-rollup-shared-storage-vol
           {{- if .Values.storage.enabled }}

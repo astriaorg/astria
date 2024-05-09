@@ -1,6 +1,6 @@
 [package]
 name = "astria-sequencer"
-version = "0.10.1"
+version = "0.11.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 rust-version = "1.73"
@@ -27,6 +27,7 @@ telemetry = { package = "astria-telemetry", path = "../astria-telemetry", featur
 anyhow = "1"
 borsh = { version = "1", features = ["derive"] }
 matchit = "0.7.2"
+priority-queue = "2.0.2"
 tower = "0.4"
 tower-abci = "0.12.0"
 tower-actor = "0.1.0"
@@ -59,6 +60,11 @@ ibc-proto = { version = "0.41.0", features = ["server"] }
 tower-http = { version = "0.4", features = ["cors"] }
 
 [dev-dependencies]
+astria-core = { path = "../astria-core", features = [
+  "server",
+  "serde",
+  "test-utils",
+] }
 config = { package = "astria-config", path = "../astria-config", features = [
   "tests",
 ] }

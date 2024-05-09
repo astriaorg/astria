@@ -22,8 +22,15 @@ use tonic::{
 };
 
 use crate::{
-    collectors::EXECUTOR_SEND_TIMEOUT,
+    collectors::{
+        EXECUTOR_SEND_TIMEOUT,
+        GRPC,
+    },
     executor,
+    metrics_init::{
+        COLLECTOR_TYPE_LABEL,
+        ROLLUP_ID_LABEL,
+    },
 };
 
 /// Implements the `GrpcCollectorService` which listens for incoming gRPC requests and
@@ -59,6 +66,14 @@ impl GrpcCollectorService for Grpc {
             fee_asset_id: default_native_asset_id(),
         };
 
+        metrics::counter!(
+            crate::metrics_init::TRANSACTIONS_RECEIVED,
+            &[
+                (ROLLUP_ID_LABEL, rollup_id.to_string()),
+                (COLLECTOR_TYPE_LABEL, GRPC.to_string())
+            ]
+        )
+        .increment(1);
         match self
             .executor
             .send_timeout(sequence_action, EXECUTOR_SEND_TIMEOUT)
@@ -66,11 +81,29 @@ impl GrpcCollectorService for Grpc {
         {
             Ok(()) => {}
             Err(SendTimeoutError::Timeout(_seq_action)) => {
+                metrics::counter!(
+                    crate::metrics_init::TRANSACTIONS_DROPPED,
+                    &[
+                        (ROLLUP_ID_LABEL, rollup_id.to_string()),
+                        (COLLECTOR_TYPE_LABEL, GRPC.to_string())
+                    ]
+                )
+                .increment(1);
+
                 return Err(tonic::Status::unavailable(
                     "timeout while sending txs to composer",
                 ));
             }
             Err(SendTimeoutError::Closed(_seq_action)) => {
+                metrics::counter!(
+                    crate::metrics_init::TRANSACTIONS_DROPPED,
+                    &[
+                        (ROLLUP_ID_LABEL, rollup_id.to_string()),
+                        (COLLECTOR_TYPE_LABEL, GRPC.to_string())
+                    ]
+                )
+                .increment(1);
+
                 return Err(tonic::Status::failed_precondition(
                     "composer is not available",
                 ));

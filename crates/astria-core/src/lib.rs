@@ -11,6 +11,10 @@ pub mod primitive;
 pub mod protocol;
 pub mod sequencerblock;
 
+#[cfg(feature = "brotli")]
+pub mod brotli;
+#[cfg(feature = "celestia")]
+pub mod celestia;
 #[cfg(feature = "serde")]
 pub(crate) mod serde;
 
@@ -26,7 +30,7 @@ pub trait Protobuf: Sized {
     /// Convert from a reference to the raw protobuf type.
     ///
     /// # Errors
-    /// Returns [`Self::Error`] as defined by the implementator of this trait.
+    /// Returns [`Self::Error`] as defined by the implementor of this trait.
     fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error>;
 
     /// Convert from the raw protobuf type, dropping it.
@@ -35,7 +39,7 @@ pub trait Protobuf: Sized {
     /// [`Self::try_from_raw_ref`].
     ///
     /// # Errors
-    /// Returns [`Self::Error`] as defined by the implementator of this trait.
+    /// Returns [`Self::Error`] as defined by the implementor of this trait.
     fn try_from_raw(raw: Self::Raw) -> Result<Self, Self::Error> {
         Self::try_from_raw_ref(&raw)
     }

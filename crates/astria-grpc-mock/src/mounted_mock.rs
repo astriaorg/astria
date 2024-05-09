@@ -102,7 +102,7 @@ pub(crate) struct MountedMock {
     inner: Mock,
     position_in_set: usize,
     notify: Arc<(Notify, AtomicBool)>,
-    successful_response: Vec<(Request<AnyMessage>, ResponseResult)>,
+    successful_responses: Vec<(Request<AnyMessage>, ResponseResult)>,
     bad_responses: Vec<BadResponse>,
 }
 
@@ -112,7 +112,10 @@ impl MountedMock {
         rpc: &'static str,
         request: &Request<AnyMessage>,
     ) -> MockResult<U> {
-        if self.inner.rpc != rpc
+        let n_matches =
+            u64::try_from(self.successful_responses.len() + self.bad_responses.len()).ok();
+        if self.inner.max_n_matches == n_matches
+            || self.inner.rpc != rpc
             || !self
                 .inner
                 .matchers
@@ -124,7 +127,7 @@ impl MountedMock {
 
         let response = match self.inner.response.respond(request) {
             Err(status) => {
-                self.successful_response
+                self.successful_responses
                     .push((clone_request(request), Err(status.clone())));
                 Ok(Err(status))
             }
@@ -133,7 +136,7 @@ impl MountedMock {
                     clone_response(&mock_response.inner).into_parts();
                 if let Ok(message) = erased_message.clone_box().into_any().downcast::<U>() {
                     let rsp = tonic::Response::from_parts(metadata, *message, extensions);
-                    self.successful_response
+                    self.successful_responses
                         .push((clone_request(request), Ok(mock_response)));
                     Ok(Ok(rsp))
                 } else {
@@ -180,7 +183,7 @@ impl MountedMock {
             inner,
             position_in_set,
             notify: Arc::new((Notify::new(), AtomicBool::new(false))),
-            successful_response: Vec::new(),
+            successful_responses: Vec::new(),
             bad_responses: Vec::new(),
         }
     }
@@ -193,7 +196,7 @@ impl MountedMock {
         VerificationReport {
             mock_name: self.inner.name.clone(),
             rpc: self.inner.rpc,
-            n_successful_requests: self.successful_response.len() as u64,
+            n_successful_requests: self.successful_responses.len() as u64,
             bad_responses: self.bad_responses.clone(),
             expectation_range: self.inner.expectation_range.clone(),
             position_in_set: self.position_in_set,

@@ -1,0 +1,27 @@
+syntax = "proto3";
+package cosmos.auth.v1beta1;
+
+import "google/protobuf/any.proto";
+
+// This file contains types which are copied from
+// https://github.com/celestiaorg/cosmos-sdk/blob/v1.18.3-sdk-v0.46.14/proto/cosmos/auth/v1beta1/auth.proto
+// (v1.18.3-sdk-v0.46.14 tag).
+
+// BaseAccount defines a base account type. It contains all the necessary fields
+// for basic account functionality. Any custom account type should extend this
+// type for additional functionality (e.g. vesting).
+message BaseAccount {
+  string address = 1;
+  google.protobuf.Any pub_key = 2;
+  uint64 account_number = 3;
+  uint64 sequence = 4;
+}
+
+// Params defines the parameters for the auth module.
+message Params {
+  uint64 max_memo_characters = 1;
+  uint64 tx_sig_limit = 2;
+  uint64 tx_size_cost_per_byte = 3;
+  uint64 sig_verify_cost_ed25519 = 4;
+  uint64 sig_verify_cost_secp256k1 = 5;
+}

@@ -187,6 +187,11 @@ impl SignedTransaction {
     pub fn unsigned_transaction(&self) -> &UnsignedTransaction {
         &self.transaction
     }
+
+    #[must_use]
+    pub fn nonce(&self) -> u32 {
+        self.transaction.params.nonce
+    }
 }
 
 #[derive(Clone, Debug)]

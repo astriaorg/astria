@@ -26,9 +26,6 @@ use crate::{
     transaction::action_handler::ActionHandler,
 };
 
-/// Fee charged for a `InitBridgeAccountAction`.
-pub(crate) const INIT_BRIDGE_ACCOUNT_FEE: u128 = 48;
-
 #[async_trait::async_trait]
 impl ActionHandler for InitBridgeAccountAction {
     async fn check_stateful<S: StateReadExt + 'static>(
@@ -40,6 +37,11 @@ impl ActionHandler for InitBridgeAccountAction {
             state.is_allowed_fee_asset(self.fee_asset_id).await?,
             "invalid fee asset",
         );
+
+        let fee = state
+            .get_init_bridge_account_base_fee()
+            .await
+            .context("failed to get base fee for initializing bridge account")?;
 
         // this prevents the address from being registered as a bridge account
         // if it's been previously initialized as a bridge account.
@@ -62,7 +64,7 @@ impl ActionHandler for InitBridgeAccountAction {
             .context("failed getting `from` account balance for fee payment")?;
 
         ensure!(
-            balance >= INIT_BRIDGE_ACCOUNT_FEE,
+            balance >= fee,
             "insufficient funds for bridge account initialization",
         );
 
@@ -71,13 +73,18 @@ impl ActionHandler for InitBridgeAccountAction {
 
     #[instrument(skip_all)]
     async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> Result<()> {
+        let fee = state
+            .get_init_bridge_account_base_fee()
+            .await
+            .context("failed to get base fee for initializing bridge account")?;
+
         state.put_bridge_account_rollup_id(&from, &self.rollup_id);
         state
             .put_bridge_account_asset_id(&from, &self.asset_id)
             .context("failed to put asset ID")?;
 
         state
-            .decrease_balance(from, self.fee_asset_id, INIT_BRIDGE_ACCOUNT_FEE)
+            .decrease_balance(from, self.fee_asset_id, fee)
             .await
             .context("failed to deduct fee from account balance")?;
         Ok(())

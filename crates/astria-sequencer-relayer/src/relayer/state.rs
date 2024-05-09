@@ -43,7 +43,7 @@ forward_setter!(
     [set_latest_requested_sequencer_height <- u64],
 );
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, serde::Serialize)]
 pub(crate) struct StateSnapshot {
     ready: bool,
 
@@ -96,7 +96,7 @@ impl StateSnapshot {
 
     /// Sets the celestia connected state to `connected`.
     ///
-    /// Returns if the previous state was modified.
+    /// Returns `true` if the previous state was modified.
     fn set_celestia_connected(&mut self, connected: bool) -> bool {
         let changed = self.celestia_connected ^ connected;
         self.celestia_connected = connected;
@@ -105,7 +105,7 @@ impl StateSnapshot {
 
     /// Sets the sequencer connected state to `connected`.
     ///
-    /// Returns if the previous state was modified.
+    /// Returns `true` if the previous state was modified.
     fn set_sequencer_connected(&mut self, connected: bool) -> bool {
         let changed = self.sequencer_connected ^ connected;
         self.sequencer_connected = connected;

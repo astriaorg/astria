@@ -1,12 +1,11 @@
 use sha2::Digest as _;
 
 use super::*;
-use crate::protocol::transaction::test_utils::make_cometbft_block;
+use crate::protocol::transaction::test_utils::ConfigureSequencerBlock;
 
 #[test]
 fn sequencer_block_from_cometbft_block_gives_expected_merkle_proofs() {
-    let block = make_cometbft_block();
-    let sequencer_block = SequencerBlock::try_from_cometbft(block).unwrap();
+    let sequencer_block = ConfigureSequencerBlock::default().make();
     let rollup_ids_root =
         merkle::Tree::from_leaves(sequencer_block.rollup_transactions.keys()).root();
 
@@ -50,8 +49,7 @@ fn sequencer_block_from_cometbft_block_gives_expected_merkle_proofs() {
 
 #[test]
 fn block_to_filtered_roundtrip() {
-    let block = make_cometbft_block();
-    let sequencer_block = SequencerBlock::try_from_cometbft(block).unwrap();
+    let sequencer_block = ConfigureSequencerBlock::default().make();
     let rollup_ids = sequencer_block.rollup_transactions.keys();
     let filtered_sequencer_block = sequencer_block.to_filtered_block(rollup_ids);
 

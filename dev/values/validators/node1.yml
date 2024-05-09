@@ -8,11 +8,11 @@ config:
   # Values for CometBFT node configuration
   cometBFT:
     secrets:
-      node_key:
+      nodeKey:
         devContent:
           priv_key:
             value: YhbLhsKYUexcVOPBHUS6nNy7AOjVX0DxvIQW0mZBHwjbGbIgGlfuzuswG+uetk5zhPHYZMMCz77fa5/B/KP0lw==
-      priv_validator_key:
+      privValidatorKey:
         devContent:
           address: E82D827830B163D5179291FB27BB58E605DF2FA2
           pub_key:
