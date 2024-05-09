@@ -71,6 +71,7 @@ pub struct SignedTransaction {
     signature: Signature,
     verification_key: VerificationKey,
     transaction: UnsignedTransaction,
+    transaction_bytes: bytes::Bytes,
 }
 
 impl SignedTransaction {
@@ -93,12 +94,16 @@ impl SignedTransaction {
         let Self {
             signature,
             verification_key,
-            transaction,
+            transaction_bytes,
+            ..
         } = self;
         raw::SignedTransaction {
             signature: signature.to_bytes().to_vec(),
             public_key: verification_key.to_bytes().to_vec(),
-            transaction: Some(transaction.into_any()),
+            transaction: Some(pbjson_types::Any {
+                type_url: raw::UnsignedTransaction::type_url(),
+                value: transaction_bytes,
+            }),
         }
     }
 
@@ -107,12 +112,16 @@ impl SignedTransaction {
         let Self {
             signature,
             verification_key,
-            transaction,
+            transaction_bytes,
+            ..
         } = self;
         raw::SignedTransaction {
             signature: signature.to_bytes().to_vec(),
             public_key: verification_key.to_bytes().to_vec(),
-            transaction: Some(transaction.to_any()),
+            transaction: Some(pbjson_types::Any {
+                type_url: raw::UnsignedTransaction::type_url(),
+                value: transaction_bytes.clone(),
+            }),
         }
     }
 
@@ -148,6 +157,7 @@ impl SignedTransaction {
             signature,
             verification_key,
             transaction,
+            transaction_bytes: bytes,
         })
     }
 
@@ -158,6 +168,7 @@ impl SignedTransaction {
             signature,
             verification_key,
             transaction,
+            ..
         } = self;
         SignedTransactionParts {
             signature,
@@ -214,6 +225,7 @@ impl UnsignedTransaction {
             signature,
             verification_key,
             transaction: self,
+            transaction_bytes: bytes.into(),
         }
     }
 
@@ -421,7 +433,8 @@ mod test {
         let tx = SignedTransaction {
             signature,
             verification_key,
-            transaction: unsigned,
+            transaction: unsigned.clone(),
+            transaction_bytes: unsigned.to_raw().encode_to_vec().into(),
         };
 
         insta::assert_json_snapshot!(tx.sha256_of_proto_encoding());
