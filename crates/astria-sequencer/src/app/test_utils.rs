@@ -19,6 +19,7 @@ use penumbra_ibc::params::IBCParameters;
 use crate::{
     app::App,
     genesis::{
+        self,
         Account,
         GenesisState,
     },
@@ -65,6 +66,17 @@ pub(crate) fn default_genesis_accounts() -> Vec<Account> {
     ]
 }
 
+pub(crate) fn default_fees() -> genesis::Fees {
+    genesis::Fees {
+        transfer_base_fee: 12,
+        sequence_base_fee: 32,
+        sequence_byte_cost_multiplier: 1,
+        init_bridge_account_base_fee: 48,
+        bridge_lock_byte_cost_multiplier: 1,
+        ics20_withdrawal_base_fee: 24,
+    }
+}
+
 pub(crate) async fn initialize_app_with_storage(
     genesis_state: Option<GenesisState>,
     genesis_validators: Vec<tendermint::validator::Update>,
@@ -84,6 +96,7 @@ pub(crate) async fn initialize_app_with_storage(
         native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         ibc_params: IBCParameters::default(),
         allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
+        fees: default_fees(),
     });
 
     app.init_chain(
