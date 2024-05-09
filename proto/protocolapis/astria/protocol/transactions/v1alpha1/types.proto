@@ -120,6 +120,8 @@ message Ics20Withdrawal {
   string source_channel = 7;
   // the asset used to pay the transaction fee
   bytes fee_asset_id = 8;
+  // a memo to include with the transfer
+  string memo = 9;
 }
 
 message IbcHeight {
