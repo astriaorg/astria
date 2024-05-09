@@ -99,7 +99,6 @@ mod test {
         let address = Address::from([1; 20]);
         let to_address = Address::from([2; 20]);
 
-
         let bridge_unlock = BridgeUnlockAction {
             to: to_address,
             amount: transfer_amount,
