@@ -214,6 +214,9 @@ pub struct Ics20Withdrawal {
     /// the asset used to pay the transaction fee
     #[prost(bytes = "vec", tag = "8")]
     pub fee_asset_id: ::prost::alloc::vec::Vec<u8>,
+    /// a memo to include with the transfer
+    #[prost(string, tag = "9")]
+    pub memo: ::prost::alloc::string::String,
 }
 impl ::prost::Name for Ics20Withdrawal {
     const NAME: &'static str = "Ics20Withdrawal";

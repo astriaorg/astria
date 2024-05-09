@@ -146,7 +146,10 @@ impl<'a> BackoffStrategy<'a, jsonrpsee::core::Error> for FetchBlobsRetryStrategy
 }
 
 fn should_retry(error: &jsonrpsee::core::Error) -> bool {
-    matches!(error, jsonrpsee::core::Error::Transport(_))
+    matches!(
+        error,
+        jsonrpsee::core::Error::Transport(_) | jsonrpsee::core::Error::RequestTimeout,
+    )
 }
 
 fn is_blob_not_found(error: &jsonrpsee::core::Error) -> bool {
