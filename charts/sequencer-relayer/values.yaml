@@ -18,6 +18,8 @@ images:
 
 config:
   relayer:
+    sequencerChainId: ""
+    celestiaChainId: ""
     celestiaAppGrpc: ""
     cometbftRpc: ""
     sequencerGrpc: ""
