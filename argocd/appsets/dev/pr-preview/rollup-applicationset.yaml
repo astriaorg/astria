@@ -62,7 +62,11 @@ spec:
                 useTTY: true
                 dev: false
               config:
-                rollup: 
+                rollup:
+                  metrics: 
+                    enabled: true
+                  serviceMonitor:
+                    enabled: true
                   chainId: "sequencer-test-chain-0"
                 sequencer:
                   chainId: "sequencer-test-chain-0"
