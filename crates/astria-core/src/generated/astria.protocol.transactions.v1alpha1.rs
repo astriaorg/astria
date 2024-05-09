@@ -366,20 +366,17 @@ impl ::prost::Name for BridgeLockAction {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct BridgeUnlockAction {
-    /// the address of the bridge account to transfer to
+    /// the to withdraw funds to
     #[prost(message, optional, tag = "1")]
     pub to: ::core::option::Option<super::super::super::primitive::v1::Address>,
     /// the amount to transfer
     #[prost(message, optional, tag = "2")]
     pub amount: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
-    /// the asset to be transferred
-    #[prost(bytes = "vec", tag = "3")]
-    pub asset_id: ::prost::alloc::vec::Vec<u8>,
     /// the asset used to pay the transaction fee
-    #[prost(bytes = "vec", tag = "4")]
+    #[prost(bytes = "vec", tag = "3")]
     pub fee_asset_id: ::prost::alloc::vec::Vec<u8>,
     /// memo for double spend prevention
-    #[prost(bytes = "vec", tag = "5")]
+    #[prost(bytes = "vec", tag = "4")]
     pub memo: ::prost::alloc::vec::Vec<u8>,
 }
 impl ::prost::Name for BridgeUnlockAction {

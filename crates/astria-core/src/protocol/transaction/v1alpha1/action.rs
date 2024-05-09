@@ -1293,8 +1293,6 @@ enum BridgeLockActionErrorKind {
 pub struct BridgeUnlockAction {
     pub to: Address,
     pub amount: u128,
-    // asset to be transferred.
-    pub asset_id: asset::Id,
     // asset to use for fee payment.
     pub fee_asset_id: asset::Id,
     // memo for double spend protection.
@@ -1307,7 +1305,6 @@ impl BridgeUnlockAction {
         raw::BridgeUnlockAction {
             to: Some(self.to.to_raw()),
             amount: Some(self.amount.into()),
-            asset_id: self.asset_id.get().to_vec(),
             fee_asset_id: self.fee_asset_id.as_ref().to_vec(),
             memo: self.memo,
         }
@@ -1318,7 +1315,6 @@ impl BridgeUnlockAction {
         raw::BridgeUnlockAction {
             to: Some(self.to.to_raw()),
             amount: Some(self.amount.into()),
-            asset_id: self.asset_id.get().to_vec(),
             fee_asset_id: self.fee_asset_id.as_ref().to_vec(),
             memo: self.memo.clone(),
         }
@@ -1331,7 +1327,6 @@ impl BridgeUnlockAction {
     /// - if the `to` field is not set
     /// - if the `to` field is invalid
     /// - if the `amount` field is invalid
-    /// - if the `asset_id` field is invalid
     /// - if the `fee_asset_id` field is invalid
     pub fn try_from_raw(proto: raw::BridgeUnlockAction) -> Result<Self, BridgeUnlockActionError> {
         let Some(to) = proto.to else {
@@ -1341,14 +1336,11 @@ impl BridgeUnlockAction {
         let amount = proto
             .amount
             .ok_or(BridgeUnlockActionError::missing_amount())?;
-        let asset_id = asset::Id::try_from_slice(&proto.asset_id)
-            .map_err(BridgeUnlockActionError::invalid_asset_id)?;
         let fee_asset_id = asset::Id::try_from_slice(&proto.fee_asset_id)
             .map_err(BridgeUnlockActionError::invalid_fee_asset_id)?;
         Ok(Self {
             to,
             amount: amount.into(),
-            asset_id,
             fee_asset_id,
             memo: proto.memo,
         })
@@ -1376,11 +1368,6 @@ impl BridgeUnlockActionError {
     }
 
     #[must_use]
-    fn invalid_asset_id(err: asset::IncorrectAssetIdLength) -> Self {
-        Self(BridgeUnlockActionErrorKind::InvalidAssetId(err))
-    }
-
-    #[must_use]
     fn invalid_fee_asset_id(err: asset::IncorrectAssetIdLength) -> Self {
         Self(BridgeUnlockActionErrorKind::InvalidFeeAssetId(err))
     }
@@ -1394,8 +1381,6 @@ enum BridgeUnlockActionErrorKind {
     InvalidAddress(#[source] IncorrectAddressLength),
     #[error("the `amount` field was not set")]
     MissingAmount,
-    #[error("the `asset_id` field was invalid")]
-    InvalidAssetId(#[source] asset::IncorrectAssetIdLength),
     #[error("the `fee_asset_id` field was invalid")]
     InvalidFeeAssetId(#[source] asset::IncorrectAssetIdLength),
 }

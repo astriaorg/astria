@@ -192,14 +192,12 @@ message BridgeLockAction {
 // It's the same as a `TransferAction` but with the added
 // `memo` field.
 message BridgeUnlockAction {
-  // the address of the bridge account to transfer to
+  // the to withdraw funds to
   astria.primitive.v1.Address to = 1;
   // the amount to transfer
   astria.primitive.v1.Uint128 amount = 2;
-  // the asset to be transferred
-  bytes asset_id = 3;
   // the asset used to pay the transaction fee
-  bytes fee_asset_id = 4;
+  bytes fee_asset_id = 3;
   // memo for double spend prevention
-  bytes memo = 5;
+  bytes memo = 4;
 }
