@@ -189,8 +189,8 @@ message BridgeLockAction {
 // `BridgeUnlockAction` represents a transaction that transfers
 // funds from a bridge account to a sequencer account.
 //
-// It's the same as a `TransferAction` but with the added
-// `memo` field.
+// It's the same as a `TransferAction` but without the `asset` field
+// and with the `memo` field.
 message BridgeUnlockAction {
   // the to withdraw funds to
   astria.primitive.v1.Address to = 1;

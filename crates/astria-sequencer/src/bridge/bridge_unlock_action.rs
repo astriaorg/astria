@@ -43,9 +43,7 @@ impl ActionHandler for BridgeUnlockAction {
 
         // TODO use the BridgeUnlock action's `memo` field.
 
-        // this performs the same checks as a normal `TransferAction`,
-        // but without the check that prevents transferring from a bridge account,
-        // as we are explicitly transferring from a bridge account here.
+        // this performs the same checks as a normal `TransferAction`
         transfer_check_stateful(&transfer_action, state, from).await
     }
 
@@ -169,7 +167,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn bridge_lock_execute() {
+    async fn bridge_unlock_execute() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);

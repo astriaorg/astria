@@ -88,9 +88,7 @@ impl ActionHandler for BridgeLockAction {
             .saturating_add(transfer_fee);
         ensure!(from_balance >= fee, "insufficient funds for fee payment");
 
-        // this performs the same checks as a normal `TransferAction`,
-        // but without the check that prevents transferring to a bridge account,
-        // as we are explicitly transferring to a bridge account here.
+        // this performs the same checks as a normal `TransferAction`
         transfer_check_stateful(&transfer_action, state, from).await
     }
 
