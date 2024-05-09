@@ -676,6 +676,8 @@ pub struct Ics20Withdrawal {
     source_channel: ChannelId,
     // the asset to use for fee payment.
     fee_asset_id: asset::Id,
+    // a memo to include with the transfer
+    memo: String,
 }
 
 impl Ics20Withdrawal {
@@ -720,13 +722,18 @@ impl Ics20Withdrawal {
     }
 
     #[must_use]
+    pub fn memo(&self) -> &str {
+        &self.memo
+    }
+
+    #[must_use]
     pub fn to_fungible_token_packet_data(&self) -> FungibleTokenPacketData {
         FungibleTokenPacketData {
             amount: self.amount.to_string(),
             denom: self.denom.to_string(),
             sender: self.return_address.to_string(),
             receiver: self.destination_chain_address.clone(),
-            memo: String::new(),
+            memo: self.memo.clone(),
         }
     }
 
@@ -741,6 +748,7 @@ impl Ics20Withdrawal {
             timeout_time: self.timeout_time,
             source_channel: self.source_channel.to_string(),
             fee_asset_id: self.fee_asset_id.get().to_vec(),
+            memo: self.memo.clone(),
         }
     }
 
@@ -755,6 +763,7 @@ impl Ics20Withdrawal {
             timeout_time: self.timeout_time,
             source_channel: self.source_channel.to_string(),
             fee_asset_id: self.fee_asset_id.get().to_vec(),
+            memo: self.memo,
         }
     }
 
@@ -789,6 +798,7 @@ impl Ics20Withdrawal {
                 .map_err(Ics20WithdrawalError::invalid_source_channel)?,
             fee_asset_id: asset::Id::try_from_slice(&proto.fee_asset_id)
                 .map_err(Ics20WithdrawalError::invalid_fee_asset_id)?,
+            memo: proto.memo,
         })
     }
 }
