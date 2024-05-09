@@ -32,12 +32,12 @@ spec:
           ingress:
             grpc:
               enabled: true
-          # config:
-          #   sequencer: 
-          #     metrics: 
-          #       enabled: true
-          # serviceMonitor:
-          #   enabled: true
+          config:
+            sequencer: 
+              metrics: 
+                enabled: true
+          serviceMonitor:
+            enabled: true
           # sequencer-relayer:
           #   enabled: true
 

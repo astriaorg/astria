@@ -31,9 +31,9 @@ spec:
             dev: true
             rollup: 
               metrics: 
-                enabled: false
+                enabled: true
               serviceMonitor:
-                enabled: false
+                enabled: true
           # celestia-node:
           #   enabled: false
           # ingress:
