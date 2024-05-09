@@ -286,7 +286,7 @@ async fn submit_blobs(
     // loss
     #[allow(clippy::cast_precision_loss)]
     let compressed_size = data.compressed_size() as f64;
-    metrics::gauge!(metrics_init::TOTAL_BLOB_DATA_SIZE_FOR_ASTRIA_BLOCK).set(compressed_size);
+    metrics::histogram!(metrics_init::BYTES_PER_CELESTIA_TX).record(compressed_size);
 
     metrics::gauge!(metrics_init::COMPRESSION_RATIO_FOR_ASTRIA_BLOCK).set(data.compression_ratio());
 
@@ -297,12 +297,12 @@ async fn submit_blobs(
     // allow: the number of blocks should always be low enough to not cause precision loss
     #[allow(clippy::cast_precision_loss)]
     let blocks_per_celestia_tx = data.num_blocks() as f64;
-    metrics::gauge!(crate::metrics_init::BLOCKS_PER_CELESTIA_TX).set(blocks_per_celestia_tx);
+    metrics::histogram!(crate::metrics_init::BLOCKS_PER_CELESTIA_TX).record(blocks_per_celestia_tx);
 
     // allow: the number of blobs should always be low enough to not cause precision loss
     #[allow(clippy::cast_precision_loss)]
     let blobs_per_celestia_tx = data.num_blobs() as f64;
-    metrics::gauge!(crate::metrics_init::BLOBS_PER_CELESTIA_TX).set(blobs_per_celestia_tx);
+    metrics::histogram!(crate::metrics_init::BLOBS_PER_CELESTIA_TX).record(blobs_per_celestia_tx);
 
     let largest_sequencer_height = data.greatest_sequencer_height();
     let blobs = data.into_blobs();
