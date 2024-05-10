@@ -283,6 +283,7 @@ async fn app_execute_transaction_validator_update() {
         native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         ibc_params: IBCParameters::default(),
         allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
+        fees: default_fees(),
     };
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -321,6 +322,7 @@ async fn app_execute_transaction_ibc_relayer_change_addition() {
         native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
         ibc_params: IBCParameters::default(),
+        fees: default_fees(),
     };
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -350,6 +352,7 @@ async fn app_execute_transaction_ibc_relayer_change_deletion() {
         native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
         ibc_params: IBCParameters::default(),
+        fees: default_fees(),
     };
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -379,6 +382,7 @@ async fn app_execute_transaction_ibc_relayer_change_invalid() {
         native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
         ibc_params: IBCParameters::default(),
+        fees: default_fees(),
     };
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -406,6 +410,7 @@ async fn app_execute_transaction_sudo_address_change() {
         native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         ibc_params: IBCParameters::default(),
         allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
+        fees: default_fees(),
     };
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -442,6 +447,7 @@ async fn app_execute_transaction_sudo_address_change_error() {
         native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         ibc_params: IBCParameters::default(),
         allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
+        fees: default_fees(),
     };
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -479,6 +485,7 @@ async fn app_execute_transaction_fee_asset_change_addition() {
         native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         ibc_params: IBCParameters::default(),
         allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
+        fees: default_fees(),
     };
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -519,6 +526,7 @@ async fn app_execute_transaction_fee_asset_change_removal() {
             DEFAULT_NATIVE_ASSET_DENOM.to_owned().into(),
             test_asset.clone(),
         ],
+        fees: default_fees(),
     };
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -558,6 +566,7 @@ async fn app_execute_transaction_fee_asset_change_invalid() {
         native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         ibc_params: IBCParameters::default(),
         allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
+        fees: default_fees(),
     };
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -844,6 +853,7 @@ async fn app_execute_transaction_mint() {
         native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         ibc_params: IBCParameters::default(),
         allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
+        fees: default_fees(),
     };
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
 

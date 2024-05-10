@@ -10,7 +10,7 @@ pub struct SignedTransaction {
     #[prost(bytes = "vec", tag = "2")]
     pub public_key: ::prost::alloc::vec::Vec<u8>,
     #[prost(message, optional, tag = "3")]
-    pub transaction: ::core::option::Option<UnsignedTransaction>,
+    pub transaction: ::core::option::Option<::pbjson_types::Any>,
 }
 impl ::prost::Name for SignedTransaction {
     const NAME: &'static str = "SignedTransaction";

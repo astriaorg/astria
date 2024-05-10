@@ -199,6 +199,7 @@ async fn app_commit() {
         native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         ibc_params: IBCParameters::default(),
         allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
+        fees: default_fees(),
     };
 
     let (mut app, storage) = initialize_app_with_storage(Some(genesis_state), vec![]).await;
