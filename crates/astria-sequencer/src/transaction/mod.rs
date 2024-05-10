@@ -497,9 +497,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot);
 
-        state_tx
-            .put_transfer_base_fee(crate::accounts::component::DEFAULT_TRANSFER_BASE_FEE)
-            .unwrap();
+        state_tx.put_transfer_base_fee(12).unwrap();
         state_tx.put_sequence_action_base_fee(0);
         state_tx.put_sequence_action_byte_cost_multiplier(1);
         state_tx.put_ics20_withdrawal_base_fee(1).unwrap();
@@ -565,9 +563,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot);
 
-        state_tx
-            .put_transfer_base_fee(crate::accounts::component::DEFAULT_TRANSFER_BASE_FEE)
-            .unwrap();
+        state_tx.put_transfer_base_fee(12).unwrap();
         state_tx.put_sequence_action_base_fee(0);
         state_tx.put_sequence_action_byte_cost_multiplier(1);
         state_tx.put_ics20_withdrawal_base_fee(1).unwrap();

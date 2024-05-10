@@ -245,6 +245,7 @@ mod test {
 
     use super::*;
     use crate::{
+        app::test_utils::default_fees,
         asset::get_native_asset,
         mempool::{
             Mempool,
@@ -470,6 +471,7 @@ mod test {
                 native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
                 ibc_params: penumbra_ibc::params::IBCParameters::default(),
                 allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
+                fees: default_fees(),
             }
         }
     }
