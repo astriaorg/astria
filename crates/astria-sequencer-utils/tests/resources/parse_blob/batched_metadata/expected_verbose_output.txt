@@ -56,3 +56,7 @@ sequencer metadata 1:
         leaf index: 1
         tree size: 5
 
+number of entries: 2
+compressed size: 425 bytes
+decompressed size: 1282 bytes
+compression ratio: 3.0164707

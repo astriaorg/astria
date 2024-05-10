@@ -4,3 +4,7 @@ rollup data 0:
     rollup id: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
     transaction count: 1
 
+number of entries: 1
+compressed size: 172 bytes
+decompressed size: 211 bytes
+compression ratio: 1.2267442

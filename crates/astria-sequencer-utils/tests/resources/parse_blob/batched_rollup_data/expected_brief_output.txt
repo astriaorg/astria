@@ -8,3 +8,7 @@ rollup data 1:
     rollup id: AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=
     transaction count: 1
 
+number of entries: 2
+compressed size: 333 bytes
+decompressed size: 435 bytes
+compression ratio: 1.3063064

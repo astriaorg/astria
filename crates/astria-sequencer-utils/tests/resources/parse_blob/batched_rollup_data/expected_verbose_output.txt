@@ -18,3 +18,7 @@ rollup data 1:
         leaf index: 1
         tree size: 19
 
+number of entries: 2
+compressed size: 333 bytes
+decompressed size: 435 bytes
+compression ratio: 1.3063064

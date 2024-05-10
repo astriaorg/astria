@@ -85,24 +85,41 @@ pub fn run(
         verbose,
     }: Args,
 ) -> Result<()> {
-    let parsed_list = parse(input, verbose)?;
+    let parsed_blob = parse(input, verbose)?;
     match format {
-        Format::Display => println!("\n{parsed_list}"),
+        Format::Display => println!("\n{parsed_blob}"),
         Format::Json => println!(
             "{}",
-            serde_json::to_string(&parsed_list).wrap_err("failed to json-encode")?
+            serde_json::to_string(&parsed_blob).wrap_err("failed to json-encode")?
         ),
     }
     Ok(())
 }
 
-fn parse(input: String, verbose: bool) -> Result<ParsedList> {
+fn parse(input: String, verbose: bool) -> Result<ParsedBlob> {
     let raw = BASE64_STANDARD
         .decode(input)
         .wrap_err("failed to decode as base64")?;
+    #[allow(clippy::cast_precision_loss)]
+    let compressed_size = raw.len() as f32;
     let decompressed =
         Bytes::from(decompress_bytes(&raw).wrap_err("failed to decompress decoded bytes")?);
+    #[allow(clippy::cast_precision_loss)]
+    let decompressed_size = decompressed.len() as f32;
+    let compression_ratio = decompressed_size / compressed_size;
 
+    let list = parse_list(decompressed, verbose)?;
+    let number_of_entries = list.len();
+    Ok(ParsedBlob {
+        list,
+        number_of_entries,
+        compressed_size,
+        decompressed_size,
+        compression_ratio,
+    })
+}
+
+fn parse_list(decompressed: Bytes, verbose: bool) -> Result<ParsedList> {
     // Try to parse as a list of `SequencerBlockMetadata`.
     if let Some(metadata_list) = RawSubmittedMetadataList::decode(decompressed.clone())
         .ok()
@@ -396,6 +413,17 @@ enum ParsedList {
     VerboseRollup(Vec<VerboseRollupData>),
 }
 
+impl ParsedList {
+    fn len(&self) -> usize {
+        match self {
+            ParsedList::BriefSequencer(list) => list.len(),
+            ParsedList::VerboseSequencer(list) => list.len(),
+            ParsedList::BriefRollup(list) => list.len(),
+            ParsedList::VerboseRollup(list) => list.len(),
+        }
+    }
+}
+
 impl FromIterator<BriefSequencerBlockMetadata> for ParsedList {
     fn from_iter<I: IntoIterator<Item = BriefSequencerBlockMetadata>>(iter: I) -> Self {
         Self::BriefSequencer(Vec::from_iter(iter))
@@ -452,6 +480,26 @@ impl Display for ParsedList {
                 Ok(())
             }
         }
+    }
+}
+
+#[derive(Serialize, Debug)]
+struct ParsedBlob {
+    #[serde(flatten)]
+    list: ParsedList,
+    number_of_entries: usize,
+    compressed_size: f32,
+    decompressed_size: f32,
+    compression_ratio: f32,
+}
+
+impl Display for ParsedBlob {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        writeln!(f, "{}", self.list)?;
+        writeln!(f, "number of entries: {}", self.number_of_entries)?;
+        writeln!(f, "compressed size: {} bytes", self.compressed_size)?;
+        writeln!(f, "decompressed size: {} bytes", self.decompressed_size)?;
+        write!(f, "compression ratio: {}", self.compression_ratio)
     }
 }
 

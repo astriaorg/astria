@@ -10,3 +10,7 @@ sequencer metadata 0:
         proposer address: yPrVsmT31bVEaXjpauw1SeQfE1M=
     rollup ids:
 
+number of entries: 1
+compressed size: 226 bytes
+decompressed size: 237 bytes
+compression ratio: 1.0486726

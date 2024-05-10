@@ -40,3 +40,7 @@ sequencer metadata 1:
         Z2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2c=
         aGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGg=
 
+number of entries: 2
+compressed size: 425 bytes
+decompressed size: 1282 bytes
+compression ratio: 3.0164707
