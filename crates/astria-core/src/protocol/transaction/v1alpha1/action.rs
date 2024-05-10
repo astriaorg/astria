@@ -1316,25 +1316,26 @@ impl FeeChangeAction {
         raw::FeeChangeAction {
             value: Some(match self.fee_change {
                 FeeChange::TransferBaseFee => {
-                    raw::fee_change_action::Value::TransferBaseFee(vec![])
+                    raw::fee_change_action::Value::TransferBaseFee(self.new_value.into())
                 }
                 FeeChange::SequenceBaseFee => {
-                    raw::fee_change_action::Value::SequenceBaseFee(vec![])
+                    raw::fee_change_action::Value::SequenceBaseFee(self.new_value.into())
                 }
                 FeeChange::SequenceByteCostMultiplier => {
-                    raw::fee_change_action::Value::SequenceByteCostMultiplier(vec![])
+                    raw::fee_change_action::Value::SequenceByteCostMultiplier(self.new_value.into())
                 }
                 FeeChange::InitBridgeAccountBaseFee => {
-                    raw::fee_change_action::Value::InitBridgeAccountBaseFee(vec![])
+                    raw::fee_change_action::Value::InitBridgeAccountBaseFee(self.new_value.into())
                 }
                 FeeChange::BridgeLockByteCostMultiplier => {
-                    raw::fee_change_action::Value::BridgeLockByteCostMultiplier(vec![])
+                    raw::fee_change_action::Value::BridgeLockByteCostMultiplier(
+                        self.new_value.into(),
+                    )
                 }
                 FeeChange::Ics20WithdrawalBaseFee => {
-                    raw::fee_change_action::Value::Ics20WithdrawalBaseFee(vec![])
+                    raw::fee_change_action::Value::Ics20WithdrawalBaseFee(self.new_value.into())
                 }
             }),
-            new_value: Some(self.new_value.into()),
         }
     }
 
@@ -1345,30 +1346,31 @@ impl FeeChangeAction {
     /// - if the fee change `value` field is missing
     /// - if the `new_value` field is missing
     pub fn try_from_raw(proto: &raw::FeeChangeAction) -> Result<Self, FeeChangeActionError> {
-        let fee_change = match proto.value {
-            Some(raw::fee_change_action::Value::TransferBaseFee(_)) => FeeChange::TransferBaseFee,
-            Some(raw::fee_change_action::Value::SequenceBaseFee(_)) => FeeChange::SequenceBaseFee,
-            Some(raw::fee_change_action::Value::SequenceByteCostMultiplier(_)) => {
-                FeeChange::SequenceByteCostMultiplier
+        let (fee_change, new_value) = match proto.value {
+            Some(raw::fee_change_action::Value::TransferBaseFee(new_value)) => {
+                (FeeChange::TransferBaseFee, new_value)
             }
-            Some(raw::fee_change_action::Value::InitBridgeAccountBaseFee(_)) => {
-                FeeChange::InitBridgeAccountBaseFee
+            Some(raw::fee_change_action::Value::SequenceBaseFee(new_value)) => {
+                (FeeChange::SequenceBaseFee, new_value)
             }
-            Some(raw::fee_change_action::Value::BridgeLockByteCostMultiplier(_)) => {
-                FeeChange::BridgeLockByteCostMultiplier
+            Some(raw::fee_change_action::Value::SequenceByteCostMultiplier(new_value)) => {
+                (FeeChange::SequenceByteCostMultiplier, new_value)
             }
-            Some(raw::fee_change_action::Value::Ics20WithdrawalBaseFee(_)) => {
-                FeeChange::Ics20WithdrawalBaseFee
+            Some(raw::fee_change_action::Value::InitBridgeAccountBaseFee(new_value)) => {
+                (FeeChange::InitBridgeAccountBaseFee, new_value)
+            }
+            Some(raw::fee_change_action::Value::BridgeLockByteCostMultiplier(new_value)) => {
+                (FeeChange::BridgeLockByteCostMultiplier, new_value)
+            }
+            Some(raw::fee_change_action::Value::Ics20WithdrawalBaseFee(new_value)) => {
+                (FeeChange::Ics20WithdrawalBaseFee, new_value)
             }
             None => return Err(FeeChangeActionError::missing_value_to_change()),
         };
-        let new_value = proto
-            .new_value
-            .ok_or(FeeChangeActionError::missing_new_value())?
-            .into();
+
         Ok(Self {
             fee_change,
-            new_value,
+            new_value: new_value.into(),
         })
     }
 }
@@ -1381,16 +1383,10 @@ impl FeeChangeActionError {
     fn missing_value_to_change() -> Self {
         Self(FeeChangeActionErrorKind::MissingValueToChange)
     }
-
-    fn missing_new_value() -> Self {
-        Self(FeeChangeActionErrorKind::MissingNewValue)
-    }
 }
 
 #[derive(Debug, thiserror::Error)]
 enum FeeChangeActionErrorKind {
     #[error("the value which to change was missing")]
     MissingValueToChange,
-    #[error("the new value was missing")]
-    MissingNewValue,
 }

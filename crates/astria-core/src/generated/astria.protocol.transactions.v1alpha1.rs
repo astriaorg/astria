@@ -361,8 +361,6 @@ impl ::prost::Name for BridgeLockAction {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FeeChangeAction {
-    #[prost(message, optional, tag = "101")]
-    pub new_value: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
     /// note that the proto number ranges are doubled from that of `Action`.
     /// this to accomodate both `base_fee` and `byte_cost_multiplier` for each action.
     #[prost(oneof = "fee_change_action::Value", tags = "1, 2, 3, 20, 21, 40")]
@@ -376,20 +374,20 @@ pub mod fee_change_action {
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Value {
         /// core protocol fees are defined on 1-20
-        #[prost(bytes, tag = "1")]
-        TransferBaseFee(::prost::alloc::vec::Vec<u8>),
-        #[prost(bytes, tag = "2")]
-        SequenceBaseFee(::prost::alloc::vec::Vec<u8>),
-        #[prost(bytes, tag = "3")]
-        SequenceByteCostMultiplier(::prost::alloc::vec::Vec<u8>),
+        #[prost(message, tag = "1")]
+        TransferBaseFee(super::super::super::super::primitive::v1::Uint128),
+        #[prost(message, tag = "2")]
+        SequenceBaseFee(super::super::super::super::primitive::v1::Uint128),
+        #[prost(message, tag = "3")]
+        SequenceByteCostMultiplier(super::super::super::super::primitive::v1::Uint128),
         /// bridge fees are defined on 20-39
-        #[prost(bytes, tag = "20")]
-        InitBridgeAccountBaseFee(::prost::alloc::vec::Vec<u8>),
-        #[prost(bytes, tag = "21")]
-        BridgeLockByteCostMultiplier(::prost::alloc::vec::Vec<u8>),
+        #[prost(message, tag = "20")]
+        InitBridgeAccountBaseFee(super::super::super::super::primitive::v1::Uint128),
+        #[prost(message, tag = "21")]
+        BridgeLockByteCostMultiplier(super::super::super::super::primitive::v1::Uint128),
         /// ibc fees are defined on 40-59
-        #[prost(bytes, tag = "40")]
-        Ics20WithdrawalBaseFee(::prost::alloc::vec::Vec<u8>),
+        #[prost(message, tag = "40")]
+        Ics20WithdrawalBaseFee(super::super::super::super::primitive::v1::Uint128),
     }
 }
 impl ::prost::Name for FeeChangeAction {

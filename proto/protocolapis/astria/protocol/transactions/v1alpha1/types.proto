@@ -190,16 +190,15 @@ message FeeChangeAction {
   // this to accomodate both `base_fee` and `byte_cost_multiplier` for each action.
   oneof value {
     // core protocol fees are defined on 1-20
-    bytes transfer_base_fee = 1;
-    bytes sequence_base_fee = 2;
-    bytes sequence_byte_cost_multiplier = 3;
+    astria.primitive.v1.Uint128 transfer_base_fee = 1;
+    astria.primitive.v1.Uint128 sequence_base_fee = 2;
+    astria.primitive.v1.Uint128 sequence_byte_cost_multiplier = 3;
 
     // bridge fees are defined on 20-39
-    bytes init_bridge_account_base_fee = 20;
-    bytes bridge_lock_byte_cost_multiplier = 21;
+    astria.primitive.v1.Uint128 init_bridge_account_base_fee = 20;
+    astria.primitive.v1.Uint128 bridge_lock_byte_cost_multiplier = 21;
 
     // ibc fees are defined on 40-59
-    bytes ics20_withdrawal_base_fee = 40;
+    astria.primitive.v1.Uint128 ics20_withdrawal_base_fee = 40;
   }
-  astria.primitive.v1.Uint128 new_value = 101;
 }
