@@ -43,6 +43,7 @@ use tendermint::{
 use crate::{
     app::test_utils::{
         address_from_hex_string,
+        default_fees,
         default_genesis_accounts,
         get_alice_signing_key_and_address,
         initialize_app,
@@ -165,6 +166,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         ibc_params: IBCParameters::default(),
         allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
+        fees: default_fees(),
     };
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
