@@ -244,7 +244,13 @@ impl AppHandlerExecute for Ics20Transfer {
         .await
         {
             Ok(()) => TokenTransferAcknowledgement::success(),
-            Err(e) => TokenTransferAcknowledgement::Error(e.to_string()),
+            Err(e) => {
+                tracing::debug!(
+                    error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                    "failed to execute ics20 transfer"
+                );
+                TokenTransferAcknowledgement::Error(e.to_string())
+            }
         };
 
         let ack_bytes: Vec<u8> = ack.into();
