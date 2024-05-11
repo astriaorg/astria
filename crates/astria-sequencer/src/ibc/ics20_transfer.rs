@@ -394,11 +394,10 @@ async fn convert_denomination<S: StateReadExt>(
             .context("failed to decode ibc/ prefixed id as hex")?
             .try_into()
             .map_err(|_| anyhow::anyhow!("ibc/ prefixed id was not 32 bytes"))?;
-        let denom = state
+        state
             .get_ibc_asset(id_bytes.into())
             .await
-            .context("failed to get denom trace from asset id")?;
-        denom
+            .context("failed to get denom trace from asset id")?
     } else {
         packet_denom
     };
@@ -409,7 +408,7 @@ async fn convert_denomination<S: StateReadExt>(
     } else {
         // we're receiving a token from another chain
         // create a token with additional prefix and mint it to the recipient
-        format!("{dest_port}/{dest_channel}/{}", denom).into()
+        format!("{dest_port}/{dest_channel}/{denom}").into()
     };
 
     Ok(prefixed_denomination)
