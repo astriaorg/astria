@@ -27,6 +27,7 @@ use astria_core::{
     },
     sequencerblock::v1alpha1::block::SequencerBlock,
 };
+use bytes::Bytes;
 use cnidarium::{
     ArcStateDeltaExt,
     Snapshot,
@@ -104,6 +105,7 @@ use crate::{
         self,
         InvalidNonce,
     },
+    ve::types::OracleVoteExtension,
 };
 
 /// The inter-block state being written to by the application.
@@ -279,6 +281,8 @@ impl App {
                 .context("failed to convert max_tx_bytes to usize")?,
         )
         .context("failed to create block size constraints")?;
+
+        println!("prepare_proposal: {:?}", prepare_proposal);
 
         let block_data = BlockData {
             misbehavior: prepare_proposal.misbehavior,
@@ -1002,6 +1006,34 @@ impl App {
 
         info!(event_count = events.len(), "executed transaction");
         Ok(events)
+    }
+
+    #[instrument(name = "App::extend_vote", skip_all)]
+    pub(crate) async fn extend_vote(
+        &mut self,
+        extend_vote: abci::request::ExtendVote,
+        storage: Storage,
+    ) -> anyhow::Result<abci::response::ExtendVote> {
+        // self.update_state_for_new_round(&storage);
+
+        let mut state_tx = StateDelta::new(self.state.clone());
+        let mut arc_state_tx = Arc::new(state_tx);
+
+        // let extend_vote = abci::request::ExtendVote {
+        //     round: extend_vote.round,
+        //     height: extend_vote.height,
+        //     time: extend_vote.time,
+        //     proposer_address: extend_vote.proposer_address,
+        // };
+
+        let oracleExtension: OracleVoteExtension;
+
+        // let state_tx = Arc::try_unwrap(arc_state_tx)
+        //     .expect("components should not retain copies of shared state");
+
+        Ok(abci::response::ExtendVote {
+            vote_extension: Bytes::from(oracleExtension),
+        })
     }
 
     #[instrument(name = "App::end_block", skip_all)]

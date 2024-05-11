@@ -99,10 +99,12 @@ impl Consensus {
                     },
                 )
             }
-            ConsensusRequest::ExtendVote(_) => {
-                ConsensusResponse::ExtendVote(response::ExtendVote {
-                    vote_extension: vec![].into(),
-                })
+            ConsensusRequest::ExtendVote(extend_vote) => {
+                ConsensusResponse::ExtendVote(
+                    self.handle_extend_vote(extend_vote)
+                        .await
+                        .context("failed to extend vote")?,
+                )
             }
             ConsensusRequest::VerifyVoteExtension(_) => {
                 ConsensusResponse::VerifyVoteExtension(response::VerifyVoteExtension::Accept)
@@ -164,6 +166,15 @@ impl Consensus {
     ) -> anyhow::Result<response::PrepareProposal> {
         self.app
             .prepare_proposal(prepare_proposal, self.storage.clone())
+            .await
+    }
+
+    async fn handle_extend_vote(
+        &mut self,
+        extend_vote: request::ExtendVote,
+    ) -> anyhow::Result<response::ExtendVote> {
+        self.app
+            .extend_vote(extend_vote, self.storage.clone())
             .await
     }
 
