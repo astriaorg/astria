@@ -10,62 +10,32 @@
 //! [`AppHandlerCheck`] is used for stateless and stateful checks, while
 //! [`AppHandlerExecute`] is used for execution.
 
-use anyhow::{
-    ensure,
-    Context as _,
-    Result,
-};
+use anyhow::{ensure, Context as _, Result};
 use astria_core::{
-    primitive::v1::{
-        asset::Denom,
-        Address,
-    },
+    primitive::v1::{asset::Denom, Address},
     sequencerblock::v1alpha1::block::Deposit,
 };
-use cnidarium::{
-    StateRead,
-    StateWrite,
-};
+use cnidarium::{StateRead, StateWrite};
 use ibc_types::{
     core::channel::{
         channel,
         msgs::{
-            MsgAcknowledgement,
-            MsgChannelCloseConfirm,
-            MsgChannelCloseInit,
-            MsgChannelOpenAck,
-            MsgChannelOpenConfirm,
-            MsgChannelOpenInit,
-            MsgChannelOpenTry,
-            MsgRecvPacket,
+            MsgAcknowledgement, MsgChannelCloseConfirm, MsgChannelCloseInit, MsgChannelOpenAck,
+            MsgChannelOpenConfirm, MsgChannelOpenInit, MsgChannelOpenTry, MsgRecvPacket,
             MsgTimeout,
         },
-        ChannelId,
-        PortId,
+        ChannelId, PortId,
     },
     transfer::acknowledgement::TokenTransferAcknowledgement,
 };
-use penumbra_ibc::component::app_handler::{
-    AppHandler,
-    AppHandlerCheck,
-    AppHandlerExecute,
-};
+use penumbra_ibc::component::app_handler::{AppHandler, AppHandlerCheck, AppHandlerExecute};
 use penumbra_proto::penumbra::core::component::ibc::v1::FungibleTokenPacketData;
 
 use crate::{
     accounts::state_ext::StateWriteExt as _,
-    asset::state_ext::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    },
-    bridge::state_ext::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    },
-    ibc::state_ext::{
-        StateReadExt as _,
-        StateWriteExt,
-    },
+    asset::state_ext::{StateReadExt as _, StateWriteExt as _},
+    bridge::state_ext::{StateReadExt as _, StateWriteExt as _},
+    ibc::state_ext::{StateReadExt as _, StateWriteExt},
 };
 
 /// The ICS20 transfer handler.

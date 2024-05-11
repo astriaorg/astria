@@ -1,7 +1,6 @@
 pub(crate) mod accounts;
 mod api_state_ext;
 pub(crate) mod app;
-pub(crate) mod ve;
 pub(crate) mod asset;
 pub(crate) mod authority;
 pub(crate) mod bridge;
@@ -23,6 +22,7 @@ pub(crate) mod service;
 pub(crate) mod state_ext;
 pub(crate) mod transaction;
 mod utils;
+pub(crate) mod ve;
 
 pub use build_info::BUILD_INFO;
 pub use config::Config;

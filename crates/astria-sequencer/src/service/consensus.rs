@@ -1,27 +1,12 @@
-use anyhow::{
-    bail,
-    Context,
-};
+use anyhow::{bail, Context};
 use cnidarium::Storage;
-use tendermint::v0_38::abci::{
-    request,
-    response,
-    ConsensusRequest,
-    ConsensusResponse,
-};
+use tendermint::v0_38::abci::{request, response, ConsensusRequest, ConsensusResponse};
 use tokio::sync::mpsc;
 use tower_abci::BoxError;
 use tower_actor::Message;
-use tracing::{
-    instrument,
-    warn,
-    Instrument,
-};
+use tracing::{instrument, warn, Instrument};
 
-use crate::{
-    app::App,
-    genesis::GenesisState,
-};
+use crate::{app::App, genesis::GenesisState};
 
 pub(crate) struct Consensus {
     queue: mpsc::Receiver<Message<ConsensusRequest, ConsensusResponse, tower::BoxError>>,
@@ -99,13 +84,11 @@ impl Consensus {
                     },
                 )
             }
-            ConsensusRequest::ExtendVote(extend_vote) => {
-                ConsensusResponse::ExtendVote(
-                    self.handle_extend_vote(extend_vote)
-                        .await
-                        .context("failed to extend vote")?,
-                )
-            }
+            ConsensusRequest::ExtendVote(extend_vote) => ConsensusResponse::ExtendVote(
+                self.handle_extend_vote(extend_vote)
+                    .await
+                    .context("failed to extend vote")?,
+            ),
             ConsensusRequest::VerifyVoteExtension(_) => {
                 ConsensusResponse::VerifyVoteExtension(response::VerifyVoteExtension::Accept)
             }
@@ -224,43 +207,24 @@ impl Consensus {
 
 #[cfg(test)]
 mod test {
-    use std::{
-        collections::HashMap,
-        str::FromStr,
-    };
+    use std::{collections::HashMap, str::FromStr};
 
     use astria_core::{
-        primitive::v1::{
-            asset::DEFAULT_NATIVE_ASSET_DENOM,
-            Address,
-            RollupId,
-        },
+        primitive::v1::{asset::DEFAULT_NATIVE_ASSET_DENOM, Address, RollupId},
         protocol::transaction::v1alpha1::{
-            action::SequenceAction,
-            TransactionParams,
-            UnsignedTransaction,
+            action::SequenceAction, TransactionParams, UnsignedTransaction,
         },
     };
     use bytes::Bytes;
-    use ed25519_consensus::{
-        SigningKey,
-        VerificationKey,
-    };
+    use ed25519_consensus::{SigningKey, VerificationKey};
     use prost::Message as _;
     use rand::rngs::OsRng;
-    use tendermint::{
-        account::Id,
-        Hash,
-        Time,
-    };
+    use tendermint::{account::Id, Hash, Time};
 
     use super::*;
     use crate::{
         asset::get_native_asset,
-        mempool::{
-            Mempool,
-            TransactionPriority,
-        },
+        mempool::{Mempool, TransactionPriority},
         proposal::commitment::generate_rollup_datas_commitment,
     };
 
@@ -270,14 +234,12 @@ mod test {
                 nonce: 0,
                 chain_id: "test".to_string(),
             },
-            actions: vec![
-                SequenceAction {
-                    rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-                    data: b"helloworld".to_vec(),
-                    fee_asset_id: get_native_asset().id(),
-                }
-                .into(),
-            ],
+            actions: vec![SequenceAction {
+                rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
+                data: b"helloworld".to_vec(),
+                fee_asset_id: get_native_asset().id(),
+            }
+            .into()],
         }
     }
 
@@ -363,30 +325,26 @@ mod test {
     async fn process_proposal_fail_missing_action_commitment() {
         let (mut consensus_service, _) = new_consensus_service(None).await;
         let process_proposal = new_process_proposal_request(vec![]);
-        assert!(
-            consensus_service
-                .handle_process_proposal(process_proposal)
-                .await
-                .err()
-                .unwrap()
-                .to_string()
-                .contains("no transaction commitment in proposal")
-        );
+        assert!(consensus_service
+            .handle_process_proposal(process_proposal)
+            .await
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("no transaction commitment in proposal"));
     }
 
     #[tokio::test]
     async fn process_proposal_fail_wrong_commitment_length() {
         let (mut consensus_service, _) = new_consensus_service(None).await;
         let process_proposal = new_process_proposal_request(vec![[0u8; 16].to_vec().into()]);
-        assert!(
-            consensus_service
-                .handle_process_proposal(process_proposal)
-                .await
-                .err()
-                .unwrap()
-                .to_string()
-                .contains("transaction commitment must be 32 bytes")
-        );
+        assert!(consensus_service
+            .handle_process_proposal(process_proposal)
+            .await
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("transaction commitment must be 32 bytes"));
     }
 
     #[tokio::test]
@@ -396,15 +354,13 @@ mod test {
             [99u8; 32].to_vec().into(),
             [99u8; 32].to_vec().into(),
         ]);
-        assert!(
-            consensus_service
-                .handle_process_proposal(process_proposal)
-                .await
-                .err()
-                .unwrap()
-                .to_string()
-                .contains("transaction commitment does not match expected")
-        );
+        assert!(consensus_service
+            .handle_process_proposal(process_proposal)
+            .await
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("transaction commitment does not match expected"));
     }
 
     #[tokio::test]
@@ -442,19 +398,13 @@ mod test {
     fn default_header() -> tendermint::block::Header {
         use tendermint::{
             account,
-            block::{
-                header::Version,
-                Height,
-            },
+            block::{header::Version, Height},
             chain,
             hash::AppHash,
         };
 
         tendermint::block::Header {
-            version: Version {
-                block: 0,
-                app: 0,
-            },
+            version: Version { block: 0, app: 0 },
             chain_id: chain::Id::try_from("test").unwrap(),
             height: Height::from(1u32),
             time: Time::now(),

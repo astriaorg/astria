@@ -1,23 +1,11 @@
-use anyhow::{
-    Context,
-    Result,
-};
+use anyhow::{Context, Result};
 use astria_core::{
-    primitive::v1::{
-        asset,
-        Address,
-    },
+    primitive::v1::{asset, Address},
     protocol::account::v1alpha1::AssetBalance,
 };
 use async_trait::async_trait;
-use borsh::{
-    BorshDeserialize,
-    BorshSerialize,
-};
-use cnidarium::{
-    StateRead,
-    StateWrite,
-};
+use borsh::{BorshDeserialize, BorshSerialize};
+use cnidarium::{StateRead, StateWrite};
 use futures::StreamExt;
 use hex::ToHex as _;
 use tracing::instrument;
@@ -97,10 +85,7 @@ pub(crate) trait StateReadExt: StateRead {
             }
 
             let denom = self.get_ibc_asset(asset_id).await?;
-            balances.push(AssetBalance {
-                denom,
-                balance,
-            });
+            balances.push(AssetBalance { denom, balance });
         }
         Ok(balances)
     }
@@ -229,21 +214,14 @@ impl<T: StateWrite> StateWriteExt for T {}
 mod test {
     use astria_core::{
         primitive::v1::{
-            asset::{
-                Denom,
-                Id,
-                DEFAULT_NATIVE_ASSET_DENOM,
-            },
+            asset::{Denom, Id, DEFAULT_NATIVE_ASSET_DENOM},
             Address,
         },
         protocol::account::v1alpha1::AssetBalance,
     };
     use cnidarium::StateDelta;
 
-    use super::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    };
+    use super::{StateReadExt as _, StateWriteExt as _};
     use crate::asset;
 
     #[tokio::test]

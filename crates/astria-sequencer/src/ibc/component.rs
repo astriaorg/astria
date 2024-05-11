@@ -1,26 +1,14 @@
 use std::sync::Arc;
 
-use anyhow::{
-    Context,
-    Result,
-};
-use penumbra_ibc::{
-    component::Ibc,
-    genesis::Content,
-};
-use tendermint::abci::request::{
-    BeginBlock,
-    EndBlock,
-};
+use anyhow::{Context, Result};
+use penumbra_ibc::{component::Ibc, genesis::Content};
+use tendermint::abci::request::{BeginBlock, EndBlock};
 use tracing::instrument;
 
 use crate::{
     component::Component,
     genesis::GenesisState,
-    ibc::{
-        host_interface::AstriaHost,
-        state_ext::StateWriteExt,
-    },
+    ibc::{host_interface::AstriaHost, state_ext::StateWriteExt},
 };
 
 pub(crate) const DEFAULT_ICS20_WITHDRAWAL_FEE: u128 = 24;

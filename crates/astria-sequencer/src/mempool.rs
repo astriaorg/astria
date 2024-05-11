@@ -1,8 +1,4 @@
-use std::{
-    cmp::Ordering,
-    collections::HashMap,
-    sync::Arc,
-};
+use std::{cmp::Ordering, collections::HashMap, sync::Arc};
 
 use astria_core::protocol::transaction::v1alpha1::SignedTransaction;
 use priority_queue::double_priority_queue::DoublePriorityQueue;
@@ -200,12 +196,10 @@ mod test {
     #[test]
     fn transaction_priority_invalid() {
         let priority = TransactionPriority::new(0, 1);
-        assert!(
-            priority
-                .unwrap_err()
-                .to_string()
-                .contains("less than current account nonce")
-        );
+        assert!(priority
+            .unwrap_err()
+            .to_string()
+            .contains("less than current account nonce"));
     }
 
     #[test]

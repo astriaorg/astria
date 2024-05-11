@@ -3,25 +3,16 @@ use std::sync::Arc;
 use astria_core::{
     generated::sequencerblock::v1alpha1::{
         sequencer_service_server::SequencerService,
-        FilteredSequencerBlock as RawFilteredSequencerBlock,
-        GetFilteredSequencerBlockRequest,
-        GetSequencerBlockRequest,
-        SequencerBlock as RawSequencerBlock,
+        FilteredSequencerBlock as RawFilteredSequencerBlock, GetFilteredSequencerBlockRequest,
+        GetSequencerBlockRequest, SequencerBlock as RawSequencerBlock,
     },
     primitive::v1::RollupId,
 };
 use cnidarium::Storage;
-use tonic::{
-    Request,
-    Response,
-    Status,
-};
+use tonic::{Request, Response, Status};
 use tracing::instrument;
 
-use crate::{
-    api_state_ext::StateReadExt as _,
-    state_ext::StateReadExt as _,
-};
+use crate::{api_state_ext::StateReadExt as _, state_ext::StateReadExt as _};
 
 pub(crate) struct SequencerServer {
     storage: Storage,
@@ -29,9 +20,7 @@ pub(crate) struct SequencerServer {
 
 impl SequencerServer {
     pub(crate) fn new(storage: Storage) -> Self {
-        Self {
-            storage,
-        }
+        Self { storage }
     }
 }
 
@@ -157,16 +146,12 @@ impl SequencerService for SequencerServer {
 #[cfg(test)]
 mod test {
     use astria_core::{
-        protocol::test_utils::ConfigureSequencerBlock,
-        sequencerblock::v1alpha1::SequencerBlock,
+        protocol::test_utils::ConfigureSequencerBlock, sequencerblock::v1alpha1::SequencerBlock,
     };
     use cnidarium::StateDelta;
 
     use super::*;
-    use crate::{
-        api_state_ext::StateWriteExt as _,
-        state_ext::StateWriteExt,
-    };
+    use crate::{api_state_ext::StateWriteExt as _, state_ext::StateWriteExt};
 
     fn make_test_sequencer_block(height: u32) -> SequencerBlock {
         ConfigureSequencerBlock {
@@ -186,9 +171,7 @@ mod test {
         storage.commit(state_tx).await.unwrap();
 
         let server = Arc::new(SequencerServer::new(storage.clone()));
-        let request = GetSequencerBlockRequest {
-            height: 1,
-        };
+        let request = GetSequencerBlockRequest { height: 1 };
         let request = Request::new(request);
         let response = server.get_sequencer_block(request).await.unwrap();
         assert_eq!(response.into_inner().header.unwrap().height, 1);

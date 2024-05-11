@@ -1,18 +1,10 @@
-use anyhow::{
-    ensure,
-    Context as _,
-    Result,
-};
-use astria_core::{
-    primitive::v1::Address,
-    protocol::transaction::v1alpha1::action::MintAction,
-};
+use anyhow::{ensure, Context as _, Result};
+use astria_core::{primitive::v1::Address, protocol::transaction::v1alpha1::action::MintAction};
 use tracing::instrument;
 
 use crate::{
     accounts::state_ext::{
-        StateReadExt as AccountStateReadExt,
-        StateWriteExt as AccountStateWriteExt,
+        StateReadExt as AccountStateReadExt, StateWriteExt as AccountStateWriteExt,
     },
     asset::get_native_asset,
     authority::state_ext::StateReadExt as AuthorityStateReadExt,

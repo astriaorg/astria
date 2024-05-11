@@ -1,23 +1,12 @@
-use anyhow::{
-    ensure,
-    Context as _,
-    Result,
-};
+use anyhow::{ensure, Context as _, Result};
 use astria_core::{
-    primitive::v1::Address,
-    protocol::transaction::v1alpha1::action::IbcRelayerChangeAction,
+    primitive::v1::Address, protocol::transaction::v1alpha1::action::IbcRelayerChangeAction,
 };
 use async_trait::async_trait;
-use cnidarium::{
-    StateRead,
-    StateWrite,
-};
+use cnidarium::{StateRead, StateWrite};
 
 use crate::{
-    ibc::state_ext::{
-        StateReadExt,
-        StateWriteExt,
-    },
+    ibc::state_ext::{StateReadExt, StateWriteExt},
     transaction::action_handler::ActionHandler,
 };
 

@@ -1,21 +1,12 @@
-use anyhow::{
-    bail,
-    ensure,
-    Context as _,
-    Result,
-};
+use anyhow::{bail, ensure, Context as _, Result};
 use astria_core::{
-    primitive::v1::Address,
-    protocol::transaction::v1alpha1::action::SudoAddressChangeAction,
+    primitive::v1::Address, protocol::transaction::v1alpha1::action::SudoAddressChangeAction,
 };
 use tendermint::account;
 use tracing::instrument;
 
 use crate::{
-    authority::state_ext::{
-        StateReadExt,
-        StateWriteExt,
-    },
+    authority::state_ext::{StateReadExt, StateWriteExt},
     transaction::action_handler::ActionHandler,
 };
 

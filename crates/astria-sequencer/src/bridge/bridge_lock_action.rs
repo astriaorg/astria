@@ -1,14 +1,7 @@
-use anyhow::{
-    ensure,
-    Context as _,
-    Result,
-};
+use anyhow::{ensure, Context as _, Result};
 use astria_core::{
     primitive::v1::Address,
-    protocol::transaction::v1alpha1::action::{
-        BridgeLockAction,
-        TransferAction,
-    },
+    protocol::transaction::v1alpha1::action::{BridgeLockAction, TransferAction},
     sequencerblock::v1alpha1::block::Deposit,
 };
 use tracing::instrument;
@@ -16,19 +9,10 @@ use tracing::instrument;
 use crate::{
     accounts::{
         action::transfer_check_stateful,
-        state_ext::{
-            StateReadExt as _,
-            StateWriteExt as _,
-        },
+        state_ext::{StateReadExt as _, StateWriteExt as _},
     },
-    bridge::state_ext::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    },
-    state_ext::{
-        StateReadExt,
-        StateWriteExt,
-    },
+    bridge::state_ext::{StateReadExt as _, StateWriteExt as _},
+    state_ext::{StateReadExt, StateWriteExt},
     transaction::action_handler::ActionHandler,
 };
 
@@ -152,10 +136,7 @@ pub(crate) fn get_deposit_byte_len(deposit: &Deposit) -> u128 {
 
 #[cfg(test)]
 mod test {
-    use astria_core::primitive::v1::{
-        asset,
-        RollupId,
-    };
+    use astria_core::primitive::v1::{asset, RollupId};
     use cnidarium::StateDelta;
 
     use super::*;
@@ -192,14 +173,12 @@ mod test {
         state
             .put_account_balance(from_address, asset_id, 100)
             .unwrap();
-        assert!(
-            bridge_lock
-                .check_stateful(&state, from_address)
-                .await
-                .unwrap_err()
-                .to_string()
-                .contains("insufficient funds for fee payment")
-        );
+        assert!(bridge_lock
+            .check_stateful(&state, from_address)
+            .await
+            .unwrap_err()
+            .to_string()
+            .contains("insufficient funds for fee payment"));
 
         // enough balance; should pass
         let expected_deposit_fee = transfer_fee
@@ -251,14 +230,12 @@ mod test {
         state
             .put_account_balance(from_address, asset_id, 100 + transfer_fee)
             .unwrap();
-        assert!(
-            bridge_lock
-                .execute(&mut state, from_address)
-                .await
-                .unwrap_err()
-                .to_string()
-                .eq("failed to deduct fee from account balance")
-        );
+        assert!(bridge_lock
+            .execute(&mut state, from_address)
+            .await
+            .unwrap_err()
+            .to_string()
+            .eq("failed to deduct fee from account balance"));
 
         // enough balance; should pass
         let expected_deposit_fee = transfer_fee

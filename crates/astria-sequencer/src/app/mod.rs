@@ -5,84 +5,44 @@ mod tests_app;
 #[cfg(test)]
 mod tests_execute_transaction;
 
-use std::{
-    collections::VecDeque,
-    sync::Arc,
-};
+use std::{collections::VecDeque, sync::Arc};
 
-use anyhow::{
-    anyhow,
-    ensure,
-    Context,
-};
+use anyhow::{anyhow, ensure, Context};
 use astria_core::{
     generated::protocol::transaction::v1alpha1 as raw,
     primitive::v1::Address,
     protocol::{
         abci::AbciErrorCode,
-        transaction::v1alpha1::{
-            Action,
-            SignedTransaction,
-        },
+        transaction::v1alpha1::{Action, SignedTransaction},
     },
     sequencerblock::v1alpha1::block::SequencerBlock,
 };
 use bytes::Bytes;
-use cnidarium::{
-    ArcStateDeltaExt,
-    Snapshot,
-    StagedWriteBatch,
-    StateDelta,
-    Storage,
-};
+use cnidarium::{ArcStateDeltaExt, Snapshot, StagedWriteBatch, StateDelta, Storage};
 use prost::Message as _;
-use sha2::{
-    Digest as _,
-    Sha256,
-};
+use sha2::{Digest as _, Sha256};
 use telemetry::display::json;
 use tendermint::{
-    abci::{
-        self,
-        types::ExecTxResult,
-        Event,
-    },
+    abci::{self, types::ExecTxResult, Event},
     account,
     block::Header,
-    AppHash,
-    Hash,
+    AppHash, Hash,
 };
-use tracing::{
-    debug,
-    info,
-    instrument,
-};
+use tracing::{debug, info, instrument};
 
 use crate::{
     accounts::{
         component::AccountsComponent,
-        state_ext::{
-            StateReadExt,
-            StateWriteExt as _,
-        },
+        state_ext::{StateReadExt, StateWriteExt as _},
     },
     api_state_ext::StateWriteExt as _,
     authority::{
-        component::{
-            AuthorityComponent,
-            AuthorityComponentAppState,
-        },
-        state_ext::{
-            StateReadExt as _,
-            StateWriteExt as _,
-        },
+        component::{AuthorityComponent, AuthorityComponentAppState},
+        state_ext::{StateReadExt as _, StateWriteExt as _},
     },
     bridge::{
         component::BridgeComponent,
-        state_ext::{
-            StateReadExt as _,
-            StateWriteExt,
-        },
+        state_ext::{StateReadExt as _, StateWriteExt},
     },
     component::Component as _,
     genesis::GenesisState,
@@ -91,21 +51,12 @@ use crate::{
     metrics_init,
     proposal::{
         block_size_constraints::BlockSizeConstraints,
-        commitment::{
-            generate_rollup_datas_commitment,
-            GeneratedCommitments,
-        },
+        commitment::{generate_rollup_datas_commitment, GeneratedCommitments},
     },
     sequence::component::SequenceComponent,
-    state_ext::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    },
-    transaction::{
-        self,
-        InvalidNonce,
-    },
-    ve::types::OracleVoteExtension,
+    state_ext::{StateReadExt as _, StateWriteExt as _},
+    transaction::{self, InvalidNonce},
+    ve::{types::OracleVoteExtension,oracle::{ProviderConfig, Oracle}},
 };
 
 /// The inter-block state being written to by the application.
@@ -1019,6 +970,20 @@ impl App {
         let mut state_tx = StateDelta::new(self.state.clone());
         let mut arc_state_tx = Arc::new(state_tx);
 
+        let provider_urls = &[
+        "https://api.seatgeek.com/2/events/6109434"
+    ];
+
+    let oracle = Oracle::new(provider_urls);
+
+        // Fetch prices from the providers
+        oracle.fetch_prices().await;
+
+        // Get the current prices
+        let prices = oracle.prices().await;
+
+        // Print the prices
+        println!("Current prices: {:?}", prices);
         // let extend_vote = abci::request::ExtendVote {
         //     round: extend_vote.round,
         //     height: extend_vote.height,
@@ -1031,9 +996,7 @@ impl App {
         // let state_tx = Arc::try_unwrap(arc_state_tx)
         //     .expect("components should not retain copies of shared state");
 
-        Ok(abci::response::ExtendVote {
-            vote_extension: Bytes::from(oracleExtension),
-        })
+        unimplemented!();
     }
 
     #[instrument(name = "App::end_block", skip_all)]

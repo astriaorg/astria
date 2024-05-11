@@ -1,8 +1,4 @@
-use anyhow::{
-    anyhow,
-    ensure,
-    Context,
-};
+use anyhow::{anyhow, ensure, Context};
 
 use super::commitment::GeneratedCommitments;
 

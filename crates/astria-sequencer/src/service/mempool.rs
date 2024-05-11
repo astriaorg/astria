@@ -1,39 +1,22 @@
 use std::{
     pin::Pin,
-    task::{
-        Context,
-        Poll,
-    },
+    task::{Context, Poll},
 };
 
 use astria_core::{
     generated::protocol::transaction::v1alpha1 as raw,
-    protocol::{
-        abci::AbciErrorCode,
-        transaction::v1alpha1::SignedTransaction,
-    },
+    protocol::{abci::AbciErrorCode, transaction::v1alpha1::SignedTransaction},
 };
 use cnidarium::Storage;
-use futures::{
-    Future,
-    FutureExt,
-};
+use futures::{Future, FutureExt};
 use prost::Message as _;
-use tendermint::v0_38::abci::{
-    request,
-    response,
-    MempoolRequest,
-    MempoolResponse,
-};
+use tendermint::v0_38::abci::{request, response, MempoolRequest, MempoolResponse};
 use tower::Service;
 use tower_abci::BoxError;
 use tracing::Instrument as _;
 
 use crate::{
-    accounts::state_ext::StateReadExt,
-    mempool::Mempool as AppMempool,
-    metrics_init,
-    transaction,
+    accounts::state_ext::StateReadExt, mempool::Mempool as AppMempool, metrics_init, transaction,
 };
 
 const MAX_TX_SIZE: usize = 256_000; // 256 KB
@@ -50,10 +33,7 @@ pub(crate) struct Mempool {
 
 impl Mempool {
     pub(crate) fn new(storage: Storage, mempool: AppMempool) -> Self {
-        Self {
-            storage,
-            mempool,
-        }
+        Self { storage, mempool }
     }
 }
 
@@ -101,9 +81,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
 
     let tx_hash = sha2::Sha256::digest(&req.tx).into();
 
-    let request::CheckTx {
-        tx, ..
-    } = req;
+    let request::CheckTx { tx, .. } = req;
     if tx.len() > MAX_TX_SIZE {
         mempool.remove(&tx_hash).await;
         metrics::counter!(metrics_init::CHECK_TX_REMOVED_TOO_LARGE).increment(1);

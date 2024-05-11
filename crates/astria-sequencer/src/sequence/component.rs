@@ -1,17 +1,11 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use tendermint::abci::request::{
-    BeginBlock,
-    EndBlock,
-};
+use tendermint::abci::request::{BeginBlock, EndBlock};
 use tracing::instrument;
 
 use super::state_ext::StateWriteExt;
-use crate::{
-    component::Component,
-    genesis::GenesisState,
-};
+use crate::{component::Component, genesis::GenesisState};
 
 /// Default base fee for a [`SequenceAction`].
 const DEFAULT_SEQUENCE_ACTION_BASE_FEE: u128 = 32;

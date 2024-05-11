@@ -1,38 +1,18 @@
-use std::collections::{
-    HashMap,
-    HashSet,
-};
+use std::collections::{HashMap, HashSet};
 
-use anyhow::{
-    anyhow,
-    Context,
-    Result,
-};
+use anyhow::{anyhow, Context, Result};
 use astria_core::{
     generated::sequencerblock::v1alpha1::Deposit as RawDeposit,
-    primitive::v1::{
-        asset,
-        Address,
-        RollupId,
-    },
+    primitive::v1::{asset, Address, RollupId},
     sequencerblock::v1alpha1::block::Deposit,
 };
 use async_trait::async_trait;
-use borsh::{
-    BorshDeserialize,
-    BorshSerialize,
-};
-use cnidarium::{
-    StateRead,
-    StateWrite,
-};
+use borsh::{BorshDeserialize, BorshSerialize};
+use cnidarium::{StateRead, StateWrite};
 use futures::StreamExt as _;
 use hex::ToHex as _;
 use prost::Message as _;
-use tracing::{
-    debug,
-    instrument,
-};
+use tracing::{debug, instrument};
 
 /// Newtype wrapper to read and write a u128 from rocksdb.
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
@@ -296,19 +276,12 @@ impl<T: StateWrite> StateWriteExt for T {}
 #[cfg(test)]
 mod test {
     use astria_core::{
-        primitive::v1::{
-            asset::Id,
-            Address,
-            RollupId,
-        },
+        primitive::v1::{asset::Id, Address, RollupId},
         sequencerblock::v1alpha1::block::Deposit,
     };
     use cnidarium::StateDelta;
 
-    use super::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    };
+    use super::{StateReadExt as _, StateWriteExt as _};
 
     #[tokio::test]
     async fn get_bridge_account_rollup_id_uninitialized_ok() {

@@ -1,37 +1,17 @@
-use anyhow::{
-    anyhow,
-    ensure,
-    Context as _,
-    Result,
-};
+use anyhow::{anyhow, ensure, Context as _, Result};
 use astria_core::{
-    primitive::v1::{
-        asset::Denom,
-        Address,
-    },
+    primitive::v1::{asset::Denom, Address},
     protocol::transaction::v1alpha1::action,
 };
-use ibc_types::core::channel::{
-    ChannelId,
-    PortId,
-};
+use ibc_types::core::channel::{ChannelId, PortId};
 use penumbra_ibc::component::packet::{
-    IBCPacket,
-    SendPacketRead as _,
-    SendPacketWrite as _,
-    Unchecked,
+    IBCPacket, SendPacketRead as _, SendPacketWrite as _, Unchecked,
 };
 use tracing::instrument;
 
 use crate::{
-    accounts::state_ext::{
-        StateReadExt,
-        StateWriteExt,
-    },
-    ibc::state_ext::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    },
+    accounts::state_ext::{StateReadExt, StateWriteExt},
+    ibc::state_ext::{StateReadExt as _, StateWriteExt as _},
     transaction::action_handler::ActionHandler,
 };
 

@@ -1,15 +1,7 @@
 use astria_core::{
-    primitive::v1::{
-        asset::DEFAULT_NATIVE_ASSET_DENOM,
-        Address,
-        RollupId,
-        ADDRESS_LEN,
-    },
+    primitive::v1::{asset::DEFAULT_NATIVE_ASSET_DENOM, Address, RollupId, ADDRESS_LEN},
     protocol::transaction::v1alpha1::{
-        action::SequenceAction,
-        SignedTransaction,
-        TransactionParams,
-        UnsignedTransaction,
+        action::SequenceAction, SignedTransaction, TransactionParams, UnsignedTransaction,
     },
 };
 use cnidarium::Storage;
@@ -18,10 +10,7 @@ use penumbra_ibc::params::IBCParameters;
 
 use crate::{
     app::App,
-    genesis::{
-        Account,
-        GenesisState,
-    },
+    genesis::{Account, GenesisState},
     mempool::Mempool,
 };
 
@@ -114,14 +103,12 @@ pub(crate) fn get_mock_tx(nonce: u32) -> SignedTransaction {
             nonce,
             chain_id: "test".to_string(),
         },
-        actions: vec![
-            SequenceAction {
-                rollup_id: RollupId::from_unhashed_bytes([0; 32]),
-                data: vec![0x99],
-                fee_asset_id: astria_core::primitive::v1::asset::default_native_asset_id(),
-            }
-            .into(),
-        ],
+        actions: vec![SequenceAction {
+            rollup_id: RollupId::from_unhashed_bytes([0; 32]),
+            data: vec![0x99],
+            fee_asset_id: astria_core::primitive::v1::asset::default_native_asset_id(),
+        }
+        .into()],
     };
 
     tx.into_signed(&alice_signing_key)

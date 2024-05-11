@@ -1,41 +1,19 @@
-use anyhow::{
-    anyhow,
-    Context as _,
-    Result,
-};
+use anyhow::{anyhow, Context as _, Result};
 use astria_core::generated::sequencerblock::v1alpha1::sequencer_service_server::SequencerServiceServer;
-use penumbra_tower_trace::{
-    trace::request_span,
-    v038::RequestExt as _,
-};
+use penumbra_tower_trace::{trace::request_span, v038::RequestExt as _};
 use tendermint::v0_38::abci::ConsensusRequest;
 use tokio::{
     select,
-    signal::unix::{
-        signal,
-        SignalKind,
-    },
-    sync::{
-        oneshot,
-        watch,
-    },
+    signal::unix::{signal, SignalKind},
+    sync::{oneshot, watch},
     task::JoinHandle,
 };
 use tower_abci::v038::Server;
-use tracing::{
-    error,
-    info,
-    instrument,
-};
+use tracing::{error, info, instrument};
 
 use crate::{
-    app::App,
-    config::Config,
-    grpc::sequencer::SequencerServer,
-    ibc::host_interface::AstriaHost,
-    mempool::Mempool,
-    service,
-    state_ext::StateReadExt as _,
+    app::App, config::Config, grpc::sequencer::SequencerServer, ibc::host_interface::AstriaHost,
+    mempool::Mempool, service, state_ext::StateReadExt as _,
 };
 
 pub struct Sequencer;
@@ -232,7 +210,5 @@ fn spawn_signal_handler() -> SignalReceiver {
         }
     });
 
-    SignalReceiver {
-        stop_rx,
-    }
+    SignalReceiver { stop_rx }
 }

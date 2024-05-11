@@ -1,25 +1,13 @@
 use std::{
     pin::Pin,
-    task::{
-        Context,
-        Poll,
-    },
+    task::{Context, Poll},
 };
 
-use futures::{
-    Future,
-    FutureExt,
-};
+use futures::{Future, FutureExt};
 use penumbra_tower_trace::v038::RequestExt as _;
 use tendermint::v0_38::abci::{
-    response::{
-        ApplySnapshotChunk,
-        ListSnapshots,
-        LoadSnapshotChunk,
-        OfferSnapshot,
-    },
-    SnapshotRequest,
-    SnapshotResponse,
+    response::{ApplySnapshotChunk, ListSnapshots, LoadSnapshotChunk, OfferSnapshot},
+    SnapshotRequest, SnapshotResponse,
 };
 use tower::Service;
 use tower_abci::BoxError;

@@ -6,10 +6,7 @@ use astria_core::{
         group_sequence_actions_in_signed_transaction_transactions_by_rollup_id,
         transaction::v1alpha1::SignedTransaction,
     },
-    sequencerblock::v1alpha1::block::{
-        Deposit,
-        RollupData,
-    },
+    sequencerblock::v1alpha1::block::{Deposit, RollupData},
 };
 use bytes::Bytes;
 
@@ -89,29 +86,19 @@ pub(crate) fn generate_rollup_datas_commitment(
 mod test {
     use astria_core::{
         primitive::v1::{
-            asset::{
-                Denom,
-                DEFAULT_NATIVE_ASSET_DENOM,
-            },
+            asset::{Denom, DEFAULT_NATIVE_ASSET_DENOM},
             Address,
         },
         protocol::transaction::v1alpha1::{
-            action::{
-                SequenceAction,
-                TransferAction,
-            },
-            TransactionParams,
-            UnsignedTransaction,
+            action::{SequenceAction, TransferAction},
+            TransactionParams, UnsignedTransaction,
         },
     };
     use ed25519_consensus::SigningKey;
     use rand::rngs::OsRng;
 
     use super::*;
-    use crate::asset::{
-        get_native_asset,
-        NATIVE_ASSET,
-    };
+    use crate::asset::{get_native_asset, NATIVE_ASSET};
 
     #[test]
     fn generate_rollup_datas_commitment_should_ignore_transfers() {

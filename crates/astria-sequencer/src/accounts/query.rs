@@ -1,25 +1,13 @@
 use anyhow::Context as _;
-use astria_core::{
-    primitive::v1::Address,
-    protocol::abci::AbciErrorCode,
-};
-use cnidarium::{
-    Snapshot,
-    Storage,
-};
+use astria_core::{primitive::v1::Address, protocol::abci::AbciErrorCode};
+use cnidarium::{Snapshot, Storage};
 use prost::Message as _;
 use tendermint::{
-    abci::{
-        request,
-        response,
-    },
+    abci::{request, response},
     block::Height,
 };
 
-use crate::{
-    accounts::state_ext::StateReadExt as _,
-    state_ext::StateReadExt as _,
-};
+use crate::{accounts::state_ext::StateReadExt as _, state_ext::StateReadExt as _};
 
 pub(crate) async fn balance_request(
     storage: Storage,
