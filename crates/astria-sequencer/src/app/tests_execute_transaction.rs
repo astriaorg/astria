@@ -1047,7 +1047,7 @@ async fn app_execute_transaction_bridge_lock_unlock_action_ok() {
     let mut app = initialize_app(None, vec![]).await;
     let mut state_tx = StateDelta::new(app.state.clone());
 
-    let (bridge_signing_key, bridge_address) = get_dave_signing_key_and_address();
+    let (bridge_signing_key, bridge_address) = get_bridge_signing_key_and_address();
     let rollup_id: RollupId = RollupId::from_unhashed_bytes(b"testchainid");
     let asset_id = get_native_asset().id();
 
