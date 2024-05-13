@@ -11,6 +11,9 @@ use std::{
 use astria_core::{
     brotli::decompress_bytes,
     generated::sequencerblock::v1alpha1::{
+        rollup_data::Value as RawRollupDataValue,
+        Deposit as RawDeposit,
+        RollupData as RawRollupData,
         SubmittedMetadata as RawSubmittedMetadata,
         SubmittedMetadataList as RawSubmittedMetadataList,
         SubmittedRollupData as RawSubmittedRollupData,
@@ -18,7 +21,11 @@ use astria_core::{
     },
     primitive::v1::RollupId,
     sequencerblock::v1alpha1::{
-        block::SequencerBlockHeader,
+        block::{
+            Deposit,
+            DepositError,
+            SequencerBlockHeader,
+        },
         celestia::{
             SubmittedRollupData,
             UncheckedSubmittedMetadata,
@@ -37,6 +44,10 @@ use base64::{
     Engine,
 };
 use clap::ValueEnum;
+use ethers_core::types::{
+    transaction::eip2930::AccessListItem,
+    Transaction,
+};
 use indenter::indented;
 use itertools::Itertools;
 use prost::{
@@ -365,24 +376,272 @@ impl Display for BriefRollupData {
 }
 
 #[derive(Serialize, Debug)]
+struct PrintableAccessListItem {
+    address: String,
+    storage_keys: Vec<String>,
+}
+
+impl From<&AccessListItem> for PrintableAccessListItem {
+    fn from(item: &AccessListItem) -> Self {
+        Self {
+            address: format!("{:?}", item.address),
+            storage_keys: item
+                .storage_keys
+                .iter()
+                .map(|storage_key| format!("{storage_key:?}"))
+                .collect(),
+        }
+    }
+}
+
+impl Display for PrintableAccessListItem {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        writeln!(f, "address: {}", self.address)?;
+        if self.storage_keys.is_empty() {
+            write!(f, "storage keys:")
+        } else {
+            writeln!(f, "storage keys:")?;
+            write!(indent(f), "{}", self.storage_keys.iter().join("\n"))
+        }
+    }
+}
+
+#[derive(Serialize, Debug)]
+struct RollupTransaction {
+    hash: String,
+    nonce: String,
+    block_hash: Option<String>,
+    block_number: Option<u64>,
+    transaction_index: Option<u64>,
+    from: String,
+    to: Option<String>,
+    value: String,
+    gas_price: Option<String>,
+    gas: String,
+    input: String,
+    v: u64,
+    r: String,
+    s: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    transaction_type: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    access_list: Option<Vec<PrintableAccessListItem>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    max_priority_fee_per_gas: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    max_fee_per_gas: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    chain_id: Option<String>,
+    other: String,
+}
+
+impl From<Transaction> for RollupTransaction {
+    fn from(tx: Transaction) -> Self {
+        Self {
+            hash: format!("{:?}", tx.hash),
+            nonce: tx.nonce.to_string(),
+            block_hash: tx.block_hash.map(|hash| format!("{hash:?}")),
+            block_number: tx.block_number.map(|v| v.as_u64()),
+            transaction_index: tx.transaction_index.map(|v| v.as_u64()),
+            from: format!("{:?}", tx.from),
+            to: tx.to.map(|to| format!("{to:?}")),
+            value: tx.value.to_string(),
+            gas_price: tx.gas_price.map(|v| v.to_string()),
+            gas: tx.gas.to_string(),
+            input: BASE64_STANDARD.encode(&tx.input),
+            v: tx.v.as_u64(),
+            r: tx.r.to_string(),
+            s: tx.s.to_string(),
+            transaction_type: tx.transaction_type.map(|v| v.as_u64()),
+            access_list: tx
+                .access_list
+                .map(|list| list.0.iter().map(PrintableAccessListItem::from).collect()),
+            max_priority_fee_per_gas: tx.max_priority_fee_per_gas.map(|v| v.to_string()),
+            max_fee_per_gas: tx.max_fee_per_gas.map(|v| v.to_string()),
+            chain_id: tx.chain_id.map(|v| v.to_string()),
+            other: serde_json::to_string(&tx.other).unwrap_or_default(),
+        }
+    }
+}
+
+impl Display for RollupTransaction {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        writeln!(f, "hash: {}", self.hash)?;
+        writeln!(f, "nonce: {}", self.nonce)?;
+        writeln!(f, "block hash: {}", none_or_value(&self.block_hash))?;
+        writeln!(f, "block number: {}", none_or_value(&self.block_number))?;
+        writeln!(
+            f,
+            "transaction index: {}",
+            none_or_value(&self.transaction_index)
+        )?;
+        writeln!(f, "from: {}", self.from)?;
+        writeln!(f, "to: {}", none_or_value(&self.to))?;
+        writeln!(f, "value: {}", self.value)?;
+        writeln!(f, "gas price: {}", none_or_value(&self.gas_price))?;
+        writeln!(f, "gas: {}", self.gas)?;
+        writeln!(f, "input: {}", self.input)?;
+        writeln!(f, "v: {}", self.v)?;
+        writeln!(f, "r: {}", self.r)?;
+        writeln!(f, "s: {}", self.s)?;
+        if let Some(transaction_type) = self.transaction_type {
+            writeln!(f, "transaction type: {transaction_type}")?;
+        }
+        if let Some(access_list) = &self.access_list {
+            writeln!(f, "access list:")?;
+            if !access_list.is_empty() {
+                writeln!(indent(f), "{}", access_list.iter().join("\n"))?;
+            }
+        }
+        if let Some(max_priority_fee_per_gas) = &self.max_priority_fee_per_gas {
+            writeln!(f, "max priority fee per gas: {max_priority_fee_per_gas}")?;
+        }
+        if let Some(max_fee_per_gas) = &self.max_fee_per_gas {
+            writeln!(f, "max fee per gas: {max_fee_per_gas}")?;
+        }
+        if let Some(chain_id) = &self.chain_id {
+            writeln!(f, "chain id: {chain_id}")?;
+        }
+        write!(f, "other: {}", self.other)
+    }
+}
+
+#[derive(Serialize, Debug)]
+struct PrintableDeposit {
+    bridge_address: String,
+    rollup_id: String,
+    amount: u128,
+    asset_id: String,
+    destination_chain_address: String,
+}
+
+impl TryFrom<&RawDeposit> for PrintableDeposit {
+    type Error = DepositError;
+
+    fn try_from(raw_deposit: &RawDeposit) -> Result<Self, Self::Error> {
+        let deposit = Deposit::try_from_raw(raw_deposit.clone())?;
+        Ok(PrintableDeposit {
+            bridge_address: deposit.bridge_address().to_string(),
+            rollup_id: deposit.rollup_id().to_string(),
+            amount: deposit.amount(),
+            asset_id: deposit.asset_id().to_string(),
+            destination_chain_address: deposit.destination_chain_address().to_string(),
+        })
+    }
+}
+
+impl Display for PrintableDeposit {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        writeln!(f, "bridge address: {}", self.bridge_address)?;
+        writeln!(f, "rollup id: {}", self.rollup_id)?;
+        writeln!(f, "amount: {}", self.amount)?;
+        writeln!(f, "asset id: {}", self.asset_id)?;
+        write!(
+            f,
+            "destination chain address: {}",
+            self.destination_chain_address
+        )
+    }
+}
+
+// allow: not performance-critical.
+#[allow(clippy::large_enum_variant)]
+#[derive(Serialize, Debug)]
+enum RollupDataDetails {
+    #[serde(rename = "rollup_transaction")]
+    Transaction(RollupTransaction),
+    #[serde(rename = "deposit")]
+    Deposit(PrintableDeposit),
+    /// Tx doesn't decode as `RawRollupData`.  Wrapped value is base-64-encoded input data.
+    #[serde(rename = "not_tx_or_deposit")]
+    NotTxOrDeposit(String),
+    /// Tx parses as `RawRollupData` but its value is empty.
+    #[serde(rename = "empty_rollup_data")]
+    EmptyBytes,
+    /// Tx parses as `RawRollupData::SequencedData`, but its value doesn't decode as an ethers
+    /// `Transaction`.  Wrapped value is base-64-encoded input data.
+    #[serde(rename = "unknown_rollup_transaction_type")]
+    UnknownTransaction(String),
+    /// Tx parses as `RawRollupData::Deposit`, but its value doesn't decode as a `Deposit`.
+    /// Wrapped value is decoding error and the debug contents of the raw (protobuf) deposit.
+    #[serde(rename = "unparseable_deposit")]
+    UnparseableDeposit(String),
+}
+
+impl From<&Vec<u8>> for RollupDataDetails {
+    fn from(value: &Vec<u8>) -> Self {
+        let Ok(raw_rollup_data) = RawRollupData::decode(Bytes::from(value.clone())) else {
+            return RollupDataDetails::NotTxOrDeposit(BASE64_STANDARD.encode(value));
+        };
+        match raw_rollup_data.value {
+            None => RollupDataDetails::EmptyBytes,
+            Some(RawRollupDataValue::SequencedData(tx_data)) => {
+                let Ok(tx) = rlp::decode::<Transaction>(&tx_data) else {
+                    return RollupDataDetails::UnknownTransaction(BASE64_STANDARD.encode(&tx_data));
+                };
+                RollupDataDetails::Transaction(RollupTransaction::from(tx))
+            }
+            Some(RawRollupDataValue::Deposit(raw_deposit)) => {
+                match PrintableDeposit::try_from(&raw_deposit) {
+                    Ok(printable_deposit) => RollupDataDetails::Deposit(printable_deposit),
+                    Err(error) => {
+                        RollupDataDetails::UnparseableDeposit(format!("{raw_deposit:?}: {error}"))
+                    }
+                }
+            }
+        }
+    }
+}
+
+impl Display for RollupDataDetails {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            RollupDataDetails::Transaction(txn) => {
+                writeln!(f, "transaction:")?;
+                write!(indent(f), "{txn}")
+            }
+            RollupDataDetails::Deposit(deposit) => {
+                writeln!(f, "deposit:")?;
+                write!(indent(f), "{deposit}")
+            }
+            RollupDataDetails::NotTxOrDeposit(value) => {
+                write!(f, "not tx or deposit: {value}")
+            }
+            RollupDataDetails::EmptyBytes => {
+                write!(f, "empty rollup data")
+            }
+            RollupDataDetails::UnknownTransaction(value) => {
+                write!(f, "unknown rollup transaction type: {value}")
+            }
+            RollupDataDetails::UnparseableDeposit(error) => {
+                write!(f, "unparseable deposit: {error}")
+            }
+        }
+    }
+}
+
+#[derive(Serialize, Debug)]
 struct VerboseRollupData {
     sequencer_block_hash: String,
     rollup_id: String,
-    transactions: Vec<String>,
+    transactions_and_deposits: Vec<RollupDataDetails>,
+    item_count: usize,
     proof: PrintableMerkleProof,
 }
 
 impl VerboseRollupData {
     fn new(rollup_data: &UncheckedSubmittedRollupData) -> Self {
-        let transactions = rollup_data
+        let transactions_and_deposits: Vec<_> = rollup_data
             .transactions
             .iter()
-            .map(|txn| BASE64_STANDARD.encode(txn))
+            .map(RollupDataDetails::from)
             .collect();
+        let item_count = transactions_and_deposits.len();
         VerboseRollupData {
             sequencer_block_hash: BASE64_STANDARD.encode(rollup_data.sequencer_block_hash),
             rollup_id: rollup_data.rollup_id.to_string(),
-            transactions,
+            transactions_and_deposits,
+            item_count,
             proof: PrintableMerkleProof::from(&rollup_data.proof),
         }
     }
@@ -392,10 +651,11 @@ impl Display for VerboseRollupData {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         writeln!(f, "sequencer block hash: {}", self.sequencer_block_hash)?;
         writeln!(f, "rollup id: {}", self.rollup_id)?;
-        writeln!(f, "transactions:")?;
-        if !self.transactions.is_empty() {
-            writeln!(indent(f), "{}", self.transactions.iter().join("\n"))?;
+        for (index, item) in self.transactions_and_deposits.iter().enumerate() {
+            writeln!(f, "item {index}:")?;
+            writeln!(indent(f), "{item}")?;
         }
+        writeln!(f, "item count: {}", self.item_count)?;
         writeln!(f, "proof:")?;
         write!(indent(f), "{}", self.proof)
     }
@@ -505,4 +765,10 @@ impl Display for ParsedBlob {
 
 fn indent<'a, 'b>(f: &'a mut Formatter<'b>) -> indenter::Indented<'a, Formatter<'b>> {
     indented(f).with_str("    ")
+}
+
+fn none_or_value<T: ToString>(maybe_value: &Option<T>) -> String {
+    maybe_value
+        .as_ref()
+        .map_or("none".to_string(), T::to_string)
 }

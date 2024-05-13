@@ -865,11 +865,13 @@ dependencies = [
  "astria-merkle",
  "base64 0.21.7",
  "clap",
+ "ethers-core",
  "hex",
  "indenter",
  "itertools 0.12.1",
  "predicates",
  "prost",
+ "rlp",
  "serde",
  "serde_json",
 ]
