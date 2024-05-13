@@ -44,6 +44,7 @@ use base64::{
     Engine,
 };
 use clap::ValueEnum;
+use colour::write_blue;
 use ethers_core::types::{
     transaction::eip2930::AccessListItem,
     Transaction,
@@ -230,17 +231,17 @@ impl From<&SequencerBlockHeader> for PrintableSequencerBlockHeader {
 }
 
 impl Display for PrintableSequencerBlockHeader {
-    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-        writeln!(formatter, "chain id: {}", self.chain_id)?;
-        writeln!(formatter, "height: {}", self.height)?;
-        writeln!(formatter, "time: {}", self.time)?;
-        writeln!(
-            formatter,
-            "rollup transactions root: {}",
-            self.rollup_transactions_root
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        colored_ln(f, "chain id", &self.chain_id)?;
+        colored_ln(f, "height", self.height)?;
+        colored_ln(f, "time", &self.time)?;
+        colored_ln(
+            f,
+            "rollup transactions root",
+            &self.rollup_transactions_root,
         )?;
-        writeln!(formatter, "data hash: {}", self.data_hash)?;
-        write!(formatter, "proposer address: {}", self.proposer_address)
+        colored_ln(f, "data hash", &self.data_hash)?;
+        colored(f, "proposer address", &self.proposer_address)
     }
 }
 
@@ -262,10 +263,10 @@ impl From<&Proof> for PrintableMerkleProof {
 }
 
 impl Display for PrintableMerkleProof {
-    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-        writeln!(formatter, "audit path: {}", self.audit_path)?;
-        writeln!(formatter, "leaf index: {}", self.leaf_index)?;
-        write!(formatter, "tree size: {}", self.tree_size)
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        colored_ln(f, "audit path", &self.audit_path)?;
+        colored_ln(f, "leaf index", self.leaf_index)?;
+        colored(f, "tree size", self.tree_size)
     }
 }
 
@@ -293,13 +294,13 @@ impl BriefSequencerBlockMetadata {
 
 impl Display for BriefSequencerBlockMetadata {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        writeln!(f, "sequencer block hash: {}", self.sequencer_block_hash)?;
-        writeln!(f, "sequencer block header:")?;
+        colored_ln(f, "sequencer block hash", &self.sequencer_block_hash)?;
+        colored_label_ln(f, "sequencer block header")?;
         writeln!(indent(f), "{}", self.sequencer_block_header)?;
         if self.rollup_ids.is_empty() {
-            write!(f, "rollup ids:")?;
+            colored_label(f, "rollup ids")?;
         } else {
-            writeln!(f, "rollup ids:")?;
+            colored_label_ln(f, "rollup ids")?;
             write!(indent(f), "{}", self.rollup_ids.iter().join("\n"))?;
         }
         Ok(())
@@ -336,16 +337,16 @@ impl VerboseSequencerBlockMetadata {
 
 impl Display for VerboseSequencerBlockMetadata {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        writeln!(f, "sequencer block hash: {}", self.sequencer_block_hash)?;
-        writeln!(f, "sequencer block header:")?;
+        colored_ln(f, "sequencer block hash", &self.sequencer_block_hash)?;
+        colored_label_ln(f, "sequencer block header")?;
         writeln!(indent(f), "{}", self.sequencer_block_header)?;
-        writeln!(f, "rollup ids:")?;
+        colored_label_ln(f, "rollup ids")?;
         if !self.rollup_ids.is_empty() {
             writeln!(indent(f), "{}", self.rollup_ids.iter().join("\n"))?;
         }
-        writeln!(f, "rollup transactions proof:")?;
+        colored_label_ln(f, "rollup transactions proof")?;
         writeln!(indent(f), "{}", self.rollup_transactions_proof)?;
-        writeln!(f, "rollup ids proof:")?;
+        colored_label_ln(f, "rollup ids proof")?;
         write!(indent(f), "{}", self.rollup_ids_proof)
     }
 }
@@ -369,9 +370,9 @@ impl BriefRollupData {
 
 impl Display for BriefRollupData {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        writeln!(f, "sequencer block hash: {}", self.sequencer_block_hash)?;
-        writeln!(f, "rollup id: {}", self.rollup_id)?;
-        write!(f, "transaction count: {}", self.transaction_count)
+        colored_ln(f, "sequencer block hash", &self.sequencer_block_hash)?;
+        colored_ln(f, "rollup id", &self.rollup_id)?;
+        colored(f, "transaction count", self.transaction_count)
     }
 }
 
@@ -396,11 +397,11 @@ impl From<&AccessListItem> for PrintableAccessListItem {
 
 impl Display for PrintableAccessListItem {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        writeln!(f, "address: {}", self.address)?;
+        colored_ln(f, "address", &self.address)?;
         if self.storage_keys.is_empty() {
-            write!(f, "storage keys:")
+            colored_label(f, "storage keys")
         } else {
-            writeln!(f, "storage keys:")?;
+            colored_label_ln(f, "storage keys")?;
             write!(indent(f), "{}", self.storage_keys.iter().join("\n"))
         }
     }
@@ -466,43 +467,43 @@ impl From<Transaction> for RollupTransaction {
 
 impl Display for RollupTransaction {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        writeln!(f, "hash: {}", self.hash)?;
-        writeln!(f, "nonce: {}", self.nonce)?;
-        writeln!(f, "block hash: {}", none_or_value(&self.block_hash))?;
-        writeln!(f, "block number: {}", none_or_value(&self.block_number))?;
-        writeln!(
+        colored_ln(f, "hash", &self.hash)?;
+        colored_ln(f, "nonce", &self.nonce)?;
+        colored_ln(f, "block hash", none_or_value(&self.block_hash))?;
+        colored_ln(f, "block number", none_or_value(&self.block_number))?;
+        colored_ln(
             f,
-            "transaction index: {}",
-            none_or_value(&self.transaction_index)
+            "transaction index",
+            none_or_value(&self.transaction_index),
         )?;
-        writeln!(f, "from: {}", self.from)?;
-        writeln!(f, "to: {}", none_or_value(&self.to))?;
-        writeln!(f, "value: {}", self.value)?;
-        writeln!(f, "gas price: {}", none_or_value(&self.gas_price))?;
-        writeln!(f, "gas: {}", self.gas)?;
-        writeln!(f, "input: {}", self.input)?;
-        writeln!(f, "v: {}", self.v)?;
-        writeln!(f, "r: {}", self.r)?;
-        writeln!(f, "s: {}", self.s)?;
+        colored_ln(f, "from", &self.from)?;
+        colored_ln(f, "to", none_or_value(&self.to))?;
+        colored_ln(f, "value", &self.value)?;
+        colored_ln(f, "gas price", none_or_value(&self.gas_price))?;
+        colored_ln(f, "gas", &self.gas)?;
+        colored_ln(f, "input", &self.input)?;
+        colored_ln(f, "v", self.v)?;
+        colored_ln(f, "r", &self.r)?;
+        colored_ln(f, "s", &self.s)?;
         if let Some(transaction_type) = self.transaction_type {
-            writeln!(f, "transaction type: {transaction_type}")?;
+            colored_ln(f, "transaction type", transaction_type)?;
         }
         if let Some(access_list) = &self.access_list {
-            writeln!(f, "access list:")?;
+            colored_label_ln(f, "access list")?;
             if !access_list.is_empty() {
                 writeln!(indent(f), "{}", access_list.iter().join("\n"))?;
             }
         }
         if let Some(max_priority_fee_per_gas) = &self.max_priority_fee_per_gas {
-            writeln!(f, "max priority fee per gas: {max_priority_fee_per_gas}")?;
+            colored_ln(f, "max priority fee per gas", max_priority_fee_per_gas)?;
         }
         if let Some(max_fee_per_gas) = &self.max_fee_per_gas {
-            writeln!(f, "max fee per gas: {max_fee_per_gas}")?;
+            colored_ln(f, "max fee per gas", max_fee_per_gas)?;
         }
         if let Some(chain_id) = &self.chain_id {
-            writeln!(f, "chain id: {chain_id}")?;
+            colored_ln(f, "chain id", chain_id)?;
         }
-        write!(f, "other: {}", self.other)
+        colored(f, "other", &self.other)
     }
 }
 
@@ -532,14 +533,14 @@ impl TryFrom<&RawDeposit> for PrintableDeposit {
 
 impl Display for PrintableDeposit {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        writeln!(f, "bridge address: {}", self.bridge_address)?;
-        writeln!(f, "rollup id: {}", self.rollup_id)?;
-        writeln!(f, "amount: {}", self.amount)?;
-        writeln!(f, "asset id: {}", self.asset_id)?;
-        write!(
+        colored_ln(f, "bridge address", &self.bridge_address)?;
+        colored_ln(f, "rollup id", &self.rollup_id)?;
+        colored_ln(f, "amount", self.amount)?;
+        colored_ln(f, "asset id", &self.asset_id)?;
+        colored(
             f,
-            "destination chain address: {}",
-            self.destination_chain_address
+            "destination chain address",
+            &self.destination_chain_address,
         )
     }
 }
@@ -597,24 +598,22 @@ impl Display for RollupDataDetails {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             RollupDataDetails::Transaction(txn) => {
-                writeln!(f, "transaction:")?;
+                colored_label_ln(f, "transaction")?;
                 write!(indent(f), "{txn}")
             }
             RollupDataDetails::Deposit(deposit) => {
-                writeln!(f, "deposit:")?;
+                colored_label_ln(f, "deposit")?;
                 write!(indent(f), "{deposit}")
             }
-            RollupDataDetails::NotTxOrDeposit(value) => {
-                write!(f, "not tx or deposit: {value}")
-            }
+            RollupDataDetails::NotTxOrDeposit(value) => colored(f, "not tx or deposit", value),
             RollupDataDetails::EmptyBytes => {
                 write!(f, "empty rollup data")
             }
             RollupDataDetails::UnknownTransaction(value) => {
-                write!(f, "unknown rollup transaction type: {value}")
+                colored(f, "unknown rollup transaction type", value)
             }
             RollupDataDetails::UnparseableDeposit(error) => {
-                write!(f, "unparseable deposit: {error}")
+                colored(f, "unparseable deposit", error)
             }
         }
     }
@@ -649,14 +648,14 @@ impl VerboseRollupData {
 
 impl Display for VerboseRollupData {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        writeln!(f, "sequencer block hash: {}", self.sequencer_block_hash)?;
-        writeln!(f, "rollup id: {}", self.rollup_id)?;
+        colored_ln(f, "sequencer block hash", &self.sequencer_block_hash)?;
+        colored_ln(f, "rollup id", &self.rollup_id)?;
         for (index, item) in self.transactions_and_deposits.iter().enumerate() {
-            writeln!(f, "item {index}:")?;
+            colored_label_ln(f, &format!("item {index}"))?;
             writeln!(indent(f), "{item}")?;
         }
-        writeln!(f, "item count: {}", self.item_count)?;
-        writeln!(f, "proof:")?;
+        colored_ln(f, "item count", self.item_count)?;
+        colored_label_ln(f, "proof")?;
         write!(indent(f), "{}", self.proof)
     }
 }
@@ -713,28 +712,28 @@ impl Display for ParsedList {
         match self {
             ParsedList::BriefSequencer(list) => {
                 for (index, item) in list.iter().enumerate() {
-                    writeln!(f, "sequencer metadata {index}:")?;
+                    colored_label_ln(f, &format!("sequencer metadata {index}"))?;
                     writeln!(indent(f), "{item}")?;
                 }
                 Ok(())
             }
             ParsedList::VerboseSequencer(list) => {
                 for (index, item) in list.iter().enumerate() {
-                    writeln!(f, "sequencer metadata {index}:")?;
+                    colored_label_ln(f, &format!("sequencer metadata {index}"))?;
                     writeln!(indent(f), "{item}")?;
                 }
                 Ok(())
             }
             ParsedList::BriefRollup(list) => {
                 for (index, item) in list.iter().enumerate() {
-                    writeln!(f, "rollup data {index}:")?;
+                    colored_label_ln(f, &format!("rollup data {index}"))?;
                     writeln!(indent(f), "{item}")?;
                 }
                 Ok(())
             }
             ParsedList::VerboseRollup(list) => {
                 for (index, item) in list.iter().enumerate() {
-                    writeln!(f, "rollup data {index}:")?;
+                    colored_label_ln(f, &format!("rollup data {index}"))?;
                     writeln!(indent(f), "{item}")?;
                 }
                 Ok(())
@@ -748,7 +747,9 @@ struct ParsedBlob {
     #[serde(flatten)]
     list: ParsedList,
     number_of_entries: usize,
+    #[serde(rename = "compressed_size_bytes")]
     compressed_size: f32,
+    #[serde(rename = "decompressed_size_bytes")]
     decompressed_size: f32,
     compression_ratio: f32,
 }
@@ -756,10 +757,12 @@ struct ParsedBlob {
 impl Display for ParsedBlob {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         writeln!(f, "{}", self.list)?;
-        writeln!(f, "number of entries: {}", self.number_of_entries)?;
-        writeln!(f, "compressed size: {} bytes", self.compressed_size)?;
-        writeln!(f, "decompressed size: {} bytes", self.decompressed_size)?;
-        write!(f, "compression ratio: {}", self.compression_ratio)
+        colored_ln(f, "number of entries", self.number_of_entries)?;
+        colored(f, "compressed size", self.compressed_size)?;
+        writeln!(f, " bytes")?;
+        colored(f, "decompressed size", self.decompressed_size)?;
+        writeln!(f, " bytes")?;
+        colored(f, "compression ratio", self.compression_ratio)
     }
 }
 
@@ -771,4 +774,24 @@ fn none_or_value<T: ToString>(maybe_value: &Option<T>) -> String {
     maybe_value
         .as_ref()
         .map_or("none".to_string(), T::to_string)
+}
+
+fn colored_label(f: &mut Formatter<'_>, label: &str) -> fmt::Result {
+    write_blue!(f, "{label}")?;
+    write!(f, ":")
+}
+
+fn colored_label_ln(f: &mut Formatter<'_>, label: &str) -> fmt::Result {
+    write_blue!(f, "{label}")?;
+    writeln!(f, ":")
+}
+
+fn colored<T: Display>(f: &mut Formatter<'_>, label: &str, item: T) -> fmt::Result {
+    write_blue!(f, "{label}")?;
+    write!(f, ": {item}")
+}
+
+fn colored_ln<T: Display>(f: &mut Formatter<'_>, label: &str, item: T) -> fmt::Result {
+    write_blue!(f, "{label}")?;
+    writeln!(f, ": {item}")
 }

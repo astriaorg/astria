@@ -865,6 +865,7 @@ dependencies = [
  "astria-merkle",
  "base64 0.21.7",
  "clap",
+ "colour",
  "ethers-core",
  "hex",
  "indenter",
@@ -1891,6 +1892,12 @@ name = "colorchoice"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "acbf1af155f9b9ef647e42cdc158db4b64a1b61f743629225fde6f3e0be2a7c7"
+
+[[package]]
+name = "colour"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "692e39ee1f14432931eb080a5e8e8930a7eff3d19e638cd04091534ebc40b928"
 
 [[package]]
 name = "compiletest_rs"
