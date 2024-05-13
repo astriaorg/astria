@@ -460,8 +460,12 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
     };
 
     // prefix the denomination with the destination port and channel if not a refund
-    let prefixed_denomination =
-        prefix_denomination(Cow::Borrowed(&unprefixed_denom), dest_port, dest_channel, is_refund);
+    let prefixed_denomination = prefix_denomination(
+        Cow::Borrowed(&unprefixed_denom),
+        dest_port,
+        dest_channel,
+        is_refund,
+    );
 
     // check if this is a transfer to a bridge account and
     // execute relevant state changes if it is
@@ -561,7 +565,12 @@ mod test {
         let dest_channel = "channel-99".to_string().parse().unwrap();
         let is_refund = false;
 
-        let denom = prefix_denomination(Cow::Owned(packet_denom), &dest_port, &dest_channel, is_refund);
+        let denom = prefix_denomination(
+            Cow::Owned(packet_denom),
+            &dest_port,
+            &dest_channel,
+            is_refund,
+        );
         let expected = Denom::from("transfer/channel-99/asset".to_string());
 
         assert_eq!(denom.into_owned(), expected);
@@ -575,7 +584,12 @@ mod test {
         let is_refund = true;
 
         let expected = packet_denom.clone();
-        let denom = prefix_denomination(Cow::Owned(packet_denom), &dest_port, &dest_channel, is_refund);
+        let denom = prefix_denomination(
+            Cow::Owned(packet_denom),
+            &dest_port,
+            &dest_channel,
+            is_refund,
+        );
         assert_eq!(denom.into_owned(), expected);
     }
 
