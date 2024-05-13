@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package astria.protocol.asset.v1alpha1;
+
+import "astria/primitive/v1/types.proto";
+
+// A response containing the denomination given an asset ID.
+message DenomResponse {
+  uint64 height = 2;
+  string denom = 3;
+}
