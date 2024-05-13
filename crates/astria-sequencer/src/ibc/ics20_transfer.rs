@@ -9,6 +9,7 @@
 //! [`AppHandler`] consists of two traits: [`AppHandlerCheck`] and [`AppHandlerExecute`].
 //! [`AppHandlerCheck`] is used for stateless and stateful checks, while
 //! [`AppHandlerExecute`] is used for execution.
+use std::borrow::Cow;
 
 use anyhow::{
     ensure,
@@ -402,16 +403,17 @@ async fn convert_denomination_if_ibc_prefixed<S: StateReadExt>(
     Ok(denom)
 }
 
-fn prefix_denomination(
-    packet_denom: Denom,
+fn prefix_denomination<'a>(
+    packet_denom: Cow<'a, Denom>,
     dest_port: &PortId,
     dest_channel: &ChannelId,
     is_refund: bool,
-) -> Denom {
+) -> Cow<'a, Denom> {
     if is_refund {
         packet_denom
     } else {
-        format!("{dest_port}/{dest_channel}/{packet_denom}").into()
+        let denom: Denom = format!("{dest_port}/{dest_channel}/{packet_denom}").into();
+        Cow::Owned(denom)
     }
 }
 
@@ -459,7 +461,7 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
 
     // prefix the denomination with the destination port and channel if not a refund
     let prefixed_denomination =
-        prefix_denomination(unprefixed_denom.clone(), dest_port, dest_channel, is_refund);
+        prefix_denomination(Cow::Borrowed(&unprefixed_denom), dest_port, dest_channel, is_refund);
 
     // check if this is a transfer to a bridge account and
     // execute relevant state changes if it is
@@ -559,10 +561,10 @@ mod test {
         let dest_channel = "channel-99".to_string().parse().unwrap();
         let is_refund = false;
 
-        let denom = prefix_denomination(packet_denom, &dest_port, &dest_channel, is_refund);
+        let denom = prefix_denomination(Cow::Owned(packet_denom), &dest_port, &dest_channel, is_refund);
         let expected = Denom::from("transfer/channel-99/asset".to_string());
 
-        assert_eq!(denom, expected);
+        assert_eq!(denom.into_owned(), expected);
     }
 
     #[tokio::test]
@@ -573,8 +575,8 @@ mod test {
         let is_refund = true;
 
         let expected = packet_denom.clone();
-        let denom = prefix_denomination(packet_denom, &dest_port, &dest_channel, is_refund);
-        assert_eq!(denom, expected);
+        let denom = prefix_denomination(Cow::Owned(packet_denom), &dest_port, &dest_channel, is_refund);
+        assert_eq!(denom.into_owned(), expected);
     }
 
     #[tokio::test]
