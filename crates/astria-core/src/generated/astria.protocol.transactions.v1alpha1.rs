@@ -57,7 +57,10 @@ impl ::prost::Name for TransactionParams {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Action {
-    #[prost(oneof = "action::Value", tags = "1, 2, 11, 12, 21, 22, 50, 51, 52, 53, 54")]
+    #[prost(
+        oneof = "action::Value",
+        tags = "1, 2, 11, 12, 13, 21, 22, 50, 51, 52, 53, 54"
+    )]
     pub value: ::core::option::Option<action::Value>,
 }
 /// Nested message and enum types in `Action`.
@@ -75,6 +78,8 @@ pub mod action {
         InitBridgeAccountAction(super::InitBridgeAccountAction),
         #[prost(message, tag = "12")]
         BridgeLockAction(super::BridgeLockAction),
+        #[prost(message, tag = "13")]
+        BridgeUnlockAction(super::BridgeUnlockAction),
         /// IBC user actions are defined on 21-30
         #[prost(message, tag = "21")]
         IbcAction(::penumbra_proto::core::component::ibc::v1::IbcRelay),
@@ -348,6 +353,34 @@ pub struct BridgeLockAction {
 }
 impl ::prost::Name for BridgeLockAction {
     const NAME: &'static str = "BridgeLockAction";
+    const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
+    }
+}
+/// `BridgeUnlockAction` represents a transaction that transfers
+/// funds from a bridge account to a sequencer account.
+///
+/// It's the same as a `TransferAction` but without the `asset_id` field
+/// and with the `memo` field.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct BridgeUnlockAction {
+    /// the to withdraw funds to
+    #[prost(message, optional, tag = "1")]
+    pub to: ::core::option::Option<super::super::super::primitive::v1::Address>,
+    /// the amount to transfer
+    #[prost(message, optional, tag = "2")]
+    pub amount: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
+    /// the asset used to pay the transaction fee
+    #[prost(bytes = "vec", tag = "3")]
+    pub fee_asset_id: ::prost::alloc::vec::Vec<u8>,
+    /// memo for double spend prevention
+    #[prost(bytes = "vec", tag = "4")]
+    pub memo: ::prost::alloc::vec::Vec<u8>,
+}
+impl ::prost::Name for BridgeUnlockAction {
+    const NAME: &'static str = "BridgeUnlockAction";
     const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)

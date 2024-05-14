@@ -41,6 +41,7 @@ message Action {
     // Bridge actions are defined on 11-20
     InitBridgeAccountAction init_bridge_account_action = 11;
     BridgeLockAction bridge_lock_action = 12;
+    BridgeUnlockAction bridge_unlock_action = 13;
 
     // IBC user actions are defined on 21-30
     astria_vendored.penumbra.core.component.ibc.v1.IbcRelay ibc_action = 21;
@@ -54,7 +55,7 @@ message Action {
     MintAction mint_action = 54;
   }
   reserved 3 to 10;
-  reserved 13 to 20;
+  reserved 14 to 20;
   reserved 23 to 30;
   reserved 55 to 60;
 }
@@ -183,4 +184,20 @@ message BridgeLockAction {
   // the address on the destination chain which
   // will receive the bridged funds
   string destination_chain_address = 5;
+}
+
+// `BridgeUnlockAction` represents a transaction that transfers
+// funds from a bridge account to a sequencer account.
+//
+// It's the same as a `TransferAction` but without the `asset_id` field
+// and with the `memo` field.
+message BridgeUnlockAction {
+  // the to withdraw funds to
+  astria.primitive.v1.Address to = 1;
+  // the amount to transfer
+  astria.primitive.v1.Uint128 amount = 2;
+  // the asset used to pay the transaction fee
+  bytes fee_asset_id = 3;
+  // memo for double spend prevention
+  bytes memo = 4;
 }

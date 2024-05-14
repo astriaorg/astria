@@ -356,7 +356,7 @@ async fn execute_ics20_transfer_bridge_lock<S: StateWriteExt>(
     );
 
     let allowed_asset_id = state
-        .get_bridge_account_asset_ids(recipient)
+        .get_bridge_account_asset_id(recipient)
         .await
         .context("failed to get bridge account asset ID")?;
     ensure!(

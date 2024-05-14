@@ -47,17 +47,24 @@ pub fn register() {
         "The height of the highest sequencer block successfully submitted to Celestia"
     );
 
-    describe_gauge!(
+    describe_histogram!(
         BLOCKS_PER_CELESTIA_TX,
         Unit::Count,
-        "The number of Astria blocks included in the last Celestia submission"
+        "The number of Astria blocks per Celestia submission"
     );
 
-    describe_gauge!(
+    describe_histogram!(
         BLOBS_PER_CELESTIA_TX,
         Unit::Count,
-        "The number of blobs (Astria blobs converted to Celestia blobs) included in the last \
-         Celestia submission"
+        "The number of blobs (Astria Sequencer blocks converted to Celestia blobs) per Celestia \
+         submission"
+    );
+
+    describe_histogram!(
+        BYTES_PER_CELESTIA_TX,
+        Unit::Bytes,
+        "The total number of payload bytes (Astria Sequencer blocks converted to Celestia blobs) \
+         per Celestia submission"
     );
 
     describe_histogram!(
@@ -71,12 +78,6 @@ pub fn register() {
         Unit::Microseconds,
         "The time it takes to create a new payload for submitting to Celestia (encoding to \
          protobuf, compression, creating blobs)"
-    );
-
-    describe_gauge!(
-        TOTAL_BLOB_DATA_SIZE_FOR_ASTRIA_BLOCK,
-        Unit::Bytes,
-        "The size of all compressed data for all `blob.data`s in an Astria block"
     );
 
     describe_gauge!(
@@ -107,6 +108,8 @@ pub const BLOCKS_PER_CELESTIA_TX: &str =
 
 pub const BLOBS_PER_CELESTIA_TX: &str = concat!(env!("CARGO_CRATE_NAME"), "_blobs_per_celestia_tx");
 
+pub const BYTES_PER_CELESTIA_TX: &str = concat!(env!("CARGO_CRATE_NAME"), "_bytes_per_celestia_tx");
+
 pub const CELESTIA_PAYLOAD_CREATION_LATENCY: &str = concat!(
     env!("CARGO_CRATE_NAME"),
     "_celestia_payload_creation_latency"
@@ -128,10 +131,6 @@ pub const SEQUENCER_HEIGHT_FETCH_FAILURE_COUNT: &str = concat!(
 pub const SEQUENCER_SUBMISSION_HEIGHT: &str =
     concat!(env!("CARGO_CRATE_NAME"), "_sequencer_submission_height");
 
-pub const TOTAL_BLOB_DATA_SIZE_FOR_ASTRIA_BLOCK: &str = concat!(
-    env!("CARGO_CRATE_NAME"),
-    "_total_blob_data_size_for_astria_block"
-);
 pub const COMPRESSION_RATIO_FOR_ASTRIA_BLOCK: &str = concat!(
     env!("CARGO_CRATE_NAME"),
     "_compression_ratio_for_astria_block"
