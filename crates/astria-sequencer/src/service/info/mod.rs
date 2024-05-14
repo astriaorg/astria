@@ -234,7 +234,7 @@ mod test {
             .to_native();
         assert_eq!(balance_resp.balances.len(), 1);
         assert_eq!(balance_resp.balances[0], expected_balance);
-        assert_eq!(balance_resp.height, height as u64);
+        assert_eq!(balance_resp.height, height);
     }
 
     #[tokio::test]
@@ -275,7 +275,7 @@ mod test {
         let denom_resp = raw::DenomResponse::decode(query_response.value)
             .unwrap()
             .to_native();
-        assert_eq!(denom_resp.height, height as u64);
+        assert_eq!(denom_resp.height, height);
         assert_eq!(denom_resp.denom, denom);
     }
 }
