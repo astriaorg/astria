@@ -142,6 +142,20 @@ pub(crate) async fn check_balance_for_total_fees<S: StateReadExt + 'static>(
                     .and_modify(|amt| *amt = amt.saturating_add(transfer_fee))
                     .or_insert(transfer_fee);
             }
+            Action::BridgeUnlock(act) => {
+                let asset_id = state
+                    .get_bridge_account_asset_id(&from)
+                    .await
+                    .context("must be a bridge account for BridgeUnlock action")?;
+                fees_by_asset
+                    .entry(asset_id)
+                    .and_modify(|amt: &mut u128| *amt = amt.saturating_add(act.amount))
+                    .or_insert(act.amount);
+                fees_by_asset
+                    .entry(act.fee_asset_id)
+                    .and_modify(|amt| *amt = amt.saturating_add(transfer_fee))
+                    .or_insert(transfer_fee);
+            }
             Action::ValidatorUpdate(_)
             | Action::SudoAddressChange(_)
             | Action::Ibc(_)
@@ -276,6 +290,10 @@ impl ActionHandler for UnsignedTransaction {
                     .check_stateless()
                     .await
                     .context("stateless check failed for BridgeLockAction")?,
+                Action::BridgeUnlock(act) => act
+                    .check_stateless()
+                    .await
+                    .context("stateless check failed for BridgeLockAction")?,
                 #[cfg(feature = "mint")]
                 Action::Mint(act) => act
                     .check_stateless()
@@ -358,6 +376,10 @@ impl ActionHandler for UnsignedTransaction {
                     .check_stateful(state, from)
                     .await
                     .context("stateful check failed for BridgeLockAction")?,
+                Action::BridgeUnlock(act) => act
+                    .check_stateful(state, from)
+                    .await
+                    .context("stateful check failed for BridgeUnlockAction")?,
                 #[cfg(feature = "mint")]
                 Action::Mint(act) => act
                     .check_stateful(state, from)
@@ -446,6 +468,11 @@ impl ActionHandler for UnsignedTransaction {
                         .await
                         .context("execution failed for BridgeLockAction")?;
                 }
+                Action::BridgeUnlock(act) => {
+                    act.execute(state, from)
+                        .await
+                        .context("execution failed for BridgeUnlockAction")?;
+                }
                 #[cfg(feature = "mint")]
                 Action::Mint(act) => {
                     act.execute(state, from)
@@ -497,9 +524,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot);
 
-        state_tx
-            .put_transfer_base_fee(crate::accounts::component::DEFAULT_TRANSFER_BASE_FEE)
-            .unwrap();
+        state_tx.put_transfer_base_fee(12).unwrap();
         state_tx.put_sequence_action_base_fee(0);
         state_tx.put_sequence_action_byte_cost_multiplier(1);
         state_tx.put_ics20_withdrawal_base_fee(1).unwrap();
@@ -565,9 +590,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot);
 
-        state_tx
-            .put_transfer_base_fee(crate::accounts::component::DEFAULT_TRANSFER_BASE_FEE)
-            .unwrap();
+        state_tx.put_transfer_base_fee(12).unwrap();
         state_tx.put_sequence_action_base_fee(0);
         state_tx.put_sequence_action_byte_cost_multiplier(1);
         state_tx.put_ics20_withdrawal_base_fee(1).unwrap();

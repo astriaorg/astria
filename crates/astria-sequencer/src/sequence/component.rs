@@ -13,12 +13,6 @@ use crate::{
     genesis::GenesisState,
 };
 
-/// Default base fee for a [`SequenceAction`].
-const DEFAULT_SEQUENCE_ACTION_BASE_FEE: u128 = 32;
-
-/// Default multiplier for the cost of a byte in a [`SequenceAction`].
-const DEFAULT_SEQUENCE_ACTION_BYTE_COST_MULTIPLIER: u128 = 1;
-
 #[derive(Default)]
 pub(crate) struct SequenceComponent;
 
@@ -28,9 +22,9 @@ impl Component for SequenceComponent {
 
     #[instrument(name = "SequenceComponent::init_chain", skip(state))]
     async fn init_chain<S: StateWriteExt>(mut state: S, app_state: &Self::AppState) -> Result<()> {
-        state.put_sequence_action_base_fee(DEFAULT_SEQUENCE_ACTION_BASE_FEE);
+        state.put_sequence_action_base_fee(app_state.fees.sequence_base_fee);
         state
-            .put_sequence_action_byte_cost_multiplier(DEFAULT_SEQUENCE_ACTION_BYTE_COST_MULTIPLIER);
+            .put_sequence_action_byte_cost_multiplier(app_state.fees.sequence_byte_cost_multiplier);
         Ok(())
     }
 

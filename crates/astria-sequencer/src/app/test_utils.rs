@@ -19,6 +19,7 @@ use penumbra_ibc::params::IBCParameters;
 use crate::{
     app::App,
     genesis::{
+        self,
         Account,
         GenesisState,
     },
@@ -48,6 +49,17 @@ pub(crate) fn get_alice_signing_key_and_address() -> (SigningKey, Address) {
     (alice_signing_key, alice)
 }
 
+pub(crate) fn get_bridge_signing_key_and_address() -> (SigningKey, Address) {
+    let bridge_secret_bytes: [u8; 32] =
+        hex::decode("db4982e01f3eba9e74ac35422fcd49aa2b47c3c535345c7e7da5220fe3a0ce79")
+            .unwrap()
+            .try_into()
+            .unwrap();
+    let bridge_signing_key = SigningKey::from(bridge_secret_bytes);
+    let bridge = Address::from_verification_key(bridge_signing_key.verification_key());
+    (bridge_signing_key, bridge)
+}
+
 pub(crate) fn default_genesis_accounts() -> Vec<Account> {
     vec![
         Account {
@@ -63,6 +75,17 @@ pub(crate) fn default_genesis_accounts() -> Vec<Account> {
             balance: 10u128.pow(19),
         },
     ]
+}
+
+pub(crate) fn default_fees() -> genesis::Fees {
+    genesis::Fees {
+        transfer_base_fee: 12,
+        sequence_base_fee: 32,
+        sequence_byte_cost_multiplier: 1,
+        init_bridge_account_base_fee: 48,
+        bridge_lock_byte_cost_multiplier: 1,
+        ics20_withdrawal_base_fee: 24,
+    }
 }
 
 pub(crate) async fn initialize_app_with_storage(
@@ -84,6 +107,7 @@ pub(crate) async fn initialize_app_with_storage(
         native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         ibc_params: IBCParameters::default(),
         allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
+        fees: default_fees(),
     });
 
     app.init_chain(

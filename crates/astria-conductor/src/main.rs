@@ -45,7 +45,8 @@ async fn main() -> ExitCode {
     if !cfg.no_metrics {
         telemetry_conf = telemetry_conf
             .metrics_addr(&cfg.metrics_http_listener_addr)
-            .service_name(env!("CARGO_PKG_NAME"));
+            .service_name(env!("CARGO_PKG_NAME"))
+            .register_metrics(|| {}); // conductor currently has no metrics
     }
 
     if let Err(e) = telemetry_conf

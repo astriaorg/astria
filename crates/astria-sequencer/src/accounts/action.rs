@@ -14,7 +14,6 @@ use crate::{
         StateReadExt,
         StateWriteExt,
     },
-    bridge::state_ext::StateReadExt as _,
     state_ext::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -86,17 +85,6 @@ impl ActionHandler for TransferAction {
         state: &S,
         from: Address,
     ) -> Result<()> {
-        // ensure the recipient is not a bridge account,
-        // as the explicit `BridgeLockAction` should be used to transfer to a bridge account.
-        ensure!(
-            state
-                .get_bridge_account_rollup_id(&self.to)
-                .await
-                .context("failed to get bridge account rollup ID from state")?
-                .is_none(),
-            "cannot send transfer to bridge account",
-        );
-
         transfer_check_stateful(self, state, from)
             .await
             .context("stateful transfer check failed")
