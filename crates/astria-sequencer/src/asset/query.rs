@@ -28,7 +28,7 @@ pub(crate) async fn denom_request(
 
     // use the latest snapshot, as this is a lookup of id->denom
     let snapshot = storage.latest_snapshot();
-    let asset_id = match preprocess_request(&params).await {
+    let asset_id = match preprocess_request(&params) {
         Ok(asset_id) => asset_id,
         Err(err_rsp) => return err_rsp,
     };
@@ -39,7 +39,7 @@ pub(crate) async fn denom_request(
             return response::Query {
                 code: AbciErrorCode::INTERNAL_ERROR.into(),
                 info: AbciErrorCode::INTERNAL_ERROR.to_string(),
-                log: format!("failed getting block height: {err:?}"),
+                log: format!("failed getting block height: {err:#}"),
                 ..response::Query::default()
             };
         }
@@ -51,38 +51,36 @@ pub(crate) async fn denom_request(
             return response::Query {
                 code: AbciErrorCode::INTERNAL_ERROR.into(),
                 info: AbciErrorCode::INTERNAL_ERROR.to_string(),
-                log: format!("failed to retrieve denomination: {err:?}"),
+                log: format!("failed to retrieve denomination `{asset_id}`: {err:#}"),
                 ..response::Query::default()
             };
         }
     };
 
     let payload = DenomResponse {
-        height: height as u64,
-        denom: denom.clone(),
+        height,
+        denom,
     }
     .into_raw()
     .encode_to_vec()
     .into();
 
-    let height = u32::try_from(height).expect("height must fit into a u32");
+    let height = tendermint::block::Height::try_from(height).expect("height must fit into an i64");
     response::Query {
         code: tendermint::abci::Code::Ok,
-        key: request.path.clone().into_bytes().into(),
+        key: request.path.into_bytes().into(),
         value: payload,
-        height: height.into(),
+        height,
         ..response::Query::default()
     }
 }
 
-async fn preprocess_request(
-    params: &[(String, String)],
-) -> anyhow::Result<asset::Id, response::Query> {
+fn preprocess_request(params: &[(String, String)]) -> anyhow::Result<asset::Id, response::Query> {
     let Some(asset_id) = params.iter().find_map(|(k, v)| (k == "id").then_some(v)) else {
         return Err(response::Query {
             code: AbciErrorCode::INVALID_PARAMETER.into(),
             info: AbciErrorCode::INVALID_PARAMETER.to_string(),
-            log: "path did not contain path parameter".into(),
+            log: "path did not contain asset ID parameter".into(),
             ..response::Query::default()
         });
     };
@@ -94,7 +92,7 @@ async fn preprocess_request(
         .map_err(|err| response::Query {
             code: AbciErrorCode::INVALID_PARAMETER.into(),
             info: AbciErrorCode::INVALID_PARAMETER.to_string(),
-            log: format!("address could not be constructed from provided parameter: {err:?}"),
+            log: format!("asset ID could not be constructed from provided parameter: {err:?}"),
             ..response::Query::default()
         })?;
     Ok(asset_id)
