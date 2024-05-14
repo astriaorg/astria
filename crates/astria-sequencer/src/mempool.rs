@@ -4,7 +4,10 @@ use std::{
     sync::Arc,
 };
 
-use astria_core::protocol::transaction::v1alpha1::SignedTransaction;
+use astria_core::{
+    primitive::v1::Address,
+    protocol::transaction::v1alpha1::SignedTransaction,
+};
 use priority_queue::double_priority_queue::DoublePriorityQueue;
 use tokio::sync::Mutex;
 
@@ -74,6 +77,14 @@ impl BasicMempool {
         Self {
             queue: DoublePriorityQueue::new(),
             hash_to_tx: HashMap::new(),
+        }
+    }
+
+    #[must_use]
+    pub(crate) fn iter(&self) -> BasicMempoolIter {
+        BasicMempoolIter {
+            iter: self.queue.iter(),
+            hash_to_tx: &self.hash_to_tx,
         }
     }
 
@@ -166,6 +177,42 @@ impl Mempool {
     /// required so that `BasicMempool::iter_mut()` can be called.
     pub(crate) async fn inner(&self) -> tokio::sync::MutexGuard<'_, BasicMempool> {
         self.inner.lock().await
+    }
+
+    /// returns the pending nonce for the given address,
+    /// if it exists in the mempool.
+    pub(crate) async fn pending_nonce(&self, address: &Address) -> Option<u32> {
+        let inner = self.inner.lock().await;
+        let mut nonce = None;
+        for (tx, priority) in inner.iter() {
+            let sender = Address::from_verification_key(tx.verification_key());
+            if &sender == address {
+                nonce = Some(std::cmp::max(
+                    nonce.unwrap_or_default(),
+                    priority.transaction_nonce,
+                ));
+            }
+        }
+        nonce
+    }
+}
+
+pub(crate) struct BasicMempoolIter<'a> {
+    iter: priority_queue::core_iterators::Iter<'a, [u8; 32], TransactionPriority>,
+    hash_to_tx: &'a HashMap<[u8; 32], SignedTransaction>,
+}
+
+impl<'a> Iterator for BasicMempoolIter<'a> {
+    type Item = (&'a SignedTransaction, &'a TransactionPriority);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next().map(|(hash, priority)| {
+            let tx = self
+                .hash_to_tx
+                .get(hash)
+                .expect("hash in queue must be in hash_to_tx");
+            (tx, priority)
+        })
     }
 }
 
