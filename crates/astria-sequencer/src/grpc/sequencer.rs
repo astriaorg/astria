@@ -267,7 +267,7 @@ mod test {
     #[tokio::test]
     async fn get_pending_nonce_in_storage() {
         use crate::accounts::state_ext::StateWriteExt as _;
-        
+
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let mempool = Mempool::new();
         let mut state_tx = StateDelta::new(storage.latest_snapshot());
