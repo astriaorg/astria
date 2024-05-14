@@ -83,7 +83,7 @@ use self::{
     latest_height_stream::stream_latest_heights,
     reconstruct::reconstruct_blocks_from_verified_blobs,
     verify::{
-        verify_headers,
+        verify_metadata,
         BlobVerifier,
     },
 };
@@ -527,7 +527,7 @@ impl FetchConvertVerifyAndReconstruct {
             "decoded Sequencer header and rollup info from raw Celestia blobs",
         );
 
-        let verified_blobs = verify_headers(blob_verifier, decoded_blobs).await;
+        let verified_blobs = verify_metadata(blob_verifier, decoded_blobs).await;
 
         info!(
             number_of_verified_header_blobs = verified_blobs.len_header_blobs(),

@@ -7,7 +7,7 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use jsonrpsee::http_client::HttpClient as CelestiaClient;
-use sequencer_client::HttpClient as SequencerClient;
+use tendermint_rpc::HttpClient as SequencerClient;
 use tokio_util::sync::CancellationToken;
 
 use super::Reader;
