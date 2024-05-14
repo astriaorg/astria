@@ -1105,12 +1105,12 @@ async fn app_execute_transaction_bridge_lock_unlock_action_ok() {
     let signed_tx = tx.into_signed(&bridge_signing_key);
     app.execute_transaction(signed_tx)
         .await
-        .expect("failed while executing bridge unlock action");
+        .expect("executing bridge unlock action should succeed");
     assert_eq!(
         app.state
             .get_account_balance(bridge_address, asset_id)
             .await
-            .expect("failed while getting account balance"),
+            .expect("executing bridge unlock action should succeed"),
         0,
         "bridge should've transferred out whole balance"
     );
