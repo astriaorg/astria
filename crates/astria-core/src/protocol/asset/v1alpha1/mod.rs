@@ -11,6 +11,7 @@ pub struct DenomResponse {
 impl DenomResponse {
     /// Converts a protobuf [`raw::DenomResponse`] to an astria
     /// native [`DenomResponse`].
+    #[must_use]
     pub fn from_raw(proto: &raw::DenomResponse) -> Self {
         let raw::DenomResponse {
             height,
