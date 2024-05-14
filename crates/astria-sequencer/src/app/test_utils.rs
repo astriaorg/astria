@@ -49,6 +49,17 @@ pub(crate) fn get_alice_signing_key_and_address() -> (SigningKey, Address) {
     (alice_signing_key, alice)
 }
 
+pub(crate) fn get_bridge_signing_key_and_address() -> (SigningKey, Address) {
+    let bridge_secret_bytes: [u8; 32] =
+        hex::decode("db4982e01f3eba9e74ac35422fcd49aa2b47c3c535345c7e7da5220fe3a0ce79")
+            .unwrap()
+            .try_into()
+            .unwrap();
+    let bridge_signing_key = SigningKey::from(bridge_secret_bytes);
+    let bridge = Address::from_verification_key(bridge_signing_key.verification_key());
+    (bridge_signing_key, bridge)
+}
+
 pub(crate) fn default_genesis_accounts() -> Vec<Account> {
     vec![
         Account {

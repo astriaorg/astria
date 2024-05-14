@@ -19,6 +19,7 @@ use astria_core::{
     protocol::transaction::v1alpha1::{
         action::{
             BridgeLockAction,
+            BridgeUnlockAction,
             IbcRelayerChangeAction,
             SequenceAction,
             TransferAction,
@@ -46,6 +47,7 @@ use crate::{
         default_fees,
         default_genesis_accounts,
         get_alice_signing_key_and_address,
+        get_bridge_signing_key_and_address,
         initialize_app,
         initialize_app_with_storage,
         BOB_ADDRESS,
@@ -143,6 +145,7 @@ async fn app_finalize_block_snapshot() {
 //
 // If new actions are added to the app, they must be added to this test,
 // and the respective PR must be marked as breaking.
+#[allow(clippy::too_many_lines)]
 #[tokio::test]
 async fn app_execute_transaction_with_every_action_snapshot() {
     use astria_core::{
@@ -155,6 +158,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     };
 
     let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
+    let (bridge_signing_key, bridge_address) = get_bridge_signing_key_and_address();
     let bob_address = address_from_hex_string(BOB_ADDRESS);
     let carol_address = address_from_hex_string(CAROL_ADDRESS);
 
@@ -168,7 +172,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
         fees: default_fees(),
     };
-    let mut app = initialize_app(Some(genesis_state), vec![]).await;
+    let (mut app, storage) = initialize_app_with_storage(Some(genesis_state), vec![]).await;
 
     // setup for ValidatorUpdate action
     let pub_key = tendermint::public_key::PublicKey::from_raw_ed25519(&[1u8; 32]).unwrap();
@@ -178,7 +182,6 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     };
 
     // setup for BridgeLockAction
-    let bridge_address = Address::from([99; 20]);
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
     let asset_id = get_native_asset().id();
     let mut state_tx = StateDelta::new(app.state.clone());
@@ -238,5 +241,29 @@ async fn app_execute_transaction_with_every_action_snapshot() {
 
     let signed_tx = tx.into_signed(&alice_signing_key);
     app.execute_transaction(signed_tx).await.unwrap();
+
+    // execute BridgeUnlock action
+    let tx = UnsignedTransaction {
+        params: TransactionParams {
+            nonce: 0,
+            chain_id: "test".to_string(),
+        },
+        actions: vec![
+            BridgeUnlockAction {
+                to: bob_address,
+                amount: 10,
+                fee_asset_id: get_native_asset().id(),
+                memo: vec![0u8; 32],
+            }
+            .into(),
+        ],
+    };
+
+    let signed_tx = tx.into_signed(&bridge_signing_key);
+    app.execute_transaction(signed_tx).await.unwrap();
+
+    app.prepare_commit(storage.clone()).await.unwrap();
+    app.commit(storage.clone()).await;
+
     insta::assert_json_snapshot!(app.app_hash.as_bytes());
 }

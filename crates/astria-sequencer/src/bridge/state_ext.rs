@@ -104,7 +104,7 @@ pub(crate) trait StateReadExt: StateRead {
     }
 
     #[instrument(skip(self))]
-    async fn get_bridge_account_asset_ids(&self, address: &Address) -> Result<asset::Id> {
+    async fn get_bridge_account_asset_id(&self, address: &Address) -> Result<asset::Id> {
         let bytes = self
             .get_raw(&asset_id_storage_key(address))
             .await
@@ -388,14 +388,14 @@ mod test {
     }
 
     #[tokio::test]
-    async fn get_bridge_account_asset_ids_none_should_fail() {
+    async fn get_bridge_account_asset_id_none_should_fail() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let state = StateDelta::new(snapshot);
 
         let address = Address::try_from_slice(&[42u8; 20]).unwrap();
         state
-            .get_bridge_account_asset_ids(&address)
+            .get_bridge_account_asset_id(&address)
             .await
             .expect_err("call to get bridge account asset ids should fail if no assets");
     }
@@ -414,7 +414,7 @@ mod test {
             .put_bridge_account_asset_id(&address, &asset)
             .expect("storing bridge account asset should not fail");
         let mut result = state
-            .get_bridge_account_asset_ids(&address)
+            .get_bridge_account_asset_id(&address)
             .await
             .expect("bridge asset id was written and must exist inside the database");
         assert_eq!(
@@ -428,7 +428,7 @@ mod test {
             .put_bridge_account_asset_id(&address, &asset)
             .expect("storing bridge account assets should not fail");
         result = state
-            .get_bridge_account_asset_ids(&address)
+            .get_bridge_account_asset_id(&address)
             .await
             .expect("bridge asset id was written and must exist inside the database");
         assert_eq!(
@@ -444,14 +444,14 @@ mod test {
             .expect("storing bridge account assets should not fail");
         assert_eq!(
             state
-                .get_bridge_account_asset_ids(&address_1)
+                .get_bridge_account_asset_id(&address_1)
                 .await
                 .expect("bridge asset id was written and must exist inside the database"),
             asset_1,
             "second bridge account asset not what was expected"
         );
         result = state
-            .get_bridge_account_asset_ids(&address)
+            .get_bridge_account_asset_id(&address)
             .await
             .expect("original bridge asset id was written and must exist inside the database");
         assert_eq!(
