@@ -479,15 +479,15 @@ impl RateLimitedVerificationClient {
         // We can however work around it: ServiceBuilder::boxed gives a BoxService, which is
         // Send + Sync, but not Clone. We then then manually evoke Buffer::new to create a
         // a Buffer<BoxService>, which is Send + Sync + Clone.
-        let requests_per_minute = 100usize;
+        let requests_per_second = 15usize;
         let service = tower::ServiceBuilder::new()
             .boxed()
             .rate_limit(
-                requests_per_minute.try_into().expect(
-                    "the requests per minute should be set to a reasonable size so that \
+                requests_per_second.try_into().expect(
+                    "the requests per second should be set to a reasonable size so that \
                      conversion to u64 works on any platform",
                 ),
-                Duration::from_secs(60),
+                Duration::from_secs(1),
             )
             .service_fn(move |req: VerificationRequest| {
                 let client = client.clone();
@@ -505,7 +505,7 @@ impl RateLimitedVerificationClient {
             });
         // XXX: This number is arbitarily set to the same number os the rate-limit. Does that
         // make sense? Should the number be set higher?
-        let inner = tower::buffer::Buffer::new(service, requests_per_minute);
+        let inner = tower::buffer::Buffer::new(service, requests_per_second);
         Self {
             inner,
         }
