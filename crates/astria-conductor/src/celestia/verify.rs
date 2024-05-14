@@ -255,14 +255,14 @@ impl BlobVerifier {
                 warn!(
                     error = %e.as_ref(),
                     "failed getting data necessary to verify the sequencer metadata retrieved from Celestia",
-                )
+                );
             })
             .ok()?;
         if let Err(error) = ensure_chain_ids_match(
             cached.commit_header.header.chain_id.as_str(),
             metadata.cometbft_chain_id().as_str(),
         )
-        .and_then(|_| {
+        .and_then(|()| {
             ensure_block_hashes_match(
                 cached.commit_header.commit.block_id.hash.as_bytes(),
                 &metadata.block_hash(),
@@ -386,6 +386,7 @@ fn should_retry(error: &tendermint_rpc::Error) -> bool {
     )
 }
 
+#[non_exhaustive]
 enum VerificationRequest {
     Commit {
         height: SequencerHeight,
@@ -427,6 +428,9 @@ impl RateLimitedVerificationClient {
         mut self,
         height: SequencerHeight,
     ) -> Result<Box<tendermint_rpc::endpoint::commit::Response>, BoxError> {
+        // allow: it is desired that the wildcard matches all future added variants because
+        // this call must only return a a single specific variant, panicking otherwise.
+        #[allow(clippy::match_wildcard_for_single_variants)]
         match self
             .inner
             .ready()
@@ -446,6 +450,9 @@ impl RateLimitedVerificationClient {
         prev_height: SequencerHeight,
         height: SequencerHeight,
     ) -> Result<Box<tendermint_rpc::endpoint::validators::Response>, BoxError> {
+        // allow: it is desired that the wildcard matches all future added variants because
+        // this call must only return a a single specific variant, panicking otherwise.
+        #[allow(clippy::match_wildcard_for_single_variants)]
         match self
             .inner
             .ready()
