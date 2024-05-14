@@ -61,7 +61,7 @@ data:
   # Socket address for gRPC server
   ASTRIA_SEQUENCER_GRPC_ADDR: "0.0.0.0:{{ .Values.ports.sequencerGRPC }}"
   ASTRIA_SEQUENCER_NO_METRICS: "{{ not .Values.config.sequencer.metrics.enabled }}"
-  ASTRIA_SEQUENCER_METRICS_HTTP_LISTENER_ADDR: "127.0.0.1:{{ .Values.ports.sequencerMetrics }}"
+  ASTRIA_SEQUENCER_METRICS_HTTP_LISTENER_ADDR: "0.0.0.0:{{ .Values.ports.sequencerMetrics }}"
   ASTRIA_SEQUENCER_FORCE_STDOUT: "{{ .Values.global.useTTY }}"
   ASTRIA_SEQUENCER_PRETTY_PRINT: "{{ .Values.global.useTTY }}"
   ASTRIA_SEQUENCER_NO_OTEL: "{{ not .Values.config.sequencer.otel.enabled }}"
