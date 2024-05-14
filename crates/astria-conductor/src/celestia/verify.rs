@@ -479,7 +479,7 @@ impl RateLimitedVerificationClient {
         // We can however work around it: ServiceBuilder::boxed gives a BoxService, which is
         // Send + Sync, but not Clone. We then then manually evoke Buffer::new to create a
         // a Buffer<BoxService>, which is Send + Sync + Clone.
-        let requests_per_second = 15usize;
+        let requests_per_second = 500usize;
         let service = tower::ServiceBuilder::new()
             .boxed()
             .rate_limit(
