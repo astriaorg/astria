@@ -37,7 +37,6 @@ use futures::{
 };
 use pin_project_lite::pin_project;
 use prost::Message as _;
-use secrecy::Zeroize as _;
 use sequencer_client::{
     tendermint_rpc::endpoint::broadcast::tx_sync,
     Address,
@@ -143,12 +142,6 @@ impl Handle {
         self.serialized_rollup_transactions_tx
             .send_timeout(sequence_action, timeout)
             .await
-    }
-}
-
-impl Drop for Executor {
-    fn drop(&mut self) {
-        self.sequencer_key.zeroize();
     }
 }
 
@@ -536,12 +529,6 @@ pin_project! {
         #[pin]
         state: SubmitState,
         bundle: SizedBundle,
-    }
-
-    impl PinnedDrop for SubmitFut {
-        fn drop(this: Pin<&mut Self>) {
-            this.project().signing_key.zeroize();
-        }
     }
 }
 

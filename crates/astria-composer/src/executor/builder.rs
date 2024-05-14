@@ -1,4 +1,7 @@
-use std::time::Duration;
+use std::{
+    fs,
+    time::Duration,
+};
 
 use astria_core::{
     primitive::v1::Address,
@@ -12,11 +15,6 @@ use astria_eyre::{
     },
 };
 use ed25519_consensus::SigningKey;
-use secrecy::{
-    ExposeSecret,
-    SecretString,
-    Zeroize,
-};
 use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 
@@ -28,7 +26,7 @@ use crate::{
 pub(crate) struct Builder {
     pub(crate) sequencer_url: String,
     pub(crate) sequencer_chain_id: String,
-    pub(crate) private_key: SecretString,
+    pub(crate) private_key_file: String,
     pub(crate) block_time_ms: u64,
     pub(crate) max_bytes_per_bundle: usize,
     pub(crate) bundle_queue_capacity: usize,
@@ -40,7 +38,7 @@ impl Builder {
         let Self {
             sequencer_url,
             sequencer_chain_id,
-            private_key,
+            private_key_file,
             block_time_ms,
             max_bytes_per_bundle,
             bundle_queue_capacity,
@@ -49,12 +47,17 @@ impl Builder {
         let sequencer_client = sequencer_client::HttpClient::new(sequencer_url.as_str())
             .wrap_err("failed constructing sequencer client")?;
         let (status, _) = watch::channel(Status::new());
-        let mut private_key_bytes: [u8; 32] = hex::decode(private_key.expose_secret())
-            .wrap_err("failed to decode private key bytes from hex string")?
+        let private_key_hex = fs::read_to_string(&private_key_file)
+            .wrap_err_with(|| format!("failed to read private key at `{private_key_file}`"))?;
+        let private_key_bytes: [u8; 32] = hex::decode(private_key_hex.trim())
+            .wrap_err_with(|| {
+                format!("failed to hex-decode private key bytes in `{private_key_file}`")
+            })?
             .try_into()
-            .map_err(|_| eyre!("invalid private key length; must be 32 bytes"))?;
+            .map_err(|_| {
+                eyre!("invalid private key length in `{private_key_file}`; must be 32 bytes")
+            })?;
         let sequencer_key = SigningKey::from(private_key_bytes);
-        private_key_bytes.zeroize();
 
         let sequencer_address = Address::from_verification_key(sequencer_key.verification_key());
 

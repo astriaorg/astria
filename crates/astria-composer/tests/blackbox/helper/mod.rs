@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    io::Write,
     net::SocketAddr,
     time::Duration,
 };
@@ -18,6 +19,7 @@ use astria_core::{
 use astria_eyre::eyre;
 use ethers::prelude::Transaction;
 use once_cell::sync::Lazy;
+use tempfile::NamedTempFile;
 use tendermint_rpc::{
     endpoint::broadcast::tx_sync,
     request,
@@ -82,15 +84,17 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
     }
     let (sequencer, sequencer_setup_guard) = mock_sequencer::start().await;
     let sequencer_url = sequencer.uri();
+    let keyfile = NamedTempFile::new().unwrap();
+    (&keyfile)
+        .write_all("2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90".as_bytes())
+        .unwrap();
     let config = Config {
         log: String::new(),
         api_listen_addr: "127.0.0.1:0".parse().unwrap(),
         sequencer_chain_id: "test-chain-1".to_string(),
         rollups,
         sequencer_url,
-        private_key: "2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90"
-            .to_string()
-            .into(),
+        private_key_file: keyfile.path().to_string_lossy().to_string(),
         block_time_ms: 2000,
         max_bytes_per_bundle: 200_000,
         bundle_queue_capacity: 10,
