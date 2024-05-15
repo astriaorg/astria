@@ -71,7 +71,7 @@ impl Submission {
     // significance.
     #[allow(clippy::cast_precision_loss)]
     pub(super) fn compression_ratio(&self) -> f64 {
-        self.uncompressed_size() as f64 / self.compressed_size() as f64
+        self.compressed_size() as f64 / self.uncompressed_size() as f64
     }
 
     pub(super) fn compressed_size(&self) -> usize {
