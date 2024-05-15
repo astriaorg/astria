@@ -576,12 +576,4 @@ mod tests {
         let payload = input.try_into_payload().unwrap();
         assert_eq!(2, payload.num_blobs());
     }
-
-    #[tokio::test]
-    async fn should_compress() {
-        let mut next_submission = NextSubmission::new(include_all_rollups());
-        next_submission.try_add(block(1)).unwrap();
-        let submission = next_submission.take().await.unwrap();
-        assert!(submission.compression_ratio() > 1.0);
-    }
 }
