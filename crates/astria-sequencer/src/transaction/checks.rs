@@ -74,8 +74,6 @@ pub(crate) async fn check_balance_for_total_fees<S: StateReadExt + 'static>(
     from: Address,
     state: &S,
 ) -> anyhow::Result<()> {
-    use std::collections::HashMap;
-
     let transfer_fee = state
         .get_transfer_base_fee()
         .await
@@ -104,7 +102,8 @@ pub(crate) async fn check_balance_for_total_fees<S: StateReadExt + 'static>(
                 transfer_fee,
             ),
             Action::Sequence(act) => {
-                sequence_update_fees(state, act.fee_asset_id, &mut fees_by_asset, &act.data).await?
+                sequence_update_fees(state, act.fee_asset_id, &mut fees_by_asset, &act.data)
+                    .await?;
             }
             Action::Ics20Withdrawal(act) => ics20_withdrawal_updates_fees(
                 act.denom().id(),
@@ -134,7 +133,7 @@ pub(crate) async fn check_balance_for_total_fees<S: StateReadExt + 'static>(
                     &mut fees_by_asset,
                     transfer_fee,
                 )
-                .await?
+                .await?;
             }
             Action::ValidatorUpdate(_)
             | Action::SudoAddressChange(_)
