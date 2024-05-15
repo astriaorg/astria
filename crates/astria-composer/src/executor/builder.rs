@@ -48,6 +48,7 @@ impl Builder {
         } = self;
         let sequencer_client = sequencer_client::HttpClient::new(sequencer_url.as_str())
             .wrap_err("failed constructing sequencer client")?;
+        if sequencer_chain_id != sequencer_client.genesis().chain_id.await() {WrapErr::wrap_err("configured sequencer chain id and sequencer client chain id mismatched");}
         let (status, _) = watch::channel(Status::new());
         let mut private_key_bytes: [u8; 32] = hex::decode(private_key.expose_secret())
             .wrap_err("failed to decode private key bytes from hex string")?
