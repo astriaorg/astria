@@ -4,7 +4,6 @@ use std::time::Duration;
 
 use astria_eyre::eyre::{
     self,
-    bail,
     Report,
     WrapErr as _,
 };

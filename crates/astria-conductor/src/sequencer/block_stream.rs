@@ -330,7 +330,7 @@ mod tests {
 
     #[test]
     fn next_height_is_none_if_latest_observed_height_not_set() {
-        let mut heights = Heights {
+        let heights = Heights {
             rollup_expects: 5,
             greatest_requested_height: None,
             latest_observed_sequencer_height: None,
