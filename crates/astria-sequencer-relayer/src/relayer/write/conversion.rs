@@ -67,11 +67,12 @@ impl Submission {
         )
     }
 
+    /// The ratio of uncompressed blob size to compressed size.
     // allow: used for metric gauges, which require f64. Precision loss is ok and of no
     // significance.
     #[allow(clippy::cast_precision_loss)]
     pub(super) fn compression_ratio(&self) -> f64 {
-        self.compressed_size() as f64 / self.uncompressed_size() as f64
+        self.uncompressed_size() as f64 / self.compressed_size() as f64
     }
 
     pub(super) fn compressed_size(&self) -> usize {
@@ -574,5 +575,13 @@ mod tests {
         input.extend_from_sequencer_block(block(1), &include_all_rollups());
         let payload = input.try_into_payload().unwrap();
         assert_eq!(2, payload.num_blobs());
+    }
+
+    #[tokio::test]
+    async fn should_compress() {
+        let mut next_submission = NextSubmission::new(include_all_rollups());
+        next_submission.try_add(block(1)).unwrap();
+        let submission = next_submission.take().await.unwrap();
+        assert!(submission.compression_ratio() > 1.0);
     }
 }
