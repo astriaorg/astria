@@ -65,6 +65,8 @@ impl Builder {
             shutdown,
             state: state_tx,
             blocks_pending_finalization: HashMap::new(),
+
+            max_spread: None,
         };
         let handle = Handle {
             firm_blocks: firm_block_tx,

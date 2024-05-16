@@ -214,7 +214,6 @@ impl Handle<StateIsInit> {
     }
 }
 
-/// The private inner executor implementing all the logic.
 pub(crate) struct Executor {
     /// The execution client driving the rollup.
     client: Client,
@@ -243,28 +242,29 @@ pub(crate) struct Executor {
     /// Required to mark firm blocks received from celestia as executed
     /// without re-executing on top of the rollup node.
     blocks_pending_finalization: HashMap<u32, Block>,
+
+    /// The maximum permitted spread between firm and soft blocks.
+    max_spread: Option<usize>,
 }
 
 impl Executor {
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
-        self.set_initial_node_state()
-            .await
-            .wrap_err("failed setting initial rollup node state")?;
-
-        let max_spread: usize = self.calculate_max_spread();
-        if let Some(channel) = self.soft_blocks.as_mut() {
-            channel.set_capacity(max_spread);
-        }
-
-        info!(
-            max_spread,
-            "setting capacity of soft blocks channel to maximum permitted firm<>soft commitment \
-             spread (this has no effect if conductor is set to perform soft-sync only)"
+        tokio::select!(
+            () = self.shutdown.clone().cancelled_owned() => {
+                info!(
+                    "received shutdown signal while initializing task; \
+                    aborting intialization and exiting"
+                );
+                return Ok(());
+            }
+            res = self.init() => {
+                res.wrap_err("initialization failed")?;
+            }
         );
 
         let reason = loop {
-            let spread_not_too_large = !self.is_spread_too_large(max_spread);
+            let spread_not_too_large = !self.is_spread_too_large();
             if spread_not_too_large {
                 if let Some(channel) = self.soft_blocks.as_mut() {
                     channel.fill_permits();
@@ -320,6 +320,27 @@ impl Executor {
         }
     }
 
+    /// Runs the init logic that needs to happen before [`Executor`] can enter its main loop.
+    async fn init(&mut self) -> eyre::Result<()> {
+        self.set_initial_node_state()
+            .await
+            .wrap_err("failed setting initial rollup node state")?;
+
+        let max_spread: usize = self.calculate_max_spread();
+        self.max_spread.replace(max_spread);
+        if let Some(channel) = self.soft_blocks.as_mut() {
+            channel.set_capacity(max_spread);
+            info!(
+                max_spread,
+                "setting capacity of soft blocks channel to maximum permitted firm<>soft \
+                 commitment spread (this has no effect if conductor is set to perform soft-sync \
+                 only)"
+            );
+        }
+
+        Ok(())
+    }
+
     /// Calculates the maximum allowed spread between firm and soft commitments heights.
     ///
     /// The maximum allowed spread is taken as `max_spread = variance * 6`, where `variance`
@@ -343,7 +364,11 @@ impl Executor {
     /// large.
     ///
     /// Always returns `false` if this executor was configured to run without firm commitments.
-    fn is_spread_too_large(&self, max_spread: usize) -> bool {
+    ///
+    /// # Panics
+    ///
+    /// Panics if called before [`Executor::init`] because `max_spread` must be set.
+    fn is_spread_too_large(&self) -> bool {
         if self.firm_blocks.is_none() {
             return false;
         }
@@ -354,7 +379,12 @@ impl Executor {
         };
 
         let is_too_far_ahead = usize::try_from(next_soft.saturating_sub(next_firm))
-            .map(|spread| spread >= max_spread)
+            .map(|spread| {
+                spread
+                    >= self
+                        .max_spread
+                        .expect("executor must be initalized and this field set")
+            })
             .unwrap_or(false);
 
         if is_too_far_ahead {
