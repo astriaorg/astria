@@ -4,6 +4,9 @@ package astria.sequencerblock.v1alpha1;
 
 import "astria/primitive/v1/types.proto";
 import "astria/sequencerblock/v1alpha1/block.proto";
+import "astria_vendored_sequencerblock/tendermint/abci/types.proto";
+import "astria_vendored_sequencerblock/tendermint/types/types.proto";
+import "astria_vendored_sequencerblock/tendermint/types/validator.proto";
 import "google/api/annotations.proto";
 import "google/api/field_behavior.proto";
 
@@ -19,6 +22,36 @@ message GetFilteredSequencerBlockRequest {
   repeated astria.primitive.v1.RollupId rollup_ids = 2 [(google.api.field_behavior) = REQUIRED];
 }
 
+message GetChainIdRequest {}
+
+message ChainId {
+  // The chain id of the sequencer.
+  uint64 inner = 1 [(google.api.field_behavior) = REQUIRED];
+}
+
+message GetCommitRequest {
+  // The height of the commit to retrieve.
+  uint64 height = 1 [(google.api.field_behavior) = REQUIRED];
+}
+
+message Commit {
+  astria_vendored.tendermint.types.SignedHeader signed_header = 1 [(google.api.field_behavior) = REQUIRED];
+  bool canonical = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
+message GetValidatorsRequest {
+  // The height of the validators to retrieve.
+  uint64 height = 1 [(google.api.field_behavior) = REQUIRED];
+}
+
+message Validators {
+  uint64 height = 1 [(google.api.field_behavior) = REQUIRED];
+  repeated astria_vendored.tendermint.types.Validator validators = 2 [(google.api.field_behavior) = REQUIRED];
+  int32 total = 3 [(google.api.field_behavior) = REQUIRED];
+}
+
+message GetAbciInfoRequest {}
+
 service SequencerService {
   // Given a block height, returns the sequencer block at that height.
   rpc GetSequencerBlock(GetSequencerBlockRequest) returns (SequencerBlock) {
@@ -32,5 +65,21 @@ service SequencerService {
       post: "/v1alpha1/sequencer/{height}:filtered"
       body: "*"
     };
+  }
+
+  rpc GetChainId(GetChainIdRequest) returns (ChainId) {
+    option (google.api.http) = {get: "/v1alpha1/sequencer/chain_id"};
+  }
+
+  rpc GetCommit(GetCommitRequest) returns (Commit) {
+    option (google.api.http) = {get: "/v1alpha1/sequencer/commit/{height}"};
+  }
+
+  rpc GetValidators(GetValidatorsRequest) returns (Validators) {
+    option (google.api.http) = {get: "/v1alpha1/sequencer/validators/{height}"};
+  }
+
+  rpc GetAbciInfo(GetAbciInfoRequest) returns (astria_vendored.tendermint.abci.ResponseInfo) {
+    option (google.api.http) = {get: "/v1alpha1/sequencer/abci_info"};
   }
 }

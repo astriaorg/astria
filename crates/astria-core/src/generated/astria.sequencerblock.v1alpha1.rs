@@ -350,6 +350,100 @@ impl ::prost::Name for GetFilteredSequencerBlockRequest {
         ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)
     }
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetChainIdRequest {}
+impl ::prost::Name for GetChainIdRequest {
+    const NAME: &'static str = "GetChainIdRequest";
+    const PACKAGE: &'static str = "astria.sequencerblock.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ChainId {
+    /// The chain id of the sequencer.
+    #[prost(uint64, tag = "1")]
+    pub inner: u64,
+}
+impl ::prost::Name for ChainId {
+    const NAME: &'static str = "ChainId";
+    const PACKAGE: &'static str = "astria.sequencerblock.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetCommitRequest {
+    /// The height of the commit to retrieve.
+    #[prost(uint64, tag = "1")]
+    pub height: u64,
+}
+impl ::prost::Name for GetCommitRequest {
+    const NAME: &'static str = "GetCommitRequest";
+    const PACKAGE: &'static str = "astria.sequencerblock.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Commit {
+    #[prost(message, optional, tag = "1")]
+    pub signed_header: ::core::option::Option<::tendermint_proto::types::SignedHeader>,
+    #[prost(bool, tag = "2")]
+    pub canonical: bool,
+}
+impl ::prost::Name for Commit {
+    const NAME: &'static str = "Commit";
+    const PACKAGE: &'static str = "astria.sequencerblock.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetValidatorsRequest {
+    /// The height of the validators to retrieve.
+    #[prost(uint64, tag = "1")]
+    pub height: u64,
+}
+impl ::prost::Name for GetValidatorsRequest {
+    const NAME: &'static str = "GetValidatorsRequest";
+    const PACKAGE: &'static str = "astria.sequencerblock.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Validators {
+    #[prost(uint64, tag = "1")]
+    pub height: u64,
+    #[prost(message, repeated, tag = "2")]
+    pub validators: ::prost::alloc::vec::Vec<::tendermint_proto::types::Validator>,
+    #[prost(int32, tag = "3")]
+    pub total: i32,
+}
+impl ::prost::Name for Validators {
+    const NAME: &'static str = "Validators";
+    const PACKAGE: &'static str = "astria.sequencerblock.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetAbciInfoRequest {}
+impl ::prost::Name for GetAbciInfoRequest {
+    const NAME: &'static str = "GetAbciInfoRequest";
+    const PACKAGE: &'static str = "astria.sequencerblock.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)
+    }
+}
 /// Generated client implementations.
 #[cfg(feature = "client")]
 pub mod sequencer_service_client {
@@ -496,6 +590,117 @@ pub mod sequencer_service_client {
                 );
             self.inner.unary(req, path, codec).await
         }
+        pub async fn get_chain_id(
+            &mut self,
+            request: impl tonic::IntoRequest<super::GetChainIdRequest>,
+        ) -> std::result::Result<tonic::Response<super::ChainId>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::new(
+                        tonic::Code::Unknown,
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/astria.sequencerblock.v1alpha1.SequencerService/GetChainId",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(
+                    GrpcMethod::new(
+                        "astria.sequencerblock.v1alpha1.SequencerService",
+                        "GetChainId",
+                    ),
+                );
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn get_commit(
+            &mut self,
+            request: impl tonic::IntoRequest<super::GetCommitRequest>,
+        ) -> std::result::Result<tonic::Response<super::Commit>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::new(
+                        tonic::Code::Unknown,
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/astria.sequencerblock.v1alpha1.SequencerService/GetCommit",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(
+                    GrpcMethod::new(
+                        "astria.sequencerblock.v1alpha1.SequencerService",
+                        "GetCommit",
+                    ),
+                );
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn get_validators(
+            &mut self,
+            request: impl tonic::IntoRequest<super::GetValidatorsRequest>,
+        ) -> std::result::Result<tonic::Response<super::Validators>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::new(
+                        tonic::Code::Unknown,
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/astria.sequencerblock.v1alpha1.SequencerService/GetValidators",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(
+                    GrpcMethod::new(
+                        "astria.sequencerblock.v1alpha1.SequencerService",
+                        "GetValidators",
+                    ),
+                );
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn get_abci_info(
+            &mut self,
+            request: impl tonic::IntoRequest<super::GetAbciInfoRequest>,
+        ) -> std::result::Result<
+            tonic::Response<::tendermint_proto::abci::ResponseInfo>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::new(
+                        tonic::Code::Unknown,
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/astria.sequencerblock.v1alpha1.SequencerService/GetAbciInfo",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(
+                    GrpcMethod::new(
+                        "astria.sequencerblock.v1alpha1.SequencerService",
+                        "GetAbciInfo",
+                    ),
+                );
+            self.inner.unary(req, path, codec).await
+        }
     }
 }
 /// Generated server implementations.
@@ -518,6 +723,25 @@ pub mod sequencer_service_server {
             request: tonic::Request<super::GetFilteredSequencerBlockRequest>,
         ) -> std::result::Result<
             tonic::Response<super::FilteredSequencerBlock>,
+            tonic::Status,
+        >;
+        async fn get_chain_id(
+            self: std::sync::Arc<Self>,
+            request: tonic::Request<super::GetChainIdRequest>,
+        ) -> std::result::Result<tonic::Response<super::ChainId>, tonic::Status>;
+        async fn get_commit(
+            self: std::sync::Arc<Self>,
+            request: tonic::Request<super::GetCommitRequest>,
+        ) -> std::result::Result<tonic::Response<super::Commit>, tonic::Status>;
+        async fn get_validators(
+            self: std::sync::Arc<Self>,
+            request: tonic::Request<super::GetValidatorsRequest>,
+        ) -> std::result::Result<tonic::Response<super::Validators>, tonic::Status>;
+        async fn get_abci_info(
+            self: std::sync::Arc<Self>,
+            request: tonic::Request<super::GetAbciInfoRequest>,
+        ) -> std::result::Result<
+            tonic::Response<::tendermint_proto::abci::ResponseInfo>,
             tonic::Status,
         >;
     }
@@ -685,6 +909,191 @@ pub mod sequencer_service_server {
                     let fut = async move {
                         let inner = inner.0;
                         let method = GetFilteredSequencerBlockSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/astria.sequencerblock.v1alpha1.SequencerService/GetChainId" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetChainIdSvc<T: SequencerService>(pub Arc<T>);
+                    impl<
+                        T: SequencerService,
+                    > tonic::server::UnaryService<super::GetChainIdRequest>
+                    for GetChainIdSvc<T> {
+                        type Response = super::ChainId;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::GetChainIdRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as SequencerService>::get_chain_id(inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let inner = inner.0;
+                        let method = GetChainIdSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/astria.sequencerblock.v1alpha1.SequencerService/GetCommit" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetCommitSvc<T: SequencerService>(pub Arc<T>);
+                    impl<
+                        T: SequencerService,
+                    > tonic::server::UnaryService<super::GetCommitRequest>
+                    for GetCommitSvc<T> {
+                        type Response = super::Commit;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::GetCommitRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as SequencerService>::get_commit(inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let inner = inner.0;
+                        let method = GetCommitSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/astria.sequencerblock.v1alpha1.SequencerService/GetValidators" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetValidatorsSvc<T: SequencerService>(pub Arc<T>);
+                    impl<
+                        T: SequencerService,
+                    > tonic::server::UnaryService<super::GetValidatorsRequest>
+                    for GetValidatorsSvc<T> {
+                        type Response = super::Validators;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::GetValidatorsRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as SequencerService>::get_validators(inner, request)
+                                    .await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let inner = inner.0;
+                        let method = GetValidatorsSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/astria.sequencerblock.v1alpha1.SequencerService/GetAbciInfo" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetAbciInfoSvc<T: SequencerService>(pub Arc<T>);
+                    impl<
+                        T: SequencerService,
+                    > tonic::server::UnaryService<super::GetAbciInfoRequest>
+                    for GetAbciInfoSvc<T> {
+                        type Response = ::tendermint_proto::abci::ResponseInfo;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::GetAbciInfoRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as SequencerService>::get_abci_info(inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let inner = inner.0;
+                        let method = GetAbciInfoSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(

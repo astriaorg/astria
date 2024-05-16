@@ -8,6 +8,13 @@ deps:
   - buf.build/googleapis/googleapis
   - buf.build/astria/primitives
 lint:
+  ignore_only:
+    PACKAGE_VERSION_SUFFIX:
+      - "astria_vendored_sequencerblock/tendermint"
+    ENUM_ZERO_VALUE_SUFFIX:
+      - "astria_vendored_sequencerblock/tendermint"
+    PACKAGE_DIRECTORY_MATCH:
+      - "astria_vendored_sequencerblock/tendermint"
   use:
     - BASIC
     - ENUM_VALUE_PREFIX
