@@ -20,23 +20,28 @@ use astria_eyre::eyre::{
 };
 use bytes::Bytes;
 use pbjson_types::Timestamp;
-use tonic::transport::Channel;
+use tonic::transport::{
+    Channel,
+    Endpoint,
+    Uri,
+};
 use tracing::instrument;
 
 /// A newtype wrapper around [`ExecutionServiceClient`] to work with
 /// idiomatic types.
 #[derive(Clone)]
 pub(crate) struct Client {
-    uri: tonic::transport::Uri,
+    uri: Uri,
     inner: ExecutionServiceClient<Channel>,
 }
 
 impl Client {
-    #[instrument(skip_all, fields(rollup_uri = %uri))]
-    pub(crate) async fn connect(uri: tonic::transport::Uri) -> eyre::Result<Self> {
-        let inner = ExecutionServiceClient::connect(uri.clone())
-            .await
-            .wrap_err("failed constructing execution service client")?;
+    pub(crate) fn connect_lazy(uri: &str) -> eyre::Result<Self> {
+        let uri: Uri = uri
+            .parse()
+            .wrap_err("failed to parse provided string as uri")?;
+        let endpoint = Endpoint::from(uri.clone()).connect_lazy();
+        let inner = ExecutionServiceClient::new(endpoint);
         Ok(Self {
             uri,
             inner,

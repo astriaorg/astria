@@ -214,7 +214,11 @@ impl Handle<StateIsInit> {
     }
 }
 
+/// The private inner executor implementing all the logic.
 pub(crate) struct Executor {
+    /// The execution client driving the rollup.
+    client: Client,
+
     /// The mode under which this executor (and hence conductor) runs.
     mode: CommitLevel,
 
@@ -231,8 +235,6 @@ pub(crate) struct Executor {
     /// Token to listen for Conductor being shut down.
     shutdown: CancellationToken,
 
-    rollup_address: tonic::transport::Uri,
-
     /// Tracks the status of the execution chain.
     state: StateSender,
 
@@ -246,11 +248,7 @@ pub(crate) struct Executor {
 impl Executor {
     #[instrument(skip_all)]
     pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
-        let client = Client::connect(self.rollup_address.clone())
-            .await
-            .wrap_err("failed connecting to rollup node")?;
-
-        self.set_initial_node_state(client.clone())
+        self.set_initial_node_state()
             .await
             .wrap_err("failed setting initial rollup node state")?;
 
@@ -288,7 +286,7 @@ impl Executor {
                         block.hash = %telemetry::display::base64(&block.block_hash),
                         "received block from celestia reader",
                     );
-                    if let Err(error) = self.execute_firm(client.clone(), block).await {
+                    if let Err(error) = self.execute_firm(block).await {
                         break Err(error).wrap_err("failed executing firm block");
                     }
                 }
@@ -301,7 +299,7 @@ impl Executor {
                         block.hash = %telemetry::display::base64(&block.block_hash()),
                         "received block from sequencer reader",
                     );
-                    if let Err(error) = self.execute_soft(client.clone(), block).await {
+                    if let Err(error) = self.execute_soft(block).await {
                         break Err(error).wrap_err("failed executing soft block");
                     }
                 }
@@ -369,11 +367,7 @@ impl Executor {
         block.hash = %telemetry::display::base64(&block.block_hash()),
         block.height = block.height().value(),
     ))]
-    async fn execute_soft(
-        &mut self,
-        client: Client,
-        block: FilteredSequencerBlock,
-    ) -> eyre::Result<()> {
+    async fn execute_soft(&mut self, block: FilteredSequencerBlock) -> eyre::Result<()> {
         // TODO(https://github.com/astriaorg/astria/issues/624): add retry logic before failing hard.
         let executable_block = ExecutableBlock::from_sequencer(block, self.state.rollup_id());
 
@@ -410,14 +404,14 @@ impl Executor {
         // The parent hash of the next block is the hash of the block at the current head.
         let parent_hash = self.state.soft_hash();
         let executed_block = self
-            .execute_block(client.clone(), parent_hash, executable_block)
+            .execute_block(parent_hash, executable_block)
             .await
             .wrap_err("failed to execute block")?;
 
         self.does_block_response_fulfill_contract(ExecutionKind::Soft, &executed_block)
             .wrap_err("execution API server violated contract")?;
 
-        self.update_commitment_state(client.clone(), Update::OnlySoft(executed_block.clone()))
+        self.update_commitment_state(Update::OnlySoft(executed_block.clone()))
             .await
             .wrap_err("failed to update soft commitment state")?;
 
@@ -431,11 +425,7 @@ impl Executor {
         block.hash = %telemetry::display::base64(&block.block_hash),
         block.height = block.sequencer_height().value(),
     ))]
-    async fn execute_firm(
-        &mut self,
-        client: Client,
-        block: ReconstructedBlock,
-    ) -> eyre::Result<()> {
+    async fn execute_firm(&mut self, block: ReconstructedBlock) -> eyre::Result<()> {
         let executable_block = ExecutableBlock::from_reconstructed(block);
         let expected_height = self.state.next_expected_firm_sequencer_height();
         let block_height = executable_block.height;
@@ -459,7 +449,7 @@ impl Executor {
         let update = if self.should_execute_firm_block() {
             let parent_hash = self.state.firm_hash();
             let executed_block = self
-                .execute_block(client.clone(), parent_hash, executable_block)
+                .execute_block(parent_hash, executable_block)
                 .await
                 .wrap_err("failed to execute block")?;
             self.does_block_response_fulfill_contract(ExecutionKind::Firm, &executed_block)
@@ -477,7 +467,7 @@ impl Executor {
                 "pending block not found for block number in cache. THIS SHOULD NOT HAPPEN. \
                  Trying to fetch the already-executed block from the rollup before giving up."
             );
-            match client.clone().get_block(block_number).await {
+            match self.client.get_block(block_number).await {
                 Ok(block) => Update::OnlyFirm(block),
                 Err(error) => {
                     error!(
@@ -493,7 +483,7 @@ impl Executor {
             }
         };
 
-        self.update_commitment_state(client.clone(), update)
+        self.update_commitment_state(update)
             .await
             .wrap_err("failed to setting both commitment states to executed block")?;
         Ok(())
@@ -511,7 +501,6 @@ impl Executor {
     ))]
     async fn execute_block(
         &mut self,
-        mut client: Client,
         parent_hash: Bytes,
         block: ExecutableBlock,
     ) -> eyre::Result<Block> {
@@ -521,7 +510,8 @@ impl Executor {
             ..
         } = block;
 
-        let executed_block = client
+        let executed_block = self
+            .client
             .execute_block(parent_hash, transactions, timestamp)
             .await
             .wrap_err("failed to run execute_block RPC")?;
@@ -536,20 +526,23 @@ impl Executor {
     }
 
     #[instrument(skip_all)]
-    async fn set_initial_node_state(&mut self, client: Client) -> eyre::Result<()> {
+    async fn set_initial_node_state(&mut self) -> eyre::Result<()> {
         let genesis_info = {
-            let mut client = client.clone();
-            async move {
-                client
+            // let mut client = self.client.clone();
+            async {
+                self.client
+                    .clone()
                     .get_genesis_info()
                     .await
                     .wrap_err("failed getting genesis info")
             }
         };
         let commitment_state = {
-            let mut client = client.clone();
-            async move {
-                client
+            // let mut client = self.client.clone();
+            // async move {
+            async {
+                self.client
+                    .clone()
                     .get_commitment_state()
                     .await
                     .wrap_err("failed getting commitment state")
@@ -568,11 +561,7 @@ impl Executor {
     }
 
     #[instrument(skip_all)]
-    async fn update_commitment_state(
-        &mut self,
-        mut client: Client,
-        update: Update,
-    ) -> eyre::Result<()> {
+    async fn update_commitment_state(&mut self, update: Update) -> eyre::Result<()> {
         use Update::{
             OnlyFirm,
             OnlySoft,
@@ -588,7 +577,8 @@ impl Executor {
             .soft(soft)
             .build()
             .wrap_err("failed constructing commitment state")?;
-        let new_state = client
+        let new_state = self
+            .client
             .update_commitment_state(commitment_state)
             .await
             .wrap_err("failed updating remote commitment state")?;
