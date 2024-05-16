@@ -9,7 +9,6 @@ use std::{
     io::Write,
     mem,
     net::SocketAddr,
-    str::FromStr,
     time::Duration,
 };
 
@@ -651,8 +650,7 @@ impl TestSequencerRelayer {
         use tendermint_rpc::endpoint::status;
 
         let mut status_response: status::Response = serde_json::from_str(STATUS_RESPONSE).unwrap();
-        status_response.node_info.network =
-            tendermint::chain::Id::from_str(&self.actual_sequencer_chain_id).unwrap();
+        status_response.node_info.network = self.actual_sequencer_chain_id.parse().unwrap();
 
         let response = Wrapper::new_with_id(Id::Num(1), Some(status_response), None);
         wiremock::Mock::given(body_partial_json(json!({"method": "status"})))

@@ -14,6 +14,7 @@ use astria_core::{
 use astria_eyre::eyre::{
     self,
     bail,
+    ensure,
     eyre,
     WrapErr as _,
 };
@@ -329,21 +330,20 @@ async fn confirm_sequencer_chain_id(
             },
         );
 
-    let actual_sequencer_chain_id =
+    let received_sequencer_chain_id =
         tryhard::retry_fn(move || fetch_sequencer_chain_id(sequencer_cometbft_client.clone()))
             .with_config(retry_config)
             .in_current_span()
             .await
             .wrap_err("retry attempts exhausted; bailing")?;
 
-    if actual_sequencer_chain_id == configured_sequencer_chain_id {
-        info!(sequencer_chain_id = %configured_sequencer_chain_id, "confirmed sequencer chain id");
-        return Ok(());
-    }
-    bail!(
-        "mismatch in sequencer chain id, configured id: `{configured_sequencer_chain_id}`, actual \
-         id: `{actual_sequencer_chain_id}`"
-    )
+    ensure!(
+        received_sequencer_chain_id == configured_sequencer_chain_id,
+        "configured sequencer chain ID does not match received; configured: \
+         `{configured_sequencer_chain_id}`, received: `{received_sequencer_chain_id}`"
+    );
+    info!(sequencer_chain_id = %configured_sequencer_chain_id, "confirmed sequencer chain id");
+    Ok(())
 }
 
 async fn fetch_sequencer_chain_id(

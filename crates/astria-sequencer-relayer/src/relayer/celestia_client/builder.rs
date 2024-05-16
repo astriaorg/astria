@@ -44,8 +44,13 @@ pub(in crate::relayer) enum BuilderError {
     #[error("the celestia node info response was empty")]
     EmptyNodeInfo,
     /// Mismatch in Celestia chain ID.
-    #[error("mismatch in celestia chain id, configured id: `{configured}`, actual id: `{actual}`")]
-    MismatchedCelestiaChainId { configured: String, actual: String },
+    #[error(
+        "mismatch in celestia chain id, configured id: `{configured}`, received id: `{received}`"
+    )]
+    MismatchedCelestiaChainId {
+        configured: String,
+        received: String,
+    },
 }
 
 /// An error while encoding a Bech32 string.
@@ -88,7 +93,7 @@ impl Builder {
 
     /// Returns a new `CelestiaClient` initialized with info retrieved from the Celestia app.
     pub(in crate::relayer) async fn try_build(self) -> Result<CelestiaClient, BuilderError> {
-        let actual_celestia_chain_id = self.fetch_celestia_chain_id().await?;
+        let reeceived_celestia_chain_id = self.fetch_celestia_chain_id().await?;
 
         let Self {
             configured_celestia_chain_id,
@@ -98,14 +103,14 @@ impl Builder {
             state,
         } = self;
 
-        if actual_celestia_chain_id != configured_celestia_chain_id {
+        if reeceived_celestia_chain_id != configured_celestia_chain_id {
             return Err(BuilderError::MismatchedCelestiaChainId {
                 configured: configured_celestia_chain_id,
-                actual: actual_celestia_chain_id,
+                received: reeceived_celestia_chain_id,
             });
         }
 
-        info!(celestia_chain_id = %actual_celestia_chain_id, "confirmed celestia chain id");
+        info!(celestia_chain_id = %reeceived_celestia_chain_id, "confirmed celestia chain id");
         state.set_celestia_connected(true);
 
         let tx_client = TxClient::new(grpc_channel.clone());
@@ -114,7 +119,7 @@ impl Builder {
             tx_client,
             signing_keys,
             address,
-            chain_id: actual_celestia_chain_id,
+            chain_id: reeceived_celestia_chain_id,
         })
     }
 
