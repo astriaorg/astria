@@ -23,7 +23,10 @@ pub enum Command {
     CopyGenesisState(genesis_parser::Args),
 
     /// Parse blob data
-    #[command(arg_required_else_help = true)]
+    #[command(
+        arg_required_else_help = true,
+        about = "Parse blob data from an arg, a file, or stdin"
+    )]
     ParseBlob(blob_parser::Args),
 }
 

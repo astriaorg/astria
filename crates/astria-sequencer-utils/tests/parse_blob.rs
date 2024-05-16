@@ -1,10 +1,12 @@
 use std::{
     fs,
-    path::Path,
-    process::Command,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
-use assert_cmd::prelude::*;
+use assert_cmd::Command;
 use astria_eyre::{
     eyre::WrapErr,
     Result,
@@ -12,6 +14,7 @@ use astria_eyre::{
 use predicates::prelude::*;
 
 struct Resources {
+    input_path: PathBuf,
     input: String,
     expected_brief_display: String,
     expected_brief_json: String,
@@ -35,6 +38,7 @@ impl Resources {
             fs::read_to_string(&path).wrap_err(format!("failed to read {}", path.display()))
         };
         Ok(Resources {
+            input_path: dir.join("input.txt"),
             input: read_file("input.txt")?,
             expected_brief_display: read_file("expected_brief_output.txt")?,
             expected_brief_json: read_file("expected_brief_output.json")?,
@@ -45,14 +49,14 @@ impl Resources {
 
     #[track_caller]
     fn check_parse_blob(self) -> Result<()> {
-        // No verbose flag, default format ("display").
+        // No verbose flag, default format ("display"), input via unnamed arg.
         let mut cmd = new_command()?;
         cmd.arg(&self.input)
             .assert()
             .success()
-            .stdout(predicate::eq(self.expected_brief_display));
+            .stdout(predicate::eq(self.expected_brief_display.clone()));
 
-        // No verbose flag, JSON format.
+        // No verbose flag, JSON format, input via unnamed arg.
         let mut cmd = new_command()?;
         cmd.arg(&self.input)
             .arg("-fjson")
@@ -60,7 +64,7 @@ impl Resources {
             .success()
             .stdout(predicate::eq(self.expected_brief_json));
 
-        // With verbose flag, default format ("display").
+        // With verbose flag, default format ("display"), input via unnamed arg.
         let mut cmd = new_command()?;
         cmd.arg(&self.input)
             .arg("-v")
@@ -68,7 +72,7 @@ impl Resources {
             .success()
             .stdout(predicate::eq(self.expected_verbose_display));
 
-        // With verbose flag, JSON format.
+        // With verbose flag, JSON format, input via unnamed arg.
         let mut cmd = new_command()?;
         cmd.arg(&self.input)
             .arg("--verbose")
@@ -77,6 +81,21 @@ impl Resources {
             .assert()
             .success()
             .stdout(predicate::eq(self.expected_verbose_json));
+
+        // No verbose flag, default format ("display"), input from file.
+        let mut cmd = new_command()?;
+        cmd.arg(self.input_path)
+            .assert()
+            .success()
+            .stdout(predicate::eq(self.expected_brief_display.clone()));
+
+        // No verbose flag, default format ("display"), input via `-` (stdin).
+        let mut cmd = new_command()?;
+        cmd.arg("-")
+            .write_stdin(self.input)
+            .assert()
+            .success()
+            .stdout(predicate::eq(self.expected_brief_display));
 
         Ok(())
     }

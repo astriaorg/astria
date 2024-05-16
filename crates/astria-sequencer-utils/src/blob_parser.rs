@@ -5,7 +5,10 @@ use std::{
         Formatter,
         Write,
     },
+    fs,
+    io,
     num::NonZeroUsize,
+    path::Path,
 };
 
 use astria_core::{
@@ -59,19 +62,12 @@ use serde::Serialize;
 
 #[derive(clap::Args, Debug)]
 pub struct Args {
-    /// Base64-encoded blob data
-    #[arg(value_name = "BLOB")]
+    /// Base64-encoded blob data, or a file containing this, or stdin if `-`
+    #[arg(value_name = "BLOB|PATH")]
     input: String,
 
     /// Configure formatting of output
-    #[arg(
-        short,
-        long,
-        num_args = 0..=1,
-        default_value_t = Format::Display,
-        default_missing_value = "always",
-        value_enum
-    )]
+    #[arg(short, long, default_value_t = Format::Display, value_enum)]
     format: Format,
 
     /// Display verbose output (e.g. displays full contents of transactions in rollup data)
@@ -97,7 +93,7 @@ pub fn run(
         verbose,
     }: Args,
 ) -> Result<()> {
-    let parsed_blob = parse(input, verbose)?;
+    let parsed_blob = parse(&input, verbose)?;
     match format {
         Format::Display => println!("\n{parsed_blob}"),
         Format::Json => println!(
@@ -108,10 +104,8 @@ pub fn run(
     Ok(())
 }
 
-fn parse(input: String, verbose: bool) -> Result<ParsedBlob> {
-    let raw = BASE64_STANDARD
-        .decode(input)
-        .wrap_err("failed to decode as base64")?;
+fn parse(input: &str, verbose: bool) -> Result<ParsedBlob> {
+    let raw = get_decoded_blob_data(input)?;
     #[allow(clippy::cast_precision_loss)]
     let compressed_size = raw.len() as f32;
     let decompressed =
@@ -129,6 +123,27 @@ fn parse(input: String, verbose: bool) -> Result<ParsedBlob> {
         decompressed_size,
         compression_ratio,
     })
+}
+
+fn get_decoded_blob_data(input: &str) -> Result<Vec<u8>> {
+    if input == "-" {
+        let encoded = io::read_to_string(io::stdin().lock()).wrap_err("failed to read stdin")?;
+        return BASE64_STANDARD
+            .decode(encoded.trim())
+            .wrap_err("failed to decode stdin data as base64");
+    }
+
+    if Path::new(input).is_file() {
+        let encoded =
+            fs::read_to_string(input).wrap_err_with(|| format!("failed to read file `{input}`"))?;
+        return BASE64_STANDARD
+            .decode(encoded.trim())
+            .wrap_err_with(|| format!("failed to decode contents of `{input}` as base64"));
+    }
+
+    BASE64_STANDARD
+        .decode(input.trim())
+        .wrap_err("failed to decode provided blob data as base64")
 }
 
 fn parse_list(decompressed: Bytes, verbose: bool) -> Result<ParsedList> {
