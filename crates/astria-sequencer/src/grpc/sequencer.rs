@@ -3,14 +3,22 @@ use std::sync::Arc;
 use astria_core::{
     generated::sequencerblock::v1alpha1::{
         sequencer_service_server::SequencerService,
-        FilteredSequencerBlock as RawFilteredSequencerBlock,
+        ChainId,
+        Commit,
+        FilteredSequencerBlock,
+        GetAbciInfoRequest,
+        GetChainIdRequest,
+        GetCommitRequest,
         GetFilteredSequencerBlockRequest,
         GetSequencerBlockRequest,
-        SequencerBlock as RawSequencerBlock,
+        GetValidatorsRequest,
+        SequencerBlock,
+        Validators,
     },
     primitive::v1::RollupId,
 };
 use cnidarium::Storage;
+use tendermint_proto::abci::ResponseInfo;
 use tonic::{
     Request,
     Response,
@@ -42,7 +50,7 @@ impl SequencerService for SequencerServer {
     async fn get_sequencer_block(
         self: Arc<Self>,
         request: Request<GetSequencerBlockRequest>,
-    ) -> Result<Response<RawSequencerBlock>, Status> {
+    ) -> Result<Response<SequencerBlock>, Status> {
         let snapshot = self.storage.latest_snapshot();
         let curr_block_height = snapshot.get_block_height().await.map_err(|e| {
             Status::internal(format!("failed to get block height from storage: {e}"))
@@ -72,7 +80,7 @@ impl SequencerService for SequencerServer {
     async fn get_filtered_sequencer_block(
         self: Arc<Self>,
         request: Request<GetFilteredSequencerBlockRequest>,
-    ) -> Result<Response<RawFilteredSequencerBlock>, Status> {
+    ) -> Result<Response<FilteredSequencerBlock>, Status> {
         let snapshot = self.storage.latest_snapshot();
         let curr_block_height = snapshot.get_block_height().await.map_err(|e| {
             Status::internal(format!("failed to get block height from storage: {e}"))
@@ -141,7 +149,7 @@ impl SequencerService for SequencerServer {
 
         let all_rollup_ids = all_rollup_ids.into_iter().map(RollupId::to_vec).collect();
 
-        let block = RawFilteredSequencerBlock {
+        let block = FilteredSequencerBlock {
             block_hash: block_hash.to_vec(),
             header: Some(header.into_raw()),
             rollup_transactions,
@@ -151,6 +159,65 @@ impl SequencerService for SequencerServer {
         };
 
         Ok(Response::new(block))
+    }
+
+    #[instrument(skip_all)]
+    async fn get_chain_id(
+        self: Arc<Self>,
+        _: Request<GetChainIdRequest>,
+    ) -> Result<Response<ChainId>, Status> {
+        let snapshot = self.storage.latest_snapshot();
+        let chain_id = snapshot
+            .get_chain_id()
+            .await
+            .map_err(|e| Status::internal(format!("failed to get chain id from storage: {e}")))?;
+
+        Ok(Response::new(ChainId {
+            inner: chain_id.to_string(),
+        }))
+    }
+
+    #[instrument(skip_all)]
+    async fn get_commit(
+        self: Arc<Self>,
+        request: Request<GetCommitRequest>,
+    ) -> Result<Response<Commit>, Status> {
+        // call into cometbft to retrieve this
+        todo!()
+    }
+
+    #[instrument(skip_all)]
+    async fn get_validators(
+        self: Arc<Self>,
+        request: Request<GetValidatorsRequest>,
+    ) -> Result<Response<Validators>, Status> {
+        // call into cometbft to retrieve this
+        todo!()
+    }
+
+    #[instrument(skip_all)]
+    async fn get_abci_info(
+        self: Arc<Self>,
+        _: Request<GetAbciInfoRequest>,
+    ) -> Result<Response<ResponseInfo>, Status> {
+        let snapshot = self.storage.latest_snapshot();
+        let block_height = snapshot.get_block_height().await.unwrap_or(0);
+        let app_hash = snapshot
+            .root_hash()
+            .await
+            .map_err(|e| Status::internal(format!("failed to get app hash from storage: {e}")))?;
+
+        let response = ResponseInfo {
+            version: env!("CARGO_PKG_VERSION").to_string(),
+            app_version: 1,
+            last_block_height: u32::try_from(block_height)
+                .expect("block height must fit into u32")
+                .into(),
+            last_block_app_hash: app_hash.0.to_vec().into(),
+            data: "astria_sequencer".to_string(),
+        };
+
+        Ok(Response::new(response))
     }
 }
 

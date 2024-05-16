@@ -364,8 +364,8 @@ impl ::prost::Name for GetChainIdRequest {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ChainId {
     /// The chain id of the sequencer.
-    #[prost(uint64, tag = "1")]
-    pub inner: u64,
+    #[prost(string, tag = "1")]
+    pub inner: ::prost::alloc::string::String,
 }
 impl ::prost::Name for ChainId {
     const NAME: &'static str = "ChainId";
