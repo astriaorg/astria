@@ -728,7 +728,7 @@ fn does_block_response_fulfill_contract(
         ExecutionKind::Firm => state.firm_number(),
         ExecutionKind::Soft => state.soft_number(),
     };
-    let expected = current + 1;
+    let expected = current.saturating_add(1);
     let actual = block.number();
     if actual == expected {
         Ok(())

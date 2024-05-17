@@ -1,4 +1,5 @@
 use anyhow::{
+    anyhow,
     ensure,
     Context as _,
     Result,
@@ -47,8 +48,11 @@ impl ActionHandler for MintAction {
             .get_account_balance(self.to, native_asset)
             .await
             .context("failed getting `to` account balance")?;
+        let new_balance = to_balance
+            .checked_add(self.amount)
+            .ok_or_else(|| anyhow!("`to` balance would overflow"))?;
         state
-            .put_account_balance(self.to, native_asset, to_balance + self.amount)
+            .put_account_balance(self.to, native_asset, new_balance)
             .context("failed updating `to` account balance")?;
         Ok(())
     }

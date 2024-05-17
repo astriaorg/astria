@@ -20,7 +20,9 @@ pub(crate) struct TransactionPriority {
 
 impl TransactionPriority {
     fn nonce_diff(&self) -> u32 {
-        self.transaction_nonce - self.current_account_nonce
+        self.transaction_nonce
+            .checked_sub(self.current_account_nonce)
+            .expect("transaction nonce should not be less than current account nonce")
     }
 }
 

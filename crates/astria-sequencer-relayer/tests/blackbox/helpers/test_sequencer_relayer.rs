@@ -532,7 +532,7 @@ impl TestSequencerRelayer {
         let within = Duration::from_millis(num_milliseconds);
         if let Ok(value) = tokio::time::timeout(within, future).await {
             let elapsed = start.elapsed();
-            if elapsed * 5 > within * 4 {
+            if elapsed.checked_mul(5).unwrap() > within.checked_mul(4).unwrap() {
                 error!(%context,
                     "elapsed time ({} seconds) was over 80% of the specified timeout ({} \
                      seconds) - consider increasing the timeout",
