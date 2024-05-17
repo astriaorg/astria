@@ -663,6 +663,7 @@ dependencies = [
  "tracing",
  "walkdir",
  "which",
+ "zeroize",
 ]
 
 [[package]]
@@ -853,7 +854,6 @@ dependencies = [
  "tracing",
  "tryhard",
  "wiremock",
- "zeroize",
 ]
 
 [[package]]
@@ -2577,7 +2577,6 @@ dependencies = [
  "curve25519-dalek-ng",
  "hex",
  "rand_core 0.6.4",
- "serde",
  "sha2 0.9.9",
  "thiserror",
  "zeroize",

@@ -10,13 +10,16 @@ use std::{
     time::Duration,
 };
 
-use astria_core::protocol::{
-    abci::AbciErrorCode,
-    transaction::v1alpha1::{
-        action::SequenceAction,
-        SignedTransaction,
-        TransactionParams,
-        UnsignedTransaction,
+use astria_core::{
+    crypto::SigningKey,
+    protocol::{
+        abci::AbciErrorCode,
+        transaction::v1alpha1::{
+            action::SequenceAction,
+            SignedTransaction,
+            TransactionParams,
+            UnsignedTransaction,
+        },
     },
 };
 use astria_eyre::eyre::{
@@ -24,7 +27,6 @@ use astria_eyre::eyre::{
     eyre,
     WrapErr as _,
 };
-use ed25519_consensus::SigningKey;
 use futures::{
     future::{
         self,

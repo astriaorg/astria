@@ -1,6 +1,7 @@
 #[cfg(feature = "mint")]
 use astria_core::protocol::transaction::v1alpha1::action::MintAction;
 use astria_core::{
+    crypto::SigningKey,
     primitive::v1::{
         asset,
         asset::DEFAULT_NATIVE_ASSET_DENOM,
@@ -23,7 +24,6 @@ use astria_core::{
     sequencerblock::v1alpha1::block::Deposit,
 };
 use cnidarium::StateDelta;
-use ed25519_consensus::SigningKey;
 use penumbra_ibc::params::IBCParameters;
 
 use crate::{

@@ -5,17 +5,15 @@ use std::{
 };
 
 use astria_core::{
+    crypto::SigningKey,
     primitive::v1::Address,
     protocol::transaction::v1alpha1::action::SequenceAction,
 };
-use astria_eyre::{
+use astria_eyre::eyre::{
+    self,
     eyre,
-    eyre::{
-        eyre,
-        WrapErr as _,
-    },
+    WrapErr as _,
 };
-use ed25519_consensus::SigningKey;
 use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 

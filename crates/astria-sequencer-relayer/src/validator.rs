@@ -1,36 +1,34 @@
 use std::path::Path;
 
+use astria_core::crypto::SigningKey;
 use astria_eyre::eyre::{
     self,
     bail,
     WrapErr as _,
 };
-use ed25519_consensus::{
-    SigningKey,
-    VerificationKey,
-};
+use ed25519_consensus::VerificationKey;
 use tendermint::account;
 use tendermint_config::PrivValidatorKey;
 use tracing::instrument;
-use zeroize::{
-    Zeroize,
-    ZeroizeOnDrop,
-};
 
 /// `Validator` holds the ed25519 keys to sign and verify tendermint
 /// messages. It also contains its address (`AccountId`) in the tendermint network.
-#[derive(Clone, Debug, Zeroize, ZeroizeOnDrop)]
+#[derive(Clone, Debug)]
 pub(crate) struct Validator {
     /// The tendermint validator account address; defined as
     /// Sha256(verification_key)[..20].
-    #[zeroize(skip)]
     pub(crate) address: account::Id,
 
     /// The ed25519 signing key of this validator.
+    // allow: this entire struct is due to get removed as part of
+    // https://github.com/astriaorg/astria/issues/1010
+    #[allow(dead_code)]
     pub(crate) signing_key: SigningKey,
 
-    #[zeroize(skip)]
     /// The ed25519 verification key of this validator.
+    // allow: this entire struct is due to get removed as part of
+    // https://github.com/astriaorg/astria/issues/1010
+    #[allow(dead_code)]
     pub(crate) verification_key: VerificationKey,
 }
 
@@ -55,7 +53,7 @@ impl Validator {
         let Some(tendermint_signing_key) = priv_key.ed25519_signing_key().cloned() else {
             bail!("deserialized private key was not ed25519");
         };
-        let signing_key = tendermint_signing_key.try_into().wrap_err(
+        let signing_key = tendermint_signing_key.as_bytes().try_into().wrap_err(
             "failed constructing ed25519 signing key from deserialized tendermint private key",
         )?;
         let Some(tendermint_verification_key) = pub_key.ed25519() else {

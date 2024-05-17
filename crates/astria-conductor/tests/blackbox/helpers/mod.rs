@@ -510,12 +510,12 @@ pub fn make_blobs(heights: &[u32]) -> Blobs {
     }
 }
 
-fn signing_key() -> ed25519_consensus::SigningKey {
+fn signing_key() -> astria_core::crypto::SigningKey {
     use rand_chacha::{
         rand_core::SeedableRng as _,
         ChaChaRng,
     };
-    ed25519_consensus::SigningKey::new(ChaChaRng::seed_from_u64(0))
+    astria_core::crypto::SigningKey::new(ChaChaRng::seed_from_u64(0))
 }
 
 fn validator() -> tendermint::validator::Info {
