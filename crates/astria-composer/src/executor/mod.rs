@@ -10,13 +10,16 @@ use std::{
     time::Duration,
 };
 
-use astria_core::protocol::{
-    abci::AbciErrorCode,
-    transaction::v1alpha1::{
-        action::SequenceAction,
-        SignedTransaction,
-        TransactionParams,
-        UnsignedTransaction,
+use astria_core::{
+    crypto::SigningKey,
+    protocol::{
+        abci::AbciErrorCode,
+        transaction::v1alpha1::{
+            action::SequenceAction,
+            SignedTransaction,
+            TransactionParams,
+            UnsignedTransaction,
+        },
     },
 };
 use astria_eyre::eyre::{
@@ -24,7 +27,6 @@ use astria_eyre::eyre::{
     eyre,
     WrapErr as _,
 };
-use ed25519_consensus::SigningKey;
 use futures::{
     future::{
         self,
@@ -37,7 +39,6 @@ use futures::{
 };
 use pin_project_lite::pin_project;
 use prost::Message as _;
-use secrecy::Zeroize as _;
 use sequencer_client::{
     tendermint_rpc::endpoint::broadcast::tx_sync,
     Address,
@@ -143,12 +144,6 @@ impl Handle {
         self.serialized_rollup_transactions_tx
             .send_timeout(sequence_action, timeout)
             .await
-    }
-}
-
-impl Drop for Executor {
-    fn drop(&mut self) {
-        self.sequencer_key.zeroize();
     }
 }
 
@@ -536,12 +531,6 @@ pin_project! {
         #[pin]
         state: SubmitState,
         bundle: SizedBundle,
-    }
-
-    impl PinnedDrop for SubmitFut {
-        fn drop(this: Pin<&mut Self>) {
-            this.project().signing_key.zeroize();
-        }
     }
 }
 

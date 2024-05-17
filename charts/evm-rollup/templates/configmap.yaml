@@ -63,11 +63,12 @@ data:
   OTEL_EXPORTER_OTLP_HEADERS: "{{ .Values.config.rollup.otel.otlpHeaders }}"
   OTEL_EXPORTER_OTLP_TRACE_HEADERS: "{{ .Values.config.rollup.otel.traceHeaders }}"
   OTEL_SERVICE_NAME: "{{ tpl .Values.config.rollup.otel.serviceNamePrefix . }}-composer"
-  {{- if not .Values.secretProvider.enabled }}
-  ASTRIA_COMPOSER_PRIVATE_KEY: "{{ .Values.config.sequencer.privateKey }}"
-  {{- end }}
   {{- if not .Values.global.dev }}
+  {{- if not .Values.secretProvider.enabled }}
+  ASTRIA_COMPOSER_PRIVATE_KEY: "{{ .Values.config.sequencer.privateKey.devContent }}"
+  {{- end }}
   {{- else }}
+  ASTRIA_COMPOSER_PRIVATE_KEY_FILE: "/var/secrets/{{ .Values.config.sequencer.privateKey.secret.filename }}"
   {{- end }}
 ---
 apiVersion: v1
@@ -259,3 +260,15 @@ metadata:
 data:
   VISUALIZER__SERVER__GRPC__ENABLED: "false"
   VISUALIZER__SERVER__HTTP__ADDR: "0.0.0.0:8151"
+---
+{{- if not .Values.secretProvider.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: {{ include "rollup.namespace" .  }}
+  name: sequencer-private-key
+data:
+  {{ .Values.config.sequencer.privateKey.secret.filename }}: |
+    {{ .Values.config.sequencer.privateKey.devContent }}
+---
+{{- end }}

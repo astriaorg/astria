@@ -268,7 +268,7 @@ mod test {
     ) -> (validators::Response, account::Id, Commit) {
         use rand::rngs::OsRng;
 
-        let signing_key = ed25519_consensus::SigningKey::new(OsRng);
+        let signing_key = astria_core::crypto::SigningKey::new(OsRng);
         let pub_key = tendermint::public_key::PublicKey::from_raw_ed25519(
             signing_key.verification_key().as_ref(),
         )

@@ -219,6 +219,7 @@ mod test {
     };
 
     use astria_core::{
+        crypto::SigningKey,
         primitive::v1::{
             asset::DEFAULT_NATIVE_ASSET_DENOM,
             Address,
@@ -231,10 +232,7 @@ mod test {
         },
     };
     use bytes::Bytes;
-    use ed25519_consensus::{
-        SigningKey,
-        VerificationKey,
-    };
+    use ed25519_consensus::VerificationKey;
     use prost::Message as _;
     use rand::rngs::OsRng;
     use tendermint::{

@@ -1,6 +1,5 @@
 use ed25519_consensus::{
     Signature,
-    SigningKey,
     VerificationKey,
 };
 use prost::{
@@ -9,6 +8,7 @@ use prost::{
 };
 
 use super::raw;
+use crate::crypto::SigningKey;
 
 pub mod action;
 pub use action::Action;

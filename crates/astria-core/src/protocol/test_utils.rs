@@ -13,6 +13,7 @@ use super::{
     },
 };
 use crate::{
+    crypto::SigningKey,
     primitive::v1::{
         asset::default_native_asset_id,
         derive_merkle_tree_from_rollup_txs,
@@ -49,7 +50,7 @@ pub struct ConfigureSequencerBlock {
     pub chain_id: Option<String>,
     pub height: u32,
     pub proposer_address: Option<tendermint::account::Id>,
-    pub signing_key: Option<ed25519_consensus::SigningKey>,
+    pub signing_key: Option<SigningKey>,
     pub sequence_data: Vec<(RollupId, Vec<u8>)>,
     pub deposits: Vec<Deposit>,
     pub unix_timestamp: UnixTimeStamp,
@@ -81,8 +82,7 @@ impl ConfigureSequencerBlock {
         let block_hash = block_hash.unwrap_or_default();
         let chain_id = chain_id.unwrap_or_else(|| "test".to_string());
 
-        let signing_key =
-            signing_key.unwrap_or_else(|| ed25519_consensus::SigningKey::new(rand::rngs::OsRng));
+        let signing_key = signing_key.unwrap_or_else(|| SigningKey::new(rand::rngs::OsRng));
 
         let proposer_address = proposer_address.unwrap_or_else(|| {
             let public_key: tendermint::crypto::ed25519::VerificationKey =
