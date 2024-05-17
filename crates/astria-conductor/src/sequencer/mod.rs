@@ -4,7 +4,6 @@ use std::time::Duration;
 
 use astria_eyre::eyre::{
     self,
-    bail,
     Report,
     WrapErr as _,
 };
@@ -80,31 +79,18 @@ impl Reader {
             sequencer_cometbft_client.stream_latest_height(sequencer_block_time)
         };
 
-        let latest_height = match latest_height_stream.next().await {
-            None => bail!("subscription to sequencer for latest heights failed immediately"),
-            Some(Err(e)) => {
-                return Err(e).wrap_err("first latest height from sequencer was bad");
-            }
-            Some(Ok(height)) => height,
-        };
         let mut sequential_blocks = BlockCache::with_next_height(next_expected_height)
             .wrap_err("failed constructing sequential block cache")?;
+
         let mut blocks_from_heights = block_stream::BlocksFromHeightStream::new(
             executor.rollup_id(),
             next_expected_height,
-            latest_height,
             sequencer_grpc_client.clone(),
         );
 
         // Enqueued block waiting for executor to free up. Set if the executor exhibits
         // backpressure.
         let mut enqueued_block: Fuse<BoxFuture<Result<_, _>>> = future::Fuse::terminated();
-
-        info!(
-            next_expected_sequencer_height = next_expected_height.value(),
-            latest_height_of_sequencer = latest_height.value(),
-            "entering Sequencer read loop",
-        );
 
         let reason = loop {
             select! {

@@ -88,6 +88,7 @@ pub(crate) fn generate_rollup_datas_commitment(
 #[cfg(test)]
 mod test {
     use astria_core::{
+        crypto::SigningKey,
         primitive::v1::{
             asset::{
                 Denom,
@@ -104,7 +105,6 @@ mod test {
             UnsignedTransaction,
         },
     };
-    use ed25519_consensus::SigningKey;
     use rand::rngs::OsRng;
 
     use super::*;
