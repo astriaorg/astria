@@ -72,17 +72,13 @@ impl Heights {
     /// Sets the latest height observed from sequencer if greater than what was previously set.
     ///
     /// Returns `true` is greater, `false` if not.
-    pub(super) fn set_latest_observed_sequencer_height_if_greater(
-        &mut self,
-        candidate: Height,
-    ) -> bool {
-        let candidate = candidate.value();
-        let current = self
+    pub(super) fn set_latest_observed_sequencer_height_if_greater(&mut self, new: Height) -> bool {
+        let new = new.value();
+        let is_greater = self
             .latest_observed_sequencer_height
-            .get_or_insert(candidate);
-        let is_greater = candidate > *current;
+            .map_or(true, |old| new > old);
         if is_greater {
-            *current = candidate;
+            self.latest_observed_sequencer_height.replace(new);
         }
         is_greater
     }
