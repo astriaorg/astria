@@ -250,7 +250,7 @@ pub(crate) struct Executor {
 impl Executor {
     #[instrument(skip_all, err)]
     pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
-        tokio::select!(
+        select!(
             () = self.shutdown.clone().cancelled_owned() => {
                 info!(
                     "received shutdown signal while initializing task; \
