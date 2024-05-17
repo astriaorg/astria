@@ -8,7 +8,6 @@ use ed25519_consensus::{
     Signature,
     SigningKey as Ed25519SigningKey,
     VerificationKey,
-    // VerificationKeyBytes,
 };
 use rand::{
     CryptoRng,
@@ -19,6 +18,10 @@ use zeroize::{
     ZeroizeOnDrop,
 };
 
+/// An Ed25519 signing key.
+// *Implementation note*: this is currently a refinement type around
+// ed25519_consensus::SigningKey overriding its Debug implementation
+// to not accidentally leak it.
 #[derive(Clone, Zeroize, ZeroizeOnDrop)]
 pub struct SigningKey(Ed25519SigningKey);
 

@@ -816,7 +816,6 @@ dependencies = [
  "const_format",
  "cosmrs",
  "dirs",
- "ed25519-consensus",
  "futures",
  "futures-bounded",
  "hex",
