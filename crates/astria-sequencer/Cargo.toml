@@ -51,6 +51,7 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
 tendermint-proto = { workspace = true }
+tendermint-rpc = { workspace = true, features = ["http-client"] }
 tendermint = { workspace = true }
 tokio = { workspace = true, features = ["rt", "tracing"] }
 tonic = { workspace = true }
