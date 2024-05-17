@@ -37,6 +37,7 @@ pub enum Action {
     InitBridgeAccount(InitBridgeAccountAction),
     BridgeLock(BridgeLockAction),
     BridgeUnlock(BridgeUnlockAction),
+    FeeChange(FeeChangeAction),
 }
 
 impl Action {
@@ -56,6 +57,7 @@ impl Action {
             Action::InitBridgeAccount(act) => Value::InitBridgeAccountAction(act.into_raw()),
             Action::BridgeLock(act) => Value::BridgeLockAction(act.into_raw()),
             Action::BridgeUnlock(act) => Value::BridgeUnlockAction(act.into_raw()),
+            Action::FeeChange(act) => Value::FeeChangeAction(act.into_raw()),
         };
         raw::Action {
             value: Some(kind),
@@ -80,6 +82,7 @@ impl Action {
             Action::InitBridgeAccount(act) => Value::InitBridgeAccountAction(act.to_raw()),
             Action::BridgeLock(act) => Value::BridgeLockAction(act.to_raw()),
             Action::BridgeUnlock(act) => Value::BridgeUnlockAction(act.to_raw()),
+            Action::FeeChange(act) => Value::FeeChangeAction(act.to_raw()),
         };
         raw::Action {
             value: Some(kind),
@@ -139,6 +142,9 @@ impl Action {
             ),
             Value::BridgeUnlockAction(act) => Self::BridgeUnlock(
                 BridgeUnlockAction::try_from_raw(act).map_err(ActionError::bridge_unlock)?,
+            ),
+            Value::FeeChangeAction(act) => Self::FeeChange(
+                FeeChangeAction::try_from_raw(&act).map_err(ActionError::fee_change)?,
             ),
         };
         Ok(action)
@@ -227,6 +233,12 @@ impl From<BridgeUnlockAction> for Action {
     }
 }
 
+impl From<FeeChangeAction> for Action {
+    fn from(value: FeeChangeAction) -> Self {
+        Self::FeeChange(value)
+    }
+}
+
 #[allow(clippy::module_name_repetitions)]
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
@@ -284,6 +296,10 @@ impl ActionError {
     fn bridge_unlock(inner: BridgeUnlockActionError) -> Self {
         Self(ActionErrorKind::BridgeUnlock(inner))
     }
+
+    fn fee_change(inner: FeeChangeActionError) -> Self {
+        Self(ActionErrorKind::FeeChange(inner))
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -314,6 +330,8 @@ enum ActionErrorKind {
     BridgeLock(#[source] BridgeLockActionError),
     #[error("bridge unlock action was not valid")]
     BridgeUnlock(#[source] BridgeUnlockActionError),
+    #[error("fee change action was not valid")]
+    FeeChange(#[source] FeeChangeActionError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -1383,4 +1401,107 @@ enum BridgeUnlockActionErrorKind {
     MissingAmount,
     #[error("the `fee_asset_id` field was invalid")]
     InvalidFeeAssetId(#[source] asset::IncorrectAssetIdLength),
+}
+
+#[derive(Debug, Clone)]
+pub enum FeeChange {
+    TransferBaseFee,
+    SequenceBaseFee,
+    SequenceByteCostMultiplier,
+    InitBridgeAccountBaseFee,
+    BridgeLockByteCostMultiplier,
+    Ics20WithdrawalBaseFee,
+}
+
+#[allow(clippy::module_name_repetitions)]
+#[derive(Debug, Clone)]
+pub struct FeeChangeAction {
+    pub fee_change: FeeChange,
+    pub new_value: u128,
+}
+
+impl FeeChangeAction {
+    #[must_use]
+    pub fn into_raw(self) -> raw::FeeChangeAction {
+        self.to_raw()
+    }
+
+    #[must_use]
+    pub fn to_raw(&self) -> raw::FeeChangeAction {
+        raw::FeeChangeAction {
+            value: Some(match self.fee_change {
+                FeeChange::TransferBaseFee => {
+                    raw::fee_change_action::Value::TransferBaseFee(self.new_value.into())
+                }
+                FeeChange::SequenceBaseFee => {
+                    raw::fee_change_action::Value::SequenceBaseFee(self.new_value.into())
+                }
+                FeeChange::SequenceByteCostMultiplier => {
+                    raw::fee_change_action::Value::SequenceByteCostMultiplier(self.new_value.into())
+                }
+                FeeChange::InitBridgeAccountBaseFee => {
+                    raw::fee_change_action::Value::InitBridgeAccountBaseFee(self.new_value.into())
+                }
+                FeeChange::BridgeLockByteCostMultiplier => {
+                    raw::fee_change_action::Value::BridgeLockByteCostMultiplier(
+                        self.new_value.into(),
+                    )
+                }
+                FeeChange::Ics20WithdrawalBaseFee => {
+                    raw::fee_change_action::Value::Ics20WithdrawalBaseFee(self.new_value.into())
+                }
+            }),
+        }
+    }
+
+    /// Convert from a raw, unchecked protobuf [`raw::FeeChangeAction`].
+    ///
+    /// # Errors
+    ///
+    /// - if the fee change `value` field is missing
+    /// - if the `new_value` field is missing
+    pub fn try_from_raw(proto: &raw::FeeChangeAction) -> Result<Self, FeeChangeActionError> {
+        let (fee_change, new_value) = match proto.value {
+            Some(raw::fee_change_action::Value::TransferBaseFee(new_value)) => {
+                (FeeChange::TransferBaseFee, new_value)
+            }
+            Some(raw::fee_change_action::Value::SequenceBaseFee(new_value)) => {
+                (FeeChange::SequenceBaseFee, new_value)
+            }
+            Some(raw::fee_change_action::Value::SequenceByteCostMultiplier(new_value)) => {
+                (FeeChange::SequenceByteCostMultiplier, new_value)
+            }
+            Some(raw::fee_change_action::Value::InitBridgeAccountBaseFee(new_value)) => {
+                (FeeChange::InitBridgeAccountBaseFee, new_value)
+            }
+            Some(raw::fee_change_action::Value::BridgeLockByteCostMultiplier(new_value)) => {
+                (FeeChange::BridgeLockByteCostMultiplier, new_value)
+            }
+            Some(raw::fee_change_action::Value::Ics20WithdrawalBaseFee(new_value)) => {
+                (FeeChange::Ics20WithdrawalBaseFee, new_value)
+            }
+            None => return Err(FeeChangeActionError::missing_value_to_change()),
+        };
+
+        Ok(Self {
+            fee_change,
+            new_value: new_value.into(),
+        })
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct FeeChangeActionError(FeeChangeActionErrorKind);
+
+impl FeeChangeActionError {
+    fn missing_value_to_change() -> Self {
+        Self(FeeChangeActionErrorKind::MissingValueToChange)
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum FeeChangeActionErrorKind {
+    #[error("the value which to change was missing")]
+    MissingValueToChange,
 }
