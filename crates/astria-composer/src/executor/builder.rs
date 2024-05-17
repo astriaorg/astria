@@ -1,5 +1,6 @@
 use std::{
     fs,
+    path::Path,
     time::Duration,
 };
 
@@ -47,17 +48,10 @@ impl Builder {
         let sequencer_client = sequencer_client::HttpClient::new(sequencer_url.as_str())
             .wrap_err("failed constructing sequencer client")?;
         let (status, _) = watch::channel(Status::new());
-        let private_key_hex = fs::read_to_string(&private_key_file)
-            .wrap_err_with(|| format!("failed to read private key at `{private_key_file}`"))?;
-        let private_key_bytes: [u8; 32] = hex::decode(private_key_hex.trim())
-            .wrap_err_with(|| {
-                format!("failed to hex-decode private key bytes in `{private_key_file}`")
-            })?
-            .try_into()
-            .map_err(|_| {
-                eyre!("invalid private key length in `{private_key_file}`; must be 32 bytes")
-            })?;
-        let sequencer_key = SigningKey::from(private_key_bytes);
+
+        let sequencer_key = read_signing_key_from_file(&private_key_file).wrap_err_with(|| {
+            format!("failed reading signing key from file at path `{private_key_file}`")
+        })?;
 
         let sequencer_address = Address::from_verification_key(sequencer_key.verification_key());
 
@@ -80,4 +74,12 @@ impl Builder {
             executor::Handle::new(serialized_rollup_transaction_tx),
         ))
     }
+}
+
+fn read_signing_key_from_file<P: AsRef<Path>>(path: P) -> eyre::Result<SigningKey> {
+    let private_key_hex = fs::read_to_string(path)?;
+    let private_key_bytes: [u8; 32] = hex::decode(private_key_hex.trim())?
+        .try_into()
+        .map_err(|_| eyre!("invalid private key length; must be 32 bytes"))?;
+    Ok(SigningKey::from(private_key_bytes))
 }
