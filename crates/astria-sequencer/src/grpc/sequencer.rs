@@ -43,7 +43,7 @@ pub(crate) struct SequencerServer {
 }
 
 impl SequencerServer {
-    pub(crate) fn new(storage: Storage, cometbft_rpc_addr: String) -> anyhow::Result<Self> {
+    pub(crate) fn new(storage: Storage, cometbft_rpc_addr: &str) -> anyhow::Result<Self> {
         let cometbft_client = HttpClient::new(&*cometbft_rpc_addr)
             .context("failed to construct cometbft RPC client")?;
 
@@ -297,9 +297,8 @@ mod test {
         state_tx.put_sequencer_block(block.clone()).unwrap();
         storage.commit(state_tx).await.unwrap();
 
-        let server = Arc::new(
-            SequencerServer::new(storage.clone(), "http://localhost:26657".to_string()).unwrap(),
-        );
+        let server =
+            Arc::new(SequencerServer::new(storage.clone(), "http://localhost:26657").unwrap());
         let request = GetSequencerBlockRequest {
             height: 1,
         };

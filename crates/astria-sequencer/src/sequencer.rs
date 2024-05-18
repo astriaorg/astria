@@ -120,9 +120,9 @@ impl Sequencer {
             .grpc_addr
             .parse()
             .context("failed to parse grpc_addr address")?;
-        let sequencer_api = SequencerServer::new(storage.clone(), config.cometbft_rpc_addr)
+        let sequencer_api = SequencerServer::new(storage.clone(), &config.cometbft_rpc_addr)
             .context("failed to create sequencer api server")?;
-        let grpc_server_handle = start_grpc_server(sequencer_api, storage, grpc_addr, shutdown_rx);
+        let grpc_server_handle = start_grpc_server(sequencer_api, &storage, grpc_addr, shutdown_rx);
 
         info!(config.listen_addr, "starting sequencer");
         let server_handle = tokio::spawn(async move {
@@ -162,7 +162,7 @@ impl Sequencer {
 
 fn start_grpc_server(
     sequencer_api: SequencerServer,
-    storage: cnidarium::Storage,
+    storage: &cnidarium::Storage,
     grpc_addr: std::net::SocketAddr,
     shutdown_rx: oneshot::Receiver<()>,
 ) -> JoinHandle<Result<(), tonic::transport::Error>> {
