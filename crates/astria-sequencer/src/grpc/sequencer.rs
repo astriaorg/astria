@@ -44,7 +44,7 @@ pub(crate) struct SequencerServer {
 
 impl SequencerServer {
     pub(crate) fn new(storage: Storage, cometbft_rpc_addr: &str) -> anyhow::Result<Self> {
-        let cometbft_client = HttpClient::new(&*cometbft_rpc_addr)
+        let cometbft_client = HttpClient::new(cometbft_rpc_addr)
             .context("failed to construct cometbft RPC client")?;
 
         Ok(Self {
