@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    io::Write,
     net::SocketAddr,
     time::Duration,
 };
@@ -8,14 +9,17 @@ use astria_composer::{
     config::Config,
     Composer,
 };
-use astria_core::sequencer::v1::{
-    AbciErrorCode,
-    RollupId,
-    SignedTransaction,
+use astria_core::{
+    primitive::v1::RollupId,
+    protocol::{
+        abci::AbciErrorCode,
+        transaction::v1alpha1::SignedTransaction,
+    },
 };
 use astria_eyre::eyre;
 use ethers::prelude::Transaction;
 use once_cell::sync::Lazy;
+use tempfile::NamedTempFile;
 use tendermint_rpc::{
     endpoint::broadcast::tx_sync,
     request,
@@ -80,16 +84,20 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
     }
     let (sequencer, sequencer_setup_guard) = mock_sequencer::start().await;
     let sequencer_url = sequencer.uri();
+    let keyfile = NamedTempFile::new().unwrap();
+    (&keyfile)
+        .write_all("2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90".as_bytes())
+        .unwrap();
     let config = Config {
         log: String::new(),
         api_listen_addr: "127.0.0.1:0".parse().unwrap(),
+        sequencer_chain_id: "test-chain-1".to_string(),
         rollups,
         sequencer_url,
-        private_key: "2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90"
-            .to_string()
-            .into(),
+        private_key_file: keyfile.path().to_string_lossy().to_string(),
         block_time_ms: 2000,
         max_bytes_per_bundle: 200_000,
+        bundle_queue_capacity: 10,
         no_otel: false,
         force_stdout: false,
         no_metrics: true,
@@ -143,7 +151,7 @@ pub async fn loop_until_composer_is_ready(addr: SocketAddr) {
 }
 
 fn signed_tx_from_request(request: &Request) -> SignedTransaction {
-    use astria_core::generated::sequencer::v1::SignedTransaction as RawSignedTransaction;
+    use astria_core::generated::protocol::transaction::v1alpha1::SignedTransaction as RawSignedTransaction;
     use prost::Message as _;
 
     let wrapped_tx_sync_req: request::Wrapper<tx_sync::Request> =
@@ -171,11 +179,11 @@ fn rollup_id_nonce_from_request(request: &Request) -> (RollupId, u32) {
 
     (
         sequence_action.rollup_id,
-        signed_tx.unsigned_transaction().nonce,
+        signed_tx.unsigned_transaction().params.nonce,
     )
 }
 
-/// Deserizalizes the bytes contained in a `tx_sync::Request` to a signed sequencer transaction and
+/// Deserializes the bytes contained in a `tx_sync::Request` to a signed sequencer transaction and
 /// verifies that it contains a sequence action with `expected_payload` as its contents.
 /// # Panics
 /// Panics if the request body has no sequence actions
@@ -215,7 +223,7 @@ pub async fn mount_matcher_verifying_tx_integrity(
         .await
 }
 
-/// Deserizalizes the bytes contained in a `tx_sync::Request` to a signed sequencer transaction and
+/// Deserializes the bytes contained in a `tx_sync::Request` to a signed sequencer transaction and
 /// verifies that the contained sequence action is in the given `expected_rollup_ids` and
 /// `expected_nonces`.
 /// # Panics
@@ -253,7 +261,7 @@ pub async fn mount_broadcast_tx_sync_mock(
         .await
 }
 
-/// Deserizalizes the bytes contained in a `tx_sync::Request` to a signed sequencer transaction and
+/// Deserializes the bytes contained in a `tx_sync::Request` to a signed sequencer transaction and
 /// verifies that the contained sequence action is for the given `expected_rollup_id`. It then
 /// rejects the transaction for an invalid nonce.
 pub async fn mount_broadcast_tx_sync_invalid_nonce_mock(

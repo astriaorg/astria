@@ -45,7 +45,7 @@ use tracing_subscriber::{
 #[cfg(feature = "display")]
 pub mod display;
 
-/// The errors that can occur when initializing telemtry.
+/// The errors that can occur when initializing telemetry.
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
 pub struct Error(ErrorKind);
@@ -74,6 +74,10 @@ impl Error {
     fn exporter_install(source: BuildError) -> Self {
         Self(ErrorKind::ExporterInstall(source))
     }
+
+    fn no_metric_register_func() -> Self {
+        Self(ErrorKind::NoMetricRegisterFunc)
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -90,6 +94,11 @@ enum ErrorKind {
     BucketError(#[source] BuildError),
     #[error("failed installing prometheus metrics exporter")]
     ExporterInstall(#[source] BuildError),
+    #[error(
+        "telemetry was configured to run with metrics, but no function/closure to register \
+         metrics was provided"
+    )]
+    NoMetricRegisterFunc,
 }
 
 #[must_use = "the otel config must be initialized to be useful"]
@@ -136,6 +145,7 @@ pub struct Config {
     metrics_addr: Option<String>,
     service_name: String,
     metric_buckets: Option<Vec<f64>>,
+    register_metrics: Option<Box<dyn Fn()>>,
 }
 
 impl Config {
@@ -150,6 +160,7 @@ impl Config {
             metrics_addr: None,
             service_name: String::new(),
             metric_buckets: None,
+            register_metrics: None,
         }
     }
 }
@@ -237,6 +248,14 @@ impl Config {
         }
     }
 
+    #[must_use = "telemetry must be initialized to be useful"]
+    pub fn register_metrics<F: Fn() + 'static>(self, f: F) -> Self {
+        Self {
+            register_metrics: Some(Box::new(f)),
+            ..self
+        }
+    }
+
     /// Initialize telemetry, consuming the config.
     ///
     /// # Errors
@@ -252,6 +271,7 @@ impl Config {
             metrics_addr,
             service_name,
             metric_buckets,
+            register_metrics,
         } = self;
 
         let env_filter = {
@@ -264,7 +284,7 @@ impl Config {
         let mut tracer_provider = TracerProvider::builder();
         if !no_otel {
             // XXX: the endpoint is set by a hardcoded environment variable. This is a
-            //      full list of variables that opentelementry_otlp currently reads:
+            //      full list of variables that opentelemetry_otlp currently reads:
             //      OTEL_EXPORTER_OTLP_ENDPOINT
             //      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
             //      OTEL_EXPORTER_OTLP_TRACES_TIMEOUT
@@ -321,6 +341,11 @@ impl Config {
                     .set_buckets(&buckets)
                     .map_err(Error::bucket_error)?;
             }
+
+            let Some(register_metrics) = register_metrics else {
+                return Err(Error::no_metric_register_func());
+            };
+            register_metrics();
 
             metrics_builder.install().map_err(Error::exporter_install)?;
         }

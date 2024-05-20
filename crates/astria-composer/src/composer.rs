@@ -119,9 +119,11 @@ impl Composer {
 
         let (executor, executor_handle) = executor::Builder {
             sequencer_url: cfg.sequencer_url.clone(),
-            private_key: cfg.private_key.clone(),
+            sequencer_chain_id: cfg.sequencer_chain_id.clone(),
+            private_key_file: cfg.private_key_file.clone(),
             block_time_ms: cfg.block_time_ms,
             max_bytes_per_bundle: cfg.max_bytes_per_bundle,
+            bundle_queue_capacity: cfg.bundle_queue_capacity,
             shutdown_token: shutdown_token.clone(),
         }
         .build()
@@ -194,7 +196,7 @@ impl Composer {
         self.api_server.local_addr()
     }
 
-    /// Returns the socker address the grpc server is served over
+    /// Returns the socket address the grpc server is served over
     /// # Errors
     /// Returns an error if the listener is not bound
     pub fn grpc_local_addr(&self) -> io::Result<SocketAddr> {

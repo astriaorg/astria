@@ -3,9 +3,9 @@ use anyhow::{
     Context as _,
     Result,
 };
-use astria_core::sequencer::v1::{
-    transaction::action::MintAction,
-    Address,
+use astria_core::{
+    primitive::v1::Address,
+    protocol::transaction::v1alpha1::action::MintAction,
 };
 use tracing::instrument;
 

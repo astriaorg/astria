@@ -2,6 +2,7 @@
 pub mod firm_only;
 #[allow(clippy::missing_panics_doc)]
 pub mod helpers;
+pub mod soft_and_firm;
 pub mod soft_only;
 
 use helpers::{

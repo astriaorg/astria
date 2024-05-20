@@ -1,16 +1,23 @@
-use std::time::Duration;
+use std::{
+    io::Write,
+    time::Duration,
+};
 
-use astria_core::sequencer::v1::{
-    asset::default_native_asset_id,
-    transaction::action::SequenceAction,
-    RollupId,
-    ROLLUP_ID_LEN,
+use astria_core::{
+    primitive::v1::{
+        asset::default_native_asset_id,
+        RollupId,
+        FEE_ASSET_ID_LEN,
+        ROLLUP_ID_LEN,
+    },
+    protocol::transaction::v1alpha1::action::SequenceAction,
 };
 use astria_eyre::eyre;
 use once_cell::sync::Lazy;
 use prost::Message;
 use sequencer_client::SignedTransaction;
 use serde_json::json;
+use tempfile::NamedTempFile;
 use tendermint_rpc::{
     endpoint::broadcast::tx_sync,
     request,
@@ -59,8 +66,8 @@ static TELEMETRY: Lazy<()> = Lazy::new(|| {
 });
 
 /// Start a mock sequencer server and mount a mock for the `accounts/nonce` query.
-async fn setup() -> (MockServer, MockGuard, Config) {
-    use astria_core::generated::sequencer::v1::NonceResponse;
+async fn setup() -> (MockServer, MockGuard, Config, NamedTempFile) {
+    use astria_core::generated::protocol::account::v1alpha1::NonceResponse;
     Lazy::force(&TELEMETRY);
     let server = MockServer::start().await;
     let startup_guard = mount_nonce_query_mock(
@@ -73,16 +80,21 @@ async fn setup() -> (MockServer, MockGuard, Config) {
     )
     .await;
 
+    let keyfile = NamedTempFile::new().unwrap();
+    (&keyfile)
+        .write_all("2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90".as_bytes())
+        .unwrap();
+
     let cfg = Config {
         log: String::new(),
         api_listen_addr: "127.0.0.1:0".parse().unwrap(),
         rollups: String::new(),
         sequencer_url: server.uri(),
-        private_key: "2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90"
-            .to_string()
-            .into(),
+        sequencer_chain_id: "test-chain-1".to_string(),
+        private_key_file: keyfile.path().to_string_lossy().to_string(),
         block_time_ms: 2000,
         max_bytes_per_bundle: 1000,
+        bundle_queue_capacity: 10,
         no_otel: false,
         force_stdout: false,
         no_metrics: false,
@@ -90,7 +102,7 @@ async fn setup() -> (MockServer, MockGuard, Config) {
         pretty_print: true,
         grpc_addr: "127.0.0.1:0".parse().unwrap(),
     };
-    (server, startup_guard, cfg)
+    (server, startup_guard, cfg, keyfile)
 }
 
 /// Mount a mock for the `abci_query` endpoint.
@@ -124,7 +136,7 @@ async fn mount_nonce_query_mock(
 
 /// Convert a `Request` object to a `SignedTransaction`
 fn signed_tx_from_request(request: &Request) -> SignedTransaction {
-    use astria_core::generated::sequencer::v1::SignedTransaction as RawSignedTransaction;
+    use astria_core::generated::protocol::transaction::v1alpha1::SignedTransaction as RawSignedTransaction;
     use prost::Message as _;
 
     let wrapped_tx_sync_req: request::Wrapper<tx_sync::Request> =
@@ -139,7 +151,7 @@ fn signed_tx_from_request(request: &Request) -> SignedTransaction {
     signed_tx
 }
 
-/// Deserizalizes the bytes contained in a `tx_sync::Request` to a signed sequencer transaction
+/// Deserializes the bytes contained in a `tx_sync::Request` to a signed sequencer transaction
 /// and verifies that the contained sequence action is in the given `expected_rollup_ids` and
 /// `expected_nonces`.
 async fn mount_broadcast_tx_sync_seq_actions_mock(server: &MockServer) -> MockGuard {
@@ -194,13 +206,15 @@ async fn wait_for_startup(
 #[tokio::test]
 async fn full_bundle() {
     // set up the executor, channel for writing seq actions, and the sequencer mock
-    let (sequencer, nonce_guard, cfg) = setup().await;
+    let (sequencer, nonce_guard, cfg, _keyfile) = setup().await;
     let shutdown_token = CancellationToken::new();
     let (executor, executor_handle) = executor::Builder {
         sequencer_url: cfg.sequencer_url.clone(),
-        private_key: cfg.private_key.clone(),
+        sequencer_chain_id: cfg.sequencer_chain_id.clone(),
+        private_key_file: cfg.private_key_file.clone(),
         block_time_ms: cfg.block_time_ms,
         max_bytes_per_bundle: cfg.max_bytes_per_bundle,
+        bundle_queue_capacity: cfg.bundle_queue_capacity,
         shutdown_token: shutdown_token.clone(),
     }
     .build()
@@ -219,7 +233,7 @@ async fn full_bundle() {
     // order to make space for the second
     let seq0 = SequenceAction {
         rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
-        data: vec![0u8; cfg.max_bytes_per_bundle - ROLLUP_ID_LEN],
+        data: vec![0u8; cfg.max_bytes_per_bundle - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
         fee_asset_id: default_native_asset_id(),
     };
 
@@ -283,13 +297,15 @@ async fn full_bundle() {
 #[tokio::test]
 async fn bundle_triggered_by_block_timer() {
     // set up the executor, channel for writing seq actions, and the sequencer mock
-    let (sequencer, nonce_guard, cfg) = setup().await;
+    let (sequencer, nonce_guard, cfg, _keyfile) = setup().await;
     let shutdown_token = CancellationToken::new();
     let (executor, executor_handle) = executor::Builder {
         sequencer_url: cfg.sequencer_url.clone(),
-        private_key: cfg.private_key.clone(),
+        sequencer_chain_id: cfg.sequencer_chain_id.clone(),
+        private_key_file: cfg.private_key_file.clone(),
         block_time_ms: cfg.block_time_ms,
         max_bytes_per_bundle: cfg.max_bytes_per_bundle,
+        bundle_queue_capacity: cfg.bundle_queue_capacity,
         shutdown_token: shutdown_token.clone(),
     }
     .build()
@@ -365,13 +381,15 @@ async fn bundle_triggered_by_block_timer() {
 #[tokio::test]
 async fn two_seq_actions_single_bundle() {
     // set up the executor, channel for writing seq actions, and the sequencer mock
-    let (sequencer, nonce_guard, cfg) = setup().await;
+    let (sequencer, nonce_guard, cfg, _keyfile) = setup().await;
     let shutdown_token = CancellationToken::new();
     let (executor, executor_handle) = executor::Builder {
         sequencer_url: cfg.sequencer_url.clone(),
-        private_key: cfg.private_key.clone(),
+        sequencer_chain_id: cfg.sequencer_chain_id.clone(),
+        private_key_file: cfg.private_key_file.clone(),
         block_time_ms: cfg.block_time_ms,
         max_bytes_per_bundle: cfg.max_bytes_per_bundle,
+        bundle_queue_capacity: cfg.bundle_queue_capacity,
         shutdown_token: shutdown_token.clone(),
     }
     .build()

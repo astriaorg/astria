@@ -103,6 +103,7 @@ impl BridgeService {
             }
 
         );
+        shutdown.run().await;
     }
 }
 

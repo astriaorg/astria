@@ -15,42 +15,8 @@ chains:
     storePrefix: ibc_data
     key:
       name: astria-wallet
-      content:
-        signing_key:
-          [
-            43,
-            216,
-            6,
-            201,
-            127,
-            14,
-            0,
-            175,
-            26,
-            31,
-            195,
-            50,
-            143,
-            167,
-            99,
-            169,
-            38,
-            151,
-            35,
-            200,
-            219,
-            143,
-            172,
-            79,
-            147,
-            175,
-            113,
-            219,
-            24,
-            109,
-            110,
-            144,
-          ]
+      devContent:
+        signing_key: [43, 216, 6, 201, 127, 14, 0, 175, 26, 31, 195, 50, 143, 167, 99, 169, 38, 151, 35, 200, 219, 143, 172, 79, 147, 175, 113, 219, 24, 109, 110, 144]
         address_type: Astria
       secret:
         resourceName: projects/$PROJECT_ID/secrets/astria-ibc-relay-key/versions/latest
@@ -76,32 +42,10 @@ chains:
     accountPrefix: celestia
     key:
       name: celestia
-      content:
+      devContent:
         private_key: 8241386890823ca14743e5d4d583f879a5236af29f454ed4da6fe62b8439e2ab
         public_key: 03b0effa59e7eee365a888b4d2fa4c9be82a4925df255d4443151d61b11ac63714
-        address:
-          [
-            39,
-            166,
-            219,
-            243,
-            73,
-            131,
-            245,
-            143,
-            2,
-            206,
-            64,
-            203,
-            217,
-            165,
-            252,
-            194,
-            189,
-            5,
-            171,
-            220,
-          ]
+        address: [39, 166, 219, 243, 73, 131, 245, 143, 2, 206, 64, 203, 217, 165, 252, 194, 189, 5, 171, 220]
         address_type: Cosmos
         account: celestia1y7ndhu6fs06c7qkwgr9anf0uc27st27uwdj6vq
       secret:

@@ -1,7 +1,7 @@
 use anyhow::Context as _;
-use astria_core::sequencer::v1::{
-    AbciErrorCode,
-    Address,
+use astria_core::{
+    primitive::v1::Address,
+    protocol::abci::AbciErrorCode,
 };
 use cnidarium::{
     Snapshot,
@@ -26,7 +26,7 @@ pub(crate) async fn balance_request(
     request: request::Query,
     params: Vec<(String, String)>,
 ) -> response::Query {
-    use astria_core::sequencer::v1::BalanceResponse;
+    use astria_core::protocol::account::v1alpha1::BalanceResponse;
     let (address, snapshot, height) = match preprocess_request(&storage, &request, &params).await {
         Ok(tup) => tup,
         Err(err_rsp) => return err_rsp,
@@ -65,7 +65,7 @@ pub(crate) async fn nonce_request(
     request: request::Query,
     params: Vec<(String, String)>,
 ) -> response::Query {
-    use astria_core::sequencer::v1::NonceResponse;
+    use astria_core::protocol::account::v1alpha1::NonceResponse;
     let (address, snapshot, height) = match preprocess_request(&storage, &request, &params).await {
         Ok(tup) => tup,
         Err(err_rsp) => return err_rsp,

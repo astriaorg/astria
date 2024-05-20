@@ -48,6 +48,9 @@ impl Component for IbcComponent {
             state.put_ibc_relayer_address(address);
         }
 
+        state
+            .put_ics20_withdrawal_base_fee(app_state.fees.ics20_withdrawal_base_fee)
+            .context("failed to put ics20 withdrawal base fee")?;
         Ok(())
     }
 

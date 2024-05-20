@@ -5,17 +5,18 @@ use anyhow::{
     Result,
 };
 use astria_core::{
-    generated::sequencerblock::v1alpha1 as raw,
-    sequencer::v1::RollupId,
-    sequencerblock::{
-        v1alpha1::block::{
-            RollupTransactions,
-            SequencerBlock,
-            SequencerBlockHeader,
-            SequencerBlockParts,
-        },
-        Protobuf as _,
+    generated::{
+        primitive::v1 as primitiveRaw,
+        sequencerblock::v1alpha1 as raw,
     },
+    primitive::v1::RollupId,
+    sequencerblock::v1alpha1::block::{
+        RollupTransactions,
+        SequencerBlock,
+        SequencerBlockHeader,
+        SequencerBlockParts,
+    },
+    Protobuf as _,
 };
 use async_trait::async_trait;
 use borsh::{
@@ -225,8 +226,9 @@ pub(crate) trait StateReadExt: StateRead {
             bail!("rollup transactions proof not found for given block hash");
         };
 
-        let rollup_transactions_proof = raw::Proof::decode(rollup_transactions_proof.as_slice())
-            .context("failed to decode rollup transactions proof from raw bytes")?;
+        let rollup_transactions_proof =
+            primitiveRaw::Proof::decode(rollup_transactions_proof.as_slice())
+                .context("failed to decode rollup transactions proof from raw bytes")?;
 
         let Some(rollup_ids_proof) = self
             .get_raw(&rollup_ids_proof_by_hash_key(hash))
@@ -236,7 +238,7 @@ pub(crate) trait StateReadExt: StateRead {
             bail!("rollup IDs proof not found for given block hash");
         };
 
-        let rollup_ids_proof = raw::Proof::decode(rollup_ids_proof.as_slice())
+        let rollup_ids_proof = primitiveRaw::Proof::decode(rollup_ids_proof.as_slice())
             .context("failed to decode rollup IDs proof from raw bytes")?;
 
         let raw = raw::SequencerBlock {
@@ -291,7 +293,7 @@ pub(crate) trait StateReadExt: StateRead {
     async fn get_block_proofs_by_block_hash(
         &self,
         hash: &[u8],
-    ) -> Result<(raw::Proof, raw::Proof)> {
+    ) -> Result<(primitiveRaw::Proof, primitiveRaw::Proof)> {
         let Some(rollup_transactions_proof) = self
             .get_raw(&rollup_transactions_proof_by_hash_key(hash))
             .await
@@ -300,8 +302,9 @@ pub(crate) trait StateReadExt: StateRead {
             bail!("rollup transactions proof not found for given block hash");
         };
 
-        let rollup_transactions_proof = raw::Proof::decode(rollup_transactions_proof.as_slice())
-            .context("failed to decode rollup transactions proof from raw bytes")?;
+        let rollup_transactions_proof =
+            primitiveRaw::Proof::decode(rollup_transactions_proof.as_slice())
+                .context("failed to decode rollup transactions proof from raw bytes")?;
 
         let Some(rollup_ids_proof) = self
             .get_raw(&rollup_ids_proof_by_hash_key(hash))
@@ -311,7 +314,7 @@ pub(crate) trait StateReadExt: StateRead {
             bail!("rollup IDs proof not found for given block hash");
         };
 
-        let rollup_ids_proof = raw::Proof::decode(rollup_ids_proof.as_slice())
+        let rollup_ids_proof = primitiveRaw::Proof::decode(rollup_ids_proof.as_slice())
             .context("failed to decode rollup IDs proof from raw bytes")?;
 
         Ok((rollup_transactions_proof, rollup_ids_proof))
@@ -379,63 +382,26 @@ impl<T: StateWrite> StateWriteExt for T {}
 
 #[cfg(test)]
 mod test {
-
-    use std::collections::HashMap;
-
     use astria_core::{
-        sequencer::v1::{
+        primitive::v1::{
             asset::Id,
             Address,
         },
+        protocol::test_utils::ConfigureSequencerBlock,
         sequencerblock::v1alpha1::block::Deposit,
     };
     use cnidarium::StateDelta;
     use rand::Rng;
-    use sha2::{
-        Digest as _,
-        Sha256,
-    };
-    use tendermint::{
-        account,
-        block::{
-            header::Version,
-            Header,
-        },
-        AppHash,
-        Hash,
-        Time,
-    };
 
     use super::*;
-    use crate::proposal::commitment::generate_rollup_datas_commitment;
 
     // creates new sequencer block, optionally shifting all values except the height by 1
     fn make_test_sequencer_block(height: u32) -> SequencerBlock {
         let mut rng = rand::thread_rng();
-
-        // create cometbft header
-        let mut header = Header {
-            app_hash: AppHash::default(),
-            chain_id: "test".to_string().try_into().unwrap(),
-            consensus_hash: Hash::default(),
-            data_hash: Some(Hash::default()),
-            evidence_hash: None,
-            height: height.into(),
-            last_block_id: None,
-            last_commit_hash: None,
-            last_results_hash: None,
-            next_validators_hash: Hash::default(),
-            proposer_address: account::Id::try_from([0u8; 20].to_vec()).unwrap(),
-            time: Time::now(),
-            validators_hash: Hash::default(),
-            version: Version {
-                app: 0,
-                block: 0,
-            },
-        };
+        let block_hash: [u8; 32] = rng.gen();
 
         // create inner rollup id/tx data
-        let mut deposits = HashMap::new();
+        let mut deposits = vec![];
         for _ in 0..2 {
             let rollup_id = RollupId::new(rng.gen());
             let bridge_address = Address::try_from_slice(&[rng.gen(); 20]).unwrap();
@@ -449,19 +415,16 @@ mod test {
                 asset_id,
                 destination_chain_address,
             );
-            deposits.insert(rollup_id, vec![deposit]);
+            deposits.push(deposit);
         }
 
-        // create block's other data
-        let commitments = generate_rollup_datas_commitment(&[], deposits.clone());
-        let block_data = vec![
-            commitments.rollup_datas_root.to_vec(),
-            commitments.rollup_ids_root.to_vec(),
-        ];
-        let data_hash = merkle::Tree::from_leaves(block_data.iter().map(Sha256::digest)).root();
-        header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
-        header.height = height.into();
-        SequencerBlock::try_from_cometbft_header_and_data(header, block_data, deposits).unwrap()
+        ConfigureSequencerBlock {
+            block_hash: Some(block_hash),
+            height,
+            deposits,
+            ..Default::default()
+        }
+        .make()
     }
 
     #[tokio::test]

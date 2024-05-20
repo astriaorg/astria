@@ -2,7 +2,7 @@ pub(crate) mod state_ext;
 
 use std::sync::OnceLock;
 
-use astria_core::sequencer::v1::asset::Denom;
+use astria_core::primitive::v1::asset::Denom;
 
 pub(crate) static NATIVE_ASSET: OnceLock<Denom> = OnceLock::new();
 

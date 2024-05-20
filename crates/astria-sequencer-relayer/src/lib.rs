@@ -8,7 +8,10 @@ pub(crate) mod utils;
 pub(crate) mod validator;
 
 pub use build_info::BUILD_INFO;
-pub use config::Config;
+pub use config::{
+    Config,
+    IncludeRollup,
+};
 pub use sequencer_relayer::{
     SequencerRelayer,
     ShutdownHandle,

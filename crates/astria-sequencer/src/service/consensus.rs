@@ -54,11 +54,7 @@ impl Consensus {
             // for some reason -- but that's not our problem.
             let rsp = self.handle_request(req).instrument(span.clone()).await;
             if let Err(e) = rsp.as_ref() {
-                warn!(
-                    parent: &span,
-                    error = e,
-                    "failed processing consensus request; returning error back to sender",
-                );
+                panic!("failed to handle consensus request, this is a bug: {e:?}");
             }
             // `send` returns the sent message if sending fail, so we are dropping it.
             if rsp_sender.send(rsp).is_err() {
@@ -222,18 +218,21 @@ mod test {
         str::FromStr,
     };
 
-    use astria_core::sequencer::v1::{
-        asset::DEFAULT_NATIVE_ASSET_DENOM,
-        transaction::action::SequenceAction,
-        Address,
-        RollupId,
-        UnsignedTransaction,
+    use astria_core::{
+        crypto::SigningKey,
+        primitive::v1::{
+            asset::DEFAULT_NATIVE_ASSET_DENOM,
+            Address,
+            RollupId,
+        },
+        protocol::transaction::v1alpha1::{
+            action::SequenceAction,
+            TransactionParams,
+            UnsignedTransaction,
+        },
     };
     use bytes::Bytes;
-    use ed25519_consensus::{
-        SigningKey,
-        VerificationKey,
-    };
+    use ed25519_consensus::VerificationKey;
     use prost::Message as _;
     use rand::rngs::OsRng;
     use tendermint::{
@@ -244,13 +243,21 @@ mod test {
 
     use super::*;
     use crate::{
+        app::test_utils::default_fees,
         asset::get_native_asset,
+        mempool::{
+            Mempool,
+            TransactionPriority,
+        },
         proposal::commitment::generate_rollup_datas_commitment,
     };
 
     fn make_unsigned_tx() -> UnsignedTransaction {
         UnsignedTransaction {
-            nonce: 0,
+            params: TransactionParams {
+                nonce: 0,
+                chain_id: "test".to_string(),
+            },
             actions: vec![
                 SequenceAction {
                     rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
@@ -262,9 +269,9 @@ mod test {
         }
     }
 
-    fn new_prepare_proposal_request(txs: Vec<Bytes>) -> request::PrepareProposal {
+    fn new_prepare_proposal_request() -> request::PrepareProposal {
         request::PrepareProposal {
-            txs,
+            txs: vec![],
             max_tx_bytes: 1024,
             local_last_commit: None,
             misbehavior: vec![],
@@ -291,16 +298,18 @@ mod test {
     #[tokio::test]
     async fn prepare_and_process_proposal() {
         let signing_key = SigningKey::new(OsRng);
-        let mut consensus_service =
+        let (mut consensus_service, mut mempool) =
             new_consensus_service(Some(signing_key.verification_key())).await;
         let tx = make_unsigned_tx();
         let signed_tx = tx.into_signed(&signing_key);
         let tx_bytes = signed_tx.clone().into_raw().encode_to_vec();
         let txs = vec![tx_bytes.into()];
+        let priority = TransactionPriority::new(0, 0).unwrap();
+        mempool.insert(signed_tx.clone(), priority).await.unwrap();
 
         let res = generate_rollup_datas_commitment(&vec![signed_tx], HashMap::new());
 
-        let prepare_proposal = new_prepare_proposal_request(txs.clone());
+        let prepare_proposal = new_prepare_proposal_request();
         let prepare_proposal_response = consensus_service
             .handle_prepare_proposal(prepare_proposal)
             .await
@@ -312,7 +321,7 @@ mod test {
             }
         );
 
-        let mut consensus_service =
+        let (mut consensus_service, _) =
             new_consensus_service(Some(signing_key.verification_key())).await;
         let process_proposal = new_process_proposal_request(prepare_proposal_response.txs);
         consensus_service
@@ -324,7 +333,7 @@ mod test {
     #[tokio::test]
     async fn process_proposal_ok() {
         let signing_key = SigningKey::new(OsRng);
-        let mut consensus_service =
+        let (mut consensus_service, _) =
             new_consensus_service(Some(signing_key.verification_key())).await;
         let tx = make_unsigned_tx();
         let signed_tx = tx.into_signed(&signing_key);
@@ -340,7 +349,7 @@ mod test {
 
     #[tokio::test]
     async fn process_proposal_fail_missing_action_commitment() {
-        let mut consensus_service = new_consensus_service(None).await;
+        let (mut consensus_service, _) = new_consensus_service(None).await;
         let process_proposal = new_process_proposal_request(vec![]);
         assert!(
             consensus_service
@@ -355,7 +364,7 @@ mod test {
 
     #[tokio::test]
     async fn process_proposal_fail_wrong_commitment_length() {
-        let mut consensus_service = new_consensus_service(None).await;
+        let (mut consensus_service, _) = new_consensus_service(None).await;
         let process_proposal = new_process_proposal_request(vec![[0u8; 16].to_vec().into()]);
         assert!(
             consensus_service
@@ -370,7 +379,7 @@ mod test {
 
     #[tokio::test]
     async fn process_proposal_fail_wrong_commitment_value() {
-        let mut consensus_service = new_consensus_service(None).await;
+        let (mut consensus_service, _) = new_consensus_service(None).await;
         let process_proposal = new_process_proposal_request(vec![
             [99u8; 32].to_vec().into(),
             [99u8; 32].to_vec().into(),
@@ -388,10 +397,10 @@ mod test {
 
     #[tokio::test]
     async fn prepare_proposal_empty_block() {
-        let mut consensus_service = new_consensus_service(None).await;
+        let (mut consensus_service, _) = new_consensus_service(None).await;
         let txs = vec![];
         let res = generate_rollup_datas_commitment(&txs.clone(), HashMap::new());
-        let prepare_proposal = new_prepare_proposal_request(vec![]);
+        let prepare_proposal = new_prepare_proposal_request();
 
         let prepare_proposal_response = consensus_service
             .handle_prepare_proposal(prepare_proposal)
@@ -407,7 +416,7 @@ mod test {
 
     #[tokio::test]
     async fn process_proposal_ok_empty_block() {
-        let mut consensus_service = new_consensus_service(None).await;
+        let (mut consensus_service, _) = new_consensus_service(None).await;
         let txs = vec![];
         let res = generate_rollup_datas_commitment(&txs, HashMap::new());
         let process_proposal = new_process_proposal_request(res.into_transactions(vec![]));
@@ -460,11 +469,12 @@ mod test {
                 native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
                 ibc_params: penumbra_ibc::params::IBCParameters::default(),
                 allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
+                fees: default_fees(),
             }
         }
     }
 
-    async fn new_consensus_service(funded_key: Option<VerificationKey>) -> Consensus {
+    async fn new_consensus_service(funded_key: Option<VerificationKey>) -> (Consensus, Mempool) {
         let accounts = if funded_key.is_some() {
             vec![crate::genesis::Account {
                 address: Address::from_verification_key(funded_key.unwrap()),
@@ -480,14 +490,15 @@ mod test {
 
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
-        let mut app = App::new(snapshot);
+        let mempool = Mempool::new();
+        let mut app = App::new(snapshot, mempool.clone()).await.unwrap();
         app.init_chain(storage.clone(), genesis_state, vec![], "test".to_string())
             .await
             .unwrap();
         app.commit(storage.clone()).await;
 
         let (_tx, rx) = mpsc::channel(1);
-        Consensus::new(storage.clone(), app, rx)
+        (Consensus::new(storage.clone(), app, rx), mempool)
     }
 
     #[tokio::test]
@@ -495,14 +506,14 @@ mod test {
         use sha2::Digest as _;
 
         let signing_key = SigningKey::new(OsRng);
-        let mut consensus_service =
+        let (mut consensus_service, mut mempool) =
             new_consensus_service(Some(signing_key.verification_key())).await;
 
         let tx = make_unsigned_tx();
         let signed_tx = tx.into_signed(&signing_key);
         let tx_bytes = signed_tx.clone().into_raw().encode_to_vec();
         let txs = vec![tx_bytes.clone().into()];
-        let res = generate_rollup_datas_commitment(&vec![signed_tx], HashMap::new());
+        let res = generate_rollup_datas_commitment(&vec![signed_tx.clone()], HashMap::new());
 
         let block_data = res.into_transactions(txs.clone());
         let data_hash =
@@ -516,6 +527,10 @@ mod test {
             .await
             .unwrap();
 
+        mempool
+            .insert(signed_tx, TransactionPriority::new(0, 0).unwrap())
+            .await
+            .unwrap();
         let finalize_block = request::FinalizeBlock {
             hash: Hash::try_from([0u8; 32].to_vec()).unwrap(),
             height: 1u32.into(),
@@ -533,5 +548,8 @@ mod test {
             .handle_request(ConsensusRequest::FinalizeBlock(finalize_block))
             .await
             .unwrap();
+
+        // ensure that txs included in a block are removed from the mempool
+        assert_eq!(mempool.len().await, 0);
     }
 }

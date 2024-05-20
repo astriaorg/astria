@@ -1,6 +1,7 @@
 use std::process::ExitCode;
 
 use astria_composer::{
+    metrics_init,
     Composer,
     Config,
     BUILD_INFO,
@@ -37,7 +38,8 @@ async fn main() -> ExitCode {
     if !cfg.no_metrics {
         telemetry_conf = telemetry_conf
             .metrics_addr(&cfg.metrics_http_listener_addr)
-            .service_name(env!("CARGO_PKG_NAME"));
+            .service_name(env!("CARGO_PKG_NAME"))
+            .register_metrics(metrics_init::register);
     }
 
     if let Err(e) = telemetry_conf
@@ -51,7 +53,6 @@ async fn main() -> ExitCode {
     let cfg_ser = serde_json::to_string(&cfg)
         .expect("the json serializer should never fail when serializing to a string");
     eprintln!("config:\n{cfg_ser}");
-
     info!(config = cfg_ser, "initializing composer",);
 
     let composer = match Composer::from_config(&cfg).await {
@@ -68,7 +69,7 @@ async fn main() -> ExitCode {
             ExitCode::SUCCESS
         }
         Err(error) => {
-            error!(%error, "Composer exited with errro");
+            error!(%error, "Composer exited with error");
             ExitCode::FAILURE
         }
     };

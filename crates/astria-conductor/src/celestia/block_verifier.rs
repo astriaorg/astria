@@ -222,10 +222,10 @@ mod test {
 
     use astria_core::{
         generated::sequencerblock::v1alpha1::SequencerBlockHeader as RawSequencerBlockHeader,
-        sequencer::v1::RollupId,
+        primitive::v1::RollupId,
         sequencerblock::v1alpha1::{
             block::SequencerBlockHeader,
-            celestia::UncheckedCelestiaSequencerBlob,
+            celestia::UncheckedSubmittedMetadata,
         },
     };
     use prost::Message as _;
@@ -268,7 +268,7 @@ mod test {
     ) -> (validators::Response, account::Id, Commit) {
         use rand::rngs::OsRng;
 
-        let signing_key = ed25519_consensus::SigningKey::new(OsRng);
+        let signing_key = astria_core::crypto::SigningKey::new(OsRng);
         let pub_key = tendermint::public_key::PublicKey::from_raw_ed25519(
             signing_key.verification_key().as_ref(),
         )
@@ -343,7 +343,7 @@ mod test {
         };
         let header = SequencerBlockHeader::try_from_raw(header).unwrap();
 
-        let sequencer_blob = UncheckedCelestiaSequencerBlob {
+        let sequencer_blob = UncheckedSubmittedMetadata {
             block_hash: [0u8; 32],
             header,
             rollup_ids: vec![],
@@ -363,7 +363,7 @@ mod test {
         let rollup_id = RollupId::from_unhashed_bytes(b"test-chain");
         let grouped_txs = BTreeMap::from([(rollup_id, vec![test_tx.clone()])]);
         let rollup_transactions_tree =
-            astria_core::sequencer::v1::derive_merkle_tree_from_rollup_txs(&grouped_txs);
+            astria_core::primitive::v1::derive_merkle_tree_from_rollup_txs(&grouped_txs);
         let rollup_transactions_root = rollup_transactions_tree.root();
         let rollup_ids_root = merkle::Tree::from_leaves(std::iter::once(rollup_id)).root();
 
@@ -388,7 +388,7 @@ mod test {
         };
         let header = SequencerBlockHeader::try_from_raw(header).unwrap();
 
-        let sequencer_blob = UncheckedCelestiaSequencerBlob {
+        let sequencer_blob = UncheckedSubmittedMetadata {
             block_hash: [0u8; 32],
             header,
             rollup_ids: vec![rollup_id],

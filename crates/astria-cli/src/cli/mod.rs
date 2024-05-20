@@ -13,12 +13,13 @@ use crate::cli::{
 };
 
 const DEFAULT_SEQUENCER_RPC: &str = "https://rpc.sequencer.dusk-4.devnet.astria.org";
+const DEFAULT_SEQUENCER_CHAIN_ID: &str = "astria-dusk-4";
 
 /// A CLI for deploying and managing Astria services and related infrastructure.
 #[derive(Debug, Parser)]
-#[clap(name = "astria-cli", version)]
+#[command(name = "astria-cli", version)]
 pub struct Cli {
-    #[clap(subcommand)]
+    #[command(subcommand)]
     pub command: Option<Command>,
 }
 
@@ -38,11 +39,11 @@ impl Cli {
 #[derive(Debug, Subcommand)]
 pub enum Command {
     Rollup {
-        #[clap(subcommand)]
+        #[command(subcommand)]
         command: RollupCommand,
     },
     Sequencer {
-        #[clap(subcommand)]
+        #[command(subcommand)]
         command: SequencerCommand,
     },
 }

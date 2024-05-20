@@ -8,16 +8,16 @@ global:
 
 images:
   geth:
-    repo: ghcr.io/astriaorg/go-ethereum
-    tag: "0.9.1"
+    repo: ghcr.io/astriaorg/astria-geth
+    tag: 0.10.0
     devTag: latest
   conductor:
     repo: ghcr.io/astriaorg/conductor
-    tag: "0.13.1"
+    tag: "0.15.0"
     devTag: latest
   composer:
     repo: ghcr.io/astriaorg/composer
-    tag: "0.5.0"
+    tag: "0.6.0"
     devTag: latest
 
   # Rollup faucet
@@ -51,28 +51,68 @@ config:
     # - "FirmOnly" -> blocks are only pulled from DA
     # - "SoftAndFirm" -> blocks are pulled from both the sequencer and DA
     executionCommitLevel: 'SoftAndFirm'
+    # Max bytes to encode into a single sequencer `SignedTransaction`, not including signature,
+    # public key, nonce. This is the sum of the sizes of all the `SequenceAction`s. Should be
+    # set below the sequencer's max block size to allow space for encoding, signature, public
+    # key and nonce bytes
     maxBytesPerBundle: 200000
+    # Max amount of bundles that can be in the submission queue.
+    # ASTRIA_COMPOSER_BUNDLE_QUEUE_CAPACITY * ASTRIA_COMPOSER_MAX_BYTES_PER_BUNDLE (e.g.
+    # 40000 * 200KB = 8GB) is the limit on how much memory the finished bundle queue can consume.
+    # This should be lower than the resource limit enforced by Kubernetes on the pod, defined below
+    bundleQueueCapacity: 40000
     maxSubmitInterval: 2000
     # Configuration specific to EVM rollup genesis
     genesis:
+      # Configuration of Eth forks, setting to 0 will enable form height,
+      # left as is these forks will not activate.
+      shanghaiTime: ""
+      cancunTime: ""
+      pragueTime: ""
+      verkleTime: ""
+      # Configure the gas Limit
+      gasLimit: "8000000"
       # Set to a hex set of bytes if your rollup has manually configured extra data
       extraDataOverride: ""
       # If set to true the genesis block will contain extra data
       overrideGenesisExtraData: true
-      # Configure the sequencer bridge address and allowed asset denom if using
+      # Configure the sequencer bridge addresses and allowed assets if using
       # the astria canonical bridge. Recommend removing alloc values if so.
-      bridgeAddress: ""
-      bridgeAllowedAssetDenom: nria
+      bridgeAddresses: []
+        # - address: "684ae50c49a434199199c9c698115391152d7b3f"
+        #   startHeight: 1
+        #   assetDenom: "nria"
+        #   assetPrecision: 9
+      # Configure the fee collector for the evm tx fees, activated at block heights.
+      # If not configured, all tx fees will be burned.
+      feeCollectors:
+        1: "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
+      # Configure EIP-1559 params, activated at block heights
+      eip1559Params: {}
+        # 1:
+        #   minBaseFee: 0
+        #   elasticityMultiplier: 2
+        #   baseFeeChangeDenominator: 8
+      # Can configure the genesis allocs for the chain
       alloc:
         - address: "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
           value:
             # The balance must be a string due to size
             balance: "1000000000000000000000000000"
+        # Deploying the deterministic deploy proxy contract in genesis
+        # Forge and other tools use this for their CREATE2 usage, but
+        # can only be included through the genesis block after EIP-155
+        # https://github.com/Arachnid/deterministic-deployment-proxy
+        - address: "0x4e59b44847b379578588920cA78FbF26c0B4956C"
+          value:
+            balance: "0"
+            data: "0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf3"
     metrics:
       # set to enable prometheus metrics
       enabled: false
     otel:
       enabled: false
+      serviceNamePrefix: "{{ .Values.config.rollup.name }}"
       endpoint:
       tracesEndpoint:
       tracesCompression: gzip
@@ -121,6 +161,7 @@ config:
 
   # Configuration related to sequencer connection for rollup
   sequencer:
+    chainId: ""
     # Block height to start syncing rollup from
     initialBlockHeight: "2"
     # Fastest block time possible in MS
@@ -132,13 +173,16 @@ config:
     # Private key which is used for wrapping txs for sequencer submission
     # Note: When secretProvider.enabled is true the secret provided by
     #       `sequencerPrivateKey` is used instead of this value.
-    privateKey: "2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90"
+    privateKey:
+      devContent: "2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90"
+      secret:
+        filename: "key.hex"
+        resourceName: "projects/$PROJECT_ID/secrets/sequencerPrivateKey/versions/latest"
 
   celestia:
     # if config.rollup.executionLevel is NOT 'SoftOnly' AND celestia-node is not enabled
     # the rpc, ws, and token fields must be set to access celestia network.
     rpc: ""
-    ws: ""
     token: ""
     initialBlockHeight: "2"
     heightVariance: "10"
@@ -153,7 +197,7 @@ celestia-node:
   config:
     labelPrefix: astria
     type: light
-    tokenAuthLevel: read
+    tokenAuthLevel: false  # Set to false to disable auth
     # You can deploy on top of a custom celestia network, uncomment below and
     # update fields with notes
     # network: custom
@@ -268,25 +312,22 @@ ingress:
 resources:
   conductor:
     requests:
-      cpu: 0.01
-      memory: 1Mi
-    limits:
       cpu: 0.1
       memory: 20Mi
+    limits:
+      cpu: 1
+      memory: 200Mi
   composer:
     requests:
-      cpu: 0.01
-      memory: 1Mi
-    limits:
       cpu: 0.1
       memory: 20Mi
+    limits:
+      cpu: 1
+      memory: 200Mi
   geth:
     requests:
-      cpu: 0.25
-      memory: 256Mi
-    limits:
-      cpu: 2
-      memory: 1Gi
+      cpu: 4
+      memory: 16Gi
 
 storage:
   enabled: false
@@ -302,6 +343,7 @@ ports:
   jsonRPC: 8545
   wsRPC: 8546
   executionGRPC: 50051
+  composerGRPC: 50052
   gossipnet: 2451
   faucet: 8080
   blockscout: 4000

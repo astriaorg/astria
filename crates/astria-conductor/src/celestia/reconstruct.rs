@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 
-use astria_core::sequencer::v1::RollupId;
-use celestia_client::{
-    CelestiaRollupBlob,
-    CelestiaSequencerBlob,
+use astria_core::{
+    primitive::v1::RollupId,
+    sequencerblock::v1alpha1::{
+        SubmittedMetadata,
+        SubmittedRollupData,
+    },
 };
 use telemetry::display::base64;
 use tracing::{
@@ -91,9 +93,9 @@ pub(super) fn reconstruct_blocks_from_verified_blobs(
 }
 
 fn remove_header_blob_matching_rollup_blob(
-    headers: &mut HashMap<[u8; 32], CelestiaSequencerBlob>,
-    rollup: &CelestiaRollupBlob,
-) -> Option<CelestiaSequencerBlob> {
+    headers: &mut HashMap<[u8; 32], SubmittedMetadata>,
+    rollup: &SubmittedRollupData,
+) -> Option<SubmittedMetadata> {
     // chaining methods and returning () to use the ? operator and to not bind the value
     headers
         .get(&rollup.sequencer_block_hash())
@@ -104,8 +106,8 @@ fn remove_header_blob_matching_rollup_blob(
 }
 
 fn verify_rollup_blob_against_sequencer_blob(
-    rollup_blob: &CelestiaRollupBlob,
-    sequencer_blob: &CelestiaSequencerBlob,
+    rollup_blob: &SubmittedRollupData,
+    sequencer_blob: &SubmittedMetadata,
 ) -> bool {
     rollup_blob
         .proof()

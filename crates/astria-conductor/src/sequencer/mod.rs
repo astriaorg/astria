@@ -4,7 +4,6 @@ use std::time::Duration;
 
 use astria_eyre::eyre::{
     self,
-    bail,
     Report,
     WrapErr as _,
 };
@@ -31,7 +30,10 @@ use tracing::{
 
 use crate::{
     block_cache::BlockCache,
-    executor,
+    executor::{
+        self,
+        SoftTrySendError,
+    },
 };
 
 mod block_stream;
@@ -70,26 +72,19 @@ impl Reader {
             .wait_for_init()
             .await
             .wrap_err("handle to executor failed while waiting for it being initialized")?;
-        let next_expected_height = executor.next_expected_soft_height();
+        let next_expected_height = executor.next_expected_soft_sequencer_height();
 
         let mut latest_height_stream = {
             use sequencer_client::StreamLatestHeight as _;
             sequencer_cometbft_client.stream_latest_height(sequencer_block_time)
         };
 
-        let latest_height = match latest_height_stream.next().await {
-            None => bail!("subscription to sequencer for latest heights failed immediately"),
-            Some(Err(e)) => {
-                return Err(e).wrap_err("first latest height from sequencer was bad");
-            }
-            Some(Ok(height)) => height,
-        };
         let mut sequential_blocks = BlockCache::with_next_height(next_expected_height)
             .wrap_err("failed constructing sequential block cache")?;
+
         let mut blocks_from_heights = block_stream::BlocksFromHeightStream::new(
             executor.rollup_id(),
             next_expected_height,
-            latest_height,
             sequencer_grpc_client.clone(),
         );
 
@@ -123,14 +118,26 @@ impl Reader {
                 Some(block) = sequential_blocks.next_block(), if enqueued_block.is_terminated() => {
                     if let Err(err) = executor.try_send_soft_block(block) {
                         match err {
-                            // `Closed` contains the block. Dropping it because there is no use for it.
-                            executor::channel::TrySendError::Closed(_) => {
-                                break Err(Report::msg("could not send block to executor because its channel was closed"));
+                            SoftTrySendError::Channel{source} => {
+                                match *source {
+                                    executor::channel::TrySendError::Closed(_) => {
+                                        break Err(Report::msg(
+                                            "could not send block to executor because its channel was closed"
+                                        ));
+                                    }
+
+                                    executor::channel::TrySendError::NoPermits(block) => {
+                                        trace!("executor channel is full; scheduling block and stopping block fetch until a slot opens up");
+                                        enqueued_block = executor.clone().send_soft_block_owned(block).boxed().fuse();
+                                    }
+                                }
                             }
 
-                            executor::channel::TrySendError::NoPermits(block) => {
-                                trace!("executor channel is full; scheduling block and stopping block fetch until a slot opens up");
-                                enqueued_block = executor.clone().send_soft_block_owned(block).boxed().fuse();
+                            SoftTrySendError::NotSet => {
+                                break Err(Report::msg(
+                                    "conductor was configured without soft commitments; the \
+                                     sequencer reader task should have never been started"
+                                ));
                             }
                         }
                     }

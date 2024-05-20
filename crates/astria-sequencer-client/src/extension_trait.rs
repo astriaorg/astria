@@ -27,11 +27,13 @@ use std::{
 };
 
 pub use astria_core::{
-    sequencer::v1::{
-        Address,
-        BalanceResponse,
-        NonceResponse,
-        SignedTransaction,
+    primitive::v1::Address,
+    protocol::{
+        account::v1alpha1::{
+            BalanceResponse,
+            NonceResponse,
+        },
+        transaction::v1alpha1::SignedTransaction,
     },
     sequencerblock::v1alpha1::{
         block::SequencerBlockError,
@@ -90,7 +92,6 @@ impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match &self.inner {
             ErrorKind::AbciQueryDeserialization(e) => Some(e),
-            ErrorKind::CometBftConversion(e) => Some(e),
             ErrorKind::TendermintRpc(e) => Some(e),
         }
     }
@@ -107,7 +108,7 @@ impl Error {
     pub fn as_tendermint_rpc(&self) -> Option<&TendermintRpcError> {
         match self.kind() {
             ErrorKind::TendermintRpc(e) => Some(e),
-            _ => None,
+            ErrorKind::AbciQueryDeserialization(_) => None,
         }
     }
 
@@ -119,12 +120,6 @@ impl Error {
     ) -> Self {
         Self {
             inner: ErrorKind::abci_query_deserialization(target, response, inner),
-        }
-    }
-
-    fn cometbft_conversion(e: SequencerBlockError) -> Self {
-        Self {
-            inner: ErrorKind::CometBftConversion(e),
         }
     }
 
@@ -191,7 +186,7 @@ impl TendermintRpcError {
             //   client still in use (there is no feedback mechanism between driver and its clients
             //   other than client commands failing).
             // - ClientInternal is returned by WebSocketClient if the channel the client sent to the
-            //   websocket driver is dropped. This is the case if the driver recives the channel as
+            //   websocket driver is dropped. This is the case if the driver receives the channel as
             //   part of a client's requests to the driver to send a message over the websocket, but
             //   then exits, dropping channel.
             ErrorDetail::ChannelSend(_) | ErrorDetail::ClientInternal(_) => true,
@@ -252,7 +247,6 @@ impl std::error::Error for DeserializationError {
 #[derive(Debug)]
 pub enum ErrorKind {
     AbciQueryDeserialization(AbciQueryDeserializationError),
-    CometBftConversion(SequencerBlockError),
     TendermintRpc(TendermintRpcError),
 }
 
@@ -352,45 +346,6 @@ impl Stream for LatestHeightStream {
 
 #[async_trait]
 pub trait SequencerSubscriptionClientExt: SubscriptionClient {
-    /// Subscribe to sequencer blocks from cometbft, returning a stream.
-    ///
-    /// This trait method calls the cometbft `/subscribe` endpoint with a
-    /// `tm.event = 'NewBlock'` argument, and then attempts to convert each
-    /// cometbft block to a [`SequencerBlock`] type.
-    async fn subscribe_new_block_data(&self) -> Result<NewBlocksStream, SubscriptionFailed> {
-        use futures::stream::{
-            StreamExt as _,
-            TryStreamExt as _,
-        };
-        use tendermint_rpc::query::{
-            EventType,
-            Query,
-        };
-        let stream = self
-            .subscribe(Query::from(EventType::NewBlock))
-            .await?
-            .map_err(NewBlockStreamError::Rpc)
-            .and_then(|event| {
-                future::ready(match event.data {
-                    EventData::LegacyNewBlock {
-                        block: Some(block),
-                        ..
-                    } => SequencerBlock::try_from_cometbft(*block)
-                        .map_err(NewBlockStreamError::CometBftConversion),
-
-                    EventData::LegacyNewBlock {
-                        block: None, ..
-                    } => Err(NewBlockStreamError::NoBlock),
-
-                    other => Err(NewBlockStreamError::unexpected_event(&other)),
-                })
-            })
-            .boxed();
-        Ok(NewBlocksStream {
-            inner: stream,
-        })
-    }
-
     async fn subscribe_latest_height(&self) -> Result<LatestHeightStream, SubscriptionFailed> {
         use futures::stream::{
             StreamExt as _,
@@ -454,14 +409,16 @@ pub trait SequencerClientExt: Client {
             .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
 
         let proto_response =
-            astria_core::generated::sequencer::v1::BalanceResponse::decode(&*response.value)
-                .map_err(|e| {
-                    Error::abci_query_deserialization(
-                        "astria.sequencer.v1.BalanceResponse",
-                        response,
-                        e,
-                    )
-                })?;
+            astria_core::generated::protocol::account::v1alpha1::BalanceResponse::decode(
+                &*response.value,
+            )
+            .map_err(|e| {
+                Error::abci_query_deserialization(
+                    "astria.sequencer.v1.BalanceResponse",
+                    response,
+                    e,
+                )
+            })?;
         Ok(proto_response.to_native())
     }
 
@@ -505,14 +462,12 @@ pub trait SequencerClientExt: Client {
             .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
 
         let proto_response =
-            astria_core::generated::sequencer::v1::NonceResponse::decode(&*response.value)
-                .map_err(|e| {
-                    Error::abci_query_deserialization(
-                        "astria.sequencer.v1.NonceResponse",
-                        response,
-                        e,
-                    )
-                })?;
+            astria_core::generated::protocol::account::v1alpha1::NonceResponse::decode(
+                &*response.value,
+            )
+            .map_err(|e| {
+                Error::abci_query_deserialization("astria.sequencer.v1.NonceResponse", response, e)
+            })?;
         Ok(proto_response.to_native())
     }
 
@@ -528,33 +483,6 @@ pub trait SequencerClientExt: Client {
         // This makes use of the fact that a height `None` and `Some(0)` are
         // treated the same.
         self.get_nonce(address, 0u32).await
-    }
-
-    /// Get the latest sequencer block.
-    ///
-    /// This is a convenience method that converts the result [`Client::latest_block`]
-    /// to [`SequencerBlock`].
-    async fn latest_sequencer_block(&self) -> Result<SequencerBlock, Error> {
-        let rsp = self
-            .latest_block()
-            .await
-            .map_err(|e| Error::tendermint_rpc("latest_block", e))?;
-        SequencerBlock::try_from_cometbft(rsp.block).map_err(Error::cometbft_conversion)
-    }
-
-    /// Get the sequencer block at the provided height.
-    ///
-    /// This is a convenience method that converts the result of calling [`Client::block`]
-    /// to an Astria [`SequencerBlock`].
-    async fn sequencer_block<HeightT>(&self, height: HeightT) -> Result<SequencerBlock, Error>
-    where
-        HeightT: Into<tendermint::block::Height> + Send,
-    {
-        let rsp = self
-            .block(height.into())
-            .await
-            .map_err(|e| Error::tendermint_rpc("block", e))?;
-        SequencerBlock::try_from_cometbft(rsp.block).map_err(Error::cometbft_conversion)
     }
 
     /// Submits the given transaction to the Sequencer node.
@@ -590,7 +518,7 @@ pub trait SequencerClientExt: Client {
         let tx_bytes = tx.into_raw().encode_to_vec();
         self.broadcast_tx_commit(tx_bytes)
             .await
-            .map_err(|e| Error::tendermint_rpc("broadcast_tx_comit", e))
+            .map_err(|e| Error::tendermint_rpc("broadcast_tx_commit", e))
     }
 }
 

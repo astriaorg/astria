@@ -4,7 +4,7 @@ use anyhow::{
     Context,
     Result,
 };
-use astria_core::sequencer::v1::Address;
+use astria_core::primitive::v1::Address;
 use tendermint::{
     abci::request::{
         BeginBlock,

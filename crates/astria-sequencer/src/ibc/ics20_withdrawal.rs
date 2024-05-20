@@ -4,10 +4,12 @@ use anyhow::{
     Context as _,
     Result,
 };
-use astria_core::sequencer::v1::{
-    asset::Denom,
-    transaction::action,
-    Address,
+use astria_core::{
+    primitive::v1::{
+        asset::Denom,
+        Address,
+    },
+    protocol::transaction::v1alpha1::action,
 };
 use ibc_types::core::channel::{
     ChannelId,
@@ -32,9 +34,6 @@ use crate::{
     },
     transaction::action_handler::ActionHandler,
 };
-
-/// Fee charged for a `Ics20Withdrawal` action.
-pub(crate) const ICS20_WITHDRAWAL_FEE: u128 = 24;
 
 fn withdrawal_to_unchecked_ibc_packet(
     withdrawal: &action::Ics20Withdrawal,
@@ -70,6 +69,11 @@ impl ActionHandler for action::Ics20Withdrawal {
         state: &S,
         from: Address,
     ) -> Result<()> {
+        let fee = state
+            .get_ics20_withdrawal_base_fee()
+            .await
+            .context("failed to get ics20 withdrawal base fee")?;
+
         let packet: IBCPacket<Unchecked> = withdrawal_to_unchecked_ibc_packet(self);
         state
             .send_packet_check(packet)
@@ -88,7 +92,7 @@ impl ActionHandler for action::Ics20Withdrawal {
         if self.fee_asset_id() == &transfer_asset_id {
             let payment_amount = self
                 .amount()
-                .checked_add(ICS20_WITHDRAWAL_FEE)
+                .checked_add(fee)
                 .ok_or(anyhow!("transfer amount plus fee overflowed"))?;
 
             ensure!(
@@ -99,7 +103,7 @@ impl ActionHandler for action::Ics20Withdrawal {
             // otherwise, check the fee asset account has enough to cover the fees,
             // and the transfer asset account has enough to cover the transfer
             ensure!(
-                from_fee_balance >= ICS20_WITHDRAWAL_FEE,
+                from_fee_balance >= fee,
                 "insufficient funds for fee payment"
             );
 
@@ -118,6 +122,10 @@ impl ActionHandler for action::Ics20Withdrawal {
 
     #[instrument(skip(self, state))]
     async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> Result<()> {
+        let fee = state
+            .get_ics20_withdrawal_base_fee()
+            .await
+            .context("failed to get ics20 withdrawal base fee")?;
         let checked_packet = withdrawal_to_unchecked_ibc_packet(self).assume_checked();
 
         state
@@ -126,7 +134,7 @@ impl ActionHandler for action::Ics20Withdrawal {
             .context("failed to decrease sender balance")?;
 
         state
-            .decrease_balance(from, *self.fee_asset_id(), ICS20_WITHDRAWAL_FEE)
+            .decrease_balance(from, *self.fee_asset_id(), fee)
             .await
             .context("failed to subtract fee from sender balance")?;
 

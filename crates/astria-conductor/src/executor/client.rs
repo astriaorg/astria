@@ -11,10 +11,11 @@ use astria_core::{
         },
         sequencerblock::v1alpha1::RollupData,
     },
-    sequencerblock::Protobuf as _,
+    Protobuf as _,
 };
 use astria_eyre::eyre::{
     self,
+    ensure,
     WrapErr as _,
 };
 use bytes::Bytes;
@@ -40,6 +41,25 @@ impl Client {
             uri,
             inner,
         })
+    }
+
+    #[instrument(skip_all, fields(block_number, uri = %self.uri), err)]
+    pub(crate) async fn get_block(&mut self, block_number: u32) -> eyre::Result<Block> {
+        let request = raw::GetBlockRequest {
+            identifier: Some(block_identifier(block_number)),
+        };
+        let raw_block = self
+            .inner
+            .get_block(request)
+            .await
+            .wrap_err("failed to execute astria.execution.v1alpha2.GetBlocks RPC")?
+            .into_inner();
+        ensure!(
+            block_number == raw_block.number,
+            "requested block at number `{block_number}`, but received block contained `{}`",
+            raw_block.number
+        );
+        Block::try_from_raw(raw_block).wrap_err("failed validating received block")
     }
 
     /// Calls remote procedure `astria.execution.v1alpha2.GetGenesisInfo`
@@ -96,7 +116,7 @@ impl Client {
     }
 
     /// Calls remote procedure `astria.execution.v1alpha2.GetCommitmentState`
-    #[instrument(skip_all, fields(uri = %self.uri))]
+    #[instrument(skip_all, fields(uri = %self.uri), err)]
     pub(crate) async fn get_commitment_state(&mut self) -> eyre::Result<CommitmentState> {
         let request = raw::GetCommitmentStateRequest {};
         let response = self
@@ -133,5 +153,13 @@ impl Client {
         let commitment_state = CommitmentState::try_from_raw(response)
             .wrap_err("failed converting raw response to validated commitment state")?;
         Ok(commitment_state)
+    }
+}
+
+/// Utility function to construct a `astria.execution.v1alpha2.BlockIdentifier` from `number`
+/// to use in RPC requests.
+fn block_identifier(number: u32) -> raw::BlockIdentifier {
+    raw::BlockIdentifier {
+        identifier: Some(raw::block_identifier::Identifier::BlockNumber(number)),
     }
 }

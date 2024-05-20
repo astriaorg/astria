@@ -2,18 +2,6 @@
 
 set -o errexit -o nounset -o pipefail
 
-function set_token() {
-  # NOTE - this is a hack to get the token to the token-server directory.
-  TOKEN=$(celestia bridge auth admin \
-    --node.store "$home_dir/bridge" \
-    --keyring.accname $validator_key_name)
-
-  # Busybox's httpd doesn't support url rewriting, so it's not simple to server another file.
-  # To support an ingress rule path of `/`, we write the token to index.html, which httpd serves by default.
-  mkdir -p "$home_dir"/token-server
-  echo "$TOKEN" >"$home_dir"/token-server/index.html
-}
-
 function get_genesis() {
   local genesis_hash=$(curl -s -S -X GET "http://127.0.0.1:$celestia_app_host_port/block?height=1" | jq -r '.result.block_id.hash')
   echo "$genesis_hash"
@@ -30,12 +18,6 @@ function wait_for_genesis() {
   echo "$genesis_hash"
 }
 
-# only create token if it does not already exist
-# FIXME - would it be bad to get a new token on every start?
-if [ ! -f "$home_dir"/token-server/index.html ]; then
-  set_token
-fi
-
 echo "waiting for genesis hash from celestia..."
 genesis_hash=$(wait_for_genesis)
 echo "genesis hash received: $genesis_hash"
@@ -50,6 +32,7 @@ find "$home_dir/bridge/keys" -type f -exec chmod 0600 {} \;
 
 echo "staring bridge!"
 exec celestia bridge start \
+  --rpc.skip-auth \
   --node.store "$home_dir/bridge" \
   --core.ip 0.0.0.0 \
   --core.rpc.port "$celestia_app_host_port" \

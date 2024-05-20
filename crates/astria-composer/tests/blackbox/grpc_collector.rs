@@ -6,9 +6,9 @@ use astria_core::{
             grpc_collector_service_client::GrpcCollectorServiceClient,
             SubmitRollupTransactionRequest,
         },
-        sequencer::v1::NonceResponse,
+        protocol::account::v1alpha1::NonceResponse,
     },
-    sequencer::v1::RollupId,
+    primitive::v1::RollupId,
 };
 use ethers::prelude::Transaction;
 

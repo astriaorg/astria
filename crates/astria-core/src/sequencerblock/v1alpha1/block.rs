@@ -6,30 +6,32 @@ use tendermint::{
     account,
     Time,
 };
-use transaction::SignedTransaction;
 
 use super::{
     are_rollup_ids_included,
     are_rollup_txs_included,
     celestia::{
         self,
-        CelestiaRollupBlob,
-        CelestiaSequencerBlob,
+        SubmittedMetadata,
+        SubmittedRollupData,
     },
     raw,
 };
 use crate::{
-    sequencer::v1::{
+    primitive::v1::{
         asset,
         derive_merkle_tree_from_rollup_txs,
-        transaction,
-        transaction::action,
         Address,
         IncorrectAddressLength,
         IncorrectRollupIdLength,
         RollupId,
     },
-    sequencerblock::Protobuf as _,
+    protocol::transaction::v1alpha1::{
+        action,
+        SignedTransaction,
+        SignedTransactionError,
+    },
+    Protobuf as _,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -111,7 +113,7 @@ impl RollupTransactions {
             proof,
         } = self;
         raw::RollupTransactions {
-            rollup_id: rollup_id.get().to_vec(),
+            rollup_id: Some(rollup_id.into_raw()),
             transactions,
             proof: Some(proof.into_raw()),
         }
@@ -127,8 +129,11 @@ impl RollupTransactions {
             transactions,
             proof,
         } = raw;
+        let Some(rollup_id) = rollup_id else {
+            return Err(RollupTransactionsError::field_not_set("rollup_id"));
+        };
         let rollup_id =
-            RollupId::try_from_slice(&rollup_id).map_err(RollupTransactionsError::rollup_id)?;
+            RollupId::try_from_raw(&rollup_id).map_err(RollupTransactionsError::rollup_id)?;
         let proof = 'proof: {
             let Some(proof) = proof else {
                 break 'proof Err(RollupTransactionsError::field_not_set("proof"));
@@ -165,14 +170,6 @@ pub struct SequencerBlockError(SequencerBlockErrorKind);
 impl SequencerBlockError {
     fn invalid_block_hash(length: usize) -> Self {
         Self(SequencerBlockErrorKind::InvalidBlockHash(length))
-    }
-
-    fn comet_bft_data_hash_does_not_match_reconstructed() -> Self {
-        Self(SequencerBlockErrorKind::CometBftDataHashDoesNotMatchReconstructed)
-    }
-
-    fn comet_bft_block_hash_is_none() -> Self {
-        Self(SequencerBlockErrorKind::CometBftBlockHashIsNone)
     }
 
     fn field_not_set(field: &'static str) -> Self {
@@ -225,7 +222,7 @@ impl SequencerBlockError {
         ))
     }
 
-    fn raw_signed_transaction_conversion(source: transaction::SignedTransactionError) -> Self {
+    fn raw_signed_transaction_conversion(source: SignedTransactionError) -> Self {
         Self(SequencerBlockErrorKind::RawSignedTransactionConversion(
             source,
         ))
@@ -252,13 +249,6 @@ impl SequencerBlockError {
 enum SequencerBlockErrorKind {
     #[error("the block hash was expected to be 32 bytes long, but was actually `{0}`")]
     InvalidBlockHash(usize),
-    #[error(
-        "the CometBFT block.header.data_hash does not match the Merkle Tree Hash derived from \
-         block.data"
-    )]
-    CometBftDataHashDoesNotMatchReconstructed,
-    #[error("hashing the CometBFT block.header returned an empty hash which is not permitted")]
-    CometBftBlockHashIsNone,
     #[error("the expected field in the raw source type was not set: `{0}`")]
     FieldNotSet(&'static str),
     #[error("failed constructing a sequencer block header from the raw protobuf header")]
@@ -308,7 +298,7 @@ enum SequencerBlockErrorKind {
         "failed converting a raw protobuf signed transaction decoded from the cometbft block.data
         field to a native astria signed transaction"
     )]
-    RawSignedTransactionConversion(#[source] transaction::SignedTransactionError),
+    RawSignedTransactionConversion(#[source] SignedTransactionError),
     #[error(
         "the root derived from the rollup transactions in the cometbft block.data field did not \
          match the root stored in the same block.data field"
@@ -335,7 +325,7 @@ enum SequencerBlockErrorKind {
 ///
 /// This type exists to provide convenient access to the fields of
 /// a `[SequencerBlockHeader]`.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct SequencerBlockHeaderParts {
     pub chain_id: tendermint::chain::Id,
     pub height: tendermint::block::Height,
@@ -596,7 +586,7 @@ impl SequencerBlock {
         &self.rollup_transactions
     }
 
-    /// Converst a [`SequencerBlock`] into its [`SequencerBlockParts`].
+    /// Converts a [`SequencerBlock`] into its [`SequencerBlockParts`].
     #[must_use]
     pub fn into_parts(self) -> SequencerBlockParts {
         let Self {
@@ -694,70 +684,10 @@ impl SequencerBlock {
         }
     }
 
-    /// Turn the sequencer block into a [`CelestiaSequencerBlob`] and its associated list of
-    /// [`CelestiaRollupBlob`]s.
+    /// Turn the sequencer block into a [`SubmittedMetadata`] and list of [`SubmittedRollupData`].
     #[must_use]
-    pub fn into_celestia_blobs(self) -> (CelestiaSequencerBlob, Vec<CelestiaRollupBlob>) {
-        celestia::CelestiaBlobBundle::from_sequencer_block(self).into_parts()
-    }
-
-    /// Converts from a [`tendermint::Block`].
-    ///
-    /// # Errors
-    /// TODO(https://github.com/astriaorg/astria/issues/612)
-    #[allow(clippy::missing_panics_doc)] // the panic sources are checked before hand; revisit if refactoring
-    pub fn try_from_cometbft(block: tendermint::Block) -> Result<Self, SequencerBlockError> {
-        let tendermint::Block {
-            header,
-            data,
-            ..
-        } = block;
-
-        // TODO: see https://github.com/astriaorg/astria/issues/774#issuecomment-1981584681
-        // deposits are not included in a block pulled from cometbft, so they don't match what's
-        // stored in the sequencer any more.
-        // this function can be removed after relayer/conductor are updated to use the sequencer
-        // API.
-        Self::try_from_cometbft_header_and_data(header, data, HashMap::new())
-    }
-
-    /// Converts from a [`tendermint::block::Header`] and the block data.
-    ///
-    /// # Errors
-    /// TODO(https://github.com/astriaorg/astria/issues/612)
-    ///
-    /// # Panics
-    ///
-    /// - if a rollup data merkle proof cannot be constructed.
-    pub fn try_from_cometbft_header_and_data(
-        cometbft_header: tendermint::block::Header,
-        data: Vec<Vec<u8>>,
-        deposits: HashMap<RollupId, Vec<Deposit>>,
-    ) -> Result<Self, SequencerBlockError> {
-        let Some(tendermint::Hash::Sha256(data_hash)) = cometbft_header.data_hash else {
-            // header.data_hash is Option<Hash> and Hash itself has
-            // variants Sha256([u8; 32]) or None.
-            return Err(SequencerBlockError::field_not_set("header.data_hash"));
-        };
-
-        let tendermint::Hash::Sha256(block_hash) = cometbft_header.hash() else {
-            return Err(SequencerBlockError::comet_bft_block_hash_is_none());
-        };
-
-        let tree = merkle_tree_from_data(&data);
-        if tree.root() != data_hash {
-            return Err(SequencerBlockError::comet_bft_data_hash_does_not_match_reconstructed());
-        }
-
-        Self::try_from_block_info_and_data(
-            block_hash,
-            cometbft_header.chain_id,
-            cometbft_header.height,
-            cometbft_header.time,
-            cometbft_header.proposer_address,
-            data,
-            deposits,
-        )
+    pub fn split_for_celestia(self) -> (SubmittedMetadata, Vec<SubmittedRollupData>) {
+        celestia::PreparedBlock::from_sequencer_block(self).into_parts()
     }
 
     /// Converts from relevant header fields and the block data.
@@ -799,7 +729,10 @@ impl SequencerBlock {
 
         let mut rollup_datas = IndexMap::new();
         for elem in data_list {
-            let raw_tx = crate::generated::sequencer::v1::SignedTransaction::decode(&*elem)
+            let raw_tx =
+                crate::generated::protocol::transaction::v1alpha1::SignedTransaction::decode(
+                    &*elem,
+                )
                 .map_err(SequencerBlockError::signed_transaction_protobuf_decode)?;
             let signed_tx = SignedTransaction::try_from_raw(raw_tx)
                 .map_err(SequencerBlockError::raw_signed_transaction_conversion)?;
@@ -1205,7 +1138,7 @@ impl FilteredSequencerBlock {
         })
     }
 
-    /// Transforms the filtered blocks into its constitutent parts.
+    /// Transforms the filtered blocks into its constituent parts.
     #[must_use]
     pub fn into_parts(self) -> FilteredSequencerBlockParts {
         let Self {
@@ -1395,8 +1328,8 @@ impl Deposit {
             destination_chain_address,
         } = self;
         raw::Deposit {
-            bridge_address: bridge_address.to_vec(),
-            rollup_id: rollup_id.to_vec(),
+            bridge_address: Some(bridge_address.into_raw()),
+            rollup_id: Some(rollup_id.into_raw()),
             amount: Some(amount.into()),
             asset_id: asset_id.get().to_vec(),
             destination_chain_address,
@@ -1419,11 +1352,17 @@ impl Deposit {
             asset_id,
             destination_chain_address,
         } = raw;
-        let bridge_address = Address::try_from_slice(&bridge_address)
+        let Some(bridge_address) = bridge_address else {
+            return Err(DepositError::field_not_set("bridge_address"));
+        };
+        let bridge_address = Address::try_from_raw(&bridge_address)
             .map_err(DepositError::incorrect_address_length)?;
         let amount = amount.ok_or(DepositError::field_not_set("amount"))?.into();
-        let rollup_id = RollupId::try_from_slice(&rollup_id)
-            .map_err(DepositError::incorrect_rollup_id_length)?;
+        let Some(rollup_id) = rollup_id else {
+            return Err(DepositError::field_not_set("rollup_id"));
+        };
+        let rollup_id =
+            RollupId::try_from_raw(&rollup_id).map_err(DepositError::incorrect_rollup_id_length)?;
         let asset_id = asset::Id::try_from_slice(&asset_id)
             .map_err(DepositError::incorrect_asset_id_length)?;
         Ok(Self {

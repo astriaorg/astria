@@ -1,0 +1,12 @@
+syntax = "proto3";
+package celestia.blob.v1;
+
+// This file contains types which are copied from
+// https://github.com/celestiaorg/celestia-app/blob/915847191e80d836f862eea2664949d9a240abea/proto/celestia/blob/v1/params.proto
+// (v1.7.0 tag).
+
+// Params defines the parameters for the module.
+message Params {
+  uint32 gas_per_blob_byte = 1;
+  uint64 gov_max_square_size = 2;
+}

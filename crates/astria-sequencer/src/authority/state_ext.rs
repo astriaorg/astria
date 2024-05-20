@@ -5,7 +5,7 @@ use anyhow::{
     Context,
     Result,
 };
-use astria_core::sequencer::v1::{
+use astria_core::primitive::v1::{
     Address,
     ADDRESS_LEN,
 };
@@ -47,12 +47,10 @@ impl ValidatorSet {
         Self(validator_set)
     }
 
-    #[cfg(test)]
     pub(crate) fn len(&self) -> usize {
         self.0.len()
     }
 
-    #[cfg(test)]
     pub(crate) fn get(&self, address: &account::Id) -> Option<&validator::Update> {
         self.0.get(address)
     }
@@ -181,7 +179,7 @@ impl<T: StateWrite> StateWriteExt for T {}
 
 #[cfg(test)]
 mod test {
-    use astria_core::sequencer::v1::Address;
+    use astria_core::primitive::v1::Address;
     use cnidarium::StateDelta;
     use tendermint::{
         validator,
@@ -260,18 +258,18 @@ mod test {
                 .expect("creating ed25519 key should not fail"),
             power: vote::Power::from(10u32),
         }];
-        let intial_validator_set = ValidatorSet::new_from_updates(initial);
+        let initial_validator_set = ValidatorSet::new_from_updates(initial);
 
         // can write new
         state
-            .put_validator_set(intial_validator_set.clone())
+            .put_validator_set(initial_validator_set.clone())
             .expect("writing initial validator set should not fail");
         assert_eq!(
             state
                 .get_validator_set()
                 .await
                 .expect("a validator set was written and must exist inside the database"),
-            intial_validator_set,
+            initial_validator_set,
             "stored validator set was not what was expected"
         );
 

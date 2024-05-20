@@ -7,7 +7,7 @@ use astria_core::{
         sequencer_service_client::SequencerServiceClient,
         GetFilteredSequencerBlockRequest,
     },
-    sequencer::v1::RollupId,
+    primitive::v1::RollupId,
     sequencerblock::v1alpha1::block::FilteredSequencerBlock,
 };
 use astria_eyre::eyre::{
@@ -20,6 +20,7 @@ use tonic::transport::{
     Uri,
 };
 use tracing::{
+    debug,
     instrument,
     warn,
     Instrument,
@@ -63,6 +64,8 @@ impl SequencerGrpcClient {
         height: u64,
         rollup_id: RollupId,
     ) -> eyre::Result<FilteredSequencerBlock> {
+        debug!("requesting filtered block from sequencer");
+
         let span = tracing::Span::current();
         let retry_cfg = tryhard::RetryFutureConfig::new(u32::MAX)
             .exponential_backoff(Duration::from_millis(100))
@@ -89,7 +92,7 @@ impl SequencerGrpcClient {
             let mut client = client.clone();
             let req = GetFilteredSequencerBlockRequest {
                 height,
-                rollup_ids: vec![rollup_id.to_vec()],
+                rollup_ids: vec![rollup_id.to_raw()],
             };
             async move { client.get_filtered_sequencer_block(req).await }
         })

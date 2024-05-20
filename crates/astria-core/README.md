@@ -1,12 +1,12 @@
 # Astria Core
 
-This crate contains code to interact with the public API of Astria. In particularly
+This crate contains code to interact with the public API of Astria. In particular,
 it contains definitions to convert Rust sources generated from the Astria protobuf
-spececifications to idiomatic Rust types.
+specifications to idiomatic Rust types.
 
 The Rust sources generated from protobuf specifications at
-[`../proto/`](../proto) are commited to this crate under
-[`./src/proto/generated/`](./src/proto/generated/).
+[`../proto/`](../proto) are committed to this crate under
+[`./src/generated/`](./src/proto/generated/).
 
 This repo contains all the protobuf packages for Astria. All rust code generated
 from the protobuf files in [`proto/`](`./proto/`) is committed to this repository

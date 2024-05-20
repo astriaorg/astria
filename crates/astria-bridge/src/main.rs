@@ -2,19 +2,20 @@ use std::process::ExitCode;
 
 use astria_bridge::{
     metrics_init,
-    Conductor,
+    BridgeService,
     Config,
     BUILD_INFO,
 };
 use astria_eyre::eyre::WrapErr as _;
+use tokio::signal::unix::{
+    signal,
+    SignalKind,
+};
 use tracing::{
     error,
     info,
+    warn,
 };
-
-// Following the BSD convention for failing to read config
-// See here: https://freedesktop.org/software/systemd/man/systemd.exec.html#Process%20Exit%20Codes
-const EX_CONFIG: u8 = 78;
 
 #[tokio::main]
 async fn main() -> ExitCode {
@@ -53,7 +54,7 @@ async fn main() -> ExitCode {
 
     let mut sigterm = signal(SignalKind::terminate())
         .expect("setting a SIGTERM listener should always work on Unix");
-    let (bridge, shutdown_handle) = Bridge::new(cfg).expect("could not initialize bridge");
+    let (bridge, shutdown_handle) = BridgeService::new(cfg).expect("could not initialize bridge");
     let bridge_handle = tokio::spawn(bridge.run());
 
     let shutdown_token = shutdown_handle.token();

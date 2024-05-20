@@ -6,7 +6,7 @@ breaking:
     - WIRE_JSON
 deps:
   - buf.build/googleapis/googleapis
-  - buf.build/astria/astria
+  - buf.build/astria/primitives
 lint:
   use:
     - BASIC

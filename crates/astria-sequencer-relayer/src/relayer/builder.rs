@@ -9,24 +9,31 @@ use astria_eyre::eyre::{
     self,
     WrapErr as _,
 };
-use celestia_client::jsonrpsee::http_client::HttpClient as CelestiaClient;
 use sequencer_client::HttpClient as SequencerClient;
 use tonic::transport::{
     Endpoint,
     Uri,
 };
 
-use super::state::State;
-use crate::validator::Validator;
+use super::{
+    state::State,
+    CelestiaClientBuilder,
+    CelestiaKeys,
+};
+use crate::{
+    validator::Validator,
+    IncludeRollup,
+};
 
 pub(crate) struct Builder {
     pub(crate) shutdown_token: tokio_util::sync::CancellationToken,
-    pub(crate) celestia_endpoint: String,
-    pub(crate) celestia_bearer_token: String,
+    pub(crate) celestia_app_grpc_endpoint: String,
+    pub(crate) celestia_app_key_file: String,
     pub(crate) cometbft_endpoint: String,
     pub(crate) sequencer_poll_period: Duration,
     pub(crate) sequencer_grpc_endpoint: String,
     pub(crate) validator_key_path: Option<String>,
+    pub(crate) rollup_filter: IncludeRollup,
     pub(crate) pre_submit_path: PathBuf,
     pub(crate) post_submit_path: PathBuf,
 }
@@ -36,12 +43,13 @@ impl Builder {
     pub(crate) fn build(self) -> eyre::Result<super::Relayer> {
         let Self {
             shutdown_token,
-            celestia_endpoint,
-            celestia_bearer_token,
+            celestia_app_grpc_endpoint,
+            celestia_app_key_file,
             cometbft_endpoint,
+            sequencer_poll_period,
             sequencer_grpc_endpoint,
             validator_key_path,
-            sequencer_poll_period,
+            rollup_filter,
             pre_submit_path,
             post_submit_path,
         } = self;
@@ -61,38 +69,29 @@ impl Builder {
             .transpose()
             .wrap_err("failed to get validator info from file")?;
 
-        let celestia_client = create_celestia_client(celestia_endpoint, &celestia_bearer_token)
-            .wrap_err("failed creating client to interact with Celestia Node JSONRPC")?;
-
         let state = Arc::new(State::new());
+
+        let celestia_client_builder = {
+            let uri: Uri = celestia_app_grpc_endpoint
+                .parse()
+                .wrap_err("failed parsing provided celestia app grpc endpoint as Uri")?;
+            let celestia_keys = CelestiaKeys::from_path(celestia_app_key_file)
+                .wrap_err("failed to get celestia keys from file")?;
+            CelestiaClientBuilder::new(uri, celestia_keys, state.clone())
+                .wrap_err("failed to create celestia client builder")?
+        };
 
         Ok(super::Relayer {
             shutdown_token,
             sequencer_cometbft_client,
             sequencer_grpc_client,
             sequencer_poll_period,
-            celestia_client,
+            celestia_client_builder,
             validator,
+            rollup_filter,
             state,
             pre_submit_path,
             post_submit_path,
         })
     }
-}
-
-fn create_celestia_client(endpoint: String, bearer_token: &str) -> eyre::Result<CelestiaClient> {
-    use celestia_client::jsonrpsee::http_client::{
-        HeaderMap,
-        HttpClientBuilder,
-    };
-    let mut headers = HeaderMap::new();
-    let auth_value = format!("Bearer {bearer_token}").parse().wrap_err(
-        "failed to construct Authorization header value from provided Celestia bearer token",
-    )?;
-    headers.insert(http::header::AUTHORIZATION, auth_value);
-    let client = HttpClientBuilder::default()
-        .set_headers(headers)
-        .build(endpoint)
-        .wrap_err("failed constructing Celestia JSONRPC HTTP Client")?;
-    Ok(client)
 }

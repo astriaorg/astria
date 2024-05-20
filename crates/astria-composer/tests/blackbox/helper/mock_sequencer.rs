@@ -16,7 +16,7 @@ use wiremock::{
 };
 
 pub async fn start() -> (MockServer, MockGuard) {
-    use astria_core::generated::sequencer::v1::NonceResponse;
+    use astria_core::generated::protocol::account::v1alpha1::NonceResponse;
     let server = MockServer::start().await;
     let startup_guard = mount_abci_query_mock(
         &server,

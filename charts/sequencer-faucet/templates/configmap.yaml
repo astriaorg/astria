@@ -9,6 +9,6 @@ data:
   SEQUENCER_FAUCET_SEQUENCER_RPC_URL: "{{ .Values.config.sequencerRpcUrl}}"
   SEQUENCER_FAUCET_AMOUNT: "{{ .Values.config.amount }}"
   {{- if not .Values.secretProvider.enabled }}
-  SEQUENCER_FAUCET_PRIVATE_KEY: "{{ .Values.config.fundingPrivateKey }}"
+  SEQUENCER_FAUCET_PRIVATE_KEY: "{{ .Values.config.fundingPrivateKey.content }}"
   {{- end }}
 ---

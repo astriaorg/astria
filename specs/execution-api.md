@@ -26,7 +26,7 @@ Upon startup, conductor first grabs the basic genesis information via
 the state machine via `GetCommitmentState`. If started on a fresh rollup
 these will all be the same block. If running against a state machine with
 previous block data, Conductor must also track the block hash of any blocks
-between commitments, it will call `BatchGetBlock` to get block information
+between commitments, it will call `BatchGetBlocks` to get block information
 between commitments.
 
 ### Execution & Commitments
@@ -74,7 +74,7 @@ Note: For our EVM rollup, we map the `CommitmentState` to the `ForkchoiceRule`:
 ### GetGenesisInfo
 
 `GetGenesisInfo` returns information which is definitional to the rollup with
-regards to how it derves data from the sequencer & celestia networks. This RPC
+regards to how it serves data from the sequencer & celestia networks. This RPC
 should ALWAYS succeed. The API is agnostic as to how the information is defined
 in a rollups genesis, and used by the conductor as configuration on startup.
 
@@ -90,26 +90,26 @@ indicated by `prev_block_hash`. The following should be respected:
 
 ### GetBlock
 
-`GetBlock` returns information about a block given either it's `number` or
+`GetBlock` returns information about a block given either its `number` or
 `hash`. If the block cannot be found return a `NOT_FOUND` error.
 
 ### BatchGetBlocks
 
-`BatchGetBlock` returns an array of Blocks which match the array of passed in
+`BatchGetBlocks` returns an array of Blocks which match the array of passed in
 block identifiers.
 
-- The API endpoint MUST fail atomically, returning either all requested resource
+- The API endpoint MUST fail atomically, returning either all requested resources
   or a `NOT_FOUND` error.
 - The returned objects MUST be in the same order as they were requested.
 
 ### GetCommitmentState
 
-Returns the commitment state with rollup `Block` information for each level of
-commitment.
+`GetCommitmentState` returns the commitment state with rollup `Block` information
+for each level of commitment.
 
 ### UpdateCommitmentState
 
-`UpdateCommitmentState` replaces the `CommitmentState` in the sequencer
+`UpdateCommitmentState` replaces the `CommitmentState` in the sequencer.
 
 - No commitment can ever decrease in block number on the blockchain, if this is
   attempted return a `FAILED_PRECONDITION` error.

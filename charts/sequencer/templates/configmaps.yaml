@@ -8,13 +8,20 @@ data:
     {{- tpl (.Files.Get "files/cometbft/config/genesis.json") $ | nindent 4 }}
   config.toml: |
     {{- tpl (.Files.Get "files/cometbft/config/config.toml") $ | nindent 4 }}
-  {{- if not .Values.secretProvider.enabled }}
-  node_key.json: |
-    {{- tpl (.Files.Get "files/cometbft/config/node_key.json") $ | nindent 4 }}
-  priv_validator_key.json: |
-    {{- tpl (.Files.Get "files/cometbft/config/priv_validator_key.json") $ | nindent 4 }}
+---
+{{- if not .Values.secretProvider.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.config.moniker }}-cometbft-secrets
+  namespace: {{ include "sequencer.namespace" . }}
+data:
+  {{- range $secret := .Values.config.cometBFT.secrets }}
+  {{ $secret.filename }}: |
+    {{- toJson $secret.devContent | nindent 4 }}
   {{- end }}
 ---
+{{- end }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -54,7 +61,7 @@ data:
   # Socket address for gRPC server
   ASTRIA_SEQUENCER_GRPC_ADDR: "0.0.0.0:{{ .Values.ports.sequencerGRPC }}"
   ASTRIA_SEQUENCER_NO_METRICS: "{{ not .Values.config.sequencer.metrics.enabled }}"
-  ASTRIA_SEQUENCER_METRICS_HTTP_LISTENER_ADDR: "127.0.0.1:{{ .Values.ports.sequencerMetrics }}"
+  ASTRIA_SEQUENCER_METRICS_HTTP_LISTENER_ADDR: "0.0.0.0:{{ .Values.ports.sequencerMetrics }}"
   ASTRIA_SEQUENCER_FORCE_STDOUT: "{{ .Values.global.useTTY }}"
   ASTRIA_SEQUENCER_PRETTY_PRINT: "{{ .Values.global.useTTY }}"
   ASTRIA_SEQUENCER_NO_OTEL: "{{ not .Values.config.sequencer.otel.enabled }}"
@@ -64,6 +71,7 @@ data:
   OTEL_EXPORTER_OTLP_TRACES_COMPRESSION: "{{ .Values.config.sequencer.otel.tracesCompression }}"
   OTEL_EXPORTER_OTLP_HEADERS: "{{ .Values.config.sequencer.otel.otlpHeaders }}"
   OTEL_EXPORTER_OTLP_TRACE_HEADERS: "{{ .Values.config.sequencer.otel.traceHeaders }}"
+  OTEL_SERVICE_NAME: "{{ tpl .Values.config.sequencer.otel.serviceName . }}"
   {{- if not .Values.global.dev }}
   {{- else }}
   {{- end }}

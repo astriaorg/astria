@@ -1,6 +1,6 @@
 use tokio::sync::watch;
 
-pub(super) struct State {
+pub(crate) struct State {
     inner: tokio::sync::watch::Sender<StateSnapshot>,
 }
 
@@ -13,7 +13,7 @@ impl State {
     }
 
     pub(super) fn set_ready(&self) {
-        self.inner.send_modify(|_| ());
+        self.inner.send_modify(StateSnapshot::set_ready);
     }
 
     pub(super) fn subscribe(&self) -> watch::Receiver<StateSnapshot> {

@@ -11,24 +11,22 @@ use metrics::{
 
 /// Registers all metrics used by this crate.
 pub fn register() {
-    celestia_client::metrics_init::register();
-
     describe_counter!(
         CELESTIA_SUBMISSION_COUNT,
         Unit::Count,
-        "The number of calls made to submit to celestia"
+        "The number of calls made to submit to Celestia"
     );
 
     describe_counter!(
         CELESTIA_SUBMISSION_HEIGHT,
         Unit::Count,
-        "The height of the last blob submitted to Celestia"
+        "The height of the last blob successfully submitted to Celestia"
     );
 
     describe_counter!(
         CELESTIA_SUBMISSION_FAILURE_COUNT,
         Unit::Count,
-        "The number of calls made to submit to celestia which have failed"
+        "The number of calls made to submit to Celestia which have failed"
     );
 
     describe_counter!(
@@ -43,23 +41,49 @@ pub fn register() {
         "The number of calls made to fetch the current height from sequencer which have failed"
     );
 
-    describe_gauge!(
-        BLOCKS_PER_CELESTIA_TX,
+    describe_counter!(
+        SEQUENCER_SUBMISSION_HEIGHT,
         Unit::Count,
-        "The number of Astria blocks included in the last Celestia submission"
+        "The height of the highest sequencer block successfully submitted to Celestia"
     );
 
-    describe_gauge!(
+    describe_histogram!(
+        BLOCKS_PER_CELESTIA_TX,
+        Unit::Count,
+        "The number of Astria blocks per Celestia submission"
+    );
+
+    describe_histogram!(
         BLOBS_PER_CELESTIA_TX,
         Unit::Count,
-        "The number of blobs (Astria blobs converted to Celestia blobs) included in the last \
-         Celestia submission"
+        "The number of blobs (Astria Sequencer blocks converted to Celestia blobs) per Celestia \
+         submission"
+    );
+
+    describe_histogram!(
+        BYTES_PER_CELESTIA_TX,
+        Unit::Bytes,
+        "The total number of payload bytes (Astria Sequencer blocks converted to Celestia blobs) \
+         per Celestia submission"
     );
 
     describe_histogram!(
         CELESTIA_SUBMISSION_LATENCY,
         Unit::Seconds,
         "The time it takes to submit a blob to Celestia"
+    );
+
+    describe_histogram!(
+        CELESTIA_PAYLOAD_CREATION_LATENCY,
+        Unit::Microseconds,
+        "The time it takes to create a new payload for submitting to Celestia (encoding to \
+         protobuf, compression, creating blobs)"
+    );
+
+    describe_gauge!(
+        COMPRESSION_RATIO_FOR_ASTRIA_BLOCK,
+        Unit::Count,
+        "Ratio of uncompressed:compressed data size for all `blob.data`s in an Astria block"
     );
 }
 
@@ -84,6 +108,13 @@ pub const BLOCKS_PER_CELESTIA_TX: &str =
 
 pub const BLOBS_PER_CELESTIA_TX: &str = concat!(env!("CARGO_CRATE_NAME"), "_blobs_per_celestia_tx");
 
+pub const BYTES_PER_CELESTIA_TX: &str = concat!(env!("CARGO_CRATE_NAME"), "_bytes_per_celestia_tx");
+
+pub const CELESTIA_PAYLOAD_CREATION_LATENCY: &str = concat!(
+    env!("CARGO_CRATE_NAME"),
+    "_celestia_payload_creation_latency"
+);
+
 pub const CELESTIA_SUBMISSION_LATENCY: &str =
     concat!(env!("CARGO_CRATE_NAME"), "_celestia_submission_latency");
 
@@ -95,4 +126,12 @@ pub const SEQUENCER_BLOCK_FETCH_FAILURE_COUNT: &str = concat!(
 pub const SEQUENCER_HEIGHT_FETCH_FAILURE_COUNT: &str = concat!(
     env!("CARGO_CRATE_NAME"),
     "_sequencer_height_fetch_failure_count",
+);
+
+pub const SEQUENCER_SUBMISSION_HEIGHT: &str =
+    concat!(env!("CARGO_CRATE_NAME"), "_sequencer_submission_height");
+
+pub const COMPRESSION_RATIO_FOR_ASTRIA_BLOCK: &str = concat!(
+    env!("CARGO_CRATE_NAME"),
+    "_compression_ratio_for_astria_block"
 );

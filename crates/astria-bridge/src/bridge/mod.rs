@@ -8,19 +8,27 @@ mod state;
 
 pub(crate) use builder::Builder;
 use state::State;
-pub(crate) use state::StateSnapshot;
+pub(super) use state::StateSnapshot;
 
-pub struct Bridge {
-    shutdown_token: CancellationToken,
+pub(super) struct Bridge {
+    _shutdown_token: CancellationToken,
     state: Arc<State>,
 }
 
 impl Bridge {
-    pub(crate) fn subscribe_to_state(&self) -> tokio::sync::watch::Receiver<StateSnapshot> {
+    pub(super) fn new(state: Arc<State>, shutdown_token: CancellationToken) -> Self {
+        Self {
+            state,
+            _shutdown_token: shutdown_token.clone(),
+        }
+    }
+
+    pub(super) fn subscribe_to_state(&self) -> tokio::sync::watch::Receiver<StateSnapshot> {
         self.state.subscribe()
     }
 
-    pub(crate) async fn run(self) -> eyre::Result<()> {
+    pub(super) async fn run(self) -> eyre::Result<()> {
+        self.state.set_ready();
         Ok(())
     }
 }

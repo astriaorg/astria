@@ -6,6 +6,7 @@ use astria_conductor::{
     Config,
 };
 use astria_core::{
+    brotli::compress_bytes,
     generated::{
         execution::v1alpha2::{
             Block,
@@ -14,10 +15,10 @@ use astria_core::{
         },
         sequencerblock::v1alpha1::FilteredSequencerBlock,
     },
-    sequencer::v1::RollupId,
+    primitive::v1::RollupId,
 };
 use bytes::Bytes;
-use celestia_client::celestia_types::{
+use celestia_types::{
     nmt::Namespace,
     Blob,
 };
@@ -32,6 +33,7 @@ use sequencer_client::{
 #[macro_use]
 mod macros;
 mod mock_grpc;
+use astria_eyre;
 pub use mock_grpc::MockGrpc;
 use serde_json::json;
 use tokio::task::JoinHandle;
@@ -128,6 +130,23 @@ impl TestConductor {
         .await;
     }
 
+    pub async fn mount_get_block<S: serde::Serialize>(
+        &self,
+        expected_pbjson: S,
+        block: astria_core::generated::execution::v1alpha2::Block,
+    ) {
+        use astria_grpc_mock::{
+            matcher::message_partial_pbjson,
+            response::constant_response,
+            Mock,
+        };
+        Mock::for_rpc_given("get_block", message_partial_pbjson(&expected_pbjson))
+            .respond_with(constant_response(block))
+            .expect(1..)
+            .mount(&self.mock_grpc.mock_server)
+            .await;
+    }
+
     pub async fn mount_celestia_blob_get_all(
         &self,
         celestia_height: u64,
@@ -170,7 +189,7 @@ impl TestConductor {
 
     pub async fn mount_celestia_header_network_head(
         &self,
-        extended_header: celestia_client::celestia_types::ExtendedHeader,
+        extended_header: celestia_types::ExtendedHeader,
     ) {
         use wiremock::{
             matchers::{
@@ -318,6 +337,7 @@ impl TestConductor {
 
     pub async fn mount_execute_block<S: serde::Serialize>(
         &self,
+        mock_name: Option<&str>,
         expected_pbjson: S,
         response: Block,
     ) -> astria_grpc_mock::MockGuard {
@@ -326,9 +346,13 @@ impl TestConductor {
             response::constant_response,
             Mock,
         };
-        Mock::for_rpc_given("execute_block", message_partial_pbjson(&expected_pbjson))
-            .respond_with(constant_response(response))
-            .expect(1)
+        let mut mock =
+            Mock::for_rpc_given("execute_block", message_partial_pbjson(&expected_pbjson))
+                .respond_with(constant_response(response));
+        if let Some(name) = mock_name {
+            mock = mock.with_name(name);
+        }
+        mock.expect(1)
             .mount_as_scoped(&self.mock_grpc.mock_server)
             .await
     }
@@ -355,6 +379,7 @@ impl TestConductor {
 
     pub async fn mount_update_commitment_state(
         &self,
+        mock_name: Option<&str>,
         commitment_state: CommitmentState,
     ) -> astria_grpc_mock::MockGuard {
         use astria_core::generated::execution::v1alpha2::UpdateCommitmentStateRequest;
@@ -363,16 +388,19 @@ impl TestConductor {
             response::constant_response,
             Mock,
         };
-        Mock::for_rpc_given(
+        let mut mock = Mock::for_rpc_given(
             "update_commitment_state",
             message_partial_pbjson(&UpdateCommitmentStateRequest {
                 commitment_state: Some(commitment_state.clone()),
             }),
         )
-        .respond_with(constant_response(commitment_state.clone()))
-        .expect(1)
-        .mount_as_scoped(&self.mock_grpc.mock_server)
-        .await
+        .respond_with(constant_response(commitment_state.clone()));
+        if let Some(name) = mock_name {
+            mock = mock.with_name(name);
+        }
+        mock.expect(1)
+            .mount_as_scoped(&self.mock_grpc.mock_server)
+            .await
     }
 
     pub async fn mount_validator_set(
@@ -426,56 +454,68 @@ fn make_config() -> Config {
 
 #[must_use]
 pub fn make_sequencer_block(height: u32) -> astria_core::sequencerblock::v1alpha1::SequencerBlock {
-    astria_core::sequencerblock::v1alpha1::SequencerBlock::try_from_cometbft(
-        astria_core::sequencer::v1::test_utils::ConfigureCometBftBlock {
-            chain_id: Some(crate::SEQUENCER_CHAIN_ID.to_string()),
-            height,
-            rollup_transactions: vec![(crate::ROLLUP_ID, data())],
-            unix_timestamp: (1i64, 1u32).into(),
-            signing_key: Some(signing_key()),
-            proposer_address: None,
-        }
-        .make(),
-    )
-    .unwrap()
+    astria_core::protocol::test_utils::ConfigureSequencerBlock {
+        chain_id: Some(crate::SEQUENCER_CHAIN_ID.to_string()),
+        height,
+        sequence_data: vec![(crate::ROLLUP_ID, data())],
+        unix_timestamp: (1i64, 1u32).into(),
+        signing_key: Some(signing_key()),
+        proposer_address: None,
+        ..Default::default()
+    }
+    .make()
 }
 
 pub struct Blobs {
-    pub header: Vec<Blob>,
-    pub rollup: Vec<Blob>,
+    pub header: Blob,
+    pub rollup: Blob,
 }
 
 #[must_use]
-pub fn make_blobs(height: u32) -> Blobs {
-    let (head, tail) = make_sequencer_block(height).into_celestia_blobs();
-
-    let header = ::celestia_client::celestia_types::Blob::new(
-        ::celestia_client::celestia_namespace_v0_from_bytes(crate::SEQUENCER_CHAIN_ID.as_bytes()),
-        ::prost::Message::encode_to_vec(&head.into_raw()),
-    )
-    .unwrap();
-
-    let mut rollup = Vec::new();
-    for elem in tail {
-        let blob = ::celestia_client::celestia_types::Blob::new(
-            ::celestia_client::celestia_namespace_v0_from_rollup_id(crate::ROLLUP_ID),
-            ::prost::Message::encode_to_vec(&elem.into_raw()),
-        )
-        .unwrap();
-        rollup.push(blob);
+pub fn make_blobs(heights: &[u32]) -> Blobs {
+    use astria_core::generated::sequencerblock::v1alpha1::{
+        SubmittedMetadataList,
+        SubmittedRollupDataList,
+    };
+    let mut metadata = Vec::new();
+    let mut rollup_data = Vec::new();
+    for &height in heights {
+        let (head, mut tail) = make_sequencer_block(height).split_for_celestia();
+        metadata.push(head.into_raw());
+        assert_eq!(
+            1,
+            tail.len(),
+            "this test logic assumes that there is only one rollup in the mocked block"
+        );
+        rollup_data.push(tail.swap_remove(0).into_raw());
     }
+    let header_list = SubmittedMetadataList {
+        entries: metadata,
+    };
+    let rollup_data_list = SubmittedRollupDataList {
+        entries: rollup_data,
+    };
+
+    let raw_header_list = ::prost::Message::encode_to_vec(&header_list);
+    let head_list_compressed = compress_bytes(&raw_header_list).unwrap();
+    let header = Blob::new(sequencer_namespace(), head_list_compressed).unwrap();
+
+    let raw_rollup_data_list = ::prost::Message::encode_to_vec(&rollup_data_list);
+    let rollup_data_list_compressed = compress_bytes(&raw_rollup_data_list).unwrap();
+    let rollup = Blob::new(rollup_namespace(), rollup_data_list_compressed).unwrap();
+
     Blobs {
-        header: vec![header],
+        header,
         rollup,
     }
 }
 
-fn signing_key() -> ed25519_consensus::SigningKey {
+fn signing_key() -> astria_core::crypto::SigningKey {
     use rand_chacha::{
         rand_core::SeedableRng as _,
         ChaChaRng,
     };
-    ed25519_consensus::SigningKey::new(ChaChaRng::seed_from_u64(0))
+    astria_core::crypto::SigningKey::new(ChaChaRng::seed_from_u64(0))
 }
 
 fn validator() -> tendermint::validator::Info {
@@ -573,10 +613,10 @@ pub fn make_validator_set(height: u32) -> tendermint_rpc::endpoint::validators::
 
 #[must_use]
 pub fn rollup_namespace() -> Namespace {
-    celestia_client::celestia_namespace_v0_from_rollup_id(ROLLUP_ID)
+    astria_core::celestia::namespace_v0_from_rollup_id(ROLLUP_ID)
 }
 
 #[must_use]
 pub fn sequencer_namespace() -> Namespace {
-    celestia_client::celestia_namespace_v0_from_bytes(SEQUENCER_CHAIN_ID.as_bytes())
+    astria_core::celestia::namespace_v0_from_sha256_of_bytes(SEQUENCER_CHAIN_ID.as_bytes())
 }

@@ -63,7 +63,13 @@ fn main() {
         .build_client(true)
         .build_server(true)
         .emit_rerun_if_changed(false)
-        .bytes([".astria.execution.v1alpha2"])
+        .bytes([
+            ".astria.execution.v1alpha2",
+            ".astria.primitive.v1",
+            ".celestia",
+            ".cosmos",
+            ".tendermint",
+        ])
         .client_mod_attribute(".", "#[cfg(feature=\"client\")]")
         .server_mod_attribute(".", "#[cfg(feature=\"server\")]")
         .extern_path(
@@ -104,22 +110,11 @@ fn main() {
         .out_dir(&out_dir)
         .build(&[
             ".astria.execution.v1alpha2",
-            ".astria.sequencer.v1.Deposit",
-            ".astria.sequencer.v1.FilteredSequencerBlock",
-            ".astria.sequencer.v1.GetFilteredSequencerBlockRequest",
-            ".astria.sequencer.v1.Proof",
-            ".astria.sequencer.v1.RollupData",
-            ".astria.sequencer.v1.RollupTransactions",
-            ".astria.primitive.v1.Uint128",
-            ".astria.sequencerblock.v1alpha1.Deposit",
-            ".astria.sequencerblock.v1alpha1.SequencerBlockHeader",
-            ".astria.sequencerblock.v1alpha1.SequencerBlock",
-            ".astria.sequencerblock.v1alpha1.GetSequencerBlockRequest",
-            ".astria.sequencerblock.v1alpha1.FilteredSequencerBlock",
-            ".astria.sequencerblock.v1alpha1.GetFilteredSequencerBlockRequest",
-            ".astria.sequencerblock.v1alpha1.RollupData",
-            ".astria.sequencerblock.v1alpha1.RollupTransactions",
-            ".astria.sequencerblock.v1alpha1.Proof",
+            ".astria.primitive.v1",
+            ".astria.sequencerblock.v1alpha1",
+            ".celestia",
+            ".cosmos",
+            ".tendermint",
         ])
         .unwrap();
 
@@ -153,7 +148,12 @@ fn clean_non_astria_code(generated: &mut ContentMap) {
     let mut foreign_file_names: HashSet<_> = generated
         .files
         .keys()
-        .filter(|name| !name.starts_with("astria."))
+        .filter(|name| {
+            !name.starts_with("astria.")
+                && !name.starts_with("celestia.")
+                && !name.starts_with("cosmos.")
+                && !name.starts_with("tendermint.")
+        })
         .cloned()
         .collect();
     // also mask mod.rs because we need are defining it
