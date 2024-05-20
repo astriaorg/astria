@@ -20,13 +20,11 @@ http = "0.2.9"
 k256 = "0.13.3"
 pin-project-lite = "0.2"
 serde_path_to_error = "0.1.13"
-zeroize = { version = "1.6.0", features = ["zeroize_derive"] }
 
 axum = { workspace = true }
 base64 = { workspace = true }
 base64-serde = { workspace = true }
 celestia-types = { workspace = true }
-ed25519-consensus = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 humantime = { workspace = true }

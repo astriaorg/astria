@@ -173,7 +173,11 @@ config:
     # Private key which is used for wrapping txs for sequencer submission
     # Note: When secretProvider.enabled is true the secret provided by
     #       `sequencerPrivateKey` is used instead of this value.
-    privateKey: "2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90"
+    privateKey:
+      devContent: "2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90"
+      secret:
+        filename: "key.hex"
+        resourceName: "projects/$PROJECT_ID/secrets/sequencerPrivateKey/versions/latest"
 
   celestia:
     # if config.rollup.executionLevel is NOT 'SoftOnly' AND celestia-node is not enabled

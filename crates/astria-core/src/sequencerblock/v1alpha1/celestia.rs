@@ -494,6 +494,17 @@ pub struct SubmittedMetadata {
     rollup_ids_proof: merkle::Proof,
 }
 
+/// An iterator over rollup IDs.
+pub struct RollupIdIter<'a>(std::slice::Iter<'a, RollupId>);
+
+impl<'a> Iterator for RollupIdIter<'a> {
+    type Item = &'a RollupId;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.next()
+    }
+}
+
 impl SubmittedMetadata {
     /// Returns the block hash of the tendermint header stored in this blob.
     #[must_use]
@@ -518,6 +529,12 @@ impl SubmittedMetadata {
     #[must_use]
     pub fn header(&self) -> &SequencerBlockHeader {
         &self.header
+    }
+
+    /// Returns the rollup IDs.
+    #[must_use]
+    pub fn rollup_ids(&self) -> RollupIdIter {
+        RollupIdIter(self.rollup_ids.iter())
     }
 
     /// Returns the Merkle Tree Hash constructed from the rollup transactions of the original

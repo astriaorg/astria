@@ -21,7 +21,6 @@ telemetry = { package = "astria-telemetry", path = "../astria-telemetry", featur
 ] }
 
 pin-project-lite = "0.2.13"
-secrecy = { version = "0.8", features = ["serde"] }
 tonic-health = "0.10.2"
 
 async-trait = { workspace = true }
@@ -70,6 +69,7 @@ test_utils = { package = "astria-test-utils", path = "../astria-test-utils", fea
   "geth",
 ] }
 insta = { workspace = true, features = ["json"] }
+tempfile = { workspace = true }
 tokio-test = { workspace = true }
 astria-core = { path = "../astria-core", features = ["client"] }
 tendermint-rpc = { workspace = true }

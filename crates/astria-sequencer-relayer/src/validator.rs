@@ -2,36 +2,19 @@ use std::path::Path;
 
 use astria_eyre::eyre::{
     self,
-    bail,
     WrapErr as _,
-};
-use ed25519_consensus::{
-    SigningKey,
-    VerificationKey,
 };
 use tendermint::account;
 use tendermint_config::PrivValidatorKey;
 use tracing::instrument;
-use zeroize::{
-    Zeroize,
-    ZeroizeOnDrop,
-};
 
 /// `Validator` holds the ed25519 keys to sign and verify tendermint
 /// messages. It also contains its address (`AccountId`) in the tendermint network.
-#[derive(Clone, Debug, Zeroize, ZeroizeOnDrop)]
+#[derive(Clone, Debug)]
 pub(crate) struct Validator {
     /// The tendermint validator account address; defined as
     /// Sha256(verification_key)[..20].
-    #[zeroize(skip)]
-    pub(crate) address: account::Id,
-
-    /// The ed25519 signing key of this validator.
-    pub(crate) signing_key: SigningKey,
-
-    #[zeroize(skip)]
-    /// The ed25519 verification key of this validator.
-    pub(crate) verification_key: VerificationKey,
+    pub(super) address: account::Id,
 }
 
 impl Validator {
@@ -43,32 +26,8 @@ impl Validator {
     pub(crate) fn from_path(path: impl AsRef<Path>) -> eyre::Result<Self> {
         let key = PrivValidatorKey::load_json_file(&path.as_ref())
             .wrap_err("failed reading private validator key from file")?;
-        Self::from_priv_validator_key(key)
-    }
-
-    pub(crate) fn from_priv_validator_key(key: PrivValidatorKey) -> eyre::Result<Self> {
-        let PrivValidatorKey {
-            address,
-            pub_key,
-            priv_key,
-        } = key;
-        let Some(tendermint_signing_key) = priv_key.ed25519_signing_key().cloned() else {
-            bail!("deserialized private key was not ed25519");
-        };
-        let signing_key = tendermint_signing_key.try_into().wrap_err(
-            "failed constructing ed25519 signing key from deserialized tendermint private key",
-        )?;
-        let Some(tendermint_verification_key) = pub_key.ed25519() else {
-            bail!("deserialized public key was not ed25519");
-        };
-        let verification_key = tendermint_verification_key.try_into().wrap_err(
-            "failed constructing ed25519 verification key from deserialized tendermint public key",
-        )?;
-
         Ok(Self {
-            address,
-            signing_key,
-            verification_key,
+            address: key.address,
         })
     }
 }
