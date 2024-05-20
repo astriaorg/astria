@@ -504,6 +504,7 @@ dependencies = [
  "astria-grpc-mock",
  "astria-telemetry",
  "axum",
+ "ethers",
  "http",
  "hyper",
  "metrics",
@@ -2951,6 +2952,7 @@ checksum = "e79e5973c26d4baf0ce55520bd732314328cabe53193286671b47144145b9649"
 dependencies = [
  "chrono",
  "ethers-core",
+ "ethers-solc",
  "reqwest",
  "semver 1.0.22",
  "serde",

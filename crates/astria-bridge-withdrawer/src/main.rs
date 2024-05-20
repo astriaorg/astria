@@ -54,7 +54,9 @@ async fn main() -> ExitCode {
 
     let mut sigterm = signal(SignalKind::terminate())
         .expect("setting a SIGTERM listener should always work on Unix");
-    let (bridge, shutdown_handle) = BridgeService::new(cfg).expect("could not initialize bridge");
+    let (bridge, shutdown_handle) = BridgeService::new(cfg)
+        .await
+        .expect("could not initialize bridge");
     let bridge_handle = tokio::spawn(bridge.run());
 
     let shutdown_token = shutdown_handle.token();
