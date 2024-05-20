@@ -84,6 +84,7 @@ modules:
         - WIRE_JSON
       ignore_unstable_packages: true
   - path: proto/vendored
+    name: buf.build/astria/vendored
     lint:
       use:
         - MINIMAL
