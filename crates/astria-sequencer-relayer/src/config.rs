@@ -86,7 +86,7 @@ impl IncludeRollup {
         self.0.is_empty() || self.0.contains(rollup_id)
     }
 
-    fn parse(input: &str) -> eyre::Result<Self> {
+    pub(crate) fn parse(input: &str) -> eyre::Result<Self> {
         let rollup_ids = input
             .split(',')
             .filter(|base64_encoded_id| !base64_encoded_id.is_empty())

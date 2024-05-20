@@ -5,8 +5,8 @@ use std::{
 };
 
 use astria_core::sequencerblock::v1alpha1::{
-    CelestiaRollupBlob,
-    CelestiaSequencerBlob,
+    SubmittedMetadata,
+    SubmittedRollupData,
 };
 use astria_eyre::{
     eyre,
@@ -48,8 +48,8 @@ use crate::utils::flatten;
 
 pub(super) struct VerifiedBlobs {
     celestia_height: u64,
-    header_blobs: HashMap<[u8; 32], CelestiaSequencerBlob>,
-    rollup_blobs: Vec<CelestiaRollupBlob>,
+    header_blobs: HashMap<[u8; 32], SubmittedMetadata>,
+    rollup_blobs: Vec<SubmittedRollupData>,
 }
 
 impl VerifiedBlobs {
@@ -65,14 +65,14 @@ impl VerifiedBlobs {
         self,
     ) -> (
         u64,
-        HashMap<[u8; 32], CelestiaSequencerBlob>,
-        Vec<CelestiaRollupBlob>,
+        HashMap<[u8; 32], SubmittedMetadata>,
+        Vec<SubmittedRollupData>,
     ) {
         (self.celestia_height, self.header_blobs, self.rollup_blobs)
     }
 }
 
-/// Task key to track verification of multiple [`CelestiaSequencerBlob`]s.
+/// Task key to track verification of multiple [`SubmittedMetadata`] objects.
 ///
 /// The index is necessary because two keys might have clashing hashes and heights.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -86,7 +86,7 @@ struct VerificationTaskKey {
 ///
 /// Drops blobs that could not be verified.
 #[instrument(skip_all)]
-pub(super) async fn verify_header_blobs(
+pub(super) async fn verify_headers(
     blob_verifier: Arc<BlobVerifier>,
     converted_blobs: ConvertedBlobs,
 ) -> VerifiedBlobs {
@@ -102,10 +102,7 @@ pub(super) async fn verify_header_blobs(
                 block_hash: blob.block_hash(),
                 sequencer_height: blob.height(),
             },
-            blob_verifier
-                .clone()
-                .verify_header_blob(blob)
-                .in_current_span(),
+            blob_verifier.clone().verify_header(blob).in_current_span(),
         );
     }
 
@@ -232,12 +229,12 @@ impl BlobVerifier {
         }
     }
 
-    async fn verify_header_blob(
+    async fn verify_header(
         self: Arc<Self>,
-        blob: CelestiaSequencerBlob,
-    ) -> eyre::Result<CelestiaSequencerBlob> {
+        header: SubmittedMetadata,
+    ) -> eyre::Result<SubmittedMetadata> {
         use base64::prelude::*;
-        let height = blob.height();
+        let height = header.height();
         let meta = self
             .cache
             .try_get_with(
@@ -247,18 +244,18 @@ impl BlobVerifier {
             .await
             .wrap_err("failed getting data necessary to verify the sequencer header blob")?;
         ensure!(
-            &meta.commit_header.header.chain_id == blob.cometbft_chain_id(),
+            &meta.commit_header.header.chain_id == header.cometbft_chain_id(),
             "expected cometbft chain ID `{}`, got `{}`",
             meta.commit_header.header.chain_id,
-            blob.cometbft_chain_id(),
+            header.cometbft_chain_id(),
         );
         ensure!(
-            meta.commit_header.commit.block_id.hash.as_bytes() == blob.block_hash(),
+            meta.commit_header.commit.block_id.hash.as_bytes() == header.block_hash(),
             "block hash `{}` stored in blob does not match block hash `{}` of sequencer block",
-            BASE64_STANDARD.encode(blob.block_hash()),
+            BASE64_STANDARD.encode(header.block_hash()),
             BASE64_STANDARD.encode(meta.commit_header.commit.block_id.hash.as_bytes()),
         );
-        Ok(blob)
+        Ok(header)
     }
 }
 

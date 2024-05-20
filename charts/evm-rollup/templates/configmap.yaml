@@ -20,7 +20,7 @@ data:
   ASTRIA_CONDUCTOR_SEQUENCER_COMETBFT_URL: "{{ .Values.config.sequencer.rpc }}"
   ASTRIA_CONDUCTOR_SEQUENCER_BLOCK_TIME_MS: "{{ .Values.config.sequencer.blockTimeMs }}"
   ASTRIA_CONDUCTOR_NO_METRICS: "{{ not .Values.config.rollup.metrics.enabled }}"
-  ASTRIA_CONDUCTOR_METRICS_HTTP_LISTENER_ADDR: "127.0.0.1:{{ .Values.ports.conductorMetrics }}"
+  ASTRIA_CONDUCTOR_METRICS_HTTP_LISTENER_ADDR: "0.0.0.0:{{ .Values.ports.conductorMetrics }}"
   ASTRIA_CONDUCTOR_FORCE_STDOUT: "{{ .Values.global.useTTY }}"
   ASTRIA_CONDUCTOR_PRETTY_PRINT: "{{ .Values.global.useTTY }}"
   ASTRIA_CONDUCTOR_NO_OTEL: "{{ not .Values.config.rollup.otel.enabled }}"
@@ -52,7 +52,7 @@ data:
   ASTRIA_COMPOSER_BUNDLE_QUEUE_CAPACITY: "{{ .Values.config.rollup.bundleQueueCapacity }}"
   ASTRIA_COMPOSER_MAX_SUBMIT_INTERVAL_MS: "{{ .Values.config.rollup.maxSubmitInterval }}"
   ASTRIA_COMPOSER_NO_METRICS: "{{ not .Values.config.rollup.metrics.enabled }}"
-  ASTRIA_COMPOSER_METRICS_HTTP_LISTENER_ADDR: "127.0.0.1:{{ .Values.ports.composerMetrics }}"
+  ASTRIA_COMPOSER_METRICS_HTTP_LISTENER_ADDR: "0.0.0.0:{{ .Values.ports.composerMetrics }}"
   ASTRIA_COMPOSER_FORCE_STDOUT: "{{ .Values.global.useTTY }}"
   ASTRIA_COMPOSER_PRETTY_PRINT: "{{ .Values.global.useTTY }}"
   ASTRIA_COMPOSER_NO_OTEL: "{{ not .Values.config.rollup.otel.enabled }}"
@@ -63,11 +63,12 @@ data:
   OTEL_EXPORTER_OTLP_HEADERS: "{{ .Values.config.rollup.otel.otlpHeaders }}"
   OTEL_EXPORTER_OTLP_TRACE_HEADERS: "{{ .Values.config.rollup.otel.traceHeaders }}"
   OTEL_SERVICE_NAME: "{{ tpl .Values.config.rollup.otel.serviceNamePrefix . }}-composer"
-  {{- if not .Values.secretProvider.enabled }}
-  ASTRIA_COMPOSER_PRIVATE_KEY: "{{ .Values.config.sequencer.privateKey }}"
-  {{- end }}
   {{- if not .Values.global.dev }}
+  {{- if not .Values.secretProvider.enabled }}
+  ASTRIA_COMPOSER_PRIVATE_KEY: "{{ .Values.config.sequencer.privateKey.devContent }}"
+  {{- end }}
   {{- else }}
+  ASTRIA_COMPOSER_PRIVATE_KEY_FILE: "/var/secrets/{{ .Values.config.sequencer.privateKey.secret.filename }}"
   {{- end }}
 ---
 apiVersion: v1
@@ -259,3 +260,15 @@ metadata:
 data:
   VISUALIZER__SERVER__GRPC__ENABLED: "false"
   VISUALIZER__SERVER__HTTP__ADDR: "0.0.0.0:8151"
+---
+{{- if not .Values.secretProvider.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: {{ include "rollup.namespace" .  }}
+  name: sequencer-private-key
+data:
+  {{ .Values.config.sequencer.privateKey.secret.filename }}: |
+    {{ .Values.config.sequencer.privateKey.devContent }}
+---
+{{- end }}

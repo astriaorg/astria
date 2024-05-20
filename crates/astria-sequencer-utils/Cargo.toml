@@ -9,8 +9,27 @@ repository = "https://github.com/astriaorg/astria"
 homepage = "https://astria.org"
 
 [dependencies]
-clap = { workspace = true, features = ["derive"] }
+base64 = { workspace = true }
+clap = { workspace = true, features = [
+  "cargo",
+  "deprecated",
+  "derive",
+  "wrap_help",
+] }
+colour = "2.0.0"
+ethers-core = "2.0.14"
+hex = { workspace = true }
+indenter = "0.3.3"
+itertools = { workspace = true }
+prost = { workspace = true }
+rlp = "0.5.2"
 serde = { workspace = true }
 serde_json = { workspace = true }
 
+astria-core = { path = "../astria-core", features = ["brotli"] }
 astria-eyre = { path = "../astria-eyre" }
+astria-merkle = { path = "../astria-merkle" }
+
+[dev-dependencies]
+assert_cmd = "2.0.14"
+predicates = "3.1.0"

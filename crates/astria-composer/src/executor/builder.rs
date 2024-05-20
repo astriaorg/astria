@@ -1,21 +1,18 @@
-use std::time::Duration;
+use std::{
+    fs,
+    path::Path,
+    time::Duration,
+};
 
 use astria_core::{
+    crypto::SigningKey,
     primitive::v1::Address,
     protocol::transaction::v1alpha1::action::SequenceAction,
 };
-use astria_eyre::{
+use astria_eyre::eyre::{
+    self,
     eyre,
-    eyre::{
-        eyre,
-        WrapErr as _,
-    },
-};
-use ed25519_consensus::SigningKey;
-use secrecy::{
-    ExposeSecret,
-    SecretString,
-    Zeroize,
+    WrapErr as _,
 };
 use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
@@ -28,7 +25,7 @@ use crate::{
 pub(crate) struct Builder {
     pub(crate) sequencer_url: String,
     pub(crate) sequencer_chain_id: String,
-    pub(crate) private_key: SecretString,
+    pub(crate) private_key_file: String,
     pub(crate) block_time_ms: u64,
     pub(crate) max_bytes_per_bundle: usize,
     pub(crate) bundle_queue_capacity: usize,
@@ -40,7 +37,7 @@ impl Builder {
         let Self {
             sequencer_url,
             sequencer_chain_id,
-            private_key,
+            private_key_file,
             block_time_ms,
             max_bytes_per_bundle,
             bundle_queue_capacity,
@@ -49,12 +46,10 @@ impl Builder {
         let sequencer_client = sequencer_client::HttpClient::new(sequencer_url.as_str())
             .wrap_err("failed constructing sequencer client")?;
         let (status, _) = watch::channel(Status::new());
-        let mut private_key_bytes: [u8; 32] = hex::decode(private_key.expose_secret())
-            .wrap_err("failed to decode private key bytes from hex string")?
-            .try_into()
-            .map_err(|_| eyre!("invalid private key length; must be 32 bytes"))?;
-        let sequencer_key = SigningKey::from(private_key_bytes);
-        private_key_bytes.zeroize();
+
+        let sequencer_key = read_signing_key_from_file(&private_key_file).wrap_err_with(|| {
+            format!("failed reading signing key from file at path `{private_key_file}`")
+        })?;
 
         let sequencer_address = Address::from_verification_key(sequencer_key.verification_key());
 
@@ -77,4 +72,12 @@ impl Builder {
             executor::Handle::new(serialized_rollup_transaction_tx),
         ))
     }
+}
+
+fn read_signing_key_from_file<P: AsRef<Path>>(path: P) -> eyre::Result<SigningKey> {
+    let private_key_hex = fs::read_to_string(path)?;
+    let private_key_bytes: [u8; 32] = hex::decode(private_key_hex.trim())?
+        .try_into()
+        .map_err(|_| eyre!("invalid private key length; must be 32 bytes"))?;
+    Ok(SigningKey::from(private_key_bytes))
 }

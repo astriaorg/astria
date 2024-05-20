@@ -225,7 +225,7 @@ mod test {
         primitive::v1::RollupId,
         sequencerblock::v1alpha1::{
             block::SequencerBlockHeader,
-            celestia::UncheckedCelestiaSequencerBlob,
+            celestia::UncheckedSubmittedMetadata,
         },
     };
     use prost::Message as _;
@@ -268,7 +268,7 @@ mod test {
     ) -> (validators::Response, account::Id, Commit) {
         use rand::rngs::OsRng;
 
-        let signing_key = ed25519_consensus::SigningKey::new(OsRng);
+        let signing_key = astria_core::crypto::SigningKey::new(OsRng);
         let pub_key = tendermint::public_key::PublicKey::from_raw_ed25519(
             signing_key.verification_key().as_ref(),
         )
@@ -343,7 +343,7 @@ mod test {
         };
         let header = SequencerBlockHeader::try_from_raw(header).unwrap();
 
-        let sequencer_blob = UncheckedCelestiaSequencerBlob {
+        let sequencer_blob = UncheckedSubmittedMetadata {
             block_hash: [0u8; 32],
             header,
             rollup_ids: vec![],
@@ -388,7 +388,7 @@ mod test {
         };
         let header = SequencerBlockHeader::try_from_raw(header).unwrap();
 
-        let sequencer_blob = UncheckedCelestiaSequencerBlob {
+        let sequencer_blob = UncheckedSubmittedMetadata {
             block_hash: [0u8; 32],
             header,
             rollup_ids: vec![rollup_id],

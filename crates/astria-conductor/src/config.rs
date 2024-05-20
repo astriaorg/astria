@@ -13,10 +13,6 @@ pub enum CommitLevel {
 }
 
 impl CommitLevel {
-    pub(crate) fn is_soft_and_firm(self) -> bool {
-        matches!(self, Self::SoftAndFirm)
-    }
-
     pub(crate) fn is_with_firm(self) -> bool {
         matches!(self, Self::FirmOnly | Self::SoftAndFirm)
     }
@@ -110,10 +106,6 @@ mod tests {
             SoftAndFirm,
             SoftOnly,
         };
-
-        assert!(!FirmOnly.is_soft_and_firm());
-        assert!(!SoftOnly.is_soft_and_firm());
-        assert!(SoftAndFirm.is_soft_and_firm());
 
         assert!(FirmOnly.is_with_firm());
         assert!(!FirmOnly.is_with_soft());
