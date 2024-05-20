@@ -1,2 +1,16 @@
 persistentVolume:
   enabled: false
+
+kubecostProductConfigs:
+  projectID: "astria-devnet-dev-389720"
+  bigQueryBillingDataDataset: "astria-dev-kubecost.billing_data"
+  # secret name for the GCP service account key (if using service account instead of workload identity)
+  gcpSecretName: "compute-viewer-kubecost-key" 
+
+# Ensure Kubecost deployment runs on nodes that use Workload Identity
+nodeSelector:
+  iam.gke.io/gke-metadata-server-enabled: "true"
+# Add annotations to all kubecost-related serviceaccounts
+serviceAccount:
+  annotations:
+    iam.gke.io/gcp-service-account: "compute-viewer-kubecost@$astria-devnet-dev-389720.iam.gserviceaccount.com"
