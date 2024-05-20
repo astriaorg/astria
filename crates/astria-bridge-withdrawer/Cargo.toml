@@ -15,17 +15,25 @@ name = "astria-bridge-withdrawer"
 http = "0.2.9"
 
 axum = { workspace = true }
+ed25519-consensus = { workspace = true }
+hex = { workspace = true }
 hyper = { workspace = true }
+humantime = { workspace = true }
 metrics = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 tracing = { workspace = true }
+tryhard = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal"] }
 tokio-util = { workspace = true }
 
 astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
+astria-core = { path = "../astria-core", features = ["serde", "server"] }
 astria-eyre = { path = "../astria-eyre" }
 config = { package = "astria-config", path = "../astria-config" }
+sequencer-client = { package = "astria-sequencer-client", path = "../astria-sequencer-client", features = [
+  "http",
+] }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry", features = [
   "display",
 ] }

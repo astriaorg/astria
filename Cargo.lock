@@ -502,9 +502,13 @@ dependencies = [
  "astria-core",
  "astria-eyre",
  "astria-grpc-mock",
+ "astria-sequencer-client",
  "astria-telemetry",
  "axum",
+ "ed25519-consensus",
+ "hex",
  "http",
+ "humantime",
  "hyper",
  "metrics",
  "serde",
@@ -512,6 +516,7 @@ dependencies = [
  "tokio",
  "tokio-util 0.7.10",
  "tracing",
+ "tryhard",
 ]
 
 [[package]]
