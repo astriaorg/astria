@@ -1,6 +1,6 @@
 use std::process::ExitCode;
 
-use astria_bridge::{
+use astria_bridge_withdrawer::{
     metrics_init,
     BridgeService,
     Config,

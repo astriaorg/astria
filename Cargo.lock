@@ -494,7 +494,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "astria-bridge"
+name = "astria-bridge-withdrawer"
 version = "0.1.0"
 dependencies = [
  "astria-build-info",

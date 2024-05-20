@@ -32,7 +32,7 @@ use crate::{
 };
 
 pub struct BridgeService {
-    // Token to signall all subtasks to shut down gracefully.
+    // Token to signal all subtasks to shut down gracefully.
     shutdown_token: CancellationToken,
     api_server: api::ApiServer,
     bridge: Bridge,
@@ -90,7 +90,7 @@ impl BridgeService {
         info!("spawned API server");
 
         let mut bridge_task = tokio::spawn(bridge.run());
-        info!("spawned bridge task");
+        info!("spawned bridge withdrawer task");
 
         let shutdown = select!(
             o = &mut api_task => {
