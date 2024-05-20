@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use astria_eyre::eyre;
 use tokio_util::sync::CancellationToken;
 
 use super::{
@@ -14,13 +13,12 @@ pub(crate) struct Builder {
 
 impl Builder {
     /// Instantiates a `Bridge`.
-    pub(crate) fn build(self) -> eyre::Result<super::Bridge> {
+    pub(crate) fn build(self) -> super::Bridge {
         let Self {
             shutdown_token,
         } = self;
 
         let state = Arc::new(State::new());
-
-        Ok(Bridge::new(state, shutdown_token))
+        Bridge::new(state, &shutdown_token)
     }
 }

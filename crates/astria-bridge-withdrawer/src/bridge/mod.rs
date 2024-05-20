@@ -16,7 +16,7 @@ pub(super) struct Bridge {
 }
 
 impl Bridge {
-    pub(super) fn new(state: Arc<State>, shutdown_token: CancellationToken) -> Self {
+    pub(super) fn new(state: Arc<State>, shutdown_token: &CancellationToken) -> Self {
         Self {
             state,
             _shutdown_token: shutdown_token.clone(),
@@ -27,6 +27,7 @@ impl Bridge {
         self.state.subscribe()
     }
 
+    #[allow(clippy::unused_async)]
     pub(super) async fn run(self) -> eyre::Result<()> {
         self.state.set_ready();
         Ok(())

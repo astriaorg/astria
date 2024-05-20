@@ -45,13 +45,10 @@ impl BridgeService {
             api_addr, ..
         } = cfg;
 
-        // make bridge object
-        // TODO: add more fields
         let bridge = bridge::Builder {
             shutdown_token: shutdown_handle.token(),
         }
-        .build()
-        .wrap_err("failed to create bridge")?;
+        .build();
 
         // make api server
         let state_rx = bridge.subscribe_to_state();
@@ -95,11 +92,11 @@ impl BridgeService {
         let shutdown = select!(
             o = &mut api_task => {
                 report_exit("api server", o);
-                Shutdown { api_task: None, bridge_task: Some(bridge_task), api_shutdown_signal, shutdown_token }
+                Shutdown { api_task: None, bridge_task: Some(bridge_task), api_shutdown_signal, token: shutdown_token }
             }
             o = &mut bridge_task => {
                 report_exit("bridge worker", o);
-                Shutdown { api_task: Some(api_task), bridge_task: None, api_shutdown_signal, shutdown_token }
+                Shutdown { api_task: Some(api_task), bridge_task: None, api_shutdown_signal, token: shutdown_token }
             }
 
         );
@@ -165,7 +162,7 @@ struct Shutdown {
     api_task: Option<JoinHandle<eyre::Result<()>>>,
     bridge_task: Option<JoinHandle<eyre::Result<()>>>,
     api_shutdown_signal: oneshot::Sender<()>,
-    shutdown_token: CancellationToken,
+    token: CancellationToken,
 }
 
 impl Shutdown {
@@ -177,10 +174,10 @@ impl Shutdown {
             api_task,
             bridge_task,
             api_shutdown_signal,
-            shutdown_token,
+            token,
         } = self;
 
-        shutdown_token.cancel();
+        token.cancel();
 
         // Giving bridge 25 seconds to shutdown because Kubernetes issues a SIGKILL after 30.
         if let Some(mut bridge_task) = bridge_task {
