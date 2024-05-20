@@ -3,7 +3,7 @@ persistentVolume:
 
 kubecostProductConfigs:
   projectID: "astria-devnet-dev-389720"
-  bigQueryBillingDataDataset: "astria-dev-kubecost.billing_data"
+  bigQueryBillingDataDataset: "YOUR_DATASET.YOUR_TABLE_NAME"
   # secret name for the GCP service account key (if using service account instead of workload identity)
   gcpSecretName: "compute-viewer-kubecost-key" 
 
