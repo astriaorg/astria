@@ -558,7 +558,6 @@ impl Executor {
     #[instrument(skip_all)]
     async fn set_initial_node_state(&mut self) -> eyre::Result<()> {
         let genesis_info = {
-            // let mut client = self.client.clone();
             async {
                 self.client
                     .clone()
@@ -568,8 +567,6 @@ impl Executor {
             }
         };
         let commitment_state = {
-            // let mut client = self.client.clone();
-            // async move {
             async {
                 self.client
                     .clone()
