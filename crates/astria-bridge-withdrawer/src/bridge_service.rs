@@ -39,6 +39,11 @@ pub struct BridgeService {
 }
 
 impl BridgeService {
+    /// Instantiates a new `BridgeService`.
+    ///
+    /// # Errors
+    ///
+    /// - If the provided `api_addr` string cannot be parsed as a socket address.
     pub fn new(cfg: Config) -> eyre::Result<(Self, ShutdownHandle)> {
         let shutdown_handle = ShutdownHandle::new();
         let Config {
