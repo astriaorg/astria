@@ -1,11 +1,14 @@
 use std::{
     cmp::Ordering,
+    collections::HashMap,
+    future::Future,
     sync::{
         Arc,
         OnceLock,
     },
 };
 
+use anyhow::Context;
 use astria_core::{
     crypto::SigningKey,
     primitive::v1::Address,
@@ -17,8 +20,9 @@ use astria_core::{
 };
 use priority_queue::PriorityQueue;
 use tokio::sync::RwLock;
+use tracing::debug;
 
-pub(crate) type MempoolQueue = PriorityQueue<EnqueuedTransaction, TransactionPriority>;
+type MempoolQueue = PriorityQueue<EnqueuedTransaction, TransactionPriority>;
 
 /// Used to prioritize transactions in the mempool.
 ///
@@ -72,10 +76,7 @@ impl EnqueuedTransaction {
         }
     }
 
-    pub(crate) fn priority(
-        &self,
-        current_account_nonce: u32,
-    ) -> anyhow::Result<TransactionPriority> {
+    fn priority(&self, current_account_nonce: u32) -> anyhow::Result<TransactionPriority> {
         let Some(nonce_diff) = self.signed_tx.nonce().checked_sub(current_account_nonce) else {
             return Err(anyhow::anyhow!(
                 "transaction nonce {} is less than current account nonce {current_account_nonce}",
@@ -185,22 +186,54 @@ impl Mempool {
         self.inner.write().await.remove(&enqueued_tx);
     }
 
-    /// removes all the given transactions from the mempool
-    pub(crate) async fn remove_all(&self, tx_hashes: Vec<[u8; 32]>) {
+    /// Updates the priority of the txs in the mempool based on the current state, and removes any
+    /// that are now invalid.
+    ///
+    /// NOTE: this function locks the mempool until every tx has been checked. This could
+    /// potentially stall consensus from moving to the next round if the mempool is large.
+    pub(crate) async fn update_priorities<F, O>(
+        &self,
+        current_account_nonce_getter: F,
+    ) -> anyhow::Result<()>
+    where
+        F: Fn(Address) -> O,
+        O: Future<Output = anyhow::Result<u32>>,
+    {
+        let mut txs_to_remove = Vec::new();
+        let mut current_account_nonces = HashMap::new();
+
         let mut queue = self.inner.write().await;
-        for tx_hash in tx_hashes {
-            let enqueued_tx = EnqueuedTransaction {
-                tx_hash,
-                signed_tx: dummy_signed_tx().clone(),
+        for (enqueued_tx, priority) in queue.iter_mut() {
+            let address = enqueued_tx.address();
+            // Try to get the current account nonce from the ones already retrieved.
+            let current_account_nonce = if let Some(nonce) = current_account_nonces.get(&address) {
+                *nonce
+            } else {
+                // Fall back to getting via the getter and adding it to the local temp collection.
+                let nonce = current_account_nonce_getter(enqueued_tx.address())
+                    .await
+                    .context("failed to fetch account nonce")?;
+                current_account_nonces.insert(address, nonce);
+                nonce
             };
+            match enqueued_tx.priority(current_account_nonce) {
+                Ok(new_priority) => *priority = new_priority,
+                Err(e) => {
+                    debug!(
+                        transaction_hash = %telemetry::display::base64(&enqueued_tx.tx_hash),
+                        error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                         "account nonce is now greater than tx nonce; dropping tx from mempool",
+                    );
+                    txs_to_remove.push(enqueued_tx.clone());
+                }
+            };
+        }
+
+        for enqueued_tx in txs_to_remove {
             queue.remove(&enqueued_tx);
         }
-    }
 
-    /// returns the inner mempool, write-locked.
-    /// required so that `BasicMempool::iter_mut()` can be called.
-    pub(crate) async fn inner(&self) -> tokio::sync::RwLockWriteGuard<'_, MempoolQueue> {
-        self.inner.write().await
+        Ok(())
     }
 
     /// returns the pending nonce for the given address,
@@ -393,7 +426,7 @@ mod test {
         mempool.insert_all(txs.clone()).await;
         assert_eq!(mempool.len().await, tx_count);
 
-        // Remove the last tx via `remove` method.
+        // Remove the last tx.
         let last_tx_hash = txs.last().unwrap().0.tx_hash;
         mempool.remove(last_tx_hash).await;
         let mut expected_remaining_count = tx_count.checked_sub(1).unwrap();
@@ -401,28 +434,87 @@ mod test {
 
         // Removing it again should have no effect.
         mempool.remove(last_tx_hash).await;
-        assert_eq!(mempool.len().await, tx_count - 1);
-
-        // Remove the first three txs via `remove_all` method. Include some tx hashes not in the
-        // queue.
-        let removed_count = 3;
-        let txs_to_remove = txs
-            .iter()
-            .take(removed_count)
-            .flat_map(|(tx, _)| {
-                let mut absent_hash = tx.tx_hash;
-                absent_hash[0] = absent_hash[0].saturating_add(100);
-                [tx.tx_hash, absent_hash]
-            })
-            .collect();
-        mempool.remove_all(txs_to_remove).await;
-        expected_remaining_count = expected_remaining_count.checked_sub(removed_count).unwrap();
         assert_eq!(mempool.len().await, expected_remaining_count);
 
-        // Check the next tx popped is the fourth priority.
+        // Remove the first tx.
+        mempool.remove(txs.first().unwrap().0.tx_hash).await;
+        expected_remaining_count = expected_remaining_count.checked_sub(1).unwrap();
+        assert_eq!(mempool.len().await, expected_remaining_count);
+
+        // Check the next tx popped is the second priority.
         let (tx, priority) = mempool.pop().await.unwrap();
-        assert_eq!(tx.tx_hash, txs[removed_count].0.tx_hash());
-        assert_eq!(priority.nonce_diff, u32::try_from(removed_count).unwrap());
+        assert_eq!(tx.tx_hash, txs[1].0.tx_hash());
+        assert_eq!(priority.nonce_diff, 1);
+    }
+
+    #[tokio::test]
+    async fn should_update_priorities() {
+        let mempool = Mempool::new();
+
+        // Insert txs signed by alice with nonces 0 and 1.
+        mempool.insert(get_mock_tx(0), 0).await.unwrap();
+        mempool.insert(get_mock_tx(1), 0).await.unwrap();
+
+        // Insert txs from a different signer with nonces 100 and 102.
+        let other_signing_key = SigningKey::from([1; 32]);
+        let other_mock_tx = |nonce: u32| -> SignedTransaction {
+            let actions = get_mock_tx(0).actions().to_vec();
+            UnsignedTransaction {
+                params: TransactionParams {
+                    nonce,
+                    chain_id: "test".to_string(),
+                },
+                actions,
+            }
+            .into_signed(&other_signing_key)
+        };
+        mempool.insert(other_mock_tx(100), 0).await.unwrap();
+        mempool.insert(other_mock_tx(102), 0).await.unwrap();
+
+        assert_eq!(mempool.len().await, 4);
+
+        let (alice_signing_key, alice_address) =
+            crate::app::test_utils::get_alice_signing_key_and_address();
+        let other_address = Address::from_verification_key(other_signing_key.verification_key());
+
+        // Create a getter fn which will returns 1 for alice's current account nonce, and 101 for
+        // the other signer's.
+        let current_account_nonce_getter = |address: Address| async move {
+            if address == alice_address {
+                return Ok(1);
+            }
+            if address == other_address {
+                return Ok(101);
+            }
+            Err(anyhow::anyhow!("invalid address"))
+        };
+
+        // Update the priorities.  Alice's first tx (with nonce 0) and other's first (with nonce
+        // 100) should both get purged.
+        mempool
+            .update_priorities(current_account_nonce_getter)
+            .await
+            .unwrap();
+
+        assert_eq!(mempool.len().await, 2);
+
+        // Alice's remaining tx should be the highest priority (nonce diff of 1 - 1 == 0).
+        let (tx, priority) = mempool.pop().await.unwrap();
+        assert_eq!(tx.signed_tx.nonce(), 1);
+        assert_eq!(
+            tx.signed_tx.verification_key(),
+            alice_signing_key.verification_key()
+        );
+        assert_eq!(priority.nonce_diff, 0);
+
+        // Other's remaining tx should be the highest priority (nonce diff of 102 - 101 == 1).
+        let (tx, priority) = mempool.pop().await.unwrap();
+        assert_eq!(tx.signed_tx.nonce(), 102);
+        assert_eq!(
+            tx.signed_tx.verification_key(),
+            other_signing_key.verification_key()
+        );
+        assert_eq!(priority.nonce_diff, 1);
     }
 
     #[tokio::test]

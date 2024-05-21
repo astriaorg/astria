@@ -1130,29 +1130,10 @@ async fn update_mempool_after_finalization<S: StateReadExt>(
     mempool: &mut Mempool,
     state: S,
 ) -> anyhow::Result<()> {
-    let mut txs_to_remove = Vec::new();
-
-    for (enqueued_tx, priority) in mempool.inner().await.iter_mut() {
-        let current_account_nonce = state
-            .get_account_nonce(enqueued_tx.address())
-            .await
-            .context("failed to fetch account nonce")?;
-        match enqueued_tx.priority(current_account_nonce) {
-            Ok(new_priority) => *priority = new_priority,
-            Err(e) => {
-                let tx_hash = enqueued_tx.tx_hash();
-                debug!(
-                    transaction_hash = %telemetry::display::base64(&tx_hash),
-                    error = AsRef::<dyn std::error::Error>::as_ref(&e),
-                     "account nonce is now greater than tx nonce; dropping tx from mempool",
-                );
-                txs_to_remove.push(tx_hash);
-            }
-        };
-    }
-
-    mempool.remove_all(txs_to_remove).await;
-    Ok(())
+    let current_account_nonce_getter = |address: Address| state.get_account_nonce(address);
+    mempool
+        .update_priorities(current_account_nonce_getter)
+        .await
 }
 
 /// relevant data of a block being executed.
