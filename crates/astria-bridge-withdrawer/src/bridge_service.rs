@@ -24,18 +24,18 @@ use tracing::{
 
 use crate::{
     api,
-    bridge::{
-        self,
-        Bridge,
-    },
     config::Config,
+    executor::{
+        self,
+        Executor,
+    },
 };
 
 pub struct BridgeService {
     // Token to signal all subtasks to shut down gracefully.
     shutdown_token: CancellationToken,
     api_server: api::ApiServer,
-    bridge: Bridge,
+    executor: Executor,
 }
 
 impl BridgeService {
@@ -47,14 +47,17 @@ impl BridgeService {
 
         // make bridge object
         // TODO: add more fields
-        let bridge = bridge::Builder {
+        let (executor, executor_handle) = executor::Builder {
             shutdown_token: shutdown_handle.token(),
+            cometbft_endpoint: cfg.cometbft_endpoint,
+            sequencer_chain_id: cfg.sequencer_chain_id,
+            sequencer_key_path: cfg.sequencer_key_path,
         }
         .build()
         .wrap_err("failed to create bridge")?;
 
         // make api server
-        let state_rx = bridge.subscribe_to_state();
+        let state_rx = executor.subscribe_to_state();
         let api_socket_addr = api_addr.parse::<SocketAddr>().wrap_err_with(|| {
             format!("failed to parse provided `api_addr` string as socket address: `{api_addr}`",)
         })?;
@@ -63,7 +66,7 @@ impl BridgeService {
         let bridge = Self {
             shutdown_token: shutdown_handle.token(),
             api_server,
-            bridge,
+            executor,
         };
 
         Ok((bridge, shutdown_handle))
@@ -73,7 +76,7 @@ impl BridgeService {
         let Self {
             shutdown_token,
             api_server,
-            bridge,
+            executor,
         } = self;
 
         // Separate the API shutdown signal from the cancellation token because we want it to live
@@ -89,17 +92,17 @@ impl BridgeService {
         });
         info!("spawned API server");
 
-        let mut bridge_task = tokio::spawn(bridge.run());
+        let mut executor_task = tokio::spawn(executor.run());
         info!("spawned bridge withdrawer task");
 
         let shutdown = select!(
             o = &mut api_task => {
                 report_exit("api server", o);
-                Shutdown { api_task: None, bridge_task: Some(bridge_task), api_shutdown_signal, shutdown_token }
+                Shutdown { api_task: None, executor_task: Some(executor_task), api_shutdown_signal, shutdown_token }
             }
-            o = &mut bridge_task => {
+            o = &mut executor_task => {
                 report_exit("bridge worker", o);
-                Shutdown { api_task: Some(api_task), bridge_task: None, api_shutdown_signal, shutdown_token }
+                Shutdown { api_task: Some(api_task), executor_task: None, api_shutdown_signal, shutdown_token }
             }
 
         );
@@ -107,10 +110,10 @@ impl BridgeService {
     }
 }
 
-/// A handle for instructing the [`Bridge`] to shut down.
+/// A handle for instructing the [`BridgeService`] to shut down.
 ///
-/// It is returned along with its related `Bridge` from [`Bridge::new`].  The
-/// `Bridge` will begin to shut down as soon as [`ShutdownHandle::shutdown`] is called or
+/// It is returned along with its related `BridgeService` from [`BridgeService::new`].  The
+/// `BridgeService` will begin to shut down as soon as [`ShutdownHandle::shutdown`] is called or
 /// when the `ShutdownHandle` is dropped.
 pub struct ShutdownHandle {
     token: CancellationToken,
@@ -163,30 +166,30 @@ fn report_exit(task_name: &str, outcome: Result<eyre::Result<()>, JoinError>) {
 
 struct Shutdown {
     api_task: Option<JoinHandle<eyre::Result<()>>>,
-    bridge_task: Option<JoinHandle<eyre::Result<()>>>,
+    executor_task: Option<JoinHandle<eyre::Result<()>>>,
     api_shutdown_signal: oneshot::Sender<()>,
     shutdown_token: CancellationToken,
 }
 
 impl Shutdown {
     const API_SHUTDOWN_TIMEOUT_SECONDS: u64 = 4;
-    const BRIDGE_SHUTDOWN_TIMEOUT_SECONDS: u64 = 25;
+    const EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS: u64 = 25;
 
     async fn run(self) {
         let Self {
             api_task,
-            bridge_task,
+            executor_task,
             api_shutdown_signal,
             shutdown_token,
         } = self;
 
         shutdown_token.cancel();
 
-        // Giving bridge 25 seconds to shutdown because Kubernetes issues a SIGKILL after 30.
-        if let Some(mut bridge_task) = bridge_task {
-            info!("waiting for bridge task to shut down");
-            let limit = Duration::from_secs(Self::BRIDGE_SHUTDOWN_TIMEOUT_SECONDS);
-            match timeout(limit, &mut bridge_task).await.map(flatten_result) {
+        // Giving executor 25 seconds to shutdown because Kubernetes issues a SIGKILL after 30.
+        if let Some(mut executor_task) = executor_task {
+            info!("waiting for executor task to shut down");
+            let limit = Duration::from_secs(Self::EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS);
+            match timeout(limit, &mut executor_task).await.map(flatten_result) {
                 Ok(Ok(())) => info!("bridge exited gracefully"),
                 Ok(Err(error)) => error!(%error, "bridge exited with an error"),
                 Err(_) => {
@@ -194,7 +197,7 @@ impl Shutdown {
                         timeout_secs = limit.as_secs(),
                         "bridge did not shut down within timeout; killing it"
                     );
-                    bridge_task.abort();
+                    executor_task.abort();
                 }
             }
         } else {

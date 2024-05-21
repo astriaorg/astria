@@ -10,6 +10,8 @@ use serde::{
 /// The single config for creating an astria-bridge service.
 pub struct Config {
     pub cometbft_endpoint: String,
+    pub sequencer_chain_id: String,
+    pub sequencer_key_path: String,
     // The socket address at which the bridge service will server healthz, readyz, and status
     // calls.
     pub api_addr: String,

@@ -10,14 +10,16 @@ use astria_core::protocol::transaction::v1alpha1::{
 };
 use astria_eyre::eyre::{
     self,
-    eyre,
     WrapErr as _,
 };
+use prost::Message as _;
 use sequencer_client::{
+    tendermint_rpc::endpoint::broadcast::tx_commit,
     Address,
     SequencerClientExt as _,
     SignedTransaction,
 };
+use tendermint::crypto::Sha256;
 use tokio::{
     select,
     sync::mpsc,
@@ -51,7 +53,7 @@ pub(super) struct Handle {
     batches_tx: mpsc::Sender<Vec<Event>>,
 }
 
-pub(super) struct Bridge {
+pub(super) struct Executor {
     shutdown_token: CancellationToken,
     state: Arc<State>,
     batches_rx: mpsc::Receiver<Vec<Event>>,
@@ -60,14 +62,12 @@ pub(super) struct Bridge {
     sequencer_chain_id: String,
 }
 
-impl Bridge {
+impl Executor {
     pub(super) fn subscribe_to_state(&self) -> tokio::sync::watch::Receiver<StateSnapshot> {
         self.state.subscribe()
     }
 
     pub(super) async fn run(mut self) -> eyre::Result<()> {
-        // run collector
-
         self.state.set_ready();
 
         let reason = loop {
@@ -183,7 +183,7 @@ async fn get_latest_nonce(
 async fn submit_tx(
     client: sequencer_client::HttpClient,
     tx: SignedTransaction,
-) -> eyre::Result<tx_sync::Response> {
+) -> eyre::Result<tx_commit::Response> {
     let nonce = tx.unsigned_transaction().params.nonce;
     metrics::gauge!(crate::metrics_init::CURRENT_NONCE).set(nonce);
 
@@ -219,7 +219,7 @@ async fn submit_tx(
         let client = client.clone();
         let tx = tx.clone();
         let span = info_span!(parent: span.clone(), "attempt send");
-        async move { client.submit_transaction_sync(tx).await }.instrument(span)
+        async move { client.submit_transaction_commit(tx).await }.instrument(span)
     })
     .with_config(retry_config)
     .await
@@ -228,4 +228,9 @@ async fn submit_tx(
     metrics::histogram!(crate::metrics_init::SEQUENCER_SUBMISSION_LATENCY).record(start.elapsed());
 
     res
+}
+
+fn sha256(data: &[u8]) -> [u8; 32] {
+    use sha2::Sha256;
+    Sha256::digest(data)
 }

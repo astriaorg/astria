@@ -17,7 +17,7 @@ pub(crate) struct Builder {
 
 impl Builder {
     /// Instantiates a `Bridge`.
-    pub(crate) fn build(self) -> eyre::Result<(super::Bridge, super::Handle)> {
+    pub(crate) fn build(self) -> eyre::Result<(super::Executor, super::Handle)> {
         let Self {
             shutdown_token,
             sequencer_key_path,
@@ -34,7 +34,7 @@ impl Builder {
         let state = Arc::new(State::new());
 
         Ok((
-            super::Bridge {
+            super::Executor {
                 shutdown_token,
                 state,
                 batches_rx,
