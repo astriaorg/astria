@@ -27,7 +27,9 @@ use astria_core::generated::{
         },
         FilteredSequencerBlock,
         GetFilteredSequencerBlockRequest,
+        GetPendingNonceRequest,
         GetSequencerBlockRequest,
+        PendingNonce,
         SequencerBlock,
     },
 };
@@ -109,6 +111,13 @@ impl SequencerService for SequencerServiceImpl {
         self.mock_server
             .handle_request("get_filtered_sequencer_block", request)
             .await
+    }
+
+    async fn get_pending_nonce(
+        self: Arc<Self>,
+        _request: Request<GetPendingNonceRequest>,
+    ) -> tonic::Result<Response<PendingNonce>> {
+        unimplemented!()
     }
 }
 
