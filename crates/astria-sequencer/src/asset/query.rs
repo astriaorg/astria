@@ -45,8 +45,8 @@ pub(crate) async fn denom_request(
         }
     };
 
-    let denom = match snapshot.get_ibc_asset(asset_id).await {
-        Ok(denom) => denom,
+    let maybe_denom = match snapshot.get_ibc_asset(asset_id).await {
+        Ok(maybe_denom) => maybe_denom,
         Err(err) => {
             return response::Query {
                 code: AbciErrorCode::INTERNAL_ERROR.into(),
@@ -55,6 +55,15 @@ pub(crate) async fn denom_request(
                 ..response::Query::default()
             };
         }
+    };
+
+    let Some(denom) = maybe_denom else {
+        return response::Query {
+            code: AbciErrorCode::VALUE_NOT_FOUND.into(),
+            info: AbciErrorCode::VALUE_NOT_FOUND.to_string(),
+            log: format!("failed to retrieve value for denomination ID`{asset_id}`"),
+            ..response::Query::default()
+        };
     };
 
     let payload = DenomResponse {
@@ -92,7 +101,7 @@ fn preprocess_request(params: &[(String, String)]) -> anyhow::Result<asset::Id, 
         .map_err(|err| response::Query {
             code: AbciErrorCode::INVALID_PARAMETER.into(),
             info: AbciErrorCode::INVALID_PARAMETER.to_string(),
-            log: format!("asset ID could not be constructed from provided parameter: {err:?}"),
+            log: format!("asset ID could not be constructed from provided parameter: {err:#}"),
             ..response::Query::default()
         })?;
     Ok(asset_id)
