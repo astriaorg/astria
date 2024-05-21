@@ -1,4 +1,5 @@
 use astria_core::{
+    crypto::SigningKey,
     primitive::v1::{
         asset::DEFAULT_NATIVE_ASSET_DENOM,
         Address,
@@ -13,7 +14,6 @@ use astria_core::{
     },
 };
 use cnidarium::Storage;
-use ed25519_consensus::SigningKey;
 use penumbra_ibc::params::IBCParameters;
 
 use crate::{

@@ -31,12 +31,12 @@ fn strip_0x_prefix(s: &str) -> &str {
 pub enum Command {
     /// Manage your rollup configs
     Config {
-        #[clap(subcommand)]
+        #[command(subcommand)]
         command: ConfigCommand,
     },
     /// Manage your rollup deployments
     Deployment {
-        #[clap(subcommand)]
+        #[command(subcommand)]
         command: DeploymentCommand,
     },
 }
@@ -57,73 +57,73 @@ pub enum ConfigCommand {
 
 #[derive(Args, Debug, Serialize, Clone)]
 pub struct ConfigCreateArgs {
-    #[clap(long, env = "ROLLUP_USE_TTY", default_value = "true")]
+    #[arg(long, env = "ROLLUP_USE_TTY", default_value = "true")]
     pub use_tty: bool,
-    #[clap(long, env = "ROLLUP_LOG_LEVEL", default_value = DEFAULT_LOG_LEVEL)]
+    #[arg(long, env = "ROLLUP_LOG_LEVEL", default_value = DEFAULT_LOG_LEVEL)]
     pub log_level: String,
 
     // rollup config
     /// The name of the rollup
-    #[clap(long = "rollup.name", env = "ROLLUP_NAME")]
+    #[arg(long = "rollup.name", env = "ROLLUP_NAME")]
     pub name: String,
     /// The Network ID for the EVM chain
-    #[clap(long = "rollup.network-id", env = "ROLLUP_NETWORK_ID", default_value_t = DEFAULT_NETWORK_ID)]
+    #[arg(long = "rollup.network-id", env = "ROLLUP_NETWORK_ID", default_value_t = DEFAULT_NETWORK_ID)]
     pub network_id: u64,
     /// The Execution Commit level
-    #[clap(
+    #[arg(
         long = "rollup.execution-commit-level",
         env = "ROLLUP_EXECUTION_COMMIT_LEVEL",
         default_value = DEFAULT_EXECUTION_COMMIT_LEVEL
     )]
     pub execution_commit_level: String,
     /// Choose to allow genesis extra data override
-    #[clap(
+    #[arg(
         long = "rollup.override-genesis-extra-data",
         env = "ROLLUP_OVERRIDE_GENESIS_EXTRA_DATA"
     )]
     pub override_genesis_extra_data: bool,
     /// Optional. If set, will be used as the bridge address. If not set, nothing happens.
-    #[clap(long = "rollup.bridge-address", env = "ROLLUP_BRIDGE_ADDRESS")]
+    #[arg(long = "rollup.bridge-address", env = "ROLLUP_BRIDGE_ADDRESS")]
     pub bridge_address: Option<String>,
     /// The allowed asset denom for the bridge
-    #[clap(
+    #[arg(
         long = "rollup.bridge-allowed-asset-denom",
         env = "ROLLUP_BRIDGE_ALLOWED_ASSET_DENOM",
         default_value = DEFAULT_ROLLUP_GENESIS_BRIDGE_ALLOWED_ASSET_DENOM
     )]
     pub bridge_allowed_asset_denom: String,
     /// List of genesis accounts to fund, in the form of `address:balance`
-    #[clap(
-        long = "rollup.genesis-accounts", 
-        env = "ROLLUP_GENESIS_ACCOUNTS", 
+    #[arg(
+        long = "rollup.genesis-accounts",
+        env = "ROLLUP_GENESIS_ACCOUNTS",
         num_args = 1..,
         value_delimiter = ','
     )]
     pub genesis_accounts: Vec<GenesisAccountArg>,
     // sequencer config
     /// Optional. If not set, will be determined from the current block height of the sequencer
-    #[clap(
+    #[arg(
         long = "sequencer.initial-block-height",
         env = "ROLLUP_SEQUENCER_INITIAL_BLOCK_HEIGHT"
     )]
     #[arg(value_parser = validate_initial_block_height)]
     pub sequencer_initial_block_height: Option<u64>,
     /// Optional. If not set, will be default to the devnet sequencer websocket address
-    #[clap(
-        long = "sequencer.grpc", 
-        env = "ROLLUP_SEQUENCER_GRPC", 
+    #[arg(
+        long = "sequencer.grpc",
+        env = "ROLLUP_SEQUENCER_GRPC",
         default_value = DEFAULT_SEQUENCER_GRPC
     )]
     pub sequencer_grpc: String,
     /// Optional. If not set, will be default to the devnet sequencer rpc address
-    #[clap(
-        long = "sequencer.rpc", 
-        env = "ROLLUP_SEQUENCER_RPC", 
+    #[arg(
+        long = "sequencer.rpc",
+        env = "ROLLUP_SEQUENCER_RPC",
         default_value = crate::cli::DEFAULT_SEQUENCER_RPC
     )]
     pub sequencer_rpc: String,
     /// The chain id of the sequencing chain being used
-    #[clap(
+    #[arg(
         long = "sequencer.chain-id",
         env = "ROLLUP_SEQUENCER_CHAIN_ID",
         default_value = crate::cli::DEFAULT_SEQUENCER_CHAIN_ID
@@ -131,17 +131,17 @@ pub struct ConfigCreateArgs {
     pub sequencer_chain_id: String,
     /// Optional. Will default to 'localdev.me' for local deployments. Will need to separately
     /// configure other hosts
-    #[clap(
-        long = "hostname", 
-        env = "ROLLUP_HOSTNAME", 
+    #[arg(
+        long = "hostname",
+        env = "ROLLUP_HOSTNAME",
         default_value = DEFAULT_HOSTNAME
     )]
     pub hostname: String,
     /// Configures the k8s namespace rollup will be deployed to
-    #[clap(long, env = "ROLLUP_NAMESPACE", default_value = DEFAULT_NAMESPACE)]
+    #[arg(long, env = "ROLLUP_NAMESPACE", default_value = DEFAULT_NAMESPACE)]
     pub namespace: String,
     /// Choose to enable the Celestia feature
-    #[clap(long = "celestia-node.enabled", env = "ROLLUP_ENABLE_CELESTIA_NODE")]
+    #[arg(long = "celestia-node.enabled", env = "ROLLUP_ENABLE_CELESTIA_NODE")]
     pub enable_celestia_node: bool,
 }
 
@@ -203,7 +203,7 @@ impl FromStr for GenesisAccountArg {
 #[derive(Args, Debug)]
 pub struct ConfigEditArgs {
     /// The filepath of the config to edit
-    #[clap(long = "config", env = "ROLLUP_CONFIG_PATH")]
+    #[arg(long = "config", env = "ROLLUP_CONFIG_PATH")]
     pub(crate) config_path: String,
     /// The key of the field to edit. Accepts dot notated yaml path.
     pub(crate) key: String,
@@ -214,7 +214,7 @@ pub struct ConfigEditArgs {
 #[derive(Args, Debug)]
 pub struct ConfigDeleteArgs {
     /// The filepath of the config to delete
-    #[clap(long = "config", env = "ROLLUP_CONFIG_PATH")]
+    #[arg(long = "config", env = "ROLLUP_CONFIG_PATH")]
     pub(crate) config_path: String,
 }
 
@@ -231,42 +231,42 @@ pub enum DeploymentCommand {
 #[derive(Args, Debug, Serialize)]
 pub struct DeploymentCreateArgs {
     /// Filepath of the config to deploy
-    #[clap(long = "config", env = "ROLLUP_CONFIG_PATH")]
+    #[arg(long = "config", env = "ROLLUP_CONFIG_PATH")]
     pub(crate) config_path: String,
     /// Optional path to a rollup chart that can override the default remote helm chart
-    #[clap(
+    #[arg(
         long,
         env = "ROLLUP_CHART_PATH",
         default_value = DEFAULT_ROLLUP_CHART_PATH
     )]
     pub(crate) chart_path: String,
     /// Set if you want to do a dry run of the deployment
-    #[clap(long, env = "ROLLUP_DRY_RUN", default_value = "false")]
+    #[arg(long, env = "ROLLUP_DRY_RUN", default_value = "false")]
     pub(crate) dry_run: bool,
     // TODO: https://github.com/astriaorg/astria/issues/594
     // Don't use a plain text private, prefer wrapper like from
     // the secrecy crate with specialized `Debug` and `Drop` implementations
     // that overwrite the key on drop and don't reveal it when printing.
     /// Faucet private key
-    #[clap(long, env = "ROLLUP_FAUCET_PRIVATE_KEY")]
+    #[arg(long, env = "ROLLUP_FAUCET_PRIVATE_KEY")]
     pub(crate) faucet_private_key: String,
     /// Sequencer private key
     // TODO: https://github.com/astriaorg/astria/issues/594
     // Don't use a plain text private, prefer wrapper like from
     // the secrecy crate with specialized `Debug` and `Drop` implementations
     // that overwrite the key on drop and don't reveal it when printing.
-    #[clap(long, env = "ROLLUP_SEQUENCER_PRIVATE_KEY")]
+    #[arg(long, env = "ROLLUP_SEQUENCER_PRIVATE_KEY")]
     pub(crate) sequencer_private_key: String,
     /// Set if you want to see all k8s resources created by the deployment
     /// Set if you want to do a dry run of the deployment
-    #[clap(long, env = "ROLLUP_DEBUG_DEPLOY", default_value = "false")]
+    #[arg(long, env = "ROLLUP_DEBUG_DEPLOY", default_value = "false")]
     pub(crate) debug: bool,
 }
 
 #[derive(Args, Debug)]
 pub struct DeploymentDeleteArgs {
     /// The filepath of the target deployment's config
-    #[clap(long = "config")]
+    #[arg(long = "config")]
     pub(crate) config_path: String,
 }
 
