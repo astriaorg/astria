@@ -104,7 +104,7 @@ impl Watcher {
 
         loop {
             select! {
-                _ = self.shutdown_token.cancelled() => {
+                () = self.shutdown_token.cancelled() => {
                     info!("watcher shutting down");
                     break;
                 }
@@ -161,7 +161,7 @@ impl Batcher {
 
         loop {
             select! {
-                _ = self.shutdown_token.cancelled() => {
+                () = self.shutdown_token.cancelled() => {
                     info!("batcher shutting down");
                     break;
                 }
@@ -173,7 +173,10 @@ impl Batcher {
                             transaction_hash: meta.transaction_hash,
                         };
 
-                        if meta.block_number != last_block_number {
+                        if meta.block_number == last_block_number {
+                            // block number was the same; add event to current batch
+                            events.push(event_with_metadata);
+                        } else {
                             // block number increased; send current batch and start a new one
                             if !events.is_empty() {
                                 self.event_with_metadata_tx
@@ -184,9 +187,6 @@ impl Batcher {
 
                             events = vec![event_with_metadata];
                             last_block_number = meta.block_number;
-                        } else {
-                            // block number was the same; add event to current batch
-                            events.push(event_with_metadata);
                         }
                     }
                 }
@@ -259,8 +259,7 @@ mod tests {
 
         assert!(
             receipt.status == Some(ethers::types::U64::from(1)),
-            "`withdraw` transaction failed: {:?}",
-            receipt
+            "`withdraw` transaction failed: {receipt:?}",
         );
 
         receipt
@@ -272,7 +271,7 @@ mod tests {
         let signer = Arc::new(SignerMiddleware::new(provider, wallet.clone()));
         let contract = AstriaWithdrawer::new(contract_address, signer.clone());
 
-        let value = 1000000000.into();
+        let value = 1_000_000_000.into();
         let receipt = send_withdraw_transaction(&contract, value).await;
         let expected_event = EventWithMetadata {
             event: WithdrawalFilter {
