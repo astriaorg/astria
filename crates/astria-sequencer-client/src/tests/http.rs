@@ -1,4 +1,5 @@
 use astria_core::{
+    crypto::SigningKey,
     primitive::v1::{
         asset::default_native_asset_id,
         Address,
@@ -10,7 +11,6 @@ use astria_core::{
         UnsignedTransaction,
     },
 };
-use ed25519_consensus::SigningKey;
 use hex_literal::hex;
 use serde_json::json;
 use tendermint::{

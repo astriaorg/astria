@@ -1,4 +1,5 @@
 use astria_core::{
+    crypto::SigningKey,
     primitive::v1::asset,
     protocol::transaction::v1alpha1::{
         action::{
@@ -31,10 +32,7 @@ use color_eyre::{
         Context,
     },
 };
-use ed25519_consensus::{
-    SigningKey,
-    VerificationKeyBytes,
-};
+use ed25519_consensus::VerificationKeyBytes;
 use rand::rngs::OsRng;
 
 use crate::cli::sequencer::{

@@ -56,8 +56,8 @@ spec:
             {{- else }}
             - --state.scheme=path
             {{- end }}
-            {{ if .Values.config.rollup.metrics.enabled }} 
-            - --metrics 
+            {{ if .Values.config.rollup.metrics.enabled }}
+            - --metrics
             - --metrics.addr=0.0.0.0
             - --metrics.port={{ .Values.ports.metrics }}
             {{- end }}
@@ -79,12 +79,12 @@ spec:
               name: ws-rpc
             - containerPort: {{ .Values.ports.executionGRPC }}
               name: execution-grpc
-            {{- if .Values.config.rollup.metrics.enabled }} 
+            {{- if .Values.config.rollup.metrics.enabled }}
             - containerPort: {{ .Values.ports.metrics }}
               name: geth-metr
             {{- end }}
           resources:
-            {{- toYaml .Values.resources.geth | trim | nindent 12 }}     
+            {{- toYaml .Values.resources.geth | trim | nindent 12 }}
         - name: composer
           image: {{ include "composer.image" . }}
           command: [ "/usr/local/bin/astria-composer" ]
@@ -93,20 +93,10 @@ spec:
           envFrom:
             - configMapRef:
                 name: {{ .Values.config.rollup.name }}-composer-env
-          {{- if .Values.secretProvider.enabled }}
-          env:
-            - name: ASTRIA_COMPOSER_PRIVATE_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: sequencer-private-key
-                  key: {{ .Values.secretProvider.secrets.sequencerPrivateKey.key }}
-          {{- end }}
           volumeMounts:
-          {{- if .Values.secretProvider.enabled }}
           - mountPath: "/var/secrets"
             name: sequencer-private-key
-          {{- end }}
-          {{- if .Values.config.rollup.metrics.enabled }} 
+          {{- if .Values.config.rollup.metrics.enabled }}
           ports:
             - containerPort: {{ .Values.ports.composerMetrics }}
               name: composer-metr
@@ -123,7 +113,7 @@ spec:
                 name: {{ .Values.config.rollup.name }}-conductor-env
           resources:
             {{- toYaml .Values.resources.conductor | trim | nindent 12 }}
-          {{- if .Values.config.rollup.metrics.enabled }} 
+          {{- if .Values.config.rollup.metrics.enabled }}
           ports:
             - containerPort: {{ .Values.ports.conductorMetrics }}
               name: conductor-metr
@@ -140,14 +130,17 @@ spec:
           {{- else }}
           emptyDir: {}
           {{- end }}
-        {{- if .Values.secretProvider.enabled }}
         - name: sequencer-private-key
+          {{- if .Values.secretProvider.enabled }}
           csi:
             driver: secrets-store.csi.k8s.io
             readOnly: true
             volumeAttributes:
               secretProviderClass: sequencer-private-key
-        {{- end }}
+          {{- else }}
+          configMap:
+            name: sequencer-private-key
+          {{- end }}
 ---
 {{- if .Values.config.blockscout.enabled }}
 apiVersion: apps/v1

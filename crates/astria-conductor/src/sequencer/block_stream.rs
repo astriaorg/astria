@@ -34,20 +34,21 @@ use crate::sequencer::reporting::ReportFilteredSequencerBlock;
 struct Heights {
     rollup_expects: u64,
     greatest_requested_height: Option<u64>,
-    latest_sequencer_height: u64,
+    latest_observed_sequencer_height: Option<u64>,
     max_ahead: u64,
 }
 
 impl Heights {
     /// Returns the next height to fetch, if any.
     fn next_height_to_fetch(&self) -> Option<u64> {
+        let latest_observed_sequencer_height = self.latest_observed_sequencer_height?;
         let potential_height = match self.greatest_requested_height {
             None => self.rollup_expects,
             Some(greatest_requested_height) => greatest_requested_height.saturating_add(1),
         };
         let not_too_far_ahead =
             potential_height < (self.rollup_expects.saturating_add(self.max_ahead));
-        let height_exists_on_sequencer = potential_height <= self.latest_sequencer_height;
+        let height_exists_on_sequencer = potential_height <= latest_observed_sequencer_height;
         if not_too_far_ahead && height_exists_on_sequencer {
             Some(potential_height)
         } else {
@@ -71,13 +72,15 @@ impl Heights {
     /// Sets the latest height observed from sequencer if greater than what was previously set.
     ///
     /// Returns `true` is greater, `false` if not.
-    pub(super) fn set_latest_observed_if_greater(&mut self, height: Height) -> bool {
-        let height = height.value();
-        let greater = height > self.latest_sequencer_height;
-        if greater {
-            self.latest_sequencer_height = height;
+    pub(super) fn set_latest_observed_sequencer_height_if_greater(&mut self, new: Height) -> bool {
+        let new = new.value();
+        let is_greater = self
+            .latest_observed_sequencer_height
+            .map_or(true, |old| new > old);
+        if is_greater {
+            self.latest_observed_sequencer_height.replace(new);
         }
-        greater
+        is_greater
     }
 
     /// Sets the latest height expected by the rollup if greater than what was previously set.
@@ -109,12 +112,15 @@ impl BlocksFromHeightStream {
     #[instrument(
         skip_all,
         fields(
-            latest_height.observed = %height,
-            latest_height.recorded = %self.heights.latest_sequencer_height,
+            latest_height.received = height.value(),
+            latest_height.recorded = self.heights.latest_observed_sequencer_height,
         )
     )]
     pub(super) fn set_latest_observed_height_if_greater(&mut self, height: Height) {
-        if !self.heights.set_latest_observed_if_greater(height) {
+        if !self
+            .heights
+            .set_latest_observed_sequencer_height_if_greater(height)
+        {
             info!("observed latest sequencer height older or the same as previous; ignoring it");
         }
     }
@@ -135,15 +141,18 @@ impl BlocksFromHeightStream {
         }
     }
 
+    /// Returns a stream of Sequencer Blocks for `rollup_id` and starting from `first_height`.
+    ///
+    /// Note that [`BlocksFromHeightStream::set_latest_observed_height_if_greater`] needs to
+    /// be called after the stream is constructed. Otherwise it will not fetch blocks.
     pub(super) fn new(
         rollup_id: RollupId,
-        rollup_expects: Height,
-        latest_sequencer_height: Height,
+        first_height: Height,
         client: SequencerGrpcClient,
     ) -> Self {
         let heights = Heights {
-            rollup_expects: rollup_expects.value(),
-            latest_sequencer_height: latest_sequencer_height.value(),
+            rollup_expects: first_height.value(),
+            latest_observed_sequencer_height: None,
             greatest_requested_height: None,
             max_ahead: 128,
         };
@@ -271,7 +280,7 @@ mod tests {
         let mut heights = Heights {
             rollup_expects: 5,
             greatest_requested_height: None,
-            latest_sequencer_height: 6,
+            latest_observed_sequencer_height: Some(6),
             max_ahead: 3,
         };
         let next = heights.next_height_to_fetch();
@@ -296,7 +305,7 @@ mod tests {
         let heights = Heights {
             rollup_expects: 4,
             greatest_requested_height: Some(5),
-            latest_sequencer_height: 6,
+            latest_observed_sequencer_height: Some(6),
             max_ahead: 2,
         };
         let next = heights.next_height_to_fetch();
@@ -308,8 +317,20 @@ mod tests {
         let heights = Heights {
             rollup_expects: 4,
             greatest_requested_height: Some(5),
-            latest_sequencer_height: 5,
+            latest_observed_sequencer_height: Some(5),
             max_ahead: 2,
+        };
+        let next = heights.next_height_to_fetch();
+        assert_eq!(None, next);
+    }
+
+    #[test]
+    fn next_height_is_none_if_latest_observed_height_not_set() {
+        let heights = Heights {
+            rollup_expects: 5,
+            greatest_requested_height: None,
+            latest_observed_sequencer_height: None,
+            max_ahead: 3,
         };
         let next = heights.next_height_to_fetch();
         assert_eq!(None, next);

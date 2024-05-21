@@ -1,0 +1,56 @@
+
+sequencer metadata 0:
+    sequencer block hash: ut2Jx/f+bQ/FPewe/x+tfSa+x+MWYlbLaJ0ORiTmh+k=
+    sequencer block header:
+        chain id: astria-dusk-5
+        height: 597420
+        time: 2024-05-13T14:09:17.228905487Z
+        rollup transactions root: 47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=
+        data hash: 7P54CyIFJkHEJOCs+wvzRlhEqN7zh03qLi3wIKP1T3g=
+        proposer address: /duvLvsXbdJaPt3pEG540ymjhWI=
+    rollup ids:
+sequencer metadata 1:
+    sequencer block hash: rAd06TkUxxpquuV7O6lMPzduVhKW42yfewonPRVy7Xs=
+    sequencer block header:
+        chain id: astria-dusk-5
+        height: 597421
+        time: 2024-05-13T14:09:19.653833312Z
+        rollup transactions root: 47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=
+        data hash: 7P54CyIFJkHEJOCs+wvzRlhEqN7zh03qLi3wIKP1T3g=
+        proposer address: Dcm68suU9Il/Klae8qM+4dTntQs=
+    rollup ids:
+sequencer metadata 2:
+    sequencer block hash: T5H2//J9AYnOzctl4roaWsqpnz9OxNFjfzk6D8knm/k=
+    sequencer block header:
+        chain id: astria-dusk-5
+        height: 597422
+        time: 2024-05-13T14:09:21.983650812Z
+        rollup transactions root: 47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=
+        data hash: 7P54CyIFJkHEJOCs+wvzRlhEqN7zh03qLi3wIKP1T3g=
+        proposer address: L1ruUJdfVvWcTFJIJ3yx5KgyBZM=
+    rollup ids:
+sequencer metadata 3:
+    sequencer block hash: sItn6yhLeZyCWFshed+U7f2IgD0kjHkb/iybj2cHmZ8=
+    sequencer block header:
+        chain id: astria-dusk-5
+        height: 597423
+        time: 2024-05-13T14:09:24.316155106Z
+        rollup transactions root: 47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=
+        data hash: 7P54CyIFJkHEJOCs+wvzRlhEqN7zh03qLi3wIKP1T3g=
+        proposer address: yPrVsmT31bVEaXjpauw1SeQfE1M=
+    rollup ids:
+sequencer metadata 4:
+    sequencer block hash: 9guERGaeMF8ST/8YDAdA9kuOG+VCxIG7xswH/5bz4uo=
+    sequencer block header:
+        chain id: astria-dusk-5
+        height: 597424
+        time: 2024-05-13T14:09:26.654918714Z
+        rollup transactions root: 47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=
+        data hash: 7P54CyIFJkHEJOCs+wvzRlhEqN7zh03qLi3wIKP1T3g=
+        proposer address: /duvLvsXbdJaPt3pEG540ymjhWI=
+    rollup ids:
+
+number of entries: 5
+compressed size: 489 bytes
+decompressed size: 1199 bytes
+compression ratio: 2.4519427
