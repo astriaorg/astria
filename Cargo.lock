@@ -524,7 +524,7 @@ dependencies = [
 
 [[package]]
 name = "astria-composer"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "astria-build-info",
  "astria-config",
@@ -570,7 +570,7 @@ dependencies = [
 
 [[package]]
 name = "astria-conductor"
-version = "0.15.0"
+version = "0.16.0"
 dependencies = [
  "astria-build-info",
  "astria-config",
@@ -725,7 +725,7 @@ dependencies = [
 
 [[package]]
 name = "astria-sequencer"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "anyhow",
  "astria-build-info",
@@ -795,7 +795,7 @@ dependencies = [
 
 [[package]]
 name = "astria-sequencer-relayer"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "assert-json-diff",
  "astria-build-info",
