@@ -10,6 +10,7 @@ use astria_core::{
 };
 use priority_queue::double_priority_queue::DoublePriorityQueue;
 use tokio::sync::RwLock;
+use tracing::instrument;
 
 /// Used to prioritize transactions in the mempool.
 ///
@@ -175,12 +176,13 @@ impl Mempool {
 
     /// returns the inner mempool, write-locked.
     /// required so that `BasicMempool::iter_mut()` can be called.
-    pub(crate) async fn inner(&self) -> tokio::sync::RwLockWriteGuard<'_, BasicMempool> {
+    pub(crate) async fn write(&self) -> tokio::sync::RwLockWriteGuard<'_, BasicMempool> {
         self.inner.write().await
     }
 
     /// returns the pending nonce for the given address,
     /// if it exists in the mempool.
+    #[instrument(skip(self), fields(address = %address))]
     pub(crate) async fn pending_nonce(&self, address: &Address) -> Option<u32> {
         let inner = self.inner.read().await;
         let mut nonce = None;

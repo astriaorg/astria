@@ -366,13 +366,13 @@ impl ::prost::Name for GetPendingNonceRequest {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct PendingNonce {
+pub struct GetPendingNonceResponse {
     /// The pending nonce for the given account.
     #[prost(uint32, tag = "1")]
     pub inner: u32,
 }
-impl ::prost::Name for PendingNonce {
-    const NAME: &'static str = "PendingNonce";
+impl ::prost::Name for GetPendingNonceResponse {
+    const NAME: &'static str = "GetPendingNonceResponse";
     const PACKAGE: &'static str = "astria.sequencerblock.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)
@@ -528,7 +528,10 @@ pub mod sequencer_service_client {
         pub async fn get_pending_nonce(
             &mut self,
             request: impl tonic::IntoRequest<super::GetPendingNonceRequest>,
-        ) -> std::result::Result<tonic::Response<super::PendingNonce>, tonic::Status> {
+        ) -> std::result::Result<
+            tonic::Response<super::GetPendingNonceResponse>,
+            tonic::Status,
+        > {
             self.inner
                 .ready()
                 .await
@@ -580,7 +583,10 @@ pub mod sequencer_service_server {
         async fn get_pending_nonce(
             self: std::sync::Arc<Self>,
             request: tonic::Request<super::GetPendingNonceRequest>,
-        ) -> std::result::Result<tonic::Response<super::PendingNonce>, tonic::Status>;
+        ) -> std::result::Result<
+            tonic::Response<super::GetPendingNonceResponse>,
+            tonic::Status,
+        >;
     }
     #[derive(Debug)]
     pub struct SequencerServiceServer<T: SequencerService> {
@@ -768,7 +774,7 @@ pub mod sequencer_service_server {
                         T: SequencerService,
                     > tonic::server::UnaryService<super::GetPendingNonceRequest>
                     for GetPendingNonceSvc<T> {
-                        type Response = super::PendingNonce;
+                        type Response = super::GetPendingNonceResponse;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,
