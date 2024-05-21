@@ -1,5 +1,4 @@
 pub(crate) mod api;
-pub(crate) mod bridge;
 pub mod bridge_service;
 mod build_info;
 pub(crate) mod config;

@@ -21,11 +21,11 @@ use hyper::server::conn::AddrIncoming;
 use serde::Serialize;
 use tokio::sync::watch;
 
-use crate::bridge;
+use crate::ethereum;
 
 pub(crate) type ApiServer = axum::Server<AddrIncoming, IntoMakeService<Router>>;
 
-type BridgeState = watch::Receiver<bridge::StateSnapshot>;
+type BridgeState = watch::Receiver<ethereum::StateSnapshot>;
 
 #[derive(Clone)]
 /// `AppState` is used for as an axum extractor in its method handlers.
@@ -76,7 +76,7 @@ async fn get_readyz(State(bridge_state): State<BridgeState>) -> Readyz {
 }
 
 #[allow(clippy::unused_async)] // Permit because axum handlers must be async
-async fn get_status(State(bridge_state): State<BridgeState>) -> Json<bridge::StateSnapshot> {
+async fn get_status(State(bridge_state): State<BridgeState>) -> Json<ethereum::StateSnapshot> {
     Json(bridge_state.borrow().clone())
 }
 

@@ -20,11 +20,22 @@ use ethers::{
     },
     utils::hex,
 };
-use tokio::sync::mpsc;
+use tokio::{
+    select,
+    sync::mpsc,
+};
+use tokio_util::sync::CancellationToken;
+use tracing::info;
 
-use crate::ethereum::astria_withdrawer::{
-    astria_withdrawer::WithdrawalFilter,
-    AstriaWithdrawer,
+use crate::ethereum::{
+    astria_withdrawer::{
+        astria_withdrawer::WithdrawalFilter,
+        AstriaWithdrawer,
+    },
+    state::{
+        State,
+        StateSnapshot,
+    },
 };
 
 /// Watches for withdrawal events emitted by the `AstriaWithdrawer` contract.
@@ -32,6 +43,8 @@ pub(crate) struct Watcher {
     contract: AstriaWithdrawer<Provider<Ws>>,
     event_tx: mpsc::Sender<(WithdrawalFilter, LogMeta)>,
     batcher: Option<Batcher>,
+    state: Arc<State>,
+    shutdown_token: CancellationToken,
 }
 
 impl Watcher {
@@ -39,6 +52,7 @@ impl Watcher {
         ethereum_contract_address: &str,
         ethereum_rpc_endpoint: &str,
         event_with_metadata_tx: mpsc::Sender<Vec<EventWithMetadata>>,
+        shutdown_token: &CancellationToken,
     ) -> Result<Self> {
         let provider = Arc::new(
             Provider::<Ws>::connect(ethereum_rpc_endpoint)
@@ -50,19 +64,28 @@ impl Watcher {
         let contract = AstriaWithdrawer::new(contract_address, provider);
 
         let (event_tx, event_rx) = mpsc::channel(100);
-        let batcher = Batcher::new(event_rx, event_with_metadata_tx);
+        let batcher = Batcher::new(event_rx, event_with_metadata_tx, shutdown_token);
+        let state = Arc::new(State::new());
         Ok(Self {
             contract,
             event_tx,
             batcher: Some(batcher),
+            state,
+            shutdown_token: shutdown_token.clone(),
         })
     }
 }
 
 impl Watcher {
+    pub(crate) fn subscribe_to_state(&self) -> tokio::sync::watch::Receiver<StateSnapshot> {
+        self.state.subscribe()
+    }
+
     pub(crate) async fn run(mut self) -> Result<()> {
         let batcher = self.batcher.take().expect("batcher must be present");
         tokio::task::spawn(batcher.run());
+
+        self.state.set_ready();
 
         // start from block 1 right now
         // TODO: determine the last block we've seen based on the sequencer data
@@ -79,23 +102,27 @@ impl Watcher {
 
         let mut stream = events.stream().await.unwrap().with_meta();
 
-        while let Some(Ok((event, meta))) = stream.next().await {
-            self.event_tx
-                .send((event, meta))
-                .await
-                .wrap_err("failed to send withdrawal event; receiver dropped?")?;
+        loop {
+            select! {
+                _ = self.shutdown_token.cancelled() => {
+                    info!("watcher shutting down");
+                    break;
+                }
+                item = stream.next() => {
+                    if let Some(Ok((event, meta))) = item {
+                        self.event_tx
+                            .send((event, meta))
+                            .await
+                            .wrap_err("failed to send withdrawal event; receiver dropped?")?;
+                    } else if let Some(Err(e)) = item {
+                        return Err(e).wrap_err("failed to read from event stream; event stream closed?");
+                    }
+                }
+            }
         }
 
         Ok(())
     }
-}
-
-fn address_from_string(s: &str) -> Result<ethers::types::Address> {
-    let bytes = hex::decode(s).wrap_err("failed to parse ethereum address as hex")?;
-    let address: [u8; 20] = bytes
-        .try_into()
-        .map_err(|_| eyre!("invalid length for ethereum address, must be 20 bytes"))?;
-    Ok(address.into())
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -110,16 +137,19 @@ pub(crate) struct EventWithMetadata {
 struct Batcher {
     event_rx: mpsc::Receiver<(WithdrawalFilter, LogMeta)>,
     event_with_metadata_tx: mpsc::Sender<Vec<EventWithMetadata>>,
+    shutdown_token: CancellationToken,
 }
 
 impl Batcher {
     pub(crate) fn new(
         event_rx: mpsc::Receiver<(WithdrawalFilter, LogMeta)>,
         event_with_metadata_tx: mpsc::Sender<Vec<EventWithMetadata>>,
+        shutdown_token: &CancellationToken,
     ) -> Self {
         Self {
             event_rx,
             event_with_metadata_tx,
+            shutdown_token: shutdown_token.clone(),
         }
     }
 }
@@ -129,32 +159,53 @@ impl Batcher {
         let mut events = Vec::new();
         let mut last_block_number: U64 = 0.into();
 
-        while let Some((event, meta)) = self.event_rx.recv().await {
-            let event_with_metadata = EventWithMetadata {
-                event,
-                block_number: meta.block_number,
-                transaction_hash: meta.transaction_hash,
-            };
-
-            if meta.block_number != last_block_number {
-                // block number increased; send current batch and start a new one
-                if !events.is_empty() {
-                    self.event_with_metadata_tx
-                        .send(events)
-                        .await
-                        .wrap_err("failed to send batched events; receiver dropped?")?;
+        loop {
+            select! {
+                _ = self.shutdown_token.cancelled() => {
+                    info!("batcher shutting down");
+                    break;
                 }
+                item = self.event_rx.recv() => {
+                    if let Some((event, meta)) = item {
+                        let event_with_metadata = EventWithMetadata {
+                            event,
+                            block_number: meta.block_number,
+                            transaction_hash: meta.transaction_hash,
+                        };
 
-                events = vec![event_with_metadata];
-                last_block_number = meta.block_number;
-            } else {
-                // block number was the same; add event to current batch
-                events.push(event_with_metadata);
+                        if meta.block_number != last_block_number {
+                            // block number increased; send current batch and start a new one
+                            if !events.is_empty() {
+                                self.event_with_metadata_tx
+                                    .send(events)
+                                    .await
+                                    .wrap_err("failed to send batched events; receiver dropped?")?;
+                            }
+
+                            events = vec![event_with_metadata];
+                            last_block_number = meta.block_number;
+                        } else {
+                            // block number was the same; add event to current batch
+                            events.push(event_with_metadata);
+                        }
+                    }
+                }
             }
         }
 
         Ok(())
     }
+}
+
+// converts an ethereum address string to an `ethers::types::Address`.
+// the input string may be prefixed with "0x" or not.
+fn address_from_string(s: &str) -> Result<ethers::types::Address> {
+    let s = s.strip_prefix("0x").unwrap_or(s);
+    let bytes = hex::decode(s).wrap_err("failed to parse ethereum address as hex")?;
+    let address: [u8; 20] = bytes
+        .try_into()
+        .map_err(|_| eyre!("invalid length for ethereum address, must be 20 bytes"))?;
+    Ok(address.into())
 }
 
 #[cfg(test)]
@@ -172,6 +223,26 @@ mod tests {
 
     use super::*;
     use crate::ethereum::test_utils::deploy_astria_withdrawer;
+
+    #[test]
+    fn address_from_string_prefix() {
+        let address = address_from_string("0x1234567890123456789012345678901234567890").unwrap();
+        let bytes: [u8; 20] = hex::decode("1234567890123456789012345678901234567890")
+            .unwrap()
+            .try_into()
+            .unwrap();
+        assert_eq!(address, ethers::types::Address::from(bytes));
+    }
+
+    #[test]
+    fn address_from_string_no_prefix() {
+        let address = address_from_string("1234567890123456789012345678901234567890").unwrap();
+        let bytes: [u8; 20] = hex::decode("1234567890123456789012345678901234567890")
+            .unwrap()
+            .try_into()
+            .unwrap();
+        assert_eq!(address, ethers::types::Address::from(bytes));
+    }
 
     async fn send_withdraw_transaction<M: Middleware>(
         contract: &AstriaWithdrawer<M>,
@@ -218,6 +289,7 @@ mod tests {
             &hex::encode(contract_address),
             &anvil.ws_endpoint(),
             event_tx,
+            &CancellationToken::new(),
         )
         .await
         .unwrap();

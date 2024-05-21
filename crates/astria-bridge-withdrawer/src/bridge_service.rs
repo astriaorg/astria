@@ -27,10 +27,6 @@ use tracing::{
 
 use crate::{
     api,
-    bridge::{
-        self,
-        Bridge,
-    },
     config::Config,
     ethereum::Watcher,
 };
@@ -39,7 +35,6 @@ pub struct BridgeService {
     // Token to signal all subtasks to shut down gracefully.
     shutdown_token: CancellationToken,
     api_server: api::ApiServer,
-    bridge: Bridge,
     ethereum_watcher: Watcher,
 }
 
@@ -55,43 +50,37 @@ impl BridgeService {
             api_addr, ..
         } = cfg;
 
-        let bridge = bridge::Builder {
-            shutdown_token: shutdown_handle.token(),
-        }
-        .build();
-
-        // make api server
-        let state_rx = bridge.subscribe_to_state();
-        let api_socket_addr = api_addr.parse::<SocketAddr>().wrap_err_with(|| {
-            format!("failed to parse provided `api_addr` string as socket address: `{api_addr}`",)
-        })?;
-        let api_server = api::start(api_socket_addr, state_rx);
-
         // TODO: use event_rx in the sequencer submitter
         let (event_tx, _event_rx) = mpsc::channel(100);
         let ethereum_watcher = Watcher::new(
             &cfg.ethereum_contract_address,
             &cfg.ethereum_rpc_endpoint,
             event_tx.clone(),
+            &shutdown_handle.token(),
         )
         .await
         .wrap_err("failed to initialize ethereum watcher")?;
 
-        let bridge = Self {
+        // make api server
+        let state_rx = ethereum_watcher.subscribe_to_state();
+        let api_socket_addr = api_addr.parse::<SocketAddr>().wrap_err_with(|| {
+            format!("failed to parse provided `api_addr` string as socket address: `{api_addr}`",)
+        })?;
+        let api_server = api::start(api_socket_addr, state_rx);
+
+        let service = Self {
             shutdown_token: shutdown_handle.token(),
             api_server,
-            bridge,
             ethereum_watcher,
         };
 
-        Ok((bridge, shutdown_handle))
+        Ok((service, shutdown_handle))
     }
 
     pub async fn run(self) {
         let Self {
             shutdown_token,
             api_server,
-            bridge,
             ethereum_watcher,
         } = self;
 
@@ -108,10 +97,6 @@ impl BridgeService {
         });
         info!("spawned API server");
 
-        // TODO remove this
-        let mut bridge_task = tokio::spawn(bridge.run());
-        info!("spawned bridge withdrawer task");
-
         let mut ethereum_watcher_task = tokio::spawn(ethereum_watcher.run());
         info!("spawned ethereum watcher task");
 
@@ -119,10 +104,6 @@ impl BridgeService {
             o = &mut api_task => {
                 report_exit("api server", o);
                 Shutdown { api_task: None, ethereum_watcher_task: Some(ethereum_watcher_task), api_shutdown_signal, token: shutdown_token }
-            }
-            o = &mut bridge_task => {
-                report_exit("bridge worker", o);
-                Shutdown { api_task: Some(api_task), ethereum_watcher_task: None, api_shutdown_signal, token: shutdown_token }
             }
             o = &mut ethereum_watcher_task => {
                 report_exit("ethereum watcher", o);
