@@ -25,7 +25,6 @@ impl TransactionPriority {
 }
 
 impl Ord for TransactionPriority {
-    #[allow(clippy::non_canonical_partial_ord_impl)]
     fn cmp(&self, other: &Self) -> Ordering {
         // we want to execute the lowest nonce first,
         // so lower nonce difference means higher priority
