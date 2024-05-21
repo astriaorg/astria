@@ -31,7 +31,7 @@ pbjson-types = { workspace = true }
 penumbra-ibc = { workspace = true }
 penumbra-proto = { workspace = true }
 prost = { workspace = true }
-rand = { workspace = true, optional = true }
+rand = { workspace = true }
 serde = { workspace = true, features = ["derive"], optional = true }
 sha2 = { workspace = true }
 tendermint = { workspace = true }
@@ -41,13 +41,14 @@ tonic = { workspace = true, optional = true }
 tracing = { workspace = true }
 base64-serde = { workspace = true, optional = true }
 base64 = { workspace = true }
+zeroize = { version = "1.7.0", features = ["zeroize_derive"] }
 
 [features]
 celestia = ["dep:celestia-types"]
 client = ["dep:tonic"]
 serde = ["dep:serde", "dep:pbjson", "dep:base64-serde"]
 server = ["dep:tonic"]
-test-utils = ["dep:rand"]
+test-utils = []
 base64-serde = ["dep:base64-serde"]
 brotli = ["dep:brotli"]
 

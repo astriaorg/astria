@@ -1,0 +1,10 @@
+
+rollup data 0:
+    sequencer block hash: Y2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2M=
+    rollup id: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+    transaction count: 1
+
+number of entries: 1
+compressed size: 172 bytes
+decompressed size: 211 bytes
+compression ratio: 1.2267442

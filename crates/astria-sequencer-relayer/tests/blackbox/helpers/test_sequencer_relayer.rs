@@ -13,14 +13,16 @@ use std::{
 };
 
 use assert_json_diff::assert_json_include;
-use astria_core::primitive::v1::RollupId;
+use astria_core::{
+    crypto::SigningKey,
+    primitive::v1::RollupId,
+};
 use astria_grpc_mock::MockGuard as GrpcMockGuard;
 use astria_sequencer_relayer::{
     config::Config,
     SequencerRelayer,
     ShutdownHandle,
 };
-use ed25519_consensus::SigningKey;
 use futures::TryFutureExt;
 use itertools::Itertools;
 use once_cell::sync::Lazy;
@@ -637,6 +639,7 @@ impl TestSequencerRelayerConfig {
             .ed25519_signing_key()
             .cloned()
             .unwrap()
+            .as_bytes()
             .try_into()
             .unwrap();
 
