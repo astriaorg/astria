@@ -138,10 +138,16 @@ pub(crate) struct Reader {
 
 impl Reader {
     pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
-        let (executor, sequencer_chain_id) = self
-            .initialize()
-            .await
-            .wrap_err("initialization of runtime information failed")?;
+        let (executor, sequencer_chain_id) = select!(
+            () = self.shutdown.clone().cancelled_owned() => {
+                info!("received shutdown signal while waiting for Celestia reader task to initialize");
+                return Ok(());
+            }
+
+            res = self.initialize() => {
+                res.wrap_err("initialization of runtime information failed")?
+            }
+        );
 
         RunningReader::from_parts(self, executor, sequencer_chain_id)
             .wrap_err("failed entering run loop")?
