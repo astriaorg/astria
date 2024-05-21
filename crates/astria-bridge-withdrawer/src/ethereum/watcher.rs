@@ -80,7 +80,6 @@ impl Watcher {
         let mut stream = events.stream().await.unwrap().with_meta();
 
         while let Some(Ok((event, meta))) = stream.next().await {
-            println!("Received withdrawal event: {:?}", event);
             self.event_tx
                 .send((event, meta))
                 .await
@@ -139,10 +138,12 @@ impl Batcher {
 
             if meta.block_number != last_block_number {
                 // block number increased; send current batch and start a new one
-                self.event_with_metadata_tx
-                    .send(events)
-                    .await
-                    .wrap_err("failed to send batched events; receiver dropped?")?;
+                if !events.is_empty() {
+                    self.event_with_metadata_tx
+                        .send(events)
+                        .await
+                        .wrap_err("failed to send batched events; receiver dropped?")?;
+                }
 
                 events = vec![event_with_metadata];
                 last_block_number = meta.block_number;
@@ -160,21 +161,23 @@ impl Batcher {
 mod tests {
     use ethers::{
         prelude::SignerMiddleware,
+        providers::Middleware,
         signers::Signer as _,
+        types::{
+            TransactionReceipt,
+            U256,
+        },
         utils::hex,
     };
 
     use super::*;
     use crate::ethereum::test_utils::deploy_astria_withdrawer;
 
-    #[tokio::test]
-    async fn watcher_can_watch() {
-        let (contract_address, provider, wallet, anvil) = deploy_astria_withdrawer().await;
-        let signer = Arc::new(SignerMiddleware::new(provider, wallet.clone()));
-        let contract = AstriaWithdrawer::new(contract_address, signer.clone());
-
-        let tx = contract.withdraw(b"nootwashere".into()).value(1000000000);
-
+    async fn send_withdraw_transaction<M: Middleware>(
+        contract: &AstriaWithdrawer<M>,
+        value: U256,
+    ) -> TransactionReceipt {
+        let tx = contract.withdraw(b"nootwashere".into()).value(value);
         let receipt = tx
             .send()
             .await
@@ -188,6 +191,27 @@ mod tests {
             "`withdraw` transaction failed: {:?}",
             receipt
         );
+
+        receipt
+    }
+
+    #[tokio::test]
+    async fn watcher_can_watch() {
+        let (contract_address, provider, wallet, anvil) = deploy_astria_withdrawer().await;
+        let signer = Arc::new(SignerMiddleware::new(provider, wallet.clone()));
+        let contract = AstriaWithdrawer::new(contract_address, signer.clone());
+
+        let value = 1000000000.into();
+        let receipt = send_withdraw_transaction(&contract, value).await;
+        let expected_event = EventWithMetadata {
+            event: WithdrawalFilter {
+                sender: wallet.address(),
+                amount: value,
+                memo: b"nootwashere".into(),
+            },
+            block_number: receipt.block_number.unwrap(),
+            transaction_hash: receipt.transaction_hash,
+        };
 
         let (event_tx, mut event_rx) = mpsc::channel(100);
         let watcher = Watcher::new(
@@ -201,34 +225,10 @@ mod tests {
         tokio::task::spawn(watcher.run());
 
         // make another tx to trigger anvil to make another block
-        let tx = contract.withdraw(b"nootwashere".into()).value(1000000000);
-
-        let receipt = tx
-            .send()
-            .await
-            .expect("failed to submit transaction")
-            .await
-            .expect("failed to await pending transaction")
-            .expect("no receipt found");
-
-        assert!(
-            receipt.status == Some(ethers::types::U64::from(1)),
-            "`withdraw` transaction failed: {:?}",
-            receipt
-        );
+        send_withdraw_transaction(&contract, value).await;
 
         let events = event_rx.recv().await.unwrap();
         assert_eq!(events.len(), 1);
-
-        let expected_event = EventWithMetadata {
-            event: WithdrawalFilter {
-                sender: wallet.address(),
-                amount: 1000000000.into(),
-                memo: b"nootwashere".into(),
-            },
-            block_number: receipt.block_number.unwrap(),
-            transaction_hash: receipt.transaction_hash,
-        };
         assert_eq!(events[0], expected_event);
     }
 }
