@@ -94,10 +94,13 @@ mod test {
         let asset = Id::from_denom("asset");
 
         // gets for non existing assets should return none
-        assert_eq!(state
-            .get_ibc_asset(asset)
-            .await
-            .expect("getting non existing asset should not fail"), None);
+        assert_eq!(
+            state
+                .get_ibc_asset(asset)
+                .await
+                .expect("getting non existing asset should not fail"),
+            None
+        );
     }
 
     #[tokio::test]
