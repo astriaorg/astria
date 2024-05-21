@@ -105,7 +105,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
         tx, ..
     } = req;
     if tx.len() > MAX_TX_SIZE {
-        mempool.remove(&tx_hash).await;
+        mempool.remove(tx_hash).await;
         metrics::counter!(metrics_init::CHECK_TX_REMOVED_TOO_LARGE).increment(1);
         return response::CheckTx {
             code: AbciErrorCode::TRANSACTION_TOO_LARGE.into(),
@@ -121,7 +121,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
     let raw_signed_tx = match raw::SignedTransaction::decode(tx) {
         Ok(tx) => tx,
         Err(e) => {
-            mempool.remove(&tx_hash).await;
+            mempool.remove(tx_hash).await;
             return response::CheckTx {
                 code: AbciErrorCode::INVALID_PARAMETER.into(),
                 log: e.to_string(),
@@ -133,7 +133,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
     let signed_tx = match SignedTransaction::try_from_raw(raw_signed_tx) {
         Ok(tx) => tx,
         Err(e) => {
-            mempool.remove(&tx_hash).await;
+            mempool.remove(tx_hash).await;
             return response::CheckTx {
                 code: AbciErrorCode::INVALID_PARAMETER.into(),
                 info: "the provided bytes was not a valid protobuf-encoded SignedTransaction, or \
@@ -146,7 +146,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
     };
 
     if let Err(e) = transaction::check_stateless(&signed_tx).await {
-        mempool.remove(&tx_hash).await;
+        mempool.remove(tx_hash).await;
         metrics::counter!(metrics_init::CHECK_TX_REMOVED_FAILED_STATELESS).increment(1);
         return response::CheckTx {
             code: AbciErrorCode::INVALID_PARAMETER.into(),
@@ -157,7 +157,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
     };
 
     if let Err(e) = transaction::check_nonce_mempool(&signed_tx, &state).await {
-        mempool.remove(&tx_hash).await;
+        mempool.remove(tx_hash).await;
         metrics::counter!(metrics_init::CHECK_TX_REMOVED_STALE_NONCE).increment(1);
         return response::CheckTx {
             code: AbciErrorCode::INVALID_NONCE.into(),
@@ -168,7 +168,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
     };
 
     if let Err(e) = transaction::check_chain_id_mempool(&signed_tx, &state).await {
-        mempool.remove(&tx_hash).await;
+        mempool.remove(tx_hash).await;
         return response::CheckTx {
             code: AbciErrorCode::INVALID_CHAIN_ID.into(),
             info: "failed verifying chain id".into(),
@@ -178,7 +178,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
     }
 
     if let Err(e) = transaction::check_balance_mempool(&signed_tx, &state).await {
-        mempool.remove(&tx_hash).await;
+        mempool.remove(tx_hash).await;
         metrics::counter!(metrics_init::CHECK_TX_REMOVED_ACCOUNT_BALANCE).increment(1);
         return response::CheckTx {
             code: AbciErrorCode::INSUFFICIENT_FUNDS.into(),
@@ -189,20 +189,17 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
     };
 
     // tx is valid, push to mempool
-    let priority = crate::mempool::TransactionPriority::new(
-        signed_tx.nonce(),
-        state
-            .get_account_nonce(Address::from_verification_key(signed_tx.verification_key()))
-            .await
-            .expect("can fetch account nonce"),
-    )
-    .expect(
-        "tx nonce is greater or equal to current account nonce; this was checked in \
-         check_nonce_mempool",
-    );
-    mempool
-        .insert(signed_tx, priority)
+    let current_account_nonce = state
+        .get_account_nonce(Address::from_verification_key(signed_tx.verification_key()))
         .await
-        .expect("priority transaction nonce and transaction nonce match, as we set them above");
+        .expect("can fetch account nonce");
+
+    mempool
+        .insert(signed_tx, current_account_nonce)
+        .await
+        .expect(
+            "tx nonce is greater than or equal to current account nonce; this was checked in \
+             check_nonce_mempool",
+        );
     response::CheckTx::default()
 }
