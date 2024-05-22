@@ -12,8 +12,12 @@ impl State {
         }
     }
 
-    pub(super) fn set_ready(&self) {
-        self.inner.send_modify(StateSnapshot::set_ready);
+    pub(super) fn set_watcher_ready(&self) {
+        self.inner.send_modify(StateSnapshot::set_watcher_ready);
+    }
+
+    pub(super) fn set_submitter_ready(&self) {
+        self.inner.send_modify(StateSnapshot::set_submitter_ready);
     }
 
     pub(super) fn subscribe(&self) -> watch::Receiver<StateSnapshot> {
@@ -43,7 +47,8 @@ forward_setter!(
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize)]
 pub(crate) struct StateSnapshot {
-    ready: bool,
+    watcher_ready: bool,
+    submitter_ready: bool,
 
     sequencer_connected: bool,
 
@@ -53,12 +58,16 @@ pub(crate) struct StateSnapshot {
 }
 
 impl StateSnapshot {
-    pub(crate) fn set_ready(&mut self) {
-        self.ready = true;
+    pub(crate) fn set_watcher_ready(&mut self) {
+        self.watcher_ready = true;
+    }
+
+    pub(crate) fn set_submitter_ready(&mut self) {
+        self.submitter_ready = true;
     }
 
     pub(crate) fn is_ready(&self) -> bool {
-        self.ready
+        self.submitter_ready && self.watcher_ready
     }
 
     pub(crate) fn is_healthy(&self) -> bool {

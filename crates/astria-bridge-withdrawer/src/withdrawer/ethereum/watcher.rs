@@ -50,7 +50,7 @@ impl Watcher {
     pub(crate) async fn new(
         ethereum_contract_address: &str,
         ethereum_rpc_endpoint: &str,
-        batch_tx: mpsc::Sender<Vec<Action>>,
+        batch_tx: mpsc::Sender<(Vec<Action>, u64)>,
         shutdown_token: &CancellationToken,
         state: Arc<State>,
     ) -> Result<Self> {
@@ -76,15 +76,11 @@ impl Watcher {
 }
 
 impl Watcher {
-    pub(crate) fn subscribe_to_state(&self) -> tokio::sync::watch::Receiver<StateSnapshot> {
-        self.state.subscribe()
-    }
-
     pub(crate) async fn run(mut self) -> Result<()> {
         let batcher = self.batcher.take().expect("batcher must be present");
         tokio::task::spawn(batcher.run());
 
-        self.state.set_ready();
+        self.state.set_watcher_ready();
 
         // start from block 1 right now
         // TODO: determine the last block we've seen based on the sequencer data
@@ -135,14 +131,14 @@ pub(crate) struct EventWithMetadata {
 
 struct Batcher {
     event_rx: mpsc::Receiver<(WithdrawalFilter, LogMeta)>,
-    batch_tx: mpsc::Sender<Vec<Action>>,
+    batch_tx: mpsc::Sender<(Vec<Action>, u64)>,
     shutdown_token: CancellationToken,
 }
 
 impl Batcher {
     pub(crate) fn new(
         event_rx: mpsc::Receiver<(WithdrawalFilter, LogMeta)>,
-        batch_tx: mpsc::Sender<Vec<Action>>,
+        batch_tx: mpsc::Sender<(Vec<Action>, u64)>,
         shutdown_token: &CancellationToken,
     ) -> Self {
         Self {
@@ -180,7 +176,7 @@ impl Batcher {
                             // block number increased; send current batch and start a new one
                             if !actions.is_empty() {
                                 self.batch_tx
-                                    .send(actions)
+                                    .send((actions, last_block_number.into()))
                                     .await
                                     .wrap_err("failed to send batched events; receiver dropped?")?;
                             }

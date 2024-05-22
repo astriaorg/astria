@@ -53,7 +53,7 @@ pub(super) struct Handle {
 pub(super) struct Submitter {
     shutdown_token: CancellationToken,
     state: Arc<State>,
-    batches_rx: mpsc::Receiver<Vec<Action>>,
+    batches_rx: mpsc::Receiver<(Vec<Action>, u64)>,
     sequencer_cometbft_client: sequencer_client::HttpClient,
     signer: SequencerSigner,
     sequencer_chain_id: String,
@@ -65,7 +65,7 @@ impl Submitter {
     }
 
     pub(super) async fn run(mut self) -> eyre::Result<()> {
-        self.state.set_ready();
+        self.state.set_submitter_ready();
 
         let reason = loop {
             select!(
@@ -76,7 +76,7 @@ impl Submitter {
                     break Ok("shutdown requested");
                 }
 
-                batch = self.batches_rx.recv() => {
+                (batch, rollup_height) = self.batches_rx.recv() => {
                     let actions = match batch {
                         Some(batch) => batch,
                         None => {
@@ -84,9 +84,6 @@ impl Submitter {
                             break Err("channel closed");
                         }
                     };
-
-                    // TODO: get this from the batch
-                    let rollup_height = 0;
 
                     // get nonce and make unsigned transaction
                     let nonce = get_latest_nonce(self.sequencer_cometbft_client.clone(), self.signer.address, self.state.clone()).await?;
