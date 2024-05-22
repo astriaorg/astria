@@ -68,6 +68,7 @@ data:
   {{- else }}
   {{- end }}
 ---
+{{- if .Values.config.faucet.enabled }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -82,6 +83,7 @@ data:
   ETH_FAUCET_EVM_PRIVATE_KEY: "{{ .Values.config.faucet.privateKey }}"
   {{- end }}
 ---
+{{- end }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -102,6 +104,7 @@ data:
   init-geth.sh: |
     {{- tpl (.Files.Get "files/scripts/init-geth.sh") $ | nindent 4 }}
 ---
+{{- if .Values.config.blockscout.enabled }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -258,6 +261,7 @@ data:
   VISUALIZER__SERVER__GRPC__ENABLED: "false"
   VISUALIZER__SERVER__HTTP__ADDR: "0.0.0.0:8151"
 ---
+{{- end }}
 {{- if not .Values.secretProvider.enabled }}
 apiVersion: v1
 kind: ConfigMap
@@ -268,4 +272,15 @@ data:
   {{ .Values.config.sequencer.privateKey.secret.filename }}: |
     {{ .Values.config.sequencer.privateKey.devContent }}
 ---
+{{- if .Values.config.faucet.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: {{ include "rollup.namespace" .  }}
+  name: faucet-private-key
+data:
+  {{ .Values.config.faucet.privateKey.secret.filename }}: |
+    {{ .Values.config.faucet.privateKey.devContent }}
+---
+{{- end }}
 {{- end }}

@@ -4,7 +4,7 @@
 {{- $ingressSupportsPathType := eq (include "rollup.ingress.supportsPathType" .) "true" -}}
 
 {{- range $service, $ingress := .Values.ingress.services }}
-{{- if $ingress.enabled -}}
+{{- if tpl $ingress.enabled $ -}}
 {{- $servicePort := $ingress.service.port -}}
 {{- $serviceName := $ingress.service.name -}}
 {{- $ingressPath := $ingress.path -}}

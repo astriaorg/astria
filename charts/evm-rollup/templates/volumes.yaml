@@ -27,6 +27,7 @@ spec:
                 - astria-dev-cluster-control-plane
                 - astria-dev-cluster-worker
 ---
+        {{- if .Values.config.blockscout.enabled }}
 apiVersion: v1
 kind: PersistentVolume
 metadata:
@@ -51,6 +52,7 @@ spec:
                 - astria-dev-cluster-control-plane
                 - astria-dev-cluster-worker
 ---
+      {{- end }}
     {{- end }}
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -74,6 +76,7 @@ spec:
     requests:
       storage: {{ $value.size }}
 ---
+  {{- if .Values.config.blockscout.enabled }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -84,17 +87,18 @@ metadata:
     "app.kubernetes.io/managed-by": {{ $.Release.Service | quote }}
     "helm.sh/chart": {{ $.Chart.Name }}-{{ $.Chart.Version | replace "+" "_" }}
 spec:
-  {{- if $.Values.storage.local }}
+    {{- if $.Values.storage.local }}
   storageClassName: {{ $.Values.config.rollup.name }}-{{ $value.persistentVolumeName }}-blockscout-local
-  {{- end }}
-  {{- if $value.storageClassName }}
+    {{- end }}
+    {{- if $value.storageClassName }}
   storageClassName: {{ $value.storageClassName }}
-  {{- end }}
+    {{- end }}
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
       storage: {{ $value.size }}
 ---
+    {{- end }}
   {{- end }}
 {{- end }}
