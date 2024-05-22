@@ -22,7 +22,6 @@ use sequencer_client::{
 };
 use signer::SequencerSigner;
 use state::State;
-pub(super) use state::StateSnapshot;
 use tendermint::crypto::Sha256;
 use tokio::{
     select,
@@ -47,7 +46,7 @@ mod builder;
 mod signer;
 
 pub(super) struct Handle {
-    pub(super) batches_tx: mpsc::Sender<Vec<Action>>,
+    pub(super) batches_tx: mpsc::Sender<(Vec<Action>, u64)>,
 }
 
 pub(super) struct Submitter {
@@ -60,10 +59,6 @@ pub(super) struct Submitter {
 }
 
 impl Submitter {
-    pub(super) fn subscribe_to_state(&self) -> tokio::sync::watch::Receiver<StateSnapshot> {
-        self.state.subscribe()
-    }
-
     pub(super) async fn run(mut self) -> eyre::Result<()> {
         self.state.set_submitter_ready();
 
@@ -76,9 +71,9 @@ impl Submitter {
                     break Ok("shutdown requested");
                 }
 
-                (batch, rollup_height) = self.batches_rx.recv() => {
-                    let actions = match batch {
-                        Some(batch) => batch,
+                batch = self.batches_rx.recv() => {
+                    let (actions, rollup_height) = match batch {
+                        Some((actions, rollup_height)) => (actions, rollup_height),
                         None => {
                             info!("received None from batch channel, shutting down");
                             break Err("channel closed");

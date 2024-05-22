@@ -1,8 +1,15 @@
 use std::sync::Arc;
 
-use astria_core::protocol::transaction::v1alpha1::Action;
+use astria_core::{
+    primitive::v1::asset::Id,
+    protocol::transaction::v1alpha1::{
+        action::BridgeUnlockAction,
+        Action,
+    },
+};
 use astria_eyre::{
     eyre::{
+        self,
         eyre,
         WrapErr as _,
     },
@@ -32,10 +39,9 @@ use super::astria_withdrawer::{
     astria_withdrawer::WithdrawalFilter,
     AstriaWithdrawer,
 };
-use crate::withdrawer::{
-    state::State,
-    StateSnapshot,
-};
+use crate::withdrawer::state::State;
+
+const FEE_ASSET_ID: &str = "fee";
 
 /// Watches for withdrawal events emitted by the `AstriaWithdrawer` contract.
 pub(crate) struct Watcher {
@@ -167,7 +173,7 @@ impl Batcher {
                             block_number: meta.block_number,
                             transaction_hash: meta.transaction_hash,
                         };
-                        let action = Action::from(event_with_metadata);
+                        let action = event_to_action(event_with_metadata)?;
 
                         if meta.block_number == last_block_number {
                             // block number was the same; add event to current batch
@@ -176,7 +182,7 @@ impl Batcher {
                             // block number increased; send current batch and start a new one
                             if !actions.is_empty() {
                                 self.batch_tx
-                                    .send((actions, last_block_number.into()))
+                                    .send((actions, last_block_number.as_u64()))
                                     .await
                                     .wrap_err("failed to send batched events; receiver dropped?")?;
                             }
@@ -204,10 +210,14 @@ fn address_from_string(s: &str) -> Result<ethers::types::Address> {
     Ok(address.into())
 }
 
-impl From<EventWithMetadata> for Action {
-    fn from(event_with_metadata: EventWithMetadata) -> Self {
-        todo!("implement action conversion logic");
-    }
+fn event_to_action(event_with_metadata: EventWithMetadata) -> eyre::Result<Action> {
+    let action = BridgeUnlockAction {
+        to: event_with_metadata.event.sender.to_fixed_bytes().into(),
+        amount: event_with_metadata.event.amount.as_u128(),
+        memo: event_with_metadata.event.memo.to_vec(),
+        fee_asset_id: Id::from_denom(FEE_ASSET_ID),
+    };
+    Ok(Action::BridgeUnlock(action))
 }
 
 #[cfg(test)]

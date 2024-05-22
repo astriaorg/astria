@@ -8,13 +8,11 @@ use astria_eyre::eyre::{
     self,
     eyre,
 };
-use ed25519_consensus::VerificationKey;
 use sequencer_client::Address;
 
 pub(super) struct SequencerSigner {
     pub(super) address: Address,
     pub(super) signing_key: SigningKey,
-    pub(super) verification_key: VerificationKey,
 }
 
 impl SequencerSigner {
@@ -30,7 +28,6 @@ impl SequencerSigner {
 
         Ok(Self {
             address: Address::from_verification_key(signing_key.verification_key()),
-            verification_key: signing_key.verification_key(),
             signing_key,
         })
     }

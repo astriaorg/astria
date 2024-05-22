@@ -1,6 +1,5 @@
 use std::{
     net::SocketAddr,
-    ops::Sub,
     sync::Arc,
     time::Duration,
 };
@@ -11,10 +10,7 @@ use astria_eyre::eyre::{
 };
 use tokio::{
     select,
-    sync::{
-        mpsc,
-        oneshot,
-    },
+    sync::oneshot,
     task::{
         JoinError,
         JoinHandle,
@@ -111,7 +107,7 @@ impl WithdrawerService {
             api_server,
             submitter,
             ethereum_watcher,
-            state,
+            state: _state,
         } = self;
 
         // Separate the API shutdown signal from the cancellation token because we want it to live
