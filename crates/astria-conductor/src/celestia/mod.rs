@@ -64,6 +64,9 @@ use crate::{
     metrics_init::{
         BLOBS_PER_CELESTIA_FETCH,
         DECODED_ITEMS_PER_CELESTIA_FETCH,
+        NAMESPACE_TYPE_LABEL,
+        NAMESPACE_TYPE_METADATA,
+        NAMESPACE_TYPE_ROLLUP_DATA,
         SEQUENCER_BLOCKS_METADATA_VERIFIED_PER_CELESTIA_FETCH,
         SEQUENCER_BLOCK_INFORMATION_RECONSTRUCTED_PER_CELESTIA_FETCH,
     },
@@ -514,21 +517,25 @@ impl FetchConvertVerifyAndReconstruct {
         .await
         .wrap_err("failed fetching blobs from Celestia")?;
 
-        const NAMESPACE_TYPE_LABEL: &str = "namespace_type";
-        const NAMESPACE_TYPE_METADATA: &str = "metadata";
-        const NAMESPACE_TYPE_ROLLUP_DATA: &str = "rollup_data";
+        {
+            // allow: histograms require f64; precision loss would be no problem
+            #![allow(clippy::cast_precision_loss)]
+            histogram!(
+                BLOBS_PER_CELESTIA_FETCH,
+                NAMESPACE_TYPE_LABEL => NAMESPACE_TYPE_METADATA,
+            )
+            .record(new_blobs.len_header_blobs() as f64);
+        }
 
-        histogram!(
-            BLOBS_PER_CELESTIA_FETCH,
-            NAMESPACE_TYPE_LABEL => NAMESPACE_TYPE_METADATA,
-        )
-        .record(new_blobs.len_header_blobs() as f64);
-
-        histogram!(
-            BLOBS_PER_CELESTIA_FETCH,
-            NAMESPACE_TYPE_LABEL => NAMESPACE_TYPE_ROLLUP_DATA,
-        )
-        .record(new_blobs.len_rollup_blobs() as f64);
+        {
+            // allow: histograms require f64; precision loss would be no problem
+            #![allow(clippy::cast_precision_loss)]
+            histogram!(
+                BLOBS_PER_CELESTIA_FETCH,
+                NAMESPACE_TYPE_LABEL => NAMESPACE_TYPE_ROLLUP_DATA,
+            )
+            .record(new_blobs.len_rollup_blobs() as f64);
+        }
 
         info!(
             number_of_metadata_blobs = new_blobs.len_header_blobs(),
@@ -544,17 +551,25 @@ impl FetchConvertVerifyAndReconstruct {
         .await
         .wrap_err("encountered panic while decoding raw Celestia blobs")?;
 
-        histogram!(
-            DECODED_ITEMS_PER_CELESTIA_FETCH,
-            NAMESPACE_TYPE_LABEL => NAMESPACE_TYPE_METADATA,
-        )
-        .record(decoded_blobs.len_headers() as f64);
+        {
+            // allow: histograms require f64; precision loss would be no problem
+            #![allow(clippy::cast_precision_loss)]
+            histogram!(
+                DECODED_ITEMS_PER_CELESTIA_FETCH,
+                NAMESPACE_TYPE_LABEL => NAMESPACE_TYPE_METADATA,
+            )
+            .record(decoded_blobs.len_headers() as f64);
+        }
 
-        histogram!(
-            DECODED_ITEMS_PER_CELESTIA_FETCH,
-            NAMESPACE_TYPE_LABEL => NAMESPACE_TYPE_ROLLUP_DATA,
-        )
-        .record(decoded_blobs.len_rollup_data_entries() as f64);
+        {
+            // allow: histograms require f64; precision loss would be no problem
+            #![allow(clippy::cast_precision_loss)]
+            histogram!(
+                DECODED_ITEMS_PER_CELESTIA_FETCH,
+                NAMESPACE_TYPE_LABEL => NAMESPACE_TYPE_ROLLUP_DATA,
+            )
+            .record(decoded_blobs.len_rollup_data_entries() as f64);
+        }
 
         info!(
             number_of_metadata_blobs = decoded_blobs.len_headers(),
@@ -564,8 +579,12 @@ impl FetchConvertVerifyAndReconstruct {
 
         let verified_blobs = verify_headers(blob_verifier, decoded_blobs).await;
 
-        histogram!(SEQUENCER_BLOCKS_METADATA_VERIFIED_PER_CELESTIA_FETCH,)
-            .record(verified_blobs.len_header_blobs() as f64);
+        {
+            // allow: histograms require f64; precision loss would be no problem
+            #![allow(clippy::cast_precision_loss)]
+            histogram!(SEQUENCER_BLOCKS_METADATA_VERIFIED_PER_CELESTIA_FETCH,)
+                .record(verified_blobs.len_header_blobs() as f64);
+        }
 
         info!(
             number_of_verified_header_blobs = verified_blobs.len_header_blobs(),
@@ -581,8 +600,12 @@ impl FetchConvertVerifyAndReconstruct {
         .await
         .wrap_err("encountered panic while reconstructing blocks from verified blobs")?;
 
-        histogram!(SEQUENCER_BLOCK_INFORMATION_RECONSTRUCTED_PER_CELESTIA_FETCH,)
-            .record(reconstructed.len() as f64);
+        {
+            // allow: histograms require f64; precision loss would be no problem
+            #![allow(clippy::cast_precision_loss)]
+            histogram!(SEQUENCER_BLOCK_INFORMATION_RECONSTRUCTED_PER_CELESTIA_FETCH,)
+                .record(reconstructed.len() as f64);
+        }
 
         let reconstructed_blocks = ReconstructedBlocks {
             celestia_height,

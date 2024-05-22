@@ -8,6 +8,10 @@ use metrics::{
     Unit,
 };
 
+pub(crate) const NAMESPACE_TYPE_LABEL: &str = "namespace_type";
+pub(crate) const NAMESPACE_TYPE_METADATA: &str = "metadata";
+pub(crate) const NAMESPACE_TYPE_ROLLUP_DATA: &str = "rollup_data";
+
 pub fn register() {
     describe_histogram!(
         BLOBS_PER_CELESTIA_FETCH,
