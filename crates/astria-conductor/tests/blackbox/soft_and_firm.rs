@@ -36,7 +36,7 @@ use crate::{
 /// NOTE: there is a potential race condition in this test in that the information could be first
 /// retrieved from Celestia before Sequencer and executed against the rollup. In that case step 3.
 /// would be skipped (no soft commitment update).
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn simple() {
     let test_conductor = spawn_conductor(CommitLevel::SoftAndFirm).await;
 
@@ -141,7 +141,7 @@ async fn simple() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn missing_block_is_fetched_for_updating_firm_commitment() {
     let test_conductor = spawn_conductor(CommitLevel::SoftAndFirm).await;
 

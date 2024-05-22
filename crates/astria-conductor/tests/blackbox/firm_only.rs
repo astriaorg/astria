@@ -20,7 +20,7 @@ use crate::{
     mount_update_commitment_state,
 };
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn simple() {
     let test_conductor = spawn_conductor(CommitLevel::FirmOnly).await;
 
@@ -100,7 +100,7 @@ async fn simple() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn submits_two_heights_in_succession() {
     let test_conductor = spawn_conductor(CommitLevel::FirmOnly).await;
 
@@ -216,7 +216,7 @@ async fn submits_two_heights_in_succession() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn skips_already_executed_heights() {
     let test_conductor = spawn_conductor(CommitLevel::FirmOnly).await;
 
@@ -309,7 +309,7 @@ async fn skips_already_executed_heights() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn fetch_from_later_celestia_height() {
     let test_conductor = spawn_conductor(CommitLevel::FirmOnly).await;
 
