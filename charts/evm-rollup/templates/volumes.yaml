@@ -27,7 +27,7 @@ spec:
                 - astria-dev-cluster-control-plane
                 - astria-dev-cluster-worker
 ---
-        {{- if .Values.config.blockscout.enabled }}
+        {{- if $.Values.config.blockscout.enabled }}
 apiVersion: v1
 kind: PersistentVolume
 metadata:
@@ -76,7 +76,7 @@ spec:
     requests:
       storage: {{ $value.size }}
 ---
-  {{- if .Values.config.blockscout.enabled }}
+  {{- if $.Values.config.blockscout.enabled }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
