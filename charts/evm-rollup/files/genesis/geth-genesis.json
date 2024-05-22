@@ -45,7 +45,7 @@
         {{- end }}
     },
     "difficulty": "0",
-    "gasLimit": "{{ .Values.config.rollup.genesis.gasLimit }}",
+    "gasLimit": "{{ toString .Values.config.rollup.genesis.gasLimit | replace "\"" "" }}",
     "alloc": {
     {{- range $index, $value := .Values.config.rollup.genesis.alloc }}
         {{- if $index }},{{- end }}
