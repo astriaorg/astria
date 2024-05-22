@@ -13,16 +13,18 @@ pub(crate) struct Builder {
     pub(crate) sequencer_key_path: String,
     pub(crate) sequencer_chain_id: String,
     pub(crate) cometbft_endpoint: String,
+    pub(crate) state: Arc<State>,
 }
 
 impl Builder {
     /// Instantiates an `Executor`.
-    pub(crate) fn build(self) -> eyre::Result<(super::Executor, super::Handle)> {
+    pub(crate) fn build(self) -> eyre::Result<(super::Submitter, super::Handle)> {
         let Self {
             shutdown_token,
             sequencer_key_path,
             sequencer_chain_id,
             cometbft_endpoint,
+            state,
         } = self;
 
         let signer = super::signer::SequencerSigner::from_path(sequencer_key_path)?;
@@ -31,10 +33,8 @@ impl Builder {
         let sequencer_cometbft_client = sequencer_client::HttpClient::new(&*cometbft_endpoint)
             .context("failed constructing cometbft http client")?;
 
-        let state = Arc::new(State::new());
-
         Ok((
-            super::Executor {
+            super::Submitter {
                 shutdown_token,
                 state,
                 batches_rx,

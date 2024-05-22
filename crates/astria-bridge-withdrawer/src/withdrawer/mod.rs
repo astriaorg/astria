@@ -1,5 +1,7 @@
 use std::{
     net::SocketAddr,
+    ops::Sub,
+    sync::Arc,
     time::Duration,
 };
 
@@ -28,7 +30,8 @@ use tracing::{
 pub(crate) use self::state::StateSnapshot;
 use self::{
     ethereum::Watcher,
-    executor::Executor,
+    state::State,
+    submitter::Submitter,
 };
 use crate::{
     api,
@@ -36,15 +39,16 @@ use crate::{
 };
 
 mod ethereum;
-mod executor;
 mod state;
+mod submitter;
 
 pub struct WithdrawerService {
     // Token to signal all subtasks to shut down gracefully.
     shutdown_token: CancellationToken,
     api_server: api::ApiServer,
-    executor: Executor,
+    submitter: Submitter,
     ethereum_watcher: Watcher,
+    state: Arc<State>,
 }
 
 impl WithdrawerService {
@@ -59,24 +63,28 @@ impl WithdrawerService {
             api_addr, ..
         } = cfg;
 
+        let state = Arc::new(State::new());
+
         // make bridge object
-        let (executor, executor_handle) = executor::Builder {
+        let (submitter, submitter_handle) = submitter::Builder {
             shutdown_token: shutdown_handle.token(),
             cometbft_endpoint: cfg.cometbft_endpoint,
             sequencer_chain_id: cfg.sequencer_chain_id,
             sequencer_key_path: cfg.sequencer_key_path,
+            state: state.clone(),
         }
         .build()
-        .wrap_err("failed to initialize executor")?;
+        .wrap_err("failed to initialize submitter")?;
 
         // make api server
-        let state_rx = executor.subscribe_to_state();
+        let state_rx = state.subscribe();
         // TODO: use event_rx in the sequencer submitter
         let ethereum_watcher = Watcher::new(
             &cfg.ethereum_contract_address,
             &cfg.ethereum_rpc_endpoint,
-            executor_handle.batches_tx,
+            submitter_handle.batches_tx,
             &shutdown_handle.token(),
+            state.clone(),
         )
         .await
         .wrap_err("failed to initialize ethereum watcher")?;
@@ -91,8 +99,9 @@ impl WithdrawerService {
         let service = Self {
             shutdown_token: shutdown_handle.token(),
             api_server,
-            executor,
+            submitter,
             ethereum_watcher,
+            state,
         };
 
         Ok((service, shutdown_handle))
@@ -102,8 +111,9 @@ impl WithdrawerService {
         let Self {
             shutdown_token,
             api_server,
-            executor,
+            submitter,
             ethereum_watcher,
+            state,
         } = self;
 
         // Separate the API shutdown signal from the cancellation token because we want it to live
@@ -119,8 +129,8 @@ impl WithdrawerService {
         });
         info!("spawned API server");
 
-        let mut executor_task = tokio::spawn(executor.run());
-        info!("spawned executor task");
+        let mut submitter_task = tokio::spawn(submitter.run());
+        info!("spawned submitter task");
         let mut ethereum_watcher_task = tokio::spawn(ethereum_watcher.run());
         info!("spawned ethereum watcher task");
 
@@ -129,17 +139,17 @@ impl WithdrawerService {
                 report_exit("api server", o);
                 Shutdown {
                     api_task: None,
-                    executor_task: Some(executor_task),
+                    submitter_task: Some(submitter_task),
                     ethereum_watcher_task: None,
                     api_shutdown_signal,
                     shutdown_token
                 }
             }
-            o = &mut executor_task => {
+            o = &mut submitter_task => {
                 report_exit("bridge worker", o);
                 Shutdown {
                     api_task: Some(api_task),
-                    executor_task: None,
+                    submitter_task: None,
                     ethereum_watcher_task:Some(ethereum_watcher_task),
                     api_shutdown_signal,
                     shutdown_token
@@ -149,7 +159,7 @@ impl WithdrawerService {
                 report_exit("ethereum watcher", o);
                 Shutdown {
                     api_task: Some(api_task),
-                    executor_task: Some(executor_task),
+                    submitter_task: Some(submitter_task),
                     ethereum_watcher_task: None,
                     api_shutdown_signal,
                     shutdown_token
@@ -217,7 +227,7 @@ fn report_exit(task_name: &str, outcome: Result<eyre::Result<()>, JoinError>) {
 
 struct Shutdown {
     api_task: Option<JoinHandle<eyre::Result<()>>>,
-    executor_task: Option<JoinHandle<eyre::Result<()>>>,
+    submitter_task: Option<JoinHandle<eyre::Result<()>>>,
     ethereum_watcher_task: Option<JoinHandle<eyre::Result<()>>>,
     api_shutdown_signal: oneshot::Sender<()>,
     shutdown_token: CancellationToken,
@@ -226,12 +236,12 @@ struct Shutdown {
 impl Shutdown {
     const API_SHUTDOWN_TIMEOUT_SECONDS: u64 = 4;
     const ETHEREUM_WATCHER_SHUTDOWN_TIMEOUT_SECONDS: u64 = 25;
-    const EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS: u64 = 25;
+    const SUBMITTER_SHUTDOWN_TIMEOUT_SECONDS: u64 = 25;
 
     async fn run(self) {
         let Self {
             api_task,
-            executor_task,
+            submitter_task,
             ethereum_watcher_task,
             api_shutdown_signal,
             shutdown_token: token,
@@ -239,11 +249,14 @@ impl Shutdown {
 
         token.cancel();
 
-        // Giving executor 25 seconds to shutdown because Kubernetes issues a SIGKILL after 30.
-        if let Some(mut executor_task) = executor_task {
-            info!("waiting for executor task to shut down");
-            let limit = Duration::from_secs(Self::EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS);
-            match timeout(limit, &mut executor_task).await.map(flatten_result) {
+        // Giving submitter 25 seconds to shutdown because Kubernetes issues a SIGKILL after 30.
+        if let Some(mut submitter_task) = submitter_task {
+            info!("waiting for submitter task to shut down");
+            let limit = Duration::from_secs(Self::SUBMITTER_SHUTDOWN_TIMEOUT_SECONDS);
+            match timeout(limit, &mut submitter_task)
+                .await
+                .map(flatten_result)
+            {
                 Ok(Ok(())) => info!("bridge exited gracefully"),
                 Ok(Err(error)) => error!(%error, "bridge exited with an error"),
                 Err(_) => {
@@ -251,11 +264,11 @@ impl Shutdown {
                         timeout_secs = limit.as_secs(),
                         "watcher did not shut down within timeout; killing it"
                     );
-                    executor_task.abort();
+                    submitter_task.abort();
                 }
             }
         } else {
-            info!("executor task was already dead");
+            info!("submitter task was already dead");
         }
 
         // Giving bridge 25 seconds to shutdown because Kubernetes issues a SIGKILL after 30.

@@ -52,6 +52,7 @@ impl Watcher {
         ethereum_rpc_endpoint: &str,
         batch_tx: mpsc::Sender<Vec<Action>>,
         shutdown_token: &CancellationToken,
+        state: Arc<State>,
     ) -> Result<Self> {
         let provider = Arc::new(
             Provider::<Ws>::connect(ethereum_rpc_endpoint)
@@ -64,7 +65,6 @@ impl Watcher {
 
         let (event_tx, event_rx) = mpsc::channel(100);
         let batcher = Batcher::new(event_rx, batch_tx, shutdown_token);
-        let state = Arc::new(State::new());
         Ok(Self {
             contract,
             event_tx,
@@ -296,6 +296,7 @@ mod tests {
             &anvil.ws_endpoint(),
             event_tx,
             &CancellationToken::new(),
+            Arc::new(State::new()),
         )
         .await
         .unwrap();

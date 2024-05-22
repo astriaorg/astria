@@ -50,7 +50,7 @@ pub(super) struct Handle {
     pub(super) batches_tx: mpsc::Sender<Vec<Action>>,
 }
 
-pub(super) struct Executor {
+pub(super) struct Submitter {
     shutdown_token: CancellationToken,
     state: Arc<State>,
     batches_rx: mpsc::Receiver<Vec<Action>>,
@@ -59,7 +59,7 @@ pub(super) struct Executor {
     sequencer_chain_id: String,
 }
 
-impl Executor {
+impl Submitter {
     pub(super) fn subscribe_to_state(&self) -> tokio::sync::watch::Receiver<StateSnapshot> {
         self.state.subscribe()
     }
@@ -137,7 +137,7 @@ impl Executor {
         // update status
         self.state.set_sequencer_connected(false);
 
-        // close the channel to signal to batcher that the executor is shutting down
+        // close the channel to signal to batcher that the submitter is shutting down
         self.batches_rx.close();
 
         match reason {
