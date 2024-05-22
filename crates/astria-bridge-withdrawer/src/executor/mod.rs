@@ -12,6 +12,7 @@ use astria_eyre::eyre::{
     self,
     WrapErr as _,
 };
+pub(crate) use builder::Builder;
 use prost::Message as _;
 use sequencer_client::{
     tendermint_rpc::endpoint::broadcast::tx_commit,
@@ -19,6 +20,9 @@ use sequencer_client::{
     SequencerClientExt as _,
     SignedTransaction,
 };
+use signer::SequencerSigner;
+use state::State;
+pub(super) use state::StateSnapshot;
 use tendermint::crypto::Sha256;
 use tokio::{
     select,
@@ -26,16 +30,6 @@ use tokio::{
     time::Instant,
 };
 use tokio_util::sync::CancellationToken;
-
-mod builder;
-mod event;
-mod signer;
-mod state;
-
-pub(crate) use builder::Builder;
-use signer::SequencerSigner;
-use state::State;
-pub(super) use state::StateSnapshot;
 use tracing::{
     debug,
     error,
@@ -48,6 +42,12 @@ use tracing::{
 };
 
 use self::event::Event;
+
+mod builder;
+mod event;
+mod signer;
+mod state;
+mod submitter;
 
 pub(super) struct Handle {
     batches_tx: mpsc::Sender<Vec<Event>>,

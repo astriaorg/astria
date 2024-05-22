@@ -16,7 +16,7 @@ pub(crate) struct Builder {
 }
 
 impl Builder {
-    /// Instantiates a `Bridge`.
+    /// Instantiates an `Executor`.
     pub(crate) fn build(self) -> eyre::Result<(super::Executor, super::Handle)> {
         let Self {
             shutdown_token,
