@@ -8,6 +8,8 @@ use tokio_util::sync::CancellationToken;
 
 use super::state::State;
 
+const BATCH_QUEUE_SIZE: usize = 256;
+
 pub(crate) struct Builder {
     pub(crate) shutdown_token: CancellationToken,
     pub(crate) sequencer_key_path: String,
@@ -28,7 +30,7 @@ impl Builder {
         } = self;
 
         let signer = super::signer::SequencerSigner::from_path(sequencer_key_path)?;
-        let (batches_tx, batches_rx) = tokio::sync::mpsc::channel(1);
+        let (batches_tx, batches_rx) = tokio::sync::mpsc::channel(BATCH_QUEUE_SIZE);
 
         let sequencer_cometbft_client = sequencer_client::HttpClient::new(&*cometbft_endpoint)
             .context("failed constructing cometbft http client")?;

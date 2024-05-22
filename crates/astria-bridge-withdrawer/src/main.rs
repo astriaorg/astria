@@ -55,10 +55,10 @@ async fn main() -> ExitCode {
 
     let mut sigterm = signal(SignalKind::terminate())
         .expect("setting a SIGTERM listener should always work on Unix");
-    let (bridge, shutdown_handle) = WithdrawerService::new(cfg)
+    let (withdrawer, shutdown_handle) = WithdrawerService::new(cfg)
         .await
-        .expect("could not initialize bridge");
-    let bridge_handle = tokio::spawn(bridge.run());
+        .expect("could not initialize withdrawer");
+    let withdrawer_handle = tokio::spawn(withdrawer.run());
 
     let shutdown_token = shutdown_handle.token();
     tokio::select!(
@@ -73,10 +73,10 @@ async fn main() -> ExitCode {
         }
     );
 
-    if let Err(error) = bridge_handle.await {
-        error!(%error, "failed to join main bridge task");
+    if let Err(error) = withdrawer_handle.await {
+        error!(%error, "failed to join main withdrawer task");
     }
 
-    info!("bridge stopped");
+    info!("withdrawer stopped");
     ExitCode::SUCCESS
 }

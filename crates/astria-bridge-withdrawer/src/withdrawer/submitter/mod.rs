@@ -88,9 +88,9 @@ impl Submitter {
                     // TODO: get this from the batch
                     let rollup_height = 0;
 
-                    // get nonce
+                    // get nonce and make unsigned transaction
                     let nonce = get_latest_nonce(self.sequencer_cometbft_client.clone(), self.signer.address, self.state.clone()).await?;
-                    debug!(nonce, "got latest nonce");
+                    debug!(nonce, "fetched latest nonce");
 
                     let unsigned = UnsignedTransaction {
                         actions,
@@ -100,11 +100,11 @@ impl Submitter {
                         },
                     };
 
-                    // sign
+                    // sign transaction
                     let signed = unsigned.into_signed(&self.signer.signing_key);
                     debug!(tx_hash = ?hex::encode(sha256(&signed.to_raw().encode_to_vec())), "signed transaction");
 
-                    // broadcast commit
+                    // submit transaction and handle response
                     let rsp = submit_tx(self.sequencer_cometbft_client.clone(), signed, self.state.clone()).await.context("failed to submit transaction to to cometbft")?;
                     if let tendermint::abci::Code::Err(check_tx_code) = rsp.check_tx.code {
                         // handle check_tx failure
@@ -121,13 +121,14 @@ impl Submitter {
                             "transaction failed to be executed in a block, aborting."
                         );
                     } else {
+                        // update state after successful submission
                         info!(
                             sequencer.block = rsp.height.value(),
                             sequencer.tx_hash = ?rsp.hash,
                             rollup.height = rollup_height,
                             "withdraw batch successfully executed."
                         );
-                        self.state.set_last_rollup_batch_height(rollup_height);
+                        self.state.set_last_rollup_height_submitted(rollup_height);
                         self.state.set_last_sequencer_height(rsp.height.value());
                         self.state.set_last_sequencer_tx_hash(rsp.hash)
                     }
@@ -273,4 +274,12 @@ async fn submit_tx(
 fn sha256(data: &[u8]) -> [u8; 32] {
     use sha2::Sha256;
     Sha256::digest(data)
+}
+
+#[cfg(test)]
+mod tests {
+    #[tokio::test]
+    async fn submit_success() {
+        todo!("should this be here or in separate tests folder?")
+    }
 }

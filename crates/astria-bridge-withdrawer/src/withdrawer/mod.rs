@@ -76,8 +76,6 @@ impl WithdrawerService {
         .build()
         .wrap_err("failed to initialize submitter")?;
 
-        // make api server
-        let state_rx = state.subscribe();
         // TODO: use event_rx in the sequencer submitter
         let ethereum_watcher = Watcher::new(
             &cfg.ethereum_contract_address,
@@ -90,7 +88,7 @@ impl WithdrawerService {
         .wrap_err("failed to initialize ethereum watcher")?;
 
         // make api server
-        let state_rx = ethereum_watcher.subscribe_to_state();
+        let state_rx = state.subscribe();
         let api_socket_addr = api_addr.parse::<SocketAddr>().wrap_err_with(|| {
             format!("failed to parse provided `api_addr` string as socket address: `{api_addr}`",)
         })?;
@@ -140,13 +138,13 @@ impl WithdrawerService {
                 Shutdown {
                     api_task: None,
                     submitter_task: Some(submitter_task),
-                    ethereum_watcher_task: None,
+                    ethereum_watcher_task: Some(ethereum_watcher_task),
                     api_shutdown_signal,
                     shutdown_token
                 }
             }
             o = &mut submitter_task => {
-                report_exit("bridge worker", o);
+                report_exit("submitter", o);
                 Shutdown {
                     api_task: Some(api_task),
                     submitter_task: None,
@@ -235,8 +233,8 @@ struct Shutdown {
 
 impl Shutdown {
     const API_SHUTDOWN_TIMEOUT_SECONDS: u64 = 4;
-    const ETHEREUM_WATCHER_SHUTDOWN_TIMEOUT_SECONDS: u64 = 25;
-    const SUBMITTER_SHUTDOWN_TIMEOUT_SECONDS: u64 = 25;
+    const ETHEREUM_WATCHER_SHUTDOWN_TIMEOUT_SECONDS: u64 = 5;
+    const SUBMITTER_SHUTDOWN_TIMEOUT_SECONDS: u64 = 20;
 
     async fn run(self) {
         let Self {
@@ -249,7 +247,7 @@ impl Shutdown {
 
         token.cancel();
 
-        // Giving submitter 25 seconds to shutdown because Kubernetes issues a SIGKILL after 30.
+        // Giving submitter 20 seconds to shutdown because Kubernetes issues a SIGKILL after 30.
         if let Some(mut submitter_task) = submitter_task {
             info!("waiting for submitter task to shut down");
             let limit = Duration::from_secs(Self::SUBMITTER_SHUTDOWN_TIMEOUT_SECONDS);
@@ -271,7 +269,7 @@ impl Shutdown {
             info!("submitter task was already dead");
         }
 
-        // Giving bridge 25 seconds to shutdown because Kubernetes issues a SIGKILL after 30.
+        // Giving bridge 5 seconds to shutdown because Kubernetes issues a SIGKILL after 30.
         if let Some(mut ethereum_watcher_task) = ethereum_watcher_task {
             info!("waiting for watcher task to shut down");
             let limit = Duration::from_secs(Self::ETHEREUM_WATCHER_SHUTDOWN_TIMEOUT_SECONDS);
@@ -293,7 +291,8 @@ impl Shutdown {
             info!("watcher task was already dead");
         }
 
-        // Giving the API task 4 seconds. 25 for watcher + 4s = 29s (out of 30s for k8s).
+        // Giving the API task 4 seconds. 5s for watcher + 20 for submitter + 4s = 29s (out of 30s
+        // for k8s).
         if let Some(mut api_task) = api_task {
             info!("sending shutdown signal to API server");
             let _ = api_shutdown_signal.send(());

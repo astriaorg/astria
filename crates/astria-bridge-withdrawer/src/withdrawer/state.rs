@@ -36,7 +36,7 @@ macro_rules! forward_setter {
 
 forward_setter!(
     [set_sequencer_connected <- bool],
-    [set_last_rollup_batch_height <- u64],
+    [set_last_rollup_height_submitted <- u64],
     [set_last_sequencer_height <- u64],
     [set_last_sequencer_tx_hash <- tendermint::Hash],
 );
@@ -47,7 +47,7 @@ pub(crate) struct StateSnapshot {
 
     sequencer_connected: bool,
 
-    last_rollup_block: Option<u64>,
+    last_rollup_height_submitted: Option<u64>,
     last_sequencer_block: Option<u64>,
     last_sequencer_tx_hash: Option<tendermint::Hash>,
 }
@@ -72,9 +72,11 @@ impl StateSnapshot {
         changed
     }
 
-    fn set_last_rollup_batch_height(&mut self, height: u64) -> bool {
-        let changed = self.last_rollup_block.map_or(true, |h| h != height);
-        self.last_rollup_block = Some(height);
+    fn set_last_rollup_height_submitted(&mut self, height: u64) -> bool {
+        let changed = self
+            .last_rollup_height_submitted
+            .map_or(true, |h| h != height);
+        self.last_rollup_height_submitted = Some(height);
         changed
     }
 
