@@ -267,11 +267,3 @@ fn sha256(data: &[u8]) -> [u8; 32] {
     use sha2::Sha256;
     Sha256::digest(data)
 }
-
-#[cfg(test)]
-mod tests {
-    #[tokio::test]
-    async fn submit_success() {
-        todo!("should this be here or in separate tests folder?")
-    }
-}

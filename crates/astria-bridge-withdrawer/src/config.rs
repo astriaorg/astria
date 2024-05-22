@@ -19,7 +19,6 @@ pub struct Config {
     pub ethereum_contract_address: String,
     // The rpc endpoint of the evm rollup.
     pub ethereum_rpc_endpoint: String,
-
     // The socket address at which the bridge service will server healthz, readyz, and status
     // calls.
     pub api_addr: String,

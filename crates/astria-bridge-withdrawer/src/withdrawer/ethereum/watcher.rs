@@ -294,7 +294,7 @@ mod tests {
             block_number: receipt.block_number.unwrap(),
             transaction_hash: receipt.transaction_hash,
         };
-        let expected_action = event_to_action(expected_event).unwrap();
+        let _expected_action = event_to_action(expected_event).unwrap();
 
         let (event_tx, mut event_rx) = mpsc::channel(100);
         let watcher = Watcher::new(
@@ -312,7 +312,7 @@ mod tests {
         // make another tx to trigger anvil to make another block
         send_withdraw_transaction(&contract, value).await;
 
-        let (events, rollup_height) = event_rx.recv().await.unwrap();
+        let (events, _rollup_height) = event_rx.recv().await.unwrap();
         assert_eq!(events.len(), 1);
         assert!(matches!(events[0], Action::BridgeUnlock(_)));
     }
