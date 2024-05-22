@@ -9,9 +9,17 @@ use serde::{
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 /// The single config for creating an astria-bridge service.
 pub struct Config {
+    // The cometbft rpc endpoint for submitting transactions to the sequencer.
     pub cometbft_endpoint: String,
+    // The chain id of the sequencer chain.
     pub sequencer_chain_id: String,
+    // The path to the private key used to sign transactions submitted to the sequencer.
     pub sequencer_key_path: String,
+    // The address of the AstriaWithdrawer contract on the evm rollup.
+    pub ethereum_contract_address: String,
+    // The rpc endpoint of the evm rollup.
+    pub ethereum_rpc_endpoint: String,
+
     // The socket address at which the bridge service will server healthz, readyz, and status
     // calls.
     pub api_addr: String,
@@ -29,7 +37,7 @@ pub struct Config {
 }
 
 impl config::Config for Config {
-    const PREFIX: &'static str = "ASTRIA_BRIDGE_";
+    const PREFIX: &'static str = "ASTRIA_BRIDGE_WITHDRAWER_";
 }
 
 #[cfg(test)]

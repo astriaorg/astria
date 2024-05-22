@@ -20,6 +20,7 @@ axum = { workspace = true }
 ed25519-consensus = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
+ethers = { workspace = true, features = ["ethers-solc", "ws"] }
 hyper = { workspace = true }
 humantime = { workspace = true }
 metrics = { workspace = true }

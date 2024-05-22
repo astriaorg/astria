@@ -42,21 +42,19 @@ use tracing::{
     Span,
 };
 
-use self::event::Event;
+use super::state;
 
 mod builder;
-mod event;
 mod signer;
-mod state;
 
 pub(super) struct Handle {
-    batches_tx: mpsc::Sender<Vec<Event>>,
+    batches_tx: mpsc::Sender<Vec<Action>>,
 }
 
 pub(super) struct Executor {
     shutdown_token: CancellationToken,
     state: Arc<State>,
-    batches_rx: mpsc::Receiver<Vec<Event>>,
+    batches_rx: mpsc::Receiver<Vec<Action>>,
     sequencer_cometbft_client: sequencer_client::HttpClient,
     signer: SequencerSigner,
     sequencer_chain_id: String,
@@ -80,7 +78,7 @@ impl Executor {
                 }
 
                 batch = self.batches_rx.recv() => {
-                    let batch = match batch {
+                    let actions = match batch {
                         Some(batch) => batch,
                         None => {
                             info!("received None from batch channel, shutting down");
@@ -90,8 +88,6 @@ impl Executor {
 
                     // TODO: get this from the batch
                     let rollup_height = 0;
-
-                    let actions = batch.into_iter().map(Action::from).collect::<Vec<Action>>();
 
                     // get nonce
                     let nonce = get_latest_nonce(self.sequencer_cometbft_client.clone(), self.signer.address, self.state.clone()).await?;
@@ -140,7 +136,7 @@ impl Executor {
             )
         };
         // update status
-        self.state;
+        self.state.set_sequencer_connected(false);
 
         // close the channel to signal to batcher that the executor is shutting down
         self.batches_rx.close();
