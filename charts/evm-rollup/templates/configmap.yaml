@@ -80,7 +80,7 @@ data:
   ETH_FAUCET_EVM_PROVIDER_URL: "http://{{ .Values.config.rollup.name }}-evm-service:{{ .Values.ports.jsonRPC }}"
   ETH_FAUCET_AMOUNT: "{{ .Values.config.faucet.amount }}"
   {{- if not .Values.secretProvider.enabled }}
-  ETH_FAUCET_EVM_PRIVATE_KEY: "{{ .Values.config.faucet.privateKey }}"
+  ETH_FAUCET_EVM_PRIVATE_KEY: "{{ .Values.config.faucet.privateKey.devContent }}"
   {{- end }}
 ---
 {{- end }}
@@ -272,15 +272,4 @@ data:
   {{ .Values.config.sequencer.privateKey.secret.filename }}: |
     {{ .Values.config.sequencer.privateKey.devContent }}
 ---
-{{- if .Values.config.faucet.enabled }}
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  namespace: {{ include "rollup.namespace" .  }}
-  name: faucet-private-key
-data:
-  {{ .Values.config.faucet.privateKey.secret.filename }}: |
-    {{ .Values.config.faucet.privateKey.devContent }}
----
-{{- end }}
 {{- end }}

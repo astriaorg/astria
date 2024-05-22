@@ -32,7 +32,7 @@ spec:
       targetPort: faucet
 ---
 {{- end }}
-{{- if .Values.config.rollup.blockscout.enabled }}
+{{- if .Values.config.blockscout.enabled }}
 kind: Service
 apiVersion: v1
 metadata:

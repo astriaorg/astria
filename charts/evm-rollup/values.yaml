@@ -267,7 +267,7 @@ ingress:
       #    hosts:
       #      - chart-example.local
     faucet:
-      enabled: "{{ .Values.config.faucet.enabled }}"
+      enabled: true
       hosts:
         - faucet.{{ .Values.config.rollup.name }}.{{ .Values.ingress.hostname }}
       path: /
@@ -285,7 +285,7 @@ ingress:
       #    hosts:
       #      - chart-example.local
     explorer:
-      enabled: "{{ .Values.config.blockscout.enabled }}"
+      enabled: true
       hosts:
         - blockscout.{{ .Values.config.rollup.name }}.{{ .Values.ingress.hostname }}
       path: /
