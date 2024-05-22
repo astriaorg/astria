@@ -9,7 +9,10 @@ use astria_eyre::eyre::{
 };
 use tokio::{
     select,
-    sync::oneshot,
+    sync::{
+        mpsc,
+        oneshot,
+    },
     task::{
         JoinError,
         JoinHandle,
@@ -24,18 +27,15 @@ use tracing::{
 
 use crate::{
     api,
-    bridge::{
-        self,
-        Bridge,
-    },
     config::Config,
+    ethereum::Watcher,
 };
 
 pub struct BridgeService {
     // Token to signal all subtasks to shut down gracefully.
     shutdown_token: CancellationToken,
     api_server: api::ApiServer,
-    bridge: Bridge,
+    ethereum_watcher: Watcher,
 }
 
 impl BridgeService {
@@ -44,38 +44,44 @@ impl BridgeService {
     /// # Errors
     ///
     /// - If the provided `api_addr` string cannot be parsed as a socket address.
-    pub fn new(cfg: Config) -> eyre::Result<(Self, ShutdownHandle)> {
+    pub async fn new(cfg: Config) -> eyre::Result<(Self, ShutdownHandle)> {
         let shutdown_handle = ShutdownHandle::new();
         let Config {
             api_addr, ..
         } = cfg;
 
-        let bridge = bridge::Builder {
-            shutdown_token: shutdown_handle.token(),
-        }
-        .build();
+        // TODO: use event_rx in the sequencer submitter
+        let (event_tx, _event_rx) = mpsc::channel(100);
+        let ethereum_watcher = Watcher::new(
+            &cfg.ethereum_contract_address,
+            &cfg.ethereum_rpc_endpoint,
+            event_tx.clone(),
+            &shutdown_handle.token(),
+        )
+        .await
+        .wrap_err("failed to initialize ethereum watcher")?;
 
         // make api server
-        let state_rx = bridge.subscribe_to_state();
+        let state_rx = ethereum_watcher.subscribe_to_state();
         let api_socket_addr = api_addr.parse::<SocketAddr>().wrap_err_with(|| {
             format!("failed to parse provided `api_addr` string as socket address: `{api_addr}`",)
         })?;
         let api_server = api::start(api_socket_addr, state_rx);
 
-        let bridge = Self {
+        let service = Self {
             shutdown_token: shutdown_handle.token(),
             api_server,
-            bridge,
+            ethereum_watcher,
         };
 
-        Ok((bridge, shutdown_handle))
+        Ok((service, shutdown_handle))
     }
 
     pub async fn run(self) {
         let Self {
             shutdown_token,
             api_server,
-            bridge,
+            ethereum_watcher,
         } = self;
 
         // Separate the API shutdown signal from the cancellation token because we want it to live
@@ -91,17 +97,17 @@ impl BridgeService {
         });
         info!("spawned API server");
 
-        let mut bridge_task = tokio::spawn(bridge.run());
-        info!("spawned bridge withdrawer task");
+        let mut ethereum_watcher_task = tokio::spawn(ethereum_watcher.run());
+        info!("spawned ethereum watcher task");
 
         let shutdown = select!(
             o = &mut api_task => {
                 report_exit("api server", o);
-                Shutdown { api_task: None, bridge_task: Some(bridge_task), api_shutdown_signal, token: shutdown_token }
+                Shutdown { api_task: None, ethereum_watcher_task: Some(ethereum_watcher_task), api_shutdown_signal, token: shutdown_token }
             }
-            o = &mut bridge_task => {
-                report_exit("bridge worker", o);
-                Shutdown { api_task: Some(api_task), bridge_task: None, api_shutdown_signal, token: shutdown_token }
+            o = &mut ethereum_watcher_task => {
+                report_exit("ethereum watcher", o);
+                Shutdown { api_task: Some(api_task), ethereum_watcher_task: Some(ethereum_watcher_task), api_shutdown_signal, token: shutdown_token }
             }
 
         );
@@ -165,7 +171,7 @@ fn report_exit(task_name: &str, outcome: Result<eyre::Result<()>, JoinError>) {
 
 struct Shutdown {
     api_task: Option<JoinHandle<eyre::Result<()>>>,
-    bridge_task: Option<JoinHandle<eyre::Result<()>>>,
+    ethereum_watcher_task: Option<JoinHandle<eyre::Result<()>>>,
     api_shutdown_signal: oneshot::Sender<()>,
     token: CancellationToken,
 }
@@ -177,7 +183,7 @@ impl Shutdown {
     async fn run(self) {
         let Self {
             api_task,
-            bridge_task,
+            ethereum_watcher_task,
             api_shutdown_signal,
             token,
         } = self;
@@ -185,25 +191,28 @@ impl Shutdown {
         token.cancel();
 
         // Giving bridge 25 seconds to shutdown because Kubernetes issues a SIGKILL after 30.
-        if let Some(mut bridge_task) = bridge_task {
-            info!("waiting for bridge task to shut down");
+        if let Some(mut ethereum_watcher_task) = ethereum_watcher_task {
+            info!("waiting for watcher task to shut down");
             let limit = Duration::from_secs(Self::BRIDGE_SHUTDOWN_TIMEOUT_SECONDS);
-            match timeout(limit, &mut bridge_task).await.map(flatten_result) {
-                Ok(Ok(())) => info!("bridge exited gracefully"),
-                Ok(Err(error)) => error!(%error, "bridge exited with an error"),
+            match timeout(limit, &mut ethereum_watcher_task)
+                .await
+                .map(flatten_result)
+            {
+                Ok(Ok(())) => info!("watcher exited gracefully"),
+                Ok(Err(error)) => error!(%error, "watcher exited with an error"),
                 Err(_) => {
                     error!(
                         timeout_secs = limit.as_secs(),
-                        "bridge did not shut down within timeout; killing it"
+                        "watcher did not shut down within timeout; killing it"
                     );
-                    bridge_task.abort();
+                    ethereum_watcher_task.abort();
                 }
             }
         } else {
-            info!("bridge task was already dead");
+            info!("watcher task was already dead");
         }
 
-        // Giving the API task 4 seconds. 25 for bridge + 4s = 29s (out of 30s for k8s).
+        // Giving the API task 4 seconds. 25 for watcher + 4s = 29s (out of 30s for k8s).
         if let Some(mut api_task) = api_task {
             info!("sending shutdown signal to API server");
             let _ = api_shutdown_signal.send(());
