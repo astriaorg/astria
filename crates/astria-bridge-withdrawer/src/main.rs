@@ -4,6 +4,7 @@ use astria_bridge_withdrawer::{
     metrics_init,
     BridgeService,
     Config,
+    WithdrawerService,
     BUILD_INFO,
 };
 use astria_eyre::eyre::WrapErr as _;
@@ -54,7 +55,7 @@ async fn main() -> ExitCode {
 
     let mut sigterm = signal(SignalKind::terminate())
         .expect("setting a SIGTERM listener should always work on Unix");
-    let (bridge, shutdown_handle) = BridgeService::new(cfg)
+    let (bridge, shutdown_handle) = WithdrawerService::new(cfg)
         .await
         .expect("could not initialize bridge");
     let bridge_handle = tokio::spawn(bridge.run());

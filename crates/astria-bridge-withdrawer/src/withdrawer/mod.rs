@@ -60,7 +60,6 @@ impl WithdrawerService {
         } = cfg;
 
         // make bridge object
-        // TODO: add more fields
         let (executor, executor_handle) = executor::Builder {
             shutdown_token: shutdown_handle.token(),
             cometbft_endpoint: cfg.cometbft_endpoint,
@@ -68,16 +67,15 @@ impl WithdrawerService {
             sequencer_key_path: cfg.sequencer_key_path,
         }
         .build()
-        .wrap_err("failed to create bridge")?;
+        .wrap_err("failed to initialize executor")?;
 
         // make api server
         let state_rx = executor.subscribe_to_state();
         // TODO: use event_rx in the sequencer submitter
-        let (event_tx, _event_rx) = mpsc::channel(100);
         let ethereum_watcher = Watcher::new(
             &cfg.ethereum_contract_address,
             &cfg.ethereum_rpc_endpoint,
-            event_tx.clone(),
+            executor_handle.batches_tx,
             &shutdown_handle.token(),
         )
         .await

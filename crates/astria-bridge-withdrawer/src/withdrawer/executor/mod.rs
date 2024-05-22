@@ -11,7 +11,6 @@ use astria_core::protocol::transaction::v1alpha1::{
 use astria_eyre::eyre::{
     self,
     Context,
-    WrapErr as _,
 };
 pub(crate) use builder::Builder;
 use prost::Message as _;
@@ -48,7 +47,7 @@ mod builder;
 mod signer;
 
 pub(super) struct Handle {
-    batches_tx: mpsc::Sender<Vec<Action>>,
+    pub(super) batches_tx: mpsc::Sender<Vec<Action>>,
 }
 
 pub(super) struct Executor {

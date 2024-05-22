@@ -30,8 +30,8 @@ impl SequencerSigner {
 
         Ok(Self {
             address: Address::from_verification_key(signing_key.verification_key()),
-            signing_key,
             verification_key: signing_key.verification_key(),
+            signing_key,
         })
     }
 }
