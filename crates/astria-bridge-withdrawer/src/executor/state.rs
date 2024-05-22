@@ -21,9 +21,35 @@ impl State {
     }
 }
 
+macro_rules! forward_setter {
+    ($([$fn:ident <- $val:ty]),*$(,)?) => {
+        impl State {
+            $(
+            pub(super) fn $fn(&self, val: $val) {
+                self.inner
+                    .send_if_modified(|state| state.$fn(val));
+            }
+            )*
+        }
+    };
+}
+
+forward_setter!(
+    [set_sequencer_connected <- bool],
+    [set_last_rollup_batch_height <- u64],
+    [set_last_sequencer_height <- u64],
+    [set_last_sequencer_tx_hash <- tendermint::Hash],
+);
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize)]
 pub(crate) struct StateSnapshot {
     ready: bool,
+
+    sequencer_connected: bool,
+
+    last_rollup_block: Option<u64>,
+    last_sequencer_block: Option<u64>,
+    last_sequencer_tx_hash: Option<tendermint::Hash>,
 }
 
 impl StateSnapshot {
@@ -36,6 +62,31 @@ impl StateSnapshot {
     }
 
     pub(crate) fn is_healthy(&self) -> bool {
-        todo!()
+        self.sequencer_connected
+    }
+
+    /// Sets the sequencer connection status to `connected`.
+    fn set_sequencer_connected(&mut self, connected: bool) -> bool {
+        let changed = self.sequencer_connected ^ connected;
+        self.sequencer_connected = connected;
+        changed
+    }
+
+    fn set_last_rollup_batch_height(&mut self, height: u64) -> bool {
+        let changed = self.last_rollup_block.map_or(true, |h| h != height);
+        self.last_rollup_block = Some(height);
+        changed
+    }
+
+    fn set_last_sequencer_height(&mut self, height: u64) -> bool {
+        let changed = self.last_sequencer_block.map_or(true, |h| h != height);
+        self.last_sequencer_block = Some(height);
+        changed
+    }
+
+    fn set_last_sequencer_tx_hash(&mut self, hash: tendermint::Hash) -> bool {
+        let changed = self.last_sequencer_tx_hash.map_or(true, |h| h != hash);
+        self.last_sequencer_tx_hash = Some(hash);
+        changed
     }
 }

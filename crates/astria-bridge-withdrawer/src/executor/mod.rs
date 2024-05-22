@@ -10,6 +10,7 @@ use astria_core::protocol::transaction::v1alpha1::{
 };
 use astria_eyre::eyre::{
     self,
+    Context,
     WrapErr as _,
 };
 pub(crate) use builder::Builder;
@@ -47,7 +48,6 @@ mod builder;
 mod event;
 mod signer;
 mod state;
-mod submitter;
 
 pub(super) struct Handle {
     batches_tx: mpsc::Sender<Vec<Event>>,
@@ -88,10 +88,14 @@ impl Executor {
                         }
                     };
 
+                    // TODO: get this from the batch
+                    let rollup_height = 0;
+
                     let actions = batch.into_iter().map(Action::from).collect::<Vec<Action>>();
 
                     // get nonce
-                    let nonce = get_latest_nonce(self.sequencer_cometbft_client.clone(), self.signer.address).await?;
+                    let nonce = get_latest_nonce(self.sequencer_cometbft_client.clone(), self.signer.address, self.state.clone()).await?;
+                    debug!(nonce, "got latest nonce");
 
                     let unsigned = UnsignedTransaction {
                         actions,
@@ -103,13 +107,42 @@ impl Executor {
 
                     // sign
                     let signed = unsigned.into_signed(&self.signer.signing_key);
+                    debug!(tx_hash = ?hex::encode(sha256(&signed.to_raw().encode_to_vec())), "signed transaction");
 
                     // broadcast commit
+                    let rsp = submit_tx(self.sequencer_cometbft_client.clone(), signed, self.state.clone()).await.context("failed to submit transaction to to cometbft")?;
+                    if let tendermint::abci::Code::Err(check_tx_code) = rsp.check_tx.code {
+                        // handle check_tx failure
+                        error!(abci.code = check_tx_code,
+                            abci.log = rsp.check_tx.log,
+                            rollup.height = rollup_height,
+                            "transaction failed to be included in the mempool, aborting.");
+                        break Err("check_tx failure upon submitting transaction");
+                    } else if let tendermint::abci::Code::Err(deliver_tx_code) = rsp.tx_result.code {
+                        // handle deliver_tx failure
+                        error!(abci.code = deliver_tx_code,
+                            abci.log = rsp.tx_result.log,
+                            rollup.height = rollup_height,
+                            "transaction failed to be executed in a block, aborting."
+                        );
+                    } else {
+                        info!(
+                            sequencer.block = rsp.height.value(),
+                            sequencer.tx_hash = ?rsp.hash,
+                            rollup.height = rollup_height,
+                            "withdraw batch successfully executed."
+                        );
+                        self.state.set_last_rollup_batch_height(rollup_height);
+                        self.state.set_last_sequencer_height(rsp.height.value());
+                        self.state.set_last_sequencer_tx_hash(rsp.hash)
+                    }
                 }
             )
         };
         // update status
+        self.state;
 
+        // close the channel to signal to batcher that the executor is shutting down
         self.batches_rx.close();
 
         match reason {
@@ -130,6 +163,7 @@ impl Executor {
 async fn get_latest_nonce(
     client: sequencer_client::HttpClient,
     address: Address,
+    state: Arc<State>,
 ) -> eyre::Result<u32> {
     debug!("fetching latest nonce from sequencer");
     metrics::counter!(crate::metrics_init::NONCE_FETCH_COUNT).increment(1);
@@ -143,6 +177,9 @@ async fn get_latest_nonce(
              next_delay: Option<Duration>,
              err: &sequencer_client::extension_trait::Error| {
                 metrics::counter!(crate::metrics_init::NONCE_FETCH_FAILURE_COUNT).increment(1);
+
+                let state = Arc::clone(&state);
+                state.set_sequencer_connected(false);
 
                 let wait_duration = next_delay
                     .map(humantime::format_duration)
@@ -166,6 +203,8 @@ async fn get_latest_nonce(
     .await
     .wrap_err("failed getting latest nonce from sequencer after 1024 attempts");
 
+    state.set_sequencer_connected(res.is_ok());
+
     metrics::histogram!(crate::metrics_init::NONCE_FETCH_LATENCY).record(start.elapsed());
 
     res
@@ -183,6 +222,7 @@ async fn get_latest_nonce(
 async fn submit_tx(
     client: sequencer_client::HttpClient,
     tx: SignedTransaction,
+    state: Arc<State>,
 ) -> eyre::Result<tx_commit::Response> {
     let nonce = tx.unsigned_transaction().params.nonce;
     metrics::gauge!(crate::metrics_init::CURRENT_NONCE).set(nonce);
@@ -201,6 +241,9 @@ async fn submit_tx(
              err: &sequencer_client::extension_trait::Error| {
                 metrics::counter!(crate::metrics_init::SEQUENCER_SUBMISSION_FAILURE_COUNT)
                     .increment(1);
+
+                let state = Arc::clone(&state);
+                state.set_sequencer_connected(false);
 
                 let wait_duration = next_delay
                     .map(humantime::format_duration)
@@ -224,6 +267,8 @@ async fn submit_tx(
     .with_config(retry_config)
     .await
     .wrap_err("failed sending transaction after 1024 attempts");
+
+    state.set_sequencer_connected(res.is_ok());
 
     metrics::histogram!(crate::metrics_init::SEQUENCER_SUBMISSION_LATENCY).record(start.elapsed());
 
