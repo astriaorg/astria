@@ -13,11 +13,11 @@ images:
     devTag: latest
   conductor:
     repo: ghcr.io/astriaorg/conductor
-    tag: "0.15.0"
+    tag: "0.16.0"
     devTag: latest
   composer:
     repo: ghcr.io/astriaorg/composer
-    tag: "0.6.0"
+    tag: "0.7.0"
     devTag: latest
 
   # Rollup faucet

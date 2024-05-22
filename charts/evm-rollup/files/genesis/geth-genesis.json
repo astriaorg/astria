@@ -26,6 +26,9 @@
         "terminalTotalDifficulty": 0,
         "terminalTotalDifficultyPassed": true,
         "ethash": {},
+        {{- range $key, $value := .Values.config.rollup.genesis.extra }}
+        "{{ $key }}": {{ toPrettyJson $value | indent 8 | trim }},
+        {{- end }}
         {{- if .Values.config.rollup.genesis.extraDataOverride }}
         "astriaExtraDataOverride": "{{ .Values.config.rollup.genesis.extraDataOverride }}",
         {{- end }}

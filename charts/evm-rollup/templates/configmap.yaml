@@ -48,6 +48,7 @@ data:
   ASTRIA_COMPOSER_SEQUENCER_CHAIN_ID: "{{ .Values.config.sequencer.chainId }}"
   ASTRIA_COMPOSER_SEQUENCER_URL: "{{ .Values.config.sequencer.rpc }}"
   ASTRIA_COMPOSER_ROLLUPS: "{{ .Values.config.rollup.name }}::ws://127.0.0.1:{{ .Values.ports.wsRPC }}"
+  ASTRIA_COMPOSER_PRIVATE_KEY_FILE: "/var/secrets/{{ .Values.config.sequencer.privateKey.secret.filename }}"
   ASTRIA_COMPOSER_MAX_BYTES_PER_BUNDLE: "{{ .Values.config.rollup.maxBytesPerBundle }}"
   ASTRIA_COMPOSER_BUNDLE_QUEUE_CAPACITY: "{{ .Values.config.rollup.bundleQueueCapacity }}"
   ASTRIA_COMPOSER_MAX_SUBMIT_INTERVAL_MS: "{{ .Values.config.rollup.maxSubmitInterval }}"
@@ -64,11 +65,7 @@ data:
   OTEL_EXPORTER_OTLP_TRACE_HEADERS: "{{ .Values.config.rollup.otel.traceHeaders }}"
   OTEL_SERVICE_NAME: "{{ tpl .Values.config.rollup.otel.serviceNamePrefix . }}-composer"
   {{- if not .Values.global.dev }}
-  {{- if not .Values.secretProvider.enabled }}
-  ASTRIA_COMPOSER_PRIVATE_KEY: "{{ .Values.config.sequencer.privateKey.devContent }}"
-  {{- end }}
   {{- else }}
-  ASTRIA_COMPOSER_PRIVATE_KEY_FILE: "/var/secrets/{{ .Values.config.sequencer.privateKey.secret.filename }}"
   {{- end }}
 ---
 apiVersion: v1
