@@ -314,9 +314,6 @@ mod tests {
 
         let (events, rollup_height) = event_rx.recv().await.unwrap();
         assert_eq!(events.len(), 1);
-        assert!(matches!(
-            events[0],
-            Action::BridgeUnlock(BridgeUnlockAction { .. })
-        ));
+        assert!(matches!(events[0], Action::BridgeUnlock(_)));
     }
 }
