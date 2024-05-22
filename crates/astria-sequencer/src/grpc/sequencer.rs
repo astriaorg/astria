@@ -19,8 +19,9 @@ use tonic::{
     Status,
 };
 use tracing::{
+    error,
+    info,
     instrument,
-    trace,
 };
 
 use crate::{
@@ -172,14 +173,14 @@ impl SequencerService for SequencerServer {
 
         let request = request.into_inner();
         let Some(address) = request.address else {
-            trace!("required field address was not set",);
+            info!("required field address was not set",);
             return Err(Status::invalid_argument(
                 "required field address was not set",
             ));
         };
 
         let address = Address::try_from_raw(&address).map_err(|e| {
-            trace!(
+            info!(
                 error = %e,
                 "failed to parse address from request",
             );
@@ -196,7 +197,7 @@ impl SequencerService for SequencerServer {
         // nonce wasn't in mempool, so just look it up from storage
         let snapshot = self.storage.latest_snapshot();
         let nonce = snapshot.get_account_nonce(address).await.map_err(|e| {
-            trace!(
+            error!(
                 error = AsRef::<dyn std::error::Error>::as_ref(&e),
                 "failed to parse get account nonce from storage",
             );
