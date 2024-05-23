@@ -18,7 +18,6 @@ use astria_core::{
     sequencerblock::v1alpha1::block::Deposit,
 };
 use cnidarium::StateDelta;
-use penumbra_ibc::params::IBCParameters;
 use prost::Message as _;
 use tendermint::{
     abci::{
@@ -52,10 +51,7 @@ use crate::{
         StateReadExt as _,
         StateWriteExt,
     },
-    genesis::{
-        Account,
-        GenesisState,
-    },
+    genesis::Account,
     mempool::TransactionPriority,
     proposal::commitment::generate_rollup_datas_commitment,
     state_ext::StateReadExt as _,
@@ -191,18 +187,7 @@ async fn app_begin_block_remove_byzantine_validators() {
 
 #[tokio::test]
 async fn app_commit() {
-    let genesis_state = GenesisState {
-        accounts: default_genesis_accounts(),
-        authority_sudo_address: Address::from([0; 20]),
-        ibc_sudo_address: Address::from([0; 20]),
-        ibc_relayer_addresses: vec![],
-        native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
-        ibc_params: IBCParameters::default(),
-        allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
-        fees: default_fees(),
-    };
-
-    let (mut app, storage) = initialize_app_with_storage(Some(genesis_state), vec![]).await;
+    let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
     assert_eq!(app.state.get_block_height().await.unwrap(), 0);
 
     let native_asset = get_native_asset().id();
@@ -243,7 +228,7 @@ async fn app_commit() {
 }
 
 #[tokio::test]
-async fn app_transfer_block_fees_to_proposer() {
+async fn app_transfer_block_fees_to_sudo() {
     let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
 
     let (alice_signing_key, _) = get_alice_signing_key_and_address();
@@ -271,7 +256,6 @@ async fn app_transfer_block_fees_to_proposer() {
     let signed_tx = tx.into_signed(&alice_signing_key);
 
     let proposer_address: tendermint::account::Id = [99u8; 20].to_vec().try_into().unwrap();
-    let sequencer_proposer_address = Address::try_from_slice(proposer_address.as_bytes()).unwrap();
 
     let commitments = generate_rollup_datas_commitment(&[signed_tx.clone()], HashMap::new());
 
@@ -297,7 +281,7 @@ async fn app_transfer_block_fees_to_proposer() {
     let transfer_fee = app.state.get_transfer_base_fee().await.unwrap();
     assert_eq!(
         app.state
-            .get_account_balance(sequencer_proposer_address, native_asset)
+            .get_account_balance(address_from_hex_string(JUDY_ADDRESS), native_asset)
             .await
             .unwrap(),
         transfer_fee,
