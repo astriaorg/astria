@@ -4,9 +4,13 @@ use std::{
     sync::Arc,
 };
 
-use astria_core::protocol::transaction::v1alpha1::SignedTransaction;
+use astria_core::{
+    primitive::v1::Address,
+    protocol::transaction::v1alpha1::SignedTransaction,
+};
 use priority_queue::double_priority_queue::DoublePriorityQueue;
-use tokio::sync::Mutex;
+use tokio::sync::RwLock;
+use tracing::instrument;
 
 /// Used to prioritize transactions in the mempool.
 ///
@@ -78,6 +82,14 @@ impl BasicMempool {
     }
 
     #[must_use]
+    pub(crate) fn iter(&self) -> BasicMempoolIter {
+        BasicMempoolIter {
+            iter: self.queue.iter(),
+            hash_to_tx: &self.hash_to_tx,
+        }
+    }
+
+    #[must_use]
     pub(crate) fn iter_mut(&mut self) -> BasicMempoolIterMut {
         BasicMempoolIterMut {
             iter: self.queue.iter_mut(),
@@ -90,21 +102,21 @@ impl BasicMempool {
 /// locking mechanism for the mempool.
 #[derive(Clone)]
 pub(crate) struct Mempool {
-    inner: Arc<Mutex<BasicMempool>>,
+    inner: Arc<RwLock<BasicMempool>>,
 }
 
 impl Mempool {
     #[must_use]
     pub(crate) fn new() -> Self {
         Self {
-            inner: Arc::new(Mutex::new(BasicMempool::new())),
+            inner: Arc::new(RwLock::new(BasicMempool::new())),
         }
     }
 
     /// returns the number of transactions in the mempool
     #[must_use]
     pub(crate) async fn len(&self) -> usize {
-        let inner = self.inner.lock().await;
+        let inner = self.inner.read().await;
         inner.queue.len()
     }
 
@@ -121,7 +133,7 @@ impl Mempool {
         }
 
         let hash = tx.sha256_of_proto_encoding();
-        let mut inner = self.inner.lock().await;
+        let mut inner = self.inner.write().await;
         inner.queue.push(hash, priority);
         inner.hash_to_tx.insert(hash, tx);
         tracing::trace!(tx_hash = %telemetry::display::hex(hash.as_ref()), "inserted transaction into mempool");
@@ -142,7 +154,7 @@ impl Mempool {
     /// pops the transaction with the highest priority from the mempool
     #[must_use]
     pub(crate) async fn pop(&mut self) -> Option<(SignedTransaction, TransactionPriority)> {
-        let mut inner = self.inner.lock().await;
+        let mut inner = self.inner.write().await;
         let (hash, priority) = inner.queue.pop_max()?;
         let tx = inner.hash_to_tx.remove(&hash)?;
         Some((tx, priority))
@@ -150,7 +162,7 @@ impl Mempool {
 
     /// removes a transaction from the mempool
     pub(crate) async fn remove(&mut self, tx_hash: &[u8; 32]) {
-        let mut inner = self.inner.lock().await;
+        let mut inner = self.inner.write().await;
         inner.queue.remove(tx_hash);
         inner.hash_to_tx.remove(tx_hash);
     }
@@ -162,10 +174,47 @@ impl Mempool {
         }
     }
 
-    /// returns the inner mempool, locked.
+    /// returns the inner mempool, write-locked.
     /// required so that `BasicMempool::iter_mut()` can be called.
-    pub(crate) async fn inner(&self) -> tokio::sync::MutexGuard<'_, BasicMempool> {
-        self.inner.lock().await
+    pub(crate) async fn write(&self) -> tokio::sync::RwLockWriteGuard<'_, BasicMempool> {
+        self.inner.write().await
+    }
+
+    /// returns the pending nonce for the given address,
+    /// if it exists in the mempool.
+    #[instrument(skip(self), fields(address = %address))]
+    pub(crate) async fn pending_nonce(&self, address: &Address) -> Option<u32> {
+        let inner = self.inner.read().await;
+        let mut nonce = None;
+        for (tx, priority) in inner.iter() {
+            let sender = Address::from_verification_key(tx.verification_key());
+            if &sender == address {
+                nonce = Some(std::cmp::max(
+                    nonce.unwrap_or_default(),
+                    priority.transaction_nonce,
+                ));
+            }
+        }
+        nonce
+    }
+}
+
+pub(crate) struct BasicMempoolIter<'a> {
+    iter: priority_queue::core_iterators::Iter<'a, [u8; 32], TransactionPriority>,
+    hash_to_tx: &'a HashMap<[u8; 32], SignedTransaction>,
+}
+
+impl<'a> Iterator for BasicMempoolIter<'a> {
+    type Item = (&'a SignedTransaction, &'a TransactionPriority);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next().map(|(hash, priority)| {
+            let tx = self
+                .hash_to_tx
+                .get(hash)
+                .expect("hash in queue must be in hash_to_tx");
+            (tx, priority)
+        })
     }
 }
 

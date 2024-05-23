@@ -261,7 +261,7 @@ impl Config {
     /// # Errors
     /// Fails if the filter directives could not be parsed, if communication with the OTLP
     /// endpoint failed, or if the global tracing subscriber could not be installed.
-    pub fn try_init(self) -> Result<(), Error> {
+    pub fn try_init(self) -> Result<Guard, Error> {
         let Self {
             filter_directives,
             force_stdout,
@@ -350,6 +350,24 @@ impl Config {
             metrics_builder.install().map_err(Error::exporter_install)?;
         }
 
-        Ok(())
+        Ok(Guard {
+            run_otel_shutdown: !no_otel,
+        })
+    }
+}
+
+/// A drop guard for terminating all `OpenTelemetry` tracer providers on drop.
+///
+/// *Note:* Shutting down the tracer providers can potentially block a thread
+/// indefinitely.
+pub struct Guard {
+    run_otel_shutdown: bool,
+}
+
+impl Drop for Guard {
+    fn drop(&mut self) {
+        if self.run_otel_shutdown {
+            opentelemetry::global::shutdown_tracer_provider();
+        }
     }
 }
