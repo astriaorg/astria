@@ -747,13 +747,15 @@ impl App {
             .get_chain_id()
             .await
             .context("failed to get chain ID from state")?;
+        let sudo_address = self
+            .state
+            .get_sudo_address()
+            .await
+            .context("failed to get sudo address from state")?;
 
         // convert tendermint id to astria address; this assumes they are
         // the same address, as they are both ed25519 keys
         let proposer_address = finalize_block.proposer_address;
-        let astria_proposer_address =
-            Address::try_from_slice(finalize_block.proposer_address.as_bytes())
-                .context("failed to convert proposer tendermint id to astria address")?;
 
         let height = finalize_block.height;
         let time = finalize_block.time;
@@ -835,9 +837,7 @@ impl App {
             tx_results.extend(execution_results);
         };
 
-        let end_block = self
-            .end_block(height.value(), astria_proposer_address)
-            .await?;
+        let end_block = self.end_block(height.value(), sudo_address).await?;
 
         // get and clear block deposits from state
         let mut state_tx = StateDelta::new(self.state.clone());
@@ -1010,7 +1010,7 @@ impl App {
     pub(crate) async fn end_block(
         &mut self,
         height: u64,
-        proposer_address: Address,
+        fee_recipient: Address,
     ) -> anyhow::Result<abci::response::EndBlock> {
         let state_tx = StateDelta::new(self.state.clone());
         let mut arc_state_tx = Arc::new(state_tx);
@@ -1059,16 +1059,10 @@ impl App {
             .context("failed to get block fees")?;
 
         for (asset, amount) in fees {
-            let balance = state_tx
-                .get_account_balance(proposer_address, asset)
-                .await
-                .context("failed to get proposer account balance")?;
-            let new_balance = balance
-                .checked_add(amount)
-                .context("account balance overflowed u128")?;
             state_tx
-                .put_account_balance(proposer_address, asset, new_balance)
-                .context("failed to put proposer account balance")?;
+                .increase_balance(fee_recipient, asset, amount)
+                .await
+                .context("failed to increase fee recipient balance")?;
         }
 
         // clear block fees
