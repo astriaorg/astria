@@ -1,0 +1,96 @@
+version: v2
+modules:
+  - path: proto/composerapis
+    name: buf.build/astria/composer-apis
+    lint:
+      use:
+        - BASIC
+        - ENUM_VALUE_PREFIX
+        - ENUM_ZERO_VALUE_SUFFIX
+        - FILE_LOWER_SNAKE_CASE
+        - PACKAGE_VERSION_SUFFIX
+        - RPC_REQUEST_STANDARD_NAME
+        - SERVICE_SUFFIX
+      disallow_comment_ignores: true
+    breaking:
+      use:
+        - WIRE_JSON
+      ignore_unstable_packages: true
+  - path: proto/executionapis
+    name: buf.build/astria/execution-apis
+    lint:
+      use:
+        - BASIC
+        - ENUM_VALUE_PREFIX
+        - ENUM_ZERO_VALUE_SUFFIX
+        - FILE_LOWER_SNAKE_CASE
+        - PACKAGE_VERSION_SUFFIX
+        - RPC_REQUEST_STANDARD_NAME
+        - SERVICE_SUFFIX
+      disallow_comment_ignores: true
+    breaking:
+      use:
+        - WIRE_JSON
+      ignore_unstable_packages: true
+  - path: proto/primitives
+    name: buf.build/astria/primitives
+    lint:
+      use:
+        - BASIC
+        - ENUM_VALUE_PREFIX
+        - ENUM_ZERO_VALUE_SUFFIX
+        - FILE_LOWER_SNAKE_CASE
+        - PACKAGE_VERSION_SUFFIX
+        - RPC_REQUEST_STANDARD_NAME
+        - SERVICE_SUFFIX
+      disallow_comment_ignores: true
+    breaking:
+      use:
+        - FILE
+      ignore_unstable_packages: true
+  - path: proto/protocolapis
+    name: buf.build/astria/protocol-apis
+    lint:
+      use:
+        - BASIC
+        - ENUM_VALUE_PREFIX
+        - ENUM_ZERO_VALUE_SUFFIX
+        - FILE_LOWER_SNAKE_CASE
+        - PACKAGE_VERSION_SUFFIX
+        - RPC_REQUEST_STANDARD_NAME
+        - SERVICE_SUFFIX
+      ignore_only:
+        PACKAGE_VERSION_SUFFIX:
+          - proto/protocolapis/astria_vendored/tendermint
+      disallow_comment_ignores: true
+    breaking:
+      use:
+        - WIRE_JSON
+      ignore_unstable_packages: true
+  - path: proto/sequencerblockapis
+    name: buf.build/astria/sequencerblock-apis
+    lint:
+      use:
+        - BASIC
+        - ENUM_VALUE_PREFIX
+        - ENUM_ZERO_VALUE_SUFFIX
+        - FILE_LOWER_SNAKE_CASE
+        - PACKAGE_VERSION_SUFFIX
+        - RPC_REQUEST_STANDARD_NAME
+        - SERVICE_SUFFIX
+      disallow_comment_ignores: true
+    breaking:
+      use:
+        - WIRE_JSON
+      ignore_unstable_packages: true
+  - path: proto/vendored
+    name: buf.build/astria/vendored
+    lint:
+      use:
+        - MINIMAL
+      except:
+        - PACKAGE_DIRECTORY_MATCH
+        - PACKAGE_NO_IMPORT_CYCLE
+      disallow_comment_ignores: true
+deps:
+  - buf.build/googleapis/googleapis
