@@ -356,7 +356,7 @@ impl Config {
     }
 }
 
-/// A drop guard for terminating all OpenTelemtry tracer providers on drop.
+/// A drop guard for terminating all `OpenTelemetry` tracer providers on drop.
 ///
 /// *Note:* Shutting down the tracer providers can potentially block a thread
 /// indefinitely.
