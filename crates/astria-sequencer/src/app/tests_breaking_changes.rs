@@ -70,8 +70,6 @@ async fn app_finalize_block_snapshot() {
     let (alice_signing_key, _) = get_alice_signing_key_and_address();
     let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
 
-    println!("app hash init: {:?}", app.app_hash);
-
     let bridge_address = Address::from([99; 20]);
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
     let asset_id = get_native_asset().id();
@@ -83,14 +81,10 @@ async fn app_finalize_block_snapshot() {
         .unwrap();
     app.apply(state_tx);
 
-    println!("app hash apply: {:?}", app.app_hash);
-
     // the state changes must be committed, as `finalize_block` will execute the
     // changes on the latest snapshot, not the app's `StateDelta`.
     app.prepare_commit(storage.clone()).await.unwrap();
     app.commit(storage.clone()).await;
-
-    println!("app hash commit 1: {:?}", app.app_hash);
 
     let amount = 100;
     let lock_action = BridgeLockAction {
@@ -125,7 +119,7 @@ async fn app_finalize_block_snapshot() {
     let deposits = HashMap::from_iter(vec![(rollup_id, vec![expected_deposit.clone()])]);
     let commitments = generate_rollup_datas_commitment(&[signed_tx.clone()], deposits.clone());
 
-    let timestamp = Time::now();
+    let timestamp = Time::unix_epoch();
     let block_hash = Hash::try_from([99u8; 32].to_vec()).unwrap();
     let finalize_block = abci::request::FinalizeBlock {
         hash: block_hash,
@@ -144,9 +138,7 @@ async fn app_finalize_block_snapshot() {
     app.finalize_block(finalize_block.clone(), storage.clone())
         .await
         .unwrap();
-    println!("app hash pre commit: {:?}", app.app_hash);
     app.commit(storage.clone()).await;
-    println!("app hash post commit: {:?}", app.app_hash);
     insta::assert_json_snapshot!(app.app_hash.as_bytes());
 }
 
