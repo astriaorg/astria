@@ -1,4 +1,7 @@
-use std::time::Duration;
+use std::{
+    future::Future,
+    time::Duration,
+};
 
 use astria_eyre::eyre::{
     self,
@@ -6,13 +9,10 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use itertools::Itertools as _;
+use pin_project_lite::pin_project;
 use sequencer_client::HttpClient;
 use tokio::{
     select,
-    signal::unix::{
-        signal,
-        SignalKind,
-    },
     time::timeout,
 };
 use tokio_util::{
@@ -33,6 +33,46 @@ use crate::{
     utils::flatten,
     Config,
 };
+
+pin_project! {
+    /// A handle returned by [`Conductor::spawn`].
+    pub struct Handle {
+        shutdown_token: CancellationToken,
+        task: Option<tokio::task::JoinHandle<()>>,
+    }
+}
+
+impl Handle {
+    /// Sends a signal to the conductor task to shut down.
+    ///
+    /// # Errors
+    /// Returns an error if the Conductor task panics during shutdown.
+    ///
+    /// # Panics
+    /// Panics if called twice.
+    pub async fn shutdown(&mut self) -> Result<(), tokio::task::JoinError> {
+        self.shutdown_token.cancel();
+        let task = self.task.take().expect("shutdown must not be called twice");
+        task.await
+    }
+}
+
+impl Future for Handle {
+    type Output = Result<(), tokio::task::JoinError>;
+
+    fn poll(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Self::Output> {
+        use futures::future::FutureExt as _;
+        let this = self.project();
+        let task = this
+            .task
+            .as_mut()
+            .expect("the Conductor handle must not be polled after shutdown");
+        task.poll_unpin(cx)
+    }
+}
 
 pub struct Conductor {
     /// Token to signal to all tasks to shut down gracefully.
@@ -120,17 +160,15 @@ impl Conductor {
     /// # Panics
     /// Panics if it could not install a signal handler.
     #[instrument(skip_all)]
-    pub async fn run_until_stopped(mut self) {
+    async fn run_until_stopped(mut self) {
         info!("conductor is running");
-
-        let mut sigterm = signal(SignalKind::terminate()).expect(
-            "setting a SIGTERM listener should always work on unix; is this running on unix?",
-        );
 
         let exit_reason = select! {
             biased;
 
-            _ = sigterm.recv() => Ok("received SIGTERM"),
+            () = self.shutdown.cancelled() => {
+                Ok("received shutdown signal")
+            }
 
             Some((name, res)) = self.tasks.join_next() => {
                 match flatten(res) {
@@ -146,6 +184,21 @@ impl Conductor {
             Err(reason) => error!(%reason, message),
         }
         self.shutdown().await;
+    }
+
+    /// Spawns Conductor on the tokio runtime.
+    ///
+    /// This calls [`tokio::spawn`] and returns a [`Handle`] to the
+    /// running Conductor task, allowing to explicitly shut it down with
+    /// [`Handle::shutdown`].
+    #[must_use]
+    pub fn spawn(self) -> Handle {
+        let shutdown_token = self.shutdown.clone();
+        let task = tokio::spawn(self.run_until_stopped());
+        Handle {
+            shutdown_token,
+            task: Some(task),
+        }
     }
 
     /// Shuts down all tasks.
