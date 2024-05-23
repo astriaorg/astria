@@ -10,10 +10,10 @@ use astria_core::protocol::transaction::v1alpha1::{
 };
 use astria_eyre::eyre::{
     self,
+    eyre,
     Context,
 };
 pub(crate) use builder::Builder;
-use prost::Message as _;
 use sequencer_client::{
     tendermint_rpc::endpoint::broadcast::tx_commit,
     Address,
@@ -22,7 +22,6 @@ use sequencer_client::{
 };
 use signer::SequencerSigner;
 use state::State;
-use tendermint::crypto::Sha256;
 use tokio::{
     select,
     sync::mpsc,
@@ -72,54 +71,12 @@ impl Submitter {
                 }
 
                 batch = self.batches_rx.recv() => {
-                    let (actions, rollup_height) = match batch {
-                        Some((actions, rollup_height)) => (actions, rollup_height),
-                        None => {
-                            info!("received None from batch channel, shutting down");
-                            break Err("channel closed");
-                        }
+                    let Some((actions, rollup_height)) = batch else {
+                        info!("received None from batch channel, shutting down");
+                        break Err(eyre!("batch channel closed"));
                     };
-
-                    // get nonce and make unsigned transaction
-                    let nonce = get_latest_nonce(self.sequencer_cometbft_client.clone(), self.signer.address, self.state.clone()).await?;
-                    debug!(nonce, "fetched latest nonce");
-
-                    let unsigned = UnsignedTransaction {
-                        actions,
-                        params: TransactionParams {
-                            nonce,
-                            chain_id: self.sequencer_chain_id.clone(),
-                        },
-                    };
-
-                    // sign transaction
-                    let signed = unsigned.into_signed(&self.signer.signing_key);
-                    debug!(tx_hash = ?hex::encode(sha256(&signed.to_raw().encode_to_vec())), "signed transaction");
-
-                    // submit transaction and handle response
-                    let rsp = submit_tx(self.sequencer_cometbft_client.clone(), signed, self.state.clone()).await.context("failed to submit transaction to to cometbft")?;
-
-                    match rsp.check_tx.code {
-                        tendermint::abci::Code::Ok => {
-                            // update state after successful submission
-                            info!(
-                                sequencer.block = rsp.height.value(),
-                                sequencer.tx_hash = ?rsp.hash,
-                                rollup.height = rollup_height,
-                                "withdraw batch successfully executed"
-                            );
-                            self.state.set_last_rollup_height_submitted(rollup_height);
-                            self.state.set_last_sequencer_height(rsp.height.value());
-                            self.state.set_last_sequencer_tx_hash(rsp.hash)
-                        }
-                        tendermint::abci::Code::Err(check_tx_code) => {
-                            // handle check_tx failure
-                            error!(abci.code = check_tx_code,
-                                abci.log = rsp.check_tx.log,
-                                rollup.height = rollup_height,
-                                "transaction failed to be included in the mempool, aborting batch submission");
-                            break Err("check_tx failure upon submitting transaction");
-                        }
+                    if let Err(e) = self.process_batch(actions, rollup_height).await {
+                        break Err(e);
                     }
                 }
             )
@@ -140,10 +97,72 @@ impl Submitter {
 
         Ok(())
     }
+
+    async fn process_batch(
+        &mut self,
+        actions: Vec<Action>,
+        rollup_height: u64,
+    ) -> eyre::Result<()> {
+        // get nonce and make unsigned transaction
+        let nonce = get_latest_nonce(
+            self.sequencer_cometbft_client.clone(),
+            self.signer.address,
+            self.state.clone(),
+        )
+        .await?;
+        debug!(nonce, "fetched latest nonce");
+
+        let unsigned = UnsignedTransaction {
+            actions,
+            params: TransactionParams {
+                nonce,
+                chain_id: self.sequencer_chain_id.clone(),
+            },
+        };
+
+        // sign transaction
+        let signed = unsigned.into_signed(&self.signer.signing_key);
+        debug!(tx_hash = %telemetry::display::hex(&signed.sha256_of_proto_encoding()), "signed transaction");
+
+        // submit transaction and handle response
+        let rsp = submit_tx(
+            self.sequencer_cometbft_client.clone(),
+            signed,
+            self.state.clone(),
+        )
+        .await
+        .context("failed to submit transaction to to cometbft")?;
+
+        match rsp.check_tx.code {
+            tendermint::abci::Code::Ok => {
+                // update state after successful submission
+                info!(
+                    sequencer.block = rsp.height.value(),
+                    sequencer.tx_hash = ?rsp.hash,
+                    rollup.height = rollup_height,
+                    "withdraw batch successfully executed"
+                );
+                self.state.set_last_rollup_height_submitted(rollup_height);
+                self.state.set_last_sequencer_height(rsp.height.value());
+                self.state.set_last_sequencer_tx_hash(rsp.hash);
+                Ok(())
+            }
+            tendermint::abci::Code::Err(check_tx_code) => {
+                // handle check_tx failure
+                error!(
+                    abci.code = check_tx_code,
+                    abci.log = rsp.check_tx.log,
+                    rollup.height = rollup_height,
+                    "transaction failed to be included in the mempool, aborting batch submission"
+                );
+                return Err(eyre!("check_tx failure upon submitting transaction"));
+            }
+        }
+    }
 }
 
 /// Queries the sequencer for the latest nonce with an exponential backoff
-#[instrument(name = "get latest nonce", skip_all, fields(%address))]
+#[instrument(name = "get_latest_nonce", skip_all, fields(%address))]
 async fn get_latest_nonce(
     client: sequencer_client::HttpClient,
     address: Address,
@@ -194,13 +213,13 @@ async fn get_latest_nonce(
     res
 }
 
-/// Queries the sequencer for the latest nonce with an exponential backoff
+/// Submits a `SignedTransaction` to the sequencer with an exponential backoff
 #[instrument(
-    name = "submit signed transaction",
+    name = "submit_tx",
     skip_all,
     fields(
         nonce = tx.unsigned_transaction().params.nonce,
-        transaction.hash = hex::encode(sha256(&tx.to_raw().encode_to_vec())),
+        transaction.hash = %telemetry::display::hex(&tx.sha256_of_proto_encoding()),
     )
 )]
 async fn submit_tx(
@@ -210,9 +229,6 @@ async fn submit_tx(
 ) -> eyre::Result<tx_commit::Response> {
     let nonce = tx.unsigned_transaction().params.nonce;
     metrics::gauge!(crate::metrics_init::CURRENT_NONCE).set(nonce);
-
-    // TODO: change to info and log tx hash (to match info log in `SubmitFut`'s response handling
-    // logic)
     let start = std::time::Instant::now();
     debug!("submitting signed transaction to sequencer");
     let span = Span::current();
@@ -257,9 +273,4 @@ async fn submit_tx(
     metrics::histogram!(crate::metrics_init::SEQUENCER_SUBMISSION_LATENCY).record(start.elapsed());
 
     res
-}
-
-fn sha256(data: &[u8]) -> [u8; 32] {
-    use sha2::Sha256;
-    Sha256::digest(data)
 }

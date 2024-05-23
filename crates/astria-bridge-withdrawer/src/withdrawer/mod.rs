@@ -48,7 +48,7 @@ pub struct WithdrawerService {
 }
 
 impl WithdrawerService {
-    /// Instantiates a new `BridgeService`.
+    /// Instantiates a new `WithdrawerService`.
     ///
     /// # Errors
     ///
@@ -61,7 +61,7 @@ impl WithdrawerService {
 
         let state = Arc::new(State::new());
 
-        // make bridge object
+        // make submitter object
         let (submitter, submitter_handle) = submitter::Builder {
             shutdown_token: shutdown_handle.token(),
             cometbft_endpoint: cfg.cometbft_endpoint,
@@ -165,10 +165,10 @@ impl WithdrawerService {
     }
 }
 
-/// A handle for instructing the [`BridgeService`] to shut down.
+/// A handle for instructing the [`WithdrawerService`] to shut down.
 ///
-/// It is returned along with its related `BridgeService` from [`BridgeService::new`].  The
-/// `BridgeService` will begin to shut down as soon as [`ShutdownHandle::shutdown`] is called or
+/// It is returned along with its related `WithdrawerService` from [`WithdrawerService::new`].  The
+/// `WithdrawerService` will begin to shut down as soon as [`ShutdownHandle::shutdown`] is called or
 /// when the `ShutdownHandle` is dropped.
 pub struct ShutdownHandle {
     token: CancellationToken,
@@ -251,8 +251,8 @@ impl Shutdown {
                 .await
                 .map(flatten_result)
             {
-                Ok(Ok(())) => info!("bridge exited gracefully"),
-                Ok(Err(error)) => error!(%error, "bridge exited with an error"),
+                Ok(Ok(())) => info!("withdrawer exited gracefully"),
+                Ok(Err(error)) => error!(%error, "withdrawer exited with an error"),
                 Err(_) => {
                     error!(
                         timeout_secs = limit.as_secs(),
@@ -265,7 +265,8 @@ impl Shutdown {
             info!("submitter task was already dead");
         }
 
-        // Giving bridge 5 seconds to shutdown because Kubernetes issues a SIGKILL after 30.
+        // Giving ethereum watcher 5 seconds to shutdown because Kubernetes issues a SIGKILL after
+        // 30.
         if let Some(mut ethereum_watcher_task) = ethereum_watcher_task {
             info!("waiting for watcher task to shut down");
             let limit = Duration::from_secs(Self::ETHEREUM_WATCHER_SHUTDOWN_TIMEOUT_SECONDS);

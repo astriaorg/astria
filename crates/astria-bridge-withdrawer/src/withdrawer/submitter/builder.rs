@@ -19,7 +19,7 @@ pub(crate) struct Builder {
 }
 
 impl Builder {
-    /// Instantiates an `Executor`.
+    /// Instantiates an `Submitter`.
     pub(crate) fn build(self) -> eyre::Result<(super::Submitter, super::Handle)> {
         let Self {
             shutdown_token,
