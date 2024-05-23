@@ -40,13 +40,17 @@ async fn main() -> ExitCode {
             .register_metrics(metrics_init::register);
     }
 
-    if let Err(e) = telemetry_conf
+    let _telemetry_guard = match telemetry_conf
         .try_init()
         .context("failed to setup telemetry")
     {
-        eprintln!("initializing sequencer failed:\n{e:?}");
-        return ExitCode::FAILURE;
-    }
+        Err(e) => {
+            eprintln!("initializing sequencer failed:\n{e:?}");
+            return ExitCode::FAILURE;
+        }
+        Ok(guard) => guard,
+    };
+
     info!(
         config = serde_json::to_string(&cfg).expect("serializing to a string cannot fail"),
         "initializing sequencer"
