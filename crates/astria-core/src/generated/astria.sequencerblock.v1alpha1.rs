@@ -21,7 +21,6 @@ pub struct RollupTransactions {
 impl ::prost::Name for RollupTransactions {
     const NAME: &'static str = "RollupTransactions";
     const PACKAGE: &'static str = "astria.sequencerblock.v1alpha1";
-
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)
     }
@@ -43,7 +42,9 @@ pub struct SequencerBlock {
     /// `MTH(rollup_transactions)` is the Merkle Tree Hash derived from the
     /// rollup transactions.
     #[prost(message, optional, tag = "3")]
-    pub rollup_transactions_proof: ::core::option::Option<super::super::primitive::v1::Proof>,
+    pub rollup_transactions_proof: ::core::option::Option<
+        super::super::primitive::v1::Proof,
+    >,
     /// The proof that the rollup IDs listed in `rollup_transactions` are included
     /// in the CometBFT block this sequencer block is derived form.
     ///
@@ -62,7 +63,6 @@ pub struct SequencerBlock {
 impl ::prost::Name for SequencerBlock {
     const NAME: &'static str = "SequencerBlock";
     const PACKAGE: &'static str = "astria.sequencerblock.v1alpha1";
-
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)
     }
@@ -93,7 +93,6 @@ pub struct SequencerBlockHeader {
 impl ::prost::Name for SequencerBlockHeader {
     const NAME: &'static str = "SequencerBlockHeader";
     const PACKAGE: &'static str = "astria.sequencerblock.v1alpha1";
-
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)
     }
@@ -131,7 +130,6 @@ pub struct Deposit {
 impl ::prost::Name for Deposit {
     const NAME: &'static str = "Deposit";
     const PACKAGE: &'static str = "astria.sequencerblock.v1alpha1";
-
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)
     }
@@ -152,11 +150,13 @@ pub struct FilteredSequencerBlock {
     pub rollup_transactions: ::prost::alloc::vec::Vec<RollupTransactions>,
     /// The proof that the rollup transactions are included in the CometBFT block this
     /// sequencer block is derived form. This proof together with
-    /// `rollup_transactions_root = Sha256(MTH(rollup_transactions))` must match
-    /// `header.data_hash`. `MTH(rollup_transactions)` is the Merkle Tree Hash derived from the
+    /// `rollup_transactions_root = Sha256(MTH(rollup_transactions))` must match `header.data_hash`.
+    /// `MTH(rollup_transactions)` is the Merkle Tree Hash derived from the
     /// rollup transactions.
     #[prost(message, optional, tag = "4")]
-    pub rollup_transactions_proof: ::core::option::Option<super::super::primitive::v1::Proof>,
+    pub rollup_transactions_proof: ::core::option::Option<
+        super::super::primitive::v1::Proof,
+    >,
     /// The rollup IDs for which `CelestiaRollupBlob`s were submitted to celestia.
     /// Corresponds to the `astria.sequencer.v1.RollupTransactions.rollup_id` field
     /// and is extracted from `astria.SequencerBlock.rollup_transactions`.
@@ -179,7 +179,6 @@ pub struct FilteredSequencerBlock {
 impl ::prost::Name for FilteredSequencerBlock {
     const NAME: &'static str = "FilteredSequencerBlock";
     const PACKAGE: &'static str = "astria.sequencerblock.v1alpha1";
-
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)
     }
@@ -210,7 +209,6 @@ pub mod rollup_data {
 impl ::prost::Name for RollupData {
     const NAME: &'static str = "RollupData";
     const PACKAGE: &'static str = "astria.sequencerblock.v1alpha1";
-
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)
     }
@@ -225,7 +223,6 @@ pub struct SubmittedRollupDataList {
 impl ::prost::Name for SubmittedRollupDataList {
     const NAME: &'static str = "SubmittedRollupDataList";
     const PACKAGE: &'static str = "astria.sequencerblock.v1alpha1";
-
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)
     }
@@ -261,7 +258,6 @@ pub struct SubmittedRollupData {
 impl ::prost::Name for SubmittedRollupData {
     const NAME: &'static str = "SubmittedRollupData";
     const PACKAGE: &'static str = "astria.sequencerblock.v1alpha1";
-
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)
     }
@@ -276,7 +272,6 @@ pub struct SubmittedMetadataList {
 impl ::prost::Name for SubmittedMetadataList {
     const NAME: &'static str = "SubmittedMetadataList";
     const PACKAGE: &'static str = "astria.sequencerblock.v1alpha1";
-
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)
     }
@@ -300,8 +295,8 @@ pub struct SubmittedMetadata {
     /// the block header, which contains sequencer-specific commitments.
     #[prost(message, optional, tag = "2")]
     pub header: ::core::option::Option<SequencerBlockHeader>,
-    /// The rollup IDs that had transactions included in the
-    /// `astria.sequencerblock.v1alpha1.SequencerBlock` that this object is derived from.
+    /// The rollup IDs that had transactions included in the `astria.sequencerblock.v1alpha1.SequencerBlock`
+    /// that this object is derived from.
     /// Corresponds to `astria.sequencerblock.v1alpha1.RollupTransactions.rollup_id`
     /// extracted from `astria.sequencerblock.v1alpha1.SsequencerBlock.rollup_transactions`.
     #[prost(message, repeated, tag = "3")]
@@ -309,7 +304,9 @@ pub struct SubmittedMetadata {
     /// The proof that the rollup transactions are included in sequencer block.
     /// Corresponds to `astria.sequencerblock.v1alpha1.SequencerBlock.rollup_transactions_proof`.
     #[prost(message, optional, tag = "4")]
-    pub rollup_transactions_proof: ::core::option::Option<super::super::primitive::v1::Proof>,
+    pub rollup_transactions_proof: ::core::option::Option<
+        super::super::primitive::v1::Proof,
+    >,
     /// The proof that the rollup IDs are included in sequencer block.
     /// Corresponds to `astria.sequencerblock.v1alpha1.SequencerBlock.rollup_ids_proof`.
     #[prost(message, optional, tag = "5")]
@@ -318,7 +315,6 @@ pub struct SubmittedMetadata {
 impl ::prost::Name for SubmittedMetadata {
     const NAME: &'static str = "SubmittedMetadata";
     const PACKAGE: &'static str = "astria.sequencerblock.v1alpha1";
-
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)
     }
@@ -333,7 +329,6 @@ pub struct GetSequencerBlockRequest {
 impl ::prost::Name for GetSequencerBlockRequest {
     const NAME: &'static str = "GetSequencerBlockRequest";
     const PACKAGE: &'static str = "astria.sequencerblock.v1alpha1";
-
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)
     }
@@ -351,7 +346,6 @@ pub struct GetFilteredSequencerBlockRequest {
 impl ::prost::Name for GetFilteredSequencerBlockRequest {
     const NAME: &'static str = "GetFilteredSequencerBlockRequest";
     const PACKAGE: &'static str = "astria.sequencerblock.v1alpha1";
-
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)
     }
@@ -366,7 +360,6 @@ pub struct GetPendingNonceRequest {
 impl ::prost::Name for GetPendingNonceRequest {
     const NAME: &'static str = "GetPendingNonceRequest";
     const PACKAGE: &'static str = "astria.sequencerblock.v1alpha1";
-
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)
     }
@@ -381,7 +374,6 @@ pub struct GetPendingNonceResponse {
 impl ::prost::Name for GetPendingNonceResponse {
     const NAME: &'static str = "GetPendingNonceResponse";
     const PACKAGE: &'static str = "astria.sequencerblock.v1alpha1";
-
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)
     }
@@ -390,10 +382,8 @@ impl ::prost::Name for GetPendingNonceResponse {
 #[cfg(feature = "client")]
 pub mod sequencer_service_client {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
-    use tonic::codegen::{
-        http::Uri,
-        *,
-    };
+    use tonic::codegen::*;
+    use tonic::codegen::http::Uri;
     #[derive(Debug, Clone)]
     pub struct SequencerServiceClient<T> {
         inner: tonic::client::Grpc<T>,
@@ -418,18 +408,12 @@ pub mod sequencer_service_client {
     {
         pub fn new(inner: T) -> Self {
             let inner = tonic::client::Grpc::new(inner);
-            Self {
-                inner,
-            }
+            Self { inner }
         }
-
         pub fn with_origin(inner: T, origin: Uri) -> Self {
             let inner = tonic::client::Grpc::with_origin(inner, origin);
-            Self {
-                inner,
-            }
+            Self { inner }
         }
-
         pub fn with_interceptor<F>(
             inner: T,
             interceptor: F,
@@ -438,17 +422,17 @@ pub mod sequencer_service_client {
             F: tonic::service::Interceptor,
             T::ResponseBody: Default,
             T: tonic::codegen::Service<
-                    http::Request<tonic::body::BoxBody>,
-                    Response = http::Response<
-                        <T as tonic::client::GrpcService<tonic::body::BoxBody>>::ResponseBody,
-                    >,
+                http::Request<tonic::body::BoxBody>,
+                Response = http::Response<
+                    <T as tonic::client::GrpcService<tonic::body::BoxBody>>::ResponseBody,
                 >,
-            <T as tonic::codegen::Service<http::Request<tonic::body::BoxBody>>>::Error:
-                Into<StdError> + Send + Sync,
+            >,
+            <T as tonic::codegen::Service<
+                http::Request<tonic::body::BoxBody>,
+            >>::Error: Into<StdError> + Send + Sync,
         {
             SequencerServiceClient::new(InterceptedService::new(inner, interceptor))
         }
-
         /// Compress requests with the given encoding.
         ///
         /// This requires the server to support it otherwise it might respond with an
@@ -458,14 +442,12 @@ pub mod sequencer_service_client {
             self.inner = self.inner.send_compressed(encoding);
             self
         }
-
         /// Enable decompressing responses.
         #[must_use]
         pub fn accept_compressed(mut self, encoding: CompressionEncoding) -> Self {
             self.inner = self.inner.accept_compressed(encoding);
             self
         }
-
         /// Limits the maximum size of a decoded message.
         ///
         /// Default: `4MB`
@@ -474,7 +456,6 @@ pub mod sequencer_service_client {
             self.inner = self.inner.max_decoding_message_size(limit);
             self
         }
-
         /// Limits the maximum size of an encoded message.
         ///
         /// Default: `usize::MAX`
@@ -483,76 +464,95 @@ pub mod sequencer_service_client {
             self.inner = self.inner.max_encoding_message_size(limit);
             self
         }
-
         /// Given a block height, returns the sequencer block at that height.
         pub async fn get_sequencer_block(
             &mut self,
             request: impl tonic::IntoRequest<super::GetSequencerBlockRequest>,
         ) -> std::result::Result<tonic::Response<super::SequencerBlock>, tonic::Status> {
-            self.inner.ready().await.map_err(|e| {
-                tonic::Status::new(
-                    tonic::Code::Unknown,
-                    format!("Service was not ready: {}", e.into()),
-                )
-            })?;
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::new(
+                        tonic::Code::Unknown,
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/astria.sequencerblock.v1alpha1.SequencerService/GetSequencerBlock",
             );
             let mut req = request.into_request();
-            req.extensions_mut().insert(GrpcMethod::new(
-                "astria.sequencerblock.v1alpha1.SequencerService",
-                "GetSequencerBlock",
-            ));
+            req.extensions_mut()
+                .insert(
+                    GrpcMethod::new(
+                        "astria.sequencerblock.v1alpha1.SequencerService",
+                        "GetSequencerBlock",
+                    ),
+                );
             self.inner.unary(req, path, codec).await
         }
-
         /// Given a block height and set of rollup ids, returns a SequencerBlock which
         /// is filtered to contain only the transactions that are relevant to the given rollup.
         pub async fn get_filtered_sequencer_block(
             &mut self,
             request: impl tonic::IntoRequest<super::GetFilteredSequencerBlockRequest>,
-        ) -> std::result::Result<tonic::Response<super::FilteredSequencerBlock>, tonic::Status>
-        {
-            self.inner.ready().await.map_err(|e| {
-                tonic::Status::new(
-                    tonic::Code::Unknown,
-                    format!("Service was not ready: {}", e.into()),
-                )
-            })?;
+        ) -> std::result::Result<
+            tonic::Response<super::FilteredSequencerBlock>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::new(
+                        tonic::Code::Unknown,
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/astria.sequencerblock.v1alpha1.SequencerService/GetFilteredSequencerBlock",
             );
             let mut req = request.into_request();
-            req.extensions_mut().insert(GrpcMethod::new(
-                "astria.sequencerblock.v1alpha1.SequencerService",
-                "GetFilteredSequencerBlock",
-            ));
+            req.extensions_mut()
+                .insert(
+                    GrpcMethod::new(
+                        "astria.sequencerblock.v1alpha1.SequencerService",
+                        "GetFilteredSequencerBlock",
+                    ),
+                );
             self.inner.unary(req, path, codec).await
         }
-
         /// Returns the pending nonce for the given account.
         pub async fn get_pending_nonce(
             &mut self,
             request: impl tonic::IntoRequest<super::GetPendingNonceRequest>,
-        ) -> std::result::Result<tonic::Response<super::GetPendingNonceResponse>, tonic::Status>
-        {
-            self.inner.ready().await.map_err(|e| {
-                tonic::Status::new(
-                    tonic::Code::Unknown,
-                    format!("Service was not ready: {}", e.into()),
-                )
-            })?;
+        ) -> std::result::Result<
+            tonic::Response<super::GetPendingNonceResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::new(
+                        tonic::Code::Unknown,
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/astria.sequencerblock.v1alpha1.SequencerService/GetPendingNonce",
             );
             let mut req = request.into_request();
-            req.extensions_mut().insert(GrpcMethod::new(
-                "astria.sequencerblock.v1alpha1.SequencerService",
-                "GetPendingNonce",
-            ));
+            req.extensions_mut()
+                .insert(
+                    GrpcMethod::new(
+                        "astria.sequencerblock.v1alpha1.SequencerService",
+                        "GetPendingNonce",
+                    ),
+                );
             self.inner.unary(req, path, codec).await
         }
     }
@@ -562,8 +562,7 @@ pub mod sequencer_service_client {
 pub mod sequencer_service_server {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
     use tonic::codegen::*;
-    /// Generated trait containing gRPC methods that should be implemented for use with
-    /// SequencerServiceServer.
+    /// Generated trait containing gRPC methods that should be implemented for use with SequencerServiceServer.
     #[async_trait]
     pub trait SequencerService: Send + Sync + 'static {
         /// Given a block height, returns the sequencer block at that height.
@@ -576,12 +575,18 @@ pub mod sequencer_service_server {
         async fn get_filtered_sequencer_block(
             self: std::sync::Arc<Self>,
             request: tonic::Request<super::GetFilteredSequencerBlockRequest>,
-        ) -> std::result::Result<tonic::Response<super::FilteredSequencerBlock>, tonic::Status>;
+        ) -> std::result::Result<
+            tonic::Response<super::FilteredSequencerBlock>,
+            tonic::Status,
+        >;
         /// Returns the pending nonce for the given account.
         async fn get_pending_nonce(
             self: std::sync::Arc<Self>,
             request: tonic::Request<super::GetPendingNonceRequest>,
-        ) -> std::result::Result<tonic::Response<super::GetPendingNonceResponse>, tonic::Status>;
+        ) -> std::result::Result<
+            tonic::Response<super::GetPendingNonceResponse>,
+            tonic::Status,
+        >;
     }
     #[derive(Debug)]
     pub struct SequencerServiceServer<T: SequencerService> {
@@ -596,7 +601,6 @@ pub mod sequencer_service_server {
         pub fn new(inner: T) -> Self {
             Self::from_arc(Arc::new(inner))
         }
-
         pub fn from_arc(inner: Arc<T>) -> Self {
             let inner = _Inner(inner);
             Self {
@@ -607,28 +611,27 @@ pub mod sequencer_service_server {
                 max_encoding_message_size: None,
             }
         }
-
-        pub fn with_interceptor<F>(inner: T, interceptor: F) -> InterceptedService<Self, F>
+        pub fn with_interceptor<F>(
+            inner: T,
+            interceptor: F,
+        ) -> InterceptedService<Self, F>
         where
             F: tonic::service::Interceptor,
         {
             InterceptedService::new(Self::new(inner), interceptor)
         }
-
         /// Enable decompressing requests with the given encoding.
         #[must_use]
         pub fn accept_compressed(mut self, encoding: CompressionEncoding) -> Self {
             self.accept_compression_encodings.enable(encoding);
             self
         }
-
         /// Compress responses with the given encoding, if the client supports it.
         #[must_use]
         pub fn send_compressed(mut self, encoding: CompressionEncoding) -> Self {
             self.send_compression_encodings.enable(encoding);
             self
         }
-
         /// Limits the maximum size of a decoded message.
         ///
         /// Default: `4MB`
@@ -637,7 +640,6 @@ pub mod sequencer_service_server {
             self.max_decoding_message_size = Some(limit);
             self
         }
-
         /// Limits the maximum size of an encoded message.
         ///
         /// Default: `usize::MAX`
@@ -653,37 +655,38 @@ pub mod sequencer_service_server {
         B: Body + Send + 'static,
         B::Error: Into<StdError> + Send + 'static,
     {
+        type Response = http::Response<tonic::body::BoxBody>;
         type Error = std::convert::Infallible;
         type Future = BoxFuture<Self::Response, Self::Error>;
-        type Response = http::Response<tonic::body::BoxBody>;
-
         fn poll_ready(
             &mut self,
             _cx: &mut Context<'_>,
         ) -> Poll<std::result::Result<(), Self::Error>> {
             Poll::Ready(Ok(()))
         }
-
         fn call(&mut self, req: http::Request<B>) -> Self::Future {
             let inner = self.inner.clone();
             match req.uri().path() {
                 "/astria.sequencerblock.v1alpha1.SequencerService/GetSequencerBlock" => {
                     #[allow(non_camel_case_types)]
                     struct GetSequencerBlockSvc<T: SequencerService>(pub Arc<T>);
-                    impl<T: SequencerService>
-                        tonic::server::UnaryService<super::GetSequencerBlockRequest>
-                        for GetSequencerBlockSvc<T>
-                    {
-                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                    impl<
+                        T: SequencerService,
+                    > tonic::server::UnaryService<super::GetSequencerBlockRequest>
+                    for GetSequencerBlockSvc<T> {
                         type Response = super::SequencerBlock;
-
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::GetSequencerBlockRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as SequencerService>::get_sequencer_block(inner, request).await
+                                <T as SequencerService>::get_sequencer_block(inner, request)
+                                    .await
                             };
                             Box::pin(fut)
                         }
@@ -714,23 +717,29 @@ pub mod sequencer_service_server {
                 "/astria.sequencerblock.v1alpha1.SequencerService/GetFilteredSequencerBlock" => {
                     #[allow(non_camel_case_types)]
                     struct GetFilteredSequencerBlockSvc<T: SequencerService>(pub Arc<T>);
-                    impl<T: SequencerService>
-                        tonic::server::UnaryService<super::GetFilteredSequencerBlockRequest>
-                        for GetFilteredSequencerBlockSvc<T>
-                    {
-                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                    impl<
+                        T: SequencerService,
+                    > tonic::server::UnaryService<
+                        super::GetFilteredSequencerBlockRequest,
+                    > for GetFilteredSequencerBlockSvc<T> {
                         type Response = super::FilteredSequencerBlock;
-
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
                         fn call(
                             &mut self,
-                            request: tonic::Request<super::GetFilteredSequencerBlockRequest>,
+                            request: tonic::Request<
+                                super::GetFilteredSequencerBlockRequest,
+                            >,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
                                 <T as SequencerService>::get_filtered_sequencer_block(
-                                    inner, request,
-                                )
-                                .await
+                                        inner,
+                                        request,
+                                    )
+                                    .await
                             };
                             Box::pin(fut)
                         }
@@ -761,20 +770,23 @@ pub mod sequencer_service_server {
                 "/astria.sequencerblock.v1alpha1.SequencerService/GetPendingNonce" => {
                     #[allow(non_camel_case_types)]
                     struct GetPendingNonceSvc<T: SequencerService>(pub Arc<T>);
-                    impl<T: SequencerService>
-                        tonic::server::UnaryService<super::GetPendingNonceRequest>
-                        for GetPendingNonceSvc<T>
-                    {
-                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                    impl<
+                        T: SequencerService,
+                    > tonic::server::UnaryService<super::GetPendingNonceRequest>
+                    for GetPendingNonceSvc<T> {
                         type Response = super::GetPendingNonceResponse;
-
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::GetPendingNonceRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as SequencerService>::get_pending_nonce(inner, request).await
+                                <T as SequencerService>::get_pending_nonce(inner, request)
+                                    .await
                             };
                             Box::pin(fut)
                         }
@@ -802,14 +814,18 @@ pub mod sequencer_service_server {
                     };
                     Box::pin(fut)
                 }
-                _ => Box::pin(async move {
-                    Ok(http::Response::builder()
-                        .status(200)
-                        .header("grpc-status", "12")
-                        .header("content-type", "application/grpc")
-                        .body(empty_body())
-                        .unwrap())
-                }),
+                _ => {
+                    Box::pin(async move {
+                        Ok(
+                            http::Response::builder()
+                                .status(200)
+                                .header("grpc-status", "12")
+                                .header("content-type", "application/grpc")
+                                .body(empty_body())
+                                .unwrap(),
+                        )
+                    })
+                }
             }
         }
     }
