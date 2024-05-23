@@ -138,6 +138,7 @@ async fn app_finalize_block_snapshot() {
     app.finalize_block(finalize_block.clone(), storage.clone())
         .await
         .unwrap();
+    app.commit(storage.clone()).await;
     insta::assert_json_snapshot!(app.app_hash.as_bytes());
 }
 
