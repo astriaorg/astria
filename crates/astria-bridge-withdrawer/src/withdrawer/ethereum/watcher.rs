@@ -214,7 +214,7 @@ fn event_to_action(event_with_metadata: EventWithMetadata) -> eyre::Result<Actio
     let action = BridgeUnlockAction {
         to: event_with_metadata.event.sender.to_fixed_bytes().into(),
         amount: event_with_metadata.event.amount.as_u128(),
-        memo: event_with_metadata.event.memo.to_vec(),
+        memo: event_with_metadata.event.memo.to_vec(), // TODO: store block number and tx hash here
         fee_asset_id: Id::from_denom(FEE_ASSET_ID),
     };
     Ok(Action::BridgeUnlock(action))
@@ -294,7 +294,13 @@ mod tests {
             block_number: receipt.block_number.unwrap(),
             transaction_hash: receipt.transaction_hash,
         };
-        let _expected_action = event_to_action(expected_event).unwrap();
+        let expected_action = event_to_action(expected_event).unwrap();
+        let Action::BridgeUnlock(expected_action) = expected_action else {
+            panic!(
+                "expected action to be BridgeUnlock, got {:?}",
+                expected_action
+            );
+        };
 
         let (event_tx, mut event_rx) = mpsc::channel(100);
         let watcher = Watcher::new(
@@ -314,6 +320,9 @@ mod tests {
 
         let (events, _rollup_height) = event_rx.recv().await.unwrap();
         assert_eq!(events.len(), 1);
-        assert!(matches!(events[0], Action::BridgeUnlock(_)));
+        let Action::BridgeUnlock(action) = &events[0] else {
+            panic!("expected action to be BridgeUnlock, got {:?}", events[0]);
+        };
+        assert_eq!(action, &expected_action);
     }
 }

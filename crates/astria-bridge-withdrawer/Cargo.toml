@@ -14,8 +14,6 @@ name = "astria-bridge-withdrawer"
 [dependencies]
 http = "0.2.9"
 
-pin-project-lite = "0.2.13"
-
 axum = { workspace = true }
 ed25519-consensus = { workspace = true }
 futures = { workspace = true }
@@ -24,6 +22,7 @@ ethers = { workspace = true, features = ["ethers-solc", "ws"] }
 hyper = { workspace = true }
 humantime = { workspace = true }
 metrics = { workspace = true }
+pin-project-lite = { workspace = true }
 prost = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }

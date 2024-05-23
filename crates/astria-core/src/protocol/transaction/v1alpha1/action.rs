@@ -1307,7 +1307,7 @@ enum BridgeLockActionErrorKind {
 }
 
 #[allow(clippy::module_name_repetitions)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BridgeUnlockAction {
     pub to: Address,
     pub amount: u128,
