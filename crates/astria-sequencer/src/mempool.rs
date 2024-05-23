@@ -33,13 +33,6 @@ pub(crate) struct TransactionPriority {
     nonce_diff: u32,
 }
 
-impl TransactionPriority {
-    #[cfg(test)]
-    pub(crate) fn nonce_diff(&self) -> u32 {
-        self.nonce_diff
-    }
-}
-
 impl PartialEq for TransactionPriority {
     fn eq(&self, other: &Self) -> bool {
         self.nonce_diff == other.nonce_diff
@@ -102,7 +95,7 @@ impl EnqueuedTransaction {
     }
 }
 
-/// Only consider `self.hash` for equality. This is consistent with the impl for std `Hash`.
+/// Only consider `self.tx_hash` for equality. This is consistent with the impl for std `Hash`.
 impl PartialEq for EnqueuedTransaction {
     fn eq(&self, other: &Self) -> bool {
         self.tx_hash == other.tx_hash
@@ -111,7 +104,7 @@ impl PartialEq for EnqueuedTransaction {
 
 impl Eq for EnqueuedTransaction {}
 
-/// Only consider `self.hash` when hashing. This is consistent with the impl for equality.
+/// Only consider `self.tx_hash` when hashing. This is consistent with the impl for equality.
 impl std::hash::Hash for EnqueuedTransaction {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.tx_hash.hash(state);
@@ -189,7 +182,7 @@ impl Mempool {
     /// Updates the priority of the txs in the mempool based on the current state, and removes any
     /// that are now invalid.
     ///
-    /// NOTE: this function locks the mempool until every tx has been checked. This could
+    /// *NOTE*: this function locks the mempool until every tx has been checked. This could
     /// potentially stall consensus from moving to the next round if the mempool is large.
     pub(crate) async fn update_priorities<F, O>(
         &self,
