@@ -1059,16 +1059,10 @@ impl App {
             .context("failed to get block fees")?;
 
         for (asset, amount) in fees {
-            let balance = state_tx
-                .get_account_balance(fee_recipient, asset)
-                .await
-                .context("failed to get proposer account balance")?;
-            let new_balance = balance
-                .checked_add(amount)
-                .context("account balance overflowed u128")?;
             state_tx
-                .put_account_balance(fee_recipient, asset, new_balance)
-                .context("failed to put proposer account balance")?;
+                .increase_balance(fee_recipient, asset, amount)
+                .await
+                .context("failed to increase fee recipient balance")?;
         }
 
         // clear block fees
