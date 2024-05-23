@@ -725,7 +725,7 @@ dependencies = [
 
 [[package]]
 name = "astria-sequencer"
-version = "0.12.0"
+version = "0.13.0"
 dependencies = [
  "anyhow",
  "astria-build-info",
