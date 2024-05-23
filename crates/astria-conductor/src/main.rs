@@ -57,13 +57,16 @@ async fn main() -> ExitCode {
             .register_metrics(|| {}); // conductor currently has no metrics
     }
 
-    if let Err(e) = telemetry_conf
+    let _telemetry_guard = match telemetry_conf
         .try_init()
         .wrap_err("failed to setup telemetry")
     {
-        eprintln!("initializing conductor failed:\n{e:?}");
-        return ExitCode::FAILURE;
-    }
+        Err(e) => {
+            eprintln!("initializing conductor failed:\n{e:?}");
+            return ExitCode::FAILURE;
+        }
+        Ok(guard) => guard,
+    };
 
     info!(
         config = serde_json::to_string(&cfg).expect("serializing to a string cannot fail"),
