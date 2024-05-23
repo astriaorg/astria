@@ -134,7 +134,7 @@ async fn app_finalize_block_snapshot() {
         },
         misbehavior: vec![],
     };
-    println!("app hash pre finalize: {:?}", app.app_hash);
+
     app.finalize_block(finalize_block.clone(), storage.clone())
         .await
         .unwrap();
