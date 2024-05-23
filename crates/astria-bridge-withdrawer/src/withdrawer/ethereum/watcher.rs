@@ -1,11 +1,8 @@
 use std::sync::Arc;
 
 use astria_core::{
-    primitive::v1::asset::Id,
-    protocol::transaction::v1alpha1::{
-        action::BridgeUnlockAction,
-        Action,
-    },
+    primitive::v1::asset,
+    protocol::transaction::v1alpha1::Action,
 };
 use astria_eyre::{
     eyre::{
@@ -39,9 +36,14 @@ use super::astria_withdrawer::{
     astria_withdrawer::WithdrawalFilter,
     AstriaWithdrawer,
 };
-use crate::withdrawer::state::State;
-
-const FEE_ASSET_ID: &str = "fee";
+use crate::withdrawer::{
+    batch::{
+        event_to_action,
+        Batch,
+        EventWithMetadata,
+    },
+    state::State,
+};
 
 /// Watches for withdrawal events emitted by the `AstriaWithdrawer` contract.
 pub(crate) struct Watcher {
@@ -59,6 +61,7 @@ impl Watcher {
         batch_tx: mpsc::Sender<(Vec<Action>, u64)>,
         shutdown_token: &CancellationToken,
         state: Arc<State>,
+        fee_asset_id: asset::Id,
     ) -> Result<Self> {
         let provider = Arc::new(
             Provider::<Ws>::connect(ethereum_rpc_endpoint)
@@ -70,7 +73,9 @@ impl Watcher {
         let contract = AstriaWithdrawer::new(contract_address, provider);
 
         let (event_tx, event_rx) = mpsc::channel(100);
-        let batcher = Batcher::new(event_rx, batch_tx, shutdown_token);
+
+        // TODO: verify fee_asset_id against sequencer
+        let batcher = Batcher::new(event_rx, batch_tx, shutdown_token, fee_asset_id);
         Ok(Self {
             contract,
             event_tx,
@@ -126,39 +131,35 @@ impl Watcher {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub(crate) struct EventWithMetadata {
-    event: WithdrawalFilter,
-    /// The block in which the log was emitted
-    block_number: U64,
-    /// The transaction hash in which the log was emitted
-    transaction_hash: TxHash,
-}
-
 struct Batcher {
     event_rx: mpsc::Receiver<(WithdrawalFilter, LogMeta)>,
-    batch_tx: mpsc::Sender<(Vec<Action>, u64)>,
+    batch_tx: mpsc::Sender<Batch>,
     shutdown_token: CancellationToken,
+    fee_asset_id: asset::Id,
 }
 
 impl Batcher {
     pub(crate) fn new(
         event_rx: mpsc::Receiver<(WithdrawalFilter, LogMeta)>,
-        batch_tx: mpsc::Sender<(Vec<Action>, u64)>,
+        batch_tx: mpsc::Sender<Batch>,
         shutdown_token: &CancellationToken,
+        fee_asset_id: asset::Id,
     ) -> Self {
         Self {
             event_rx,
             batch_tx,
             shutdown_token: shutdown_token.clone(),
+            fee_asset_id,
         }
     }
 }
 
 impl Batcher {
     pub(crate) async fn run(mut self) -> Result<()> {
-        let mut actions = Vec::new();
-        let mut last_block_number: U64 = 0.into();
+        let mut curr_batch = Batch {
+            actions: Vec::new(),
+            rollup_height: 0,
+        };
 
         loop {
             select! {
@@ -173,22 +174,24 @@ impl Batcher {
                             block_number: meta.block_number,
                             transaction_hash: meta.transaction_hash,
                         };
-                        let action = event_to_action(event_with_metadata)?;
+                        let action = event_to_action(event_with_metadata, self.fee_asset_id)?;
 
-                        if meta.block_number == last_block_number {
+                        if meta.block_number.into() == curr_batch.rollup_height {
                             // block number was the same; add event to current batch
-                            actions.push(action);
+                            curr_batch.actions.push(action);
                         } else {
                             // block number increased; send current batch and start a new one
-                            if !actions.is_empty() {
+                            if !curr_batch.actions.is_empty() {
                                 self.batch_tx
-                                    .send((actions, last_block_number.as_u64()))
+                                    .send(curr_batch)
                                     .await
                                     .wrap_err("failed to send batched events; receiver dropped?")?;
                             }
 
-                            actions = vec![action];
-                            last_block_number = meta.block_number;
+                            curr_batch = Batch {
+                                actions: vec![action],
+                                rollup_height = meta.block_number.into()
+                            };
                         }
                     }
                 }
@@ -210,16 +213,6 @@ fn address_from_string(s: &str) -> Result<ethers::types::Address> {
     Ok(address.into())
 }
 
-fn event_to_action(event_with_metadata: EventWithMetadata) -> eyre::Result<Action> {
-    let action = BridgeUnlockAction {
-        to: event_with_metadata.event.sender.to_fixed_bytes().into(),
-        amount: event_with_metadata.event.amount.as_u128(),
-        memo: event_with_metadata.event.memo.to_vec(), // TODO: store block number and tx hash here
-        fee_asset_id: Id::from_denom(FEE_ASSET_ID),
-    };
-    Ok(Action::BridgeUnlock(action))
-}
-
 #[cfg(test)]
 mod tests {
     use ethers::{
@@ -234,7 +227,10 @@ mod tests {
     };
 
     use super::*;
-    use crate::withdrawer::ethereum::test_utils::deploy_astria_withdrawer;
+    use crate::withdrawer::{
+        batch::EventWithMetadata,
+        ethereum::test_utils::deploy_astria_withdrawer,
+    };
 
     #[test]
     fn address_from_string_prefix() {
@@ -294,7 +290,8 @@ mod tests {
             block_number: receipt.block_number.unwrap(),
             transaction_hash: receipt.transaction_hash,
         };
-        let expected_action = event_to_action(expected_event).unwrap();
+        let expected_action =
+            event_to_action(expected_event, asset::Id::from_denom("nria")).unwrap();
         let Action::BridgeUnlock(expected_action) = expected_action else {
             panic!(
                 "expected action to be BridgeUnlock, got {:?}",
@@ -309,6 +306,7 @@ mod tests {
             event_tx,
             &CancellationToken::new(),
             Arc::new(State::new()),
+            asset::Id::from_denom("nria"),
         )
         .await
         .unwrap();

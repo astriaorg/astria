@@ -39,19 +39,22 @@ use tracing::{
     Span,
 };
 
-use super::state;
+use super::{
+    batch::Batch,
+    state,
+};
 
 mod builder;
 mod signer;
 
 pub(super) struct Handle {
-    pub(super) batches_tx: mpsc::Sender<(Vec<Action>, u64)>,
+    pub(super) batches_tx: mpsc::Sender<Batch>,
 }
 
 pub(super) struct Submitter {
     shutdown_token: CancellationToken,
     state: Arc<State>,
-    batches_rx: mpsc::Receiver<(Vec<Action>, u64)>,
+    batches_rx: mpsc::Receiver<Batch>,
     sequencer_cometbft_client: sequencer_client::HttpClient,
     signer: SequencerSigner,
     sequencer_chain_id: String,
@@ -71,7 +74,7 @@ impl Submitter {
                 }
 
                 batch = self.batches_rx.recv() => {
-                    let Some((actions, rollup_height)) = batch else {
+                    let Some(Batch { actions, rollup_height }) = batch else {
                         info!("received None from batch channel, shutting down");
                         break Err(eyre!("batch channel closed"));
                     };
@@ -132,31 +135,38 @@ impl Submitter {
         )
         .await
         .context("failed to submit transaction to to cometbft")?;
-
-        match rsp.check_tx.code {
-            tendermint::abci::Code::Ok => {
-                // update state after successful submission
-                info!(
-                    sequencer.block = rsp.height.value(),
-                    sequencer.tx_hash = ?rsp.hash,
-                    rollup.height = rollup_height,
-                    "withdraw batch successfully executed"
-                );
-                self.state.set_last_rollup_height_submitted(rollup_height);
-                self.state.set_last_sequencer_height(rsp.height.value());
-                self.state.set_last_sequencer_tx_hash(rsp.hash);
-                Ok(())
-            }
-            tendermint::abci::Code::Err(check_tx_code) => {
-                // handle check_tx failure
-                error!(
-                    abci.code = check_tx_code,
-                    abci.log = rsp.check_tx.log,
-                    rollup.height = rollup_height,
-                    "transaction failed to be included in the mempool, aborting batch submission"
-                );
-                return Err(eyre!("check_tx failure upon submitting transaction"));
-            }
+        if let tendermint::abci::Code::Err(check_tx_code) = rsp.check_tx.code {
+            error!(
+                abci.code = check_tx_code,
+                abci.log = rsp.check_tx.log,
+                rollup.height = rollup_height,
+                "transaction failed to be included in the mempool, aborting."
+            );
+            Err(eyre!(
+                "check_tx failure upon submitting transaction to sequencer"
+            ))
+        } else if let tendermint::abci::Code::Err(deliver_tx_code) = rsp.tx_result.code {
+            error!(
+                abci.code = deliver_tx_code,
+                abci.log = rsp.tx_result.log,
+                rollup.height = rollup_height,
+                "transaction failed to be executed in a block, aborting."
+            );
+            Err(eyre!(
+                "deliver_tx failure upon submitting transaction to sequencer"
+            ))
+        } else {
+            // update state after successful submission
+            info!(
+                sequencer.block = rsp.height.value(),
+                sequencer.tx_hash = ?rsp.hash,
+                rollup.height = rollup_height,
+                "withdraw batch successfully executed."
+            );
+            self.state.set_last_rollup_height_submitted(rollup_height);
+            self.state.set_last_sequencer_height(rsp.height.value());
+            self.state.set_last_sequencer_tx_hash(rsp.hash);
+            Ok(())
         }
     }
 }

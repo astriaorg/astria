@@ -34,6 +34,7 @@ use crate::{
     config::Config,
 };
 
+mod batch;
 mod ethereum;
 mod state;
 mod submitter;
@@ -56,7 +57,14 @@ impl WithdrawerService {
     pub async fn new(cfg: Config) -> eyre::Result<(Self, ShutdownHandle)> {
         let shutdown_handle = ShutdownHandle::new();
         let Config {
-            api_addr, ..
+            api_addr,
+            cometbft_endpoint,
+            sequencer_chain_id,
+            sequencer_key_path,
+            fee_asset_id_str,
+            ethereum_contract_address,
+            ethereum_rpc_endpoint,
+            ..
         } = cfg;
 
         let state = Arc::new(State::new());
@@ -64,21 +72,21 @@ impl WithdrawerService {
         // make submitter object
         let (submitter, submitter_handle) = submitter::Builder {
             shutdown_token: shutdown_handle.token(),
-            cometbft_endpoint: cfg.cometbft_endpoint,
-            sequencer_chain_id: cfg.sequencer_chain_id,
-            sequencer_key_path: cfg.sequencer_key_path,
+            cometbft_endpoint,
+            sequencer_chain_id,
+            sequencer_key_path,
             state: state.clone(),
         }
         .build()
         .wrap_err("failed to initialize submitter")?;
 
-        // TODO: use event_rx in the sequencer submitter
         let ethereum_watcher = Watcher::new(
-            &cfg.ethereum_contract_address,
-            &cfg.ethereum_rpc_endpoint,
+            &ethereum_contract_address,
+            &ethereum_rpc_endpoint,
             submitter_handle.batches_tx,
             &shutdown_handle.token(),
             state.clone(),
+            asset::Id::from_denom(fee_asset_id_str),
         )
         .await
         .wrap_err("failed to initialize ethereum watcher")?;
