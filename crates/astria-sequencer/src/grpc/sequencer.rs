@@ -6,8 +6,8 @@ use astria_core::{
         FilteredSequencerBlock as RawFilteredSequencerBlock,
         GetFilteredSequencerBlockRequest,
         GetPendingNonceRequest,
+        GetPendingNonceResponse,
         GetSequencerBlockRequest,
-        PendingNonce as RawPendingNonce,
         SequencerBlock as RawSequencerBlock,
     },
     primitive::v1::RollupId,
@@ -18,7 +18,11 @@ use tonic::{
     Response,
     Status,
 };
-use tracing::instrument;
+use tracing::{
+    error,
+    info,
+    instrument,
+};
 
 use crate::{
     api_state_ext::StateReadExt as _,
@@ -162,24 +166,30 @@ impl SequencerService for SequencerServer {
     async fn get_pending_nonce(
         self: Arc<Self>,
         request: Request<GetPendingNonceRequest>,
-    ) -> Result<Response<RawPendingNonce>, Status> {
+    ) -> Result<Response<GetPendingNonceResponse>, Status> {
         use astria_core::primitive::v1::Address;
 
         use crate::accounts::state_ext::StateReadExt as _;
 
         let request = request.into_inner();
         let Some(address) = request.address else {
+            info!("required field address was not set",);
             return Err(Status::invalid_argument(
                 "required field address was not set",
             ));
         };
 
-        let address = Address::try_from_raw(&address)
-            .map_err(|e| Status::invalid_argument(format!("invalid address: {e}")))?;
+        let address = Address::try_from_raw(&address).map_err(|e| {
+            info!(
+                error = %e,
+                "failed to parse address from request",
+            );
+            Status::invalid_argument(format!("invalid address: {e}"))
+        })?;
         let nonce = self.mempool.pending_nonce(&address).await;
 
         if let Some(nonce) = nonce {
-            return Ok(Response::new(RawPendingNonce {
+            return Ok(Response::new(GetPendingNonceResponse {
                 inner: nonce,
             }));
         }
@@ -187,10 +197,14 @@ impl SequencerService for SequencerServer {
         // nonce wasn't in mempool, so just look it up from storage
         let snapshot = self.storage.latest_snapshot();
         let nonce = snapshot.get_account_nonce(address).await.map_err(|e| {
+            error!(
+                error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                "failed to parse get account nonce from storage",
+            );
             Status::internal(format!("failed to get account nonce from storage: {e}"))
         })?;
 
-        Ok(Response::new(RawPendingNonce {
+        Ok(Response::new(GetPendingNonceResponse {
             inner: nonce,
         }))
     }

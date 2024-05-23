@@ -24,7 +24,7 @@ message GetPendingNonceRequest {
   astria.primitive.v1.Address address = 1 [(google.api.field_behavior) = REQUIRED];
 }
 
-message PendingNonce {
+message GetPendingNonceResponse {
   // The pending nonce for the given account.
   uint32 inner = 1;
 }
@@ -45,7 +45,7 @@ service SequencerService {
   }
 
   // Returns the pending nonce for the given account.
-  rpc GetPendingNonce(GetPendingNonceRequest) returns (PendingNonce) {
+  rpc GetPendingNonce(GetPendingNonceRequest) returns (GetPendingNonceResponse) {
     option (google.api.http) = {get: "/v1alpha1/sequencer/pendingnonce/{account}"};
   }
 }
