@@ -1140,7 +1140,7 @@ async fn update_mempool_after_finalization<S: StateReadExt>(
 
     let mut txs_to_remove = Vec::new();
 
-    for (tx, priority) in mempool.inner().await.iter_mut() {
+    for (tx, priority) in mempool.write().await.iter_mut() {
         match TransactionPriority::new(
             tx.nonce(),
             state

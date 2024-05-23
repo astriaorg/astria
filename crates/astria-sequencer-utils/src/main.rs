@@ -1,14 +1,18 @@
+use astria_eyre::eyre::Result;
 use astria_sequencer_utils::{
-    config::Config,
-    genesis_parser::GenesisParser,
+    blob_parser,
+    cli::{
+        self,
+        Command,
+    },
+    genesis_parser,
 };
 
-fn main() {
+fn main() -> Result<()> {
     astria_eyre::install()
         .expect("the astria eyre install hook must be called before eyre reports are constructed");
-    let config = Config::get();
-
-    println!("running genesis parser");
-    GenesisParser::propagate_app_state(config).expect("failed to propagate data");
-    println!("genesis parsing complete");
+    match cli::get() {
+        Command::CopyGenesisState(args) => genesis_parser::run(args),
+        Command::ParseBlob(args) => blob_parser::run(args),
+    }
 }

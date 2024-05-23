@@ -13,11 +13,11 @@ images:
     devTag: latest
   conductor:
     repo: ghcr.io/astriaorg/conductor
-    tag: "0.15.0"
+    tag: "0.16.0"
     devTag: latest
   composer:
     repo: ghcr.io/astriaorg/composer
-    tag: "0.6.0"
+    tag: "0.7.0"
     devTag: latest
 
   # Rollup faucet
@@ -155,7 +155,12 @@ config:
     # the corresponding account given a balance in genesis accounts.
     # Note: When secretProvider.enabled is true the secret provided by
     #       `evmPrivateKey` is used instead of this value.
-    privateKey: "8b3a7999072c9c9314c084044fe705db11714c6c4ed7cddb64da18ea270dd203"
+    privateKey:
+      devContent: "8b3a7999072c9c9314c084044fe705db11714c6c4ed7cddb64da18ea270dd203"
+      secret:
+        filename: "key.hex"
+        resourceName: "projects/$PROJECT_ID/secrets/sequencerPrivateKey/versions/latest"
+        key: token
     # The amount of token to give per request
     amount: 1
 
@@ -173,7 +178,11 @@ config:
     # Private key which is used for wrapping txs for sequencer submission
     # Note: When secretProvider.enabled is true the secret provided by
     #       `sequencerPrivateKey` is used instead of this value.
-    privateKey: "2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90"
+    privateKey:
+      devContent: "2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90"
+      secret:
+        filename: "key.hex"
+        resourceName: "projects/$PROJECT_ID/secrets/sequencerPrivateKey/versions/latest"
 
   celestia:
     # if config.rollup.executionLevel is NOT 'SoftOnly' AND celestia-node is not enabled
@@ -210,17 +219,10 @@ celestia-node:
 secretProvider:
   enabled: false
   provider: gcp
-  secrets:
-    # Used in place of sequencer.privateKey value when provider enabled
-    sequencerPrivateKey:
-      filename: sequencerPrivateKey.txt
-      resourceName: "projects/$PROJECT_ID/secrets/sequencerPrivateKey/versions/latest"
-      key: token
-    # Used in place of faucet.privateKey value when provider enabled
-    evmPrivateKey:
-      filename: evmPrivateKey.txt
-      resourceName: "projects/$PROJECT_ID/secrets/evmPrivateKey/versions/latest"
-      key: token
+  parametersTemplate: |-
+    secrets: |
+      - resourceName: {{ .key.resourceName }}
+        fileName: "{{ .key.filename }}"
 
 ingress:
   enabled: true
