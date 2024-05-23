@@ -22,7 +22,10 @@ impl TransactionPriority {
     fn nonce_diff(&self) -> u32 {
         self.transaction_nonce
             .checked_sub(self.current_account_nonce)
-            .expect("transaction nonce should not be less than current account nonce")
+            .expect(
+                "invariant violated: transaction nonce should not be less than current account \
+                 nonce",
+            )
     }
 }
 

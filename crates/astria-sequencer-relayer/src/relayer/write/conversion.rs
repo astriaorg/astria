@@ -180,7 +180,7 @@ pub(super) enum TryIntoPayloadError {
          could not be constructed"
     )]
     NoSequencerNamespacePresent,
-    #[error("the payload is too large")]
+    #[error("the payload size exceeded `u64::MAX` bytes")]
     PayloadSize,
 }
 

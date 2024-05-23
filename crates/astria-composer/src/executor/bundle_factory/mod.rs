@@ -87,10 +87,7 @@ impl SizedBundle {
             return Err(SizedBundleError::SequenceActionTooLarge(seq_action));
         }
 
-        let new_size = self
-            .curr_size
-            .checked_add(seq_action_size)
-            .ok_or_else(|| SizedBundleError::NotEnoughSpace(seq_action.clone()))?;
+        let new_size = self.curr_size.saturating_add(seq_action_size);
 
         if new_size > self.max_size {
             return Err(SizedBundleError::NotEnoughSpace(seq_action));

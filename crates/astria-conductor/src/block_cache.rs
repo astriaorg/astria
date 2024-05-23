@@ -52,7 +52,7 @@ impl<T> BlockCache<T> {
         self.next_height = self
             .next_height
             .checked_add(1)
-            .expect("block height should not be `u64::MAX`");
+            .expect("block height must not exceed `u64::MAX`");
         Some(block)
     }
 

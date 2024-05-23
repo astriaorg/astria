@@ -607,7 +607,10 @@ impl Future for SubmitFut {
                             metrics::histogram!(crate::metrics_init::TRANSACTIONS_PER_SUBMISSION)
                                 .record(this.bundle.actions_count() as f64);
 
-                            return Poll::Ready(Ok(this.nonce.wrapping_add(1)));
+                            return Poll::Ready(Ok(this
+                                .nonce
+                                .checked_add(1)
+                                .expect("nonce should not overflow")));
                         };
                         match AbciErrorCode::from(code) {
                             AbciErrorCode::INVALID_NONCE => {

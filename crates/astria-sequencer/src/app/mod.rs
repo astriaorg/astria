@@ -602,7 +602,7 @@ impl App {
         txs: Vec<SignedTransaction>,
         block_size_constraints: &mut BlockSizeConstraints,
     ) -> anyhow::Result<()> {
-        let mut excluded_tx_count = 0.0_f64;
+        let mut excluded_tx_count = 0_f64;
         let mut execution_results = Vec::new();
 
         for tx in txs {
