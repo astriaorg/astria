@@ -18,7 +18,6 @@ dirs = "5.0"
 futures-bounded = "0.2.3"
 http = "0.2.9"
 k256 = "0.13.3"
-pin-project-lite = "0.2"
 serde_path_to_error = "0.1.13"
 
 axum = { workspace = true }
@@ -33,6 +32,7 @@ itertools = { workspace = true }
 itoa = { workspace = true }
 metrics = { workspace = true }
 pbjson-types = { workspace = true }
+pin-project-lite = { workspace = true }
 prost = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }

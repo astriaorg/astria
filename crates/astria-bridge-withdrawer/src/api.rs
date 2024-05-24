@@ -21,38 +21,38 @@ use hyper::server::conn::AddrIncoming;
 use serde::Serialize;
 use tokio::sync::watch;
 
-use crate::ethereum;
+use crate::withdrawer::StateSnapshot;
 
 pub(crate) type ApiServer = axum::Server<AddrIncoming, IntoMakeService<Router>>;
 
-type BridgeState = watch::Receiver<ethereum::StateSnapshot>;
+type WithdrawerState = watch::Receiver<StateSnapshot>;
 
 #[derive(Clone)]
 /// `AppState` is used for as an axum extractor in its method handlers.
 struct AppState {
-    bridge_state: BridgeState,
+    withdrawer_state: WithdrawerState,
 }
 
-impl FromRef<AppState> for BridgeState {
+impl FromRef<AppState> for WithdrawerState {
     fn from_ref(app_state: &AppState) -> Self {
-        app_state.bridge_state.clone()
+        app_state.withdrawer_state.clone()
     }
 }
 
-pub(crate) fn start(socket_addr: SocketAddr, bridge_state: BridgeState) -> ApiServer {
+pub(crate) fn start(socket_addr: SocketAddr, withdrawer_state: WithdrawerState) -> ApiServer {
     let app = Router::new()
         .route("/healthz", get(get_healthz))
         .route("/readyz", get(get_readyz))
         .route("/status", get(get_status))
         .with_state(AppState {
-            bridge_state,
+            withdrawer_state,
         });
     axum::Server::bind(&socket_addr).serve(app.into_make_service())
 }
 
 #[allow(clippy::unused_async)] // Permit because axum handlers must be async
-async fn get_healthz(State(bridge_state): State<BridgeState>) -> Healthz {
-    if bridge_state.borrow().is_healthy() {
+async fn get_healthz(State(withdrawer_state): State<WithdrawerState>) -> Healthz {
+    if withdrawer_state.borrow().is_healthy() {
         Healthz::Ok
     } else {
         Healthz::Degraded
@@ -66,9 +66,9 @@ async fn get_healthz(State(bridge_state): State<BridgeState>) -> Healthz {
 /// + there is a current sequencer height (implying a block from sequencer was received)
 /// + there is a current data availability height (implying a height was received from the DA)
 #[allow(clippy::unused_async)] // Permit because axum handlers must be async
-async fn get_readyz(State(bridge_state): State<BridgeState>) -> Readyz {
-    let is_bridge_online = bridge_state.borrow().is_ready();
-    if is_bridge_online {
+async fn get_readyz(State(withdrawer_state): State<WithdrawerState>) -> Readyz {
+    let is_withdrawer_online = withdrawer_state.borrow().is_ready();
+    if is_withdrawer_online {
         Readyz::Ok
     } else {
         Readyz::NotReady
@@ -76,8 +76,8 @@ async fn get_readyz(State(bridge_state): State<BridgeState>) -> Readyz {
 }
 
 #[allow(clippy::unused_async)] // Permit because axum handlers must be async
-async fn get_status(State(bridge_state): State<BridgeState>) -> Json<ethereum::StateSnapshot> {
-    Json(bridge_state.borrow().clone())
+async fn get_status(State(withdrawer_state): State<WithdrawerState>) -> Json<StateSnapshot> {
+    Json(withdrawer_state.borrow().clone())
 }
 
 enum Healthz {

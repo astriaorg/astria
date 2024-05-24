@@ -11,11 +11,18 @@ use serde::{
 pub struct Config {
     // The cometbft rpc endpoint for submitting transactions to the sequencer.
     pub cometbft_endpoint: String,
+    // The chain id of the sequencer chain.
+    pub sequencer_chain_id: String,
+    // The path to the private key used to sign transactions submitted to the sequencer.
+    pub sequencer_key_path: String,
+    // The fee asset denomination to use for the bridge account's transactions.
+    pub fee_asset_denomination: String,
+    // The asset denomination being withdrawn from the rollup.
+    pub rollup_asset_denomination: String,
     // The address of the AstriaWithdrawer contract on the evm rollup.
     pub ethereum_contract_address: String,
     // The rpc endpoint of the evm rollup.
     pub ethereum_rpc_endpoint: String,
-
     // The socket address at which the bridge service will server healthz, readyz, and status
     // calls.
     pub api_addr: String,
