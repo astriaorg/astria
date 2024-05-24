@@ -25,7 +25,6 @@ use serde::{
     Deserialize,
     Serialize,
 };
-use tendermint::block::Height;
 
 use super::ethereum::astria_withdrawer::{
     Ics20WithdrawalFilter,

@@ -1,12 +1,8 @@
 use std::sync::Arc;
 
-use astria_core::{
-    primitive::v1::asset,
-    protocol::transaction::v1alpha1::Action,
-};
+use astria_core::primitive::v1::asset;
 use astria_eyre::{
     eyre::{
-        self,
         eyre,
         WrapErr as _,
     },
@@ -18,10 +14,6 @@ use ethers::{
         Provider,
         StreamExt as _,
         Ws,
-    },
-    types::{
-        TxHash,
-        U64,
     },
     utils::hex,
 };
@@ -39,17 +31,8 @@ use crate::withdrawer::{
         EventWithMetadata,
         WithdrawalEvent,
     },
-    ethereum::astria_withdrawer::{
-        astria_withdrawer::{
-            Ics20WithdrawalFilter,
-            SequencerWithdrawalFilter,
-        },
-        AstriaWithdrawer,
-    },
-    state::{
-        State,
-        StateSnapshot,
-    },
+    ethereum::astria_withdrawer::AstriaWithdrawer,
+    state::State,
 };
 
 /// Watches for withdrawal events emitted by the `AstriaWithdrawer` contract.
@@ -115,6 +98,8 @@ impl Watcher {
             event_tx.clone(),
             1,
         ));
+
+        state.set_watcher_ready();
 
         tokio::select! {
             res = sequencer_withdrawal_event_handler => {
@@ -269,6 +254,7 @@ fn address_from_string(s: &str) -> Result<ethers::types::Address> {
 
 #[cfg(test)]
 mod tests {
+    use astria_core::protocol::transaction::v1alpha1::Action;
     use ethers::{
         prelude::SignerMiddleware,
         providers::Middleware,
@@ -283,7 +269,13 @@ mod tests {
     use super::*;
     use crate::withdrawer::{
         batch::EventWithMetadata,
-        ethereum::test_utils::deploy_astria_withdrawer,
+        ethereum::{
+            astria_withdrawer::{
+                Ics20WithdrawalFilter,
+                SequencerWithdrawalFilter,
+            },
+            test_utils::deploy_astria_withdrawer,
+        },
     };
 
     #[test]
@@ -372,9 +364,15 @@ mod tests {
         // make another tx to trigger anvil to make another block
         send_sequencer_withdraw_transaction(&contract, value, recipient).await;
 
-        let events = event_rx.recv().await.unwrap();
-        assert_eq!(events.len(), 1);
-        assert_eq!(events[0], expected_event);
+        let batch = event_rx.recv().await.unwrap();
+        assert_eq!(batch.actions.len(), 1);
+        let Action::BridgeUnlock(action) = &batch.actions[0] else {
+            panic!(
+                "expected action to be BridgeUnlock, got {:?}",
+                batch.actions[0]
+            );
+        };
+        assert_eq!(action, &expected_action);
     }
 
     async fn send_ics20_withdraw_transaction<M: Middleware>(
@@ -432,7 +430,7 @@ mod tests {
             &anvil.ws_endpoint(),
             event_tx,
             &CancellationToken::new(),
-            State::new(),
+            Arc::new(State::new()),
             asset::Id::from_denom("nria"),
         )
         .await
