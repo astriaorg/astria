@@ -230,7 +230,7 @@ mod tests {
         let Action::Ics20Withdrawal(mut action) = action else {
             panic!("expected Ics20Withdrawal action, got {:?}", action);
         };
-        
+
         // TODO: instead of zeroing this, we should pass in the latest block time to the function
         // and generate the timeout time from that.
         action.timeout_time = 0; // zero this for testing
