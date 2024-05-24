@@ -10,7 +10,10 @@ use astria_eyre::eyre::{
 };
 use sequencer_client::tendermint_rpc;
 use tokio_util::sync::CancellationToken;
-use tracing::warn;
+use tracing::{
+    info,
+    warn,
+};
 
 use super::state::State;
 
@@ -36,6 +39,7 @@ impl Builder {
         } = self;
 
         let signer = super::signer::SequencerSigner::from_path(sequencer_key_path)?;
+        info!(address = %telemetry::display::hex(&signer.address), "loaded sequencer signer");
         let (batches_tx, batches_rx) = tokio::sync::mpsc::channel(BATCH_QUEUE_SIZE);
 
         let sequencer_cometbft_client = sequencer_client::HttpClient::new(&*cometbft_endpoint)
