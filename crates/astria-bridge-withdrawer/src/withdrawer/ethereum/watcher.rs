@@ -443,11 +443,12 @@ mod tests {
             transaction_hash: receipt.transaction_hash,
         };
         let denom = Denom::from("transfer/channel-0/utia".to_string());
-        let Action::Ics20Withdrawal(expected_action) =
+        let Action::Ics20Withdrawal(mut expected_action) =
             event_to_action(expected_event, denom.id(), denom.clone()).unwrap()
         else {
             panic!("expected action to be Ics20Withdrawal");
         };
+        expected_action.timeout_time = 0; // zero this for testing
 
         let (event_tx, mut event_rx) = mpsc::channel(100);
         let watcher = Watcher::new(
@@ -467,14 +468,15 @@ mod tests {
         // make another tx to trigger anvil to make another block
         send_ics20_withdraw_transaction(&contract, value, recipient).await;
 
-        let batch = event_rx.recv().await.unwrap();
+        let mut batch = event_rx.recv().await.unwrap();
         assert_eq!(batch.actions.len(), 1);
-        let Action::Ics20Withdrawal(action) = &batch.actions[0] else {
+        let Action::Ics20Withdrawal(ref mut action) = batch.actions[0] else {
             panic!(
                 "expected action to be Ics20Withdrawal, got {:?}",
                 batch.actions[0]
             );
         };
+        action.timeout_time = 0; // zero this for testing
         assert_eq!(action, &expected_action);
     }
 }

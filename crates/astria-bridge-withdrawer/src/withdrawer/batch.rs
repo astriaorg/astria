@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use astria_core::{
     primitive::v1::{
         asset,
@@ -21,6 +23,7 @@ use ethers::types::{
     TxHash,
     U64,
 };
+use ibc_types::core::client::Height as IbcHeight;
 use serde::{
     Deserialize,
     Serialize,
@@ -110,7 +113,8 @@ fn event_to_ics20_withdrawal(
     fee_asset_id: asset::Id,
     rollup_asset_denom: Denom,
 ) -> eyre::Result<Action> {
-    use ibc_types::core::client::Height as IbcHeight;
+    // TODO: make this configurable
+    const ICS20_WITHDRAWAL_TIMEOUT: Duration = Duration::from_secs(300);
 
     let sender: [u8; 20] = event
         .sender
@@ -146,12 +150,22 @@ fn event_to_ics20_withdrawal(
         // thus, we set it to the maximum possible value.
         timeout_height: IbcHeight::new(u64::MAX, u64::MAX)
             .wrap_err("failed to generate timeout height")?,
-        timeout_time: u64::MAX,
+        timeout_time: calculate_packet_timeout_time(ICS20_WITHDRAWAL_TIMEOUT)
+            .wrap_err("failed to calculate packet timeout time")?,
         source_channel: channel
             .parse()
             .wrap_err("failed to parse channel from denom")?,
     };
     Ok(Action::Ics20Withdrawal(action))
+}
+
+fn calculate_packet_timeout_time(timeout_delta: Duration) -> eyre::Result<u64> {
+    tendermint::Time::now()
+        .checked_add(timeout_delta)
+        .ok_or_eyre("time must not overflow from now plus 10 minutes")?
+        .unix_timestamp_nanos()
+        .try_into()
+        .wrap_err("failed to convert packet timeout i128 to u64")
 }
 
 pub(crate) struct Batch {
@@ -163,22 +177,80 @@ pub(crate) struct Batch {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::withdrawer::ethereum::astria_withdrawer::SequencerWithdrawalFilter;
+
     #[test]
     fn event_to_bridge_unlock() {
-        // let event_with_meta = EventWithMetadata {
-        //    event: WithdrawalFilter {
-        //        sender: wallet.address(),
-        //        amount: value,
-        //        memo: b"nootwashere".into(),
-        //    },
-        //    block_number: receipt.block_number.unwrap(),
-        //    transaction_hash: receipt.transaction_hash,
-        //};
-        // let action = event_to_action(event_with_meta);
-        //
-        // assert!(matches!(
-        //    action,
-        //    Action::BridgeUnlock(BridgeLockAction { .. })
-        //))
+        let denom = Denom::from("nria".to_string());
+        let event_with_meta = EventWithMetadata {
+            event: WithdrawalEvent::Sequencer(SequencerWithdrawalFilter {
+                sender: [0u8; 20].into(),
+                amount: 99.into(),
+                destination_chain_address: [1u8; 20].into(),
+            }),
+            block_number: 1.into(),
+            transaction_hash: [2u8; 32].into(),
+        };
+        let action = event_to_action(event_with_meta, denom.id(), denom.clone()).unwrap();
+        let Action::BridgeUnlock(action) = action else {
+            panic!("expected BridgeUnlock action, got {:?}", action);
+        };
+
+        let expected_action = BridgeUnlockAction {
+            to: [0u8; 20].into(),
+            amount: 99,
+            memo: serde_json::to_vec(&BridgeUnlockMemo {
+                block_number: 1.into(),
+                transaction_hash: [2u8; 32].into(),
+            })
+            .unwrap(),
+            fee_asset_id: denom.id(),
+        };
+
+        assert_eq!(action, expected_action);
+    }
+
+    #[test]
+    fn event_to_ics20_withdrawal() {
+        let denom = Denom::from("transfer/channel-0/utia".to_string());
+        let destination_chain_address = "address".to_string();
+        let event_with_meta = EventWithMetadata {
+            event: WithdrawalEvent::Ics20(Ics20WithdrawalFilter {
+                sender: [0u8; 20].into(),
+                amount: 99.into(),
+                destination_chain_address: destination_chain_address.clone(),
+                memo: b"hello".into(),
+            }),
+            block_number: 1.into(),
+            transaction_hash: [2u8; 32].into(),
+        };
+
+        let action = event_to_action(event_with_meta, denom.id(), denom.clone()).unwrap();
+        let Action::Ics20Withdrawal(mut action) = action else {
+            panic!("expected Ics20Withdrawal action, got {:?}", action);
+        };
+        
+        // TODO: instead of zeroing this, we should pass in the latest block time to the function
+        // and generate the timeout time from that.
+        action.timeout_time = 0; // zero this for testing
+
+        let expected_action = Ics20Withdrawal {
+            denom: denom.clone(),
+            destination_chain_address,
+            return_address: [0u8; 20].into(),
+            amount: 99,
+            memo: serde_json::to_string(&Ics20WithdrawalMemo {
+                memo: "hello".to_string(),
+                block_number: 1.into(),
+                transaction_hash: [2u8; 32].into(),
+            })
+            .unwrap(),
+            fee_asset_id: denom.id(),
+            timeout_height: IbcHeight::new(u64::MAX, u64::MAX).unwrap(),
+            timeout_time: 0, // zero this for testing
+            source_channel: "channel-0".parse().unwrap(),
+        };
+        assert_eq!(action, expected_action);
     }
 }
