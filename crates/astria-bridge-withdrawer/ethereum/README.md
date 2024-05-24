@@ -26,3 +26,10 @@ Call `withdrawToSequencer` in `AstriaWithdrawer.sol`:
 forge script script/AstriaWithdrawer.s.sol:AstriaWithdrawerScript \
    --rpc-url $RPC_URL --broadcast --sig "withdrawToSequencer()" -vvvv
 ```
+
+Call `withdrawToOriginChain` in `AstriaWithdrawer.sol`:
+
+```sh
+forge script script/AstriaWithdrawer.s.sol:AstriaWithdrawerScript \
+   --rpc-url $RPC_URL --broadcast --sig "withdrawToOriginChain()" -vvvv
+```
