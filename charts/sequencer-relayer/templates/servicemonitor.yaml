@@ -16,7 +16,6 @@ spec:
   selector:
     matchLabels:
       app: sequencer-relayer
-      name: sequencer-relayer-metrics
   endpoints:
     - port: metric
       path: /
