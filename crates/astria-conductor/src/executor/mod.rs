@@ -497,7 +497,7 @@ impl Executor {
                 "pending block not found for block number in cache. THIS SHOULD NOT HAPPEN. \
                  Trying to fetch the already-executed block from the rollup before giving up."
             );
-            match self.client.get_block(block_number).await {
+            match self.client.get_block_with_retry(block_number).await {
                 Ok(block) => Update::OnlyFirm(block),
                 Err(error) => {
                     error!(
@@ -542,7 +542,7 @@ impl Executor {
 
         let executed_block = self
             .client
-            .execute_block(parent_hash, transactions, timestamp)
+            .execute_block_with_retry(parent_hash, transactions, timestamp)
             .await
             .wrap_err("failed to run execute_block RPC")?;
 
@@ -561,7 +561,7 @@ impl Executor {
             async {
                 self.client
                     .clone()
-                    .get_genesis_info()
+                    .get_genesis_info_with_retry()
                     .await
                     .wrap_err("failed getting genesis info")
             }
@@ -570,7 +570,7 @@ impl Executor {
             async {
                 self.client
                     .clone()
-                    .get_commitment_state()
+                    .get_commitment_state_with_retry()
                     .await
                     .wrap_err("failed getting commitment state")
             }
@@ -606,7 +606,7 @@ impl Executor {
             .wrap_err("failed constructing commitment state")?;
         let new_state = self
             .client
-            .update_commitment_state(commitment_state)
+            .update_commitment_state_with_retry(commitment_state)
             .await
             .wrap_err("failed updating remote commitment state")?;
         info!(
