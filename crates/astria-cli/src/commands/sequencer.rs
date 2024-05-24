@@ -109,7 +109,7 @@ pub(crate) async fn get_balance(args: &BasicAccountArgs) -> eyre::Result<()> {
 
     println!("Balances for address {}:", hex::encode(address.0));
     for balance in res.balances {
-        println!("    asset ID: {}", hex::encode(balance.denom.id()));
+        println!("    asset ID: {}", balance.denom.id());
         println!("    {} {}", balance.balance, balance.denom);
     }
 
@@ -193,7 +193,6 @@ pub(crate) async fn send_transfer(args: &TransferArgs) -> eyre::Result<()> {
     .await
     .wrap_err("failed to submit transfer transaction")?;
 
-    ensure!(res.tx_result.code.is_ok(), "error with transfer");
     println!("Transfer completed!");
     println!("Included in block: {}", res.height);
     Ok(())
@@ -219,10 +218,6 @@ pub(crate) async fn ibc_relayer_add(args: &IbcRelayerChangeArgs) -> eyre::Result
     .await
     .wrap_err("failed to submit IbcRelayerChangeAction::Addition transaction")?;
 
-    ensure!(
-        res.tx_result.code.is_ok(),
-        "error with IbcRelayerChangeAction::Addition"
-    );
     println!("IbcRelayerChangeAction::Addition completed!");
     println!("Included in block: {}", res.height);
     Ok(())
@@ -248,10 +243,6 @@ pub(crate) async fn ibc_relayer_remove(args: &IbcRelayerChangeArgs) -> eyre::Res
     .await
     .wrap_err("failed to submit IbcRelayerChangeAction::Removal transaction")?;
 
-    ensure!(
-        res.tx_result.code.is_ok(),
-        "error with IbcRelayerChangeAction::Removal"
-    );
     println!("IbcRelayerChangeAction::Removal completed!");
     println!("Included in block: {}", res.height);
     Ok(())
@@ -287,7 +278,6 @@ pub(crate) async fn init_bridge_account(args: &InitBridgeAccountArgs) -> eyre::R
     .await
     .wrap_err("failed to submit InitBridgeAccount transaction")?;
 
-    ensure!(res.tx_result.code.is_ok(), "error with InitBridgeAccount");
     println!("InitBridgeAccount completed!");
     println!("Included in block: {}", res.height);
     println!("Rollup name: {}", args.rollup_name);
@@ -323,7 +313,6 @@ pub(crate) async fn bridge_lock(args: &BridgeLockArgs) -> eyre::Result<()> {
     .await
     .wrap_err("failed to submit BridgeLock transaction")?;
 
-    ensure!(res.tx_result.code.is_ok(), "error with BridgeLock");
     println!("BridgeLock completed!");
     println!("Included in block: {}", res.height);
     Ok(())
@@ -351,10 +340,6 @@ pub(crate) async fn fee_asset_add(args: &FeeAssetChangeArgs) -> eyre::Result<()>
     .await
     .wrap_err("failed to submit FeeAssetChangeAction::Addition transaction")?;
 
-    ensure!(
-        res.tx_result.code.is_ok(),
-        "error with FeeAssetChangeAction::Addition"
-    );
     println!("FeeAssetChangeAction::Addition completed!");
     println!("Included in block: {}", res.height);
     Ok(())
@@ -382,10 +367,6 @@ pub(crate) async fn fee_asset_remove(args: &FeeAssetChangeArgs) -> eyre::Result<
     .await
     .wrap_err("failed to submit FeeAssetChangeAction::Removal transaction")?;
 
-    ensure!(
-        res.tx_result.code.is_ok(),
-        "error with FeeAssetChangeAction::Removal"
-    );
     println!("FeeAssetChangeAction::Removal completed!");
     println!("Included in block: {}", res.height);
     Ok(())
@@ -414,7 +395,6 @@ pub(crate) async fn mint(args: &MintArgs) -> eyre::Result<()> {
     .await
     .wrap_err("failed to submit Mint transaction")?;
 
-    ensure!(res.tx_result.code.is_ok(), "error with Mint");
     println!("Mint completed!");
     println!("Included in block: {}", res.height);
     Ok(())
@@ -442,7 +422,6 @@ pub(crate) async fn sudo_address_change(args: &SudoAddressChangeArgs) -> eyre::R
     .await
     .wrap_err("failed to submit SudoAddressChange transaction")?;
 
-    ensure!(res.tx_result.code.is_ok(), "error with SudoAddressChange");
     println!("SudoAddressChange completed!");
     println!("Included in block: {}", res.height);
     Ok(())
@@ -479,7 +458,6 @@ pub(crate) async fn validator_update(args: &ValidatorUpdateArgs) -> eyre::Result
     .await
     .wrap_err("failed to submit ValidatorUpdate transaction")?;
 
-    ensure!(res.tx_result.code.is_ok(), "error with ValidatorUpdate");
     println!("ValidatorUpdate completed!");
     println!("Included in block: {}", res.height);
     Ok(())
@@ -501,6 +479,10 @@ async fn submit_transaction(
     let sequencer_key = SigningKey::from(private_key_bytes);
 
     let from_address = Address::from_verification_key(sequencer_key.verification_key());
+    println!(
+        "sending tx from address: {}",
+        hex::encode(from_address.to_vec())
+    );
 
     let nonce_res = sequencer_client
         .get_latest_nonce(from_address)
@@ -515,10 +497,21 @@ async fn submit_transaction(
         actions: vec![action],
     }
     .into_signed(&sequencer_key);
-    sequencer_client
+    let res = sequencer_client
         .submit_transaction_commit(tx)
         .await
-        .wrap_err("failed to submit transaction")
+        .wrap_err("failed to submit transaction")?;
+    ensure!(
+        res.check_tx.code.is_ok(),
+        "failed to check tx: {}",
+        res.check_tx.log
+    );
+    ensure!(
+        res.tx_result.code.is_ok(),
+        "failed to execute tx: {}",
+        res.tx_result.log
+    );
+    Ok(res)
 }
 
 #[cfg(test)]
