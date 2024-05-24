@@ -1,5 +1,9 @@
 use astria_core::{
-    primitive::v1::asset,
+    primitive::v1::{
+        asset,
+        asset::Denom,
+        Address,
+    },
     protocol::transaction::v1alpha1::{
         action::{
             BridgeUnlockAction,
@@ -8,9 +12,10 @@ use astria_core::{
         Action,
     },
 };
-use astria_eyre::{
-    eyre,
-    eyre::WrapErr as _,
+use astria_eyre::eyre::{
+    self,
+    OptionExt,
+    WrapErr as _,
 };
 use ethers::types::{
     TxHash,
@@ -20,13 +25,12 @@ use serde::{
     Deserialize,
     Serialize,
 };
+use tendermint::block::Height;
 
 use super::ethereum::astria_withdrawer::{
     Ics20WithdrawalFilter,
     SequencerWithdrawalFilter,
 };
-
-// const FEE_ASSET_ID: &str = "fee";
 
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum WithdrawalEvent {
@@ -36,11 +40,11 @@ pub(crate) enum WithdrawalEvent {
 
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct EventWithMetadata {
-    event: WithdrawalEvent,
+    pub(crate) event: WithdrawalEvent,
     /// The block in which the log was emitted
-    block_number: U64,
+    pub(crate) block_number: U64,
     /// The transaction hash in which the log was emitted
-    transaction_hash: TxHash,
+    pub(crate) transaction_hash: TxHash,
 }
 
 pub(crate) fn event_to_action(
@@ -85,10 +89,17 @@ fn event_to_bridge_unlock(
     let action = BridgeUnlockAction {
         to: event.sender.to_fixed_bytes().into(),
         amount: event.amount.as_u128(),
-        memo: serde_json::to_vec(&memo)?,
+        memo: serde_json::to_vec(&memo).wrap_err("failed to serialize memo to json")?,
         fee_asset_id,
     };
     Ok(Action::BridgeUnlock(action))
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct Ics20WithdrawalMemo {
+    memo: String,
+    block_number: U64,
+    transaction_hash: TxHash,
 }
 
 fn event_to_ics20_withdrawal(
@@ -97,10 +108,46 @@ fn event_to_ics20_withdrawal(
     transaction_hash: TxHash,
     fee_asset_id: asset::Id,
 ) -> eyre::Result<Action> {
+    use ibc_types::core::client::Height as IbcHeight;
+
+    let sender: [u8; 20] = event
+        .sender
+        .as_bytes()
+        .try_into()
+        .expect("U160 must be 20 bytes");
+    let rollup_asset_denom = "transfer/channel-0/utia".to_string(); // TODO: this should be fetched from the sequencer
+    let denom = Denom::from(rollup_asset_denom.clone());
+    let (_, channel) = denom
+        .prefix()
+        .rsplit_once('/')
+        .ok_or_eyre("denom must have a channel to be withdrawn via IBC")?;
+
+    let memo = Ics20WithdrawalMemo {
+        memo: String::from_utf8(event.memo.to_vec())
+            .wrap_err("failed to convert event memo to utf8")?,
+        block_number,
+        transaction_hash,
+    };
+
     let action = Ics20Withdrawal {
+        denom: Denom::from(rollup_asset_denom),
+        destination_chain_address: event.destination_chain_address,
+        // note: this is actually a rollup address; we expect failed ics20 withdrawals to be
+        // returned to the rollup.
+        // this is only ok for now because addresses on the sequencer and the rollup are both 20
+        // bytes, but this won't work otherwise.
+        return_address: Address::from(sender),
         amount: event.amount.as_u128(),
-        memo: event.memo.to_vec(), // TODO:
+        memo: serde_json::to_string(&memo).wrap_err("failed to serialize memo to json")?,
         fee_asset_id,
+        // note: this refers to the timeout on the destination chain, which we are unaware of.
+        // thus, we set it to the maximum possible value.
+        timeout_height: IbcHeight::new(u64::MAX, u64::MAX)
+            .wrap_err("failed to generate timeout height")?,
+        timeout_time: u64::MAX,
+        source_channel: channel
+            .parse()
+            .wrap_err("failed to parse channel from denom")?,
     };
     Ok(Action::Ics20Withdrawal(action))
 }

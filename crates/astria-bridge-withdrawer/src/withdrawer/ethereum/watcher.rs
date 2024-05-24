@@ -32,24 +32,23 @@ use tokio::{
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
-use crate::{
-    ethereum::{
-        astria_withdrawer::{
-            astria_withdrawer::{
-                Ics20WithdrawalFilter,
-                SequencerWithdrawalFilter,
-            },
-            AstriaWithdrawer,
-        },
-        state::{
-            State,
-            StateSnapshot,
-        },
-    },
-    withdrawer::batch::{
+use crate::withdrawer::{
+    batch::{
         event_to_action,
         Batch,
         EventWithMetadata,
+        WithdrawalEvent,
+    },
+    ethereum::astria_withdrawer::{
+        astria_withdrawer::{
+            Ics20WithdrawalFilter,
+            SequencerWithdrawalFilter,
+        },
+        AstriaWithdrawer,
+    },
+    state::{
+        State,
+        StateSnapshot,
     },
 };
 
@@ -105,8 +104,6 @@ impl Watcher {
         } = self;
 
         tokio::task::spawn(batcher.run());
-
-        state.set_ready();
 
         // start from block 1 right now
         // TODO: determine the last block we've seen based on the sequencer data
@@ -233,7 +230,7 @@ impl Batcher {
                         };
                         let action = event_to_action(event_with_metadata, self.fee_asset_id)?;
 
-                        if meta.block_number.into() == curr_batch.rollup_height {
+                        if meta.block_number.as_u64() == curr_batch.rollup_height {
                             // block number was the same; add event to current batch
                             curr_batch.actions.push(action);
                         } else {
@@ -247,7 +244,7 @@ impl Batcher {
 
                             curr_batch = Batch {
                                 actions: vec![action],
-                                rollup_height = meta.block_number.into()
+                                rollup_height: meta.block_number.as_u64(),
                             };
                         }
                     }

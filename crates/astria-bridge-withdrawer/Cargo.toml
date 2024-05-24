@@ -21,6 +21,7 @@ hex = { workspace = true }
 ethers = { workspace = true, features = ["ethers-solc", "ws"] }
 hyper = { workspace = true }
 humantime = { workspace = true }
+ibc-types = { workspace = true }
 metrics = { workspace = true }
 pin-project-lite = { workspace = true }
 prost = { workspace = true }
