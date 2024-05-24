@@ -129,8 +129,7 @@ fn event_to_ics20_withdrawal(
         .ok_or_eyre("denom must have a channel to be withdrawn via IBC")?;
 
     let memo = Ics20WithdrawalMemo {
-        memo: String::from_utf8(event.memo.to_vec())
-            .wrap_err("failed to convert event memo to utf8")?,
+        memo: event.memo,
         block_number,
         transaction_hash,
     };
@@ -220,7 +219,7 @@ mod tests {
                 sender: [0u8; 20].into(),
                 amount: 99.into(),
                 destination_chain_address: destination_chain_address.clone(),
-                memo: b"hello".into(),
+                memo: "hello".to_string(),
             }),
             block_number: 1.into(),
             transaction_hash: [2u8; 32].into(),

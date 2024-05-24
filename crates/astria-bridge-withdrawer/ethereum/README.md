@@ -11,3 +11,16 @@ Build:
 ```sh
 forge build
 ```
+
+Put your private key in `.env` and `source .env`.
+
+Deploy `AstriaWithdrawer.sol`:
+
+```sh
+forge create --rpc-url $RPC_URL --private-key $PRIVATE_KEY src/AstriaWithdrawer.sol:AstriaWithdrawer
+```
+
+Call `withdrawToSequencer` in `AstriaWithdrawer.sol`:
+```sh
+forge script script/AstriaWithdrawer.s.sol:AstriaWithdrawerScript --rpc-url $RPC_URL --broadcast --sig "withdrawToSequencer()" -vvvv
+```

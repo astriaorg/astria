@@ -17,13 +17,13 @@ contract AstriaWithdrawer {
     // the `sender` is the evm address that initiated the withdrawal
     // the `destinationChainAddress` is the address on the origin chain the funds will be sent to
     // the `memo` is an optional field that will be used as the ICS20 packet memo
-    event Ics20Withdrawal(address indexed sender, uint256 indexed amount, string destinationChainAddress, bytes memo);
+    event Ics20Withdrawal(address indexed sender, uint256 indexed amount, string destinationChainAddress, string memo);
     
     function withdrawToSequencer(address destinationChainAddress) external payable {
         emit SequencerWithdrawal(msg.sender, msg.value, destinationChainAddress);
     }
 
-    function withdrawToOriginChain(string calldata destinationChainAddress, bytes calldata memo) external payable {
+    function withdrawToOriginChain(string calldata destinationChainAddress, string calldata memo) external payable {
         emit Ics20Withdrawal(msg.sender, msg.value, destinationChainAddress, memo);
     }
 }

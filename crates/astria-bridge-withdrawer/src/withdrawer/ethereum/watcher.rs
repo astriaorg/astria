@@ -404,7 +404,7 @@ mod tests {
         recipient: String,
     ) -> TransactionReceipt {
         let tx = contract
-            .withdraw_to_origin_chain(recipient, b"nootwashere".into())
+            .withdraw_to_origin_chain(recipient, "nootwashere".to_string())
             .value(value);
         let receipt = tx
             .send()
@@ -436,7 +436,7 @@ mod tests {
                 sender: wallet.address(),
                 destination_chain_address: recipient.clone(),
                 amount: value,
-                memo: b"nootwashere".into(),
+                memo: "nootwashere".to_string(),
             }),
             block_number: receipt.block_number.unwrap(),
             transaction_hash: receipt.transaction_hash,
