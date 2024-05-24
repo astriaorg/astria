@@ -78,7 +78,6 @@ impl Watcher {
             );
         }
 
-        // TODO: verify fee_asset_id against sequencer
         let batcher = Batcher::new(
             event_rx,
             batch_tx,
