@@ -52,9 +52,9 @@ impl Builder {
                 shutdown_token,
                 state,
                 batches_rx,
+                sequencer_cometbft_client,
                 signer,
                 sequencer_chain_id,
-                sequencer_cometbft_client,
             },
             super::Handle {
                 batches_tx,

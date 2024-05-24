@@ -56,7 +56,7 @@ pub(crate) fn event_to_action(
 ) -> eyre::Result<Action> {
     let action = match event_with_metadata.event {
         WithdrawalEvent::Sequencer(event) => event_to_bridge_unlock(
-            event,
+            &event,
             event_with_metadata.block_number,
             event_with_metadata.transaction_hash,
             fee_asset_id,
@@ -81,7 +81,7 @@ struct BridgeUnlockMemo {
 }
 
 fn event_to_bridge_unlock(
-    event: SequencerWithdrawalFilter,
+    event: &SequencerWithdrawalFilter,
     block_number: U64,
     transaction_hash: TxHash,
     fee_asset_id: asset::Id,
@@ -135,7 +135,7 @@ fn event_to_ics20_withdrawal(
     };
 
     let action = Ics20Withdrawal {
-        denom: Denom::from(rollup_asset_denom),
+        denom: rollup_asset_denom,
         destination_chain_address: event.destination_chain_address,
         // note: this is actually a rollup address; we expect failed ics20 withdrawals to be
         // returned to the rollup.
@@ -193,7 +193,7 @@ mod tests {
         };
         let action = event_to_action(event_with_meta, denom.id(), denom.clone()).unwrap();
         let Action::BridgeUnlock(action) = action else {
-            panic!("expected BridgeUnlock action, got {:?}", action);
+            panic!("expected BridgeUnlock action, got {action:?}");
         };
 
         let expected_action = BridgeUnlockAction {
@@ -227,7 +227,7 @@ mod tests {
 
         let action = event_to_action(event_with_meta, denom.id(), denom.clone()).unwrap();
         let Action::Ics20Withdrawal(mut action) = action else {
-            panic!("expected Ics20Withdrawal action, got {:?}", action);
+            panic!("expected Ics20Withdrawal action, got {action:?}");
         };
 
         // TODO: instead of zeroing this, we should pass in the latest block time to the function

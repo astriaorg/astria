@@ -82,7 +82,7 @@ impl Submitter {
                         break Err(e);
                     }
                 }
-            )
+            );
         };
 
         // update status
@@ -94,7 +94,7 @@ impl Submitter {
         match reason {
             Ok(reason) => info!(reason, "submitter shutting down"),
             Err(reason) => {
-                error!(%reason, "submitter shutting down")
+                error!(%reason, "submitter shutting down");
             }
         }
 
@@ -159,7 +159,7 @@ impl Submitter {
             // update state after successful submission
             info!(
                 sequencer.block = rsp.height.value(),
-                sequencer.tx_hash = ?rsp.hash,
+                sequencer.tx_hash = %rsp.hash,
                 rollup.height = rollup_height,
                 "withdraw batch successfully executed."
             );

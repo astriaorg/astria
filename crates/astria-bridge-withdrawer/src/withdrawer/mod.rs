@@ -40,7 +40,7 @@ mod ethereum;
 mod state;
 mod submitter;
 
-pub struct WithdrawerService {
+pub struct Service {
     // Token to signal all subtasks to shut down gracefully.
     shutdown_token: CancellationToken,
     api_server: api::ApiServer,
@@ -49,8 +49,8 @@ pub struct WithdrawerService {
     state: Arc<State>,
 }
 
-impl WithdrawerService {
-    /// Instantiates a new `WithdrawerService`.
+impl Service {
+    /// Instantiates a new `Service`.
     ///
     /// # Errors
     ///
@@ -147,7 +147,7 @@ impl WithdrawerService {
                     submitter_task: Some(submitter_task),
                     ethereum_watcher_task: Some(ethereum_watcher_task),
                     api_shutdown_signal,
-                    shutdown_token
+                   token: shutdown_token
                 }
             }
             o = &mut submitter_task => {
@@ -157,7 +157,7 @@ impl WithdrawerService {
                     submitter_task: None,
                     ethereum_watcher_task:Some(ethereum_watcher_task),
                     api_shutdown_signal,
-                    shutdown_token
+                    token: shutdown_token
                 }
             }
             o = &mut ethereum_watcher_task => {
@@ -167,7 +167,7 @@ impl WithdrawerService {
                     submitter_task: Some(submitter_task),
                     ethereum_watcher_task: None,
                     api_shutdown_signal,
-                    shutdown_token
+                    token: shutdown_token
                 }
             }
 
@@ -176,10 +176,10 @@ impl WithdrawerService {
     }
 }
 
-/// A handle for instructing the [`WithdrawerService`] to shut down.
+/// A handle for instructing the [`Service`] to shut down.
 ///
-/// It is returned along with its related `WithdrawerService` from [`WithdrawerService::new`].  The
-/// `WithdrawerService` will begin to shut down as soon as [`ShutdownHandle::shutdown`] is called or
+/// It is returned along with its related `Service` from [`Service::new`].  The
+/// `Service` will begin to shut down as soon as [`ShutdownHandle::shutdown`] is called or
 /// when the `ShutdownHandle` is dropped.
 pub struct ShutdownHandle {
     token: CancellationToken,
@@ -235,7 +235,7 @@ struct Shutdown {
     submitter_task: Option<JoinHandle<eyre::Result<()>>>,
     ethereum_watcher_task: Option<JoinHandle<eyre::Result<()>>>,
     api_shutdown_signal: oneshot::Sender<()>,
-    shutdown_token: CancellationToken,
+    token: CancellationToken,
 }
 
 impl Shutdown {
@@ -249,7 +249,7 @@ impl Shutdown {
             submitter_task,
             ethereum_watcher_task,
             api_shutdown_signal,
-            shutdown_token: token,
+            token,
         } = self;
 
         token.cancel();

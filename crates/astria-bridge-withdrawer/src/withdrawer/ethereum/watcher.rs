@@ -363,10 +363,7 @@ mod tests {
         let denom: Denom = Denom::from_base_denom("nria");
         let expected_action = event_to_action(expected_event, denom.id(), denom.clone()).unwrap();
         let Action::BridgeUnlock(expected_action) = expected_action else {
-            panic!(
-                "expected action to be BridgeUnlock, got {:?}",
-                expected_action
-            );
+            panic!("expected action to be BridgeUnlock, got {expected_action:?}");
         };
 
         let (event_tx, mut event_rx) = mpsc::channel(100);
