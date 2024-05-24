@@ -765,7 +765,7 @@ async fn update_mempool_after_finalization_update_account_nonce() {
 
     // insert tx with nonce 1, account nonce is 0
     let tx = get_mock_tx(1);
-    let address = Address::from_verification_key(tx.verification_key());
+    let address = *tx.verification_key().address();
     let priority = TransactionPriority::new(1, 0).unwrap();
     mempool.insert(tx.clone(), priority).await.unwrap();
 
@@ -791,7 +791,7 @@ async fn update_mempool_after_finalization_remove_tx_if_nonce_too_low() {
 
     // insert tx with nonce 1, account nonce is 1
     let tx = get_mock_tx(1);
-    let address = Address::from_verification_key(tx.verification_key());
+    let address = *tx.verification_key().address();
     let priority = TransactionPriority::new(1, 1).unwrap();
     mempool.insert(tx.clone(), priority).await.unwrap();
 
