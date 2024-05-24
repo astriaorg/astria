@@ -1,6 +1,9 @@
 use std::sync::Arc;
 
-use astria_core::primitive::v1::asset;
+use astria_core::primitive::v1::{
+    asset,
+    asset::Denom,
+};
 use astria_eyre::{
     eyre::{
         eyre,
@@ -22,7 +25,10 @@ use tokio::{
     sync::mpsc,
 };
 use tokio_util::sync::CancellationToken;
-use tracing::info;
+use tracing::{
+    info,
+    warn,
+};
 
 use crate::withdrawer::{
     batch::{
@@ -52,6 +58,7 @@ impl Watcher {
         shutdown_token: &CancellationToken,
         state: Arc<State>,
         fee_asset_id: asset::Id,
+        rollup_asset_denom: Denom,
     ) -> Result<Self> {
         let provider = Arc::new(
             Provider::<Ws>::connect(ethereum_rpc_endpoint)
@@ -64,8 +71,21 @@ impl Watcher {
 
         let (event_tx, event_rx) = mpsc::channel(100);
 
+        if rollup_asset_denom.prefix().is_empty() {
+            warn!(
+                "rollup asset denomination is not prefixed; Ics20Withdrawal actions will not be \
+                 submitted"
+            );
+        }
+
         // TODO: verify fee_asset_id against sequencer
-        let batcher = Batcher::new(event_rx, batch_tx, shutdown_token, fee_asset_id);
+        let batcher = Batcher::new(
+            event_rx,
+            batch_tx,
+            shutdown_token,
+            fee_asset_id,
+            rollup_asset_denom,
+        );
         Ok(Self {
             contract,
             event_tx,
@@ -175,6 +195,7 @@ struct Batcher {
     batch_tx: mpsc::Sender<Batch>,
     shutdown_token: CancellationToken,
     fee_asset_id: asset::Id,
+    rollup_asset_denom: Denom,
 }
 
 impl Batcher {
@@ -183,12 +204,14 @@ impl Batcher {
         batch_tx: mpsc::Sender<Batch>,
         shutdown_token: &CancellationToken,
         fee_asset_id: asset::Id,
+        rollup_asset_denom: Denom,
     ) -> Self {
         Self {
             event_rx,
             batch_tx,
             shutdown_token: shutdown_token.clone(),
             fee_asset_id,
+            rollup_asset_denom,
         }
     }
 }
@@ -213,7 +236,7 @@ impl Batcher {
                             block_number: meta.block_number,
                             transaction_hash: meta.transaction_hash,
                         };
-                        let action = event_to_action(event_with_metadata, self.fee_asset_id)?;
+                        let action = event_to_action(event_with_metadata, self.fee_asset_id, self.rollup_asset_denom.clone())?;
 
                         if meta.block_number.as_u64() == curr_batch.rollup_height {
                             // block number was the same; add event to current batch
@@ -338,8 +361,8 @@ mod tests {
             block_number: receipt.block_number.unwrap(),
             transaction_hash: receipt.transaction_hash,
         };
-        let expected_action =
-            event_to_action(expected_event, asset::Id::from_denom("nria")).unwrap();
+        let denom: Denom = Denom::from_base_denom("nria");
+        let expected_action = event_to_action(expected_event, denom.id(), denom.clone()).unwrap();
         let Action::BridgeUnlock(expected_action) = expected_action else {
             panic!(
                 "expected action to be BridgeUnlock, got {:?}",
@@ -354,7 +377,8 @@ mod tests {
             event_tx,
             &CancellationToken::new(),
             Arc::new(State::new()),
-            asset::Id::from_denom("nria"),
+            denom.id(),
+            denom,
         )
         .await
         .unwrap();
@@ -418,8 +442,9 @@ mod tests {
             block_number: receipt.block_number.unwrap(),
             transaction_hash: receipt.transaction_hash,
         };
+        let denom = Denom::from_base_denom("transfer/channel-0/utia");
         let Action::Ics20Withdrawal(expected_action) =
-            event_to_action(expected_event, asset::Id::from_denom("nria")).unwrap()
+            event_to_action(expected_event, denom.id(), denom.clone()).unwrap()
         else {
             panic!("expected action to be Ics20Withdrawal",);
         };
@@ -431,7 +456,8 @@ mod tests {
             event_tx,
             &CancellationToken::new(),
             Arc::new(State::new()),
-            asset::Id::from_denom("nria"),
+            denom.id(),
+            denom,
         )
         .await
         .unwrap();

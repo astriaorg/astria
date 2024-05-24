@@ -49,6 +49,7 @@ pub(crate) struct EventWithMetadata {
 pub(crate) fn event_to_action(
     event_with_metadata: EventWithMetadata,
     fee_asset_id: asset::Id,
+    rollup_asset_denom: Denom,
 ) -> eyre::Result<Action> {
     let action = match event_with_metadata.event {
         WithdrawalEvent::Sequencer(event) => event_to_bridge_unlock(
@@ -63,6 +64,7 @@ pub(crate) fn event_to_action(
             event_with_metadata.block_number,
             event_with_metadata.transaction_hash,
             fee_asset_id,
+            rollup_asset_denom,
         )
         .wrap_err("failed to convert ics20 withdrawal event to action")?,
     };
@@ -106,6 +108,7 @@ fn event_to_ics20_withdrawal(
     block_number: U64,
     transaction_hash: TxHash,
     fee_asset_id: asset::Id,
+    rollup_asset_denom: Denom,
 ) -> eyre::Result<Action> {
     use ibc_types::core::client::Height as IbcHeight;
 
@@ -114,7 +117,6 @@ fn event_to_ics20_withdrawal(
         .as_bytes()
         .try_into()
         .expect("U160 must be 20 bytes");
-    let rollup_asset_denom = "transfer/channel-0/utia".to_string(); // TODO: this should be fetched from the sequencer
     let denom = Denom::from(rollup_asset_denom.clone());
     let (_, channel) = denom
         .prefix()

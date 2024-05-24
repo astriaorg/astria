@@ -89,6 +89,7 @@ impl WithdrawerService {
             &shutdown_handle.token(),
             state.clone(),
             asset::Id::from_denom(&fee_asset_denomination),
+            asset::Denom::from(cfg.rollup_asset_denomination),
         )
         .await
         .wrap_err("failed to initialize ethereum watcher")?;
