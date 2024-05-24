@@ -442,11 +442,11 @@ mod tests {
             block_number: receipt.block_number.unwrap(),
             transaction_hash: receipt.transaction_hash,
         };
-        let denom = Denom::from_base_denom("transfer/channel-0/utia");
+        let denom = Denom::from("transfer/channel-0/utia".to_string());
         let Action::Ics20Withdrawal(expected_action) =
             event_to_action(expected_event, denom.id(), denom.clone()).unwrap()
         else {
-            panic!("expected action to be Ics20Withdrawal",);
+            panic!("expected action to be Ics20Withdrawal");
         };
 
         let (event_tx, mut event_rx) = mpsc::channel(100);

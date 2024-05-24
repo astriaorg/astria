@@ -117,7 +117,8 @@ fn event_to_ics20_withdrawal(
         .as_bytes()
         .try_into()
         .expect("U160 must be 20 bytes");
-    let denom = Denom::from(rollup_asset_denom.clone());
+    let denom = rollup_asset_denom.clone();
+
     let (_, channel) = denom
         .prefix()
         .rsplit_once('/')
