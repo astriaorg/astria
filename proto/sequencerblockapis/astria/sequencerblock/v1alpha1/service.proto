@@ -19,6 +19,16 @@ message GetFilteredSequencerBlockRequest {
   repeated astria.primitive.v1.RollupId rollup_ids = 2 [(google.api.field_behavior) = REQUIRED];
 }
 
+message GetPendingNonceRequest {
+  // The account to retrieve the pending nonce for.
+  astria.primitive.v1.Address address = 1 [(google.api.field_behavior) = REQUIRED];
+}
+
+message GetPendingNonceResponse {
+  // The pending nonce for the given account.
+  uint32 inner = 1;
+}
+
 service SequencerService {
   // Given a block height, returns the sequencer block at that height.
   rpc GetSequencerBlock(GetSequencerBlockRequest) returns (SequencerBlock) {
@@ -32,5 +42,10 @@ service SequencerService {
       post: "/v1alpha1/sequencer/{height}:filtered"
       body: "*"
     };
+  }
+
+  // Returns the pending nonce for the given account.
+  rpc GetPendingNonce(GetPendingNonceRequest) returns (GetPendingNonceResponse) {
+    option (google.api.http) = {get: "/v1alpha1/sequencer/pendingnonce/{account}"};
   }
 }

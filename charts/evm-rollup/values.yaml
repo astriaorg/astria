@@ -155,7 +155,12 @@ config:
     # the corresponding account given a balance in genesis accounts.
     # Note: When secretProvider.enabled is true the secret provided by
     #       `evmPrivateKey` is used instead of this value.
-    privateKey: "8b3a7999072c9c9314c084044fe705db11714c6c4ed7cddb64da18ea270dd203"
+    privateKey:
+      devContent: "8b3a7999072c9c9314c084044fe705db11714c6c4ed7cddb64da18ea270dd203"
+      secret:
+        filename: "key.hex"
+        resourceName: "projects/$PROJECT_ID/secrets/sequencerPrivateKey/versions/latest"
+        key: token
     # The amount of token to give per request
     amount: 1
 
@@ -214,17 +219,10 @@ celestia-node:
 secretProvider:
   enabled: false
   provider: gcp
-  secrets:
-    # Used in place of sequencer.privateKey value when provider enabled
-    sequencerPrivateKey:
-      filename: sequencerPrivateKey.txt
-      resourceName: "projects/$PROJECT_ID/secrets/sequencerPrivateKey/versions/latest"
-      key: token
-    # Used in place of faucet.privateKey value when provider enabled
-    evmPrivateKey:
-      filename: evmPrivateKey.txt
-      resourceName: "projects/$PROJECT_ID/secrets/evmPrivateKey/versions/latest"
-      key: token
+  parametersTemplate: |-
+    secrets: |
+      - resourceName: {{ .key.resourceName }}
+        fileName: "{{ .key.filename }}"
 
 ingress:
   enabled: true

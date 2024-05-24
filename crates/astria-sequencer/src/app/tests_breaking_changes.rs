@@ -119,7 +119,7 @@ async fn app_finalize_block_snapshot() {
     let deposits = HashMap::from_iter(vec![(rollup_id, vec![expected_deposit.clone()])]);
     let commitments = generate_rollup_datas_commitment(&[signed_tx.clone()], deposits.clone());
 
-    let timestamp = Time::now();
+    let timestamp = Time::unix_epoch();
     let block_hash = Hash::try_from([99u8; 32].to_vec()).unwrap();
     let finalize_block = abci::request::FinalizeBlock {
         hash: block_hash,
@@ -138,6 +138,7 @@ async fn app_finalize_block_snapshot() {
     app.finalize_block(finalize_block.clone(), storage.clone())
         .await
         .unwrap();
+    app.commit(storage.clone()).await;
     insta::assert_json_snapshot!(app.app_hash.as_bytes());
 }
 
