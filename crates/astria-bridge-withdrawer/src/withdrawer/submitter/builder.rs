@@ -1,11 +1,16 @@
-use std::sync::Arc;
+use std::{
+    sync::Arc,
+    time::Duration,
+};
 
 use astria_eyre::eyre::{
     self,
     ensure,
     Context as _,
 };
+use sequencer_client::tendermint_rpc;
 use tokio_util::sync::CancellationToken;
+use tracing::warn;
 
 use super::state::State;
 
@@ -21,7 +26,7 @@ pub(crate) struct Builder {
 
 impl Builder {
     /// Instantiates an `Submitter`.
-    pub(crate) fn build(self) -> eyre::Result<(super::Submitter, super::Handle)> {
+    pub(crate) async fn build(self) -> eyre::Result<(super::Submitter, super::Handle)> {
         let Self {
             shutdown_token,
             sequencer_key_path,
@@ -36,9 +41,9 @@ impl Builder {
         let sequencer_cometbft_client = sequencer_client::HttpClient::new(&*cometbft_endpoint)
             .context("failed constructing cometbft http client")?;
 
-        let actual_chain_id = get_sequencer_chain_id(sequencer_cometbft_client).await?;
+        let actual_chain_id = get_sequencer_chain_id(sequencer_cometbft_client.clone()).await?;
         ensure!(
-            sequencer_chain_id == actual_chain_id,
+            sequencer_chain_id == actual_chain_id.to_string(),
             "sequencer_chain_id provided in config does not match chain_id returned from sequencer"
         );
 

@@ -15,8 +15,8 @@ pub struct Config {
     pub sequencer_chain_id: String,
     // The path to the private key used to sign transactions submitted to the sequencer.
     pub sequencer_key_path: String,
-    // The fee_asset_id to use for the bridge account's transactions.
-    pub fee_asset_id_str: String,
+    // The fee asset denomination to use for the bridge account's transactions.
+    pub fee_asset_denomination: String,
     // The address of the AstriaWithdrawer contract on the evm rollup.
     pub ethereum_contract_address: String,
     // The rpc endpoint of the evm rollup.

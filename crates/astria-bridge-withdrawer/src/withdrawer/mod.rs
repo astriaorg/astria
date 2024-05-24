@@ -4,6 +4,7 @@ use std::{
     time::Duration,
 };
 
+use astria_core::primitive::v1::asset;
 use astria_eyre::eyre::{
     self,
     WrapErr as _,
@@ -61,7 +62,7 @@ impl WithdrawerService {
             cometbft_endpoint,
             sequencer_chain_id,
             sequencer_key_path,
-            fee_asset_id_str,
+            fee_asset_denomination,
             ethereum_contract_address,
             ethereum_rpc_endpoint,
             ..
@@ -78,6 +79,7 @@ impl WithdrawerService {
             state: state.clone(),
         }
         .build()
+        .await
         .wrap_err("failed to initialize submitter")?;
 
         let ethereum_watcher = Watcher::new(
@@ -86,7 +88,7 @@ impl WithdrawerService {
             submitter_handle.batches_tx,
             &shutdown_handle.token(),
             state.clone(),
-            asset::Id::from_denom(fee_asset_id_str),
+            asset::Id::from_denom(&fee_asset_denomination),
         )
         .await
         .wrap_err("failed to initialize ethereum watcher")?;
