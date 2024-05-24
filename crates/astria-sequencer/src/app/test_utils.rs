@@ -36,6 +36,8 @@ pub(crate) fn address_from_hex_string(s: &str) -> Address {
 pub(crate) const ALICE_ADDRESS: &str = "1c0c490f1b5528d8173c5de46d131160e4b2c0c3";
 pub(crate) const BOB_ADDRESS: &str = "34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a";
 pub(crate) const CAROL_ADDRESS: &str = "60709e2d391864b732b4f0f51e387abb76743871";
+pub(crate) const JUDY_ADDRESS: &str = "bc5b91da07778eeaf622d0dcf4d7b4233525998d";
+pub(crate) const TED_ADDRESS: &str = "4c4f91d8a918357ab5f6f19c1e179968fc39bb44";
 
 pub(crate) fn get_alice_signing_key_and_address() -> (SigningKey, Address) {
     // this secret key corresponds to ALICE_ADDRESS
@@ -101,8 +103,8 @@ pub(crate) async fn initialize_app_with_storage(
 
     let genesis_state = genesis_state.unwrap_or_else(|| GenesisState {
         accounts: default_genesis_accounts(),
-        authority_sudo_address: Address::from([0; 20]),
-        ibc_sudo_address: Address::from([0; 20]),
+        authority_sudo_address: address_from_hex_string(JUDY_ADDRESS),
+        ibc_sudo_address: address_from_hex_string(TED_ADDRESS),
         ibc_relayer_addresses: vec![],
         native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         ibc_params: IBCParameters::default(),
