@@ -112,10 +112,6 @@ jobs:
       #   with:
       #     python-version: '3.10' 
       #     cache: 'pip'
-        run: |
-          pip install solc-select 
-       #   solc-select install 0.8.21
-       #   solc-select use 0.8.21
       - name: Build tests
         run: |
           cargo nextest archive --archive-file=archive.tar.zst --release \
@@ -124,6 +120,9 @@ jobs:
       - name: Run tests
         timeout-minutes: 20
         run: |
+          pip install solc-select 
+          solc-select install 0.8.21
+          solc-select use 0.8.21
           cargo nextest run --archive-file=archive.tar.zst -- --include-ignored
 
   doctest:
