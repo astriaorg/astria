@@ -10,7 +10,10 @@ use astria_core::sequencerblock::v1alpha1::{
 };
 use astria_eyre::{
     eyre,
-    eyre::ensure,
+    eyre::{
+        ensure,
+        WrapErr as _,
+    },
 };
 use moka::future::Cache;
 use sequencer_client::{
@@ -226,13 +229,17 @@ pub(super) struct BlobVerifier {
 }
 
 impl BlobVerifier {
-    pub(super) fn new(client: SequencerClient) -> Self {
-        Self {
+    pub(super) fn try_new(
+        client: SequencerClient,
+        requests_per_seconds: u32,
+    ) -> eyre::Result<Self> {
+        Ok(Self {
             // Cache for verifying 1_000 celestia heights, assuming 6 sequencer heights per Celestia
             // height
             cache: Cache::new(6_000),
-            client: RateLimitedVerificationClient::new(client),
-        }
+            client: RateLimitedVerificationClient::try_new(client, requests_per_seconds)
+                .wrap_err("failed to construct Sequencer block client")?,
+        })
     }
 
     /// Verifies `metadata` against a remote Sequencer CometBFT instance.
@@ -468,7 +475,7 @@ impl RateLimitedVerificationClient {
         }
     }
 
-    fn new(client: SequencerClient) -> Self {
+    fn try_new(client: SequencerClient, requests_per_second: u32) -> eyre::Result<Self> {
         // XXX: the construction in here is a bit strange:
         // the straight forward way to create a type-erased tower service is to use
         // ServiceBuilder::boxed_clone().
@@ -479,16 +486,9 @@ impl RateLimitedVerificationClient {
         // We can however work around it: ServiceBuilder::boxed gives a BoxService, which is
         // Send + Sync, but not Clone. We then then manually evoke Buffer::new to create a
         // a Buffer<BoxService>, which is Send + Sync + Clone.
-        let requests_per_second = 500usize;
         let service = tower::ServiceBuilder::new()
             .boxed()
-            .rate_limit(
-                requests_per_second.try_into().expect(
-                    "the requests per second should be set to a reasonable size so that \
-                     conversion to u64 works on any platform",
-                ),
-                Duration::from_secs(1),
-            )
+            .rate_limit(requests_per_second.into(), Duration::from_secs(1))
             .service_fn(move |req: VerificationRequest| {
                 let client = client.clone();
                 async move {
@@ -505,10 +505,15 @@ impl RateLimitedVerificationClient {
             });
         // XXX: This number is arbitarily set to the same number os the rate-limit. Does that
         // make sense? Should the number be set higher?
-        let inner = tower::buffer::Buffer::new(service, requests_per_second);
-        Self {
+        let inner = tower::buffer::Buffer::new(
+            service,
+            requests_per_second
+                .try_into()
+                .wrap_err("failed to convert u32 requests-per-second to usize")?,
+        );
+        Ok(Self {
             inner,
-        }
+        })
     }
 }
 
