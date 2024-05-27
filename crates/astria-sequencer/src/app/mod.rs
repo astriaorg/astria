@@ -475,7 +475,7 @@ impl App {
         let mut txs_to_readd_to_mempool = Vec::new();
 
         while let Some((enqueued_tx, priority)) = self.mempool.pop().await {
-            let tx_hash_base64 = telemetry::display::hex(&enqueued_tx.tx_hash()).to_string();
+            let tx_hash_base64 = telemetry::display::base64(&enqueued_tx.tx_hash()).to_string();
             let tx = enqueued_tx.signed_tx();
             let bytes = tx.to_raw().encode_to_vec();
             let tx_len = bytes.len();
