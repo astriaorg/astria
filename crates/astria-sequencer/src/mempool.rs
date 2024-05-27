@@ -1,5 +1,8 @@
 use std::{
-    cmp::Ordering,
+    cmp::{
+        self,
+        Ordering,
+    },
     collections::HashMap,
     future::Future,
     sync::{
@@ -90,8 +93,8 @@ impl EnqueuedTransaction {
         self.signed_tx.clone()
     }
 
-    pub(crate) fn address(&self) -> Address {
-        Address::from_verification_key(self.signed_tx.verification_key())
+    pub(crate) fn address(&self) -> &Address {
+        self.signed_tx.verification_key().address()
     }
 }
 
@@ -203,7 +206,7 @@ impl Mempool {
                 *nonce
             } else {
                 // Fall back to getting via the getter and adding it to the local temp collection.
-                let nonce = current_account_nonce_getter(enqueued_tx.address())
+                let nonce = current_account_nonce_getter(*enqueued_tx.address())
                     .await
                     .context("failed to fetch account nonce")?;
                 current_account_nonces.insert(address, nonce);
@@ -235,12 +238,8 @@ impl Mempool {
         let inner = self.inner.read().await;
         let mut nonce = None;
         for (tx, _priority) in inner.iter() {
-            let sender = Address::from_verification_key(tx.signed_tx.verification_key());
-            if &sender == address {
-                nonce = Some(std::cmp::max(
-                    nonce.unwrap_or_default(),
-                    tx.signed_tx.nonce(),
-                ));
+            if tx.address() == address {
+                nonce = Some(cmp::max(nonce.unwrap_or_default(), tx.signed_tx.nonce()));
             }
         }
         nonce
@@ -468,7 +467,7 @@ mod test {
 
         let (alice_signing_key, alice_address) =
             crate::app::test_utils::get_alice_signing_key_and_address();
-        let other_address = Address::from_verification_key(other_signing_key.verification_key());
+        let other_address = *other_signing_key.verification_key().address();
 
         // Create a getter fn which will returns 1 for alice's current account nonce, and 101 for
         // the other signer's.
@@ -495,7 +494,7 @@ mod test {
         let (tx, priority) = mempool.pop().await.unwrap();
         assert_eq!(tx.signed_tx.nonce(), 1);
         assert_eq!(
-            tx.signed_tx.verification_key(),
+            *tx.signed_tx.verification_key(),
             alice_signing_key.verification_key()
         );
         assert_eq!(priority.nonce_diff, 0);
@@ -504,7 +503,7 @@ mod test {
         let (tx, priority) = mempool.pop().await.unwrap();
         assert_eq!(tx.signed_tx.nonce(), 102);
         assert_eq!(
-            tx.signed_tx.verification_key(),
+            *tx.signed_tx.verification_key(),
             other_signing_key.verification_key()
         );
         assert_eq!(priority.nonce_diff, 1);
@@ -539,7 +538,7 @@ mod test {
         // Check the pending nonce for alice is 1 and for the other signer is 101.
         let alice_address = crate::app::test_utils::get_alice_signing_key_and_address().1;
         assert_eq!(mempool.pending_nonce(&alice_address).await.unwrap(), 1);
-        let other_address = Address::from_verification_key(other_signing_key.verification_key());
+        let other_address = *other_signing_key.verification_key().address();
         assert_eq!(mempool.pending_nonce(&other_address).await.unwrap(), 101);
 
         // Check the pending nonce for an address with no enqueued txs is `None`.

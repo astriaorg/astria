@@ -1,5 +1,4 @@
 use anyhow::{
-    bail,
     Context as _,
     Result,
 };
@@ -42,19 +41,19 @@ pub(crate) trait StateReadExt: StateRead {
     }
 
     #[instrument(skip(self))]
-    async fn get_ibc_asset(&self, id: asset::Id) -> Result<Denom> {
+    async fn get_ibc_asset(&self, id: asset::Id) -> Result<Option<Denom>> {
         let Some(bytes) = self
             .get_raw(&asset_storage_key(id))
             .await
             .context("failed reading raw asset from state")?
         else {
-            bail!("asset not found");
+            return Ok(None);
         };
 
         let DenominationTrace(denom_str) =
             DenominationTrace::try_from_slice(&bytes).context("invalid asset bytes")?;
         let denom: Denom = denom_str.into();
-        Ok(denom)
+        Ok(Some(denom))
     }
 }
 
@@ -94,11 +93,14 @@ mod test {
 
         let asset = Id::from_denom("asset");
 
-        // gets for non existing assets fail
-        state
-            .get_ibc_asset(asset)
-            .await
-            .expect_err("gets for non existing ibc assets should fail");
+        // gets for non existing assets should return none
+        assert_eq!(
+            state
+                .get_ibc_asset(asset)
+                .await
+                .expect("getting non existing asset should not fail"),
+            None
+        );
     }
 
     #[tokio::test]
@@ -147,6 +149,7 @@ mod test {
             state
                 .get_ibc_asset(denom.id())
                 .await
+                .unwrap()
                 .expect("an ibc asset was written and must exist inside the database"),
             denom,
             "stored ibc asset was not what was expected"
@@ -168,6 +171,7 @@ mod test {
             state
                 .get_ibc_asset(denom.id())
                 .await
+                .unwrap()
                 .expect("an ibc asset was written and must exist inside the database"),
             denom,
             "stored ibc asset was not what was expected"
@@ -182,6 +186,7 @@ mod test {
             state
                 .get_ibc_asset(denom_1.id())
                 .await
+                .unwrap()
                 .expect("an additional ibc asset was written and must exist inside the database"),
             denom_1,
             "additional ibc asset was not what was expected"
@@ -190,6 +195,7 @@ mod test {
             state
                 .get_ibc_asset(denom.id())
                 .await
+                .unwrap()
                 .expect("an ibc asset was written and must exist inside the database"),
             denom,
             "original ibc asset was not what was expected"
@@ -214,6 +220,7 @@ mod test {
             state
                 .get_ibc_asset(id_key)
                 .await
+                .unwrap()
                 .expect("an ibc asset was written and must exist inside the database")
                 .id(),
             id_key,

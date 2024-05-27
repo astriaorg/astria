@@ -25,7 +25,6 @@ tonic-health = "0.10.2"
 
 async-trait = { workspace = true }
 axum = { workspace = true }
-ed25519-consensus = { workspace = true }
 ethers = { workspace = true, features = ["ws"] }
 futures = { workspace = true }
 humantime = { workspace = true }

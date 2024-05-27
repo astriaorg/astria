@@ -268,23 +268,6 @@ impl Address {
         self.0.to_vec()
     }
 
-    /// Construct a sequencer address from a [`ed25519_consensus::VerificationKey`].
-    ///
-    /// The first 20 bytes of the sha256 hash of the verification key is the address.
-    #[must_use]
-    // Silence the clippy lint because the function body asserts that the panic
-    // cannot happen.
-    #[allow(clippy::missing_panics_doc)]
-    pub fn from_verification_key(public_key: ed25519_consensus::VerificationKey) -> Self {
-        /// this ensures that `ADDRESS_LEN` is never accidentally changed to a value
-        /// that would violate this assumption.
-        #[allow(clippy::assertions_on_constants)]
-        const _: () = assert!(ADDRESS_LEN <= 32);
-        let bytes: [u8; 32] = Sha256::digest(public_key).into();
-        Self::try_from_slice(&bytes[..ADDRESS_LEN])
-            .expect("can convert 32 byte hash to 20 byte array")
-    }
-
     /// Convert a byte slice to an address.
     ///
     /// # Errors
