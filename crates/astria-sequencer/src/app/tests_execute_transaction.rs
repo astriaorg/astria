@@ -957,7 +957,7 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
 
     // create a new key; will have 0 balance
     let keypair = SigningKey::new(OsRng);
-    let keypair_address = Address::from_verification_key(keypair.verification_key());
+    let keypair_address = *keypair.verification_key().address();
 
     // figure out needed fee for a single transfer
     let data = b"hello world".to_vec();

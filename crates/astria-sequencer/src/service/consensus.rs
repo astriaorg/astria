@@ -219,7 +219,10 @@ mod test {
     };
 
     use astria_core::{
-        crypto::SigningKey,
+        crypto::{
+            SigningKey,
+            VerificationKey,
+        },
         primitive::v1::{
             asset::DEFAULT_NATIVE_ASSET_DENOM,
             Address,
@@ -232,7 +235,6 @@ mod test {
         },
     };
     use bytes::Bytes;
-    use ed25519_consensus::VerificationKey;
     use prost::Message as _;
     use rand::rngs::OsRng;
     use tendermint::{
@@ -477,7 +479,7 @@ mod test {
     async fn new_consensus_service(funded_key: Option<VerificationKey>) -> (Consensus, Mempool) {
         let accounts = if funded_key.is_some() {
             vec![crate::genesis::Account {
-                address: Address::from_verification_key(funded_key.unwrap()),
+                address: *funded_key.unwrap().address(),
                 balance: 10u128.pow(19),
             }]
         } else {

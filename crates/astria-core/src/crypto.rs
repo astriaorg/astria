@@ -1,21 +1,45 @@
-use std::fmt::{
-    self,
-    Debug,
-    Formatter,
+use std::{
+    cmp::Ordering,
+    fmt::{
+        self,
+        Debug,
+        Display,
+        Formatter,
+    },
+    hash::{
+        Hash,
+        Hasher,
+    },
+    sync::OnceLock,
 };
 
+use base64::{
+    display::Base64Display,
+    prelude::BASE64_STANDARD,
+    Engine,
+};
 use ed25519_consensus::{
-    Signature,
+    Error as Ed25519Error,
+    Signature as Ed25519Signature,
     SigningKey as Ed25519SigningKey,
-    VerificationKey,
+    VerificationKey as Ed25519VerificationKey,
 };
 use rand::{
     CryptoRng,
     RngCore,
 };
+use sha2::{
+    Digest as _,
+    Sha256,
+};
 use zeroize::{
     Zeroize,
     ZeroizeOnDrop,
+};
+
+use crate::primitive::v1::{
+    Address,
+    ADDRESS_LEN,
 };
 
 /// An Ed25519 signing key.
@@ -34,7 +58,7 @@ impl SigningKey {
     /// Creates a signature on `msg` using this key.
     #[must_use]
     pub fn sign(&self, msg: &[u8]) -> Signature {
-        self.0.sign(msg)
+        Signature(self.0.sign(msg))
     }
 
     /// Returns the byte encoding of the signing key.
@@ -52,7 +76,10 @@ impl SigningKey {
     /// Returns the verification key associated with this signing key.
     #[must_use]
     pub fn verification_key(&self) -> VerificationKey {
-        self.0.verification_key()
+        VerificationKey {
+            key: self.0.verification_key(),
+            address: OnceLock::new(),
+        }
     }
 }
 
@@ -60,7 +87,7 @@ impl Debug for SigningKey {
     fn fmt(&self, formatter: &mut Formatter) -> fmt::Result {
         formatter
             .debug_struct("SigningKey")
-            .field("verification_key", &self.0.verification_key())
+            .field("verification_key", &self.verification_key())
             .finish_non_exhaustive() // avoids printing secret fields
     }
 }
@@ -82,5 +109,330 @@ impl TryFrom<&[u8]> for SigningKey {
 impl From<[u8; 32]> for SigningKey {
     fn from(seed: [u8; 32]) -> Self {
         Self(Ed25519SigningKey::from(seed))
+    }
+}
+
+/// An Ed25519 verification key.
+#[derive(Clone)]
+pub struct VerificationKey {
+    key: Ed25519VerificationKey,
+    // The address is lazily-initialized.  Since it may or may not be initialized for any given
+    // instance of a verification key, it is excluded from `PartialEq`, `Eq`, `PartialOrd`, `Ord`
+    // and `Hash` impls.
+    address: OnceLock<Address>,
+}
+
+impl VerificationKey {
+    /// Returns the byte encoding of the verification key.
+    pub fn to_bytes(&self) -> [u8; 32] {
+        self.key.to_bytes()
+    }
+
+    /// Returns the byte encoding of the verification key.
+    pub fn as_bytes(&self) -> &[u8; 32] {
+        self.key.as_bytes()
+    }
+
+    /// Verifies `signature` on the given `msg`.
+    ///
+    /// # Errors
+    /// Returns an error if verification fails.
+    pub fn verify(&self, signature: &Signature, msg: &[u8]) -> Result<(), Error> {
+        self.key.verify(&signature.0, msg).map_err(Error)
+    }
+
+    /// Returns the sequencer address of this verification key.
+    ///
+    /// The address is the first 20 bytes of the sha256 hash of the verification key.
+    // Silence the clippy lint because the function body asserts that the panic
+    // cannot happen.
+    #[allow(clippy::missing_panics_doc)]
+    pub fn address(&self) -> &Address {
+        self.address.get_or_init(|| {
+            /// this ensures that `ADDRESS_LEN` is never accidentally changed to a value
+            /// that would violate this assumption.
+            #[allow(clippy::assertions_on_constants)]
+            const _: () = assert!(ADDRESS_LEN <= 32);
+            let bytes: [u8; 32] = Sha256::digest(self).into();
+            Address::try_from_slice(&bytes[..ADDRESS_LEN])
+                .expect("can convert 32 byte hash to 20 byte array")
+        })
+    }
+}
+
+impl Debug for VerificationKey {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        let mut debug_struct = formatter.debug_struct("VerifyingKey");
+        debug_struct.field("key", &BASE64_STANDARD.encode(self.key.as_ref()));
+        if let Some(address) = self.address.get() {
+            debug_struct.field("address", address);
+        } else {
+            debug_struct.field("address", &"unset");
+        }
+        debug_struct.finish()
+    }
+}
+
+impl Display for VerificationKey {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        Base64Display::new(self.key.as_ref(), &BASE64_STANDARD).fmt(formatter)
+    }
+}
+
+impl PartialEq for VerificationKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.key.eq(&other.key)
+    }
+}
+
+impl Eq for VerificationKey {}
+
+impl PartialOrd for VerificationKey {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for VerificationKey {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.key.cmp(&other.key)
+    }
+}
+
+impl Hash for VerificationKey {
+    fn hash<H: Hasher>(&self, hasher: &mut H) {
+        self.key.hash(hasher);
+    }
+}
+
+impl AsRef<[u8]> for VerificationKey {
+    fn as_ref(&self) -> &[u8] {
+        self.key.as_ref()
+    }
+}
+
+impl TryFrom<&[u8]> for VerificationKey {
+    type Error = Error;
+
+    fn try_from(slice: &[u8]) -> Result<Self, Error> {
+        let key = Ed25519VerificationKey::try_from(slice)?;
+        Ok(Self {
+            key,
+            address: OnceLock::new(),
+        })
+    }
+}
+
+impl TryFrom<[u8; 32]> for VerificationKey {
+    type Error = Error;
+
+    fn try_from(bytes: [u8; 32]) -> Result<Self, Self::Error> {
+        let key = Ed25519VerificationKey::try_from(bytes)?;
+        Ok(Self {
+            key,
+            address: OnceLock::new(),
+        })
+    }
+}
+
+/// An Ed25519 signature.
+#[derive(Copy, Clone, Eq, PartialEq)]
+pub struct Signature(Ed25519Signature);
+
+impl Signature {
+    /// Returns the bytes of the signature.
+    #[must_use]
+    pub fn to_bytes(&self) -> [u8; 64] {
+        self.0.to_bytes()
+    }
+}
+
+impl Debug for Signature {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        (&self.0 as &dyn Debug).fmt(formatter)
+    }
+}
+
+impl Display for Signature {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        Base64Display::new(&self.0.to_bytes(), &BASE64_STANDARD).fmt(formatter)
+    }
+}
+
+impl From<[u8; 64]> for Signature {
+    fn from(bytes: [u8; 64]) -> Self {
+        Self(Ed25519Signature::from(bytes))
+    }
+}
+
+impl TryFrom<&[u8]> for Signature {
+    type Error = Error;
+
+    fn try_from(slice: &[u8]) -> Result<Self, Error> {
+        let signature = Ed25519Signature::try_from(slice)?;
+        Ok(Self(signature))
+    }
+}
+
+/// An error related to Ed25519 signing.
+#[derive(Copy, Clone, Eq, PartialEq, thiserror::Error, Debug)]
+#[error(transparent)]
+pub struct Error(#[from] Ed25519Error);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // From https://doc.rust-lang.org/std/cmp/trait.PartialOrd.html
+    #[test]
+    // allow: we want explicit assertions here to match the documented expected behavior.
+    #[allow(clippy::nonminimal_bool)]
+    fn verification_key_comparisons_should_be_consistent() {
+        // A key which compares greater than "low" ones below, and with its address uninitialized.
+        let high_uninit = VerificationKey {
+            key: SigningKey::from([255; 32]).0.verification_key(),
+            address: OnceLock::new(),
+        };
+        // A key equal to `high_uninit`, but with its address initialized.
+        let high_init = VerificationKey {
+            key: high_uninit.key,
+            address: OnceLock::from(Address::from([255; 20])),
+        };
+        // A key which compares less than "high" ones above, and with its address uninitialized.
+        let low_uninit = VerificationKey {
+            key: SigningKey::from([0; 32]).0.verification_key(),
+            address: OnceLock::new(),
+        };
+        // A key equal to `low_uninit`, but with its address initialized.
+        let low_init = VerificationKey {
+            key: low_uninit.key,
+            address: OnceLock::from(Address::from([255; 20])),
+        };
+
+        assert!(high_uninit.cmp(&high_uninit) == Ordering::Equal);
+        assert!(high_uninit.cmp(&high_init) == Ordering::Equal);
+        assert!(high_init.cmp(&high_uninit) == Ordering::Equal);
+        assert!(high_init.cmp(&high_init) == Ordering::Equal);
+        assert!(high_uninit.cmp(&low_uninit) == Ordering::Greater);
+        assert!(high_uninit.cmp(&low_init) == Ordering::Greater);
+        assert!(high_init.cmp(&low_uninit) == Ordering::Greater);
+        assert!(high_init.cmp(&low_init) == Ordering::Greater);
+        assert!(low_uninit.cmp(&high_uninit) == Ordering::Less);
+        assert!(low_uninit.cmp(&high_init) == Ordering::Less);
+        assert!(low_init.cmp(&high_uninit) == Ordering::Less);
+        assert!(low_init.cmp(&high_init) == Ordering::Less);
+
+        // 1. a == b if and only if partial_cmp(a, b) == Some(Equal)
+        assert!(high_uninit == high_uninit); // Some(Equal)
+        assert!(high_uninit == high_init); // Some(Equal)
+        assert!(high_init == high_uninit); // Some(Equal)
+        assert!(high_init == high_init); // Some(Equal)
+        assert!(!(high_uninit == low_uninit)); // Some(Greater)
+        assert!(!(high_uninit == low_init)); // Some(Greater)
+        assert!(!(high_init == low_uninit)); // Some(Greater)
+        assert!(!(high_init == low_init)); // Some(Greater)
+        assert!(!(low_uninit == high_uninit)); // Some(Less)
+        assert!(!(low_uninit == high_init)); // Some(Less)
+        assert!(!(low_init == high_uninit)); // Some(Less)
+        assert!(!(low_init == high_init)); // Some(Less)
+
+        // 2. a < b if and only if partial_cmp(a, b) == Some(Less)
+        assert!(low_uninit < high_uninit); // Some(Less)
+        assert!(low_uninit < high_init); // Some(Less)
+        assert!(low_init < high_uninit); // Some(Less)
+        assert!(low_init < high_init); // Some(Less)
+        assert!(!(high_uninit < high_uninit)); // Some(Equal)
+        assert!(!(high_uninit < high_init)); // Some(Equal)
+        assert!(!(high_init < high_uninit)); // Some(Equal)
+        assert!(!(high_init < high_init)); // Some(Equal)
+        assert!(!(high_uninit < low_uninit)); // Some(Greater)
+        assert!(!(high_uninit < low_init)); // Some(Greater)
+        assert!(!(high_init < low_uninit)); // Some(Greater)
+        assert!(!(high_init < low_init)); // Some(Greater)
+
+        // 3. a > b if and only if partial_cmp(a, b) == Some(Greater)
+        assert!(high_uninit > low_uninit); // Some(Greater)
+        assert!(high_uninit > low_init); // Some(Greater)
+        assert!(high_init > low_uninit); // Some(Greater)
+        assert!(high_init > low_init); // Some(Greater)
+        assert!(!(high_uninit > high_uninit)); // Some(Equal)
+        assert!(!(high_uninit > high_init)); // Some(Equal)
+        assert!(!(high_init > high_uninit)); // Some(Equal)
+        assert!(!(high_init > high_init)); // Some(Equal)
+        assert!(!(low_uninit > high_uninit)); // Some(Less)
+        assert!(!(low_uninit > high_init)); // Some(Less)
+        assert!(!(low_init > high_uninit)); // Some(Less)
+        assert!(!(low_init > high_init)); // Some(Less)
+
+        // 4. a <= b if and only if a < b || a == b
+        assert!(low_uninit <= high_uninit); // a < b
+        assert!(low_uninit <= high_init); // a < b
+        assert!(low_init <= high_uninit); // a < b
+        assert!(low_init <= high_init); // a < b
+        assert!(high_uninit <= high_uninit); // a == b
+        assert!(high_uninit <= high_init); // a == b
+        assert!(high_init <= high_uninit); // a == b
+        assert!(!(high_uninit <= low_uninit)); // a > b
+        assert!(!(high_uninit <= low_init)); // a > b
+        assert!(!(high_init <= low_uninit)); // a > b
+        assert!(!(high_init <= low_init)); // a > b
+
+        // 5. a >= b if and only if a > b || a == b
+        assert!(high_uninit >= low_uninit); // a > b
+        assert!(high_uninit >= low_init); // a > b
+        assert!(high_init >= low_uninit); // a > b
+        assert!(high_init >= low_init); // a > b
+        assert!(high_uninit >= high_uninit); // a == b
+        assert!(high_uninit >= high_init); // a == b
+        assert!(high_init >= high_uninit); // a == b
+        assert!(high_init >= high_init); // a == b
+        assert!(!(low_uninit >= high_uninit)); // a < b
+        assert!(!(low_uninit >= high_init)); // a < b
+        assert!(!(low_init >= high_uninit)); // a < b
+        assert!(!(low_init >= high_init)); // a < b
+
+        // 6. a != b if and only if !(a == b)
+        assert!(high_uninit != low_uninit); // asserted !(high == low) above
+        assert!(high_uninit != low_init); // asserted !(high == low) above
+        assert!(high_init != low_uninit); // asserted !(high == low) above
+        assert!(high_init != low_init); // asserted !(high == low) above
+        assert!(low_uninit != high_uninit); // asserted !(low == high) above
+        assert!(low_uninit != high_init); // asserted !(low == high) above
+        assert!(low_init != high_uninit); // asserted !(low == high) above
+        assert!(low_init != high_init); // asserted !(low == high) above
+        assert!(!(high_uninit != high_uninit)); // asserted high == high above
+        assert!(!(high_uninit != high_init)); // asserted high == high above
+        assert!(!(high_init != high_uninit)); // asserted high == high above
+        assert!(!(high_init != high_init)); // asserted high == high above
+    }
+
+    #[test]
+    // From https://doc.rust-lang.org/std/hash/trait.Hash.html#hash-and-eq
+    fn verification_key_hash_and_eq_should_be_consistent() {
+        // Check verification keys compare equal if and only if their keys are equal.
+        let key0 = VerificationKey {
+            key: SigningKey::from([0; 32]).0.verification_key(),
+            address: OnceLock::new(),
+        };
+        let other_key0 = VerificationKey {
+            key: SigningKey::from([0; 32]).0.verification_key(),
+            address: OnceLock::from(Address::from([0; 20])),
+        };
+        let key1 = VerificationKey {
+            key: SigningKey::from([1; 32]).0.verification_key(),
+            address: OnceLock::new(),
+        };
+
+        assert!(key0 == other_key0);
+        assert!(key0 != key1);
+
+        // Check verification keys' std hashes compare equal if and only if their keys are equal.
+        let std_hash = |verification_key: &VerificationKey| -> u64 {
+            let mut hasher = std::hash::DefaultHasher::new();
+            verification_key.hash(&mut hasher);
+            hasher.finish()
+        };
+        assert!(std_hash(&key0) == std_hash(&other_key0));
+        assert!(std_hash(&key0) != std_hash(&key1));
     }
 }

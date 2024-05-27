@@ -96,7 +96,6 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
     state: S,
     mempool: &mut AppMempool,
 ) -> response::CheckTx {
-    use astria_core::primitive::v1::Address;
     use sha2::Digest as _;
 
     let tx_hash = sha2::Sha256::digest(&req.tx).into();
@@ -192,7 +191,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
     let priority = crate::mempool::TransactionPriority::new(
         signed_tx.nonce(),
         state
-            .get_account_nonce(Address::from_verification_key(signed_tx.verification_key()))
+            .get_account_nonce(*signed_tx.verification_key().address())
             .await
             .expect("can fetch account nonce"),
     )

@@ -587,7 +587,7 @@ pub fn make_commit(height: u32) -> tendermint::block::Commit {
         signatures: vec![tendermint::block::CommitSig::BlockIdFlagCommit {
             validator_address: validator.address,
             timestamp,
-            signature: Some(signature.into()),
+            signature: Some(signature.to_bytes().as_ref().try_into().unwrap()),
         }],
     }
 }
