@@ -52,7 +52,6 @@ use crate::{
         StateWriteExt,
     },
     genesis::Account,
-    mempool::TransactionPriority,
     proposal::commitment::generate_rollup_datas_commitment,
     state_ext::StateReadExt as _,
 };
@@ -463,10 +462,7 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
     // don't commit the result, now call prepare_proposal with the same data.
     // this will reset the app state.
     // this simulates executing the same block as a validator (specifically the proposer).
-    app.mempool
-        .insert(signed_tx, TransactionPriority::new(0, 0).unwrap())
-        .await
-        .unwrap();
+    app.mempool.insert(signed_tx, 0).await.unwrap();
 
     let proposer_address = [88u8; 20].to_vec().try_into().unwrap();
     let prepare_proposal = PrepareProposal {
@@ -575,14 +571,8 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
     }
     .into_signed(&alice_signing_key);
 
-    app.mempool
-        .insert(tx_pass, TransactionPriority::new(0, 0).unwrap())
-        .await
-        .unwrap();
-    app.mempool
-        .insert(tx_overflow, TransactionPriority::new(1, 0).unwrap())
-        .await
-        .unwrap();
+    app.mempool.insert(tx_pass, 0).await.unwrap();
+    app.mempool.insert(tx_overflow, 0).await.unwrap();
 
     // send to prepare_proposal
     let prepare_args = abci::request::PrepareProposal {
@@ -654,14 +644,8 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
     }
     .into_signed(&alice_signing_key);
 
-    app.mempool
-        .insert(tx_pass, TransactionPriority::new(0, 0).unwrap())
-        .await
-        .unwrap();
-    app.mempool
-        .insert(tx_overflow, TransactionPriority::new(1, 0).unwrap())
-        .await
-        .unwrap();
+    app.mempool.insert(tx_pass, 0).await.unwrap();
+    app.mempool.insert(tx_overflow, 0).await.unwrap();
 
     // send to prepare_proposal
     let prepare_args = abci::request::PrepareProposal {
@@ -754,55 +738,4 @@ async fn app_end_block_validator_updates() {
     assert_eq!(validator_c.pub_key, pubkey_c);
     assert_eq!(validator_c.power, 100u32.into());
     assert_eq!(app.state.get_validator_updates().await.unwrap().len(), 0);
-}
-
-#[tokio::test]
-async fn update_mempool_after_finalization_update_account_nonce() {
-    let mut mempool = Mempool::new();
-
-    let storage = cnidarium::TempStorage::new().await.unwrap();
-    let snapshot = storage.latest_snapshot();
-
-    // insert tx with nonce 1, account nonce is 0
-    let tx = get_mock_tx(1);
-    let address = *tx.verification_key().address();
-    let priority = TransactionPriority::new(1, 0).unwrap();
-    mempool.insert(tx.clone(), priority).await.unwrap();
-
-    // update account nonce to 1
-    let mut state_tx = StateDelta::new(snapshot.clone());
-    state_tx.put_account_nonce(address, 1).unwrap();
-    storage.commit(state_tx).await.unwrap();
-
-    // ensure that mempool tx priority was updated
-    update_mempool_after_finalization(&mut mempool, storage.latest_snapshot())
-        .await
-        .unwrap();
-    let (_, priority) = mempool.pop().await.unwrap();
-    assert_eq!(priority, TransactionPriority::new(1, 1).unwrap());
-}
-
-#[tokio::test]
-async fn update_mempool_after_finalization_remove_tx_if_nonce_too_low() {
-    let mut mempool = Mempool::new();
-
-    let storage = cnidarium::TempStorage::new().await.unwrap();
-    let snapshot = storage.latest_snapshot();
-
-    // insert tx with nonce 1, account nonce is 1
-    let tx = get_mock_tx(1);
-    let address = *tx.verification_key().address();
-    let priority = TransactionPriority::new(1, 1).unwrap();
-    mempool.insert(tx.clone(), priority).await.unwrap();
-
-    // update account nonce to 2
-    let mut state_tx = StateDelta::new(snapshot.clone());
-    state_tx.put_account_nonce(address, 2).unwrap();
-    storage.commit(state_tx).await.unwrap();
-
-    // ensure that tx was removed from mempool
-    update_mempool_after_finalization(&mut mempool, storage.latest_snapshot())
-        .await
-        .unwrap();
-    assert!(mempool.pop().await.is_none());
 }

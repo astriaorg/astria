@@ -474,11 +474,12 @@ impl App {
         let mut execution_results = Vec::new();
         let mut txs_to_readd_to_mempool = Vec::new();
 
-        while let Some((tx, priority)) = self.mempool.pop().await {
+        while let Some((enqueued_tx, priority)) = self.mempool.pop().await {
+            let tx_hash_base64 = telemetry::display::base64(&enqueued_tx.tx_hash()).to_string();
+            let tx = enqueued_tx.signed_tx();
             let bytes = tx.to_raw().encode_to_vec();
-            let tx_hash = Sha256::digest(&bytes);
             let tx_len = bytes.len();
-            info!(tx_hash = %telemetry::display::hex(&tx_hash), "executing transaction");
+            info!(transaction_hash = %tx_hash_base64, "executing transaction");
 
             // don't include tx if it would make the cometBFT block too large
             if !block_size_constraints.cometbft_has_space(tx_len) {
@@ -487,12 +488,12 @@ impl App {
                 )
                 .increment(1);
                 debug!(
-                    transaction_hash = %telemetry::display::base64(&tx_hash),
+                    transaction_hash = %tx_hash_base64,
                     block_size_constraints = %json(&block_size_constraints),
                     tx_data_bytes = tx_len,
                     "excluding remaining transactions: max cometBFT data limit reached"
                 );
-                txs_to_readd_to_mempool.push((tx, priority));
+                txs_to_readd_to_mempool.push((enqueued_tx, priority));
 
                 // break from loop, as the block is full
                 break;
@@ -508,12 +509,12 @@ impl App {
 
             if !block_size_constraints.sequencer_has_space(tx_sequence_data_bytes) {
                 debug!(
-                    transaction_hash = %telemetry::display::base64(&tx_hash),
+                    transaction_hash = %tx_hash_base64,
                     block_size_constraints = %json(&block_size_constraints),
                     tx_data_bytes = tx_sequence_data_bytes,
                     "excluding transaction: max block sequenced data limit reached"
                 );
-                txs_to_readd_to_mempool.push((tx, priority));
+                txs_to_readd_to_mempool.push((enqueued_tx, priority));
 
                 // continue as there might be non-sequence txs that can fit
                 continue;
@@ -533,7 +534,7 @@ impl App {
                         .cometbft_checked_add(tx_len)
                         .context("error growing cometBFT block size")?;
                     validated_txs.push(bytes.into());
-                    included_signed_txs.push(tx);
+                    included_signed_txs.push((*tx).clone());
                 }
                 Err(e) => {
                     metrics::counter!(
@@ -541,7 +542,7 @@ impl App {
                     )
                     .increment(1);
                     debug!(
-                        transaction_hash = %telemetry::display::base64(&tx_hash),
+                        transaction_hash = %tx_hash_base64,
                         error = AsRef::<dyn std::error::Error>::as_ref(&e),
                         "failed to execute transaction, not including in block"
                     );
@@ -552,7 +553,7 @@ impl App {
                     // if it's invalid due to the nonce being too low, it'll be
                     // removed from the mempool in `update_mempool_after_finalization`.
                     if e.downcast_ref::<InvalidNonce>().is_some() {
-                        txs_to_readd_to_mempool.push((tx, priority));
+                        txs_to_readd_to_mempool.push((enqueued_tx, priority));
                     }
                 }
             }
@@ -566,14 +567,7 @@ impl App {
             );
         }
 
-        self.mempool
-            .insert_all(txs_to_readd_to_mempool)
-            .await
-            .expect(
-                "priority transaction nonce and transaction nonce matches for each tx, as they \
-                 were just popped from the mempool and not modified",
-            );
-
+        self.mempool.insert_all(txs_to_readd_to_mempool).await;
         let mempool_len = self.mempool.len().await;
         debug!(mempool_len, "finished executing transactions from mempool");
 
@@ -634,7 +628,7 @@ impl App {
             }
 
             // execute tx and store in `execution_results` list on success
-            match self.execute_transaction(tx.clone()).await {
+            match self.execute_transaction(Arc::new(tx.clone())).await {
                 Ok(events) => {
                     execution_results.push(ExecTxResult {
                         events,
@@ -799,12 +793,12 @@ impl App {
             for tx in finalize_block.txs.iter().skip(2) {
                 // remove any included txs from the mempool
                 let tx_hash = Sha256::digest(tx).into();
-                self.mempool.remove(&tx_hash).await;
+                self.mempool.remove(tx_hash).await;
 
                 let signed_tx = signed_transaction_from_bytes(tx)
                     .context("protocol error; only valid txs should be finalized")?;
 
-                match self.execute_transaction(signed_tx).await {
+                match self.execute_transaction(Arc::new(signed_tx)).await {
                     Ok(events) => tx_results.push(ExecTxResult {
                         events,
                         ..Default::default()
@@ -972,8 +966,8 @@ impl App {
     ))]
     pub(crate) async fn execute_transaction(
         &mut self,
-        signed_tx: astria_core::protocol::transaction::v1alpha1::SignedTransaction,
-    ) -> anyhow::Result<Vec<abci::Event>> {
+        signed_tx: Arc<SignedTransaction>,
+    ) -> anyhow::Result<Vec<Event>> {
         let signed_tx_2 = signed_tx.clone();
         let stateless =
             tokio::spawn(async move { transaction::check_stateless(&signed_tx_2).await });
@@ -1130,33 +1124,10 @@ async fn update_mempool_after_finalization<S: StateReadExt>(
     mempool: &mut Mempool,
     state: S,
 ) -> anyhow::Result<()> {
-    use crate::mempool::TransactionPriority;
-
-    let mut txs_to_remove = Vec::new();
-
-    for (tx, priority) in mempool.write().await.iter_mut() {
-        match TransactionPriority::new(
-            tx.nonce(),
-            state
-                .get_account_nonce(*tx.verification_key().address())
-                .await
-                .context("failed to fetch account nonce")?,
-        ) {
-            Ok(new_priority) => *priority = new_priority,
-            Err(e) => {
-                let tx_hash = tx.sha256_of_proto_encoding();
-                debug!(
-                    transaction_hash = %telemetry::display::base64(&tx_hash),
-                    error = AsRef::<dyn std::error::Error>::as_ref(&e),
-                     "account nonce is now greater than tx nonce; dropping tx from mempool",
-                );
-                txs_to_remove.push(tx_hash);
-            }
-        };
-    }
-
-    mempool.remove_all(&txs_to_remove).await;
-    Ok(())
+    let current_account_nonce_getter = |address: Address| state.get_account_nonce(address);
+    mempool
+        .update_priorities(current_account_nonce_getter)
+        .await
 }
 
 /// relevant data of a block being executed.
