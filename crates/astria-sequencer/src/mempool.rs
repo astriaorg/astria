@@ -187,8 +187,8 @@ impl Mempool {
         let inner = self.inner.read().await;
         let mut nonce = None;
         for (tx, priority) in inner.iter() {
-            let sender = Address::from_verification_key(tx.verification_key());
-            if &sender == address {
+            let sender = tx.verification_key().address();
+            if sender == address {
                 nonce = Some(std::cmp::max(
                     nonce.unwrap_or_default(),
                     priority.transaction_nonce,

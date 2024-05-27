@@ -183,7 +183,8 @@ async fn refund_tokens_check<S: StateRead>(
         denom = state
             .get_ibc_asset(denom.id())
             .await
-            .context("failed to get denom trace from asset id")?;
+            .context("failed to get denom trace from asset id")?
+            .context("denom for given asset id not found in state")?;
     }
 
     let is_source = !is_prefixed(source_port, source_channel, &denom);
@@ -396,6 +397,7 @@ async fn convert_denomination_if_ibc_prefixed<S: StateReadExt>(
             .get_ibc_asset(id_bytes.into())
             .await
             .context("failed to get denom trace from asset id")?
+            .context("denom for given asset id not found in state")?
     } else {
         packet_denom
     };
