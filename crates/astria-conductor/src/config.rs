@@ -55,6 +55,9 @@ pub struct Config {
 
     pub sequencer_block_time_ms: u64,
 
+    /// The number of requests per second that will be sent to Sequencer.
+    pub sequencer_requests_per_second: u32,
+
     /// Address of the RPC server for execution
     pub execution_rpc_url: String,
 

@@ -141,6 +141,7 @@ impl Conductor {
                 celestia_block_time: Duration::from_millis(cfg.celestia_block_time_ms),
                 executor: executor_handle.clone(),
                 sequencer_cometbft_client: sequencer_cometbft_client.clone(),
+                sequencer_requests_per_second: cfg.sequencer_requests_per_second,
                 shutdown: shutdown.clone(),
             }
             .build()
