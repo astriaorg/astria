@@ -33,6 +33,10 @@ use tracing::{
     Instrument,
     Span,
 };
+use tryhard::{
+    backoff_strategies::BackoffStrategy,
+    RetryPolicy,
+};
 
 /// A newtype wrapper around [`ExecutionServiceClient`] to work with
 /// idiomatic types.
@@ -69,8 +73,8 @@ impl Client {
         .in_current_span()
         .await
         .wrap_err(
-            "failed to execute astria.execution.v1alpha2.GetBlocks RPC after multiple retries; \
-             giving up",
+            "failed to execute astria.execution.v1alpha2.GetBlocks RPC because of gRPC status \
+             code or because number of retries were exhausted",
         )?
         .into_inner();
         ensure!(
@@ -93,8 +97,8 @@ impl Client {
         .in_current_span()
         .await
         .wrap_err(
-            "failed to execute astria.execution.v1alpha2.GetGenesisInfo RPC after multiple \
-             retries; giving up",
+            "failed to execute astria.execution.v1alpha2.GetGenesisInfo RPC because of gRPC \
+             status code or because number of retries were exhausted",
         )?
         .into_inner();
         let genesis_info = GenesisInfo::try_from_raw(response)
@@ -138,8 +142,8 @@ impl Client {
         .in_current_span()
         .await
         .wrap_err(
-            "failed to execute astria.execution.v1alpha2.ExecuteBlock RPC after multiple retries; \
-             giving up",
+            "failed to execute astria.execution.v1alpha2.ExecuteBlock RPC because of gRPC status \
+             code or because number of retries were exhausted",
         )?
         .into_inner();
         let block = Block::try_from_raw(response)
@@ -163,8 +167,8 @@ impl Client {
         .in_current_span()
         .await
         .wrap_err(
-            "failed to execute astria.execution.v1alpha2.GetCommitmentState RPC after multiple \
-             retries; giving up",
+            "failed to execute astria.execution.v1alpha2.GetCommitmentState RPC because of gRPC \
+             status code or because number of retries were exhausted",
         )?
         .into_inner();
         let commitment_state = CommitmentState::try_from_raw(response)
@@ -195,8 +199,8 @@ impl Client {
         .in_current_span()
         .await
         .wrap_err(
-            "failed to execute astria.execution.v1alpha2.UpdateCommitmentState RPC after multiple \
-             retries; giving up",
+            "failed to execute astria.execution.v1alpha2.UpdateCommitmentState RPC because of \
+             gRPC status code or because number of retries were exhausted",
         )?
         .into_inner();
         let commitment_state = CommitmentState::try_from_raw(response)
@@ -249,4 +253,135 @@ fn retry_config()
         .on_retry(OnRetry {
             parent: Span::current(),
         })
+}
+
+/// An exponential retry strategy branching [`tonic::Status::code`].
+///
+/// Execution will be retried under the following conditions:
+///
+/// ```text
+/// Code::Cancelled
+/// Code::Unknown
+/// Code::DeadlineExceeded
+/// Code::NotFound
+/// Code::ResourceExhausted
+/// Code::Aborted
+/// Code::Unavailable
+/// Code::DataLoss
+/// ```
+struct ExecutionApiRetryStrategy {
+    delay: Duration,
+}
+
+impl<'a> BackoffStrategy<'a, tonic::Status> for ExecutionApiRetryStrategy {
+    type Output = RetryPolicy;
+
+    fn delay(&mut self, _attempt: u32, error: &'a tonic::Status) -> Self::Output {
+        if should_retry(error) {
+            let prev_delay = self.delay;
+            self.delay = self.delay.saturating_mul(2);
+            RetryPolicy::Delay(prev_delay)
+        } else {
+            RetryPolicy::Break
+        }
+    }
+}
+
+fn should_retry(status: &tonic::Status) -> bool {
+    use tonic::Code;
+    // gRPC return codes and if they should be retried. Also refer to
+    // [1] https://github.com/grpc/grpc/blob/1309eb283c3e11c471191f286ceab01b75477ffc/doc/statuscodes.md
+    //
+    // Code::Ok => no, success
+    // Code::Cancelled => yes, but should be revisited if "we" would cancel
+    // Code::Unknown => yes, could this be returned if the endpoint is unavailable?
+    // Code::InvalidArgument => no, no point retrying
+    // Code::DeadlineExceeded => yes, server might be slow
+    // Code::NotFound => yes, resource might not yet be available
+    // Code::AlreadyExists => no, no point retrying
+    // Code::PermissionDenied => no, execution API uses permission-denied restart-trigger
+    // Code::ResourceExhausted => yes, retry after a while
+    // Code::FailedPrecondition => no, failed precondition should not be retried unless the
+    //                             precondition is fixed, see [1]
+    // Code::Aborted => yes, although this applies to a read-modify-write sequence. We should
+    //                  implement this not per-request but per-request-sequence (for example,
+    //                  execute + update-commitment-state)
+    // Code::OutOfRange => no, we don't expect to send any out-of-range requests.
+    // Code::Unimplemented => no, no point retrying
+    // Code::Internal => no, this is a serious error on the backend; don't retry
+    // Code::Unavailable => yes, retry after backoff is desired
+    // Code::DataLoss => yes, unclear how this would happen; err on retrying
+    // Code::Unauthenticated => no, this status code will likely not change after retrying
+    matches!(
+        status.code(),
+        Code::Cancelled
+            | Code::Unknown
+            | Code::DeadlineExceeded
+            | Code::NotFound
+            | Code::ResourceExhausted
+            | Code::Aborted
+            | Code::Unavailable
+            | Code::DataLoss
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use tonic::{
+        Code,
+        Status,
+    };
+
+    use super::{
+        BackoffStrategy as _,
+        ExecutionApiRetryStrategy,
+        RetryPolicy,
+    };
+
+    #[track_caller]
+    fn assert_retry_policy<const SHOULD_RETRY: bool>(code: Code) {
+        let mut strat = ExecutionApiRetryStrategy {
+            delay: Duration::from_secs(1),
+        };
+        let status = Status::new(code, "");
+        let actual = strat.delay(1, &status);
+        if SHOULD_RETRY {
+            let expected = RetryPolicy::Delay(Duration::from_secs(1));
+            assert_eq!(
+                expected, actual,
+                "gRPC code `{code}` should lead to retry, but instead gave break"
+            );
+        } else {
+            let expected = RetryPolicy::Break;
+            assert_eq!(
+                expected, actual,
+                "gRPC code `{code}` should lead to break, but instead gave delay"
+            );
+        }
+    }
+
+    #[test]
+    fn status_codes_lead_to_expected_retry_policy() {
+        const SHOULD_RETRY: bool = true;
+        const SHOULD_BREAK: bool = false;
+        assert_retry_policy::<SHOULD_BREAK>(Code::Ok);
+        assert_retry_policy::<SHOULD_RETRY>(Code::Cancelled);
+        assert_retry_policy::<SHOULD_RETRY>(Code::Unknown);
+        assert_retry_policy::<SHOULD_BREAK>(Code::InvalidArgument);
+        assert_retry_policy::<SHOULD_RETRY>(Code::DeadlineExceeded);
+        assert_retry_policy::<SHOULD_RETRY>(Code::NotFound);
+        assert_retry_policy::<SHOULD_BREAK>(Code::AlreadyExists);
+        assert_retry_policy::<SHOULD_BREAK>(Code::PermissionDenied);
+        assert_retry_policy::<SHOULD_RETRY>(Code::ResourceExhausted);
+        assert_retry_policy::<SHOULD_BREAK>(Code::FailedPrecondition);
+        assert_retry_policy::<SHOULD_RETRY>(Code::Aborted);
+        assert_retry_policy::<SHOULD_BREAK>(Code::OutOfRange);
+        assert_retry_policy::<SHOULD_BREAK>(Code::Unimplemented);
+        assert_retry_policy::<SHOULD_BREAK>(Code::Internal);
+        assert_retry_policy::<SHOULD_RETRY>(Code::Unavailable);
+        assert_retry_policy::<SHOULD_RETRY>(Code::DataLoss);
+        assert_retry_policy::<SHOULD_BREAK>(Code::Unauthenticated);
+    }
 }
