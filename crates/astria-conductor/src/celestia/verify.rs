@@ -393,7 +393,6 @@ fn should_retry(error: &tendermint_rpc::Error) -> bool {
     )
 }
 
-#[non_exhaustive]
 enum VerificationRequest {
     Commit {
         height: SequencerHeight,
@@ -436,7 +435,7 @@ impl RateLimitedVerificationClient {
         height: SequencerHeight,
     ) -> Result<Box<tendermint_rpc::endpoint::commit::Response>, BoxError> {
         // allow: it is desired that the wildcard matches all future added variants because
-        // this call must only return a a single specific variant, panicking otherwise.
+        // this call must only return a single specific variant, panicking otherwise.
         #[allow(clippy::match_wildcard_for_single_variants)]
         match self
             .inner
@@ -458,7 +457,7 @@ impl RateLimitedVerificationClient {
         height: SequencerHeight,
     ) -> Result<Box<tendermint_rpc::endpoint::validators::Response>, BoxError> {
         // allow: it is desired that the wildcard matches all future added variants because
-        // this call must only return a a single specific variant, panicking otherwise.
+        // this call must only return a single specific variant, panicking otherwise.
         #[allow(clippy::match_wildcard_for_single_variants)]
         match self
             .inner
@@ -484,8 +483,8 @@ impl RateLimitedVerificationClient {
         // Therefore we can't use the ServiceBuilder::buffer adapter.
         //
         // We can however work around it: ServiceBuilder::boxed gives a BoxService, which is
-        // Send + Sync, but not Clone. We then then manually evoke Buffer::new to create a
-        // a Buffer<BoxService>, which is Send + Sync + Clone.
+        // Send + Sync, but not Clone. We then manually evoke Buffer::new to create a
+        // Buffer<BoxService>, which is Send + Sync + Clone.
         let service = tower::ServiceBuilder::new()
             .boxed()
             .rate_limit(requests_per_second.into(), Duration::from_secs(1))
