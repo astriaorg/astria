@@ -55,6 +55,9 @@ impl Info {
                 crate::accounts::query::nonce_request,
             )
             .context("invalid path: `accounts/nonce/:account`")?;
+        query_router
+            .insert("asset/denom/:id", crate::asset::query::denom_request)
+            .context("invalid path: `asset/denom/:id`")?;
         Ok(Self {
             storage,
             query_router,
@@ -153,6 +156,7 @@ mod test {
         Address,
     };
     use cnidarium::StateDelta;
+    use prost::Message as _;
     use tendermint::v0_38::abci::{
         request,
         InfoRequest,
@@ -164,13 +168,19 @@ mod test {
         accounts::state_ext::StateWriteExt as _,
         asset::{
             get_native_asset,
-            NATIVE_ASSET,
+            initialize_native_asset,
+            state_ext::StateWriteExt,
         },
         state_ext::StateWriteExt as _,
     };
 
     #[tokio::test]
-    async fn handle_query() {
+    async fn handle_balance_query() {
+        use astria_core::{
+            generated::protocol::account::v1alpha1 as raw,
+            protocol::account::v1alpha1::AssetBalance,
+        };
+
         let storage = cnidarium::TempStorage::new()
             .await
             .expect("failed to create temp storage backing chain state");
@@ -179,17 +189,18 @@ mod test {
         let mut state = StateDelta::new(storage.latest_snapshot());
         state.put_storage_version_by_height(height, version);
 
-        let _ = NATIVE_ASSET.set(Denom::from_base_denom(DEFAULT_NATIVE_ASSET_DENOM));
+        initialize_native_asset(DEFAULT_NATIVE_ASSET_DENOM);
 
         let address = Address::try_from_slice(
             &hex::decode("a034c743bed8f26cb8ee7b8db2230fd8347ae131").unwrap(),
         )
         .unwrap();
+
+        let balance = 1000;
         state
-            .put_account_balance(address, get_native_asset().id(), 1000)
+            .put_account_balance(address, get_native_asset().id(), balance)
             .unwrap();
         state.put_block_height(height);
-
         storage.commit(state).await.unwrap();
 
         let info_request = InfoRequest::Query(request::Query {
@@ -212,5 +223,59 @@ mod test {
             other => panic!("expected InfoResponse::Query, got {other:?}"),
         };
         assert!(query_response.code.is_ok());
+
+        let expected_balance = AssetBalance {
+            denom: get_native_asset().clone(),
+            balance,
+        };
+
+        let balance_resp = raw::BalanceResponse::decode(query_response.value)
+            .unwrap()
+            .to_native();
+        assert_eq!(balance_resp.balances.len(), 1);
+        assert_eq!(balance_resp.balances[0], expected_balance);
+        assert_eq!(balance_resp.height, height);
+    }
+
+    #[tokio::test]
+    async fn handle_denom_query() {
+        use astria_core::generated::protocol::asset::v1alpha1 as raw;
+
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let mut state = StateDelta::new(storage.latest_snapshot());
+
+        let denom: Denom = "some/ibc/asset".to_string().into();
+        let id = denom.id();
+        let height = 99;
+        state.put_block_height(height);
+        state.put_ibc_asset(id, &denom).unwrap();
+        storage.commit(state).await.unwrap();
+
+        let info_request = InfoRequest::Query(request::Query {
+            path: format!("asset/denom/{}", hex::encode(id)),
+            data: vec![].into(),
+            height: u32::try_from(height).unwrap().into(),
+            prove: false,
+        });
+
+        let response = {
+            let storage = (*storage).clone();
+            let info_service = Info::new(storage).unwrap();
+            info_service
+                .handle_info_request(info_request)
+                .await
+                .unwrap()
+        };
+        let query_response = match response {
+            InfoResponse::Query(query) => query,
+            other => panic!("expected InfoResponse::Query, got {other:?}"),
+        };
+        assert!(query_response.code.is_ok());
+
+        let denom_resp = raw::DenomResponse::decode(query_response.value)
+            .unwrap()
+            .to_native();
+        assert_eq!(denom_resp.height, height);
+        assert_eq!(denom_resp.denom, denom);
     }
 }

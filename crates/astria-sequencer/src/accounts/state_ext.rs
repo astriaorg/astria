@@ -96,7 +96,11 @@ pub(crate) trait StateReadExt: StateRead {
                 continue;
             }
 
-            let denom = self.get_ibc_asset(asset_id).await?;
+            let denom = self
+                .get_ibc_asset(asset_id)
+                .await
+                .context("failed to get ibc asset denom")?
+                .context("asset denom not found when user has balance of it; this is a bug")?;
             balances.push(AssetBalance {
                 denom,
                 balance,
