@@ -1,14 +1,15 @@
-use ed25519_consensus::{
-    Signature,
-    VerificationKey,
-};
 use prost::{
     Message as _,
     Name as _,
 };
 
 use super::raw;
-use crate::crypto::SigningKey;
+use crate::crypto::{
+    self,
+    Signature,
+    SigningKey,
+    VerificationKey,
+};
 
 pub mod action;
 pub use action::Action;
@@ -18,7 +19,7 @@ pub use action::Action;
 pub struct SignedTransactionError(SignedTransactionErrorKind);
 
 impl SignedTransactionError {
-    fn signature(inner: ed25519_consensus::Error) -> Self {
+    fn signature(inner: crypto::Error) -> Self {
         Self(SignedTransactionErrorKind::Signature(inner))
     }
 
@@ -26,11 +27,11 @@ impl SignedTransactionError {
         Self(SignedTransactionErrorKind::Transaction(inner))
     }
 
-    fn verification(inner: ed25519_consensus::Error) -> Self {
+    fn verification(inner: crypto::Error) -> Self {
         Self(SignedTransactionErrorKind::Verification(inner))
     }
 
-    fn verification_key(inner: ed25519_consensus::Error) -> Self {
+    fn verification_key(inner: crypto::Error) -> Self {
         Self(SignedTransactionErrorKind::VerificationKey(inner))
     }
 
@@ -44,13 +45,13 @@ enum SignedTransactionErrorKind {
     #[error("`transaction` field not set")]
     UnsetTransaction,
     #[error("`signature` field invalid")]
-    Signature(#[source] ed25519_consensus::Error),
+    Signature(#[source] crypto::Error),
     #[error("`transaction` field invalid")]
     Transaction(#[source] UnsignedTransactionError),
     #[error("`public_key` field invalid")]
-    VerificationKey(#[source] ed25519_consensus::Error),
+    VerificationKey(#[source] crypto::Error),
     #[error("transaction could not be verified given the signature and verification key")]
-    Verification(ed25519_consensus::Error),
+    Verification(crypto::Error),
 }
 
 /// The individual parts of a [`SignedTransaction`].
@@ -193,8 +194,8 @@ impl SignedTransaction {
     }
 
     #[must_use]
-    pub fn verification_key(&self) -> VerificationKey {
-        self.verification_key
+    pub fn verification_key(&self) -> &VerificationKey {
+        &self.verification_key
     }
 
     #[must_use]

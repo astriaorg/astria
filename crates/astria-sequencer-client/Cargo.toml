@@ -29,7 +29,6 @@ http = ["tendermint-rpc/http-client"]
 websocket = ["tendermint-rpc/websocket-client"]
 
 [dev-dependencies]
-ed25519-consensus = { workspace = true }
 hex-literal = { workspace = true }
 regex = { workspace = true }
 serde = { workspace = true, features = ["derive"] }

@@ -9,7 +9,7 @@ global:
 images:
   geth:
     repo: ghcr.io/astriaorg/astria-geth
-    tag: 0.10.0
+    tag: 0.10.1
     devTag: latest
   conductor:
     repo: ghcr.io/astriaorg/conductor
@@ -311,17 +311,17 @@ resources:
   conductor:
     requests:
       cpu: 0.1
-      memory: 20Mi
+      memory: 200Mi
     limits:
       cpu: 1
-      memory: 200Mi
+      memory: 2Gi
   composer:
     requests:
       cpu: 0.1
-      memory: 20Mi
+      memory: 100Mi
     limits:
       cpu: 1
-      memory: 200Mi
+      memory: 1Gi
   geth:
     requests:
       cpu: 4
