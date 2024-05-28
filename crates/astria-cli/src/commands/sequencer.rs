@@ -19,7 +19,6 @@ use astria_core::{
 use astria_sequencer_client::{
     tendermint,
     tendermint_rpc::endpoint,
-    Address,
     Client,
     HttpClient,
     SequencerClientExt,
@@ -32,7 +31,6 @@ use color_eyre::{
         Context,
     },
 };
-use ed25519_consensus::VerificationKeyBytes;
 use rand::rngs::OsRng;
 
 use crate::cli::sequencer::{
@@ -67,7 +65,7 @@ fn get_private_key_pretty(signing_key: &SigningKey) -> String {
 
 /// Get the address from the signing key
 fn get_address_pretty(signing_key: &SigningKey) -> String {
-    let address = Address::from_verification_key(signing_key.verification_key());
+    let address = *signing_key.verification_key().address();
     hex::encode(address.to_vec())
 }
 
@@ -461,9 +459,7 @@ pub(crate) async fn sudo_address_change(args: &SudoAddressChangeArgs) -> eyre::R
 pub(crate) async fn validator_update(args: &ValidatorUpdateArgs) -> eyre::Result<()> {
     let public_key_raw = hex::decode(args.validator_public_key.as_str())
         .wrap_err("failed to decode public key into bytes")?;
-    let public_key_bytes = VerificationKeyBytes::try_from(public_key_raw.as_slice())
-        .wrap_err("public key bytes were too long, must be 32 bytes")?;
-    let pub_key = tendermint::PublicKey::from_raw_ed25519(public_key_bytes.as_bytes())
+    let pub_key = tendermint::PublicKey::from_raw_ed25519(&public_key_raw)
         .expect("failed to parse public key from parsed bytes");
     let validator_update = tendermint::validator::Update {
         pub_key,
@@ -500,7 +496,7 @@ async fn submit_transaction(
         .map_err(|_| eyre!("invalid private key length; must be 32 bytes"))?;
     let sequencer_key = SigningKey::from(private_key_bytes);
 
-    let from_address = Address::from_verification_key(sequencer_key.verification_key());
+    let from_address = *sequencer_key.verification_key().address();
 
     let nonce_res = sequencer_client
         .get_latest_nonce(from_address)

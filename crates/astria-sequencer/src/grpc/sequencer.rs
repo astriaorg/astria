@@ -221,7 +221,6 @@ mod test {
     use super::*;
     use crate::{
         api_state_ext::StateWriteExt as _,
-        mempool::TransactionPriority,
         state_ext::StateWriteExt,
     };
 
@@ -255,19 +254,17 @@ mod test {
     #[tokio::test]
     async fn get_pending_nonce_in_mempool() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
-        let mut mempool = Mempool::new();
+        let mempool = Mempool::new();
 
         let (_, address) = crate::app::test_utils::get_alice_signing_key_and_address();
         let nonce = 99;
         let tx = crate::app::test_utils::get_mock_tx(nonce);
-        let priority = TransactionPriority::new(nonce, 0).unwrap();
-        mempool.insert(tx, priority).await.unwrap();
+        mempool.insert(tx, 0).await.unwrap();
 
         // insert a tx with lower nonce also, but we should get the highest nonce
         let lower_nonce = 98;
         let tx = crate::app::test_utils::get_mock_tx(lower_nonce);
-        let priority = TransactionPriority::new(lower_nonce, 0).unwrap();
-        mempool.insert(tx, priority).await.unwrap();
+        mempool.insert(tx, 0).await.unwrap();
 
         let server = Arc::new(SequencerServer::new(storage.clone(), mempool));
         let request = GetPendingNonceRequest {

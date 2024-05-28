@@ -36,7 +36,6 @@ cnidarium-component = { git = "https://github.com/penumbra-zone/penumbra.git", r
 
 async-trait = { workspace = true }
 bytes = { workspace = true }
-ed25519-consensus = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 ibc-types = { workspace = true, features = ["with_serde"] }

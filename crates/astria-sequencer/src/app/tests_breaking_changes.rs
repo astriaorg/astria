@@ -8,7 +8,11 @@
 //! Note: there are two actions not tested here: `Ics20Withdrawal` and `IbcRelay`.
 //! These are due to the extensive setup needed to test them.
 //! If changes are made to the execution results of these actions, manual testing is required.
-use std::collections::HashMap;
+
+use std::{
+    collections::HashMap,
+    sync::Arc,
+};
 
 use astria_core::{
     primitive::v1::{
@@ -240,7 +244,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         ],
     };
 
-    let signed_tx = tx.into_signed(&alice_signing_key);
+    let signed_tx = Arc::new(tx.into_signed(&alice_signing_key));
     app.execute_transaction(signed_tx).await.unwrap();
 
     // execute BridgeUnlock action
@@ -260,7 +264,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         ],
     };
 
-    let signed_tx = tx.into_signed(&bridge_signing_key);
+    let signed_tx = Arc::new(tx.into_signed(&bridge_signing_key));
     app.execute_transaction(signed_tx).await.unwrap();
 
     app.prepare_commit(storage.clone()).await.unwrap();
