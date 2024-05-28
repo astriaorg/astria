@@ -272,7 +272,6 @@ fn retry_config() -> tryhard::RetryFutureConfig<ExecutionApiRetryStrategy, OnRet
 /// Code::ResourceExhausted
 /// Code::Aborted
 /// Code::Unavailable
-/// Code::DataLoss
 /// ```
 struct ExecutionApiRetryStrategy {
     delay: Duration,
@@ -315,7 +314,7 @@ fn should_retry(status: &tonic::Status) -> bool {
     // Code::Unimplemented => no, no point retrying
     // Code::Internal => no, this is a serious error on the backend; don't retry
     // Code::Unavailable => yes, retry after backoff is desired
-    // Code::DataLoss => yes, unclear how this would happen; err on retrying
+    // Code::DataLoss => no, unclear how this would happen, but sounds very terminal
     // Code::Unauthenticated => no, this status code will likely not change after retrying
     matches!(
         status.code(),
@@ -326,7 +325,6 @@ fn should_retry(status: &tonic::Status) -> bool {
             | Code::ResourceExhausted
             | Code::Aborted
             | Code::Unavailable
-            | Code::DataLoss
     )
 }
 
@@ -386,7 +384,7 @@ mod tests {
         assert_retry_policy::<SHOULD_BREAK>(Code::Unimplemented);
         assert_retry_policy::<SHOULD_BREAK>(Code::Internal);
         assert_retry_policy::<SHOULD_RETRY>(Code::Unavailable);
-        assert_retry_policy::<SHOULD_RETRY>(Code::DataLoss);
+        assert_retry_policy::<SHOULD_BREAK>(Code::DataLoss);
         assert_retry_policy::<SHOULD_BREAK>(Code::Unauthenticated);
     }
 }
