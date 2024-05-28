@@ -92,7 +92,7 @@ service SequencerService {
   rpc GetAbciInfo(GetAbciInfoRequest) returns (astria_vendored.tendermint.abci.ResponseInfo) {
     option (google.api.http) = {get: "/v1alpha1/sequencer/abci_info"};
   }
-  
+
   // Returns the pending nonce for the given account.
   rpc GetPendingNonce(GetPendingNonceRequest) returns (GetPendingNonceResponse) {
     option (google.api.http) = {get: "/v1alpha1/sequencer/pendingnonce/{account}"};
