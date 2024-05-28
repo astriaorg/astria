@@ -10,17 +10,19 @@ use astria_core::protocol::transaction::v1alpha1::{
 };
 use astria_eyre::eyre::{
     self,
+    ensure,
     eyre,
     Context,
 };
 pub(crate) use builder::Builder;
 use sequencer_client::{
+    tendermint_rpc,
     tendermint_rpc::endpoint::broadcast::tx_commit,
     Address,
     SequencerClientExt as _,
     SignedTransaction,
 };
-use signer::SequencerSigner;
+use signer::SequencerKey;
 use state::State;
 use tokio::{
     select,
@@ -47,22 +49,25 @@ use super::{
 mod builder;
 mod signer;
 
-pub(super) struct Handle {
-    pub(super) batches_tx: mpsc::Sender<Batch>,
-}
-
 pub(super) struct Submitter {
     shutdown_token: CancellationToken,
     state: Arc<State>,
     batches_rx: mpsc::Receiver<Batch>,
     sequencer_cometbft_client: sequencer_client::HttpClient,
-    signer: SequencerSigner,
+    signer: SequencerKey,
     sequencer_chain_id: String,
 }
 
 impl Submitter {
     pub(super) async fn run(mut self) -> eyre::Result<()> {
         self.state.set_submitter_ready();
+
+        let actual_chain_id =
+            get_sequencer_chain_id(self.sequencer_cometbft_client.clone()).await?;
+        ensure!(
+            self.sequencer_chain_id == actual_chain_id.to_string(),
+            "sequencer_chain_id provided in config does not match chain_id returned from sequencer"
+        );
 
         let reason = loop {
             select!(
@@ -283,4 +288,35 @@ async fn submit_tx(
     metrics::histogram!(crate::metrics_init::SEQUENCER_SUBMISSION_LATENCY).record(start.elapsed());
 
     res
+}
+
+async fn get_sequencer_chain_id(
+    client: sequencer_client::HttpClient,
+) -> eyre::Result<tendermint::chain::Id> {
+    use sequencer_client::Client as _;
+
+    let retry_config = tryhard::RetryFutureConfig::new(u32::MAX)
+        .exponential_backoff(Duration::from_millis(100))
+        .max_delay(Duration::from_secs(20))
+        .on_retry(
+            |attempt: u32, next_delay: Option<Duration>, error: &tendermint_rpc::Error| {
+                let wait_duration = next_delay
+                    .map(humantime::format_duration)
+                    .map(tracing::field::display);
+                warn!(
+                    attempt,
+                    wait_duration,
+                    error = error as &dyn std::error::Error,
+                    "attempt to fetch sequencer genesis info; retrying after backoff",
+                );
+                futures::future::ready(())
+            },
+        );
+
+    let genesis: tendermint::Genesis = tryhard::retry_fn(|| client.genesis())
+        .with_config(retry_config)
+        .await
+        .wrap_err("failed to get genesis info from Sequencer after a lot of attempts")?;
+
+    Ok(genesis.chain_id)
 }

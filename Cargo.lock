@@ -505,7 +505,6 @@ dependencies = [
  "astria-sequencer-client",
  "astria-telemetry",
  "axum",
- "ed25519-consensus",
  "ethers",
  "futures",
  "hex",
