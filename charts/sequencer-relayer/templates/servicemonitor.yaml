@@ -4,7 +4,7 @@ kind: ServiceMonitor
 metadata:
   name: sequencer-relayer-metrics
   labels:
-    {{- include "sequencer.labels" . | nindent 4 }}
+    app: sequencer-relayer
     {{- with .Values.serviceMonitor.additionalLabels }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
