@@ -479,10 +479,7 @@ async fn submit_transaction(
     let sequencer_key = SigningKey::from(private_key_bytes);
 
     let from_address = Address::from_verification_key(sequencer_key.verification_key());
-    println!(
-        "sending tx from address: {}",
-        hex::encode(from_address.to_vec())
-    );
+    println!("sending tx from address: {from_address}");
 
     let nonce_res = sequencer_client
         .get_latest_nonce(from_address)
