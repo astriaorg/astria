@@ -358,11 +358,9 @@ mod test {
         state_tx.put_sequencer_block(block.clone()).unwrap();
         storage.commit(state_tx).await.unwrap();
 
-        let server = Arc::new(SequencerServer::new(
-            storage.clone(),
-            mempool,
-            "http://localhost:26657",
-        ));
+        let server = Arc::new(
+            SequencerServer::new(storage.clone(), mempool, "http://localhost:26657").unwrap(),
+        );
         let request = GetSequencerBlockRequest {
             height: 1,
         };
@@ -386,7 +384,9 @@ mod test {
         let tx = crate::app::test_utils::get_mock_tx(lower_nonce);
         mempool.insert(tx, 0).await.unwrap();
 
-        let server = Arc::new(SequencerServer::new(storage.clone(), mempool));
+        let server = Arc::new(
+            SequencerServer::new(storage.clone(), mempool, "http://localhost:26657").unwrap(),
+        );
         let request = GetPendingNonceRequest {
             address: Some(address.into_raw()),
         };
@@ -406,7 +406,9 @@ mod test {
         state_tx.put_account_nonce(address, 99).unwrap();
         storage.commit(state_tx).await.unwrap();
 
-        let server = Arc::new(SequencerServer::new(storage.clone(), mempool));
+        let server = Arc::new(
+            SequencerServer::new(storage.clone(), mempool, "http://localhost:26657").unwrap(),
+        );
         let request = GetPendingNonceRequest {
             address: Some(address.into_raw()),
         };
