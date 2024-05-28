@@ -100,7 +100,7 @@ impl Sequencer {
                 let storage = storage.clone();
                 async move { service::Consensus::new(storage, app, queue).run().await }
             }));
-        let mempool_service = service::Mempool::new(storage.clone(), mempool);
+        let mempool_service = service::Mempool::new(storage.clone(), mempool.clone());
         let info_service =
             service::Info::new(storage.clone()).context("failed initializing info service")?;
         let snapshot_service = service::Snapshot;
@@ -120,8 +120,9 @@ impl Sequencer {
             .grpc_addr
             .parse()
             .context("failed to parse grpc_addr address")?;
-        let sequencer_api = SequencerServer::new(storage.clone(), &config.cometbft_rpc_addr)
-            .context("failed to create sequencer api server")?;
+        let sequencer_api =
+            SequencerServer::new(storage.clone(), mempool, &config.cometbft_rpc_addr)
+                .context("failed to create sequencer api server")?;
         let grpc_server_handle = start_grpc_server(sequencer_api, &storage, grpc_addr, shutdown_rx);
 
         info!(config.listen_addr, "starting sequencer");

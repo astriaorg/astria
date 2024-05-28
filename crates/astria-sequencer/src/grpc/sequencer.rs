@@ -11,6 +11,8 @@ use astria_core::{
         GetChainIdRequest,
         GetCommitRequest,
         GetFilteredSequencerBlockRequest,
+        GetPendingNonceRequest,
+        GetPendingNonceResponse,
         GetSequencerBlockRequest,
         GetValidatorsRequest,
         SequencerBlock,
@@ -30,25 +32,36 @@ use tonic::{
     Response,
     Status,
 };
-use tracing::instrument;
+use tracing::{
+    error,
+    info,
+    instrument,
+};
 
 use crate::{
     api_state_ext::StateReadExt as _,
+    mempool::Mempool,
     state_ext::StateReadExt as _,
 };
 
 pub(crate) struct SequencerServer {
     storage: Storage,
     cometbft_client: HttpClient,
+    mempool: Mempool,
 }
 
 impl SequencerServer {
-    pub(crate) fn new(storage: Storage, cometbft_rpc_addr: &str) -> anyhow::Result<Self> {
+    pub(crate) fn new(
+        storage: Storage,
+        mempool: Mempool,
+        cometbft_rpc_addr: &str,
+    ) -> anyhow::Result<Self> {
         let cometbft_client = HttpClient::new(cometbft_rpc_addr)
             .context("failed to construct cometbft RPC client")?;
 
         Ok(Self {
             storage,
+            mempool,
             cometbft_client,
         })
     }
@@ -264,6 +277,53 @@ impl SequencerService for SequencerServer {
 
         Ok(Response::new(response))
     }
+
+    #[instrument(skip_all)]
+    async fn get_pending_nonce(
+        self: Arc<Self>,
+        request: Request<GetPendingNonceRequest>,
+    ) -> Result<Response<GetPendingNonceResponse>, Status> {
+        use astria_core::primitive::v1::Address;
+
+        use crate::accounts::state_ext::StateReadExt as _;
+
+        let request = request.into_inner();
+        let Some(address) = request.address else {
+            info!("required field address was not set",);
+            return Err(Status::invalid_argument(
+                "required field address was not set",
+            ));
+        };
+
+        let address = Address::try_from_raw(&address).map_err(|e| {
+            info!(
+                error = %e,
+                "failed to parse address from request",
+            );
+            Status::invalid_argument(format!("invalid address: {e}"))
+        })?;
+        let nonce = self.mempool.pending_nonce(&address).await;
+
+        if let Some(nonce) = nonce {
+            return Ok(Response::new(GetPendingNonceResponse {
+                inner: nonce,
+            }));
+        }
+
+        // nonce wasn't in mempool, so just look it up from storage
+        let snapshot = self.storage.latest_snapshot();
+        let nonce = snapshot.get_account_nonce(address).await.map_err(|e| {
+            error!(
+                error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                "failed to parse get account nonce from storage",
+            );
+            Status::internal(format!("failed to get account nonce from storage: {e}"))
+        })?;
+
+        Ok(Response::new(GetPendingNonceResponse {
+            inner: nonce,
+        }))
+    }
 }
 
 #[cfg(test)]
@@ -292,18 +352,66 @@ mod test {
     async fn test_get_sequencer_block() {
         let block = make_test_sequencer_block(1);
         let storage = cnidarium::TempStorage::new().await.unwrap();
+        let mempool = Mempool::new();
         let mut state_tx = StateDelta::new(storage.latest_snapshot());
         state_tx.put_block_height(1);
         state_tx.put_sequencer_block(block.clone()).unwrap();
         storage.commit(state_tx).await.unwrap();
 
-        let server =
-            Arc::new(SequencerServer::new(storage.clone(), "http://localhost:26657").unwrap());
+        let server = Arc::new(SequencerServer::new(
+            storage.clone(),
+            mempool,
+            "http://localhost:26657",
+        ));
         let request = GetSequencerBlockRequest {
             height: 1,
         };
         let request = Request::new(request);
         let response = server.get_sequencer_block(request).await.unwrap();
         assert_eq!(response.into_inner().header.unwrap().height, 1);
+    }
+
+    #[tokio::test]
+    async fn get_pending_nonce_in_mempool() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let mempool = Mempool::new();
+
+        let (_, address) = crate::app::test_utils::get_alice_signing_key_and_address();
+        let nonce = 99;
+        let tx = crate::app::test_utils::get_mock_tx(nonce);
+        mempool.insert(tx, 0).await.unwrap();
+
+        // insert a tx with lower nonce also, but we should get the highest nonce
+        let lower_nonce = 98;
+        let tx = crate::app::test_utils::get_mock_tx(lower_nonce);
+        mempool.insert(tx, 0).await.unwrap();
+
+        let server = Arc::new(SequencerServer::new(storage.clone(), mempool));
+        let request = GetPendingNonceRequest {
+            address: Some(address.into_raw()),
+        };
+        let request = Request::new(request);
+        let response = server.get_pending_nonce(request).await.unwrap();
+        assert_eq!(response.into_inner().inner, nonce);
+    }
+
+    #[tokio::test]
+    async fn get_pending_nonce_in_storage() {
+        use crate::accounts::state_ext::StateWriteExt as _;
+
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let mempool = Mempool::new();
+        let mut state_tx = StateDelta::new(storage.latest_snapshot());
+        let (_, address) = crate::app::test_utils::get_alice_signing_key_and_address();
+        state_tx.put_account_nonce(address, 99).unwrap();
+        storage.commit(state_tx).await.unwrap();
+
+        let server = Arc::new(SequencerServer::new(storage.clone(), mempool));
+        let request = GetPendingNonceRequest {
+            address: Some(address.into_raw()),
+        };
+        let request = Request::new(request);
+        let response = server.get_pending_nonce(request).await.unwrap();
+        assert_eq!(response.into_inner().inner, 99);
     }
 }

@@ -16,6 +16,8 @@ use astria_core::{
         GetChainIdRequest,
         GetCommitRequest,
         GetFilteredSequencerBlockRequest,
+        GetPendingNonceRequest,
+        GetPendingNonceResponse,
         GetSequencerBlockRequest,
         GetValidatorsRequest,
         SequencerBlock as RawSequencerBlock,
@@ -159,6 +161,13 @@ impl SequencerService for SequencerServiceImpl {
         self: Arc<Self>,
         _request: Request<GetAbciInfoRequest>,
     ) -> tonic::Result<Response<ResponseInfo>> {
+        unimplemented!()
+    }
+
+    async fn get_pending_nonce(
+        self: Arc<Self>,
+        _request: Request<GetPendingNonceRequest>,
+    ) -> Result<Response<GetPendingNonceResponse>, Status> {
         unimplemented!()
     }
 }
