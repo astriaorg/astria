@@ -244,10 +244,11 @@ impl tryhard::OnRetry<tonic::Status> for OnRetry {
     }
 }
 
-fn retry_config()
--> tryhard::RetryFutureConfig<tryhard::backoff_strategies::ExponentialBackoff, OnRetry> {
+fn retry_config() -> tryhard::RetryFutureConfig<ExecutionApiRetryStrategy, OnRetry> {
     tryhard::RetryFutureConfig::new(u32::MAX)
-        .exponential_backoff(Duration::from_millis(100))
+        .custom_backoff(ExecutionApiRetryStrategy {
+            delay: Duration::from_millis(100),
+        })
         // XXX: This should probably be configurable.
         .max_delay(Duration::from_secs(10))
         .on_retry(OnRetry {
@@ -255,7 +256,11 @@ fn retry_config()
         })
 }
 
-/// An exponential retry strategy branching [`tonic::Status::code`].
+/// An exponential retry strategy branching on [`tonic::Status::code`].
+///
+/// This retry strategy behaves exactly like
+/// [`tryhard::backoff_strategies::ExponentialBackoff`] but is specialized to
+/// work with [`tonic::Status`].
 ///
 /// Execution will be retried under the following conditions:
 ///
