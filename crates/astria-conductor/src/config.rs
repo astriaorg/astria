@@ -13,10 +13,6 @@ pub enum CommitLevel {
 }
 
 impl CommitLevel {
-    pub(crate) fn is_soft_and_firm(self) -> bool {
-        matches!(self, Self::SoftAndFirm)
-    }
-
     pub(crate) fn is_with_firm(self) -> bool {
         matches!(self, Self::FirmOnly | Self::SoftAndFirm)
     }
@@ -58,6 +54,9 @@ pub struct Config {
     pub sequencer_cometbft_url: String,
 
     pub sequencer_block_time_ms: u64,
+
+    /// The number of requests per second that will be sent to Sequencer.
+    pub sequencer_requests_per_second: u32,
 
     /// Address of the RPC server for execution
     pub execution_rpc_url: String,
@@ -110,10 +109,6 @@ mod tests {
             SoftAndFirm,
             SoftOnly,
         };
-
-        assert!(!FirmOnly.is_soft_and_firm());
-        assert!(!SoftOnly.is_soft_and_firm());
-        assert!(SoftAndFirm.is_soft_and_firm());
 
         assert!(FirmOnly.is_with_firm());
         assert!(!FirmOnly.is_with_soft());

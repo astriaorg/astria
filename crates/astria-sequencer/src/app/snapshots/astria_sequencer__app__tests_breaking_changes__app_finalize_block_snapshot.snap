@@ -1,0 +1,38 @@
+---
+source: crates/astria-sequencer/src/app/tests_breaking_changes.rs
+expression: app.app_hash.as_bytes()
+---
+[
+  171,
+  98,
+  3,
+  172,
+  104,
+  125,
+  77,
+  86,
+  230,
+  236,
+  153,
+  226,
+  227,
+  158,
+  59,
+  19,
+  108,
+  136,
+  6,
+  56,
+  175,
+  113,
+  196,
+  108,
+  171,
+  66,
+  211,
+  241,
+  217,
+  82,
+  191,
+  152
+]

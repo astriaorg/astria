@@ -11,6 +11,8 @@ use astria_core::{
         },
         FilteredSequencerBlock as RawFilteredSequencerBlock,
         GetFilteredSequencerBlockRequest,
+        GetPendingNonceRequest,
+        GetPendingNonceResponse,
         GetSequencerBlockRequest,
         SequencerBlock as RawSequencerBlock,
     },
@@ -124,6 +126,13 @@ impl SequencerService for SequencerServiceImpl {
         self.0
             .handle_request(GET_FILTERED_SEQUENCER_BLOCK_GRPC_NAME, request)
             .await
+    }
+
+    async fn get_pending_nonce(
+        self: Arc<Self>,
+        _request: Request<GetPendingNonceRequest>,
+    ) -> Result<Response<GetPendingNonceResponse>, Status> {
+        unimplemented!()
     }
 }
 

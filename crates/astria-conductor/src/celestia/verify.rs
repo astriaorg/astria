@@ -5,8 +5,8 @@ use std::{
 };
 
 use astria_core::sequencerblock::v1alpha1::{
-    CelestiaRollupBlob,
-    CelestiaSequencerBlob,
+    SubmittedMetadata,
+    SubmittedRollupData,
 };
 use astria_eyre::{
     eyre,
@@ -27,6 +27,12 @@ use sequencer_client::{
 };
 use telemetry::display::base64;
 use tokio_util::task::JoinMap;
+use tower::{
+    util::BoxService,
+    BoxError,
+    Service as _,
+    ServiceExt as _,
+};
 use tracing::{
     info,
     instrument,
@@ -44,12 +50,11 @@ use super::{
     block_verifier,
     convert::ConvertedBlobs,
 };
-use crate::utils::flatten;
 
 pub(super) struct VerifiedBlobs {
     celestia_height: u64,
-    header_blobs: HashMap<[u8; 32], CelestiaSequencerBlob>,
-    rollup_blobs: Vec<CelestiaRollupBlob>,
+    header_blobs: HashMap<[u8; 32], SubmittedMetadata>,
+    rollup_blobs: Vec<SubmittedRollupData>,
 }
 
 impl VerifiedBlobs {
@@ -65,14 +70,14 @@ impl VerifiedBlobs {
         self,
     ) -> (
         u64,
-        HashMap<[u8; 32], CelestiaSequencerBlob>,
-        Vec<CelestiaRollupBlob>,
+        HashMap<[u8; 32], SubmittedMetadata>,
+        Vec<SubmittedRollupData>,
     ) {
         (self.celestia_height, self.header_blobs, self.rollup_blobs)
     }
 }
 
-/// Task key to track verification of multiple [`CelestiaSequencerBlob`]s.
+/// Task key to track verification of multiple [`SubmittedMetadata`] objects.
 ///
 /// The index is necessary because two keys might have clashing hashes and heights.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -86,7 +91,7 @@ struct VerificationTaskKey {
 ///
 /// Drops blobs that could not be verified.
 #[instrument(skip_all)]
-pub(super) async fn verify_header_blobs(
+pub(super) async fn verify_metadata(
     blob_verifier: Arc<BlobVerifier>,
     converted_blobs: ConvertedBlobs,
 ) -> VerifiedBlobs {
@@ -104,14 +109,14 @@ pub(super) async fn verify_header_blobs(
             },
             blob_verifier
                 .clone()
-                .verify_header_blob(blob)
+                .verify_metadata(blob)
                 .in_current_span(),
         );
     }
 
     while let Some((key, verification_result)) = verification_tasks.join_next().await {
-        match flatten(verification_result) {
-            Ok(verified_blob) => {
+        match verification_result {
+            Ok(Some(verified_blob)) => {
                 if let Some(dropped_entry) =
                     verified_header_blobs.insert(verified_blob.block_hash(), verified_blob)
                 {
@@ -128,12 +133,13 @@ pub(super) async fn verify_header_blobs(
                     );
                 }
             }
+            Ok(None) => {}
             Err(error) => {
                 info!(
                     block_hash = %base64(&key.block_hash),
                     sequencer_height = %key.sequencer_height,
                     %error,
-                    "verification of sequencer blob failed; dropping it"
+                    "verification of sequencer blob was cancelled abruptly; dropping it"
                 );
             }
         }
@@ -184,11 +190,11 @@ struct VerificationMeta {
 
 impl VerificationMeta {
     async fn fetch(
-        client: SequencerClient,
+        client: RateLimitedVerificationClient,
         height: SequencerHeight,
-    ) -> Result<Self, VerificationMetaError> {
+    ) -> Result<Self, BoxError> {
         if height.value() == 0 {
-            return Err(VerificationMetaError::CantVerifyHeightZero);
+            return Err(VerificationMetaError::CantVerifyHeightZero.into());
         }
         let prev_height = SequencerHeight::try_from(height.value().saturating_sub(1)).expect(
             "BUG: should always be able to convert a decremented cometbft height back to its \
@@ -197,8 +203,8 @@ impl VerificationMeta {
              decades and the chain's height is greater u32::MAX)",
         );
         let (commit_response, validators_response) = tokio::try_join!(
-            fetch_commit_with_retry(client.clone(), height),
-            fetch_validators_with_retry(client.clone(), prev_height, height),
+            client.clone().get_commit(height),
+            client.clone().get_validators(prev_height, height),
         )?;
         super::ensure_commit_has_quorum(
             &commit_response.signed_header.commit,
@@ -219,53 +225,66 @@ impl VerificationMeta {
 
 pub(super) struct BlobVerifier {
     cache: Cache<SequencerHeight, VerificationMeta>,
-    sequencer_cometbft_client: SequencerClient,
+    client: RateLimitedVerificationClient,
 }
 
 impl BlobVerifier {
-    pub(super) fn new(sequencer_cometbft_client: SequencerClient) -> Self {
-        Self {
+    pub(super) fn try_new(
+        client: SequencerClient,
+        requests_per_seconds: u32,
+    ) -> eyre::Result<Self> {
+        Ok(Self {
             // Cache for verifying 1_000 celestia heights, assuming 6 sequencer heights per Celestia
             // height
             cache: Cache::new(6_000),
-            sequencer_cometbft_client,
-        }
+            client: RateLimitedVerificationClient::try_new(client, requests_per_seconds)
+                .wrap_err("failed to construct Sequencer block client")?,
+        })
     }
 
-    async fn verify_header_blob(
+    /// Verifies `metadata` against a remote Sequencer CometBFT instance.
+    ///
+    /// *Implementation note:* because [`Cache::try_get_with`] returns an
+    /// `Arc<BoxError>` in error position (due to [`RateLimitedVerificationClient`]),
+    /// this method cannot return an `eyre::Result` but needs to emit all errors
+    /// it encounters.
+    #[instrument(skip_all)]
+    async fn verify_metadata(
         self: Arc<Self>,
-        blob: CelestiaSequencerBlob,
-    ) -> eyre::Result<CelestiaSequencerBlob> {
-        use base64::prelude::*;
-        let height = blob.height();
-        let meta = self
+        metadata: SubmittedMetadata,
+    ) -> Option<SubmittedMetadata> {
+        let height = metadata.height();
+        let cached = self
             .cache
-            .try_get_with(
-                height,
-                VerificationMeta::fetch(self.sequencer_cometbft_client.clone(), height),
-            )
+            .try_get_with(height, VerificationMeta::fetch(self.client.clone(), height))
             .await
-            .wrap_err("failed getting data necessary to verify the sequencer header blob")?;
-        ensure!(
-            &meta.commit_header.header.chain_id == blob.cometbft_chain_id(),
-            "expected cometbft chain ID `{}`, got `{}`",
-            meta.commit_header.header.chain_id,
-            blob.cometbft_chain_id(),
-        );
-        ensure!(
-            meta.commit_header.commit.block_id.hash.as_bytes() == blob.block_hash(),
-            "block hash `{}` stored in blob does not match block hash `{}` of sequencer block",
-            BASE64_STANDARD.encode(blob.block_hash()),
-            BASE64_STANDARD.encode(meta.commit_header.commit.block_id.hash.as_bytes()),
-        );
-        Ok(blob)
+            .inspect_err(|e| {
+                warn!(
+                    error = %e.as_ref(),
+                    "failed getting data necessary to verify the sequencer metadata retrieved from Celestia",
+                );
+            })
+            .ok()?;
+        if let Err(error) = ensure_chain_ids_match(
+            cached.commit_header.header.chain_id.as_str(),
+            metadata.cometbft_chain_id().as_str(),
+        )
+        .and_then(|()| {
+            ensure_block_hashes_match(
+                cached.commit_header.commit.block_id.hash.as_bytes(),
+                &metadata.block_hash(),
+            )
+        }) {
+            info!(reason = %error, "failed to verify metadata retrieved from Celestia; dropping it");
+        }
+        Some(metadata)
     }
 }
 
 async fn fetch_commit_with_retry(
     client: SequencerClient,
     height: SequencerHeight,
-) -> Result<tendermint_rpc::endpoint::commit::Response, VerificationMetaError> {
+) -> Result<VerificationResponse, VerificationMetaError> {
     let retry_config = RetryFutureConfig::new(u32::MAX)
         .custom_backoff(CometBftRetryStrategy::new(Duration::from_millis(100)))
         .max_delay(Duration::from_secs(10))
@@ -289,6 +308,7 @@ async fn fetch_commit_with_retry(
     })
     .with_config(retry_config)
     .await
+    .map(Into::into)
     .map_err(|source| VerificationMetaError::FetchCommit {
         height,
         source,
@@ -299,7 +319,7 @@ async fn fetch_validators_with_retry(
     client: SequencerClient,
     prev_height: SequencerHeight,
     height: SequencerHeight,
-) -> Result<tendermint_rpc::endpoint::validators::Response, VerificationMetaError> {
+) -> Result<VerificationResponse, VerificationMetaError> {
     let retry_config = RetryFutureConfig::new(u32::MAX)
         .custom_backoff(CometBftRetryStrategy::new(Duration::from_millis(100)))
         .max_delay(Duration::from_secs(10))
@@ -327,6 +347,7 @@ async fn fetch_validators_with_retry(
     })
     .with_config(retry_config)
     .await
+    .map(Into::into)
     .map_err(|source| VerificationMetaError::FetchValidators {
         height,
         prev_height,
@@ -370,4 +391,147 @@ fn should_retry(error: &tendermint_rpc::Error) -> bool {
         error.detail(),
         Http(..) | HttpRequestFailed(..) | Timeout(..)
     )
+}
+
+enum VerificationRequest {
+    Commit {
+        height: SequencerHeight,
+    },
+    Validators {
+        prev_height: SequencerHeight,
+        height: SequencerHeight,
+    },
+}
+
+#[derive(Debug)]
+enum VerificationResponse {
+    Commit(Box<tendermint_rpc::endpoint::commit::Response>),
+    Validators(Box<tendermint_rpc::endpoint::validators::Response>),
+}
+
+impl From<tendermint_rpc::endpoint::commit::Response> for VerificationResponse {
+    fn from(value: tendermint_rpc::endpoint::commit::Response) -> Self {
+        Self::Commit(Box::new(value))
+    }
+}
+
+impl From<tendermint_rpc::endpoint::validators::Response> for VerificationResponse {
+    fn from(value: tendermint_rpc::endpoint::validators::Response) -> Self {
+        Self::Validators(Box::new(value))
+    }
+}
+
+#[derive(Clone)]
+struct RateLimitedVerificationClient {
+    inner: tower::buffer::Buffer<
+        BoxService<VerificationRequest, VerificationResponse, VerificationMetaError>,
+        VerificationRequest,
+    >,
+}
+
+impl RateLimitedVerificationClient {
+    async fn get_commit(
+        mut self,
+        height: SequencerHeight,
+    ) -> Result<Box<tendermint_rpc::endpoint::commit::Response>, BoxError> {
+        // allow: it is desired that the wildcard matches all future added variants because
+        // this call must only return a single specific variant, panicking otherwise.
+        #[allow(clippy::match_wildcard_for_single_variants)]
+        match self
+            .inner
+            .ready()
+            .await?
+            .call(VerificationRequest::Commit {
+                height,
+            })
+            .await?
+        {
+            VerificationResponse::Commit(commit) => Ok(commit),
+            other => panic!("expected VerificationResponse::Commit, got {other:?}"),
+        }
+    }
+
+    async fn get_validators(
+        mut self,
+        prev_height: SequencerHeight,
+        height: SequencerHeight,
+    ) -> Result<Box<tendermint_rpc::endpoint::validators::Response>, BoxError> {
+        // allow: it is desired that the wildcard matches all future added variants because
+        // this call must only return a single specific variant, panicking otherwise.
+        #[allow(clippy::match_wildcard_for_single_variants)]
+        match self
+            .inner
+            .ready()
+            .await?
+            .call(VerificationRequest::Validators {
+                prev_height,
+                height,
+            })
+            .await?
+        {
+            VerificationResponse::Validators(validators) => Ok(validators),
+            other => panic!("expected VerificationResponse::Validators, got {other:?}"),
+        }
+    }
+
+    fn try_new(client: SequencerClient, requests_per_second: u32) -> eyre::Result<Self> {
+        // XXX: the construction in here is a bit strange:
+        // the straight forward way to create a type-erased tower service is to use
+        // ServiceBuilder::boxed_clone().
+        //
+        // However, this gives a BoxCloneService which is always Clone + Send, but !Sync.
+        // Therefore we can't use the ServiceBuilder::buffer adapter.
+        //
+        // We can however work around it: ServiceBuilder::boxed gives a BoxService, which is
+        // Send + Sync, but not Clone. We then manually evoke Buffer::new to create a
+        // Buffer<BoxService>, which is Send + Sync + Clone.
+        let service = tower::ServiceBuilder::new()
+            .boxed()
+            .rate_limit(requests_per_second.into(), Duration::from_secs(1))
+            .service_fn(move |req: VerificationRequest| {
+                let client = client.clone();
+                async move {
+                    match req {
+                        VerificationRequest::Commit {
+                            height,
+                        } => fetch_commit_with_retry(client, height).await,
+                        VerificationRequest::Validators {
+                            prev_height,
+                            height,
+                        } => fetch_validators_with_retry(client, prev_height, height).await,
+                    }
+                }
+            });
+        // XXX: This number is arbitarily set to the same number os the rate-limit. Does that
+        // make sense? Should the number be set higher?
+        let inner = tower::buffer::Buffer::new(
+            service,
+            requests_per_second
+                .try_into()
+                .wrap_err("failed to convert u32 requests-per-second to usize")?,
+        );
+        Ok(Self {
+            inner,
+        })
+    }
+}
+
+fn ensure_chain_ids_match(in_commit: &str, in_header: &str) -> eyre::Result<()> {
+    ensure!(
+        in_commit == in_header,
+        "expected cometbft chain ID `{in_commit}` (from commit), but found `{in_header}` in \
+         retrieved metadata"
+    );
+    Ok(())
+}
+
+fn ensure_block_hashes_match(in_commit: &[u8], in_header: &[u8]) -> eyre::Result<()> {
+    use base64::prelude::*;
+    ensure!(
+        in_commit == in_header,
+        "expected block hash `{}` (from commit), but found `{}` in retrieved metadata",
+        BASE64_STANDARD.encode(in_commit),
+        BASE64_STANDARD.encode(in_header),
+    );
+    Ok(())
 }

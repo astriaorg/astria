@@ -6,7 +6,7 @@ use std::{
 
 use astria_core::sequencerblock::v1alpha1::{
     block::FilteredSequencerBlock,
-    CelestiaSequencerBlob,
+    SubmittedMetadata,
 };
 use pin_project_lite::pin_project;
 use sequencer_client::tendermint::block::Height;
@@ -21,7 +21,7 @@ impl GetSequencerHeight for FilteredSequencerBlock {
     }
 }
 
-impl GetSequencerHeight for CelestiaSequencerBlob {
+impl GetSequencerHeight for SubmittedMetadata {
     fn get_height(&self) -> Height {
         self.height()
     }

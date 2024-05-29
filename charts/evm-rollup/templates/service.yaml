@@ -17,6 +17,7 @@ spec:
       port: {{ .Values.ports.gossipnet }}
       targetPort: gossipnet
 ---
+{{- if .Values.config.faucet.enabled}}
 kind: Service
 apiVersion: v1
 metadata:
@@ -30,6 +31,8 @@ spec:
       port: {{ .Values.ports.faucet }}
       targetPort: faucet
 ---
+{{- end }}
+{{- if .Values.config.blockscout.enabled }}
 kind: Service
 apiVersion: v1
 metadata:
@@ -43,6 +46,7 @@ spec:
       port: {{ .Values.ports.blockscout }}
       targetPort: blockscout
 ---
+{{- end }}
 {{- if .Values.config.rollup.metrics.enabled }} 
 kind: Service
 apiVersion: v1
@@ -55,13 +59,13 @@ spec:
   selector:
     app: {{ .Values.config.rollup.name }}-astria-dev-cluster
   ports:
-    - name: geth-metrics
+    - name: geth-metr
       port: {{ .Values.ports.metrics }}
-      targetPort: geth-metrics
-    - name: composer-metrics
+      targetPort: geth-metr
+    - name: composer-metr
       port: {{ .Values.ports.composerMetrics }}
-      targetPort: composer-metrics
-    - name: conductor-metrics
+      targetPort: composer-metr
+    - name: conductor-metr
       port: {{ .Values.ports.conductorMetrics }}
-      targetPort: conductor-metrics
+      targetPort: conductor-metr
 {{- end }}

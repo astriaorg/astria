@@ -1,6 +1,9 @@
+use std::sync::Arc;
+
 #[cfg(feature = "mint")]
 use astria_core::protocol::transaction::v1alpha1::action::MintAction;
 use astria_core::{
+    crypto::SigningKey,
     primitive::v1::{
         asset,
         asset::DEFAULT_NATIVE_ASSET_DENOM,
@@ -10,6 +13,7 @@ use astria_core::{
     protocol::transaction::v1alpha1::{
         action::{
             BridgeLockAction,
+            BridgeUnlockAction,
             IbcRelayerChangeAction,
             SequenceAction,
             SudoAddressChangeAction,
@@ -22,7 +26,6 @@ use astria_core::{
     sequencerblock::v1alpha1::block::Deposit,
 };
 use cnidarium::StateDelta;
-use ed25519_consensus::SigningKey;
 use penumbra_ibc::params::IBCParameters;
 
 use crate::{
@@ -68,7 +71,7 @@ async fn app_execute_transaction_transfer() {
         ],
     };
 
-    let signed_tx = tx.into_signed(&alice_signing_key);
+    let signed_tx = Arc::new(tx.into_signed(&alice_signing_key));
     app.execute_transaction(signed_tx).await.unwrap();
 
     let native_asset = get_native_asset().id();
@@ -125,7 +128,7 @@ async fn app_execute_transaction_transfer_not_native_token() {
         ],
     };
 
-    let signed_tx = tx.into_signed(&alice_signing_key);
+    let signed_tx = Arc::new(tx.into_signed(&alice_signing_key));
     app.execute_transaction(signed_tx).await.unwrap();
 
     let native_asset = get_native_asset().id();
@@ -191,7 +194,7 @@ async fn app_execute_transaction_transfer_balance_too_low_for_fee() {
         ],
     };
 
-    let signed_tx = tx.into_signed(&keypair);
+    let signed_tx = Arc::new(tx.into_signed(&keypair));
     let res = app
         .execute_transaction(signed_tx)
         .await
@@ -230,7 +233,7 @@ async fn app_execute_transaction_sequence() {
         ],
     };
 
-    let signed_tx = tx.into_signed(&alice_signing_key);
+    let signed_tx = Arc::new(tx.into_signed(&alice_signing_key));
     app.execute_transaction(signed_tx).await.unwrap();
     assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
 
@@ -267,7 +270,7 @@ async fn app_execute_transaction_invalid_fee_asset() {
         ],
     };
 
-    let signed_tx = tx.into_signed(&alice_signing_key);
+    let signed_tx = Arc::new(tx.into_signed(&alice_signing_key));
     assert!(app.execute_transaction(signed_tx).await.is_err());
 }
 
@@ -283,6 +286,7 @@ async fn app_execute_transaction_validator_update() {
         native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         ibc_params: IBCParameters::default(),
         allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
+        fees: default_fees(),
     };
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -300,7 +304,7 @@ async fn app_execute_transaction_validator_update() {
         actions: vec![Action::ValidatorUpdate(update.clone())],
     };
 
-    let signed_tx = tx.into_signed(&alice_signing_key);
+    let signed_tx = Arc::new(tx.into_signed(&alice_signing_key));
     app.execute_transaction(signed_tx).await.unwrap();
     assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
 
@@ -321,6 +325,7 @@ async fn app_execute_transaction_ibc_relayer_change_addition() {
         native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
         ibc_params: IBCParameters::default(),
+        fees: default_fees(),
     };
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -332,7 +337,7 @@ async fn app_execute_transaction_ibc_relayer_change_addition() {
         actions: vec![IbcRelayerChangeAction::Addition(alice_address).into()],
     };
 
-    let signed_tx = tx.into_signed(&alice_signing_key);
+    let signed_tx = Arc::new(tx.into_signed(&alice_signing_key));
     app.execute_transaction(signed_tx).await.unwrap();
     assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
     assert!(app.state.is_ibc_relayer(&alice_address).await.unwrap());
@@ -350,6 +355,7 @@ async fn app_execute_transaction_ibc_relayer_change_deletion() {
         native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
         ibc_params: IBCParameters::default(),
+        fees: default_fees(),
     };
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -361,7 +367,7 @@ async fn app_execute_transaction_ibc_relayer_change_deletion() {
         actions: vec![IbcRelayerChangeAction::Removal(alice_address).into()],
     };
 
-    let signed_tx = tx.into_signed(&alice_signing_key);
+    let signed_tx = Arc::new(tx.into_signed(&alice_signing_key));
     app.execute_transaction(signed_tx).await.unwrap();
     assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
     assert!(!app.state.is_ibc_relayer(&alice_address).await.unwrap());
@@ -379,6 +385,7 @@ async fn app_execute_transaction_ibc_relayer_change_invalid() {
         native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
         ibc_params: IBCParameters::default(),
+        fees: default_fees(),
     };
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -390,7 +397,7 @@ async fn app_execute_transaction_ibc_relayer_change_invalid() {
         actions: vec![IbcRelayerChangeAction::Removal(alice_address).into()],
     };
 
-    let signed_tx = tx.into_signed(&alice_signing_key);
+    let signed_tx = Arc::new(tx.into_signed(&alice_signing_key));
     assert!(app.execute_transaction(signed_tx).await.is_err());
 }
 
@@ -406,6 +413,7 @@ async fn app_execute_transaction_sudo_address_change() {
         native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         ibc_params: IBCParameters::default(),
         allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
+        fees: default_fees(),
     };
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -421,7 +429,7 @@ async fn app_execute_transaction_sudo_address_change() {
         })],
     };
 
-    let signed_tx = tx.into_signed(&alice_signing_key);
+    let signed_tx = Arc::new(tx.into_signed(&alice_signing_key));
     app.execute_transaction(signed_tx).await.unwrap();
     assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
 
@@ -442,6 +450,7 @@ async fn app_execute_transaction_sudo_address_change_error() {
         native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         ibc_params: IBCParameters::default(),
         allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
+        fees: default_fees(),
     };
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -455,7 +464,7 @@ async fn app_execute_transaction_sudo_address_change_error() {
         })],
     };
 
-    let signed_tx = tx.into_signed(&alice_signing_key);
+    let signed_tx = Arc::new(tx.into_signed(&alice_signing_key));
     let res = app
         .execute_transaction(signed_tx)
         .await
@@ -479,6 +488,7 @@ async fn app_execute_transaction_fee_asset_change_addition() {
         native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         ibc_params: IBCParameters::default(),
         allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
+        fees: default_fees(),
     };
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -494,7 +504,7 @@ async fn app_execute_transaction_fee_asset_change_addition() {
         ))],
     };
 
-    let signed_tx = tx.into_signed(&alice_signing_key);
+    let signed_tx = Arc::new(tx.into_signed(&alice_signing_key));
     app.execute_transaction(signed_tx).await.unwrap();
     assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
 
@@ -519,6 +529,7 @@ async fn app_execute_transaction_fee_asset_change_removal() {
             DEFAULT_NATIVE_ASSET_DENOM.to_owned().into(),
             test_asset.clone(),
         ],
+        fees: default_fees(),
     };
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -532,7 +543,7 @@ async fn app_execute_transaction_fee_asset_change_removal() {
         ))],
     };
 
-    let signed_tx = tx.into_signed(&alice_signing_key);
+    let signed_tx = Arc::new(tx.into_signed(&alice_signing_key));
     app.execute_transaction(signed_tx).await.unwrap();
     assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
 
@@ -558,6 +569,7 @@ async fn app_execute_transaction_fee_asset_change_invalid() {
         native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         ibc_params: IBCParameters::default(),
         allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
+        fees: default_fees(),
     };
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -571,7 +583,7 @@ async fn app_execute_transaction_fee_asset_change_invalid() {
         ))],
     };
 
-    let signed_tx = tx.into_signed(&alice_signing_key);
+    let signed_tx = Arc::new(tx.into_signed(&alice_signing_key));
     let res = app
         .execute_transaction(signed_tx)
         .await
@@ -607,7 +619,7 @@ async fn app_execute_transaction_init_bridge_account_ok() {
         actions: vec![action.into()],
     };
 
-    let signed_tx = tx.into_signed(&alice_signing_key);
+    let signed_tx = Arc::new(tx.into_signed(&alice_signing_key));
 
     let before_balance = app
         .state
@@ -626,7 +638,7 @@ async fn app_execute_transaction_init_bridge_account_ok() {
     );
     assert_eq!(
         app.state
-            .get_bridge_account_asset_ids(&alice_address)
+            .get_bridge_account_asset_id(&alice_address)
             .await
             .unwrap(),
         asset_id
@@ -662,7 +674,7 @@ async fn app_execute_transaction_init_bridge_account_account_already_registered(
         actions: vec![action.into()],
     };
 
-    let signed_tx = tx.into_signed(&alice_signing_key);
+    let signed_tx = Arc::new(tx.into_signed(&alice_signing_key));
     app.execute_transaction(signed_tx).await.unwrap();
 
     let action = InitBridgeAccountAction {
@@ -678,7 +690,7 @@ async fn app_execute_transaction_init_bridge_account_account_already_registered(
         actions: vec![action.into()],
     };
 
-    let signed_tx = tx.into_signed(&alice_signing_key);
+    let signed_tx = Arc::new(tx.into_signed(&alice_signing_key));
     assert!(app.execute_transaction(signed_tx).await.is_err());
 }
 
@@ -714,7 +726,7 @@ async fn app_execute_transaction_bridge_lock_action_ok() {
         actions: vec![action.into()],
     };
 
-    let signed_tx = tx.into_signed(&alice_signing_key);
+    let signed_tx = Arc::new(tx.into_signed(&alice_signing_key));
 
     let alice_before_balance = app
         .state
@@ -792,42 +804,7 @@ async fn app_execute_transaction_bridge_lock_action_invalid_for_eoa() {
         actions: vec![action.into()],
     };
 
-    let signed_tx = tx.into_signed(&alice_signing_key);
-    assert!(app.execute_transaction(signed_tx).await.is_err());
-}
-
-#[tokio::test]
-async fn app_execute_transaction_transfer_invalid_to_bridge_account() {
-    let (alice_signing_key, _) = get_alice_signing_key_and_address();
-    let mut app = initialize_app(None, vec![]).await;
-
-    let bridge_address = Address::from([99; 20]);
-    let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
-    let asset_id = get_native_asset().id();
-
-    let mut state_tx = StateDelta::new(app.state.clone());
-    state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
-    state_tx
-        .put_bridge_account_asset_id(&bridge_address, &asset_id)
-        .unwrap();
-    app.apply(state_tx);
-
-    let amount = 100;
-    let action = TransferAction {
-        to: bridge_address,
-        amount,
-        asset_id,
-        fee_asset_id: asset_id,
-    };
-    let tx = UnsignedTransaction {
-        params: TransactionParams {
-            nonce: 0,
-            chain_id: "test".to_string(),
-        },
-        actions: vec![action.into()],
-    };
-
-    let signed_tx = tx.into_signed(&alice_signing_key);
+    let signed_tx = Arc::new(tx.into_signed(&alice_signing_key));
     assert!(app.execute_transaction(signed_tx).await.is_err());
 }
 
@@ -844,6 +821,7 @@ async fn app_execute_transaction_mint() {
         native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         ibc_params: IBCParameters::default(),
         allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
+        fees: default_fees(),
     };
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -863,7 +841,7 @@ async fn app_execute_transaction_mint() {
         ],
     };
 
-    let signed_tx = tx.into_signed(&alice_signing_key);
+    let signed_tx = Arc::new(tx.into_signed(&alice_signing_key));
     app.execute_transaction(signed_tx).await.unwrap();
 
     assert_eq!(
@@ -900,7 +878,7 @@ async fn app_execute_transaction_invalid_nonce() {
         ],
     };
 
-    let signed_tx = tx.into_signed(&alice_signing_key);
+    let signed_tx = Arc::new(tx.into_signed(&alice_signing_key));
     let response = app.execute_transaction(signed_tx).await;
 
     // check that tx was not executed by checking nonce and balance are unchanged
@@ -946,7 +924,7 @@ async fn app_execute_transaction_invalid_chain_id() {
         ],
     };
 
-    let signed_tx = tx.into_signed(&alice_signing_key);
+    let signed_tx = Arc::new(tx.into_signed(&alice_signing_key));
     let response = app.execute_transaction(signed_tx).await;
 
     // check that tx was not executed by checking nonce and balance are unchanged
@@ -981,7 +959,7 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
 
     // create a new key; will have 0 balance
     let keypair = SigningKey::new(OsRng);
-    let keypair_address = Address::from_verification_key(keypair.verification_key());
+    let keypair_address = *keypair.verification_key().address();
 
     // figure out needed fee for a single transfer
     let data = b"hello world".to_vec();
@@ -1008,7 +986,7 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
     .into_signed(&alice_signing_key);
 
     // make transfer
-    app.execute_transaction(signed_tx).await.unwrap();
+    app.execute_transaction(Arc::new(signed_tx)).await.unwrap();
 
     // build double transfer exceeding balance
     let signed_tx_fail = UnsignedTransaction {
@@ -1061,4 +1039,81 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
     transaction::check_stateful(&signed_tx_pass, &app.state)
         .await
         .expect("stateful check should pass since we transferred enough to cover fee");
+}
+
+#[tokio::test]
+async fn app_execute_transaction_bridge_lock_unlock_action_ok() {
+    use crate::accounts::state_ext::StateWriteExt as _;
+
+    let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
+    let mut app = initialize_app(None, vec![]).await;
+    let mut state_tx = StateDelta::new(app.state.clone());
+
+    let (bridge_signing_key, bridge_address) = get_bridge_signing_key_and_address();
+    let rollup_id: RollupId = RollupId::from_unhashed_bytes(b"testchainid");
+    let asset_id = get_native_asset().id();
+
+    // give bridge eoa funds so it can pay for the
+    // unlock transfer action
+    let transfer_fee = app.state.get_transfer_base_fee().await.unwrap();
+    state_tx
+        .put_account_balance(bridge_address, asset_id, transfer_fee)
+        .unwrap();
+
+    // create bridge account
+    state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
+    state_tx
+        .put_bridge_account_asset_id(&bridge_address, &asset_id)
+        .unwrap();
+    app.apply(state_tx);
+
+    let amount = 100;
+    let action = BridgeLockAction {
+        to: bridge_address,
+        amount,
+        asset_id,
+        fee_asset_id: asset_id,
+        destination_chain_address: "nootwashere".to_string(),
+    };
+    let tx = UnsignedTransaction {
+        params: TransactionParams {
+            nonce: 0,
+            chain_id: "test".to_string(),
+        },
+        actions: vec![action.into()],
+    };
+
+    let signed_tx = Arc::new(tx.into_signed(&alice_signing_key));
+
+    app.execute_transaction(signed_tx).await.unwrap();
+    assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
+
+    // see can unlock through bridge unlock
+    let action = BridgeUnlockAction {
+        to: alice_address,
+        amount,
+        fee_asset_id: asset_id,
+        memo: b"lilywashere".to_vec(),
+    };
+
+    let tx = UnsignedTransaction {
+        params: TransactionParams {
+            nonce: 0,
+            chain_id: "test".to_string(),
+        },
+        actions: vec![action.into()],
+    };
+
+    let signed_tx = Arc::new(tx.into_signed(&bridge_signing_key));
+    app.execute_transaction(signed_tx)
+        .await
+        .expect("executing bridge unlock action should succeed");
+    assert_eq!(
+        app.state
+            .get_account_balance(bridge_address, asset_id)
+            .await
+            .expect("executing bridge unlock action should succeed"),
+        0,
+        "bridge should've transferred out whole balance"
+    );
 }

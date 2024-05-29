@@ -219,6 +219,10 @@ mod test {
     };
 
     use astria_core::{
+        crypto::{
+            SigningKey,
+            VerificationKey,
+        },
         primitive::v1::{
             asset::DEFAULT_NATIVE_ASSET_DENOM,
             Address,
@@ -231,10 +235,6 @@ mod test {
         },
     };
     use bytes::Bytes;
-    use ed25519_consensus::{
-        SigningKey,
-        VerificationKey,
-    };
     use prost::Message as _;
     use rand::rngs::OsRng;
     use tendermint::{
@@ -245,11 +245,9 @@ mod test {
 
     use super::*;
     use crate::{
+        app::test_utils::default_fees,
         asset::get_native_asset,
-        mempool::{
-            Mempool,
-            TransactionPriority,
-        },
+        mempool::Mempool,
         proposal::commitment::generate_rollup_datas_commitment,
     };
 
@@ -299,14 +297,13 @@ mod test {
     #[tokio::test]
     async fn prepare_and_process_proposal() {
         let signing_key = SigningKey::new(OsRng);
-        let (mut consensus_service, mut mempool) =
+        let (mut consensus_service, mempool) =
             new_consensus_service(Some(signing_key.verification_key())).await;
         let tx = make_unsigned_tx();
         let signed_tx = tx.into_signed(&signing_key);
         let tx_bytes = signed_tx.clone().into_raw().encode_to_vec();
         let txs = vec![tx_bytes.into()];
-        let priority = TransactionPriority::new(0, 0).unwrap();
-        mempool.insert(signed_tx.clone(), priority).await.unwrap();
+        mempool.insert(signed_tx.clone(), 0).await.unwrap();
 
         let res = generate_rollup_datas_commitment(&vec![signed_tx], HashMap::new());
 
@@ -470,6 +467,7 @@ mod test {
                 native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
                 ibc_params: penumbra_ibc::params::IBCParameters::default(),
                 allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
+                fees: default_fees(),
             }
         }
     }
@@ -477,7 +475,7 @@ mod test {
     async fn new_consensus_service(funded_key: Option<VerificationKey>) -> (Consensus, Mempool) {
         let accounts = if funded_key.is_some() {
             vec![crate::genesis::Account {
-                address: Address::from_verification_key(funded_key.unwrap()),
+                address: *funded_key.unwrap().address(),
                 balance: 10u128.pow(19),
             }]
         } else {
@@ -506,7 +504,7 @@ mod test {
         use sha2::Digest as _;
 
         let signing_key = SigningKey::new(OsRng);
-        let (mut consensus_service, mut mempool) =
+        let (mut consensus_service, mempool) =
             new_consensus_service(Some(signing_key.verification_key())).await;
 
         let tx = make_unsigned_tx();
@@ -527,10 +525,7 @@ mod test {
             .await
             .unwrap();
 
-        mempool
-            .insert(signed_tx, TransactionPriority::new(0, 0).unwrap())
-            .await
-            .unwrap();
+        mempool.insert(signed_tx, 0).await.unwrap();
         let finalize_block = request::FinalizeBlock {
             hash: Hash::try_from([0u8; 32].to_vec()).unwrap(),
             height: 1u32.into(),

@@ -26,6 +26,9 @@
         "terminalTotalDifficulty": 0,
         "terminalTotalDifficultyPassed": true,
         "ethash": {},
+        {{- range $key, $value := .Values.config.rollup.genesis.extra }}
+        "{{ $key }}": {{ toPrettyJson $value | indent 8 | trim }},
+        {{- end }}
         {{- if .Values.config.rollup.genesis.extraDataOverride }}
         "astriaExtraDataOverride": "{{ .Values.config.rollup.genesis.extraDataOverride }}",
         {{- end }}
@@ -42,7 +45,7 @@
         {{- end }}
     },
     "difficulty": "0",
-    "gasLimit": "{{ .Values.config.rollup.genesis.gasLimit }}",
+    "gasLimit": "{{ toString .Values.config.rollup.genesis.gasLimit | replace "\"" "" }}",
     "alloc": {
     {{- range $index, $value := .Values.config.rollup.genesis.alloc }}
         {{- if $index }},{{- end }}

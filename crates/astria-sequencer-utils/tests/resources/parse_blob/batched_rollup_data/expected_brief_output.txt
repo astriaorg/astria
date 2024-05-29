@@ -1,0 +1,26 @@
+
+rollup data 0:
+    sequencer block hash: oNKL+oK23OKhNPzXEUvXoBb5cedCrywT3MwTISX9P9M=
+    rollup id: eTx28U2BupsngoHCDjdk9otMpJQCY3Yky04PUbirjlg=
+    transaction count: 1
+rollup data 1:
+    sequencer block hash: FH1uxLzgr84WHvSQ0eSXsXqN9r0ESsttHYjHkmevivk=
+    rollup id: eTx28U2BupsngoHCDjdk9otMpJQCY3Yky04PUbirjlg=
+    transaction count: 1
+rollup data 2:
+    sequencer block hash: YnMO26PdV50b05+zDWCD/0I8VFIP5tfHikK1/6YIMYA=
+    rollup id: eTx28U2BupsngoHCDjdk9otMpJQCY3Yky04PUbirjlg=
+    transaction count: 1
+rollup data 3:
+    sequencer block hash: Bpc1zLfJAaqRMxtsxot88J7KLGnk1WECYbnTW4a9hiA=
+    rollup id: eTx28U2BupsngoHCDjdk9otMpJQCY3Yky04PUbirjlg=
+    transaction count: 1
+rollup data 4:
+    sequencer block hash: /RWweY8q588TcJlRaWXo6xArhhrVH7qkQE8URIJjiZ4=
+    rollup id: eTx28U2BupsngoHCDjdk9otMpJQCY3Yky04PUbirjlg=
+    transaction count: 1
+
+number of entries: 5
+compressed size: 788 bytes
+decompressed size: 1971 bytes
+compression ratio: 2.501269

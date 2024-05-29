@@ -35,17 +35,20 @@ async fn main() -> ExitCode {
     if !cfg.no_metrics {
         telemetry_conf = telemetry_conf
             .metrics_addr(&cfg.metrics_http_listener_addr)
-            .service_name(env!("CARGO_PKG_NAME"));
+            .service_name(env!("CARGO_PKG_NAME"))
+            .register_metrics(metrics_init::register);
     }
-    metrics_init::register();
 
-    if let Err(e) = telemetry_conf
+    let _telemetry_guard = match telemetry_conf
         .try_init()
         .wrap_err("failed to setup telemetry")
     {
-        eprintln!("initializing sequencer-relayer failed:\n{e:?}");
-        return ExitCode::FAILURE;
-    }
+        Err(e) => {
+            eprintln!("initializing sequencer-relayer failed:\n{e:?}");
+            return ExitCode::FAILURE;
+        }
+        Ok(guard) => guard,
+    };
 
     info!(
         config = %telemetry::display::json(&cfg),

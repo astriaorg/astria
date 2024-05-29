@@ -213,14 +213,33 @@ impl ::prost::Name for RollupData {
         ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)
     }
 }
-/// A collection of transactions belonging to a specific rollup that are submitted to celestia.
-///
-/// The transactions contained in the item belong to a rollup identified
-/// by `rollup_id`, and were included in the sequencer block identified
-/// by `sequencer_block_hash`.
+/// A sequence of `astria.sequencerblock.v1alpha1.SubmittedRollupData` submitted to Celestia.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct CelestiaRollupBlob {
+pub struct SubmittedRollupDataList {
+    #[prost(message, repeated, tag = "1")]
+    pub entries: ::prost::alloc::vec::Vec<SubmittedRollupData>,
+}
+impl ::prost::Name for SubmittedRollupDataList {
+    const NAME: &'static str = "SubmittedRollupDataList";
+    const PACKAGE: &'static str = "astria.sequencerblock.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)
+    }
+}
+/// A collection of transactions belonging to a specific Rollup that is submitted to a Data
+/// Availability provider like Celestia.
+///
+/// It is created by splitting an `astria.sequencerblock.v1alpha1.SequencerBlock` into a
+/// `astria.sequencerblock.v1alpha1.SubmittedMetadata`, and a sequence of
+/// `astria.sequencerblock.v1alpha.SubmittedRollupData` (this object; one object per rollup that had
+/// data included in the sequencer block).
+///
+/// The original sequencer block (and in turn CometBFT block) can be identified by the
+/// `sequencer_block_hash` field.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct SubmittedRollupData {
     /// The hash of the sequencer block. Must be 32 bytes.
     #[prost(bytes = "vec", tag = "1")]
     pub sequencer_block_hash: ::prost::alloc::vec::Vec<u8>,
@@ -236,48 +255,65 @@ pub struct CelestiaRollupBlob {
     #[prost(message, optional, tag = "4")]
     pub proof: ::core::option::Option<super::super::primitive::v1::Proof>,
 }
-impl ::prost::Name for CelestiaRollupBlob {
-    const NAME: &'static str = "CelestiaRollupBlob";
+impl ::prost::Name for SubmittedRollupData {
+    const NAME: &'static str = "SubmittedRollupData";
     const PACKAGE: &'static str = "astria.sequencerblock.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)
     }
 }
-/// The metadata of a sequencer block that is submitted to celestia.
-///
-/// It is created by splitting a `astria.SequencerBlock` into a
-/// `CelestiaSequencerBlob` (which can be thought of as a header), and a sequence ofj
-/// `CelestiaRollupBlob`s.
-///
-/// The original sequencer block (and in turn CometBFT block) can be identified by the
-/// block hash calculated from `header`.
+/// A sequence of `astria.sequencerblock.v1alpha1.SubmittedMetadata` submitted to Celestia.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct CelestiaSequencerBlob {
+pub struct SubmittedMetadataList {
+    #[prost(message, repeated, tag = "1")]
+    pub entries: ::prost::alloc::vec::Vec<SubmittedMetadata>,
+}
+impl ::prost::Name for SubmittedMetadataList {
+    const NAME: &'static str = "SubmittedMetadataList";
+    const PACKAGE: &'static str = "astria.sequencerblock.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)
+    }
+}
+/// The metadata of a sequencer block that is submitted to a Data Availability provider like
+/// Celestia
+///
+/// It is created by splitting an `astria.sequencerblock.v1alpha1.SequencerBlock` into a
+/// `astria.sequencerblock.v1alpha1.SubmittedMetadata` (this object), and a sequence of
+/// `astria.sequencerblock.v1alpha.SubmittedRollupData` (one object per rollup that had data
+/// included in the sequencer block).
+///
+/// The original sequencer block (and in turn CometBFT block) can be identified by the
+/// `block_hash` field.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct SubmittedMetadata {
     /// the 32-byte block hash of the sequencer block.
     #[prost(bytes = "vec", tag = "1")]
     pub block_hash: ::prost::alloc::vec::Vec<u8>,
     /// the block header, which contains sequencer-specific commitments.
     #[prost(message, optional, tag = "2")]
     pub header: ::core::option::Option<SequencerBlockHeader>,
-    /// The rollup IDs for which `CelestiaRollupBlob`s were submitted to celestia.
-    /// Corresponds to the `astria.sequencer.v1.RollupTransactions.rollup_id` field
-    /// and is extracted from `astria.SequencerBlock.rollup_transactions`.
+    /// The rollup IDs that had transactions included in the `astria.sequencerblock.v1alpha1.SequencerBlock`
+    /// that this object is derived from.
+    /// Corresponds to `astria.sequencerblock.v1alpha1.RollupTransactions.rollup_id`
+    /// extracted from `astria.sequencerblock.v1alpha1.SsequencerBlock.rollup_transactions`.
     #[prost(message, repeated, tag = "3")]
     pub rollup_ids: ::prost::alloc::vec::Vec<super::super::primitive::v1::RollupId>,
     /// The proof that the rollup transactions are included in sequencer block.
-    /// Corresponds to `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions_proof`.
+    /// Corresponds to `astria.sequencerblock.v1alpha1.SequencerBlock.rollup_transactions_proof`.
     #[prost(message, optional, tag = "4")]
     pub rollup_transactions_proof: ::core::option::Option<
         super::super::primitive::v1::Proof,
     >,
     /// The proof that the rollup IDs are included in sequencer block.
-    /// Corresponds to `astria.sequencer.v1alpha.SequencerBlock.rollup_ids_proof`.
+    /// Corresponds to `astria.sequencerblock.v1alpha1.SequencerBlock.rollup_ids_proof`.
     #[prost(message, optional, tag = "5")]
     pub rollup_ids_proof: ::core::option::Option<super::super::primitive::v1::Proof>,
 }
-impl ::prost::Name for CelestiaSequencerBlob {
-    const NAME: &'static str = "CelestiaSequencerBlob";
+impl ::prost::Name for SubmittedMetadata {
+    const NAME: &'static str = "SubmittedMetadata";
     const PACKAGE: &'static str = "astria.sequencerblock.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)
@@ -309,6 +345,34 @@ pub struct GetFilteredSequencerBlockRequest {
 }
 impl ::prost::Name for GetFilteredSequencerBlockRequest {
     const NAME: &'static str = "GetFilteredSequencerBlockRequest";
+    const PACKAGE: &'static str = "astria.sequencerblock.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetPendingNonceRequest {
+    /// The account to retrieve the pending nonce for.
+    #[prost(message, optional, tag = "1")]
+    pub address: ::core::option::Option<super::super::primitive::v1::Address>,
+}
+impl ::prost::Name for GetPendingNonceRequest {
+    const NAME: &'static str = "GetPendingNonceRequest";
+    const PACKAGE: &'static str = "astria.sequencerblock.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetPendingNonceResponse {
+    /// The pending nonce for the given account.
+    #[prost(uint32, tag = "1")]
+    pub inner: u32,
+}
+impl ::prost::Name for GetPendingNonceResponse {
+    const NAME: &'static str = "GetPendingNonceResponse";
     const PACKAGE: &'static str = "astria.sequencerblock.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)
@@ -460,6 +524,37 @@ pub mod sequencer_service_client {
                 );
             self.inner.unary(req, path, codec).await
         }
+        /// Returns the pending nonce for the given account.
+        pub async fn get_pending_nonce(
+            &mut self,
+            request: impl tonic::IntoRequest<super::GetPendingNonceRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::GetPendingNonceResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::new(
+                        tonic::Code::Unknown,
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/astria.sequencerblock.v1alpha1.SequencerService/GetPendingNonce",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(
+                    GrpcMethod::new(
+                        "astria.sequencerblock.v1alpha1.SequencerService",
+                        "GetPendingNonce",
+                    ),
+                );
+            self.inner.unary(req, path, codec).await
+        }
     }
 }
 /// Generated server implementations.
@@ -482,6 +577,14 @@ pub mod sequencer_service_server {
             request: tonic::Request<super::GetFilteredSequencerBlockRequest>,
         ) -> std::result::Result<
             tonic::Response<super::FilteredSequencerBlock>,
+            tonic::Status,
+        >;
+        /// Returns the pending nonce for the given account.
+        async fn get_pending_nonce(
+            self: std::sync::Arc<Self>,
+            request: tonic::Request<super::GetPendingNonceRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::GetPendingNonceResponse>,
             tonic::Status,
         >;
     }
@@ -649,6 +752,53 @@ pub mod sequencer_service_server {
                     let fut = async move {
                         let inner = inner.0;
                         let method = GetFilteredSequencerBlockSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/astria.sequencerblock.v1alpha1.SequencerService/GetPendingNonce" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetPendingNonceSvc<T: SequencerService>(pub Arc<T>);
+                    impl<
+                        T: SequencerService,
+                    > tonic::server::UnaryService<super::GetPendingNonceRequest>
+                    for GetPendingNonceSvc<T> {
+                        type Response = super::GetPendingNonceResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::GetPendingNonceRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as SequencerService>::get_pending_nonce(inner, request)
+                                    .await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let inner = inner.0;
+                        let method = GetPendingNonceSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(

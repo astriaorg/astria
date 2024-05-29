@@ -5,6 +5,7 @@ use crate::primitive::v1::RollupId;
 
 pub mod abci;
 pub mod account;
+pub mod asset;
 pub mod transaction;
 
 #[cfg(any(feature = "test-utils", test))]

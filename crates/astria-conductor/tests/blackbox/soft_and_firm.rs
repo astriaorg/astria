@@ -13,10 +13,10 @@ use crate::{
     mount_celestia_blobs,
     mount_celestia_header_network_head,
     mount_executed_block,
+    mount_get_block,
     mount_get_commitment_state,
     mount_get_filtered_sequencer_block,
     mount_get_genesis_info,
-    mount_pending_blocks,
     mount_sequencer_commit,
     mount_sequencer_genesis,
     mount_sequencer_validator_set,
@@ -36,7 +36,7 @@ use crate::{
 /// NOTE: there is a potential race condition in this test in that the information could be first
 /// retrieved from Celestia before Sequencer and executed against the rollup. In that case step 3.
 /// would be skipped (no soft commitment update).
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn simple() {
     let test_conductor = spawn_conductor(CommitLevel::SoftAndFirm).await;
 
@@ -141,8 +141,8 @@ async fn simple() {
     );
 }
 
-#[tokio::test]
-async fn pending_blocks_are_fetched() {
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn missing_block_is_fetched_for_updating_firm_commitment() {
     let test_conductor = spawn_conductor(CommitLevel::SoftAndFirm).await;
 
     mount_get_genesis_info!(
@@ -173,16 +173,12 @@ async fn pending_blocks_are_fetched() {
 
     mount_sequencer_genesis!(test_conductor);
 
-    mount_pending_blocks!(test_conductor,
-        [(
-            number: 2,
-            hash: [2; 64],
-            parent: [1; 64],
-        )],
+    mount_get_block!(
+        test_conductor,
+        number: 2,
+        hash: [2; 64],
+        parent: [1; 64],
     );
-
-    // mount the Celestia blob containing the pending block to force the confirmation,
-    // but don't mount the filtered sequencer block request yet
 
     mount_celestia_header_network_head!(
         test_conductor,

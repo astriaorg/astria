@@ -16,7 +16,7 @@ data:
   ASTRIA_SEQUENCER_RELAYER_PRE_SUBMIT_PATH: "{{ include "sequencer-relayer.storage.preSubmitPath" . }}"
   ASTRIA_SEQUENCER_RELAYER_POST_SUBMIT_PATH: "{{ include "sequencer-relayer.storage.postSubmitPath" . }}"
   ASTRIA_SEQUENCER_RELAYER_NO_METRICS: "{{ not .Values.config.relayer.metrics.enabled }}"
-  ASTRIA_SEQUENCER_RELAYER_METRICS_HTTP_LISTENER_ADDR: "127.0.0.1:{{ .Values.ports.metrics }}"
+  ASTRIA_SEQUENCER_RELAYER_METRICS_HTTP_LISTENER_ADDR: "0.0.0.0:{{ .Values.ports.metrics }}"
   ASTRIA_SEQUENCER_RELAYER_FORCE_STDOUT: "{{ .Values.global.useTTY }}"
   ASTRIA_SEQUENCER_RELAYER_PRETTY_PRINT: "{{ .Values.global.useTTY }}"
   ASTRIA_SEQUENCER_RELAYER_NO_OTEL: "{{ not .Values.config.relayer.otel.enabled }}"
@@ -27,9 +27,9 @@ data:
   OTEL_EXPORTER_OTLP_HEADERS: "{{ .Values.config.relayer.otel.otlpHeaders }}"
   OTEL_EXPORTER_OTLP_TRACE_HEADERS: "{{ .Values.config.relayer.otel.traceHeaders }}"
   OTEL_SERVICE_NAME: "{{ tpl .Values.config.relayer.otel.serviceName . }}"
+  ASTRIA_SEQUENCER_RELAYER_ONLY_INCLUDE_ROLLUPS: "{{ .Values.config.relayer.onlyIncludeRollups }}"
   {{- if not .Values.global.dev }}
   {{- else }}
-  ASTRIA_SEQUENCER_RELAYER_ONLY_INCLUDE_ROLLUPS: "{{ .Values.config.relayer.onlyIncludeRollups }}"
   {{- end }}
 ---
 apiVersion: v1

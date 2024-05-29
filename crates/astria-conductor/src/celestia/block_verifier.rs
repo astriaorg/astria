@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use ed25519_consensus::{
+use astria_core::crypto::{
     Signature,
     VerificationKey,
 };
@@ -48,7 +48,7 @@ pub(super) enum QuorumError {
     #[error(
         "failed to recreate signature for validator from validator set to verify vote signature"
     )]
-    Signature(#[source] ed25519_consensus::Error),
+    Signature(#[source] astria_core::crypto::Error),
 
     #[error("total voting power overflowed u64")]
     TotalVotingPowerOverflowed,
@@ -65,10 +65,10 @@ pub(super) enum QuorumError {
     #[error(
         "failed to recreate public key for validator from validator set to verify vote signature"
     )]
-    VerificationKey(#[source] ed25519_consensus::Error),
+    VerificationKey(#[source] astria_core::crypto::Error),
 
     #[error("failed to verify vote signature")]
-    VerifyVoteSignature(#[source] ed25519_consensus::Error),
+    VerifyVoteSignature(#[source] astria_core::crypto::Error),
 }
 
 /// This function ensures that the given Commit has quorum, ie that the Commit contains >2/3 voting
@@ -225,7 +225,7 @@ mod test {
         primitive::v1::RollupId,
         sequencerblock::v1alpha1::{
             block::SequencerBlockHeader,
-            celestia::UncheckedCelestiaSequencerBlob,
+            celestia::UncheckedSubmittedMetadata,
         },
     };
     use prost::Message as _;
@@ -268,7 +268,7 @@ mod test {
     ) -> (validators::Response, account::Id, Commit) {
         use rand::rngs::OsRng;
 
-        let signing_key = ed25519_consensus::SigningKey::new(OsRng);
+        let signing_key = astria_core::crypto::SigningKey::new(OsRng);
         let pub_key = tendermint::public_key::PublicKey::from_raw_ed25519(
             signing_key.verification_key().as_ref(),
         )
@@ -305,7 +305,7 @@ mod test {
             signatures: vec![tendermint::block::CommitSig::BlockIdFlagCommit {
                 validator_address: address,
                 timestamp,
-                signature: Some(signature.into()),
+                signature: Some(signature.to_bytes().as_ref().try_into().unwrap()),
             }],
             ..Default::default()
         };
@@ -343,7 +343,7 @@ mod test {
         };
         let header = SequencerBlockHeader::try_from_raw(header).unwrap();
 
-        let sequencer_blob = UncheckedCelestiaSequencerBlob {
+        let sequencer_blob = UncheckedSubmittedMetadata {
             block_hash: [0u8; 32],
             header,
             rollup_ids: vec![],
@@ -388,7 +388,7 @@ mod test {
         };
         let header = SequencerBlockHeader::try_from_raw(header).unwrap();
 
-        let sequencer_blob = UncheckedCelestiaSequencerBlob {
+        let sequencer_blob = UncheckedSubmittedMetadata {
             block_hash: [0u8; 32],
             header,
             rollup_ids: vec![rollup_id],

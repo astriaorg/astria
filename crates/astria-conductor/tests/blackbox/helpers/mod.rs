@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use astria_conductor::{
+    conductor,
     config::CommitLevel,
     Conductor,
     Config,
@@ -36,7 +37,6 @@ mod mock_grpc;
 use astria_eyre;
 pub use mock_grpc::MockGrpc;
 use serde_json::json;
-use tokio::task::JoinHandle;
 
 pub const CELESTIA_BEARER_TOKEN: &str = "ABCDEFGH";
 
@@ -71,6 +71,13 @@ static TELEMETRY: Lazy<()> = Lazy::new(|| {
 });
 
 pub async fn spawn_conductor(execution_commit_level: CommitLevel) -> TestConductor {
+    assert_ne!(
+        tokio::runtime::Handle::current().runtime_flavor(),
+        tokio::runtime::RuntimeFlavor::CurrentThread,
+        "conductor must be run on a multi-threaded runtime so that the destructor of the test \
+         environment does not stall the runtime: the test could be configured using \
+         `#[tokio::test(flavor = \"multi_thread\", worker_threads = 1)]`"
+    );
     Lazy::force(&TELEMETRY);
 
     let mock_grpc = MockGrpc::spawn().await;
@@ -87,7 +94,7 @@ pub async fn spawn_conductor(execution_commit_level: CommitLevel) -> TestConduct
 
     let conductor = {
         let conductor = Conductor::new(config).unwrap();
-        tokio::spawn(conductor.run_until_stopped())
+        conductor.spawn()
     };
 
     TestConductor {
@@ -98,9 +105,20 @@ pub async fn spawn_conductor(execution_commit_level: CommitLevel) -> TestConduct
 }
 
 pub struct TestConductor {
-    pub conductor: JoinHandle<()>,
+    pub conductor: conductor::Handle,
     pub mock_grpc: MockGrpc,
     pub mock_http: wiremock::MockServer,
+}
+
+impl Drop for TestConductor {
+    fn drop(&mut self) {
+        futures::executor::block_on(async {
+            tokio::time::timeout(Duration::from_secs(2), self.conductor.shutdown())
+                .await
+                .expect("timed out waiting for conductor to shut down")
+                .expect("conductor shut down with an error");
+        });
+    }
 }
 
 impl TestConductor {
@@ -130,21 +148,18 @@ impl TestConductor {
         .await;
     }
 
-    pub async fn mount_batch_get_blocks<S: serde::Serialize>(
+    pub async fn mount_get_block<S: serde::Serialize>(
         &self,
         expected_pbjson: S,
-        blocks: Vec<astria_core::generated::execution::v1alpha2::Block>,
+        block: astria_core::generated::execution::v1alpha2::Block,
     ) {
-        use astria_core::generated::execution::v1alpha2::BatchGetBlocksResponse;
         use astria_grpc_mock::{
             matcher::message_partial_pbjson,
             response::constant_response,
             Mock,
         };
-        Mock::for_rpc_given("batch_get_blocks", message_partial_pbjson(&expected_pbjson))
-            .respond_with(constant_response(BatchGetBlocksResponse {
-                blocks,
-            }))
+        Mock::for_rpc_given("get_block", message_partial_pbjson(&expected_pbjson))
+            .respond_with(constant_response(block))
             .expect(1..)
             .mount(&self.mock_grpc.mock_server)
             .await;
@@ -443,6 +458,7 @@ fn make_config() -> Config {
         celestia_bearer_token: CELESTIA_BEARER_TOKEN.into(),
         sequencer_grpc_url: "http://127.0.0.1:8080".into(),
         sequencer_cometbft_url: "http://127.0.0.1:26657".into(),
+        sequencer_requests_per_second: 500,
         sequencer_block_time_ms: 2000,
         execution_rpc_url: "http://127.0.0.1:50051".into(),
         log: "info".into(),
@@ -470,37 +486,55 @@ pub fn make_sequencer_block(height: u32) -> astria_core::sequencerblock::v1alpha
 }
 
 pub struct Blobs {
-    pub header: Vec<Blob>,
-    pub rollup: Vec<Blob>,
+    pub header: Blob,
+    pub rollup: Blob,
 }
 
 #[must_use]
-pub fn make_blobs(height: u32) -> Blobs {
-    let (head, tail) = make_sequencer_block(height).into_celestia_blobs();
-
-    let raw_header = ::prost::Message::encode_to_vec(&head.into_raw());
-    let head_compressed = compress_bytes(&raw_header).unwrap();
-    let header = Blob::new(sequencer_namespace(), head_compressed).unwrap();
-
-    let mut rollup = Vec::new();
-    for elem in tail {
-        let raw_rollup = ::prost::Message::encode_to_vec(&elem.into_raw());
-        let rollup_compressed = compress_bytes(&raw_rollup).unwrap();
-        let blob = Blob::new(rollup_namespace(), rollup_compressed).unwrap();
-        rollup.push(blob);
+pub fn make_blobs(heights: &[u32]) -> Blobs {
+    use astria_core::generated::sequencerblock::v1alpha1::{
+        SubmittedMetadataList,
+        SubmittedRollupDataList,
+    };
+    let mut metadata = Vec::new();
+    let mut rollup_data = Vec::new();
+    for &height in heights {
+        let (head, mut tail) = make_sequencer_block(height).split_for_celestia();
+        metadata.push(head.into_raw());
+        assert_eq!(
+            1,
+            tail.len(),
+            "this test logic assumes that there is only one rollup in the mocked block"
+        );
+        rollup_data.push(tail.swap_remove(0).into_raw());
     }
+    let header_list = SubmittedMetadataList {
+        entries: metadata,
+    };
+    let rollup_data_list = SubmittedRollupDataList {
+        entries: rollup_data,
+    };
+
+    let raw_header_list = ::prost::Message::encode_to_vec(&header_list);
+    let head_list_compressed = compress_bytes(&raw_header_list).unwrap();
+    let header = Blob::new(sequencer_namespace(), head_list_compressed).unwrap();
+
+    let raw_rollup_data_list = ::prost::Message::encode_to_vec(&rollup_data_list);
+    let rollup_data_list_compressed = compress_bytes(&raw_rollup_data_list).unwrap();
+    let rollup = Blob::new(rollup_namespace(), rollup_data_list_compressed).unwrap();
+
     Blobs {
-        header: vec![header],
+        header,
         rollup,
     }
 }
 
-fn signing_key() -> ed25519_consensus::SigningKey {
+fn signing_key() -> astria_core::crypto::SigningKey {
     use rand_chacha::{
         rand_core::SeedableRng as _,
         ChaChaRng,
     };
-    ed25519_consensus::SigningKey::new(ChaChaRng::seed_from_u64(0))
+    astria_core::crypto::SigningKey::new(ChaChaRng::seed_from_u64(0))
 }
 
 fn validator() -> tendermint::validator::Info {
@@ -554,7 +588,7 @@ pub fn make_commit(height: u32) -> tendermint::block::Commit {
         signatures: vec![tendermint::block::CommitSig::BlockIdFlagCommit {
             validator_address: validator.address,
             timestamp,
-            signature: Some(signature.into()),
+            signature: Some(signature.to_bytes().as_ref().try_into().unwrap()),
         }],
     }
 }

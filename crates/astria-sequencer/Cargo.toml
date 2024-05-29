@@ -1,6 +1,6 @@
 [package]
 name = "astria-sequencer"
-version = "0.11.0"
+version = "0.13.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 rust-version = "1.73"
@@ -36,7 +36,6 @@ cnidarium-component = { git = "https://github.com/penumbra-zone/penumbra.git", r
 
 async-trait = { workspace = true }
 bytes = { workspace = true }
-ed25519-consensus = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 ibc-types = { workspace = true, features = ["with_serde"] }
@@ -68,6 +67,7 @@ astria-core = { path = "../astria-core", features = [
 config = { package = "astria-config", path = "../astria-config", features = [
   "tests",
 ] }
+insta = { workspace = true, features = ["json"] }
 
 [build-dependencies]
 astria-build-info = { path = "../astria-build-info", features = ["build"] }
