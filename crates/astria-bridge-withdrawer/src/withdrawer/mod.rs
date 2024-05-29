@@ -71,7 +71,7 @@ impl Service {
         let state = Arc::new(State::new());
 
         // make submitter object
-        let (submitter, submitter_handle) = submitter::Builder {
+        let (submitter, batches_tx) = submitter::Builder {
             shutdown_token: shutdown_handle.token(),
             cometbft_endpoint,
             sequencer_chain_id,
@@ -79,13 +79,12 @@ impl Service {
             state: state.clone(),
         }
         .build()
-        .await
         .wrap_err("failed to initialize submitter")?;
 
         let ethereum_watcher = Watcher::new(
             &ethereum_contract_address,
             &ethereum_rpc_endpoint,
-            submitter_handle.batches_tx,
+            batches_tx,
             &shutdown_handle.token(),
             state.clone(),
             asset::Id::from_denom(&fee_asset_denomination),

@@ -47,7 +47,7 @@ pub(crate) fn get_alice_signing_key_and_address() -> (SigningKey, Address) {
             .try_into()
             .unwrap();
     let alice_signing_key = SigningKey::from(alice_secret_bytes);
-    let alice = Address::from_verification_key(alice_signing_key.verification_key());
+    let alice = *alice_signing_key.verification_key().address();
     (alice_signing_key, alice)
 }
 
@@ -58,7 +58,7 @@ pub(crate) fn get_bridge_signing_key_and_address() -> (SigningKey, Address) {
             .try_into()
             .unwrap();
     let bridge_signing_key = SigningKey::from(bridge_secret_bytes);
-    let bridge = Address::from_verification_key(bridge_signing_key.verification_key());
+    let bridge = *bridge_signing_key.verification_key().address();
     (bridge_signing_key, bridge)
 }
 

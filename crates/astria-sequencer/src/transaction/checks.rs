@@ -31,7 +31,7 @@ pub(crate) async fn check_nonce_mempool<S: StateReadExt + 'static>(
     tx: &SignedTransaction,
     state: &S,
 ) -> anyhow::Result<()> {
-    let signer_address = Address::from_verification_key(tx.verification_key());
+    let signer_address = *tx.verification_key().address();
     let curr_nonce = state
         .get_account_nonce(signer_address)
         .await
@@ -62,7 +62,7 @@ pub(crate) async fn check_balance_mempool<S: StateReadExt + 'static>(
     tx: &SignedTransaction,
     state: &S,
 ) -> anyhow::Result<()> {
-    let signer_address = Address::from_verification_key(tx.verification_key());
+    let signer_address = *tx.verification_key().address();
     check_balance_for_total_fees(tx.unsigned_transaction(), signer_address, state).await?;
     Ok(())
 }

@@ -17,7 +17,6 @@ color-eyre = "0.6"
 astria-core = { path = "../astria-core" }
 
 clap = { workspace = true, features = ["derive", "env"] }
-ed25519-consensus = { workspace = true }
 hex = { workspace = true }
 rand = { workspace = true }
 serde = { workspace = true, features = ["derive"] }

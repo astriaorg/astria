@@ -7,7 +7,7 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use jsonrpsee::http_client::HttpClient as CelestiaClient;
-use sequencer_client::HttpClient as SequencerClient;
+use tendermint_rpc::HttpClient as SequencerClient;
 use tokio_util::sync::CancellationToken;
 
 use super::Reader;
@@ -19,6 +19,7 @@ pub(crate) struct Builder {
     pub(crate) celestia_token: String,
     pub(crate) executor: executor::Handle,
     pub(crate) sequencer_cometbft_client: SequencerClient,
+    pub(crate) sequencer_requests_per_second: u32,
     pub(crate) shutdown: CancellationToken,
 }
 
@@ -31,6 +32,7 @@ impl Builder {
             celestia_token,
             executor,
             sequencer_cometbft_client,
+            sequencer_requests_per_second,
             shutdown,
         } = self;
 
@@ -42,6 +44,7 @@ impl Builder {
             celestia_client,
             executor,
             sequencer_cometbft_client,
+            sequencer_requests_per_second,
             shutdown,
         })
     }
