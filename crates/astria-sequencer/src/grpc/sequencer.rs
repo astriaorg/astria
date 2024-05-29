@@ -46,8 +46,8 @@ use crate::{
 
 pub(crate) struct SequencerServer {
     storage: Storage,
-    cometbft_client: HttpClient,
     mempool: Mempool,
+    cometbft_client: HttpClient,
 }
 
 impl SequencerServer {
