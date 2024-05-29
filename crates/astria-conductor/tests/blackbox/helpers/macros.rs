@@ -111,11 +111,12 @@ macro_rules! signed_header {
 #[macro_export]
 macro_rules! mount_celestia_blobs {
     (
-        $test_env:ident,celestia_height:
-        $celestia_height:expr,sequencer_height:
-        $sequencer_height:expr $(,)?
+        $test_env:ident,
+        celestia_height: $celestia_height:expr,
+        sequencer_heights: [ $($sequencer_height:expr),+ ]
+        $(,)?
     ) => {{
-        let blobs = $crate::helpers::make_blobs(&[$sequencer_height]);
+        let blobs = $crate::helpers::make_blobs(&[ $( $sequencer_height ),+ ]);
         $test_env
             .mount_celestia_blob_get_all(
                 $celestia_height,
