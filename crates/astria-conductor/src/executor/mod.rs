@@ -456,6 +456,11 @@ impl Executor {
         block.height = block.sequencer_height().value(),
     ))]
     async fn execute_firm(&mut self, block: ReconstructedBlock) -> eyre::Result<()> {
+        let celestia_height =
+            block.celestia_height.try_into().expect(
+                "block height overflow, this should not happen since tendermint heights are i64 \
+                 and never negative under the hood",
+            );
         let executable_block = ExecutableBlock::from_reconstructed(block);
         let expected_height = self.state.next_expected_firm_sequencer_height();
         let block_height = executable_block.height;
@@ -484,13 +489,13 @@ impl Executor {
                 .wrap_err("failed to execute block")?;
             self.does_block_response_fulfill_contract(ExecutionKind::Firm, &executed_block)
                 .wrap_err("execution API server violated contract")?;
-            Update::ToSame(executed_block)
+            Update::ToSame(executed_block, celestia_height)
         } else if let Some(block) = self.blocks_pending_finalization.remove(&block_number) {
             debug!(
                 block_number,
                 "found pending block in cache; updating state but not not re-executing it"
             );
-            Update::OnlyFirm(block)
+            Update::OnlyFirm(block, celestia_height)
         } else {
             debug!(
                 block_number,
@@ -498,7 +503,7 @@ impl Executor {
                  Trying to fetch the already-executed block from the rollup before giving up."
             );
             match self.client.get_block_with_retry(block_number).await {
-                Ok(block) => Update::OnlyFirm(block),
+                Ok(block) => Update::OnlyFirm(block, celestia_height),
                 Err(error) => {
                     error!(
                         block_number,
@@ -594,14 +599,15 @@ impl Executor {
             OnlySoft,
             ToSame,
         };
-        let (firm, soft) = match update {
-            OnlyFirm(firm) => (firm, self.state.soft()),
-            OnlySoft(soft) => (self.state.firm(), soft),
-            ToSame(block) => (block.clone(), block),
+        let (firm, soft, celestia_height) = match update {
+            OnlyFirm(firm, celestia_height) => (firm, self.state.soft(), celestia_height),
+            OnlySoft(soft) => (self.state.firm(), soft, self.state.celestia_base_block_height()),
+            ToSame(block, celestia_height) => (block.clone(), block, celestia_height),
         };
         let commitment_state = CommitmentState::builder()
             .firm(firm)
             .soft(soft)
+            .base_celestia_height(celestia_height)
             .build()
             .wrap_err("failed constructing commitment state")?;
         let new_state = self
@@ -645,9 +651,9 @@ impl Executor {
 }
 
 enum Update {
-    OnlyFirm(Block),
+    OnlyFirm(Block, CelestiaHeight),
     OnlySoft(Block),
-    ToSame(Block),
+    ToSame(Block, CelestiaHeight),
 }
 
 #[derive(Debug)]
