@@ -45,6 +45,7 @@ use super::{
     batch::Batch,
     state,
 };
+use crate::metrics::Metrics;
 
 mod builder;
 mod signer;
@@ -56,6 +57,7 @@ pub(super) struct Submitter {
     sequencer_cometbft_client: sequencer_client::HttpClient,
     signer: SequencerKey,
     sequencer_chain_id: String,
+    metrics: &'static Metrics,
 }
 
 impl Submitter {
@@ -116,6 +118,7 @@ impl Submitter {
             self.sequencer_cometbft_client.clone(),
             self.signer.address,
             self.state.clone(),
+            self.metrics,
         )
         .await?;
         debug!(nonce, "fetched latest nonce");
@@ -137,6 +140,7 @@ impl Submitter {
             self.sequencer_cometbft_client.clone(),
             signed,
             self.state.clone(),
+            self.metrics,
         )
         .await
         .context("failed to submit transaction to to cometbft")?;
@@ -182,9 +186,10 @@ async fn get_latest_nonce(
     client: sequencer_client::HttpClient,
     address: Address,
     state: Arc<State>,
+    metrics: &'static Metrics,
 ) -> eyre::Result<u32> {
     debug!("fetching latest nonce from sequencer");
-    metrics::counter!(crate::metrics_init::NONCE_FETCH_COUNT).increment(1);
+    metrics.increment_nonce_fetch_count();
     let span = Span::current();
     let start = Instant::now();
     let retry_config = tryhard::RetryFutureConfig::new(1024)
@@ -194,7 +199,7 @@ async fn get_latest_nonce(
             |attempt,
              next_delay: Option<Duration>,
              err: &sequencer_client::extension_trait::Error| {
-                metrics::counter!(crate::metrics_init::NONCE_FETCH_FAILURE_COUNT).increment(1);
+                metrics.increment_nonce_fetch_failure_count();
 
                 let state = Arc::clone(&state);
                 state.set_sequencer_connected(false);
@@ -223,7 +228,7 @@ async fn get_latest_nonce(
 
     state.set_sequencer_connected(res.is_ok());
 
-    metrics::histogram!(crate::metrics_init::NONCE_FETCH_LATENCY).record(start.elapsed());
+    metrics.record_nonce_fetch_latency(start.elapsed());
 
     res
 }
@@ -241,9 +246,10 @@ async fn submit_tx(
     client: sequencer_client::HttpClient,
     tx: SignedTransaction,
     state: Arc<State>,
+    metrics: &'static Metrics,
 ) -> eyre::Result<tx_commit::Response> {
     let nonce = tx.unsigned_transaction().params.nonce;
-    metrics::gauge!(crate::metrics_init::CURRENT_NONCE).set(nonce);
+    metrics.set_current_nonce(nonce);
     let start = std::time::Instant::now();
     debug!("submitting signed transaction to sequencer");
     let span = Span::current();
@@ -254,8 +260,7 @@ async fn submit_tx(
             |attempt,
              next_delay: Option<Duration>,
              err: &sequencer_client::extension_trait::Error| {
-                metrics::counter!(crate::metrics_init::SEQUENCER_SUBMISSION_FAILURE_COUNT)
-                    .increment(1);
+                metrics.increment_sequencer_submission_failure_count();
 
                 let state = Arc::clone(&state);
                 state.set_sequencer_connected(false);
@@ -285,7 +290,7 @@ async fn submit_tx(
 
     state.set_sequencer_connected(res.is_ok());
 
-    metrics::histogram!(crate::metrics_init::SEQUENCER_SUBMISSION_LATENCY).record(start.elapsed());
+    metrics.record_sequencer_submission_latency(start.elapsed());
 
     res
 }

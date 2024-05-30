@@ -1,6 +1,9 @@
 use std::{
     net::SocketAddr,
-    sync::Arc,
+    sync::{
+        Arc,
+        OnceLock,
+    },
     time::Duration,
 };
 
@@ -33,6 +36,7 @@ use self::{
 use crate::{
     api,
     config::Config,
+    metrics::Metrics,
 };
 
 mod batch;
@@ -56,6 +60,9 @@ impl Service {
     ///
     /// - If the provided `api_addr` string cannot be parsed as a socket address.
     pub fn new(cfg: Config) -> eyre::Result<(Self, ShutdownHandle)> {
+        static METRICS: OnceLock<Metrics> = OnceLock::new();
+        let metrics = METRICS.get_or_init(Metrics::new);
+
         let shutdown_handle = ShutdownHandle::new();
         let Config {
             api_addr,
@@ -77,6 +84,7 @@ impl Service {
             sequencer_chain_id,
             sequencer_key_path,
             state: state.clone(),
+            metrics,
         }
         .build()
         .wrap_err("failed to initialize submitter")?;

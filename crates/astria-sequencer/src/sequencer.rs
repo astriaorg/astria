@@ -1,3 +1,5 @@
+use std::sync::OnceLock;
+
 use anyhow::{
     anyhow,
     Context as _,
@@ -34,6 +36,7 @@ use crate::{
     grpc::sequencer::SequencerServer,
     ibc::host_interface::AstriaHost,
     mempool::Mempool,
+    metrics::Metrics,
     service,
     state_ext::StateReadExt as _,
 };
@@ -43,6 +46,9 @@ pub struct Sequencer;
 impl Sequencer {
     #[instrument(skip_all)]
     pub async fn run_until_stopped(config: Config) -> Result<()> {
+        static METRICS: OnceLock<Metrics> = OnceLock::new();
+        let metrics = METRICS.get_or_init(Metrics::new);
+
         if config
             .db_filepath
             .try_exists()
@@ -88,7 +94,7 @@ impl Sequencer {
         }
 
         let mempool = Mempool::new();
-        let app = App::new(snapshot, mempool.clone())
+        let app = App::new(snapshot, mempool.clone(), metrics)
             .await
             .context("failed to initialize app")?;
 
@@ -100,7 +106,7 @@ impl Sequencer {
                 let storage = storage.clone();
                 async move { service::Consensus::new(storage, app, queue).run().await }
             }));
-        let mempool_service = service::Mempool::new(storage.clone(), mempool.clone());
+        let mempool_service = service::Mempool::new(storage.clone(), mempool.clone(), metrics);
         let info_service =
             service::Info::new(storage.clone()).context("failed initializing info service")?;
         let snapshot_service = service::Snapshot;

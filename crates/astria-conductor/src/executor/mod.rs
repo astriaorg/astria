@@ -40,11 +40,7 @@ use tracing::{
 use crate::{
     celestia::ReconstructedBlock,
     config::CommitLevel,
-    metrics_init::{
-        EXECUTED_FIRM_BLOCK_NUMBER,
-        EXECUTED_SOFT_BLOCK_NUMBER,
-        TRANSACTIONS_PER_EXECUTED_BLOCK,
-    },
+    metrics::Metrics,
 };
 
 mod builder;
@@ -112,7 +108,7 @@ pub(crate) enum SoftTrySendError {
 
 /// A handle to the executor.
 ///
-/// To be be useful, [`Handle<StateNotInit>::wait_for_init`] must be called in
+/// To be useful, [`Handle<StateNotInit>::wait_for_init`] must be called in
 /// order to obtain a [`Handle<StateInit>`]. This is to ensure that the executor
 /// state was primed before using its other methods. See [`State`] for more
 /// information.
@@ -251,6 +247,8 @@ pub(crate) struct Executor {
 
     /// The maximum permitted spread between firm and soft blocks.
     max_spread: Option<usize>,
+
+    metrics: &'static Metrics,
 }
 
 impl Executor {
@@ -456,8 +454,8 @@ impl Executor {
 
         // XXX: We set an absolute number value here to avoid any potential issues of the remote
         // rollup state and the local state falling out of lock-step.
-        metrics::counter!(crate::metrics_init::EXECUTED_SOFT_BLOCK_NUMBER)
-            .absolute(block_number.into());
+        self.metrics
+            .absolute_set_executed_soft_block_number(block_number);
 
         Ok(())
     }
@@ -531,8 +529,8 @@ impl Executor {
 
         // XXX: We set an absolute number value here to avoid any potential issues of the remote
         // rollup state and the local state falling out of lock-step.
-        metrics::counter!(crate::metrics_init::EXECUTED_FIRM_BLOCK_NUMBER)
-            .absolute(block_number.into());
+        self.metrics
+            .absolute_set_executed_soft_block_number(block_number);
 
         Ok(())
     }
@@ -558,9 +556,7 @@ impl Executor {
             ..
         } = block;
 
-        // allow: used for recording a histogram, which requires f64.
-        #[allow(clippy::cast_precision_loss)]
-        let n_transactions = transactions.len() as f64;
+        let n_transactions = transactions.len();
 
         let executed_block = self
             .client
@@ -568,7 +564,8 @@ impl Executor {
             .await
             .wrap_err("failed to run execute_block RPC")?;
 
-        metrics::histogram!(TRANSACTIONS_PER_EXECUTED_BLOCK).record(n_transactions);
+        self.metrics
+            .record_transactions_per_executed_block(n_transactions);
 
         info!(
             executed_block.hash = %telemetry::display::base64(&executed_block.hash()),
@@ -604,8 +601,10 @@ impl Executor {
             .try_init(genesis_info, commitment_state)
             .wrap_err("failed initializing state tracking")?;
 
-        metrics::counter!(EXECUTED_FIRM_BLOCK_NUMBER).absolute(self.state.firm_number().into());
-        metrics::counter!(EXECUTED_SOFT_BLOCK_NUMBER).absolute(self.state.soft_number().into());
+        self.metrics
+            .absolute_set_executed_firm_block_number(self.state.firm_number());
+        self.metrics
+            .absolute_set_executed_soft_block_number(self.state.soft_number());
         info!(
             initial_state = serde_json::to_string(&*self.state.get())
                 .expect("writing json to a string should not fail"),

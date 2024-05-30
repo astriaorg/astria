@@ -1,5 +1,6 @@
 use std::{
     net::SocketAddr,
+    sync::OnceLock,
     time::Duration,
 };
 
@@ -25,6 +26,7 @@ use tracing::{
 use crate::{
     api,
     config::Config,
+    metrics::Metrics,
     relayer::{
         self,
         Relayer,
@@ -44,6 +46,9 @@ impl SequencerRelayer {
     ///
     /// Returns an error if constructing the inner relayer type failed.
     pub fn new(cfg: Config) -> eyre::Result<(Self, ShutdownHandle)> {
+        static METRICS: OnceLock<Metrics> = OnceLock::new();
+        let metrics = METRICS.get_or_init(Metrics::new);
+
         let shutdown_handle = ShutdownHandle::new();
         let rollup_filter = cfg.only_include_rollups()?;
         let Config {
@@ -72,6 +77,7 @@ impl SequencerRelayer {
             rollup_filter,
             pre_submit_path,
             post_submit_path,
+            metrics,
         }
         .build()
         .wrap_err("failed to create relayer")?;
