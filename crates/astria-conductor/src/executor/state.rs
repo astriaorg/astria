@@ -370,9 +370,11 @@ mod tests {
             }),
         })
         .unwrap();
+        let celestia_base_height = CelestiaHeight::from(1u32);
         CommitmentState::builder()
             .firm(firm)
             .soft(soft)
+            .base_celestia_height(celestia_base_height)
             .build()
             .unwrap()
     }
@@ -381,7 +383,6 @@ mod tests {
         GenesisInfo::try_from_raw(raw::GenesisInfo {
             rollup_id: vec![24; 32].into(),
             sequencer_genesis_block_height: 10,
-            celestia_base_block_height: 1,
             celestia_block_variance: 0,
         })
         .unwrap()
