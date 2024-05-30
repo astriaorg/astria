@@ -44,6 +44,7 @@ tracing = { workspace = true }
 base64-serde = { workspace = true, optional = true }
 base64 = { workspace = true }
 zeroize = { version = "1.7.0", features = ["zeroize_derive"] }
+bech32 = "0.11.0"
 
 [features]
 celestia = ["dep:celestia-types"]

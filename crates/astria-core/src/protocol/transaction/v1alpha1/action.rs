@@ -16,7 +16,7 @@ use crate::{
             Denom,
         },
         Address,
-        IncorrectAddressLength,
+        AddressError,
         IncorrectRollupIdLength,
         RollupId,
     },
@@ -485,7 +485,7 @@ impl TransferAction {
         let Some(to) = to else {
             return Err(TransferActionError::field_not_set("to"));
         };
-        let to = Address::try_from_raw(&to).map_err(TransferActionError::address_length)?;
+        let to = Address::try_from_raw(&to).map_err(TransferActionError::address)?;
         let amount = amount.map_or(0, Into::into);
         let asset_id =
             asset::Id::try_from_slice(&asset_id).map_err(TransferActionError::asset_id)?;
@@ -510,8 +510,8 @@ impl TransferActionError {
         Self(TransferActionErrorKind::FieldNotSet(field))
     }
 
-    fn address_length(inner: IncorrectAddressLength) -> Self {
-        Self(TransferActionErrorKind::AddressLength(inner))
+    fn address(inner: AddressError) -> Self {
+        Self(TransferActionErrorKind::Address(inner))
     }
 
     fn asset_id(inner: asset::IncorrectAssetIdLength) -> Self {
@@ -528,7 +528,7 @@ enum TransferActionErrorKind {
     #[error("the expected field in the raw source type was not set: `{0}`")]
     FieldNotSet(&'static str),
     #[error("`to` field did not contain a valid address")]
-    AddressLength(#[source] IncorrectAddressLength),
+    Address(#[source] AddressError),
     #[error("`asset_id` field did not contain a valid asset ID")]
     Asset(#[source] asset::IncorrectAssetIdLength),
     #[error("`fee_asset_id` field did not contain a valid asset ID")]
@@ -594,8 +594,10 @@ impl SudoAddressChangeActionError {
         Self(SudoAddressChangeActionErrorKind::FieldNotSet(field))
     }
 
-    fn address(inner: IncorrectAddressLength) -> Self {
-        Self(SudoAddressChangeActionErrorKind::Address(inner))
+    fn address(source: AddressError) -> Self {
+        Self(SudoAddressChangeActionErrorKind::Address {
+            source,
+        })
     }
 }
 
@@ -604,7 +606,7 @@ enum SudoAddressChangeActionErrorKind {
     #[error("the expected field in the raw source type was not set: `{0}`")]
     FieldNotSet(&'static str),
     #[error("`new_address` field did not contain a valid address")]
-    Address(#[source] IncorrectAddressLength),
+    Address { source: AddressError },
 }
 
 #[allow(clippy::module_name_repetitions)]
@@ -653,7 +655,7 @@ impl MintAction {
         let Some(to) = to else {
             return Err(MintActionError::field_not_set("to"));
         };
-        let to = Address::try_from_raw(&to).map_err(MintActionError::address_length)?;
+        let to = Address::try_from_raw(&to).map_err(MintActionError::address)?;
         let amount = amount.map_or(0, Into::into);
         Ok(Self {
             to,
@@ -672,8 +674,10 @@ impl MintActionError {
         Self(MintActionErrorKind::FieldNotSet(field))
     }
 
-    fn address_length(inner: IncorrectAddressLength) -> Self {
-        Self(MintActionErrorKind::AddressLength(inner))
+    fn address(source: AddressError) -> Self {
+        Self(MintActionErrorKind::Address {
+            source,
+        })
     }
 }
 
@@ -682,7 +686,7 @@ enum MintActionErrorKind {
     #[error("the expected field in the raw source type was not set: `{0}`")]
     FieldNotSet(&'static str),
     #[error("`to` field did not contain a valid address")]
-    AddressLength(#[source] IncorrectAddressLength),
+    Address { source: AddressError },
 }
 
 /// Represents an IBC withdrawal of an asset from a source chain to a destination chain.
@@ -815,7 +819,7 @@ impl Ics20Withdrawal {
     pub fn try_from_raw(proto: raw::Ics20Withdrawal) -> Result<Self, Ics20WithdrawalError> {
         let amount = proto.amount.ok_or(Ics20WithdrawalError::missing_amount())?;
         let return_address = Address::try_from_slice(&proto.return_address)
-            .map_err(Ics20WithdrawalError::invalid_return_address)?;
+            .map_err(Ics20WithdrawalError::return_address)?;
         let timeout_height = proto
             .timeout_height
             .ok_or(Ics20WithdrawalError::missing_timeout_height())?
@@ -878,8 +882,10 @@ impl Ics20WithdrawalError {
     }
 
     #[must_use]
-    fn invalid_return_address(err: IncorrectAddressLength) -> Self {
-        Self(Ics20WithdrawalErrorKind::InvalidReturnAddress(err))
+    fn return_address(source: AddressError) -> Self {
+        Self(Ics20WithdrawalErrorKind::ReturnAddress {
+            source,
+        })
     }
 
     #[must_use]
@@ -903,7 +909,7 @@ enum Ics20WithdrawalErrorKind {
     #[error("`amount` field was missing")]
     MissingAmount,
     #[error("`return_address` field was invalid")]
-    InvalidReturnAddress(#[source] IncorrectAddressLength),
+    ReturnAddress { source: AddressError },
     #[error("`timeout_height` field was missing")]
     MissingTimeoutHeight,
     #[error("`source_channel` field was invalid")]
@@ -964,15 +970,15 @@ impl IbcRelayerChangeAction {
             raw::IbcRelayerChangeAction {
                 value: Some(raw::ibc_relayer_change_action::Value::Addition(address)),
             } => {
-                let address = Address::try_from_raw(address)
-                    .map_err(IbcRelayerChangeActionError::invalid_address)?;
+                let address =
+                    Address::try_from_raw(address).map_err(IbcRelayerChangeActionError::address)?;
                 Ok(IbcRelayerChangeAction::Addition(address))
             }
             raw::IbcRelayerChangeAction {
                 value: Some(raw::ibc_relayer_change_action::Value::Removal(address)),
             } => {
-                let address = Address::try_from_raw(address)
-                    .map_err(IbcRelayerChangeActionError::invalid_address)?;
+                let address =
+                    Address::try_from_raw(address).map_err(IbcRelayerChangeActionError::address)?;
                 Ok(IbcRelayerChangeAction::Removal(address))
             }
             _ => Err(IbcRelayerChangeActionError::missing_address()),
@@ -986,8 +992,10 @@ pub struct IbcRelayerChangeActionError(IbcRelayerChangeActionErrorKind);
 
 impl IbcRelayerChangeActionError {
     #[must_use]
-    fn invalid_address(err: IncorrectAddressLength) -> Self {
-        Self(IbcRelayerChangeActionErrorKind::InvalidAddress(err))
+    fn address(source: AddressError) -> Self {
+        Self(IbcRelayerChangeActionErrorKind::Address {
+            source,
+        })
     }
 
     #[must_use]
@@ -998,9 +1006,9 @@ impl IbcRelayerChangeActionError {
 
 #[derive(Debug, thiserror::Error)]
 enum IbcRelayerChangeActionErrorKind {
-    #[error("the address was invalid")]
-    InvalidAddress(#[source] IncorrectAddressLength),
-    #[error("the address was missing")]
+    #[error("the `address` was invalid")]
+    Address { source: AddressError },
+    #[error("the `address` was not set")]
     MissingAddress,
 }
 
@@ -1243,7 +1251,7 @@ impl BridgeLockAction {
         let Some(to) = proto.to else {
             return Err(BridgeLockActionError::field_not_set("to"));
         };
-        let to = Address::try_from_raw(&to).map_err(BridgeLockActionError::invalid_address)?;
+        let to = Address::try_from_raw(&to).map_err(BridgeLockActionError::address)?;
         let amount = proto
             .amount
             .ok_or(BridgeLockActionError::missing_amount())?;
@@ -1272,8 +1280,10 @@ impl BridgeLockActionError {
     }
 
     #[must_use]
-    fn invalid_address(err: IncorrectAddressLength) -> Self {
-        Self(BridgeLockActionErrorKind::InvalidAddress(err))
+    fn address(source: AddressError) -> Self {
+        Self(BridgeLockActionErrorKind::Address {
+            source,
+        })
     }
 
     #[must_use]
@@ -1297,7 +1307,7 @@ enum BridgeLockActionErrorKind {
     #[error("the expected field in the raw source type was not set: `{0}`")]
     FieldNotSet(&'static str),
     #[error("the `to` field was invalid")]
-    InvalidAddress(#[source] IncorrectAddressLength),
+    Address { source: AddressError },
     #[error("the `amount` field was not set")]
     MissingAmount,
     #[error("the `asset_id` field was invalid")]
@@ -1350,7 +1360,7 @@ impl BridgeUnlockAction {
         let Some(to) = proto.to else {
             return Err(BridgeUnlockActionError::field_not_set("to"));
         };
-        let to = Address::try_from_raw(&to).map_err(BridgeUnlockActionError::invalid_address)?;
+        let to = Address::try_from_raw(&to).map_err(BridgeUnlockActionError::address)?;
         let amount = proto
             .amount
             .ok_or(BridgeUnlockActionError::missing_amount())?;
@@ -1376,8 +1386,10 @@ impl BridgeUnlockActionError {
     }
 
     #[must_use]
-    fn invalid_address(err: IncorrectAddressLength) -> Self {
-        Self(BridgeUnlockActionErrorKind::InvalidAddress(err))
+    fn address(source: AddressError) -> Self {
+        Self(BridgeUnlockActionErrorKind::Address {
+            source,
+        })
     }
 
     #[must_use]
@@ -1396,7 +1408,7 @@ enum BridgeUnlockActionErrorKind {
     #[error("the expected field in the raw source type was not set: `{0}`")]
     FieldNotSet(&'static str),
     #[error("the `to` field was invalid")]
-    InvalidAddress(#[source] IncorrectAddressLength),
+    Address { source: AddressError },
     #[error("the `amount` field was not set")]
     MissingAmount,
     #[error("the `fee_asset_id` field was invalid")]
