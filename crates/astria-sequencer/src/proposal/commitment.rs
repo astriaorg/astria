@@ -27,7 +27,7 @@ impl GeneratedCommitments {
     /// which can be used as the block's transactions.
     #[must_use]
     pub(crate) fn into_transactions(self, mut tx_data: Vec<Bytes>) -> Vec<Bytes> {
-        let mut txs = Vec::with_capacity(tx_data.len() + 2);
+        let mut txs = Vec::with_capacity(tx_data.len().saturating_add(2));
         txs.push(self.rollup_datas_root.to_vec().into());
         txs.push(self.rollup_ids_root.to_vec().into());
         txs.append(&mut tx_data);

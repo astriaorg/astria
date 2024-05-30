@@ -1,7 +1,10 @@
 // allow: to be fixed in future PRs. This is used for testing and is not in a critical path.
-#![allow(clippy::module_name_repetitions)]
-#![allow(clippy::missing_errors_doc)]
-#![allow(clippy::missing_panics_doc)]
+#![allow(
+    clippy::module_name_repetitions,
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
+    clippy::arithmetic_side_effects
+)]
 
 use std::any::Any;
 

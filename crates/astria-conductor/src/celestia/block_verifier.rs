@@ -311,7 +311,7 @@ mod test {
         };
 
         (
-            validators::Response::new((height - 1).into(), vec![validator], 1),
+            validators::Response::new(height.checked_sub(1).unwrap().into(), vec![validator], 1),
             address,
             commit,
         )

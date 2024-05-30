@@ -153,7 +153,7 @@ jobs:
       - name: run pedantic clippy on workspace crates
         run: |
           cargo clippy --all-targets --all-features \
-          -- --warn clippy::pedantic --deny warnings
+          -- --warn clippy::pedantic --warn clippy::arithmetic-side-effects --deny warnings
       - name: run pedantic clippy on tools/protobuf-compiler
         run: |
           cargo clippy --manifest-path tools/protobuf-compiler/Cargo.toml \

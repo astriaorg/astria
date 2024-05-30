@@ -74,7 +74,11 @@ fn update_yaml_value(
 
     let keys: Vec<&str> = key.split('.').collect();
 
-    for &key in keys.iter().take(keys.len() - 1) {
+    let keys_len_minus_one = keys
+        .len()
+        .checked_sub(1)
+        .expect("`key.split()` should always return at least one value");
+    for &key in keys.iter().take(keys_len_minus_one) {
         target = target
             .get_mut(key)
             .ok_or_else(|| eyre::eyre!("Invalid key path: {}", key))?;

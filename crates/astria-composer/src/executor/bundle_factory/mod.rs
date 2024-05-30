@@ -87,16 +87,18 @@ impl SizedBundle {
             return Err(SizedBundleError::SequenceActionTooLarge(seq_action));
         }
 
-        if self.curr_size + seq_action_size > self.max_size {
+        let new_size = self.curr_size.saturating_add(seq_action_size);
+
+        if new_size > self.max_size {
             return Err(SizedBundleError::NotEnoughSpace(seq_action));
         }
 
         self.rollup_counts
             .entry(seq_action.rollup_id)
-            .and_modify(|count| *count += 1)
+            .and_modify(|count| *count = count.saturating_add(1))
             .or_insert(1);
         self.buffer.push(Action::Sequence(seq_action));
-        self.curr_size += seq_action_size;
+        self.curr_size = new_size;
 
         Ok(())
     }
