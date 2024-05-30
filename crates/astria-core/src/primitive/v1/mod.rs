@@ -366,7 +366,7 @@ impl Address {
         // and should not be used by downstream users in new code.
         #[allow(deprecated)]
         raw::Address {
-            bytes: self.to_vec().into(),
+            inner: self.to_vec().into(),
             bech32m,
         }
     }
@@ -386,16 +386,16 @@ impl Address {
         // and should not be used by downstream users in new code.
         #![allow(deprecated)]
         let raw::Address {
-            bytes,
+            inner,
             bech32m,
         } = raw;
         if bech32m.is_empty() {
-            return Self::try_from_slice(bytes);
+            return Self::try_from_slice(inner);
         }
-        if bytes.is_empty() {
+        if inner.is_empty() {
             return Self::try_from_bech32m(bech32m);
         }
-        let addr_bytes = Self::try_from_slice(bytes)?;
+        let addr_bytes = Self::try_from_slice(inner)?;
         let addr_bech32m = Self::try_from_bech32m(bech32m)?;
         if addr_bytes != addr_bech32m {
             return Err(AddressError::fields_dont_match(
@@ -521,7 +521,7 @@ mod tests {
         let bytes = [24u8; ADDRESS_LEN];
         let bech32m = [42u8; ADDRESS_LEN];
         let proto = super::raw::Address {
-            bytes: Bytes::copy_from_slice(&bytes),
+            inner: Bytes::copy_from_slice(&bytes),
             bech32m: bech32::encode_lower::<bech32::Bech32m>(super::BECH32_HRP, &bech32m).unwrap(),
         };
         let expected = AddressErrorKind::FieldsDontMatch {

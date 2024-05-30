@@ -47,7 +47,7 @@ message RollupId {
 // Astria addresses are derived from the ed25519 public key,
 // using the first 20 bytes of the sha256 hash.
 message Address {
-  bytes bytes = 1 [deprecated = true];
+  bytes inner = 1 [deprecated = true];
 
   string bech32m = 2;
 }

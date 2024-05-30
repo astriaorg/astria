@@ -88,7 +88,7 @@ impl ::prost::Name for RollupId {
 pub struct Address {
     #[deprecated]
     #[prost(bytes = "bytes", tag = "1")]
-    pub bytes: ::prost::bytes::Bytes,
+    pub inner: ::prost::bytes::Bytes,
     #[prost(string, tag = "2")]
     pub bech32m: ::prost::alloc::string::String,
 }
