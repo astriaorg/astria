@@ -21,6 +21,8 @@ pub struct Rollup {
     pub(crate) ingress_config: IngressConfig,
     #[serde(rename = "celestia-node")]
     pub(crate) celestia_node: CelestiaNode,
+    #[serde(rename = "resources")]
+    pub(crate) resources: CoreResources,
 }
 
 impl TryFrom<&ConfigCreateArgs> for Rollup {
@@ -31,12 +33,14 @@ impl TryFrom<&ConfigCreateArgs> for Rollup {
         let deployment_config = RollupDeploymentConfig::try_from(args)?;
         let ingress_config = IngressConfig::from(args);
         let celestia_node = CelestiaNode::from(args);
+        let resources = CoreResources::default();
 
         Ok(Self {
             globals_config,
             deployment_config,
             ingress_config,
             celestia_node,
+            resources,
         })
     }
 }
@@ -251,6 +255,81 @@ struct SequencerConfig {
     chain_id: String,
 }
 
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+pub struct CoreResources {
+    conductor: ServiceResources,
+    composer: ServiceResources,
+    geth: ServiceResources,
+}
+
+impl CoreResources {
+    fn default() -> Self {
+        Self {
+            conductor: ServiceResources::default_low(),
+            composer: ServiceResources::default_low(),
+            geth: ServiceResources::default_high(),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+struct ServiceResources {
+    requests: Resource,
+    limits: Resource,
+}
+
+impl ServiceResources {
+    fn default_low() -> Self {
+        Self {
+            requests: Resource::default_low_request(),
+            limits: Resource::default_low_limit(),
+        }
+    }
+
+    fn default_high() -> Self {
+        Self {
+            requests: Resource::default_high_request(),
+            limits: Resource::default_high_limit(),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+struct Resource {
+    cpu: f32,
+    memory: String,
+}
+
+impl Resource {
+    fn default_low_request() -> Self {
+        Self {
+            cpu: 0.01,
+            memory: "1Mi".to_string(),
+        }
+    }
+
+    fn default_low_limit() -> Self {
+        Self {
+            cpu: 0.1,
+            memory: "20Mi".to_string(),
+        }
+    }
+
+    fn default_high_request() -> Self {
+        Self {
+            cpu: 0.25,
+            memory: "256Mi".to_string(),
+        }
+    }
+
+    fn default_high_limit() -> Self {
+        Self {
+            cpu: 1.0,
+            memory: "1Gi".to_string(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -337,6 +416,7 @@ mod tests {
                     label_prefix: "rollup1".to_string(),
                 },
             },
+            resources: CoreResources::default(),
         };
 
         let result = Rollup::try_from(&args)?;
@@ -412,6 +492,7 @@ mod tests {
                     label_prefix: "rollup2".to_string(),
                 },
             },
+            resources: CoreResources::default(),
         };
 
         let result = Rollup::try_from(&args)?;

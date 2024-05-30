@@ -204,14 +204,14 @@ pub(crate) fn create_deployment(args: &DeploymentCreateArgs) -> eyre::Result<()>
         // Use a secret manager or inject the private key into the environment
         .arg("--set")
         .arg(format!(
-            "config.faucet.privateKey={}",
+            "config.faucet.privateKey.devContent={}",
             args.faucet_private_key.clone()
         ))
         // TODO: https://github.com/astriaorg/astria/issues/594
         // Use a secret manager or inject the private key into the environment
         .arg("--set")
         .arg(format!(
-            "config.sequencer.privateKey={}",
+            "config.sequencer.privateKey.devContent={}",
             args.sequencer_private_key.clone()
         ))
         .arg(rollup.deployment_config.get_chart_release_name())
