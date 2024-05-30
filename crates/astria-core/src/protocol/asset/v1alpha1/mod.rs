@@ -65,21 +65,24 @@ impl raw::DenomResponse {
     }
 }
 
-#[derive(Debug, PartialEq)]
-pub struct AllowedFeeAssetsResponse {
+#[derive(Debug, PartialEq, Clone)]
+pub struct AllowedFeeAssetIdsResponse {
     pub height: u64,
     pub fee_asset_ids: Vec<asset::Id>,
 }
 
-impl AllowedFeeAssetsResponse {
-    pub fn try_from_raw(proto: &raw::FeeAssetsResponse) -> Result<Self, IncorrectAssetIdLength> {
-        let raw::FeeAssetsResponse {
+impl AllowedFeeAssetIdsResponse {
+    pub fn try_from_raw(
+        proto: &raw::AllowedFeeAssetIdsResponse,
+    ) -> Result<Self, IncorrectAssetIdLength> {
+        let raw::AllowedFeeAssetIdsResponse {
             height,
             fee_asset_ids,
         } = proto;
         let mut assets: Vec<asset::Id> = Vec::new();
 
         for raw_id in fee_asset_ids {
+            // TODO: should this map_err to a `AllowedFeeAssetIdsResponseError`?
             let native_id = asset::Id::try_from_slice(&raw_id)?;
             assets.push(native_id);
         }
@@ -90,14 +93,14 @@ impl AllowedFeeAssetsResponse {
         })
     }
 
-    pub fn into_raw(self) -> raw::FeeAssetsResponse {
-        raw::FeeAssetsResponse::from_native(self)
+    pub fn into_raw(self) -> raw::AllowedFeeAssetIdsResponse {
+        raw::AllowedFeeAssetIdsResponse::from_native(self)
     }
 }
 
-impl raw::FeeAssetsResponse {
-    pub fn from_native(native: AllowedFeeAssetsResponse) -> Self {
-        let AllowedFeeAssetsResponse {
+impl raw::AllowedFeeAssetIdsResponse {
+    pub fn from_native(native: AllowedFeeAssetIdsResponse) -> Self {
+        let AllowedFeeAssetIdsResponse {
             height,
             fee_asset_ids,
         } = native;
@@ -111,11 +114,114 @@ impl raw::FeeAssetsResponse {
         }
     }
 
-    pub fn try_into_native(self) -> Result<AllowedFeeAssetsResponse, IncorrectAssetIdLength> {
-        AllowedFeeAssetsResponse::try_from_raw(&self)
+    pub fn try_into_native(self) -> Result<AllowedFeeAssetIdsResponse, IncorrectAssetIdLength> {
+        AllowedFeeAssetIdsResponse::try_from_raw(&self)
     }
 
-    pub fn try_to_native(&self) -> Result<AllowedFeeAssetsResponse, IncorrectAssetIdLength> {
+    pub fn try_to_native(&self) -> Result<AllowedFeeAssetIdsResponse, IncorrectAssetIdLength> {
         self.clone().try_into_native()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn denom_response_from_raw_is_correct() {
+        let raw = raw::DenomResponse {
+            height: 42,
+            denom: "nria".to_owned(),
+        };
+        let expected = DenomResponse {
+            height: 42,
+            denom: "nria".to_owned().into(),
+        };
+        let actual = DenomResponse::from_raw(&raw);
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn denom_response_into_raw_is_correct() {
+        let native = DenomResponse {
+            height: 42,
+            denom: "nria".to_owned().into(),
+        };
+        let expected = raw::DenomResponse {
+            height: 42,
+            denom: "nria".to_owned(),
+        };
+        let actual = native.into_raw();
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn denom_response_roundtrip_is_correct() {
+        let native = DenomResponse {
+            height: 42,
+            denom: "nria".to_owned().into(),
+        };
+        let expected = native.clone();
+        let actual = native.into_raw().into_native();
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn allowed_fee_asset_ids_try_from_raw_is_correct() {
+        let raw = raw::AllowedFeeAssetIdsResponse {
+            height: 42,
+            fee_asset_ids: vec![
+                asset::Id::from_denom("asset_0").get().to_vec(),
+                asset::Id::from_denom("asset_1").get().to_vec(),
+                asset::Id::from_denom("asset_2").get().to_vec(),
+            ],
+        };
+        let expected = AllowedFeeAssetIdsResponse {
+            height: 42,
+            fee_asset_ids: vec![
+                asset::Id::from_denom("asset_0"),
+                asset::Id::from_denom("asset_1"),
+                asset::Id::from_denom("asset_2"),
+            ],
+        };
+        let actual = AllowedFeeAssetIdsResponse::try_from_raw(&raw).unwrap();
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn allowed_fee_asset_ids_into_raw_is_correct() {
+        let native = AllowedFeeAssetIdsResponse {
+            height: 42,
+            fee_asset_ids: vec![
+                asset::Id::from_denom("asset_0"),
+                asset::Id::from_denom("asset_1"),
+                asset::Id::from_denom("asset_2"),
+            ],
+        };
+        let expected = raw::AllowedFeeAssetIdsResponse {
+            height: 42,
+            fee_asset_ids: vec![
+                asset::Id::from_denom("asset_0").get().to_vec(),
+                asset::Id::from_denom("asset_1").get().to_vec(),
+                asset::Id::from_denom("asset_2").get().to_vec(),
+            ],
+        };
+        let actual = native.into_raw();
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn allowed_fee_asset_ids_roundtrip_is_correct() {
+        let native = AllowedFeeAssetIdsResponse {
+            height: 42,
+            fee_asset_ids: vec![
+                asset::Id::from_denom("asset_0"),
+                asset::Id::from_denom("asset_1"),
+                asset::Id::from_denom("asset_2"),
+            ],
+        };
+        let expected = native.clone();
+        let actual = native.into_raw().try_into_native().unwrap();
+        assert_eq!(expected, actual);
     }
 }

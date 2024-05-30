@@ -3,7 +3,7 @@ use astria_core::{
     primitive::v1::asset,
     protocol::{
         abci::AbciErrorCode,
-        asset::v1alpha1::AllowedFeeAssetsResponse,
+        asset::v1alpha1::AllowedFeeAssetIdsResponse,
     },
 };
 use cnidarium::Storage;
@@ -144,7 +144,7 @@ pub(crate) async fn allowed_fee_asset_ids_request(
         }
     };
 
-    let payload = AllowedFeeAssetsResponse {
+    let payload = AllowedFeeAssetIdsResponse {
         height,
         fee_asset_ids,
     }

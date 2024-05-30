@@ -26,6 +26,7 @@ use std::{
     sync::Arc,
 };
 
+use astria_core::protocol::asset::v1alpha1::AllowedFeeAssetIdsResponse;
 pub use astria_core::{
     primitive::v1::Address,
     protocol::{
@@ -93,6 +94,7 @@ impl std::error::Error for Error {
         match &self.inner {
             ErrorKind::AbciQueryDeserialization(e) => Some(e),
             ErrorKind::TendermintRpc(e) => Some(e),
+            ErrorKind::NativeDeserialization(e) => Some(e),
         }
     }
 }
@@ -109,6 +111,7 @@ impl Error {
         match self.kind() {
             ErrorKind::TendermintRpc(e) => Some(e),
             ErrorKind::AbciQueryDeserialization(_) => None,
+            ErrorKind::NativeDeserialization(..) => None,
         }
     }
 
@@ -127,6 +130,16 @@ impl Error {
     fn tendermint_rpc(rpc: &'static str, inner: tendermint_rpc::error::Error) -> Self {
         Self {
             inner: ErrorKind::tendermint_rpc(rpc, inner),
+        }
+    }
+
+    /// Convenience function to construct `Error` containing a `DeserializationError`.
+    fn native_deserialization(
+        target: &'static str,
+        inner: Arc<dyn std::error::Error + Send + Sync>,
+    ) -> Self {
+        Self {
+            inner: ErrorKind::native_deserialization(target, inner),
         }
     }
 }
@@ -248,6 +261,8 @@ impl std::error::Error for DeserializationError {
 pub enum ErrorKind {
     AbciQueryDeserialization(AbciQueryDeserializationError),
     TendermintRpc(TendermintRpcError),
+    // TODO: this needs a better name
+    NativeDeserialization(DeserializationError),
 }
 
 impl ErrorKind {
@@ -269,6 +284,17 @@ impl ErrorKind {
         Self::TendermintRpc(TendermintRpcError {
             inner,
             rpc,
+        })
+    }
+
+    /// Convenience method to construct a `NativeDeserialization` variant.
+    fn native_deserialization(
+        target: &'static str,
+        inner: Arc<dyn std::error::Error + Send + Sync>,
+    ) -> Self {
+        Self::NativeDeserialization(DeserializationError {
+            inner,
+            target,
         })
     }
 }
@@ -434,6 +460,44 @@ pub trait SequencerClientExt: Client {
         // This makes use of the fact that a height `None` and `Some(0)` are
         // treated the same.
         self.get_balance(address, 0u32).await
+    }
+
+    /// Returns the allowed fee assets at a given height.
+    ///
+    /// # Errors
+    ///
+    /// - If calling tendermint `abci_query` RPC fails.
+    /// - If the bytes contained in the abci query response cannot be deserialized as an
+    ///  `astria.protocol.asset.v1alpha1.AllowedFeeAssetIdsResponse`.
+    /// - If the raw response cannot be converted to the native type.
+    async fn get_allowed_fee_asset_ids(&self) -> Result<AllowedFeeAssetIdsResponse, Error> {
+        let path = String::from_utf8(b"asset/allowed_fee_asset_ids".to_vec())
+            .expect("this is a bug: all bytes in the path buffer should be ascii");
+
+        let response = self
+            .abci_query(Some(path), vec![], Some(0u32.into()), false)
+            .await
+            .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
+
+        let proto_response =
+            astria_core::generated::protocol::asset::v1alpha1::AllowedFeeAssetIdsResponse::decode(
+                &*response.value,
+            )
+            .map_err(|e| {
+                Error::abci_query_deserialization(
+                    "astria.protocol.asset.v1alpha1.AllowedFeeAssetIdsResponse",
+                    response,
+                    e,
+                )
+            })?;
+        let native_response =
+            AllowedFeeAssetIdsResponse::try_from_raw(&proto_response).map_err(|e| {
+                // TODO: should this be a different error kind/type? doesn't make much sense to pass
+                // the abci query response here
+                Error::native_deserialization("AllowedFeeAssetIdsResponse", Arc::new(e))
+            })?;
+
+        Ok(native_response)
     }
 
     /// Returns the nonce of the given account at the given height.

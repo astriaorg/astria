@@ -337,7 +337,7 @@ mod test {
         };
         assert!(query_response.code.is_ok());
 
-        let allowed_fee_assets_resp = raw::FeeAssetsResponse::decode(query_response.value)
+        let allowed_fee_assets_resp = raw::AllowedFeeAssetIdsResponse::decode(query_response.value)
             .unwrap()
             .try_to_native()
             .unwrap();

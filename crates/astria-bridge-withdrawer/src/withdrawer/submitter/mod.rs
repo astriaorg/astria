@@ -3,10 +3,16 @@ use std::{
     time::Duration,
 };
 
-use astria_core::protocol::transaction::v1alpha1::{
-    Action,
-    TransactionParams,
-    UnsignedTransaction,
+use astria_core::{
+    primitive::v1::asset,
+    protocol::{
+        asset::v1alpha1::AllowedFeeAssetIdsResponse,
+        transaction::v1alpha1::{
+            Action,
+            TransactionParams,
+            UnsignedTransaction,
+        },
+    },
 };
 use astria_eyre::eyre::{
     self,
@@ -62,13 +68,6 @@ impl Submitter {
     pub(super) async fn run(mut self) -> eyre::Result<()> {
         self.state.set_submitter_ready();
 
-        let actual_chain_id =
-            get_sequencer_chain_id(self.sequencer_cometbft_client.clone()).await?;
-        ensure!(
-            self.sequencer_chain_id == actual_chain_id.to_string(),
-            "sequencer_chain_id provided in config does not match chain_id returned from sequencer"
-        );
-
         let reason = loop {
             select!(
                 biased;
@@ -102,6 +101,20 @@ impl Submitter {
                 error!(%reason, "submitter shutting down");
             }
         }
+
+        Ok(())
+    }
+
+    async fn startup(&mut self) -> eyre::Result<()> {
+        // validate chain id
+        let actual_chain_id =
+            get_sequencer_chain_id(self.sequencer_cometbft_client.clone()).await?;
+        ensure!(
+            self.sequencer_chain_id == actual_chain_id.to_string(),
+            "sequencer_chain_id provided in config does not match chain_id returned from sequencer"
+        );
+
+        // validate fee asset
 
         Ok(())
     }
@@ -319,4 +332,41 @@ async fn get_sequencer_chain_id(
         .wrap_err("failed to get genesis info from Sequencer after a lot of attempts")?;
 
     Ok(genesis.chain_id)
+}
+
+async fn get_allowed_fee_asset_ids(
+    client: sequencer_client::HttpClient,
+) -> eyre::Result<Vec<asset::Id>> {
+    use sequencer_client::Client as _;
+
+    let retry_config = tryhard::RetryFutureConfig::new(u32::MAX)
+        .exponential_backoff(Duration::from_millis(100))
+        .max_delay(Duration::from_secs(20))
+        .on_retry(
+            |attempt: u32,
+             next_delay: Option<Duration>,
+             error: &sequencer_client::extension_trait::Error| {
+                let wait_duration = next_delay
+                    .map(humantime::format_duration)
+                    .map(tracing::field::display);
+                warn!(
+                    attempt,
+                    wait_duration,
+                    error = error as &dyn std::error::Error,
+                    "attempt to fetch allow fee assets; retrying after backoff"
+                );
+                futures::future::ready(())
+            },
+        );
+
+    let response = tryhard::retry_fn(|| {
+        client = client.clone();
+        async move { client.get_allowed_fee_asset_ids().await }
+    })
+    .with_config(retry_config)
+    .await
+    .wrap_err("failed to get allowed fee assets from Sequencer after a lot of attempts")?;
+    let allowed_fee_assets = response.fee_asset_ids;
+
+    Ok(allowed_fee_assets)
 }
