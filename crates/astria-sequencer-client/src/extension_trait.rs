@@ -94,7 +94,7 @@ impl std::error::Error for Error {
         match &self.inner {
             ErrorKind::AbciQueryDeserialization(e) => Some(e),
             ErrorKind::TendermintRpc(e) => Some(e),
-            ErrorKind::NativeDeserialization(e) => Some(e),
+            ErrorKind::NativeConversion(e) => Some(e),
         }
     }
 }
@@ -111,7 +111,7 @@ impl Error {
         match self.kind() {
             ErrorKind::TendermintRpc(e) => Some(e),
             ErrorKind::AbciQueryDeserialization(_) => None,
-            ErrorKind::NativeDeserialization(..) => None,
+            ErrorKind::NativeConversion(..) => None,
         }
     }
 
@@ -242,7 +242,7 @@ impl std::fmt::Display for DeserializationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "failed deserializing cometbft response to {}",
+            "failed deserializing raw protobuf response to {}",
             self.target,
         )
     }
@@ -261,8 +261,7 @@ impl std::error::Error for DeserializationError {
 pub enum ErrorKind {
     AbciQueryDeserialization(AbciQueryDeserializationError),
     TendermintRpc(TendermintRpcError),
-    // TODO: this needs a better name
-    NativeDeserialization(DeserializationError),
+    NativeConversion(DeserializationError),
 }
 
 impl ErrorKind {
@@ -292,7 +291,7 @@ impl ErrorKind {
         target: &'static str,
         inner: Arc<dyn std::error::Error + Send + Sync>,
     ) -> Self {
-        Self::NativeDeserialization(DeserializationError {
+        Self::NativeConversion(DeserializationError {
             inner,
             target,
         })
@@ -471,8 +470,7 @@ pub trait SequencerClientExt: Client {
     ///  `astria.protocol.asset.v1alpha1.AllowedFeeAssetIdsResponse`.
     /// - If the raw response cannot be converted to the native type.
     async fn get_allowed_fee_asset_ids(&self) -> Result<AllowedFeeAssetIdsResponse, Error> {
-        let path = String::from_utf8(b"asset/allowed_fee_asset_ids".to_vec())
-            .expect("this is a bug: all bytes in the path buffer should be ascii");
+        let path = "asset/allowed_fee_asset_ids".to_string();
 
         let response = self
             .abci_query(Some(path), vec![], Some(0u32.into()), false)
