@@ -456,11 +456,10 @@ impl Executor {
         block.height = block.sequencer_height().value(),
     ))]
     async fn execute_firm(&mut self, block: ReconstructedBlock) -> eyre::Result<()> {
-        let celestia_height =
-            block.celestia_height.try_into().expect(
-                "block height overflow, this should not happen since tendermint heights are i64 \
-                 and never negative under the hood",
-            );
+        let celestia_height = block.celestia_height.try_into().expect(
+            "block height overflow, this should not happen since tendermint heights are i64 and \
+             never negative under the hood",
+        );
         let executable_block = ExecutableBlock::from_reconstructed(block);
         let expected_height = self.state.next_expected_firm_sequencer_height();
         let block_height = executable_block.height;
@@ -601,7 +600,11 @@ impl Executor {
         };
         let (firm, soft, celestia_height) = match update {
             OnlyFirm(firm, celestia_height) => (firm, self.state.soft(), celestia_height),
-            OnlySoft(soft) => (self.state.firm(), soft, self.state.celestia_base_block_height()),
+            OnlySoft(soft) => (
+                self.state.firm(),
+                soft,
+                self.state.celestia_base_block_height(),
+            ),
             ToSame(block, celestia_height) => (block.clone(), block, celestia_height),
         };
         let commitment_state = CommitmentState::builder()

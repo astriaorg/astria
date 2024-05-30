@@ -91,8 +91,9 @@ macro_rules! filtered_sequencer_block {
 #[macro_export]
 macro_rules! genesis_info {
     (
-        sequencer_genesis_block_height: $sequencer_height:expr,
-        celestia_block_variance: $variance:expr $(,)?
+        sequencer_genesis_block_height:
+        $sequencer_height:expr,celestia_block_variance:
+        $variance:expr $(,)?
     ) => {
         ::astria_core::generated::execution::v1alpha2::GenesisInfo {
             rollup_id: ::bytes::Bytes::from($crate::ROLLUP_ID.to_vec()),

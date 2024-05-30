@@ -272,7 +272,11 @@ pub struct WithFirm(Block);
 pub struct WithSoft(Block);
 pub struct WithCelestiaBaseHeight(celestia_tendermint::block::Height);
 #[derive(Default)]
-pub struct CommitmentStateBuilder<TFirm = NoFirm, TSoft = NoSoft, TBaseCelestiaHeight = NoBaseCelestiaHeight> {
+pub struct CommitmentStateBuilder<
+    TFirm = NoFirm,
+    TSoft = NoSoft,
+    TBaseCelestiaHeight = NoBaseCelestiaHeight,
+> {
     firm: TFirm,
     soft: TSoft,
     base_celestia_height: TBaseCelestiaHeight,
@@ -292,7 +296,8 @@ impl<TFirm, TSoft, TCelestiaBaseHeight> CommitmentStateBuilder<TFirm, TSoft, TCe
     pub fn firm(self, firm: Block) -> CommitmentStateBuilder<WithFirm, TSoft, TCelestiaBaseHeight> {
         let Self {
             soft,
-            base_celestia_height, ..
+            base_celestia_height,
+            ..
         } = self;
         CommitmentStateBuilder {
             firm: WithFirm(firm),
@@ -304,7 +309,8 @@ impl<TFirm, TSoft, TCelestiaBaseHeight> CommitmentStateBuilder<TFirm, TSoft, TCe
     pub fn soft(self, soft: Block) -> CommitmentStateBuilder<TFirm, WithSoft, TCelestiaBaseHeight> {
         let Self {
             firm,
-            base_celestia_height, ..
+            base_celestia_height,
+            ..
         } = self;
         CommitmentStateBuilder {
             firm,
@@ -313,10 +319,14 @@ impl<TFirm, TSoft, TCelestiaBaseHeight> CommitmentStateBuilder<TFirm, TSoft, TCe
         }
     }
 
-    pub fn base_celestia_height(self, base_celestia_height: celestia_tendermint::block::Height) -> CommitmentStateBuilder<TFirm, TSoft, WithCelestiaBaseHeight> {
+    pub fn base_celestia_height(
+        self,
+        base_celestia_height: celestia_tendermint::block::Height,
+    ) -> CommitmentStateBuilder<TFirm, TSoft, WithCelestiaBaseHeight> {
         let Self {
             firm,
-            soft, ..
+            soft,
+            ..
         } = self;
         CommitmentStateBuilder {
             firm,
@@ -388,7 +398,7 @@ impl CommitmentState {
     pub fn soft(&self) -> &Block {
         &self.soft
     }
-    
+
     pub fn base_celestia_height(&self) -> celestia_tendermint::block::Height {
         self.base_celestia_height
     }
@@ -422,7 +432,8 @@ impl Protobuf for CommitmentState {
             };
             Block::try_from_raw_ref(firm).map_err(Self::Error::firm)
         }?;
-        let base_celestia_height: celestia_tendermint::block::Height = (*base_celestia_height).into();
+        let base_celestia_height: celestia_tendermint::block::Height =
+            (*base_celestia_height).into();
         Self::builder()
             .firm(firm)
             .soft(soft)
@@ -439,11 +450,10 @@ impl Protobuf for CommitmentState {
         } = self;
         let soft = soft.to_raw();
         let firm = firm.to_raw();
-        let base_celestia_height: u32 =
-            (*base_celestia_height).value().try_into().expect(
-                "block height overflow, this should not happen since tendermint heights are i64 \
-                 under the hood",
-            );
+        let base_celestia_height: u32 = (*base_celestia_height).value().try_into().expect(
+            "block height overflow, this should not happen since tendermint heights are i64 under \
+             the hood",
+        );
         Self::Raw {
             soft: Some(soft),
             firm: Some(firm),
