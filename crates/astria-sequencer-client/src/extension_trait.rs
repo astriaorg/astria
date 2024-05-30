@@ -526,7 +526,15 @@ pub(super) fn make_path_from_prefix_and_address(
     prefix: &'static [u8],
     address: [u8; 20],
 ) -> String {
-    let mut path = vec![0u8; prefix.len() + address.len() * 2];
+    let address_hex_len = address
+        .len()
+        .checked_mul(2)
+        .expect("`20 * 2` should not overflow");
+    let path_len = prefix
+        .len()
+        .checked_add(address_hex_len)
+        .expect("`prefix` should not be greater than `usize::MAX - 40`");
+    let mut path = vec![0u8; path_len];
     path[..prefix.len()].copy_from_slice(prefix);
     hex::encode_to_slice(address, &mut path[prefix.len()..]).expect(
         "this is a bug: a buffer of sufficient size must have been allocated to hold 20 hex \

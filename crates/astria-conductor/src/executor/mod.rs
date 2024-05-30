@@ -708,7 +708,7 @@ fn convert_tendermint_time_to_protobuf_timestamp(value: TendermintTime) -> pbjso
     }
 }
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 enum ExecutionKind {
     Firm,
     Soft,
@@ -725,15 +725,19 @@ impl std::fmt::Display for ExecutionKind {
 }
 
 #[derive(Debug, thiserror::Error)]
-#[error(
-    "contract violated: execution kind: {kind}, current block number {current}, expected \
-     {expected}, received {actual}"
-)]
-struct ContractViolation {
-    kind: ExecutionKind,
-    current: u32,
-    expected: u32,
-    actual: u32,
+enum ContractViolation {
+    #[error(
+        "contract violated: execution kind: {kind}, current block number {current}, expected \
+         {expected}, received {actual}"
+    )]
+    WrongBlock {
+        kind: ExecutionKind,
+        current: u32,
+        expected: u32,
+        actual: u32,
+    },
+    #[error("contract violated: current height cannot be incremented")]
+    CurrentBlockNumberIsMax { kind: ExecutionKind, actual: u32 },
 }
 
 fn does_block_response_fulfill_contract(
@@ -745,12 +749,17 @@ fn does_block_response_fulfill_contract(
         ExecutionKind::Firm => state.firm_number(),
         ExecutionKind::Soft => state.soft_number(),
     };
-    let expected = current + 1;
     let actual = block.number();
+    let expected = current
+        .checked_add(1)
+        .ok_or(ContractViolation::CurrentBlockNumberIsMax {
+            kind,
+            actual,
+        })?;
     if actual == expected {
         Ok(())
     } else {
-        Err(ContractViolation {
+        Err(ContractViolation::WrongBlock {
             kind,
             current,
             expected,

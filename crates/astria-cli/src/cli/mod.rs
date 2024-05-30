@@ -12,8 +12,8 @@ use crate::cli::{
     sequencer::Command as SequencerCommand,
 };
 
-const DEFAULT_SEQUENCER_RPC: &str = "https://rpc.sequencer.dusk-4.devnet.astria.org";
-const DEFAULT_SEQUENCER_CHAIN_ID: &str = "astria-dusk-4";
+const DEFAULT_SEQUENCER_RPC: &str = "https://rpc.sequencer.dusk-7.devnet.astria.org";
+const DEFAULT_SEQUENCER_CHAIN_ID: &str = "astria-dusk-7";
 
 /// A CLI for deploying and managing Astria services and related infrastructure.
 #[derive(Debug, Parser)]
