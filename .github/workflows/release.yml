@@ -19,7 +19,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: bufbuild/buf-setup-action@v1
         with:
-          version: "1.15.1"
+          version: "1.32.0"
           github_token: ${{ github.token }}
       - name: "Get Buf Branch Annotation"
         run: |
@@ -28,53 +28,10 @@ jobs:
           else
             echo "buf_repo_ending=main" >> $GITHUB_ENV
           fi
-      - name: "Upload Composer API Protos"
+      - name: "Upload all Protos"
         uses: bufbuild/buf-push-action@v1
         with:
           draft: ${{ github.ref_name != 'main'}}
-          input: "proto/composerapis"
-          buf_token: ${{ secrets.BUF_TOKEN }}
-      - name: "Upload Primitive API Protos"
-        uses: bufbuild/buf-push-action@v1
-        with:
-          draft:  ${{ github.ref_name != 'main'}}
-          input: "proto/primitives"
-          buf_token: ${{ secrets.BUF_TOKEN }}
-      - name: "Update Sequencer Block API dependency"
-        run: |
-          cd proto/sequencerblockapis
-          BUF_COMMIT=$(buf beta registry commit get buf.build/astria/primitives:${{ env.buf_repo_ending }} --format=json | jq -r '.commit')
-          sed -i "s/buf.build\/astria\/primitives/buf.build\/astria\/primitives:$BUF_COMMIT/" buf.yaml
-          buf mod update --only buf.build/astria/primitives
-      - name: "Upload Sequencer Block API Protos"
-        uses: bufbuild/buf-push-action@v1
-        with:
-          draft: ${{ github.ref_name != 'main'}}
-          input: "proto/sequencerblockapis"
-          buf_token: ${{ secrets.BUF_TOKEN }}
-      - name: "Update Execution API dependency"
-        run: |
-          cd proto/executionapis
-          BUF_COMMIT=$(buf beta registry commit get buf.build/astria/sequencerblock-apis:${{ env.buf_repo_ending }} --format=json | jq -r '.commit')
-          sed -i "s/buf.build\/astria\/primitives/buf.build\/astria\/sequencerblock-apis:$BUF_COMMIT/" buf.yaml
-          buf mod update --only buf.build/astria/sequencerblock-apis
-      - name: "Upload Execution API Protos"
-        uses: bufbuild/buf-push-action@v1
-        with:
-          draft:  ${{ github.ref_name != 'main'}}
-          input: "proto/executionapis"
-          buf_token: ${{ secrets.BUF_TOKEN }}
-      - name: "Update Protocol API dependency"
-        run: |
-          cd proto/protocolapis
-          BUF_COMMIT=$(buf beta registry commit get buf.build/astria/primitives:${{ env.buf_repo_ending }} --format=json | jq -r '.commit')
-          sed -i "s/buf.build\/astria\/primitives/buf.build\/astria\/primitives:$BUF_COMMIT/" buf.yaml
-          buf mod update --only buf.build/astria/primitives
-      - name: "Upload Protocol API Protos"
-        uses: bufbuild/buf-push-action@v1
-        with:
-          draft: ${{ github.ref_name != 'main'}}
-          input: "proto/protocolapis"
           buf_token: ${{ secrets.BUF_TOKEN }}
 
   charts:

@@ -83,7 +83,7 @@ use self::{
     latest_height_stream::stream_latest_heights,
     reconstruct::reconstruct_blocks_from_verified_blobs,
     verify::{
-        verify_headers,
+        verify_metadata,
         BlobVerifier,
     },
 };
@@ -123,7 +123,7 @@ pub(super) struct ReconstructedBlocks {
 pub(crate) struct Reader {
     celestia_block_time: Duration,
 
-    // Client to fetch heights and blocks from Celestia.
+    /// Client to fetch heights and blocks from Celestia.
     celestia_client: CelestiaClient,
 
     /// The channel used to send messages to the executor task.
@@ -131,6 +131,10 @@ pub(crate) struct Reader {
 
     /// The client to get the sequencer namespace and verify blocks.
     sequencer_cometbft_client: SequencerClient,
+
+    /// The number of requests per second that will be sent to Sequencer
+    /// (usually to verify block data retrieved from Celestia blobs).
+    sequencer_requests_per_second: u32,
 
     /// Token to listen for Conductor being shut down.
     shutdown: CancellationToken,
@@ -249,6 +253,7 @@ impl RunningReader {
             celestia_client,
             sequencer_cometbft_client,
             shutdown,
+            sequencer_requests_per_second,
             ..
         } = exposed_reader;
         let block_cache =
@@ -267,7 +272,10 @@ impl RunningReader {
 
         Ok(Self {
             block_cache,
-            blob_verifier: Arc::new(BlobVerifier::new(sequencer_cometbft_client)),
+            blob_verifier: Arc::new(
+                BlobVerifier::try_new(sequencer_cometbft_client, sequencer_requests_per_second)
+                    .wrap_err("failed to construct blob verifier")?,
+            ),
             celestia_client,
             enqueued_block: Fuse::terminated(),
             executor,
@@ -527,7 +535,7 @@ impl FetchConvertVerifyAndReconstruct {
             "decoded Sequencer header and rollup info from raw Celestia blobs",
         );
 
-        let verified_blobs = verify_headers(blob_verifier, decoded_blobs).await;
+        let verified_blobs = verify_metadata(blob_verifier, decoded_blobs).await;
 
         info!(
             number_of_verified_header_blobs = verified_blobs.len_header_blobs(),

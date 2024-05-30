@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use ed25519_consensus::{
+use astria_core::crypto::{
     Signature,
     VerificationKey,
 };
@@ -48,7 +48,7 @@ pub(super) enum QuorumError {
     #[error(
         "failed to recreate signature for validator from validator set to verify vote signature"
     )]
-    Signature(#[source] ed25519_consensus::Error),
+    Signature(#[source] astria_core::crypto::Error),
 
     #[error("total voting power overflowed u64")]
     TotalVotingPowerOverflowed,
@@ -65,10 +65,10 @@ pub(super) enum QuorumError {
     #[error(
         "failed to recreate public key for validator from validator set to verify vote signature"
     )]
-    VerificationKey(#[source] ed25519_consensus::Error),
+    VerificationKey(#[source] astria_core::crypto::Error),
 
     #[error("failed to verify vote signature")]
-    VerifyVoteSignature(#[source] ed25519_consensus::Error),
+    VerifyVoteSignature(#[source] astria_core::crypto::Error),
 }
 
 /// This function ensures that the given Commit has quorum, ie that the Commit contains >2/3 voting
@@ -305,7 +305,7 @@ mod test {
             signatures: vec![tendermint::block::CommitSig::BlockIdFlagCommit {
                 validator_address: address,
                 timestamp,
-                signature: Some(signature.into()),
+                signature: Some(signature.to_bytes().as_ref().try_into().unwrap()),
             }],
             ..Default::default()
         };

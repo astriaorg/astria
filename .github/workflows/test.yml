@@ -23,7 +23,7 @@ jobs:
       - name: Install `buf` protobuf manager
         uses: bufbuild/buf-setup-action@v1
         with:
-          version: "1.17.0"
+          version: "1.32.0"
           github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@1.76.0
