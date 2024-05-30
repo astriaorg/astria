@@ -492,8 +492,7 @@ pub trait SequencerClientExt: Client {
             })?;
         let native_response =
             AllowedFeeAssetIdsResponse::try_from_raw(&proto_response).map_err(|e| {
-                // TODO: should this be a different error kind/type? doesn't make much sense to pass
-                // the abci query response here
+                // TODO: should this be a different error kind/type?
                 Error::native_deserialization("AllowedFeeAssetIdsResponse", Arc::new(e))
             })?;
 
