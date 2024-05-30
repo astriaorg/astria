@@ -225,14 +225,10 @@ async fn get_allowed_fee_assets() {
         &server,
         "asset/allowed_fee_asset_ids",
         expected_response.clone(),
-    );
+    )
+    .await;
 
     let actual_response = client.get_allowed_fee_asset_ids().await;
-
-    let received_reqs = server.received_requests().await.unwrap();
-    let req_body = serde_json::from_slice::<serde_json::Value>(&received_reqs[0].body).unwrap();
-    eprintln!("req: {:?}", received_reqs[0]);
-    eprintln!("body: {:?}", req_body);
 
     let actual_response = actual_response.unwrap().into_raw();
     assert_eq!(expected_response, actual_response);
