@@ -74,11 +74,7 @@ impl Watcher {
             .call()
             .await
             .wrap_err("failed to get asset withdrawal decimals")?;
-        let asset_withdrawal_multiplier = 10u128.pow(
-            asset_withdrawal_decimals
-                .try_into()
-                .map_err(|_| eyre!("failed to convert u256 to u32"))?,
-        );
+        let asset_withdrawal_divisor = 10u128.pow(asset_withdrawal_decimals);
 
         let (event_tx, event_rx) = mpsc::channel(100);
 
@@ -95,7 +91,7 @@ impl Watcher {
             shutdown_token,
             fee_asset_id,
             rollup_asset_denom,
-            asset_withdrawal_multiplier,
+            asset_withdrawal_divisor,
         );
 
         Ok(Self {
@@ -208,7 +204,7 @@ struct Batcher {
     shutdown_token: CancellationToken,
     fee_asset_id: asset::Id,
     rollup_asset_denom: Denom,
-    asset_withdrawal_multiplier: u128,
+    asset_withdrawal_divisor: u128,
 }
 
 impl Batcher {
@@ -218,7 +214,7 @@ impl Batcher {
         shutdown_token: &CancellationToken,
         fee_asset_id: asset::Id,
         rollup_asset_denom: Denom,
-        asset_withdrawal_multiplier: u128,
+        asset_withdrawal_divisor: u128,
     ) -> Self {
         Self {
             event_rx,
@@ -226,7 +222,7 @@ impl Batcher {
             shutdown_token: shutdown_token.clone(),
             fee_asset_id,
             rollup_asset_denom,
-            asset_withdrawal_multiplier,
+            asset_withdrawal_divisor,
         }
     }
 }
@@ -251,7 +247,7 @@ impl Batcher {
                             block_number: meta.block_number,
                             transaction_hash: meta.transaction_hash,
                         };
-                        let action = event_to_action(event_with_metadata, self.fee_asset_id, self.rollup_asset_denom.clone(), self.asset_withdrawal_multiplier)?;
+                        let action = event_to_action(event_with_metadata, self.fee_asset_id, self.rollup_asset_denom.clone(), self.asset_withdrawal_divisor)?;
 
                         if meta.block_number.as_u64() == curr_batch.rollup_height {
                             // block number was the same; add event to current batch
