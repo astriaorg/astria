@@ -166,6 +166,17 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
         };
     };
 
+    if let Err(e) = transaction::check_sudo_signer(&signed_tx, &state).await {
+        mempool.remove(tx_hash).await;
+        metrics::counter!(metrics_init::CHECK_TX_REMOVED_FAILED_STATELESS).increment(1);
+        return response::CheckTx {
+            code: AbciErrorCode::INVALID_PARAMETER.into(),
+            info: "transaction failed sudo check".into(),
+            log: e.to_string(),
+            ..response::CheckTx::default()
+        };
+    };
+
     if let Err(e) = transaction::check_chain_id_mempool(&signed_tx, &state).await {
         mempool.remove(tx_hash).await;
         return response::CheckTx {

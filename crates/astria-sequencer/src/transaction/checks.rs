@@ -22,6 +22,7 @@ use astria_core::{
 
 use crate::{
     accounts::state_ext::StateReadExt,
+    authority::state_ext::StateReadExt as _,
     bridge::state_ext::StateReadExt as _,
     ibc::state_ext::StateReadExt as _,
     state_ext::StateReadExt as _,
@@ -40,6 +41,34 @@ pub(crate) async fn check_nonce_mempool<S: StateReadExt + 'static>(
         tx.unsigned_transaction().params.nonce >= curr_nonce,
         "nonce already used by account"
     );
+    Ok(())
+}
+
+pub(crate) async fn check_sudo_signer<S: StateReadExt + 'static>(
+    tx: &SignedTransaction,
+    state: &S,
+) -> anyhow::Result<()> {
+    let signer_address = *tx.verification_key().address();
+    for action in tx.actions() {
+        match action {
+            Action::ValidatorUpdate(_)
+            | Action::SudoAddressChange(_)
+            | Action::IbcRelayerChange(_)
+            | Action::FeeAssetChange(_)
+            | Action::FeeChange(_)
+            | Action::Mint(_) => {
+                let authority_sudo_address = state
+                    .get_sudo_address()
+                    .await
+                    .context("failed to get authority sudo address")?;
+                ensure!(
+                    authority_sudo_address == signer_address,
+                    "must be sudo key to submit sudo action to mempool"
+                );
+            }
+            _ => {}
+        }
+    }
     Ok(())
 }
 
