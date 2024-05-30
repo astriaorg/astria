@@ -43,6 +43,8 @@ rand = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
+tendermint = { workspace = true }
+tendermint-rpc = { workspace = true, features = ["http-client"] }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal"] }
 tokio-util = { workspace = true, features = ["rt"] }
@@ -57,6 +59,7 @@ pin-project-lite = "0.2"
 tokio-stream = "0.1.14"
 tracing-futures = { version = "0.2.5", features = ["futures-03"] }
 moka = { version = "0.12.5", features = ["future"] }
+tower = { version = "0.4.13", features = ["limit"] }
 
 ### Celestia specific imports
 #

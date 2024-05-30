@@ -247,10 +247,7 @@ mod test {
     use crate::{
         app::test_utils::default_fees,
         asset::get_native_asset,
-        mempool::{
-            Mempool,
-            TransactionPriority,
-        },
+        mempool::Mempool,
         proposal::commitment::generate_rollup_datas_commitment,
     };
 
@@ -300,14 +297,13 @@ mod test {
     #[tokio::test]
     async fn prepare_and_process_proposal() {
         let signing_key = SigningKey::new(OsRng);
-        let (mut consensus_service, mut mempool) =
+        let (mut consensus_service, mempool) =
             new_consensus_service(Some(signing_key.verification_key())).await;
         let tx = make_unsigned_tx();
         let signed_tx = tx.into_signed(&signing_key);
         let tx_bytes = signed_tx.clone().into_raw().encode_to_vec();
         let txs = vec![tx_bytes.into()];
-        let priority = TransactionPriority::new(0, 0).unwrap();
-        mempool.insert(signed_tx.clone(), priority).await.unwrap();
+        mempool.insert(signed_tx.clone(), 0).await.unwrap();
 
         let res = generate_rollup_datas_commitment(&vec![signed_tx], HashMap::new());
 
@@ -508,7 +504,7 @@ mod test {
         use sha2::Digest as _;
 
         let signing_key = SigningKey::new(OsRng);
-        let (mut consensus_service, mut mempool) =
+        let (mut consensus_service, mempool) =
             new_consensus_service(Some(signing_key.verification_key())).await;
 
         let tx = make_unsigned_tx();
@@ -529,10 +525,7 @@ mod test {
             .await
             .unwrap();
 
-        mempool
-            .insert(signed_tx, TransactionPriority::new(0, 0).unwrap())
-            .await
-            .unwrap();
+        mempool.insert(signed_tx, 0).await.unwrap();
         let finalize_block = request::FinalizeBlock {
             hash: Hash::try_from([0u8; 32].to_vec()).unwrap(),
             height: 1u32.into(),
