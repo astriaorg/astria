@@ -303,7 +303,7 @@ mod test {
         ];
         let height = 99;
 
-        for &asset_id in asset_ids.iter() {
+        for &asset_id in &asset_ids {
             state.put_allowed_fee_asset(asset_id);
             assert!(
                 state
