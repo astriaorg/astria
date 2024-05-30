@@ -143,6 +143,7 @@ async fn simple() {
     );
 }
 
+#[allow(clippy::too_many_lines)] // it's a test, it's fine
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn missing_block_is_fetched_for_updating_firm_commitment() {
     let test_conductor = spawn_conductor(CommitLevel::SoftAndFirm).await;
