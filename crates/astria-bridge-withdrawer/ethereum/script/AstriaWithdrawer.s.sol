@@ -7,6 +7,15 @@ import {AstriaWithdrawer} from "../src/AstriaWithdrawer.sol";
 contract AstriaWithdrawerScript is Script {
     function setUp() public {}
 
+    function deploy() public {
+        uint32 assetWithdrawalDecimals = uint32(vm.envUint("ASSET_WITHDRAWAL_DECIMALS"));
+        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
+        vm.startBroadcast(deployerPrivateKey);
+        AstriaWithdrawer astriaWithdrawer = new AstriaWithdrawer(assetWithdrawalDecimals);
+        console.logAddress(address(astriaWithdrawer));
+        vm.stopBroadcast();
+    }
+
     function withdrawToSequencer() public {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);

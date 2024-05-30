@@ -69,6 +69,17 @@ impl Watcher {
             .wrap_err("failed to parse ethereum contract address")?;
         let contract = AstriaWithdrawer::new(contract_address, provider);
 
+        let asset_withdrawal_decimals = contract
+            .asset_withdrawal_decimals()
+            .call()
+            .await
+            .wrap_err("failed to get asset withdrawal decimals")?;
+        let asset_withdrawal_multiplier = 10u128.pow(
+            asset_withdrawal_decimals
+                .try_into()
+                .map_err(|_| eyre!("failed to convert u256 to u32"))?,
+        );
+
         let (event_tx, event_rx) = mpsc::channel(100);
 
         if rollup_asset_denom.prefix().is_empty() {
@@ -84,7 +95,9 @@ impl Watcher {
             shutdown_token,
             fee_asset_id,
             rollup_asset_denom,
+            asset_withdrawal_multiplier,
         );
+
         Ok(Self {
             contract,
             event_tx,
@@ -195,6 +208,7 @@ struct Batcher {
     shutdown_token: CancellationToken,
     fee_asset_id: asset::Id,
     rollup_asset_denom: Denom,
+    asset_withdrawal_multiplier: u128,
 }
 
 impl Batcher {
@@ -204,6 +218,7 @@ impl Batcher {
         shutdown_token: &CancellationToken,
         fee_asset_id: asset::Id,
         rollup_asset_denom: Denom,
+        asset_withdrawal_multiplier: u128,
     ) -> Self {
         Self {
             event_rx,
@@ -211,6 +226,7 @@ impl Batcher {
             shutdown_token: shutdown_token.clone(),
             fee_asset_id,
             rollup_asset_denom,
+            asset_withdrawal_multiplier,
         }
     }
 }
@@ -235,7 +251,7 @@ impl Batcher {
                             block_number: meta.block_number,
                             transaction_hash: meta.transaction_hash,
                         };
-                        let action = event_to_action(event_with_metadata, self.fee_asset_id, self.rollup_asset_denom.clone())?;
+                        let action = event_to_action(event_with_metadata, self.fee_asset_id, self.rollup_asset_denom.clone(), self.asset_withdrawal_multiplier)?;
 
                         if meta.block_number.as_u64() == curr_batch.rollup_height {
                             // block number was the same; add event to current batch
@@ -361,7 +377,8 @@ mod tests {
             transaction_hash: receipt.transaction_hash,
         };
         let denom: Denom = Denom::from_base_denom("nria");
-        let expected_action = event_to_action(expected_event, denom.id(), denom.clone()).unwrap();
+        let expected_action =
+            event_to_action(expected_event, denom.id(), denom.clone(), 1).unwrap();
         let Action::BridgeUnlock(expected_action) = expected_action else {
             panic!("expected action to be BridgeUnlock, got {expected_action:?}");
         };
@@ -440,7 +457,7 @@ mod tests {
         };
         let denom = Denom::from("transfer/channel-0/utia".to_string());
         let Action::Ics20Withdrawal(mut expected_action) =
-            event_to_action(expected_event, denom.id(), denom.clone()).unwrap()
+            event_to_action(expected_event, denom.id(), denom.clone(), 1).unwrap()
         else {
             panic!("expected action to be Ics20Withdrawal");
         };

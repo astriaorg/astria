@@ -5,6 +5,18 @@ pragma solidity ^0.8.21;
 // 
 // Funds can be withdrawn to either the sequencer or the origin chain via IBC.
 contract AstriaWithdrawer {
+    // the number of decimal places more the asset has on the rollup versus the base chain.
+    //
+    // the amount transferred on the base chain will be divided by 10^ASSET_WITHDRAWAL_DECIMALS.
+    //
+    // for example, if the rollup specifies the asset has 18 decimal places and the base chain specifies 6,
+    // the ASSET_WITHDRAWAL_DECIMALS would be 12.
+    uint32 public immutable ASSET_WITHDRAWAL_DECIMALS;
+
+    constructor(uint32 assetWithdrawalDecimals) {
+        ASSET_WITHDRAWAL_DECIMALS = assetWithdrawalDecimals;
+    }
+
     // emitted when a withdrawal to the sequencer is initiated
     //
     // the `sender` is the evm address that initiated the withdrawal

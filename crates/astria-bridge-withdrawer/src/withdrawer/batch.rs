@@ -53,6 +53,7 @@ pub(crate) fn event_to_action(
     event_with_metadata: EventWithMetadata,
     fee_asset_id: asset::Id,
     rollup_asset_denom: Denom,
+    asset_withdrawal_divisor: u128,
 ) -> eyre::Result<Action> {
     let action = match event_with_metadata.event {
         WithdrawalEvent::Sequencer(event) => event_to_bridge_unlock(
@@ -60,6 +61,7 @@ pub(crate) fn event_to_action(
             event_with_metadata.block_number,
             event_with_metadata.transaction_hash,
             fee_asset_id,
+            asset_withdrawal_divisor,
         )
         .wrap_err("failed to convert sequencer withdrawal event to action")?,
         WithdrawalEvent::Ics20(event) => event_to_ics20_withdrawal(
@@ -68,6 +70,7 @@ pub(crate) fn event_to_action(
             event_with_metadata.transaction_hash,
             fee_asset_id,
             rollup_asset_denom,
+            asset_withdrawal_divisor,
         )
         .wrap_err("failed to convert ics20 withdrawal event to action")?,
     };
@@ -85,6 +88,7 @@ fn event_to_bridge_unlock(
     block_number: U64,
     transaction_hash: TxHash,
     fee_asset_id: asset::Id,
+    asset_withdrawal_divisor: u128,
 ) -> eyre::Result<Action> {
     let memo = BridgeUnlockMemo {
         block_number,
@@ -92,7 +96,13 @@ fn event_to_bridge_unlock(
     };
     let action = BridgeUnlockAction {
         to: event.sender.to_fixed_bytes().into(),
-        amount: event.amount.as_u128(),
+        amount: event
+            .amount
+            .as_u128()
+            .checked_div(asset_withdrawal_divisor)
+            .ok_or(eyre::eyre!(
+                "failed to divide amount by asset withdrawal multiplier"
+            ))?,
         memo: serde_json::to_vec(&memo).wrap_err("failed to serialize memo to json")?,
         fee_asset_id,
     };
@@ -112,6 +122,7 @@ fn event_to_ics20_withdrawal(
     transaction_hash: TxHash,
     fee_asset_id: asset::Id,
     rollup_asset_denom: Denom,
+    asset_withdrawal_divisor: u128,
 ) -> eyre::Result<Action> {
     // TODO: make this configurable
     const ICS20_WITHDRAWAL_TIMEOUT: Duration = Duration::from_secs(300);
@@ -142,7 +153,13 @@ fn event_to_ics20_withdrawal(
         // this is only ok for now because addresses on the sequencer and the rollup are both 20
         // bytes, but this won't work otherwise.
         return_address: Address::from(sender),
-        amount: event.amount.as_u128(),
+        amount: event
+            .amount
+            .as_u128()
+            .checked_div(asset_withdrawal_divisor)
+            .ok_or(eyre::eyre!(
+                "failed to divide amount by asset withdrawal multiplier"
+            ))?,
         memo: serde_json::to_string(&memo).wrap_err("failed to serialize memo to json")?,
         fee_asset_id,
         // note: this refers to the timeout on the destination chain, which we are unaware of.
@@ -191,7 +208,39 @@ mod tests {
             block_number: 1.into(),
             transaction_hash: [2u8; 32].into(),
         };
-        let action = event_to_action(event_with_meta, denom.id(), denom.clone()).unwrap();
+        let action = event_to_action(event_with_meta, denom.id(), denom.clone(), 1).unwrap();
+        let Action::BridgeUnlock(action) = action else {
+            panic!("expected BridgeUnlock action, got {action:?}");
+        };
+
+        let expected_action = BridgeUnlockAction {
+            to: [0u8; 20].into(),
+            amount: 99,
+            memo: serde_json::to_vec(&BridgeUnlockMemo {
+                block_number: 1.into(),
+                transaction_hash: [2u8; 32].into(),
+            })
+            .unwrap(),
+            fee_asset_id: denom.id(),
+        };
+
+        assert_eq!(action, expected_action);
+    }
+
+    #[test]
+    fn event_to_bridge_unlock_divide_value() {
+        let denom = Denom::from("nria".to_string());
+        let event_with_meta = EventWithMetadata {
+            event: WithdrawalEvent::Sequencer(SequencerWithdrawalFilter {
+                sender: [0u8; 20].into(),
+                amount: 990.into(),
+                destination_chain_address: [1u8; 20].into(),
+            }),
+            block_number: 1.into(),
+            transaction_hash: [2u8; 32].into(),
+        };
+        let divisor = 10;
+        let action = event_to_action(event_with_meta, denom.id(), denom.clone(), divisor).unwrap();
         let Action::BridgeUnlock(action) = action else {
             panic!("expected BridgeUnlock action, got {action:?}");
         };
@@ -225,7 +274,7 @@ mod tests {
             transaction_hash: [2u8; 32].into(),
         };
 
-        let action = event_to_action(event_with_meta, denom.id(), denom.clone()).unwrap();
+        let action = event_to_action(event_with_meta, denom.id(), denom.clone(), 1).unwrap();
         let Action::Ics20Withdrawal(mut action) = action else {
             panic!("expected Ics20Withdrawal action, got {action:?}");
         };

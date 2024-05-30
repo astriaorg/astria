@@ -54,9 +54,9 @@ pub(crate) async fn deploy_astria_withdrawer()
         wallet.clone().with_chain_id(anvil.chain_id()),
     );
 
-    // deploy contract
+    // deploy contract with ASSET_WITHDRAWAL_DECIMALS as 0
     let factory = ContractFactory::new(abi, bytecode, signer.into());
-    let contract = factory.deploy(()).unwrap().send().await.unwrap();
+    let contract = factory.deploy(U256::from(0)).unwrap().send().await.unwrap();
     let contract_address = contract.address();
 
     (

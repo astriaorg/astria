@@ -17,7 +17,8 @@ Put your private key in `.env` and `source .env`.
 Deploy `AstriaWithdrawer.sol`:
 
 ```sh
-forge create --rpc-url $RPC_URL --private-key $PRIVATE_KEY src/AstriaWithdrawer.sol:AstriaWithdrawer
+forge script script/AstriaWithdrawer.s.sol:AstriaWithdrawerScript \
+   --rpc-url $RPC_URL --broadcast --sig "deploy()" -vvvv
 ```
 
 Call `withdrawToSequencer` in `AstriaWithdrawer.sol`:
