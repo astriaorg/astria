@@ -595,6 +595,7 @@ dependencies = [
  "itertools 0.12.1",
  "itoa",
  "jsonrpsee",
+ "metrics",
  "moka",
  "once_cell",
  "pbjson-types",
