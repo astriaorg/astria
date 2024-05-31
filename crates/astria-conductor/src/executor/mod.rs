@@ -41,6 +41,11 @@ use tracing::{
 use crate::{
     celestia::ReconstructedBlock,
     config::CommitLevel,
+    metrics_init::{
+        EXECUTED_FIRM_BLOCK_NUMBER,
+        EXECUTED_SOFT_BLOCK_NUMBER,
+        TRANSACTIONS_PER_EXECUTED_BLOCK,
+    },
 };
 
 mod builder;
@@ -448,6 +453,11 @@ impl Executor {
         self.blocks_pending_finalization
             .insert(block_number, executed_block);
 
+        // XXX: We set an absolute number value here to avoid any potential issues of the remote
+        // rollup state and the local state falling out of lock-step.
+        metrics::counter!(crate::metrics_init::EXECUTED_SOFT_BLOCK_NUMBER)
+            .absolute(block_number.into());
+
         Ok(())
     }
 
@@ -516,6 +526,12 @@ impl Executor {
         self.update_commitment_state(update)
             .await
             .wrap_err("failed to setting both commitment states to executed block")?;
+
+        // XXX: We set an absolute number value here to avoid any potential issues of the remote
+        // rollup state and the local state falling out of lock-step.
+        metrics::counter!(crate::metrics_init::EXECUTED_FIRM_BLOCK_NUMBER)
+            .absolute(block_number.into());
+
         Ok(())
     }
 
@@ -540,11 +556,17 @@ impl Executor {
             ..
         } = block;
 
+        // allow: used for recording a histogram, which requires f64.
+        #[allow(clippy::cast_precision_loss)]
+        let n_transactions = transactions.len() as f64;
+
         let executed_block = self
             .client
             .execute_block_with_retry(parent_hash, transactions, timestamp)
             .await
             .wrap_err("failed to run execute_block RPC")?;
+
+        metrics::histogram!(TRANSACTIONS_PER_EXECUTED_BLOCK).record(n_transactions);
 
         info!(
             executed_block.hash = %telemetry::display::base64(&executed_block.hash()),
@@ -579,6 +601,9 @@ impl Executor {
         self.state
             .try_init(genesis_info, commitment_state)
             .wrap_err("failed initializing state tracking")?;
+
+        metrics::counter!(EXECUTED_FIRM_BLOCK_NUMBER).absolute(self.state.firm_number().into());
+        metrics::counter!(EXECUTED_SOFT_BLOCK_NUMBER).absolute(self.state.soft_number().into());
         info!(
             initial_state = serde_json::to_string(&*self.state.get())
                 .expect("writing json to a string should not fail"),
