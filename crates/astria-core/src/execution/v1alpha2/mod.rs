@@ -432,7 +432,7 @@ impl Protobuf for CommitmentState {
             };
             Block::try_from_raw_ref(firm).map_err(Self::Error::firm)
         }?;
-        
+
         Self::builder()
             .firm(firm)
             .soft(soft)
