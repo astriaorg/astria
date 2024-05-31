@@ -64,8 +64,10 @@ pub const BLOBS_PER_CELESTIA_FETCH: &str =
 pub const CELESTIA_BLOB_FETCH_ERROR_COUNT: &str =
     concat!(env!("CARGO_CRATE_NAME"), "_celestia_blob_fetch_error_count");
 
-pub const DECODED_ITEMS_PER_CELESTIA_FETCH: &str =
-    concat!(env!("CARGO_CRATE_NAME"), "_blobs_per_celestia_fetch",);
+pub const DECODED_ITEMS_PER_CELESTIA_FETCH: &str = concat!(
+    env!("CARGO_CRATE_NAME"),
+    "_decoded_items_per_celestia_fetch",
+);
 
 pub const SEQUENCER_BLOCKS_METADATA_VERIFIED_PER_CELESTIA_FETCH: &str = concat!(
     env!("CARGO_CRATE_NAME"),
@@ -74,7 +76,7 @@ pub const SEQUENCER_BLOCKS_METADATA_VERIFIED_PER_CELESTIA_FETCH: &str = concat!(
 
 pub const SEQUENCER_BLOCK_INFORMATION_RECONSTRUCTED_PER_CELESTIA_FETCH: &str = concat!(
     env!("CARGO_CRATE_NAME"),
-    "sequencer_block_information_reconstructed_per_celestia_fetch",
+    "_sequencer_block_information_reconstructed_per_celestia_fetch",
 );
 
 pub const EXECUTED_FIRM_BLOCK_NUMBER: &str =
