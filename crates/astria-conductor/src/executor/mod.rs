@@ -18,7 +18,6 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use bytes::Bytes;
-use celestia_types::Height as CelestiaHeight;
 use sequencer_client::tendermint::{
     block::Height as SequencerHeight,
     Time as TendermintTime,
@@ -58,6 +57,8 @@ pub(super) use client::Client;
 use state::StateReceiver;
 
 use self::state::StateSender;
+
+type CelestiaHeight = u64;
 
 #[derive(Clone, Debug)]
 pub(crate) struct StateNotInit;
@@ -456,10 +457,7 @@ impl Executor {
         block.height = block.sequencer_height().value(),
     ))]
     async fn execute_firm(&mut self, block: ReconstructedBlock) -> eyre::Result<()> {
-        let celestia_height = block.celestia_height.try_into().expect(
-            "block height overflow, this should not happen since tendermint heights are i64 and \
-             never negative under the hood",
-        );
+        let celestia_height = block.celestia_height;
         let executable_block = ExecutableBlock::from_reconstructed(block);
         let expected_height = self.state.next_expected_firm_sequencer_height();
         let block_height = executable_block.height;

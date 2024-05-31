@@ -270,7 +270,7 @@ pub struct NoSoft;
 pub struct NoBaseCelestiaHeight;
 pub struct WithFirm(Block);
 pub struct WithSoft(Block);
-pub struct WithCelestiaBaseHeight(celestia_tendermint::block::Height);
+pub struct WithCelestiaBaseHeight(u64);
 #[derive(Default)]
 pub struct CommitmentStateBuilder<
     TFirm = NoFirm,
@@ -321,7 +321,7 @@ impl<TFirm, TSoft, TCelestiaBaseHeight> CommitmentStateBuilder<TFirm, TSoft, TCe
 
     pub fn base_celestia_height(
         self,
-        base_celestia_height: celestia_tendermint::block::Height,
+        base_celestia_height: u64,
     ) -> CommitmentStateBuilder<TFirm, TSoft, WithCelestiaBaseHeight> {
         let Self {
             firm,
@@ -380,7 +380,7 @@ pub struct CommitmentState {
     firm: Block,
     /// The base height of celestia from which to search for blocks after this
     /// commitment state.
-    base_celestia_height: celestia_tendermint::block::Height,
+    base_celestia_height: u64,
 }
 
 impl CommitmentState {
@@ -399,7 +399,7 @@ impl CommitmentState {
         &self.soft
     }
 
-    pub fn base_celestia_height(&self) -> celestia_tendermint::block::Height {
+    pub fn base_celestia_height(&self) -> u64 {
         self.base_celestia_height
     }
 }
@@ -432,16 +432,11 @@ impl Protobuf for CommitmentState {
             };
             Block::try_from_raw_ref(firm).map_err(Self::Error::firm)
         }?;
-        let base_celestia_height: celestia_tendermint::block::Height =
-            (*base_celestia_height).try_into().expect(
-                "celestia block height overflow, rollup base celestia height likely set invalid \
-                 we use u64 for forward compatibility, matching underlying tendermint-rs types \
-                 but must be a valid u32 number",
-            );
+        
         Self::builder()
             .firm(firm)
             .soft(soft)
-            .base_celestia_height(base_celestia_height)
+            .base_celestia_height(*base_celestia_height)
             .build()
             .map_err(Self::Error::firm_exceeds_soft)
     }
@@ -454,7 +449,7 @@ impl Protobuf for CommitmentState {
         } = self;
         let soft = soft.to_raw();
         let firm = firm.to_raw();
-        let base_celestia_height = (*base_celestia_height).value();
+        let base_celestia_height = *base_celestia_height;
         Self::Raw {
             soft: Some(soft),
             firm: Some(firm),
