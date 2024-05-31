@@ -12,6 +12,8 @@ Build:
 forge build
 ```
 
+Copy the example .env: `cp local.example.env .env`
+
 Put your private key in `.env` and `source .env`.
 
 Deploy `AstriaWithdrawer.sol`:

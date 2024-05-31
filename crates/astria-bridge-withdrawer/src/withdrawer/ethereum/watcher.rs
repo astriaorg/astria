@@ -31,27 +31,32 @@ use tracing::{
 };
 
 use crate::withdrawer::{
-    batch::{
-        event_to_action,
-        Batch,
-        EventWithMetadata,
-        WithdrawalEvent,
+    batch::Batch,
+    ethereum::{
+        astria_withdrawer::AstriaWithdrawer,
+        convert::{
+            event_to_action,
+            EventWithMetadata,
+            WithdrawalEvent,
+        },
     },
-    ethereum::astria_withdrawer::AstriaWithdrawer,
     state::State,
 };
 
 /// Watches for withdrawal events emitted by the `AstriaWithdrawer` contract.
 pub(crate) struct Watcher {
-    contract: AstriaWithdrawer<Provider<Ws>>,
-    event_tx: mpsc::Sender<(WithdrawalEvent, LogMeta)>,
-    batcher: Batcher,
+    // contract: AstriaWithdrawer<Provider<Ws>>,
+    contract_address: ethers::types::Address,
+    ethereum_rpc_endpoint: String,
+    batch_tx: mpsc::Sender<Batch>,
+    fee_asset_id: asset::Id,
+    rollup_asset_denom: Denom,
     state: Arc<State>,
     shutdown_token: CancellationToken,
 }
 
 impl Watcher {
-    pub(crate) async fn new(
+    pub(crate) fn new(
         ethereum_contract_address: &str,
         ethereum_rpc_endpoint: &str,
         batch_tx: mpsc::Sender<Batch>,
@@ -60,23 +65,8 @@ impl Watcher {
         fee_asset_id: asset::Id,
         rollup_asset_denom: Denom,
     ) -> Result<Self> {
-        let provider = Arc::new(
-            Provider::<Ws>::connect(ethereum_rpc_endpoint)
-                .await
-                .wrap_err("failed to connect to ethereum RPC endpoint")?,
-        );
         let contract_address = address_from_string(ethereum_contract_address)
             .wrap_err("failed to parse ethereum contract address")?;
-        let contract = AstriaWithdrawer::new(contract_address, provider);
-
-        let asset_withdrawal_decimals = contract
-            .asset_withdrawal_decimals()
-            .call()
-            .await
-            .wrap_err("failed to get asset withdrawal decimals")?;
-        let asset_withdrawal_divisor = 10u128.pow(asset_withdrawal_decimals);
-
-        let (event_tx, event_rx) = mpsc::channel(100);
 
         if rollup_asset_denom.prefix().is_empty() {
             warn!(
@@ -85,19 +75,12 @@ impl Watcher {
             );
         }
 
-        let batcher = Batcher::new(
-            event_rx,
+        Ok(Self {
+            contract_address,
+            ethereum_rpc_endpoint: ethereum_rpc_endpoint.to_string(),
             batch_tx,
-            shutdown_token,
             fee_asset_id,
             rollup_asset_denom,
-            asset_withdrawal_divisor,
-        );
-
-        Ok(Self {
-            contract,
-            event_tx,
-            batcher,
             state,
             shutdown_token: shutdown_token.clone(),
         })
@@ -107,12 +90,39 @@ impl Watcher {
 impl Watcher {
     pub(crate) async fn run(self) -> Result<()> {
         let Watcher {
-            contract,
-            event_tx,
-            batcher,
+            contract_address,
+            ethereum_rpc_endpoint,
+            batch_tx,
+            fee_asset_id,
+            rollup_asset_denom,
             state,
             shutdown_token,
         } = self;
+
+        let (event_tx, event_rx) = mpsc::channel(100);
+
+        let provider = Arc::new(
+            Provider::<Ws>::connect(ethereum_rpc_endpoint)
+                .await
+                .wrap_err("failed to connect to ethereum RPC endpoint")?,
+        );
+        let contract = AstriaWithdrawer::new(contract_address, provider);
+
+        let asset_withdrawal_decimals = contract
+            .asset_withdrawal_decimals()
+            .call()
+            .await
+            .wrap_err("failed to get asset withdrawal decimals")?;
+        let asset_withdrawal_divisor = 10u128.pow(asset_withdrawal_decimals);
+
+        let batcher = Batcher::new(
+            event_rx,
+            batch_tx,
+            &shutdown_token,
+            fee_asset_id,
+            rollup_asset_denom,
+            asset_withdrawal_divisor,
+        );
 
         tokio::task::spawn(batcher.run());
 
@@ -164,8 +174,8 @@ async fn watch_for_sequencer_withdrawal_events(
                 .send((WithdrawalEvent::Sequencer(event), meta))
                 .await
                 .wrap_err("failed to send sequencer withdrawal event; receiver dropped?")?;
-        } else if let Err(e) = item {
-            return Err(e).wrap_err("failed to read from event stream; event stream closed?");
+        } else if let Err(_) = item {
+            item.wrap_err("failed to read from event stream; event stream closed?")?;
         }
     }
 
@@ -190,8 +200,8 @@ async fn watch_for_ics20_withdrawal_events(
                 .send((WithdrawalEvent::Ics20(event), meta))
                 .await
                 .wrap_err("failed to send ics20 withdrawal event; receiver dropped?")?;
-        } else if let Err(e) = item {
-            return Err(e).wrap_err("failed to read from event stream; event stream closed?");
+        } else if let Err(_) = item {
+            item.wrap_err("failed to read from event stream; event stream closed?")?;
         }
     }
 
@@ -266,6 +276,9 @@ impl Batcher {
                                 rollup_height: meta.block_number.as_u64(),
                             };
                         }
+                    } else {
+                        warn!("event receiver dropped; shutting down batcher");
+                        break;
                     }
                 }
             }
@@ -280,9 +293,12 @@ impl Batcher {
 fn address_from_string(s: &str) -> Result<ethers::types::Address> {
     let s = s.strip_prefix("0x").unwrap_or(s);
     let bytes = hex::decode(s).wrap_err("failed to parse ethereum address as hex")?;
-    let address: [u8; 20] = bytes
-        .try_into()
-        .map_err(|_| eyre!("invalid length for ethereum address, must be 20 bytes"))?;
+    let address: [u8; 20] = bytes.try_into().map_err(|bytes: Vec<u8>| {
+        eyre!(
+            "invalid length for {} ethereum address, must be 20 bytes",
+            bytes.len()
+        )
+    })?;
     Ok(address.into())
 }
 
@@ -301,15 +317,13 @@ mod tests {
     };
 
     use super::*;
-    use crate::withdrawer::{
-        batch::EventWithMetadata,
-        ethereum::{
-            astria_withdrawer::{
-                Ics20WithdrawalFilter,
-                SequencerWithdrawalFilter,
-            },
-            test_utils::deploy_astria_withdrawer,
+    use crate::withdrawer::ethereum::{
+        astria_withdrawer::{
+            Ics20WithdrawalFilter,
+            SequencerWithdrawalFilter,
         },
+        convert::EventWithMetadata,
+        test_utils::deploy_astria_withdrawer,
     };
 
     #[test]
@@ -390,7 +404,6 @@ mod tests {
             denom.id(),
             denom,
         )
-        .await
         .unwrap();
 
         tokio::task::spawn(watcher.run());
@@ -471,7 +484,6 @@ mod tests {
             denom.id(),
             denom,
         )
-        .await
         .unwrap();
 
         tokio::task::spawn(watcher.run());

@@ -177,7 +177,7 @@ impl Submitter {
 }
 
 /// Queries the sequencer for the latest nonce with an exponential backoff
-#[instrument(name = "get_latest_nonce", skip_all, fields(%address))]
+#[instrument(skip_all, fields(%address))]
 async fn get_latest_nonce(
     client: sequencer_client::HttpClient,
     address: Address,

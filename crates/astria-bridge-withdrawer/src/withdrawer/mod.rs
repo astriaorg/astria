@@ -59,7 +59,7 @@ impl Service {
         let shutdown_handle = ShutdownHandle::new();
         let Config {
             api_addr,
-            cometbft_endpoint,
+            sequencer_cometbft_endpoint,
             sequencer_chain_id,
             sequencer_key_path,
             fee_asset_denomination,
@@ -73,7 +73,7 @@ impl Service {
         // make submitter object
         let (submitter, batches_tx) = submitter::Builder {
             shutdown_token: shutdown_handle.token(),
-            cometbft_endpoint,
+            sequencer_cometbft_endpoint,
             sequencer_chain_id,
             sequencer_key_path,
             state: state.clone(),
@@ -90,7 +90,6 @@ impl Service {
             asset::Id::from_denom(&fee_asset_denomination),
             asset::Denom::from(cfg.rollup_asset_denomination),
         )
-        .await
         .wrap_err("failed to initialize ethereum watcher")?;
 
         // make api server

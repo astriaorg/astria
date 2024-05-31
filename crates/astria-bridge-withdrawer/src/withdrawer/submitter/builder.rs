@@ -17,7 +17,7 @@ pub(crate) struct Builder {
     pub(crate) shutdown_token: CancellationToken,
     pub(crate) sequencer_key_path: String,
     pub(crate) sequencer_chain_id: String,
-    pub(crate) cometbft_endpoint: String,
+    pub(crate) sequencer_cometbft_endpoint: String,
     pub(crate) state: Arc<State>,
 }
 
@@ -28,7 +28,7 @@ impl Builder {
             shutdown_token,
             sequencer_key_path,
             sequencer_chain_id,
-            cometbft_endpoint,
+            sequencer_cometbft_endpoint,
             state,
         } = self;
 
@@ -37,8 +37,9 @@ impl Builder {
         info!(address = %telemetry::display::hex(&signer.address), "loaded sequencer signer");
         let (batches_tx, batches_rx) = tokio::sync::mpsc::channel(BATCH_QUEUE_SIZE);
 
-        let sequencer_cometbft_client = sequencer_client::HttpClient::new(&*cometbft_endpoint)
-            .wrap_err("failed constructing cometbft http client")?;
+        let sequencer_cometbft_client =
+            sequencer_client::HttpClient::new(&*sequencer_cometbft_endpoint)
+                .wrap_err("failed constructing cometbft http client")?;
 
         Ok((
             super::Submitter {

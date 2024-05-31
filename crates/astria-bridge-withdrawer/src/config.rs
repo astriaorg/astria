@@ -10,7 +10,7 @@ use serde::{
 /// The single config for creating an astria-bridge service.
 pub struct Config {
     // The cometbft rpc endpoint for submitting transactions to the sequencer.
-    pub cometbft_endpoint: String,
+    pub sequencer_cometbft_endpoint: String,
     // The chain id of the sequencer chain.
     pub sequencer_chain_id: String,
     // The path to the private key used to sign transactions submitted to the sequencer.
