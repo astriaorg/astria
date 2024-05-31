@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use astria_conductor::{
+    conductor,
     config::CommitLevel,
     Conductor,
     Config,
@@ -36,7 +37,6 @@ mod mock_grpc;
 use astria_eyre;
 pub use mock_grpc::MockGrpc;
 use serde_json::json;
-use tokio::task::JoinHandle;
 
 pub const CELESTIA_BEARER_TOKEN: &str = "ABCDEFGH";
 
@@ -71,6 +71,13 @@ static TELEMETRY: Lazy<()> = Lazy::new(|| {
 });
 
 pub async fn spawn_conductor(execution_commit_level: CommitLevel) -> TestConductor {
+    assert_ne!(
+        tokio::runtime::Handle::current().runtime_flavor(),
+        tokio::runtime::RuntimeFlavor::CurrentThread,
+        "conductor must be run on a multi-threaded runtime so that the destructor of the test \
+         environment does not stall the runtime: the test could be configured using \
+         `#[tokio::test(flavor = \"multi_thread\", worker_threads = 1)]`"
+    );
     Lazy::force(&TELEMETRY);
 
     let mock_grpc = MockGrpc::spawn().await;
@@ -87,7 +94,7 @@ pub async fn spawn_conductor(execution_commit_level: CommitLevel) -> TestConduct
 
     let conductor = {
         let conductor = Conductor::new(config).unwrap();
-        tokio::spawn(conductor.run_until_stopped())
+        conductor.spawn()
     };
 
     TestConductor {
@@ -98,9 +105,20 @@ pub async fn spawn_conductor(execution_commit_level: CommitLevel) -> TestConduct
 }
 
 pub struct TestConductor {
-    pub conductor: JoinHandle<()>,
+    pub conductor: conductor::Handle,
     pub mock_grpc: MockGrpc,
     pub mock_http: wiremock::MockServer,
+}
+
+impl Drop for TestConductor {
+    fn drop(&mut self) {
+        futures::executor::block_on(async {
+            tokio::time::timeout(Duration::from_secs(2), self.conductor.shutdown())
+                .await
+                .expect("timed out waiting for conductor to shut down")
+                .expect("conductor shut down with an error");
+        });
+    }
 }
 
 impl TestConductor {
@@ -440,6 +458,7 @@ fn make_config() -> Config {
         celestia_bearer_token: CELESTIA_BEARER_TOKEN.into(),
         sequencer_grpc_url: "http://127.0.0.1:8080".into(),
         sequencer_cometbft_url: "http://127.0.0.1:26657".into(),
+        sequencer_requests_per_second: 500,
         sequencer_block_time_ms: 2000,
         execution_rpc_url: "http://127.0.0.1:50051".into(),
         log: "info".into(),
@@ -569,7 +588,7 @@ pub fn make_commit(height: u32) -> tendermint::block::Commit {
         signatures: vec![tendermint::block::CommitSig::BlockIdFlagCommit {
             validator_address: validator.address,
             timestamp,
-            signature: Some(signature.into()),
+            signature: Some(signature.to_bytes().as_ref().try_into().unwrap()),
         }],
     }
 }

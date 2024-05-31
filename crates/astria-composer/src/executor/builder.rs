@@ -6,7 +6,6 @@ use std::{
 
 use astria_core::{
     crypto::SigningKey,
-    primitive::v1::Address,
     protocol::transaction::v1alpha1::action::SequenceAction,
 };
 use astria_eyre::eyre::{
@@ -51,7 +50,7 @@ impl Builder {
             format!("failed reading signing key from file at path `{private_key_file}`")
         })?;
 
-        let sequencer_address = Address::from_verification_key(sequencer_key.verification_key());
+        let sequencer_address = *sequencer_key.verification_key().address();
 
         let (serialized_rollup_transaction_tx, serialized_rollup_transaction_rx) =
             tokio::sync::mpsc::channel::<SequenceAction>(256);

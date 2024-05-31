@@ -96,13 +96,6 @@ pub struct BasicAccountArgs {
         default_value = crate::cli::DEFAULT_SEQUENCER_RPC
     )]
     pub(crate) sequencer_url: String,
-    /// The chain id of the sequencing chain being used
-    #[arg(
-        long = "sequencer.chain-id",
-        env = "ROLLUP_SEQUENCER_CHAIN_ID",
-        default_value = crate::cli::DEFAULT_SEQUENCER_CHAIN_ID
-    )]
-    pub sequencer_chain_id: String,
     /// The address of the Sequencer account
     pub(crate) address: SequencerAddressArg,
 }

@@ -24,7 +24,9 @@ merkle = { package = "astria-merkle", path = "../astria-merkle" }
 
 bytes = { workspace = true }
 celestia-tendermint = { workspace = true }
-ed25519-consensus = { workspace = true }
+ed25519-consensus = { version = "2.1.0", default-features = false, features = [
+  "std",
+] }
 ibc-types = { workspace = true }
 indexmap = { workspace = true }
 pbjson-types = { workspace = true }

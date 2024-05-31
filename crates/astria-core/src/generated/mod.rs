@@ -1,7 +1,8 @@
 #![allow(
     unreachable_pub,
     clippy::pedantic,
-    clippy::needless_borrows_for_generic_args
+    clippy::needless_borrows_for_generic_args,
+    clippy::arithmetic_side_effects
 )]
 
 /// Files generated using [`tonic-build`] and [`buf`] via the [`tools/protobuf-compiler`]
@@ -44,6 +45,11 @@ pub mod protocol {
     #[path = ""]
     pub mod account {
         #[path = "astria.protocol.accounts.v1alpha1.rs"]
+        pub mod v1alpha1;
+    }
+    #[path = ""]
+    pub mod asset {
+        #[path = "astria.protocol.asset.v1alpha1.rs"]
         pub mod v1alpha1;
     }
     #[path = ""]

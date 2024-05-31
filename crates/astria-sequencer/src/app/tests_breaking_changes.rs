@@ -8,7 +8,11 @@
 //! Note: there are two actions not tested here: `Ics20Withdrawal` and `IbcRelay`.
 //! These are due to the extensive setup needed to test them.
 //! If changes are made to the execution results of these actions, manual testing is required.
-use std::collections::HashMap;
+
+use std::{
+    collections::HashMap,
+    sync::Arc,
+};
 
 use astria_core::{
     primitive::v1::{
@@ -119,7 +123,7 @@ async fn app_finalize_block_snapshot() {
     let deposits = HashMap::from_iter(vec![(rollup_id, vec![expected_deposit.clone()])]);
     let commitments = generate_rollup_datas_commitment(&[signed_tx.clone()], deposits.clone());
 
-    let timestamp = Time::now();
+    let timestamp = Time::unix_epoch();
     let block_hash = Hash::try_from([99u8; 32].to_vec()).unwrap();
     let finalize_block = abci::request::FinalizeBlock {
         hash: block_hash,
@@ -138,6 +142,7 @@ async fn app_finalize_block_snapshot() {
     app.finalize_block(finalize_block.clone(), storage.clone())
         .await
         .unwrap();
+    app.commit(storage.clone()).await;
     insta::assert_json_snapshot!(app.app_hash.as_bytes());
 }
 
@@ -239,7 +244,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         ],
     };
 
-    let signed_tx = tx.into_signed(&alice_signing_key);
+    let signed_tx = Arc::new(tx.into_signed(&alice_signing_key));
     app.execute_transaction(signed_tx).await.unwrap();
 
     // execute BridgeUnlock action
@@ -259,7 +264,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         ],
     };
 
-    let signed_tx = tx.into_signed(&bridge_signing_key);
+    let signed_tx = Arc::new(tx.into_signed(&bridge_signing_key));
     app.execute_transaction(signed_tx).await.unwrap();
 
     app.prepare_commit(storage.clone()).await.unwrap();

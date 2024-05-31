@@ -17,6 +17,7 @@ spec:
       port: {{ .Values.ports.gossipnet }}
       targetPort: gossipnet
 ---
+{{- if .Values.config.faucet.enabled}}
 kind: Service
 apiVersion: v1
 metadata:
@@ -30,6 +31,8 @@ spec:
       port: {{ .Values.ports.faucet }}
       targetPort: faucet
 ---
+{{- end }}
+{{- if .Values.config.blockscout.enabled }}
 kind: Service
 apiVersion: v1
 metadata:
@@ -43,6 +46,7 @@ spec:
       port: {{ .Values.ports.blockscout }}
       targetPort: blockscout
 ---
+{{- end }}
 {{- if .Values.config.rollup.metrics.enabled }} 
 kind: Service
 apiVersion: v1

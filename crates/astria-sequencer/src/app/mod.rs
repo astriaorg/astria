@@ -474,11 +474,12 @@ impl App {
         let mut execution_results = Vec::new();
         let mut txs_to_readd_to_mempool = Vec::new();
 
-        while let Some((tx, priority)) = self.mempool.pop().await {
+        while let Some((enqueued_tx, priority)) = self.mempool.pop().await {
+            let tx_hash_base64 = telemetry::display::base64(&enqueued_tx.tx_hash()).to_string();
+            let tx = enqueued_tx.signed_tx();
             let bytes = tx.to_raw().encode_to_vec();
-            let tx_hash = Sha256::digest(&bytes);
             let tx_len = bytes.len();
-            info!(tx_hash = %telemetry::display::hex(&tx_hash), "executing transaction");
+            info!(transaction_hash = %tx_hash_base64, "executing transaction");
 
             // don't include tx if it would make the cometBFT block too large
             if !block_size_constraints.cometbft_has_space(tx_len) {
@@ -487,12 +488,12 @@ impl App {
                 )
                 .increment(1);
                 debug!(
-                    transaction_hash = %telemetry::display::base64(&tx_hash),
+                    transaction_hash = %tx_hash_base64,
                     block_size_constraints = %json(&block_size_constraints),
                     tx_data_bytes = tx_len,
                     "excluding remaining transactions: max cometBFT data limit reached"
                 );
-                txs_to_readd_to_mempool.push((tx, priority));
+                txs_to_readd_to_mempool.push((enqueued_tx, priority));
 
                 // break from loop, as the block is full
                 break;
@@ -504,16 +505,16 @@ impl App {
                 .actions
                 .iter()
                 .filter_map(Action::as_sequence)
-                .fold(0usize, |acc, seq| acc + seq.data.len());
+                .fold(0usize, |acc, seq| acc.saturating_add(seq.data.len()));
 
             if !block_size_constraints.sequencer_has_space(tx_sequence_data_bytes) {
                 debug!(
-                    transaction_hash = %telemetry::display::base64(&tx_hash),
+                    transaction_hash = %tx_hash_base64,
                     block_size_constraints = %json(&block_size_constraints),
                     tx_data_bytes = tx_sequence_data_bytes,
                     "excluding transaction: max block sequenced data limit reached"
                 );
-                txs_to_readd_to_mempool.push((tx, priority));
+                txs_to_readd_to_mempool.push((enqueued_tx, priority));
 
                 // continue as there might be non-sequence txs that can fit
                 continue;
@@ -533,7 +534,7 @@ impl App {
                         .cometbft_checked_add(tx_len)
                         .context("error growing cometBFT block size")?;
                     validated_txs.push(bytes.into());
-                    included_signed_txs.push(tx);
+                    included_signed_txs.push((*tx).clone());
                 }
                 Err(e) => {
                     metrics::counter!(
@@ -541,18 +542,18 @@ impl App {
                     )
                     .increment(1);
                     debug!(
-                        transaction_hash = %telemetry::display::base64(&tx_hash),
+                        transaction_hash = %tx_hash_base64,
                         error = AsRef::<dyn std::error::Error>::as_ref(&e),
                         "failed to execute transaction, not including in block"
                     );
-                    failed_tx_count += 1;
+                    failed_tx_count = failed_tx_count.saturating_add(1);
 
                     // we re-insert the tx into the mempool if it failed to execute
                     // due to an invalid nonce, as it may be valid in the future.
                     // if it's invalid due to the nonce being too low, it'll be
                     // removed from the mempool in `update_mempool_after_finalization`.
                     if e.downcast_ref::<InvalidNonce>().is_some() {
-                        txs_to_readd_to_mempool.push((tx, priority));
+                        txs_to_readd_to_mempool.push((enqueued_tx, priority));
                     }
                 }
             }
@@ -566,14 +567,7 @@ impl App {
             );
         }
 
-        self.mempool
-            .insert_all(txs_to_readd_to_mempool)
-            .await
-            .expect(
-                "priority transaction nonce and transaction nonce matches for each tx, as they \
-                 were just popped from the mempool and not modified",
-            );
-
+        self.mempool.insert_all(txs_to_readd_to_mempool).await;
         let mempool_len = self.mempool.len().await;
         debug!(mempool_len, "finished executing transactions from mempool");
 
@@ -602,7 +596,7 @@ impl App {
         txs: Vec<SignedTransaction>,
         block_size_constraints: &mut BlockSizeConstraints,
     ) -> anyhow::Result<()> {
-        let mut excluded_tx_count = 0;
+        let mut excluded_tx_count = 0_f64;
         let mut execution_results = Vec::new();
 
         for tx in txs {
@@ -616,7 +610,7 @@ impl App {
                 .actions
                 .iter()
                 .filter_map(Action::as_sequence)
-                .fold(0usize, |acc, seq| acc + seq.data.len());
+                .fold(0usize, |acc, seq| acc.saturating_add(seq.data.len()));
 
             if !block_size_constraints.sequencer_has_space(tx_sequence_data_bytes) {
                 metrics::counter!(
@@ -629,12 +623,12 @@ impl App {
                     tx_data_bytes = tx_sequence_data_bytes,
                     "excluding transaction: max block sequenced data limit reached"
                 );
-                excluded_tx_count += 1;
+                excluded_tx_count += 1.0;
                 continue;
             }
 
             // execute tx and store in `execution_results` list on success
-            match self.execute_transaction(tx.clone()).await {
+            match self.execute_transaction(Arc::new(tx.clone())).await {
                 Ok(events) => {
                     execution_results.push(ExecTxResult {
                         events,
@@ -657,15 +651,14 @@ impl App {
                         error = AsRef::<dyn std::error::Error>::as_ref(&e),
                         "failed to execute transaction, not including in block"
                     );
-                    excluded_tx_count += 1;
+                    excluded_tx_count += 1.0;
                 }
             }
         }
 
-        if excluded_tx_count > 0 {
-            #[allow(clippy::cast_precision_loss)]
+        if excluded_tx_count > 0.0 {
             metrics::gauge!(metrics_init::PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS)
-                .set(f64::from(excluded_tx_count));
+                .set(excluded_tx_count);
             info!(
                 excluded_tx_count = excluded_tx_count,
                 included_tx_count = execution_results.len(),
@@ -747,13 +740,15 @@ impl App {
             .get_chain_id()
             .await
             .context("failed to get chain ID from state")?;
+        let sudo_address = self
+            .state
+            .get_sudo_address()
+            .await
+            .context("failed to get sudo address from state")?;
 
         // convert tendermint id to astria address; this assumes they are
         // the same address, as they are both ed25519 keys
         let proposer_address = finalize_block.proposer_address;
-        let astria_proposer_address =
-            Address::try_from_slice(finalize_block.proposer_address.as_bytes())
-                .context("failed to convert proposer tendermint id to astria address")?;
 
         let height = finalize_block.height;
         let time = finalize_block.time;
@@ -797,12 +792,12 @@ impl App {
             for tx in finalize_block.txs.iter().skip(2) {
                 // remove any included txs from the mempool
                 let tx_hash = Sha256::digest(tx).into();
-                self.mempool.remove(&tx_hash).await;
+                self.mempool.remove(tx_hash).await;
 
                 let signed_tx = signed_transaction_from_bytes(tx)
                     .context("protocol error; only valid txs should be finalized")?;
 
-                match self.execute_transaction(signed_tx).await {
+                match self.execute_transaction(Arc::new(signed_tx)).await {
                     Ok(events) => tx_results.push(ExecTxResult {
                         events,
                         ..Default::default()
@@ -835,9 +830,7 @@ impl App {
             tx_results.extend(execution_results);
         };
 
-        let end_block = self
-            .end_block(height.value(), astria_proposer_address)
-            .await?;
+        let end_block = self.end_block(height.value(), sudo_address).await?;
 
         // get and clear block deposits from state
         let mut state_tx = StateDelta::new(self.state.clone());
@@ -968,12 +961,12 @@ impl App {
     /// Executes a signed transaction.
     #[instrument(name = "App::execute_transaction", skip_all, fields(
         signed_transaction_hash = %telemetry::display::base64(&signed_tx.sha256_of_proto_encoding()),
-        sender = %Address::from_verification_key(signed_tx.verification_key()),
+        sender = %signed_tx.verification_key().address(),
     ))]
     pub(crate) async fn execute_transaction(
         &mut self,
-        signed_tx: astria_core::protocol::transaction::v1alpha1::SignedTransaction,
-    ) -> anyhow::Result<Vec<abci::Event>> {
+        signed_tx: Arc<SignedTransaction>,
+    ) -> anyhow::Result<Vec<Event>> {
         let signed_tx_2 = signed_tx.clone();
         let stateless =
             tokio::spawn(async move { transaction::check_stateless(&signed_tx_2).await });
@@ -1010,7 +1003,7 @@ impl App {
     pub(crate) async fn end_block(
         &mut self,
         height: u64,
-        proposer_address: Address,
+        fee_recipient: Address,
     ) -> anyhow::Result<abci::response::EndBlock> {
         let state_tx = StateDelta::new(self.state.clone());
         let mut arc_state_tx = Arc::new(state_tx);
@@ -1059,16 +1052,10 @@ impl App {
             .context("failed to get block fees")?;
 
         for (asset, amount) in fees {
-            let balance = state_tx
-                .get_account_balance(proposer_address, asset)
-                .await
-                .context("failed to get proposer account balance")?;
-            let new_balance = balance
-                .checked_add(amount)
-                .context("account balance overflowed u128")?;
             state_tx
-                .put_account_balance(proposer_address, asset, new_balance)
-                .context("failed to put proposer account balance")?;
+                .increase_balance(fee_recipient, asset, amount)
+                .await
+                .context("failed to increase fee recipient balance")?;
         }
 
         // clear block fees
@@ -1136,33 +1123,10 @@ async fn update_mempool_after_finalization<S: StateReadExt>(
     mempool: &mut Mempool,
     state: S,
 ) -> anyhow::Result<()> {
-    use crate::mempool::TransactionPriority;
-
-    let mut txs_to_remove = Vec::new();
-
-    for (tx, priority) in mempool.inner().await.iter_mut() {
-        match TransactionPriority::new(
-            tx.nonce(),
-            state
-                .get_account_nonce(Address::from_verification_key(tx.verification_key()))
-                .await
-                .context("failed to fetch account nonce")?,
-        ) {
-            Ok(new_priority) => *priority = new_priority,
-            Err(e) => {
-                let tx_hash = tx.sha256_of_proto_encoding();
-                debug!(
-                    transaction_hash = %telemetry::display::base64(&tx_hash),
-                    error = AsRef::<dyn std::error::Error>::as_ref(&e),
-                     "account nonce is now greater than tx nonce; dropping tx from mempool",
-                );
-                txs_to_remove.push(tx_hash);
-            }
-        };
-    }
-
-    mempool.remove_all(&txs_to_remove).await;
-    Ok(())
+    let current_account_nonce_getter = |address: Address| state.get_account_nonce(address);
+    mempool
+        .update_priorities(current_account_nonce_getter)
+        .await
 }
 
 /// relevant data of a block being executed.

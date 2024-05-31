@@ -7,9 +7,17 @@ use astria_conductor::{
     BUILD_INFO,
 };
 use astria_eyre::eyre::WrapErr as _;
+use tokio::{
+    select,
+    signal::unix::{
+        signal,
+        SignalKind,
+    },
+};
 use tracing::{
     error,
     info,
+    warn,
 };
 
 // Following the BSD convention for failing to read config
@@ -49,13 +57,17 @@ async fn main() -> ExitCode {
             .service_name(env!("CARGO_PKG_NAME"))
             .register_metrics(metrics_init::register);
     }
-    if let Err(e) = telemetry_conf
+
+    let _telemetry_guard = match telemetry_conf
         .try_init()
         .wrap_err("failed to setup telemetry")
     {
-        eprintln!("initializing conductor failed:\n{e:?}");
-        return ExitCode::FAILURE;
-    }
+        Err(e) => {
+            eprintln!("initializing conductor failed:\n{e:?}");
+            return ExitCode::FAILURE;
+        }
+        Ok(guard) => guard,
+    };
 
     info!(
         config = serde_json::to_string(&cfg).expect("serializing to a string cannot fail"),
@@ -70,7 +82,26 @@ async fn main() -> ExitCode {
         Ok(conductor) => conductor,
     };
 
-    conductor.run_until_stopped().await;
-    info!("conductor stopped");
-    ExitCode::SUCCESS
+    let mut sigterm = signal(SignalKind::terminate())
+        .expect("setting a SIGTERM listener should always work on unix; is this running on unix?");
+    let mut handle = conductor.spawn();
+
+    select!(
+        _ = sigterm.recv() => {
+            info!("received SIGTERM; shutting down Conductor");
+            if let Err(error) = handle.shutdown().await {
+                warn!(%error, "encountered an error while shutting down");
+            }
+            info!("conductor stopped");
+            ExitCode::SUCCESS
+        }
+
+        res = &mut handle => {
+            error!(
+                error = res.err().map(tracing::field::display),
+                "conductor task exited unexpectedly",
+            );
+            ExitCode::FAILURE
+        }
+    )
 }

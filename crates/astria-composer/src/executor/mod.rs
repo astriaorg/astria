@@ -206,7 +206,11 @@ impl Executor {
         let mut bundle_factory =
             BundleFactory::new(self.max_bytes_per_bundle, self.bundle_queue_capacity);
 
-        let reset_time = || Instant::now() + self.block_time;
+        let reset_time = || {
+            Instant::now()
+                .checked_add(self.block_time)
+                .expect("block_time should not be large enough to cause an overflow")
+        };
 
         let reason = loop {
             select! {
@@ -288,7 +292,7 @@ impl Executor {
         };
 
         let mut bundles_to_drain: VecDeque<SizedBundle> = VecDeque::new();
-        let mut bundles_drained: u64 = 0;
+        let mut bundles_drained: Option<u64> = Some(0);
 
         info!("draining already received transactions");
 
@@ -360,7 +364,7 @@ impl Executor {
                         );
 
                         nonce = new_nonce;
-                        bundles_drained += 1;
+                        bundles_drained = bundles_drained.and_then(|value| value.checked_add(1));
                     }
                     Err(error) => {
                         error!(
@@ -386,9 +390,14 @@ impl Executor {
             Err(error) => error!(%error, "executor shutdown tasks failed to complete in time"),
         }
 
+        let number_of_submitted_bundles = if let Some(value) = bundles_drained {
+            value.to_string()
+        } else {
+            format!("more than {}", u64::MAX)
+        };
         if bundles_to_drain.is_empty() {
             info!(
-                number_of_submitted_bundles = bundles_drained,
+                %number_of_submitted_bundles,
                 "submitted all outstanding bundles to sequencer during shutdown"
             );
         } else {
@@ -397,7 +406,7 @@ impl Executor {
                 bundles_to_drain.iter().map(SizedBundleReport).collect();
 
             warn!(
-                number_of_bundles_submitted = bundles_drained,
+                %number_of_submitted_bundles,
                 number_of_missing_bundles = report.len(),
                 missing_bundles = %telemetry::display::json(&report),
                 "unable to drain all bundles within the allocated time"
@@ -598,7 +607,10 @@ impl Future for SubmitFut {
                             metrics::histogram!(crate::metrics_init::TRANSACTIONS_PER_SUBMISSION)
                                 .record(this.bundle.actions_count() as f64);
 
-                            return Poll::Ready(Ok(*this.nonce + 1));
+                            return Poll::Ready(Ok(this
+                                .nonce
+                                .checked_add(1)
+                                .expect("nonce should not overflow")));
                         };
                         match AbciErrorCode::from(code) {
                             AbciErrorCode::INVALID_NONCE => {
