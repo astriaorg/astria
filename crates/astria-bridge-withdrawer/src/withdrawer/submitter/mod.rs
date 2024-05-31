@@ -48,6 +48,8 @@ use super::{
 
 mod builder;
 mod signer;
+#[cfg(test)]
+mod tests;
 
 pub(super) struct Submitter {
     shutdown_token: CancellationToken,
@@ -60,14 +62,13 @@ pub(super) struct Submitter {
 
 impl Submitter {
     pub(super) async fn run(mut self) -> eyre::Result<()> {
-        self.state.set_submitter_ready();
-
         let actual_chain_id =
             get_sequencer_chain_id(self.sequencer_cometbft_client.clone()).await?;
         ensure!(
             self.sequencer_chain_id == actual_chain_id.to_string(),
             "sequencer_chain_id provided in config does not match chain_id returned from sequencer"
         );
+        self.state.set_submitter_ready();
 
         let reason = loop {
             select!(

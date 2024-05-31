@@ -50,6 +50,10 @@ astria-grpc-mock = { path = "../astria-grpc-mock" }
 config = { package = "astria-config", path = "../astria-config", features = [
   "tests",
 ] }
+tempfile = { workspace = true }
+wiremock = { workspace = true }
+once_cell = { workspace = true }
+tendermint-rpc = { workspace = true }
 
 [build-dependencies]
 astria-build-info = { path = "../astria-build-info", features = ["build"] }

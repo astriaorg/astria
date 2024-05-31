@@ -78,9 +78,9 @@ pub(crate) fn event_to_action(
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct BridgeUnlockMemo {
-    block_number: U64,
-    transaction_hash: TxHash,
+pub(super) struct BridgeUnlockMemo {
+    pub(super) block_number: U64,
+    pub(super) transaction_hash: TxHash,
 }
 
 fn event_to_bridge_unlock(
@@ -110,10 +110,10 @@ fn event_to_bridge_unlock(
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct Ics20WithdrawalMemo {
-    memo: String,
-    block_number: U64,
-    transaction_hash: TxHash,
+pub(super) struct Ics20WithdrawalMemo {
+    pub(super) memo: String,
+    pub(super) block_number: U64,
+    pub(super) transaction_hash: TxHash,
 }
 
 fn event_to_ics20_withdrawal(
