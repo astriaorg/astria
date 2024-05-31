@@ -18,6 +18,7 @@ astria-eyre = { path = "../astria-eyre" }
 config = { package = "astria-config", path = "../astria-config" }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry", features = [
   "display",
+  "macros",
 ] }
 
 tonic-health = "0.10.2"

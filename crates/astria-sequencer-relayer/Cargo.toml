@@ -60,6 +60,7 @@ sequencer-client = { package = "astria-sequencer-client", path = "../astria-sequ
 ] }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry", features = [
   "display",
+  "macros",
 ] }
 tokio-stream = { workspace = true }
 const_format = "0.2.32"

@@ -45,6 +45,10 @@ use tracing_subscriber::{
 #[cfg(feature = "display")]
 pub mod display;
 
+#[cfg(feature = "macros")]
+#[doc(hidden)]
+pub mod macros;
+
 /// The errors that can occur when initializing telemetry.
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
