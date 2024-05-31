@@ -355,6 +355,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires foundry and solc to be installed"]
     async fn watcher_can_watch_sequencer_withdrawals() {
         let (contract_address, provider, wallet, anvil) = deploy_astria_withdrawer().await;
         let signer = Arc::new(SignerMiddleware::new(provider, wallet.clone()));
@@ -433,6 +434,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires foundry and solc to be installed"]
     async fn watcher_can_watch_ics20_withdrawals() {
         let (contract_address, provider, wallet, anvil) = deploy_astria_withdrawer().await;
         let signer = Arc::new(SignerMiddleware::new(provider, wallet.clone()));
