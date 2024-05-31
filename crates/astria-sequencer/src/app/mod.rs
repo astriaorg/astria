@@ -538,7 +538,7 @@ impl App {
                 }
                 Err(e) => {
                     metrics::counter!(
-                        metrics_init::PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_DECODE_FAILURE
+                        metrics_init::PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_FAILED_EXECUTION
                     )
                     .increment(1);
                     debug!(

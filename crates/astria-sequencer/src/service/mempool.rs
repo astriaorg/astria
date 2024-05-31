@@ -1,5 +1,10 @@
 use std::{
+    collections::{
+        HashSet,
+        VecDeque,
+    },
     pin::Pin,
+    sync::Arc,
     task::{
         Context,
         Poll,
@@ -25,6 +30,7 @@ use tendermint::v0_38::abci::{
     MempoolRequest,
     MempoolResponse,
 };
+use tokio::sync::RwLock;
 use tower::Service;
 use tower_abci::BoxError;
 use tracing::Instrument as _;
@@ -37,6 +43,48 @@ use crate::{
 };
 
 const MAX_TX_SIZE: usize = 256_000; // 256 KB
+const CACHE_SIZE: usize = 4600;
+
+#[derive(Clone)]
+pub(crate) struct TxCache {
+    map: HashSet<[u8; 32]>,
+    list: VecDeque<[u8; 32]>,
+    max_size: usize,
+    size: usize,
+}
+
+impl TxCache {
+    fn new(max_size: usize) -> Self {
+        Self {
+            map: HashSet::new(),
+            list: VecDeque::with_capacity(max_size),
+            max_size,
+            size: 0,
+        }
+    }
+
+    fn exists(&self, tx_hash: [u8; 32]) -> bool {
+        self.map.contains(&tx_hash)
+    }
+
+    fn add(&mut self, tx_hash: [u8; 32]) {
+        if self.map.contains(&tx_hash) {
+            return;
+        };
+        if self.size == self.max_size {
+            self.map.remove(
+                &self
+                    .list
+                    .pop_front()
+                    .expect("cache should contain elements"),
+            );
+        } else {
+            self.size = self.size.checked_add(1).expect("cache size overflowed");
+        }
+        self.list.push_back(tx_hash);
+        self.map.insert(tx_hash);
+    }
+}
 
 /// Mempool handles [`request::CheckTx`] abci requests.
 //
@@ -46,6 +94,7 @@ const MAX_TX_SIZE: usize = 256_000; // 256 KB
 pub(crate) struct Mempool {
     storage: Storage,
     mempool: AppMempool,
+    tx_cache: Arc<RwLock<TxCache>>,
 }
 
 impl Mempool {
@@ -53,6 +102,7 @@ impl Mempool {
         Self {
             storage,
             mempool,
+            tx_cache: Arc::new(RwLock::new(TxCache::new(CACHE_SIZE))),
         }
     }
 }
@@ -71,10 +121,12 @@ impl Service<MempoolRequest> for Mempool {
         let span = req.create_span();
         let storage = self.storage.clone();
         let mut mempool = self.mempool.clone();
+        let mut tx_cache = self.tx_cache.clone();
         async move {
             let rsp = match req {
                 MempoolRequest::CheckTx(req) => MempoolResponse::CheckTx(
-                    handle_check_tx(req, storage.latest_snapshot(), &mut mempool).await,
+                    handle_check_tx(req, storage.latest_snapshot(), &mut mempool, &mut tx_cache)
+                        .await,
                 ),
             };
             Ok(rsp)
@@ -95,10 +147,24 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
     req: request::CheckTx,
     state: S,
     mempool: &mut AppMempool,
+    tx_cache: &mut Arc<RwLock<TxCache>>,
 ) -> response::CheckTx {
     use sha2::Digest as _;
 
     let tx_hash = sha2::Sha256::digest(&req.tx).into();
+
+    if tx_cache.read().await.exists(tx_hash) {
+        // transaction has already been seen, remove from cometbft mempool
+        return response::CheckTx {
+            code: AbciErrorCode::ALREADY_PROCESSED.into(),
+            log: "transaction has already been processed by the mempool".to_string(),
+            info: AbciErrorCode::TRANSACTION_TOO_LARGE.to_string(),
+            ..response::CheckTx::default()
+        };
+    }
+
+    // add to cache to avoid processing again
+    tx_cache.write().await.add(tx_hash);
 
     let request::CheckTx {
         tx, ..
@@ -201,4 +267,34 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
              check_nonce_mempool",
         );
     response::CheckTx::default()
+}
+
+mod test {
+    #[tokio::test]
+    async fn tx_cache_test() {
+        use crate::service::mempool::TxCache;
+
+        let mut tx_cache = TxCache::new(2);
+
+        let tx_0 = [0u8; 32];
+        let tx_1 = [1u8; 32];
+        let tx_2 = [2u8; 32];
+
+        assert!(
+            !tx_cache.exists(tx_0),
+            "no transaction should exist at first"
+        );
+
+        tx_cache.add(tx_0);
+        assert!(tx_cache.exists(tx_0), "transaction was added, should exist");
+
+        tx_cache.add(tx_1);
+        tx_cache.add(tx_2);
+        assert!(tx_cache.exists(tx_1), "transaction was added, should exist");
+        assert!(tx_cache.exists(tx_2), "transaction was added, should exist");
+        assert!(
+            !tx_cache.exists(tx_0),
+            "first transaction should be removed"
+        );
+    }
 }

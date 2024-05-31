@@ -18,6 +18,7 @@ impl AbciErrorCode {
     pub const INSUFFICIENT_FUNDS: Self = Self(6);
     pub const INVALID_CHAIN_ID: Self = Self(7);
     pub const VALUE_NOT_FOUND: Self = Self(8);
+    pub const ALREADY_PROCESSED: Self = Self(9);
 }
 
 impl AbciErrorCode {
@@ -33,6 +34,7 @@ impl AbciErrorCode {
             6 => "insufficient funds".into(),
             7 => "the provided chain id was invalid".into(),
             8 => "the requested value was not found".into(),
+            9 => "the transaction has already been processed".into(),
             other => format!("unknown non-zero abci error code: {other}").into(),
         }
     }
@@ -61,6 +63,7 @@ impl From<NonZeroU32> for AbciErrorCode {
             6 => Self::INSUFFICIENT_FUNDS,
             7 => Self::INVALID_CHAIN_ID,
             8 => Self::VALUE_NOT_FOUND,
+            9 => Self::ALREADY_PROCESSED,
             other => Self(other),
         }
     }
