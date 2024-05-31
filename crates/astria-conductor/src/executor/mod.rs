@@ -209,7 +209,7 @@ impl Handle<StateIsInit> {
         self.state.celestia_base_block_height()
     }
 
-    pub(crate) fn celestia_block_variance(&mut self) -> u32 {
+    pub(crate) fn celestia_block_variance(&mut self) -> u64 {
         self.state.celestia_block_variance()
     }
 }

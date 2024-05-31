@@ -15,7 +15,7 @@ message GenesisInfo {
   // The first block height of sequencer chain to use for rollup transactions.
   uint32 sequencer_genesis_block_height = 2;
   // The allowed variance in celestia for sequencer blocks to have been posted.
-  uint32 celestia_block_variance = 4;
+  uint64 celestia_block_variance = 4;
 }
 
 // The set of information which deterministic driver of block production
@@ -85,7 +85,7 @@ message CommitmentState {
   // Firm commitment is achieved when data has been seen in DA.
   Block firm = 2;
   // The lowest block number of celestia chain to be searched for rollup blocks given current state
-  uint32 base_celestia_height = 3;
+  uint64 base_celestia_height = 3;
 }
 
 // There is only one CommitmentState object, so the request is empty.

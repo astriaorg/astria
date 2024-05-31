@@ -218,7 +218,7 @@ forward_impls!(
     [soft_number -> u32],
     [firm_hash -> Bytes],
     [soft_hash -> Bytes],
-    [celestia_block_variance -> u32],
+    [celestia_block_variance -> u64],
     [rollup_id -> RollupId],
     [sequencer_genesis_block_height -> SequencerHeight],
     [celestia_base_block_height -> CelestiaHeight],
@@ -227,7 +227,7 @@ forward_impls!(
 forward_impls!(
     StateReceiver:
     [celestia_base_block_height -> CelestiaHeight],
-    [celestia_block_variance -> u32],
+    [celestia_block_variance -> u64],
     [rollup_id -> RollupId],
 );
 
@@ -283,7 +283,7 @@ impl State {
         self.commitment_state.base_celestia_height()
     }
 
-    fn celestia_block_variance(&self) -> u32 {
+    fn celestia_block_variance(&self) -> u64 {
         self.genesis_info.celestia_block_variance()
     }
 

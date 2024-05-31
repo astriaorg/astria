@@ -466,7 +466,8 @@ impl serde::Serialize for CommitmentState {
             struct_ser.serialize_field("firm", v)?;
         }
         if self.base_celestia_height != 0 {
-            struct_ser.serialize_field("base_celestia_height", &self.base_celestia_height)?;
+            #[allow(clippy::needless_borrow)]
+            struct_ser.serialize_field("base_celestia_height", ToString::to_string(&self.base_celestia_height).as_str())?;
         }
         struct_ser.end()
     }
@@ -724,7 +725,8 @@ impl serde::Serialize for GenesisInfo {
             struct_ser.serialize_field("sequencer_genesis_block_height", &self.sequencer_genesis_block_height)?;
         }
         if self.celestia_block_variance != 0 {
-            struct_ser.serialize_field("celestia_block_variance", &self.celestia_block_variance)?;
+            #[allow(clippy::needless_borrow)]
+            struct_ser.serialize_field("celestia_block_variance", ToString::to_string(&self.celestia_block_variance).as_str())?;
         }
         struct_ser.end()
     }

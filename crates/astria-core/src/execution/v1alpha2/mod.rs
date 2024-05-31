@@ -45,7 +45,7 @@ pub struct GenesisInfo {
     /// The Sequencer block height which contains the first block of the rollup.
     sequencer_genesis_block_height: tendermint::block::Height,
     /// The allowed variance in the block height of celestia when looking for sequencer blocks.
-    celestia_block_variance: u32,
+    celestia_block_variance: u64,
 }
 
 impl GenesisInfo {
@@ -60,7 +60,7 @@ impl GenesisInfo {
     }
 
     #[must_use]
-    pub fn celestia_block_variance(&self) -> u32 {
+    pub fn celestia_block_variance(&self) -> u64 {
         self.celestia_block_variance
     }
 }
@@ -433,7 +433,11 @@ impl Protobuf for CommitmentState {
             Block::try_from_raw_ref(firm).map_err(Self::Error::firm)
         }?;
         let base_celestia_height: celestia_tendermint::block::Height =
-            (*base_celestia_height).into();
+            (*base_celestia_height).try_into().expect(
+                "celestia block height overflow, rollup base celestia height likely set invalid \
+                 we use u64 for forward compatibility, matching underlying tendermint-rs types \
+                 but must be a valid u32 number",
+            );
         Self::builder()
             .firm(firm)
             .soft(soft)
@@ -450,10 +454,7 @@ impl Protobuf for CommitmentState {
         } = self;
         let soft = soft.to_raw();
         let firm = firm.to_raw();
-        let base_celestia_height: u32 = (*base_celestia_height).value().try_into().expect(
-            "block height overflow, this should not happen since tendermint heights are i64 under \
-             the hood",
-        );
+        let base_celestia_height = (*base_celestia_height).value();
         Self::Raw {
             soft: Some(soft),
             firm: Some(firm),

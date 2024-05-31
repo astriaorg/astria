@@ -12,8 +12,8 @@ pub struct GenesisInfo {
     #[prost(uint32, tag = "2")]
     pub sequencer_genesis_block_height: u32,
     /// The allowed variance in celestia for sequencer blocks to have been posted.
-    #[prost(uint32, tag = "4")]
-    pub celestia_block_variance: u32,
+    #[prost(uint64, tag = "4")]
+    pub celestia_block_variance: u64,
 }
 impl ::prost::Name for GenesisInfo {
     const NAME: &'static str = "GenesisInfo";
@@ -170,8 +170,8 @@ pub struct CommitmentState {
     #[prost(message, optional, tag = "2")]
     pub firm: ::core::option::Option<Block>,
     /// The lowest block number of celestia chain to be searched for rollup blocks given current state
-    #[prost(uint32, tag = "3")]
-    pub base_celestia_height: u32,
+    #[prost(uint64, tag = "3")]
+    pub base_celestia_height: u64,
 }
 impl ::prost::Name for CommitmentState {
     const NAME: &'static str = "CommitmentState";
