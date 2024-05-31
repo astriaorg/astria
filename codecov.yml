@@ -1,0 +1,54 @@
+comment:
+  layout: "reach, diff, files, components"
+
+coverage:
+  status:
+    patch: off
+    project:
+      default:
+        target: auto
+        threshold: 0%
+        informational: true
+
+component_management:
+  individual_components:
+    - component_id: conductor
+      name: conductor
+      paths:
+        - crates/astria-conductor/**
+    - component_id: composer
+      name: composer
+      paths:
+        - crates/astria-composer
+    - component_id: sequencer
+      name: sequencer
+      paths:
+        - crates/astria-sequencer/**
+        - crates/astria-sequencer-utils/**
+    - component_id: sequencer-relayer
+      name: sequencer-relayer
+      paths:
+        - crates/astria-sequencer-relayer/**
+    - component_id: cli
+      name: cli
+      paths:
+        - crates/astria-cli/**
+    - component_id: merkle
+      name: astria-merkle
+      paths:
+        - crates/astria-merkle/**
+    - component_id: common
+      name: common
+      paths:
+        - crates/astria-core/src/**
+        - crates/astria-sequencer-validation/**
+        - crates/astria-telemetry/**
+        - crates/astria-sequencer-client/**
+
+ignore:
+  - 'crates/astria-core/src/generated/**'
+  - 'crates/astria-build-info/**'
+  - 'crates/astria-grpc-mock/**'
+  - 'crates/astria-grpc-mock-test/**'
+  - 'crates/astria-grpc-mock-test-codegen/**'
+  - 'crates/astria-test-utils/**'

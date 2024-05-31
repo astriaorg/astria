@@ -3,6 +3,9 @@ target/
 # dotenv
 .env
 
+# code coverage
+codecov.json
+
 # jetbrains
 .idea
 # direnv

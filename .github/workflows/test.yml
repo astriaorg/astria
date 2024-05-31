@@ -98,24 +98,35 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.76.0
+        with:
+          components: llvm-tools-preview
       - uses: Swatinem/rust-cache@v2.7.3
         with:
           cache-provider: "buildjet"
       - name: Install nextest
         uses: taiki-e/install-action@nextest
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
       - uses: arduino/setup-protoc@v3
         with:
           version: "24.4"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build tests
-        run: |
-          cargo nextest archive --archive-file=archive.tar.zst --release \
-          --all-features \
-          --all-targets
-      - name: Run tests
+      - name: Build & Run tests
         timeout-minutes: 20
         run: |
-          cargo nextest run --archive-file=archive.tar.zst -- --include-ignored
+          cargo llvm-cov nextest --release \
+            --locked \
+            --all-features \
+            --all-targets \
+            --no-fail-fast \
+            --codecov --output-path codecov.json
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: codecov.json
+          flags: tests
+          fail_ci_if_error: true
 
   doctest:
     runs-on: buildjet-8vcpu-ubuntu-2204
