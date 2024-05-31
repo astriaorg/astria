@@ -26,6 +26,8 @@ use tryhard::{
     RetryPolicy,
 };
 
+use crate::metrics_init::CELESTIA_BLOB_FETCH_ERROR_COUNT;
+
 pub(super) struct RawBlobs {
     pub(super) celestia_height: u64,
     pub(super) header_blobs: Vec<Blob>,
@@ -100,6 +102,7 @@ async fn fetch_blobs_with_retry(
                     error = error as &dyn std::error::Error,
                     "attempt to fetch Celestia Blobs failed; retrying after delay",
                 );
+                metrics::counter!(CELESTIA_BLOB_FETCH_ERROR_COUNT).increment(1);
                 futures::future::ready(())
             },
         );
