@@ -54,9 +54,7 @@ async fn main() -> ExitCode {
 
     let mut sigterm = signal(SignalKind::terminate())
         .expect("setting a SIGTERM listener should always work on Unix");
-    let (withdrawer, shutdown_handle) = Service::new(cfg)
-        .await
-        .expect("could not initialize withdrawer");
+    let (withdrawer, shutdown_handle) = Service::new(cfg).expect("could not initialize withdrawer");
     let withdrawer_handle = tokio::spawn(withdrawer.run());
 
     let shutdown_token = shutdown_handle.token();

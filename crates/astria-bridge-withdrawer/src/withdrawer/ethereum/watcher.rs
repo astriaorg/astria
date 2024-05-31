@@ -174,7 +174,7 @@ async fn watch_for_sequencer_withdrawal_events(
                 .send((WithdrawalEvent::Sequencer(event), meta))
                 .await
                 .wrap_err("failed to send sequencer withdrawal event; receiver dropped?")?;
-        } else if let Err(_) = item {
+        } else if item.is_err() {
             item.wrap_err("failed to read from event stream; event stream closed?")?;
         }
     }
@@ -200,7 +200,7 @@ async fn watch_for_ics20_withdrawal_events(
                 .send((WithdrawalEvent::Ics20(event), meta))
                 .await
                 .wrap_err("failed to send ics20 withdrawal event; receiver dropped?")?;
-        } else if let Err(_) = item {
+        } else if item.is_err() {
             item.wrap_err("failed to read from event stream; event stream closed?")?;
         }
     }
