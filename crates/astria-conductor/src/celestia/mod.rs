@@ -268,7 +268,7 @@ impl RunningReader {
 
         let celestia_next_height = executor.celestia_base_block_height().value();
         let celestia_reference_height = executor.celestia_base_block_height().value();
-        let celestia_variance = executor.celestia_block_variance().into();
+        let celestia_variance = executor.celestia_block_variance();
 
         Ok(Self {
             block_cache,
