@@ -17,13 +17,32 @@ spec:
         valueFiles:
           - $values/argocd/apps/dev/third-party/kubecost/values.yaml
 
-        # valuesObject:
-        #   persistentVolume:
-        #     enabled: false
+
+        valuesObject:
+
+          kubecostMetrics:
+            emitPodAnnotations: true
+            emitNamespaceAnnotations: true
+
+          oidc:
+            enabled: true
+            useIDToken: true
+            clientID: "694442958934-3b6uv0ffu143f7vcmah0rlshbdh2rn1k.apps.googleusercontent.com"
+            secretName: "kubecost-oidc-secret"
+            authURL: "https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=694442958934-3b6uv0ffu143f7vcmah0rlshbdh2rn1k.apps.googleusercontent.com&scope=openid email&hd=astria.org&redirect_uri=https://kubecost.dev.astria.org/model/oidc/authorize&prompt=select_account"
+            loginRedirectURL: "https://kubecost.dev.astria.org"
+            discoveryURL: "https://accounts.google.com/.well-known/openid-configuration"
+            hostedDomain: "astria.org"
+
 
         # parameters:
+        #   - name: ingress.enabled
+        #     value: "true"
+        #   - name: oidc.enabled
+        #     value: "true" 
         #   - name: persistentVolume.enabled
-        #     value: "false"
+        #     value: "true"
+
 
     - repoURL: https://github.com/astriaorg/astria.git
       ref: values
