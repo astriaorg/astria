@@ -139,18 +139,13 @@ jobs:
           python-version: '3.10' 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
-      - name: Build tests
-        run: |
-          cargo nextest archive --package astria-bridge-withdrawer --archive-file=archive.tar.zst --release \
-          --all-features \
-          --all-targets
       - name: Run tests
         timeout-minutes: 20
         run: |
           pip install solc-select 
           solc-select install 0.8.21
           solc-select use 0.8.21
-          cargo nextest run --package astria-bridge-withdrawer --archive-file=archive.tar.zst -- --include-ignored 
+          cargo nextest run --package astria-bridge-withdrawer -- --include-ignored 
 
   doctest:
     runs-on: buildjet-8vcpu-ubuntu-2204
