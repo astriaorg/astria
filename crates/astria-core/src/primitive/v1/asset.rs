@@ -69,6 +69,11 @@ impl Denom {
     }
 
     #[must_use]
+    pub fn is_prefixed_with(&self, prefix: &str) -> bool {
+        self.prefix.starts_with(prefix)
+    }
+
+    #[must_use]
     pub fn denomination_trace(&self) -> String {
         if self.prefix.is_empty() {
             return self.base_denom.clone();
@@ -83,6 +88,31 @@ impl Denom {
     pub fn to_base_denom(&self) -> Self {
         Self::from_base_denom(&self.base_denom)
     }
+
+    /// Create a new [`Denom`] with the given prefix removed.
+    ///
+    /// # Errors
+    ///
+    /// - if the denom does not have the given prefix.
+    #[must_use]
+    pub fn remove_prefix(&self, prefix: &str) -> Result<Self, InvalidPrefixToRemove> {
+        let denom_trace = self
+            .to_string()
+            .strip_prefix(prefix)
+            .ok_or(InvalidPrefixToRemove {
+                prefix: prefix.to_string(),
+                denom: self.to_string(),
+            })?
+            .to_string();
+        Ok(Self::from(denom_trace))
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("cannot remove prefix {prefix} from {denom}")]
+pub struct InvalidPrefixToRemove {
+    prefix: String,
+    denom: String,
 }
 
 impl std::fmt::Display for Denom {

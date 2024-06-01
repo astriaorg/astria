@@ -210,8 +210,8 @@ async fn refund_tokens_check<S: StateRead>(
 }
 
 fn is_prefixed(source_port: &PortId, source_channel: &ChannelId, asset: &Denom) -> bool {
-    let prefix = format!("{source_port}/{source_channel}");
-    asset.prefix_is(&prefix)
+    let prefix = format!("{source_port}/{source_channel}/");
+    asset.is_prefixed_with(&prefix)
 }
 
 #[async_trait::async_trait]
@@ -488,7 +488,16 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
 
         // strip the prefix from the denom, as we're back on the source chain
         // note: if this is a refund, this is a no-op.
-        let denom = unprefixed_denom.to_base_denom();
+        let denom = if is_refund {
+            unprefixed_denom
+        } else {
+            unprefixed_denom
+                .remove_prefix(&format!("{}/{}/", source_port, source_channel))
+                .expect(
+                    "denom must be prefixed by source_port/source_channel as it was checked in \
+                     `is_prefixed` above",
+                )
+        };
 
         let escrow_channel = if is_refund {
             source_channel
@@ -554,6 +563,12 @@ mod test {
         // in the case of a transfer in that is not a refund,
         // we are the source if the packets are prefixed by the sending chain
         assert!(is_prefixed(&source_port, &source_channel, &asset));
+
+        let asset = Denom::from(
+            "source_port/source_channel/another_port/another_channel/asset".to_string(),
+        );
+        assert!(is_prefixed(&source_port, &source_channel, &asset));
+
         // in the case of a refund, we are the source if the packets are not
         // prefixed by the sending chain
         let asset = Denom::from("other_port/source_channel/asset".to_string());
@@ -854,6 +869,62 @@ mod test {
     }
 
     #[tokio::test]
+    async fn execute_ics20_transfer_to_user_account_is_source_not_refund_remove_prefix() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state_tx = StateDelta::new(snapshot.clone());
+
+        let address_string = "1c0c490f1b5528d8173c5de46d131160e4b2c0c3";
+        let amount = 100;
+        let base_denom = Denom::from("other_port/other_channel/nootasset".to_string());
+        state_tx
+            .put_ibc_channel_balance(
+                &"dest_channel".to_string().parse().unwrap(),
+                base_denom.id(),
+                amount,
+            )
+            .unwrap();
+
+        let packet = FungibleTokenPacketData {
+            denom: format!("source_port/source_channel/{base_denom}"),
+            sender: String::new(),
+            amount: amount.to_string(),
+            receiver: address_string.to_string(),
+            memo: String::new(),
+        };
+        let packet_bytes = serde_json::to_vec(&packet).unwrap();
+
+        execute_ics20_transfer(
+            &mut state_tx,
+            &packet_bytes,
+            &"source_port".to_string().parse().unwrap(),
+            &"source_channel".to_string().parse().unwrap(),
+            &"dest_port".to_string().parse().unwrap(),
+            &"dest_channel".to_string().parse().unwrap(),
+            false,
+        )
+        .await
+        .expect("valid ics20 transfer to user account; recipient, memo, and asset ID are valid");
+
+        let recipient = Address::try_from_slice(&hex::decode(address_string).unwrap()).unwrap();
+        let balance = state_tx
+            .get_account_balance(recipient, base_denom.id())
+            .await
+            .expect("ics20 transfer to user account should succeed");
+        assert_eq!(balance, amount);
+
+        // the `source_port/source_channel/` prefix should have been removed
+        let balance = state_tx
+            .get_ibc_channel_balance(
+                &"dest_channel".to_string().parse().unwrap(),
+                base_denom.id(),
+            )
+            .await
+            .expect("ics20 transfer to user account from escrow account should succeed");
+        assert_eq!(balance, 0);
+    }
+
+    #[tokio::test]
     async fn execute_ics20_transfer_to_user_account_is_source_refund() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
@@ -861,7 +932,7 @@ mod test {
 
         let address_string = "1c0c490f1b5528d8173c5de46d131160e4b2c0c3";
         let amount = 100;
-        let base_denom: Denom = "nootasset".to_string().into();
+        let base_denom: Denom = "other/chain/nootasset".to_string().into();
         state_tx
             .put_ibc_channel_balance(
                 &"source_channel".to_string().parse().unwrap(),
