@@ -15,7 +15,6 @@ use astria_eyre::{
     eyre::WrapErr as _,
 };
 use bytes::Bytes;
-use celestia_types::Height as CelestiaHeight;
 use sequencer_client::tendermint::block::Height as SequencerHeight;
 use tokio::sync::watch::{
     self,
@@ -218,15 +217,16 @@ forward_impls!(
     [soft_number -> u32],
     [firm_hash -> Bytes],
     [soft_hash -> Bytes],
-    [celestia_block_variance -> u32],
+    [celestia_block_variance -> u64],
     [rollup_id -> RollupId],
     [sequencer_genesis_block_height -> SequencerHeight],
+    [celestia_base_block_height -> u64],
 );
 
 forward_impls!(
     StateReceiver:
-    [celestia_base_block_height -> CelestiaHeight],
-    [celestia_block_variance -> u32],
+    [celestia_base_block_height -> u64],
+    [celestia_block_variance -> u64],
     [rollup_id -> RollupId],
 );
 
@@ -278,11 +278,11 @@ impl State {
         self.soft().hash().clone()
     }
 
-    fn celestia_base_block_height(&self) -> CelestiaHeight {
-        self.genesis_info.celestia_base_block_height()
+    fn celestia_base_block_height(&self) -> u64 {
+        self.commitment_state.base_celestia_height()
     }
 
-    fn celestia_block_variance(&self) -> u32 {
+    fn celestia_block_variance(&self) -> u64 {
         self.genesis_info.celestia_block_variance()
     }
 
@@ -372,6 +372,7 @@ mod tests {
         CommitmentState::builder()
             .firm(firm)
             .soft(soft)
+            .base_celestia_height(1u64)
             .build()
             .unwrap()
     }
@@ -380,7 +381,6 @@ mod tests {
         GenesisInfo::try_from_raw(raw::GenesisInfo {
             rollup_id: vec![24; 32].into(),
             sequencer_genesis_block_height: 10,
-            celestia_base_block_height: 1,
             celestia_block_variance: 0,
         })
         .unwrap()
