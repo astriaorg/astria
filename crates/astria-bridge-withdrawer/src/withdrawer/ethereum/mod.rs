@@ -1,5 +1,5 @@
 pub(crate) mod astria_withdrawer;
-mod convert;
+pub(crate) mod convert;
 mod watcher;
 
 pub(crate) use watcher::Watcher;

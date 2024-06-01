@@ -56,14 +56,12 @@ use wiremock::{
 
 use super::Submitter;
 use crate::withdrawer::{
-    batch::{
-        Batch,
+    batch::Batch,
+    ethereum::convert::{
         BridgeUnlockMemo,
         Ics20WithdrawalMemo,
     },
-    state::{
-        self,
-    },
+    state,
     submitter,
     StateSnapshot,
 };
@@ -110,7 +108,7 @@ async fn setup() -> (
 
     // cometbft
     let cometbft_mock = MockServer::start().await;
-    let cometbft_endpoint = format!("http://{}", cometbft_mock.address());
+    let sequencer_cometbft_endpoint = format!("http://{}", cometbft_mock.address());
 
     // withdrawer state
     let state = Arc::new(state::State::new());
@@ -121,7 +119,7 @@ async fn setup() -> (
         shutdown_token: shutdown_token.clone(),
         sequencer_key_path,
         sequencer_chain_id: SEQUENCER_CHAIN_ID.to_string(),
-        cometbft_endpoint,
+        sequencer_cometbft_endpoint,
         state,
     }
     .build()
