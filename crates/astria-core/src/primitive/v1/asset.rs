@@ -23,7 +23,7 @@ pub fn default_native_asset_id() -> Id {
 /// Note that the full denomination trace of the token is `prefix/base_denom`,
 /// in the case that a prefix is present.
 /// This is hashed to create the ID.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Denom {
     id: Id,
 

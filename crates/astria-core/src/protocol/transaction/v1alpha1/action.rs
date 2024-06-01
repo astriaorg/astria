@@ -694,26 +694,26 @@ enum MintActionErrorKind {
 ///
 /// It also contains a `return_address` field which may or may not be the same as the signer
 /// of the packet. The funds will be returned to the `return_address` in the case of a timeout.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Ics20Withdrawal {
     // a transparent value consisting of an amount and a denom.
-    amount: u128,
-    denom: Denom,
+    pub amount: u128,
+    pub denom: Denom,
     // the address on the destination chain to send the transfer to.
-    destination_chain_address: String,
+    pub destination_chain_address: String,
     // an Astria address to use to return funds from this withdrawal
     // in the case it fails.
-    return_address: Address,
+    pub return_address: Address,
     // the height (on Astria) at which this transfer expires.
-    timeout_height: IbcHeight,
+    pub timeout_height: IbcHeight,
     // the unix timestamp (in nanoseconds) at which this transfer expires.
-    timeout_time: u64,
+    pub timeout_time: u64,
     // the source channel used for the withdrawal.
-    source_channel: ChannelId,
+    pub source_channel: ChannelId,
     // the asset to use for fee payment.
-    fee_asset_id: asset::Id,
+    pub fee_asset_id: asset::Id,
     // a memo to include with the transfer
-    memo: String,
+    pub memo: String,
 }
 
 impl Ics20Withdrawal {
@@ -1307,7 +1307,7 @@ enum BridgeLockActionErrorKind {
 }
 
 #[allow(clippy::module_name_repetitions)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BridgeUnlockAction {
     pub to: Address,
     pub amount: u128,
