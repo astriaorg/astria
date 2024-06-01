@@ -97,7 +97,6 @@ pub async fn run(cli: Cli) -> eyre::Result<()> {
                             sequencer::fee_asset_remove(&args).await?;
                         }
                     },
-                    SudoCommand::Mint(args) => sequencer::mint(&args).await?,
                     SudoCommand::ValidatorUpdate(args) => {
                         sequencer::validator_update(&args).await?;
                     }
