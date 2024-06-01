@@ -20,7 +20,6 @@ use ethers::{
 /// - if the contract cannot be compiled
 /// - if the provider fails to connect to the anvil instance
 /// - if the contract fails to deploy
-#[allow(dead_code)]
 pub(crate) async fn deploy_astria_withdrawer()
 -> (Address, Arc<Provider<Ws>>, LocalWallet, AnvilInstance) {
     // compile contract for testing

@@ -43,7 +43,6 @@ async fn simple() {
     mount_get_genesis_info!(
         test_conductor,
         sequencer_genesis_block_height: 1,
-        celestia_base_block_height: 1,
         celestia_block_variance: 10,
     );
 
@@ -59,6 +58,7 @@ async fn simple() {
             hash: [1; 64],
             parent: [0; 64],
         ),
+        base_celestia_height: 1,
     );
 
     mount_abci_info!(
@@ -110,6 +110,7 @@ async fn simple() {
             hash: [2; 64],
             parent: [1; 64],
         ),
+        base_celestia_height: 1,
     );
 
     let update_commitment_state_firm = mount_update_commitment_state!(
@@ -124,6 +125,7 @@ async fn simple() {
             hash: [2; 64],
             parent: [1; 64],
         ),
+        base_celestia_height: 1,
     );
 
     timeout(
@@ -141,6 +143,7 @@ async fn simple() {
     );
 }
 
+#[allow(clippy::too_many_lines)] // it's a test, it's fine
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn missing_block_is_fetched_for_updating_firm_commitment() {
     let test_conductor = spawn_conductor(CommitLevel::SoftAndFirm).await;
@@ -148,7 +151,6 @@ async fn missing_block_is_fetched_for_updating_firm_commitment() {
     mount_get_genesis_info!(
         test_conductor,
         sequencer_genesis_block_height: 1,
-        celestia_base_block_height: 1,
         celestia_block_variance: 10,
     );
 
@@ -164,6 +166,7 @@ async fn missing_block_is_fetched_for_updating_firm_commitment() {
             hash: [2; 64],
             parent: [1; 64],
         ),
+        base_celestia_height: 1,
     );
 
     mount_abci_info!(
@@ -210,6 +213,7 @@ async fn missing_block_is_fetched_for_updating_firm_commitment() {
             hash: [2; 64],
             parent: [1; 64],
         ),
+        base_celestia_height: 1,
     );
 
     timeout(
@@ -243,6 +247,7 @@ async fn missing_block_is_fetched_for_updating_firm_commitment() {
             hash: [3; 64],
             parent: [2; 64],
         ),
+        base_celestia_height: 1,
     );
 
     timeout(
