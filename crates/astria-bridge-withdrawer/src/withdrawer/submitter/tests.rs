@@ -1,6 +1,5 @@
 use std::{
     io::Write as _,
-    str::FromStr,
     sync::Arc,
     time::Duration,
 };
@@ -29,6 +28,10 @@ use sequencer_client::{
 };
 use serde_json::json;
 use tempfile::NamedTempFile;
+use tendermint::abci::{
+    response::CheckTx,
+    types::ExecTxResult,
+};
 use tendermint_rpc::{
     endpoint::broadcast::tx_sync,
     request,
@@ -73,6 +76,7 @@ static TELEMETRY: Lazy<()> = Lazy::new(|| {
         telemetry::configure()
             .no_otel()
             .stdout_writer(std::io::stdout)
+            .set_pretty_print(true)
             .filter_directives(&filter_directives)
             .try_init()
             .unwrap();
@@ -205,16 +209,19 @@ fn make_tx_commit_success_response() -> tx_commit::Response {
     tx_commit::Response {
         check_tx: Default::default(),
         tx_result: Default::default(),
-        hash: Default::default(),
+        hash: vec![0u8; 32].try_into().unwrap(),
         height: Default::default(),
     }
 }
 
 fn make_tx_commit_check_tx_failure_response() -> tx_commit::Response {
     tx_commit::Response {
-        check_tx: Default::default(),
+        check_tx: CheckTx {
+            code: 1.into(),
+            ..Default::default()
+        },
         tx_result: Default::default(),
-        hash: Default::default(),
+        hash: vec![0u8; 32].try_into().unwrap(),
         height: Default::default(),
     }
 }
@@ -222,17 +229,11 @@ fn make_tx_commit_check_tx_failure_response() -> tx_commit::Response {
 fn make_tx_commit_deliver_tx_failure_response() -> tx_commit::Response {
     tx_commit::Response {
         check_tx: Default::default(),
-        tx_result: Default::default(),
-        hash: Default::default(),
-        height: Default::default(),
-    }
-}
-
-fn make_tx_commit_rpc_failure_response() -> tx_commit::Response {
-    tx_commit::Response {
-        check_tx: Default::default(),
-        tx_result: Default::default(),
-        hash: Default::default(),
+        tx_result: ExecTxResult {
+            code: 1.into(),
+            ..Default::default()
+        },
+        hash: vec![0u8; 32].try_into().unwrap(),
         height: Default::default(),
     }
 }
@@ -265,8 +266,6 @@ async fn register_genesis_response(server: &MockServer) -> MockGuard {
         genesis::Genesis,
         time::Time,
     };
-    let expected_body = json!({"method": "abci_query"});
-
     let response = tendermint_rpc::endpoint::genesis::Response::<serde_json::Value> {
         genesis: Genesis {
             genesis_time: Time::from_unix_timestamp(1, 1).unwrap(),
@@ -311,8 +310,6 @@ async fn register_genesis_response(server: &MockServer) -> MockGuard {
 }
 
 async fn register_get_nonce_response(server: &MockServer, response: NonceResponse) -> MockGuard {
-    let expected_body = json!({"method": "abci_query"});
-
     let response = tendermint_rpc::endpoint::abci_query::Response {
         response: tendermint_rpc::endpoint::abci_query::AbciQuery {
             value: response.encode_to_vec(),
@@ -320,11 +317,30 @@ async fn register_get_nonce_response(server: &MockServer, response: NonceRespons
         },
     };
     let wrapper = response::Wrapper::new_with_id(tendermint_rpc::Id::Num(1), Some(response), None);
-    Mock::given(body_partial_json(&expected_body))
+    Mock::given(body_partial_json(json!({"method": "abci_query"})))
         .and(body_string_contains("accounts/nonce"))
         .respond_with(
             ResponseTemplate::new(200)
                 .set_body_json(&wrapper)
+                .append_header("Content-Type", "application/json"),
+        )
+        .expect(1)
+        .mount_as_scoped(server)
+        .await
+}
+
+async fn register_get_nonce_rpc_error(server: &MockServer) -> MockGuard {
+    Mock::given(body_partial_json(json!({"method": "abci_query"})))
+        .and(body_string_contains("accounts/nonce"))
+        .respond_with(
+            ResponseTemplate::new(400)
+                .set_body_json(&json!({
+                    "jsonrpc": "2.0",
+                    "error": {
+                        "code": 1,
+                    },
+                    "id": 1
+                }))
                 .append_header("Content-Type", "application/json"),
         )
         .expect(1)
@@ -350,6 +366,26 @@ async fn register_broadcast_tx_commit_response(
     .await
 }
 
+async fn register_broadcast_tx_commit_rpc_error(server: &MockServer) -> MockGuard {
+    Mock::given(body_partial_json(json!({
+        "method": "broadcast_tx_commit"
+    })))
+    .respond_with(
+        ResponseTemplate::new(400)
+            .set_body_json(&json!({
+                "jsonrpc": "2.0",
+                "error": {
+                    "code": 1,
+                },
+                "id": 1
+            }))
+            .append_header("Content-Type", "application/json"),
+    )
+    .expect(1)
+    .mount_as_scoped(server)
+    .await
+}
+
 fn compare_actions(expected: &Action, actual: &Action) {
     match (expected, actual) {
         (Action::BridgeUnlock(expected), Action::BridgeUnlock(actual)) => {
@@ -368,16 +404,7 @@ async fn submitter_submit_success() {
     // set up submitter and batch
     let (submitter, batches_tx, _shutdown_token, cometbft_mock, startup_guard) = setup().await;
     let state = submitter.state.subscribe();
-    let _submitter_handle = tokio::spawn(async move {
-        match submitter.run().await {
-            Ok(reason) => {
-                panic!("Submitter halted: {:?}", reason);
-            }
-            Err(e) => {
-                panic!("Submitter failed: {:?}", e);
-            }
-        }
-    });
+    let _submitter_handle = tokio::spawn(submitter.run());
     wait_for_startup(state, startup_guard).await.unwrap();
 
     // set up guards on mock cometbft
@@ -428,17 +455,175 @@ async fn submitter_submit_success() {
 /// Test that the submitter halts when transaction submissions fails to be included in the
 /// mempool (CheckTx)
 #[tokio::test]
-async fn submitter_submit_check_tx_failure() {}
+async fn submitter_submit_check_tx_failure() {
+    // set up submitter and batch
+    let (submitter, batches_tx, _shutdown_token, cometbft_mock, startup_guard) = setup().await;
+    let state = submitter.state.subscribe();
+    let submitter_handle = tokio::spawn(submitter.run());
+    wait_for_startup(state, startup_guard).await.unwrap();
+
+    // set up guards on mock cometbft
+    let nonce_guard = register_get_nonce_response(
+        &cometbft_mock,
+        NonceResponse {
+            height: 1,
+            nonce: 0,
+        },
+    )
+    .await;
+    let broadcast_guard = register_broadcast_tx_commit_response(
+        &cometbft_mock,
+        make_tx_commit_check_tx_failure_response(),
+    )
+    .await;
+
+    // send batch to submitter
+    let batch = make_batch_with_bridge_unlock_and_ics20_withdrawal();
+    batches_tx.send(batch).await.unwrap();
+
+    // wait for the nonce and broadcast guards to be satisfied
+    tokio::time::timeout(
+        Duration::from_millis(100),
+        nonce_guard.wait_until_satisfied(),
+    )
+    .await
+    .unwrap();
+    tokio::time::timeout(
+        Duration::from_millis(100),
+        broadcast_guard.wait_until_satisfied(),
+    )
+    .await
+    .unwrap();
+
+    // make sure the submitter halts and the task returns
+    let _submitter_result = tokio::time::timeout(Duration::from_millis(100), submitter_handle)
+        .await
+        .unwrap()
+        .unwrap();
+}
 
 /// Test that the submitter halts when transaction submissions fails to be executed in a block
 /// (DeliverTx)
 #[tokio::test]
-async fn submitter_submit_deliver_tx_failure() {}
+async fn submitter_submit_deliver_tx_failure() {
+    // set up submitter and batch
+    let (submitter, batches_tx, _shutdown_token, cometbft_mock, startup_guard) = setup().await;
+    let state = submitter.state.subscribe();
+    let submitter_handle = tokio::spawn(submitter.run());
+    wait_for_startup(state, startup_guard).await.unwrap();
 
-/// Test that the submitter halts when fetching the latest nonce fails
-#[tokio::test]
-async fn submitter_submit_get_nonce_failure() {}
+    // set up guards on mock cometbft
+    let nonce_guard = register_get_nonce_response(
+        &cometbft_mock,
+        NonceResponse {
+            height: 1,
+            nonce: 0,
+        },
+    )
+    .await;
+    let broadcast_guard = register_broadcast_tx_commit_response(
+        &cometbft_mock,
+        make_tx_commit_deliver_tx_failure_response(),
+    )
+    .await;
+
+    // send batch to submitter
+    let batch = make_batch_with_bridge_unlock_and_ics20_withdrawal();
+    batches_tx.send(batch).await.unwrap();
+
+    // wait for the nonce and broadcast guards to be satisfied
+    tokio::time::timeout(
+        Duration::from_millis(100),
+        nonce_guard.wait_until_satisfied(),
+    )
+    .await
+    .unwrap();
+    tokio::time::timeout(
+        Duration::from_millis(100),
+        broadcast_guard.wait_until_satisfied(),
+    )
+    .await
+    .unwrap();
+
+    // make sure the submitter halts and the task returns
+    let _submitter_result = tokio::time::timeout(Duration::from_millis(100), submitter_handle)
+        .await
+        .unwrap()
+        .unwrap();
+}
 
 /// Test that the submitter halts when transaction submission fails due to a network faliure
 #[tokio::test]
-async fn submitter_submit_submit_tx_rpc_failure() {}
+async fn submitter_submit_rpc_failure() {
+    // set up submitter and batch
+    let (submitter, batches_tx, _shutdown_token, cometbft_mock, startup_guard) = setup().await;
+    let state = submitter.state.subscribe();
+    let submitter_handle = tokio::spawn(submitter.run());
+    wait_for_startup(state, startup_guard).await.unwrap();
+
+    // set up guards on mock cometbft
+    let nonce_guard = register_get_nonce_response(
+        &cometbft_mock,
+        NonceResponse {
+            height: 1,
+            nonce: 0,
+        },
+    )
+    .await;
+    let broadcast_guard = register_broadcast_tx_commit_rpc_error(&cometbft_mock).await;
+
+    // send batch to submitter
+    let batch = make_batch_with_bridge_unlock_and_ics20_withdrawal();
+    batches_tx.send(batch).await.unwrap();
+
+    // wait for the nonce and broadcast guards to be satisfied
+    tokio::time::timeout(
+        Duration::from_millis(100),
+        nonce_guard.wait_until_satisfied(),
+    )
+    .await
+    .unwrap();
+    tokio::time::timeout(
+        Duration::from_millis(100),
+        broadcast_guard.wait_until_satisfied(),
+    )
+    .await
+    .unwrap();
+
+    // make sure the submitter halts and the task returns
+    let _submitter_result = tokio::time::timeout(Duration::from_millis(100), submitter_handle)
+        .await
+        .unwrap()
+        .unwrap();
+}
+
+/// Test that the submitter halts when fetching the latest nonce fails
+#[tokio::test]
+async fn submitter_get_nonce_rpc_failure() {
+    // set up submitter and batch
+    let (submitter, batches_tx, _shutdown_token, cometbft_mock, startup_guard) = setup().await;
+    let state = submitter.state.subscribe();
+    let submitter_handle = tokio::spawn(submitter.run());
+    wait_for_startup(state, startup_guard).await.unwrap();
+
+    // set up guards on mock cometbft
+    let nonce_guard = register_get_nonce_rpc_error(&cometbft_mock).await;
+
+    // send batch to submitter
+    let batch = make_batch_with_bridge_unlock_and_ics20_withdrawal();
+    batches_tx.send(batch).await.unwrap();
+
+    // wait for the nonce guard to be satisfied
+    tokio::time::timeout(
+        Duration::from_millis(100),
+        nonce_guard.wait_until_satisfied(),
+    )
+    .await
+    .unwrap();
+
+    // make sure the submitter halts and the task returns
+    let _submitter_result = tokio::time::timeout(Duration::from_millis(100), submitter_handle)
+        .await
+        .unwrap()
+        .unwrap();
+}
