@@ -94,7 +94,6 @@ impl Denom {
     /// # Errors
     ///
     /// - if the denom does not have the given prefix.
-    #[must_use]
     pub fn remove_prefix(&self, prefix: &str) -> Result<Self, InvalidPrefixToRemove> {
         let denom_trace = self
             .to_string()
