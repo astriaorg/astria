@@ -132,7 +132,7 @@ ports:
 
 ingress:
   enabled: false
-  labels: { }
+  labels: {}
   hostname: localdev.me
   className: nginx
   services:
@@ -145,11 +145,11 @@ ingress:
       service:
         name: '{{ include "hermes.fullname" . }}-service'
         port: '{{ .Values.ports.rest }}'
-      annotations: { }
-      # kubernetes.io/ingress.class: nginx
-      # kubernetes.io/tls-acme: "true"
-      labels: { }
-      tls: { }
+      annotations: {}
+        # kubernetes.io/ingress.class: nginx
+        # kubernetes.io/tls-acme: "true"
+      labels: {}
+      tls: {}
       #  - secretName: chart-example-tls
       #    hosts:
       #      - chart-example.local
