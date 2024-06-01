@@ -15,7 +15,7 @@ storage:
       persistentVolumeName: "celestia-shared-storage"
       path: "/data/celestia-data"
 
-celestiaAppImage: "ghcr.io/celestiaorg/celestia-app:v1.8.0"
+celestiaAppImage: "ghcr.io/celestiaorg/celestia-app:v1.9.0"
 celestiaNodeImage: "ghcr.io/celestiaorg/celestia-node:v0.13.4"
 
 podSecurityContext:
@@ -37,6 +37,10 @@ validatorMnemonic: connect soon random stable toddler tired glove drastic comfor
 coins: "10000000000000000000000000utia"
 # Staking amount
 validatorStake: "5000000000utia"
+# ibc account
+ibcAccountKeyName: "ibc-account"
+# mnemonic for ibc account, so we can add its key and get them funded during genesis
+ibcAccountMnemonic: globe elegant people render embark whisper pumpkin local thing shallow front surround domain wave drill peasant duck midnight call slight ball segment token will
 
 # Default service ports
 ports:
