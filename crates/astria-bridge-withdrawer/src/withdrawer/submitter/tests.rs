@@ -28,9 +28,12 @@ use sequencer_client::{
 };
 use serde_json::json;
 use tempfile::NamedTempFile;
-use tendermint::abci::{
-    response::CheckTx,
-    types::ExecTxResult,
+use tendermint::{
+    abci::{
+        response::CheckTx,
+        types::ExecTxResult,
+    },
+    block::Height,
 };
 use tendermint_rpc::{
     endpoint::broadcast::tx_sync,
@@ -205,10 +208,10 @@ fn make_batch_with_bridge_unlock_and_ics20_withdrawal() -> Batch {
 
 fn make_tx_commit_success_response() -> tx_commit::Response {
     tx_commit::Response {
-        check_tx: Default::default(),
-        tx_result: Default::default(),
+        check_tx: CheckTx::default(),
+        tx_result: ExecTxResult::default(),
         hash: vec![0u8; 32].try_into().unwrap(),
-        height: Default::default(),
+        height: Height::default(),
     }
 }
 
@@ -216,23 +219,23 @@ fn make_tx_commit_check_tx_failure_response() -> tx_commit::Response {
     tx_commit::Response {
         check_tx: CheckTx {
             code: 1.into(),
-            ..Default::default()
+            ..CheckTx::default()
         },
-        tx_result: Default::default(),
+        tx_result: ExecTxResult::default(),
         hash: vec![0u8; 32].try_into().unwrap(),
-        height: Default::default(),
+        height: Height::default(),
     }
 }
 
 fn make_tx_commit_deliver_tx_failure_response() -> tx_commit::Response {
     tx_commit::Response {
-        check_tx: Default::default(),
+        check_tx: CheckTx::default(),
         tx_result: ExecTxResult {
             code: 1.into(),
             ..Default::default()
         },
         hash: vec![0u8; 32].try_into().unwrap(),
-        height: Default::default(),
+        height: Height::default(),
     }
 }
 
