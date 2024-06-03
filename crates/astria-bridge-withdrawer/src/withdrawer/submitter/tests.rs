@@ -232,7 +232,7 @@ fn make_tx_commit_deliver_tx_failure_response() -> tx_commit::Response {
         check_tx: CheckTx::default(),
         tx_result: ExecTxResult {
             code: 1.into(),
-            ..Default::default()
+            ..ExecTxResult::default()
         },
         hash: vec![0u8; 32].try_into().unwrap(),
         height: Height::default(),
