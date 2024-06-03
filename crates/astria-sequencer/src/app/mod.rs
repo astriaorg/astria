@@ -505,7 +505,7 @@ impl App {
                 .actions
                 .iter()
                 .filter_map(Action::as_sequence)
-                .fold(0usize, |acc, seq| acc + seq.data.len());
+                .fold(0usize, |acc, seq| acc.saturating_add(seq.data.len()));
 
             if !block_size_constraints.sequencer_has_space(tx_sequence_data_bytes) {
                 debug!(
@@ -546,7 +546,7 @@ impl App {
                         error = AsRef::<dyn std::error::Error>::as_ref(&e),
                         "failed to execute transaction, not including in block"
                     );
-                    failed_tx_count += 1;
+                    failed_tx_count = failed_tx_count.saturating_add(1);
 
                     // we re-insert the tx into the mempool if it failed to execute
                     // due to an invalid nonce, as it may be valid in the future.
@@ -596,7 +596,7 @@ impl App {
         txs: Vec<SignedTransaction>,
         block_size_constraints: &mut BlockSizeConstraints,
     ) -> anyhow::Result<()> {
-        let mut excluded_tx_count = 0;
+        let mut excluded_tx_count = 0_f64;
         let mut execution_results = Vec::new();
 
         for tx in txs {
@@ -610,7 +610,7 @@ impl App {
                 .actions
                 .iter()
                 .filter_map(Action::as_sequence)
-                .fold(0usize, |acc, seq| acc + seq.data.len());
+                .fold(0usize, |acc, seq| acc.saturating_add(seq.data.len()));
 
             if !block_size_constraints.sequencer_has_space(tx_sequence_data_bytes) {
                 metrics::counter!(
@@ -623,7 +623,7 @@ impl App {
                     tx_data_bytes = tx_sequence_data_bytes,
                     "excluding transaction: max block sequenced data limit reached"
                 );
-                excluded_tx_count += 1;
+                excluded_tx_count += 1.0;
                 continue;
             }
 
@@ -651,15 +651,14 @@ impl App {
                         error = AsRef::<dyn std::error::Error>::as_ref(&e),
                         "failed to execute transaction, not including in block"
                     );
-                    excluded_tx_count += 1;
+                    excluded_tx_count += 1.0;
                 }
             }
         }
 
-        if excluded_tx_count > 0 {
-            #[allow(clippy::cast_precision_loss)]
+        if excluded_tx_count > 0.0 {
             metrics::gauge!(metrics_init::PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS)
-                .set(f64::from(excluded_tx_count));
+                .set(excluded_tx_count);
             info!(
                 excluded_tx_count = excluded_tx_count,
                 included_tx_count = execution_results.len(),

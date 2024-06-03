@@ -10,7 +10,7 @@ images:
   geth:
     repo: ghcr.io/astriaorg/astria-geth
     tag: 0.10.1
-    devTag: latest
+    devTag: pr-22  # Reset to latest once this PR has been merged
   conductor:
     repo: ghcr.io/astriaorg/conductor
     tag: "0.16.0"

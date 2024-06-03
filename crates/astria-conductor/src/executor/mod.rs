@@ -18,7 +18,6 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use bytes::Bytes;
-use celestia_types::Height as CelestiaHeight;
 use sequencer_client::tendermint::{
     block::Height as SequencerHeight,
     Time as TendermintTime,
@@ -41,6 +40,11 @@ use tracing::{
 use crate::{
     celestia::ReconstructedBlock,
     config::CommitLevel,
+    metrics_init::{
+        EXECUTED_FIRM_BLOCK_NUMBER,
+        EXECUTED_SOFT_BLOCK_NUMBER,
+        TRANSACTIONS_PER_EXECUTED_BLOCK,
+    },
 };
 
 mod builder;
@@ -58,6 +62,8 @@ pub(super) use client::Client;
 use state::StateReceiver;
 
 use self::state::StateSender;
+
+type CelestiaHeight = u64;
 
 #[derive(Clone, Debug)]
 pub(crate) struct StateNotInit;
@@ -209,7 +215,7 @@ impl Handle<StateIsInit> {
         self.state.celestia_base_block_height()
     }
 
-    pub(crate) fn celestia_block_variance(&mut self) -> u32 {
+    pub(crate) fn celestia_block_variance(&mut self) -> u64 {
         self.state.celestia_block_variance()
     }
 }
@@ -448,6 +454,11 @@ impl Executor {
         self.blocks_pending_finalization
             .insert(block_number, executed_block);
 
+        // XXX: We set an absolute number value here to avoid any potential issues of the remote
+        // rollup state and the local state falling out of lock-step.
+        metrics::counter!(crate::metrics_init::EXECUTED_SOFT_BLOCK_NUMBER)
+            .absolute(block_number.into());
+
         Ok(())
     }
 
@@ -456,6 +467,7 @@ impl Executor {
         block.height = block.sequencer_height().value(),
     ))]
     async fn execute_firm(&mut self, block: ReconstructedBlock) -> eyre::Result<()> {
+        let celestia_height = block.celestia_height;
         let executable_block = ExecutableBlock::from_reconstructed(block);
         let expected_height = self.state.next_expected_firm_sequencer_height();
         let block_height = executable_block.height;
@@ -484,21 +496,21 @@ impl Executor {
                 .wrap_err("failed to execute block")?;
             self.does_block_response_fulfill_contract(ExecutionKind::Firm, &executed_block)
                 .wrap_err("execution API server violated contract")?;
-            Update::ToSame(executed_block)
+            Update::ToSame(executed_block, celestia_height)
         } else if let Some(block) = self.blocks_pending_finalization.remove(&block_number) {
             debug!(
                 block_number,
                 "found pending block in cache; updating state but not not re-executing it"
             );
-            Update::OnlyFirm(block)
+            Update::OnlyFirm(block, celestia_height)
         } else {
             debug!(
                 block_number,
                 "pending block not found for block number in cache. THIS SHOULD NOT HAPPEN. \
                  Trying to fetch the already-executed block from the rollup before giving up."
             );
-            match self.client.get_block(block_number).await {
-                Ok(block) => Update::OnlyFirm(block),
+            match self.client.get_block_with_retry(block_number).await {
+                Ok(block) => Update::OnlyFirm(block, celestia_height),
                 Err(error) => {
                     error!(
                         block_number,
@@ -516,6 +528,12 @@ impl Executor {
         self.update_commitment_state(update)
             .await
             .wrap_err("failed to setting both commitment states to executed block")?;
+
+        // XXX: We set an absolute number value here to avoid any potential issues of the remote
+        // rollup state and the local state falling out of lock-step.
+        metrics::counter!(crate::metrics_init::EXECUTED_FIRM_BLOCK_NUMBER)
+            .absolute(block_number.into());
+
         Ok(())
     }
 
@@ -540,11 +558,17 @@ impl Executor {
             ..
         } = block;
 
+        // allow: used for recording a histogram, which requires f64.
+        #[allow(clippy::cast_precision_loss)]
+        let n_transactions = transactions.len() as f64;
+
         let executed_block = self
             .client
-            .execute_block(parent_hash, transactions, timestamp)
+            .execute_block_with_retry(parent_hash, transactions, timestamp)
             .await
             .wrap_err("failed to run execute_block RPC")?;
+
+        metrics::histogram!(TRANSACTIONS_PER_EXECUTED_BLOCK).record(n_transactions);
 
         info!(
             executed_block.hash = %telemetry::display::base64(&executed_block.hash()),
@@ -561,7 +585,7 @@ impl Executor {
             async {
                 self.client
                     .clone()
-                    .get_genesis_info()
+                    .get_genesis_info_with_retry()
                     .await
                     .wrap_err("failed getting genesis info")
             }
@@ -570,7 +594,7 @@ impl Executor {
             async {
                 self.client
                     .clone()
-                    .get_commitment_state()
+                    .get_commitment_state_with_retry()
                     .await
                     .wrap_err("failed getting commitment state")
             }
@@ -579,6 +603,9 @@ impl Executor {
         self.state
             .try_init(genesis_info, commitment_state)
             .wrap_err("failed initializing state tracking")?;
+
+        metrics::counter!(EXECUTED_FIRM_BLOCK_NUMBER).absolute(self.state.firm_number().into());
+        metrics::counter!(EXECUTED_SOFT_BLOCK_NUMBER).absolute(self.state.soft_number().into());
         info!(
             initial_state = serde_json::to_string(&*self.state.get())
                 .expect("writing json to a string should not fail"),
@@ -594,19 +621,24 @@ impl Executor {
             OnlySoft,
             ToSame,
         };
-        let (firm, soft) = match update {
-            OnlyFirm(firm) => (firm, self.state.soft()),
-            OnlySoft(soft) => (self.state.firm(), soft),
-            ToSame(block) => (block.clone(), block),
+        let (firm, soft, celestia_height) = match update {
+            OnlyFirm(firm, celestia_height) => (firm, self.state.soft(), celestia_height),
+            OnlySoft(soft) => (
+                self.state.firm(),
+                soft,
+                self.state.celestia_base_block_height(),
+            ),
+            ToSame(block, celestia_height) => (block.clone(), block, celestia_height),
         };
         let commitment_state = CommitmentState::builder()
             .firm(firm)
             .soft(soft)
+            .base_celestia_height(celestia_height)
             .build()
             .wrap_err("failed constructing commitment state")?;
         let new_state = self
             .client
-            .update_commitment_state(commitment_state)
+            .update_commitment_state_with_retry(commitment_state)
             .await
             .wrap_err("failed updating remote commitment state")?;
         info!(
@@ -645,9 +677,9 @@ impl Executor {
 }
 
 enum Update {
-    OnlyFirm(Block),
+    OnlyFirm(Block, CelestiaHeight),
     OnlySoft(Block),
-    ToSame(Block),
+    ToSame(Block, CelestiaHeight),
 }
 
 #[derive(Debug)]
@@ -708,7 +740,7 @@ fn convert_tendermint_time_to_protobuf_timestamp(value: TendermintTime) -> pbjso
     }
 }
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 enum ExecutionKind {
     Firm,
     Soft,
@@ -725,15 +757,19 @@ impl std::fmt::Display for ExecutionKind {
 }
 
 #[derive(Debug, thiserror::Error)]
-#[error(
-    "contract violated: execution kind: {kind}, current block number {current}, expected \
-     {expected}, received {actual}"
-)]
-struct ContractViolation {
-    kind: ExecutionKind,
-    current: u32,
-    expected: u32,
-    actual: u32,
+enum ContractViolation {
+    #[error(
+        "contract violated: execution kind: {kind}, current block number {current}, expected \
+         {expected}, received {actual}"
+    )]
+    WrongBlock {
+        kind: ExecutionKind,
+        current: u32,
+        expected: u32,
+        actual: u32,
+    },
+    #[error("contract violated: current height cannot be incremented")]
+    CurrentBlockNumberIsMax { kind: ExecutionKind, actual: u32 },
 }
 
 fn does_block_response_fulfill_contract(
@@ -745,12 +781,17 @@ fn does_block_response_fulfill_contract(
         ExecutionKind::Firm => state.firm_number(),
         ExecutionKind::Soft => state.soft_number(),
     };
-    let expected = current + 1;
     let actual = block.number();
+    let expected = current
+        .checked_add(1)
+        .ok_or(ContractViolation::CurrentBlockNumberIsMax {
+            kind,
+            actual,
+        })?;
     if actual == expected {
         Ok(())
     } else {
-        Err(ContractViolation {
+        Err(ContractViolation::WrongBlock {
             kind,
             current,
             expected,

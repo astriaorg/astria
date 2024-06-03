@@ -56,7 +56,7 @@ fn display(
     let mut level = 0;
     write_layer(level, error, f)?;
     while let Some(cause) = error.source() {
-        level += 1;
+        level = level.saturating_add(1);
         f.write_str(", ")?;
         write_layer(level, cause, f)?;
         error = cause;
