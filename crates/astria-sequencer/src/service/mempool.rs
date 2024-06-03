@@ -48,7 +48,7 @@ use crate::{
 
 // TODO make these config configurable
 const MAX_TX_SIZE: usize = 256_000; // 256 KB
-const CACHE_SIZE: usize = 4600;
+const CACHE_SIZE: usize = 16384;
 const CACHE_TTL: i64 = 60; // 60 seconds 
 
 /// `TxCache` provides for keeping `CometBFT`'s mempool clean.
@@ -82,7 +82,6 @@ impl TxCache {
         }
     }
 
-    // returns
     fn cached(&self, tx_hash: [u8; 32]) -> bool {
         // the tx is known and entry hasn't expired
         self.cache.contains(&tx_hash)
@@ -95,8 +94,7 @@ impl TxCache {
     fn add(&mut self, tx_hash: [u8; 32]) {
         if self.cache.contains(&tx_hash) {
             // update time to live if already exists
-            // note: this doesn't change the tx's position in the remove vector,
-            // this should be fine as correct remove ordering isn't a security matter
+            // note: this doesn't change the tx's position in the remove vector
             self.time_added
                 .insert(tx_hash, Time::now().unix_timestamp());
             return;
