@@ -276,9 +276,9 @@ impl RunningReader {
         let sequencer_namespace =
             astria_core::celestia::namespace_v0_from_sha256_of_bytes(sequencer_chain_id.as_bytes());
 
-        let celestia_next_height = executor.celestia_base_block_height().value();
-        let celestia_reference_height = executor.celestia_base_block_height().value();
-        let celestia_variance = executor.celestia_block_variance().into();
+        let celestia_next_height = executor.celestia_base_block_height();
+        let celestia_reference_height = executor.celestia_base_block_height();
+        let celestia_variance = executor.celestia_block_variance();
 
         Ok(Self {
             block_cache,

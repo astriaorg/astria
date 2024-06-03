@@ -27,7 +27,7 @@ enum GenesisInfoErrorKind {
     IncorrectRollupIdLength(IncorrectRollupIdLength),
 }
 
-/// Genesis Info required from a rollup to start a an execution client.
+/// Genesis Info required from a rollup to start an execution client.
 ///
 /// Contains information about the rollup id, and base heights for both sequencer & celestia.
 ///
@@ -44,11 +44,8 @@ pub struct GenesisInfo {
     rollup_id: RollupId,
     /// The Sequencer block height which contains the first block of the rollup.
     sequencer_genesis_block_height: tendermint::block::Height,
-    /// The first Celestia height within which to look for Sequencer and Rollup blobs for the
-    /// rollup.
-    celestia_base_block_height: celestia_tendermint::block::Height,
     /// The allowed variance in the block height of celestia when looking for sequencer blocks.
-    celestia_block_variance: u32,
+    celestia_block_variance: u64,
 }
 
 impl GenesisInfo {
@@ -63,12 +60,7 @@ impl GenesisInfo {
     }
 
     #[must_use]
-    pub fn celestia_base_block_height(&self) -> celestia_tendermint::block::Height {
-        self.celestia_base_block_height
-    }
-
-    #[must_use]
-    pub fn celestia_block_variance(&self) -> u32 {
+    pub fn celestia_block_variance(&self) -> u64 {
         self.celestia_block_variance
     }
 }
@@ -87,7 +79,6 @@ impl Protobuf for GenesisInfo {
         let raw::GenesisInfo {
             rollup_id,
             sequencer_genesis_block_height,
-            celestia_base_block_height,
             celestia_block_variance,
         } = raw;
         let rollup_id =
@@ -96,7 +87,6 @@ impl Protobuf for GenesisInfo {
         Ok(Self {
             rollup_id,
             sequencer_genesis_block_height: (*sequencer_genesis_block_height).into(),
-            celestia_base_block_height: (*celestia_base_block_height).into(),
             celestia_block_variance: *celestia_block_variance,
         })
     }
@@ -105,7 +95,6 @@ impl Protobuf for GenesisInfo {
         let Self {
             rollup_id,
             sequencer_genesis_block_height,
-            celestia_base_block_height,
             celestia_block_variance,
         } = self;
 
@@ -114,15 +103,9 @@ impl Protobuf for GenesisInfo {
                 "block height overflow, this should not happen since tendermint heights are i64 \
                  under the hood",
             );
-        let celestia_base_block_height: u32 =
-            (*celestia_base_block_height).value().try_into().expect(
-                "block height overflow, this should not happen since tendermint heights are i64 \
-                 under the hood",
-            );
         Self::Raw {
             rollup_id: Bytes::copy_from_slice(rollup_id.as_ref()),
             sequencer_genesis_block_height,
-            celestia_base_block_height,
             celestia_block_variance: *celestia_block_variance,
         }
     }
@@ -284,47 +267,76 @@ pub struct FirmExceedsSoft {
 
 pub struct NoFirm;
 pub struct NoSoft;
+pub struct NoBaseCelestiaHeight;
 pub struct WithFirm(Block);
 pub struct WithSoft(Block);
-
+pub struct WithCelestiaBaseHeight(u64);
 #[derive(Default)]
-pub struct CommitmentStateBuilder<TFirm = NoFirm, TSoft = NoSoft> {
+pub struct CommitmentStateBuilder<
+    TFirm = NoFirm,
+    TSoft = NoSoft,
+    TBaseCelestiaHeight = NoBaseCelestiaHeight,
+> {
     firm: TFirm,
     soft: TSoft,
+    base_celestia_height: TBaseCelestiaHeight,
 }
 
-impl CommitmentStateBuilder<NoFirm, NoSoft> {
+impl CommitmentStateBuilder<NoFirm, NoSoft, NoBaseCelestiaHeight> {
     fn new() -> Self {
         Self {
             firm: NoFirm,
             soft: NoSoft,
+            base_celestia_height: NoBaseCelestiaHeight,
         }
     }
 }
 
-impl<TFirm, TSoft> CommitmentStateBuilder<TFirm, TSoft> {
-    pub fn firm(self, firm: Block) -> CommitmentStateBuilder<WithFirm, TSoft> {
+impl<TFirm, TSoft, TCelestiaBaseHeight> CommitmentStateBuilder<TFirm, TSoft, TCelestiaBaseHeight> {
+    pub fn firm(self, firm: Block) -> CommitmentStateBuilder<WithFirm, TSoft, TCelestiaBaseHeight> {
         let Self {
-            soft, ..
+            soft,
+            base_celestia_height,
+            ..
         } = self;
         CommitmentStateBuilder {
             firm: WithFirm(firm),
             soft,
+            base_celestia_height,
         }
     }
 
-    pub fn soft(self, soft: Block) -> CommitmentStateBuilder<TFirm, WithSoft> {
+    pub fn soft(self, soft: Block) -> CommitmentStateBuilder<TFirm, WithSoft, TCelestiaBaseHeight> {
         let Self {
-            firm, ..
+            firm,
+            base_celestia_height,
+            ..
         } = self;
         CommitmentStateBuilder {
             firm,
             soft: WithSoft(soft),
+            base_celestia_height,
+        }
+    }
+
+    pub fn base_celestia_height(
+        self,
+        base_celestia_height: u64,
+    ) -> CommitmentStateBuilder<TFirm, TSoft, WithCelestiaBaseHeight> {
+        let Self {
+            firm,
+            soft,
+            ..
+        } = self;
+        CommitmentStateBuilder {
+            firm,
+            soft,
+            base_celestia_height: WithCelestiaBaseHeight(base_celestia_height),
         }
     }
 }
 
-impl CommitmentStateBuilder<WithFirm, WithSoft> {
+impl CommitmentStateBuilder<WithFirm, WithSoft, WithCelestiaBaseHeight> {
     /// Finalize the commitment state.
     ///
     /// # Errors
@@ -333,6 +345,7 @@ impl CommitmentStateBuilder<WithFirm, WithSoft> {
         let Self {
             firm: WithFirm(firm),
             soft: WithSoft(soft),
+            base_celestia_height: WithCelestiaBaseHeight(base_celestia_height),
         } = self;
         if firm.number() > soft.number() {
             return Err(FirmExceedsSoft {
@@ -343,6 +356,7 @@ impl CommitmentStateBuilder<WithFirm, WithSoft> {
         Ok(CommitmentState {
             soft,
             firm,
+            base_celestia_height,
         })
     }
 }
@@ -364,6 +378,9 @@ pub struct CommitmentState {
     soft: Block,
     /// Firm commitment is achieved when data has been seen in DA.
     firm: Block,
+    /// The base height of celestia from which to search for blocks after this
+    /// commitment state.
+    base_celestia_height: u64,
 }
 
 impl CommitmentState {
@@ -381,6 +398,10 @@ impl CommitmentState {
     pub fn soft(&self) -> &Block {
         &self.soft
     }
+
+    pub fn base_celestia_height(&self) -> u64 {
+        self.base_celestia_height
+    }
 }
 
 impl From<CommitmentState> for raw::CommitmentState {
@@ -397,6 +418,7 @@ impl Protobuf for CommitmentState {
         let Self::Raw {
             soft,
             firm,
+            base_celestia_height,
         } = raw;
         let soft = 'soft: {
             let Some(soft) = soft else {
@@ -410,9 +432,11 @@ impl Protobuf for CommitmentState {
             };
             Block::try_from_raw_ref(firm).map_err(Self::Error::firm)
         }?;
+
         Self::builder()
             .firm(firm)
             .soft(soft)
+            .base_celestia_height(*base_celestia_height)
             .build()
             .map_err(Self::Error::firm_exceeds_soft)
     }
@@ -421,12 +445,15 @@ impl Protobuf for CommitmentState {
         let Self {
             soft,
             firm,
+            base_celestia_height,
         } = self;
         let soft = soft.to_raw();
         let firm = firm.to_raw();
+        let base_celestia_height = *base_celestia_height;
         Self::Raw {
             soft: Some(soft),
             firm: Some(firm),
+            base_celestia_height,
         }
     }
 }
