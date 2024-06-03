@@ -62,7 +62,7 @@ const CACHE_TTL: i64 = 60; // 60 seconds
 /// that failed to execute.
 #[derive(Clone)]
 pub(crate) struct TxCache {
-    map: HashSet<[u8; 32]>,
+    cache: HashSet<[u8; 32]>,
     time_added: HashMap<[u8; 32], i64>,
     remove_queue: VecDeque<[u8; 32]>,
     max_size: usize,
@@ -73,7 +73,7 @@ pub(crate) struct TxCache {
 impl TxCache {
     fn new(max_size: usize, time_to_live: i64) -> Self {
         Self {
-            map: HashSet::new(),
+            cache: HashSet::new(),
             time_added: HashMap::new(),
             remove_queue: VecDeque::with_capacity(max_size),
             max_size,
@@ -85,7 +85,7 @@ impl TxCache {
     // returns
     fn cached(&self, tx_hash: [u8; 32]) -> bool {
         // the tx is known and entry hasn't expired
-        self.map.contains(&tx_hash)
+        self.cache.contains(&tx_hash)
             && (Time::now().unix_timestamp()
                 <= self.time_added[&tx_hash]
                     .checked_add(self.time_to_live)
@@ -93,7 +93,7 @@ impl TxCache {
     }
 
     fn add(&mut self, tx_hash: [u8; 32]) {
-        if self.map.contains(&tx_hash) {
+        if self.cache.contains(&tx_hash) {
             // update time to live if already exists
             // note: this doesn't change the tx's position in the remove vector,
             // this should be fine as correct remove ordering isn't a security matter
@@ -107,13 +107,13 @@ impl TxCache {
                 .remove_queue
                 .pop_front()
                 .expect("cache should contain elements");
-            self.map.remove(&removed_tx);
+            self.cache.remove(&removed_tx);
             self.time_added.remove(&removed_tx);
         } else {
             self.size = self.size.checked_add(1).expect("cache size overflowed");
         }
         self.remove_queue.push_back(tx_hash);
-        self.map.insert(tx_hash);
+        self.cache.insert(tx_hash);
         self.time_added
             .insert(tx_hash, Time::now().unix_timestamp());
     }
@@ -336,11 +336,11 @@ mod test {
         tx_cache.add(tx_2);
         assert!(
             tx_cache.cached(tx_1),
-            "2nd transaction was added, should be cached"
+            "second transaction was added, should be cached"
         );
         assert!(
             tx_cache.cached(tx_2),
-            "3rd transaction was added, should be cached"
+            "third transaction was added, should be cached"
         );
         assert!(
             !tx_cache.cached(tx_0),
