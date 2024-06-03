@@ -40,6 +40,8 @@ impl<'a, TLeaf, TRoot> LeafBuilder<'a, TLeaf, TRoot> {
     }
 
     /// Write `bytes` into the leaf builder.
+    #[must_use = "the leaf builder must be completed using `LeafBuilder::finish_leaf` to continue \
+                  the merkle path audit"]
     pub fn write(mut self, bytes: &[u8]) -> Self {
         self.hasher.update(bytes);
         self
