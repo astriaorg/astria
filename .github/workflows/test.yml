@@ -121,6 +121,7 @@ jobs:
         if: success() || failure()
         with:
           report_paths: 'target/nextest/ci/junit.xml'
+          include_passed: true
 
   rust-ethereum:
     runs-on: buildjet-8vcpu-ubuntu-2204
