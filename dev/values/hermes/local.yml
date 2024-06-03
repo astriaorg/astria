@@ -34,7 +34,8 @@ chains:
       interval: 1s
     gasPrice: 1
     gasDenom: nria
-    trustThreshold: 1/3
+    trustThreshold: 2/3
+    trustingPeriod: 14days
 
   celestia-local-0:
     type: CosmosSdk
@@ -71,4 +72,5 @@ chains:
     maxTxSize: "2097152"
     clockDrift: 5s
     maxBlockTime: 30s
-    trustThreshold: 1/3
+    trustThreshold: 2/3
+    trustingPeriod: 14days
