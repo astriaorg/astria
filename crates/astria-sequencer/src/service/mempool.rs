@@ -51,7 +51,7 @@ const MAX_TX_SIZE: usize = 256_000; // 256 KB
 const CACHE_SIZE: usize = 4600;
 const CACHE_TTL: i64 = 60; // 60 seconds 
 
-/// `TxCache`` provides for keeping `CometBFT`'s mempool clean.
+/// `TxCache` provides for keeping `CometBFT`'s mempool clean.
 //
 /// Since we're now using an app side mempool, we can remove
 /// transactions from this mempool once we've placed them there.
@@ -304,10 +304,10 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
     response::CheckTx::default()
 }
 
+#[cfg(test)]
 mod test {
     use std::time::Duration;
 
-    use tendermint::Time;
     use tokio::time;
 
     use crate::service::mempool::TxCache;
