@@ -1,10 +1,6 @@
 # Override value example for second validator from main chart
-global:
-  dev: true
-
 config:
   moniker: 'node1'
-
   # Values for CometBFT node configuration
   cometBFT:
     secrets:

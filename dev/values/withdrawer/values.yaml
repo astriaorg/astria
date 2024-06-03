@@ -7,60 +7,39 @@ global:
   # Whether to use tty readable logging for astria services, when false use json.
   # Best to be false in production environments, true for clean logs on local dev.
   useTTY: true
-  dev: false
-
-# sequencer core images
-images:
-  sequencerRelayer:
-    repo: ghcr.io/astriaorg/sequencer-relayer
-    tag: "0.14.0"
-    devTag: latest
+  dev: true
 
 config:
-  relayer:
-    sequencerChainId: ""
-    celestiaChainId: ""
-    celestiaAppGrpc: ""
-    cometbftRpc: ""
-    sequencerGrpc: ""
-    onlyIncludeRollups: ""
-
-    metrics:
-      enabled: false
-
-    otel:
-      enabled: false
-      serviceName: "astria-sequencer-relayer"
-      endpoint:
-      tracesEndpoint:
-      tracesCompression: gzip
-      tracesTimeout: 10
-      otlpHeaders:
-      traceHeaders:
-
-  celestiaAppPrivateKey:
-    devContent: ""
-    secret:
-      filename: "key.hex"
-      resourceName: "projects/$PROJECT_ID/secrets/celestiaPrivateKey/versions/latest"
+  sequencerCometBftEndpoint: "http://node0-sequencer-rpc-service.astria-dev-cluster.svc.cluster.local:26657"
+  sequencerChainId: "sequencer-test-chain-0"
+  feeAssetDenom: "nria"
+  rollupAssetDenom: "nria"
+  evmContractAddress: "0xA58639fB5458e65E4fA917FF951C390292C24A15"
+  evmRpcEndpoint: "ws://astria-evm-service.astria-dev-cluster.svc.cluster.local:8546/"
+  sequencerPrivateKey:
+    devContent: "dfa7108e38ab71f89f356c72afc38600d5758f11a8c337164713e4471411d2e0"
 ports:
-  healthAPI: 2450
+  bridgeWithdrawRpc: 2450
   metrics: 9000
+
+metrics:
+  enabled: false
+
+otel:
+  enabled: false
+  serviceName: "astria-evm-withdrawer"
+  endpoint:
+  tracesEndpoint:
+  tracesCompression: gzip
+  tracesTimeout: 10
+  otlpHeaders:
+  traceHeaders:
 
 serviceMonitor:
   enabled: false
   port: 26660
   additionalLabels:
     release: kube-prometheus-stack
-
-storage:
-  enabled: false
-  local: true
-  entities:
-    sequencerRelayerStorage:
-      size: "1Gi"
-      persistentVolumeName: "sequencer-relayer-storage"
-      path: "/data/sequencer-relayer-data"
 
 # When deploying in a production environment should use a secret provider
 # This is configured for use with GCP, need to set own resource names

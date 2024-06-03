@@ -41,15 +41,27 @@ jobs:
     needs: run_checker
     if: github.ref_name == 'main' && needs.run_checker.outputs.run_release_charts == 'true'
     steps:
-      - name: Checkout Repo
+      - name: Checkout Mono Repo
         uses: actions/checkout@v4
+        with:
+          path: 'mono'
+      - name: Checkout Mono Repo
+        uses: actions/checkout@v4
+        with:
+          repository: astriaorg/charts
+          path: 'charts'
+      - name: Copy Updates to Charts Repo
+        run: |
+          rsync -a --delete mono/charts/ charts/charts/ --exclude=charts/README.md
+          rsync -a --delete mono/charts/README.md charts/README.md
+          rsync -a --delete mono/dev/ charts/dev/
       - name: Publish to Charts Repo
         uses: cpina/github-action-push-to-another-repository@v1.7.2
         env:
           API_TOKEN_GITHUB: ${{ secrets.CHARTS_REPO_TOKEN }}
         with:
           source-directory: 'charts/'
-          target-directory: 'charts/'
+          target-directory: '.'
           target-branch: 'main'
           destination-github-username: 'astriaorg'
           destination-repository-name: 'charts'

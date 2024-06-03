@@ -8,6 +8,9 @@ deploy tool *ARGS:
 delete tool *ARGS:
   @just delete-{{tool}} {{ARGS}}
 
+init tool *ARGS:
+  @just init-{{tool}} {{ARGS}}
+
 load-image image:
   kind load docker-image {{image}} --name astria-dev-cluster
 
@@ -61,8 +64,9 @@ wait-for-ingress-controller:
 validatorName := "single"
 deploy-sequencer name=validatorName:
   helm dependency update charts/sequencer > /dev/null
-  helm install --debug \
-    {{ replace('-f dev/values/validators/#.yml' , '#', name) }} \
+  helm install \
+    -f dev/values/validators/all.yml \
+    -f dev/values/validators/{{name}}.yml \
     -n astria-validator-{{name}} --create-namespace \
     {{name}}-sequencer-chart ./charts/sequencer
 deploy-sequencers: (deploy-sequencer "node0") (deploy-sequencer "node1") (deploy-sequencer "node2")
@@ -111,6 +115,15 @@ deploy-dev-rollup rollupName=defaultRollupName networkId=defaultNetworkId genesi
 delete-rollup rollupName=defaultRollupName:
   @just delete chart {{rollupName}}-chain
 
+deploy-bridge-withdrawer:
+  helm install evm-bridge-withdrawer-chart ./charts/evm-bridge-withdrawer \
+    --namespace astria-dev-cluster \
+    -f dev/values/withdrawer/values.yaml
+
+delete-bridge-withdrawer:
+  @just delete chart evm-bridge-withdrawer astria-dev-cluster
+
+
 wait-for-rollup rollupName=defaultRollupName:
   kubectl rollout status --watch statefulset/{{rollupName}}-geth -n astria-dev-cluster --timeout=600s
 
@@ -147,6 +160,7 @@ deploy-smoke-test tag=defaultTag:
   @helm dependency update charts/evm-rollup > /dev/null
   @echo "Setting up single astria sequencer..." && helm install \
     -n astria-validator-single single-sequencer-chart ./charts/sequencer \
+    -f dev/values/validators/all.yml \
     -f dev/values/validators/single.yml \
     {{ if tag != '' { replace('--set images.sequencer.devTag=# --set sequencer-relayer.images.sequencerRelayer.devTag=#', '#', tag) } else { '' } }} \
     --create-namespace > /dev/null
@@ -156,71 +170,173 @@ deploy-smoke-test tag=defaultTag:
     --set config.blockscout.enabled=false \
     --set config.faucet.enabled=false > /dev/null
   @just wait-for-rollup > /dev/null
-  @sleep 15
+  @echo "Starting Bridge Withdrawer..." && helm install -n astria-dev-cluster evm-bridge-withdrawer-chart ./charts/evm-bridge-withdrawer \
+    -f dev/values/withdrawer/values.yaml \
+    {{ if tag != '' { replace('--set images.evmBridgeWithdrawer.devTag=#', '#', tag) } else { '' } }} > /dev/null
+  @kubectl wait -n astria-dev-cluster deployment evm-bridge-withdrawer --for=condition=Available=True --timeout=600s
 
+
+evm_destination_address := "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
+# 1 RIA is 10^9 nRIA
+sequencer_base_amount := "1000000000"
+# RIA is 10^9, WEI is 10^18, 10^9 * 10^9 = 10^18
+rollup_multiplier := "1000000000"
+# 10 RIA
+sequencer_transfer_amount := "10"
+sequencer_rpc_url := "http://rpc.sequencer.localdev.me"
+init-rollup-bridge rollupName=defaultRollupName evmDestinationAddress=evm_destination_address transferAmount=sequencer_transfer_amount:
+  #!/usr/bin/env bash
+  SEQUENCER_BRIDGE_PKEY="dfa7108e38ab71f89f356c72afc38600d5758f11a8c337164713e4471411d2e0"
+  SEQUENCER_FUNDS_PKEY="934ab488f9e1900f6a08f50605ce1409ca9d95ebdc400dafc2e8a4306419fd52"
+  SEQUENCER_BRIDGE_ADDRESS="8f6e015432027649d8a4f8c0caa5d9a969e3282f"
+  SEQUENCER_CHAIN_ID="sequencer-test-chain-0"
+  ASSET_ID="nria"
+  FEE_ASSET_ID="nria"
+  TRANSFER_AMOUNT=$(echo "{{transferAmount}} * {{sequencer_base_amount}}" | bc)
+
+  astria-go sequencer bridge init {{rollupName}} \
+    --privkey $SEQUENCER_BRIDGE_PKEY \
+    --sequencer-chain-id $SEQUENCER_CHAIN_ID \
+    --sequencer-url {{sequencer_rpc_url}} \
+    --fee-asset-id=$FEE_ASSET_ID --asset-id=$ASSET_ID \
+    --json
+
+  astria-go sequencer bridge lock \
+    $TRANSFER_AMOUNT $SEQUENCER_BRIDGE_ADDRESS {{evmDestinationAddress}} \
+    --privkey $SEQUENCER_FUNDS_PKEY \
+    --sequencer-chain-id $SEQUENCER_CHAIN_ID \
+    --sequencer-url {{sequencer_rpc_url}} \
+    --fee-asset-id=$FEE_ASSET_ID --asset-id=$ASSET_ID \
+    --json
+
+
+eth_rpc_url := "http://executor.astria.localdev.me/"
+bridge_tx_bytes := "0xf891808440fe1bec827f4f94a58639fb5458e65e4fa917ff951c390292c24a15880de0b6b3a7640000a49a977afe000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266820a96a0799a660d837e0098074782a8f0753f285d63554f3053c9ae30f72eed25749e7fa013bd74717f58cdc02b5dc72b343761271ee89e53c37151af3ed828c2a39bc159"
+bridge_tx_hash := "0xab86232432f9a96d1caa401872226dc04ed683f9d8e6d85de5ebc3553e6a0158"
 run-smoke-test:
   #!/usr/bin/env bash
-  ETH_RPC_URL="http://executor.astria.localdev.me/"
-  MAX_RUNS=30
-  echo "Testing Transfer..."
-  TRANSFER_RUNS=0
-  EXPECTED_BALANCE=1000000000000000000
-  curl -X POST $ETH_RPC_URL -s -d '{"jsonrpc":"2.0","method":"eth_sendRawTransaction","params":["0xf86d80843c54e7f182520894830b0e9bb0b1ebad01f2805278ede64c69e068fe880de0b6b3a764000080820a96a045cac19cec50c92e356c665172ec70de5f3cd3721ba09bf3cbad1976d3e83487a00ff4d49607db9ac3c4bb71160be41600f8d1b56ac20b092c0e042f0d226e5277"],"id":1}' -H 'Content-Type: application/json' -s
-  balance() {
-    HEX_NUM=$(curl -X POST $ETH_RPC_URL -s -d '{"jsonrpc":"2.0","method":"eth_getBalance","params":["0x830B0e9Bb0B1ebad01F2805278Ede64c69e068FE", "latest"],"id":1}' -H 'Content-Type: application/json' | jq -r '.result')
-    echo "$(printf "%d" $HEX_NUM)"
-  }
-  while [ $TRANSFER_RUNS -lt $MAX_RUNS ]; do
-    if [ $(balance) -eq $EXPECTED_BALANCE ]; then
-      echo "Transfer success"
-      break
-    else
-      sleep 1
-    fi
-    TRANSFER_RUNS=$((TRANSFER_RUNS+1))
-  done
-  if [ $TRANSFER_RUNS -eq $MAX_RUNS ]; then
-    echo "Transfer failure"
+  MAX_CHECKS=30
+
+  # Checking starting balance
+  BALANCE=$(just evm-get-balance {{evm_destination_address}})
+  if [ $BALANCE -ne 0 ]; then
+    echo "Starting balance is not correct"
     exit 1
   fi
 
-  echo "Testing soft commits..."
-  SOFT_RUNS=0
-  soft() {
-    HEX_NUM=$(curl -X POST $ETH_RPC_URL -s -d '{"jsonrpc":"2.0","method":"eth_getBlockByNumber","params":["safe", false],"id":1}' -H 'Content-Type: application/json' | jq -r '.result.number')
-    echo "$(printf "%d" $HEX_NUM)"
-  }
-  while [ $SOFT_RUNS -lt $MAX_RUNS ]; do
-    if [ $(soft) -gt 0 ]; then
-      echo "Soft commit success"
+  echo "Testing Bridge In..."
+  just init rollup-bridge
+  CHECKS=0
+  EXPECTED_BALANCE=$(echo "{{sequencer_transfer_amount}} * {{sequencer_base_amount}} * {{rollup_multiplier}}" | bc)
+  while [ $CHECKS -lt $MAX_CHECKS ]; do
+    CHECKS=$((CHECKS+1))
+    BALANCE=$(just evm-get-balance {{evm_destination_address}})
+    echo "Check $CHECKS, Balance: $BALANCE, Expected: $EXPECTED_BALANCE"
+    if [ "$BALANCE" == "$EXPECTED_BALANCE" ]; then
+      echo "Bridge In success"
       break
     else
       sleep 1
     fi
-    SOFT_RUNS=$((SOFT_RUNS+1))
   done
+  if [ $CHECKS -eq $MAX_CHECKS ]; then
+    echo "Bridge In failure"
+    exit 1
+  fi
 
-  echo "Testing finalization..."
-  FINALIZED_RUNS=0
-  finalized() {
-    HEX_NUM=$(curl -X POST $ETH_RPC_URL -s -d '{"jsonrpc":"2.0","method":"eth_getBlockByNumber","params":["finalized", false],"id":1}' -H 'Content-Type: application/json' | jq -r '.result.number')
-    echo "$(printf "%d" $HEX_NUM)"
-  }
-  while [ $FINALIZED_RUNS -lt $MAX_RUNS ]; do
-    FINAL=$(finalized)
-    if [ $FINAL -gt 0 ]; then
-      echo "Finalized success"
-      exit 0
+  echo "Testing Bridge Out..."
+  just evm-send-raw-transaction {{bridge_tx_bytes}}
+  TRANSFERED_BALANCE=$(echo "1 * {{sequencer_base_amount}} * {{rollup_multiplier}}" | bc)
+  EXPECTED_BALANCE=$(echo "$EXPECTED_BALANCE - $TRANSFERED_BALANCE" | bc)
+  CHECKS=0
+  while [ $CHECKS -lt $MAX_CHECKS ]; do
+    CHECKS=$((CHECKS+1))
+    BALANCE=$(just evm-get-balance {{evm_destination_address}})
+    echo "Check $CHECKS, Balance: $BALANCE, Expected: $EXPECTED_BALANCE"
+    if [ "$BALANCE" == "$EXPECTED_BALANCE" ]; then
+      echo "Bridge Out EVM success"
+      break
     else
       sleep 1
     fi
-    echo "Finalized block: $FINAL, Check number: $FINALIZED_RUNS"
-    FINALIZED_RUNS=$((FINALIZED_RUNS+1))
   done
-  echo "Finalization failure"
-  exit 1
+  if [ $CHECKS -eq $MAX_CHECKS ]; then
+    echo "Bridge Out EVM failure"
+    exit 1
+  fi
+  CHECKS=0
+  EXPECTED_BALANCE=$(echo "1 * {{sequencer_base_amount}}" | bc)
+  while [ $CHECKS -lt $MAX_CHECKS ]; do
+    CHECKS=$((CHECKS+1))
+    BALANCE=$(astria-go sequencer balances f39Fd6e51aad88F6F4ce6aB8827279cffFb92266 --sequencer-url {{sequencer_rpc_url}} --json | jq '.[0].balance')
+    echo "Check $CHECKS, Balance: $BALANCE, Expected: $EXPECTED_BALANCE"
+    if [ "$BALANCE" == "$EXPECTED_BALANCE" ]; then
+      echo "Bridge Out Sequencer success"
+      break
+    else
+      sleep 1
+    fi
+  done
+  if [ $CHECKS -eq $MAX_CHECKS ]; then
+    echo "Bridge Out Sequencer failure"
+    exit 1
+  fi
+
+  echo "Testing TX Finalization"
+  CHECKS=0
+  BLOCK_NUM_HEX=$(just evm-get-transaction-receipt {{bridge_tx_hash}} | jq -r '.blockNumber')
+  BLOCK_NUM=$(just hex-to-dec $BLOCK_NUM_HEX)
+  while [ $CHECKS -lt $MAX_CHECKS ]; do
+    CHECKS=$((CHECKS+1))
+    FINALIZED_BLOCK=$(just evm-get-block-by-number finalized | jq -r '.number')
+    FINALIZED_BLOCK=$(just hex-to-dec $FINALIZED_BLOCK)
+    echo "Check $CHECKS, Finalized block: $FINALIZED_BLOCK, Expected: $BLOCK_NUM"
+    if [ $FINALIZED_BLOCK -ge $BLOCK_NUM ]; then
+      echo "Finalization success"
+      break
+    else
+      sleep 1
+    fi
+  done
+  if [ $CHECKS -eq $MAX_CHECKS ]; then
+    echo "Bridge Out Sequencer failure"
+    exit 1
+  fi
+  exit 0
 
 delete-smoke-test:
   just delete celestia-local
   just delete sequencer
   just delete rollup
+  just delete bridge-withdrawer
+
+evm-get-deployed-contract-code contractAddress rpcUrl=eth_rpc_url:
+  #!/usr/bin/env bash
+  curl -X POST {{eth_rpc_url}} -s -d '{"jsonrpc":"2.0","method":"eth_getCode","params":["{{contractAddress}}", "latest"],"id":1}' -H 'Content-Type: application/json' | jq -r '.result'
+
+evm-get-transaction-receipt txHash rpcUrl=eth_rpc_url:
+  #!/usr/bin/env bash
+  curl -X POST {{eth_rpc_url}} -s -d '{"jsonrpc":"2.0","method":"eth_getTransactionReceipt","params":["{{txHash}}"],"id":1}' -H 'Content-Type: application/json' | jq '.result'
+
+evm-get-raw-transaction txHash rpcUrl=eth_rpc_url:
+  #!/usr/bin/env bash
+  curl -X POST {{eth_rpc_url}} -s -d '{"jsonrpc":"2.0","method":"eth_getRawTransactionByHash","params":["{{txHash}}"],"id":1}' -H 'Content-Type: application/json' | jq '.result'
+
+evm-send-raw-transaction txData rpcUrl=eth_rpc_url:
+  #!/usr/bin/env bash
+  curl -X POST {{eth_rpc_url}} -s -d '{"jsonrpc":"2.0","method":"eth_sendRawTransaction","params":["{{txData}}"],"id":1}' -H 'Content-Type: application/json'
+
+evm-get-block-by-number blockNumber rpcUrl=eth_rpc_url:
+  #!/usr/bin/env bash
+  curl -X POST {{eth_rpc_url}} -s -d '{"jsonrpc":"2.0","method":"eth_getBlockByNumber","params":["{{blockNumber}}", false],"id":1}' -H 'Content-Type: application/json' | jq '.result'
+
+evm-get-balance address rpcUrl=eth_rpc_url:
+  #!/usr/bin/env bash
+  HEX_NUM=$(curl -X POST {{eth_rpc_url}} -s -d '{"jsonrpc":"2.0","method":"eth_getBalance","params":["{{address}}", "latest"],"id":1}' -H 'Content-Type: application/json' | jq -r '.result')
+  echo $(just hex-to-dec $HEX_NUM)
+
+hex-to-dec hex:
+  #!/usr/bin/env bash
+  HEX_NUM={{hex}}
+  CLEAN_HEX=$(echo "${HEX_NUM#0x}" | tr 'a-z' 'A-Z')
+  echo $(echo "ibase=16; $CLEAN_HEX" | bc)
