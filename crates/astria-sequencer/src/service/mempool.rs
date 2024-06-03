@@ -124,6 +124,7 @@ impl TxCache {
 /// It performs a stateless check of the given transaction,
 /// returning a [`tendermint::v0_38::abci::response::CheckTx`].
 #[derive(Clone)]
+#[allow(clippy::struct_field_names)]
 pub(crate) struct Mempool {
     storage: Storage,
     mempool: AppMempool,
