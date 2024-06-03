@@ -115,7 +115,12 @@ jobs:
       - name: Run tests
         timeout-minutes: 20
         run: |
-          cargo nextest run --archive-file=archive.tar.zst
+          cargo nextest run --profile ci --archive-file=archive.tar.zst
+      - name: Publish test report
+        uses: mikepenz/action-junit-report@v4
+        if: success() || failure()
+        with:
+          report_paths: 'target/nextest/ci/junit.xml'
 
   rust-ethereum:
     runs-on: buildjet-8vcpu-ubuntu-2204
