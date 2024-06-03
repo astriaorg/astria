@@ -17,7 +17,7 @@ images:
     devTag: v0.38.6
   sequencer:
     repo: ghcr.io/astriaorg/sequencer
-    tag: "0.13.0"
+    tag: 0.13.0
     devTag: latest
 
 config:
@@ -38,14 +38,14 @@ config:
     # Note large balances must be strings support templating with the u128 size account balances
     genesisAccounts:
     - address: 1c0c490f1b5528d8173c5de46d131160e4b2c0c3
-      balance: "340282366920938463463374607431768211455"
+      balance: "333333333333333333"
     - address: 34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a
-      balance: "340282366920938463463374607431768211455"
+      balance: "333333333333333333"
     - address: 60709e2d391864b732b4f0f51e387abb76743871
-      balance: "340282366920938463463374607431768211455"
+      balance: "333333333333333333"
       # NOTE - the following address matches the privKey that funds the sequencer-faucet
     - address: 00d75b270542084a54fcf0d0f6eab0402982d156
-      balance: "340282366920938463463374607431768211455"
+      balance: "333333333333333333"
 
     metrics:
       enabled: false
