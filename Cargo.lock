@@ -600,7 +600,7 @@ dependencies = [
 
 [[package]]
 name = "astria-conductor"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "astria-build-info",
  "astria-config",
