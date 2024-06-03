@@ -57,6 +57,8 @@ impl From<&asset::Id> for AssetId {
 struct Fee(u128);
 
 const BRIDGE_ACCOUNT_PREFIX: &str = "bridgeacc";
+const BRIDGE_ACCOUNT_SUDO_PREFIX: &str = "bsudo";
+const BRIDGE_ACCOUNT_WITHDRAWER_PREFIX: &str = "bwithdrawer";
 const DEPOSIT_PREFIX: &str = "deposit";
 const INIT_BRIDGE_ACCOUNT_BASE_FEE_STORAGE_KEY: &str = "initbridgeaccfee";
 const BRIDGE_LOCK_BYTE_COST_MULTIPLIER_STORAGE_KEY: &str = "bridgelockmultiplier";
@@ -83,6 +85,14 @@ fn deposit_storage_key(rollup_id: &RollupId, nonce: u32) -> Vec<u8> {
 
 fn deposit_nonce_storage_key(rollup_id: &RollupId) -> Vec<u8> {
     format!("depositnonce/{}", rollup_id.encode_hex::<String>()).into()
+}
+
+fn bridge_account_sudo_address_storage_key(address: &Address) -> String {
+    format!("{BRIDGE_ACCOUNT_SUDO_PREFIX}/{address}")
+}
+
+fn bridge_account_withdrawer_address_storage_key(address: &Address) -> String {
+    format!("{BRIDGE_ACCOUNT_WITHDRAWER_PREFIX}/{address}")
 }
 
 #[async_trait]
@@ -112,6 +122,46 @@ pub(crate) trait StateReadExt: StateRead {
             .ok_or_else(|| anyhow!("asset IDs not found"))?;
         let asset_id = asset::Id::try_from_slice(&bytes).context("invalid asset IDs bytes")?;
         Ok(asset_id)
+    }
+
+    #[instrument(skip(self))]
+    async fn get_bridge_account_sudo_address(
+        &self,
+        bridge_address: &Address,
+    ) -> Result<Option<Address>> {
+        let Some(sudo_address_bytes) = self
+            .get_raw(&bridge_account_sudo_address_storage_key(bridge_address))
+            .await
+            .context("failed reading raw bridge account sudo address from state")?
+        else {
+            debug!("bridge account sudo address not found, returning None");
+            return Ok(None);
+        };
+
+        let sudo_address =
+            Address::try_from_slice(&sudo_address_bytes).context("invalid sudo address bytes")?;
+        Ok(Some(sudo_address))
+    }
+
+    #[instrument(skip(self))]
+    async fn get_bridge_account_withdrawer_address(
+        &self,
+        bridge_address: &Address,
+    ) -> Result<Option<Address>> {
+        let Some(withdrawer_address_bytes) = self
+            .get_raw(&bridge_account_withdrawer_address_storage_key(
+                bridge_address,
+            ))
+            .await
+            .context("failed reading raw bridge account withdrawer address from state")?
+        else {
+            debug!("bridge account withdrawer address not found, returning None");
+            return Ok(None);
+        };
+
+        let withdrawer_address = Address::try_from_slice(&withdrawer_address_bytes)
+            .context("invalid withdrawer address bytes")?;
+        Ok(Some(withdrawer_address))
     }
 
     #[instrument(skip(self))]
@@ -227,6 +277,30 @@ pub(crate) trait StateWriteExt: StateWrite {
             borsh::to_vec(&AssetId::from(asset_id)).context("failed to serialize asset IDs")?,
         );
         Ok(())
+    }
+
+    #[instrument(skip(self))]
+    fn put_bridge_account_sudo_address(
+        &mut self,
+        bridge_address: &Address,
+        sudo_address: &Address,
+    ) {
+        self.put_raw(
+            bridge_account_sudo_address_storage_key(bridge_address),
+            sudo_address.to_vec(),
+        );
+    }
+
+    #[instrument(skip(self))]
+    fn put_bridge_account_withdrawer_address(
+        &mut self,
+        bridge_address: &Address,
+        withdrawer_address: &Address,
+    ) {
+        self.put_raw(
+            bridge_account_withdrawer_address_storage_key(bridge_address),
+            withdrawer_address.to_vec(),
+        );
     }
 
     // the deposit "nonce" for a given rollup ID during a given block.

@@ -227,6 +227,8 @@ async fn app_execute_transaction_with_every_action_snapshot() {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                 asset_id: get_native_asset().id(),
                 fee_asset_id: get_native_asset().id(),
+                sudo_address: None,
+                withdrawer_address: None,
             }
             .into(),
             BridgeLockAction {

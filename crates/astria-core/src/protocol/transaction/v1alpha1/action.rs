@@ -1009,6 +1009,13 @@ pub struct InitBridgeAccountAction {
     pub asset_id: asset::Id,
     // the fee asset which to pay this action's fees with
     pub fee_asset_id: asset::Id,
+    // the address corresponding to the key which has sudo capabilities;
+    // ie. can change the sudo and withdrawer addresses for this bridge account.
+    // if unset, this is set to the sender of the transaction.
+    pub sudo_address: Option<Address>,
+    // the address corresponding to the key which can withdraw funds from this bridge account.
+    // if unset, this is set to the sender of the transaction.
+    pub withdrawer_address: Option<Address>,
 }
 
 impl InitBridgeAccountAction {
@@ -1018,6 +1025,8 @@ impl InitBridgeAccountAction {
             rollup_id: Some(self.rollup_id.to_raw()),
             asset_id: self.asset_id.get().to_vec(),
             fee_asset_id: self.fee_asset_id.get().to_vec(),
+            sudo_address: self.sudo_address.map(Address::into_raw),
+            withdrawer_address: self.withdrawer_address.map(Address::into_raw),
         }
     }
 
@@ -1027,6 +1036,8 @@ impl InitBridgeAccountAction {
             rollup_id: Some(self.rollup_id.to_raw()),
             asset_id: self.asset_id.get().to_vec(),
             fee_asset_id: self.fee_asset_id.get().to_vec(),
+            sudo_address: self.sudo_address.as_ref().map(Address::to_raw),
+            withdrawer_address: self.withdrawer_address.as_ref().map(Address::to_raw),
         }
     }
 
@@ -1048,11 +1059,25 @@ impl InitBridgeAccountAction {
             .map_err(InitBridgeAccountActionError::invalid_asset_id)?;
         let fee_asset_id = asset::Id::try_from_slice(&proto.fee_asset_id)
             .map_err(InitBridgeAccountActionError::invalid_fee_asset_id)?;
+        let sudo_address = proto
+            .sudo_address
+            .as_ref()
+            .map(Address::try_from_raw)
+            .transpose()
+            .map_err(InitBridgeAccountActionError::invalid_sudo_address)?;
+        let withdrawer_address = proto
+            .withdrawer_address
+            .as_ref()
+            .map(Address::try_from_raw)
+            .transpose()
+            .map_err(InitBridgeAccountActionError::invalid_withdrawer_address)?;
 
         Ok(Self {
             rollup_id,
             asset_id,
             fee_asset_id,
+            sudo_address,
+            withdrawer_address,
         })
     }
 }
@@ -1081,6 +1106,18 @@ impl InitBridgeAccountActionError {
     fn invalid_fee_asset_id(err: asset::IncorrectAssetIdLength) -> Self {
         Self(InitBridgeAccountActionErrorKind::InvalidFeeAssetId(err))
     }
+
+    #[must_use]
+    fn invalid_sudo_address(err: IncorrectAddressLength) -> Self {
+        Self(InitBridgeAccountActionErrorKind::InvalidSudoAddress(err))
+    }
+
+    #[must_use]
+    fn invalid_withdrawer_address(err: IncorrectAddressLength) -> Self {
+        Self(InitBridgeAccountActionErrorKind::InvalidWithdrawerAddress(
+            err,
+        ))
+    }
 }
 
 // allow pedantic clippy as the errors have the same prefix (for consistency
@@ -1097,6 +1134,10 @@ enum InitBridgeAccountActionErrorKind {
     InvalidAssetId(#[source] asset::IncorrectAssetIdLength),
     #[error("the `fee_asset_id` field was invalid")]
     InvalidFeeAssetId(#[source] asset::IncorrectAssetIdLength),
+    #[error("the `sudo_address` field was invalid")]
+    InvalidSudoAddress(#[source] IncorrectAddressLength),
+    #[error("the `withdrawer_address` field was invalid")]
+    InvalidWithdrawerAddress(#[source] IncorrectAddressLength),
 }
 
 #[allow(clippy::module_name_repetitions)]

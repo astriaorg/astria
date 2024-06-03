@@ -608,6 +608,8 @@ async fn app_execute_transaction_init_bridge_account_ok() {
         rollup_id,
         asset_id,
         fee_asset_id: asset_id,
+        sudo_address: None,
+        withdrawer_address: None,
     };
     let tx = UnsignedTransaction {
         params: TransactionParams {
@@ -663,6 +665,8 @@ async fn app_execute_transaction_init_bridge_account_account_already_registered(
         rollup_id,
         asset_id,
         fee_asset_id: asset_id,
+        sudo_address: None,
+        withdrawer_address: None,
     };
     let tx = UnsignedTransaction {
         params: TransactionParams {
@@ -679,6 +683,8 @@ async fn app_execute_transaction_init_bridge_account_account_already_registered(
         rollup_id,
         asset_id,
         fee_asset_id: asset_id,
+        sudo_address: None,
+        withdrawer_address: None,
     };
     let tx = UnsignedTransaction {
         params: TransactionParams {
