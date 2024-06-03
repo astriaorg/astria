@@ -1,5 +1,6 @@
 use std::{
     collections::{
+        HashMap,
         HashSet,
         VecDeque,
     },
@@ -24,11 +25,14 @@ use futures::{
     FutureExt,
 };
 use prost::Message as _;
-use tendermint::v0_38::abci::{
-    request,
-    response,
-    MempoolRequest,
-    MempoolResponse,
+use tendermint::{
+    v0_38::abci::{
+        request,
+        response,
+        MempoolRequest,
+        MempoolResponse,
+    },
+    Time,
 };
 use tokio::sync::RwLock;
 use tower::Service;
@@ -42,47 +46,76 @@ use crate::{
     transaction,
 };
 
+// TODO make these config configurable
 const MAX_TX_SIZE: usize = 256_000; // 256 KB
 const CACHE_SIZE: usize = 4600;
+const CACHE_TTL: i64 = 60; // 60 seconds 
 
+/// `TxCache`` provides for keeping `CometBFT`'s mempool clean.
+//
+/// Since we're now using an app side mempool, we can remove
+/// transactions from this mempool once we've placed them there.
+///
+/// The cache also places a TTL on the entries, allowing users
+/// to request their transaction to be processed again after the
+/// ttl has expired. This is useful for users who want to re-run a transaction
+/// that failed to execute.
 #[derive(Clone)]
 pub(crate) struct TxCache {
     map: HashSet<[u8; 32]>,
-    list: VecDeque<[u8; 32]>,
+    time_added: HashMap<[u8; 32], i64>,
+    remove_queue: VecDeque<[u8; 32]>,
     max_size: usize,
+    time_to_live: i64,
     size: usize,
 }
 
 impl TxCache {
-    fn new(max_size: usize) -> Self {
+    fn new(max_size: usize, time_to_live: i64) -> Self {
         Self {
             map: HashSet::new(),
-            list: VecDeque::with_capacity(max_size),
+            time_added: HashMap::new(),
+            remove_queue: VecDeque::with_capacity(max_size),
             max_size,
+            time_to_live,
             size: 0,
         }
     }
 
-    fn exists(&self, tx_hash: [u8; 32]) -> bool {
+    // returns
+    fn cached(&self, tx_hash: [u8; 32]) -> bool {
+        // the tx is known and entry hasn't expired
         self.map.contains(&tx_hash)
+            && (Time::now().unix_timestamp()
+                <= self.time_added[&tx_hash]
+                    .checked_add(self.time_to_live)
+                    .expect("overflowed ttl add"))
     }
 
     fn add(&mut self, tx_hash: [u8; 32]) {
         if self.map.contains(&tx_hash) {
+            // update time to live if already exists
+            // note: this doesn't change the tx's position in the remove vector,
+            // this should be fine as correct remove ordering isn't a security matter
+            self.time_added
+                .insert(tx_hash, Time::now().unix_timestamp());
             return;
         };
         if self.size == self.max_size {
-            self.map.remove(
-                &self
-                    .list
-                    .pop_front()
-                    .expect("cache should contain elements"),
-            );
+            // make space for the new transaction by removing the oldest transaction
+            let removed_tx = self
+                .remove_queue
+                .pop_front()
+                .expect("cache should contain elements");
+            self.map.remove(&removed_tx);
+            self.time_added.remove(&removed_tx);
         } else {
             self.size = self.size.checked_add(1).expect("cache size overflowed");
         }
-        self.list.push_back(tx_hash);
+        self.remove_queue.push_back(tx_hash);
         self.map.insert(tx_hash);
+        self.time_added
+            .insert(tx_hash, Time::now().unix_timestamp());
     }
 }
 
@@ -102,7 +135,7 @@ impl Mempool {
         Self {
             storage,
             mempool,
-            tx_cache: Arc::new(RwLock::new(TxCache::new(CACHE_SIZE))),
+            tx_cache: Arc::new(RwLock::new(TxCache::new(CACHE_SIZE, CACHE_TTL))),
         }
     }
 }
@@ -153,12 +186,14 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
 
     let tx_hash = sha2::Sha256::digest(&req.tx).into();
 
-    if tx_cache.read().await.exists(tx_hash) {
+    if tx_cache.read().await.cached(tx_hash) {
         // transaction has already been seen, remove from cometbft mempool
         return response::CheckTx {
             code: AbciErrorCode::ALREADY_PROCESSED.into(),
-            log: "transaction has already been processed by the mempool".to_string(),
-            info: AbciErrorCode::TRANSACTION_TOO_LARGE.to_string(),
+            log: format!(
+                "transaction already known to mempool, can re-add after {CACHE_TTL} seconds"
+            ),
+            info: AbciErrorCode::ALREADY_PROCESSED.to_string(),
             ..response::CheckTx::default()
         };
     }
@@ -270,31 +305,62 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
 }
 
 mod test {
-    #[tokio::test]
-    async fn tx_cache_test() {
-        use crate::service::mempool::TxCache;
+    use std::time::Duration;
 
-        let mut tx_cache = TxCache::new(2);
+    use tendermint::Time;
+    use tokio::time;
+
+    use crate::service::mempool::TxCache;
+
+    #[tokio::test]
+    async fn tx_cache_size() {
+        let mut tx_cache = TxCache::new(2, 60);
 
         let tx_0 = [0u8; 32];
         let tx_1 = [1u8; 32];
         let tx_2 = [2u8; 32];
 
         assert!(
-            !tx_cache.exists(tx_0),
-            "no transaction should exist at first"
+            !tx_cache.cached(tx_0),
+            "no transaction should be cached at first"
         );
 
         tx_cache.add(tx_0);
-        assert!(tx_cache.exists(tx_0), "transaction was added, should exist");
+        assert!(
+            tx_cache.cached(tx_0),
+            "transaction was added, should be cached"
+        );
 
         tx_cache.add(tx_1);
         tx_cache.add(tx_2);
-        assert!(tx_cache.exists(tx_1), "transaction was added, should exist");
-        assert!(tx_cache.exists(tx_2), "transaction was added, should exist");
         assert!(
-            !tx_cache.exists(tx_0),
-            "first transaction should be removed"
+            tx_cache.cached(tx_1),
+            "2nd transaction was added, should be cached"
+        );
+        assert!(
+            tx_cache.cached(tx_2),
+            "3rd transaction was added, should be cached"
+        );
+        assert!(
+            !tx_cache.cached(tx_0),
+            "first transaction should not be cached"
+        );
+    }
+
+    #[tokio::test]
+    async fn tx_cache_ttl() {
+        let mut tx_cache = TxCache::new(2, 1);
+
+        let tx_0 = [0u8; 32];
+        tx_cache.add(tx_0);
+        assert!(tx_cache.cached(tx_0), "transaction was added, should exist");
+
+        // pass time to expire transaction
+        time::sleep(Duration::from_secs(2)).await;
+
+        assert!(
+            !tx_cache.cached(tx_0),
+            "transaction expired, should not be cached"
         );
     }
 }
