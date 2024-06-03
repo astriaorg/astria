@@ -1047,6 +1047,8 @@ impl InitBridgeAccountAction {
     ///
     /// - if the `rollup_id` field is not set
     /// - if the `rollup_id` field is invalid
+    /// - if the `sudo_address` field is invalid
+    /// - if the `withdrawer_address` field is invalid
     pub fn try_from_raw(
         proto: raw::InitBridgeAccountAction,
     ) -> Result<Self, InitBridgeAccountActionError> {
@@ -1260,6 +1262,10 @@ pub struct BridgeUnlockAction {
     pub fee_asset_id: asset::Id,
     // memo for double spend protection.
     pub memo: Vec<u8>,
+    // the address of the bridge account to transfer from,
+    // if the bridge account's withdrawer address is not the same as the bridge address.
+    // if unset, the signer of the transaction is used.
+    pub from: Option<Address>,
 }
 
 impl BridgeUnlockAction {
@@ -1270,6 +1276,7 @@ impl BridgeUnlockAction {
             amount: Some(self.amount.into()),
             fee_asset_id: self.fee_asset_id.as_ref().to_vec(),
             memo: self.memo,
+            from: self.from.map(Address::into_raw),
         }
     }
 
@@ -1280,6 +1287,7 @@ impl BridgeUnlockAction {
             amount: Some(self.amount.into()),
             fee_asset_id: self.fee_asset_id.as_ref().to_vec(),
             memo: self.memo.clone(),
+            from: self.from.as_ref().map(Address::to_raw),
         }
     }
 
@@ -1291,6 +1299,7 @@ impl BridgeUnlockAction {
     /// - if the `to` field is invalid
     /// - if the `amount` field is invalid
     /// - if the `fee_asset_id` field is invalid
+    /// - if the `from` field is invalid
     pub fn try_from_raw(proto: raw::BridgeUnlockAction) -> Result<Self, BridgeUnlockActionError> {
         let Some(to) = proto.to else {
             return Err(BridgeUnlockActionError::field_not_set("to"));
@@ -1301,11 +1310,18 @@ impl BridgeUnlockAction {
             .ok_or(BridgeUnlockActionError::missing_amount())?;
         let fee_asset_id = asset::Id::try_from_slice(&proto.fee_asset_id)
             .map_err(BridgeUnlockActionError::invalid_fee_asset_id)?;
+        let from = proto
+            .from
+            .as_ref()
+            .map(Address::try_from_raw)
+            .transpose()
+            .map_err(BridgeUnlockActionError::invalid_from_address)?;
         Ok(Self {
             to,
             amount: amount.into(),
             fee_asset_id,
             memo: proto.memo,
+            from,
         })
     }
 }
@@ -1334,6 +1350,11 @@ impl BridgeUnlockActionError {
     fn invalid_fee_asset_id(err: asset::IncorrectAssetIdLength) -> Self {
         Self(BridgeUnlockActionErrorKind::InvalidFeeAssetId(err))
     }
+
+    #[must_use]
+    fn invalid_from_address(err: IncorrectAddressLength) -> Self {
+        Self(BridgeUnlockActionErrorKind::InvalidFromAddress(err))
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -1346,6 +1367,8 @@ enum BridgeUnlockActionErrorKind {
     MissingAmount,
     #[error("the `fee_asset_id` field was invalid")]
     InvalidFeeAssetId(#[source] asset::IncorrectAssetIdLength),
+    #[error("the `from` field was invalid")]
+    InvalidFromAddress(#[source] IncorrectAddressLength),
 }
 
 #[derive(Debug, Clone)]

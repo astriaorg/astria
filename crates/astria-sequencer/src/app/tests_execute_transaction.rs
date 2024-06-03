@@ -1051,6 +1051,7 @@ async fn app_execute_transaction_bridge_lock_unlock_action_ok() {
         amount,
         fee_asset_id: asset_id,
         memo: b"lilywashere".to_vec(),
+        from: None,
     };
 
     let tx = UnsignedTransaction {

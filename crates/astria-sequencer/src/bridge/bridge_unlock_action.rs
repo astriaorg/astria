@@ -28,11 +28,28 @@ impl ActionHandler for BridgeUnlockAction {
         state: &S,
         from: Address,
     ) -> Result<()> {
+        // the bridge address to withdraw funds from
+        // if unset, use the tx sender's address
+        let bridge_address = self.from.unwrap_or(from);
+
         // grab the bridge account's asset
         let asset_id = state
-            .get_bridge_account_asset_id(&from)
+            .get_bridge_account_asset_id(&bridge_address)
             .await
             .context("failed to get bridge's asset id, must be a bridge account")?;
+
+        // check that the sender of this tx is the authorized withdrawer for the bridge account
+        // NOTE: this is made backwards-compatible by allowing the
+        // sudo address to be the bridge address if unset
+        let withdrawer_address = state
+            .get_bridge_account_withdrawer_address(&bridge_address)
+            .await
+            .context("failed to get bridge account sudo address")?
+            .unwrap_or(bridge_address);
+
+        if withdrawer_address != from {
+            anyhow::bail!("unauthorized to unlock bridge account");
+        }
 
         let transfer_action = TransferAction {
             to: self.to,
@@ -41,16 +58,17 @@ impl ActionHandler for BridgeUnlockAction {
             fee_asset_id: self.fee_asset_id,
         };
 
-        // TODO use the BridgeUnlock action's `memo` field.
-
         // this performs the same checks as a normal `TransferAction`
-        transfer_check_stateful(&transfer_action, state, from).await
+        transfer_check_stateful(&transfer_action, state, bridge_address).await
     }
 
     #[instrument(skip_all)]
     async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> Result<()> {
+        // the bridge address to withdraw funds from
+        let bridge_address = self.from.unwrap_or(from);
+
         let asset_id = state
-            .get_bridge_account_asset_id(&from)
+            .get_bridge_account_asset_id(&bridge_address)
             .await
             .context("failed to get bridge's asset id, must be a bridge account")?;
 
@@ -62,7 +80,7 @@ impl ActionHandler for BridgeUnlockAction {
         };
 
         transfer_action
-            .execute(state, from)
+            .execute(state, bridge_address)
             .await
             .context("failed to execute bridge unlock action as transfer action")?;
 
@@ -102,6 +120,7 @@ mod test {
             amount: transfer_amount,
             fee_asset_id: asset_id,
             memo: vec![0u8; 32],
+            from: None,
         };
 
         // not a bridge account, should fail
@@ -116,7 +135,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn bridge_unlock_fee_check_stateful() {
+    async fn bridge_unlock_fee_check_stateful_from_none() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
@@ -141,6 +160,7 @@ mod test {
             amount: transfer_amount,
             fee_asset_id: asset_id,
             memo: vec![0u8; 32],
+            from: None,
         };
 
         // not enough balance to transfer asset; should fail
@@ -167,7 +187,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn bridge_unlock_execute() {
+    async fn bridge_unlock_execute_from_none() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
@@ -192,6 +212,7 @@ mod test {
             amount: transfer_amount,
             fee_asset_id: asset_id,
             memo: vec![0u8; 32],
+            from: None,
         };
 
         // not enough balance; should fail

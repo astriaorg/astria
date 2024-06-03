@@ -370,6 +370,11 @@ pub struct BridgeUnlockAction {
     /// memo for double spend prevention
     #[prost(bytes = "vec", tag = "4")]
     pub memo: ::prost::alloc::vec::Vec<u8>,
+    /// the address of the bridge account to transfer from,
+    /// if the bridge account's withdrawer address is not the same as the bridge address.
+    /// if unset, the signer of the transaction is used.
+    #[prost(message, optional, tag = "5")]
+    pub from: ::core::option::Option<super::super::super::primitive::v1::Address>,
 }
 impl ::prost::Name for BridgeUnlockAction {
     const NAME: &'static str = "BridgeUnlockAction";
