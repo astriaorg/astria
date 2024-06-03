@@ -57,8 +57,11 @@ message Action {
   reserved 3 to 10;
   reserved 14 to 20;
   reserved 23 to 30;
-  reserved 54;
   reserved 56 to 60;
+
+  // deprecated fields
+  reserved 54; // deprecated "mint_action"
+  reserved "mint_action";
 }
 
 // `TransferAction` represents a value transfer transaction.
