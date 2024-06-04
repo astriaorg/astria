@@ -76,7 +76,7 @@ async fn simple() {
     mount_celestia_blobs!(
         test_conductor,
         celestia_height: 1,
-        sequencer_height: 3,
+        sequencer_heights: [3],
     );
 
     mount_sequencer_commit!(
@@ -191,7 +191,7 @@ async fn missing_block_is_fetched_for_updating_firm_commitment() {
     mount_celestia_blobs!(
         test_conductor,
         celestia_height: 1,
-        sequencer_height: 3,
+        sequencer_heights: [3],
     );
 
     mount_sequencer_commit!(
