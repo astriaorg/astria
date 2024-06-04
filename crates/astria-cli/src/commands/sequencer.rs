@@ -8,7 +8,6 @@ use astria_core::{
             FeeAssetChangeAction,
             IbcRelayerChangeAction,
             InitBridgeAccountAction,
-            MintAction,
             SudoAddressChangeAction,
             TransferAction,
         },
@@ -40,7 +39,6 @@ use crate::cli::sequencer::{
     FeeAssetChangeArgs,
     IbcRelayerChangeArgs,
     InitBridgeAccountArgs,
-    MintArgs,
     SudoAddressChangeArgs,
     TransferArgs,
     ValidatorUpdateArgs,
@@ -366,34 +364,6 @@ pub(crate) async fn fee_asset_remove(args: &FeeAssetChangeArgs) -> eyre::Result<
     .wrap_err("failed to submit FeeAssetChangeAction::Removal transaction")?;
 
     println!("FeeAssetChangeAction::Removal completed!");
-    println!("Included in block: {}", res.height);
-    Ok(())
-}
-
-/// Mints native asset to an account
-///
-/// # Arguments
-///
-/// * `args` - The arguments passed to the command
-///
-/// # Errors
-///
-/// * If the http client cannot be created
-/// * If the transaction failed to be submitted
-pub(crate) async fn mint(args: &MintArgs) -> eyre::Result<()> {
-    let res = submit_transaction(
-        args.sequencer_url.as_str(),
-        args.sequencer_chain_id.clone(),
-        args.private_key.as_str(),
-        Action::Mint(MintAction {
-            to: args.to_address.0,
-            amount: args.amount,
-        }),
-    )
-    .await
-    .wrap_err("failed to submit Mint transaction")?;
-
-    println!("Mint completed!");
     println!("Included in block: {}", res.height);
     Ok(())
 }

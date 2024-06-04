@@ -29,7 +29,6 @@ pub enum Action {
     Transfer(TransferAction),
     ValidatorUpdate(tendermint::validator::Update),
     SudoAddressChange(SudoAddressChangeAction),
-    Mint(MintAction),
     Ibc(IbcRelay),
     Ics20Withdrawal(Ics20Withdrawal),
     IbcRelayerChange(IbcRelayerChangeAction),
@@ -49,7 +48,6 @@ impl Action {
             Action::Transfer(act) => Value::TransferAction(act.into_raw()),
             Action::ValidatorUpdate(act) => Value::ValidatorUpdateAction(act.into()),
             Action::SudoAddressChange(act) => Value::SudoAddressChangeAction(act.into_raw()),
-            Action::Mint(act) => Value::MintAction(act.into_raw()),
             Action::Ibc(act) => Value::IbcAction(act.into()),
             Action::Ics20Withdrawal(act) => Value::Ics20Withdrawal(act.into_raw()),
             Action::IbcRelayerChange(act) => Value::IbcRelayerChangeAction(act.into_raw()),
@@ -74,7 +72,6 @@ impl Action {
             Action::SudoAddressChange(act) => {
                 Value::SudoAddressChangeAction(act.clone().into_raw())
             }
-            Action::Mint(act) => Value::MintAction(act.to_raw()),
             Action::Ibc(act) => Value::IbcAction(act.clone().into()),
             Action::Ics20Withdrawal(act) => Value::Ics20Withdrawal(act.to_raw()),
             Action::IbcRelayerChange(act) => Value::IbcRelayerChangeAction(act.to_raw()),
@@ -117,9 +114,6 @@ impl Action {
                 SudoAddressChangeAction::try_from_raw(act)
                     .map_err(ActionError::sudo_address_change)?,
             ),
-            Value::MintAction(act) => {
-                Self::Mint(MintAction::try_from_raw(act).map_err(ActionError::mint)?)
-            }
             Value::IbcAction(act) => {
                 Self::Ibc(IbcRelay::try_from(act).map_err(|e| ActionError::ibc(e.into()))?)
             }
@@ -182,12 +176,6 @@ impl From<TransferAction> for Action {
 impl From<SudoAddressChangeAction> for Action {
     fn from(value: SudoAddressChangeAction) -> Self {
         Self::SudoAddressChange(value)
-    }
-}
-
-impl From<MintAction> for Action {
-    fn from(value: MintAction) -> Self {
-        Self::Mint(value)
     }
 }
 
@@ -265,10 +253,6 @@ impl ActionError {
         Self(ActionErrorKind::SudoAddressChange(inner))
     }
 
-    fn mint(inner: MintActionError) -> Self {
-        Self(ActionErrorKind::Mint(inner))
-    }
-
     fn ibc(inner: Box<dyn std::error::Error + Send + Sync>) -> Self {
         Self(ActionErrorKind::Ibc(inner))
     }
@@ -314,8 +298,6 @@ enum ActionErrorKind {
     ValidatorUpdate(#[source] tendermint::error::Error),
     #[error("sudo address change action was not valid")]
     SudoAddressChange(#[source] SudoAddressChangeActionError),
-    #[error("mint action was not valid")]
-    Mint(#[source] MintActionError),
     #[error("ibc action was not valid")]
     Ibc(#[source] Box<dyn std::error::Error + Send + Sync>),
     #[error("ics20 withdrawal action was not valid")]
@@ -605,84 +587,6 @@ enum SudoAddressChangeActionErrorKind {
     FieldNotSet(&'static str),
     #[error("`new_address` field did not contain a valid address")]
     Address(#[source] IncorrectAddressLength),
-}
-
-#[allow(clippy::module_name_repetitions)]
-#[derive(Clone, Debug)]
-pub struct MintAction {
-    pub to: Address,
-    pub amount: u128,
-}
-
-impl MintAction {
-    #[must_use]
-    pub fn into_raw(self) -> raw::MintAction {
-        let Self {
-            to,
-            amount,
-        } = self;
-        raw::MintAction {
-            to: Some(to.to_raw()),
-            amount: Some(amount.into()),
-        }
-    }
-
-    #[must_use]
-    pub fn to_raw(&self) -> raw::MintAction {
-        let Self {
-            to,
-            amount,
-        } = self;
-        raw::MintAction {
-            to: Some(to.to_raw()),
-            amount: Some((*amount).into()),
-        }
-    }
-
-    /// Convert from a raw, unchecked protobuf [`raw::MintAction`].
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the raw action's `to` address did not have the expected
-    /// length.
-    pub fn try_from_raw(proto: raw::MintAction) -> Result<Self, MintActionError> {
-        let raw::MintAction {
-            to,
-            amount,
-        } = proto;
-        let Some(to) = to else {
-            return Err(MintActionError::field_not_set("to"));
-        };
-        let to = Address::try_from_raw(&to).map_err(MintActionError::address_length)?;
-        let amount = amount.map_or(0, Into::into);
-        Ok(Self {
-            to,
-            amount,
-        })
-    }
-}
-
-#[allow(clippy::module_name_repetitions)]
-#[derive(Debug, thiserror::Error)]
-#[error(transparent)]
-pub struct MintActionError(MintActionErrorKind);
-
-impl MintActionError {
-    fn field_not_set(field: &'static str) -> Self {
-        Self(MintActionErrorKind::FieldNotSet(field))
-    }
-
-    fn address_length(inner: IncorrectAddressLength) -> Self {
-        Self(MintActionErrorKind::AddressLength(inner))
-    }
-}
-
-#[derive(Debug, thiserror::Error)]
-enum MintActionErrorKind {
-    #[error("the expected field in the raw source type was not set: `{0}`")]
-    FieldNotSet(&'static str),
-    #[error("`to` field did not contain a valid address")]
-    AddressLength(#[source] IncorrectAddressLength),
 }
 
 /// Represents an IBC withdrawal of an asset from a source chain to a destination chain.
