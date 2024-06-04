@@ -205,6 +205,13 @@ pub struct Ics20Withdrawal {
     /// a memo to include with the transfer
     #[prost(string, tag = "9")]
     pub memo: ::prost::alloc::string::String,
+    /// the address of the bridge account to transfer from, if this is a withdrawal
+    /// from a bridge account.
+    /// if unset, the withdrawal is presumed to be a user (non-bridge) withdrawal.
+    #[prost(message, optional, tag = "10")]
+    pub bridge_address: ::core::option::Option<
+        super::super::super::primitive::v1::Address,
+    >,
 }
 impl ::prost::Name for Ics20Withdrawal {
     const NAME: &'static str = "Ics20Withdrawal";

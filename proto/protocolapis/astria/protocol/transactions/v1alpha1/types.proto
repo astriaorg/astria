@@ -120,6 +120,16 @@ message Ics20Withdrawal {
   bytes fee_asset_id = 8;
   // a memo to include with the transfer
   string memo = 9;
+  // the address of the bridge account to transfer from, if this is a withdrawal
+  // from a bridge account and the sender of the tx is the bridge's withdrawer,
+  // which differs from the bridge account's address.
+  //
+  // if unset, and the transaction sender is not a bridge account, the withdrawal 
+  // is treated as a user (non-bridge) withdrawal.
+  //
+  // if unset, and the transaction sender is a bridge account, the withdrawal is
+  // treated as a bridge withdrawal (ie. the bridge account's withdrawer address is checked).
+  astria.primitive.v1.Address bridge_address = 10;
 }
 
 message IbcHeight {

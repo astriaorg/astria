@@ -637,6 +637,16 @@ pub struct Ics20Withdrawal {
     pub fee_asset_id: asset::Id,
     // a memo to include with the transfer
     pub memo: String,
+    // the address of the bridge account to transfer from, if this is a withdrawal
+    // from a bridge account and the sender of the tx is the bridge's withdrawer,
+    // which differs from the bridge account's address.
+    //
+    // if unset, and the transaction sender is not a bridge account, the withdrawal
+    // is treated as a user (non-bridge) withdrawal.
+    //
+    // if unset, and the transaction sender is a bridge account, the withdrawal is
+    // treated as a bridge withdrawal (ie. the bridge account's withdrawer address is checked).
+    pub bridge_address: Option<Address>,
 }
 
 impl Ics20Withdrawal {
@@ -708,6 +718,7 @@ impl Ics20Withdrawal {
             source_channel: self.source_channel.to_string(),
             fee_asset_id: self.fee_asset_id.get().to_vec(),
             memo: self.memo.clone(),
+            bridge_address: self.bridge_address.as_ref().map(Address::to_raw),
         }
     }
 
@@ -723,6 +734,7 @@ impl Ics20Withdrawal {
             source_channel: self.source_channel.to_string(),
             fee_asset_id: self.fee_asset_id.get().to_vec(),
             memo: self.memo,
+            bridge_address: self.bridge_address.map(Address::into_raw),
         }
     }
 
@@ -743,6 +755,12 @@ impl Ics20Withdrawal {
             .timeout_height
             .ok_or(Ics20WithdrawalError::missing_timeout_height())?
             .into();
+        let bridge_address = proto
+            .bridge_address
+            .as_ref()
+            .map(Address::try_from_raw)
+            .transpose()
+            .map_err(Ics20WithdrawalError::invalid_bridge_address)?;
 
         Ok(Self {
             amount: amount.into(),
@@ -758,6 +776,7 @@ impl Ics20Withdrawal {
             fee_asset_id: asset::Id::try_from_slice(&proto.fee_asset_id)
                 .map_err(Ics20WithdrawalError::invalid_fee_asset_id)?,
             memo: proto.memo,
+            bridge_address,
         })
     }
 }
@@ -819,6 +838,11 @@ impl Ics20WithdrawalError {
     fn invalid_fee_asset_id(err: asset::IncorrectAssetIdLength) -> Self {
         Self(Ics20WithdrawalErrorKind::InvalidFeeAssetId(err))
     }
+
+    #[must_use]
+    fn invalid_bridge_address(err: IncorrectAddressLength) -> Self {
+        Self(Ics20WithdrawalErrorKind::InvalidBridgeAddress(err))
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -833,6 +857,8 @@ enum Ics20WithdrawalErrorKind {
     InvalidSourceChannel(#[source] IdentifierError),
     #[error("`fee_asset_id` field was invalid")]
     InvalidFeeAssetId(#[source] asset::IncorrectAssetIdLength),
+    #[error("`bridge_address` field was invalid")]
+    InvalidBridgeAddress(#[source] IncorrectAddressLength),
 }
 
 #[allow(clippy::module_name_repetitions)]
