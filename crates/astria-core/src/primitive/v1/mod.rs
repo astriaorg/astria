@@ -544,7 +544,7 @@ mod tests {
         let bytes = [42u8; ADDRESS_LEN];
         let input = raw::Address {
             inner: Bytes::copy_from_slice(&bytes),
-            bech32m: "".into(),
+            bech32m: String::new(),
         };
         let address = Address::try_from_raw(&input).unwrap();
         assert_eq!(bytes, address.get());
