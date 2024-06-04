@@ -46,5 +46,6 @@ ibcAccountMnemonic: globe elegant people render embark whisper pumpkin local thi
 ports:
   celestiaAppHostPort: 26657
   celestiaAppGrpcPort: 9090
+  celestiaAppRestPort: 1317
   bridgeRPC: 26658
   bridgeHTTP: 26659

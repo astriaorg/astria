@@ -51,3 +51,13 @@ spec:
                 name: celestia-app-service
                 port:
                   name: app-rpc
+    - host: rest.app.celestia.localdev.me
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: celestia-app-service
+                port:
+                  name: app-rest

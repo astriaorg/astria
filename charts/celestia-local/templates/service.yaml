@@ -29,3 +29,6 @@ spec:
     - name: app-grpc
       port: {{ .Values.ports.celestiaAppGrpcPort }}
       targetPort: app-grpc
+    - name: app-rest
+      port: {{ .Values.ports.celestiaAppRestPort }}
+      targetPort: app-rest
