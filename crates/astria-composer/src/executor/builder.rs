@@ -11,13 +11,12 @@ use astria_core::{
 use astria_eyre::eyre::{
     self,
     eyre,
-    WrapErr as _,
     Context,
-    WrapErr as _
 };
-use tendermint_rpc::Client;
+use sequencer_client::tendermint_rpc::Client;
 use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
+use tendermint::Genesis;
 
 use crate::{
     executor,
@@ -47,7 +46,9 @@ impl Builder {
         } = self;
         let sequencer_client = sequencer_client::HttpClient::new(sequencer_url.as_str())
             .wrap_err("failed constructing sequencer client")?;
-        if(sequencer_chain_id != Client::genesis(sequencer_client).chain_id) {WrapErr::wrap_err("sequencer chain id and client chain id mismatched")};
+        
+        tokio::spawn(check_chain_ids(sequencer_client.clone(), sequencer_chain_id.clone()));
+
         let (status, _) = watch::channel(Status::new());
 
         let sequencer_key = read_signing_key_from_file(&private_key_file).wrap_err_with(|| {
@@ -83,4 +84,13 @@ fn read_signing_key_from_file<P: AsRef<Path>>(path: P) -> eyre::Result<SigningKe
         .try_into()
         .map_err(|_| eyre!("invalid private key length; must be 32 bytes"))?;
     Ok(SigningKey::from(private_key_bytes))
+}
+
+async fn check_chain_ids(sequencer_client: sequencer_client::HttpClient, sequencer_chain_id: String) -> eyre::Result<()> {
+    let genesis: Genesis = Client::genesis(&sequencer_client).await.expect("Failed to retrieve client genesis file");
+    let client_chain_id = genesis.chain_id.to_string();
+    if sequencer_chain_id != client_chain_id {
+        return Err(eyre!(format!("mismatch in sequencer_chain_id: {sequencer_chain_id} and client chain_id: {client_chain_id}")))
+    };
+    Ok(())
 }
