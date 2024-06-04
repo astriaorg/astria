@@ -427,6 +427,7 @@ impl RunningReader {
                 rollup_id: self.rollup_id,
                 rollup_namespace: self.rollup_namespace,
                 sequencer_namespace: self.sequencer_namespace,
+                executor: self.executor.clone(),
             };
             self.reconstruction_tasks.spawn(height, task.execute());
             scheduled.push(height);
@@ -498,6 +499,7 @@ struct FetchConvertVerifyAndReconstruct {
     rollup_id: RollupId,
     rollup_namespace: Namespace,
     sequencer_namespace: Namespace,
+    executor: executor::Handle<StateIsInit>,
 }
 
 impl FetchConvertVerifyAndReconstruct {
@@ -514,6 +516,7 @@ impl FetchConvertVerifyAndReconstruct {
             rollup_id,
             rollup_namespace,
             sequencer_namespace,
+            executor,
         } = self;
 
         let new_blobs = fetch_new_blobs(
@@ -585,7 +588,7 @@ impl FetchConvertVerifyAndReconstruct {
             "decoded Sequencer header and rollup info from raw Celestia blobs",
         );
 
-        let verified_blobs = verify_metadata(blob_verifier, decoded_blobs).await;
+        let verified_blobs = verify_metadata(blob_verifier, decoded_blobs, executor).await;
 
         {
             // allow: histograms require f64; precision loss would be no problem

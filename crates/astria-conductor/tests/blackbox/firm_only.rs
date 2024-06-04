@@ -55,7 +55,7 @@ async fn simple() {
     mount_celestia_blobs!(
         test_conductor,
         celestia_height: 1,
-        sequencer_height: 3,
+        sequencer_heights: [3],
     );
 
     mount_sequencer_commit!(
@@ -136,13 +136,7 @@ async fn submits_two_heights_in_succession() {
     mount_celestia_blobs!(
         test_conductor,
         celestia_height: 1,
-        sequencer_height: 3,
-    );
-
-    mount_celestia_blobs!(
-        test_conductor,
-        celestia_height: 2,
-        sequencer_height: 4,
+        sequencer_heights: [3, 4],
     );
 
     mount_sequencer_commit!(
@@ -200,7 +194,7 @@ async fn submits_two_heights_in_succession() {
             hash: [3; 64],
             parent: [2; 64],
         ),
-        base_celestia_height: 2,
+        base_celestia_height: 1,
     );
 
     timeout(
@@ -250,25 +244,15 @@ async fn skips_already_executed_heights() {
         height: 2u32,
     );
 
-    // The blob with sequencer height 5 will be fetched but never forwarded
+    // The blob contains sequencer heights 6 and 7, but no commits or validator sets are mounted.
+    // XXX: A non-fetch cannot be tested for programmatically right now. Running the test with
+    // tracing enabled should show that the sequencer metadata at height 6 is explicitly
+    // skipped.
     mount_celestia_blobs!(
         test_conductor,
         celestia_height: 1,
-        sequencer_height: 6,
+        sequencer_heights: [6, 7],
     );
-
-    mount_celestia_blobs!(
-        test_conductor,
-        celestia_height: 2,
-        sequencer_height: 7,
-    );
-
-    mount_sequencer_commit!(
-        test_conductor,
-        height: 6u32,
-    );
-
-    mount_sequencer_validator_set!(test_conductor, height: 5u32);
 
     mount_sequencer_commit!(
         test_conductor,
@@ -296,7 +280,7 @@ async fn skips_already_executed_heights() {
             hash: [2; 64],
             parent: [1; 64],
         ),
-        base_celestia_height: 2,
+        base_celestia_height: 1,
     );
 
     timeout(
@@ -348,7 +332,7 @@ async fn fetch_from_later_celestia_height() {
     mount_celestia_blobs!(
         test_conductor,
         celestia_height: 4,
-        sequencer_height: 3,
+        sequencer_heights: [3],
     );
 
     mount_sequencer_commit!(
