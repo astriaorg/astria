@@ -8,6 +8,7 @@ use metrics::{
     describe_histogram,
     Unit,
 };
+use telemetry::metric_name;
 
 /// Registers all metrics used by this crate.
 pub fn register() {
@@ -89,52 +90,81 @@ pub fn register() {
     );
 }
 
-pub const PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_DECODE_FAILURE: &str = concat!(
-    env!("CARGO_CRATE_NAME"),
-    "_prepare_proposal_excluded_transactions_decode_failure"
-);
+metric_name!(pub const PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_DECODE_FAILURE);
+metric_name!(pub const PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_COMETBFT_SPACE);
+metric_name!(pub const PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_SEQUENCER_SPACE);
+metric_name!(pub const PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_FAILED_EXECUTION);
+metric_name!(pub const PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS);
+metric_name!(pub const PROPOSAL_DEPOSITS);
+metric_name!(pub const PROPOSAL_TRANSACTIONS);
+metric_name!(pub const PROCESS_PROPOSAL_SKIPPED_PROPOSAL);
+metric_name!(pub const CHECK_TX_REMOVED_TOO_LARGE);
+metric_name!(pub const CHECK_TX_REMOVED_FAILED_STATELESS);
+metric_name!(pub const CHECK_TX_REMOVED_STALE_NONCE);
+metric_name!(pub const CHECK_TX_REMOVED_ACCOUNT_BALANCE);
 
-pub const PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_COMETBFT_SPACE: &str = concat!(
-    env!("CARGO_CRATE_NAME"),
-    "_prepare_proposal_excluded_transactions_cometbft_space"
-);
+#[cfg(test)]
+mod tests {
+    use super::{
+        CHECK_TX_REMOVED_ACCOUNT_BALANCE,
+        CHECK_TX_REMOVED_FAILED_STATELESS,
+        CHECK_TX_REMOVED_STALE_NONCE,
+        CHECK_TX_REMOVED_TOO_LARGE,
+        PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS,
+        PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_COMETBFT_SPACE,
+        PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_DECODE_FAILURE,
+        PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_FAILED_EXECUTION,
+        PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_SEQUENCER_SPACE,
+        PROCESS_PROPOSAL_SKIPPED_PROPOSAL,
+        PROPOSAL_DEPOSITS,
+        PROPOSAL_TRANSACTIONS,
+    };
 
-pub const PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_SEQUENCER_SPACE: &str = concat!(
-    env!("CARGO_CRATE_NAME"),
-    "_prepare_proposal_excluded_transactions_sequencer_space"
-);
+    #[track_caller]
+    fn assert_const(actual: &'static str, suffix: &str) {
+        // XXX: hard-code this so the crate name isn't accidentally changed.
+        const CRATE_NAME: &str = "astria_sequencer";
+        let expected = format!("{CRATE_NAME}_{suffix}");
+        assert_eq!(expected, actual);
+    }
 
-pub const PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_FAILED_EXECUTION: &str = concat!(
-    env!("CARGO_CRATE_NAME"),
-    "_prepare_proposal_excluded_transactions_failed_execution"
-);
-
-pub const PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS: &str = concat!(
-    env!("CARGO_CRATE_NAME"),
-    "_prepare_proposal_excluded_transactions"
-);
-
-pub const PROPOSAL_DEPOSITS: &str = concat!(env!("CARGO_CRATE_NAME"), "_proposal_deposits");
-
-pub const PROPOSAL_TRANSACTIONS: &str = concat!(env!("CARGO_CRATE_NAME"), "_proposal_transactions");
-
-pub const PROCESS_PROPOSAL_SKIPPED_PROPOSAL: &str = concat!(
-    env!("CARGO_CRATE_NAME"),
-    "_process_proposal_skipped_proposal"
-);
-
-pub const CHECK_TX_REMOVED_TOO_LARGE: &str =
-    concat!(env!("CARGO_CRATE_NAME"), "_check_tx_removed_too_large");
-
-pub const CHECK_TX_REMOVED_FAILED_STATELESS: &str = concat!(
-    env!("CARGO_CRATE_NAME"),
-    "_check_tx_removed_failed_stateless"
-);
-
-pub const CHECK_TX_REMOVED_STALE_NONCE: &str =
-    concat!(env!("CARGO_CRATE_NAME"), "_check_tx_removed_stale_nonce");
-
-pub const CHECK_TX_REMOVED_ACCOUNT_BALANCE: &str = concat!(
-    env!("CARGO_CRATE_NAME"),
-    "_check_tx_removed_account_balance"
-);
+    #[test]
+    fn metrics_are_as_expected() {
+        assert_const(
+            PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_DECODE_FAILURE,
+            "prepare_proposal_excluded_transactions_decode_failure",
+        );
+        assert_const(
+            PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_COMETBFT_SPACE,
+            "prepare_proposal_excluded_transactions_cometbft_space",
+        );
+        assert_const(
+            PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_SEQUENCER_SPACE,
+            "prepare_proposal_excluded_transactions_sequencer_space",
+        );
+        assert_const(
+            PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_FAILED_EXECUTION,
+            "prepare_proposal_excluded_transactions_failed_execution",
+        );
+        assert_const(
+            PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS,
+            "prepare_proposal_excluded_transactions",
+        );
+        assert_const(PROPOSAL_DEPOSITS, "proposal_deposits");
+        assert_const(PROPOSAL_TRANSACTIONS, "proposal_transactions");
+        assert_const(
+            PROCESS_PROPOSAL_SKIPPED_PROPOSAL,
+            "process_proposal_skipped_proposal",
+        );
+        assert_const(CHECK_TX_REMOVED_TOO_LARGE, "check_tx_removed_too_large");
+        assert_const(
+            CHECK_TX_REMOVED_FAILED_STATELESS,
+            "check_tx_removed_failed_stateless",
+        );
+        assert_const(CHECK_TX_REMOVED_STALE_NONCE, "check_tx_removed_stale_nonce");
+        assert_const(
+            CHECK_TX_REMOVED_ACCOUNT_BALANCE,
+            "check_tx_removed_account_balance",
+        );
+    }
+}

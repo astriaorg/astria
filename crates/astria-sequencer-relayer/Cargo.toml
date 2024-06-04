@@ -24,6 +24,7 @@ axum = { workspace = true }
 base64 = { workspace = true }
 base64-serde = { workspace = true }
 celestia-types = { workspace = true }
+const_format = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 humantime = { workspace = true }
@@ -43,6 +44,7 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 tryhard = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal"] }
+tokio-stream = { workspace = true }
 tokio-util = { workspace = true }
 tonic = { workspace = true }
 
@@ -61,8 +63,6 @@ sequencer-client = { package = "astria-sequencer-client", path = "../astria-sequ
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry", features = [
   "display",
 ] }
-tokio-stream = { workspace = true }
-const_format = "0.2.32"
 
 [dev-dependencies]
 astria-grpc-mock = { path = "../astria-grpc-mock" }
