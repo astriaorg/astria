@@ -18,6 +18,8 @@ data:
   celestia_app_grpc_port: "{{ .Values.ports.celestiaAppGrpcPort }}"
   ibc_account_mnemonic: "{{ .Values.ibcAccountMnemonic }}"
   ibc_account_key_name: "{{ .Values.ibcAccountKeyName }}"
+  dev_account_mnemonic: "{{ .Values.devAccountMnemonic }}"
+  dev_account_key_name: "{{ .Values.devAccountName }}"
 ---
 apiVersion: v1
 kind: ConfigMap

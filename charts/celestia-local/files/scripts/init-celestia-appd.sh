@@ -41,6 +41,18 @@ celestia-appd add-genesis-account \
   --home "$home_dir" \
   "$coins"
 
+# developer account
+echo "$dev_account_mnemonic" | celestia-appd keys add \
+  "$dev_account_key_name" \
+  --home "$home_dir" \
+  --keyring-backend="$keyring_backend" \
+  --recover
+dev_account_key=$(celestia-appd keys show "$dev_account_key_name" -a --keyring-backend="$keyring_backend" --home "$home_dir")
+celestia-appd add-genesis-account \
+  "$dev_account_key" \
+  --home "$home_dir" \
+  "$coins"
+
 celestia-appd collect-gentxs --home "$home_dir"
 
 # Enable transaction indexing
