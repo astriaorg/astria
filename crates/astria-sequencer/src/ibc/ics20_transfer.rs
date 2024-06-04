@@ -492,7 +492,7 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
             unprefixed_denom
         } else {
             unprefixed_denom
-                .remove_prefix(&format!("{}/{}/", source_port, source_channel))
+                .remove_prefix(&format!("{source_port}/{source_channel}/"))
                 .expect(
                     "denom must be prefixed by source_port/source_channel as it was checked in \
                      `is_prefixed` above",
