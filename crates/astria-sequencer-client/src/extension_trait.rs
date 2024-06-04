@@ -46,7 +46,6 @@ use futures::Stream;
 use prost::{
     DecodeError,
     Message as _,
-    Name as _,
 };
 use tendermint::block::Height;
 #[cfg(feature = "http")]

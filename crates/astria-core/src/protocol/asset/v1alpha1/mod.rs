@@ -105,7 +105,6 @@ impl AllowedFeeAssetIdsResponse {
         let mut assets: Vec<asset::Id> = Vec::new();
 
         for raw_id in fee_asset_ids {
-            // TODO: should this map_err to a `AllowedFeeAssetIdsResponseError`?
             let native_id = asset::Id::try_from_slice(raw_id)
                 .map_err(AllowedFeeAssetIdsResponseError::incorrect_asset_id_length)?;
             assets.push(native_id);
@@ -136,7 +135,7 @@ impl raw::AllowedFeeAssetIdsResponse {
         } = native;
         let raw_assets = fee_asset_ids
             .into_iter()
-            .map(|id| id.as_ref().into())
+            .map(|id| id.as_ref().to_vec().into())
             .collect();
         Self {
             height,
@@ -216,9 +215,9 @@ mod tests {
         let raw = raw::AllowedFeeAssetIdsResponse {
             height: 42,
             fee_asset_ids: vec![
-                asset::Id::from_denom("asset_0").get().to_vec(),
-                asset::Id::from_denom("asset_1").get().to_vec(),
-                asset::Id::from_denom("asset_2").get().to_vec(),
+                asset::Id::from_denom("asset_0").get().to_vec().into(),
+                asset::Id::from_denom("asset_1").get().to_vec().into(),
+                asset::Id::from_denom("asset_2").get().to_vec().into(),
             ],
         };
         let expected = AllowedFeeAssetIdsResponse {
@@ -246,9 +245,9 @@ mod tests {
         let expected = raw::AllowedFeeAssetIdsResponse {
             height: 42,
             fee_asset_ids: vec![
-                asset::Id::from_denom("asset_0").get().to_vec(),
-                asset::Id::from_denom("asset_1").get().to_vec(),
-                asset::Id::from_denom("asset_2").get().to_vec(),
+                asset::Id::from_denom("asset_0").get().to_vec().into(),
+                asset::Id::from_denom("asset_1").get().to_vec().into(),
+                asset::Id::from_denom("asset_2").get().to_vec().into(),
             ],
         };
         let actual = native.into_raw();
