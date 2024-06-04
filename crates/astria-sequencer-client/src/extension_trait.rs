@@ -46,6 +46,7 @@ use futures::Stream;
 use prost::{
     DecodeError,
     Message as _,
+    Name as _,
 };
 use tendermint::block::Height;
 #[cfg(feature = "http")]
@@ -483,7 +484,7 @@ pub trait SequencerClientExt: Client {
             .map_err(|e| {
 
                 Error::abci_query_deserialization(
-                    &astria_core::generated::protocol::asset::v1alpha1::AllowedFeeAssetIdsResponse::full_name(),
+                    astria_core::generated::protocol::asset::v1alpha1::AllowedFeeAssetIdsResponse::NAME,
                     response,
                     e,
                 )
