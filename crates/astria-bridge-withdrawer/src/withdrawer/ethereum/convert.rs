@@ -249,6 +249,7 @@ mod tests {
             })
             .unwrap(),
             fee_asset_id: denom.id(),
+            bridge_address: None,
         };
 
         assert_eq!(action, expected_action);
