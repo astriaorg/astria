@@ -74,7 +74,11 @@ fn update_yaml_value(
 
     let keys: Vec<&str> = key.split('.').collect();
 
-    for &key in keys.iter().take(keys.len() - 1) {
+    let keys_len_minus_one = keys
+        .len()
+        .checked_sub(1)
+        .expect("`key.split()` should always return at least one value");
+    for &key in keys.iter().take(keys_len_minus_one) {
         target = target
             .get_mut(key)
             .ok_or_else(|| eyre::eyre!("Invalid key path: {}", key))?;
@@ -200,14 +204,14 @@ pub(crate) fn create_deployment(args: &DeploymentCreateArgs) -> eyre::Result<()>
         // Use a secret manager or inject the private key into the environment
         .arg("--set")
         .arg(format!(
-            "config.faucet.privateKey={}",
+            "config.faucet.privateKey.devContent={}",
             args.faucet_private_key.clone()
         ))
         // TODO: https://github.com/astriaorg/astria/issues/594
         // Use a secret manager or inject the private key into the environment
         .arg("--set")
         .arg(format!(
-            "config.sequencer.privateKey={}",
+            "config.sequencer.privateKey.devContent={}",
             args.sequencer_private_key.clone()
         ))
         .arg(rollup.deployment_config.get_chart_release_name())

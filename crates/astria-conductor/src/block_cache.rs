@@ -49,7 +49,10 @@ impl<T> BlockCache<T> {
     /// Returns the next sequential block if it exists in the cache.
     pub(crate) fn pop(&mut self) -> Option<T> {
         let block = self.inner.remove(&self.next_height)?;
-        self.next_height += 1;
+        self.next_height = self
+            .next_height
+            .checked_add(1)
+            .expect("block height must not exceed `u64::MAX`");
         Some(block)
     }
 

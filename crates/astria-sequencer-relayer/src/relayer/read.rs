@@ -158,14 +158,14 @@ impl Stream for BlockStream {
 
         // A new future will be spawned as long as next_height <= latest_height. So
         // 10 - 10 = 0, but there 1 future still to be spawned at next height = 10.
-        lower_limit += Into::<u64>::into(next_height <= latest_height);
+        lower_limit = lower_limit.saturating_add(u64::from(next_height <= latest_height));
 
         // Add 1 if a fetch is in-flight. Example: if requested and latest heights are
         // both 10, then (latest - requested) = 0. But that is only true if the future already
         // resolved and its result was returned. If requested height is 9 and latest is 10,
         // then `(latest - requested) = 1`, meaning there is one more height to be fetched plus
         // the one that's currently in-flight.
-        lower_limit += Into::<u64>::into(self.future.is_some());
+        lower_limit = lower_limit.saturating_add(u64::from(self.future.is_some()));
 
         let lower_limit = lower_limit.try_into().expect(
             "height differences should convert to usize on all reasonable architectures; 64 bit: \

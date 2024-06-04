@@ -1,7 +1,5 @@
 use std::sync::Arc;
 
-#[cfg(feature = "mint")]
-use astria_core::protocol::transaction::v1alpha1::action::MintAction;
 use astria_core::{
     crypto::SigningKey,
     primitive::v1::{
@@ -806,53 +804,6 @@ async fn app_execute_transaction_bridge_lock_action_invalid_for_eoa() {
 
     let signed_tx = Arc::new(tx.into_signed(&alice_signing_key));
     assert!(app.execute_transaction(signed_tx).await.is_err());
-}
-
-#[cfg(feature = "mint")]
-#[tokio::test]
-async fn app_execute_transaction_mint() {
-    let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
-
-    let genesis_state = GenesisState {
-        accounts: default_genesis_accounts(),
-        authority_sudo_address: alice_address,
-        ibc_sudo_address: [0u8; 20].into(),
-        ibc_relayer_addresses: vec![],
-        native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
-        ibc_params: IBCParameters::default(),
-        allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
-        fees: default_fees(),
-    };
-    let mut app = initialize_app(Some(genesis_state), vec![]).await;
-
-    let bob_address = address_from_hex_string(BOB_ADDRESS);
-    let value = 333_333;
-    let tx = UnsignedTransaction {
-        params: TransactionParams {
-            nonce: 0,
-            chain_id: "test".to_string(),
-        },
-        actions: vec![
-            MintAction {
-                to: bob_address,
-                amount: value,
-            }
-            .into(),
-        ],
-    };
-
-    let signed_tx = Arc::new(tx.into_signed(&alice_signing_key));
-    app.execute_transaction(signed_tx).await.unwrap();
-
-    assert_eq!(
-        app.state
-            .get_account_balance(bob_address, get_native_asset().id())
-            .await
-            .unwrap(),
-        value + 10u128.pow(19)
-    );
-    assert_eq!(app.state.get_account_nonce(bob_address).await.unwrap(), 0);
-    assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
 }
 
 #[tokio::test]

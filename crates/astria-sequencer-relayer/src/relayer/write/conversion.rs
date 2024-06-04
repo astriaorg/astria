@@ -27,6 +27,7 @@ use pin_project_lite::pin_project;
 use sequencer_client::SequencerBlock;
 use tendermint::block::Height as SequencerHeight;
 use tracing::{
+    error,
     trace,
     warn,
 };
@@ -132,8 +133,28 @@ impl Payload {
         let encoded = value.encode_to_vec();
         let compressed = compress_bytes(&encoded)?;
         let blob = Blob::new(namespace, compressed)?;
-        self.uncompressed_size += encoded.len();
-        self.compressed_size += blob.data.len();
+        self.uncompressed_size = self
+            .uncompressed_size
+            .checked_add(encoded.len())
+            .unwrap_or_else(|| {
+                error!(
+                    uncompressed_size = self.uncompressed_size,
+                    encoded_len = encoded.len(),
+                    "overflowed uncompressed size while adding new value; setting to `usize::MAX`"
+                );
+                usize::MAX
+            });
+        self.compressed_size = self
+            .compressed_size
+            .checked_add(blob.data.len())
+            .unwrap_or_else(|| {
+                error!(
+                    compressed_size = self.compressed_size,
+                    blob_data_len = blob.data.len(),
+                    "overflowed compressed size while adding new value; setting to `usize::MAX`"
+                );
+                usize::MAX
+            });
         self.blobs.push(blob);
         Ok(())
     }
@@ -159,6 +180,8 @@ pub(super) enum TryIntoPayloadError {
          could not be constructed"
     )]
     NoSequencerNamespacePresent,
+    #[error("the payload size exceeded `u64::MAX` bytes")]
+    PayloadSize,
 }
 
 #[derive(Clone, Debug, Default, serde::Serialize)]
@@ -236,8 +259,12 @@ impl Input {
     fn try_into_payload(self) -> Result<Payload, TryIntoPayloadError> {
         use prost::Name as _;
 
-        let mut payload =
-            Payload::with_capacity(self.metadata.len() + self.rollup_data_for_namespace.len());
+        let payload_len = self
+            .metadata
+            .len()
+            .checked_add(self.rollup_data_for_namespace.len())
+            .ok_or(TryIntoPayloadError::PayloadSize)?;
+        let mut payload = Payload::with_capacity(payload_len);
 
         let sequencer_namespace = self
             .meta
