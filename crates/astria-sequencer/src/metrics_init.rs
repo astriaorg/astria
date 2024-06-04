@@ -8,7 +8,7 @@ use metrics::{
     describe_histogram,
     Unit,
 };
-use telemetry::declare_metric_const;
+use telemetry::metric_name;
 
 /// Registers all metrics used by this crate.
 pub fn register() {
@@ -90,18 +90,18 @@ pub fn register() {
     );
 }
 
-declare_metric_const!(pub const PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_DECODE_FAILURE);
-declare_metric_const!(pub const PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_COMETBFT_SPACE);
-declare_metric_const!(pub const PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_SEQUENCER_SPACE);
-declare_metric_const!(pub const PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_FAILED_EXECUTION);
-declare_metric_const!(pub const PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS);
-declare_metric_const!(pub const PROPOSAL_DEPOSITS);
-declare_metric_const!(pub const PROPOSAL_TRANSACTIONS);
-declare_metric_const!(pub const PROCESS_PROPOSAL_SKIPPED_PROPOSAL);
-declare_metric_const!(pub const CHECK_TX_REMOVED_TOO_LARGE);
-declare_metric_const!(pub const CHECK_TX_REMOVED_FAILED_STATELESS);
-declare_metric_const!(pub const CHECK_TX_REMOVED_STALE_NONCE);
-declare_metric_const!(pub const CHECK_TX_REMOVED_ACCOUNT_BALANCE);
+metric_name!(pub const PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_DECODE_FAILURE);
+metric_name!(pub const PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_COMETBFT_SPACE);
+metric_name!(pub const PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_SEQUENCER_SPACE);
+metric_name!(pub const PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_FAILED_EXECUTION);
+metric_name!(pub const PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS);
+metric_name!(pub const PROPOSAL_DEPOSITS);
+metric_name!(pub const PROPOSAL_TRANSACTIONS);
+metric_name!(pub const PROCESS_PROPOSAL_SKIPPED_PROPOSAL);
+metric_name!(pub const CHECK_TX_REMOVED_TOO_LARGE);
+metric_name!(pub const CHECK_TX_REMOVED_FAILED_STATELESS);
+metric_name!(pub const CHECK_TX_REMOVED_STALE_NONCE);
+metric_name!(pub const CHECK_TX_REMOVED_ACCOUNT_BALANCE);
 
 #[cfg(test)]
 mod tests {

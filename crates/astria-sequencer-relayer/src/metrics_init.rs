@@ -8,7 +8,7 @@ use metrics::{
     describe_histogram,
     Unit,
 };
-use telemetry::declare_metric_const;
+use telemetry::metric_name;
 
 /// Registers all metrics used by this crate.
 pub fn register() {
@@ -93,18 +93,18 @@ pub fn register() {
 // output, and may need to be updated over time.
 pub const HISTOGRAM_BUCKETS: &[f64; 5] = &[0.00001, 0.0001, 0.001, 0.01, 0.1];
 
-declare_metric_const!(pub const CELESTIA_SUBMISSION_HEIGHT);
-declare_metric_const!(pub const CELESTIA_SUBMISSION_COUNT);
-declare_metric_const!(pub const CELESTIA_SUBMISSION_FAILURE_COUNT);
-declare_metric_const!(pub const BLOCKS_PER_CELESTIA_TX);
-declare_metric_const!(pub const BLOBS_PER_CELESTIA_TX);
-declare_metric_const!(pub const BYTES_PER_CELESTIA_TX);
-declare_metric_const!(pub const CELESTIA_PAYLOAD_CREATION_LATENCY);
-declare_metric_const!(pub const CELESTIA_SUBMISSION_LATENCY);
-declare_metric_const!(pub const SEQUENCER_BLOCK_FETCH_FAILURE_COUNT);
-declare_metric_const!(pub const SEQUENCER_HEIGHT_FETCH_FAILURE_COUNT);
-declare_metric_const!(pub const SEQUENCER_SUBMISSION_HEIGHT);
-declare_metric_const!(pub const COMPRESSION_RATIO_FOR_ASTRIA_BLOCK);
+metric_name!(pub const CELESTIA_SUBMISSION_HEIGHT);
+metric_name!(pub const CELESTIA_SUBMISSION_COUNT);
+metric_name!(pub const CELESTIA_SUBMISSION_FAILURE_COUNT);
+metric_name!(pub const BLOCKS_PER_CELESTIA_TX);
+metric_name!(pub const BLOBS_PER_CELESTIA_TX);
+metric_name!(pub const BYTES_PER_CELESTIA_TX);
+metric_name!(pub const CELESTIA_PAYLOAD_CREATION_LATENCY);
+metric_name!(pub const CELESTIA_SUBMISSION_LATENCY);
+metric_name!(pub const SEQUENCER_BLOCK_FETCH_FAILURE_COUNT);
+metric_name!(pub const SEQUENCER_HEIGHT_FETCH_FAILURE_COUNT);
+metric_name!(pub const SEQUENCER_SUBMISSION_HEIGHT);
+metric_name!(pub const COMPRESSION_RATIO_FOR_ASTRIA_BLOCK);
 
 #[cfg(test)]
 mod tests {

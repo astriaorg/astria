@@ -27,7 +27,6 @@ sequencer-client = { package = "astria-sequencer-client", path = "../astria-sequ
 ] }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry", features = [
   "display",
-  "macros",
 ] }
 
 base64 = { workspace = true }

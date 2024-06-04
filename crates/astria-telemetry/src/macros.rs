@@ -20,17 +20,17 @@ pub use const_format::{
 ///
 /// # Examples
 /// ```
-/// use astria_telemetry::declare_metric_const;
-/// declare_metric_const!(pub const EXAMPLE_COUNTER);
+/// use astria_telemetry::metric_name;
+/// metric_name!(pub const EXAMPLE_COUNTER);
 /// // Note that this example has `astria_telemetry` a a prefix because
 /// // this doctest is part of this crate.
 /// // In your case, use your crate's `CARGO_CRATE_NAME` as prefix.
 /// assert_eq!(EXAMPLE_COUNTER, "astria_telemetry_example_counter");
 /// ```
 #[macro_export]
-macro_rules! declare_metric_const {
+macro_rules! metric_name {
     ($vis:vis const $($tt:tt)*) => {
-        $crate::__declare_metric_const_internal!(
+        $crate::__metric_name_internal!(
             $vis [$($tt)*] [::core::stringify!($($tt)*)]
         );
     }
@@ -38,7 +38,7 @@ macro_rules! declare_metric_const {
 
 #[doc(hidden)]
 #[macro_export]
-macro_rules! __declare_metric_const_internal {
+macro_rules! __metric_name_internal {
     ($vis:vis [$name:ident][$suffix:expr]) => {
         $vis const $name: &str = $crate::macros::__concatcp!(
             ::core::env!("CARGO_CRATE_NAME"),
@@ -52,7 +52,7 @@ macro_rules! __declare_metric_const_internal {
 mod tests {
     #[test]
     fn gives_expected_const_and_value() {
-        crate::declare_metric_const!(const EXAMPLE_CONST);
+        crate::metric_name!(const EXAMPLE_CONST);
         assert_eq!("astria_telemetry_example_const", EXAMPLE_CONST);
     }
 }
