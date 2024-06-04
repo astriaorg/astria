@@ -272,7 +272,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
                 amount: 10,
                 fee_asset_id: asset_id,
                 memo: vec![0u8; 32],
-                from: None,
+                bridge_address: None,
             }
             .into(),
             BridgeSudoChangeAction {

@@ -131,7 +131,7 @@ pub(crate) async fn check_balance_for_total_fees<S: StateReadExt + 'static>(
             Action::BridgeUnlock(act) => {
                 bridge_unlock_update_fees(
                     state,
-                    act.from.unwrap_or(from),
+                    act.bridge_address.unwrap_or(from),
                     act.amount,
                     act.fee_asset_id,
                     &mut fees_by_asset,

@@ -376,7 +376,9 @@ pub struct BridgeUnlockAction {
     /// if the bridge account's withdrawer address is not the same as the bridge address.
     /// if unset, the signer of the transaction is used.
     #[prost(message, optional, tag = "5")]
-    pub from: ::core::option::Option<super::super::super::primitive::v1::Address>,
+    pub bridge_address: ::core::option::Option<
+        super::super::super::primitive::v1::Address,
+    >,
 }
 impl ::prost::Name for BridgeUnlockAction {
     const NAME: &'static str = "BridgeUnlockAction";

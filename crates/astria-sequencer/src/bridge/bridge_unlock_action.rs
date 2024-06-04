@@ -32,7 +32,7 @@ impl ActionHandler for BridgeUnlockAction {
     ) -> Result<()> {
         // the bridge address to withdraw funds from
         // if unset, use the tx sender's address
-        let bridge_address = self.from.unwrap_or(from);
+        let bridge_address = self.bridge_address.unwrap_or(from);
 
         // grab the bridge account's asset
         let asset_id = state
@@ -68,7 +68,7 @@ impl ActionHandler for BridgeUnlockAction {
     #[instrument(skip_all)]
     async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> Result<()> {
         // the bridge address to withdraw funds from
-        let bridge_address = self.from.unwrap_or(from);
+        let bridge_address = self.bridge_address.unwrap_or(from);
 
         let asset_id = state
             .get_bridge_account_asset_id(&bridge_address)
@@ -123,7 +123,7 @@ mod test {
             amount: transfer_amount,
             fee_asset_id: asset_id,
             memo: vec![0u8; 32],
-            from: None,
+            bridge_address: None,
         };
 
         // not a bridge account, should fail
@@ -160,7 +160,7 @@ mod test {
             amount: transfer_amount,
             fee_asset_id: asset_id,
             memo: vec![0u8; 32],
-            from: Some(bridge_address),
+            bridge_address: Some(bridge_address),
         };
 
         // invalid sender, doesn't match action's `from`, should fail
@@ -198,7 +198,7 @@ mod test {
             amount: transfer_amount,
             fee_asset_id: asset_id,
             memo: vec![0u8; 32],
-            from: Some(bridge_address),
+            bridge_address: Some(bridge_address),
         };
 
         // invalid sender, doesn't match action's bridge account's withdrawer, should fail
@@ -239,7 +239,7 @@ mod test {
             amount: transfer_amount,
             fee_asset_id: asset_id,
             memo: vec![0u8; 32],
-            from: None,
+            bridge_address: None,
         };
 
         // not enough balance to transfer asset; should fail
@@ -294,7 +294,7 @@ mod test {
             amount: transfer_amount,
             fee_asset_id: asset_id,
             memo: vec![0u8; 32],
-            from: Some(bridge_address),
+            bridge_address: Some(bridge_address),
         };
 
         // not enough balance to transfer asset; should fail
@@ -346,7 +346,7 @@ mod test {
             amount: transfer_amount,
             fee_asset_id: asset_id,
             memo: vec![0u8; 32],
-            from: None,
+            bridge_address: None,
         };
 
         // not enough balance; should fail
@@ -398,7 +398,7 @@ mod test {
             amount: transfer_amount,
             fee_asset_id: asset_id,
             memo: vec![0u8; 32],
-            from: Some(bridge_address),
+            bridge_address: Some(bridge_address),
         };
 
         // not enough balance; should fail

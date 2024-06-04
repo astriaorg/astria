@@ -1284,7 +1284,7 @@ pub struct BridgeUnlockAction {
     // the address of the bridge account to transfer from,
     // if the bridge account's withdrawer address is not the same as the bridge address.
     // if unset, the signer of the transaction is used.
-    pub from: Option<Address>,
+    pub bridge_address: Option<Address>,
 }
 
 impl BridgeUnlockAction {
@@ -1295,7 +1295,7 @@ impl BridgeUnlockAction {
             amount: Some(self.amount.into()),
             fee_asset_id: self.fee_asset_id.as_ref().to_vec(),
             memo: self.memo,
-            from: self.from.map(Address::into_raw),
+            bridge_address: self.bridge_address.map(Address::into_raw),
         }
     }
 
@@ -1306,7 +1306,7 @@ impl BridgeUnlockAction {
             amount: Some(self.amount.into()),
             fee_asset_id: self.fee_asset_id.as_ref().to_vec(),
             memo: self.memo.clone(),
-            from: self.from.as_ref().map(Address::to_raw),
+            bridge_address: self.bridge_address.as_ref().map(Address::to_raw),
         }
     }
 
@@ -1329,18 +1329,18 @@ impl BridgeUnlockAction {
             .ok_or(BridgeUnlockActionError::missing_amount())?;
         let fee_asset_id = asset::Id::try_from_slice(&proto.fee_asset_id)
             .map_err(BridgeUnlockActionError::invalid_fee_asset_id)?;
-        let from = proto
-            .from
+        let bridge_address = proto
+            .bridge_address
             .as_ref()
             .map(Address::try_from_raw)
             .transpose()
-            .map_err(BridgeUnlockActionError::invalid_from_address)?;
+            .map_err(BridgeUnlockActionError::invalid_bridge_address)?;
         Ok(Self {
             to,
             amount: amount.into(),
             fee_asset_id,
             memo: proto.memo,
-            from,
+            bridge_address,
         })
     }
 }
@@ -1371,8 +1371,8 @@ impl BridgeUnlockActionError {
     }
 
     #[must_use]
-    fn invalid_from_address(err: IncorrectAddressLength) -> Self {
-        Self(BridgeUnlockActionErrorKind::InvalidFromAddress(err))
+    fn invalid_bridge_address(err: IncorrectAddressLength) -> Self {
+        Self(BridgeUnlockActionErrorKind::InvalidBridgeAddress(err))
     }
 }
 
@@ -1386,8 +1386,8 @@ enum BridgeUnlockActionErrorKind {
     MissingAmount,
     #[error("the `fee_asset_id` field was invalid")]
     InvalidFeeAssetId(#[source] asset::IncorrectAssetIdLength),
-    #[error("the `from` field was invalid")]
-    InvalidFromAddress(#[source] IncorrectAddressLength),
+    #[error("the `bridge_address` field was invalid")]
+    InvalidBridgeAddress(#[source] IncorrectAddressLength),
 }
 
 #[allow(clippy::module_name_repetitions)]

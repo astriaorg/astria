@@ -105,6 +105,7 @@ fn event_to_bridge_unlock(
             ))?,
         memo: serde_json::to_vec(&memo).wrap_err("failed to serialize memo to json")?,
         fee_asset_id,
+        bridge_address: None,
     };
     Ok(Action::BridgeUnlock(action))
 }
@@ -215,6 +216,7 @@ mod tests {
             })
             .unwrap(),
             fee_asset_id: denom.id(),
+            bridge_address: None,
         };
 
         assert_eq!(action, expected_action);
