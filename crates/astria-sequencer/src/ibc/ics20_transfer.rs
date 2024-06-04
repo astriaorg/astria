@@ -210,7 +210,7 @@ async fn refund_tokens_check<S: StateRead>(
 }
 
 fn is_prefixed(source_port: &PortId, source_channel: &ChannelId, asset: &Denom) -> bool {
-    let prefix = format!("{source_port}/{source_channel}/");
+    let prefix = format!("{source_port}/{source_channel}");
     asset.is_prefixed_with(&prefix)
 }
 
