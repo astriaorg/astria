@@ -20,8 +20,8 @@ impl ::prost::Name for DenomResponse {
 pub struct AllowedFeeAssetIdsResponse {
     #[prost(uint64, tag = "1")]
     pub height: u64,
-    #[prost(bytes = "vec", repeated, tag = "2")]
-    pub fee_asset_ids: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+    #[prost(bytes = "bytes", repeated, tag = "2")]
+    pub fee_asset_ids: ::prost::alloc::vec::Vec<::prost::bytes::Bytes>,
 }
 impl ::prost::Name for AllowedFeeAssetIdsResponse {
     const NAME: &'static str = "AllowedFeeAssetIdsResponse";
