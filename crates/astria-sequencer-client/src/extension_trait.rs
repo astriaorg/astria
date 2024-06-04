@@ -482,9 +482,8 @@ pub trait SequencerClientExt: Client {
                 &*response.value,
             )
             .map_err(|e| {
-
                 Error::abci_query_deserialization(
-                    astria_core::generated::protocol::asset::v1alpha1::AllowedFeeAssetIdsResponse::NAME,
+                    "astria.protocol.asset.v1alpha1.AllowedFeeAssetIdsResponse",
                     response,
                     e,
                 )
