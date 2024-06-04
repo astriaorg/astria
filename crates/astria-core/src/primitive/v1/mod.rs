@@ -362,9 +362,6 @@ impl Address {
                 "must not fail because Address is tested to be ADDRESS_BECH32M_LENGTH long, which \
                  is less than the permitted maximum bech32m checksum length",
             );
-        // allow: for compatibility purposes. The `bytes` protobuf field is deprecated
-        // and should not be used by downstream users in new code.
-        #[allow(deprecated)]
         raw::Address {
             inner: self.to_vec().into(),
             bech32m,
@@ -382,9 +379,6 @@ impl Address {
     ///
     /// Returns an error if the account buffer was not 20 bytes long.
     pub fn try_from_raw(raw: &raw::Address) -> Result<Self, AddressError> {
-        // allow: for compatibility purposes. The `bytes` protobuf field is deprecated
-        // and should not be used by downstream users in new code.
-        #![allow(deprecated)]
         let raw::Address {
             inner,
             bech32m,
@@ -464,10 +458,12 @@ mod tests {
     use insta::assert_json_snapshot;
 
     use super::{
+        raw,
         Address,
         AddressErrorKind,
         ADDRESS_LEN,
     };
+    use crate::primitive::v1::BECH32_HRP;
 
     #[test]
     fn account_of_20_bytes_is_converted_correctly() {
@@ -516,8 +512,6 @@ mod tests {
 
     #[test]
     fn mismatched_fields_in_protobuf_address_are_caught() {
-        // allow: deprecated code must still be tested
-        #![allow(deprecated)]
         let bytes = [24u8; ADDRESS_LEN];
         let bech32m = [42u8; ADDRESS_LEN];
         let proto = super::raw::Address {
@@ -543,5 +537,39 @@ mod tests {
             received: hrp,
         };
         assert_eq!(expected, actual.0);
+    }
+
+    #[test]
+    fn proto_with_missing_bech32m_is_accepted() {
+        let bytes = [42u8; ADDRESS_LEN];
+        let input = raw::Address {
+            inner: Bytes::copy_from_slice(&bytes),
+            bech32m: "".into(),
+        };
+        let address = Address::try_from_raw(&input).unwrap();
+        assert_eq!(bytes, address.get());
+    }
+
+    #[test]
+    fn proto_with_missing_bytes_is_accepted_and_bytes_is_populated() {
+        let bytes = [42u8; ADDRESS_LEN];
+        let input = raw::Address {
+            inner: Bytes::new(),
+            bech32m: bech32::encode_lower::<bech32::Bech32m>(BECH32_HRP, &bytes).unwrap(),
+        };
+        let address = Address::try_from_raw(&input).unwrap();
+        assert_eq!(bytes, address.get());
+    }
+
+    #[test]
+    fn protobuf_has_bytes_and_bech32m_populated() {
+        let bytes = [42u8; ADDRESS_LEN];
+        let address = Address::from_array(bytes);
+        let output = address.into_raw();
+        assert_eq!(&bytes[..], &*output.inner);
+        assert_eq!(
+            bech32::encode_lower::<bech32::Bech32m>(BECH32_HRP, &bytes).unwrap(),
+            output.bech32m
+        );
     }
 }
