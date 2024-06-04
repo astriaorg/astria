@@ -48,6 +48,7 @@ use sequencer_client::{
     SignedTransaction,
 };
 use serde_json::json;
+use telemetry::metrics::Metrics as _;
 use tempfile::NamedTempFile;
 use tendermint::{
     abci::{
@@ -100,18 +101,18 @@ const DEFAULT_IBC_DENOM: &str = "transfer/channel-0/utia";
 static TELEMETRY: Lazy<()> = Lazy::new(|| {
     if std::env::var_os("TEST_LOG").is_some() {
         let filter_directives = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into());
-        telemetry::configure()
-            .no_otel()
-            .stdout_writer(std::io::stdout)
+        let _ = telemetry::configure()
+            .set_no_otel(true)
+            .set_stdout_writer(std::io::stdout)
             .set_pretty_print(true)
-            .filter_directives(&filter_directives)
-            .try_init()
+            .set_filter_directives(&filter_directives)
+            .try_init::<Metrics>(&())
             .unwrap();
     } else {
-        telemetry::configure()
-            .no_otel()
-            .stdout_writer(std::io::sink)
-            .try_init()
+        let _ = telemetry::configure()
+            .set_no_otel(true)
+            .set_stdout_writer(std::io::sink)
+            .try_init::<Metrics>(&())
             .unwrap();
     }
 });
@@ -148,7 +149,7 @@ impl TestSubmitter {
         // not testing watcher here so just set it to ready
         state.set_watcher_ready();
 
-        let metrics = Box::leak(Box::new(Metrics::new()));
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
 
         let (submitter, submitter_handle) = submitter::Builder {
             shutdown_token: shutdown_token.clone(),

@@ -20,6 +20,7 @@ use astria_core::{
 use astria_grpc_mock::MockGuard as GrpcMockGuard;
 use astria_sequencer_relayer::{
     config::Config,
+    Metrics,
     SequencerRelayer,
     ShutdownHandle,
 };
@@ -32,6 +33,7 @@ use reqwest::{
 };
 use serde::Deserialize;
 use serde_json::json;
+use telemetry::metrics;
 use tempfile::NamedTempFile;
 use tendermint_config::PrivValidatorKey;
 use tendermint_rpc::{
@@ -128,19 +130,19 @@ static TELEMETRY: Lazy<()> = Lazy::new(|| {
     if std::env::var_os("TEST_LOG").is_some() {
         let filter_directives = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into());
         println!("initializing telemetry");
-        telemetry::configure()
-            .no_otel()
-            .stdout_writer(std::io::stdout)
-            .force_stdout()
-            .pretty_print()
-            .filter_directives(&filter_directives)
-            .try_init()
+        let _ = telemetry::configure()
+            .set_no_otel(true)
+            .set_stdout_writer(std::io::stdout)
+            .set_force_stdout(true)
+            .set_pretty_print(true)
+            .set_filter_directives(&filter_directives)
+            .try_init::<Metrics>(&())
             .unwrap();
     } else {
-        telemetry::configure()
-            .no_otel()
-            .stdout_writer(std::io::sink)
-            .try_init()
+        let _ = telemetry::configure()
+            .set_no_otel(true)
+            .set_stdout_writer(std::io::sink)
+            .try_init::<Metrics>(&())
             .unwrap();
     }
 });
@@ -177,6 +179,7 @@ pub struct TestSequencerRelayer {
     /// The Celestia chain ID which will be returned by the mock `celestia_app` instance, and set
     /// via `TestSequencerRelayerConfig`.
     pub actual_celestia_chain_id: String,
+    pub metrics_handle: metrics::Handle,
 }
 
 impl Drop for TestSequencerRelayer {
@@ -728,15 +731,21 @@ impl TestSequencerRelayerConfig {
             force_stdout: false,
             no_otel: false,
             no_metrics: false,
-            metrics_http_listener_addr: String::new(),
+            metrics_http_listener_addr: "127.0.0.1:9000".to_string(),
             pretty_print: true,
             pre_submit_path: pre_submit_file.path().to_owned(),
             post_submit_path: post_submit_file.path().to_owned(),
         };
 
+        let (metrics, metrics_handle) = metrics::ConfigBuilder::new()
+            .with_global_recorder(false)
+            .build(&())
+            .unwrap();
+        let metrics = Box::leak(Box::new(metrics));
+
         info!(config = serde_json::to_string(&config).unwrap());
         let (sequencer_relayer, relayer_shutdown_handle) =
-            SequencerRelayer::new(config.clone()).unwrap();
+            SequencerRelayer::new(config.clone(), metrics).unwrap();
         let api_address = sequencer_relayer.local_addr();
         let sequencer_relayer = tokio::task::spawn(sequencer_relayer.run());
 
@@ -753,6 +762,7 @@ impl TestSequencerRelayerConfig {
             post_submit_file,
             actual_sequencer_chain_id: self.sequencer_chain_id,
             actual_celestia_chain_id: self.celestia_chain_id,
+            metrics_handle,
         };
 
         test_sequencer_relayer

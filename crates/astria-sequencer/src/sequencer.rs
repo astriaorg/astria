@@ -1,5 +1,3 @@
-use std::sync::OnceLock;
-
 use anyhow::{
     anyhow,
     Context as _,
@@ -45,10 +43,7 @@ pub struct Sequencer;
 
 impl Sequencer {
     #[instrument(skip_all)]
-    pub async fn run_until_stopped(config: Config) -> Result<()> {
-        static METRICS: OnceLock<Metrics> = OnceLock::new();
-        let metrics = METRICS.get_or_init(Metrics::new);
-
+    pub async fn run_until_stopped(config: Config, metrics: &'static Metrics) -> Result<()> {
         if config
             .db_filepath
             .try_exists()

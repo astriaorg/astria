@@ -1,18 +1,15 @@
-use metrics::{
-    counter,
-    describe_counter,
-    describe_gauge,
-    describe_histogram,
-    gauge,
-    histogram,
-    Counter,
-    Gauge,
-    Histogram,
-    Unit,
+use telemetry::{
+    metric_names,
+    metrics::{
+        self,
+        Counter,
+        Gauge,
+        Histogram,
+        RegisteringBuilder,
+    },
 };
-use telemetry::metric_names;
 
-pub(crate) struct Metrics {
+pub struct Metrics {
     prepare_proposal_excluded_transactions_decode_failure: Counter,
     prepare_proposal_excluded_transactions_cometbft_space: Counter,
     prepare_proposal_excluded_transactions_sequencer_space: Counter,
@@ -28,120 +25,6 @@ pub(crate) struct Metrics {
 }
 
 impl Metrics {
-    #[must_use]
-    pub(crate) fn new() -> Self {
-        describe_counter!(
-            PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_DECODE_FAILURE,
-            Unit::Count,
-            "The number of transactions that have been excluded from blocks due to failing to \
-             decode"
-        );
-        let prepare_proposal_excluded_transactions_decode_failure =
-            counter!(PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_DECODE_FAILURE);
-
-        describe_counter!(
-            PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_COMETBFT_SPACE,
-            Unit::Count,
-            "The number of transactions that have been excluded from blocks due to running out of \
-             space in the cometbft block"
-        );
-        let prepare_proposal_excluded_transactions_cometbft_space =
-            counter!(PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_COMETBFT_SPACE);
-
-        describe_counter!(
-            PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_SEQUENCER_SPACE,
-            Unit::Count,
-            "The number of transactions that have been excluded from blocks due to running out of \
-             space in the sequencer block"
-        );
-        let prepare_proposal_excluded_transactions_sequencer_space =
-            counter!(PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_SEQUENCER_SPACE);
-
-        describe_counter!(
-            PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_FAILED_EXECUTION,
-            Unit::Count,
-            "The number of transactions that have been excluded from blocks due to failing to \
-             execute"
-        );
-        let prepare_proposal_excluded_transactions_failed_execution =
-            counter!(PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_FAILED_EXECUTION);
-
-        describe_gauge!(
-            PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS,
-            Unit::Count,
-            "The number of excluded transactions in a proposal being prepared"
-        );
-        let prepare_proposal_excluded_transactions = gauge!(PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS);
-
-        describe_histogram!(
-            PROPOSAL_DEPOSITS,
-            Unit::Count,
-            "The number of deposits in a proposal"
-        );
-        let proposal_deposits = histogram!(PROPOSAL_DEPOSITS);
-
-        describe_histogram!(
-            PROPOSAL_TRANSACTIONS,
-            Unit::Count,
-            "The number of transactions in a proposal"
-        );
-        let proposal_transactions = histogram!(PROPOSAL_TRANSACTIONS);
-
-        describe_counter!(
-            PROCESS_PROPOSAL_SKIPPED_PROPOSAL,
-            Unit::Count,
-            "The number of times our submitted prepared proposal was skipped in process proposal"
-        );
-        let process_proposal_skipped_proposal = counter!(PROCESS_PROPOSAL_SKIPPED_PROPOSAL);
-
-        describe_counter!(
-            CHECK_TX_REMOVED_TOO_LARGE,
-            Unit::Count,
-            "The number of transactions that have been removed from the mempool due to being too \
-             large"
-        );
-        let check_tx_removed_too_large = counter!(CHECK_TX_REMOVED_TOO_LARGE);
-
-        describe_counter!(
-            CHECK_TX_REMOVED_FAILED_STATELESS,
-            Unit::Count,
-            "The number of transactions that have been removed from the mempool due to failing \
-             the stateless check"
-        );
-        let check_tx_removed_failed_stateless = counter!(CHECK_TX_REMOVED_FAILED_STATELESS);
-
-        describe_counter!(
-            CHECK_TX_REMOVED_STALE_NONCE,
-            Unit::Count,
-            "The number of transactions that have been removed from the mempool due to having a \
-             stale nonce"
-        );
-        let check_tx_removed_stale_nonce = counter!(CHECK_TX_REMOVED_STALE_NONCE);
-
-        describe_counter!(
-            CHECK_TX_REMOVED_ACCOUNT_BALANCE,
-            Unit::Count,
-            "The number of transactions that have been removed from the mempool due to having not \
-             enough account balance"
-        );
-        let check_tx_removed_account_balance = counter!(CHECK_TX_REMOVED_ACCOUNT_BALANCE);
-
-        Self {
-            prepare_proposal_excluded_transactions_decode_failure,
-            prepare_proposal_excluded_transactions_cometbft_space,
-            prepare_proposal_excluded_transactions_sequencer_space,
-            prepare_proposal_excluded_transactions_failed_execution,
-            prepare_proposal_excluded_transactions,
-            proposal_deposits,
-            proposal_transactions,
-            process_proposal_skipped_proposal,
-            check_tx_removed_too_large,
-            check_tx_removed_failed_stateless,
-            check_tx_removed_stale_nonce,
-            check_tx_removed_account_balance,
-        }
-    }
-
     pub(crate) fn increment_prepare_proposal_excluded_transactions_decode_failure(&self) {
         self.prepare_proposal_excluded_transactions_decode_failure
             .increment(1);
@@ -199,7 +82,121 @@ impl Metrics {
     }
 }
 
-metric_names!(pub const METRICS_NAMES:
+impl metrics::Metrics for Metrics {
+    type Config = ();
+
+    fn register(
+        builder: &mut RegisteringBuilder,
+        _config: &Self::Config,
+    ) -> Result<Self, metrics::Error> {
+        let prepare_proposal_excluded_transactions_decode_failure = builder
+            .new_counter_factory(
+                PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_DECODE_FAILURE,
+                "The number of transactions that have been excluded from blocks due to failing to \
+                 decode",
+            )?
+            .register()?;
+
+        let prepare_proposal_excluded_transactions_cometbft_space = builder
+            .new_counter_factory(
+                PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_COMETBFT_SPACE,
+                "The number of transactions that have been excluded from blocks due to running \
+                 out of space in the cometbft block",
+            )?
+            .register()?;
+
+        let prepare_proposal_excluded_transactions_sequencer_space = builder
+            .new_counter_factory(
+                PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_SEQUENCER_SPACE,
+                "The number of transactions that have been excluded from blocks due to running \
+                 out of space in the sequencer block",
+            )?
+            .register()?;
+
+        let prepare_proposal_excluded_transactions_failed_execution = builder
+            .new_counter_factory(
+                PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_FAILED_EXECUTION,
+                "The number of transactions that have been excluded from blocks due to failing to \
+                 execute",
+            )?
+            .register()?;
+
+        let prepare_proposal_excluded_transactions = builder
+            .new_gauge_factory(
+                PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS,
+                "The number of excluded transactions in a proposal being prepared",
+            )?
+            .register()?;
+
+        let proposal_deposits = builder
+            .new_histogram_factory(PROPOSAL_DEPOSITS, "The number of deposits in a proposal")?
+            .register()?;
+
+        let proposal_transactions = builder
+            .new_histogram_factory(
+                PROPOSAL_TRANSACTIONS,
+                "The number of transactions in a proposal",
+            )?
+            .register()?;
+
+        let process_proposal_skipped_proposal = builder
+            .new_counter_factory(
+                PROCESS_PROPOSAL_SKIPPED_PROPOSAL,
+                "The number of times our submitted prepared proposal was skipped in process \
+                 proposal",
+            )?
+            .register()?;
+
+        let check_tx_removed_too_large = builder
+            .new_counter_factory(
+                CHECK_TX_REMOVED_TOO_LARGE,
+                "The number of transactions that have been removed from the mempool due to being \
+                 too large",
+            )?
+            .register()?;
+
+        let check_tx_removed_failed_stateless = builder
+            .new_counter_factory(
+                CHECK_TX_REMOVED_FAILED_STATELESS,
+                "The number of transactions that have been removed from the mempool due to \
+                 failing the stateless check",
+            )?
+            .register()?;
+
+        let check_tx_removed_stale_nonce = builder
+            .new_counter_factory(
+                CHECK_TX_REMOVED_STALE_NONCE,
+                "The number of transactions that have been removed from the mempool due to having \
+                 a stale nonce",
+            )?
+            .register()?;
+
+        let check_tx_removed_account_balance = builder
+            .new_counter_factory(
+                CHECK_TX_REMOVED_ACCOUNT_BALANCE,
+                "The number of transactions that have been removed from the mempool due to having \
+                 not enough account balance",
+            )?
+            .register()?;
+
+        Ok(Self {
+            prepare_proposal_excluded_transactions_decode_failure,
+            prepare_proposal_excluded_transactions_cometbft_space,
+            prepare_proposal_excluded_transactions_sequencer_space,
+            prepare_proposal_excluded_transactions_failed_execution,
+            prepare_proposal_excluded_transactions,
+            proposal_deposits,
+            proposal_transactions,
+            process_proposal_skipped_proposal,
+            check_tx_removed_too_large,
+            check_tx_removed_failed_stateless,
+            check_tx_removed_stale_nonce,
+            check_tx_removed_account_balance,
+        })
+    }
+}
+
+metric_names!(const METRICS_NAMES:
     PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_DECODE_FAILURE,
     PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_COMETBFT_SPACE,
     PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_SEQUENCER_SPACE,

@@ -1,20 +1,17 @@
 use std::time::Duration;
 
-use metrics::{
-    counter,
-    describe_counter,
-    describe_gauge,
-    describe_histogram,
-    gauge,
-    histogram,
-    Counter,
-    Gauge,
-    Histogram,
-    Unit,
+use telemetry::{
+    metric_names,
+    metrics::{
+        self,
+        Counter,
+        Gauge,
+        Histogram,
+        RegisteringBuilder,
+    },
 };
-use telemetry::metric_names;
 
-pub(crate) struct Metrics {
+pub struct Metrics {
     nonce_fetch_count: Counter,
     nonce_fetch_failure_count: Counter,
     nonce_fetch_latency: Histogram,
@@ -24,56 +21,6 @@ pub(crate) struct Metrics {
 }
 
 impl Metrics {
-    #[must_use]
-    pub(crate) fn new() -> Self {
-        describe_counter!(
-            NONCE_FETCH_COUNT,
-            Unit::Count,
-            "The number of times we have attempted to fetch the nonce"
-        );
-        let nonce_fetch_count = counter!(NONCE_FETCH_COUNT);
-
-        describe_counter!(
-            NONCE_FETCH_FAILURE_COUNT,
-            Unit::Count,
-            "The number of times we have failed to fetch the nonce"
-        );
-        let nonce_fetch_failure_count = counter!(NONCE_FETCH_FAILURE_COUNT);
-
-        describe_histogram!(
-            NONCE_FETCH_LATENCY,
-            Unit::Seconds,
-            "The latency of nonce fetch"
-        );
-        let nonce_fetch_latency = histogram!(NONCE_FETCH_LATENCY);
-
-        describe_gauge!(CURRENT_NONCE, Unit::Count, "The current nonce");
-        let current_nonce = gauge!(CURRENT_NONCE);
-
-        describe_counter!(
-            SEQUENCER_SUBMISSION_FAILURE_COUNT,
-            Unit::Count,
-            "The number of failed transaction submissions to the sequencer"
-        );
-        let sequencer_submission_failure_count = counter!(SEQUENCER_SUBMISSION_FAILURE_COUNT);
-
-        describe_histogram!(
-            SEQUENCER_SUBMISSION_LATENCY,
-            Unit::Seconds,
-            "The latency of submitting a transaction to the sequencer"
-        );
-        let sequencer_submission_latency = histogram!(SEQUENCER_SUBMISSION_LATENCY);
-
-        Self {
-            nonce_fetch_count,
-            nonce_fetch_failure_count,
-            nonce_fetch_latency,
-            current_nonce,
-            sequencer_submission_failure_count,
-            sequencer_submission_latency,
-        }
-    }
-
     pub(crate) fn increment_nonce_fetch_count(&self) {
         self.nonce_fetch_count.increment(1);
     }
@@ -99,11 +46,65 @@ impl Metrics {
     }
 }
 
-metric_names!(pub const METRICS_NAMES:
-    CURRENT_NONCE,
+impl metrics::Metrics for Metrics {
+    type Config = ();
+
+    fn register(
+        builder: &mut RegisteringBuilder,
+        _config: &Self::Config,
+    ) -> Result<Self, metrics::Error> {
+        let nonce_fetch_count = builder
+            .new_counter_factory(
+                NONCE_FETCH_COUNT,
+                "The number of times we have attempted to fetch the nonce",
+            )?
+            .register()?;
+
+        let nonce_fetch_failure_count = builder
+            .new_counter_factory(
+                NONCE_FETCH_FAILURE_COUNT,
+                "The number of times we have failed to fetch the nonce",
+            )?
+            .register()?;
+
+        let nonce_fetch_latency = builder
+            .new_histogram_factory(NONCE_FETCH_LATENCY, "The latency of nonce fetch")?
+            .register()?;
+
+        let current_nonce = builder
+            .new_gauge_factory(CURRENT_NONCE, "The current nonce")?
+            .register()?;
+
+        let sequencer_submission_failure_count = builder
+            .new_counter_factory(
+                SEQUENCER_SUBMISSION_FAILURE_COUNT,
+                "The number of failed transaction submissions to the sequencer",
+            )?
+            .register()?;
+
+        let sequencer_submission_latency = builder
+            .new_histogram_factory(
+                SEQUENCER_SUBMISSION_LATENCY,
+                "The latency of submitting a transaction to the sequencer",
+            )?
+            .register()?;
+
+        Ok(Self {
+            nonce_fetch_count,
+            nonce_fetch_failure_count,
+            nonce_fetch_latency,
+            current_nonce,
+            sequencer_submission_failure_count,
+            sequencer_submission_latency,
+        })
+    }
+}
+
+metric_names!(const METRICS_NAMES:
     NONCE_FETCH_COUNT,
     NONCE_FETCH_FAILURE_COUNT,
     NONCE_FETCH_LATENCY,
+    CURRENT_NONCE,
     SEQUENCER_SUBMISSION_FAILURE_COUNT,
     SEQUENCER_SUBMISSION_LATENCY
 );

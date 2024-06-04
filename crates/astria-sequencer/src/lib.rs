@@ -28,6 +28,7 @@ use astria_core::primitive::v1::{
 pub use build_info::BUILD_INFO;
 pub use config::Config;
 pub(crate) use config::ADDRESS_PREFIX;
+pub use metrics::Metrics;
 pub use sequencer::Sequencer;
 pub use telemetry;
 

@@ -1,19 +1,16 @@
-use metrics::{
-    counter,
-    describe_counter,
-    describe_histogram,
-    histogram,
-    Counter,
-    Histogram,
-    Unit,
+use telemetry::{
+    metric_names,
+    metrics::{
+        self,
+        Counter,
+        Histogram,
+        RegisteringBuilder,
+    },
 };
-use telemetry::metric_names;
 
 const NAMESPACE_TYPE_LABEL: &str = "namespace_type";
-const NAMESPACE_TYPE_METADATA: &str = "metadata";
-const NAMESPACE_TYPE_ROLLUP_DATA: &str = "rollup_data";
 
-pub(crate) struct Metrics {
+pub struct Metrics {
     metadata_blobs_per_celestia_fetch: Histogram,
     rollup_data_blobs_per_celestia_fetch: Histogram,
     celestia_blob_fetch_error_count: Counter,
@@ -27,97 +24,6 @@ pub(crate) struct Metrics {
 }
 
 impl Metrics {
-    #[must_use]
-    pub(crate) fn new() -> Self {
-        describe_histogram!(
-            BLOBS_PER_CELESTIA_FETCH,
-            Unit::Count,
-            "The number of Celestia blobs received per request sent"
-        );
-        let metadata_blobs_per_celestia_fetch = histogram!(
-            BLOBS_PER_CELESTIA_FETCH,
-            NAMESPACE_TYPE_LABEL => NAMESPACE_TYPE_METADATA,
-        );
-        let rollup_data_blobs_per_celestia_fetch = histogram!(
-            BLOBS_PER_CELESTIA_FETCH,
-            NAMESPACE_TYPE_LABEL => NAMESPACE_TYPE_ROLLUP_DATA,
-        );
-
-        describe_counter!(
-            CELESTIA_BLOB_FETCH_ERROR_COUNT,
-            Unit::Count,
-            "The number of calls made to fetch a blob from Celestia which have failed"
-        );
-        let celestia_blob_fetch_error_count = counter!(CELESTIA_BLOB_FETCH_ERROR_COUNT);
-
-        describe_histogram!(
-            DECODED_ITEMS_PER_CELESTIA_FETCH,
-            Unit::Count,
-            "The number of items decoded from the Celestia blobs received per request sent"
-        );
-        let decoded_metadata_items_per_celestia_fetch = histogram!(
-            DECODED_ITEMS_PER_CELESTIA_FETCH,
-            NAMESPACE_TYPE_LABEL => NAMESPACE_TYPE_METADATA,
-        );
-        let decoded_rollup_data_items_per_celestia_fetch = histogram!(
-            DECODED_ITEMS_PER_CELESTIA_FETCH,
-            NAMESPACE_TYPE_LABEL => NAMESPACE_TYPE_ROLLUP_DATA,
-        );
-
-        describe_histogram!(
-            SEQUENCER_BLOCKS_METADATA_VERIFIED_PER_CELESTIA_FETCH,
-            Unit::Count,
-            "The number of sequencer blocks in a single Celestia blob fetch whose metadata was \
-             verified"
-        );
-        let sequencer_blocks_metadata_verified_per_celestia_fetch =
-            histogram!(SEQUENCER_BLOCKS_METADATA_VERIFIED_PER_CELESTIA_FETCH);
-
-        describe_histogram!(
-            SEQUENCER_BLOCK_INFORMATION_RECONSTRUCTED_PER_CELESTIA_FETCH,
-            Unit::Count,
-            "The number of sequencer blocks (or specifically, the subset pertaining to the \
-             rollup) reconstructed from a single Celestia blob fetch"
-        );
-        let sequencer_block_information_reconstructed_per_celestia_fetch =
-            histogram!(SEQUENCER_BLOCK_INFORMATION_RECONSTRUCTED_PER_CELESTIA_FETCH);
-
-        describe_counter!(
-            EXECUTED_FIRM_BLOCK_NUMBER,
-            Unit::Count,
-            "The number/rollup height of the last executed or confirmed firm block"
-        );
-        let executed_firm_block_number = counter!(EXECUTED_FIRM_BLOCK_NUMBER);
-
-        describe_counter!(
-            EXECUTED_SOFT_BLOCK_NUMBER,
-            Unit::Count,
-            "The number/rollup height of the last executed soft block"
-        );
-        let executed_soft_block_number = counter!(EXECUTED_SOFT_BLOCK_NUMBER);
-
-        describe_histogram!(
-            TRANSACTIONS_PER_EXECUTED_BLOCK,
-            Unit::Count,
-            "The number of transactions that were included in the latest block executed against \
-             the rollup"
-        );
-        let transactions_per_executed_block = histogram!(TRANSACTIONS_PER_EXECUTED_BLOCK);
-
-        Self {
-            metadata_blobs_per_celestia_fetch,
-            rollup_data_blobs_per_celestia_fetch,
-            celestia_blob_fetch_error_count,
-            decoded_metadata_items_per_celestia_fetch,
-            decoded_rollup_data_items_per_celestia_fetch,
-            sequencer_blocks_metadata_verified_per_celestia_fetch,
-            sequencer_block_information_reconstructed_per_celestia_fetch,
-            executed_firm_block_number,
-            executed_soft_block_number,
-            transactions_per_executed_block,
-        }
-    }
-
     pub(crate) fn record_metadata_blobs_per_celestia_fetch(&self, blob_count: usize) {
         // allow: precision loss is unlikely (values too small) but also unimportant in histograms.
         #[allow(clippy::cast_precision_loss)]
@@ -187,7 +93,95 @@ impl Metrics {
     }
 }
 
-metric_names!(pub const METRICS_NAMES:
+impl metrics::Metrics for Metrics {
+    type Config = ();
+
+    fn register(
+        builder: &mut RegisteringBuilder,
+        _config: &Self::Config,
+    ) -> Result<Self, metrics::Error> {
+        let metadata = "metadata".to_string();
+        let rollup_data = "rollup_data".to_string();
+
+        let mut factory = builder.new_histogram_factory(
+            BLOBS_PER_CELESTIA_FETCH,
+            "The number of Celestia blobs received per request sent",
+        )?;
+        let metadata_blobs_per_celestia_fetch =
+            factory.register_with_labels(&[(NAMESPACE_TYPE_LABEL, metadata.clone())])?;
+        let rollup_data_blobs_per_celestia_fetch =
+            factory.register_with_labels(&[(NAMESPACE_TYPE_LABEL, rollup_data.clone())])?;
+
+        let celestia_blob_fetch_error_count = builder
+            .new_counter_factory(
+                CELESTIA_BLOB_FETCH_ERROR_COUNT,
+                "The number of calls made to fetch a blob from Celestia which have failed",
+            )?
+            .register()?;
+
+        let mut factory = builder.new_histogram_factory(
+            DECODED_ITEMS_PER_CELESTIA_FETCH,
+            "The number of items decoded from the Celestia blobs received per request sent",
+        )?;
+        let decoded_metadata_items_per_celestia_fetch =
+            factory.register_with_labels(&[(NAMESPACE_TYPE_LABEL, metadata)])?;
+        let decoded_rollup_data_items_per_celestia_fetch =
+            factory.register_with_labels(&[(NAMESPACE_TYPE_LABEL, rollup_data)])?;
+
+        let sequencer_blocks_metadata_verified_per_celestia_fetch = builder
+            .new_histogram_factory(
+                SEQUENCER_BLOCKS_METADATA_VERIFIED_PER_CELESTIA_FETCH,
+                "The number of sequencer blocks in a single Celestia blob fetch whose metadata \
+                 was verified",
+            )?
+            .register()?;
+
+        let sequencer_block_information_reconstructed_per_celestia_fetch = builder
+            .new_histogram_factory(
+                SEQUENCER_BLOCK_INFORMATION_RECONSTRUCTED_PER_CELESTIA_FETCH,
+                "The number of sequencer blocks (or specifically, the subset pertaining to the \
+                 rollup) reconstructed from a single Celestia blob fetch",
+            )?
+            .register()?;
+
+        let executed_firm_block_number = builder
+            .new_counter_factory(
+                EXECUTED_FIRM_BLOCK_NUMBER,
+                "The number/rollup height of the last executed or confirmed firm block",
+            )?
+            .register()?;
+
+        let executed_soft_block_number = builder
+            .new_counter_factory(
+                EXECUTED_SOFT_BLOCK_NUMBER,
+                "The number/rollup height of the last executed soft block",
+            )?
+            .register()?;
+
+        let transactions_per_executed_block = builder
+            .new_histogram_factory(
+                TRANSACTIONS_PER_EXECUTED_BLOCK,
+                "The number of transactions that were included in the latest block executed \
+                 against the rollup",
+            )?
+            .register()?;
+
+        Ok(Self {
+            metadata_blobs_per_celestia_fetch,
+            rollup_data_blobs_per_celestia_fetch,
+            celestia_blob_fetch_error_count,
+            decoded_metadata_items_per_celestia_fetch,
+            decoded_rollup_data_items_per_celestia_fetch,
+            sequencer_blocks_metadata_verified_per_celestia_fetch,
+            sequencer_block_information_reconstructed_per_celestia_fetch,
+            executed_firm_block_number,
+            executed_soft_block_number,
+            transactions_per_executed_block,
+        })
+    }
+}
+
+metric_names!(const METRICS_NAMES:
     BLOBS_PER_CELESTIA_FETCH,
     CELESTIA_BLOB_FETCH_ERROR_COUNT,
     DECODED_ITEMS_PER_CELESTIA_FETCH,
@@ -201,8 +195,7 @@ metric_names!(pub const METRICS_NAMES:
 
 #[cfg(test)]
 mod tests {
-    use super::TRANSACTIONS_PER_EXECUTED_BLOCK;
-    use crate::metrics::{
+    use super::{
         BLOBS_PER_CELESTIA_FETCH,
         CELESTIA_BLOB_FETCH_ERROR_COUNT,
         DECODED_ITEMS_PER_CELESTIA_FETCH,
@@ -210,6 +203,7 @@ mod tests {
         EXECUTED_SOFT_BLOCK_NUMBER,
         SEQUENCER_BLOCKS_METADATA_VERIFIED_PER_CELESTIA_FETCH,
         SEQUENCER_BLOCK_INFORMATION_RECONSTRUCTED_PER_CELESTIA_FETCH,
+        TRANSACTIONS_PER_EXECUTED_BLOCK,
     };
 
     #[track_caller]

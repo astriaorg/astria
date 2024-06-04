@@ -27,7 +27,6 @@ hex = { workspace = true, features = ["serde"] }
 humantime = { workspace = true }
 hyper = { workspace = true }
 itoa = { workspace = true }
-metrics = { workspace = true }
 pbjson-types = { workspace = true }
 pin-project-lite = { workspace = true }
 prost = { workspace = true }

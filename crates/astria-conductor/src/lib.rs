@@ -21,3 +21,4 @@ mod utils;
 pub use build_info::BUILD_INFO;
 pub use conductor::Conductor;
 pub use config::Config;
+pub use metrics::Metrics;

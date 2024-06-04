@@ -18,6 +18,7 @@ use astria_core::{
 };
 use cnidarium::Storage;
 use penumbra_ibc::params::IBCParameters;
+use telemetry::metrics::Metrics as _;
 
 use crate::{
     app::App,
@@ -104,7 +105,7 @@ pub(crate) async fn initialize_app_with_storage(
         .expect("failed to create temp storage backing chain state");
     let snapshot = storage.latest_snapshot();
     let mempool = Mempool::new();
-    let metrics = Box::leak(Box::new(Metrics::new()));
+    let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
     let mut app = App::new(snapshot, mempool, metrics).await.unwrap();
 
     let genesis_state = genesis_state.unwrap_or_else(|| GenesisState {
