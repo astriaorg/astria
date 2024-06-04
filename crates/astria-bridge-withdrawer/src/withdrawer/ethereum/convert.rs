@@ -172,6 +172,7 @@ fn event_to_ics20_withdrawal(
         source_channel: channel
             .parse()
             .wrap_err("failed to parse channel from denom")?,
+        bridge_address: None,
     };
     Ok(Action::Ics20Withdrawal(action))
 }

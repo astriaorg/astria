@@ -244,7 +244,7 @@ mod tests {
             timeout_time: 1,
             source_channel: "channel-0".to_string().parse().unwrap(),
             fee_asset_id: denom.id(),
-            memo: "".to_string(),
+            memo: String::new(),
         };
 
         let from = Address::from([1u8; 20]);
@@ -279,7 +279,7 @@ mod tests {
             timeout_time: 1,
             source_channel: "channel-0".to_string().parse().unwrap(),
             fee_asset_id: denom.id(),
-            memo: "".to_string(),
+            memo: String::new(),
         };
 
         ics20_withdrawal_check_stateful_bridge_account(&action, &state, bridge_address)
@@ -313,7 +313,7 @@ mod tests {
             timeout_time: 1,
             source_channel: "channel-0".to_string().parse().unwrap(),
             fee_asset_id: denom.id(),
-            memo: "".to_string(),
+            memo: String::new(),
         };
 
         let err = ics20_withdrawal_check_stateful_bridge_account(&action, &state, bridge_address)
@@ -351,7 +351,7 @@ mod tests {
             timeout_time: 1,
             source_channel: "channel-0".to_string().parse().unwrap(),
             fee_asset_id: denom.id(),
-            memo: "".to_string(),
+            memo: String::new(),
         };
 
         ics20_withdrawal_check_stateful_bridge_account(&action, &state, withdrawer_address)
@@ -385,7 +385,7 @@ mod tests {
             timeout_time: 1,
             source_channel: "channel-0".to_string().parse().unwrap(),
             fee_asset_id: denom.id(),
-            memo: "".to_string(),
+            memo: String::new(),
         };
 
         let err = ics20_withdrawal_check_stateful_bridge_account(&action, &state, bridge_address)
@@ -418,7 +418,7 @@ mod tests {
             timeout_time: 1,
             source_channel: "channel-0".to_string().parse().unwrap(),
             fee_asset_id: denom.id(),
-            memo: "".to_string(),
+            memo: String::new(),
         };
 
         let err =
