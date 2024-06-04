@@ -1,4 +1,5 @@
 use anyhow::{
+    bail,
     ensure,
     Context as _,
     Result,
@@ -40,13 +41,13 @@ impl ActionHandler for BridgeUnlockAction {
             .context("failed to get bridge's asset id, must be a bridge account")?;
 
         // check that the sender of this tx is the authorized withdrawer for the bridge account
-        // NOTE: this is made backwards-compatible by allowing the
-        // sudo address to be the bridge address if unset
-        let withdrawer_address = state
+        let Some(withdrawer_address) = state
             .get_bridge_account_withdrawer_address(&bridge_address)
             .await
             .context("failed to get bridge account withdrawer address")?
-            .unwrap_or(bridge_address);
+        else {
+            bail!("bridge account does not have an associated withdrawer address");
+        };
 
         ensure!(
             withdrawer_address == from,
@@ -152,6 +153,7 @@ mod test {
         state
             .put_bridge_account_asset_id(&bridge_address, &asset_id)
             .unwrap();
+        state.put_bridge_account_withdrawer_address(&bridge_address, &bridge_address);
 
         let bridge_unlock = BridgeUnlockAction {
             to: to_address,
@@ -230,6 +232,7 @@ mod test {
             .put_bridge_account_asset_id(&bridge_address, &asset_id)
             .unwrap();
         state.put_allowed_fee_asset(asset_id);
+        state.put_bridge_account_withdrawer_address(&bridge_address, &bridge_address);
 
         let bridge_unlock = BridgeUnlockAction {
             to: to_address,
