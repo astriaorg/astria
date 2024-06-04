@@ -124,7 +124,7 @@ message Ics20Withdrawal {
   // from a bridge account and the sender of the tx is the bridge's withdrawer,
   // which differs from the bridge account's address.
   //
-  // if unset, and the transaction sender is not a bridge account, the withdrawal 
+  // if unset, and the transaction sender is not a bridge account, the withdrawal
   // is treated as a user (non-bridge) withdrawal.
   //
   // if unset, and the transaction sender is a bridge account, the withdrawal is
