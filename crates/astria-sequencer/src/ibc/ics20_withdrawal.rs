@@ -69,6 +69,8 @@ impl ActionHandler for action::Ics20Withdrawal {
         state: &S,
         from: Address,
     ) -> Result<()> {
+        // TODO: bridge withdrawer address check
+
         let fee = state
             .get_ics20_withdrawal_base_fee()
             .await

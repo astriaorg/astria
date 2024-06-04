@@ -1,4 +1,5 @@
 use anyhow::{
+    ensure,
     Context as _,
     Result,
 };
@@ -44,12 +45,13 @@ impl ActionHandler for BridgeUnlockAction {
         let withdrawer_address = state
             .get_bridge_account_withdrawer_address(&bridge_address)
             .await
-            .context("failed to get bridge account sudo address")?
+            .context("failed to get bridge account withdrawer address")?
             .unwrap_or(bridge_address);
 
-        if withdrawer_address != from {
-            anyhow::bail!("unauthorized to unlock bridge account");
-        }
+        ensure!(
+            withdrawer_address == from,
+            "unauthorized to unlock bridge account",
+        );
 
         let transfer_action = TransferAction {
             to: self.to,
@@ -135,6 +137,80 @@ mod test {
     }
 
     #[tokio::test]
+    async fn bridge_unlock_fail_withdrawer_unset_invalid_withdrawer() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let asset_id = asset::Id::from_denom("test");
+        let transfer_amount = 100;
+
+        let sender_address = Address::from([1; 20]);
+        let to_address = Address::from([2; 20]);
+
+        let bridge_address = Address::from([3; 20]);
+        state
+            .put_bridge_account_asset_id(&bridge_address, &asset_id)
+            .unwrap();
+
+        let bridge_unlock = BridgeUnlockAction {
+            to: to_address,
+            amount: transfer_amount,
+            fee_asset_id: asset_id,
+            memo: vec![0u8; 32],
+            from: Some(bridge_address),
+        };
+
+        // invalid sender, doesn't match action's `from`, should fail
+        assert!(
+            bridge_unlock
+                .check_stateful(&state, sender_address)
+                .await
+                .unwrap_err()
+                .to_string()
+                .contains("unauthorized to unlock bridge account")
+        );
+    }
+
+    #[tokio::test]
+    async fn bridge_unlock_fail_withdrawer_set_invalid_withdrawer() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let asset_id = asset::Id::from_denom("test");
+        let transfer_amount = 100;
+
+        let sender_address = Address::from([1; 20]);
+        let to_address = Address::from([2; 20]);
+
+        let bridge_address = Address::from([3; 20]);
+        let withdrawer_address = Address::from([4; 20]);
+        state.put_bridge_account_withdrawer_address(&bridge_address, &withdrawer_address);
+        state
+            .put_bridge_account_asset_id(&bridge_address, &asset_id)
+            .unwrap();
+
+        let bridge_unlock = BridgeUnlockAction {
+            to: to_address,
+            amount: transfer_amount,
+            fee_asset_id: asset_id,
+            memo: vec![0u8; 32],
+            from: Some(bridge_address),
+        };
+
+        // invalid sender, doesn't match action's bridge account's withdrawer, should fail
+        assert!(
+            bridge_unlock
+                .check_stateful(&state, sender_address)
+                .await
+                .unwrap_err()
+                .to_string()
+                .contains("unauthorized to unlock bridge account")
+        );
+    }
+
+    #[tokio::test]
     async fn bridge_unlock_fee_check_stateful_from_none() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
@@ -187,6 +263,61 @@ mod test {
     }
 
     #[tokio::test]
+    async fn bridge_unlock_fee_check_stateful_from_some() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let asset_id = asset::Id::from_denom("test");
+        let transfer_fee = 10;
+        let transfer_amount = 100;
+        state.put_transfer_base_fee(transfer_fee).unwrap();
+
+        let bridge_address = Address::from([1; 20]);
+        let to_address = Address::from([2; 20]);
+        let rollup_id = RollupId::from_unhashed_bytes(b"test_rollup_id");
+
+        state.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
+        state
+            .put_bridge_account_asset_id(&bridge_address, &asset_id)
+            .unwrap();
+        state.put_allowed_fee_asset(asset_id);
+
+        let withdrawer_address = Address::from([4; 20]);
+        state.put_bridge_account_withdrawer_address(&bridge_address, &withdrawer_address);
+
+        let bridge_unlock = BridgeUnlockAction {
+            to: to_address,
+            amount: transfer_amount,
+            fee_asset_id: asset_id,
+            memo: vec![0u8; 32],
+            from: Some(bridge_address),
+        };
+
+        // not enough balance to transfer asset; should fail
+        state
+            .put_account_balance(bridge_address, asset_id, transfer_amount)
+            .unwrap();
+        assert!(
+            bridge_unlock
+                .check_stateful(&state, withdrawer_address)
+                .await
+                .unwrap_err()
+                .to_string()
+                .contains("insufficient funds for transfer and fee payment")
+        );
+
+        // enough balance; should pass
+        state
+            .put_account_balance(bridge_address, asset_id, transfer_amount + transfer_fee)
+            .unwrap();
+        bridge_unlock
+            .check_stateful(&state, withdrawer_address)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
     async fn bridge_unlock_execute_from_none() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
@@ -213,6 +344,58 @@ mod test {
             fee_asset_id: asset_id,
             memo: vec![0u8; 32],
             from: None,
+        };
+
+        // not enough balance; should fail
+        state
+            .put_account_balance(bridge_address, asset_id, transfer_amount)
+            .unwrap();
+        assert!(
+            bridge_unlock
+                .execute(&mut state, bridge_address)
+                .await
+                .unwrap_err()
+                .to_string()
+                .eq("failed to execute bridge unlock action as transfer action")
+        );
+
+        // enough balance; should pass
+        state
+            .put_account_balance(bridge_address, asset_id, transfer_amount + transfer_fee)
+            .unwrap();
+        bridge_unlock
+            .execute(&mut state, bridge_address)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn bridge_unlock_execute_from_some() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let asset_id = asset::Id::from_denom("test");
+        let transfer_fee = 10;
+        let transfer_amount = 100;
+        state.put_transfer_base_fee(transfer_fee).unwrap();
+
+        let bridge_address = Address::from([1; 20]);
+        let to_address = Address::from([2; 20]);
+        let rollup_id = RollupId::from_unhashed_bytes(b"test_rollup_id");
+
+        state.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
+        state
+            .put_bridge_account_asset_id(&bridge_address, &asset_id)
+            .unwrap();
+        state.put_allowed_fee_asset(asset_id);
+
+        let bridge_unlock = BridgeUnlockAction {
+            to: to_address,
+            amount: transfer_amount,
+            fee_asset_id: asset_id,
+            memo: vec![0u8; 32],
+            from: Some(bridge_address),
         };
 
         // not enough balance; should fail

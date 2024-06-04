@@ -86,6 +86,7 @@ pub(crate) fn default_fees() -> genesis::Fees {
         sequence_byte_cost_multiplier: 1,
         init_bridge_account_base_fee: 48,
         bridge_lock_byte_cost_multiplier: 1,
+        bridge_sudo_change_fee: 24,
         ics20_withdrawal_base_fee: 24,
     }
 }

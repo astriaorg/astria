@@ -36,6 +36,7 @@ pub enum Action {
     InitBridgeAccount(InitBridgeAccountAction),
     BridgeLock(BridgeLockAction),
     BridgeUnlock(BridgeUnlockAction),
+    BridgeSudoChange(BridgeSudoChangeAction),
     FeeChange(FeeChangeAction),
 }
 
@@ -55,6 +56,7 @@ impl Action {
             Action::InitBridgeAccount(act) => Value::InitBridgeAccountAction(act.into_raw()),
             Action::BridgeLock(act) => Value::BridgeLockAction(act.into_raw()),
             Action::BridgeUnlock(act) => Value::BridgeUnlockAction(act.into_raw()),
+            Action::BridgeSudoChange(act) => Value::BridgeSudoChangeAction(act.into_raw()),
             Action::FeeChange(act) => Value::FeeChangeAction(act.into_raw()),
         };
         raw::Action {
@@ -79,6 +81,7 @@ impl Action {
             Action::InitBridgeAccount(act) => Value::InitBridgeAccountAction(act.to_raw()),
             Action::BridgeLock(act) => Value::BridgeLockAction(act.to_raw()),
             Action::BridgeUnlock(act) => Value::BridgeUnlockAction(act.to_raw()),
+            Action::BridgeSudoChange(act) => Value::BridgeSudoChangeAction(act.to_raw()),
             Action::FeeChange(act) => Value::FeeChangeAction(act.to_raw()),
         };
         raw::Action {
@@ -136,6 +139,10 @@ impl Action {
             ),
             Value::BridgeUnlockAction(act) => Self::BridgeUnlock(
                 BridgeUnlockAction::try_from_raw(act).map_err(ActionError::bridge_unlock)?,
+            ),
+            Value::BridgeSudoChangeAction(act) => Self::BridgeSudoChange(
+                BridgeSudoChangeAction::try_from_raw(act)
+                    .map_err(ActionError::bridge_sudo_change)?,
             ),
             Value::FeeChangeAction(act) => Self::FeeChange(
                 FeeChangeAction::try_from_raw(&act).map_err(ActionError::fee_change)?,
@@ -221,6 +228,12 @@ impl From<BridgeUnlockAction> for Action {
     }
 }
 
+impl From<BridgeSudoChangeAction> for Action {
+    fn from(value: BridgeSudoChangeAction) -> Self {
+        Self::BridgeSudoChange(value)
+    }
+}
+
 impl From<FeeChangeAction> for Action {
     fn from(value: FeeChangeAction) -> Self {
         Self::FeeChange(value)
@@ -281,6 +294,10 @@ impl ActionError {
         Self(ActionErrorKind::BridgeUnlock(inner))
     }
 
+    fn bridge_sudo_change(inner: BridgeSudoChangeActionError) -> Self {
+        Self(ActionErrorKind::BridgeSudoChange(inner))
+    }
+
     fn fee_change(inner: FeeChangeActionError) -> Self {
         Self(ActionErrorKind::FeeChange(inner))
     }
@@ -312,6 +329,8 @@ enum ActionErrorKind {
     BridgeLock(#[source] BridgeLockActionError),
     #[error("bridge unlock action was not valid")]
     BridgeUnlock(#[source] BridgeUnlockActionError),
+    #[error("bridge sudo change action was not valid")]
+    BridgeSudoChange(#[source] BridgeSudoChangeActionError),
     #[error("fee change action was not valid")]
     FeeChange(#[source] FeeChangeActionError),
 }
@@ -1369,6 +1388,121 @@ enum BridgeUnlockActionErrorKind {
     InvalidFeeAssetId(#[source] asset::IncorrectAssetIdLength),
     #[error("the `from` field was invalid")]
     InvalidFromAddress(#[source] IncorrectAddressLength),
+}
+
+#[allow(clippy::module_name_repetitions)]
+#[derive(Debug, Clone)]
+pub struct BridgeSudoChangeAction {
+    pub bridge_address: Address,
+    pub new_sudo_address: Option<Address>,
+    pub new_withdrawer_address: Option<Address>,
+    pub fee_asset_id: asset::Id,
+}
+
+impl BridgeSudoChangeAction {
+    #[must_use]
+    pub fn into_raw(self) -> raw::BridgeSudoChangeAction {
+        raw::BridgeSudoChangeAction {
+            bridge_address: Some(self.bridge_address.to_raw()),
+            new_sudo_address: self.new_sudo_address.map(Address::into_raw),
+            new_withdrawer_address: self.new_withdrawer_address.map(Address::into_raw),
+            fee_asset_id: self.fee_asset_id.get().to_vec(),
+        }
+    }
+
+    #[must_use]
+    pub fn to_raw(&self) -> raw::BridgeSudoChangeAction {
+        raw::BridgeSudoChangeAction {
+            bridge_address: Some(self.bridge_address.to_raw()),
+            new_sudo_address: self.new_sudo_address.as_ref().map(Address::to_raw),
+            new_withdrawer_address: self.new_withdrawer_address.as_ref().map(Address::to_raw),
+            fee_asset_id: self.fee_asset_id.get().to_vec(),
+        }
+    }
+
+    /// Convert from a raw, unchecked protobuf [`raw::BridgeSudoChangeAction`].
+    ///
+    /// # Errors
+    ///
+    /// - if the `bridge_address` field is not set
+    /// - if the `bridge_address` field is invalid
+    /// - if the `new_sudo_address` field is invalid
+    /// - if the `new_withdrawer_address` field is invalid
+    pub fn try_from_raw(
+        proto: raw::BridgeSudoChangeAction,
+    ) -> Result<Self, BridgeSudoChangeActionError> {
+        let Some(bridge_address) = proto.bridge_address else {
+            return Err(BridgeSudoChangeActionError::field_not_set("bridge_address"));
+        };
+        let bridge_address = Address::try_from_raw(&bridge_address)
+            .map_err(BridgeSudoChangeActionError::invalid_bridge_address)?;
+        let new_sudo_address = proto
+            .new_sudo_address
+            .as_ref()
+            .map(Address::try_from_raw)
+            .transpose()
+            .map_err(BridgeSudoChangeActionError::invalid_new_sudo_address)?;
+        let new_withdrawer_address = proto
+            .new_withdrawer_address
+            .as_ref()
+            .map(Address::try_from_raw)
+            .transpose()
+            .map_err(BridgeSudoChangeActionError::invalid_new_withdrawer_address)?;
+        let fee_asset_id = asset::Id::try_from_slice(&proto.fee_asset_id)
+            .map_err(BridgeSudoChangeActionError::invalid_fee_asset_id)?;
+
+        Ok(Self {
+            bridge_address,
+            new_sudo_address,
+            new_withdrawer_address,
+            fee_asset_id,
+        })
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct BridgeSudoChangeActionError(BridgeSudoChangeActionErrorKind);
+
+impl BridgeSudoChangeActionError {
+    #[must_use]
+    fn field_not_set(field: &'static str) -> Self {
+        Self(BridgeSudoChangeActionErrorKind::FieldNotSet(field))
+    }
+
+    #[must_use]
+    fn invalid_bridge_address(err: IncorrectAddressLength) -> Self {
+        Self(BridgeSudoChangeActionErrorKind::InvalidBridgeAddress(err))
+    }
+
+    #[must_use]
+    fn invalid_new_sudo_address(err: IncorrectAddressLength) -> Self {
+        Self(BridgeSudoChangeActionErrorKind::InvalidNewSudoAddress(err))
+    }
+
+    #[must_use]
+    fn invalid_new_withdrawer_address(err: IncorrectAddressLength) -> Self {
+        Self(BridgeSudoChangeActionErrorKind::InvalidNewWithdrawerAddress(err))
+    }
+
+    #[must_use]
+    fn invalid_fee_asset_id(err: asset::IncorrectAssetIdLength) -> Self {
+        Self(BridgeSudoChangeActionErrorKind::InvalidFeeAssetId(err))
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum BridgeSudoChangeActionErrorKind {
+    #[error("the expected field in the raw source type was not set: `{0}`")]
+    FieldNotSet(&'static str),
+    #[error("the `bridge_address` field was invalid")]
+    InvalidBridgeAddress(#[source] IncorrectAddressLength),
+    #[error("the `new_sudo_address` field was invalid")]
+    InvalidNewSudoAddress(#[source] IncorrectAddressLength),
+    #[error("the `new_withdrawer_address` field was invalid")]
+    InvalidNewWithdrawerAddress(#[source] IncorrectAddressLength),
+    #[error("the `fee_asset_id` field was invalid")]
+    InvalidFeeAssetId(#[source] asset::IncorrectAssetIdLength),
 }
 
 #[derive(Debug, Clone)]

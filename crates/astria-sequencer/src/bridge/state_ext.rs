@@ -62,6 +62,7 @@ const BRIDGE_ACCOUNT_WITHDRAWER_PREFIX: &str = "bwithdrawer";
 const DEPOSIT_PREFIX: &str = "deposit";
 const INIT_BRIDGE_ACCOUNT_BASE_FEE_STORAGE_KEY: &str = "initbridgeaccfee";
 const BRIDGE_LOCK_BYTE_COST_MULTIPLIER_STORAGE_KEY: &str = "bridgelockmultiplier";
+const BRIDGE_SUDO_CHANGE_FEE_STORAGE_KEY: &str = "bridgesudofee";
 
 fn storage_key(address: &str) -> String {
     format!("{BRIDGE_ACCOUNT_PREFIX}/{address}")
@@ -118,9 +119,9 @@ pub(crate) trait StateReadExt: StateRead {
         let bytes = self
             .get_raw(&asset_id_storage_key(address))
             .await
-            .context("failed reading raw asset IDs from state")?
-            .ok_or_else(|| anyhow!("asset IDs not found"))?;
-        let asset_id = asset::Id::try_from_slice(&bytes).context("invalid asset IDs bytes")?;
+            .context("failed reading raw asset ID from state")?
+            .ok_or_else(|| anyhow!("asset ID not found"))?;
+        let asset_id = asset::Id::try_from_slice(&bytes).context("invalid asset ID bytes")?;
         Ok(asset_id)
     }
 
@@ -255,6 +256,17 @@ pub(crate) trait StateReadExt: StateRead {
         let Fee(fee) = Fee::try_from_slice(&bytes).context("invalid fee bytes")?;
         Ok(fee)
     }
+
+    #[instrument(skip(self))]
+    async fn get_bridge_sudo_change_fee(&self) -> Result<u128> {
+        let bytes = self
+            .get_raw(BRIDGE_SUDO_CHANGE_FEE_STORAGE_KEY)
+            .await
+            .context("failed reading raw bridge sudo change fee from state")?
+            .ok_or_else(|| anyhow!("bridge sudo change fee not found"))?;
+        let Fee(fee) = Fee::try_from_slice(&bytes).context("invalid fee bytes")?;
+        Ok(fee)
+    }
 }
 
 impl<T: StateRead + ?Sized> StateReadExt for T {}
@@ -363,6 +375,14 @@ pub(crate) trait StateWriteExt: StateWrite {
     fn put_bridge_lock_byte_cost_multiplier(&mut self, fee: u128) {
         self.put_raw(
             BRIDGE_LOCK_BYTE_COST_MULTIPLIER_STORAGE_KEY.to_string(),
+            borsh::to_vec(&Fee(fee)).expect("failed to serialize fee"),
+        );
+    }
+
+    #[instrument(skip(self))]
+    fn put_bridge_sudo_change_fee(&mut self, fee: u128) {
+        self.put_raw(
+            BRIDGE_SUDO_CHANGE_FEE_STORAGE_KEY.to_string(),
             borsh::to_vec(&Fee(fee)).expect("failed to serialize fee"),
         );
     }

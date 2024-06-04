@@ -59,7 +59,7 @@ impl ::prost::Name for TransactionParams {
 pub struct Action {
     #[prost(
         oneof = "action::Value",
-        tags = "1, 2, 11, 12, 13, 21, 22, 50, 51, 52, 53, 55"
+        tags = "1, 2, 11, 12, 13, 14, 21, 22, 50, 51, 52, 53, 55"
     )]
     pub value: ::core::option::Option<action::Value>,
 }
@@ -80,6 +80,8 @@ pub mod action {
         BridgeLockAction(super::BridgeLockAction),
         #[prost(message, tag = "13")]
         BridgeUnlockAction(super::BridgeUnlockAction),
+        #[prost(message, tag = "14")]
+        BridgeSudoChangeAction(super::BridgeSudoChangeAction),
         /// IBC user actions are defined on 21-30
         #[prost(message, tag = "21")]
         IbcAction(::penumbra_proto::core::component::ibc::v1::IbcRelay),
@@ -378,6 +380,35 @@ pub struct BridgeUnlockAction {
 }
 impl ::prost::Name for BridgeUnlockAction {
     const NAME: &'static str = "BridgeUnlockAction";
+    const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct BridgeSudoChangeAction {
+    /// the address of the bridge account to change the sudo or withdrawer addresses for
+    #[prost(message, optional, tag = "1")]
+    pub bridge_address: ::core::option::Option<
+        super::super::super::primitive::v1::Address,
+    >,
+    /// the new sudo address; unchanged if unset
+    #[prost(message, optional, tag = "2")]
+    pub new_sudo_address: ::core::option::Option<
+        super::super::super::primitive::v1::Address,
+    >,
+    /// the new withdrawer address; unchanged if unset
+    #[prost(message, optional, tag = "3")]
+    pub new_withdrawer_address: ::core::option::Option<
+        super::super::super::primitive::v1::Address,
+    >,
+    /// the asset used to pay the transaction fee
+    #[prost(bytes = "vec", tag = "4")]
+    pub fee_asset_id: ::prost::alloc::vec::Vec<u8>,
+}
+impl ::prost::Name for BridgeSudoChangeAction {
+    const NAME: &'static str = "BridgeSudoChangeAction";
     const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
