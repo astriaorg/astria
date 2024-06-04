@@ -20,7 +20,6 @@ telemetry = { package = "astria-telemetry", path = "../astria-telemetry", featur
   "display",
 ] }
 
-pin-project-lite = "0.2.13"
 tonic-health = "0.10.2"
 
 async-trait = { workspace = true }
@@ -32,6 +31,7 @@ hyper = { workspace = true }
 hex = { workspace = true }
 itertools = { workspace = true }
 once_cell = { workspace = true }
+pin-project-lite = { workspace = true }
 prost = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
 rand = { workspace = true }

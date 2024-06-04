@@ -59,7 +59,7 @@ impl ::prost::Name for TransactionParams {
 pub struct Action {
     #[prost(
         oneof = "action::Value",
-        tags = "1, 2, 11, 12, 13, 21, 22, 50, 51, 52, 53, 54, 55"
+        tags = "1, 2, 11, 12, 13, 21, 22, 50, 51, 52, 53, 55"
     )]
     pub value: ::core::option::Option<action::Value>,
 }
@@ -85,7 +85,7 @@ pub mod action {
         IbcAction(::penumbra_proto::core::component::ibc::v1::IbcRelay),
         #[prost(message, tag = "22")]
         Ics20Withdrawal(super::Ics20Withdrawal),
-        /// POA sudo actions are defined of 50-60
+        /// POA sudo actions are defined on 50-60
         #[prost(message, tag = "50")]
         SudoAddressChangeAction(super::SudoAddressChangeAction),
         #[prost(message, tag = "51")]
@@ -94,8 +94,6 @@ pub mod action {
         IbcRelayerChangeAction(super::IbcRelayerChangeAction),
         #[prost(message, tag = "53")]
         FeeAssetChangeAction(super::FeeAssetChangeAction),
-        #[prost(message, tag = "54")]
-        MintAction(super::MintAction),
         #[prost(message, tag = "55")]
         FeeChangeAction(super::FeeChangeAction),
     }
@@ -168,25 +166,6 @@ pub struct SudoAddressChangeAction {
 }
 impl ::prost::Name for SudoAddressChangeAction {
     const NAME: &'static str = "SudoAddressChangeAction";
-    const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
-    }
-}
-/// `MintAction` represents a minting transaction.
-/// It can only be executed by the chain's sudo address.
-///
-/// It contains the address to mint to, and the amount to mint.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct MintAction {
-    #[prost(message, optional, tag = "1")]
-    pub to: ::core::option::Option<super::super::super::primitive::v1::Address>,
-    #[prost(message, optional, tag = "2")]
-    pub amount: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
-}
-impl ::prost::Name for MintAction {
-    const NAME: &'static str = "MintAction";
     const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
