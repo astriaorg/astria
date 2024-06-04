@@ -1,5 +1,4 @@
-# FIXME - need to add image creation pipeline to hermes fork repo
-image: astria-hermes:local20240531A
+image: "ghcr.io/astriaorg/hermes:0.0.1-beta.1"
 
 createChannel:
   enabled: true
