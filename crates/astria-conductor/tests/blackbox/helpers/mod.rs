@@ -473,7 +473,18 @@ fn make_config() -> Config {
 
 #[must_use]
 pub fn make_sequencer_block(height: u32) -> astria_core::sequencerblock::v1alpha1::SequencerBlock {
+    fn repeat_bytes_of_u32_as_array(val: u32) -> [u8; 32] {
+        let repr = val.to_le_bytes();
+        [
+            repr[0], repr[1], repr[2], repr[3], repr[0], repr[1], repr[2], repr[3], repr[0],
+            repr[1], repr[2], repr[3], repr[0], repr[1], repr[2], repr[3], repr[0], repr[1],
+            repr[2], repr[3], repr[0], repr[1], repr[2], repr[3], repr[0], repr[1], repr[2],
+            repr[3], repr[0], repr[1], repr[2], repr[3],
+        ]
+    }
+
     astria_core::protocol::test_utils::ConfigureSequencerBlock {
+        block_hash: Some(repeat_bytes_of_u32_as_array(height)),
         chain_id: Some(crate::SEQUENCER_CHAIN_ID.to_string()),
         height,
         sequence_data: vec![(crate::ROLLUP_ID, data())],

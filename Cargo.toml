@@ -2,6 +2,7 @@
 exclude = ["tools/protobuf-compiler"]
 
 members = [
+  "crates/astria-bridge-withdrawer",
   "crates/astria-build-info",
   "crates/astria-cli",
   "crates/astria-composer",
@@ -24,6 +25,7 @@ members = [
 # Specify default members so that cargo invocations in github actions will
 # not act on lints
 default-members = [
+  "crates/astria-bridge-withdrawer",
   "crates/astria-build-info",
   "crates/astria-cli",
   "crates/astria-composer",
@@ -55,6 +57,7 @@ bytes = "1"
 celestia-tendermint = "0.32.1"
 celestia-types = "0.1.1"
 clap = "4.5.4"
+const_format = "0.2.32"
 ethers = "2.0.11"
 futures = "0.3"
 hex = "0.4"
@@ -67,6 +70,7 @@ itertools = "0.12.1"
 itoa = "1.0.10"
 jsonrpsee = { version = "0.20" }
 once_cell = "1.17.1"
+pin-project-lite = "0.2.13"
 sha2 = "0.10"
 serde = "1"
 serde_json = "1"

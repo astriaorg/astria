@@ -13,7 +13,6 @@ name = "astria-sequencer"
 
 [features]
 default = []
-mint = []
 
 [dependencies]
 astria-core = { path = "../astria-core", features = ["server", "serde"] }
