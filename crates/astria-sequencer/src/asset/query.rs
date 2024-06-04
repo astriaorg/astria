@@ -133,7 +133,7 @@ pub(crate) async fn allowed_fee_asset_ids_request(
 
     // get ids from snapshot at height
     let fee_asset_ids = match snapshot.get_allowed_fee_assets().await {
-        Ok(maybe_fee_assets) => maybe_fee_assets,
+        Ok(fee_asset_ids) => fee_asset_ids,
         Err(err) => {
             return response::Query {
                 code: AbciErrorCode::INTERNAL_ERROR.into(),

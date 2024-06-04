@@ -133,12 +133,12 @@ impl Error {
     }
 
     /// Convenience function to construct `Error` containing a `DeserializationError`.
-    fn native_deserialization(
+    fn native_conversion(
         target: &'static str,
         inner: Arc<dyn std::error::Error + Send + Sync>,
     ) -> Self {
         Self {
-            inner: ErrorKind::native_deserialization(target, inner),
+            inner: ErrorKind::native_conversion(target, inner),
         }
     }
 }
@@ -285,8 +285,8 @@ impl ErrorKind {
         })
     }
 
-    /// Convenience method to construct a `NativeDeserialization` variant.
-    fn native_deserialization(
+    /// Convenience method to construct a `NativeConversion` variant.
+    fn native_conversion(
         target: &'static str,
         inner: Arc<dyn std::error::Error + Send + Sync>,
     ) -> Self {
@@ -481,16 +481,15 @@ pub trait SequencerClientExt: Client {
                 &*response.value,
             )
             .map_err(|e| {
+
                 Error::abci_query_deserialization(
-                    "astria.protocol.asset.v1alpha1.AllowedFeeAssetIdsResponse",
+                    &astria_core::generated::protocol::asset::v1alpha1::AllowedFeeAssetIdsResponse::full_name(),
                     response,
                     e,
                 )
             })?;
-        let native_response =
-            AllowedFeeAssetIdsResponse::try_from_raw(&proto_response).map_err(|e| {
-                Error::native_deserialization("AllowedFeeAssetIdsResponse", Arc::new(e))
-            })?;
+        let native_response = AllowedFeeAssetIdsResponse::try_from_raw(&proto_response)
+            .map_err(|e| Error::native_conversion("AllowedFeeAssetIdsResponse", Arc::new(e)))?;
 
         Ok(native_response)
     }

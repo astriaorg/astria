@@ -65,6 +65,24 @@ impl raw::DenomResponse {
     }
 }
 
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct AllowedFeeAssetIdsResponseError(AllowedFeeAssetIdsResponseErrorKind);
+
+#[derive(Debug, thiserror::Error)]
+enum AllowedFeeAssetIdsResponseErrorKind {
+    #[error("failed to convert asset ID")]
+    IncorrectAssetIdLength(#[source] IncorrectAssetIdLength),
+}
+
+impl AllowedFeeAssetIdsResponseError {
+    fn incorrect_asset_id_length(inner: IncorrectAssetIdLength) -> Self {
+        Self(AllowedFeeAssetIdsResponseErrorKind::IncorrectAssetIdLength(
+            inner,
+        ))
+    }
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub struct AllowedFeeAssetIdsResponse {
     pub height: u64,
@@ -79,7 +97,7 @@ impl AllowedFeeAssetIdsResponse {
     /// - If one of the serialized asset IDs cannot be converted to a [`asset::Id`].
     pub fn try_from_raw(
         proto: &raw::AllowedFeeAssetIdsResponse,
-    ) -> Result<Self, IncorrectAssetIdLength> {
+    ) -> Result<Self, AllowedFeeAssetIdsResponseError> {
         let raw::AllowedFeeAssetIdsResponse {
             height,
             fee_asset_ids,
@@ -88,7 +106,8 @@ impl AllowedFeeAssetIdsResponse {
 
         for raw_id in fee_asset_ids {
             // TODO: should this map_err to a `AllowedFeeAssetIdsResponseError`?
-            let native_id = asset::Id::try_from_slice(raw_id)?;
+            let native_id = asset::Id::try_from_slice(raw_id)
+                .map_err(AllowedFeeAssetIdsResponseError::incorrect_asset_id_length)?;
             assets.push(native_id);
         }
 
@@ -130,7 +149,9 @@ impl raw::AllowedFeeAssetIdsResponse {
     ///
     /// # Errors
     /// - If one of the serialized asset IDs cannot be converted to a [`asset::Id`].
-    pub fn try_into_native(self) -> Result<AllowedFeeAssetIdsResponse, IncorrectAssetIdLength> {
+    pub fn try_into_native(
+        self,
+    ) -> Result<AllowedFeeAssetIdsResponse, AllowedFeeAssetIdsResponseError> {
         AllowedFeeAssetIdsResponse::try_from_raw(&self)
     }
 
@@ -140,7 +161,9 @@ impl raw::AllowedFeeAssetIdsResponse {
     ///
     /// # Errors
     /// - If one of the serialized asset IDs cannot be converted to a [`asset::Id`].
-    pub fn try_to_native(&self) -> Result<AllowedFeeAssetIdsResponse, IncorrectAssetIdLength> {
+    pub fn try_to_native(
+        &self,
+    ) -> Result<AllowedFeeAssetIdsResponse, AllowedFeeAssetIdsResponseError> {
         self.clone().try_into_native()
     }
 }
