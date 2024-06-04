@@ -206,8 +206,14 @@ pub struct Ics20Withdrawal {
     #[prost(string, tag = "9")]
     pub memo: ::prost::alloc::string::String,
     /// the address of the bridge account to transfer from, if this is a withdrawal
-    /// from a bridge account.
-    /// if unset, the withdrawal is presumed to be a user (non-bridge) withdrawal.
+    /// from a bridge account and the sender of the tx is the bridge's withdrawer,
+    /// which differs from the bridge account's address.
+    ///
+    /// if unset, and the transaction sender is not a bridge account, the withdrawal
+    /// is treated as a user (non-bridge) withdrawal.
+    ///
+    /// if unset, and the transaction sender is a bridge account, the withdrawal is
+    /// treated as a bridge withdrawal (ie. the bridge account's withdrawer address is checked).
     #[prost(message, optional, tag = "10")]
     pub bridge_address: ::core::option::Option<
         super::super::super::primitive::v1::Address,
