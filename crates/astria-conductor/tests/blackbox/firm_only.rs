@@ -194,7 +194,7 @@ async fn submits_two_heights_in_succession() {
             hash: [3; 64],
             parent: [2; 64],
         ),
-        base_celestia_height: 2,
+        base_celestia_height: 1,
     );
 
     timeout(
@@ -280,7 +280,7 @@ async fn skips_already_executed_heights() {
             hash: [2; 64],
             parent: [1; 64],
         ),
-        base_celestia_height: 2,
+        base_celestia_height: 1,
     );
 
     timeout(
