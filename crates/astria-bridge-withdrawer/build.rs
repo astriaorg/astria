@@ -12,19 +12,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "./ethereum/out/IAstriaWithdrawer.sol/IAstriaWithdrawer.json",
     )?
     .generate()?
-    .write_to_file("./src/withdrawer/ethereum/astria_withdrawer_interface.rs")?;
+    .write_to_file("./src/withdrawer/ethereum/generated/astria_withdrawer_interface.rs")?;
     Abigen::new(
         "AstriaWithdrawer",
         "./ethereum/out/AstriaWithdrawer.sol/AstriaWithdrawer.json",
     )?
     .generate()?
-    .write_to_file("./src/withdrawer/ethereum/astria_withdrawer.rs")?;
+    .write_to_file("./src/withdrawer/ethereum/generated/astria_withdrawer.rs")?;
     Abigen::new(
         "AstriaMintableERC20",
         "./ethereum/out/AstriaMintableERC20.sol/AstriaMintableERC20.json",
     )?
     .generate()?
-    .write_to_file("./src/withdrawer/ethereum/astria_mintable_erc20.rs")?;
+    .write_to_file("./src/withdrawer/ethereum/generated/astria_mintable_erc20.rs")?;
 
     Ok(())
 }
