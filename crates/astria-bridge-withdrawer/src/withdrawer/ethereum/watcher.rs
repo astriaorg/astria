@@ -379,7 +379,7 @@ mod tests {
         let signer = Arc::new(SignerMiddleware::new(provider, wallet.clone()));
         let contract = AstriaWithdrawer::new(contract_address, signer.clone());
 
-        let value: U256 = 99.into();
+        let value: U256 = 999.into(); // 10^3 - 1
         let recipient = [0u8; 20].into();
         let tx = contract.withdraw_to_sequencer(recipient).value(value);
         tx.send()
