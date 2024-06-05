@@ -3,9 +3,9 @@ use ethers::contract::Abigen;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     astria_build_info::emit("bridge-withdrawer-v")?;
 
-    println!("cargo::rerun-if-changed=ethereum/src/AstriaWithdrawer.sol");
-    println!("cargo::rerun-if-changed=ethereum/src/IAstriaWithdrawer.sol");
-    println!("cargo::rerun-if-changed=ethereum/src/AstriaMintableERC20.sol");
+    println!("cargo:rerun-if-changed=ethereum/src/AstriaWithdrawer.sol");
+    println!("cargo:rerun-if-changed=ethereum/src/IAstriaWithdrawer.sol");
+    println!("cargo:rerun-if-changed=ethereum/src/AstriaMintableERC20.sol");
 
     Abigen::new(
         "IAstriaWithdrawer",
