@@ -95,7 +95,7 @@ fn event_to_bridge_unlock(
         transaction_hash,
     };
     let action = BridgeUnlockAction {
-        to: event.sender.to_fixed_bytes().into(),
+        to: event.destination_chain_address.to_fixed_bytes().into(),
         amount: event
             .amount
             .as_u128()
@@ -207,7 +207,7 @@ mod tests {
         };
 
         let expected_action = BridgeUnlockAction {
-            to: [0u8; 20].into(),
+            to: [1u8; 20].into(),
             amount: 99,
             memo: serde_json::to_vec(&BridgeUnlockMemo {
                 block_number: 1.into(),
@@ -239,7 +239,7 @@ mod tests {
         };
 
         let expected_action = BridgeUnlockAction {
-            to: [0u8; 20].into(),
+            to: [1u8; 20].into(),
             amount: 99,
             memo: serde_json::to_vec(&BridgeUnlockMemo {
                 block_number: 1.into(),

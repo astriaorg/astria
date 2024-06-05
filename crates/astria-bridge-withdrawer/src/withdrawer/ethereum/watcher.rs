@@ -13,7 +13,9 @@ use astria_eyre::{
 };
 use ethers::{
     contract::LogMeta,
+    core::types::Block,
     providers::{
+        Middleware,
         Provider,
         StreamExt as _,
         Ws,
@@ -106,7 +108,7 @@ impl Watcher {
                 .await
                 .wrap_err("failed to connect to ethereum RPC endpoint")?,
         );
-        let contract = AstriaWithdrawer::new(contract_address, provider);
+        let contract = AstriaWithdrawer::new(contract_address, provider.clone());
 
         let asset_withdrawal_decimals = contract
             .asset_withdrawal_decimals()
@@ -117,6 +119,7 @@ impl Watcher {
 
         let batcher = Batcher::new(
             event_rx,
+            provider,
             batch_tx,
             &shutdown_token,
             fee_asset_id,
@@ -210,6 +213,7 @@ async fn watch_for_ics20_withdrawal_events(
 
 struct Batcher {
     event_rx: mpsc::Receiver<(WithdrawalEvent, LogMeta)>,
+    provider: Arc<Provider<Ws>>,
     batch_tx: mpsc::Sender<Batch>,
     shutdown_token: CancellationToken,
     fee_asset_id: asset::Id,
@@ -220,6 +224,7 @@ struct Batcher {
 impl Batcher {
     pub(crate) fn new(
         event_rx: mpsc::Receiver<(WithdrawalEvent, LogMeta)>,
+        provider: Arc<Provider<Ws>>,
         batch_tx: mpsc::Sender<Batch>,
         shutdown_token: &CancellationToken,
         fee_asset_id: asset::Id,
@@ -228,6 +233,7 @@ impl Batcher {
     ) -> Self {
         Self {
             event_rx,
+            provider,
             batch_tx,
             shutdown_token: shutdown_token.clone(),
             fee_asset_id,
@@ -235,10 +241,14 @@ impl Batcher {
             asset_withdrawal_divisor,
         }
     }
-}
 
-impl Batcher {
     pub(crate) async fn run(mut self) -> Result<()> {
+        let mut block_rx = self
+            .provider
+            .subscribe_blocks()
+            .await
+            .wrap_err("failed to subscribe to blocks")?;
+
         let mut curr_batch = Batch {
             actions: Vec::new(),
             rollup_height: 0,
@@ -249,6 +259,32 @@ impl Batcher {
                 () = self.shutdown_token.cancelled() => {
                     info!("batcher shutting down");
                     break;
+                }
+                block = block_rx.next() => {
+                    if let Some(Block { number, .. }) = block {
+                        let Some(block_number) = number else {
+                            // don't think this should happen
+                            warn!("block number missing; skipping");
+                            continue;
+                        };
+
+                        if block_number.as_u64() > curr_batch.rollup_height {
+                            if !curr_batch.actions.is_empty() {
+                                self.batch_tx
+                                    .send(curr_batch)
+                                    .await
+                                    .wrap_err("failed to send batched events; receiver dropped?")?;
+                            }
+
+                            curr_batch = Batch {
+                                actions: Vec::new(),
+                                rollup_height: block_number.as_u64(),
+                            };
+                        }
+                    } else {
+                        warn!("block stream closed; shutting down batcher");
+                        break;
+                    }
                 }
                 item = self.event_rx.recv() => {
                     if let Some((event, meta)) = item {
