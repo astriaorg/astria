@@ -8,11 +8,10 @@ contract AstriaWithdrawerScript is Script {
     function setUp() public {}
 
     function deploy() public {
-        uint32 assetWithdrawalDecimals = uint32(vm.envUint("ASSET_WITHDRAWAL_DECIMALS"));
+        uint32 baseChainAssetPrecision = uint32(vm.envUint("BASE_CHAIN_ASSET_PRECISION"));
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
-        AstriaWithdrawer astriaWithdrawer = new AstriaWithdrawer(assetWithdrawalDecimals);
-        console.logAddress(address(astriaWithdrawer));
+        new AstriaWithdrawer(baseChainAssetPrecision);
         vm.stopBroadcast();
     }
 
