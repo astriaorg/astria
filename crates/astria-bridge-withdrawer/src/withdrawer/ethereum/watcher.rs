@@ -113,7 +113,11 @@ impl Watcher {
             .call()
             .await
             .wrap_err("failed to get asset withdrawal decimals")?;
-        let asset_withdrawal_divisor = 10u128.pow(18 - base_chain_asset_precision);
+        let asset_withdrawal_divisor =
+            10u128.pow(18u32.checked_sub(base_chain_asset_precision).expect(
+                "base_chain_asset_precision must be <= 18, as the contract constructor enforces \
+                 this",
+            ));
 
         let batcher = Batcher::new(
             event_rx,
