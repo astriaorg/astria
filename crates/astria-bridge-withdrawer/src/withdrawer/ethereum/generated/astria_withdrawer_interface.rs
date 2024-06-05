@@ -7,104 +7,82 @@ pub use i_astria_withdrawer::*;
     clippy::upper_case_acronyms,
     clippy::type_complexity,
     dead_code,
-    non_camel_case_types,
+    non_camel_case_types
 )]
 pub mod i_astria_withdrawer {
     #[allow(deprecated)]
     fn __abi() -> ::ethers::core::abi::Abi {
         ::ethers::core::abi::ethabi::Contract {
             constructor: ::core::option::Option::None,
-            functions: ::core::convert::From::from([
-                (
-                    ::std::borrow::ToOwned::to_owned("ASSET_WITHDRAWAL_DECIMALS"),
-                    ::std::vec![
-                        ::ethers::core::abi::ethabi::Function {
-                            name: ::std::borrow::ToOwned::to_owned(
-                                "ASSET_WITHDRAWAL_DECIMALS",
-                            ),
-                            inputs: ::std::vec![],
-                            outputs: ::std::vec![
-                                ::ethers::core::abi::ethabi::Param {
-                                    name: ::std::string::String::new(),
-                                    kind: ::ethers::core::abi::ethabi::ParamType::Uint(32usize),
-                                    internal_type: ::core::option::Option::Some(
-                                        ::std::borrow::ToOwned::to_owned("uint32"),
-                                    ),
-                                },
-                            ],
-                            constant: ::core::option::Option::None,
-                            state_mutability: ::ethers::core::abi::ethabi::StateMutability::View,
-                        },
-                    ],
-                ),
-            ]),
+            functions: ::core::convert::From::from([(
+                ::std::borrow::ToOwned::to_owned("ASSET_WITHDRAWAL_DECIMALS"),
+                ::std::vec![::ethers::core::abi::ethabi::Function {
+                    name: ::std::borrow::ToOwned::to_owned("ASSET_WITHDRAWAL_DECIMALS",),
+                    inputs: ::std::vec![],
+                    outputs: ::std::vec![::ethers::core::abi::ethabi::Param {
+                        name: ::std::string::String::new(),
+                        kind: ::ethers::core::abi::ethabi::ParamType::Uint(32usize),
+                        internal_type: ::core::option::Option::Some(
+                            ::std::borrow::ToOwned::to_owned("uint32"),
+                        ),
+                    },],
+                    constant: ::core::option::Option::None,
+                    state_mutability: ::ethers::core::abi::ethabi::StateMutability::View,
+                },],
+            )]),
             events: ::core::convert::From::from([
                 (
                     ::std::borrow::ToOwned::to_owned("Ics20Withdrawal"),
-                    ::std::vec![
-                        ::ethers::core::abi::ethabi::Event {
-                            name: ::std::borrow::ToOwned::to_owned("Ics20Withdrawal"),
-                            inputs: ::std::vec![
-                                ::ethers::core::abi::ethabi::EventParam {
-                                    name: ::std::borrow::ToOwned::to_owned("sender"),
-                                    kind: ::ethers::core::abi::ethabi::ParamType::Address,
-                                    indexed: true,
-                                },
-                                ::ethers::core::abi::ethabi::EventParam {
-                                    name: ::std::borrow::ToOwned::to_owned("amount"),
-                                    kind: ::ethers::core::abi::ethabi::ParamType::Uint(
-                                        256usize,
-                                    ),
-                                    indexed: true,
-                                },
-                                ::ethers::core::abi::ethabi::EventParam {
-                                    name: ::std::borrow::ToOwned::to_owned(
-                                        "destinationChainAddress",
-                                    ),
-                                    kind: ::ethers::core::abi::ethabi::ParamType::String,
-                                    indexed: false,
-                                },
-                                ::ethers::core::abi::ethabi::EventParam {
-                                    name: ::std::borrow::ToOwned::to_owned("memo"),
-                                    kind: ::ethers::core::abi::ethabi::ParamType::String,
-                                    indexed: false,
-                                },
-                            ],
-                            anonymous: false,
-                        },
-                    ],
+                    ::std::vec![::ethers::core::abi::ethabi::Event {
+                        name: ::std::borrow::ToOwned::to_owned("Ics20Withdrawal"),
+                        inputs: ::std::vec![
+                            ::ethers::core::abi::ethabi::EventParam {
+                                name: ::std::borrow::ToOwned::to_owned("sender"),
+                                kind: ::ethers::core::abi::ethabi::ParamType::Address,
+                                indexed: true,
+                            },
+                            ::ethers::core::abi::ethabi::EventParam {
+                                name: ::std::borrow::ToOwned::to_owned("amount"),
+                                kind: ::ethers::core::abi::ethabi::ParamType::Uint(256usize,),
+                                indexed: true,
+                            },
+                            ::ethers::core::abi::ethabi::EventParam {
+                                name: ::std::borrow::ToOwned::to_owned("destinationChainAddress",),
+                                kind: ::ethers::core::abi::ethabi::ParamType::String,
+                                indexed: false,
+                            },
+                            ::ethers::core::abi::ethabi::EventParam {
+                                name: ::std::borrow::ToOwned::to_owned("memo"),
+                                kind: ::ethers::core::abi::ethabi::ParamType::String,
+                                indexed: false,
+                            },
+                        ],
+                        anonymous: false,
+                    },],
                 ),
                 (
                     ::std::borrow::ToOwned::to_owned("SequencerWithdrawal"),
-                    ::std::vec![
-                        ::ethers::core::abi::ethabi::Event {
-                            name: ::std::borrow::ToOwned::to_owned(
-                                "SequencerWithdrawal",
-                            ),
-                            inputs: ::std::vec![
-                                ::ethers::core::abi::ethabi::EventParam {
-                                    name: ::std::borrow::ToOwned::to_owned("sender"),
-                                    kind: ::ethers::core::abi::ethabi::ParamType::Address,
-                                    indexed: true,
-                                },
-                                ::ethers::core::abi::ethabi::EventParam {
-                                    name: ::std::borrow::ToOwned::to_owned("amount"),
-                                    kind: ::ethers::core::abi::ethabi::ParamType::Uint(
-                                        256usize,
-                                    ),
-                                    indexed: true,
-                                },
-                                ::ethers::core::abi::ethabi::EventParam {
-                                    name: ::std::borrow::ToOwned::to_owned(
-                                        "destinationChainAddress",
-                                    ),
-                                    kind: ::ethers::core::abi::ethabi::ParamType::Address,
-                                    indexed: false,
-                                },
-                            ],
-                            anonymous: false,
-                        },
-                    ],
+                    ::std::vec![::ethers::core::abi::ethabi::Event {
+                        name: ::std::borrow::ToOwned::to_owned("SequencerWithdrawal",),
+                        inputs: ::std::vec![
+                            ::ethers::core::abi::ethabi::EventParam {
+                                name: ::std::borrow::ToOwned::to_owned("sender"),
+                                kind: ::ethers::core::abi::ethabi::ParamType::Address,
+                                indexed: true,
+                            },
+                            ::ethers::core::abi::ethabi::EventParam {
+                                name: ::std::borrow::ToOwned::to_owned("amount"),
+                                kind: ::ethers::core::abi::ethabi::ParamType::Uint(256usize,),
+                                indexed: true,
+                            },
+                            ::ethers::core::abi::ethabi::EventParam {
+                                name: ::std::borrow::ToOwned::to_owned("destinationChainAddress",),
+                                kind: ::ethers::core::abi::ethabi::ParamType::Address,
+                                indexed: false,
+                            },
+                        ],
+                        anonymous: false,
+                    },],
                 ),
             ]),
             errors: ::std::collections::BTreeMap::new(),
@@ -112,10 +90,9 @@ pub mod i_astria_withdrawer {
             fallback: false,
         }
     }
-    ///The parsed JSON ABI of the contract.
-    pub static IASTRIAWITHDRAWER_ABI: ::ethers::contract::Lazy<
-        ::ethers::core::abi::Abi,
-    > = ::ethers::contract::Lazy::new(__abi);
+    /// The parsed JSON ABI of the contract.
+    pub static IASTRIAWITHDRAWER_ABI: ::ethers::contract::Lazy<::ethers::core::abi::Abi> =
+        ::ethers::contract::Lazy::new(__abi);
     pub struct IAstriaWithdrawer<M>(::ethers::contract::Contract<M>);
     impl<M> ::core::clone::Clone for IAstriaWithdrawer<M> {
         fn clone(&self) -> Self {
@@ -124,6 +101,7 @@ pub mod i_astria_withdrawer {
     }
     impl<M> ::core::ops::Deref for IAstriaWithdrawer<M> {
         type Target = ::ethers::contract::Contract<M>;
+
         fn deref(&self) -> &Self::Target {
             &self.0
         }
@@ -147,15 +125,14 @@ pub mod i_astria_withdrawer {
             address: T,
             client: ::std::sync::Arc<M>,
         ) -> Self {
-            Self(
-                ::ethers::contract::Contract::new(
-                    address.into(),
-                    IASTRIAWITHDRAWER_ABI.clone(),
-                    client,
-                ),
-            )
+            Self(::ethers::contract::Contract::new(
+                address.into(),
+                IASTRIAWITHDRAWER_ABI.clone(),
+                client,
+            ))
         }
-        ///Calls the contract's `ASSET_WITHDRAWAL_DECIMALS` (0x8f2d8cb8) function
+
+        /// Calls the contract's `ASSET_WITHDRAWAL_DECIMALS` (0x8f2d8cb8) function
         pub fn asset_withdrawal_decimals(
             &self,
         ) -> ::ethers::contract::builders::ContractCall<M, u32> {
@@ -163,39 +140,35 @@ pub mod i_astria_withdrawer {
                 .method_hash([143, 45, 140, 184], ())
                 .expect("method not found (this should never happen)")
         }
-        ///Gets the contract's `Ics20Withdrawal` event
+
+        /// Gets the contract's `Ics20Withdrawal` event
         pub fn ics_20_withdrawal_filter(
             &self,
-        ) -> ::ethers::contract::builders::Event<
-            ::std::sync::Arc<M>,
-            M,
-            Ics20WithdrawalFilter,
-        > {
+        ) -> ::ethers::contract::builders::Event<::std::sync::Arc<M>, M, Ics20WithdrawalFilter>
+        {
             self.0.event()
         }
-        ///Gets the contract's `SequencerWithdrawal` event
+
+        /// Gets the contract's `SequencerWithdrawal` event
         pub fn sequencer_withdrawal_filter(
             &self,
-        ) -> ::ethers::contract::builders::Event<
-            ::std::sync::Arc<M>,
-            M,
-            SequencerWithdrawalFilter,
-        > {
+        ) -> ::ethers::contract::builders::Event<::std::sync::Arc<M>, M, SequencerWithdrawalFilter>
+        {
             self.0.event()
         }
+
         /// Returns an `Event` builder for all the events of this contract.
         pub fn events(
             &self,
-        ) -> ::ethers::contract::builders::Event<
-            ::std::sync::Arc<M>,
-            M,
-            IAstriaWithdrawerEvents,
-        > {
-            self.0.event_with_filter(::core::default::Default::default())
+        ) -> ::ethers::contract::builders::Event<::std::sync::Arc<M>, M, IAstriaWithdrawerEvents>
+        {
+            self.0
+                .event_with_filter(::core::default::Default::default())
         }
     }
     impl<M: ::ethers::providers::Middleware> From<::ethers::contract::Contract<M>>
-    for IAstriaWithdrawer<M> {
+        for IAstriaWithdrawer<M>
+    {
         fn from(contract: ::ethers::contract::Contract<M>) -> Self {
             Self::new(contract.address(), contract.client())
         }
@@ -208,7 +181,7 @@ pub mod i_astria_withdrawer {
         Debug,
         PartialEq,
         Eq,
-        Hash
+        Hash,
     )]
     #[ethevent(
         name = "Ics20Withdrawal",
@@ -230,7 +203,7 @@ pub mod i_astria_withdrawer {
         Debug,
         PartialEq,
         Eq,
-        Hash
+        Hash,
     )]
     #[ethevent(
         name = "SequencerWithdrawal",
@@ -243,7 +216,7 @@ pub mod i_astria_withdrawer {
         pub amount: ::ethers::core::types::U256,
         pub destination_chain_address: ::ethers::core::types::Address,
     }
-    ///Container type for all of the contract's events
+    /// Container type for all of the contract's events
     #[derive(Clone, ::ethers::contract::EthAbiType, Debug, PartialEq, Eq, Hash)]
     pub enum IAstriaWithdrawerEvents {
         Ics20WithdrawalFilter(Ics20WithdrawalFilter),
@@ -265,12 +238,8 @@ pub mod i_astria_withdrawer {
     impl ::core::fmt::Display for IAstriaWithdrawerEvents {
         fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
             match self {
-                Self::Ics20WithdrawalFilter(element) => {
-                    ::core::fmt::Display::fmt(element, f)
-                }
-                Self::SequencerWithdrawalFilter(element) => {
-                    ::core::fmt::Display::fmt(element, f)
-                }
+                Self::Ics20WithdrawalFilter(element) => ::core::fmt::Display::fmt(element, f),
+                Self::SequencerWithdrawalFilter(element) => ::core::fmt::Display::fmt(element, f),
             }
         }
     }
@@ -284,7 +253,8 @@ pub mod i_astria_withdrawer {
             Self::SequencerWithdrawalFilter(value)
         }
     }
-    ///Container type for all input parameters for the `ASSET_WITHDRAWAL_DECIMALS` function with signature `ASSET_WITHDRAWAL_DECIMALS()` and selector `0x8f2d8cb8`
+    /// Container type for all input parameters for the `ASSET_WITHDRAWAL_DECIMALS` function with
+    /// signature `ASSET_WITHDRAWAL_DECIMALS()` and selector `0x8f2d8cb8`
     #[derive(
         Clone,
         ::ethers::contract::EthCall,
@@ -293,11 +263,15 @@ pub mod i_astria_withdrawer {
         Debug,
         PartialEq,
         Eq,
-        Hash
+        Hash,
     )]
-    #[ethcall(name = "ASSET_WITHDRAWAL_DECIMALS", abi = "ASSET_WITHDRAWAL_DECIMALS()")]
+    #[ethcall(
+        name = "ASSET_WITHDRAWAL_DECIMALS",
+        abi = "ASSET_WITHDRAWAL_DECIMALS()"
+    )]
     pub struct AssetWithdrawalDecimalsCall;
-    ///Container type for all return fields from the `ASSET_WITHDRAWAL_DECIMALS` function with signature `ASSET_WITHDRAWAL_DECIMALS()` and selector `0x8f2d8cb8`
+    /// Container type for all return fields from the `ASSET_WITHDRAWAL_DECIMALS` function with
+    /// signature `ASSET_WITHDRAWAL_DECIMALS()` and selector `0x8f2d8cb8`
     #[derive(
         Clone,
         ::ethers::contract::EthAbiType,
@@ -306,7 +280,7 @@ pub mod i_astria_withdrawer {
         Debug,
         PartialEq,
         Eq,
-        Hash
+        Hash,
     )]
     pub struct AssetWithdrawalDecimalsReturn(pub u32);
 }
