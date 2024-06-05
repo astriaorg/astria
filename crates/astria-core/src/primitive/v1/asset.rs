@@ -99,7 +99,7 @@ impl Denom {
     ///
     /// - if the denom does not have the given prefix.
     pub fn remove_prefix(&self, prefix: &str) -> Result<Self, InvalidPrefixToRemove> {
-        let prefix_to_remove = prefix.trim_end_matches("/");
+        let prefix_to_remove = prefix.trim_end_matches('/');
         if prefix_to_remove == self.prefix {
             return Ok(self.to_base_denom());
         }
@@ -112,7 +112,7 @@ impl Denom {
                 prefix: prefix.to_string(),
                 denom: self.to_string(),
             })?
-            .trim_start_matches("/")
+            .trim_start_matches('/')
             .to_string();
 
         let denom_trace = format!("{new_prefix}/{}", self.base_denom);
