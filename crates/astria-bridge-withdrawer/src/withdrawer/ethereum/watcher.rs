@@ -108,12 +108,16 @@ impl Watcher {
         );
         let contract = AstriaWithdrawer::new(contract_address, provider);
 
-        let asset_withdrawal_decimals = contract
-            .asset_withdrawal_decimals()
+        let base_chain_asset_precision = contract
+            .base_chain_asset_precision()
             .call()
             .await
             .wrap_err("failed to get asset withdrawal decimals")?;
-        let asset_withdrawal_divisor = 10u128.pow(asset_withdrawal_decimals);
+        let asset_withdrawal_divisor =
+            10u128.pow(18u32.checked_sub(base_chain_asset_precision).expect(
+                "base_chain_asset_precision must be <= 18, as the contract constructor enforces \
+                 this",
+            ));
 
         let batcher = Batcher::new(
             event_rx,
@@ -323,7 +327,7 @@ mod tests {
             SequencerWithdrawalFilter,
         },
         convert::EventWithMetadata,
-        test_utils::deploy_astria_withdrawer,
+        test_utils::ConfigureAstriaWithdrawerDeployer,
     };
 
     #[test]
@@ -370,8 +374,28 @@ mod tests {
 
     #[tokio::test]
     #[ignore = "requires foundry and solc to be installed"]
+    async fn astria_withdrawer_invalid_value_fails() {
+        let (contract_address, provider, wallet, _anvil) = ConfigureAstriaWithdrawerDeployer {
+            base_chain_asset_precision: 15,
+        }
+        .deploy()
+        .await;
+        let signer = Arc::new(SignerMiddleware::new(provider, wallet.clone()));
+        let contract = AstriaWithdrawer::new(contract_address, signer.clone());
+
+        let value: U256 = 999.into(); // 10^3 - 1
+        let recipient = [0u8; 20].into();
+        let tx = contract.withdraw_to_sequencer(recipient).value(value);
+        tx.send()
+            .await
+            .expect_err("`withdraw` transaction should have failed due to value < 10^3");
+    }
+
+    #[tokio::test]
+    #[ignore = "requires foundry and solc to be installed"]
     async fn watcher_can_watch_sequencer_withdrawals() {
-        let (contract_address, provider, wallet, anvil) = deploy_astria_withdrawer().await;
+        let (contract_address, provider, wallet, anvil) =
+            ConfigureAstriaWithdrawerDeployer::default().deploy().await;
         let signer = Arc::new(SignerMiddleware::new(provider, wallet.clone()));
         let contract = AstriaWithdrawer::new(contract_address, signer.clone());
 
@@ -428,7 +452,7 @@ mod tests {
         recipient: String,
     ) -> TransactionReceipt {
         let tx = contract
-            .withdraw_to_origin_chain(recipient, "nootwashere".to_string())
+            .withdraw_to_ibc_chain(recipient, "nootwashere".to_string())
             .value(value);
         let receipt = tx
             .send()
@@ -449,7 +473,8 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires foundry and solc to be installed"]
     async fn watcher_can_watch_ics20_withdrawals() {
-        let (contract_address, provider, wallet, anvil) = deploy_astria_withdrawer().await;
+        let (contract_address, provider, wallet, anvil) =
+            ConfigureAstriaWithdrawerDeployer::default().deploy().await;
         let signer = Arc::new(SignerMiddleware::new(provider, wallet.clone()));
         let contract = AstriaWithdrawer::new(contract_address, signer.clone());
 
