@@ -323,7 +323,7 @@ mod tests {
             SequencerWithdrawalFilter,
         },
         convert::EventWithMetadata,
-        test_utils::deploy_astria_withdrawer,
+        test_utils::ConfigureAstriaWithdrawerDeployer,
     };
 
     #[test]
@@ -370,8 +370,28 @@ mod tests {
 
     #[tokio::test]
     #[ignore = "requires foundry and solc to be installed"]
+    async fn astria_withdrawer_invalid_value_fails() {
+        let (contract_address, provider, wallet, _anvil) = ConfigureAstriaWithdrawerDeployer {
+            asset_withdrawal_decimals: 3,
+        }
+        .deploy()
+        .await;
+        let signer = Arc::new(SignerMiddleware::new(provider, wallet.clone()));
+        let contract = AstriaWithdrawer::new(contract_address, signer.clone());
+
+        let value: U256 = 99.into();
+        let recipient = [0u8; 20].into();
+        let tx = contract.withdraw_to_sequencer(recipient).value(value);
+        tx.send()
+            .await
+            .expect_err("`withdraw` transaction should have failed due to value < 10^3");
+    }
+
+    #[tokio::test]
+    #[ignore = "requires foundry and solc to be installed"]
     async fn watcher_can_watch_sequencer_withdrawals() {
-        let (contract_address, provider, wallet, anvil) = deploy_astria_withdrawer().await;
+        let (contract_address, provider, wallet, anvil) =
+            ConfigureAstriaWithdrawerDeployer::default().deploy().await;
         let signer = Arc::new(SignerMiddleware::new(provider, wallet.clone()));
         let contract = AstriaWithdrawer::new(contract_address, signer.clone());
 
@@ -449,7 +469,8 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires foundry and solc to be installed"]
     async fn watcher_can_watch_ics20_withdrawals() {
-        let (contract_address, provider, wallet, anvil) = deploy_astria_withdrawer().await;
+        let (contract_address, provider, wallet, anvil) =
+            ConfigureAstriaWithdrawerDeployer::default().deploy().await;
         let signer = Arc::new(SignerMiddleware::new(provider, wallet.clone()));
         let contract = AstriaWithdrawer::new(contract_address, signer.clone());
 
