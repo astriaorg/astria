@@ -1,4 +1,5 @@
 #![allow(warnings)]
+#![allow(clippy::all)]
 
 pub(crate) mod astria_withdrawer_interface;
 
