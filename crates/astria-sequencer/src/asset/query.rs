@@ -1,7 +1,10 @@
 use anyhow::Context as _;
 use astria_core::{
     primitive::v1::asset,
-    protocol::abci::AbciErrorCode,
+    protocol::{
+        abci::AbciErrorCode,
+        asset::v1alpha1::AllowedFeeAssetIdsResponse,
+    },
 };
 use cnidarium::Storage;
 use prost::Message as _;
@@ -105,4 +108,56 @@ fn preprocess_request(params: &[(String, String)]) -> anyhow::Result<asset::Id, 
             ..response::Query::default()
         })?;
     Ok(asset_id)
+}
+
+pub(crate) async fn allowed_fee_asset_ids_request(
+    storage: Storage,
+    request: request::Query,
+    _params: Vec<(String, String)>,
+) -> response::Query {
+    // get last snapshot
+    let snapshot = storage.latest_snapshot();
+
+    // get height from snapshot
+    let height = match snapshot.get_block_height().await {
+        Ok(height) => height,
+        Err(err) => {
+            return response::Query {
+                code: AbciErrorCode::INTERNAL_ERROR.into(),
+                info: AbciErrorCode::INTERNAL_ERROR.to_string(),
+                log: format!("failed getting block height: {err:#}"),
+                ..response::Query::default()
+            };
+        }
+    };
+
+    // get ids from snapshot at height
+    let fee_asset_ids = match snapshot.get_allowed_fee_assets().await {
+        Ok(fee_asset_ids) => fee_asset_ids,
+        Err(err) => {
+            return response::Query {
+                code: AbciErrorCode::INTERNAL_ERROR.into(),
+                info: AbciErrorCode::INTERNAL_ERROR.to_string(),
+                log: format!("failed to retrieve allowed fee assets: {err:#}"),
+                ..response::Query::default()
+            };
+        }
+    };
+
+    let payload = AllowedFeeAssetIdsResponse {
+        height,
+        fee_asset_ids,
+    }
+    .into_raw()
+    .encode_to_vec()
+    .into();
+
+    let height = tendermint::block::Height::try_from(height).expect("height must fit into an i64");
+    response::Query {
+        code: tendermint::abci::Code::Ok,
+        key: request.path.into_bytes().into(),
+        value: payload,
+        height,
+        ..response::Query::default()
+    }
 }
