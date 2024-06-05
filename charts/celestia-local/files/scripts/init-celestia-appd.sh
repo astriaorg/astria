@@ -41,7 +41,7 @@ celestia-appd add-genesis-account \
   --home "$home_dir" \
   "$coins"
 
-# developer account
+# add account used for development and testing
 echo "$dev_account_mnemonic" | celestia-appd keys add \
   "$dev_account_key_name" \
   --home "$home_dir" \
