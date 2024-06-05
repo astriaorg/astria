@@ -7,6 +7,12 @@ pub struct BridgeAccountLastTxHashResponse {
 }
 
 impl BridgeAccountLastTxHashResponse {
+    /// Converts a native [`BridgeAccountLastTxHashResponse`] to a protobuf
+    /// [`raw::BridgeAccountLastTxHashResponse`].
+    ///
+    /// # Errors
+    ///
+    /// - if the transaction hash is not 32 bytes
     pub fn try_from_raw(
         raw: raw::BridgeAccountLastTxHashResponse,
     ) -> Result<Self, BridgeAccountLastTxHashResponseError> {
@@ -28,6 +34,12 @@ impl BridgeAccountLastTxHashResponse {
 }
 
 impl raw::BridgeAccountLastTxHashResponse {
+    /// Converts a protobuf [`raw::BridgeAccountLastTxHashResponse`] to a native
+    /// [`BridgeAccountLastTxHashResponse`].
+    ///
+    /// # Errors
+    ///
+    /// - if the transaction hash is not 32 bytes
     pub fn try_into_native(
         self,
     ) -> Result<BridgeAccountLastTxHashResponse, BridgeAccountLastTxHashResponseError> {
@@ -47,6 +59,7 @@ impl raw::BridgeAccountLastTxHashResponse {
 pub struct BridgeAccountLastTxHashResponseError(BridgeAccountLastTxHashResponseErrorKind);
 
 impl BridgeAccountLastTxHashResponseError {
+    #[must_use]
     pub fn invalid_tx_hash(bytes: usize) -> Self {
         Self(BridgeAccountLastTxHashResponseErrorKind::InvalidTxHash(
             bytes,
