@@ -13,6 +13,7 @@ homepage = "https://astria.org"
 [dependencies]
 base64 = { workspace = true, optional = true }
 base64-serde = { workspace = true, optional = true }
+const_format = { workspace = true }
 
 metrics-exporter-prometheus = { version = "0.13.1", default-features = false, features = [
   "http-listener",

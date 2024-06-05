@@ -66,7 +66,6 @@ pub enum SudoCommand {
         #[command(subcommand)]
         command: FeeAssetChangeCommand,
     },
-    Mint(MintArgs),
     SudoAddressChange(SudoAddressChangeArgs),
     ValidatorUpdate(ValidatorUpdateArgs),
 }
@@ -283,36 +282,6 @@ pub struct BlockHeightGetArgs {
         default_value = crate::cli::DEFAULT_SEQUENCER_CHAIN_ID
     )]
     pub sequencer_chain_id: String,
-}
-
-#[derive(Args, Debug)]
-pub struct MintArgs {
-    // TODO: https://github.com/astriaorg/astria/issues/594
-    // Don't use a plain text private, prefer wrapper like from
-    // the secrecy crate with specialized `Debug` and `Drop` implementations
-    // that overwrite the key on drop and don't reveal it when printing.
-    #[arg(long, env = "SEQUENCER_PRIVATE_KEY")]
-    pub(crate) private_key: String,
-    /// The url of the Sequencer node
-    #[arg(
-        long,
-        env = "SEQUENCER_URL",
-        default_value = crate::cli::DEFAULT_SEQUENCER_RPC
-    )]
-    pub(crate) sequencer_url: String,
-    /// The chain id of the sequencing chain being used
-    #[arg(
-        long = "sequencer.chain-id",
-        env = "ROLLUP_SEQUENCER_CHAIN_ID",
-        default_value = crate::cli::DEFAULT_SEQUENCER_CHAIN_ID
-    )]
-    pub sequencer_chain_id: String,
-    /// The address to mint to
-    #[arg(long)]
-    pub(crate) to_address: SequencerAddressArg,
-    /// The amount to mint
-    #[arg(long)]
-    pub(crate) amount: u128,
 }
 
 #[derive(Args, Debug)]

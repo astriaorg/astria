@@ -48,13 +48,13 @@ fn make_state(
     let genesis_info = GenesisInfo::try_from_raw(raw::GenesisInfo {
         rollup_id: Bytes::copy_from_slice(ROLLUP_ID.as_ref()),
         sequencer_genesis_block_height: 1,
-        celestia_base_block_height: 1,
         celestia_block_variance: 1,
     })
     .unwrap();
     let commitment_state = CommitmentState::try_from_raw(raw::CommitmentState {
         firm: Some(make_block(firm)),
         soft: Some(make_block(soft)),
+        base_celestia_height: 1,
     })
     .unwrap();
     let (mut tx, rx) = super::state::channel();

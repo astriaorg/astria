@@ -1,7 +1,11 @@
 use astria_core::{
     crypto::SigningKey,
+    generated::protocol::asset::v1alpha1::AllowedFeeAssetIdsResponse,
     primitive::v1::{
-        asset::default_native_asset_id,
+        asset::{
+            self,
+            default_native_asset_id,
+        },
         Address,
     },
     protocol::transaction::v1alpha1::{
@@ -197,6 +201,36 @@ async fn get_latest_balance() {
         .await
         .unwrap()
         .into_raw();
+
+    assert_eq!(expected_response, actual_response);
+}
+
+#[tokio::test]
+async fn get_allowed_fee_assets() {
+    let MockSequencer {
+        server,
+        client,
+    } = MockSequencer::start().await;
+
+    let expected_response = AllowedFeeAssetIdsResponse {
+        height: 10,
+        fee_asset_ids: vec![
+            asset::Id::from_denom("asset_0").get().to_vec().into(),
+            asset::Id::from_denom("asset_1").get().to_vec().into(),
+            asset::Id::from_denom("asset_2").get().to_vec().into(),
+        ],
+    };
+
+    let _guard = register_abci_query_response(
+        &server,
+        "asset/allowed_fee_asset_ids",
+        expected_response.clone(),
+    )
+    .await;
+
+    let actual_response = client.get_allowed_fee_asset_ids().await;
+
+    let actual_response = actual_response.unwrap().into_raw();
     assert_eq!(expected_response, actual_response);
 }
 

@@ -8,6 +8,7 @@ use metrics::{
     describe_histogram,
     Unit,
 };
+use telemetry::metric_name;
 
 /// Registers all metrics used by this crate.
 pub fn register() {
@@ -92,46 +93,72 @@ pub fn register() {
 // output, and may need to be updated over time.
 pub const HISTOGRAM_BUCKETS: &[f64; 5] = &[0.00001, 0.0001, 0.001, 0.01, 0.1];
 
-pub const CELESTIA_SUBMISSION_HEIGHT: &str =
-    concat!(env!("CARGO_CRATE_NAME"), "_celestia_submission_height");
+metric_name!(pub const CELESTIA_SUBMISSION_HEIGHT);
+metric_name!(pub const CELESTIA_SUBMISSION_COUNT);
+metric_name!(pub const CELESTIA_SUBMISSION_FAILURE_COUNT);
+metric_name!(pub const BLOCKS_PER_CELESTIA_TX);
+metric_name!(pub const BLOBS_PER_CELESTIA_TX);
+metric_name!(pub const BYTES_PER_CELESTIA_TX);
+metric_name!(pub const CELESTIA_PAYLOAD_CREATION_LATENCY);
+metric_name!(pub const CELESTIA_SUBMISSION_LATENCY);
+metric_name!(pub const SEQUENCER_BLOCK_FETCH_FAILURE_COUNT);
+metric_name!(pub const SEQUENCER_HEIGHT_FETCH_FAILURE_COUNT);
+metric_name!(pub const SEQUENCER_SUBMISSION_HEIGHT);
+metric_name!(pub const COMPRESSION_RATIO_FOR_ASTRIA_BLOCK);
 
-pub const CELESTIA_SUBMISSION_COUNT: &str =
-    concat!(env!("CARGO_CRATE_NAME"), "_celestia_submission_count");
+#[cfg(test)]
+mod tests {
+    use super::{
+        BLOBS_PER_CELESTIA_TX,
+        BLOCKS_PER_CELESTIA_TX,
+        BYTES_PER_CELESTIA_TX,
+        CELESTIA_PAYLOAD_CREATION_LATENCY,
+        CELESTIA_SUBMISSION_COUNT,
+        CELESTIA_SUBMISSION_FAILURE_COUNT,
+        CELESTIA_SUBMISSION_HEIGHT,
+        CELESTIA_SUBMISSION_LATENCY,
+        COMPRESSION_RATIO_FOR_ASTRIA_BLOCK,
+        SEQUENCER_BLOCK_FETCH_FAILURE_COUNT,
+        SEQUENCER_HEIGHT_FETCH_FAILURE_COUNT,
+        SEQUENCER_SUBMISSION_HEIGHT,
+    };
 
-pub const CELESTIA_SUBMISSION_FAILURE_COUNT: &str = concat!(
-    env!("CARGO_CRATE_NAME"),
-    "_celestia_submission_failure_count"
-);
+    #[track_caller]
+    fn assert_const(actual: &'static str, suffix: &str) {
+        // XXX: hard-code this so the crate name isn't accidentally changed.
+        const CRATE_NAME: &str = "astria_sequencer_relayer";
+        let expected = format!("{CRATE_NAME}_{suffix}");
+        assert_eq!(expected, actual);
+    }
 
-pub const BLOCKS_PER_CELESTIA_TX: &str =
-    concat!(env!("CARGO_CRATE_NAME"), "_blocks_per_celestia_tx");
-
-pub const BLOBS_PER_CELESTIA_TX: &str = concat!(env!("CARGO_CRATE_NAME"), "_blobs_per_celestia_tx");
-
-pub const BYTES_PER_CELESTIA_TX: &str = concat!(env!("CARGO_CRATE_NAME"), "_bytes_per_celestia_tx");
-
-pub const CELESTIA_PAYLOAD_CREATION_LATENCY: &str = concat!(
-    env!("CARGO_CRATE_NAME"),
-    "_celestia_payload_creation_latency"
-);
-
-pub const CELESTIA_SUBMISSION_LATENCY: &str =
-    concat!(env!("CARGO_CRATE_NAME"), "_celestia_submission_latency");
-
-pub const SEQUENCER_BLOCK_FETCH_FAILURE_COUNT: &str = concat!(
-    env!("CARGO_CRATE_NAME"),
-    "_sequencer_block_fetch_failure_count",
-);
-
-pub const SEQUENCER_HEIGHT_FETCH_FAILURE_COUNT: &str = concat!(
-    env!("CARGO_CRATE_NAME"),
-    "_sequencer_height_fetch_failure_count",
-);
-
-pub const SEQUENCER_SUBMISSION_HEIGHT: &str =
-    concat!(env!("CARGO_CRATE_NAME"), "_sequencer_submission_height");
-
-pub const COMPRESSION_RATIO_FOR_ASTRIA_BLOCK: &str = concat!(
-    env!("CARGO_CRATE_NAME"),
-    "_compression_ratio_for_astria_block"
-);
+    #[test]
+    fn metrics_are_as_expected() {
+        assert_const(CELESTIA_SUBMISSION_HEIGHT, "celestia_submission_height");
+        assert_const(CELESTIA_SUBMISSION_COUNT, "celestia_submission_count");
+        assert_const(
+            CELESTIA_SUBMISSION_FAILURE_COUNT,
+            "celestia_submission_failure_count",
+        );
+        assert_const(BLOCKS_PER_CELESTIA_TX, "blocks_per_celestia_tx");
+        assert_const(BLOBS_PER_CELESTIA_TX, "blobs_per_celestia_tx");
+        assert_const(BYTES_PER_CELESTIA_TX, "bytes_per_celestia_tx");
+        assert_const(
+            CELESTIA_PAYLOAD_CREATION_LATENCY,
+            "celestia_payload_creation_latency",
+        );
+        assert_const(CELESTIA_SUBMISSION_LATENCY, "celestia_submission_latency");
+        assert_const(
+            SEQUENCER_BLOCK_FETCH_FAILURE_COUNT,
+            "sequencer_block_fetch_failure_count",
+        );
+        assert_const(
+            SEQUENCER_HEIGHT_FETCH_FAILURE_COUNT,
+            "sequencer_height_fetch_failure_count",
+        );
+        assert_const(SEQUENCER_SUBMISSION_HEIGHT, "sequencer_submission_height");
+        assert_const(
+            COMPRESSION_RATIO_FOR_ASTRIA_BLOCK,
+            "compression_ratio_for_astria_block",
+        );
+    }
+}

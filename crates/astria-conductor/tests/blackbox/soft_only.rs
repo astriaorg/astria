@@ -24,7 +24,6 @@ async fn simple() {
     mount_get_genesis_info!(
         test_conductor,
         sequencer_genesis_block_height: 1,
-        celestia_base_block_height: 1,
         celestia_block_variance: 10,
     );
 
@@ -40,6 +39,7 @@ async fn simple() {
             hash: [1; 64],
             parent: [0; 64],
         ),
+        base_celestia_height: 1,
     );
 
     mount_abci_info!(
@@ -71,6 +71,7 @@ async fn simple() {
             hash: [2; 64],
             parent: [1; 64],
         ),
+        base_celestia_height: 1,
     );
 
     timeout(
@@ -94,7 +95,6 @@ async fn submits_two_heights_in_succession() {
     mount_get_genesis_info!(
         test_conductor,
         sequencer_genesis_block_height: 1,
-        celestia_base_block_height: 1,
         celestia_block_variance: 10,
     );
 
@@ -110,6 +110,7 @@ async fn submits_two_heights_in_succession() {
             hash: [1; 64],
             parent: [0; 64],
         ),
+        base_celestia_height: 1,
     );
 
     mount_abci_info!(
@@ -148,6 +149,7 @@ async fn submits_two_heights_in_succession() {
             hash: [2; 64],
             parent: [1; 64],
         ),
+        base_celestia_height: 1,
     );
 
     let execute_block_number_3 = mount_executed_block!(
@@ -171,6 +173,7 @@ async fn submits_two_heights_in_succession() {
             hash: [3; 64],
             parent: [2; 64],
         ),
+        base_celestia_height: 1,
     );
 
     timeout(
@@ -196,7 +199,6 @@ async fn skips_already_executed_heights() {
     mount_get_genesis_info!(
         test_conductor,
         sequencer_genesis_block_height: 1,
-        celestia_base_block_height: 1,
         celestia_block_variance: 10,
     );
 
@@ -212,6 +214,7 @@ async fn skips_already_executed_heights() {
             hash: [1; 64],
             parent: [0; 64],
         ),
+        base_celestia_height: 1,
     );
 
     mount_abci_info!(
@@ -243,6 +246,7 @@ async fn skips_already_executed_heights() {
             hash: [2; 64],
             parent: [1; 64],
         ),
+        base_celestia_height: 1,
     );
 
     timeout(
@@ -266,7 +270,6 @@ async fn requests_from_later_genesis_height() {
     mount_get_genesis_info!(
         test_conductor,
         sequencer_genesis_block_height: 10,
-        celestia_base_block_height: 1,
         celestia_block_variance: 10,
     );
 
@@ -282,6 +285,7 @@ async fn requests_from_later_genesis_height() {
             hash: [1; 64],
             parent: [0; 64],
         ),
+        base_celestia_height: 1,
     );
 
     mount_abci_info!(
@@ -313,6 +317,7 @@ async fn requests_from_later_genesis_height() {
             hash: [2; 64],
             parent: [1; 64],
         ),
+        base_celestia_height: 1
     );
 
     timeout(

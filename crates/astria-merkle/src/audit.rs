@@ -7,37 +7,29 @@ use sha2::{
     Sha256,
 };
 
-/// Builder to construct a complex leaf ad-hoc without needing to allocate it.
+/// Builder to construct a complex leaf ad-hoc without allocation.
 ///
 /// See `[Audit::with_leaf_builder]` for how to construct it.
 pub struct LeafBuilder<'a, TLeaf, TRoot> {
-    audit: Option<Audit<'a, TLeaf, TRoot>>,
-    hasher: Option<Sha256>,
+    audit: Audit<'a, TLeaf, TRoot>,
+    hasher: Sha256,
 }
 
 impl<'a, TLeaf, TRoot> LeafBuilder<'a, TLeaf, TRoot> {
     /// Finish constructing a leaf.
     ///
     /// Returns the internal [`Audit`] with its `TLeaf` typestate set.
-    ///
-    /// # Panics
-    /// This method must only be called once. Calling it again will result
-    /// in a panic.
-    pub fn finish_leaf(&mut self) -> Audit<'a, WithLeafHash, TRoot> {
-        let Audit {
-            proof,
-            root,
-            ..
-        } = self
-            .audit
-            .take()
-            .expect("LeafBuilder::finish_leaf must not be used twice");
-        let leaf_hash = self
-            .hasher
-            .take()
-            .expect("LeafBuilder::finish_leaf must not be used twice")
-            .finalize()
-            .into();
+    pub fn finish_leaf(self) -> Audit<'a, WithLeafHash, TRoot> {
+        let Self {
+            audit:
+                Audit {
+                    proof,
+                    root,
+                    ..
+                },
+            hasher,
+        } = self;
+        let leaf_hash = hasher.finalize().into();
         Audit {
             leaf_hash: WithLeafHash {
                 leaf_hash,
@@ -48,15 +40,10 @@ impl<'a, TLeaf, TRoot> LeafBuilder<'a, TLeaf, TRoot> {
     }
 
     /// Write `bytes` into the leaf builder.
-    ///
-    /// # Panics
-    /// This method must not be used after [`LeafBuilder::finish_leaf`] has been called
-    /// and will panic otherwise.
-    pub fn write(&mut self, bytes: &[u8]) -> &mut Self {
-        self.hasher
-            .as_mut()
-            .expect("audit leaf builder must no be used after the leaf is finished")
-            .update(bytes);
+    #[must_use = "the leaf builder must be completed using `LeafBuilder::finish_leaf` to continue \
+                  the merkle path audit"]
+    pub fn write(mut self, bytes: &[u8]) -> Self {
+        self.hasher.update(bytes);
         self
     }
 }
@@ -104,8 +91,8 @@ impl<'a, TLeaf, TRoot> Audit<'a, TLeaf, TRoot> {
     pub fn with_leaf_builder(self) -> LeafBuilder<'a, TLeaf, TRoot> {
         let hasher = crate::init_leaf_hasher();
         LeafBuilder {
-            audit: Some(self),
-            hasher: Some(hasher),
+            audit: self,
+            hasher,
         }
     }
 

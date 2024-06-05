@@ -276,9 +276,9 @@ impl RunningReader {
         let sequencer_namespace =
             astria_core::celestia::namespace_v0_from_sha256_of_bytes(sequencer_chain_id.as_bytes());
 
-        let celestia_next_height = executor.celestia_base_block_height().value();
-        let celestia_reference_height = executor.celestia_base_block_height().value();
-        let celestia_variance = executor.celestia_block_variance().into();
+        let celestia_next_height = executor.celestia_base_block_height();
+        let celestia_reference_height = executor.celestia_base_block_height();
+        let celestia_variance = executor.celestia_block_variance();
 
         Ok(Self {
             block_cache,
@@ -427,6 +427,7 @@ impl RunningReader {
                 rollup_id: self.rollup_id,
                 rollup_namespace: self.rollup_namespace,
                 sequencer_namespace: self.sequencer_namespace,
+                executor: self.executor.clone(),
             };
             self.reconstruction_tasks.spawn(height, task.execute());
             scheduled.push(height);
@@ -498,6 +499,7 @@ struct FetchConvertVerifyAndReconstruct {
     rollup_id: RollupId,
     rollup_namespace: Namespace,
     sequencer_namespace: Namespace,
+    executor: executor::Handle<StateIsInit>,
 }
 
 impl FetchConvertVerifyAndReconstruct {
@@ -514,6 +516,7 @@ impl FetchConvertVerifyAndReconstruct {
             rollup_id,
             rollup_namespace,
             sequencer_namespace,
+            executor,
         } = self;
 
         let new_blobs = fetch_new_blobs(
@@ -585,7 +588,7 @@ impl FetchConvertVerifyAndReconstruct {
             "decoded Sequencer header and rollup info from raw Celestia blobs",
         );
 
-        let verified_blobs = verify_metadata(blob_verifier, decoded_blobs).await;
+        let verified_blobs = verify_metadata(blob_verifier, decoded_blobs, executor).await;
 
         {
             // allow: histograms require f64; precision loss would be no problem

@@ -7,6 +7,7 @@ use metrics::{
     describe_histogram,
     Unit,
 };
+use telemetry::metric_name;
 
 pub(crate) const NAMESPACE_TYPE_LABEL: &str = "namespace_type";
 pub(crate) const NAMESPACE_TYPE_METADATA: &str = "metadata";
@@ -58,31 +59,63 @@ pub fn register() {
     );
 }
 
-pub const BLOBS_PER_CELESTIA_FETCH: &str =
-    concat!(env!("CARGO_CRATE_NAME"), "_blobs_per_celestia_fetch",);
+metric_name!(pub const BLOBS_PER_CELESTIA_FETCH);
+metric_name!(pub const CELESTIA_BLOB_FETCH_ERROR_COUNT);
+metric_name!(pub const DECODED_ITEMS_PER_CELESTIA_FETCH);
+metric_name!(pub const SEQUENCER_BLOCKS_METADATA_VERIFIED_PER_CELESTIA_FETCH);
+metric_name!(pub const SEQUENCER_BLOCK_INFORMATION_RECONSTRUCTED_PER_CELESTIA_FETCH);
 
-pub const CELESTIA_BLOB_FETCH_ERROR_COUNT: &str =
-    concat!(env!("CARGO_CRATE_NAME"), "_celestia_blob_fetch_error_count");
+metric_name!(pub const EXECUTED_FIRM_BLOCK_NUMBER);
+metric_name!(pub const EXECUTED_SOFT_BLOCK_NUMBER);
+metric_name!(pub const TRANSACTIONS_PER_EXECUTED_BLOCK);
 
-pub const DECODED_ITEMS_PER_CELESTIA_FETCH: &str = concat!(
-    env!("CARGO_CRATE_NAME"),
-    "_decoded_items_per_celestia_fetch",
-);
+#[cfg(test)]
+mod tests {
+    use super::TRANSACTIONS_PER_EXECUTED_BLOCK;
+    use crate::metrics_init::{
+        BLOBS_PER_CELESTIA_FETCH,
+        CELESTIA_BLOB_FETCH_ERROR_COUNT,
+        DECODED_ITEMS_PER_CELESTIA_FETCH,
+        EXECUTED_FIRM_BLOCK_NUMBER,
+        EXECUTED_SOFT_BLOCK_NUMBER,
+        SEQUENCER_BLOCKS_METADATA_VERIFIED_PER_CELESTIA_FETCH,
+        SEQUENCER_BLOCK_INFORMATION_RECONSTRUCTED_PER_CELESTIA_FETCH,
+    };
 
-pub const SEQUENCER_BLOCKS_METADATA_VERIFIED_PER_CELESTIA_FETCH: &str = concat!(
-    env!("CARGO_CRATE_NAME"),
-    "_sequencer_blocks_metadata_verified_per_celestia_fetch",
-);
+    #[track_caller]
+    fn assert_const(actual: &'static str, suffix: &str) {
+        // XXX: hard-code this so the crate name isn't accidentally changed.
+        const CRATE_NAME: &str = "astria_conductor";
+        let expected = format!("{CRATE_NAME}_{suffix}");
+        assert_eq!(expected, actual);
+    }
 
-pub const SEQUENCER_BLOCK_INFORMATION_RECONSTRUCTED_PER_CELESTIA_FETCH: &str = concat!(
-    env!("CARGO_CRATE_NAME"),
-    "_sequencer_block_information_reconstructed_per_celestia_fetch",
-);
+    #[test]
+    fn metrics_are_as_expected() {
+        assert_const(BLOBS_PER_CELESTIA_FETCH, "blobs_per_celestia_fetch");
+        assert_const(
+            CELESTIA_BLOB_FETCH_ERROR_COUNT,
+            "celestia_blob_fetch_error_count",
+        );
+        assert_const(
+            DECODED_ITEMS_PER_CELESTIA_FETCH,
+            "decoded_items_per_celestia_fetch",
+        );
 
-pub const EXECUTED_FIRM_BLOCK_NUMBER: &str =
-    concat!(env!("CARGO_CRATE_NAME"), "_executed_firm_block_number");
-pub const EXECUTED_SOFT_BLOCK_NUMBER: &str =
-    concat!(env!("CARGO_CRATE_NAME"), "_executed_soft_block_number");
+        assert_const(
+            SEQUENCER_BLOCKS_METADATA_VERIFIED_PER_CELESTIA_FETCH,
+            "sequencer_blocks_metadata_verified_per_celestia_fetch",
+        );
 
-pub const TRANSACTIONS_PER_EXECUTED_BLOCK: &str =
-    concat!(env!("CARGO_CRATE_NAME"), "_transactions_per_executed_block",);
+        assert_const(
+            SEQUENCER_BLOCK_INFORMATION_RECONSTRUCTED_PER_CELESTIA_FETCH,
+            "sequencer_block_information_reconstructed_per_celestia_fetch",
+        );
+        assert_const(EXECUTED_FIRM_BLOCK_NUMBER, "executed_firm_block_number");
+        assert_const(EXECUTED_SOFT_BLOCK_NUMBER, "executed_soft_block_number");
+        assert_const(
+            TRANSACTIONS_PER_EXECUTED_BLOCK,
+            "transactions_per_executed_block",
+        );
+    }
+}

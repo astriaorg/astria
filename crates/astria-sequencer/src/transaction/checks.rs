@@ -140,8 +140,7 @@ pub(crate) async fn check_balance_for_total_fees<S: StateReadExt + 'static>(
             | Action::Ibc(_)
             | Action::IbcRelayerChange(_)
             | Action::FeeAssetChange(_)
-            | Action::FeeChange(_)
-            | Action::Mint(_) => {
+            | Action::FeeChange(_) => {
                 continue;
             }
         }
