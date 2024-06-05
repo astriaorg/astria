@@ -30,7 +30,7 @@ contract AstriaWithdrawerScript is Script {
         vm.stopBroadcast();
     }
 
-    function withdrawToOriginChain() public {
+    function withdrawToIbcChain() public {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
 
@@ -39,7 +39,7 @@ contract AstriaWithdrawerScript is Script {
 
         string memory destinationChainAddress = vm.envString("ORIGIN_DESTINATION_CHAIN_ADDRESS");
         uint256 amount = vm.envUint("AMOUNT");
-        astriaWithdrawer.withdrawToOriginChain{value: amount}(destinationChainAddress, "");
+        astriaWithdrawer.withdrawToIbcChain{value: amount}(destinationChainAddress, "");
 
         vm.stopBroadcast();
     }

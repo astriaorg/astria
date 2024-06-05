@@ -13,8 +13,14 @@ contract AstriaWithdrawer {
     // the ASSET_WITHDRAWAL_DECIMALS would be 12.
     uint32 public immutable ASSET_WITHDRAWAL_DECIMALS;
 
+    // the divisor used to convert the rollup asset amount to the base chain denomination
+    //
+    // set to 10^ASSET_WITHDRAWAL_DECIMALS on contract creation
+    uint256 private immutable DIVISOR;
+
     constructor(uint32 assetWithdrawalDecimals) {
         ASSET_WITHDRAWAL_DECIMALS = assetWithdrawalDecimals;
+        DIVISOR = 10 ** assetWithdrawalDecimals;
     }
 
     // emitted when a withdrawal to the sequencer is initiated
@@ -30,12 +36,17 @@ contract AstriaWithdrawer {
     // the `destinationChainAddress` is the address on the origin chain the funds will be sent to
     // the `memo` is an optional field that will be used as the ICS20 packet memo
     event Ics20Withdrawal(address indexed sender, uint256 indexed amount, string destinationChainAddress, string memo);
+
+    modifier sufficientValue(uint256 amount) {
+        require(amount / DIVISOR > 0, "AstriaWithdrawer: insufficient value, must be divisible by 10**ASSET_WITHDRAWAL_DECIMALS");
+        _;
+    }
     
-    function withdrawToSequencer(address destinationChainAddress) external payable {
+    function withdrawToSequencer(address destinationChainAddress) external payable sufficientValue(msg.value) {
         emit SequencerWithdrawal(msg.sender, msg.value, destinationChainAddress);
     }
 
-    function withdrawToOriginChain(string calldata destinationChainAddress, string calldata memo) external payable {
+    function withdrawToIbcChain(string calldata destinationChainAddress, string calldata memo) external payable sufficientValue(msg.value) {
         emit Ics20Withdrawal(msg.sender, msg.value, destinationChainAddress, memo);
     }
 }
