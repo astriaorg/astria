@@ -69,7 +69,7 @@ impl Denom {
     }
 
     #[must_use]
-    pub fn is_prefixed_with(&self, prefix: &str) -> bool {
+    pub fn is_prefixed_by(&self, prefix: &str) -> bool {
         self.prefix.starts_with(prefix)
     }
 
@@ -91,19 +91,37 @@ impl Denom {
 
     /// Create a new [`Denom`] with the given prefix removed.
     ///
+    /// It also ensures the resulting denom does not have a slash at the beginning.
+    /// For example, if the denom is `prefix/base`, and the prefix to remove is `prefix`,
+    /// then the resulting denom will be `base`.
+    ///
     /// # Errors
     ///
     /// - if the denom does not have the given prefix.
     pub fn remove_prefix(&self, prefix: &str) -> Result<Self, InvalidPrefixToRemove> {
-        let denom_trace = self
-            .to_string()
-            .strip_prefix(prefix)
-            .ok_or(InvalidPrefixToRemove {
+        let prefix_to_remove = prefix.trim_end_matches("/");
+        if prefix_to_remove == self.prefix {
+            return Ok(self.to_base_denom());
+        }
+
+        let new_prefix = self
+            .prefix
+            .clone()
+            .strip_prefix(prefix_to_remove)
+            .ok_or_else(|| InvalidPrefixToRemove {
                 prefix: prefix.to_string(),
                 denom: self.to_string(),
             })?
+            .trim_start_matches("/")
             .to_string();
-        Ok(Self::from(denom_trace))
+
+        let denom_trace = format!("{new_prefix}/{}", self.base_denom);
+        let id = Id::from_denom(&denom_trace);
+        Ok(Self {
+            id,
+            base_denom: self.base_denom.clone(),
+            prefix: new_prefix,
+        })
     }
 }
 
@@ -217,4 +235,60 @@ impl Display for Id {
 #[error("expected 32 bytes, got {received}")]
 pub struct IncorrectAssetIdLength {
     received: usize,
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn remove_prefix_entire_prefix_ok() {
+        let denom = Denom::from("prefix/base".to_string());
+        let new_denom = denom.remove_prefix("prefix").unwrap();
+        assert_eq!(new_denom.to_string(), "base");
+        let expected_id = Denom::from_base_denom("base").id();
+        assert_eq!(new_denom.id(), expected_id);
+    }
+
+    #[test]
+    fn remove_prefix_entire_prefix_with_slash_ok() {
+        let denom = Denom::from("prefix/base".to_string());
+        let new_denom = denom.remove_prefix("prefix/").unwrap();
+        assert_eq!(new_denom.to_string(), "base");
+        let expected_id = Denom::from_base_denom("base").id();
+        assert_eq!(new_denom.id(), expected_id);
+    }
+
+    #[test]
+    fn remove_prefix_partial_prefix_ok() {
+        let denom = Denom::from("prefix-0/prefix-1/base".to_string());
+        let new_denom = denom.remove_prefix("prefix-0").unwrap();
+        assert_eq!(new_denom.to_string(), "prefix-1/base");
+        let expected_id = Denom::from("prefix-1/base".to_string()).id();
+        assert_eq!(new_denom.id(), expected_id);
+    }
+
+    #[test]
+    fn remove_prefix_partial_prefix_with_slash_ok() {
+        let denom = Denom::from("prefix-0/prefix-1/base".to_string());
+        // adding the slash at the end of the prefix to remove results in the same as without
+        let new_denom = denom.remove_prefix("prefix-0/").unwrap();
+        assert_eq!(new_denom.to_string(), "prefix-1/base");
+        let expected_id = Denom::from("prefix-1/base".to_string()).id();
+        assert_eq!(new_denom.id(), expected_id);
+    }
+
+    #[test]
+    fn remove_prefix_invalid_prefix() {
+        let denom = Denom::from("prefix-0/prefix-1/base".to_string());
+        let result = denom.remove_prefix("prefix-2");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn remove_prefix_cannot_remove_base_denom() {
+        let denom = Denom::from("prefix-0/base".to_string());
+        let result = denom.remove_prefix("prefix-0/b");
+        assert!(result.is_err());
+    }
 }

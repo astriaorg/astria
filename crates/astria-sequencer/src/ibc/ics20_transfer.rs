@@ -211,7 +211,7 @@ async fn refund_tokens_check<S: StateRead>(
 
 fn is_prefixed(source_port: &PortId, source_channel: &ChannelId, asset: &Denom) -> bool {
     let prefix = format!("{source_port}/{source_channel}");
-    asset.is_prefixed_with(&prefix)
+    asset.is_prefixed_by(&prefix)
 }
 
 #[async_trait::async_trait]
@@ -492,7 +492,7 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
             unprefixed_denom
         } else {
             unprefixed_denom
-                .remove_prefix(&format!("{source_port}/{source_channel}/"))
+                .remove_prefix(&format!("{source_port}/{source_channel}"))
                 .expect(
                     "denom must be prefixed by source_port/source_channel as it was checked in \
                      `is_prefixed` above",
