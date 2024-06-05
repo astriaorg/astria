@@ -2,13 +2,12 @@
 pragma solidity ^0.8.21;
 
 abstract contract IAstriaWithdrawer {
-    // the number of decimal places more the asset has on the rollup versus the base chain.
+    // the precision of the asset on the base chain.
     //
-    // the amount transferred on the base chain will be divided by 10^ASSET_WITHDRAWAL_DECIMALS.
+    // the amount transferred on the base chain will be divided by 10 ^ (18 - BASE_CHAIN_ASSET_PRECISION).
     //
-    // for example, if the rollup specifies the asset has 18 decimal places and the base chain specifies 6,
-    // the ASSET_WITHDRAWAL_DECIMALS would be 12.
-    uint32 public immutable ASSET_WITHDRAWAL_DECIMALS;
+    // for example, if base chain asset is precision is 6, the divisor would be 10^12.
+    uint32 public immutable BASE_CHAIN_ASSET_PRECISION;
 
     // emitted when a withdrawal to the sequencer is initiated
     //

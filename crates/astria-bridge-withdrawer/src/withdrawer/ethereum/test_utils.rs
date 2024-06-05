@@ -21,6 +21,22 @@ use crate::withdrawer::ethereum::{
     },
 };
 
+#[derive(Default)]
+pub(crate) struct ConfigureAstriaWithdrawerDeployer {
+    pub(crate) base_chain_asset_precision: u32,
+}
+
+impl ConfigureAstriaWithdrawerDeployer {
+    pub(crate) async fn deploy(
+        &mut self,
+    ) -> (Address, Arc<Provider<Ws>>, LocalWallet, AnvilInstance) {
+        if self.base_chain_asset_precision == 0 {
+            self.base_chain_asset_precision = 18;
+        }
+        deploy_astria_withdrawer(self.base_chain_asset_precision.into()).await
+    }
+}
+
 /// Starts a local anvil instance and deploys the `AstriaWithdrawer` contract to it.
 ///
 /// Returns the contract address, provider, wallet, and anvil instance.
@@ -29,8 +45,9 @@ use crate::withdrawer::ethereum::{
 ///
 /// - if the provider fails to connect to the anvil instance
 /// - if the contract fails to deploy
-pub(crate) async fn deploy_astria_withdrawer()
--> (Address, Arc<Provider<Ws>>, LocalWallet, AnvilInstance) {
+pub(crate) async fn deploy_astria_withdrawer(
+    base_chain_asset_precision: U256,
+) -> (Address, Arc<Provider<Ws>>, LocalWallet, AnvilInstance) {
     // setup anvil and signing wallet
     let anvil = Anvil::new().spawn();
     let wallet: LocalWallet = anvil.keys()[0].clone().into();
@@ -50,7 +67,12 @@ pub(crate) async fn deploy_astria_withdrawer()
 
     // deploy contract with ASSET_WITHDRAWAL_DECIMALS as 0
     let factory = ContractFactory::new(abi.clone(), bytecode.into(), signer.into());
-    let contract = factory.deploy(U256::from(0)).unwrap().send().await.unwrap();
+    let contract = factory
+        .deploy(base_chain_asset_precision)
+        .unwrap()
+        .send()
+        .await
+        .unwrap();
     let contract_address = contract.address();
 
     (
@@ -64,7 +86,7 @@ pub(crate) async fn deploy_astria_withdrawer()
 #[derive(Default)]
 pub(crate) struct ConfigureAstriaMintableERC20Deployer {
     pub(crate) bridge_address: Address,
-    pub(crate) asset_withdrawal_decimals: u32,
+    pub(crate) base_chain_asset_precision: u32,
     pub(crate) name: String,
     pub(crate) symbol: String,
 }
@@ -73,7 +95,7 @@ impl ConfigureAstriaMintableERC20Deployer {
     pub(crate) async fn deploy(self) -> (Address, Arc<Provider<Ws>>, LocalWallet, AnvilInstance) {
         let Self {
             bridge_address,
-            asset_withdrawal_decimals,
+            base_chain_asset_precision,
             mut name,
             mut symbol,
         } = self;
@@ -88,7 +110,7 @@ impl ConfigureAstriaMintableERC20Deployer {
 
         deploy_astria_mintable_erc20(
             bridge_address,
-            asset_withdrawal_decimals.into(),
+            base_chain_asset_precision.into(),
             name,
             symbol,
         )
@@ -106,7 +128,7 @@ impl ConfigureAstriaMintableERC20Deployer {
 /// - if the contract fails to deploy
 pub(crate) async fn deploy_astria_mintable_erc20(
     mut bridge_address: Address,
-    asset_withdrawal_decimals: ethers::abi::Uint,
+    base_chain_asset_precision: ethers::abi::Uint,
     name: String,
     symbol: String,
 ) -> (Address, Arc<Provider<Ws>>, LocalWallet, AnvilInstance) {
@@ -134,7 +156,7 @@ pub(crate) async fn deploy_astria_mintable_erc20(
     }
     let args = vec![
         bridge_address.into_token(),
-        asset_withdrawal_decimals.into_token(),
+        base_chain_asset_precision.into_token(),
         name.into_token(),
         symbol.into_token(),
     ];
