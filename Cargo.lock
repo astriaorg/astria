@@ -1802,11 +1802,12 @@ dependencies = [
 
 [[package]]
 name = "cnidarium"
-version = "0.71.0"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=8b06546af43bf073fd99f3f9d82b8afb51872489#8b06546af43bf073fd99f3f9d82b8afb51872489"
+version = "0.77.2"
+source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.77.2#76aab4b843f47b7ce9d7177196fdd2495ccf7bfa"
 dependencies = [
  "anyhow",
  "async-trait",
+ "base64 0.21.7",
  "borsh",
  "futures",
  "hex",
@@ -1830,8 +1831,8 @@ dependencies = [
 
 [[package]]
 name = "cnidarium-component"
-version = "0.71.0"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=8b06546af43bf073fd99f3f9d82b8afb51872489#8b06546af43bf073fd99f3f9d82b8afb51872489"
+version = "0.77.2"
+source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.77.2#76aab4b843f47b7ce9d7177196fdd2495ccf7bfa"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2330,8 +2331,8 @@ dependencies = [
 
 [[package]]
 name = "decaf377-fmd"
-version = "0.71.0"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=8b06546af43bf073fd99f3f9d82b8afb51872489#8b06546af43bf073fd99f3f9d82b8afb51872489"
+version = "0.77.2"
+source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.77.2#76aab4b843f47b7ce9d7177196fdd2495ccf7bfa"
 dependencies = [
  "ark-ff 0.4.2",
  "ark-serialize 0.4.2",
@@ -2344,8 +2345,8 @@ dependencies = [
 
 [[package]]
 name = "decaf377-ka"
-version = "0.71.0"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=8b06546af43bf073fd99f3f9d82b8afb51872489#8b06546af43bf073fd99f3f9d82b8afb51872489"
+version = "0.77.2"
+source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.77.2#76aab4b843f47b7ce9d7177196fdd2495ccf7bfa"
 dependencies = [
  "ark-ff 0.4.2",
  "decaf377 0.5.0",
@@ -5483,8 +5484,8 @@ dependencies = [
 
 [[package]]
 name = "penumbra-asset"
-version = "0.71.0"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=8b06546af43bf073fd99f3f9d82b8afb51872489#8b06546af43bf073fd99f3f9d82b8afb51872489"
+version = "0.77.2"
+source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.77.2#76aab4b843f47b7ce9d7177196fdd2495ccf7bfa"
 dependencies = [
  "anyhow",
  "ark-ff 0.4.2",
@@ -5521,8 +5522,8 @@ dependencies = [
 
 [[package]]
 name = "penumbra-ibc"
-version = "0.71.0"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=8b06546af43bf073fd99f3f9d82b8afb51872489#8b06546af43bf073fd99f3f9d82b8afb51872489"
+version = "0.77.2"
+source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.77.2#76aab4b843f47b7ce9d7177196fdd2495ccf7bfa"
 dependencies = [
  "anyhow",
  "ark-ff 0.4.2",
@@ -5530,6 +5531,7 @@ dependencies = [
  "base64 0.21.7",
  "blake2b_simd 1.0.2",
  "cnidarium",
+ "futures",
  "hex",
  "ibc-proto",
  "ibc-types",
@@ -5549,6 +5551,7 @@ dependencies = [
  "sha2 0.10.8",
  "tendermint 0.34.1",
  "tendermint-light-client-verifier",
+ "time",
  "tonic 0.10.2",
  "tower",
  "tracing",
@@ -5556,8 +5559,8 @@ dependencies = [
 
 [[package]]
 name = "penumbra-keys"
-version = "0.71.0"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=8b06546af43bf073fd99f3f9d82b8afb51872489#8b06546af43bf073fd99f3f9d82b8afb51872489"
+version = "0.77.2"
+source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.77.2#76aab4b843f47b7ce9d7177196fdd2495ccf7bfa"
 dependencies = [
  "aes",
  "anyhow",
@@ -5600,8 +5603,8 @@ dependencies = [
 
 [[package]]
 name = "penumbra-num"
-version = "0.71.0"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=8b06546af43bf073fd99f3f9d82b8afb51872489#8b06546af43bf073fd99f3f9d82b8afb51872489"
+version = "0.77.2"
+source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.77.2#76aab4b843f47b7ce9d7177196fdd2495ccf7bfa"
 dependencies = [
  "anyhow",
  "ark-ff 0.4.2",
@@ -5636,8 +5639,8 @@ dependencies = [
 
 [[package]]
 name = "penumbra-proto"
-version = "0.71.0"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=8b06546af43bf073fd99f3f9d82b8afb51872489#8b06546af43bf073fd99f3f9d82b8afb51872489"
+version = "0.77.2"
+source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.77.2#76aab4b843f47b7ce9d7177196fdd2495ccf7bfa"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -5665,8 +5668,8 @@ dependencies = [
 
 [[package]]
 name = "penumbra-sct"
-version = "0.71.0"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=8b06546af43bf073fd99f3f9d82b8afb51872489#8b06546af43bf073fd99f3f9d82b8afb51872489"
+version = "0.77.2"
+source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.77.2#76aab4b843f47b7ce9d7177196fdd2495ccf7bfa"
 dependencies = [
  "anyhow",
  "ark-ff 0.4.2",
@@ -5699,8 +5702,8 @@ dependencies = [
 
 [[package]]
 name = "penumbra-tct"
-version = "0.71.0"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=8b06546af43bf073fd99f3f9d82b8afb51872489#8b06546af43bf073fd99f3f9d82b8afb51872489"
+version = "0.77.2"
+source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.77.2#76aab4b843f47b7ce9d7177196fdd2495ccf7bfa"
 dependencies = [
  "ark-ed-on-bls12-377",
  "ark-ff 0.4.2",
@@ -5727,8 +5730,8 @@ dependencies = [
 
 [[package]]
 name = "penumbra-tower-trace"
-version = "0.71.0"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=8b06546af43bf073fd99f3f9d82b8afb51872489#8b06546af43bf073fd99f3f9d82b8afb51872489"
+version = "0.77.2"
+source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.77.2#76aab4b843f47b7ce9d7177196fdd2495ccf7bfa"
 dependencies = [
  "futures",
  "hex",
@@ -5749,8 +5752,8 @@ dependencies = [
 
 [[package]]
 name = "penumbra-txhash"
-version = "0.71.0"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=8b06546af43bf073fd99f3f9d82b8afb51872489#8b06546af43bf073fd99f3f9d82b8afb51872489"
+version = "0.77.2"
+source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.77.2#76aab4b843f47b7ce9d7177196fdd2495ccf7bfa"
 dependencies = [
  "anyhow",
  "blake2b_simd 1.0.2",
