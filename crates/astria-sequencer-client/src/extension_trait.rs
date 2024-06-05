@@ -26,6 +26,7 @@ use std::{
     sync::Arc,
 };
 
+use astria_core::protocol::asset::v1alpha1::AllowedFeeAssetIdsResponse;
 pub use astria_core::{
     primitive::v1::Address,
     protocol::{
@@ -93,6 +94,7 @@ impl std::error::Error for Error {
         match &self.inner {
             ErrorKind::AbciQueryDeserialization(e) => Some(e),
             ErrorKind::TendermintRpc(e) => Some(e),
+            ErrorKind::NativeConversion(e) => Some(e),
         }
     }
 }
@@ -108,7 +110,7 @@ impl Error {
     pub fn as_tendermint_rpc(&self) -> Option<&TendermintRpcError> {
         match self.kind() {
             ErrorKind::TendermintRpc(e) => Some(e),
-            ErrorKind::AbciQueryDeserialization(_) => None,
+            ErrorKind::AbciQueryDeserialization(_) | ErrorKind::NativeConversion(_) => None,
         }
     }
 
@@ -127,6 +129,16 @@ impl Error {
     fn tendermint_rpc(rpc: &'static str, inner: tendermint_rpc::error::Error) -> Self {
         Self {
             inner: ErrorKind::tendermint_rpc(rpc, inner),
+        }
+    }
+
+    /// Convenience function to construct `Error` containing a `DeserializationError`.
+    fn native_conversion(
+        target: &'static str,
+        inner: Arc<dyn std::error::Error + Send + Sync>,
+    ) -> Self {
+        Self {
+            inner: ErrorKind::native_conversion(target, inner),
         }
     }
 }
@@ -229,7 +241,7 @@ impl std::fmt::Display for DeserializationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "failed deserializing cometbft response to {}",
+            "failed deserializing raw protobuf response to {}",
             self.target,
         )
     }
@@ -248,6 +260,7 @@ impl std::error::Error for DeserializationError {
 pub enum ErrorKind {
     AbciQueryDeserialization(AbciQueryDeserializationError),
     TendermintRpc(TendermintRpcError),
+    NativeConversion(DeserializationError),
 }
 
 impl ErrorKind {
@@ -269,6 +282,17 @@ impl ErrorKind {
         Self::TendermintRpc(TendermintRpcError {
             inner,
             rpc,
+        })
+    }
+
+    /// Convenience method to construct a `NativeConversion` variant.
+    fn native_conversion(
+        target: &'static str,
+        inner: Arc<dyn std::error::Error + Send + Sync>,
+    ) -> Self {
+        Self::NativeConversion(DeserializationError {
+            inner,
+            target,
         })
     }
 }
@@ -434,6 +458,39 @@ pub trait SequencerClientExt: Client {
         // This makes use of the fact that a height `None` and `Some(0)` are
         // treated the same.
         self.get_balance(address, 0u32).await
+    }
+
+    /// Returns the allowed fee assets at a given height.
+    ///
+    /// # Errors
+    ///
+    /// - If calling tendermint `abci_query` RPC fails.
+    /// - If the bytes contained in the abci query response cannot be deserialized as an
+    ///  `astria.protocol.asset.v1alpha1.AllowedFeeAssetIdsResponse`.
+    /// - If the raw response cannot be converted to the native type.
+    async fn get_allowed_fee_asset_ids(&self) -> Result<AllowedFeeAssetIdsResponse, Error> {
+        let path = "asset/allowed_fee_asset_ids".to_string();
+
+        let response = self
+            .abci_query(Some(path), vec![], Some(0u32.into()), false)
+            .await
+            .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
+
+        let proto_response =
+            astria_core::generated::protocol::asset::v1alpha1::AllowedFeeAssetIdsResponse::decode(
+                &*response.value,
+            )
+            .map_err(|e| {
+                Error::abci_query_deserialization(
+                    "astria.protocol.asset.v1alpha1.AllowedFeeAssetIdsResponse",
+                    response,
+                    e,
+                )
+            })?;
+        let native_response = AllowedFeeAssetIdsResponse::try_from_raw(&proto_response)
+            .map_err(|e| Error::native_conversion("AllowedFeeAssetIdsResponse", Arc::new(e)))?;
+
+        Ok(native_response)
     }
 
     /// Returns the nonce of the given account at the given height.

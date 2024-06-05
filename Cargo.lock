@@ -604,7 +604,7 @@ dependencies = [
 
 [[package]]
 name = "astria-conductor"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "astria-build-info",
  "astria-config",
@@ -918,6 +918,7 @@ version = "0.1.0"
 dependencies = [
  "base64 0.21.7",
  "base64-serde",
+ "const_format",
  "metrics-exporter-prometheus",
  "opentelemetry",
  "opentelemetry-otlp",

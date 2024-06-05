@@ -50,6 +50,10 @@ use super::{
     block_verifier,
     convert::ConvertedBlobs,
 };
+use crate::executor::{
+    self,
+    StateIsInit,
+};
 
 pub(super) struct VerifiedBlobs {
     celestia_height: u64,
@@ -94,24 +98,37 @@ struct VerificationTaskKey {
 pub(super) async fn verify_metadata(
     blob_verifier: Arc<BlobVerifier>,
     converted_blobs: ConvertedBlobs,
+    mut executor: executor::Handle<StateIsInit>,
 ) -> VerifiedBlobs {
     let (celestia_height, header_blobs, rollup_blobs) = converted_blobs.into_parts();
 
     let mut verification_tasks = JoinMap::new();
     let mut verified_header_blobs = HashMap::with_capacity(header_blobs.len());
 
+    let next_expected_firm_sequencer_height =
+        executor.next_expected_firm_sequencer_height().value();
+
     for (index, blob) in header_blobs.into_iter().enumerate() {
-        verification_tasks.spawn(
-            VerificationTaskKey {
-                index,
-                block_hash: blob.block_hash(),
-                sequencer_height: blob.height(),
-            },
-            blob_verifier
-                .clone()
-                .verify_metadata(blob)
-                .in_current_span(),
-        );
+        if blob.height().value() < next_expected_firm_sequencer_height {
+            info!(
+                next_expected_firm_sequencer_height,
+                sequencer_height_in_metadata = blob.height().value(),
+                "dropping Sequencer metadata item without verifying against Sequencer because its \
+                 height is below the next expected firm height"
+            );
+        } else {
+            verification_tasks.spawn(
+                VerificationTaskKey {
+                    index,
+                    block_hash: blob.block_hash(),
+                    sequencer_height: blob.height(),
+                },
+                blob_verifier
+                    .clone()
+                    .verify_metadata(blob)
+                    .in_current_span(),
+            );
+        }
     }
 
     while let Some((key, verification_result)) = verification_tasks.join_next().await {

@@ -7,3 +7,9 @@ message DenomResponse {
   uint64 height = 2;
   string denom = 3;
 }
+
+// A response containing the allowed fee asset IDs.
+message AllowedFeeAssetIdsResponse {
+  uint64 height = 1;
+  repeated bytes fee_asset_ids = 2;
+}
