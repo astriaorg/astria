@@ -38,7 +38,7 @@ contract AstriaWithdrawer {
     event Ics20Withdrawal(address indexed sender, uint256 indexed amount, string destinationChainAddress, string memo);
 
     modifier sufficientValue(uint256 amount) {
-        require(amount / DIVISOR > 0, "AstriaWithdrawer: insufficient value, must be divisible by 10**ASSET_WITHDRAWAL_DECIMALS");
+        require(amount / DIVISOR > 0, "AstriaWithdrawer: insufficient value, must be greater than 10**ASSET_WITHDRAWAL_DECIMALS");
         _;
     }
     
