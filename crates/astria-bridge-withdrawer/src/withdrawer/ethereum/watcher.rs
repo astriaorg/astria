@@ -282,7 +282,7 @@ impl Batcher {
                             };
                         }
                     } else {
-                        warn!("block stream closed; shutting down batcher");
+                        error!("block stream closed; shutting down batcher");
                         break;
                     }
                 }

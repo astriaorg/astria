@@ -127,11 +127,7 @@ fn event_to_ics20_withdrawal(
     // TODO: make this configurable
     const ICS20_WITHDRAWAL_TIMEOUT: Duration = Duration::from_secs(300);
 
-    let sender: [u8; 20] = event
-        .sender
-        .as_bytes()
-        .try_into()
-        .expect("U160 must be 20 bytes");
+    let sender = event.sender.to_fixed_bytes().into();
     let denom = rollup_asset_denom.clone();
 
     let (_, channel) = denom
@@ -152,7 +148,7 @@ fn event_to_ics20_withdrawal(
         // returned to the rollup.
         // this is only ok for now because addresses on the sequencer and the rollup are both 20
         // bytes, but this won't work otherwise.
-        return_address: Address::from(sender),
+        return_address: sender,
         amount: event
             .amount
             .as_u128()
