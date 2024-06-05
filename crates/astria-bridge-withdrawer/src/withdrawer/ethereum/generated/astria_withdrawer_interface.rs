@@ -1,4 +1,4 @@
-#![allow(warnings)]
+#![allow(unreachable_pub)]
 #![allow(clippy::all)]
 pub use i_astria_withdrawer::*;
 /// This module was auto-generated with ethers-rs Abigen.

@@ -1,4 +1,4 @@
-#![allow(warnings)]
+#![allow(unreachable_pub)]
 #![allow(clippy::all)]
 pub use astria_mintable_erc20::*;
 /// This module was auto-generated with ethers-rs Abigen.
