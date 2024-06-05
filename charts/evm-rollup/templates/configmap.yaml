@@ -32,9 +32,9 @@ data:
   OTEL_EXPORTER_OTLP_HEADERS: "{{ .Values.config.rollup.otel.otlpHeaders }}"
   OTEL_EXPORTER_OTLP_TRACE_HEADERS: "{{ .Values.config.rollup.otel.traceHeaders }}"
   OTEL_SERVICE_NAME: "{{ tpl .Values.config.rollup.otel.serviceNamePrefix . }}-conductor"
+  ASTRIA_CONDUCTOR_SEQUENCER_REQUESTS_PER_SECOND: "500"
   {{- if not .Values.global.dev }}
   {{- else }}
-  ASTRIA_CONDUCTOR_SEQUENCER_REQUESTS_PER_SECOND: "500"
   {{- end }}
 ---
 apiVersion: v1
