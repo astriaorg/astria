@@ -57,7 +57,25 @@ pub(crate) async fn execute<S: StateWriteExt>(
     tx: &SignedTransaction,
     state: &mut S,
 ) -> anyhow::Result<()> {
+    use crate::bridge::state_ext::{
+        StateReadExt as _,
+        StateWriteExt as _,
+    };
+
     let signer_address = *tx.verification_key().address();
+
+    if state
+        .get_bridge_account_rollup_id(&signer_address)
+        .await
+        .context("failed to check account rollup id")?
+        .is_some()
+    {
+        state.put_last_transaction_hash_for_bridge_account(
+            &signer_address,
+            &tx.sha256_of_proto_encoding(),
+        );
+    }
+
     tx.unsigned_transaction()
         .execute(state, signer_address)
         .await

@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package astria.protocol.bridge.v1alpha1;
+
+// A response containing the last tx hash given some bridge address.
+message BridgeAccountLastTxHashResponse {
+  uint64 height = 2;
+  bytes tx_hash = 3;
+}
