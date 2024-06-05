@@ -13,10 +13,7 @@ impl DenomResponse {
     /// native [`DenomResponse`].
     #[must_use]
     pub fn from_raw(proto: &raw::DenomResponse) -> Self {
-        let raw::DenomResponse {
-            height,
-            denom,
-        } = proto;
+        let raw::DenomResponse { height, denom } = proto;
         Self {
             height: *height,
             denom: denom.clone().into(),
@@ -36,10 +33,7 @@ impl raw::DenomResponse {
     /// protobuf [`raw::DenomResponse`].
     #[must_use]
     pub fn from_native(native: DenomResponse) -> Self {
-        let DenomResponse {
-            height,
-            denom,
-        } = native;
+        let DenomResponse { height, denom } = native;
         Self {
             height,
             denom: denom.to_string(),

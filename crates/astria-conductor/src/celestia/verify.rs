@@ -1,59 +1,23 @@
-use std::{
-    collections::HashMap,
-    sync::Arc,
-    time::Duration,
-};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
-use astria_core::sequencerblock::v1alpha1::{
-    SubmittedMetadata,
-    SubmittedRollupData,
-};
+use astria_core::sequencerblock::v1alpha1::{SubmittedMetadata, SubmittedRollupData};
 use astria_eyre::{
     eyre,
-    eyre::{
-        ensure,
-        WrapErr as _,
-    },
+    eyre::{ensure, WrapErr as _},
 };
 use moka::future::Cache;
 use sequencer_client::{
-    tendermint::block::{
-        signed_header::SignedHeader,
-        Height as SequencerHeight,
-    },
-    tendermint_rpc,
-    Client as _,
-    HttpClient as SequencerClient,
+    tendermint::block::{signed_header::SignedHeader, Height as SequencerHeight},
+    tendermint_rpc, Client as _, HttpClient as SequencerClient,
 };
 use telemetry::display::base64;
 use tokio_util::task::JoinMap;
-use tower::{
-    util::BoxService,
-    BoxError,
-    Service as _,
-    ServiceExt as _,
-};
-use tracing::{
-    info,
-    instrument,
-    warn,
-    Instrument,
-};
-use tryhard::{
-    backoff_strategies::BackoffStrategy,
-    retry_fn,
-    RetryFutureConfig,
-    RetryPolicy,
-};
+use tower::{util::BoxService, BoxError, Service as _, ServiceExt as _};
+use tracing::{info, instrument, warn, Instrument};
+use tryhard::{backoff_strategies::BackoffStrategy, retry_fn, RetryFutureConfig, RetryPolicy};
 
-use super::{
-    block_verifier,
-    convert::ConvertedBlobs,
-};
-use crate::executor::{
-    self,
-    StateIsInit,
-};
+use super::{block_verifier, convert::ConvertedBlobs};
+use crate::executor::{self, StateIsInit};
 
 pub(super) struct VerifiedBlobs {
     celestia_height: u64,
@@ -326,10 +290,7 @@ async fn fetch_commit_with_retry(
     .with_config(retry_config)
     .await
     .map(Into::into)
-    .map_err(|source| VerificationMetaError::FetchCommit {
-        height,
-        source,
-    })
+    .map_err(|source| VerificationMetaError::FetchCommit { height, source })
 }
 
 async fn fetch_validators_with_retry(
@@ -399,11 +360,7 @@ impl<'a> BackoffStrategy<'a, tendermint_rpc::Error> for CometBftRetryStrategy {
 }
 
 fn should_retry(error: &tendermint_rpc::Error) -> bool {
-    use tendermint_rpc::error::ErrorDetail::{
-        Http,
-        HttpRequestFailed,
-        Timeout,
-    };
+    use tendermint_rpc::error::ErrorDetail::{Http, HttpRequestFailed, Timeout};
     matches!(
         error.detail(),
         Http(..) | HttpRequestFailed(..) | Timeout(..)
@@ -458,9 +415,7 @@ impl RateLimitedVerificationClient {
             .inner
             .ready()
             .await?
-            .call(VerificationRequest::Commit {
-                height,
-            })
+            .call(VerificationRequest::Commit { height })
             .await?
         {
             VerificationResponse::Commit(commit) => Ok(commit),
@@ -509,9 +464,9 @@ impl RateLimitedVerificationClient {
                 let client = client.clone();
                 async move {
                     match req {
-                        VerificationRequest::Commit {
-                            height,
-                        } => fetch_commit_with_retry(client, height).await,
+                        VerificationRequest::Commit { height } => {
+                            fetch_commit_with_retry(client, height).await
+                        }
                         VerificationRequest::Validators {
                             prev_height,
                             height,
@@ -527,9 +482,7 @@ impl RateLimitedVerificationClient {
                 .try_into()
                 .wrap_err("failed to convert u32 requests-per-second to usize")?,
         );
-        Ok(Self {
-            inner,
-        })
+        Ok(Self { inner })
     }
 }
 

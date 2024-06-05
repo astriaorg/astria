@@ -1,23 +1,14 @@
-use anyhow::{
-    Context as _,
-    Result,
-};
+use anyhow::{Context as _, Result};
 use astria_core::{
     primitive::v1::Address,
-    protocol::transaction::v1alpha1::action::{
-        BridgeUnlockAction,
-        TransferAction,
-    },
+    protocol::transaction::v1alpha1::action::{BridgeUnlockAction, TransferAction},
 };
 use tracing::instrument;
 
 use crate::{
     accounts::action::transfer_check_stateful,
     bridge::state_ext::StateReadExt as _,
-    state_ext::{
-        StateReadExt,
-        StateWriteExt,
-    },
+    state_ext::{StateReadExt, StateWriteExt},
     transaction::action_handler::ActionHandler,
 };
 
@@ -72,16 +63,12 @@ impl ActionHandler for BridgeUnlockAction {
 
 #[cfg(test)]
 mod test {
-    use astria_core::primitive::v1::{
-        asset,
-        RollupId,
-    };
+    use astria_core::primitive::v1::{asset, RollupId};
     use cnidarium::StateDelta;
 
     use super::*;
     use crate::{
-        accounts::state_ext::StateWriteExt as _,
-        bridge::state_ext::StateWriteExt,
+        accounts::state_ext::StateWriteExt as _, bridge::state_ext::StateWriteExt,
         state_ext::StateWriteExt as _,
     };
 
@@ -105,14 +92,12 @@ mod test {
         };
 
         // not a bridge account, should fail
-        assert!(
-            bridge_unlock
-                .check_stateful(&state, address)
-                .await
-                .unwrap_err()
-                .to_string()
-                .contains("failed to get bridge's asset id, must be a bridge account")
-        );
+        assert!(bridge_unlock
+            .check_stateful(&state, address)
+            .await
+            .unwrap_err()
+            .to_string()
+            .contains("failed to get bridge's asset id, must be a bridge account"));
     }
 
     #[tokio::test]
@@ -147,14 +132,12 @@ mod test {
         state
             .put_account_balance(bridge_address, asset_id, transfer_amount)
             .unwrap();
-        assert!(
-            bridge_unlock
-                .check_stateful(&state, bridge_address)
-                .await
-                .unwrap_err()
-                .to_string()
-                .contains("insufficient funds for transfer and fee payment")
-        );
+        assert!(bridge_unlock
+            .check_stateful(&state, bridge_address)
+            .await
+            .unwrap_err()
+            .to_string()
+            .contains("insufficient funds for transfer and fee payment"));
 
         // enough balance; should pass
         state
@@ -198,14 +181,12 @@ mod test {
         state
             .put_account_balance(bridge_address, asset_id, transfer_amount)
             .unwrap();
-        assert!(
-            bridge_unlock
-                .execute(&mut state, bridge_address)
-                .await
-                .unwrap_err()
-                .to_string()
-                .eq("failed to execute bridge unlock action as transfer action")
-        );
+        assert!(bridge_unlock
+            .execute(&mut state, bridge_address)
+            .await
+            .unwrap_err()
+            .to_string()
+            .eq("failed to execute bridge unlock action as transfer action"));
 
         // enough balance; should pass
         state

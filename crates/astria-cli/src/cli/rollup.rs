@@ -1,9 +1,6 @@
 use std::str::FromStr;
 
-use clap::{
-    Args,
-    Subcommand,
-};
+use clap::{Args, Subcommand};
 use color_eyre::eyre;
 use serde::Serialize;
 
@@ -193,10 +190,7 @@ impl FromStr for GenesisAccountArg {
             .parse::<u128>()
             .map_err(|e| eyre::eyre!("Invalid balance. Could not parse to u128: {}", e))?;
 
-        Ok(GenesisAccountArg {
-            address,
-            balance,
-        })
+        Ok(GenesisAccountArg { address, balance })
     }
 }
 

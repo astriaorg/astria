@@ -4,27 +4,14 @@ use std::time::Duration;
 
 use astria_core::{
     generated::sequencerblock::v1alpha1::{
-        sequencer_service_client::SequencerServiceClient,
-        GetFilteredSequencerBlockRequest,
+        sequencer_service_client::SequencerServiceClient, GetFilteredSequencerBlockRequest,
     },
     primitive::v1::RollupId,
     sequencerblock::v1alpha1::block::FilteredSequencerBlock,
 };
-use astria_eyre::eyre::{
-    self,
-    WrapErr as _,
-};
-use tonic::transport::{
-    Channel,
-    Endpoint,
-    Uri,
-};
-use tracing::{
-    debug,
-    instrument,
-    warn,
-    Instrument,
-};
+use astria_eyre::eyre::{self, WrapErr as _};
+use tonic::transport::{Channel, Endpoint, Uri};
+use tracing::{debug, instrument, warn, Instrument};
 
 #[derive(Clone)]
 pub(crate) struct SequencerGrpcClient {
@@ -40,10 +27,7 @@ impl SequencerGrpcClient {
             .wrap_err("failed parsing provided string as Uri")?;
         let endpoint = Endpoint::from(uri.clone());
         let inner = SequencerServiceClient::new(endpoint.connect_lazy());
-        Ok(Self {
-            inner,
-            uri,
-        })
+        Ok(Self { inner, uri })
     }
 
     /// Fetch a sequencer block filtered by `rollup_id`.

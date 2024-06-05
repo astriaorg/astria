@@ -1,19 +1,10 @@
 pub mod asset;
 pub mod u128;
 
-use base64::{
-    display::Base64Display,
-    prelude::BASE64_STANDARD,
-};
-use sha2::{
-    Digest as _,
-    Sha256,
-};
+use base64::{display::Base64Display, prelude::BASE64_STANDARD};
+use sha2::{Digest as _, Sha256};
 
-use crate::{
-    generated::primitive::v1 as raw,
-    Protobuf,
-};
+use crate::{generated::primitive::v1 as raw, Protobuf};
 
 pub const ADDRESS_LEN: usize = 20;
 pub const ROLLUP_ID_LEN: usize = 32;
@@ -100,9 +91,7 @@ impl RollupId {
     /// ```
     #[must_use]
     pub const fn new(inner: [u8; ROLLUP_ID_LEN]) -> Self {
-        Self {
-            inner,
-        }
+        Self { inner }
     }
 
     /// Returns the 32 bytes array representing the rollup ID.
@@ -211,17 +200,13 @@ impl AsRef<[u8]> for RollupId {
 
 impl From<[u8; ROLLUP_ID_LEN]> for RollupId {
     fn from(inner: [u8; ROLLUP_ID_LEN]) -> Self {
-        Self {
-            inner,
-        }
+        Self { inner }
     }
 }
 
 impl From<&[u8; ROLLUP_ID_LEN]> for RollupId {
     fn from(inner: &[u8; ROLLUP_ID_LEN]) -> Self {
-        Self {
-            inner: *inner,
-        }
+        Self { inner: *inner }
     }
 }
 
@@ -349,10 +334,7 @@ where
 mod tests {
     use insta::assert_json_snapshot;
 
-    use super::{
-        Address,
-        IncorrectAddressLength,
-    };
+    use super::{Address, IncorrectAddressLength};
 
     #[test]
     fn account_of_20_bytes_is_converted_correctly() {

@@ -1,13 +1,7 @@
 //! Utilities to emit fields using their [`std::fmt::Display`] implementation.
 use std::{
-    fmt::{
-        self,
-        Display,
-        Formatter,
-        Result,
-    },
-    io,
-    str,
+    fmt::{self, Display, Formatter, Result},
+    io, str,
 };
 
 use base64_serde::base64_serde_type;
@@ -24,10 +18,7 @@ pub struct Base64<'a>(&'a [u8]);
 
 impl<'a> Display for Base64<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        use base64::{
-            display::Base64Display,
-            engine::general_purpose::STANDARD,
-        };
+        use base64::{display::Base64Display, engine::general_purpose::STANDARD};
         Base64Display::new(self.0, &STANDARD).fmt(f)
     }
 }
@@ -119,9 +110,7 @@ where
             io::Error::new(io::ErrorKind::Other, "fmt error")
         }
 
-        let mut wr = WriterFormatter {
-            inner: f,
-        };
+        let mut wr = WriterFormatter { inner: f };
         serde_json::to_writer(&mut wr, self.0).map_err(|_| fmt::Error)
     }
 }

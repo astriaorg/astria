@@ -2,12 +2,7 @@
 //!
 //! Registers metrics & lists constants to be used as metric names throughout crate.
 
-use metrics::{
-    describe_counter,
-    describe_gauge,
-    describe_histogram,
-    Unit,
-};
+use metrics::{describe_counter, describe_gauge, describe_histogram, Unit};
 use telemetry::metric_name;
 
 /// Registers all metrics used by this crate.
@@ -50,12 +45,8 @@ metric_name!(pub const SEQUENCER_SUBMISSION_LATENCY);
 #[cfg(test)]
 mod tests {
     use super::{
-        CURRENT_NONCE,
-        NONCE_FETCH_COUNT,
-        NONCE_FETCH_FAILURE_COUNT,
-        NONCE_FETCH_LATENCY,
-        SEQUENCER_SUBMISSION_FAILURE_COUNT,
-        SEQUENCER_SUBMISSION_LATENCY,
+        CURRENT_NONCE, NONCE_FETCH_COUNT, NONCE_FETCH_FAILURE_COUNT, NONCE_FETCH_LATENCY,
+        SEQUENCER_SUBMISSION_FAILURE_COUNT, SEQUENCER_SUBMISSION_LATENCY,
     };
 
     #[track_caller]

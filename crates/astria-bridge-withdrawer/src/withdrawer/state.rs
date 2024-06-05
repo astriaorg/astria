@@ -7,9 +7,7 @@ pub(crate) struct State {
 impl State {
     pub(super) fn new() -> Self {
         let (inner, _) = watch::channel(StateSnapshot::default());
-        Self {
-            inner,
-        }
+        Self { inner }
     }
 
     pub(super) fn set_watcher_ready(&self) {

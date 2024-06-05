@@ -3,78 +3,40 @@
 /// - Transaction signing
 /// - Managing the connection to the sequencer
 /// - Submitting transactions to the sequencer
-use std::{
-    collections::VecDeque,
-    pin::Pin,
-    task::Poll,
-    time::Duration,
-};
+use std::{collections::VecDeque, pin::Pin, task::Poll, time::Duration};
 
 use astria_core::{
     crypto::SigningKey,
     protocol::{
         abci::AbciErrorCode,
         transaction::v1alpha1::{
-            action::SequenceAction,
-            SignedTransaction,
-            TransactionParams,
-            UnsignedTransaction,
+            action::SequenceAction, SignedTransaction, TransactionParams, UnsignedTransaction,
         },
     },
 };
-use astria_eyre::eyre::{
-    self,
-    eyre,
-    WrapErr as _,
-};
+use astria_eyre::eyre::{self, eyre, WrapErr as _};
 use futures::{
-    future::{
-        self,
-        Fuse,
-        FusedFuture as _,
-        FutureExt as _,
-    },
-    ready,
-    Future,
+    future::{self, Fuse, FusedFuture as _, FutureExt as _},
+    ready, Future,
 };
 use pin_project_lite::pin_project;
 use prost::Message as _;
 use sequencer_client::{
-    tendermint_rpc::endpoint::broadcast::tx_sync,
-    Address,
-    SequencerClientExt as _,
+    tendermint_rpc::endpoint::broadcast::tx_sync, Address, SequencerClientExt as _,
 };
 use tendermint::crypto::Sha256;
 use tokio::{
     select,
-    sync::{
-        mpsc,
-        mpsc::error::SendTimeoutError,
-        watch,
-    },
-    time::{
-        self,
-        Instant,
-    },
+    sync::{mpsc, mpsc::error::SendTimeoutError, watch},
+    time::{self, Instant},
 };
 use tokio_util::sync::CancellationToken;
 use tracing::{
-    debug,
-    error,
-    info,
-    info_span,
-    instrument,
-    instrument::Instrumented,
-    warn,
-    Instrument,
-    Span,
+    debug, error, info, info_span, instrument, instrument::Instrumented, warn, Instrument, Span,
 };
 
 use self::bundle_factory::SizedBundle;
-use crate::executor::bundle_factory::{
-    BundleFactory,
-    SizedBundleReport,
-};
+use crate::executor::bundle_factory::{BundleFactory, SizedBundleReport};
 
 mod bundle_factory;
 
@@ -588,9 +550,7 @@ impl Future for SubmitFut {
                     }
                 }
 
-                SubmitStateProj::WaitingForSend {
-                    fut,
-                } => match ready!(fut.poll(cx)) {
+                SubmitStateProj::WaitingForSend { fut } => match ready!(fut.poll(cx)) {
                     Ok(rsp) => {
                         let tendermint::abci::Code::Err(code) = rsp.code else {
                             info!("sequencer responded with ok; submission successful");
@@ -648,9 +608,7 @@ impl Future for SubmitFut {
                     }
                 },
 
-                SubmitStateProj::WaitingForNonce {
-                    fut,
-                } => match ready!(fut.poll(cx)) {
+                SubmitStateProj::WaitingForNonce { fut } => match ready!(fut.poll(cx)) {
                     Ok(nonce) => {
                         *this.nonce = nonce;
                         let params = TransactionParams {

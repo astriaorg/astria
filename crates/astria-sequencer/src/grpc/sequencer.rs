@@ -3,32 +3,17 @@ use std::sync::Arc;
 use astria_core::{
     generated::sequencerblock::v1alpha1::{
         sequencer_service_server::SequencerService,
-        FilteredSequencerBlock as RawFilteredSequencerBlock,
-        GetFilteredSequencerBlockRequest,
-        GetPendingNonceRequest,
-        GetPendingNonceResponse,
-        GetSequencerBlockRequest,
+        FilteredSequencerBlock as RawFilteredSequencerBlock, GetFilteredSequencerBlockRequest,
+        GetPendingNonceRequest, GetPendingNonceResponse, GetSequencerBlockRequest,
         SequencerBlock as RawSequencerBlock,
     },
     primitive::v1::RollupId,
 };
 use cnidarium::Storage;
-use tonic::{
-    Request,
-    Response,
-    Status,
-};
-use tracing::{
-    error,
-    info,
-    instrument,
-};
+use tonic::{Request, Response, Status};
+use tracing::{error, info, instrument};
 
-use crate::{
-    api_state_ext::StateReadExt as _,
-    mempool::Mempool,
-    state_ext::StateReadExt as _,
-};
+use crate::{api_state_ext::StateReadExt as _, mempool::Mempool, state_ext::StateReadExt as _};
 
 pub(crate) struct SequencerServer {
     storage: Storage,
@@ -37,10 +22,7 @@ pub(crate) struct SequencerServer {
 
 impl SequencerServer {
     pub(crate) fn new(storage: Storage, mempool: Mempool) -> Self {
-        Self {
-            storage,
-            mempool,
-        }
+        Self { storage, mempool }
     }
 }
 
@@ -189,9 +171,7 @@ impl SequencerService for SequencerServer {
         let nonce = self.mempool.pending_nonce(&address).await;
 
         if let Some(nonce) = nonce {
-            return Ok(Response::new(GetPendingNonceResponse {
-                inner: nonce,
-            }));
+            return Ok(Response::new(GetPendingNonceResponse { inner: nonce }));
         }
 
         // nonce wasn't in mempool, so just look it up from storage
@@ -204,25 +184,19 @@ impl SequencerService for SequencerServer {
             Status::internal(format!("failed to get account nonce from storage: {e}"))
         })?;
 
-        Ok(Response::new(GetPendingNonceResponse {
-            inner: nonce,
-        }))
+        Ok(Response::new(GetPendingNonceResponse { inner: nonce }))
     }
 }
 
 #[cfg(test)]
 mod test {
     use astria_core::{
-        protocol::test_utils::ConfigureSequencerBlock,
-        sequencerblock::v1alpha1::SequencerBlock,
+        protocol::test_utils::ConfigureSequencerBlock, sequencerblock::v1alpha1::SequencerBlock,
     };
     use cnidarium::StateDelta;
 
     use super::*;
-    use crate::{
-        api_state_ext::StateWriteExt as _,
-        state_ext::StateWriteExt,
-    };
+    use crate::{api_state_ext::StateWriteExt as _, state_ext::StateWriteExt};
 
     fn make_test_sequencer_block(height: u32) -> SequencerBlock {
         ConfigureSequencerBlock {
@@ -243,9 +217,7 @@ mod test {
         storage.commit(state_tx).await.unwrap();
 
         let server = Arc::new(SequencerServer::new(storage.clone(), mempool));
-        let request = GetSequencerBlockRequest {
-            height: 1,
-        };
+        let request = GetSequencerBlockRequest { height: 1 };
         let request = Request::new(request);
         let response = server.get_sequencer_block(request).await.unwrap();
         assert_eq!(response.into_inner().header.unwrap().height, 1);

@@ -55,17 +55,11 @@ impl Rollup {
         // match when these capture groups match.
         let rollup_name = caps["rollup_name"].to_string().to_lowercase();
         let url = caps["url"].to_string();
-        Ok(Self {
-            rollup_name,
-            url,
-        })
+        Ok(Self { rollup_name, url })
     }
 
     pub(super) fn into_parts(self) -> (String, String) {
-        let Self {
-            rollup_name,
-            url,
-        } = self;
+        let Self { rollup_name, url } = self;
         (rollup_name, url)
     }
 }

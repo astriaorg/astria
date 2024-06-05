@@ -1,44 +1,24 @@
 use std::sync::Arc;
 
-use astria_core::primitive::v1::{
-    asset,
-    asset::Denom,
-};
+use astria_core::primitive::v1::{asset, asset::Denom};
 use astria_eyre::{
-    eyre::{
-        eyre,
-        WrapErr as _,
-    },
+    eyre::{eyre, WrapErr as _},
     Result,
 };
 use ethers::{
     contract::LogMeta,
-    providers::{
-        Provider,
-        StreamExt as _,
-        Ws,
-    },
+    providers::{Provider, StreamExt as _, Ws},
     utils::hex,
 };
-use tokio::{
-    select,
-    sync::mpsc,
-};
+use tokio::{select, sync::mpsc};
 use tokio_util::sync::CancellationToken;
-use tracing::{
-    info,
-    warn,
-};
+use tracing::{info, warn};
 
 use crate::withdrawer::{
     batch::Batch,
     ethereum::{
         astria_withdrawer::AstriaWithdrawer,
-        convert::{
-            event_to_action,
-            EventWithMetadata,
-            WithdrawalEvent,
-        },
+        convert::{event_to_action, EventWithMetadata, WithdrawalEvent},
     },
     state::State,
 };
@@ -309,19 +289,13 @@ mod tests {
         prelude::SignerMiddleware,
         providers::Middleware,
         signers::Signer as _,
-        types::{
-            TransactionReceipt,
-            U256,
-        },
+        types::{TransactionReceipt, U256},
         utils::hex,
     };
 
     use super::*;
     use crate::withdrawer::ethereum::{
-        astria_withdrawer::{
-            Ics20WithdrawalFilter,
-            SequencerWithdrawalFilter,
-        },
+        astria_withdrawer::{Ics20WithdrawalFilter, SequencerWithdrawalFilter},
         convert::EventWithMetadata,
         test_utils::deploy_astria_withdrawer,
     };

@@ -28,9 +28,6 @@ pub const fn namespace_v0_from_rollup_id(rollup_id: crate::primitive::v1::Rollup
 /// `bytes`.
 #[must_use = "a celestia namespace must be used in order to be useful"]
 pub fn namespace_v0_from_sha256_of_bytes<T: AsRef<[u8]>>(bytes: T) -> Namespace {
-    use sha2::{
-        Digest as _,
-        Sha256,
-    };
+    use sha2::{Digest as _, Sha256};
     namespace_v0_from_first_10_bytes(&Sha256::digest(bytes))
 }

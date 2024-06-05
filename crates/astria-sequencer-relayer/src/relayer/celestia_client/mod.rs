@@ -8,92 +8,47 @@ mod tests;
 use std::{
     convert::TryInto,
     sync::Arc,
-    time::{
-        Duration,
-        Instant,
-    },
+    time::{Duration, Instant},
 };
 
 use astria_core::generated::{
     celestia::v1::{
-        query_client::QueryClient as BlobQueryClient,
-        MsgPayForBlobs,
-        Params as BlobParams,
+        query_client::QueryClient as BlobQueryClient, MsgPayForBlobs, Params as BlobParams,
         QueryParamsRequest as QueryBlobParamsRequest,
     },
     cosmos::{
         auth::v1beta1::{
-            query_client::QueryClient as AuthQueryClient,
-            BaseAccount,
-            Params as AuthParams,
-            QueryAccountRequest,
-            QueryAccountResponse,
+            query_client::QueryClient as AuthQueryClient, BaseAccount, Params as AuthParams,
+            QueryAccountRequest, QueryAccountResponse,
             QueryParamsRequest as QueryAuthParamsRequest,
         },
         base::{
             node::v1beta1::{
                 service_client::ServiceClient as MinGasPriceClient,
-                ConfigRequest as MinGasPriceRequest,
-                ConfigResponse as MinGasPriceResponse,
+                ConfigRequest as MinGasPriceRequest, ConfigResponse as MinGasPriceResponse,
             },
             v1beta1::Coin,
         },
         crypto::secp256k1,
         tx::v1beta1::{
-            mode_info::{
-                Single,
-                Sum,
-            },
+            mode_info::{Single, Sum},
             service_client::ServiceClient as TxClient,
-            AuthInfo,
-            BroadcastMode,
-            BroadcastTxRequest,
-            BroadcastTxResponse,
-            Fee,
-            GetTxRequest,
-            GetTxResponse,
-            ModeInfo,
-            SignDoc,
-            SignerInfo,
-            Tx,
-            TxBody,
+            AuthInfo, BroadcastMode, BroadcastTxRequest, BroadcastTxResponse, Fee, GetTxRequest,
+            GetTxResponse, ModeInfo, SignDoc, SignerInfo, Tx, TxBody,
         },
     },
-    tendermint::types::{
-        Blob as PbBlob,
-        BlobTx,
-    },
+    tendermint::types::{Blob as PbBlob, BlobTx},
 };
 use astria_eyre::eyre::Report;
-pub(super) use builder::{
-    Builder as CelestiaClientBuilder,
-    BuilderError,
-};
+pub(super) use builder::{Builder as CelestiaClientBuilder, BuilderError};
 use celestia_cost_params::CelestiaCostParams;
 pub(crate) use celestia_keys::CelestiaKeys;
 use celestia_types::Blob;
-pub(super) use error::{
-    GrpcResponseError,
-    ProtobufDecodeError,
-    TrySubmitError,
-};
-use prost::{
-    bytes::Bytes,
-    Message as _,
-    Name as _,
-};
+pub(super) use error::{GrpcResponseError, ProtobufDecodeError, TrySubmitError};
+use prost::{bytes::Bytes, Message as _, Name as _};
 use tokio::sync::watch;
-use tonic::{
-    transport::Channel,
-    Response,
-    Status,
-};
-use tracing::{
-    debug,
-    info,
-    trace,
-    warn,
-};
+use tonic::{transport::Channel, Response, Status};
+use tracing::{debug, info, trace, warn};
 
 // From https://github.com/celestiaorg/cosmos-sdk/blob/v1.18.3-sdk-v0.46.14/types/errors/errors.go#L75
 const INSUFFICIENT_FEE_CODE: u32 = 13;
@@ -548,11 +503,11 @@ fn calculate_fee(
 ) -> u64 {
     // Try to extract the required fee from the last error.
     let maybe_required_fee = match maybe_last_error {
-        Some(TrySubmitError::BroadcastTxResponseErrorCode {
-            code,
-            log,
-            ..
-        }) if code == INSUFFICIENT_FEE_CODE => extract_required_fee_from_log(&log),
+        Some(TrySubmitError::BroadcastTxResponseErrorCode { code, log, .. })
+            if code == INSUFFICIENT_FEE_CODE =>
+        {
+            extract_required_fee_from_log(&log)
+        }
         _ => None,
     };
 
@@ -648,9 +603,7 @@ fn new_signed_tx(
     const FEE_DENOM: &str = "utia";
     // From https://github.com/celestiaorg/cosmos-sdk/blob/v1.18.3-sdk-v0.46.14/proto/cosmos/tx/signing/v1beta1/signing.proto#L24
     const SIGNING_MODE_INFO: Option<ModeInfo> = Some(ModeInfo {
-        sum: Some(Sum::Single(Single {
-            mode: 1,
-        })),
+        sum: Some(Sum::Single(Single { mode: 1 })),
     });
 
     let fee_coin = Coin {

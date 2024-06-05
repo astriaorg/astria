@@ -1,28 +1,11 @@
-use anyhow::{
-    bail,
-    Context,
-    Result,
-};
-use astria_core::primitive::v1::{
-    asset,
-    Address,
-    ADDRESS_LEN,
-};
+use anyhow::{bail, Context, Result};
+use astria_core::primitive::v1::{asset, Address, ADDRESS_LEN};
 use async_trait::async_trait;
-use borsh::{
-    BorshDeserialize,
-    BorshSerialize,
-};
-use cnidarium::{
-    StateRead,
-    StateWrite,
-};
+use borsh::{BorshDeserialize, BorshSerialize};
+use cnidarium::{StateRead, StateWrite};
 use hex::ToHex as _;
 use ibc_types::core::channel::ChannelId;
-use tracing::{
-    debug,
-    instrument,
-};
+use tracing::{debug, instrument};
 
 /// Newtype wrapper to read and write a u128 from rocksdb.
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
@@ -154,17 +137,11 @@ impl<T: StateWrite> StateWriteExt for T {}
 
 #[cfg(test)]
 mod test {
-    use astria_core::primitive::v1::{
-        asset::Id,
-        Address,
-    };
+    use astria_core::primitive::v1::{asset::Id, Address};
     use cnidarium::StateDelta;
     use ibc_types::core::channel::ChannelId;
 
-    use super::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    };
+    use super::{StateReadExt as _, StateWriteExt as _};
 
     #[tokio::test]
     async fn get_ibc_sudo_address_fails_if_not_set() {

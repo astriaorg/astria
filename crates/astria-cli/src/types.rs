@@ -1,13 +1,7 @@
 use color_eyre::eyre;
-use serde::{
-    Deserialize,
-    Serialize,
-};
+use serde::{Deserialize, Serialize};
 
-use crate::cli::rollup::{
-    ConfigCreateArgs,
-    GenesisAccountArg,
-};
+use crate::cli::rollup::{ConfigCreateArgs, GenesisAccountArg};
 
 /// Rollup contains the deployment config for a rollup
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -333,10 +327,7 @@ impl Resource {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cli::rollup::{
-        ConfigCreateArgs,
-        GenesisAccountArg,
-    };
+    use crate::cli::rollup::{ConfigCreateArgs, GenesisAccountArg};
 
     #[test]
     fn test_from_all_cli_args() -> eyre::Result<()> {

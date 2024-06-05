@@ -1,7 +1,4 @@
-use std::{
-    borrow::Cow,
-    num::NonZeroU32,
-};
+use std::{borrow::Cow, num::NonZeroU32};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[allow(clippy::module_name_repetitions)]

@@ -1,28 +1,15 @@
-use std::{
-    error::Error as StdError,
-    pin::Pin,
-    task::Poll,
-};
+use std::{error::Error as StdError, pin::Pin, task::Poll};
 
 use astria_core::{
-    primitive::v1::RollupId,
-    sequencerblock::v1alpha1::block::FilteredSequencerBlock,
+    primitive::v1::RollupId, sequencerblock::v1alpha1::block::FilteredSequencerBlock,
 };
-use astria_eyre::eyre::{
-    self,
-    WrapErr as _,
-};
+use astria_eyre::eyre::{self, WrapErr as _};
 use futures::Stream;
 use futures_bounded::FuturesMap;
 use pin_project_lite::pin_project;
 use sequencer_client::tendermint::block::Height;
 use telemetry::display::json;
-use tracing::{
-    error,
-    info,
-    instrument,
-    warn,
-};
+use tracing::{error, info, instrument, warn};
 
 use super::SequencerGrpcClient;
 use crate::sequencer::reporting::ReportFilteredSequencerBlock;

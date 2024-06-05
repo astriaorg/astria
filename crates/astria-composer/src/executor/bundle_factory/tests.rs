@@ -2,22 +2,14 @@
 mod sized_bundle_tests {
     use astria_core::{
         primitive::v1::{
-            asset::default_native_asset_id,
-            RollupId,
-            FEE_ASSET_ID_LEN,
-            ROLLUP_ID_LEN,
+            asset::default_native_asset_id, RollupId, FEE_ASSET_ID_LEN, ROLLUP_ID_LEN,
         },
         protocol::transaction::v1alpha1::action::SequenceAction,
     };
-    use insta::{
-        assert_json_snapshot,
-        Settings,
-    };
+    use insta::{assert_json_snapshot, Settings};
 
     use crate::executor::bundle_factory::{
-        estimate_size_of_sequence_action,
-        SizedBundle,
-        SizedBundleError,
+        estimate_size_of_sequence_action, SizedBundle, SizedBundleError,
     };
 
     #[test]
@@ -152,18 +144,13 @@ mod sized_bundle_tests {
 mod bundle_factory_tests {
     use astria_core::{
         primitive::v1::{
-            asset::default_native_asset_id,
-            RollupId,
-            FEE_ASSET_ID_LEN,
-            ROLLUP_ID_LEN,
+            asset::default_native_asset_id, RollupId, FEE_ASSET_ID_LEN, ROLLUP_ID_LEN,
         },
         protocol::transaction::v1alpha1::action::SequenceAction,
     };
 
     use crate::executor::bundle_factory::{
-        estimate_size_of_sequence_action,
-        BundleFactory,
-        BundleFactoryError,
+        estimate_size_of_sequence_action, BundleFactory, BundleFactoryError,
     };
 
     #[test]

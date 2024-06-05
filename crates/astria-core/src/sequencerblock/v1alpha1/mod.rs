@@ -1,27 +1,14 @@
 pub mod block;
 pub mod celestia;
 
-pub use block::{
-    RollupTransactions,
-    SequencerBlock,
-};
-pub use celestia::{
-    SubmittedMetadata,
-    SubmittedRollupData,
-};
+pub use block::{RollupTransactions, SequencerBlock};
+pub use celestia::{SubmittedMetadata, SubmittedRollupData};
 use indexmap::IndexMap;
-use sha2::{
-    Digest as _,
-    Sha256,
-};
+use sha2::{Digest as _, Sha256};
 
 use crate::{
     generated::sequencerblock::v1alpha1 as raw,
-    primitive::v1::{
-        derive_merkle_tree_from_rollup_txs,
-        IncorrectRollupIdLength,
-        RollupId,
-    },
+    primitive::v1::{derive_merkle_tree_from_rollup_txs, IncorrectRollupIdLength, RollupId},
 };
 
 pub(crate) fn are_rollup_ids_included<'a, TRollupIds: 'a>(

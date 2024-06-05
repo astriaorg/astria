@@ -1,20 +1,12 @@
 use std::time::Duration;
 
 use astria_conductor::config::CommitLevel;
-use futures::future::{
-    join,
-    join4,
-};
+use futures::future::{join, join4};
 use tokio::time::timeout;
 
 use crate::{
-    helpers::spawn_conductor,
-    mount_abci_info,
-    mount_executed_block,
-    mount_get_commitment_state,
-    mount_get_filtered_sequencer_block,
-    mount_get_genesis_info,
-    mount_update_commitment_state,
+    helpers::spawn_conductor, mount_abci_info, mount_executed_block, mount_get_commitment_state,
+    mount_get_filtered_sequencer_block, mount_get_genesis_info, mount_update_commitment_state,
 };
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]

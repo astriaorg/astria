@@ -1,11 +1,5 @@
-use super::{
-    is_perfect,
-    perfect_root,
-};
-use crate::{
-    complete_parent,
-    complete_parent_and_sibling,
-};
+use super::{is_perfect, perfect_root};
+use crate::{complete_parent, complete_parent_and_sibling};
 
 #[track_caller]
 fn assert_is_perfect(n: usize) {

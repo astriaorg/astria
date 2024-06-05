@@ -1,9 +1,6 @@
 use std::any::TypeId;
 
-use assert_json_diff::{
-    assert_json_matches_no_panic,
-    CompareMode,
-};
+use assert_json_diff::{assert_json_matches_no_panic, CompareMode};
 use serde_json::Value;
 
 use crate::mock::Match;

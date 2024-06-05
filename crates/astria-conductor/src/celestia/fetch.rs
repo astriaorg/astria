@@ -1,30 +1,12 @@
-use std::{
-    sync::atomic::AtomicU32,
-    time::Duration,
-};
+use std::{sync::atomic::AtomicU32, time::Duration};
 
-use astria_eyre::{
-    eyre,
-    eyre::WrapErr as _,
-};
-use celestia_types::{
-    nmt::Namespace,
-    Blob,
-};
-use jsonrpsee::{
-    self,
-    http_client::HttpClient as CelestiaClient,
-};
+use astria_eyre::{eyre, eyre::WrapErr as _};
+use celestia_types::{nmt::Namespace, Blob};
+use jsonrpsee::{self, http_client::HttpClient as CelestiaClient};
 use telemetry::display::base64;
 use tokio::try_join;
-use tracing::{
-    instrument,
-    warn,
-};
-use tryhard::{
-    backoff_strategies::BackoffStrategy,
-    RetryPolicy,
-};
+use tracing::{instrument, warn};
+use tryhard::{backoff_strategies::BackoffStrategy, RetryPolicy};
 
 use crate::metrics_init::CELESTIA_BLOB_FETCH_ERROR_COUNT;
 

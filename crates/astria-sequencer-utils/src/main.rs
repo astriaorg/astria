@@ -1,10 +1,7 @@
 use astria_eyre::eyre::Result;
 use astria_sequencer_utils::{
     blob_parser,
-    cli::{
-        self,
-        Command,
-    },
+    cli::{self, Command},
     genesis_parser,
 };
 

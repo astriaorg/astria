@@ -1,17 +1,11 @@
 use std::time::Duration;
 
-use astria_core::{
-    generated::protocol::account::v1alpha1::NonceResponse,
-    primitive::v1::RollupId,
-};
+use astria_core::{generated::protocol::account::v1alpha1::NonceResponse, primitive::v1::RollupId};
 use ethers::types::Transaction;
 
 use crate::helper::{
-    mount_broadcast_tx_sync_invalid_nonce_mock,
-    mount_broadcast_tx_sync_mock,
-    mount_matcher_verifying_tx_integrity,
-    spawn_composer,
-    TEST_ETH_TX_JSON,
+    mount_broadcast_tx_sync_invalid_nonce_mock, mount_broadcast_tx_sync_mock,
+    mount_matcher_verifying_tx_integrity, spawn_composer, TEST_ETH_TX_JSON,
 };
 
 #[tokio::test]

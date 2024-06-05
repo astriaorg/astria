@@ -1,25 +1,11 @@
 //! Tracks the current submission state of sequencer-relayer and syncs it to disk.
 
-use std::path::{
-    Path,
-    PathBuf,
-};
+use std::path::{Path, PathBuf};
 
-use astria_eyre::eyre::{
-    self,
-    bail,
-    ensure,
-    WrapErr as _,
-};
+use astria_eyre::eyre::{self, bail, ensure, WrapErr as _};
 use sequencer_client::tendermint::block::Height as SequencerHeight;
-use serde::{
-    Deserialize,
-    Serialize,
-};
-use tracing::{
-    debug,
-    warn,
-};
+use serde::{Deserialize, Serialize};
+use tracing::{debug, warn};
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
@@ -361,11 +347,7 @@ mod as_number {
     //! This is unfortunately necessary because the [`serde::Serialize`], [`serde::Deserialize`]
     //! implementations for [`sequencer_client::tendermint::block::Height`] write the integer as
     //! string, probably due to tendermint's/cometbft's go-legacy.
-    use serde::{
-        Deserialize as _,
-        Deserializer,
-        Serializer,
-    };
+    use serde::{Deserialize as _, Deserializer, Serializer};
 
     use super::SequencerHeight;
     // Allow: the function signature is dictated by the serde(with) attribute.
@@ -556,12 +538,7 @@ mod tests {
         //! These test the same scenarios as the tests of the same name in the super module, but
         //! whereas those are strict and should fail, the tests in this module should pass
 
-        use super::{
-            create_files,
-            json,
-            write,
-            SubmissionState,
-        };
+        use super::{create_files, json, write, SubmissionState};
 
         const LENIENT_CONSISTENCY_CHECK: bool = true;
 

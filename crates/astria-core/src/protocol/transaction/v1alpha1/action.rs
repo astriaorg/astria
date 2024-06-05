@@ -1,8 +1,5 @@
 use ibc_types::{
-    core::{
-        channel::ChannelId,
-        client::Height as IbcHeight,
-    },
+    core::{channel::ChannelId, client::Height as IbcHeight},
     IdentifierError,
 };
 use penumbra_ibc::IbcRelay;
@@ -11,14 +8,8 @@ use penumbra_proto::penumbra::core::component::ibc::v1::FungibleTokenPacketData;
 use super::raw;
 use crate::{
     primitive::v1::{
-        asset::{
-            self,
-            Denom,
-        },
-        Address,
-        IncorrectAddressLength,
-        IncorrectRollupIdLength,
-        RollupId,
+        asset::{self, Denom},
+        Address, IncorrectAddressLength, IncorrectRollupIdLength, RollupId,
     },
     Protobuf,
 };
@@ -57,9 +48,7 @@ impl Action {
             Action::BridgeUnlock(act) => Value::BridgeUnlockAction(act.into_raw()),
             Action::FeeChange(act) => Value::FeeChangeAction(act.into_raw()),
         };
-        raw::Action {
-            value: Some(kind),
-        }
+        raw::Action { value: Some(kind) }
     }
 
     #[must_use]
@@ -81,9 +70,7 @@ impl Action {
             Action::BridgeUnlock(act) => Value::BridgeUnlockAction(act.to_raw()),
             Action::FeeChange(act) => Value::FeeChangeAction(act.to_raw()),
         };
-        raw::Action {
-            value: Some(kind),
-        }
+        raw::Action { value: Some(kind) }
     }
 
     /// Attempt to convert from a raw, unchecked protobuf [`raw::Action`].
@@ -94,9 +81,7 @@ impl Action {
     /// to a native action ([`SequenceAction`] or [`TransferAction`]) fails.
     pub fn try_from_raw(proto: raw::Action) -> Result<Self, ActionError> {
         use raw::action::Value;
-        let raw::Action {
-            value,
-        } = proto;
+        let raw::Action { value } = proto;
         let Some(action) = value else {
             return Err(ActionError::unset());
         };
@@ -526,9 +511,7 @@ pub struct SudoAddressChangeAction {
 impl SudoAddressChangeAction {
     #[must_use]
     pub fn into_raw(self) -> raw::SudoAddressChangeAction {
-        let Self {
-            new_address,
-        } = self;
+        let Self { new_address } = self;
         raw::SudoAddressChangeAction {
             new_address: Some(new_address.into_raw()),
         }
@@ -536,9 +519,7 @@ impl SudoAddressChangeAction {
 
     #[must_use]
     pub fn to_raw(&self) -> raw::SudoAddressChangeAction {
-        let Self {
-            new_address,
-        } = self;
+        let Self { new_address } = self;
         raw::SudoAddressChangeAction {
             new_address: Some(new_address.to_raw()),
         }
@@ -553,17 +534,13 @@ impl SudoAddressChangeAction {
     pub fn try_from_raw(
         proto: raw::SudoAddressChangeAction,
     ) -> Result<Self, SudoAddressChangeActionError> {
-        let raw::SudoAddressChangeAction {
-            new_address,
-        } = proto;
+        let raw::SudoAddressChangeAction { new_address } = proto;
         let Some(new_address) = new_address else {
             return Err(SudoAddressChangeActionError::field_not_set("new_address"));
         };
         let new_address =
             Address::try_from_raw(&new_address).map_err(SudoAddressChangeActionError::address)?;
-        Ok(Self {
-            new_address,
-        })
+        Ok(Self { new_address })
     }
 }
 

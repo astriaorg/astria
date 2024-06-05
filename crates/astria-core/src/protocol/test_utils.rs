@@ -6,23 +6,12 @@ use prost::Message as _;
 
 use super::{
     group_sequence_actions_in_signed_transaction_transactions_by_rollup_id,
-    transaction::v1alpha1::{
-        action::SequenceAction,
-        TransactionParams,
-        UnsignedTransaction,
-    },
+    transaction::v1alpha1::{action::SequenceAction, TransactionParams, UnsignedTransaction},
 };
 use crate::{
     crypto::SigningKey,
-    primitive::v1::{
-        asset::default_native_asset_id,
-        derive_merkle_tree_from_rollup_txs,
-        RollupId,
-    },
-    sequencerblock::v1alpha1::{
-        block::Deposit,
-        SequencerBlock,
-    },
+    primitive::v1::{asset::default_native_asset_id, derive_merkle_tree_from_rollup_txs, RollupId},
+    sequencerblock::v1alpha1::{block::Deposit, SequencerBlock},
 };
 
 #[derive(Default)]
@@ -64,8 +53,7 @@ impl ConfigureSequencerBlock {
         use tendermint::Time;
 
         use crate::{
-            protocol::transaction::v1alpha1::Action,
-            sequencerblock::v1alpha1::block::RollupData,
+            protocol::transaction::v1alpha1::Action, sequencerblock::v1alpha1::block::RollupData,
         };
 
         let Self {

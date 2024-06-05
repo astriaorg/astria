@@ -10,35 +10,17 @@
 //! ```
 use std::{
     io::IsTerminal as _,
-    net::{
-        AddrParseError,
-        SocketAddr,
-    },
+    net::{AddrParseError, SocketAddr},
 };
 
-use metrics_exporter_prometheus::{
-    BuildError,
-    PrometheusBuilder,
-};
-use opentelemetry::{
-    global,
-    trace::TracerProvider as _,
-};
-use opentelemetry_sdk::{
-    runtime::Tokio,
-    trace::TracerProvider,
-};
+use metrics_exporter_prometheus::{BuildError, PrometheusBuilder};
+use opentelemetry::{global, trace::TracerProvider as _};
+use opentelemetry_sdk::{runtime::Tokio, trace::TracerProvider};
 use opentelemetry_stdout::SpanExporter;
 use tracing_subscriber::{
-    filter::{
-        LevelFilter,
-        ParseError,
-    },
+    filter::{LevelFilter, ParseError},
     layer::SubscriberExt as _,
-    util::{
-        SubscriberInitExt as _,
-        TryInitError,
-    },
+    util::{SubscriberInitExt as _, TryInitError},
     EnvFilter,
 };
 
@@ -197,10 +179,7 @@ impl Config {
 
     #[must_use = "telemetry must be initialized to be useful"]
     pub fn set_no_otel(self, no_otel: bool) -> Self {
-        Self {
-            no_otel,
-            ..self
-        }
+        Self { no_otel, ..self }
     }
 
     #[must_use = "telemetry must be initialized to be useful"]

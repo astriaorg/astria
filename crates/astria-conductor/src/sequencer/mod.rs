@@ -3,45 +3,21 @@
 use std::time::Duration;
 
 use astria_core::sequencerblock::v1alpha1::block::FilteredSequencerBlock;
-use astria_eyre::eyre::{
-    self,
-    bail,
-    Report,
-    WrapErr as _,
-};
+use astria_eyre::eyre::{self, bail, Report, WrapErr as _};
 use futures::{
-    future::{
-        self,
-        BoxFuture,
-        Fuse,
-    },
-    FutureExt as _,
-    StreamExt as _,
+    future::{self, BoxFuture, Fuse},
+    FutureExt as _, StreamExt as _,
 };
 use sequencer_client::{
-    tendermint::block::Height,
-    HttpClient,
-    LatestHeightStream,
-    StreamLatestHeight as _,
+    tendermint::block::Height, HttpClient, LatestHeightStream, StreamLatestHeight as _,
 };
 use tokio::select;
 use tokio_util::sync::CancellationToken;
-use tracing::{
-    debug,
-    error,
-    info,
-    trace,
-    warn,
-};
+use tracing::{debug, error, info, trace, warn};
 
 use crate::{
     block_cache::BlockCache,
-    executor::{
-        self,
-        SoftSendError,
-        SoftTrySendError,
-        StateIsInit,
-    },
+    executor::{self, SoftSendError, SoftTrySendError, StateIsInit},
     sequencer::block_stream::BlocksFromHeightStream,
 };
 
@@ -250,9 +226,7 @@ impl RunningReader {
     fn send_to_executor(&mut self, block: FilteredSequencerBlock) -> eyre::Result<()> {
         if let Err(err) = self.executor.try_send_soft_block(block) {
             match err {
-                SoftTrySendError::Channel {
-                    source,
-                } => match *source {
+                SoftTrySendError::Channel { source } => match *source {
                     executor::channel::TrySendError::Closed(_) => {
                         bail!("could not send block to executor because its channel was closed");
                     }

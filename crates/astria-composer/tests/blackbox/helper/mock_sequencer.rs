@@ -1,18 +1,9 @@
 use prost::Message;
 use serde_json::json;
-use tendermint_rpc::{
-    response,
-    Id,
-};
+use tendermint_rpc::{response, Id};
 use wiremock::{
-    matchers::{
-        body_partial_json,
-        body_string_contains,
-    },
-    Mock,
-    MockGuard,
-    MockServer,
-    ResponseTemplate,
+    matchers::{body_partial_json, body_string_contains},
+    Mock, MockGuard, MockServer, ResponseTemplate,
 };
 
 pub async fn start() -> (MockServer, MockGuard) {

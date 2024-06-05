@@ -1,9 +1,6 @@
 #![doc = include_str!("../README.md")]
 
-use std::{
-    error::Error,
-    fmt::Write as _,
-};
+use std::{error::Error, fmt::Write as _};
 
 pub use eyre;
 #[doc(hidden)]

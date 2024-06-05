@@ -1,30 +1,17 @@
 use std::collections::HashMap;
 
-use anyhow::{
-    ensure,
-    Context as _,
-};
+use anyhow::{ensure, Context as _};
 use astria_core::{
-    primitive::v1::{
-        asset,
-        Address,
-        RollupId,
-    },
+    primitive::v1::{asset, Address, RollupId},
     protocol::transaction::v1alpha1::{
-        action::{
-            Action,
-            BridgeLockAction,
-        },
-        SignedTransaction,
-        UnsignedTransaction,
+        action::{Action, BridgeLockAction},
+        SignedTransaction, UnsignedTransaction,
     },
 };
 
 use crate::{
-    accounts::state_ext::StateReadExt,
-    bridge::state_ext::StateReadExt as _,
-    ibc::state_ext::StateReadExt as _,
-    state_ext::StateReadExt as _,
+    accounts::state_ext::StateReadExt, bridge::state_ext::StateReadExt as _,
+    ibc::state_ext::StateReadExt as _, state_ext::StateReadExt as _,
 };
 
 pub(crate) async fn check_nonce_mempool<S: StateReadExt + 'static>(
@@ -267,18 +254,11 @@ async fn bridge_unlock_update_fees<S: StateReadExt>(
 mod test {
     use astria_core::{
         primitive::v1::{
-            asset::{
-                Denom,
-                DEFAULT_NATIVE_ASSET_DENOM,
-            },
-            RollupId,
-            ADDRESS_LEN,
+            asset::{Denom, DEFAULT_NATIVE_ASSET_DENOM},
+            RollupId, ADDRESS_LEN,
         },
         protocol::transaction::v1alpha1::{
-            action::{
-                SequenceAction,
-                TransferAction,
-            },
+            action::{SequenceAction, TransferAction},
             TransactionParams,
         },
     };
@@ -286,10 +266,8 @@ mod test {
 
     use super::*;
     use crate::{
-        accounts::state_ext::StateWriteExt as _,
-        app::test_utils::*,
-        bridge::state_ext::StateWriteExt,
-        ibc::state_ext::StateWriteExt as _,
+        accounts::state_ext::StateWriteExt as _, app::test_utils::*,
+        bridge::state_ext::StateWriteExt, ibc::state_ext::StateWriteExt as _,
         sequence::state_ext::StateWriteExt as _,
     };
 
@@ -348,10 +326,7 @@ mod test {
             nonce: 0,
             chain_id: "test-chain-id".to_string(),
         };
-        let tx = UnsignedTransaction {
-            actions,
-            params,
-        };
+        let tx = UnsignedTransaction { actions, params };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
         check_balance_mempool(&signed_tx, &state_tx)
@@ -410,10 +385,7 @@ mod test {
             nonce: 0,
             chain_id: "test-chain-id".to_string(),
         };
-        let tx = UnsignedTransaction {
-            actions,
-            params,
-        };
+        let tx = UnsignedTransaction { actions, params };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
         let err = check_balance_mempool(&signed_tx, &state_tx)

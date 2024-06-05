@@ -4,14 +4,8 @@ pub mod helpers;
 
 use std::collections::HashSet;
 
-use astria_core::{
-    primitive::v1::RollupId,
-    protocol::test_utils::ConfigureSequencerBlock,
-};
-use helpers::{
-    SequencerBlockToMount,
-    TestSequencerRelayerConfig,
-};
+use astria_core::{primitive::v1::RollupId, protocol::test_utils::ConfigureSequencerBlock};
+use helpers::{SequencerBlockToMount, TestSequencerRelayerConfig};
 use reqwest::StatusCode;
 use tendermint::account::Id as AccountId;
 

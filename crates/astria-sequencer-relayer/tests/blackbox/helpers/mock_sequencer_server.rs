@@ -1,44 +1,23 @@
-use std::{
-    net::SocketAddr,
-    sync::Arc,
-};
+use std::{net::SocketAddr, sync::Arc};
 
 use astria_core::{
     generated::sequencerblock::v1alpha1::{
-        sequencer_service_server::{
-            SequencerService,
-            SequencerServiceServer,
-        },
-        FilteredSequencerBlock as RawFilteredSequencerBlock,
-        GetFilteredSequencerBlockRequest,
-        GetPendingNonceRequest,
-        GetPendingNonceResponse,
-        GetSequencerBlockRequest,
+        sequencer_service_server::{SequencerService, SequencerServiceServer},
+        FilteredSequencerBlock as RawFilteredSequencerBlock, GetFilteredSequencerBlockRequest,
+        GetPendingNonceRequest, GetPendingNonceResponse, GetSequencerBlockRequest,
         SequencerBlock as RawSequencerBlock,
     },
     primitive::v1::RollupId,
     protocol::test_utils::ConfigureSequencerBlock,
     sequencerblock::v1alpha1::SequencerBlock,
 };
-use astria_eyre::eyre::{
-    self,
-    WrapErr as _,
-};
+use astria_eyre::eyre::{self, WrapErr as _};
 use astria_grpc_mock::{
-    matcher::message_type,
-    response::constant_response,
-    Mock,
-    MockGuard,
-    MockServer,
+    matcher::message_type, response::constant_response, Mock, MockGuard, MockServer,
 };
 use tendermint::account::Id as AccountId;
 use tokio::task::JoinHandle;
-use tonic::{
-    transport::Server,
-    Request,
-    Response,
-    Status,
-};
+use tonic::{transport::Server, Request, Response, Status};
 
 const GET_SEQUENCER_BLOCK_GRPC_NAME: &str = "get_sequencer_block";
 const GET_FILTERED_SEQUENCER_BLOCK_GRPC_NAME: &str = "get_filtered_sequencer_block";

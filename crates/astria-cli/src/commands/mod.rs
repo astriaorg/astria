@@ -1,29 +1,16 @@
 mod rollup;
 mod sequencer;
 
-use color_eyre::{
-    eyre,
-    eyre::eyre,
-};
+use color_eyre::{eyre, eyre::eyre};
 use tracing::instrument;
 
 use crate::cli::{
-    rollup::{
-        Command as RollupCommand,
-        ConfigCommand,
-        DeploymentCommand,
-    },
+    rollup::{Command as RollupCommand, ConfigCommand, DeploymentCommand},
     sequencer::{
-        AccountCommand,
-        BalanceCommand,
-        BlockHeightCommand,
-        Command as SequencerCommand,
-        FeeAssetChangeCommand,
-        IbcRelayerChangeCommand,
-        SudoCommand,
+        AccountCommand, BalanceCommand, BlockHeightCommand, Command as SequencerCommand,
+        FeeAssetChangeCommand, IbcRelayerChangeCommand, SudoCommand,
     },
-    Cli,
-    Command,
+    Cli, Command,
 };
 
 /// Checks what function needs to be run and calls it with the appropriate arguments
@@ -43,45 +30,29 @@ use crate::cli::{
 pub async fn run(cli: Cli) -> eyre::Result<()> {
     if let Some(command) = cli.command {
         match command {
-            Command::Rollup {
-                command,
-            } => match command {
-                RollupCommand::Config {
-                    command,
-                } => match command {
+            Command::Rollup { command } => match command {
+                RollupCommand::Config { command } => match command {
                     ConfigCommand::Create(args) => rollup::create_config(&args).await?,
                     ConfigCommand::Edit(args) => rollup::edit_config(&args)?,
                     ConfigCommand::Delete(args) => rollup::delete_config(&args)?,
                 },
-                RollupCommand::Deployment {
-                    command,
-                } => match command {
+                RollupCommand::Deployment { command } => match command {
                     DeploymentCommand::Create(args) => rollup::create_deployment(&args)?,
                     DeploymentCommand::Delete(args) => rollup::delete_deployment(&args)?,
                     DeploymentCommand::List => rollup::list_deployments(),
                 },
             },
-            Command::Sequencer {
-                command,
-            } => match command {
-                SequencerCommand::Account {
-                    command,
-                } => match command {
+            Command::Sequencer { command } => match command {
+                SequencerCommand::Account { command } => match command {
                     AccountCommand::Create => sequencer::create_account(),
                     AccountCommand::Balance(args) => sequencer::get_balance(&args).await?,
                     AccountCommand::Nonce(args) => sequencer::get_nonce(&args).await?,
                 },
-                SequencerCommand::Balance {
-                    command,
-                } => match command {
+                SequencerCommand::Balance { command } => match command {
                     BalanceCommand::Get(args) => sequencer::get_balance(&args).await?,
                 },
-                SequencerCommand::Sudo {
-                    command,
-                } => match command {
-                    SudoCommand::IbcRelayer {
-                        command,
-                    } => match command {
+                SequencerCommand::Sudo { command } => match command {
+                    SudoCommand::IbcRelayer { command } => match command {
                         IbcRelayerChangeCommand::Add(args) => {
                             sequencer::ibc_relayer_add(&args).await?;
                         }
@@ -89,9 +60,7 @@ pub async fn run(cli: Cli) -> eyre::Result<()> {
                             sequencer::ibc_relayer_remove(&args).await?;
                         }
                     },
-                    SudoCommand::FeeAsset {
-                        command,
-                    } => match command {
+                    SudoCommand::FeeAsset { command } => match command {
                         FeeAssetChangeCommand::Add(args) => sequencer::fee_asset_add(&args).await?,
                         FeeAssetChangeCommand::Remove(args) => {
                             sequencer::fee_asset_remove(&args).await?;
@@ -105,9 +74,7 @@ pub async fn run(cli: Cli) -> eyre::Result<()> {
                     }
                 },
                 SequencerCommand::Transfer(args) => sequencer::send_transfer(&args).await?,
-                SequencerCommand::BlockHeight {
-                    command,
-                } => match command {
+                SequencerCommand::BlockHeight { command } => match command {
                     BlockHeightCommand::Get(args) => sequencer::get_block_height(&args).await?,
                 },
                 SequencerCommand::InitBridgeAccount(args) => {

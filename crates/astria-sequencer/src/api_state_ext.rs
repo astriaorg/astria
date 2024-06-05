@@ -1,32 +1,15 @@
-use anyhow::{
-    anyhow,
-    bail,
-    Context as _,
-    Result,
-};
+use anyhow::{anyhow, bail, Context as _, Result};
 use astria_core::{
-    generated::{
-        primitive::v1 as primitiveRaw,
-        sequencerblock::v1alpha1 as raw,
-    },
+    generated::{primitive::v1 as primitiveRaw, sequencerblock::v1alpha1 as raw},
     primitive::v1::RollupId,
     sequencerblock::v1alpha1::block::{
-        RollupTransactions,
-        SequencerBlock,
-        SequencerBlockHeader,
-        SequencerBlockParts,
+        RollupTransactions, SequencerBlock, SequencerBlockHeader, SequencerBlockParts,
     },
     Protobuf as _,
 };
 use async_trait::async_trait;
-use borsh::{
-    BorshDeserialize,
-    BorshSerialize,
-};
-use cnidarium::{
-    StateRead,
-    StateWrite,
-};
+use borsh::{BorshDeserialize, BorshSerialize};
+use cnidarium::{StateRead, StateWrite};
 use prost::Message;
 use tracing::instrument;
 
@@ -70,10 +53,7 @@ impl From<Vec<RollupId>> for RollupIdSeq {
 }
 
 mod rollup_id_impl {
-    use super::{
-        RollupId,
-        RollupIdSer,
-    };
+    use super::{RollupId, RollupIdSer};
 
     pub(super) fn deserialize<R: borsh::io::Read>(
         reader: &mut R,
@@ -383,10 +363,7 @@ impl<T: StateWrite> StateWriteExt for T {}
 #[cfg(test)]
 mod test {
     use astria_core::{
-        primitive::v1::{
-            asset::Id,
-            Address,
-        },
+        primitive::v1::{asset::Id, Address},
         protocol::test_utils::ConfigureSequencerBlock,
         sequencerblock::v1alpha1::block::Deposit,
     };

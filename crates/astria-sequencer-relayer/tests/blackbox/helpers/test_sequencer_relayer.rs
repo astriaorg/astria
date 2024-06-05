@@ -1,10 +1,6 @@
 use std::{
     collections::HashSet,
-    fmt::{
-        self,
-        Display,
-        Formatter,
-    },
+    fmt::{self, Display, Formatter},
     future::Future,
     io::Write,
     mem,
@@ -13,56 +9,26 @@ use std::{
 };
 
 use assert_json_diff::assert_json_include;
-use astria_core::{
-    crypto::SigningKey,
-    primitive::v1::RollupId,
-};
+use astria_core::{crypto::SigningKey, primitive::v1::RollupId};
 use astria_grpc_mock::MockGuard as GrpcMockGuard;
-use astria_sequencer_relayer::{
-    config::Config,
-    SequencerRelayer,
-    ShutdownHandle,
-};
+use astria_sequencer_relayer::{config::Config, SequencerRelayer, ShutdownHandle};
 use futures::TryFutureExt;
 use itertools::Itertools;
 use once_cell::sync::Lazy;
-use reqwest::{
-    Response,
-    StatusCode,
-};
+use reqwest::{Response, StatusCode};
 use serde::Deserialize;
 use serde_json::json;
 use tempfile::NamedTempFile;
 use tendermint_config::PrivValidatorKey;
-use tendermint_rpc::{
-    response::Wrapper,
-    Id,
-};
+use tendermint_rpc::{response::Wrapper, Id};
 use tokio::{
-    runtime::{
-        self,
-        RuntimeFlavor,
-    },
-    task::{
-        yield_now,
-        JoinHandle,
-    },
+    runtime::{self, RuntimeFlavor},
+    task::{yield_now, JoinHandle},
 };
-use tracing::{
-    error,
-    info,
-};
-use wiremock::{
-    matchers::body_partial_json,
-    MockServer as WireMockServer,
-    ResponseTemplate,
-};
+use tracing::{error, info};
+use wiremock::{matchers::body_partial_json, MockServer as WireMockServer, ResponseTemplate};
 
-use super::{
-    MockCelestiaAppServer,
-    MockSequencerServer,
-    SequencerBlockToMount,
-};
+use super::{MockCelestiaAppServer, MockSequencerServer, SequencerBlockToMount};
 
 /// Copied verbatim from
 /// [tendermint-rs](https://github.com/informalsystems/tendermint-rs/blob/main/config/tests/support/config/priv_validator_key.ed25519.json)
@@ -154,10 +120,7 @@ impl Drop for TestSequencerRelayer {
 impl TestSequencerRelayer {
     /// Mounts a `CometBFT` ABCI Info response.
     pub async fn mount_abci_response(&self, height: u32) {
-        use tendermint::{
-            abci,
-            hash::AppHash,
-        };
+        use tendermint::{abci, hash::AppHash};
         use tendermint_rpc::endpoint::abci_info;
         let abci_response = abci_info::Response {
             response: abci::response::Info {
@@ -631,9 +594,7 @@ impl TestSequencerRelayerConfig {
 
         let validator_keyfile = write_file(PRIVATE_VALIDATOR_KEY.as_bytes()).await;
         let PrivValidatorKey {
-            address,
-            priv_key,
-            ..
+            address, priv_key, ..
         } = PrivValidatorKey::parse_json(PRIVATE_VALIDATOR_KEY).unwrap();
         let signing_key = priv_key
             .ed25519_signing_key()

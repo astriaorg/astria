@@ -3,45 +3,24 @@ use astria_core::{
     primitive::v1::asset,
     protocol::transaction::v1alpha1::{
         action::{
-            Action,
-            BridgeLockAction,
-            FeeAssetChangeAction,
-            IbcRelayerChangeAction,
-            InitBridgeAccountAction,
-            SudoAddressChangeAction,
-            TransferAction,
+            Action, BridgeLockAction, FeeAssetChangeAction, IbcRelayerChangeAction,
+            InitBridgeAccountAction, SudoAddressChangeAction, TransferAction,
         },
-        TransactionParams,
-        UnsignedTransaction,
+        TransactionParams, UnsignedTransaction,
     },
 };
 use astria_sequencer_client::{
-    tendermint,
-    tendermint_rpc::endpoint,
-    Client,
-    HttpClient,
-    SequencerClientExt,
+    tendermint, tendermint_rpc::endpoint, Client, HttpClient, SequencerClientExt,
 };
 use color_eyre::{
     eyre,
-    eyre::{
-        ensure,
-        eyre,
-        Context,
-    },
+    eyre::{ensure, eyre, Context},
 };
 use rand::rngs::OsRng;
 
 use crate::cli::sequencer::{
-    BasicAccountArgs,
-    BlockHeightGetArgs,
-    BridgeLockArgs,
-    FeeAssetChangeArgs,
-    IbcRelayerChangeArgs,
-    InitBridgeAccountArgs,
-    SudoAddressChangeArgs,
-    TransferArgs,
-    ValidatorUpdateArgs,
+    BasicAccountArgs, BlockHeightGetArgs, BridgeLockArgs, FeeAssetChangeArgs, IbcRelayerChangeArgs,
+    InitBridgeAccountArgs, SudoAddressChangeArgs, TransferArgs, ValidatorUpdateArgs,
 };
 
 /// Generate a new signing key (this is also called a secret key by other implementations)
@@ -255,10 +234,7 @@ pub(crate) async fn ibc_relayer_remove(args: &IbcRelayerChangeArgs) -> eyre::Res
 /// * If the http client cannot be created
 /// * If the transaction failed to be included
 pub(crate) async fn init_bridge_account(args: &InitBridgeAccountArgs) -> eyre::Result<()> {
-    use astria_core::primitive::v1::{
-        asset::default_native_asset_id,
-        RollupId,
-    };
+    use astria_core::primitive::v1::{asset::default_native_asset_id, RollupId};
 
     let rollup_id = RollupId::from_unhashed_bytes(args.rollup_name.as_bytes());
     let res = submit_transaction(

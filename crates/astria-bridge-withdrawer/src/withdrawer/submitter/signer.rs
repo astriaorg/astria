@@ -1,13 +1,7 @@
-use std::{
-    fs,
-    path::Path,
-};
+use std::{fs, path::Path};
 
 use astria_core::crypto::SigningKey;
-use astria_eyre::eyre::{
-    self,
-    eyre,
-};
+use astria_eyre::eyre::{self, eyre};
 use sequencer_client::Address;
 
 pub(super) struct SequencerKey {

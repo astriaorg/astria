@@ -1,20 +1,10 @@
 use std::net::SocketAddr;
 
 use axum::{
-    extract::{
-        FromRef,
-        State,
-    },
-    response::{
-        IntoResponse,
-        Response,
-    },
-    routing::{
-        get,
-        IntoMakeService,
-    },
-    Json,
-    Router,
+    extract::{FromRef, State},
+    response::{IntoResponse, Response},
+    routing::{get, IntoMakeService},
+    Json, Router,
 };
 use http::status::StatusCode;
 use hyper::server::conn::AddrIncoming;
@@ -44,9 +34,7 @@ pub(crate) fn start(socket_addr: SocketAddr, relayer_state: RelayerState) -> Api
         .route("/healthz", get(get_healthz))
         .route("/readyz", get(get_readyz))
         .route("/status", get(get_status))
-        .with_state(AppState {
-            relayer_state,
-        });
+        .with_state(AppState { relayer_state });
     axum::Server::bind(&socket_addr).serve(app.into_make_service())
 }
 
@@ -95,10 +83,7 @@ impl IntoResponse for Healthz {
             Self::Ok => (StatusCode::OK, "ok"),
             Self::Degraded => (StatusCode::INTERNAL_SERVER_ERROR, "degraded"),
         };
-        let mut response = Json(ReadyzBody {
-            status: msg,
-        })
-        .into_response();
+        let mut response = Json(ReadyzBody { status: msg }).into_response();
         *response.status_mut() = status;
         response
     }
@@ -119,10 +104,7 @@ impl IntoResponse for Readyz {
             Self::Ok => (StatusCode::OK, "ok"),
             Self::NotReady => (StatusCode::SERVICE_UNAVAILABLE, "not ready"),
         };
-        let mut response = Json(ReadyzBody {
-            status: msg,
-        })
-        .into_response();
+        let mut response = Json(ReadyzBody { status: msg }).into_response();
         *response.status_mut() = status;
         response
     }

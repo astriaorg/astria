@@ -1,72 +1,30 @@
-use std::{
-    cmp::max,
-    sync::Arc,
-    time::Duration,
-};
+use std::{cmp::max, sync::Arc, time::Duration};
 
-use astria_core::{
-    primitive::v1::RollupId,
-    sequencerblock::v1alpha1::block::SequencerBlockHeader,
-};
-use astria_eyre::eyre::{
-    self,
-    bail,
-    WrapErr as _,
-};
+use astria_core::{primitive::v1::RollupId, sequencerblock::v1alpha1::block::SequencerBlockHeader};
+use astria_eyre::eyre::{self, bail, WrapErr as _};
 use celestia_types::nmt::Namespace;
 use futures::{
-    future::{
-        BoxFuture,
-        Fuse,
-        FusedFuture as _,
-    },
+    future::{BoxFuture, Fuse, FusedFuture as _},
     FutureExt as _,
 };
 use jsonrpsee::http_client::HttpClient as CelestiaClient;
 use metrics::histogram;
 use sequencer_client::{
-    tendermint,
-    tendermint::block::Height as SequencerHeight,
-    tendermint_rpc,
+    tendermint, tendermint::block::Height as SequencerHeight, tendermint_rpc,
     HttpClient as SequencerClient,
 };
-use telemetry::display::{
-    base64,
-    json,
-};
-use tokio::{
-    select,
-    sync::mpsc,
-    task::spawn_blocking,
-    try_join,
-};
+use telemetry::display::{base64, json};
+use tokio::{select, sync::mpsc, task::spawn_blocking, try_join};
 use tokio_stream::StreamExt as _;
-use tokio_util::{
-    sync::CancellationToken,
-    task::JoinMap,
-};
-use tracing::{
-    error,
-    info,
-    info_span,
-    instrument,
-    trace,
-    warn,
-};
+use tokio_util::{sync::CancellationToken, task::JoinMap};
+use tracing::{error, info, info_span, instrument, trace, warn};
 
 use crate::{
     block_cache::GetSequencerHeight,
-    executor::{
-        FirmSendError,
-        FirmTrySendError,
-        StateIsInit,
-    },
+    executor::{FirmSendError, FirmTrySendError, StateIsInit},
     metrics_init::{
-        BLOBS_PER_CELESTIA_FETCH,
-        DECODED_ITEMS_PER_CELESTIA_FETCH,
-        NAMESPACE_TYPE_LABEL,
-        NAMESPACE_TYPE_METADATA,
-        NAMESPACE_TYPE_ROLLUP_DATA,
+        BLOBS_PER_CELESTIA_FETCH, DECODED_ITEMS_PER_CELESTIA_FETCH, NAMESPACE_TYPE_LABEL,
+        NAMESPACE_TYPE_METADATA, NAMESPACE_TYPE_ROLLUP_DATA,
         SEQUENCER_BLOCKS_METADATA_VERIFIED_PER_CELESTIA_FETCH,
         SEQUENCER_BLOCK_INFORMATION_RECONSTRUCTED_PER_CELESTIA_FETCH,
     },
@@ -92,15 +50,9 @@ use self::{
     fetch::fetch_new_blobs,
     latest_height_stream::stream_latest_heights,
     reconstruct::reconstruct_blocks_from_verified_blobs,
-    verify::{
-        verify_metadata,
-        BlobVerifier,
-    },
+    verify::{verify_metadata, BlobVerifier},
 };
-use crate::{
-    block_cache::BlockCache,
-    executor,
-};
+use crate::{block_cache::BlockCache, executor};
 
 /// Sequencer Block information reconstructed from Celestia blobs.
 ///

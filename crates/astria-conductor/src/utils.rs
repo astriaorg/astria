@@ -1,7 +1,4 @@
-use astria_eyre::eyre::{
-    self,
-    WrapErr as _,
-};
+use astria_eyre::eyre::{self, WrapErr as _};
 use tokio::task::JoinError;
 
 pub(crate) fn flatten<T>(res: Result<eyre::Result<T>, JoinError>) -> eyre::Result<T> {

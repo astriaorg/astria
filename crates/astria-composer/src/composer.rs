@@ -1,46 +1,22 @@
-use std::{
-    collections::HashMap,
-    net::SocketAddr,
-    time::Duration,
-};
+use std::{collections::HashMap, net::SocketAddr, time::Duration};
 
-use astria_eyre::eyre::{
-    self,
-    WrapErr as _,
-};
+use astria_eyre::eyre::{self, WrapErr as _};
 use itertools::Itertools as _;
 use tokio::{
     io,
-    signal::unix::{
-        signal,
-        SignalKind,
-    },
+    signal::unix::{signal, SignalKind},
     sync::watch,
-    task::{
-        JoinError,
-        JoinHandle,
-    },
+    task::{JoinError, JoinHandle},
     time::timeout,
 };
-use tokio_util::{
-    sync::CancellationToken,
-    task::JoinMap,
-};
-use tracing::{
-    error,
-    info,
-    warn,
-};
+use tokio_util::{sync::CancellationToken, task::JoinMap};
+use tracing::{error, info, warn};
 
 use crate::{
-    api::{
-        self,
-        ApiServer,
-    },
+    api::{self, ApiServer},
     collectors,
     collectors::geth,
-    composer,
-    executor,
+    composer, executor,
     executor::Executor,
     grpc,
     grpc::GrpcServer,
@@ -127,6 +103,7 @@ impl Composer {
             shutdown_token: shutdown_token.clone(),
         }
         .build()
+        .await
         .wrap_err("executor construction from config failed")?;
 
         let grpc_server = grpc::Builder {
@@ -462,10 +439,7 @@ async fn wait_for_collectors(
 ) -> eyre::Result<()> {
     use futures::{
         future::FutureExt as _,
-        stream::{
-            FuturesUnordered,
-            StreamExt as _,
-        },
+        stream::{FuturesUnordered, StreamExt as _},
     };
     let mut statuses = collector_statuses
         .iter()

@@ -1,9 +1,6 @@
 use std::net::SocketAddr;
 
-use serde::{
-    Deserialize,
-    Serialize,
-};
+use serde::{Deserialize, Serialize};
 
 // this is a config, may have many boolean values
 #[allow(clippy::struct_excessive_bools)]

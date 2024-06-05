@@ -1,25 +1,15 @@
 use std::{
-    cmp::{
-        self,
-        Ordering,
-    },
+    cmp::{self, Ordering},
     collections::HashMap,
     future::Future,
-    sync::{
-        Arc,
-        OnceLock,
-    },
+    sync::{Arc, OnceLock},
 };
 
 use anyhow::Context;
 use astria_core::{
     crypto::SigningKey,
     primitive::v1::Address,
-    protocol::transaction::v1alpha1::{
-        SignedTransaction,
-        TransactionParams,
-        UnsignedTransaction,
-    },
+    protocol::transaction::v1alpha1::{SignedTransaction, TransactionParams, UnsignedTransaction},
 };
 use priority_queue::PriorityQueue;
 use tokio::sync::RwLock;
@@ -80,9 +70,7 @@ impl EnqueuedTransaction {
             ));
         };
 
-        Ok(TransactionPriority {
-            nonce_diff,
-        })
+        Ok(TransactionPriority { nonce_diff })
     }
 
     pub(crate) fn tx_hash(&self) -> [u8; 32] {
@@ -262,20 +250,14 @@ fn dummy_signed_tx() -> &'static Arc<SignedTransaction> {
             chain_id: String::new(),
         };
         let signing_key = SigningKey::from([0; 32]);
-        let unsigned_tx = UnsignedTransaction {
-            actions,
-            params,
-        };
+        let unsigned_tx = UnsignedTransaction { actions, params };
         Arc::new(unsigned_tx.into_signed(&signing_key))
     })
 }
 
 #[cfg(test)]
 mod test {
-    use std::hash::{
-        Hash,
-        Hasher,
-    };
+    use std::hash::{Hash, Hasher};
 
     use super::*;
     use crate::app::test_utils::get_mock_tx;
@@ -284,12 +266,10 @@ mod test {
     fn transaction_priority_should_error_if_invalid() {
         let enqueued_tx = EnqueuedTransaction::new(get_mock_tx(0));
         let priority = enqueued_tx.priority(1);
-        assert!(
-            priority
-                .unwrap_err()
-                .to_string()
-                .contains("less than current account nonce")
-        );
+        assert!(priority
+            .unwrap_err()
+            .to_string()
+            .contains("less than current account nonce"));
     }
 
     // From https://doc.rust-lang.org/std/cmp/trait.PartialOrd.html
@@ -297,12 +277,8 @@ mod test {
     // allow: we want explicit assertions here to match the documented expected behavior.
     #[allow(clippy::nonminimal_bool)]
     fn transaction_priority_comparisons_should_be_consistent() {
-        let high = TransactionPriority {
-            nonce_diff: 0,
-        };
-        let low = TransactionPriority {
-            nonce_diff: 1,
-        };
+        let high = TransactionPriority { nonce_diff: 0 };
+        let low = TransactionPriority { nonce_diff: 1 };
 
         assert!(high.partial_cmp(&high) == Some(Ordering::Equal));
         assert!(high.partial_cmp(&low) == Some(Ordering::Greater));
@@ -542,11 +518,9 @@ mod test {
         assert_eq!(mempool.pending_nonce(&other_address).await.unwrap(), 101);
 
         // Check the pending nonce for an address with no enqueued txs is `None`.
-        assert!(
-            mempool
-                .pending_nonce(&Address::from([1; 20]))
-                .await
-                .is_none()
-        );
+        assert!(mempool
+            .pending_nonce(&Address::from([1; 20]))
+            .await
+            .is_none());
     }
 }

@@ -1,41 +1,19 @@
-use std::{
-    collections::HashMap,
-    io::Write,
-    net::SocketAddr,
-    time::Duration,
-};
+use std::{collections::HashMap, io::Write, net::SocketAddr, time::Duration};
 
-use astria_composer::{
-    config::Config,
-    Composer,
-};
+use astria_composer::{config::Config, Composer};
 use astria_core::{
     primitive::v1::RollupId,
-    protocol::{
-        abci::AbciErrorCode,
-        transaction::v1alpha1::SignedTransaction,
-    },
+    protocol::{abci::AbciErrorCode, transaction::v1alpha1::SignedTransaction},
 };
 use astria_eyre::eyre;
 use ethers::prelude::Transaction;
 use once_cell::sync::Lazy;
 use tempfile::NamedTempFile;
-use tendermint_rpc::{
-    endpoint::broadcast::tx_sync,
-    request,
-    response,
-    Id,
-};
+use tendermint_rpc::{endpoint::broadcast::tx_sync, request, response, Id};
 use test_utils::mock::Geth;
 use tokio::task::JoinHandle;
 use tracing::debug;
-use wiremock::{
-    Mock,
-    MockGuard,
-    MockServer,
-    Request,
-    ResponseTemplate,
-};
+use wiremock::{Mock, MockGuard, MockServer, Request, ResponseTemplate};
 
 pub mod mock_sequencer;
 

@@ -12,10 +12,7 @@ impl AssetBalance {
     /// native [`AssetBalance`].
     #[must_use]
     pub fn from_raw(proto: &raw::AssetBalance) -> Self {
-        let raw::AssetBalance {
-            denom,
-            balance,
-        } = proto;
+        let raw::AssetBalance { denom, balance } = proto;
         Self {
             denom: Denom::from(denom.to_owned()),
             balance: balance.map_or(0, Into::into),
@@ -38,10 +35,7 @@ impl raw::BalanceResponse {
     /// protobuf [`raw::BalanceResponse`].
     #[must_use]
     pub fn from_native(native: BalanceResponse) -> Self {
-        let BalanceResponse {
-            height,
-            balances,
-        } = native;
+        let BalanceResponse { height, balances } = native;
         Self {
             height,
             balances: balances.into_iter().map(AssetBalance::into_raw).collect(),
@@ -74,10 +68,7 @@ impl BalanceResponse {
     /// Converts a protobuf [`raw::BalanceResponse`] to an astria
     /// native [`BalanceResponse`].
     pub fn from_raw(proto: &raw::BalanceResponse) -> Self {
-        let raw::BalanceResponse {
-            height,
-            balances,
-        } = proto;
+        let raw::BalanceResponse { height, balances } = proto;
         Self {
             height: *height,
             balances: balances.iter().map(AssetBalance::from_raw).collect(),
@@ -97,14 +88,8 @@ impl raw::NonceResponse {
     /// astria `NonceResponse`.
     #[must_use]
     pub fn from_native(native: NonceResponse) -> Self {
-        let NonceResponse {
-            height,
-            nonce,
-        } = native;
-        Self {
-            height,
-            nonce,
-        }
+        let NonceResponse { height, nonce } = native;
+        Self { height, nonce }
     }
 
     /// Converts a protobuf [`raw::NonceResponse`] to an astria
@@ -134,14 +119,8 @@ impl NonceResponse {
     /// native [`NonceResponse`].
     #[must_use]
     pub fn from_raw(proto: &raw::NonceResponse) -> Self {
-        let raw::NonceResponse {
-            height,
-            nonce,
-        } = *proto;
-        Self {
-            height,
-            nonce,
-        }
+        let raw::NonceResponse { height, nonce } = *proto;
+        Self { height, nonce }
     }
 
     /// Converts an astria native [`NonceResponse`] to a
@@ -154,11 +133,7 @@ impl NonceResponse {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        AssetBalance,
-        BalanceResponse,
-        NonceResponse,
-    };
+    use super::{AssetBalance, BalanceResponse, NonceResponse};
 
     #[test]
     fn balance_roundtrip_is_correct() {

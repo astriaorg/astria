@@ -2,10 +2,7 @@
 
 use std::num::NonZeroUsize;
 
-use sha2::{
-    Digest as _,
-    Sha256,
-};
+use sha2::{Digest as _, Sha256};
 
 /// Builder to construct a complex leaf ad-hoc without allocation.
 ///
@@ -21,19 +18,12 @@ impl<'a, TLeaf, TRoot> LeafBuilder<'a, TLeaf, TRoot> {
     /// Returns the internal [`Audit`] with its `TLeaf` typestate set.
     pub fn finish_leaf(self) -> Audit<'a, WithLeafHash, TRoot> {
         let Self {
-            audit:
-                Audit {
-                    proof,
-                    root,
-                    ..
-                },
+            audit: Audit { proof, root, .. },
             hasher,
         } = self;
         let leaf_hash = hasher.finalize().into();
         Audit {
-            leaf_hash: WithLeafHash {
-                leaf_hash,
-            },
+            leaf_hash: WithLeafHash { leaf_hash },
             proof,
             root,
         }
@@ -107,14 +97,8 @@ impl<'a, TLeaf, TRoot> Audit<'a, TLeaf, TRoot> {
     ///
     /// Returns a new `Audit` with its `TLeaf` type-state to [`WithLeafHash`].
     pub fn with_leaf_hash(self, leaf_hash: [u8; 32]) -> Audit<'a, WithLeafHash, TRoot> {
-        let Self {
-            proof,
-            root,
-            ..
-        } = self;
-        let leaf_hash = WithLeafHash {
-            leaf_hash,
-        };
+        let Self { proof, root, .. } = self;
+        let leaf_hash = WithLeafHash { leaf_hash };
         Audit {
             leaf_hash,
             proof,
@@ -127,16 +111,12 @@ impl<'a, TLeaf, TRoot> Audit<'a, TLeaf, TRoot> {
     /// Returns a new `Audit` with its `TRoot` type-state to [`WithRoot`].
     pub fn with_root(self, root: [u8; 32]) -> Audit<'a, TLeaf, WithRoot> {
         let Self {
-            proof,
-            leaf_hash,
-            ..
+            proof, leaf_hash, ..
         } = self;
         Audit {
             leaf_hash,
             proof,
-            root: WithRoot {
-                root,
-            },
+            root: WithRoot { root },
         }
     }
 }
@@ -161,9 +141,7 @@ impl<'a, TRoot> Audit<'a, WithLeafHash, TRoot> {
     /// ```
     pub fn reconstruct_root(&self) -> [u8; 32] {
         let Self {
-            leaf_hash: WithLeafHash {
-                leaf_hash,
-            },
+            leaf_hash: WithLeafHash { leaf_hash },
             proof,
             ..
         } = self;
@@ -203,13 +181,9 @@ impl<'a> Audit<'a, WithLeafHash, WithRoot> {
     #[must_use = "verify the audit result"]
     pub fn perform(&self) -> bool {
         let Self {
-            leaf_hash: WithLeafHash {
-                leaf_hash,
-            },
+            leaf_hash: WithLeafHash { leaf_hash },
             proof,
-            root: WithRoot {
-                root,
-            },
+            root: WithRoot { root },
         } = self;
         *root == proof.reconstruct_root_with_leaf_hash(*leaf_hash)
     }
@@ -223,9 +197,7 @@ pub struct InvalidProof {
 impl InvalidProof {
     fn audit_path_not_multiple_of_32(len: usize) -> Self {
         Self {
-            kind: InvalidProofKind::AuditPathNotMultipleOf32 {
-                len,
-            },
+            kind: InvalidProofKind::AuditPathNotMultipleOf32 { len },
         }
     }
 
@@ -272,9 +244,7 @@ enum InvalidProofKind {
 impl std::fmt::Display for InvalidProofKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            InvalidProofKind::AuditPathNotMultipleOf32 {
-                len,
-            } => f.write_fmt(format_args!(
+            InvalidProofKind::AuditPathNotMultipleOf32 { len } => f.write_fmt(format_args!(
                 "audit path byte buffer length must be a multiple of 32 bytes, but was {len} bytes"
             )),
             InvalidProofKind::LeafIndexOutsideTree {
@@ -334,10 +304,7 @@ impl UncheckedProof {
     /// from the proof.
     #[must_use = "an unchecked proof must be turned into a checked proof to be useful"]
     pub fn audit_path(self, audit_path: Vec<u8>) -> Self {
-        Self {
-            audit_path,
-            ..self
-        }
+        Self { audit_path, ..self }
     }
 
     /// Sets the index of the leaf that this proof is for.
@@ -347,10 +314,7 @@ impl UncheckedProof {
     /// to a tree index `j = 2 * i`.
     #[must_use = "an unchecked proof must be turned into a checked proof to be useful"]
     pub fn leaf_index(self, leaf_index: usize) -> Self {
-        Self {
-            leaf_index,
-            ..self
-        }
+        Self { leaf_index, ..self }
     }
 
     /// Sets the tree size of the proof.
@@ -359,10 +323,7 @@ impl UncheckedProof {
     /// not defined for empty trees.
     #[must_use = "an unchecked proof must be turned into a checked proof to be useful"]
     pub fn tree_size(self, tree_size: usize) -> Self {
-        Self {
-            tree_size,
-            ..self
-        }
+        Self { tree_size, ..self }
     }
 
     /// Constructs the [`Proof`] from the builder inputs.

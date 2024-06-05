@@ -4,30 +4,19 @@ pub mod extension_trait;
 #[cfg(not(any(feature = "http", feature = "websocket")))]
 compile_error!("at least one of the `http` or `websocket` features must be enabled");
 
-use std::{
-    future::Future,
-    pin::Pin,
-    time::Duration,
-};
+use std::{future::Future, pin::Pin, time::Duration};
 
 #[cfg(any(feature = "http", feature = "websocket"))]
 pub use __feature_gated_exports::*;
 pub use astria_core::{
     primitive::v1::Address,
     protocol::{
-        account::v1alpha1::{
-            BalanceResponse,
-            NonceResponse,
-        },
+        account::v1alpha1::{BalanceResponse, NonceResponse},
         transaction::v1alpha1::SignedTransaction,
     },
     sequencerblock::v1alpha1::SequencerBlock,
 };
-use futures_util::{
-    FutureExt,
-    Stream,
-    StreamExt,
-};
+use futures_util::{FutureExt, Stream, StreamExt};
 pub use tendermint;
 use tendermint::block::Height;
 pub use tendermint_proto;
@@ -39,15 +28,10 @@ pub use tendermint_rpc::WebSocketClient;
 use tokio_stream::wrappers::IntervalStream;
 #[cfg(any(feature = "http", feature = "websocket"))]
 mod __feature_gated_exports {
-    pub use tendermint_rpc::{
-        Client,
-        SubscriptionClient,
-    };
+    pub use tendermint_rpc::{Client, SubscriptionClient};
 
     pub use crate::extension_trait::{
-        NewBlockStreamError,
-        SequencerClientExt,
-        SequencerSubscriptionClientExt,
+        NewBlockStreamError, SequencerClientExt, SequencerSubscriptionClientExt,
     };
 }
 

@@ -1,9 +1,6 @@
 //! The conductor configuration.
 
-use serde::{
-    Deserialize,
-    Serialize,
-};
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
 pub enum CommitLevel {
@@ -90,10 +87,7 @@ impl config::Config for Config {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        CommitLevel,
-        Config,
-    };
+    use super::{CommitLevel, Config};
 
     const EXAMPLE_ENV: &str = include_str!("../local.env.example");
 
@@ -104,11 +98,7 @@ mod tests {
 
     #[test]
     fn do_commit_levels_correctly_report_mode() {
-        use CommitLevel::{
-            FirmOnly,
-            SoftAndFirm,
-            SoftOnly,
-        };
+        use CommitLevel::{FirmOnly, SoftAndFirm, SoftOnly};
 
         assert!(FirmOnly.is_with_firm());
         assert!(!FirmOnly.is_with_soft());

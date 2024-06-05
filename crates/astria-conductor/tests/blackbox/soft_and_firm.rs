@@ -1,25 +1,14 @@
 use std::time::Duration;
 
 use astria_conductor::config::CommitLevel;
-use futures::future::{
-    join,
-    join3,
-};
+use futures::future::{join, join3};
 use tokio::time::timeout;
 
 use crate::{
-    helpers::spawn_conductor,
-    mount_abci_info,
-    mount_celestia_blobs,
-    mount_celestia_header_network_head,
-    mount_executed_block,
-    mount_get_block,
-    mount_get_commitment_state,
-    mount_get_filtered_sequencer_block,
-    mount_get_genesis_info,
-    mount_sequencer_commit,
-    mount_sequencer_genesis,
-    mount_sequencer_validator_set,
+    helpers::spawn_conductor, mount_abci_info, mount_celestia_blobs,
+    mount_celestia_header_network_head, mount_executed_block, mount_get_block,
+    mount_get_commitment_state, mount_get_filtered_sequencer_block, mount_get_genesis_info,
+    mount_sequencer_commit, mount_sequencer_genesis, mount_sequencer_validator_set,
     mount_update_commitment_state,
 };
 

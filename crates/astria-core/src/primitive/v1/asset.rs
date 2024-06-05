@@ -1,9 +1,6 @@
 use std::{
     fmt,
-    fmt::{
-        Display,
-        Formatter,
-    },
+    fmt::{Display, Formatter},
 };
 
 /// The default sequencer asset base denomination.
@@ -175,10 +172,7 @@ impl AsRef<[u8]> for Id {
 
 impl Display for Id {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        use base64::{
-            display::Base64Display,
-            prelude::BASE64_STANDARD,
-        };
+        use base64::{display::Base64Display, prelude::BASE64_STANDARD};
         Base64Display::new(self.as_ref(), &BASE64_STANDARD).fmt(f)
     }
 }

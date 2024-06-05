@@ -1,22 +1,9 @@
-use std::{
-    collections::HashSet,
-    path::PathBuf,
-    sync::Arc,
-};
+use std::{collections::HashSet, path::PathBuf, sync::Arc};
 
 use astria_core::primitive::v1::RollupId;
-use astria_eyre::eyre::{
-    self,
-    WrapErr,
-};
-use base64::{
-    prelude::BASE64_STANDARD,
-    Engine as _,
-};
-use serde::{
-    Deserialize,
-    Serialize,
-};
+use astria_eyre::eyre::{self, WrapErr};
+use base64::{prelude::BASE64_STANDARD, Engine as _};
+use serde::{Deserialize, Serialize};
 
 // Allowed `struct_excessive_bools` because this is used as a container
 // for deserialization. Making this a builder-pattern is not actionable.

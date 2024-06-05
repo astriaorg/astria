@@ -1,16 +1,7 @@
-use std::{
-    fs::File,
-    path::PathBuf,
-};
+use std::{fs::File, path::PathBuf};
 
-use astria_eyre::eyre::{
-    Result,
-    WrapErr,
-};
-use serde_json::{
-    to_writer_pretty,
-    Value,
-};
+use astria_eyre::eyre::{Result, WrapErr};
+use serde_json::{to_writer_pretty, Value};
 
 #[derive(clap::Args, Debug)]
 pub struct Args {

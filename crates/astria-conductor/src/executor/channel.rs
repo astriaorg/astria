@@ -4,21 +4,13 @@
 //! from a sequencer reader to the executor, the channel is generic over the values that are
 //! being sent to better test its functionality.
 
-use std::sync::{
-    Arc,
-    Weak,
-};
+use std::sync::{Arc, Weak};
 
 use tokio::sync::{
     mpsc::{
-        error::SendError as TokioSendError,
-        unbounded_channel,
-        UnboundedReceiver,
-        UnboundedSender,
+        error::SendError as TokioSendError, unbounded_channel, UnboundedReceiver, UnboundedSender,
     },
-    AcquireError,
-    Semaphore,
-    TryAcquireError,
+    AcquireError, Semaphore, TryAcquireError,
 };
 
 /// Creates an mpsc channel for sending soft blocks between asynchronous task.
@@ -33,11 +25,7 @@ pub(super) fn soft_block_channel<T>() -> (Sender<T>, Receiver<T>) {
         chan: tx,
         sem: Arc::downgrade(&sem),
     };
-    let receiver = Receiver {
-        cap,
-        chan: rx,
-        sem,
-    };
+    let receiver = Receiver { cap, chan: rx, sem };
     (sender, receiver)
 }
 
@@ -158,11 +146,7 @@ impl<T> Receiver<T> {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        soft_block_channel,
-        SendError,
-        TrySendError,
-    };
+    use super::{soft_block_channel, SendError, TrySendError};
 
     #[test]
     fn fresh_channel_has_no_capacity() {

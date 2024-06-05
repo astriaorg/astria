@@ -1,46 +1,20 @@
 use std::{
     cmp::Ordering,
-    fmt::{
-        self,
-        Debug,
-        Display,
-        Formatter,
-    },
-    hash::{
-        Hash,
-        Hasher,
-    },
+    fmt::{self, Debug, Display, Formatter},
+    hash::{Hash, Hasher},
     sync::OnceLock,
 };
 
-use base64::{
-    display::Base64Display,
-    prelude::BASE64_STANDARD,
-    Engine,
-};
+use base64::{display::Base64Display, prelude::BASE64_STANDARD, Engine};
 use ed25519_consensus::{
-    Error as Ed25519Error,
-    Signature as Ed25519Signature,
-    SigningKey as Ed25519SigningKey,
+    Error as Ed25519Error, Signature as Ed25519Signature, SigningKey as Ed25519SigningKey,
     VerificationKey as Ed25519VerificationKey,
 };
-use rand::{
-    CryptoRng,
-    RngCore,
-};
-use sha2::{
-    Digest as _,
-    Sha256,
-};
-use zeroize::{
-    Zeroize,
-    ZeroizeOnDrop,
-};
+use rand::{CryptoRng, RngCore};
+use sha2::{Digest as _, Sha256};
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
-use crate::primitive::v1::{
-    Address,
-    ADDRESS_LEN,
-};
+use crate::primitive::v1::{Address, ADDRESS_LEN};
 
 /// An Ed25519 signing key.
 // *Implementation note*: this is currently a refinement type around

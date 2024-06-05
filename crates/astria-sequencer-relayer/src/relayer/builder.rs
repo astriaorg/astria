@@ -1,29 +1,12 @@
-use std::{
-    path::PathBuf,
-    sync::Arc,
-    time::Duration,
-};
+use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use astria_core::generated::sequencerblock::v1alpha1::sequencer_service_client::SequencerServiceClient;
-use astria_eyre::eyre::{
-    self,
-    WrapErr as _,
-};
+use astria_eyre::eyre::{self, WrapErr as _};
 use sequencer_client::HttpClient as SequencerClient;
-use tonic::transport::{
-    Endpoint,
-    Uri,
-};
+use tonic::transport::{Endpoint, Uri};
 
-use super::{
-    state::State,
-    CelestiaClientBuilder,
-    CelestiaKeys,
-};
-use crate::{
-    validator::Validator,
-    IncludeRollup,
-};
+use super::{state::State, CelestiaClientBuilder, CelestiaKeys};
+use crate::{validator::Validator, IncludeRollup};
 
 pub(crate) struct Builder {
     pub(crate) shutdown_token: tokio_util::sync::CancellationToken,

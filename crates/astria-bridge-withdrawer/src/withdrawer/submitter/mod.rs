@@ -1,50 +1,21 @@
-use std::{
-    sync::Arc,
-    time::Duration,
-};
+use std::{sync::Arc, time::Duration};
 
 use astria_core::protocol::transaction::v1alpha1::{
-    Action,
-    TransactionParams,
-    UnsignedTransaction,
+    Action, TransactionParams, UnsignedTransaction,
 };
-use astria_eyre::eyre::{
-    self,
-    ensure,
-    eyre,
-    Context,
-};
+use astria_eyre::eyre::{self, ensure, eyre, Context};
 pub(crate) use builder::Builder;
 use sequencer_client::{
-    tendermint_rpc,
-    tendermint_rpc::endpoint::broadcast::tx_commit,
-    Address,
-    SequencerClientExt as _,
-    SignedTransaction,
+    tendermint_rpc, tendermint_rpc::endpoint::broadcast::tx_commit, Address,
+    SequencerClientExt as _, SignedTransaction,
 };
 use signer::SequencerKey;
 use state::State;
-use tokio::{
-    select,
-    sync::mpsc,
-    time::Instant,
-};
+use tokio::{select, sync::mpsc, time::Instant};
 use tokio_util::sync::CancellationToken;
-use tracing::{
-    debug,
-    error,
-    info,
-    info_span,
-    instrument,
-    warn,
-    Instrument as _,
-    Span,
-};
+use tracing::{debug, error, info, info_span, instrument, warn, Instrument as _, Span};
 
-use super::{
-    batch::Batch,
-    state,
-};
+use super::{batch::Batch, state};
 
 mod builder;
 mod signer;

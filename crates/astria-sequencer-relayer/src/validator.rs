@@ -1,9 +1,6 @@
 use std::path::Path;
 
-use astria_eyre::eyre::{
-    self,
-    WrapErr as _,
-};
+use astria_eyre::eyre::{self, WrapErr as _};
 use tendermint::account;
 use tendermint_config::PrivValidatorKey;
 use tracing::instrument;

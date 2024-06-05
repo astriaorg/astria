@@ -20,45 +20,28 @@
 //! # });
 //! ```
 
-use std::{
-    future,
-    pin::Pin,
-    sync::Arc,
-};
+use std::{future, pin::Pin, sync::Arc};
 
 pub use astria_core::{
     primitive::v1::Address,
     protocol::{
-        account::v1alpha1::{
-            BalanceResponse,
-            NonceResponse,
-        },
+        account::v1alpha1::{BalanceResponse, NonceResponse},
         transaction::v1alpha1::SignedTransaction,
     },
-    sequencerblock::v1alpha1::{
-        block::SequencerBlockError,
-        SequencerBlock,
-    },
+    sequencerblock::v1alpha1::{block::SequencerBlockError, SequencerBlock},
 };
 use async_trait::async_trait;
 use futures::Stream;
-use prost::{
-    DecodeError,
-    Message as _,
-};
+use prost::{DecodeError, Message as _};
 use tendermint::block::Height;
 #[cfg(feature = "http")]
 use tendermint_rpc::HttpClient;
 #[cfg(feature = "websocket")]
 use tendermint_rpc::WebSocketClient;
 use tendermint_rpc::{
-    endpoint::broadcast::{
-        tx_commit,
-        tx_sync,
-    },
+    endpoint::broadcast::{tx_commit, tx_sync},
     event::EventData,
-    Client,
-    SubscriptionClient,
+    Client, SubscriptionClient,
 };
 
 #[cfg(feature = "http")]
@@ -266,10 +249,7 @@ impl ErrorKind {
 
     /// Convenience method to construct a `TendermintRpc` variant.
     fn tendermint_rpc(rpc: &'static str, inner: tendermint_rpc::error::Error) -> Self {
-        Self::TendermintRpc(TendermintRpcError {
-            inner,
-            rpc,
-        })
+        Self::TendermintRpc(TendermintRpcError { inner, rpc })
     }
 }
 
@@ -296,15 +276,9 @@ impl NewBlockStreamError {
     fn unexpected_event(event: &EventData) -> Self {
         fn event_to_name(event: &EventData) -> &'static str {
             match event {
-                EventData::NewBlock {
-                    ..
-                } => "new-block",
-                EventData::LegacyNewBlock {
-                    ..
-                } => "legacy-new-block",
-                EventData::Tx {
-                    ..
-                } => "tx",
+                EventData::NewBlock { .. } => "new-block",
+                EventData::LegacyNewBlock { .. } => "legacy-new-block",
+                EventData::Tx { .. } => "tx",
                 EventData::GenericJsonEvent(_) => "generic-json",
             }
         }
@@ -347,14 +321,8 @@ impl Stream for LatestHeightStream {
 #[async_trait]
 pub trait SequencerSubscriptionClientExt: SubscriptionClient {
     async fn subscribe_latest_height(&self) -> Result<LatestHeightStream, SubscriptionFailed> {
-        use futures::stream::{
-            StreamExt as _,
-            TryStreamExt as _,
-        };
-        use tendermint_rpc::query::{
-            EventType,
-            Query,
-        };
+        use futures::stream::{StreamExt as _, TryStreamExt as _};
+        use tendermint_rpc::query::{EventType, Query};
         let stream = self
             .subscribe(Query::from(EventType::NewBlock))
             .await?
@@ -362,21 +330,18 @@ pub trait SequencerSubscriptionClientExt: SubscriptionClient {
             .and_then(|event| {
                 future::ready(match event.data {
                     EventData::LegacyNewBlock {
-                        block: Some(block),
-                        ..
+                        block: Some(block), ..
                     } => Ok(block.header.height),
 
-                    EventData::LegacyNewBlock {
-                        block: None, ..
-                    } => Err(NewBlockStreamError::NoBlock),
+                    EventData::LegacyNewBlock { block: None, .. } => {
+                        Err(NewBlockStreamError::NoBlock)
+                    }
 
                     other => Err(NewBlockStreamError::unexpected_event(&other)),
                 })
             })
             .boxed();
-        Ok(LatestHeightStream {
-            inner: stream,
-        })
+        Ok(LatestHeightStream { inner: stream })
     }
 }
 

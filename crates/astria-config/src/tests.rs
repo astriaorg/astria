@@ -33,16 +33,10 @@ use figment::Jail;
 use once_cell::sync::Lazy;
 use regex::Regex;
 
-use crate::{
-    Config,
-    _internal,
-};
+use crate::{Config, _internal};
 
 static TEST_PREFIX: Lazy<String> = Lazy::new(|| {
-    use names::{
-        Generator,
-        Name,
-    };
+    use names::{Generator, Name};
     Generator::with_naming(Name::Numbered).next().unwrap()
 });
 

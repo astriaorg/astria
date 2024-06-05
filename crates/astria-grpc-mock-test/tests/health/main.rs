@@ -1,40 +1,17 @@
 // allow just make the tests work for now
 #![allow(clippy::should_panic_without_expect)]
 
-use std::{
-    net::SocketAddr,
-    pin::Pin,
-    sync::Arc,
-};
+use std::{net::SocketAddr, pin::Pin, sync::Arc};
 
-use astria_grpc_mock::{
-    matcher,
-    response,
-    Mock,
-};
+use astria_grpc_mock::{matcher, response, Mock};
 use astria_grpc_mock_test::health::{
     health_client::HealthClient,
-    health_server::{
-        Health,
-        HealthServer,
-    },
-    HealthCheckRequest,
-    HealthCheckResponse,
+    health_server::{Health, HealthServer},
+    HealthCheckRequest, HealthCheckResponse,
 };
-use tokio::{
-    join,
-    task::JoinHandle,
-};
-use tokio_stream::{
-    wrappers::TcpListenerStream,
-    Stream,
-};
-use tonic::{
-    transport::Server,
-    Request,
-    Response,
-    Status,
-};
+use tokio::{join, task::JoinHandle};
+use tokio_stream::{wrappers::TcpListenerStream, Stream};
+use tonic::{transport::Server, Request, Response, Status};
 
 struct MockServer {
     _server: JoinHandle<()>,
@@ -50,9 +27,7 @@ async fn start_mock_server() -> MockServer {
         let mock_server = mock_server.clone();
         async move {
             let _ = Server::builder()
-                .add_service(HealthServer::new(HealthService {
-                    mock_server,
-                }))
+                .add_service(HealthServer::new(HealthService { mock_server }))
                 .serve_with_incoming(TcpListenerStream::new(listener))
                 .await;
         }
@@ -112,9 +87,7 @@ async fn constant_response_works() {
     let mut client = HealthClient::connect(format!("http://{}", server.local_addr))
         .await
         .unwrap();
-    let expected_response = HealthCheckResponse {
-        status: 1,
-    };
+    let expected_response = HealthCheckResponse { status: 1 };
     let mock = Mock::for_rpc_given("check", matcher::message_type::<HealthCheckRequest>())
         .respond_with(response::constant_response(expected_response.clone()));
     server.mocked.register(mock).await;
@@ -133,9 +106,7 @@ async fn constant_response_expect_two_works() {
     let mut client = HealthClient::connect(format!("http://{}", server.local_addr))
         .await
         .unwrap();
-    let expected_response = HealthCheckResponse {
-        status: 1,
-    };
+    let expected_response = HealthCheckResponse { status: 1 };
     let mock = Mock::for_rpc_given("check", matcher::message_type::<HealthCheckRequest>())
         .respond_with(response::constant_response(expected_response.clone()))
         .expect(2);
@@ -168,9 +139,7 @@ async fn constant_response_guard_works() {
     let mut client = HealthClient::connect(format!("http://{}", server.local_addr))
         .await
         .unwrap();
-    let expected_response = HealthCheckResponse {
-        status: 1,
-    };
+    let expected_response = HealthCheckResponse { status: 1 };
     let mock = Mock::for_rpc_given("check", matcher::message_type::<HealthCheckRequest>())
         .respond_with(response::constant_response(expected_response.clone()))
         .expect(1);
@@ -194,9 +163,7 @@ async fn exact_pbjson_match_works() {
     let expected_request = HealthCheckRequest {
         service: "helloworld".to_string(),
     };
-    let expected_response = HealthCheckResponse {
-        status: 1,
-    };
+    let expected_response = HealthCheckResponse { status: 1 };
     let mock = Mock::for_rpc_given("check", matcher::message_exact_pbjson(&expected_request))
         .respond_with(response::constant_response(expected_response.clone()));
     server.mocked.register(mock).await;
@@ -218,9 +185,7 @@ async fn partial_pbjson_match_works() {
     let expected_request = HealthCheckRequest {
         service: "helloworld".to_string(),
     };
-    let expected_response = HealthCheckResponse {
-        status: 1,
-    };
+    let expected_response = HealthCheckResponse { status: 1 };
     // FIXME: Right now this is equivalent to an exact check because the request only has one field.
     let mock = Mock::for_rpc_given("check", matcher::message_partial_pbjson(&expected_request))
         .respond_with(response::constant_response(expected_response.clone()));

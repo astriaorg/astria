@@ -1,20 +1,12 @@
 use std::{
-    fmt::{
-        self,
-        Debug,
-        Formatter,
-    },
+    fmt::{self, Debug, Formatter},
     fs,
     path::Path,
 };
 
-use k256::ecdsa::{
-    signature::Signer,
-    Signature,
-};
+use k256::ecdsa::{signature::Signer, Signature};
 use tendermint::{
-    account::Id as AccountId,
-    private_key::Secp256k1 as SigningKey,
+    account::Id as AccountId, private_key::Secp256k1 as SigningKey,
     public_key::Secp256k1 as VerificationKey,
 };
 use thiserror::Error;

@@ -1,15 +1,7 @@
-use std::{
-    io::Write,
-    time::Duration,
-};
+use std::{io::Write, time::Duration};
 
 use astria_core::{
-    primitive::v1::{
-        asset::default_native_asset_id,
-        RollupId,
-        FEE_ASSET_ID_LEN,
-        ROLLUP_ID_LEN,
-    },
+    primitive::v1::{asset::default_native_asset_id, RollupId, FEE_ASSET_ID_LEN, ROLLUP_ID_LEN},
     protocol::transaction::v1alpha1::action::SequenceAction,
 };
 use astria_eyre::eyre;
@@ -18,34 +10,16 @@ use prost::Message;
 use sequencer_client::SignedTransaction;
 use serde_json::json;
 use tempfile::NamedTempFile;
-use tendermint_rpc::{
-    endpoint::broadcast::tx_sync,
-    request,
-    response,
-    Id,
-};
-use tokio::{
-    sync::watch,
-    time,
-};
+use tendermint_rpc::{endpoint::broadcast::tx_sync, request, response, Id};
+use tokio::{sync::watch, time};
 use tokio_util::sync::CancellationToken;
 use tracing::debug;
 use wiremock::{
-    matchers::{
-        body_partial_json,
-        body_string_contains,
-    },
-    Mock,
-    MockGuard,
-    MockServer,
-    Request,
-    ResponseTemplate,
+    matchers::{body_partial_json, body_string_contains},
+    Mock, MockGuard, MockServer, Request, ResponseTemplate,
 };
 
-use crate::{
-    executor,
-    Config,
-};
+use crate::{executor, Config};
 
 static TELEMETRY: Lazy<()> = Lazy::new(|| {
     if std::env::var_os("TEST_LOG").is_some() {
@@ -181,6 +155,33 @@ async fn mount_broadcast_tx_sync_seq_actions_mock(server: &MockServer) -> MockGu
         .await
 }
 
+async fn mount_status_mock(server: &MockServer) -> MockGuard {
+    let matcher = move |request: &Request| {
+        let signed_tx = signed_tx_from_request(request);
+        let actions = signed_tx.actions();
+
+        // verify all received actions are sequence actions
+        actions.iter().all(|action| action.as_sequence().is_some())
+    };
+    let jsonrpc_rsp = response::Wrapper::new_with_id(
+        Id::Num(1),
+        Some(tx_sync::Response {
+            code: 0.into(),
+            data: vec![].into(),
+            log: String::new(),
+            hash: tendermint::Hash::Sha256([0; 32]),
+        }),
+        None,
+    );
+
+    Mock::given(matcher)
+        .respond_with(ResponseTemplate::new(200).set_body_json(&jsonrpc_rsp))
+        .up_to_n_times(1)
+        .expect(1)
+        .mount_as_scoped(server)
+        .await
+}
+
 /// Helper to wait for the executor to connect to the mock sequencer
 async fn wait_for_startup(
     mut status: watch::Receiver<executor::Status>,
@@ -210,7 +211,7 @@ async fn full_bundle() {
     let shutdown_token = CancellationToken::new();
     let (executor, executor_handle) = executor::Builder {
         sequencer_url: cfg.sequencer_url.clone(),
-        sequencer_chain_id: cfg.sequencer_chain_id.clone(),
+        sequencer_chain_id: "bad-id".to_string(),
         private_key_file: cfg.private_key_file.clone(),
         block_time_ms: cfg.block_time_ms,
         max_bytes_per_bundle: cfg.max_bytes_per_bundle,
@@ -218,6 +219,7 @@ async fn full_bundle() {
         shutdown_token: shutdown_token.clone(),
     }
     .build()
+    .await
     .unwrap();
 
     let status = executor.subscribe();
@@ -309,6 +311,7 @@ async fn bundle_triggered_by_block_timer() {
         shutdown_token: shutdown_token.clone(),
     }
     .build()
+    .await
     .unwrap();
 
     let status = executor.subscribe();
@@ -393,6 +396,7 @@ async fn two_seq_actions_single_bundle() {
         shutdown_token: shutdown_token.clone(),
     }
     .build()
+    .await
     .unwrap();
 
     let status = executor.subscribe();
@@ -469,3 +473,20 @@ async fn two_seq_actions_single_bundle() {
         );
     }
 }
+
+// #[tokio::test]
+// async fn should_exit_if_mismatch_sequencer_chain_id() {
+//     let (sequencer, nonce_guard, cfg, _keyfile) = setup().await;
+//     let shutdown_token = CancellationToken::new();
+//     let (executor, executor_handle) = executor::Builder {
+//         sequencer_url: cfg.sequencer_url.clone(),
+//         sequencer_chain_id: "bad-id".to_string(),
+//         private_key_file: cfg.private_key_file.clone(),
+//         block_time_ms: cfg.block_time_ms,
+//         max_bytes_per_bundle: cfg.max_bytes_per_bundle,
+//         bundle_queue_capacity: cfg.bundle_queue_capacity,
+//         shutdown_token: shutdown_token.clone(),
+//     }
+//     .build()
+//     .unwrap();
+// }

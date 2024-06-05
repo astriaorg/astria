@@ -10,13 +10,13 @@ use astria_core::{
 };
 use astria_eyre::eyre::{
     self,
+    ensure,
     eyre,
-    Context,
+    Context
 };
 use sequencer_client::tendermint_rpc::Client;
 use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
-use tendermint::Genesis;
 
 use crate::{
     executor,
@@ -34,7 +34,7 @@ pub(crate) struct Builder {
 }
 
 impl Builder {
-    pub(crate) fn build(self) -> eyre::Result<(super::Executor, executor::Handle)> {
+    pub(crate) async fn build(self) -> eyre::Result<(super::Executor, executor::Handle)> {
         let Self {
             sequencer_url,
             sequencer_chain_id,
@@ -47,7 +47,12 @@ impl Builder {
         let sequencer_client = sequencer_client::HttpClient::new(sequencer_url.as_str())
             .wrap_err("failed constructing sequencer client")?;
         
-        tokio::spawn(check_chain_ids(sequencer_client.clone(), sequencer_chain_id.clone()));
+        let client_response = sequencer_client.status().await.wrap_err("failed to retrieve sequencer network status")?;
+        let client_chain_id = client_response.node_info.network.to_string();
+        ensure!(
+            sequencer_chain_id == client_chain_id,
+            "mismatch in sequencer_chain_id: {sequencer_chain_id} and client chain_id: {client_chain_id}"
+        );
 
         let (status, _) = watch::channel(Status::new());
 
@@ -84,13 +89,4 @@ fn read_signing_key_from_file<P: AsRef<Path>>(path: P) -> eyre::Result<SigningKe
         .try_into()
         .map_err(|_| eyre!("invalid private key length; must be 32 bytes"))?;
     Ok(SigningKey::from(private_key_bytes))
-}
-
-async fn check_chain_ids(sequencer_client: sequencer_client::HttpClient, sequencer_chain_id: String) -> eyre::Result<()> {
-    let genesis: Genesis = Client::genesis(&sequencer_client).await.expect("Failed to retrieve client genesis file");
-    let client_chain_id = genesis.chain_id.to_string();
-    if sequencer_chain_id != client_chain_id {
-        return Err(eyre!(format!("mismatch in sequencer_chain_id: {sequencer_chain_id} and client chain_id: {client_chain_id}")))
-    };
-    Ok(())
 }

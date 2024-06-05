@@ -2,9 +2,7 @@
 // hidden because they shouldn't be imported.
 #[doc(hidden)]
 pub use const_format::{
-    concatcp as __concatcp,
-    map_ascii_case as __map_ascii_case,
-    Case as __Case,
+    concatcp as __concatcp, map_ascii_case as __map_ascii_case, Case as __Case,
 };
 
 /// Declare a `const` string slice, using the declaring crate's name as a

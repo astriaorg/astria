@@ -1,9 +1,6 @@
 use std::marker::PhantomData;
 
-use super::{
-    clone_response,
-    AnyMessage,
-};
+use super::{clone_response, AnyMessage};
 use crate::erase_response;
 
 pub fn constant_response<

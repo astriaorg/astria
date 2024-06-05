@@ -1,9 +1,6 @@
 use std::sync::Arc;
 
-use astria_eyre::eyre::{
-    self,
-    Context as _,
-};
+use astria_eyre::eyre::{self, Context as _};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use tracing::info;

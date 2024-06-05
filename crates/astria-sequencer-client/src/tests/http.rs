@@ -1,43 +1,22 @@
 use astria_core::{
     crypto::SigningKey,
-    primitive::v1::{
-        asset::default_native_asset_id,
-        Address,
-    },
+    primitive::v1::{asset::default_native_asset_id, Address},
     protocol::transaction::v1alpha1::{
-        action::TransferAction,
-        SignedTransaction,
-        TransactionParams,
-        UnsignedTransaction,
+        action::TransferAction, SignedTransaction, TransactionParams, UnsignedTransaction,
     },
 };
 use hex_literal::hex;
 use serde_json::json;
-use tendermint::{
-    block::Height,
-    Hash,
-};
+use tendermint::{block::Height, Hash};
 use tendermint_rpc::{
-    endpoint::broadcast::tx_commit::v0_37::DialectResponse,
-    response::Wrapper,
-    Id,
+    endpoint::broadcast::tx_commit::v0_37::DialectResponse, response::Wrapper, Id,
 };
 use wiremock::{
-    matchers::{
-        body_partial_json,
-        body_string_contains,
-    },
-    Mock,
-    MockGuard,
-    MockServer,
-    ResponseTemplate,
+    matchers::{body_partial_json, body_string_contains},
+    Mock, MockGuard, MockServer, ResponseTemplate,
 };
 
-use crate::{
-    tendermint_rpc::endpoint::broadcast::tx_sync,
-    HttpClient,
-    SequencerClientExt as _,
-};
+use crate::{tendermint_rpc::endpoint::broadcast::tx_sync, HttpClient, SequencerClientExt as _};
 
 const ALICE_ADDRESS: [u8; 20] = hex!("1c0c490f1b5528d8173c5de46d131160e4b2c0c3");
 const BOB_ADDRESS: Address = Address::from_array(hex!("34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a"));
@@ -51,10 +30,7 @@ impl MockSequencer {
     async fn start() -> Self {
         let server = MockServer::start().await;
         let client = HttpClient::new(&*format!("http://{}", server.address())).unwrap();
-        Self {
-            server,
-            client,
-        }
+        Self { server, client }
     }
 }
 
@@ -128,15 +104,13 @@ fn create_signed_transaction() -> SignedTransaction {
             .unwrap();
     let alice_key = SigningKey::from(alice_secret_bytes);
 
-    let actions = vec![
-        TransferAction {
-            to: BOB_ADDRESS,
-            amount: 333_333,
-            asset_id: default_native_asset_id(),
-            fee_asset_id: default_native_asset_id(),
-        }
-        .into(),
-    ];
+    let actions = vec![TransferAction {
+        to: BOB_ADDRESS,
+        amount: 333_333,
+        asset_id: default_native_asset_id(),
+        fee_asset_id: default_native_asset_id(),
+    }
+    .into()];
     UnsignedTransaction {
         params: TransactionParams {
             nonce: 1,
@@ -150,10 +124,7 @@ fn create_signed_transaction() -> SignedTransaction {
 #[tokio::test]
 async fn get_latest_nonce() {
     use astria_core::generated::protocol::account::v1alpha1::NonceResponse;
-    let MockSequencer {
-        server,
-        client,
-    } = MockSequencer::start().await;
+    let MockSequencer { server, client } = MockSequencer::start().await;
 
     let expected_response = NonceResponse {
         height: 10,
@@ -172,15 +143,9 @@ async fn get_latest_nonce() {
 
 #[tokio::test]
 async fn get_latest_balance() {
-    use astria_core::generated::protocol::account::v1alpha1::{
-        AssetBalance,
-        BalanceResponse,
-    };
+    use astria_core::generated::protocol::account::v1alpha1::{AssetBalance, BalanceResponse};
 
-    let MockSequencer {
-        server,
-        client,
-    } = MockSequencer::start().await;
+    let MockSequencer { server, client } = MockSequencer::start().await;
 
     let expected_response = BalanceResponse {
         height: 10,
@@ -202,10 +167,7 @@ async fn get_latest_balance() {
 
 #[tokio::test]
 async fn submit_tx_sync() {
-    let MockSequencer {
-        server,
-        client,
-    } = MockSequencer::start().await;
+    let MockSequencer { server, client } = MockSequencer::start().await;
 
     let server_response = tx_sync::Response {
         code: 0.into(),
@@ -227,10 +189,7 @@ async fn submit_tx_sync() {
 async fn submit_tx_commit() {
     use tendermint_rpc::dialect;
 
-    let MockSequencer {
-        server,
-        client,
-    } = MockSequencer::start().await;
+    let MockSequencer { server, client } = MockSequencer::start().await;
 
     let server_response = DialectResponse {
         check_tx: dialect::CheckTx::default(),

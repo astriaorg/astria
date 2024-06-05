@@ -1,16 +1,8 @@
 use std::process::ExitCode;
 
-use astria_composer::{
-    metrics_init,
-    Composer,
-    Config,
-    BUILD_INFO,
-};
+use astria_composer::{metrics_init, Composer, Config, BUILD_INFO};
 use astria_eyre::eyre::WrapErr as _;
-use tracing::{
-    error,
-    info,
-};
+use tracing::{error, info};
 
 #[tokio::main]
 async fn main() -> ExitCode {

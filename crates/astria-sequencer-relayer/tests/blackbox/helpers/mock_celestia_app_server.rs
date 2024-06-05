@@ -1,31 +1,18 @@
 use std::{
     net::SocketAddr,
-    sync::{
-        Arc,
-        Mutex,
-    },
+    sync::{Arc, Mutex},
 };
 
 use astria_core::generated::{
     celestia::v1::{
-        query_server::{
-            Query as BlobQueryService,
-            QueryServer as BlobQueryServer,
-        },
-        Params as BlobParams,
-        QueryParamsRequest as QueryBlobParamsRequest,
+        query_server::{Query as BlobQueryService, QueryServer as BlobQueryServer},
+        Params as BlobParams, QueryParamsRequest as QueryBlobParamsRequest,
         QueryParamsResponse as QueryBlobParamsResponse,
     },
     cosmos::{
         auth::v1beta1::{
-            query_server::{
-                Query as AuthQueryService,
-                QueryServer as AuthQueryServer,
-            },
-            BaseAccount,
-            Params as AuthParams,
-            QueryAccountRequest,
-            QueryAccountResponse,
+            query_server::{Query as AuthQueryService, QueryServer as AuthQueryServer},
+            BaseAccount, Params as AuthParams, QueryAccountRequest, QueryAccountResponse,
             QueryParamsRequest as QueryAuthParamsRequest,
             QueryParamsResponse as QueryAuthParamsResponse,
         },
@@ -33,63 +20,32 @@ use astria_core::generated::{
             abci::v1beta1::TxResponse,
             node::v1beta1::{
                 service_server::{
-                    Service as MinGasPriceService,
-                    ServiceServer as MinGasPriceServer,
+                    Service as MinGasPriceService, ServiceServer as MinGasPriceServer,
                 },
-                ConfigRequest as MinGasPriceRequest,
-                ConfigResponse as MinGasPriceResponse,
+                ConfigRequest as MinGasPriceRequest, ConfigResponse as MinGasPriceResponse,
             },
             tendermint::v1beta1::{
-                service_server::{
-                    Service as NodeInfoService,
-                    ServiceServer as NodeInfoServer,
-                },
-                GetNodeInfoRequest,
-                GetNodeInfoResponse,
+                service_server::{Service as NodeInfoService, ServiceServer as NodeInfoServer},
+                GetNodeInfoRequest, GetNodeInfoResponse,
             },
         },
         tx::v1beta1::{
-            service_server::{
-                Service as TxService,
-                ServiceServer as TxServer,
-            },
-            BroadcastTxRequest,
-            BroadcastTxResponse,
-            GetTxRequest,
-            GetTxResponse,
+            service_server::{Service as TxService, ServiceServer as TxServer},
+            BroadcastTxRequest, BroadcastTxResponse, GetTxRequest, GetTxResponse,
         },
     },
-    tendermint::{
-        p2p::DefaultNodeInfo,
-        types::BlobTx,
-    },
+    tendermint::{p2p::DefaultNodeInfo, types::BlobTx},
 };
-use astria_eyre::eyre::{
-    self,
-    WrapErr as _,
-};
+use astria_eyre::eyre::{self, WrapErr as _};
 use astria_grpc_mock::{
     matcher::message_type,
-    response::{
-        constant_response,
-        dynamic_response,
-    },
-    Mock,
-    MockGuard,
-    MockServer,
+    response::{constant_response, dynamic_response},
+    Mock, MockGuard, MockServer,
 };
 use celestia_types::nmt::Namespace;
-use prost::{
-    Message,
-    Name,
-};
+use prost::{Message, Name};
 use tokio::task::JoinHandle;
-use tonic::{
-    transport::Server,
-    Request,
-    Response,
-    Status,
-};
+use tonic::{transport::Server, Request, Response, Status};
 
 const CELESTIA_NETWORK_NAME: &str = "test-celestia";
 const GET_NODE_INFO_GRPC_NAME: &str = "get_node_info";

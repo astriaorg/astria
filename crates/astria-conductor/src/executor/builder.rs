@@ -1,18 +1,10 @@
 use std::collections::HashMap;
 
-use astria_eyre::eyre::{
-    self,
-    WrapErr as _,
-};
+use astria_eyre::eyre::{self, WrapErr as _};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
-use super::{
-    state,
-    Executor,
-    Handle,
-    StateNotInit,
-};
+use super::{state, Executor, Handle, StateNotInit};
 use crate::config::CommitLevel;
 
 pub(crate) struct Builder {

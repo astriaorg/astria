@@ -2,27 +2,17 @@ use std::sync::Arc;
 
 use astria_core::generated::cosmos::{
     base::tendermint::v1beta1::{
-        service_client::ServiceClient as NodeInfoClient,
-        GetNodeInfoRequest,
+        service_client::ServiceClient as NodeInfoClient, GetNodeInfoRequest,
     },
     tx::v1beta1::service_client::ServiceClient as TxClient,
 };
 use http::Uri;
 use tendermint::account::Id as AccountId;
 use thiserror::Error;
-use tonic::transport::{
-    Channel,
-    Endpoint,
-};
+use tonic::transport::{Channel, Endpoint};
 use tracing::trace;
 
-use super::{
-    super::State,
-    Bech32Address,
-    CelestiaClient,
-    CelestiaKeys,
-    GrpcResponseError,
-};
+use super::{super::State, Bech32Address, CelestiaClient, CelestiaKeys, GrpcResponseError};
 
 /// An error when building the `CelestiaClient`.
 #[derive(Error, Clone, Debug)]

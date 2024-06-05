@@ -1,32 +1,17 @@
 use std::{
-    env::{
-        self,
-        consts::OS,
-    },
+    env::{self, consts::OS},
     fs::File,
-    io::{
-        Read,
-        Write,
-    },
+    io::{Read, Write},
     path::PathBuf,
     process::Command,
 };
 
-use astria_sequencer_client::{
-    Client,
-    HttpClient,
-};
-use color_eyre::{
-    eyre,
-    eyre::Context,
-};
+use astria_sequencer_client::{Client, HttpClient};
+use color_eyre::{eyre, eyre::Context};
 
 use crate::{
     cli::rollup::{
-        ConfigCreateArgs,
-        ConfigDeleteArgs,
-        ConfigEditArgs,
-        DeploymentCreateArgs,
+        ConfigCreateArgs, ConfigDeleteArgs, ConfigEditArgs, DeploymentCreateArgs,
         DeploymentDeleteArgs,
     },
     types::Rollup,

@@ -2,12 +2,7 @@
 //!
 //! Registers metrics & lists constants to be used as metric names throughout crate.
 
-use metrics::{
-    describe_counter,
-    describe_gauge,
-    describe_histogram,
-    Unit,
-};
+use metrics::{describe_counter, describe_gauge, describe_histogram, Unit};
 use telemetry::metric_name;
 
 /// Registers all metrics used by this crate.
@@ -109,18 +104,11 @@ metric_name!(pub const COMPRESSION_RATIO_FOR_ASTRIA_BLOCK);
 #[cfg(test)]
 mod tests {
     use super::{
-        BLOBS_PER_CELESTIA_TX,
-        BLOCKS_PER_CELESTIA_TX,
-        BYTES_PER_CELESTIA_TX,
-        CELESTIA_PAYLOAD_CREATION_LATENCY,
-        CELESTIA_SUBMISSION_COUNT,
-        CELESTIA_SUBMISSION_FAILURE_COUNT,
-        CELESTIA_SUBMISSION_HEIGHT,
-        CELESTIA_SUBMISSION_LATENCY,
-        COMPRESSION_RATIO_FOR_ASTRIA_BLOCK,
-        SEQUENCER_BLOCK_FETCH_FAILURE_COUNT,
-        SEQUENCER_HEIGHT_FETCH_FAILURE_COUNT,
-        SEQUENCER_SUBMISSION_HEIGHT,
+        BLOBS_PER_CELESTIA_TX, BLOCKS_PER_CELESTIA_TX, BYTES_PER_CELESTIA_TX,
+        CELESTIA_PAYLOAD_CREATION_LATENCY, CELESTIA_SUBMISSION_COUNT,
+        CELESTIA_SUBMISSION_FAILURE_COUNT, CELESTIA_SUBMISSION_HEIGHT, CELESTIA_SUBMISSION_LATENCY,
+        COMPRESSION_RATIO_FOR_ASTRIA_BLOCK, SEQUENCER_BLOCK_FETCH_FAILURE_COUNT,
+        SEQUENCER_HEIGHT_FETCH_FAILURE_COUNT, SEQUENCER_SUBMISSION_HEIGHT,
     };
 
     #[track_caller]

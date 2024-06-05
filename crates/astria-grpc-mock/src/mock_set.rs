@@ -1,28 +1,16 @@
 use std::{
-    ops::{
-        Index,
-        IndexMut,
-    },
-    sync::{
-        atomic::AtomicBool,
-        Arc,
-    },
+    ops::{Index, IndexMut},
+    sync::{atomic::AtomicBool, Arc},
 };
 
 use tokio::sync::Notify;
 use tracing::debug;
 
-use super::{
-    mock::Mock,
-    mounted_mock::MountedMock,
-};
+use super::{mock::Mock, mounted_mock::MountedMock};
 use crate::{
     erase_request,
     mounted_mock::MockResult,
-    verification::{
-        VerificationOutcome,
-        VerificationReport,
-    },
+    verification::{VerificationOutcome, VerificationReport},
 };
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
@@ -43,9 +31,7 @@ pub(crate) struct MockSet {
 
 impl MockSet {
     pub(crate) fn new() -> Self {
-        Self {
-            mocks: Vec::new(),
-        }
+        Self { mocks: Vec::new() }
     }
 
     pub(crate) fn handle_request<
