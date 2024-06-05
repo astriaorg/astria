@@ -33,7 +33,7 @@ use tracing::{
 use crate::withdrawer::{
     batch::Batch,
     ethereum::{
-        astria_withdrawer::AstriaWithdrawer,
+        astria_withdrawer_interface::IAstriaWithdrawer,
         convert::{
             event_to_action,
             EventWithMetadata,
@@ -106,7 +106,7 @@ impl Watcher {
                 .await
                 .wrap_err("failed to connect to ethereum RPC endpoint")?,
         );
-        let contract = AstriaWithdrawer::new(contract_address, provider);
+        let contract = IAstriaWithdrawer::new(contract_address, provider);
 
         let asset_withdrawal_decimals = contract
             .asset_withdrawal_decimals()
@@ -157,7 +157,7 @@ impl Watcher {
 }
 
 async fn watch_for_sequencer_withdrawal_events(
-    contract: AstriaWithdrawer<Provider<Ws>>,
+    contract: IAstriaWithdrawer<Provider<Ws>>,
     event_tx: mpsc::Sender<(WithdrawalEvent, LogMeta)>,
     from_block: u64,
 ) -> Result<()> {
@@ -183,7 +183,7 @@ async fn watch_for_sequencer_withdrawal_events(
 }
 
 async fn watch_for_ics20_withdrawal_events(
-    contract: AstriaWithdrawer<Provider<Ws>>,
+    contract: IAstriaWithdrawer<Provider<Ws>>,
     event_tx: mpsc::Sender<(WithdrawalEvent, LogMeta)>,
     from_block: u64,
 ) -> Result<()> {
@@ -318,7 +318,8 @@ mod tests {
 
     use super::*;
     use crate::withdrawer::ethereum::{
-        astria_withdrawer::{
+        astria_withdrawer::AstriaWithdrawer,
+        astria_withdrawer_interface::{
             Ics20WithdrawalFilter,
             SequencerWithdrawalFilter,
         },
