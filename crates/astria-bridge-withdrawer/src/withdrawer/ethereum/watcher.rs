@@ -28,6 +28,7 @@ use tokio::{
 };
 use tokio_util::sync::CancellationToken;
 use tracing::{
+    error,
     info,
     warn,
 };
@@ -317,7 +318,7 @@ impl Batcher {
                             };
                         }
                     } else {
-                        warn!("event receiver dropped; shutting down batcher");
+                        error!("event receiver dropped; shutting down batcher");
                         break;
                     }
                 }

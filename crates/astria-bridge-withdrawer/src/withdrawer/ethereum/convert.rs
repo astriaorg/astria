@@ -4,7 +4,6 @@ use astria_core::{
     primitive::v1::{
         asset,
         asset::Denom,
-        Address,
     },
     protocol::transaction::v1alpha1::{
         action::{
