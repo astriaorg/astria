@@ -1,5 +1,6 @@
 use super::raw;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BridgeAccountLastTxHashResponse {
     pub height: u64,
     pub tx_hash: [u8; 32],
