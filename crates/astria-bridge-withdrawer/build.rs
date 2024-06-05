@@ -1,3 +1,5 @@
+use std::fs;
+
 use ethers::contract::Abigen;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -7,24 +9,34 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo:rerun-if-changed=ethereum/src/IAstriaWithdrawer.sol");
     println!("cargo:rerun-if-changed=ethereum/src/AstriaMintableERC20.sol");
 
-    Abigen::new(
+    let abi = Abigen::new(
         "IAstriaWithdrawer",
         "./ethereum/out/IAstriaWithdrawer.sol/IAstriaWithdrawer.json",
     )?
-    .generate()?
-    .write_to_file("./src/withdrawer/ethereum/generated/astria_withdrawer_interface.rs")?;
-    Abigen::new(
+    .generate()?;
+    fs::write(
+        "./src/withdrawer/ethereum/generated/astria_withdrawer_interface.rs",
+        format!("#![allow(clippy::all)]\n{}", abi.to_string()),
+    )?;
+
+    let abi = Abigen::new(
         "AstriaWithdrawer",
         "./ethereum/out/AstriaWithdrawer.sol/AstriaWithdrawer.json",
     )?
-    .generate()?
-    .write_to_file("./src/withdrawer/ethereum/generated/astria_withdrawer.rs")?;
-    Abigen::new(
+    .generate()?;
+    fs::write(
+        "./src/withdrawer/ethereum/generated/astria_withdrawer.rs",
+        format!("#![allow(clippy::all)]\n{}", abi.to_string()),
+    )?;
+    let abi = Abigen::new(
         "AstriaMintableERC20",
         "./ethereum/out/AstriaMintableERC20.sol/AstriaMintableERC20.json",
     )?
-    .generate()?
-    .write_to_file("./src/withdrawer/ethereum/generated/astria_mintable_erc20.rs")?;
+    .generate()?;
+    fs::write(
+        "./src/withdrawer/ethereum/generated/astria_mintable_erc20.rs",
+        format!("#![allow(clippy::all)]\n{}", abi.to_string()),
+    )?;
 
     Ok(())
 }
