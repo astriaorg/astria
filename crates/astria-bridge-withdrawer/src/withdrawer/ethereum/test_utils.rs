@@ -10,6 +10,22 @@ use ethers::{
     utils::AnvilInstance,
 };
 
+#[derive(Default)]
+pub(crate) struct ConfigureAstriaWithdrawerDeployer {
+    pub(crate) base_chain_asset_precision: u32,
+}
+
+impl ConfigureAstriaWithdrawerDeployer {
+    pub(crate) async fn deploy(
+        &mut self,
+    ) -> (Address, Arc<Provider<Ws>>, LocalWallet, AnvilInstance) {
+        if self.base_chain_asset_precision == 0 {
+            self.base_chain_asset_precision = 18;
+        }
+        deploy_astria_withdrawer(self.base_chain_asset_precision.into()).await
+    }
+}
+
 /// Starts a local anvil instance and deploys the `AstriaWithdrawer` contract to it.
 ///
 /// Returns the contract address, provider, wallet, and anvil instance.
@@ -20,8 +36,9 @@ use ethers::{
 /// - if the contract cannot be compiled
 /// - if the provider fails to connect to the anvil instance
 /// - if the contract fails to deploy
-pub(crate) async fn deploy_astria_withdrawer()
--> (Address, Arc<Provider<Ws>>, LocalWallet, AnvilInstance) {
+pub(crate) async fn deploy_astria_withdrawer(
+    base_chain_asset_precision: U256,
+) -> (Address, Arc<Provider<Ws>>, LocalWallet, AnvilInstance) {
     // compile contract for testing
     let source = Path::new(&env!("CARGO_MANIFEST_DIR")).join("ethereum/src/AstriaWithdrawer.sol");
     let input = CompilerInput::new(source.clone())
@@ -53,9 +70,13 @@ pub(crate) async fn deploy_astria_withdrawer()
         wallet.clone().with_chain_id(anvil.chain_id()),
     );
 
-    // deploy contract with ASSET_WITHDRAWAL_DECIMALS as 0
     let factory = ContractFactory::new(abi, bytecode, signer.into());
-    let contract = factory.deploy(U256::from(0)).unwrap().send().await.unwrap();
+    let contract = factory
+        .deploy(base_chain_asset_precision)
+        .unwrap()
+        .send()
+        .await
+        .unwrap();
     let contract_address = contract.address();
 
     (
