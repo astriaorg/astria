@@ -428,7 +428,7 @@ mod tests {
         recipient: String,
     ) -> TransactionReceipt {
         let tx = contract
-            .withdraw_to_origin_chain(recipient, "nootwashere".to_string())
+            .withdraw_to_ibc_chain(recipient, "nootwashere".to_string())
             .value(value);
         let receipt = tx
             .send()
