@@ -16,7 +16,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     .generate()?;
     fs::write(
         "./src/withdrawer/ethereum/generated/astria_withdrawer_interface.rs",
-        format!("#![allow(unreachable_pub)]\n#![allow(clippy::all)]\n{abi}"),
+        format!(
+            "#![allow(unreachable_pub, clippy::module_name_repetitions, clippy::too_many_lines, \
+             clippy::pedantic)]\n{abi}"
+        ),
     )?;
 
     let abi = Abigen::new(
@@ -26,7 +29,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     .generate()?;
     fs::write(
         "./src/withdrawer/ethereum/generated/astria_withdrawer.rs",
-        format!("#![allow(unreachable_pub)]\n#![allow(clippy::all)]\n{abi}"),
+        format!(
+            "#![allow(unreachable_pub, clippy::module_name_repetitions, clippy::too_many_lines, \
+             clippy::pedantic)]\n{abi}"
+        ),
     )?;
     let abi = Abigen::new(
         "AstriaMintableERC20",
@@ -35,7 +41,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     .generate()?;
     fs::write(
         "./src/withdrawer/ethereum/generated/astria_mintable_erc20.rs",
-        format!("#![allow(unreachable_pub)]\n#![allow(clippy::all)]\n{abi}"),
+        format!(
+            "#![allow(unreachable_pub, clippy::module_name_repetitions, clippy::too_many_lines, \
+             clippy::pedantic)]\n{abi}"
+        ),
     )?;
 
     Ok(())

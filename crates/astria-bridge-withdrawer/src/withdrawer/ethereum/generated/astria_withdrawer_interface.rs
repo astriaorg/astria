@@ -1,5 +1,9 @@
-#![allow(unreachable_pub)]
-#![allow(clippy::all)]
+#![allow(
+    unreachable_pub,
+    clippy::module_name_repetitions,
+    clippy::too_many_lines,
+    clippy::pedantic
+)]
 pub use i_astria_withdrawer::*;
 /// This module was auto-generated with ethers-rs Abigen.
 /// More information at: <https://github.com/gakonst/ethers-rs>
