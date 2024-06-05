@@ -11,9 +11,9 @@ use ethers::{
 };
 
 use crate::withdrawer::ethereum::{
-    astria_mintable_erc20::{
-        ASTRIAMINTABLEERC20_ABI,
-        ASTRIAMINTABLEERC20_BYTECODE,
+    astria_bridgeable_erc20::{
+        ASTRIABRIDGEABLEERC20_ABI,
+        ASTRIABRIDGEABLEERC20_BYTECODE,
     },
     astria_withdrawer::{
         ASTRIAWITHDRAWER_ABI,
@@ -84,14 +84,14 @@ pub(crate) async fn deploy_astria_withdrawer(
 }
 
 #[derive(Default)]
-pub(crate) struct ConfigureAstriaMintableERC20Deployer {
+pub(crate) struct ConfigureAstriaBridgeableERC20Deployer {
     pub(crate) bridge_address: Address,
     pub(crate) base_chain_asset_precision: u32,
     pub(crate) name: String,
     pub(crate) symbol: String,
 }
 
-impl ConfigureAstriaMintableERC20Deployer {
+impl ConfigureAstriaBridgeableERC20Deployer {
     pub(crate) async fn deploy(self) -> (Address, Arc<Provider<Ws>>, LocalWallet, AnvilInstance) {
         let Self {
             bridge_address,
@@ -108,7 +108,7 @@ impl ConfigureAstriaMintableERC20Deployer {
             symbol = "TT".to_string();
         }
 
-        deploy_astria_mintable_erc20(
+        deploy_astria_bridgeable_erc20(
             bridge_address,
             base_chain_asset_precision.into(),
             name,
@@ -118,7 +118,7 @@ impl ConfigureAstriaMintableERC20Deployer {
     }
 }
 
-/// Starts a local anvil instance and deploys the `AstriaMintableERC20` contract to it.
+/// Starts a local anvil instance and deploys the `AstriaBridgeableERC20` contract to it.
 ///
 /// Returns the contract address, provider, wallet, and anvil instance.
 ///
@@ -126,7 +126,7 @@ impl ConfigureAstriaMintableERC20Deployer {
 ///
 /// - if the provider fails to connect to the anvil instance
 /// - if the contract fails to deploy
-pub(crate) async fn deploy_astria_mintable_erc20(
+pub(crate) async fn deploy_astria_bridgeable_erc20(
     mut bridge_address: Address,
     base_chain_asset_precision: ethers::abi::Uint,
     name: String,
@@ -146,8 +146,8 @@ pub(crate) async fn deploy_astria_mintable_erc20(
         wallet.clone().with_chain_id(anvil.chain_id()),
     );
 
-    let abi = ASTRIAMINTABLEERC20_ABI.clone();
-    let bytecode = ASTRIAMINTABLEERC20_BYTECODE.to_vec();
+    let abi = ASTRIABRIDGEABLEERC20_ABI.clone();
+    let bytecode = ASTRIABRIDGEABLEERC20_BYTECODE.to_vec();
 
     let factory = ContractFactory::new(abi.clone(), bytecode.into(), signer.into());
 

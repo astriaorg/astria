@@ -4,7 +4,7 @@ pragma solidity ^0.8.21;
 import {IAstriaWithdrawer} from "./IAstriaWithdrawer.sol";
 import {ERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 
-contract AstriaMintableERC20 is IAstriaWithdrawer, ERC20 {
+contract AstriaBridgeableERC20 is IAstriaWithdrawer, ERC20 {
     // the `astriaBridgeSenderAddress` built into the astria-geth node
     address public immutable BRIDGE;
 
@@ -17,7 +17,7 @@ contract AstriaMintableERC20 is IAstriaWithdrawer, ERC20 {
     event Mint(address indexed account, uint256 amount);
 
     modifier onlyBridge() {
-        require(msg.sender == BRIDGE, "AstriaMintableERC20: only bridge can mint");
+        require(msg.sender == BRIDGE, "AstriaBridgeableERC20: only bridge can mint");
         _;
     }
 
@@ -29,7 +29,7 @@ contract AstriaMintableERC20 is IAstriaWithdrawer, ERC20 {
     ) ERC20(_name, _symbol) {
         uint8 decimals = decimals();
         if (_baseChainAssetPrecision > decimals) {
-            revert("AstriaMintableERC20: base chain asset precision must be less than or equal to token decimals");
+            revert("AstriaBridgeableERC20: base chain asset precision must be less than or equal to token decimals");
         }
 
         BASE_CHAIN_ASSET_PRECISION = _baseChainAssetPrecision;
@@ -38,7 +38,7 @@ contract AstriaMintableERC20 is IAstriaWithdrawer, ERC20 {
     }
 
     modifier sufficientValue(uint256 amount) {
-        require(amount / DIVISOR > 0, "AstriaMintableERC20: insufficient value, must be greater than 10 ** (TOKEN_DECIMALS - BASE_CHAIN_ASSET_PRECISION)");
+        require(amount / DIVISOR > 0, "AstriaBridgeableERC20: insufficient value, must be greater than 10 ** (TOKEN_DECIMALS - BASE_CHAIN_ASSET_PRECISION)");
         _;
     }
 

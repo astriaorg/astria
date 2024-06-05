@@ -5,7 +5,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("cargo:rerun-if-changed=ethereum/src/AstriaWithdrawer.sol");
     println!("cargo:rerun-if-changed=ethereum/src/IAstriaWithdrawer.sol");
-    println!("cargo:rerun-if-changed=ethereum/src/AstriaMintableERC20.sol");
+    println!("cargo:rerun-if-changed=ethereum/src/AstriaBridgeableERC20.sol");
 
     Abigen::new(
         "IAstriaWithdrawer",
@@ -22,11 +22,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     .write_to_file("./src/withdrawer/ethereum/generated/astria_withdrawer.rs")?;
 
     Abigen::new(
-        "AstriaMintableERC20",
-        "./ethereum/out/AstriaMintableERC20.sol/AstriaMintableERC20.json",
+        "AstriaBridgeableERC20",
+        "./ethereum/out/AstriaBridgeableERC20.sol/AstriaBridgeableERC20.json",
     )?
     .generate()?
-    .write_to_file("./src/withdrawer/ethereum/generated/astria_mintable_erc20.rs")?;
+    .write_to_file("./src/withdrawer/ethereum/generated/astria_bridgeable_erc20.rs")?;
 
     Ok(())
 }

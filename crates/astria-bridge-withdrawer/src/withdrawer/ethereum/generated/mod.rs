@@ -10,6 +10,6 @@
 pub(crate) mod astria_withdrawer_interface;
 
 #[cfg(test)]
-pub(crate) mod astria_mintable_erc20;
+pub(crate) mod astria_bridgeable_erc20;
 #[cfg(test)]
 pub(crate) mod astria_withdrawer;

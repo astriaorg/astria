@@ -359,7 +359,7 @@ mod tests {
 
     use super::*;
     use crate::withdrawer::ethereum::{
-        astria_mintable_erc20::AstriaMintableERC20,
+        astria_bridgeable_erc20::AstriaBridgeableERC20,
         astria_withdrawer::AstriaWithdrawer,
         astria_withdrawer_interface::{
             Ics20WithdrawalFilter,
@@ -367,7 +367,7 @@ mod tests {
         },
         convert::EventWithMetadata,
         test_utils::{
-            ConfigureAstriaMintableERC20Deployer,
+            ConfigureAstriaBridgeableERC20Deployer,
             ConfigureAstriaWithdrawerDeployer,
         },
     };
@@ -571,7 +571,7 @@ mod tests {
     }
 
     async fn mint_tokens<M: Middleware>(
-        contract: &AstriaMintableERC20<M>,
+        contract: &AstriaBridgeableERC20<M>,
         amount: U256,
         recipient: ethers::types::Address,
     ) -> TransactionReceipt {
@@ -593,7 +593,7 @@ mod tests {
     }
 
     async fn send_sequencer_withdraw_transaction_erc20<M: Middleware>(
-        contract: &AstriaMintableERC20<M>,
+        contract: &AstriaBridgeableERC20<M>,
         value: U256,
         recipient: ethers::types::Address,
     ) -> TransactionReceipt {
@@ -616,15 +616,15 @@ mod tests {
 
     #[tokio::test]
     #[ignore = "requires foundry and solc to be installed"]
-    async fn watcher_can_watch_sequencer_withdrawals_astria_mintable_erc20() {
-        let (contract_address, provider, wallet, anvil) = ConfigureAstriaMintableERC20Deployer {
+    async fn watcher_can_watch_sequencer_withdrawals_astria_bridgeable_erc20() {
+        let (contract_address, provider, wallet, anvil) = ConfigureAstriaBridgeableERC20Deployer {
             base_chain_asset_precision: 18,
             ..Default::default()
         }
         .deploy()
         .await;
         let signer = Arc::new(SignerMiddleware::new(provider, wallet.clone()));
-        let contract = AstriaMintableERC20::new(contract_address, signer.clone());
+        let contract = AstriaBridgeableERC20::new(contract_address, signer.clone());
 
         // mint some tokens to the wallet
         mint_tokens(&contract, 2_000_000_000.into(), wallet.address()).await;
@@ -676,8 +676,8 @@ mod tests {
         assert_eq!(action, &expected_action);
     }
 
-    async fn send_ics20_withdraw_transaction_astria_mintable_erc20<M: Middleware>(
-        contract: &AstriaMintableERC20<M>,
+    async fn send_ics20_withdraw_transaction_astria_bridgeable_erc20<M: Middleware>(
+        contract: &AstriaBridgeableERC20<M>,
         value: U256,
         recipient: String,
     ) -> TransactionReceipt {
@@ -700,22 +700,22 @@ mod tests {
 
     #[tokio::test]
     #[ignore = "requires foundry and solc to be installed"]
-    async fn watcher_can_watch_ics20_withdrawals_astria_mintable_erc20() {
-        let (contract_address, provider, wallet, anvil) = ConfigureAstriaMintableERC20Deployer {
+    async fn watcher_can_watch_ics20_withdrawals_astria_bridgeable_erc20() {
+        let (contract_address, provider, wallet, anvil) = ConfigureAstriaBridgeableERC20Deployer {
             base_chain_asset_precision: 18,
             ..Default::default()
         }
         .deploy()
         .await;
         let signer = Arc::new(SignerMiddleware::new(provider, wallet.clone()));
-        let contract = AstriaMintableERC20::new(contract_address, signer.clone());
+        let contract = AstriaBridgeableERC20::new(contract_address, signer.clone());
 
         // mint some tokens to the wallet
         mint_tokens(&contract, 2_000_000_000.into(), wallet.address()).await;
 
         let value = 1_000_000_000.into();
         let recipient = "somebech32address".to_string();
-        let receipt = send_ics20_withdraw_transaction_astria_mintable_erc20(
+        let receipt = send_ics20_withdraw_transaction_astria_bridgeable_erc20(
             &contract,
             value,
             recipient.clone(),
@@ -754,7 +754,7 @@ mod tests {
         tokio::task::spawn(watcher.run());
 
         // make another tx to trigger anvil to make another block
-        send_ics20_withdraw_transaction_astria_mintable_erc20(&contract, value, recipient).await;
+        send_ics20_withdraw_transaction_astria_bridgeable_erc20(&contract, value, recipient).await;
 
         let mut batch = event_rx.recv().await.unwrap();
         assert_eq!(batch.actions.len(), 1);
