@@ -108,12 +108,12 @@ impl Watcher {
         );
         let contract = AstriaWithdrawer::new(contract_address, provider);
 
-        let asset_withdrawal_decimals = contract
-            .asset_withdrawal_decimals()
+        let base_chain_asset_precision = contract
+            .base_chain_asset_precision()
             .call()
             .await
             .wrap_err("failed to get asset withdrawal decimals")?;
-        let asset_withdrawal_divisor = 10u128.pow(asset_withdrawal_decimals);
+        let asset_withdrawal_divisor = 10u128.pow(18 - base_chain_asset_precision);
 
         let batcher = Batcher::new(
             event_rx,
@@ -372,7 +372,7 @@ mod tests {
     #[ignore = "requires foundry and solc to be installed"]
     async fn astria_withdrawer_invalid_value_fails() {
         let (contract_address, provider, wallet, _anvil) = ConfigureAstriaWithdrawerDeployer {
-            asset_withdrawal_decimals: 3,
+            base_chain_asset_precision: 15,
         }
         .deploy()
         .await;

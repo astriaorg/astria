@@ -12,12 +12,17 @@ use ethers::{
 
 #[derive(Default)]
 pub(crate) struct ConfigureAstriaWithdrawerDeployer {
-    pub(crate) asset_withdrawal_decimals: u32,
+    pub(crate) base_chain_asset_precision: u32,
 }
 
 impl ConfigureAstriaWithdrawerDeployer {
-    pub(crate) async fn deploy(&self) -> (Address, Arc<Provider<Ws>>, LocalWallet, AnvilInstance) {
-        deploy_astria_withdrawer(self.asset_withdrawal_decimals.into()).await
+    pub(crate) async fn deploy(
+        &mut self,
+    ) -> (Address, Arc<Provider<Ws>>, LocalWallet, AnvilInstance) {
+        if self.base_chain_asset_precision == 0 {
+            self.base_chain_asset_precision = 18;
+        }
+        deploy_astria_withdrawer(self.base_chain_asset_precision.into()).await
     }
 }
 
@@ -32,7 +37,7 @@ impl ConfigureAstriaWithdrawerDeployer {
 /// - if the provider fails to connect to the anvil instance
 /// - if the contract fails to deploy
 pub(crate) async fn deploy_astria_withdrawer(
-    asset_withdrawal_decimals: U256,
+    base_chain_asset_precision: U256,
 ) -> (Address, Arc<Provider<Ws>>, LocalWallet, AnvilInstance) {
     // compile contract for testing
     let source = Path::new(&env!("CARGO_MANIFEST_DIR")).join("ethereum/src/AstriaWithdrawer.sol");
@@ -65,10 +70,9 @@ pub(crate) async fn deploy_astria_withdrawer(
         wallet.clone().with_chain_id(anvil.chain_id()),
     );
 
-    // deploy contract with ASSET_WITHDRAWAL_DECIMALS as 0
     let factory = ContractFactory::new(abi, bytecode, signer.into());
     let contract = factory
-        .deploy(asset_withdrawal_decimals)
+        .deploy(base_chain_asset_precision)
         .unwrap()
         .send()
         .await
