@@ -2,8 +2,10 @@ use std::time::Duration;
 
 use astria_core::{
     primitive::v1::{
-        asset,
-        asset::Denom,
+        asset::{
+            self,
+            Denom,
+        },
         Address,
     },
     protocol::transaction::v1alpha1::{
@@ -78,9 +80,9 @@ pub(crate) fn event_to_action(
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct BridgeUnlockMemo {
-    block_number: U64,
-    transaction_hash: TxHash,
+pub(crate) struct BridgeUnlockMemo {
+    pub(crate) block_number: U64,
+    pub(crate) transaction_hash: TxHash,
 }
 
 fn event_to_bridge_unlock(
@@ -96,7 +98,7 @@ fn event_to_bridge_unlock(
     };
     let action = BridgeUnlockAction {
         to: Address::builder()
-            .array(event.sender.to_fixed_bytes().into())
+            .array(event.destination_chain_address.to_fixed_bytes().into())
             .prefix("astria")
             .try_build()
             .wrap_err("failed to construct destination address")?,
@@ -114,10 +116,10 @@ fn event_to_bridge_unlock(
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct Ics20WithdrawalMemo {
-    memo: String,
-    block_number: U64,
-    transaction_hash: TxHash,
+pub(crate) struct Ics20WithdrawalMemo {
+    pub(crate) memo: String,
+    pub(crate) block_number: U64,
+    pub(crate) transaction_hash: TxHash,
 }
 
 fn event_to_ics20_withdrawal(
@@ -131,11 +133,7 @@ fn event_to_ics20_withdrawal(
     // TODO: make this configurable
     const ICS20_WITHDRAWAL_TIMEOUT: Duration = Duration::from_secs(300);
 
-    let sender: [u8; 20] = event
-        .sender
-        .as_bytes()
-        .try_into()
-        .expect("U160 must be 20 bytes");
+    let sender = event.sender.to_fixed_bytes().into();
     let denom = rollup_asset_denom.clone();
 
     let (_, channel) = denom
@@ -215,7 +213,7 @@ mod tests {
         };
 
         let expected_action = BridgeUnlockAction {
-            to: Address::builder().array([0u8; 20]).prefix("astria").build(),
+            to: Address::builder().array([1u8; 20]).prefix("astria").build(),
             amount: 99,
             memo: serde_json::to_vec(&BridgeUnlockMemo {
                 block_number: 1.into(),
@@ -247,7 +245,7 @@ mod tests {
         };
 
         let expected_action = BridgeUnlockAction {
-            to: Address::builder().array([0u8; 20]).prefix("astria").build(),
+            to: Address::builder().array([1u8; 20]).prefix("astria").build(),
             amount: 99,
             memo: serde_json::to_vec(&BridgeUnlockMemo {
                 block_number: 1.into(),

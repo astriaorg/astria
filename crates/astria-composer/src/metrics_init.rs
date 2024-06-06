@@ -8,6 +8,7 @@ use metrics::{
     describe_histogram,
     Unit,
 };
+use telemetry::metric_name;
 
 /// Labels
 pub(crate) const ROLLUP_ID_LABEL: &str = "rollup_id";
@@ -73,31 +74,60 @@ pub fn register() {
     );
 }
 
-pub const TRANSACTIONS_RECEIVED: &str = concat!(env!("CARGO_CRATE_NAME"), "_transactions_received");
+metric_name!(pub const TRANSACTIONS_RECEIVED);
+metric_name!(pub const TRANSACTIONS_DROPPED);
+metric_name!(pub const TRANSACTIONS_DROPPED_TOO_LARGE);
+metric_name!(pub const NONCE_FETCH_COUNT);
+metric_name!(pub const NONCE_FETCH_FAILURE_COUNT);
+metric_name!(pub const NONCE_FETCH_LATENCY);
+metric_name!(pub const CURRENT_NONCE);
+metric_name!(pub const SEQUENCER_SUBMISSION_LATENCY);
+metric_name!(pub const SEQUENCER_SUBMISSION_FAILURE_COUNT);
+metric_name!(pub const TRANSACTIONS_PER_SUBMISSION);
+metric_name!(pub const BYTES_PER_SUBMISSION);
 
-pub const TRANSACTIONS_DROPPED: &str = concat!(env!("CARGO_CRATE_NAME"), "_transactions_dropped");
+#[cfg(test)]
+mod tests {
+    use super::{
+        BYTES_PER_SUBMISSION,
+        CURRENT_NONCE,
+        NONCE_FETCH_COUNT,
+        NONCE_FETCH_FAILURE_COUNT,
+        NONCE_FETCH_LATENCY,
+        SEQUENCER_SUBMISSION_FAILURE_COUNT,
+        SEQUENCER_SUBMISSION_LATENCY,
+        TRANSACTIONS_DROPPED,
+        TRANSACTIONS_DROPPED_TOO_LARGE,
+        TRANSACTIONS_PER_SUBMISSION,
+        TRANSACTIONS_RECEIVED,
+    };
 
-pub const TRANSACTIONS_DROPPED_TOO_LARGE: &str =
-    concat!(env!("CARGO_CRATE_NAME"), "_transactions_dropped_too_large");
+    #[track_caller]
+    fn assert_const(actual: &'static str, suffix: &str) {
+        // XXX: hard-code this so the crate name isn't accidentally changed.
+        const CRATE_NAME: &str = "astria_composer";
+        let expected = format!("{CRATE_NAME}_{suffix}");
+        assert_eq!(expected, actual);
+    }
 
-pub const NONCE_FETCH_COUNT: &str = concat!(env!("CARGO_CRATE_NAME"), "_nonce_fetch_count");
-
-pub const NONCE_FETCH_FAILURE_COUNT: &str =
-    concat!(env!("CARGO_CRATE_NAME"), "_nonce_fetch_failure_count");
-
-pub const NONCE_FETCH_LATENCY: &str = concat!(env!("CARGO_CRATE_NAME"), "_nonce_fetch_latency");
-
-pub const CURRENT_NONCE: &str = concat!(env!("CARGO_CRATE_NAME"), "_current_nonce");
-
-pub const SEQUENCER_SUBMISSION_LATENCY: &str =
-    concat!(env!("CARGO_CRATE_NAME"), "_sequencer_submission_latency");
-
-pub const SEQUENCER_SUBMISSION_FAILURE_COUNT: &str = concat!(
-    env!("CARGO_CRATE_NAME"),
-    "_sequencer_submission_failure_count"
-);
-
-pub const TRANSACTIONS_PER_SUBMISSION: &str =
-    concat!(env!("CARGO_CRATE_NAME"), "_transaction_per_submission");
-
-pub const BYTES_PER_SUBMISSION: &str = concat!(env!("CARGO_CRATE_NAME"), "_bytes_per_submission");
+    #[test]
+    fn metrics_are_as_expected() {
+        assert_const(TRANSACTIONS_RECEIVED, "transactions_received");
+        assert_const(TRANSACTIONS_DROPPED, "transactions_dropped");
+        assert_const(
+            TRANSACTIONS_DROPPED_TOO_LARGE,
+            "transactions_dropped_too_large",
+        );
+        assert_const(NONCE_FETCH_COUNT, "nonce_fetch_count");
+        assert_const(NONCE_FETCH_FAILURE_COUNT, "nonce_fetch_failure_count");
+        assert_const(NONCE_FETCH_LATENCY, "nonce_fetch_latency");
+        assert_const(CURRENT_NONCE, "current_nonce");
+        assert_const(SEQUENCER_SUBMISSION_LATENCY, "sequencer_submission_latency");
+        assert_const(
+            SEQUENCER_SUBMISSION_FAILURE_COUNT,
+            "sequencer_submission_failure_count",
+        );
+        assert_const(TRANSACTIONS_PER_SUBMISSION, "transactions_per_submission");
+        assert_const(BYTES_PER_SUBMISSION, "bytes_per_submission");
+    }
+}
