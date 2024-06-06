@@ -3,10 +3,16 @@ use std::{
     time::Duration,
 };
 
-use astria_core::protocol::transaction::v1alpha1::{
-    Action,
-    TransactionParams,
-    UnsignedTransaction,
+use astria_core::{
+    primitive::v1::asset,
+    protocol::{
+        asset::v1alpha1::AllowedFeeAssetIdsResponse,
+        transaction::v1alpha1::{
+            Action,
+            TransactionParams,
+            UnsignedTransaction,
+        },
+    },
 };
 use astria_eyre::eyre::{
     self,
@@ -15,18 +21,26 @@ use astria_eyre::eyre::{
     Context,
 };
 pub(crate) use builder::Builder;
+pub(super) use builder::Handle;
 use sequencer_client::{
-    tendermint_rpc,
-    tendermint_rpc::endpoint::broadcast::tx_commit,
+    tendermint_rpc::{
+        self,
+        endpoint::broadcast::tx_commit,
+    },
     Address,
-    SequencerClientExt as _,
+    SequencerClientExt,
     SignedTransaction,
 };
 use signer::SequencerKey;
 use state::State;
 use tokio::{
     select,
-    sync::mpsc,
+    sync::{
+        mpsc,
+        oneshot::{
+            self,
+        },
+    },
     time::Instant,
 };
 use tokio_util::sync::CancellationToken;
@@ -44,6 +58,7 @@ use tracing::{
 use super::{
     batch::Batch,
     state,
+    SequencerStartupInfo,
 };
 
 mod builder;
@@ -56,18 +71,15 @@ pub(super) struct Submitter {
     sequencer_cometbft_client: sequencer_client::HttpClient,
     signer: SequencerKey,
     sequencer_chain_id: String,
+    startup_tx: Option<oneshot::Sender<SequencerStartupInfo>>,
+    expected_fee_asset_id: asset::Id,
+    min_expected_fee_asset_balance: u128,
 }
 
 impl Submitter {
     pub(super) async fn run(mut self) -> eyre::Result<()> {
-        self.state.set_submitter_ready();
-
-        let actual_chain_id =
-            get_sequencer_chain_id(self.sequencer_cometbft_client.clone()).await?;
-        ensure!(
-            self.sequencer_chain_id == actual_chain_id.to_string(),
-            "sequencer_chain_id provided in config does not match chain_id returned from sequencer"
-        );
+        // call startup
+        self.startup().await?;
 
         let reason = loop {
             select!(
@@ -102,6 +114,49 @@ impl Submitter {
                 error!(%reason, "submitter shutting down");
             }
         }
+
+        Ok(())
+    }
+
+    /// Confirms the config values used for initialization against the sequencer node's cometbft
+    /// instance and set the submitter state to ready.
+    ///
+    /// # Errors
+    ///
+    /// - `self.chain_id` does not match the value returned from the sequencer node
+    /// - `self.fee_asset_id` is not a valid fee asset on the sequencer node
+    /// - `self.sequencer_key.address` does not have a sufficient balance of `self.fee_asset_id`.
+    async fn startup(&mut self) -> eyre::Result<()> {
+        let actual_chain_id =
+            get_sequencer_chain_id(self.sequencer_cometbft_client.clone(), self.state.clone())
+                .await?;
+        ensure!(
+            self.sequencer_chain_id == actual_chain_id.to_string(),
+            "sequencer_chain_id provided in config does not match chain_id returned from sequencer"
+        );
+
+        // confirm that the fee asset ID is valid
+        let allowed_fee_asset_ids_resp =
+            get_allowed_fee_asset_ids(self.sequencer_cometbft_client.clone(), self.state.clone())
+                .await?;
+        ensure!(
+            allowed_fee_asset_ids_resp
+                .fee_asset_ids
+                .contains(&self.expected_fee_asset_id),
+            "fee_asset_id provided in config is not a valid fee asset on the sequencer"
+        );
+
+        self.state.set_submitter_ready();
+
+        // send startup info to watcher
+        let startup = SequencerStartupInfo {
+            fee_asset_id: self.expected_fee_asset_id,
+        };
+        self.startup_tx
+            .take()
+            .expect("startup info should only be sent once - this is a bug")
+            .send(startup)
+            .map_err(|_startup| eyre!("failed to send startup info to watcher"))?;
 
         Ok(())
     }
@@ -290,8 +345,10 @@ async fn submit_tx(
     res
 }
 
+#[instrument(skip_all)]
 async fn get_sequencer_chain_id(
     client: sequencer_client::HttpClient,
+    state: Arc<State>,
 ) -> eyre::Result<tendermint::chain::Id> {
     use sequencer_client::Client as _;
 
@@ -300,6 +357,9 @@ async fn get_sequencer_chain_id(
         .max_delay(Duration::from_secs(20))
         .on_retry(
             |attempt: u32, next_delay: Option<Duration>, error: &tendermint_rpc::Error| {
+                let state = Arc::clone(&state);
+                state.set_sequencer_connected(false);
+
                 let wait_duration = next_delay
                     .map(humantime::format_duration)
                     .map(tracing::field::display);
@@ -318,5 +378,45 @@ async fn get_sequencer_chain_id(
         .await
         .wrap_err("failed to get genesis info from Sequencer after a lot of attempts")?;
 
+    state.set_sequencer_connected(true);
+
     Ok(genesis.chain_id)
+}
+
+#[instrument(skip_all)]
+async fn get_allowed_fee_asset_ids(
+    client: sequencer_client::HttpClient,
+    state: Arc<State>,
+) -> eyre::Result<AllowedFeeAssetIdsResponse> {
+    let retry_config = tryhard::RetryFutureConfig::new(u32::MAX)
+        .exponential_backoff(Duration::from_millis(100))
+        .max_delay(Duration::from_secs(20))
+        .on_retry(
+            |attempt: u32,
+             next_delay: Option<Duration>,
+             error: &sequencer_client::extension_trait::Error| {
+                let state = Arc::clone(&state);
+                state.set_sequencer_connected(false);
+
+                let wait_duration = next_delay
+                    .map(humantime::format_duration)
+                    .map(tracing::field::display);
+                warn!(
+                    attempt,
+                    wait_duration,
+                    error = error as &dyn std::error::Error,
+                    "attempt to fetch sequencer allowed fee asset ids; retrying after backoff",
+                );
+                futures::future::ready(())
+            },
+        );
+
+    let res = tryhard::retry_fn(|| client.get_allowed_fee_asset_ids())
+        .with_config(retry_config)
+        .await
+        .wrap_err("failed to get allowed fee asset ids from Sequencer after a lot of attempts");
+
+    state.set_sequencer_connected(res.is_ok());
+
+    res
 }
