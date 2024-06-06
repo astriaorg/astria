@@ -1,0 +1,19 @@
+# Default values for bridge-test.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+
+image: ghcr.io/astriaorg/astria-go:local
+
+imagePullSecrets: []
+nameOverride: ""
+namespaceOverride: ""
+fullnameOverride: ""
+
+sequencerURL: "http://node0-sequencer-rpc-service.astria-dev-cluster.svc.cluster.local:26657"
+
+bridgeAccount:
+  address: "6f85297e587b61b37695a1ac17189b3e907e318e "
+  privkey: "6015fbe1c365d3c5ef92dc891db8c5bb26ad454bec2db4762b96e9f8b2430285"
+  pubkey: "b78aa61c65f21e5fe0f31d221819053fa2286dd6eff83fc490e3ee746f144626 "

@@ -224,3 +224,9 @@ delete-smoke-test:
   just delete celestia-local
   just delete sequencer
   just delete rollup
+
+deploy-bridge-tester:
+  helm install --debug bridge-tester-chart ./charts/bridge-test --namespace astria-dev-cluster
+
+delete-bridge-tester:
+  helm uninstall bridge-tester-chart --namespace astria-dev-cluster

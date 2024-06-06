@@ -1,0 +1,25 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "bridge-test.fullname" . }}
+  labels:
+    app: astria-dev-cluster
+  namespace: {{ include "bridge-test.namespace" . }}
+spec:
+  template:
+    metadata:
+      name: {{ include "bridge-test.fullname" . }}
+      labels:
+        app: astria-dev-cluster
+    spec:
+      containers:
+        - name: init-bridge-account
+          image: {{ .Values.image }}
+          command: [ "/build/astria-go", "sequencer", "bridge",  "init", "astria-evm" ]
+          args:
+            - --privkey={{ .Values.bridgeAccount.privkey }}
+            - --sequencer-url={{ .Values.sequencerURL }}
+            - --asset-id=transfer/channel-0/utia
+            - --fee-asset-id=nria
+            - --log-level=debug
+      restartPolicy: OnFailure

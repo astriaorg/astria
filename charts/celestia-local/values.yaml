@@ -42,6 +42,7 @@ ibcAccountKeyName: "ibc-account"
 # mnemonic for ibc account, so we can add its key and get them funded during genesis
 ibcAccountMnemonic: globe elegant people render embark whisper pumpkin local thing shallow front surround domain wave drill peasant duck midnight call slight ball segment token will
 # a dev account to aid in development and testing. can use mnemonic to import into Keplr
+# address celestia1m0ksdjl2p5nzhqy3p47fksv52at3ln885xvl96
 devAccountName: "dev-account"
 devAccountMnemonic: enrich avocado local net will avoid dizzy truth column excuse ready lesson
 

@@ -46,7 +46,9 @@ config:
       # NOTE - the following address matches the privKey that funds the sequencer-faucet
     - address: 00d75b270542084a54fcf0d0f6eab0402982d156
       balance: "340282366920938463463374607431768211455"
-
+      # NOTE - address of the bridge account. needs funds to sign bridge init tx
+    - address: 6f85297e587b61b37695a1ac17189b3e907e318e
+      balance: "340282366920938463463374607431768211455"
     metrics:
       enabled: false
 
