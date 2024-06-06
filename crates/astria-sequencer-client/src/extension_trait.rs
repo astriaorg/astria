@@ -26,7 +26,10 @@ use std::{
     sync::Arc,
 };
 
-use astria_core::protocol::asset::v1alpha1::AllowedFeeAssetIdsResponse;
+use astria_core::protocol::{
+    asset::v1alpha1::AllowedFeeAssetIdsResponse,
+    bridge::v1alpha1::BridgeAccountLastTxHashResponse,
+};
 pub use astria_core::{
     primitive::v1::Address,
     protocol::{
@@ -540,6 +543,39 @@ pub trait SequencerClientExt: Client {
         // This makes use of the fact that a height `None` and `Some(0)` are
         // treated the same.
         self.get_nonce(address, 0u32).await
+    }
+
+    async fn get_bridge_account_last_transaction_hash<A: Into<Address> + Send>(
+        &self,
+        address: A,
+    ) -> Result<BridgeAccountLastTxHashResponse, Error> {
+        const PREFIX: &[u8] = b"bridge/account_last_tx_hash/";
+
+        let path = make_path_from_prefix_and_address(PREFIX, address.into().get());
+
+        let response = self
+            .abci_query(Some(path), vec![], None, false)
+            .await
+            .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
+
+        let proto_response =
+            astria_core::generated::protocol::bridge::v1alpha1::BridgeAccountLastTxHashResponse::decode(
+                &*response.value,
+            )
+            .map_err(|e| {
+                Error::abci_query_deserialization(
+                    "astria.protocol.bridge.v1alpha1.BridgeAccountLastTxHashResponse",
+                    response,
+                    e,
+                )
+            })?;
+        let native = proto_response.try_into_native().map_err(|e| {
+            Error::native_conversion(
+                "astria.protocol.bridge.v1alpha1.BridgeAccountLastTxHashResponse",
+                Arc::new(e),
+            )
+        })?;
+        Ok(native)
     }
 
     /// Submits the given transaction to the Sequencer node.

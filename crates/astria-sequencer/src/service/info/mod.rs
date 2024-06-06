@@ -64,6 +64,12 @@ impl Info {
                 crate::asset::query::allowed_fee_asset_ids_request,
             )
             .context("invalid path: `asset/allowed_fee_asset_ids`")?;
+        query_router
+            .insert(
+                "bridge/account_last_tx_hash/:address",
+                crate::bridge::query::bridge_account_last_tx_hash_request,
+            )
+            .context("invalid path: `bridge/account_last_tx_hash/:address`")?;
         Ok(Self {
             storage,
             query_router,

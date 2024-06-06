@@ -47,6 +47,8 @@ impl SequencerRelayer {
         let shutdown_handle = ShutdownHandle::new();
         let rollup_filter = cfg.only_include_rollups()?;
         let Config {
+            sequencer_chain_id,
+            celestia_chain_id,
             cometbft_endpoint,
             sequencer_grpc_endpoint,
             celestia_app_grpc_endpoint,
@@ -63,6 +65,8 @@ impl SequencerRelayer {
         let validator_key_path = relay_only_validator_key_blocks.then_some(validator_key_file);
         let relayer = relayer::Builder {
             shutdown_token: shutdown_handle.token(),
+            sequencer_chain_id,
+            celestia_chain_id,
             celestia_app_grpc_endpoint,
             celestia_app_key_file,
             cometbft_endpoint,
