@@ -8,11 +8,10 @@ contract AstriaWithdrawerScript is Script {
     function setUp() public {}
 
     function deploy() public {
-        uint32 assetWithdrawalDecimals = uint32(vm.envUint("ASSET_WITHDRAWAL_DECIMALS"));
+        uint32 baseChainAssetPrecision = uint32(vm.envUint("BASE_CHAIN_ASSET_PRECISION"));
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
-        AstriaWithdrawer astriaWithdrawer = new AstriaWithdrawer(assetWithdrawalDecimals);
-        console.logAddress(address(astriaWithdrawer));
+        new AstriaWithdrawer(baseChainAssetPrecision);
         vm.stopBroadcast();
     }
 
@@ -30,7 +29,7 @@ contract AstriaWithdrawerScript is Script {
         vm.stopBroadcast();
     }
 
-    function withdrawToOriginChain() public {
+    function withdrawToIbcChain() public {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
 
@@ -39,7 +38,7 @@ contract AstriaWithdrawerScript is Script {
 
         string memory destinationChainAddress = vm.envString("ORIGIN_DESTINATION_CHAIN_ADDRESS");
         uint256 amount = vm.envUint("AMOUNT");
-        astriaWithdrawer.withdrawToOriginChain{value: amount}(destinationChainAddress, "");
+        astriaWithdrawer.withdrawToIbcChain{value: amount}(destinationChainAddress, "");
 
         vm.stopBroadcast();
     }

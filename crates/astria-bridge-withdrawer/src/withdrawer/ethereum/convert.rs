@@ -4,7 +4,6 @@ use astria_core::{
     primitive::v1::{
         asset,
         asset::Denom,
-        Address,
     },
     protocol::transaction::v1alpha1::{
         action::{
@@ -95,7 +94,7 @@ fn event_to_bridge_unlock(
         transaction_hash,
     };
     let action = BridgeUnlockAction {
-        to: event.sender.to_fixed_bytes().into(),
+        to: event.destination_chain_address.to_fixed_bytes().into(),
         amount: event
             .amount
             .as_u128()
@@ -127,11 +126,7 @@ fn event_to_ics20_withdrawal(
     // TODO: make this configurable
     const ICS20_WITHDRAWAL_TIMEOUT: Duration = Duration::from_secs(300);
 
-    let sender: [u8; 20] = event
-        .sender
-        .as_bytes()
-        .try_into()
-        .expect("U160 must be 20 bytes");
+    let sender = event.sender.to_fixed_bytes().into();
     let denom = rollup_asset_denom.clone();
 
     let (_, channel) = denom
@@ -152,7 +147,7 @@ fn event_to_ics20_withdrawal(
         // returned to the rollup.
         // this is only ok for now because addresses on the sequencer and the rollup are both 20
         // bytes, but this won't work otherwise.
-        return_address: Address::from(sender),
+        return_address: sender,
         amount: event
             .amount
             .as_u128()
@@ -207,7 +202,7 @@ mod tests {
         };
 
         let expected_action = BridgeUnlockAction {
-            to: [0u8; 20].into(),
+            to: [1u8; 20].into(),
             amount: 99,
             memo: serde_json::to_vec(&BridgeUnlockMemo {
                 block_number: 1.into(),
@@ -239,7 +234,7 @@ mod tests {
         };
 
         let expected_action = BridgeUnlockAction {
-            to: [0u8; 20].into(),
+            to: [1u8; 20].into(),
             amount: 99,
             memo: serde_json::to_vec(&BridgeUnlockMemo {
                 block_number: 1.into(),
