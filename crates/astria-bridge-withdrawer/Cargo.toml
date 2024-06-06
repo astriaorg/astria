@@ -22,6 +22,7 @@ hyper = { workspace = true }
 humantime = { workspace = true }
 ibc-types = { workspace = true }
 metrics = { workspace = true }
+once_cell = { workspace = true }
 pin-project-lite = { workspace = true }
 prost = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
@@ -50,6 +51,9 @@ astria-grpc-mock = { path = "../astria-grpc-mock" }
 config = { package = "astria-config", path = "../astria-config", features = [
   "tests",
 ] }
+tempfile = { workspace = true }
+tendermint-rpc = { workspace = true }
+wiremock = { workspace = true }
 
 [build-dependencies]
 astria-build-info = { path = "../astria-build-info", features = ["build"] }
