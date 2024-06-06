@@ -36,12 +36,12 @@ impl Handle {
         }
     }
 
-    pub(crate) async fn get_startup(&mut self) -> eyre::Result<SequencerStartupInfo> {
+    pub(crate) async fn recv_startup_info(&mut self) -> eyre::Result<SequencerStartupInfo> {
         self.startup_info_rx
             .take()
             .expect("startup info should only be taken once - this is a bug")
             .await
-            .wrap_err("failed to get startup info")
+            .wrap_err("watcher failed to get startup info from submitter. channel was dropped.")
     }
 
     pub(crate) async fn send_batch(&self, batch: Batch) -> eyre::Result<()> {

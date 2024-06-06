@@ -19,6 +19,7 @@ use astria_eyre::eyre::{
     ensure,
     eyre,
     Context,
+    OptionExt,
 };
 pub(crate) use builder::Builder;
 pub(super) use builder::Handle;
@@ -144,6 +145,22 @@ impl Submitter {
                 .fee_asset_ids
                 .contains(&self.expected_fee_asset_id),
             "fee_asset_id provided in config is not a valid fee asset on the sequencer"
+        );
+
+        // confirm that the sequencer key has a sufficient balance of the fee asset
+        let fee_asset_balances = self
+            .sequencer_cometbft_client
+            .get_latest_balance(self.signer.address)
+            .await?;
+        let fee_asset_balance = fee_asset_balances
+            .balances
+            .into_iter()
+            .find(|balance| balance.denom.id() == self.expected_fee_asset_id)
+            .ok_or_eyre("withdrawer's account does not have the minimum balance of the fee asset")?
+            .balance;
+        ensure!(
+            fee_asset_balance >= self.min_expected_fee_asset_balance,
+            "sequencer key does not have a sufficient balance of the fee asset"
         );
 
         self.state.set_submitter_ready();

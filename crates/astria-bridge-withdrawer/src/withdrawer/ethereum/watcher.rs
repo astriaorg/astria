@@ -161,9 +161,9 @@ impl Watcher {
         // wait for submitter to be ready
         let SequencerStartupInfo {
             fee_asset_id,
-        } = self.submitter_handle.get_startup().await?;
+        } = self.submitter_handle.recv_startup_info().await?;
 
-        // connect to geth and make contract handle
+        // connect to geth
         let retry_config = tryhard::RetryFutureConfig::new(1024)
             .exponential_backoff(Duration::from_millis(500))
             .max_delay(Duration::from_secs(60))
