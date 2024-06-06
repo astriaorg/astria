@@ -313,6 +313,7 @@ impl AddressBuilder {
 }
 
 impl<TBytes, TPrefix> AddressBuilder<TBytes, TPrefix> {
+    #[must_use = "the builder must be used to construct an address to be useful"]
     pub fn array(self, array: [u8; ADDRESS_LEN]) -> AddressBuilder<WithBytes<'static>, TPrefix> {
         AddressBuilder {
             bytes: WithBytes(BytesInner::Array(array)),
@@ -320,6 +321,7 @@ impl<TBytes, TPrefix> AddressBuilder<TBytes, TPrefix> {
         }
     }
 
+    #[must_use = "the builder must be used to construct an address to be useful"]
     pub fn slice<'a, T: Into<std::borrow::Cow<'a, [u8]>>>(
         self,
         bytes: T,
@@ -330,6 +332,7 @@ impl<TBytes, TPrefix> AddressBuilder<TBytes, TPrefix> {
         }
     }
 
+    #[must_use = "the builder must be used to construct an address to be useful"]
     pub fn prefix<'a, T: Into<std::borrow::Cow<'a, str>>>(
         self,
         prefix: T,
@@ -371,19 +374,16 @@ impl<'a, 'b> AddressBuilder<WithBytes<'a>, WithPrefix<'b>> {
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
 #[cfg_attr(feature = "serde", serde(into = "raw::Address"))]
 pub struct Address {
-    prefix: bech32::Hrp,
     bytes: [u8; ADDRESS_LEN],
+    prefix: bech32::Hrp,
 }
 
 impl Address {
+    #[must_use = "the builder must be used to construct an address to be useful"]
     pub fn builder() -> AddressBuilder {
         AddressBuilder::new()
     }
 
-    // #[must_use]
-    // pub fn get(self) -> [u8; ADDRESS_LEN] {
-    //     self.0
-    // }
     #[must_use]
     pub fn bytes(self) -> [u8; ADDRESS_LEN] {
         self.bytes
