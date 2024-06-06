@@ -235,6 +235,36 @@ async fn get_allowed_fee_assets() {
 }
 
 #[tokio::test]
+async fn get_bridge_account_last_transaction_hash() {
+    use astria_core::generated::protocol::bridge::v1alpha1::BridgeAccountLastTxHashResponse;
+
+    let MockSequencer {
+        server,
+        client,
+    } = MockSequencer::start().await;
+
+    let expected_response = BridgeAccountLastTxHashResponse {
+        height: 10,
+        tx_hash: [0; 32].to_vec(),
+    };
+
+    let _guard = register_abci_query_response(
+        &server,
+        "bridge/account_last_tx_hash",
+        expected_response.clone(),
+    )
+    .await;
+
+    let actual_response = client
+        .get_bridge_account_last_transaction_hash(ALICE_ADDRESS)
+        .await
+        .unwrap()
+        .into_raw();
+
+    assert_eq!(expected_response, actual_response);
+}
+
+#[tokio::test]
 async fn submit_tx_sync() {
     let MockSequencer {
         server,
