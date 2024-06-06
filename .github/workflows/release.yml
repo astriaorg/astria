@@ -39,7 +39,7 @@ jobs:
       contents: write
     runs-on: ubuntu-latest
     needs: run_checker
-    if: github.ref_name == 'main' && needs.run_checker.outputs.run_release_charts == 'true'
+    if: needs.run_checker.outputs.run_release_charts == 'true'
     steps:
       - name: Checkout Mono Repo
         uses: actions/checkout@v4
@@ -62,7 +62,7 @@ jobs:
         with:
           source-directory: 'charts/'
           target-directory: '.'
-          target-branch: 'main'
+          target-branch: 'test-new-release'
           destination-github-username: 'astriaorg'
           destination-repository-name: 'charts'
           user-email: '${{ github.actor }}@users.noreply.github.com'
