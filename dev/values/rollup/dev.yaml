@@ -82,6 +82,8 @@ config:
   celestia:
     rpc: "http://celestia-service.astria-dev-cluster.svc.cluster.local:26658"
     token: "http://celestia-service.astria-dev-cluster.svc.cluster.local:5353"
+    initialBlockHeight: "2"
+    heightVariance: "10"
 
 resources:
   conductor:
@@ -111,3 +113,16 @@ celestia-node:
 
 storage:
   enabled: false
+
+ingress:
+  enabled: true
+  services:
+    rpc:
+      enabled: true
+    ws:
+      enabled: true
+    faucet:
+      enabled: true
+    explorer:
+      enabled: true
+

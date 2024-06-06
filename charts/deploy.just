@@ -14,7 +14,7 @@ init tool *ARGS:
 load-image image:
   kind load docker-image {{image}} --name astria-dev-cluster
 
-deploy-all: deploy-cluster deploy-ingress-controller wait-for-ingress-controller deploy-astria-local wait-for-sequencer (deploy-chart "sequencer-faucet") deploy-dev-rollup wait-for-rollup
+deploy-all: deploy-cluster deploy-ingress-controller wait-for-ingress-controller deploy-astria-local wait-for-sequencer (deploy-chart "sequencer-faucet") deploy-rollup
 delete-all: clean clean-persisted-data
 
 deploy-astria-local namespace=defaultNamespace: (deploy-chart "celestia-local" namespace) (deploy-sequencer)
@@ -86,21 +86,15 @@ wait-for-sequencer:
   kubectl wait -n astria-dev-cluster deployment celestia-local --for=condition=Available=True --timeout=600s
   kubectl rollout status --watch statefulset/sequencer -n astria-dev-cluster --timeout=600s
 
+deploy-rollup: deploy-dev-rollup deploy-bridge-withdrawer wait-for-rollup
+wait-for-rollup: wait-for-dev-rollup wait-for-bridge-withdrawer
+delete-rollup: delete-dev-rollup delete-bridge-withdrawer
+
 defaultRollupName          := "astria"
 defaultNetworkId           := ""
 defaultGenesisAllocAddress := ""
 defaultPrivateKey          := ""
 defaultSequencerStartBlock := ""
-deploy-rollup rollupName=defaultRollupName networkId=defaultNetworkId genesisAllocAddress=defaultGenesisAllocAddress privateKey=defaultPrivateKey sequencerStartBlock=defaultSequencerStartBlock:
-  helm dependency update charts/evm-rollup > /dev/null
-  helm install \
-    {{ if rollupName          != '' { replace('--set config.rollup.name=# --set celestia-node.config.labelPrefix=#', '#', rollupName) } else { '' } }} \
-    {{ if networkId           != '' { replace('--set config.rollup.networkId=#', '#', networkId) } else { '' } }} \
-    {{ if genesisAllocAddress != '' { replace('--set config.rollup.genesisAccounts[0].address=#', '#', genesisAllocAddress) } else { '' } }} \
-    {{ if privateKey          != '' { replace('--set config.faucet.privateKey=#', '#', privateKey) } else { '' } }} \
-    {{ if sequencerStartBlock != '' { replace('--set config.sequencer.initialBlockHeight=#', '#', sequencerStartBlock) } else { '' } }} \
-    {{rollupName}}-chain-chart ./charts/evm-rollup --namespace astria-dev-cluster
-
 deploy-dev-rollup rollupName=defaultRollupName networkId=defaultNetworkId genesisAllocAddress=defaultGenesisAllocAddress privateKey=defaultPrivateKey sequencerStartBlock=defaultSequencerStartBlock:
   helm dependency update charts/evm-rollup > /dev/null
   helm install \
@@ -112,8 +106,11 @@ deploy-dev-rollup rollupName=defaultRollupName networkId=defaultNetworkId genesi
     -f dev/values/rollup/dev.yaml \
     {{rollupName}}-chain-chart ./charts/evm-rollup --namespace astria-dev-cluster
 
-delete-rollup rollupName=defaultRollupName:
+delete-dev-rollup rollupName=defaultRollupName:
   @just delete chart {{rollupName}}-chain
+
+wait-for-dev-rollup rollupName=defaultRollupName:
+  kubectl rollout status --watch statefulset/{{rollupName}}-geth -n astria-dev-cluster --timeout=600s
 
 deploy-bridge-withdrawer:
   helm install evm-bridge-withdrawer-chart ./charts/evm-bridge-withdrawer \
@@ -123,9 +120,8 @@ deploy-bridge-withdrawer:
 delete-bridge-withdrawer:
   @just delete chart evm-bridge-withdrawer astria-dev-cluster
 
-
-wait-for-rollup rollupName=defaultRollupName:
-  kubectl rollout status --watch statefulset/{{rollupName}}-geth -n astria-dev-cluster --timeout=600s
+wait-for-bridge-withdrawer:
+  kubectl wait -n astria-dev-cluster deployment evm-bridge-withdrawer --for=condition=Available=True --timeout=600s
 
 defaultHypAgentConfig         := ""
 defaultHypRelayerPrivateKey   := ""
@@ -153,7 +149,7 @@ deploy-local-metrics:
 defaultTag := ""
 
 deploy-smoke-test tag=defaultTag:
-  @echo "Deploying ingress controller..." && just deploy-ingress-controller > /dev/null
+  @echo "Deploying ingress controller..." && just deploy ingress-controller > /dev/null
   @just wait-for-ingress-controller > /dev/null
   @echo "Deploying local celestia instance..." && just deploy celestia-local > /dev/null
   @helm dependency update charts/sequencer > /dev/null
@@ -169,11 +165,10 @@ deploy-smoke-test tag=defaultTag:
     {{ if tag != '' { replace('--set images.conductor.devTag=# --set images.composer.devTag=#', '#', tag) } else { '' } }} \
     --set config.blockscout.enabled=false \
     --set config.faucet.enabled=false > /dev/null
-  @just wait-for-rollup > /dev/null
   @echo "Starting Bridge Withdrawer..." && helm install -n astria-dev-cluster evm-bridge-withdrawer-chart ./charts/evm-bridge-withdrawer \
     -f dev/values/withdrawer/values.yaml \
     {{ if tag != '' { replace('--set images.evmBridgeWithdrawer.devTag=#', '#', tag) } else { '' } }} > /dev/null
-  @kubectl wait -n astria-dev-cluster deployment evm-bridge-withdrawer --for=condition=Available=True --timeout=600s
+  @just wait-for-rollup > /dev/null
 
 
 evm_destination_address := "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
@@ -334,6 +329,10 @@ evm-get-balance address rpcUrl=eth_rpc_url:
   #!/usr/bin/env bash
   HEX_NUM=$(curl -X POST {{eth_rpc_url}} -s -d '{"jsonrpc":"2.0","method":"eth_getBalance","params":["{{address}}", "latest"],"id":1}' -H 'Content-Type: application/json' | jq -r '.result')
   echo $(just hex-to-dec $HEX_NUM)
+
+evm-get-txpool-length rpcUrl=eth_rpc_url:
+  #!/usr/bin/env bash
+  curl -X POST {{eth_rpc_url}} -s -d '{"jsonrpc":"2.0","method":"txpool_content","params":[],"id":1}' -H 'Content-Type: application/json' | jq '.result'
 
 hex-to-dec hex:
   #!/usr/bin/env bash

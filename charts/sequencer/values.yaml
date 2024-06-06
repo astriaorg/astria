@@ -59,7 +59,9 @@ config:
 
   # Values for CometBFT node configuration
   cometBFT:
+    # Chain ID for the CometBFT network
     chainId: 'sequencer-test-chain-0'
+    # Genesis time for the CometBFT network, formatted in ISO 8601 Date and Time UTC format
     genesisTime: '2023-09-22T17:22:35.092832Z'
     # If using postgres for indexing, update to enabled and set the connection
     psql:
@@ -152,7 +154,6 @@ ports:
   cometBFTMETRICS: 26660
   sequencerABCI: 26658
   sequencerGRPC: 8080
-  relayerRPC: 2450
   sequencerMetrics: 9000
 
 # ServiceMonitor configuration
@@ -197,7 +198,7 @@ storage:
 
 ingress:
   rpc:
-    enabled: true
+    enabled: false
     hostname: sequencer.localdev.me
     ingressClassName: nginx
     # For Kubernetes >= 1.18 you should specify the ingress-controller via the field ingressClassName

@@ -104,10 +104,6 @@ spec:
             httpGet:
               path: /readyz
               port: {{ .Values.ports.composerHealthAPI }}
-{{/*          livenessProbe:*/}}
-{{/*            httpGet:*/}}
-{{/*              path: /healthz*/}}
-{{/*              port: {{ .Values.ports.composerHealthAPI }}*/}}
           ports:
             {{- if .Values.config.rollup.metrics.enabled }}
             - containerPort: {{ .Values.ports.composerMetrics }}

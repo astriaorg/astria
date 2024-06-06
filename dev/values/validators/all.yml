@@ -29,6 +29,9 @@ config:
         # This account is used for bridge in smoke test.
       - address: 8f6e015432027649d8a4f8c0caa5d9a969e3282f
         balance: "48"
+    cometBFT:
+      chainId: 'sequencer-test-chain-0'
+      genesisTime: '2023-09-22T17:22:35.092832Z'
 
 storage:
   enabled: false

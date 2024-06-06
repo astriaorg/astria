@@ -44,8 +44,6 @@ config:
     dbEngine: pebble
     # Set to true to keep history of all blocks
     archiveNode: false
-    # EVM network ID used by the chain
-    networkId: "1337"
     # Determines what will drive block execution, options are:
     # - "SoftOnly" -> blocks are only pulled from the sequencer
     # - "FirmOnly" -> blocks are only pulled from DA
@@ -95,10 +93,6 @@ config:
         #   baseFeeChangeDenominator: 8
       # Can configure the genesis allocs for the chain
       alloc:
-        - address: "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
-          value:
-            # The balance must be a string due to size
-            balance: "1000000000000000000000000000"
         # Deploying the deterministic deploy proxy contract in genesis
         # Forge and other tools use this for their CREATE2 usage, but
         # can only be included through the genesis block after EIP-155
@@ -107,10 +101,11 @@ config:
           value:
             balance: "0"
             code: "0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf3"
-        - address: "0xA58639fB5458e65E4fA917FF951C390292C24A15"
-          value:
-            balance: "0"
-            code: "0x6080604052600436106100345760003560e01c80638f2d8cb81461003957806391bd1dde146100865780639a977afe1461009b575b600080fd5b34801561004557600080fd5b5061006d7f000000000000000000000000000000000000000000000000000000000000000c81565b60405163ffffffff909116815260200160405180910390f35b610099610094366004610188565b6100ae565b005b6100996100a93660046101f4565b6100fc565b34336001600160a01b03167f0c64e29a5254a71c7f4e52b3d2d236348c80e00a00ba2e1961962bd2827c03fb868686866040516100ee949392919061024d565b60405180910390a350505050565b6040516001600160a01b0382168152349033907fae8e66664d108544509c9a5b6a9f33c3b5fef3f88e5d3fa680706a6feb1360e39060200160405180910390a350565b60008083601f84011261015157600080fd5b50813567ffffffffffffffff81111561016957600080fd5b60208301915083602082850101111561018157600080fd5b9250929050565b6000806000806040858703121561019e57600080fd5b843567ffffffffffffffff808211156101b657600080fd5b6101c28883890161013f565b909650945060208701359150808211156101db57600080fd5b506101e88782880161013f565b95989497509550505050565b60006020828403121561020657600080fd5b81356001600160a01b038116811461021d57600080fd5b9392505050565b81835281816020850137506000828201602090810191909152601f909101601f19169091010190565b604081526000610261604083018688610224565b8281036020840152610274818587610224565b97965050505050505056fea26469706673582212207c23fa76a78a48b6572a8eee5a5cb51b97f9356c4aa41fb17524d3b840c80ace64736f6c63430008190033"
+        # Example of simple genesis account funding
+        # - address: "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
+        #   value:
+        #   # The balance must be a string due to size
+        #   balance: "1000000000000000000000000000"
     metrics:
       # set to enable prometheus metrics
       enabled: false
@@ -153,7 +148,7 @@ config:
             description: "Chain Head Finalized on {{ $labels.namespace }} is increasing at a rate slower then 20 blocks per 5 minute\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
 
   faucet:
-    enabled: true
+    enabled: false
     proxyCount: 1
     # The account from which the faucet disburses funds, likely want to have
     # the corresponding account given a balance in genesis accounts.
@@ -193,11 +188,15 @@ config:
     # the rpc, ws, and token fields must be set to access celestia network.
     rpc: ""
     token: ""
-    initialBlockHeight: "2"
-    heightVariance: "10"
+    # The first block height to look at for a rollup block
+    initialBlockHeight: ""
+    # The number of blocks to celestia blocks to allow before finding the next rollup data
+    # The chain will halt in FirmOnly when this limit is hit. In SoftAndOnly mode, the chain
+    # will execute up to 6x this of soft blocks ahead of firm commitment and then halt.
+    heightVariance: ""
 
   blockscout:
-    enabled: true
+    enabled: false
 
 celestia-node:
   # Strongly recommend leaving enabled when not doing `SoftOnly` execution
@@ -229,7 +228,7 @@ secretProvider:
         fileName: "{{ .key.filename }}"
 
 ingress:
-  enabled: true
+  enabled: false
   labels: {}
   hostname: localdev.me
   className: nginx
@@ -271,7 +270,7 @@ ingress:
       #    hosts:
       #      - chart-example.local
     faucet:
-      enabled: true
+      enabled: false
       hosts:
         - faucet.{{ .Values.config.rollup.name }}.{{ .Values.ingress.hostname }}
       path: /
@@ -289,7 +288,7 @@ ingress:
       #    hosts:
       #      - chart-example.local
     explorer:
-      enabled: true
+      enabled: false
       hosts:
         - blockscout.{{ .Values.config.rollup.name }}.{{ .Values.ingress.hostname }}
       path: /
@@ -310,7 +309,6 @@ ingress:
 # Default persistent storage values
 # NOTE - `rollupName` will be used with `persistentVolumeName` to generate names for kubernetes resources.
 #  e.g. astria-executor-pv, astria-executor-pvc
-
 resources:
   conductor:
     requests:
