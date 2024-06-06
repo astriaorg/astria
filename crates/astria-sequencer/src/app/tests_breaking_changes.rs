@@ -17,7 +17,6 @@ use std::{
 use astria_core::{
     primitive::v1::{
         asset::DEFAULT_NATIVE_ASSET_DENOM,
-        Address,
         RollupId,
     },
     protocol::transaction::v1alpha1::{
@@ -74,7 +73,7 @@ async fn app_finalize_block_snapshot() {
     let (alice_signing_key, _) = get_alice_signing_key_and_address();
     let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
 
-    let bridge_address = Address::from([99; 20]);
+    let bridge_address = crate::astria_address([99; 20]);
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
     let asset_id = get_native_asset().id();
 

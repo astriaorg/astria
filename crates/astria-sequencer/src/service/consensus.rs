@@ -225,7 +225,6 @@ mod test {
         },
         primitive::v1::{
             asset::DEFAULT_NATIVE_ASSET_DENOM,
-            Address,
             RollupId,
         },
         protocol::transaction::v1alpha1::{
@@ -461,8 +460,8 @@ mod test {
         fn default() -> Self {
             Self {
                 accounts: vec![],
-                authority_sudo_address: Address::from([0; 20]),
-                ibc_sudo_address: Address::from([0; 20]),
+                authority_sudo_address: crate::astria_address([0; 20]),
+                ibc_sudo_address: crate::astria_address([0; 20]),
                 ibc_relayer_addresses: vec![],
                 native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
                 ibc_params: penumbra_ibc::params::IBCParameters::default(),
@@ -475,7 +474,7 @@ mod test {
     async fn new_consensus_service(funded_key: Option<VerificationKey>) -> (Consensus, Mempool) {
         let accounts = if funded_key.is_some() {
             vec![crate::genesis::Account {
-                address: *funded_key.unwrap().address(),
+                address: crate::astria_address(funded_key.unwrap().address_bytes()),
                 balance: 10u128.pow(19),
             }]
         } else {

@@ -86,6 +86,7 @@ impl ::prost::Name for RollupId {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Address {
+    #[deprecated]
     #[prost(bytes = "bytes", tag = "1")]
     pub inner: ::prost::bytes::Bytes,
     #[prost(string, tag = "2")]

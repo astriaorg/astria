@@ -416,7 +416,7 @@ mod test {
         ]);
 
         let transfer = TransferAction {
-            to: Address::from([0; 20]),
+            to: Address::builder().array([0; 20]).prefix("astria").build(),
             amount: 0,
             asset_id: default_native_asset_id(),
             fee_asset_id: default_native_asset_id(),
@@ -449,7 +449,7 @@ mod test {
         ]);
 
         let transfer = TransferAction {
-            to: Address::from([0; 20]),
+            to: Address::builder().array([0; 20]).prefix("astria").build(),
             amount: 0,
             asset_id: default_native_asset_id(),
             fee_asset_id: default_native_asset_id(),

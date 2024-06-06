@@ -7,6 +7,7 @@ use astria_core::crypto::SigningKey;
 use astria_eyre::eyre::{
     self,
     eyre,
+    WrapErr as _,
 };
 use sequencer_client::Address;
 
@@ -27,7 +28,11 @@ impl SequencerKey {
         let signing_key = SigningKey::from(bytes);
 
         Ok(Self {
-            address: *signing_key.verification_key().address(),
+            address: Address::builder()
+                .array(signing_key.verification_key().address_bytes())
+                .prefix("astria")
+                .try_build()
+                .wrap_err("failed to construct Sequencer address")?,
             signing_key,
         })
     }

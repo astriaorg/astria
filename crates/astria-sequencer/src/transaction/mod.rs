@@ -47,7 +47,7 @@ pub(crate) async fn check_stateful<S: StateReadExt + 'static>(
     tx: &SignedTransaction,
     state: &S,
 ) -> anyhow::Result<()> {
-    let signer_address = *tx.verification_key().address();
+    let signer_address = crate::astria_address(tx.verification_key().address_bytes());
     tx.unsigned_transaction()
         .check_stateful(state, signer_address)
         .await
@@ -57,7 +57,7 @@ pub(crate) async fn execute<S: StateWriteExt>(
     tx: &SignedTransaction,
     state: &mut S,
 ) -> anyhow::Result<()> {
-    let signer_address = *tx.verification_key().address();
+    let signer_address = crate::astria_address(tx.verification_key().address_bytes());
     tx.unsigned_transaction()
         .execute(state, signer_address)
         .await

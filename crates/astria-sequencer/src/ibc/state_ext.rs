@@ -76,9 +76,9 @@ pub(crate) trait StateReadExt: StateRead {
             // ibc sudo key must be set
             bail!("ibc sudo key not found");
         };
-        let SudoAddress(address) =
+        let SudoAddress(address_bytes) =
             SudoAddress::try_from_slice(&bytes).context("invalid ibc sudo key bytes")?;
-        Ok(Address::from(address))
+        Ok(crate::astria_address(address_bytes))
     }
 
     #[instrument(skip(self))]
@@ -124,7 +124,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     fn put_ibc_sudo_address(&mut self, address: Address) -> Result<()> {
         self.put_raw(
             IBC_SUDO_STORAGE_KEY.to_string(),
-            borsh::to_vec(&SudoAddress(address.get()))
+            borsh::to_vec(&SudoAddress(address.bytes()))
                 .context("failed to convert sudo address to vec")?,
         );
         Ok(())
@@ -154,10 +154,7 @@ impl<T: StateWrite> StateWriteExt for T {}
 
 #[cfg(test)]
 mod test {
-    use astria_core::primitive::v1::{
-        asset::Id,
-        Address,
-    };
+    use astria_core::primitive::v1::asset::Id;
     use cnidarium::StateDelta;
     use ibc_types::core::channel::ChannelId;
 
@@ -186,7 +183,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         // can write new
-        let mut address = Address::try_from_slice(&[42u8; 20]).unwrap();
+        let mut address = crate::astria_address([42u8; 20]);
         state
             .put_ibc_sudo_address(address)
             .expect("writing sudo address should not fail");
@@ -200,7 +197,7 @@ mod test {
         );
 
         // can rewrite with new value
-        address = Address::try_from_slice(&[41u8; 20]).unwrap();
+        address = crate::astria_address([41u8; 20]);
         state
             .put_ibc_sudo_address(address)
             .expect("writing sudo address should not fail");
@@ -221,7 +218,7 @@ mod test {
         let state = StateDelta::new(snapshot);
 
         // unset address returns false
-        let address = Address::try_from_slice(&[42u8; 20]).unwrap();
+        let address = crate::astria_address([42u8; 20]);
         assert!(
             !state
                 .is_ibc_relayer(&address)
@@ -238,7 +235,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         // can write
-        let address = Address::try_from_slice(&[42u8; 20]).unwrap();
+        let address = crate::astria_address([42u8; 20]);
         state.put_ibc_relayer_address(&address);
         assert!(
             state
@@ -266,7 +263,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         // can write
-        let address = Address::try_from_slice(&[42u8; 20]).unwrap();
+        let address = crate::astria_address([42u8; 20]);
         state.put_ibc_relayer_address(&address);
         assert!(
             state
@@ -277,7 +274,7 @@ mod test {
         );
 
         // can write multiple
-        let address_1 = Address::try_from_slice(&[41u8; 20]).unwrap();
+        let address_1 = crate::astria_address([41u8; 20]);
         state.put_ibc_relayer_address(&address_1);
         assert!(
             state
