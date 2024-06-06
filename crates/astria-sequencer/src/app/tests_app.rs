@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use astria_core::{
     primitive::v1::{
         asset::DEFAULT_NATIVE_ASSET_DENOM,
-        Address,
         RollupId,
     },
     protocol::transaction::v1alpha1::{
@@ -300,7 +299,7 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
     let (alice_signing_key, _) = get_alice_signing_key_and_address();
     let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
 
-    let bridge_address = Address::from([99; 20]);
+    let bridge_address = crate::astria_address([99; 20]);
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
     let asset_id = get_native_asset().id();
 
@@ -390,7 +389,7 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
     let (alice_signing_key, _) = get_alice_signing_key_and_address();
     let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
 
-    let bridge_address = Address::from([99; 20]);
+    let bridge_address = crate::astria_address([99; 20]);
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
     let asset_id = get_native_asset().id();
 
@@ -698,7 +697,7 @@ async fn app_end_block_validator_updates() {
     ];
 
     let mut app = initialize_app(None, initial_validator_set).await;
-    let proposer_address = Address::try_from_slice([0u8; 20].as_ref()).unwrap();
+    let proposer_address = crate::astria_address([0u8; 20]);
 
     let validator_updates = vec![
         validator::Update {

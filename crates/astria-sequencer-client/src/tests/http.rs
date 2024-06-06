@@ -39,8 +39,21 @@ use crate::{
     SequencerClientExt as _,
 };
 
-const ALICE_ADDRESS: [u8; 20] = hex!("1c0c490f1b5528d8173c5de46d131160e4b2c0c3");
-const BOB_ADDRESS: Address = Address::from_array(hex!("34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a"));
+const ALICE_ADDRESS_BYTES: [u8; 20] = hex!("1c0c490f1b5528d8173c5de46d131160e4b2c0c3");
+const BOB_ADDRESS_BYTES: [u8; 20] = hex!("34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a");
+
+fn alice_address() -> Address {
+    Address::builder()
+        .array(ALICE_ADDRESS_BYTES)
+        .prefix("astria")
+        .build()
+}
+fn bob_address() -> Address {
+    Address::builder()
+        .array(BOB_ADDRESS_BYTES)
+        .prefix("astria")
+        .build()
+}
 
 struct MockSequencer {
     server: MockServer,
@@ -130,7 +143,7 @@ fn create_signed_transaction() -> SignedTransaction {
 
     let actions = vec![
         TransferAction {
-            to: BOB_ADDRESS,
+            to: bob_address(),
             amount: 333_333,
             asset_id: default_native_asset_id(),
             fee_asset_id: default_native_asset_id(),
@@ -163,7 +176,7 @@ async fn get_latest_nonce() {
         register_abci_query_response(&server, "accounts/nonce/", expected_response.clone()).await;
 
     let actual_response = client
-        .get_latest_nonce(ALICE_ADDRESS)
+        .get_latest_nonce(alice_address())
         .await
         .unwrap()
         .into_raw();
@@ -193,7 +206,7 @@ async fn get_latest_balance() {
         register_abci_query_response(&server, "accounts/balance/", expected_response.clone()).await;
 
     let actual_response = client
-        .get_latest_balance(ALICE_ADDRESS)
+        .get_latest_balance(alice_address())
         .await
         .unwrap()
         .into_raw();

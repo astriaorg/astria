@@ -148,12 +148,9 @@ impl Service<InfoRequest> for Info {
 
 #[cfg(test)]
 mod test {
-    use astria_core::primitive::v1::{
-        asset::{
-            Denom,
-            DEFAULT_NATIVE_ASSET_DENOM,
-        },
-        Address,
+    use astria_core::primitive::v1::asset::{
+        Denom,
+        DEFAULT_NATIVE_ASSET_DENOM,
     };
     use cnidarium::StateDelta;
     use prost::Message as _;
@@ -191,7 +188,7 @@ mod test {
 
         initialize_native_asset(DEFAULT_NATIVE_ASSET_DENOM);
 
-        let address = Address::try_from_slice(
+        let address = crate::try_astria_address(
             &hex::decode("a034c743bed8f26cb8ee7b8db2230fd8347ae131").unwrap(),
         )
         .unwrap();

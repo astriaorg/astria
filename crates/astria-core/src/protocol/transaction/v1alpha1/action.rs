@@ -685,7 +685,7 @@ impl Ics20Withdrawal {
             amount: Some(self.amount.into()),
             denom: self.denom.to_string(),
             destination_chain_address: self.destination_chain_address.clone(),
-            return_address: self.return_address.to_vec(),
+            return_address: Some(self.return_address.into_raw()),
             timeout_height: Some(self.timeout_height.into_raw()),
             timeout_time: self.timeout_time,
             source_channel: self.source_channel.to_string(),
@@ -700,7 +700,7 @@ impl Ics20Withdrawal {
             amount: Some(self.amount.into()),
             denom: self.denom.to_string(),
             destination_chain_address: self.destination_chain_address,
-            return_address: self.return_address.to_vec(),
+            return_address: Some(self.return_address.into_raw()),
             timeout_height: Some(self.timeout_height.into_raw()),
             timeout_time: self.timeout_time,
             source_channel: self.source_channel.to_string(),
@@ -715,16 +715,22 @@ impl Ics20Withdrawal {
     ///
     /// - if the `amount` field is missing
     /// - if the `denom` field is invalid
-    /// - if the `return_address` field is invalid
+    /// - if the `return_address` field is invalid or missing
     /// - if the `timeout_height` field is missing
     /// - if the `source_channel` field is invalid
     pub fn try_from_raw(proto: raw::Ics20Withdrawal) -> Result<Self, Ics20WithdrawalError> {
-        let amount = proto.amount.ok_or(Ics20WithdrawalError::missing_amount())?;
-        let return_address = Address::try_from_slice(&proto.return_address)
-            .map_err(Ics20WithdrawalError::return_address)?;
+        let amount = proto
+            .amount
+            .ok_or(Ics20WithdrawalError::field_not_set("amount"))?;
+        let return_address = Address::try_from_raw(
+            &proto
+                .return_address
+                .ok_or(Ics20WithdrawalError::field_not_set("return_address"))?,
+        )
+        .map_err(Ics20WithdrawalError::return_address)?;
         let timeout_height = proto
             .timeout_height
-            .ok_or(Ics20WithdrawalError::missing_timeout_height())?
+            .ok_or(Ics20WithdrawalError::field_not_set("timeout_height"))?
             .into();
 
         Ok(Self {
@@ -779,8 +785,10 @@ pub struct Ics20WithdrawalError(Ics20WithdrawalErrorKind);
 
 impl Ics20WithdrawalError {
     #[must_use]
-    fn missing_amount() -> Self {
-        Self(Ics20WithdrawalErrorKind::MissingAmount)
+    fn field_not_set(field: &'static str) -> Self {
+        Self(Ics20WithdrawalErrorKind::FieldNotSet {
+            field,
+        })
     }
 
     #[must_use]
@@ -788,11 +796,6 @@ impl Ics20WithdrawalError {
         Self(Ics20WithdrawalErrorKind::ReturnAddress {
             source,
         })
-    }
-
-    #[must_use]
-    fn missing_timeout_height() -> Self {
-        Self(Ics20WithdrawalErrorKind::MissingTimeoutHeight)
     }
 
     #[must_use]
@@ -808,12 +811,10 @@ impl Ics20WithdrawalError {
 
 #[derive(Debug, thiserror::Error)]
 enum Ics20WithdrawalErrorKind {
-    #[error("`amount` field was missing")]
-    MissingAmount,
+    #[error("expected field `{field}` was not set`")]
+    FieldNotSet { field: &'static str },
     #[error("`return_address` field was invalid")]
     ReturnAddress { source: AddressError },
-    #[error("`timeout_height` field was missing")]
-    MissingTimeoutHeight,
     #[error("`source_channel` field was invalid")]
     InvalidSourceChannel(#[source] IdentifierError),
     #[error("`fee_asset_id` field was invalid")]

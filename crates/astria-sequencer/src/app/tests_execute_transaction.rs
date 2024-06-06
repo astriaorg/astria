@@ -5,7 +5,6 @@ use astria_core::{
     primitive::v1::{
         asset,
         asset::DEFAULT_NATIVE_ASSET_DENOM,
-        Address,
         RollupId,
     },
     protocol::transaction::v1alpha1::{
@@ -378,7 +377,7 @@ async fn app_execute_transaction_ibc_relayer_change_invalid() {
     let genesis_state = GenesisState {
         accounts: default_genesis_accounts(),
         authority_sudo_address: alice_address,
-        ibc_sudo_address: Address::from([0; 20]),
+        ibc_sudo_address: crate::astria_address([0; 20]),
         ibc_relayer_addresses: vec![alice_address],
         native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
@@ -443,7 +442,7 @@ async fn app_execute_transaction_sudo_address_change_error() {
     let genesis_state = GenesisState {
         accounts: default_genesis_accounts(),
         authority_sudo_address: sudo_address,
-        ibc_sudo_address: [0u8; 20].into(),
+        ibc_sudo_address: crate::astria_address([0u8; 20]),
         ibc_relayer_addresses: vec![],
         native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         ibc_params: IBCParameters::default(),
@@ -697,7 +696,7 @@ async fn app_execute_transaction_bridge_lock_action_ok() {
     let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
     let mut app = initialize_app(None, vec![]).await;
 
-    let bridge_address = Address::from([99; 20]);
+    let bridge_address = crate::astria_address([99; 20]);
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
     let asset_id = get_native_asset().id();
 
@@ -783,7 +782,7 @@ async fn app_execute_transaction_bridge_lock_action_invalid_for_eoa() {
     let mut app = initialize_app(None, vec![]).await;
 
     // don't actually register this address as a bridge address
-    let bridge_address = Address::from([99; 20]);
+    let bridge_address = crate::astria_address([99; 20]);
     let asset_id = get_native_asset().id();
 
     let amount = 100;
@@ -910,7 +909,7 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
 
     // create a new key; will have 0 balance
     let keypair = SigningKey::new(OsRng);
-    let keypair_address = *keypair.verification_key().address();
+    let keypair_address = crate::astria_address(keypair.verification_key().address_bytes());
 
     // figure out needed fee for a single transfer
     let data = b"hello world".to_vec();

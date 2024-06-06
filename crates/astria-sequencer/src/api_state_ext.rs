@@ -383,10 +383,7 @@ impl<T: StateWrite> StateWriteExt for T {}
 #[cfg(test)]
 mod test {
     use astria_core::{
-        primitive::v1::{
-            asset::Id,
-            Address,
-        },
+        primitive::v1::asset::Id,
         protocol::test_utils::ConfigureSequencerBlock,
         sequencerblock::v1alpha1::block::Deposit,
     };
@@ -404,7 +401,7 @@ mod test {
         let mut deposits = vec![];
         for _ in 0..2 {
             let rollup_id = RollupId::new(rng.gen());
-            let bridge_address = Address::try_from_slice(&[rng.gen(); 20]).unwrap();
+            let bridge_address = crate::astria_address([rng.gen(); 20]);
             let amount = rng.gen::<u128>();
             let asset_id = Id::from_denom(&rng.gen::<u8>().to_string());
             let destination_chain_address = rng.gen::<u8>().to_string();
