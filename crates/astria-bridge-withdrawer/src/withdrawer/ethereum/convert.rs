@@ -99,7 +99,7 @@ fn event_to_bridge_unlock(
     };
     let action = BridgeUnlockAction {
         to: Address::builder()
-            .array(event.destination_chain_address.to_fixed_bytes().into())
+            .array(event.destination_chain_address.to_fixed_bytes())
             .prefix(ASTRIA_ADDRESS_PREFIX)
             .try_build()
             .wrap_err("failed to construct destination address")?,
@@ -134,7 +134,7 @@ fn event_to_ics20_withdrawal(
     // TODO: make this configurable
     const ICS20_WITHDRAWAL_TIMEOUT: Duration = Duration::from_secs(300);
 
-    let sender = event.sender.to_fixed_bytes().into();
+    let sender = event.sender.to_fixed_bytes();
     let denom = rollup_asset_denom.clone();
 
     let (_, channel) = denom

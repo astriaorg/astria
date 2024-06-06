@@ -63,7 +63,7 @@ fn get_private_key_pretty(signing_key: &SigningKey) -> String {
 
 /// Get the address from the signing key
 fn get_address_pretty(signing_key: &SigningKey) -> String {
-    hex::encode(&signing_key.verification_key().address_bytes())
+    hex::encode(signing_key.verification_key().address_bytes())
 }
 
 /// Generates a new ED25519 keypair and prints the public key, private key, and address
