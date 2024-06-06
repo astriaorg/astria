@@ -7,6 +7,7 @@ use astria_core::{
             Denom,
         },
         Address,
+        ASTRIA_ADDRESS_PREFIX,
     },
     protocol::transaction::v1alpha1::{
         action::{
@@ -99,7 +100,7 @@ fn event_to_bridge_unlock(
     let action = BridgeUnlockAction {
         to: Address::builder()
             .array(event.destination_chain_address.to_fixed_bytes().into())
-            .prefix("astria")
+            .prefix(ASTRIA_ADDRESS_PREFIX)
             .try_build()
             .wrap_err("failed to construct destination address")?,
         amount: event
@@ -156,7 +157,7 @@ fn event_to_ics20_withdrawal(
         // bytes, but this won't work otherwise.
         return_address: Address::builder()
             .array(sender)
-            .prefix("astria")
+            .prefix(ASTRIA_ADDRESS_PREFIX)
             .try_build()
             .wrap_err("failed to construct return address")?,
         amount: event
@@ -213,7 +214,11 @@ mod tests {
         };
 
         let expected_action = BridgeUnlockAction {
-            to: Address::builder().array([1u8; 20]).prefix("astria").build(),
+            to: Address::builder()
+                .array([1u8; 20])
+                .prefix(ASTRIA_ADDRESS_PREFIX)
+                .try_build()
+                .unwrap(),
             amount: 99,
             memo: serde_json::to_vec(&BridgeUnlockMemo {
                 block_number: 1.into(),
@@ -245,7 +250,11 @@ mod tests {
         };
 
         let expected_action = BridgeUnlockAction {
-            to: Address::builder().array([1u8; 20]).prefix("astria").build(),
+            to: Address::builder()
+                .array([1u8; 20])
+                .prefix(ASTRIA_ADDRESS_PREFIX)
+                .try_build()
+                .unwrap(),
             amount: 99,
             memo: serde_json::to_vec(&BridgeUnlockMemo {
                 block_number: 1.into(),
@@ -285,7 +294,11 @@ mod tests {
         let expected_action = Ics20Withdrawal {
             denom: denom.clone(),
             destination_chain_address,
-            return_address: Address::builder().array([0u8; 20]).prefix("astria").build(),
+            return_address: Address::builder()
+                .array([0u8; 20])
+                .prefix(ASTRIA_ADDRESS_PREFIX)
+                .try_build()
+                .unwrap(),
             amount: 99,
             memo: serde_json::to_string(&Ics20WithdrawalMemo {
                 memo: "hello".to_string(),

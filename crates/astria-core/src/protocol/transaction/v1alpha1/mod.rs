@@ -397,6 +397,7 @@ mod test {
         primitive::v1::{
             asset::default_native_asset_id,
             Address,
+            ASTRIA_ADDRESS_PREFIX,
         },
         protocol::transaction::v1alpha1::action::TransferAction,
     };
@@ -416,7 +417,11 @@ mod test {
         ]);
 
         let transfer = TransferAction {
-            to: Address::builder().array([0; 20]).prefix("astria").build(),
+            to: Address::builder()
+                .array([0; 20])
+                .prefix(ASTRIA_ADDRESS_PREFIX)
+                .try_build()
+                .unwrap(),
             amount: 0,
             asset_id: default_native_asset_id(),
             fee_asset_id: default_native_asset_id(),
@@ -449,7 +454,11 @@ mod test {
         ]);
 
         let transfer = TransferAction {
-            to: Address::builder().array([0; 20]).prefix("astria").build(),
+            to: Address::builder()
+                .array([0; 20])
+                .prefix(ASTRIA_ADDRESS_PREFIX)
+                .try_build()
+                .unwrap(),
             amount: 0,
             asset_id: default_native_asset_id(),
             fee_asset_id: default_native_asset_id(),

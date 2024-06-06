@@ -174,7 +174,8 @@ fn make_ics20_withdrawal_action() -> Action {
         return_address: Address::builder()
             .array([0u8; 20])
             .prefix(ASTRIA_ADDRESS_PREFIX)
-            .build(),
+            .try_build()
+            .unwrap(),
         amount: 99,
         memo: serde_json::to_string(&Ics20WithdrawalMemo {
             memo: "hello".to_string(),
@@ -197,7 +198,8 @@ fn make_bridge_unlock_action() -> Action {
         to: Address::builder()
             .array([0u8; 20])
             .prefix(ASTRIA_ADDRESS_PREFIX)
-            .build(),
+            .try_build()
+            .unwrap(),
         amount: 99,
         memo: serde_json::to_vec(&BridgeUnlockMemo {
             block_number: 1.into(),

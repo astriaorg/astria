@@ -115,11 +115,13 @@ pub struct VerificationKey {
 
 impl VerificationKey {
     /// Returns the byte encoding of the verification key.
+    #[must_use]
     pub fn to_bytes(&self) -> [u8; 32] {
         self.key.to_bytes()
     }
 
     /// Returns the byte encoding of the verification key.
+    #[must_use]
     pub fn as_bytes(&self) -> &[u8; 32] {
         self.key.as_bytes()
     }
@@ -138,6 +140,7 @@ impl VerificationKey {
     // Silence the clippy lint because the function body asserts that the panic
     // cannot happen.
     #[allow(clippy::missing_panics_doc)]
+    #[must_use]
     pub fn address_bytes(&self) -> [u8; ADDRESS_LEN] {
         fn first_20(array: [u8; 32]) -> [u8; ADDRESS_LEN] {
             [

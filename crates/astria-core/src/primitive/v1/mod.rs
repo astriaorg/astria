@@ -342,10 +342,13 @@ impl<TBytes, TPrefix> AddressBuilder<TBytes, TPrefix> {
 }
 
 impl<'a, 'b> AddressBuilder<WithBytes<'a>, WithPrefix<'b>> {
-    pub fn build(self) -> Address {
-        self.try_build().unwrap()
-    }
-
+    /// Attempts to build an address from the configured prefix and bytes.
+    ///
+    /// # Errors
+    /// Returns an error if one of the following conditions are violated:
+    /// + if the prefix shorter than 1 or longer than 83 characters, or contains characters outside
+    ///   33-126 of ASCII characters.
+    /// + if the provided bytes are not exactly 20 bytes.
     pub fn try_build(self) -> Result<Address, AddressError> {
         let Self {
             bytes: WithBytes(bytes),
@@ -436,7 +439,7 @@ impl Address {
         if bech32m.is_empty() {
             return Self::builder()
                 .slice(inner.as_ref())
-                .prefix("astria")
+                .prefix(ASTRIA_ADDRESS_PREFIX)
                 .try_build();
         }
         if inner.is_empty() {
@@ -515,7 +518,7 @@ mod tests {
     fn assert_wrong_address_bytes(bad_account: &[u8]) {
         let error = Address::builder()
             .slice(bad_account)
-            .prefix("astria")
+            .prefix(ASTRIA_ADDRESS_PREFIX)
             .try_build()
             .expect_err(
                 "converting from an incorrectly sized byte slice succeeded where it should have \
@@ -540,7 +543,11 @@ mod tests {
 
     #[test]
     fn snapshots() {
-        let address = Address::builder().array([42; 20]).prefix("astria").build();
+        let address = Address::builder()
+            .array([42; 20])
+            .prefix(ASTRIA_ADDRESS_PREFIX)
+            .try_build()
+            .unwrap();
         assert_json_snapshot!(address);
     }
 
@@ -551,7 +558,8 @@ mod tests {
         let address = Address::builder()
             .array([42u8; ADDRESS_LEN])
             .prefix(std::str::from_utf8(&long_prefix).unwrap())
-            .build();
+            .try_build()
+            .unwrap();
         let _ = address.into_raw();
     }
 
@@ -611,7 +619,11 @@ mod tests {
         // allow: `Address::inner` field is deprecated, but we must still check it
         #![allow(deprecated)]
         let bytes = [42u8; ADDRESS_LEN];
-        let address = Address::builder().array(bytes).prefix("astria").build();
+        let address = Address::builder()
+            .array(bytes)
+            .prefix(ASTRIA_ADDRESS_PREFIX)
+            .try_build()
+            .unwrap();
         let output = address.into_raw();
         assert!(
             output.inner.is_empty(),

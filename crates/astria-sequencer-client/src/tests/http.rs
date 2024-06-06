@@ -7,6 +7,7 @@ use astria_core::{
             default_native_asset_id,
         },
         Address,
+        ASTRIA_ADDRESS_PREFIX,
     },
     protocol::transaction::v1alpha1::{
         action::TransferAction,
@@ -49,14 +50,16 @@ const BOB_ADDRESS_BYTES: [u8; 20] = hex!("34fec43c7fcab9aef3b3cf8aba855e41ee69ca
 fn alice_address() -> Address {
     Address::builder()
         .array(ALICE_ADDRESS_BYTES)
-        .prefix("astria")
-        .build()
+        .prefix(ASTRIA_ADDRESS_PREFIX)
+        .try_build()
+        .unwrap()
 }
 fn bob_address() -> Address {
     Address::builder()
         .array(BOB_ADDRESS_BYTES)
-        .prefix("astria")
-        .build()
+        .prefix(ASTRIA_ADDRESS_PREFIX)
+        .try_build()
+        .unwrap()
 }
 
 struct MockSequencer {

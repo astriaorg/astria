@@ -17,7 +17,7 @@
 //!     .array(hex_literal::hex!(
 //!         "DEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF"
 //!     ))
-//!     .prefix("astria")
+//!     .prefix(ASTRIA_ADDRESS_PREFIX)
 //!     .build();
 //! let height = 5u32;
 //! let balance = client.get_balance(address, height).await?;

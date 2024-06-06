@@ -14,7 +14,8 @@ pub(crate) fn astria_address(array: [u8; astria_core::primitive::v1::ADDRESS_LEN
     Address::builder()
         .array(array)
         .prefix(ADDRESS_PREFIX)
-        .build()
+        .try_build()
+        .unwrap()
 }
 
 /// Tries to construct an [`Address`] prefixed by `"astria"` from a byte slice.
