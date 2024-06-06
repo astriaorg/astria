@@ -251,7 +251,11 @@ pub struct IncorrectAddressLength {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize),
+    derive(serde::Deserialize)
+)]
 pub struct Address(
     #[cfg_attr(feature = "serde", serde(serialize_with = "crate::serde::base64"))]
     [u8; ADDRESS_LEN],
