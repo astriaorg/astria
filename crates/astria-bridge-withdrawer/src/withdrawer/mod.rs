@@ -177,6 +177,7 @@ impl Service {
     }
 }
 
+#[derive(Debug)]
 pub struct SequencerStartupInfo {
     pub fee_asset_id: asset::Id,
 }

@@ -98,7 +98,7 @@ impl Watcher {
 
 impl Watcher {
     pub(crate) async fn run(mut self) -> Result<()> {
-        let (contract, fee_asset_id, asset_withdrawal_divisor) = self.startup().await?;
+        let (provider, contract, fee_asset_id, asset_withdrawal_divisor) = self.startup().await?;
 
         let Self {
             contract_address: _contract_address,
@@ -113,6 +113,7 @@ impl Watcher {
 
         let batcher = Batcher::new(
             event_rx,
+            provider,
             submitter_handle,
             &shutdown_token,
             fee_asset_id,
@@ -160,7 +161,14 @@ impl Watcher {
     /// - If the fee asset ID provided in the config is not a valid fee asset on the sequencer.
     /// - If the Ethereum node cannot be connected to after several retries.
     /// - If the asset withdrawal decimals cannot be fetched.
-    async fn startup(&mut self) -> eyre::Result<(AstriaWithdrawerContractHandle, asset::Id, u128)> {
+    async fn startup(
+        &mut self,
+    ) -> eyre::Result<(
+        Arc<Provider<Ws>>,
+        AstriaWithdrawerContractHandle,
+        asset::Id,
+        u128,
+    )> {
         // wait for submitter to be ready
         let SequencerStartupInfo {
             fee_asset_id,
@@ -195,21 +203,27 @@ impl Watcher {
         .with_config(retry_config)
         .await
         .wrap_err("failed connecting to geth after several retries; giving up")?;
+        let provider = Arc::new(provider);
 
         // get contract handle
-        let contract = AstriaWithdrawer::new(self.contract_address, Arc::new(provider));
+        let contract = AstriaWithdrawer::new(self.contract_address, provider.clone());
 
         // get asset withdrawal decimals
-        let asset_withdrawal_decimals = contract
-            .asset_withdrawal_decimals()
+        let base_chain_asset_precision = contract
+            .base_chain_asset_precision()
             .call()
             .await
             .wrap_err("failed to get asset withdrawal decimals")?;
-        let asset_withdrawal_divisor = 10u128.pow(asset_withdrawal_decimals);
+        let asset_withdrawal_divisor = 10u128.pow(base_chain_asset_precision);
 
         self.state.set_watcher_ready();
 
-        Ok((contract, fee_asset_id, asset_withdrawal_divisor))
+        Ok((
+            provider.clone(),
+            contract,
+            fee_asset_id,
+            asset_withdrawal_divisor,
+        ))
     }
 }
 
@@ -275,6 +289,7 @@ async fn watch_for_ics20_withdrawal_events(
 
 struct Batcher {
     event_rx: mpsc::Receiver<(WithdrawalEvent, LogMeta)>,
+    provider: Arc<Provider<Ws>>,
     submitter_handle: submitter::Handle,
     shutdown_token: CancellationToken,
     fee_asset_id: asset::Id,
@@ -285,6 +300,7 @@ struct Batcher {
 impl Batcher {
     pub(crate) fn new(
         event_rx: mpsc::Receiver<(WithdrawalEvent, LogMeta)>,
+        provider: Arc<Provider<Ws>>,
         submitter_handle: submitter::Handle,
         shutdown_token: &CancellationToken,
         fee_asset_id: asset::Id,
@@ -293,6 +309,7 @@ impl Batcher {
     ) -> Self {
         Self {
             event_rx,
+            provider,
             submitter_handle,
             shutdown_token: shutdown_token.clone(),
             fee_asset_id,
@@ -329,8 +346,7 @@ impl Batcher {
 
                         if block_number.as_u64() > curr_batch.rollup_height {
                             if !curr_batch.actions.is_empty() {
-                                self.batch_tx
-                                    .send(curr_batch)
+                                self.submitter_handle.send_batch(curr_batch)
                                     .await
                                     .wrap_err("failed to send batched events; receiver dropped?")?;
                             }
@@ -504,14 +520,19 @@ mod tests {
         };
         let denom: Denom = Denom::from_base_denom("nria");
         let expected_action =
-            event_to_action(expected_event, denom.id(), denom.clone(), 1).unwrap();
+            event_to_action(expected_event, denom.id(), denom.clone(), 10u128.pow(18)).unwrap();
         let Action::BridgeUnlock(expected_action) = expected_action else {
             panic!("expected action to be BridgeUnlock, got {expected_action:?}");
         };
 
         let (batch_tx, mut batch_rx) = mpsc::channel(100);
-        let (_, startup_rx) = oneshot::channel();
+        let (startup_tx, startup_rx) = oneshot::channel();
         let submitter_handle = submitter::Handle::new(startup_rx, batch_tx);
+        startup_tx
+            .send(SequencerStartupInfo {
+                fee_asset_id: asset::Id::from_denom("nria"),
+            })
+            .unwrap();
 
         let watcher = Watcher::new(
             &hex::encode(contract_address),
@@ -586,15 +607,20 @@ mod tests {
         };
         let denom = Denom::from("transfer/channel-0/utia".to_string());
         let Action::Ics20Withdrawal(mut expected_action) =
-            event_to_action(expected_event, denom.id(), denom.clone(), 1).unwrap()
+            event_to_action(expected_event, denom.id(), denom.clone(), 10u128.pow(18)).unwrap()
         else {
             panic!("expected action to be Ics20Withdrawal");
         };
         expected_action.timeout_time = 0; // zero this for testing
 
         let (batch_tx, mut batch_rx) = mpsc::channel(100);
-        let (_, startup_rx) = oneshot::channel();
+        let (startup_tx, startup_rx) = oneshot::channel();
         let submitter_handle = submitter::Handle::new(startup_rx, batch_tx);
+        startup_tx
+            .send(SequencerStartupInfo {
+                fee_asset_id: asset::Id::from_denom("transfer/channel-0/utia"),
+            })
+            .unwrap();
 
         let watcher = Watcher::new(
             &hex::encode(contract_address),

@@ -39,10 +39,7 @@ use tendermint_rpc::{
     endpoint::broadcast::tx_sync,
     request,
 };
-use tokio::sync::{
-    mpsc,
-    watch,
-};
+use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 use tracing::debug;
 use wiremock::{
@@ -92,7 +89,7 @@ static TELEMETRY: Lazy<()> = Lazy::new(|| {
 
 async fn setup() -> (
     Submitter,
-    mpsc::Sender<Batch>,
+    submitter::Handle,
     CancellationToken,
     MockServer,
     MockGuard,
@@ -118,7 +115,7 @@ async fn setup() -> (
     // not testing watcher here so just set it to ready
     state.set_watcher_ready();
 
-    let (submitter, batches_tx) = submitter::Builder {
+    let (submitter, submitter_handle) = submitter::Builder {
         shutdown_token: shutdown_token.clone(),
         sequencer_key_path,
         sequencer_chain_id: SEQUENCER_CHAIN_ID.to_string(),
@@ -135,7 +132,7 @@ async fn setup() -> (
 
     (
         submitter,
-        batches_tx,
+        submitter_handle,
         shutdown_token,
         cometbft_mock,
         startup_guard,
@@ -367,9 +364,10 @@ fn compare_actions(expected: &Action, actual: &Action) {
 #[tokio::test]
 async fn submitter_submit_success() {
     // set up submitter and batch
-    let (submitter, batches_tx, _shutdown_token, cometbft_mock, startup_guard) = setup().await;
+    let (submitter, submitter_handle, _shutdown_token, cometbft_mock, startup_guard) =
+        setup().await;
     let state = submitter.state.subscribe();
-    let _submitter_handle = tokio::spawn(submitter.run());
+    let _submitter_task_handle = tokio::spawn(submitter.run());
     wait_for_startup(state, startup_guard).await.unwrap();
 
     // set up guards on mock cometbft
@@ -387,7 +385,7 @@ async fn submitter_submit_success() {
 
     // send batch to submitter
     let batch = make_batch_with_bridge_unlock_and_ics20_withdrawal();
-    batches_tx.send(batch).await.unwrap();
+    submitter_handle.send_batch(batch).await.unwrap();
 
     // wait for the nonce and broadcast guards to be satisfied
     tokio::time::timeout(
@@ -422,9 +420,10 @@ async fn submitter_submit_success() {
 #[tokio::test]
 async fn submitter_submit_check_tx_failure() {
     // set up submitter and batch
-    let (submitter, batches_tx, _shutdown_token, cometbft_mock, startup_guard) = setup().await;
+    let (submitter, submitter_handle, _shutdown_token, cometbft_mock, startup_guard) =
+        setup().await;
     let state = submitter.state.subscribe();
-    let submitter_handle = tokio::spawn(submitter.run());
+    let submitter_task_handle = tokio::spawn(submitter.run());
     wait_for_startup(state, startup_guard).await.unwrap();
 
     // set up guards on mock cometbft
@@ -444,7 +443,7 @@ async fn submitter_submit_check_tx_failure() {
 
     // send batch to submitter
     let batch = make_batch_with_bridge_unlock_and_ics20_withdrawal();
-    batches_tx.send(batch).await.unwrap();
+    submitter_handle.send_batch(batch).await.unwrap();
 
     // wait for the nonce and broadcast guards to be satisfied
     tokio::time::timeout(
@@ -461,7 +460,7 @@ async fn submitter_submit_check_tx_failure() {
     .unwrap();
 
     // make sure the submitter halts and the task returns
-    let _submitter_result = tokio::time::timeout(Duration::from_millis(100), submitter_handle)
+    let _submitter_result = tokio::time::timeout(Duration::from_millis(100), submitter_task_handle)
         .await
         .unwrap()
         .unwrap();
@@ -472,9 +471,10 @@ async fn submitter_submit_check_tx_failure() {
 #[tokio::test]
 async fn submitter_submit_deliver_tx_failure() {
     // set up submitter and batch
-    let (submitter, batches_tx, _shutdown_token, cometbft_mock, startup_guard) = setup().await;
+    let (submitter, submitter_handle, _shutdown_token, cometbft_mock, startup_guard) =
+        setup().await;
     let state = submitter.state.subscribe();
-    let submitter_handle = tokio::spawn(submitter.run());
+    let submitter_task_handle = tokio::spawn(submitter.run());
     wait_for_startup(state, startup_guard).await.unwrap();
 
     // set up guards on mock cometbft
@@ -494,7 +494,7 @@ async fn submitter_submit_deliver_tx_failure() {
 
     // send batch to submitter
     let batch = make_batch_with_bridge_unlock_and_ics20_withdrawal();
-    batches_tx.send(batch).await.unwrap();
+    submitter_handle.send_batch(batch).await.unwrap();
 
     // wait for the nonce and broadcast guards to be satisfied
     tokio::time::timeout(
@@ -511,7 +511,7 @@ async fn submitter_submit_deliver_tx_failure() {
     .unwrap();
 
     // make sure the submitter halts and the task returns
-    let _submitter_result = tokio::time::timeout(Duration::from_millis(100), submitter_handle)
+    let _submitter_result = tokio::time::timeout(Duration::from_millis(100), submitter_task_handle)
         .await
         .unwrap()
         .unwrap();
