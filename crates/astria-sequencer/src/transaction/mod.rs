@@ -306,7 +306,7 @@ impl ActionHandler for UnsignedTransaction {
                         .clone()
                         .with_handler::<crate::ibc::ics20_transfer::Ics20Transfer, AstriaHost>();
                     action
-                        .execute(&mut *state)
+                        .check_and_execute(&mut *state)
                         .await
                         .context("execution failed for IbcAction")?;
                 }
