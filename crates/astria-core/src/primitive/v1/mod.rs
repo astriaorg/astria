@@ -3,10 +3,7 @@ pub mod u128;
 
 use base64::{
     display::Base64Display,
-    prelude::{
-        Engine as _,
-        BASE64_STANDARD,
-    },
+    prelude::BASE64_STANDARD,
 };
 use bytes::Bytes;
 use sha2::{
@@ -21,12 +18,7 @@ use crate::{
 
 pub const ADDRESS_LEN: usize = 20;
 /// The human readable prefix of astria addresses (also known as bech32 HRP).
-pub const HUMAN_READABLE_ADDRESS_PREFIX: &str = "astria";
-// The compile-time generated bech32::Hrp to avoid redoing it on every encode.
-// Intentionally kept crate-private to not make bech32 part of the crate API.
-const BECH32_HRP: bech32::Hrp = bech32::Hrp::parse_unchecked(HUMAN_READABLE_ADDRESS_PREFIX);
-// The length of astria addresses as bech32m strings.
-const ADDRESS_BECH32M_LENGTH: usize = 45;
+pub const ASTRIA_ADDRESS_PREFIX: &str = "astria";
 
 pub const ROLLUP_ID_LEN: usize = 32;
 pub const FEE_ASSET_ID_LEN: usize = 32;
@@ -266,17 +258,14 @@ impl AddressError {
         })
     }
 
-    fn bech32_hrp_too_long(source: arrayvec::CapacityError) -> Self {
-        Self(AddressErrorKind::Bech32HrpTooLong {
+    fn invalid_prefix(source: bech32::primitives::hrp::Error) -> Self {
+        Self(AddressErrorKind::InvalidPrefix {
             source,
         })
     }
 
-    fn fields_dont_match(bytes: Bytes, bech32m: [u8; ADDRESS_LEN]) -> Self {
-        Self(AddressErrorKind::FieldsDontMatch {
-            bytes,
-            bech32m,
-        })
+    fn fields_are_mutually_exclusive() -> Self {
+        Self(AddressErrorKind::FieldsAreMutuallyExclusive)
     }
 
     fn incorrect_address_length(received: usize) -> Self {
@@ -290,22 +279,14 @@ impl AddressError {
 enum AddressErrorKind {
     #[error("failed decoding provided bech32m string")]
     Bech32mDecode { source: bech32::DecodeError },
-    #[error(
-        "address protobuf contained mismatched address in its `bytes` ({}) and `bech32m` ({}) fields",
-        BASE64_STANDARD.encode(.bytes),
-        BASE64_STANDARD.encode(.bech32m),
-        )]
-    FieldsDontMatch {
-        bytes: Bytes,
-        bech32m: [u8; ADDRESS_LEN],
-    },
+    #[error("fields `inner` and `bech32m` are mutually exclusive, only one can be set")]
+    FieldsAreMutuallyExclusive,
     #[error("expected an address of 20 bytes, got `{received}`")]
     IncorrectAddressLength { received: usize },
-    #[error(
-        "the bech32 human readable prefix exceeds the maximum permitted address capacity of 16 \
-         bytes"
-    )]
-    Bech32HrpTooLong { source: arrayvec::CapacityError },
+    #[error("the provided prefix was not a valid bech32 human readable prefix")]
+    InvalidPrefix {
+        source: bech32::primitives::hrp::Error,
+    },
 }
 
 pub struct NoBytes;
@@ -375,9 +356,7 @@ impl<'a, 'b> AddressBuilder<WithBytes<'a>, WithPrefix<'b>> {
             BytesInner::Slice(bytes) => <[u8; ADDRESS_LEN]>::try_from(bytes.as_ref())
                 .map_err(|_| AddressError::incorrect_address_length(bytes.len()))?,
         };
-        let prefix = arrayvec::ArrayString::from(prefix.as_ref())
-            .map_err(arrayvec::CapacityError::simplify)
-            .map_err(AddressError::bech32_hrp_too_long)?;
+        let prefix = bech32::Hrp::parse(&prefix).map_err(AddressError::invalid_prefix)?;
         Ok(Address {
             bytes,
             prefix,
@@ -389,7 +368,7 @@ impl<'a, 'b> AddressBuilder<WithBytes<'a>, WithPrefix<'b>> {
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
 #[cfg_attr(feature = "serde", serde(into = "raw::Address"))]
 pub struct Address {
-    prefix: arrayvec::ArrayString<16>,
+    prefix: bech32::Hrp,
     bytes: [u8; ADDRESS_LEN],
 }
 
@@ -427,16 +406,12 @@ impl Address {
     #[allow(clippy::missing_panics_doc)]
     #[must_use]
     pub fn to_raw(&self) -> raw::Address {
-        let mut bech32m = String::with_capacity(ADDRESS_BECH32M_LENGTH);
-        bech32::encode_lower_to_fmt::<bech32::Bech32m, _>(&mut bech32m, BECH32_HRP, &self.bytes())
-            .expect(
-                "must not fail because Address is tested to be ADDRESS_BECH32M_LENGTH long, which \
-                 is less than the permitted maximum bech32m checksum length",
-            );
+        let bech32m = bech32::encode_lower::<bech32::Bech32m>(self.prefix, &self.bytes())
+            .expect("must not fail because len(prefix) + len(bytes) <= 63 < BECH32M::CODELENGTH");
         // allow: the field is deprecated, but we must still fill it in
         #[allow(deprecated)]
         raw::Address {
-            inner: Bytes::copy_from_slice(&self.bytes()),
+            inner: Bytes::new(),
             bech32m,
         }
     }
@@ -467,14 +442,7 @@ impl Address {
         if inner.is_empty() {
             return Self::try_from_bech32m(bech32m);
         }
-        let address = Self::try_from_bech32m(bech32m)?;
-        if inner.as_ref() != &address.bytes {
-            return Err(AddressError::fields_dont_match(
-                inner.clone(),
-                address.bytes(),
-            ));
-        }
-        Ok(address)
+        Err(AddressError::fields_are_mutually_exclusive())
     }
 }
 
@@ -499,7 +467,7 @@ impl From<Address> for raw::Address {
 impl std::fmt::Display for Address {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use bech32::EncodeError;
-        match bech32::encode_lower_to_fmt::<bech32::Bech32m, _>(f, BECH32_HRP, &self.bytes()) {
+        match bech32::encode_lower_to_fmt::<bech32::Bech32m, _>(f, self.prefix, &self.bytes()) {
             Ok(()) => Ok(()),
             Err(EncodeError::Fmt(err)) => Err(err),
             Err(err) => panic!(
@@ -540,8 +508,8 @@ mod tests {
         AddressError,
         AddressErrorKind,
         ADDRESS_LEN,
+        ASTRIA_ADDRESS_PREFIX,
     };
-    use crate::primitive::v1::BECH32_HRP;
 
     #[track_caller]
     fn assert_wrong_address_bytes(bad_account: &[u8]) {
@@ -577,35 +545,31 @@ mod tests {
     }
 
     #[test]
-    fn const_astria_hrp_is_valid() {
-        let hrp = bech32::Hrp::parse(super::HUMAN_READABLE_ADDRESS_PREFIX).unwrap();
-        assert_eq!(hrp, super::BECH32_HRP);
+    fn can_construct_protobuf_from_address_with_maximally_sized_prefix() {
+        // 83 is the maximal length of a hrp
+        let long_prefix = [b'a'; 83];
+        let address = Address::builder()
+            .array([42u8; ADDRESS_LEN])
+            .prefix(std::str::from_utf8(&long_prefix).unwrap())
+            .build();
+        let _ = address.into_raw();
     }
 
     #[test]
-    fn const_astria_bech32m_is_correct_length() {
-        let actual = bech32::encoded_length::<bech32::Bech32m>(
-            super::BECH32_HRP,
-            &[42u8; super::ADDRESS_LEN],
-        )
-        .unwrap();
-        assert_eq!(super::ADDRESS_BECH32M_LENGTH, actual);
-    }
-
-    #[test]
-    fn mismatched_fields_in_protobuf_address_are_caught() {
+    fn bech32m_and_deprecated_bytes_field_are_mutually_exclusive() {
         // allow: `Address::inner` field is deprecated, but we must still check it
         #![allow(deprecated)]
         let bytes = Bytes::copy_from_slice(&[24u8; ADDRESS_LEN]);
         let bech32m = [42u8; ADDRESS_LEN];
         let proto = super::raw::Address {
             inner: bytes.clone(),
-            bech32m: bech32::encode_lower::<bech32::Bech32m>(super::BECH32_HRP, &bech32m).unwrap(),
+            bech32m: bech32::encode_lower::<bech32::Bech32m>(
+                bech32::Hrp::parse(ASTRIA_ADDRESS_PREFIX).unwrap(),
+                &bech32m,
+            )
+            .unwrap(),
         };
-        let expected = AddressErrorKind::FieldsDontMatch {
-            bytes,
-            bech32m,
-        };
+        let expected = AddressErrorKind::FieldsAreMutuallyExclusive;
         let actual = Address::try_from_raw(&proto)
             .expect_err("returned a valid address where it should have errored");
         assert_eq!(expected, actual.0);
@@ -621,33 +585,44 @@ mod tests {
             bech32m: String::new(),
         };
         let address = Address::try_from_raw(&input).unwrap();
-        assert_eq!("astria", &address.prefix);
+        assert_eq!("astria", address.prefix.as_str());
         assert_eq!(bytes, address.bytes());
     }
 
     #[test]
-    fn proto_with_missing_bytes_is_accepted_and_bytes_is_populated() {
+    fn proto_with_missing_bytes_is_accepted() {
         // allow: `Address::inner` field is deprecated, but we must still check it
         #![allow(deprecated)]
         let bytes = [42u8; ADDRESS_LEN];
         let input = raw::Address {
             inner: Bytes::new(),
-            bech32m: bech32::encode_lower::<bech32::Bech32m>(BECH32_HRP, &bytes).unwrap(),
+            bech32m: bech32::encode_lower::<bech32::Bech32m>(
+                bech32::Hrp::parse(ASTRIA_ADDRESS_PREFIX).unwrap(),
+                &bytes,
+            )
+            .unwrap(),
         };
         let address = Address::try_from_raw(&input).unwrap();
         assert_eq!(bytes, address.bytes());
     }
 
     #[test]
-    fn protobuf_has_bytes_and_bech32m_populated() {
+    fn protobuf_only_has_bech32m_populated() {
         // allow: `Address::inner` field is deprecated, but we must still check it
         #![allow(deprecated)]
         let bytes = [42u8; ADDRESS_LEN];
         let address = Address::builder().array(bytes).prefix("astria").build();
         let output = address.into_raw();
-        assert_eq!(&bytes[..], &*output.inner);
+        assert!(
+            output.inner.is_empty(),
+            "the deprecated bytes field must not be set"
+        );
         assert_eq!(
-            bech32::encode_lower::<bech32::Bech32m>(BECH32_HRP, &bytes).unwrap(),
+            bech32::encode_lower::<bech32::Bech32m>(
+                bech32::Hrp::parse(ASTRIA_ADDRESS_PREFIX).unwrap(),
+                &bytes
+            )
+            .unwrap(),
             output.bech32m
         );
     }
