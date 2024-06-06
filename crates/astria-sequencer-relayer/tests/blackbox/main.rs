@@ -20,13 +20,7 @@ const RELAY_ALL: bool = false;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn one_block_is_relayed_to_celestia() {
-    let sequencer_relayer = TestSequencerRelayerConfig {
-        relay_only_self: false,
-        last_written_sequencer_height: None,
-        only_include_rollups: HashSet::new(),
-    }
-    .spawn_relayer()
-    .await;
+    let sequencer_relayer = TestSequencerRelayerConfig::default().spawn_relayer().await;
 
     sequencer_relayer.mount_abci_response(1).await;
     let block_to_mount = SequencerBlockToMount::GoodAtHeight(1);
@@ -69,13 +63,7 @@ async fn one_block_is_relayed_to_celestia() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn report_degraded_if_block_fetch_fails() {
-    let sequencer_relayer = TestSequencerRelayerConfig {
-        relay_only_self: false,
-        last_written_sequencer_height: None,
-        only_include_rollups: HashSet::new(),
-    }
-    .spawn_relayer()
-    .await;
+    let sequencer_relayer = TestSequencerRelayerConfig::default().spawn_relayer().await;
 
     // Relayer reports 200 on /readyz after start.
     let readyz_status = sequencer_relayer
@@ -136,9 +124,8 @@ async fn report_degraded_if_block_fetch_fails() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn later_height_in_state_leads_to_expected_relay() {
     let sequencer_relayer = TestSequencerRelayerConfig {
-        relay_only_self: false,
         last_written_sequencer_height: Some(5),
-        only_include_rollups: HashSet::new(),
+        ..TestSequencerRelayerConfig::default()
     }
     .spawn_relayer()
     .await;
@@ -183,13 +170,7 @@ async fn later_height_in_state_leads_to_expected_relay() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn three_blocks_are_relayed() {
-    let sequencer_relayer = TestSequencerRelayerConfig {
-        relay_only_self: false,
-        last_written_sequencer_height: None,
-        only_include_rollups: HashSet::new(),
-    }
-    .spawn_relayer()
-    .await;
+    let sequencer_relayer = TestSequencerRelayerConfig::default().spawn_relayer().await;
 
     sequencer_relayer.mount_abci_response(1).await;
     let block_to_mount = SequencerBlockToMount::GoodAtHeight(1);
@@ -259,8 +240,7 @@ async fn three_blocks_are_relayed() {
 async fn block_from_other_proposer_is_skipped() {
     let sequencer_relayer = TestSequencerRelayerConfig {
         relay_only_self: true,
-        last_written_sequencer_height: None,
-        only_include_rollups: HashSet::new(),
+        ..TestSequencerRelayerConfig::default()
     }
     .spawn_relayer()
     .await;
@@ -329,9 +309,8 @@ async fn should_filter_rollup() {
     let excluded_rollup_ids: HashSet<_> = (0..5).map(|x| RollupId::new([100 + x; 32])).collect();
 
     let sequencer_relayer = TestSequencerRelayerConfig {
-        relay_only_self: false,
-        last_written_sequencer_height: None,
         only_include_rollups: included_rollup_ids.clone(),
+        ..TestSequencerRelayerConfig::default()
     }
     .spawn_relayer()
     .await;
@@ -389,13 +368,7 @@ async fn should_filter_rollup() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn should_shut_down() {
-    let mut sequencer_relayer = TestSequencerRelayerConfig {
-        relay_only_self: false,
-        last_written_sequencer_height: None,
-        only_include_rollups: HashSet::new(),
-    }
-    .spawn_relayer()
-    .await;
+    let mut sequencer_relayer = TestSequencerRelayerConfig::default().spawn_relayer().await;
 
     // Start handling a block.
     sequencer_relayer.mount_abci_response(1).await;
@@ -429,4 +402,28 @@ async fn should_shut_down() {
         .await;
 
     sequencer_relayer.wait_for_relayer_shutdown(1_000).await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn should_exit_if_sequencer_chain_id_mismatch() {
+    let mut sequencer_relayer = TestSequencerRelayerConfig {
+        sequencer_chain_id: "bad-id".to_string(),
+        ..TestSequencerRelayerConfig::default()
+    }
+    .spawn_relayer()
+    .await;
+
+    sequencer_relayer.wait_for_relayer_shutdown(100).await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn should_exit_if_celestia_chain_id_mismatch() {
+    let mut sequencer_relayer = TestSequencerRelayerConfig {
+        celestia_chain_id: "bad-id".to_string(),
+        ..TestSequencerRelayerConfig::default()
+    }
+    .spawn_relayer()
+    .await;
+
+    sequencer_relayer.wait_for_relayer_shutdown(100).await;
 }
