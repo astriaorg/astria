@@ -64,16 +64,22 @@ const INIT_BRIDGE_ACCOUNT_BASE_FEE_STORAGE_KEY: &str = "initbridgeaccfee";
 const BRIDGE_LOCK_BYTE_COST_MULTIPLIER_STORAGE_KEY: &str = "bridgelockmultiplier";
 const BRIDGE_SUDO_CHANGE_FEE_STORAGE_KEY: &str = "bridgesudofee";
 
-fn storage_key(address: &str) -> String {
+fn bridge_account_storage_key(address: &str) -> String {
     format!("{BRIDGE_ACCOUNT_PREFIX}/{address}")
 }
 
 fn rollup_id_storage_key(address: &Address) -> String {
-    format!("{}/rollupid", storage_key(&address.encode_hex::<String>()))
+    format!(
+        "{}/rollupid",
+        bridge_account_storage_key(&address.encode_hex::<String>())
+    )
 }
 
 fn asset_id_storage_key(address: &Address) -> String {
-    format!("{}/assetid", storage_key(&address.encode_hex::<String>()))
+    format!(
+        "{}/assetid",
+        bridge_account_storage_key(&address.encode_hex::<String>())
+    )
 }
 
 fn deposit_storage_key_prefix(rollup_id: &RollupId) -> String {
@@ -94,6 +100,13 @@ fn bridge_account_sudo_address_storage_key(address: &Address) -> String {
 
 fn bridge_account_withdrawer_address_storage_key(address: &Address) -> String {
     format!("{BRIDGE_ACCOUNT_WITHDRAWER_PREFIX}/{address}")
+}
+
+fn last_transaction_hash_for_bridge_account_storage_key(address: &Address) -> Vec<u8> {
+    format!(
+        "{}/lasttx",
+        bridge_account_storage_key(&address.encode_hex::<String>())
+    ).as_bytes().to_vec()
 }
 
 #[async_trait]
@@ -267,6 +280,27 @@ pub(crate) trait StateReadExt: StateRead {
         let Fee(fee) = Fee::try_from_slice(&bytes).context("invalid fee bytes")?;
         Ok(fee)
     }
+
+    #[instrument(skip(self))]
+    async fn get_last_transaction_hash_for_bridge_account(
+        &self,
+        address: &Address,
+    ) -> Result<Option<[u8; 32]>> {
+        let Some(tx_hash_bytes) = self
+            .nonverifiable_get_raw(&last_transaction_hash_for_bridge_account_storage_key(
+                address,
+            ))
+            .await
+            .context("failed reading raw last transaction hash for bridge account from state")?
+        else {
+            return Ok(None);
+        };
+
+        let tx_hash = tx_hash_bytes
+            .try_into()
+            .expect("all transaction hashes stored should be 32 bytes; this is a bug");
+        Ok(Some(tx_hash))
+    }
 }
 
 impl<T: StateRead + ?Sized> StateReadExt for T {}
@@ -384,6 +418,18 @@ pub(crate) trait StateWriteExt: StateWrite {
         self.put_raw(
             BRIDGE_SUDO_CHANGE_FEE_STORAGE_KEY.to_string(),
             borsh::to_vec(&Fee(fee)).expect("failed to serialize fee"),
+        );
+    }
+
+    #[instrument(skip(self))]
+    fn put_last_transaction_hash_for_bridge_account(
+        &mut self,
+        address: &Address,
+        tx_hash: &[u8; 32],
+    ) {
+        self.nonverifiable_put_raw(
+            last_transaction_hash_for_bridge_account_storage_key(address),
+            tx_hash.to_vec(),
         );
     }
 }

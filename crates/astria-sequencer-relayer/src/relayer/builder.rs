@@ -27,6 +27,8 @@ use crate::{
 
 pub(crate) struct Builder {
     pub(crate) shutdown_token: tokio_util::sync::CancellationToken,
+    pub(crate) sequencer_chain_id: String,
+    pub(crate) celestia_chain_id: String,
     pub(crate) celestia_app_grpc_endpoint: String,
     pub(crate) celestia_app_key_file: String,
     pub(crate) cometbft_endpoint: String,
@@ -43,6 +45,8 @@ impl Builder {
     pub(crate) fn build(self) -> eyre::Result<super::Relayer> {
         let Self {
             shutdown_token,
+            sequencer_chain_id,
+            celestia_chain_id,
             celestia_app_grpc_endpoint,
             celestia_app_key_file,
             cometbft_endpoint,
@@ -77,12 +81,13 @@ impl Builder {
                 .wrap_err("failed parsing provided celestia app grpc endpoint as Uri")?;
             let celestia_keys = CelestiaKeys::from_path(celestia_app_key_file)
                 .wrap_err("failed to get celestia keys from file")?;
-            CelestiaClientBuilder::new(uri, celestia_keys, state.clone())
+            CelestiaClientBuilder::new(celestia_chain_id, uri, celestia_keys, state.clone())
                 .wrap_err("failed to create celestia client builder")?
         };
 
         Ok(super::Relayer {
             shutdown_token,
+            sequencer_chain_id,
             sequencer_cometbft_client,
             sequencer_grpc_client,
             sequencer_poll_period,

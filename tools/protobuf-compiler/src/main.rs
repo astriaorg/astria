@@ -69,6 +69,7 @@ fn main() {
             ".celestia",
             ".cosmos",
             ".tendermint",
+            ".astria.protocol.asset.v1alpha1.AllowedFeeAssetIdsResponse",
         ])
         .client_mod_attribute(".", "#[cfg(feature=\"client\")]")
         .server_mod_attribute(".", "#[cfg(feature=\"server\")]")

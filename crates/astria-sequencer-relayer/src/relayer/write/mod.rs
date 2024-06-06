@@ -156,6 +156,7 @@ impl BlobSubmitter {
         let client = init_result.map_err(|error| {
             let message = "failed to initialize celestia client";
             error!(%error, message);
+            self.shutdown_token.cancel();
             error.wrap_err(message)
         })?;
 
@@ -355,9 +356,20 @@ async fn submit_blobs(
 async fn init_with_retry(client_builder: CelestiaClientBuilder) -> eyre::Result<CelestiaClient> {
     let span = Span::current();
 
+    let initial_retry_delay = Duration::from_secs(1);
     let retry_config = tryhard::RetryFutureConfig::new(u32::MAX)
-        .exponential_backoff(Duration::from_secs(1))
         .max_delay(Duration::from_secs(30))
+        .custom_backoff(|attempt: u32, error: &BuilderError| {
+            if matches!(error, BuilderError::MismatchedCelestiaChainId { .. }) {
+                // We got a good response from the Celestia app, but this is an unrecoverable error.
+                return tryhard::RetryPolicy::Break;
+            }
+            // This is equivalent to the `exponential_backoff` policy.  Note that `max_delay`
+            // above is still respected regardless of what we return here.
+            let delay =
+                initial_retry_delay.saturating_mul(2_u32.saturating_pow(attempt.saturating_sub(1)));
+            tryhard::RetryPolicy::Delay(delay)
+        })
         .on_retry(
             |attempt: u32, next_delay: Option<Duration>, error: &BuilderError| {
                 let wait_duration = next_delay
@@ -378,7 +390,7 @@ async fn init_with_retry(client_builder: CelestiaClientBuilder) -> eyre::Result<
         .with_config(retry_config)
         .in_current_span()
         .await
-        .wrap_err("retry attempts exhausted; bailing")?;
+        .wrap_err("failed to initialize celestia client")?;
     info!("initialized celestia client");
     Ok(celestia_client)
 }
