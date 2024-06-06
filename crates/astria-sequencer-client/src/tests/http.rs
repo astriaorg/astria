@@ -269,7 +269,7 @@ async fn get_bridge_account_last_transaction_hash() {
     .await;
 
     let actual_response = client
-        .get_bridge_account_last_transaction_hash(ALICE_ADDRESS)
+        .get_bridge_account_last_transaction_hash(alice_address())
         .await
         .unwrap()
         .into_raw();
