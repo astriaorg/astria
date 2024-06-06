@@ -17,7 +17,9 @@ use astria_eyre::{
 };
 use ethers::{
     contract::LogMeta,
+    core::types::Block,
     providers::{
+        Middleware,
         Provider,
         ProviderError,
         StreamExt as _,
@@ -31,6 +33,7 @@ use tokio::{
 };
 use tokio_util::sync::CancellationToken;
 use tracing::{
+    error,
     info,
     warn,
 };
@@ -297,10 +300,14 @@ impl Batcher {
             asset_withdrawal_divisor,
         }
     }
-}
 
-impl Batcher {
     pub(crate) async fn run(mut self) -> Result<()> {
+        let mut block_rx = self
+            .provider
+            .subscribe_blocks()
+            .await
+            .wrap_err("failed to subscribe to blocks")?;
+
         let mut curr_batch = Batch {
             actions: Vec::new(),
             rollup_height: 0,
@@ -311,6 +318,32 @@ impl Batcher {
                 () = self.shutdown_token.cancelled() => {
                     info!("batcher shutting down");
                     break;
+                }
+                block = block_rx.next() => {
+                    if let Some(Block { number, .. }) = block {
+                        let Some(block_number) = number else {
+                            // don't think this should happen
+                            warn!("block number missing; skipping");
+                            continue;
+                        };
+
+                        if block_number.as_u64() > curr_batch.rollup_height {
+                            if !curr_batch.actions.is_empty() {
+                                self.batch_tx
+                                    .send(curr_batch)
+                                    .await
+                                    .wrap_err("failed to send batched events; receiver dropped?")?;
+                            }
+
+                            curr_batch = Batch {
+                                actions: Vec::new(),
+                                rollup_height: block_number.as_u64(),
+                            };
+                        }
+                    } else {
+                        error!("block stream closed; shutting down batcher");
+                        break;
+                    }
                 }
                 item = self.event_rx.recv() => {
                     if let Some((event, meta)) = item {
@@ -338,7 +371,7 @@ impl Batcher {
                             };
                         }
                     } else {
-                        warn!("event receiver dropped; shutting down batcher");
+                        error!("event receiver dropped; shutting down batcher");
                         break;
                     }
                 }
@@ -385,7 +418,7 @@ mod tests {
             SequencerWithdrawalFilter,
         },
         convert::EventWithMetadata,
-        test_utils::deploy_astria_withdrawer,
+        test_utils::ConfigureAstriaWithdrawerDeployer,
     };
 
     #[test]
@@ -432,8 +465,28 @@ mod tests {
 
     #[tokio::test]
     #[ignore = "requires foundry and solc to be installed"]
+    async fn astria_withdrawer_invalid_value_fails() {
+        let (contract_address, provider, wallet, _anvil) = ConfigureAstriaWithdrawerDeployer {
+            base_chain_asset_precision: 15,
+        }
+        .deploy()
+        .await;
+        let signer = Arc::new(SignerMiddleware::new(provider, wallet.clone()));
+        let contract = AstriaWithdrawer::new(contract_address, signer.clone());
+
+        let value: U256 = 999.into(); // 10^3 - 1
+        let recipient = [0u8; 20].into();
+        let tx = contract.withdraw_to_sequencer(recipient).value(value);
+        tx.send()
+            .await
+            .expect_err("`withdraw` transaction should have failed due to value < 10^3");
+    }
+
+    #[tokio::test]
+    #[ignore = "requires foundry and solc to be installed"]
     async fn watcher_can_watch_sequencer_withdrawals() {
-        let (contract_address, provider, wallet, anvil) = deploy_astria_withdrawer().await;
+        let (contract_address, provider, wallet, anvil) =
+            ConfigureAstriaWithdrawerDeployer::default().deploy().await;
         let signer = Arc::new(SignerMiddleware::new(provider, wallet.clone()));
         let contract = AstriaWithdrawer::new(contract_address, signer.clone());
 
@@ -492,7 +545,7 @@ mod tests {
         recipient: String,
     ) -> TransactionReceipt {
         let tx = contract
-            .withdraw_to_origin_chain(recipient, "nootwashere".to_string())
+            .withdraw_to_ibc_chain(recipient, "nootwashere".to_string())
             .value(value);
         let receipt = tx
             .send()
@@ -513,7 +566,8 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires foundry and solc to be installed"]
     async fn watcher_can_watch_ics20_withdrawals() {
-        let (contract_address, provider, wallet, anvil) = deploy_astria_withdrawer().await;
+        let (contract_address, provider, wallet, anvil) =
+            ConfigureAstriaWithdrawerDeployer::default().deploy().await;
         let signer = Arc::new(SignerMiddleware::new(provider, wallet.clone()));
         let contract = AstriaWithdrawer::new(contract_address, signer.clone());
 

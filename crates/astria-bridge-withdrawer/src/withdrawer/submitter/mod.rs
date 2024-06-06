@@ -64,6 +64,8 @@ use super::{
 
 mod builder;
 mod signer;
+#[cfg(test)]
+mod tests;
 
 pub(super) struct Submitter {
     shutdown_token: CancellationToken,
