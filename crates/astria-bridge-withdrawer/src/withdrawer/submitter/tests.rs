@@ -246,7 +246,7 @@ fn signed_tx_from_request(request: &Request) -> SignedTransaction {
 
     let wrapped_tx_sync_req: request::Wrapper<tx_sync::Request> =
         serde_json::from_slice(&request.body)
-            .expect("can't deserialize to JSONRPC wrapped tx_sync::Request");
+            .expect("deserialize to JSONRPC wrapped tx_sync::Request");
     let raw_signed_tx = RawSignedTransaction::decode(&*wrapped_tx_sync_req.params().tx)
         .expect("can't deserialize signed sequencer tx from broadcast jsonrpc request");
     let signed_tx = SignedTransaction::try_from_raw(raw_signed_tx)
@@ -255,6 +255,7 @@ fn signed_tx_from_request(request: &Request) -> SignedTransaction {
 
     signed_tx
 }
+
 async fn register_genesis_response(server: &MockServer) -> MockGuard {
     use tendermint::{
         consensus::{
