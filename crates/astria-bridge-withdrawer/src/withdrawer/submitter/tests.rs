@@ -179,6 +179,7 @@ fn make_ics20_withdrawal_action() -> Action {
         timeout_height: IbcHeight::new(u64::MAX, u64::MAX).unwrap(),
         timeout_time: 0, // zero this for testing
         source_channel: "channel-0".parse().unwrap(),
+        bridge_address: None,
     };
 
     Action::Ics20Withdrawal(inner)
@@ -195,6 +196,7 @@ fn make_bridge_unlock_action() -> Action {
         })
         .unwrap(),
         fee_asset_id: denom.id(),
+        bridge_address: None,
     };
     Action::BridgeUnlock(inner)
 }

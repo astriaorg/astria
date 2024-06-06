@@ -106,7 +106,9 @@ fn last_transaction_hash_for_bridge_account_storage_key(address: &Address) -> Ve
     format!(
         "{}/lasttx",
         bridge_account_storage_key(&address.encode_hex::<String>())
-    ).as_bytes().to_vec()
+    )
+    .as_bytes()
+    .to_vec()
 }
 
 #[async_trait]
