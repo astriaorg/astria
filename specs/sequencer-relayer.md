@@ -3,7 +3,7 @@
 ## Overview
 
 The sequencer-relayer, a.k.a relayer, is an application whose primary
-responsibility is to store sequenced rollup data on a remote data availability
+responsibility is to publish sequenced rollup data on a remote data availability
 layer (DA layer).
 
 The immediate source of the sequenced data is the sequencer blockchain network,
@@ -14,7 +14,7 @@ layer is the Celestia blockchain.
 
 The application logic of the relayer is comprised of three main tasks: getting
 the data from a sequencer node, transforming the data in preparation for
-storing, and putting the transformed data onto the Celestia network.
+publishing, and putting the transformed data onto the Celestia network.
 
 ### Getting the Data from a Sequencer Node
 
@@ -38,7 +38,7 @@ required.
 
 Should the sequencer fail to fetch the latest sequencer block height, no action
 is taken other than logging and recording the fact in metrics - polling
-continues at the same frequency under tha assumption that the error is a
+continues at the same frequency under the assumption that the error is a
 transient one.
 
 Should the sequencer fail to fetch a block at a given height, it will keep
@@ -93,7 +93,7 @@ The transformation steps on receiving a new sequencer block are as follows:
   filtering of rollups is applied if enabled: only rollups specified in the
   `ASTRIA_SEQUENCER_RELAYER_ONLY_INCLUDE_ROLLUPS` env var are included, or else
   no filtering is done if the env var is empty.
-1. All the lists are converted to a single `Payload` of Celestia blobs, one list
+1. All the lists are converted to a single payload of Celestia blobs, one list
   per blob. Each list is encoded to bytes using Protobuf serialization then
   compressed using Brotli. The payload also contains the total uncompressed and
   compressed size of the data (specifically the number of bytes in the
@@ -142,11 +142,54 @@ which point backpressure will cause the reader task to pause as detailed above.
 
 ## Further Details
 
-After each successful attempt to put data onto Celestia, the relayer writes some
-pertinent information to disk in the form of two JSON files; the pre-submit file
-and post-submit file. These allow the relayer to restart and continue submitting
-from where it left off.
+### Pre- and Post-Submit Files
 
-The relayer also runs a small http server providing three endpoints; `/healthz`,
+At the start and end of each successful attempt to put data onto Celestia, the
+relayer writes some pertinent information to disk in the form of two JSON files;
+the pre-submit file and post-submit file. These allow the relayer to restart and
+continue submitting from where it left off.
+
+#### Pre-Submit File
+
+The contents of the pre-submit file are one of either:
+
+```json
+{"state": "started", "sequencer_height": <number>, "last_submission": <last post-submit>}
+```
+
+or
+
+```json
+{"state": "ignore"}
+```
+
+The former is the normal case, with the file updated at the start of every new
+submission. The latter is used to force the relayer to ignore the pre-submit
+state entirely and only consider the post-submit state.
+
+#### Post-Submit File
+
+The contents of the post-submit file are one of either:
+
+```json
+{"state": "fresh"}
+```
+
+or
+
+```json
+{"state": "submitted", "celestia_height": <number>, "sequencer_height": <number>}
+```
+
+The former indicates the relayer should start relaying from sequencer block 1,
+while the latter records the relevant block heights of the last successful
+submission.
+
+### HTTP Servers
+
+The relayer runs a small http server providing three endpoints; `/healthz`,
 `/readyz` (Kubernetes API health endpoints) and `/status` which reports a few
 facets of the current state of the relayer.
+
+There is also an optional metrics http server which supports scraping Prometheus
+metrics.
