@@ -28,7 +28,7 @@ In order to startup you will need to have docker running on your machine.
 
 ### Configuring Funding of Geth
 
-By default, running this local rollup will not have any funds, but will be 
+By default, running this local rollup will not have any funds, but will be
 configured to use the sequencer account bridge.
 
 ```bash
