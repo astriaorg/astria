@@ -212,8 +212,8 @@ async fn mount_broadcast_tx_sync_seq_actions_mock(server: &MockServer) -> MockGu
         .await
 }
 
-/// Mounts a `CometBFT` status response with a specified mock sequencer chain id
-async fn mount_cometbft_status_response(server: &MockServer,mock_sequencer_chain_id: &str,) -> MockGuard {
+// Mounts a `CometBFT` status response with a specified mock sequencer chain id
+async fn mount_cometbft_status_response(server: &MockServer, mock_sequencer_chain_id: &str) -> MockGuard {
     use tendermint_rpc::endpoint::status;
 
     let mut status_response: status::Response = serde_json::from_str(STATUS_RESPONSE).unwrap();
@@ -554,12 +554,17 @@ async fn two_seq_actions_single_bundle() {
     }
 }
 
+/// Test to check that executor's configured sequencer chain id and sequencer's actual chain id match
 #[tokio::test]
 async fn should_exit_if_mismatch_sequencer_chain_id() {
-    // set up the executor, channel for writing seq actions, and the sequencer mock
+    // set up sequencer mock
     let (sequencer, cfg, _keyfile) = setup().await;
     let shutdown_token = CancellationToken::new();
+
+    // mount a status response with an incorrect chain_id
     let _status_guard = mount_cometbft_status_response(&sequencer, "different-chain-id").await;
+
+    // build the executor with the correct chain_id
     let build_result = executor::Builder {
         sequencer_url: cfg.sequencer_url.clone(),
         sequencer_chain_id: cfg.sequencer_chain_id.clone(),
@@ -572,5 +577,6 @@ async fn should_exit_if_mismatch_sequencer_chain_id() {
     .build()
     .await;
 
+    // verify that the executor build resulted in an error
     assert!(build_result.is_err());
 }

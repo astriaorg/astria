@@ -59,6 +59,24 @@ pub async fn mount_abci_query_mock(
         .await
 }
 
+async fn mount_cometbft_status_response(server: &MockServer, mock_sequencer_chain_id: &str) -> MockGuard {
+    use tendermint_rpc::endpoint::status;
+
+    let mut status_response: status::Response = serde_json::from_str(STATUS_RESPONSE).unwrap();
+    status_response.node_info.network = mock_sequencer_chain_id.to_string().parse().unwrap();
+
+    let response =
+        tendermint_rpc::response::Wrapper::new_with_id(Id::Num(1), Some(status_response), None);
+
+    Mock::given(body_partial_json(json!({"method": "status"})))
+        .respond_with(ResponseTemplate::new(200).set_body_json(response))
+        .up_to_n_times(1)
+        .expect(1..)
+        .named("CometBFT status")
+        .mount_as_scoped(server)
+        .await
+}
+
 const STATUS_RESPONSE: &str = r#"
 {
   "node_info": {
@@ -98,26 +116,3 @@ const STATUS_RESPONSE: &str = r#"
     "voting_power": "0"
   }
 }"#;
-
-/// Mounts a `CometBFT` status response with the chain ID set as per
-/// `TestSequencerRelayerConfig::sequencer_chain_id`.
-async fn mount_cometbft_status_response(
-    server: &MockServer,
-    mock_sequencer_chain_id: &str,
-) -> MockGuard {
-    use tendermint_rpc::endpoint::status;
-
-    let mut status_response: status::Response = serde_json::from_str(STATUS_RESPONSE).unwrap();
-    status_response.node_info.network = mock_sequencer_chain_id.to_string().parse().unwrap();
-
-    let response =
-        tendermint_rpc::response::Wrapper::new_with_id(Id::Num(1), Some(status_response), None);
-
-    Mock::given(body_partial_json(json!({"method": "status"})))
-        .respond_with(ResponseTemplate::new(200).set_body_json(response))
-        .up_to_n_times(1)
-        .expect(1..)
-        .named("CometBFT status")
-        .mount_as_scoped(server)
-        .await
-}
