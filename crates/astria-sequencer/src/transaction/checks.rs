@@ -91,7 +91,7 @@ pub(crate) async fn check_balance_for_total_fees<S: StateReadExt + 'static>(
         .await
         .context("failed to get bridge lock byte cost multiplier")?;
     let bridge_sudo_change_fee = state
-        .get_bridge_sudo_change_fee()
+        .get_bridge_sudo_change_base_fee()
         .await
         .context("failed to get bridge sudo change fee")?;
 
@@ -315,7 +315,7 @@ mod test {
         state_tx.put_ics20_withdrawal_base_fee(1).unwrap();
         state_tx.put_init_bridge_account_base_fee(12);
         state_tx.put_bridge_lock_byte_cost_multiplier(1);
-        state_tx.put_bridge_sudo_change_fee(24);
+        state_tx.put_bridge_sudo_change_base_fee(24);
 
         crate::asset::initialize_native_asset(DEFAULT_NATIVE_ASSET_DENOM);
         let native_asset = crate::asset::get_native_asset().id();
@@ -382,7 +382,7 @@ mod test {
         state_tx.put_ics20_withdrawal_base_fee(1).unwrap();
         state_tx.put_init_bridge_account_base_fee(12);
         state_tx.put_bridge_lock_byte_cost_multiplier(1);
-        state_tx.put_bridge_sudo_change_fee(24);
+        state_tx.put_bridge_sudo_change_base_fee(24);
 
         crate::asset::initialize_native_asset(DEFAULT_NATIVE_ASSET_DENOM);
         let native_asset = crate::asset::get_native_asset().id();

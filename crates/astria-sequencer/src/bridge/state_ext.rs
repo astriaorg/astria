@@ -273,7 +273,7 @@ pub(crate) trait StateReadExt: StateRead {
     }
 
     #[instrument(skip(self))]
-    async fn get_bridge_sudo_change_fee(&self) -> Result<u128> {
+    async fn get_bridge_sudo_change_base_fee(&self) -> Result<u128> {
         let bytes = self
             .get_raw(BRIDGE_SUDO_CHANGE_FEE_STORAGE_KEY)
             .await
@@ -416,7 +416,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     }
 
     #[instrument(skip(self))]
-    fn put_bridge_sudo_change_fee(&mut self, fee: u128) {
+    fn put_bridge_sudo_change_base_fee(&mut self, fee: u128) {
         self.put_raw(
             BRIDGE_SUDO_CHANGE_FEE_STORAGE_KEY.to_string(),
             borsh::to_vec(&Fee(fee)).expect("failed to serialize fee"),

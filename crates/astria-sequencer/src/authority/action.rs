@@ -142,6 +142,9 @@ impl ActionHandler for FeeChangeAction {
             FeeChange::BridgeLockByteCostMultiplier => {
                 state.put_bridge_lock_byte_cost_multiplier(self.new_value);
             }
+            FeeChange::BridgeSudoChangeBaseFee => {
+                state.put_bridge_sudo_change_base_fee(self.new_value);
+            }
             FeeChange::Ics20WithdrawalBaseFee => {
                 state
                     .put_ics20_withdrawal_base_fee(self.new_value)

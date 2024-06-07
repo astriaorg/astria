@@ -59,7 +59,7 @@ impl ActionHandler for BridgeSudoChangeAction {
     #[instrument(skip_all)]
     async fn execute<S: StateWriteExt>(&self, state: &mut S, _: Address) -> Result<()> {
         let fee = state
-            .get_bridge_sudo_change_fee()
+            .get_bridge_sudo_change_base_fee()
             .await
             .context("failed to get bridge sudo change fee")?;
         state
@@ -144,7 +144,7 @@ mod tests {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
-        state.put_bridge_sudo_change_fee(10);
+        state.put_bridge_sudo_change_base_fee(10);
 
         let fee_asset_id = Id::from_denom("test");
         let bridge_address = Address::from([99; 20]);
