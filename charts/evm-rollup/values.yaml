@@ -38,8 +38,10 @@ config:
   logLevel: "debug"
 
   rollup:
-    # Default name for the rollup chain, used to generate Rollup ID
-    name: astria
+    # string name for the rollup chain, used to generate Rollup ID
+    name: ""
+    # EVM network ID used by the chain
+    networkId: ""
     # Can be set to 'pebble' or 'leveldb'
     dbEngine: pebble
     # Set to true to keep history of all blocks
