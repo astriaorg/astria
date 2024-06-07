@@ -434,7 +434,7 @@ impl ::prost::Name for BridgeSudoChangeAction {
 pub struct FeeChangeAction {
     /// note that the proto number ranges are doubled from that of `Action`.
     /// this to accomodate both `base_fee` and `byte_cost_multiplier` for each action.
-    #[prost(oneof = "fee_change_action::Value", tags = "1, 2, 3, 20, 21, 40")]
+    #[prost(oneof = "fee_change_action::Value", tags = "1, 2, 3, 20, 21, 22, 40")]
     pub value: ::core::option::Option<fee_change_action::Value>,
 }
 /// Nested message and enum types in `FeeChangeAction`.
@@ -456,6 +456,8 @@ pub mod fee_change_action {
         InitBridgeAccountBaseFee(super::super::super::super::primitive::v1::Uint128),
         #[prost(message, tag = "21")]
         BridgeLockByteCostMultiplier(super::super::super::super::primitive::v1::Uint128),
+        #[prost(message, tag = "22")]
+        BridgeSudoChangeBaseFee(super::super::super::super::primitive::v1::Uint128),
         /// ibc fees are defined on 40-59
         #[prost(message, tag = "40")]
         Ics20WithdrawalBaseFee(super::super::super::super::primitive::v1::Uint128),

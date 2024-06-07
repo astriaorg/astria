@@ -240,6 +240,7 @@ message FeeChangeAction {
     // bridge fees are defined on 20-39
     astria.primitive.v1.Uint128 init_bridge_account_base_fee = 20;
     astria.primitive.v1.Uint128 bridge_lock_byte_cost_multiplier = 21;
+    astria.primitive.v1.Uint128 bridge_sudo_change_base_fee = 22;
 
     // ibc fees are defined on 40-59
     astria.primitive.v1.Uint128 ics20_withdrawal_base_fee = 40;

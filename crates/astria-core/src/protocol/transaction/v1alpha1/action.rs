@@ -1454,6 +1454,7 @@ impl BridgeSudoChangeAction {
     /// - if the `bridge_address` field is invalid
     /// - if the `new_sudo_address` field is invalid
     /// - if the `new_withdrawer_address` field is invalid
+    /// - if the `fee_asset_id` field is invalid
     pub fn try_from_raw(
         proto: raw::BridgeSudoChangeAction,
     ) -> Result<Self, BridgeSudoChangeActionError> {
@@ -1538,6 +1539,7 @@ pub enum FeeChange {
     SequenceByteCostMultiplier,
     InitBridgeAccountBaseFee,
     BridgeLockByteCostMultiplier,
+    BridgeSudoChangeBaseFee,
     Ics20WithdrawalBaseFee,
 }
 
@@ -1575,6 +1577,9 @@ impl FeeChangeAction {
                         self.new_value.into(),
                     )
                 }
+                FeeChange::BridgeSudoChangeBaseFee => {
+                    raw::fee_change_action::Value::BridgeSudoChangeBaseFee(self.new_value.into())
+                }
                 FeeChange::Ics20WithdrawalBaseFee => {
                     raw::fee_change_action::Value::Ics20WithdrawalBaseFee(self.new_value.into())
                 }
@@ -1604,6 +1609,9 @@ impl FeeChangeAction {
             }
             Some(raw::fee_change_action::Value::BridgeLockByteCostMultiplier(new_value)) => {
                 (FeeChange::BridgeLockByteCostMultiplier, new_value)
+            }
+            Some(raw::fee_change_action::Value::BridgeSudoChangeBaseFee(new_value)) => {
+                (FeeChange::BridgeSudoChangeBaseFee, new_value)
             }
             Some(raw::fee_change_action::Value::Ics20WithdrawalBaseFee(new_value)) => {
                 (FeeChange::Ics20WithdrawalBaseFee, new_value)
