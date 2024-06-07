@@ -35,7 +35,7 @@ on:
         value: ${{ github.event_name != 'pull_request' || jobs.changes.outputs.release_workflow == 'true' || jobs.changes.outputs.crates == 'true' }}
       run_release_charts:
         description: If release for charts needs to be run, will be 'true'
-        value: ${{ github.event_name != 'pull_request' && (jobs.changes.outputs.release_workflow == 'true' || jobs.changes.outputs.charts == 'true') }}
+        value: ${{ jobs.changes.outputs.release_workflow == 'true' || jobs.changes.outputs.charts == 'true' }}
 
 
 jobs:

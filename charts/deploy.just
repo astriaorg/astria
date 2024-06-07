@@ -32,13 +32,18 @@ delete-chart chart namespace=defaultNamespace:
 helm-add-if-not-exist repo url:
   helm repo list | grep -q {{repo}} || helm repo add {{repo}} {{url}}
 
-deploy-cluster namespace=defaultNamespace:
-  kind create cluster --config ./dev/kubernetes/kind-cluster-config.yml
-  @just helm-add-if-not-exist cilium https://helm.cilium.io/
-  helm install cilium cilium/cilium --version 1.14.3 \
+hubbleEnabled := "false"
+deploy-cluster namespace=defaultNamespace enableHubble=hubbleEnabled:
+  kind create cluster --image kindest/node:v1.28.9 --config ./dev/kubernetes/kind-cluster-config.yml
+  @just helm-add-if-not-exist cilium https://helm.cilium.io/ > dev/null
+  helm install cilium cilium/cilium --version 1.15.5 \
       -f ./dev/values/cilium.yml \
+      {{ if enableHubble == "true" { '--set hubble.enabled=true --set hubble.relay.enabled=true --set hubble.ui.enabled=true --set hubble.ui.ingress.enabled=true' } else { '' } }} \
       --namespace kube-system
   kubectl create namespace {{namespace}}
+
+deploy-metrics-server:
+  kubectl apply -f ./dev/kubernetes/metrics-server-local.yml
 
 deploy-ingress-controller:
   kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
@@ -92,17 +97,13 @@ delete-rollup: delete-dev-rollup delete-bridge-withdrawer
 
 defaultRollupName          := "astria"
 defaultNetworkId           := ""
-defaultGenesisAllocAddress := ""
 defaultPrivateKey          := ""
 defaultSequencerStartBlock := ""
-deploy-dev-rollup rollupName=defaultRollupName networkId=defaultNetworkId genesisAllocAddress=defaultGenesisAllocAddress privateKey=defaultPrivateKey sequencerStartBlock=defaultSequencerStartBlock:
+deploy-dev-rollup rollupName=defaultRollupName networkId=defaultNetworkId:
   helm dependency update charts/evm-rollup > /dev/null
   helm install \
     {{ if rollupName          != '' { replace('--set config.rollup.name=# --set celestia-node.config.labelPrefix=#', '#', rollupName) } else { '' } }} \
     {{ if networkId           != '' { replace('--set config.rollup.networkId=#', '#', networkId) } else { '' } }} \
-    {{ if genesisAllocAddress != '' { replace('--set config.rollup.genesisAccounts[0].address=#', '#', genesisAllocAddress) } else { '' } }} \
-    {{ if privateKey          != '' { replace('--set config.faucet.privateKey=#', '#', privateKey) } else { '' } }} \
-    {{ if sequencerStartBlock != '' { replace('--set config.sequencer.initialBlockHeight=#', '#', sequencerStartBlock) } else { '' } }} \
     -f dev/values/rollup/dev.yaml \
     {{rollupName}}-chain-chart ./charts/evm-rollup --namespace astria-dev-cluster
 
@@ -303,7 +304,10 @@ delete-smoke-test:
   just delete celestia-local
   just delete sequencer
   just delete rollup
-  just delete bridge-withdrawer
+
+#############################################
+##    EVM Curl Command Helper Functions    ##
+#############################################
 
 evm-get-deployed-contract-code contractAddress rpcUrl=eth_rpc_url:
   #!/usr/bin/env bash
