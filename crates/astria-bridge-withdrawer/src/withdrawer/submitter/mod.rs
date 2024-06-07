@@ -48,6 +48,8 @@ use super::{
 
 mod builder;
 mod signer;
+#[cfg(test)]
+mod tests;
 
 pub(super) struct Submitter {
     shutdown_token: CancellationToken,
@@ -60,14 +62,13 @@ pub(super) struct Submitter {
 
 impl Submitter {
     pub(super) async fn run(mut self) -> eyre::Result<()> {
-        self.state.set_submitter_ready();
-
         let actual_chain_id =
             get_sequencer_chain_id(self.sequencer_cometbft_client.clone()).await?;
         ensure!(
             self.sequencer_chain_id == actual_chain_id.to_string(),
             "sequencer_chain_id provided in config does not match chain_id returned from sequencer"
         );
+        self.state.set_submitter_ready();
 
         let reason = loop {
             select!(
@@ -122,10 +123,14 @@ impl Submitter {
 
         let unsigned = UnsignedTransaction {
             actions,
-            params: TransactionParams {
-                nonce,
-                chain_id: self.sequencer_chain_id.clone(),
-            },
+            params: TransactionParams::builder()
+                .nonce(nonce)
+                .chain_id(&self.sequencer_chain_id)
+                .try_build()
+                .context(
+                    "failed to construct transcation parameters from latest nonce and configured \
+                     sequencer chain ID",
+                )?,
         };
 
         // sign transaction
@@ -233,7 +238,7 @@ async fn get_latest_nonce(
     name = "submit_tx",
     skip_all,
     fields(
-        nonce = tx.unsigned_transaction().params.nonce,
+        nonce = tx.nonce(),
         transaction.hash = %telemetry::display::hex(&tx.sha256_of_proto_encoding()),
     )
 )]
@@ -242,7 +247,7 @@ async fn submit_tx(
     tx: SignedTransaction,
     state: Arc<State>,
 ) -> eyre::Result<tx_commit::Response> {
-    let nonce = tx.unsigned_transaction().params.nonce;
+    let nonce = tx.nonce();
     metrics::gauge!(crate::metrics_init::CURRENT_NONCE).set(nonce);
     let start = std::time::Instant::now();
     debug!("submitting signed transaction to sequencer");

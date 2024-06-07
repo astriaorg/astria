@@ -3,12 +3,18 @@ use std::{
     path::Path,
 };
 
-use astria_core::crypto::SigningKey;
+use astria_core::{
+    crypto::SigningKey,
+    primitive::v1::{
+        Address,
+        ASTRIA_ADDRESS_PREFIX,
+    },
+};
 use astria_eyre::eyre::{
     self,
     eyre,
+    WrapErr as _,
 };
-use sequencer_client::Address;
 
 pub(super) struct SequencerKey {
     pub(super) address: Address,
@@ -27,7 +33,11 @@ impl SequencerKey {
         let signing_key = SigningKey::from(bytes);
 
         Ok(Self {
-            address: *signing_key.verification_key().address(),
+            address: Address::builder()
+                .array(signing_key.verification_key().address_bytes())
+                .prefix(ASTRIA_ADDRESS_PREFIX)
+                .try_build()
+                .wrap_err("failed to construct Sequencer address")?,
             signing_key,
         })
     }

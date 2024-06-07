@@ -63,8 +63,7 @@ fn get_private_key_pretty(signing_key: &SigningKey) -> String {
 
 /// Get the address from the signing key
 fn get_address_pretty(signing_key: &SigningKey) -> String {
-    let address = *signing_key.verification_key().address();
-    hex::encode(address.to_vec())
+    hex::encode(signing_key.verification_key().address_bytes())
 }
 
 /// Generates a new ED25519 keypair and prints the public key, private key, and address
@@ -444,7 +443,7 @@ async fn submit_transaction(
         .map_err(|_| eyre!("invalid private key length; must be 32 bytes"))?;
     let sequencer_key = SigningKey::from(private_key_bytes);
 
-    let from_address = *sequencer_key.verification_key().address();
+    let from_address = crate::astria_address(sequencer_key.verification_key().address_bytes());
     println!("sending tx from address: {from_address}");
 
     let nonce_res = sequencer_client
@@ -453,10 +452,11 @@ async fn submit_transaction(
         .wrap_err("failed to get nonce")?;
 
     let tx = UnsignedTransaction {
-        params: TransactionParams {
-            nonce: nonce_res.nonce,
-            chain_id,
-        },
+        params: TransactionParams::builder()
+            .nonce(nonce_res.nonce)
+            .chain_id(chain_id)
+            .try_build()
+            .wrap_err("failed to construct transaction params from provided chain ID")?,
         actions: vec![action],
     }
     .into_signed(&sequencer_key);
