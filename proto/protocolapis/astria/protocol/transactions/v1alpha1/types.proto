@@ -108,7 +108,7 @@ message Ics20Withdrawal {
   string destination_chain_address = 3;
   // an Astria address to use to return funds from this withdrawal
   // in the case it fails.
-  bytes return_address = 4;
+  astria.primitive.v1.Address return_address = 4;
   // the height (on Astria) at which this transfer expires.
   IbcHeight timeout_height = 5;
   // the unix timestamp (in nanoseconds) at which this transfer expires.

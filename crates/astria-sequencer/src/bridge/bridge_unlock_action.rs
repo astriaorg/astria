@@ -94,8 +94,8 @@ mod test {
         let asset_id = asset::Id::from_denom("test");
         let transfer_amount = 100;
 
-        let address = Address::from([1; 20]);
-        let to_address = Address::from([2; 20]);
+        let address = crate::astria_address([1; 20]);
+        let to_address = crate::astria_address([2; 20]);
 
         let bridge_unlock = BridgeUnlockAction {
             to: to_address,
@@ -126,8 +126,8 @@ mod test {
         let transfer_amount = 100;
         state.put_transfer_base_fee(transfer_fee).unwrap();
 
-        let bridge_address = Address::from([1; 20]);
-        let to_address = Address::from([2; 20]);
+        let bridge_address = crate::astria_address([1; 20]);
+        let to_address = crate::astria_address([2; 20]);
         let rollup_id = RollupId::from_unhashed_bytes(b"test_rollup_id");
 
         state.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
@@ -177,8 +177,8 @@ mod test {
         let transfer_amount = 100;
         state.put_transfer_base_fee(transfer_fee).unwrap();
 
-        let bridge_address = Address::from([1; 20]);
-        let to_address = Address::from([2; 20]);
+        let bridge_address = crate::astria_address([1; 20]);
+        let to_address = crate::astria_address([2; 20]);
         let rollup_id = RollupId::from_unhashed_bytes(b"test_rollup_id");
 
         state.put_bridge_account_rollup_id(&bridge_address, &rollup_id);

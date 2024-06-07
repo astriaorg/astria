@@ -6,7 +6,11 @@ use std::{
 
 use astria_core::{
     generated::protocol::account::v1alpha1::NonceResponse,
-    primitive::v1::asset::Denom,
+    primitive::v1::{
+        asset::Denom,
+        Address,
+        ASTRIA_ADDRESS_PREFIX,
+    },
     protocol::transaction::v1alpha1::{
         action::{
             BridgeUnlockAction,
@@ -167,7 +171,11 @@ fn make_ics20_withdrawal_action() -> Action {
     let inner = Ics20Withdrawal {
         denom: denom.clone(),
         destination_chain_address,
-        return_address: [0u8; 20].into(),
+        return_address: Address::builder()
+            .array([0u8; 20])
+            .prefix(ASTRIA_ADDRESS_PREFIX)
+            .try_build()
+            .unwrap(),
         amount: 99,
         memo: serde_json::to_string(&Ics20WithdrawalMemo {
             memo: "hello".to_string(),
@@ -187,7 +195,11 @@ fn make_ics20_withdrawal_action() -> Action {
 fn make_bridge_unlock_action() -> Action {
     let denom = Denom::from("nria".to_string());
     let inner = BridgeUnlockAction {
-        to: [0u8; 20].into(),
+        to: Address::builder()
+            .array([0u8; 20])
+            .prefix(ASTRIA_ADDRESS_PREFIX)
+            .try_build()
+            .unwrap(),
         amount: 99,
         memo: serde_json::to_vec(&BridgeUnlockMemo {
             block_number: 1.into(),

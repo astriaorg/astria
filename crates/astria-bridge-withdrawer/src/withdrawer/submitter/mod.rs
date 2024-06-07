@@ -123,10 +123,14 @@ impl Submitter {
 
         let unsigned = UnsignedTransaction {
             actions,
-            params: TransactionParams {
-                nonce,
-                chain_id: self.sequencer_chain_id.clone(),
-            },
+            params: TransactionParams::builder()
+                .nonce(nonce)
+                .chain_id(&self.sequencer_chain_id)
+                .try_build()
+                .context(
+                    "failed to construct transcation parameters from latest nonce and configured \
+                     sequencer chain ID",
+                )?,
         };
 
         // sign transaction
@@ -234,7 +238,7 @@ async fn get_latest_nonce(
     name = "submit_tx",
     skip_all,
     fields(
-        nonce = tx.unsigned_transaction().params.nonce,
+        nonce = tx.nonce(),
         transaction.hash = %telemetry::display::hex(&tx.sha256_of_proto_encoding()),
     )
 )]
@@ -243,7 +247,7 @@ async fn submit_tx(
     tx: SignedTransaction,
     state: Arc<State>,
 ) -> eyre::Result<tx_commit::Response> {
-    let nonce = tx.unsigned_transaction().params.nonce;
+    let nonce = tx.nonce();
     metrics::gauge!(crate::metrics_init::CURRENT_NONCE).set(nonce);
     let start = std::time::Instant::now();
     debug!("submitting signed transaction to sequencer");

@@ -106,10 +106,11 @@ impl ConfigureSequencerBlock {
         } else {
             let unsigned_transaction = UnsignedTransaction {
                 actions,
-                params: TransactionParams {
-                    nonce: 1,
-                    chain_id: chain_id.clone(),
-                },
+                params: TransactionParams::builder()
+                    .nonce(1)
+                    .chain_id(chain_id.clone())
+                    .try_build()
+                    .unwrap(),
             };
             vec![unsigned_transaction.into_signed(&signing_key)]
         };

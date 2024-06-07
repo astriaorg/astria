@@ -440,7 +440,7 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
         packet_data.receiver
     };
 
-    let recipient = Address::try_from_slice(
+    let recipient = crate::try_astria_address(
         &hex::decode(recipient).context("failed to decode recipient as hex string")?,
     )
     .context("invalid recipient address")?;
@@ -655,7 +655,7 @@ mod test {
         .await
         .expect("valid ics20 transfer to user account; recipient, memo, and asset ID are valid");
 
-        let recipient = Address::try_from_slice(
+        let recipient = crate::try_astria_address(
             &hex::decode("1c0c490f1b5528d8173c5de46d131160e4b2c0c3").unwrap(),
         )
         .unwrap();
@@ -676,7 +676,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot.clone());
 
-        let bridge_address = Address::from([99; 20]);
+        let bridge_address = crate::astria_address([99; 20]);
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
         let denom: Denom = "dest_port/dest_channel/nootasset".to_string().into();
 
@@ -729,7 +729,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot.clone());
 
-        let bridge_address = Address::from([99; 20]);
+        let bridge_address = crate::astria_address([99; 20]);
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
         let denom: Denom = "dest_port/dest_channel/nootasset".to_string().into();
 
@@ -767,7 +767,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot.clone());
 
-        let bridge_address = Address::from([99; 20]);
+        let bridge_address = crate::astria_address([99; 20]);
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
         let denom: Denom = "dest_port/dest_channel/nootasset".to_string().into();
 
@@ -837,7 +837,7 @@ mod test {
         .await
         .expect("valid ics20 transfer to user account; recipient, memo, and asset ID are valid");
 
-        let recipient = Address::try_from_slice(&hex::decode(address_string).unwrap()).unwrap();
+        let recipient = crate::try_astria_address(&hex::decode(address_string).unwrap()).unwrap();
         let balance = state_tx
             .get_account_balance(recipient, base_denom.id())
             .await
@@ -891,7 +891,7 @@ mod test {
         .await
         .expect("valid ics20 refund to user account; recipient, memo, and asset ID are valid");
 
-        let recipient = Address::try_from_slice(&hex::decode(address_string).unwrap()).unwrap();
+        let recipient = crate::try_astria_address(&hex::decode(address_string).unwrap()).unwrap();
         let balance = state_tx
             .get_account_balance(recipient, base_denom.id())
             .await

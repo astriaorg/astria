@@ -167,7 +167,7 @@ mod test {
         state.put_transfer_base_fee(transfer_fee).unwrap();
         state.put_bridge_lock_byte_cost_multiplier(2);
 
-        let bridge_address = Address::from([1; 20]);
+        let bridge_address = crate::astria_address([1; 20]);
         let asset_id = asset::Id::from_denom("test");
         let bridge_lock = BridgeLockAction {
             to: bridge_address,
@@ -184,7 +184,7 @@ mod test {
             .unwrap();
         state.put_allowed_fee_asset(asset_id);
 
-        let from_address = Address::from([2; 20]);
+        let from_address = crate::astria_address([2; 20]);
 
         // not enough balance; should fail
         state
@@ -226,7 +226,7 @@ mod test {
         state.put_transfer_base_fee(transfer_fee).unwrap();
         state.put_bridge_lock_byte_cost_multiplier(2);
 
-        let bridge_address = Address::from([1; 20]);
+        let bridge_address = crate::astria_address([1; 20]);
         let asset_id = asset::Id::from_denom("test");
         let bridge_lock = BridgeLockAction {
             to: bridge_address,
@@ -243,7 +243,7 @@ mod test {
             .unwrap();
         state.put_allowed_fee_asset(asset_id);
 
-        let from_address = Address::from([2; 20]);
+        let from_address = crate::astria_address([2; 20]);
 
         // not enough balance; should fail
         state
