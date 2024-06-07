@@ -4,7 +4,10 @@ use std::{
     time::Duration,
 };
 
-use astria_core::primitive::v1::asset;
+use astria_core::primitive::v1::{
+    asset,
+    Address,
+};
 use astria_eyre::eyre::{
     self,
     WrapErr as _,
@@ -81,6 +84,11 @@ impl Service {
         .build()
         .wrap_err("failed to initialize submitter")?;
 
+        let bytes = hex::decode(cfg.sequencer_bridge_address.as_bytes())
+            .wrap_err("failed to decode sequencer bridge address as hex")?;
+        let sequencer_bridge_address = Address::try_from_slice(&bytes)
+            .wrap_err("failed to parse sequencer bridge address from bytes")?;
+
         let ethereum_watcher = Watcher::new(
             &ethereum_contract_address,
             &ethereum_rpc_endpoint,
@@ -89,6 +97,7 @@ impl Service {
             state.clone(),
             asset::Id::from_denom(&fee_asset_denomination),
             asset::Denom::from(cfg.rollup_asset_denomination),
+            sequencer_bridge_address,
         )
         .wrap_err("failed to initialize ethereum watcher")?;
 

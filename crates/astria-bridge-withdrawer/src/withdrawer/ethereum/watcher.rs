@@ -3,6 +3,7 @@ use std::sync::Arc;
 use astria_core::primitive::v1::{
     asset,
     asset::Denom,
+    Address,
 };
 use astria_eyre::{
     eyre::{
@@ -48,12 +49,12 @@ use crate::withdrawer::{
 
 /// Watches for withdrawal events emitted by the `AstriaWithdrawer` contract.
 pub(crate) struct Watcher {
-    // contract: AstriaWithdrawer<Provider<Ws>>,
     contract_address: ethers::types::Address,
     ethereum_rpc_endpoint: String,
     batch_tx: mpsc::Sender<Batch>,
     fee_asset_id: asset::Id,
     rollup_asset_denom: Denom,
+    bridge_address: Address,
     state: Arc<State>,
     shutdown_token: CancellationToken,
 }
@@ -67,6 +68,7 @@ impl Watcher {
         state: Arc<State>,
         fee_asset_id: asset::Id,
         rollup_asset_denom: Denom,
+        bridge_address: Address,
     ) -> Result<Self> {
         let contract_address = address_from_string(ethereum_contract_address)
             .wrap_err("failed to parse ethereum contract address")?;
@@ -86,6 +88,7 @@ impl Watcher {
             rollup_asset_denom,
             state,
             shutdown_token: shutdown_token.clone(),
+            bridge_address,
         })
     }
 }
@@ -98,6 +101,7 @@ impl Watcher {
             batch_tx,
             fee_asset_id,
             rollup_asset_denom,
+            bridge_address,
             state,
             shutdown_token,
         } = self;
@@ -129,6 +133,7 @@ impl Watcher {
             &shutdown_token,
             fee_asset_id,
             rollup_asset_denom,
+            bridge_address,
             asset_withdrawal_divisor,
         );
 
@@ -223,6 +228,7 @@ struct Batcher {
     shutdown_token: CancellationToken,
     fee_asset_id: asset::Id,
     rollup_asset_denom: Denom,
+    bridge_address: Address,
     asset_withdrawal_divisor: u128,
 }
 
@@ -234,6 +240,7 @@ impl Batcher {
         shutdown_token: &CancellationToken,
         fee_asset_id: asset::Id,
         rollup_asset_denom: Denom,
+        bridge_address: Address,
         asset_withdrawal_divisor: u128,
     ) -> Self {
         Self {
@@ -243,6 +250,7 @@ impl Batcher {
             shutdown_token: shutdown_token.clone(),
             fee_asset_id,
             rollup_asset_denom,
+            bridge_address,
             asset_withdrawal_divisor,
         }
     }
@@ -298,7 +306,7 @@ impl Batcher {
                             block_number: meta.block_number,
                             transaction_hash: meta.transaction_hash,
                         };
-                        let action = event_to_action(event_with_metadata, self.fee_asset_id, self.rollup_asset_denom.clone(), self.asset_withdrawal_divisor)?;
+                        let action = event_to_action(event_with_metadata, self.fee_asset_id, self.rollup_asset_denom.clone(), self.asset_withdrawal_divisor, self.bridge_address)?;
 
                         if meta.block_number.as_u64() == curr_batch.rollup_height {
                             // block number was the same; add event to current batch
@@ -449,8 +457,9 @@ mod tests {
             transaction_hash: receipt.transaction_hash,
         };
         let denom: Denom = Denom::from_base_denom("nria");
+        let bridge_address = Address::from([1u8; 20]);
         let expected_action =
-            event_to_action(expected_event, denom.id(), denom.clone(), 1).unwrap();
+            event_to_action(expected_event, denom.id(), denom.clone(), 1, bridge_address).unwrap();
         let Action::BridgeUnlock(expected_action) = expected_action else {
             panic!("expected action to be BridgeUnlock, got {expected_action:?}");
         };
@@ -464,6 +473,7 @@ mod tests {
             Arc::new(State::new()),
             denom.id(),
             denom,
+            bridge_address,
         )
         .unwrap();
 
@@ -529,8 +539,9 @@ mod tests {
             transaction_hash: receipt.transaction_hash,
         };
         let denom = Denom::from("transfer/channel-0/utia".to_string());
+        let bridge_address = Address::from([1u8; 20]);
         let Action::Ics20Withdrawal(mut expected_action) =
-            event_to_action(expected_event, denom.id(), denom.clone(), 1).unwrap()
+            event_to_action(expected_event, denom.id(), denom.clone(), 1, bridge_address).unwrap()
         else {
             panic!("expected action to be Ics20Withdrawal");
         };
@@ -545,6 +556,7 @@ mod tests {
             Arc::new(State::new()),
             denom.id(),
             denom,
+            bridge_address,
         )
         .unwrap();
 

@@ -5,8 +5,12 @@ use std::{
 };
 
 use astria_core::{
+    bridge::Ics20WithdrawalFromRollupMemo,
     generated::protocol::account::v1alpha1::NonceResponse,
-    primitive::v1::asset::Denom,
+    primitive::v1::{
+        asset::Denom,
+        Address,
+    },
     protocol::transaction::v1alpha1::{
         action::{
             BridgeUnlockAction,
@@ -60,10 +64,7 @@ use wiremock::{
 use super::Submitter;
 use crate::withdrawer::{
     batch::Batch,
-    ethereum::convert::{
-        BridgeUnlockMemo,
-        Ics20WithdrawalMemo,
-    },
+    ethereum::convert::BridgeUnlockMemo,
     state,
     submitter,
     StateSnapshot,
@@ -169,10 +170,11 @@ fn make_ics20_withdrawal_action() -> Action {
         destination_chain_address,
         return_address: [0u8; 20].into(),
         amount: 99,
-        memo: serde_json::to_string(&Ics20WithdrawalMemo {
+        memo: serde_json::to_string(&Ics20WithdrawalFromRollupMemo {
             memo: "hello".to_string(),
-            block_number: 1.into(),
-            transaction_hash: [2u8; 32].into(),
+            bridge_address: Address::from([1u8; 20]),
+            block_number: 1u64,
+            transaction_hash: [2u8; 32],
         })
         .unwrap(),
         fee_asset_id: denom.id(),

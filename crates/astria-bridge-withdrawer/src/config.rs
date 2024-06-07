@@ -19,6 +19,8 @@ pub struct Config {
     pub fee_asset_denomination: String,
     // The asset denomination being withdrawn from the rollup.
     pub rollup_asset_denomination: String,
+    // The bridge address corresponding to the bridged rollup asset on the sequencer.
+    pub sequencer_bridge_address: String,
     // The address of the AstriaWithdrawer contract on the evm rollup.
     pub ethereum_contract_address: String,
     // The rpc endpoint of the evm rollup.
