@@ -415,7 +415,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "requires foundry and solc to be installed"]
+    #[ignore = "requires foundry to be installed"]
     async fn astria_withdrawer_invalid_value_fails() {
         let (contract_address, provider, wallet, _anvil) = ConfigureAstriaWithdrawerDeployer {
             base_chain_asset_precision: 15,
@@ -434,7 +434,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "requires foundry and solc to be installed"]
+    #[ignore = "requires foundry to be installed"]
     async fn watcher_can_watch_sequencer_withdrawals_astria_withdrawer() {
         let (contract_address, provider, wallet, anvil) =
             ConfigureAstriaWithdrawerDeployer::default().deploy().await;
@@ -513,7 +513,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "requires foundry and solc to be installed"]
+    #[ignore = "requires foundry to be installed"]
     async fn watcher_can_watch_ics20_withdrawals_astria_withdrawer() {
         let (contract_address, provider, wallet, anvil) =
             ConfigureAstriaWithdrawerDeployer::default().deploy().await;
@@ -615,7 +615,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "requires foundry and solc to be installed"]
+    #[ignore = "requires foundry to be installed"]
     async fn watcher_can_watch_sequencer_withdrawals_astria_bridgeable_erc20() {
         let (contract_address, provider, wallet, anvil) = ConfigureAstriaBridgeableERC20Deployer {
             base_chain_asset_precision: 18,
@@ -699,7 +699,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "requires foundry and solc to be installed"]
+    #[ignore = "requires foundry to be installed"]
     async fn watcher_can_watch_ics20_withdrawals_astria_bridgeable_erc20() {
         let (contract_address, provider, wallet, anvil) = ConfigureAstriaBridgeableERC20Deployer {
             base_chain_asset_precision: 18,
