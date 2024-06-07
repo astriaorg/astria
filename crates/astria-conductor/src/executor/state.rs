@@ -3,18 +3,32 @@
 //!
 //! The inner state must not be unset after having been set.
 use astria_core::{
-    execution::v1alpha2::{Block, CommitmentState, GenesisInfo},
+    execution::v1alpha2::{
+        Block,
+        CommitmentState,
+        GenesisInfo,
+    },
     primitive::v1::RollupId,
 };
-use astria_eyre::{eyre, eyre::WrapErr as _};
+use astria_eyre::{
+    eyre,
+    eyre::WrapErr as _,
+};
 use bytes::Bytes;
 use sequencer_client::tendermint::block::Height as SequencerHeight;
-use tokio::sync::watch::{self, error::RecvError};
+use tokio::sync::watch::{
+    self,
+    error::RecvError,
+};
 
 pub(super) fn channel() -> (StateSender, StateReceiver) {
     let (tx, rx) = watch::channel(None);
-    let sender = StateSender { inner: tx };
-    let receiver = StateReceiver { inner: rx };
+    let sender = StateSender {
+        inner: tx,
+    };
+    let receiver = StateReceiver {
+        inner: rx,
+    };
     (sender, receiver)
 }
 
@@ -326,7 +340,10 @@ pub(super) fn map_sequencer_height_to_rollup_height(
 
 #[cfg(test)]
 mod tests {
-    use astria_core::{generated::execution::v1alpha2 as raw, Protobuf as _};
+    use astria_core::{
+        generated::execution::v1alpha2 as raw,
+        Protobuf as _,
+    };
     use pbjson_types::Timestamp;
 
     use super::*;

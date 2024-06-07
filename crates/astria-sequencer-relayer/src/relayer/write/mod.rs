@@ -8,12 +8,21 @@
 //! receives blocks and imposes no extra ordering. This means that if
 //! another task sends sequencer blocks ordered by their heights, then
 //! they will be written in that order.
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::Arc,
+    time::Duration,
+};
 
-use astria_eyre::eyre::{self, WrapErr as _};
+use astria_eyre::eyre::{
+    self,
+    WrapErr as _,
+};
 use celestia_types::Blob;
 use futures::{
-    future::{Fuse, FusedFuture as _},
+    future::{
+        Fuse,
+        FusedFuture as _,
+    },
     FutureExt as _,
 };
 use sequencer_client::SequencerBlock;
@@ -22,19 +31,36 @@ use tokio::{
     sync::{
         mpsc::{
             self,
-            error::{SendError, TrySendError},
+            error::{
+                SendError,
+                TrySendError,
+            },
         },
         watch,
     },
 };
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info, instrument, warn, Instrument, Span};
+use tracing::{
+    debug,
+    error,
+    info,
+    instrument,
+    warn,
+    Instrument,
+    Span,
+};
 
 use super::{
-    celestia_client::CelestiaClient, BuilderError, CelestiaClientBuilder, SubmissionState,
+    celestia_client::CelestiaClient,
+    BuilderError,
+    CelestiaClientBuilder,
+    SubmissionState,
     TrySubmitError,
 };
-use crate::{metrics_init, IncludeRollup};
+use crate::{
+    metrics_init,
+    IncludeRollup,
+};
 
 mod conversion;
 use conversion::NextSubmission;
@@ -116,7 +142,9 @@ impl BlobSubmitter {
             shutdown_token,
             pending_block: None,
         };
-        let handle = BlobSubmitterHandle { tx };
+        let handle = BlobSubmitterHandle {
+            tx,
+        };
         (submitter, handle)
     }
 

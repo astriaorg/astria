@@ -1,25 +1,49 @@
 use std::collections::HashMap;
 
 use astria_core::{
-    execution::v1alpha2::{Block, CommitmentState},
+    execution::v1alpha2::{
+        Block,
+        CommitmentState,
+    },
     primitive::v1::RollupId,
-    sequencerblock::v1alpha1::block::{FilteredSequencerBlock, FilteredSequencerBlockParts},
+    sequencerblock::v1alpha1::block::{
+        FilteredSequencerBlock,
+        FilteredSequencerBlockParts,
+    },
 };
-use astria_eyre::eyre::{self, bail, ensure, WrapErr as _};
+use astria_eyre::eyre::{
+    self,
+    bail,
+    ensure,
+    WrapErr as _,
+};
 use bytes::Bytes;
-use sequencer_client::tendermint::{block::Height as SequencerHeight, Time as TendermintTime};
+use sequencer_client::tendermint::{
+    block::Height as SequencerHeight,
+    Time as TendermintTime,
+};
 use tokio::{
     select,
-    sync::{mpsc, watch::error::RecvError},
+    sync::{
+        mpsc,
+        watch::error::RecvError,
+    },
 };
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info, instrument};
+use tracing::{
+    debug,
+    error,
+    info,
+    instrument,
+};
 
 use crate::{
     celestia::ReconstructedBlock,
     config::CommitLevel,
     metrics_init::{
-        EXECUTED_FIRM_BLOCK_NUMBER, EXECUTED_SOFT_BLOCK_NUMBER, TRANSACTIONS_PER_EXECUTED_BLOCK,
+        EXECUTED_FIRM_BLOCK_NUMBER,
+        EXECUTED_SOFT_BLOCK_NUMBER,
+        TRANSACTIONS_PER_EXECUTED_BLOCK,
     },
 };
 
@@ -592,7 +616,11 @@ impl Executor {
 
     #[instrument(skip_all)]
     async fn update_commitment_state(&mut self, update: Update) -> eyre::Result<()> {
-        use Update::{OnlyFirm, OnlySoft, ToSame};
+        use Update::{
+            OnlyFirm,
+            OnlySoft,
+            ToSame,
+        };
         let (firm, soft, celestia_height) = match update {
             OnlyFirm(firm, celestia_height) => (firm, self.state.soft(), celestia_height),
             OnlySoft(soft) => (
@@ -702,9 +730,14 @@ impl ExecutableBlock {
 
 /// Converts a [`tendermint::Time`] to a [`prost_types::Timestamp`].
 fn convert_tendermint_time_to_protobuf_timestamp(value: TendermintTime) -> pbjson_types::Timestamp {
-    let sequencer_client::tendermint_proto::google::protobuf::Timestamp { seconds, nanos } =
-        value.into();
-    pbjson_types::Timestamp { seconds, nanos }
+    let sequencer_client::tendermint_proto::google::protobuf::Timestamp {
+        seconds,
+        nanos,
+    } = value.into();
+    pbjson_types::Timestamp {
+        seconds,
+        nanos,
+    }
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -751,7 +784,10 @@ fn does_block_response_fulfill_contract(
     let actual = block.number();
     let expected = current
         .checked_add(1)
-        .ok_or(ContractViolation::CurrentBlockNumberIsMax { kind, actual })?;
+        .ok_or(ContractViolation::CurrentBlockNumberIsMax {
+            kind,
+            actual,
+        })?;
     if actual == expected {
         Ok(())
     } else {

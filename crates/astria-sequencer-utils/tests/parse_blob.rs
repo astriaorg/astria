@@ -1,10 +1,16 @@
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 use assert_cmd::Command;
-use astria_eyre::{eyre::WrapErr, Result};
+use astria_eyre::{
+    eyre::WrapErr,
+    Result,
+};
 use predicates::prelude::*;
 
 struct Resources {

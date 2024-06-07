@@ -4,12 +4,24 @@
 extern crate rustc_hir;
 extern crate rustc_span;
 
-use clippy_utils::{diagnostics::span_lint_and_help, is_expr_path_def_path};
+use clippy_utils::{
+    diagnostics::span_lint_and_help,
+    is_expr_path_def_path,
+};
 use if_chain::if_chain;
-use rustc_hir::{Expr, ExprKind};
-use rustc_lint::{LateContext, LateLintPass};
+use rustc_hir::{
+    Expr,
+    ExprKind,
+};
+use rustc_lint::{
+    LateContext,
+    LateLintPass,
+};
 use rustc_span::{
-    hygiene::{ExpnKind, MacroKind},
+    hygiene::{
+        ExpnKind,
+        MacroKind,
+    },
     Span,
 };
 
@@ -83,7 +95,14 @@ fn first_span_in_crate(arg: &Expr<'_>) -> Span {
     let mut span = 'get_span: {
         // Case 1: fields like foo = ?bar that are transformed as debug(&bar).
         if let Expr {
-            kind: ExprKind::AddrOf(_, _, Expr { span, .. }),
+            kind:
+                ExprKind::AddrOf(
+                    _,
+                    _,
+                    Expr {
+                        span, ..
+                    },
+                ),
             ..
         } = arg
         {

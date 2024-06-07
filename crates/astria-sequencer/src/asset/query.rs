@@ -1,10 +1,19 @@
 use anyhow::Context as _;
-use astria_core::{primitive::v1::asset, protocol::abci::AbciErrorCode};
+use astria_core::{
+    primitive::v1::asset,
+    protocol::abci::AbciErrorCode,
+};
 use cnidarium::Storage;
 use prost::Message as _;
-use tendermint::abci::{request, response};
+use tendermint::abci::{
+    request,
+    response,
+};
 
-use crate::{asset::state_ext::StateReadExt as _, state_ext::StateReadExt};
+use crate::{
+    asset::state_ext::StateReadExt as _,
+    state_ext::StateReadExt,
+};
 
 // Retrieve the full asset denomination given the asset ID.
 //
@@ -57,10 +66,13 @@ pub(crate) async fn denom_request(
         };
     };
 
-    let payload = DenomResponse { height, denom }
-        .into_raw()
-        .encode_to_vec()
-        .into();
+    let payload = DenomResponse {
+        height,
+        denom,
+    }
+    .into_raw()
+    .encode_to_vec()
+    .into();
 
     let height = tendermint::block::Height::try_from(height).expect("height must fit into an i64");
     response::Query {

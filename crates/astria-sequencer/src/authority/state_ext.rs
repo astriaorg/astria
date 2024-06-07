@@ -1,12 +1,31 @@
 use std::collections::BTreeMap;
 
-use anyhow::{bail, Context, Result};
-use astria_core::primitive::v1::{Address, ADDRESS_LEN};
+use anyhow::{
+    bail,
+    Context,
+    Result,
+};
+use astria_core::primitive::v1::{
+    Address,
+    ADDRESS_LEN,
+};
 use async_trait::async_trait;
-use borsh::{BorshDeserialize, BorshSerialize};
-use cnidarium::{StateRead, StateWrite};
-use serde::{Deserialize, Serialize};
-use tendermint::{account, validator};
+use borsh::{
+    BorshDeserialize,
+    BorshSerialize,
+};
+use cnidarium::{
+    StateRead,
+    StateWrite,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use tendermint::{
+    account,
+    validator,
+};
 use tracing::instrument;
 
 /// Newtype wrapper to read and write an address from rocksdb.
@@ -162,9 +181,17 @@ impl<T: StateWrite> StateWriteExt for T {}
 mod test {
     use astria_core::primitive::v1::Address;
     use cnidarium::StateDelta;
-    use tendermint::{validator, vote, PublicKey};
+    use tendermint::{
+        validator,
+        vote,
+        PublicKey,
+    };
 
-    use super::{StateReadExt as _, StateWriteExt as _, ValidatorSet};
+    use super::{
+        StateReadExt as _,
+        StateWriteExt as _,
+        ValidatorSet,
+    };
 
     #[tokio::test]
     async fn sudo_address() {

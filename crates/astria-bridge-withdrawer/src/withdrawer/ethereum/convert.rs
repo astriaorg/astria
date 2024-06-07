@@ -1,19 +1,37 @@
 use std::time::Duration;
 
 use astria_core::{
-    primitive::v1::{asset, asset::Denom, Address},
+    primitive::v1::{
+        asset,
+        asset::Denom,
+        Address,
+    },
     protocol::transaction::v1alpha1::{
-        action::{BridgeUnlockAction, Ics20Withdrawal},
+        action::{
+            BridgeUnlockAction,
+            Ics20Withdrawal,
+        },
         Action,
     },
 };
-use astria_eyre::eyre::{self, OptionExt, WrapErr as _};
-use ethers::types::{TxHash, U64};
+use astria_eyre::eyre::{
+    self,
+    OptionExt,
+    WrapErr as _,
+};
+use ethers::types::{
+    TxHash,
+    U64,
+};
 use ibc_types::core::client::Height as IbcHeight;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 use crate::withdrawer::ethereum::astria_withdrawer::{
-    Ics20WithdrawalFilter, SequencerWithdrawalFilter,
+    Ics20WithdrawalFilter,
+    SequencerWithdrawalFilter,
 };
 
 #[derive(Debug, PartialEq, Eq)]

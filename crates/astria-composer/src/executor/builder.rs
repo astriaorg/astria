@@ -12,7 +12,7 @@ use astria_eyre::eyre::{
     self,
     ensure,
     eyre,
-    Context
+    Context,
 };
 use sequencer_client::tendermint_rpc::Client;
 use tokio::sync::watch;
@@ -46,8 +46,11 @@ impl Builder {
         } = self;
         let sequencer_client = sequencer_client::HttpClient::new(sequencer_url.as_str())
             .wrap_err("failed constructing sequencer client")?;
-        
-        let client_response = sequencer_client.status().await.wrap_err("failed to retrieve sequencer network status")?;
+
+        let client_response = sequencer_client
+            .status()
+            .await
+            .wrap_err("failed to retrieve sequencer network status")?;
         let client_chain_id = client_response.node_info.network.to_string();
         ensure!(
             sequencer_chain_id == client_chain_id,

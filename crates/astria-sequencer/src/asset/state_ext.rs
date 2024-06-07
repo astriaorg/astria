@@ -1,8 +1,20 @@
-use anyhow::{Context as _, Result};
-use astria_core::primitive::v1::{asset, asset::Denom};
+use anyhow::{
+    Context as _,
+    Result,
+};
+use astria_core::primitive::v1::{
+    asset,
+    asset::Denom,
+};
 use async_trait::async_trait;
-use borsh::{BorshDeserialize, BorshSerialize};
-use cnidarium::{StateRead, StateWrite};
+use borsh::{
+    BorshDeserialize,
+    BorshSerialize,
+};
+use cnidarium::{
+    StateRead,
+    StateWrite,
+};
 use hex::ToHex as _;
 use tracing::instrument;
 
@@ -62,10 +74,16 @@ impl<T: StateWrite> StateWriteExt for T {}
 
 #[cfg(test)]
 mod test {
-    use astria_core::primitive::v1::asset::{Denom, Id};
+    use astria_core::primitive::v1::asset::{
+        Denom,
+        Id,
+    };
     use cnidarium::StateDelta;
 
-    use super::{StateReadExt as _, StateWriteExt as _};
+    use super::{
+        StateReadExt as _,
+        StateWriteExt as _,
+    };
 
     #[tokio::test]
     async fn get_ibc_asset_non_existent() {

@@ -13,8 +13,11 @@ use astria_core::{
 use ethers::prelude::Transaction;
 
 use crate::helper::{
-    mount_broadcast_tx_sync_invalid_nonce_mock, mount_broadcast_tx_sync_mock,
-    mount_matcher_verifying_tx_integrity, spawn_composer, TEST_ETH_TX_JSON,
+    mount_broadcast_tx_sync_invalid_nonce_mock,
+    mount_broadcast_tx_sync_mock,
+    mount_matcher_verifying_tx_integrity,
+    spawn_composer,
+    TEST_ETH_TX_JSON,
 };
 
 #[tokio::test]

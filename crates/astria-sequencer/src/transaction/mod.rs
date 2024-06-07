@@ -4,20 +4,35 @@ mod checks;
 use std::fmt;
 
 pub(crate) use action_handler::ActionHandler;
-use anyhow::{ensure, Context as _};
+use anyhow::{
+    ensure,
+    Context as _,
+};
 use astria_core::{
     primitive::v1::Address,
-    protocol::transaction::v1alpha1::{action::Action, SignedTransaction, UnsignedTransaction},
+    protocol::transaction::v1alpha1::{
+        action::Action,
+        SignedTransaction,
+        UnsignedTransaction,
+    },
 };
 pub(crate) use checks::{
-    check_balance_for_total_fees, check_balance_mempool, check_chain_id_mempool,
+    check_balance_for_total_fees,
+    check_balance_mempool,
+    check_chain_id_mempool,
     check_nonce_mempool,
 };
 use tracing::instrument;
 
 use crate::{
-    accounts::state_ext::{StateReadExt, StateWriteExt},
-    ibc::{host_interface::AstriaHost, state_ext::StateReadExt as _},
+    accounts::state_ext::{
+        StateReadExt,
+        StateWriteExt,
+    },
+    ibc::{
+        host_interface::AstriaHost,
+        state_ext::StateReadExt as _,
+    },
     state_ext::StateReadExt as _,
 };
 

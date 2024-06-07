@@ -1,20 +1,40 @@
 use std::collections::HashMap;
 
 use astria_core::{
-    primitive::v1::{asset::DEFAULT_NATIVE_ASSET_DENOM, Address, RollupId},
+    primitive::v1::{
+        asset::DEFAULT_NATIVE_ASSET_DENOM,
+        Address,
+        RollupId,
+    },
     protocol::transaction::v1alpha1::{
-        action::{BridgeLockAction, SequenceAction, TransferAction},
-        TransactionParams, UnsignedTransaction,
+        action::{
+            BridgeLockAction,
+            SequenceAction,
+            TransferAction,
+        },
+        TransactionParams,
+        UnsignedTransaction,
     },
     sequencerblock::v1alpha1::block::Deposit,
 };
 use cnidarium::StateDelta;
 use prost::Message as _;
 use tendermint::{
-    abci::{self, request::PrepareProposal, types::CommitInfo},
+    abci::{
+        self,
+        request::PrepareProposal,
+        types::CommitInfo,
+    },
     account,
-    block::{header::Version, Header, Height, Round},
-    AppHash, Hash, Time,
+    block::{
+        header::Version,
+        Header,
+        Height,
+        Round,
+    },
+    AppHash,
+    Hash,
+    Time,
 };
 
 use super::*;
@@ -22,8 +42,15 @@ use crate::{
     accounts::state_ext::StateReadExt as _,
     app::test_utils::*,
     asset::get_native_asset,
-    authority::state_ext::{StateReadExt as _, StateWriteExt as _, ValidatorSet},
-    bridge::state_ext::{StateReadExt as _, StateWriteExt},
+    authority::state_ext::{
+        StateReadExt as _,
+        StateWriteExt as _,
+        ValidatorSet,
+    },
+    bridge::state_ext::{
+        StateReadExt as _,
+        StateWriteExt,
+    },
     genesis::Account,
     proposal::commitment::generate_rollup_datas_commitment,
     state_ext::StateReadExt as _,
@@ -44,7 +71,10 @@ fn default_tendermint_header() -> Header {
         proposer_address: account::Id::try_from([0u8; 20].to_vec()).unwrap(),
         time: Time::now(),
         validators_hash: Hash::default(),
-        version: Version { app: 0, block: 0 },
+        version: Version {
+            app: 0,
+            block: 0,
+        },
     }
 }
 
@@ -53,7 +83,11 @@ async fn app_genesis_and_init_chain() {
     let app = initialize_app(None, vec![]).await;
     assert_eq!(app.state.get_block_height().await.unwrap(), 0);
 
-    for Account { address, balance } in default_genesis_accounts() {
+    for Account {
+        address,
+        balance,
+    } in default_genesis_accounts()
+    {
         assert_eq!(
             balance,
             app.state
@@ -93,7 +127,10 @@ async fn app_pre_execute_transactions() {
 
 #[tokio::test]
 async fn app_begin_block_remove_byzantine_validators() {
-    use tendermint::{abci::types, validator};
+    use tendermint::{
+        abci::types,
+        validator,
+    };
 
     let pubkey_a = tendermint::public_key::PublicKey::from_raw_ed25519(&[1; 32]).unwrap();
     let pubkey_b = tendermint::public_key::PublicKey::from_raw_ed25519(&[2; 32]).unwrap();
@@ -153,7 +190,11 @@ async fn app_commit() {
     assert_eq!(app.state.get_block_height().await.unwrap(), 0);
 
     let native_asset = get_native_asset().id();
-    for Account { address, balance } in default_genesis_accounts() {
+    for Account {
+        address,
+        balance,
+    } in default_genesis_accounts()
+    {
         assert_eq!(
             balance,
             app.state
@@ -170,7 +211,11 @@ async fn app_commit() {
     let snapshot = storage.latest_snapshot();
     assert_eq!(snapshot.get_block_height().await.unwrap(), 0);
 
-    for Account { address, balance } in default_genesis_accounts() {
+    for Account {
+        address,
+        balance,
+    } in default_genesis_accounts()
+    {
         assert_eq!(
             snapshot
                 .get_account_balance(address, native_asset)
@@ -196,13 +241,15 @@ async fn app_transfer_block_fees_to_sudo() {
             nonce: 0,
             chain_id: "test".to_string(),
         },
-        actions: vec![TransferAction {
-            to: bob_address,
-            amount,
-            asset_id: native_asset,
-            fee_asset_id: get_native_asset().id(),
-        }
-        .into()],
+        actions: vec![
+            TransferAction {
+                to: bob_address,
+                amount,
+                asset_id: native_asset,
+                fee_asset_id: get_native_asset().id(),
+            }
+            .into(),
+        ],
     };
 
     let signed_tx = tx.into_signed(&alice_signing_key);
@@ -498,12 +545,14 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
             nonce: 0,
             chain_id: "test".to_string(),
         },
-        actions: vec![SequenceAction {
-            rollup_id: RollupId::from([1u8; 32]),
-            data: vec![1u8; 100_000],
-            fee_asset_id: get_native_asset().id(),
-        }
-        .into()],
+        actions: vec![
+            SequenceAction {
+                rollup_id: RollupId::from([1u8; 32]),
+                data: vec![1u8; 100_000],
+                fee_asset_id: get_native_asset().id(),
+            }
+            .into(),
+        ],
     }
     .into_signed(&alice_signing_key);
     let tx_overflow = UnsignedTransaction {
@@ -511,12 +560,14 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
             nonce: 1,
             chain_id: "test".to_string(),
         },
-        actions: vec![SequenceAction {
-            rollup_id: RollupId::from([1u8; 32]),
-            data: vec![1u8; 100_000],
-            fee_asset_id: get_native_asset().id(),
-        }
-        .into()],
+        actions: vec![
+            SequenceAction {
+                rollup_id: RollupId::from([1u8; 32]),
+                data: vec![1u8; 100_000],
+                fee_asset_id: get_native_asset().id(),
+            }
+            .into(),
+        ],
     }
     .into_signed(&alice_signing_key);
 
@@ -567,12 +618,14 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
             nonce: 0,
             chain_id: "test".to_string(),
         },
-        actions: vec![SequenceAction {
-            rollup_id: RollupId::from([1u8; 32]),
-            data: vec![1u8; 200_000],
-            fee_asset_id: get_native_asset().id(),
-        }
-        .into()],
+        actions: vec![
+            SequenceAction {
+                rollup_id: RollupId::from([1u8; 32]),
+                data: vec![1u8; 200_000],
+                fee_asset_id: get_native_asset().id(),
+            }
+            .into(),
+        ],
     }
     .into_signed(&alice_signing_key);
     let tx_overflow = UnsignedTransaction {
@@ -580,12 +633,14 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
             nonce: 1,
             chain_id: "test".to_string(),
         },
-        actions: vec![SequenceAction {
-            rollup_id: RollupId::from([1u8; 32]),
-            data: vec![1u8; 100_000],
-            fee_asset_id: get_native_asset().id(),
-        }
-        .into()],
+        actions: vec![
+            SequenceAction {
+                rollup_id: RollupId::from([1u8; 32]),
+                data: vec![1u8; 100_000],
+                fee_asset_id: get_native_asset().id(),
+            }
+            .into(),
+        ],
     }
     .into_signed(&alice_signing_key);
 

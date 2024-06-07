@@ -1,6 +1,10 @@
 use astria_core::{
     self,
-    execution::v1alpha2::{Block, CommitmentState, GenesisInfo},
+    execution::v1alpha2::{
+        Block,
+        CommitmentState,
+        GenesisInfo,
+    },
     generated::execution::v1alpha2 as raw,
     Protobuf as _,
 };
@@ -8,7 +12,10 @@ use bytes::Bytes;
 
 use super::{
     should_execute_firm_block,
-    state::{StateReceiver, StateSender},
+    state::{
+        StateReceiver,
+        StateSender,
+    },
     RollupId,
 };
 use crate::config::CommitLevel;
@@ -32,7 +39,12 @@ struct MakeState {
     soft: u32,
 }
 
-fn make_state(MakeState { firm, soft }: MakeState) -> (StateSender, StateReceiver) {
+fn make_state(
+    MakeState {
+        firm,
+        soft,
+    }: MakeState,
+) -> (StateSender, StateReceiver) {
     let genesis_info = GenesisInfo::try_from_raw(raw::GenesisInfo {
         rollup_id: Bytes::copy_from_slice(ROLLUP_ID.as_ref()),
         sequencer_genesis_block_height: 1,
@@ -70,27 +82,90 @@ state",
 
 #[test]
 fn execute_block_contract_violation() {
-    use super::ExecutionKind::{Firm, Soft};
-    assert_contract_fulfilled(Firm, MakeState { firm: 2, soft: 3 }, 3);
+    use super::ExecutionKind::{
+        Firm,
+        Soft,
+    };
+    assert_contract_fulfilled(
+        Firm,
+        MakeState {
+            firm: 2,
+            soft: 3,
+        },
+        3,
+    );
 
-    assert_contract_fulfilled(Soft, MakeState { firm: 2, soft: 3 }, 4);
+    assert_contract_fulfilled(
+        Soft,
+        MakeState {
+            firm: 2,
+            soft: 3,
+        },
+        4,
+    );
 
-    assert_contract_violated(Firm, MakeState { firm: 2, soft: 3 }, 1);
+    assert_contract_violated(
+        Firm,
+        MakeState {
+            firm: 2,
+            soft: 3,
+        },
+        1,
+    );
 
-    assert_contract_violated(Firm, MakeState { firm: 2, soft: 3 }, 2);
+    assert_contract_violated(
+        Firm,
+        MakeState {
+            firm: 2,
+            soft: 3,
+        },
+        2,
+    );
 
-    assert_contract_violated(Firm, MakeState { firm: 2, soft: 3 }, 4);
+    assert_contract_violated(
+        Firm,
+        MakeState {
+            firm: 2,
+            soft: 3,
+        },
+        4,
+    );
 
-    assert_contract_violated(Soft, MakeState { firm: 2, soft: 3 }, 2);
+    assert_contract_violated(
+        Soft,
+        MakeState {
+            firm: 2,
+            soft: 3,
+        },
+        2,
+    );
 
-    assert_contract_violated(Soft, MakeState { firm: 2, soft: 3 }, 3);
+    assert_contract_violated(
+        Soft,
+        MakeState {
+            firm: 2,
+            soft: 3,
+        },
+        3,
+    );
 
-    assert_contract_violated(Soft, MakeState { firm: 2, soft: 3 }, 5);
+    assert_contract_violated(
+        Soft,
+        MakeState {
+            firm: 2,
+            soft: 3,
+        },
+        5,
+    );
 }
 
 #[test]
 fn should_execute_firm() {
-    use CommitLevel::{FirmOnly, SoftAndFirm, SoftOnly};
+    use CommitLevel::{
+        FirmOnly,
+        SoftAndFirm,
+        SoftOnly,
+    };
 
     assert!(
         should_execute_firm_block(1, 1, FirmOnly),

@@ -1,7 +1,17 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{
+    anyhow,
+    Context,
+    Result,
+};
 use async_trait::async_trait;
-use borsh::{BorshDeserialize, BorshSerialize};
-use cnidarium::{StateRead, StateWrite};
+use borsh::{
+    BorshDeserialize,
+    BorshSerialize,
+};
+use cnidarium::{
+    StateRead,
+    StateWrite,
+};
 use tracing::instrument;
 
 const SEQUENCE_ACTION_BASE_FEE_STORAGE_KEY: &str = "seqbasefee";
@@ -63,7 +73,10 @@ impl<T: StateWrite> StateWriteExt for T {}
 mod test {
     use cnidarium::StateDelta;
 
-    use super::{StateReadExt as _, StateWriteExt as _};
+    use super::{
+        StateReadExt as _,
+        StateWriteExt as _,
+    };
 
     #[tokio::test]
     async fn sequence_action_base_fee() {

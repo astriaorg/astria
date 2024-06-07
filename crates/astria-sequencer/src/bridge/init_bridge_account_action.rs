@@ -1,13 +1,28 @@
-use anyhow::{bail, ensure, Context as _, Result};
+use anyhow::{
+    bail,
+    ensure,
+    Context as _,
+    Result,
+};
 use astria_core::{
-    primitive::v1::Address, protocol::transaction::v1alpha1::action::InitBridgeAccountAction,
+    primitive::v1::Address,
+    protocol::transaction::v1alpha1::action::InitBridgeAccountAction,
 };
 use tracing::instrument;
 
 use crate::{
-    accounts::state_ext::{StateReadExt as _, StateWriteExt as _},
-    bridge::state_ext::{StateReadExt as _, StateWriteExt as _},
-    state_ext::{StateReadExt, StateWriteExt},
+    accounts::state_ext::{
+        StateReadExt as _,
+        StateWriteExt as _,
+    },
+    bridge::state_ext::{
+        StateReadExt as _,
+        StateWriteExt as _,
+    },
+    state_ext::{
+        StateReadExt,
+        StateWriteExt,
+    },
     transaction::action_handler::ActionHandler,
 };
 

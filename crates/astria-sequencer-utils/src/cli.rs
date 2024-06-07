@@ -1,6 +1,12 @@
-use clap::{Parser, Subcommand};
+use clap::{
+    Parser,
+    Subcommand,
+};
 
-use super::{blob_parser, genesis_parser};
+use super::{
+    blob_parser,
+    genesis_parser,
+};
 
 /// Utilities for working with the Astria sequencer network
 #[derive(Debug, Parser)]

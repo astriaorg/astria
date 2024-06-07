@@ -1,9 +1,21 @@
 use std::process::ExitCode;
 
-use astria_bridge_withdrawer::{metrics_init, Config, Service, BUILD_INFO};
+use astria_bridge_withdrawer::{
+    metrics_init,
+    Config,
+    Service,
+    BUILD_INFO,
+};
 use astria_eyre::eyre::WrapErr as _;
-use tokio::signal::unix::{signal, SignalKind};
-use tracing::{error, info, warn};
+use tokio::signal::unix::{
+    signal,
+    SignalKind,
+};
+use tracing::{
+    error,
+    info,
+    warn,
+};
 
 #[tokio::main]
 async fn main() -> ExitCode {

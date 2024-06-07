@@ -3,7 +3,10 @@ use pbjson_types::Timestamp;
 
 use crate::{
     generated::execution::v1alpha2 as raw,
-    primitive::v1::{IncorrectRollupIdLength, RollupId},
+    primitive::v1::{
+        IncorrectRollupIdLength,
+        RollupId,
+    },
     Protobuf,
 };
 
@@ -320,7 +323,11 @@ impl<TFirm, TSoft, TCelestiaBaseHeight> CommitmentStateBuilder<TFirm, TSoft, TCe
         self,
         base_celestia_height: u64,
     ) -> CommitmentStateBuilder<TFirm, TSoft, WithCelestiaBaseHeight> {
-        let Self { firm, soft, .. } = self;
+        let Self {
+            firm,
+            soft,
+            ..
+        } = self;
         CommitmentStateBuilder {
             firm,
             soft,

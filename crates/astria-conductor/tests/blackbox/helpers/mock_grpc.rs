@@ -1,22 +1,49 @@
-use std::{net::SocketAddr, sync::Arc};
+use std::{
+    net::SocketAddr,
+    sync::Arc,
+};
 
 use astria_core::generated::{
     execution::v1alpha2::{
-        execution_service_server::{ExecutionService, ExecutionServiceServer},
-        BatchGetBlocksRequest, BatchGetBlocksResponse, Block, CommitmentState, ExecuteBlockRequest,
-        GenesisInfo, GetBlockRequest, GetCommitmentStateRequest, GetGenesisInfoRequest,
+        execution_service_server::{
+            ExecutionService,
+            ExecutionServiceServer,
+        },
+        BatchGetBlocksRequest,
+        BatchGetBlocksResponse,
+        Block,
+        CommitmentState,
+        ExecuteBlockRequest,
+        GenesisInfo,
+        GetBlockRequest,
+        GetCommitmentStateRequest,
+        GetGenesisInfoRequest,
         UpdateCommitmentStateRequest,
     },
     sequencerblock::v1alpha1::{
-        sequencer_service_server::{SequencerService, SequencerServiceServer},
-        FilteredSequencerBlock, GetFilteredSequencerBlockRequest, GetPendingNonceRequest,
-        GetPendingNonceResponse, GetSequencerBlockRequest, SequencerBlock,
+        sequencer_service_server::{
+            SequencerService,
+            SequencerServiceServer,
+        },
+        FilteredSequencerBlock,
+        GetFilteredSequencerBlockRequest,
+        GetPendingNonceRequest,
+        GetPendingNonceResponse,
+        GetSequencerBlockRequest,
+        SequencerBlock,
     },
 };
-use astria_eyre::eyre::{self, WrapErr as _};
+use astria_eyre::eyre::{
+    self,
+    WrapErr as _,
+};
 use astria_grpc_mock::MockServer;
 use tokio::task::JoinHandle;
-use tonic::{transport::Server, Request, Response};
+use tonic::{
+    transport::Server,
+    Request,
+    Response,
+};
 
 pub struct MockGrpc {
     pub _server: JoinHandle<eyre::Result<()>>,
@@ -59,7 +86,9 @@ struct SequencerServiceImpl {
 
 impl SequencerServiceImpl {
     fn new(mock_server: MockServer) -> Self {
-        Self { mock_server }
+        Self {
+            mock_server,
+        }
     }
 }
 

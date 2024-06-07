@@ -1,18 +1,40 @@
 //! A stream of sequencer blocks.
-use std::{future::Future as _, pin::Pin, sync::Arc, task::Poll, time::Duration};
+use std::{
+    future::Future as _,
+    pin::Pin,
+    sync::Arc,
+    task::Poll,
+    time::Duration,
+};
 
 use astria_core::{
     generated::sequencerblock::v1alpha1::{
-        sequencer_service_client::SequencerServiceClient, GetSequencerBlockRequest,
+        sequencer_service_client::SequencerServiceClient,
+        GetSequencerBlockRequest,
     },
     sequencerblock::v1alpha1::SequencerBlock,
 };
-use astria_eyre::eyre::{self, ensure, Report, WrapErr as _};
-use futures::{future::BoxFuture, ready, FutureExt as _};
+use astria_eyre::eyre::{
+    self,
+    ensure,
+    Report,
+    WrapErr as _,
+};
+use futures::{
+    future::BoxFuture,
+    ready,
+    FutureExt as _,
+};
 use pin_project_lite::pin_project;
 use sequencer_client::tendermint::block::Height;
 use tokio_stream::Stream;
-use tracing::{info, instrument, warn, Instrument as _, Span};
+use tracing::{
+    info,
+    instrument,
+    warn,
+    Instrument as _,
+    Span,
+};
 
 /// Tracks the latest sequencer height and returns the next height the stream should fetch.
 ///
@@ -368,7 +390,10 @@ impl BlockStreamBuilder<WithBlockTime, WithClient, WithState> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Height, Heights};
+    use super::{
+        Height,
+        Heights,
+    };
 
     #[track_caller]
     fn assert_next_height_is_expected(

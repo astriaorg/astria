@@ -1,6 +1,14 @@
-use std::{path::Path, sync::Arc, time::Duration};
+use std::{
+    path::Path,
+    sync::Arc,
+    time::Duration,
+};
 
-use ethers::{core::utils::Anvil, prelude::*, utils::AnvilInstance};
+use ethers::{
+    core::utils::Anvil,
+    prelude::*,
+    utils::AnvilInstance,
+};
 
 /// Starts a local anvil instance and deploys the `AstriaWithdrawer` contract to it.
 ///
@@ -12,8 +20,8 @@ use ethers::{core::utils::Anvil, prelude::*, utils::AnvilInstance};
 /// - if the contract cannot be compiled
 /// - if the provider fails to connect to the anvil instance
 /// - if the contract fails to deploy
-pub(crate) async fn deploy_astria_withdrawer(
-) -> (Address, Arc<Provider<Ws>>, LocalWallet, AnvilInstance) {
+pub(crate) async fn deploy_astria_withdrawer()
+-> (Address, Arc<Provider<Ws>>, LocalWallet, AnvilInstance) {
     // compile contract for testing
     let source = Path::new(&env!("CARGO_MANIFEST_DIR")).join("ethereum/src/AstriaWithdrawer.sol");
     let input = CompilerInput::new(source.clone())

@@ -1,6 +1,10 @@
 use std::io::Write as _;
 
-use brotli::{enc::BrotliEncoderParams, CompressorWriter, DecompressorWriter};
+use brotli::{
+    enc::BrotliEncoderParams,
+    CompressorWriter,
+    DecompressorWriter,
+};
 
 const BROTLI_BUFFER_SIZE: usize = 4096;
 

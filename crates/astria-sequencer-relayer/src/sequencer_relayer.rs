@@ -1,19 +1,34 @@
-use std::{net::SocketAddr, time::Duration};
+use std::{
+    net::SocketAddr,
+    time::Duration,
+};
 
-use astria_eyre::eyre::{self, WrapErr as _};
+use astria_eyre::eyre::{
+    self,
+    WrapErr as _,
+};
 use tokio::{
     select,
     sync::oneshot,
-    task::{JoinError, JoinHandle},
+    task::{
+        JoinError,
+        JoinHandle,
+    },
     time::timeout,
 };
 use tokio_util::sync::CancellationToken;
-use tracing::{error, info};
+use tracing::{
+    error,
+    info,
+};
 
 use crate::{
     api,
     config::Config,
-    relayer::{self, Relayer},
+    relayer::{
+        self,
+        Relayer,
+    },
 };
 
 pub struct SequencerRelayer {

@@ -1,7 +1,15 @@
-use prost::{Message as _, Name as _};
+use prost::{
+    Message as _,
+    Name as _,
+};
 
 use super::raw;
-use crate::crypto::{self, Signature, SigningKey, VerificationKey};
+use crate::crypto::{
+    self,
+    Signature,
+    SigningKey,
+    VerificationKey,
+};
 
 pub mod action;
 pub use action::Action;
@@ -74,7 +82,10 @@ impl SignedTransaction {
     /// and hashing the resulting bytes with sha256.
     #[must_use]
     pub fn sha256_of_proto_encoding(&self) -> [u8; 32] {
-        use sha2::{Digest as _, Sha256};
+        use sha2::{
+            Digest as _,
+            Sha256,
+        };
         let bytes = self.to_raw().encode_to_vec();
         Sha256::digest(bytes).into()
     }
@@ -220,7 +231,10 @@ impl UnsignedTransaction {
     }
 
     pub fn into_raw(self) -> raw::UnsignedTransaction {
-        let Self { actions, params } = self;
+        let Self {
+            actions,
+            params,
+        } = self;
         let actions = actions.into_iter().map(Action::into_raw).collect();
         raw::UnsignedTransaction {
             actions,
@@ -238,7 +252,10 @@ impl UnsignedTransaction {
     }
 
     pub fn to_raw(&self) -> raw::UnsignedTransaction {
-        let Self { actions, params } = self;
+        let Self {
+            actions,
+            params,
+        } = self;
         let actions = actions.iter().map(Action::to_raw).collect();
         let params = params.clone().into_raw();
         raw::UnsignedTransaction {
@@ -259,7 +276,10 @@ impl UnsignedTransaction {
     /// Returns an error if one of the inner raw actions could not be converted to a native
     /// [`Action`].
     pub fn try_from_raw(proto: raw::UnsignedTransaction) -> Result<Self, UnsignedTransactionError> {
-        let raw::UnsignedTransaction { actions, params } = proto;
+        let raw::UnsignedTransaction {
+            actions,
+            params,
+        } = proto;
         let Some(params) = params else {
             return Err(UnsignedTransactionError::unset_params());
         };
@@ -270,7 +290,10 @@ impl UnsignedTransaction {
             .collect::<Result<_, _>>()
             .map_err(UnsignedTransactionError::action)?;
 
-        Ok(Self { actions, params })
+        Ok(Self {
+            actions,
+            params,
+        })
     }
 
     /// Attempt to convert from a protobuf [`pbjson_types::Any`].
@@ -304,7 +327,9 @@ impl UnsignedTransactionError {
     }
 
     fn invalid_type_url(got: String) -> Self {
-        Self(UnsignedTransactionErrorKind::InvalidTypeUrl { got })
+        Self(UnsignedTransactionErrorKind::InvalidTypeUrl {
+            got,
+        })
     }
 
     fn decode_any(inner: prost::DecodeError) -> Self {
@@ -341,15 +366,27 @@ pub struct TransactionParams {
 impl TransactionParams {
     #[must_use]
     pub fn into_raw(self) -> raw::TransactionParams {
-        let Self { nonce, chain_id } = self;
-        raw::TransactionParams { nonce, chain_id }
+        let Self {
+            nonce,
+            chain_id,
+        } = self;
+        raw::TransactionParams {
+            nonce,
+            chain_id,
+        }
     }
 
     /// Convert from a raw protobuf [`raw::UnsignedTransaction`].
     #[must_use]
     pub fn from_raw(proto: raw::TransactionParams) -> Self {
-        let raw::TransactionParams { nonce, chain_id } = proto;
-        Self { nonce, chain_id }
+        let raw::TransactionParams {
+            nonce,
+            chain_id,
+        } = proto;
+        Self {
+            nonce,
+            chain_id,
+        }
     }
 }
 
@@ -357,7 +394,10 @@ impl TransactionParams {
 mod test {
     use super::*;
     use crate::{
-        primitive::v1::{asset::default_native_asset_id, Address},
+        primitive::v1::{
+            asset::default_native_asset_id,
+            Address,
+        },
         protocol::transaction::v1alpha1::action::TransferAction,
     };
 

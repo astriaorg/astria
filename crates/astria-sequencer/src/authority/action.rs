@@ -1,15 +1,25 @@
-use anyhow::{bail, ensure, Context as _, Result};
+use anyhow::{
+    bail,
+    ensure,
+    Context as _,
+    Result,
+};
 use astria_core::{
     primitive::v1::Address,
     protocol::transaction::v1alpha1::action::{
-        FeeChange, FeeChangeAction, SudoAddressChangeAction,
+        FeeChange,
+        FeeChangeAction,
+        SudoAddressChangeAction,
     },
 };
 use tendermint::account;
 use tracing::instrument;
 
 use crate::{
-    authority::state_ext::{StateReadExt, StateWriteExt},
+    authority::state_ext::{
+        StateReadExt,
+        StateWriteExt,
+    },
     transaction::action_handler::ActionHandler,
 };
 
@@ -110,8 +120,10 @@ impl ActionHandler for FeeChangeAction {
     #[instrument(skip_all)]
     async fn execute<S: StateWriteExt>(&self, state: &mut S, _: Address) -> Result<()> {
         use crate::{
-            accounts::state_ext::StateWriteExt as _, bridge::state_ext::StateWriteExt as _,
-            ibc::state_ext::StateWriteExt as _, sequence::state_ext::StateWriteExt as _,
+            accounts::state_ext::StateWriteExt as _,
+            bridge::state_ext::StateWriteExt as _,
+            ibc::state_ext::StateWriteExt as _,
+            sequence::state_ext::StateWriteExt as _,
         };
 
         match self.fee_change {
@@ -147,10 +159,22 @@ mod test {
 
     use super::*;
     use crate::{
-        accounts::state_ext::{StateReadExt as _, StateWriteExt as _},
-        bridge::state_ext::{StateReadExt as _, StateWriteExt as _},
-        ibc::state_ext::{StateReadExt as _, StateWriteExt as _},
-        sequence::state_ext::{StateReadExt as _, StateWriteExt as _},
+        accounts::state_ext::{
+            StateReadExt as _,
+            StateWriteExt as _,
+        },
+        bridge::state_ext::{
+            StateReadExt as _,
+            StateWriteExt as _,
+        },
+        ibc::state_ext::{
+            StateReadExt as _,
+            StateWriteExt as _,
+        },
+        sequence::state_ext::{
+            StateReadExt as _,
+            StateWriteExt as _,
+        },
     };
 
     #[tokio::test]

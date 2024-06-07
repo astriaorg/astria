@@ -1,7 +1,13 @@
 use std::process::ExitCode;
 
-use astria_cli::{cli::Cli, commands};
-use color_eyre::{eyre, eyre::Context};
+use astria_cli::{
+    cli::Cli,
+    commands,
+};
+use color_eyre::{
+    eyre,
+    eyre::Context,
+};
 
 fn main() -> ExitCode {
     if let Err(err) = run() {

@@ -132,13 +132,19 @@
 
 use std::num::NonZeroUsize;
 
-use sha2::{Digest as _, Sha256};
+use sha2::{
+    Digest as _,
+    Sha256,
+};
 
 pub mod audit;
 #[cfg(test)]
 mod tests;
 
-pub use audit::{Audit, Proof};
+pub use audit::{
+    Audit,
+    Proof,
+};
 
 /// Calculates `SHA256(0x00 | leaf)`
 #[must_use]
@@ -225,7 +231,10 @@ impl<'a> LeafBuilder<'a> {
 
 impl<'a> Drop for LeafBuilder<'a> {
     fn drop(&mut self) {
-        let Self { tree, hasher } = self;
+        let Self {
+            tree,
+            hasher,
+        } = self;
         let leaf_hash: [u8; 32] = hasher
             .take()
             .expect("hasher is set during the leaf builder's lifetime and only taken on drop")
@@ -408,7 +417,9 @@ impl Tree {
     /// ```
     #[must_use]
     pub fn new() -> Self {
-        Self { nodes: Vec::new() }
+        Self {
+            nodes: Vec::new(),
+        }
     }
 
     /// Returns the number of nodes in the merkle tree.

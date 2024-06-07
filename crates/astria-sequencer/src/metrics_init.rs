@@ -2,7 +2,12 @@
 //!
 //! Registers metrics & lists constants to be used as metric names throughout crate.
 
-use metrics::{describe_counter, describe_gauge, describe_histogram, Unit};
+use metrics::{
+    describe_counter,
+    describe_gauge,
+    describe_histogram,
+    Unit,
+};
 use telemetry::metric_name;
 
 /// Registers all metrics used by this crate.
@@ -101,14 +106,18 @@ metric_name!(pub const CHECK_TX_REMOVED_ACCOUNT_BALANCE);
 #[cfg(test)]
 mod tests {
     use super::{
-        CHECK_TX_REMOVED_ACCOUNT_BALANCE, CHECK_TX_REMOVED_FAILED_STATELESS,
-        CHECK_TX_REMOVED_STALE_NONCE, CHECK_TX_REMOVED_TOO_LARGE,
+        CHECK_TX_REMOVED_ACCOUNT_BALANCE,
+        CHECK_TX_REMOVED_FAILED_STATELESS,
+        CHECK_TX_REMOVED_STALE_NONCE,
+        CHECK_TX_REMOVED_TOO_LARGE,
         PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS,
         PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_COMETBFT_SPACE,
         PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_DECODE_FAILURE,
         PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_FAILED_EXECUTION,
-        PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_SEQUENCER_SPACE, PROCESS_PROPOSAL_SKIPPED_PROPOSAL,
-        PROPOSAL_DEPOSITS, PROPOSAL_TRANSACTIONS,
+        PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_SEQUENCER_SPACE,
+        PROCESS_PROPOSAL_SKIPPED_PROPOSAL,
+        PROPOSAL_DEPOSITS,
+        PROPOSAL_TRANSACTIONS,
     };
 
     #[track_caller]

@@ -1,10 +1,18 @@
-use sha2::{Digest as _, Sha256};
+use sha2::{
+    Digest as _,
+    Sha256,
+};
 
 use super::{
     block::{
-        RollupTransactionsParts, SequencerBlock, SequencerBlockHeader, SequencerBlockHeaderError,
+        RollupTransactionsParts,
+        SequencerBlock,
+        SequencerBlockHeader,
+        SequencerBlockHeaderError,
     },
-    raw, IncorrectRollupIdLength, RollupId,
+    raw,
+    IncorrectRollupIdLength,
+    RollupId,
 };
 use crate::Protobuf;
 
@@ -50,7 +58,10 @@ impl PreparedBlock {
                 proof,
             });
         }
-        Self { head, tail }
+        Self {
+            head,
+            tail,
+        }
     }
 
     /// Returns the head and the tail of the split block, consuming it.
@@ -70,19 +81,25 @@ pub struct SubmittedRollupDataError {
 impl SubmittedRollupDataError {
     fn field_not_set(field: &'static str) -> Self {
         Self {
-            kind: SubmittedRollupDataErrorKind::FieldNotSet { field },
+            kind: SubmittedRollupDataErrorKind::FieldNotSet {
+                field,
+            },
         }
     }
 
     fn rollup_id(source: IncorrectRollupIdLength) -> Self {
         Self {
-            kind: SubmittedRollupDataErrorKind::RollupId { source },
+            kind: SubmittedRollupDataErrorKind::RollupId {
+                source,
+            },
         }
     }
 
     fn proof(source: <merkle::Proof as Protobuf>::Error) -> Self {
         Self {
-            kind: SubmittedRollupDataErrorKind::Proof { source },
+            kind: SubmittedRollupDataErrorKind::Proof {
+                source,
+            },
         }
     }
 
@@ -276,7 +293,9 @@ impl SubmittedMetadataError {
 
     fn header(source: SequencerBlockHeaderError) -> Self {
         Self {
-            kind: SubmittedMetadataErrorKind::Header { source },
+            kind: SubmittedMetadataErrorKind::Header {
+                source,
+            },
         }
     }
 
@@ -288,19 +307,25 @@ impl SubmittedMetadataError {
 
     fn rollup_ids(source: IncorrectRollupIdLength) -> Self {
         Self {
-            kind: SubmittedMetadataErrorKind::RollupIds { source },
+            kind: SubmittedMetadataErrorKind::RollupIds {
+                source,
+            },
         }
     }
 
     fn rollup_transactions_proof(source: <merkle::Proof as Protobuf>::Error) -> Self {
         Self {
-            kind: SubmittedMetadataErrorKind::RollupTransactionsProof { source },
+            kind: SubmittedMetadataErrorKind::RollupTransactionsProof {
+                source,
+            },
         }
     }
 
     fn rollup_ids_proof(source: <merkle::Proof as Protobuf>::Error) -> Self {
         Self {
-            kind: SubmittedMetadataErrorKind::RollupIdsProof { source },
+            kind: SubmittedMetadataErrorKind::RollupIdsProof {
+                source,
+            },
         }
     }
 

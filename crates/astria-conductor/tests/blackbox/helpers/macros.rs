@@ -19,7 +19,10 @@ macro_rules! celestia_network_head {
         ::celestia_types::ExtendedHeader {
             header: ::celestia_tendermint::block::header::Header {
                 height: $height.into(),
-                version: ::celestia_tendermint::block::header::Version { block: 0, app: 0 },
+                version: ::celestia_tendermint::block::header::Version {
+                    block: 0,
+                    app: 0,
+                },
                 chain_id: "test_celestia-1000".try_into().unwrap(),
                 time: ::celestia_tendermint::Time::from_unix_timestamp(1, 1).unwrap(),
                 last_block_id: None,

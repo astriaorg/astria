@@ -1,6 +1,9 @@
 use std::fmt::Write as _;
 
-use crate::{mock::Times, mounted_mock::BadResponse};
+use crate::{
+    mock::Times,
+    mounted_mock::BadResponse,
+};
 
 /// A report returned by an `MountedMock` detailing what the user expectations were and
 /// how many calls were actually received since the mock was mounted on the server.

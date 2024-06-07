@@ -1,7 +1,10 @@
 use anyhow::Result;
 use astria_core::primitive::v1::Address;
 use async_trait::async_trait;
-use cnidarium::{StateRead, StateWrite};
+use cnidarium::{
+    StateRead,
+    StateWrite,
+};
 
 #[async_trait]
 pub(crate) trait ActionHandler {

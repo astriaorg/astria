@@ -1,5 +1,9 @@
 use std::{
-    fmt::{self, Display, Formatter},
+    fmt::{
+        self,
+        Display,
+        Formatter,
+    },
     num::ParseFloatError,
 };
 

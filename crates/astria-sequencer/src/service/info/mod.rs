@@ -1,21 +1,34 @@
 use std::{
     pin::Pin,
-    task::{Context, Poll},
+    task::{
+        Context,
+        Poll,
+    },
 };
 
 use anyhow::Context as _;
 use astria_core::protocol::abci::AbciErrorCode;
 use cnidarium::Storage;
-use futures::{Future, FutureExt};
+use futures::{
+    Future,
+    FutureExt,
+};
 use penumbra_tower_trace::v038::RequestExt as _;
 use tendermint::v0_38::abci::{
     request,
-    response::{self, Echo},
-    InfoRequest, InfoResponse,
+    response::{
+        self,
+        Echo,
+    },
+    InfoRequest,
+    InfoResponse,
 };
 use tower::Service;
 use tower_abci::BoxError;
-use tracing::{instrument, Instrument as _};
+use tracing::{
+    instrument,
+    Instrument as _,
+};
 
 mod abci_query_router;
 
@@ -98,7 +111,10 @@ impl Info {
                 };
             }
 
-            Ok(matchit::Match { value, params }) => {
+            Ok(matchit::Match {
+                value,
+                params,
+            }) => {
                 let params = params
                     .iter()
                     .map(|(k, v)| (k.to_owned(), v.to_owned()))
@@ -133,17 +149,28 @@ impl Service<InfoRequest> for Info {
 #[cfg(test)]
 mod test {
     use astria_core::primitive::v1::{
-        asset::{Denom, DEFAULT_NATIVE_ASSET_DENOM},
+        asset::{
+            Denom,
+            DEFAULT_NATIVE_ASSET_DENOM,
+        },
         Address,
     };
     use cnidarium::StateDelta;
     use prost::Message as _;
-    use tendermint::v0_38::abci::{request, InfoRequest, InfoResponse};
+    use tendermint::v0_38::abci::{
+        request,
+        InfoRequest,
+        InfoResponse,
+    };
 
     use super::Info;
     use crate::{
         accounts::state_ext::StateWriteExt as _,
-        asset::{get_native_asset, initialize_native_asset, state_ext::StateWriteExt},
+        asset::{
+            get_native_asset,
+            initialize_native_asset,
+            state_ext::StateWriteExt,
+        },
         state_ext::StateWriteExt as _,
     };
 

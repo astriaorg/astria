@@ -69,7 +69,9 @@ impl std::error::Error for Error {
 
 impl From<figment::Error> for Error {
     fn from(inner: figment::Error) -> Self {
-        Self { inner }
+        Self {
+            inner,
+        }
     }
 }
 
@@ -126,7 +128,10 @@ pub trait Config: ::core::fmt::Debug + DeserializeOwned {
         prefix: &str,
         _internal: _internal::Internal,
     ) -> Result<Self, figment::Error> {
-        use figment::{providers::Env as FigmentEnv, Figment};
+        use figment::{
+            providers::Env as FigmentEnv,
+            Figment,
+        };
         Figment::new()
             .merge(FigmentEnv::prefixed("RUST_").split("_").only(&["log"]))
             .merge(FigmentEnv::prefixed(prefix))

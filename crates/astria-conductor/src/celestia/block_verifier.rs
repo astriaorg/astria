@@ -1,9 +1,15 @@
 use std::collections::HashMap;
 
-use astria_core::crypto::{Signature, VerificationKey};
+use astria_core::crypto::{
+    Signature,
+    VerificationKey,
+};
 use prost::Message;
 use sequencer_client::{
-    tendermint::{self, block::Height},
+    tendermint::{
+        self,
+        block::Height,
+    },
     tendermint_rpc,
 };
 
@@ -218,12 +224,20 @@ mod test {
         generated::sequencerblock::v1alpha1::SequencerBlockHeader as RawSequencerBlockHeader,
         primitive::v1::RollupId,
         sequencerblock::v1alpha1::{
-            block::SequencerBlockHeader, celestia::UncheckedSubmittedMetadata,
+            block::SequencerBlockHeader,
+            celestia::UncheckedSubmittedMetadata,
         },
     };
     use prost::Message as _;
     use sequencer_client::{
-        tendermint::{self, account, block::Commit, validator, validator::Info as Validator, Hash},
+        tendermint::{
+            self,
+            account,
+            block::Commit,
+            validator,
+            validator::Info as Validator,
+            Hash,
+        },
         tendermint_proto,
         tendermint_rpc::endpoint::validators,
     };
@@ -241,7 +255,10 @@ mod test {
         I: IntoIterator<Item = B>,
         B: AsRef<[u8]>,
     {
-        use sha2::{Digest as _, Sha256};
+        use sha2::{
+            Digest as _,
+            Sha256,
+        };
         merkle::Tree::from_leaves(iter.into_iter().map(|item| Sha256::digest(&item)))
     }
 
@@ -464,7 +481,10 @@ mod test {
 
     #[test]
     fn ensure_commit_has_quorum_not_ok() {
-        use base64::engine::{general_purpose::STANDARD, Engine as _};
+        use base64::engine::{
+            general_purpose::STANDARD,
+            Engine as _,
+        };
         let validator_set = validators::Response::new(
             78u32.into(),
             vec![Validator {
@@ -508,9 +528,11 @@ mod test {
             &tendermint::chain::Id::try_from("test-chain-g3ejvw").unwrap(),
         );
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("commit voting power is less than 2/3 of total voting power"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("commit voting power is less than 2/3 of total voting power")
+        );
     }
 }

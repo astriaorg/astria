@@ -1,5 +1,8 @@
 use std::{
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
     time::Duration,
 };
@@ -8,25 +11,48 @@ use astria_core::{
     generated::sequencerblock::v1alpha1::sequencer_service_client::SequencerServiceClient,
     sequencerblock::v1alpha1::SequencerBlock,
 };
-use astria_eyre::eyre::{self, bail, eyre, WrapErr as _};
+use astria_eyre::eyre::{
+    self,
+    bail,
+    eyre,
+    WrapErr as _,
+};
 use futures::{
-    future::{BoxFuture, Fuse, FusedFuture as _},
+    future::{
+        BoxFuture,
+        Fuse,
+        FusedFuture as _,
+    },
     FutureExt as _,
 };
 use sequencer_client::{
-    tendermint::block::Height as SequencerHeight, HttpClient as SequencerClient,
+    tendermint::block::Height as SequencerHeight,
+    HttpClient as SequencerClient,
 };
 use tokio::{
     select,
-    sync::{mpsc::error::TrySendError, watch},
+    sync::{
+        mpsc::error::TrySendError,
+        watch,
+    },
     task::JoinHandle,
 };
 use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
 use tonic::transport::Channel;
-use tracing::{debug, error, field::DisplayValue, info, instrument, warn};
+use tracing::{
+    debug,
+    error,
+    field::DisplayValue,
+    info,
+    instrument,
+    warn,
+};
 
-use crate::{validator::Validator, IncludeRollup};
+use crate::{
+    validator::Validator,
+    IncludeRollup,
+};
 
 mod builder;
 mod celestia_client;
@@ -36,7 +62,12 @@ mod submission;
 mod write;
 
 pub(crate) use builder::Builder;
-use celestia_client::{BuilderError, CelestiaClientBuilder, CelestiaKeys, TrySubmitError};
+use celestia_client::{
+    BuilderError,
+    CelestiaClientBuilder,
+    CelestiaKeys,
+    TrySubmitError,
+};
 use state::State;
 pub(crate) use state::StateSnapshot;
 

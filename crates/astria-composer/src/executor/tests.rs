@@ -1,7 +1,16 @@
-use std::{io::Write, time::Duration};
+use std::{
+    io::Write,
+    time::Duration,
+};
 
 use astria_core::{
-    primitive::v1::{asset::default_native_asset_id, RollupId, FEE_ASSET_ID_LEN, ROLLUP_ID_LEN},
+    generated::protocol::account::v1alpha1::NonceResponse,
+    primitive::v1::{
+        asset::default_native_asset_id,
+        RollupId,
+        FEE_ASSET_ID_LEN,
+        ROLLUP_ID_LEN,
+    },
     protocol::transaction::v1alpha1::action::SequenceAction,
 };
 use astria_eyre::eyre;
@@ -10,16 +19,74 @@ use prost::Message;
 use sequencer_client::SignedTransaction;
 use serde_json::json;
 use tempfile::NamedTempFile;
-use tendermint_rpc::{endpoint::broadcast::tx_sync, request, response, Id};
-use tokio::{sync::watch, time};
+use tendermint_rpc::{
+    endpoint::broadcast::tx_sync,
+    request,
+    response,
+    Id,
+};
+use tokio::{
+    sync::watch,
+    time,
+};
 use tokio_util::sync::CancellationToken;
 use tracing::debug;
 use wiremock::{
-    matchers::{body_partial_json, body_string_contains},
-    Mock, MockGuard, MockServer, Request, ResponseTemplate,
+    matchers::{
+        body_partial_json,
+        body_string_contains,
+    },
+    Mock,
+    MockGuard,
+    MockServer,
+    Request,
+    ResponseTemplate,
 };
 
-use crate::{executor, Config};
+use crate::{
+    executor,
+    Config,
+};
+
+const STATUS_RESPONSE: &str = r#"
+{
+  "node_info": {
+    "protocol_version": {
+      "p2p": "8",
+      "block": "11",
+      "app": "0"
+    },
+    "id": "a1d3bbddb7800c6da2e64169fec281494e963ba3",
+    "listen_addr": "tcp://0.0.0.0:26656",
+    "network": "test",
+    "version": "0.38.6",
+    "channels": "40202122233038606100",
+    "moniker": "fullnode",
+    "other": {
+      "tx_index": "on",
+      "rpc_address": "tcp://0.0.0.0:26657"
+    }
+  },
+  "sync_info": {
+    "latest_block_hash": "A4202E4E367712AC2A797860265A7EBEA8A3ACE513CB0105C2C9058449641202",
+    "latest_app_hash": "BCC9C9B82A49EC37AADA41D32B4FBECD2441563703955413195BDA2236775A68",
+    "latest_block_height": "452605",
+    "latest_block_time": "2024-05-09T15:59:17.849713071Z",
+    "earliest_block_hash": "C34B7B0B82423554B844F444044D7D08A026D6E413E6F72848DB2F8C77ACE165",
+    "earliest_app_hash": "6B776065775471CEF46AC75DE09A4B869A0E0EB1D7725A04A342C0E46C16F472",
+    "earliest_block_height": "1",
+    "earliest_block_time": "2024-04-23T00:49:11.964127Z",
+    "catching_up": false
+  },
+  "validator_info": {
+    "address": "0B46F33BA2FA5C2E2AD4C4C4E5ECE3F1CA03D195",
+    "pub_key": {
+      "type": "tendermint/PubKeyEd25519",
+      "value": "bA6GipHUijVuiYhv+4XymdePBsn8EeTqjGqNQrBGZ4I="
+    },
+    "voting_power": "0"
+  }
+}"#;
 
 static TELEMETRY: Lazy<()> = Lazy::new(|| {
     if std::env::var_os("TEST_LOG").is_some() {
@@ -40,19 +107,9 @@ static TELEMETRY: Lazy<()> = Lazy::new(|| {
 });
 
 /// Start a mock sequencer server and mount a mock for the `accounts/nonce` query.
-async fn setup() -> (MockServer, MockGuard, Config, NamedTempFile) {
-    use astria_core::generated::protocol::account::v1alpha1::NonceResponse;
+async fn setup() -> (MockServer, Config, NamedTempFile) {
     Lazy::force(&TELEMETRY);
     let server = MockServer::start().await;
-    let startup_guard = mount_nonce_query_mock(
-        &server,
-        "accounts/nonce",
-        NonceResponse {
-            height: 0,
-            nonce: 0,
-        },
-    )
-    .await;
 
     let keyfile = NamedTempFile::new().unwrap();
     (&keyfile)
@@ -76,7 +133,7 @@ async fn setup() -> (MockServer, MockGuard, Config, NamedTempFile) {
         pretty_print: true,
         grpc_addr: "127.0.0.1:0".parse().unwrap(),
     };
-    (server, startup_guard, cfg, keyfile)
+    (server, cfg, keyfile)
 }
 
 /// Mount a mock for the `abci_query` endpoint.
@@ -155,29 +212,21 @@ async fn mount_broadcast_tx_sync_seq_actions_mock(server: &MockServer) -> MockGu
         .await
 }
 
-async fn mount_status_mock(server: &MockServer) -> MockGuard {
-    let matcher = move |request: &Request| {
-        let signed_tx = signed_tx_from_request(request);
-        let actions = signed_tx.actions();
+/// Mounts a `CometBFT` status response with a specified mock sequencer chain id
+async fn mount_cometbft_status_response(server: &MockServer,mock_sequencer_chain_id: &str,) -> MockGuard {
+    use tendermint_rpc::endpoint::status;
 
-        // verify all received actions are sequence actions
-        actions.iter().all(|action| action.as_sequence().is_some())
-    };
-    let jsonrpc_rsp = response::Wrapper::new_with_id(
-        Id::Num(1),
-        Some(tx_sync::Response {
-            code: 0.into(),
-            data: vec![].into(),
-            log: String::new(),
-            hash: tendermint::Hash::Sha256([0; 32]),
-        }),
-        None,
-    );
+    let mut status_response: status::Response = serde_json::from_str(STATUS_RESPONSE).unwrap();
+    status_response.node_info.network = mock_sequencer_chain_id.to_string().parse().unwrap();
 
-    Mock::given(matcher)
-        .respond_with(ResponseTemplate::new(200).set_body_json(&jsonrpc_rsp))
+    let response =
+        tendermint_rpc::response::Wrapper::new_with_id(Id::Num(1), Some(status_response), None);
+
+    Mock::given(body_partial_json(json!({"method": "status"})))
+        .respond_with(ResponseTemplate::new(200).set_body_json(response))
         .up_to_n_times(1)
-        .expect(1)
+        .expect(1..)
+        .named("CometBFT status")
         .mount_as_scoped(server)
         .await
 }
@@ -202,16 +251,18 @@ async fn wait_for_startup(
 
     Ok(())
 }
+
 /// Test to check that the executor sends a signed transaction to the sequencer as soon as it
 /// receives a `SequenceAction` that fills it beyond its `max_bundle_size`.
 #[tokio::test]
 async fn full_bundle() {
     // set up the executor, channel for writing seq actions, and the sequencer mock
-    let (sequencer, nonce_guard, cfg, _keyfile) = setup().await;
+    let (sequencer, cfg, _keyfile) = setup().await;
     let shutdown_token = CancellationToken::new();
+    let _status_guard = mount_cometbft_status_response(&sequencer, &cfg.sequencer_chain_id).await;
     let (executor, executor_handle) = executor::Builder {
         sequencer_url: cfg.sequencer_url.clone(),
-        sequencer_chain_id: "bad-id".to_string(),
+        sequencer_chain_id: cfg.sequencer_chain_id.clone(),
         private_key_file: cfg.private_key_file.clone(),
         block_time_ms: cfg.block_time_ms,
         max_bytes_per_bundle: cfg.max_bytes_per_bundle,
@@ -222,6 +273,15 @@ async fn full_bundle() {
     .await
     .unwrap();
 
+    let nonce_guard = mount_nonce_query_mock(
+        &sequencer,
+        "accounts/nonce",
+        NonceResponse {
+            height: 0,
+            nonce: 0,
+        },
+    )
+    .await;
     let status = executor.subscribe();
 
     let _executor_task = tokio::spawn(executor.run_until_stopped());
@@ -299,8 +359,9 @@ async fn full_bundle() {
 #[tokio::test]
 async fn bundle_triggered_by_block_timer() {
     // set up the executor, channel for writing seq actions, and the sequencer mock
-    let (sequencer, nonce_guard, cfg, _keyfile) = setup().await;
+    let (sequencer, cfg, _keyfile) = setup().await;
     let shutdown_token = CancellationToken::new();
+    let _status_guard = mount_cometbft_status_response(&sequencer, &cfg.sequencer_chain_id).await;
     let (executor, executor_handle) = executor::Builder {
         sequencer_url: cfg.sequencer_url.clone(),
         sequencer_chain_id: cfg.sequencer_chain_id.clone(),
@@ -314,6 +375,15 @@ async fn bundle_triggered_by_block_timer() {
     .await
     .unwrap();
 
+    let nonce_guard = mount_nonce_query_mock(
+        &sequencer,
+        "accounts/nonce",
+        NonceResponse {
+            height: 0,
+            nonce: 0,
+        },
+    )
+    .await;
     let status = executor.subscribe();
 
     let _executor_task = tokio::spawn(executor.run_until_stopped());
@@ -384,8 +454,9 @@ async fn bundle_triggered_by_block_timer() {
 #[tokio::test]
 async fn two_seq_actions_single_bundle() {
     // set up the executor, channel for writing seq actions, and the sequencer mock
-    let (sequencer, nonce_guard, cfg, _keyfile) = setup().await;
+    let (sequencer, cfg, _keyfile) = setup().await;
     let shutdown_token = CancellationToken::new();
+    let _status_guard = mount_cometbft_status_response(&sequencer, &cfg.sequencer_chain_id).await;
     let (executor, executor_handle) = executor::Builder {
         sequencer_url: cfg.sequencer_url.clone(),
         sequencer_chain_id: cfg.sequencer_chain_id.clone(),
@@ -399,6 +470,15 @@ async fn two_seq_actions_single_bundle() {
     .await
     .unwrap();
 
+    let nonce_guard = mount_nonce_query_mock(
+        &sequencer,
+        "accounts/nonce",
+        NonceResponse {
+            height: 0,
+            nonce: 0,
+        },
+    )
+    .await;
     let status = executor.subscribe();
 
     let _executor_task = tokio::spawn(executor.run_until_stopped());
@@ -474,19 +554,23 @@ async fn two_seq_actions_single_bundle() {
     }
 }
 
-// #[tokio::test]
-// async fn should_exit_if_mismatch_sequencer_chain_id() {
-//     let (sequencer, nonce_guard, cfg, _keyfile) = setup().await;
-//     let shutdown_token = CancellationToken::new();
-//     let (executor, executor_handle) = executor::Builder {
-//         sequencer_url: cfg.sequencer_url.clone(),
-//         sequencer_chain_id: "bad-id".to_string(),
-//         private_key_file: cfg.private_key_file.clone(),
-//         block_time_ms: cfg.block_time_ms,
-//         max_bytes_per_bundle: cfg.max_bytes_per_bundle,
-//         bundle_queue_capacity: cfg.bundle_queue_capacity,
-//         shutdown_token: shutdown_token.clone(),
-//     }
-//     .build()
-//     .unwrap();
-// }
+#[tokio::test]
+async fn should_exit_if_mismatch_sequencer_chain_id() {
+    // set up the executor, channel for writing seq actions, and the sequencer mock
+    let (sequencer, cfg, _keyfile) = setup().await;
+    let shutdown_token = CancellationToken::new();
+    let _status_guard = mount_cometbft_status_response(&sequencer, "different-chain-id").await;
+    let build_result = executor::Builder {
+        sequencer_url: cfg.sequencer_url.clone(),
+        sequencer_chain_id: cfg.sequencer_chain_id.clone(),
+        private_key_file: cfg.private_key_file.clone(),
+        block_time_ms: cfg.block_time_ms,
+        max_bytes_per_bundle: cfg.max_bytes_per_bundle,
+        bundle_queue_capacity: cfg.bundle_queue_capacity,
+        shutdown_token: shutdown_token.clone(),
+    }
+    .build()
+    .await;
+
+    assert!(build_result.is_err());
+}

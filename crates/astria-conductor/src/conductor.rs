@@ -1,14 +1,38 @@
-use std::{future::Future, time::Duration};
+use std::{
+    future::Future,
+    time::Duration,
+};
 
-use astria_eyre::eyre::{self, eyre, WrapErr as _};
+use astria_eyre::eyre::{
+    self,
+    eyre,
+    WrapErr as _,
+};
 use itertools::Itertools as _;
 use pin_project_lite::pin_project;
 use sequencer_client::HttpClient;
-use tokio::{select, time::timeout};
-use tokio_util::{sync::CancellationToken, task::JoinMap};
-use tracing::{error, info, instrument, warn};
+use tokio::{
+    select,
+    time::timeout,
+};
+use tokio_util::{
+    sync::CancellationToken,
+    task::JoinMap,
+};
+use tracing::{
+    error,
+    info,
+    instrument,
+    warn,
+};
 
-use crate::{celestia, executor, sequencer, utils::flatten, Config};
+use crate::{
+    celestia,
+    executor,
+    sequencer,
+    utils::flatten,
+    Config,
+};
 
 pin_project! {
     /// A handle returned by [`Conductor::spawn`].
@@ -126,7 +150,10 @@ impl Conductor {
             tasks.spawn(Self::CELESTIA, reader.run_until_stopped());
         };
 
-        Ok(Self { shutdown, tasks })
+        Ok(Self {
+            shutdown,
+            tasks,
+        })
     }
 
     /// Runs [`Conductor`] until it receives an exit signal.

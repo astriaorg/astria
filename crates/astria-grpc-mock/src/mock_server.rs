@@ -1,17 +1,26 @@
 use std::{
     fmt::Write as _,
     pin::pin,
-    sync::{atomic::AtomicBool, Arc},
+    sync::{
+        atomic::AtomicBool,
+        Arc,
+    },
 };
 
-use tokio::sync::{Notify, RwLock};
+use tokio::sync::{
+    Notify,
+    RwLock,
+};
 use tracing::debug;
 
 use super::clone_request;
 use crate::{
     erase_request,
     mock::Mock,
-    mock_set::{MockId, MockSet},
+    mock_set::{
+        MockId,
+        MockSet,
+    },
     verification::VerificationOutcome,
     AnyRequest,
 };
@@ -147,7 +156,9 @@ impl MockRequest {
 
 impl From<AnyRequest> for MockRequest {
     fn from(value: AnyRequest) -> Self {
-        Self { inner: value }
+        Self {
+            inner: value,
+        }
     }
 }
 

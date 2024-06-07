@@ -1,7 +1,12 @@
 use std::process::ExitCode;
 
 use anyhow::Context as _;
-use astria_sequencer::{metrics_init, Config, Sequencer, BUILD_INFO};
+use astria_sequencer::{
+    metrics_init,
+    Config,
+    Sequencer,
+    BUILD_INFO,
+};
 use tracing::info;
 
 // Following the BSD convention for failing to read config

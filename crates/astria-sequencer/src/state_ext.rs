@@ -1,7 +1,14 @@
-use anyhow::{bail, Context as _, Result};
+use anyhow::{
+    bail,
+    Context as _,
+    Result,
+};
 use astria_core::primitive::v1::asset;
 use async_trait::async_trait;
-use cnidarium::{StateRead, StateWrite};
+use cnidarium::{
+    StateRead,
+    StateWrite,
+};
 use futures::StreamExt as _;
 use tendermint::Time;
 use tracing::instrument;
@@ -287,7 +294,11 @@ mod test {
     use cnidarium::StateDelta;
     use tendermint::Time;
 
-    use super::{revision_number_from_chain_id, StateReadExt as _, StateWriteExt as _};
+    use super::{
+        revision_number_from_chain_id,
+        StateReadExt as _,
+        StateWriteExt as _,
+    };
 
     #[test]
     fn revision_number_from_chain_id_regex() {

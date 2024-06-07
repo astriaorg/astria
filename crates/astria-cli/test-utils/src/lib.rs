@@ -1,4 +1,7 @@
-use std::{env, future::Future};
+use std::{
+    env,
+    future::Future,
+};
 
 use once_cell::sync::Lazy;
 use tempfile::TempDir;

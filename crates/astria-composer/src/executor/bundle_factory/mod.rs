@@ -1,15 +1,28 @@
 /// ! This module is responsible for bundling sequence actions into bundles that can be
 /// submitted to the sequencer.
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::{
+        HashMap,
+        VecDeque,
+    },
     mem,
 };
 
 use astria_core::{
-    primitive::v1::{RollupId, FEE_ASSET_ID_LEN, ROLLUP_ID_LEN},
-    protocol::transaction::v1alpha1::{action::SequenceAction, Action},
+    primitive::v1::{
+        RollupId,
+        FEE_ASSET_ID_LEN,
+        ROLLUP_ID_LEN,
+    },
+    protocol::transaction::v1alpha1::{
+        action::SequenceAction,
+        Action,
+    },
 };
-use serde::ser::{Serialize, SerializeStruct as _};
+use serde::ser::{
+    Serialize,
+    SerializeStruct as _,
+};
 use tracing::trace;
 
 mod tests;

@@ -1,5 +1,8 @@
 use astria_core::generated::cosmos::base::abci::v1beta1::TxResponse;
-use celestia_types::{blob::Commitment, nmt::Namespace};
+use celestia_types::{
+    blob::Commitment,
+    nmt::Namespace,
+};
 use prost::bytes::Bytes;
 
 use super::*;
@@ -91,7 +94,9 @@ fn account_from_bad_response_should_fail() {
     }
 
     // Should return `EmptyAccountInfo` if the inner response's `account` is `None`.
-    let response = Ok(Response::new(QueryAccountResponse { account: None }));
+    let response = Ok(Response::new(QueryAccountResponse {
+        account: None,
+    }));
     let error = account_from_response(response).unwrap_err();
     // allow: `assert!(matches!(..))` provides poor feedback on failure.
     #[allow(clippy::manual_assert)]
@@ -111,7 +116,10 @@ fn account_from_bad_response_should_fail() {
     }));
     let error = account_from_response(response).unwrap_err();
     match error {
-        TrySubmitError::AccountInfoTypeMismatch { expected, received } => {
+        TrySubmitError::AccountInfoTypeMismatch {
+            expected,
+            received,
+        } => {
             assert_eq!(expected, BaseAccount::type_url(),);
             assert_eq!(received, bad_url,);
         }
@@ -184,7 +192,9 @@ fn min_gas_price_from_bad_response_should_fail() {
     }));
     let error = min_gas_price_from_response(response).unwrap_err();
     match error {
-        TrySubmitError::FailedToParseMinGasPrice { min_gas_price, .. } => {
+        TrySubmitError::FailedToParseMinGasPrice {
+            min_gas_price, ..
+        } => {
             assert_eq!(min_gas_price, bad_value,);
         }
         _ => panic!("expected `FailedToParseMinGasPrice` error, but got {error:?}"),
@@ -272,7 +282,9 @@ fn tx_hash_from_bad_response_should_fail() {
     }
 
     // Should return `EmptyBroadcastTxResponse` if the inner response's `tx_response` is `None`.
-    let response = Ok(Response::new(BroadcastTxResponse { tx_response: None }));
+    let response = Ok(Response::new(BroadcastTxResponse {
+        tx_response: None,
+    }));
     let error = tx_hash_from_response(response).unwrap_err();
     // allow: `assert!(matches!(..))` provides poor feedback on failure.
     #[allow(clippy::manual_assert)]

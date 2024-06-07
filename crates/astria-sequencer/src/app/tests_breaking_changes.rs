@@ -9,29 +9,53 @@
 //! These are due to the extensive setup needed to test them.
 //! If changes are made to the execution results of these actions, manual testing is required.
 
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+};
 
 use astria_core::{
-    primitive::v1::{asset::DEFAULT_NATIVE_ASSET_DENOM, Address, RollupId},
+    primitive::v1::{
+        asset::DEFAULT_NATIVE_ASSET_DENOM,
+        Address,
+        RollupId,
+    },
     protocol::transaction::v1alpha1::{
         action::{
-            BridgeLockAction, BridgeUnlockAction, IbcRelayerChangeAction, SequenceAction,
+            BridgeLockAction,
+            BridgeUnlockAction,
+            IbcRelayerChangeAction,
+            SequenceAction,
             TransferAction,
         },
-        Action, TransactionParams, UnsignedTransaction,
+        Action,
+        TransactionParams,
+        UnsignedTransaction,
     },
     sequencerblock::v1alpha1::block::Deposit,
 };
 use cnidarium::StateDelta;
 use penumbra_ibc::params::IBCParameters;
 use prost::Message as _;
-use tendermint::{abci, abci::types::CommitInfo, block::Round, Hash, Time};
+use tendermint::{
+    abci,
+    abci::types::CommitInfo,
+    block::Round,
+    Hash,
+    Time,
+};
 
 use crate::{
     app::test_utils::{
-        address_from_hex_string, default_fees, default_genesis_accounts,
-        get_alice_signing_key_and_address, get_bridge_signing_key_and_address, initialize_app,
-        initialize_app_with_storage, BOB_ADDRESS, CAROL_ADDRESS,
+        address_from_hex_string,
+        default_fees,
+        default_genesis_accounts,
+        get_alice_signing_key_and_address,
+        get_bridge_signing_key_and_address,
+        initialize_app,
+        initialize_app_with_storage,
+        BOB_ADDRESS,
+        CAROL_ADDRESS,
     },
     asset::get_native_asset,
     bridge::state_ext::StateWriteExt as _,
@@ -132,7 +156,9 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     use astria_core::{
         primitive::v1::asset,
         protocol::transaction::v1alpha1::action::{
-            FeeAssetChangeAction, InitBridgeAccountAction, SudoAddressChangeAction,
+            FeeAssetChangeAction,
+            InitBridgeAccountAction,
+            SudoAddressChangeAction,
         },
     };
 
@@ -227,13 +253,15 @@ async fn app_execute_transaction_with_every_action_snapshot() {
             nonce: 0,
             chain_id: "test".to_string(),
         },
-        actions: vec![BridgeUnlockAction {
-            to: bob_address,
-            amount: 10,
-            fee_asset_id: get_native_asset().id(),
-            memo: vec![0u8; 32],
-        }
-        .into()],
+        actions: vec![
+            BridgeUnlockAction {
+                to: bob_address,
+                amount: 10,
+                fee_asset_id: get_native_asset().id(),
+                memo: vec![0u8; 32],
+            }
+            .into(),
+        ],
     };
 
     let signed_tx = Arc::new(tx.into_signed(&bridge_signing_key));

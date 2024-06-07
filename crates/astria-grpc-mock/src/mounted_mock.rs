@@ -1,15 +1,24 @@
-use std::sync::{atomic::AtomicBool, Arc};
+use std::sync::{
+    atomic::AtomicBool,
+    Arc,
+};
 
 use tokio::sync::Notify;
 use tonic::Request;
 
 use super::{
-    mock::{Match as _, Mock},
+    mock::{
+        Match as _,
+        Mock,
+    },
     response::MockResponse,
     AnyMessage,
 };
 use crate::{
-    clone_request, clone_response, response::ResponseResult, verification::VerificationReport,
+    clone_request,
+    clone_response,
+    response::ResponseResult,
+    verification::VerificationReport,
 };
 
 pub(crate) enum MockResult<U> {

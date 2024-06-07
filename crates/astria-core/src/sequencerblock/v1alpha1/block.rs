@@ -2,19 +2,35 @@ use std::collections::HashMap;
 
 use indexmap::IndexMap;
 use sha2::Sha256;
-use tendermint::{account, Time};
+use tendermint::{
+    account,
+    Time,
+};
 
 use super::{
-    are_rollup_ids_included, are_rollup_txs_included,
-    celestia::{self, SubmittedMetadata, SubmittedRollupData},
+    are_rollup_ids_included,
+    are_rollup_txs_included,
+    celestia::{
+        self,
+        SubmittedMetadata,
+        SubmittedRollupData,
+    },
     raw,
 };
 use crate::{
     primitive::v1::{
-        asset, derive_merkle_tree_from_rollup_txs, Address, IncorrectAddressLength,
-        IncorrectRollupIdLength, RollupId,
+        asset,
+        derive_merkle_tree_from_rollup_txs,
+        Address,
+        IncorrectAddressLength,
+        IncorrectRollupIdLength,
+        RollupId,
     },
-    protocol::transaction::v1alpha1::{action, SignedTransaction, SignedTransactionError},
+    protocol::transaction::v1alpha1::{
+        action,
+        SignedTransaction,
+        SignedTransactionError,
+    },
     Protobuf as _,
 };
 
@@ -1208,7 +1224,11 @@ impl FilteredSequencerBlockError {
     }
 
     fn rollup_transaction_for_id_not_in_sequencer_block(id: RollupId) -> Self {
-        Self(FilteredSequencerBlockErrorKind::RollupTransactionForIdNotInSequencerBlock { id })
+        Self(
+            FilteredSequencerBlockErrorKind::RollupTransactionForIdNotInSequencerBlock {
+                id,
+            },
+        )
     }
 
     fn rollup_ids_not_in_sequencer_block() -> Self {
@@ -1422,7 +1442,9 @@ impl RollupData {
     /// - if the `data` field is not set
     /// - if the variant is `Deposit` but a `Deposit` cannot be constructed from the raw proto
     pub fn try_from_raw(raw: raw::RollupData) -> Result<Self, RollupDataError> {
-        let raw::RollupData { value } = raw;
+        let raw::RollupData {
+            value,
+        } = raw;
         match value {
             Some(raw::rollup_data::Value::SequencedData(data)) => Ok(Self::SequencedData(data)),
             Some(raw::rollup_data::Value::Deposit(deposit)) => Deposit::try_from_raw(deposit)

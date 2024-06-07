@@ -1,6 +1,12 @@
-use astria_core::primitive::v1::{asset, Address};
+use astria_core::primitive::v1::{
+    asset,
+    Address,
+};
 use penumbra_ibc::params::IBCParameters;
-use serde::{Deserialize, Deserializer};
+use serde::{
+    Deserialize,
+    Deserializer,
+};
 
 /// The genesis state for the application.
 #[derive(Debug, Deserialize)]

@@ -1,19 +1,39 @@
-use std::{net::SocketAddr, sync::Arc, time::Duration};
+use std::{
+    net::SocketAddr,
+    sync::Arc,
+    time::Duration,
+};
 
 use astria_core::primitive::v1::asset;
-use astria_eyre::eyre::{self, WrapErr as _};
+use astria_eyre::eyre::{
+    self,
+    WrapErr as _,
+};
 use tokio::{
     select,
     sync::oneshot,
-    task::{JoinError, JoinHandle},
+    task::{
+        JoinError,
+        JoinHandle,
+    },
     time::timeout,
 };
 use tokio_util::sync::CancellationToken;
-use tracing::{error, info};
+use tracing::{
+    error,
+    info,
+};
 
 pub(crate) use self::state::StateSnapshot;
-use self::{ethereum::Watcher, state::State, submitter::Submitter};
-use crate::{api, config::Config};
+use self::{
+    ethereum::Watcher,
+    state::State,
+    submitter::Submitter,
+};
+use crate::{
+    api,
+    config::Config,
+};
 
 mod batch;
 mod ethereum;

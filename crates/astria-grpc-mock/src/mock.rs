@@ -1,9 +1,21 @@
 use std::ops::{
-    Range, RangeBounds as _, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive,
+    Range,
+    RangeBounds as _,
+    RangeFrom,
+    RangeFull,
+    RangeInclusive,
+    RangeTo,
+    RangeToInclusive,
 };
 
-use super::{response::Respond, AnyMessage};
-use crate::{mock_server::MockGuard, MockServer};
+use super::{
+    response::Respond,
+    AnyMessage,
+};
+use crate::{
+    mock_server::MockGuard,
+    MockServer,
+};
 
 pub trait Match: Send + Sync {
     fn matches(&self, req: &tonic::Request<AnyMessage>) -> bool;
@@ -75,7 +87,10 @@ impl MockBuilder {
     }
 
     pub fn respond_with(self, rsp: impl Respond + 'static) -> Mock {
-        let Self { rpc, matchers } = self;
+        let Self {
+            rpc,
+            matchers,
+        } = self;
         Mock {
             rpc,
             matchers,

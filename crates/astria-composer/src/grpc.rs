@@ -9,11 +9,20 @@
 use std::net::SocketAddr;
 
 use astria_core::generated::composer::v1alpha1::grpc_collector_service_server::GrpcCollectorServiceServer;
-use astria_eyre::{eyre, eyre::WrapErr as _};
-use tokio::{io, net::TcpListener};
+use astria_eyre::{
+    eyre,
+    eyre::WrapErr as _,
+};
+use tokio::{
+    io,
+    net::TcpListener,
+};
 use tokio_util::sync::CancellationToken;
 
-use crate::{collectors, executor};
+use crate::{
+    collectors,
+    executor,
+};
 
 /// Listens for incoming gRPC requests and sends the Rollup transactions to the
 /// Executor. The Executor then sends the transactions to the Astria Shared Sequencer.

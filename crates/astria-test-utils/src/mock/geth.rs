@@ -66,12 +66,22 @@ use std::net::SocketAddr;
 pub use __rpc_traits::GethServer;
 use ethers::types::Transaction;
 use jsonrpsee::{
-    core::{async_trait, SubscriptionResult},
+    core::{
+        async_trait,
+        SubscriptionResult,
+    },
     server::IdProvider,
-    types::{ErrorObjectOwned, SubscriptionId},
+    types::{
+        ErrorObjectOwned,
+        SubscriptionId,
+    },
     PendingSubscriptionSink,
 };
-use tokio::sync::broadcast::{channel, error::SendError, Sender};
+use tokio::sync::broadcast::{
+    channel,
+    error::SendError,
+    Sender,
+};
 
 #[derive(Debug)]
 pub struct RandomU256IdProvider;
@@ -96,14 +106,18 @@ impl IdProvider for RandomU256IdProvider {
 }
 
 mod __rpc_traits {
-    use jsonrpsee::{core::SubscriptionResult, proc_macros::rpc, types::ErrorObjectOwned};
+    use jsonrpsee::{
+        core::SubscriptionResult,
+        proc_macros::rpc,
+        types::ErrorObjectOwned,
+    };
     // The mockserver has to be able to handle an `eth_subscribe` RPC with parameters
     // `"newPendingTransactions"` and `true`
     #[rpc(server)]
     pub trait Geth {
         #[subscription(name = "eth_subscribe", item = Transaction, unsubscribe = "eth_unsubscribe")]
         async fn eth_subscribe(&self, target: String, full_txs: Option<bool>)
-            -> SubscriptionResult;
+        -> SubscriptionResult;
 
         #[method(name = "net_version")]
         async fn net_version(&self) -> Result<String, ErrorObjectOwned>;

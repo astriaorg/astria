@@ -2,13 +2,24 @@ use std::sync::Arc;
 
 use astria_core::{
     crypto::SigningKey,
-    primitive::v1::{asset, asset::DEFAULT_NATIVE_ASSET_DENOM, Address, RollupId},
+    primitive::v1::{
+        asset,
+        asset::DEFAULT_NATIVE_ASSET_DENOM,
+        Address,
+        RollupId,
+    },
     protocol::transaction::v1alpha1::{
         action::{
-            BridgeLockAction, BridgeUnlockAction, IbcRelayerChangeAction, SequenceAction,
-            SudoAddressChangeAction, TransferAction,
+            BridgeLockAction,
+            BridgeUnlockAction,
+            IbcRelayerChangeAction,
+            SequenceAction,
+            SudoAddressChangeAction,
+            TransferAction,
         },
-        Action, TransactionParams, UnsignedTransaction,
+        Action,
+        TransactionParams,
+        UnsignedTransaction,
     },
     sequencerblock::v1alpha1::block::Deposit,
 };
@@ -20,12 +31,18 @@ use crate::{
     app::test_utils::*,
     asset::get_native_asset,
     authority::state_ext::StateReadExt as _,
-    bridge::state_ext::{StateReadExt as _, StateWriteExt},
+    bridge::state_ext::{
+        StateReadExt as _,
+        StateWriteExt,
+    },
     genesis::GenesisState,
     ibc::state_ext::StateReadExt as _,
     sequence::calculate_fee_from_state,
     state_ext::StateReadExt as _,
-    transaction::{InvalidChainId, InvalidNonce},
+    transaction::{
+        InvalidChainId,
+        InvalidNonce,
+    },
 };
 
 #[tokio::test]
@@ -41,13 +58,15 @@ async fn app_execute_transaction_transfer() {
             nonce: 0,
             chain_id: "test".to_string(),
         },
-        actions: vec![TransferAction {
-            to: bob_address,
-            amount: value,
-            asset_id: get_native_asset().id(),
-            fee_asset_id: get_native_asset().id(),
-        }
-        .into()],
+        actions: vec![
+            TransferAction {
+                to: bob_address,
+                amount: value,
+                asset_id: get_native_asset().id(),
+                fee_asset_id: get_native_asset().id(),
+            }
+            .into(),
+        ],
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice_signing_key));
@@ -96,13 +115,15 @@ async fn app_execute_transaction_transfer_not_native_token() {
             nonce: 0,
             chain_id: "test".to_string(),
         },
-        actions: vec![TransferAction {
-            to: bob_address,
-            amount: value,
-            asset_id: asset,
-            fee_asset_id: get_native_asset().id(),
-        }
-        .into()],
+        actions: vec![
+            TransferAction {
+                to: bob_address,
+                amount: value,
+                asset_id: asset,
+                fee_asset_id: get_native_asset().id(),
+            }
+            .into(),
+        ],
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice_signing_key));
@@ -160,13 +181,15 @@ async fn app_execute_transaction_transfer_balance_too_low_for_fee() {
             nonce: 0,
             chain_id: "test".to_string(),
         },
-        actions: vec![TransferAction {
-            to: bob,
-            amount: 0,
-            asset_id: get_native_asset().id(),
-            fee_asset_id: get_native_asset().id(),
-        }
-        .into()],
+        actions: vec![
+            TransferAction {
+                to: bob,
+                amount: 0,
+                asset_id: get_native_asset().id(),
+                fee_asset_id: get_native_asset().id(),
+            }
+            .into(),
+        ],
     };
 
     let signed_tx = Arc::new(tx.into_signed(&keypair));
@@ -198,12 +221,14 @@ async fn app_execute_transaction_sequence() {
             nonce: 0,
             chain_id: "test".to_string(),
         },
-        actions: vec![SequenceAction {
-            rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-            data,
-            fee_asset_id: get_native_asset().id(),
-        }
-        .into()],
+        actions: vec![
+            SequenceAction {
+                rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
+                data,
+                fee_asset_id: get_native_asset().id(),
+            }
+            .into(),
+        ],
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice_signing_key));
@@ -233,12 +258,14 @@ async fn app_execute_transaction_invalid_fee_asset() {
             nonce: 0,
             chain_id: "test".to_string(),
         },
-        actions: vec![SequenceAction {
-            rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-            data,
-            fee_asset_id,
-        }
-        .into()],
+        actions: vec![
+            SequenceAction {
+                rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
+                data,
+                fee_asset_id,
+            }
+            .into(),
+        ],
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice_signing_key));
@@ -518,11 +545,12 @@ async fn app_execute_transaction_fee_asset_change_removal() {
     app.execute_transaction(signed_tx).await.unwrap();
     assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
 
-    assert!(!app
-        .state
-        .is_allowed_fee_asset(test_asset.id())
-        .await
-        .unwrap());
+    assert!(
+        !app.state
+            .is_allowed_fee_asset(test_asset.id())
+            .await
+            .unwrap()
+    );
 }
 
 #[tokio::test]
@@ -791,12 +819,14 @@ async fn app_execute_transaction_invalid_nonce() {
             nonce: 1,
             chain_id: "test".to_string(),
         },
-        actions: vec![SequenceAction {
-            rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-            data,
-            fee_asset_id: get_native_asset().id(),
-        }
-        .into()],
+        actions: vec![
+            SequenceAction {
+                rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
+                data,
+                fee_asset_id: get_native_asset().id(),
+            }
+            .into(),
+        ],
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice_signing_key));
@@ -835,12 +865,14 @@ async fn app_execute_transaction_invalid_chain_id() {
             nonce: 0,
             chain_id: "wrong-chain".to_string(),
         },
-        actions: vec![SequenceAction {
-            rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-            data,
-            fee_asset_id: get_native_asset().id(),
-        }
-        .into()],
+        actions: vec![
+            SequenceAction {
+                rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
+                data,
+                fee_asset_id: get_native_asset().id(),
+            }
+            .into(),
+        ],
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice_signing_key));
@@ -892,13 +924,15 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
             nonce: 0,
             chain_id: "test".to_string(),
         },
-        actions: vec![TransferAction {
-            to: keypair_address,
-            amount: fee,
-            asset_id: get_native_asset().id(),
-            fee_asset_id: get_native_asset().id(),
-        }
-        .into()],
+        actions: vec![
+            TransferAction {
+                to: keypair_address,
+                amount: fee,
+                asset_id: get_native_asset().id(),
+                fee_asset_id: get_native_asset().id(),
+            }
+            .into(),
+        ],
     }
     .into_signed(&alice_signing_key);
 
@@ -942,12 +976,14 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
             nonce: 0,
             chain_id: "test".to_string(),
         },
-        actions: vec![SequenceAction {
-            rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-            data,
-            fee_asset_id: get_native_asset().id(),
-        }
-        .into()],
+        actions: vec![
+            SequenceAction {
+                rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
+                data,
+                fee_asset_id: get_native_asset().id(),
+            }
+            .into(),
+        ],
     }
     .into_signed(&keypair);
 

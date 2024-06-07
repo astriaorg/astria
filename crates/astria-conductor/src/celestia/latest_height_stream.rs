@@ -1,8 +1,19 @@
-use std::{pin::Pin, time::Duration};
+use std::{
+    pin::Pin,
+    time::Duration,
+};
 
-use astria_eyre::eyre::{Result, WrapErr as _};
+use astria_eyre::eyre::{
+    Result,
+    WrapErr as _,
+};
 use celestia_rpc::HeaderClient as _;
-use futures::{Future, FutureExt as _, Stream, StreamExt as _};
+use futures::{
+    Future,
+    FutureExt as _,
+    Stream,
+    StreamExt as _,
+};
 use jsonrpsee::http_client::HttpClient;
 use tokio_stream::wrappers::IntervalStream;
 

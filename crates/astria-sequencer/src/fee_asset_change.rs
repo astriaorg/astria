@@ -1,13 +1,25 @@
-use anyhow::{bail, ensure, Context as _, Result};
+use anyhow::{
+    bail,
+    ensure,
+    Context as _,
+    Result,
+};
 use astria_core::{
-    primitive::v1::Address, protocol::transaction::v1alpha1::action::FeeAssetChangeAction,
+    primitive::v1::Address,
+    protocol::transaction::v1alpha1::action::FeeAssetChangeAction,
 };
 use async_trait::async_trait;
-use cnidarium::{StateRead, StateWrite};
+use cnidarium::{
+    StateRead,
+    StateWrite,
+};
 
 use crate::{
     authority::state_ext::StateReadExt as _,
-    state_ext::{StateReadExt as _, StateWriteExt as _},
+    state_ext::{
+        StateReadExt as _,
+        StateWriteExt as _,
+    },
     transaction::action_handler::ActionHandler,
 };
 

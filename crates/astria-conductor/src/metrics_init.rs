@@ -2,7 +2,11 @@
 //!
 //! Registers metrics & lists constants to be used as metric names throughout crate.
 
-use metrics::{describe_counter, describe_histogram, Unit};
+use metrics::{
+    describe_counter,
+    describe_histogram,
+    Unit,
+};
 use telemetry::metric_name;
 
 pub(crate) const NAMESPACE_TYPE_LABEL: &str = "namespace_type";
@@ -69,8 +73,11 @@ metric_name!(pub const TRANSACTIONS_PER_EXECUTED_BLOCK);
 mod tests {
     use super::TRANSACTIONS_PER_EXECUTED_BLOCK;
     use crate::metrics_init::{
-        BLOBS_PER_CELESTIA_FETCH, CELESTIA_BLOB_FETCH_ERROR_COUNT,
-        DECODED_ITEMS_PER_CELESTIA_FETCH, EXECUTED_FIRM_BLOCK_NUMBER, EXECUTED_SOFT_BLOCK_NUMBER,
+        BLOBS_PER_CELESTIA_FETCH,
+        CELESTIA_BLOB_FETCH_ERROR_COUNT,
+        DECODED_ITEMS_PER_CELESTIA_FETCH,
+        EXECUTED_FIRM_BLOCK_NUMBER,
+        EXECUTED_SOFT_BLOCK_NUMBER,
         SEQUENCER_BLOCKS_METADATA_VERIFIED_PER_CELESTIA_FETCH,
         SEQUENCER_BLOCK_INFORMATION_RECONSTRUCTED_PER_CELESTIA_FETCH,
     };

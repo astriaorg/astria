@@ -1,11 +1,21 @@
 use std::sync::Arc;
 
-use anyhow::{Context, Result};
-use tendermint::abci::request::{BeginBlock, EndBlock};
+use anyhow::{
+    Context,
+    Result,
+};
+use tendermint::abci::request::{
+    BeginBlock,
+    EndBlock,
+};
 use tracing::instrument;
 
 use super::state_ext::StateWriteExt;
-use crate::{asset::get_native_asset, component::Component, genesis::GenesisState};
+use crate::{
+    asset::get_native_asset,
+    component::Component,
+    genesis::GenesisState,
+};
 
 #[derive(Default)]
 pub(crate) struct AccountsComponent;

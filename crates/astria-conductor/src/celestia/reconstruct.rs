@@ -2,12 +2,21 @@ use std::collections::HashMap;
 
 use astria_core::{
     primitive::v1::RollupId,
-    sequencerblock::v1alpha1::{SubmittedMetadata, SubmittedRollupData},
+    sequencerblock::v1alpha1::{
+        SubmittedMetadata,
+        SubmittedRollupData,
+    },
 };
 use telemetry::display::base64;
-use tracing::{info, warn};
+use tracing::{
+    info,
+    warn,
+};
 
-use super::{verify::VerifiedBlobs, ReconstructedBlock};
+use super::{
+    verify::VerifiedBlobs,
+    ReconstructedBlock,
+};
 
 /// Reconstructs block information from verified blocks.
 ///

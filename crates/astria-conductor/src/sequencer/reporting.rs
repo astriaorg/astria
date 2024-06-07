@@ -1,9 +1,16 @@
 use astria_core::{
     primitive::v1::RollupId,
-    sequencerblock::v1alpha1::block::{FilteredSequencerBlock, RollupTransactions},
+    sequencerblock::v1alpha1::block::{
+        FilteredSequencerBlock,
+        RollupTransactions,
+    },
 };
 use indexmap::IndexMap;
-use serde::ser::{Serialize, SerializeMap as _, SerializeStruct as _};
+use serde::ser::{
+    Serialize,
+    SerializeMap as _,
+    SerializeStruct as _,
+};
 
 pub(super) struct ReportFilteredSequencerBlock<'a>(pub(super) &'a FilteredSequencerBlock);
 impl<'a> Serialize for ReportFilteredSequencerBlock<'a> {
@@ -36,12 +43,16 @@ impl<'a> Serialize for ReportRollups<'a> {
 #[cfg(test)]
 mod tests {
     use astria_core::{
-        primitive::v1::RollupId, protocol::test_utils::ConfigureSequencerBlock,
+        primitive::v1::RollupId,
+        protocol::test_utils::ConfigureSequencerBlock,
         sequencerblock::v1alpha1::block::FilteredSequencerBlock,
     };
     use insta::assert_json_snapshot;
 
-    use crate::sequencer::reporting::{ReportFilteredSequencerBlock, ReportRollups};
+    use crate::sequencer::reporting::{
+        ReportFilteredSequencerBlock,
+        ReportRollups,
+    };
 
     const ROLLUP_42: RollupId = RollupId::new([42u8; 32]);
     const ROLLUP_69: RollupId = RollupId::new([69u8; 32]);

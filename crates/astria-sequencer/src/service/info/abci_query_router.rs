@@ -33,11 +33,21 @@
 //!    `Clone` to fulfill the `Clone` requirement of the `Info` service.
 //! 4. finally `MakeErasedAbciQueryHandler<H>` is the glue that allows to go from a non-object safe
 //!    `AbciQueryHandler` to an object-safe `ErasedAbciQueryHandler`.
-use std::{future::Future, pin::Pin};
+use std::{
+    future::Future,
+    pin::Pin,
+};
 
 use cnidarium::Storage;
-use matchit::{InsertError, Match, MatchError};
-use tendermint::abci::{request, response};
+use matchit::{
+    InsertError,
+    Match,
+    MatchError,
+};
+use tendermint::abci::{
+    request,
+    response,
+};
 
 /// `Router` is a wrapper around [`matchit::Router`] to route abci queries
 /// to handlers.
@@ -77,7 +87,9 @@ impl BoxedAbciQueryHandler {
     where
         H: AbciQueryHandler,
     {
-        Self(Box::new(MakeErasedAbciQueryHandler { handler }))
+        Self(Box::new(MakeErasedAbciQueryHandler {
+            handler,
+        }))
     }
 
     pub(super) async fn call(

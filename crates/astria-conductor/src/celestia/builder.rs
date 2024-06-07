@@ -2,7 +2,10 @@
 
 use std::time::Duration;
 
-use astria_eyre::eyre::{self, WrapErr as _};
+use astria_eyre::eyre::{
+    self,
+    WrapErr as _,
+};
 use jsonrpsee::http_client::HttpClient as CelestiaClient;
 use tendermint_rpc::HttpClient as SequencerClient;
 use tokio_util::sync::CancellationToken;
@@ -48,7 +51,10 @@ impl Builder {
 }
 
 fn create_celestia_client(endpoint: String, bearer_token: &str) -> eyre::Result<CelestiaClient> {
-    use jsonrpsee::http_client::{HeaderMap, HttpClientBuilder};
+    use jsonrpsee::http_client::{
+        HeaderMap,
+        HttpClientBuilder,
+    };
     let mut headers = HeaderMap::new();
     let auth_value = format!("Bearer {bearer_token}").parse().wrap_err(
         "failed to construct Authorization header value from provided Celestia bearer token",

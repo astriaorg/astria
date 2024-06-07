@@ -1,15 +1,31 @@
 use astria_core::{
     brotli::decompress_bytes,
-    generated::sequencerblock::v1alpha1::{SubmittedMetadataList, SubmittedRollupDataList},
+    generated::sequencerblock::v1alpha1::{
+        SubmittedMetadataList,
+        SubmittedRollupDataList,
+    },
     sequencerblock::v1alpha1::{
-        celestia::{SubmittedMetadataError, SubmittedRollupDataError},
-        SubmittedMetadata, SubmittedRollupData,
+        celestia::{
+            SubmittedMetadataError,
+            SubmittedRollupDataError,
+        },
+        SubmittedMetadata,
+        SubmittedRollupData,
     },
 };
-use celestia_types::{nmt::Namespace, Blob};
-use prost::{Message as _, Name as _};
+use celestia_types::{
+    nmt::Namespace,
+    Blob,
+};
+use prost::{
+    Message as _,
+    Name as _,
+};
 use telemetry::display::base64;
-use tracing::{info, warn};
+use tracing::{
+    info,
+    warn,
+};
 
 use super::fetch::RawBlobs;
 

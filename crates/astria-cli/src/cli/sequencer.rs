@@ -1,8 +1,14 @@
 use std::str::FromStr;
 
 use astria_sequencer_client::Address;
-use clap::{Args, Subcommand};
-use color_eyre::{eyre, eyre::Context};
+use clap::{
+    Args,
+    Subcommand,
+};
+use color_eyre::{
+    eyre,
+    eyre::Context,
+};
 
 /// Interact with a Sequencer node
 #[derive(Debug, Subcommand)]

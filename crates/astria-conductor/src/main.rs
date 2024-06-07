@@ -1,12 +1,24 @@
 use std::process::ExitCode;
 
-use astria_conductor::{metrics_init, Conductor, Config, BUILD_INFO};
+use astria_conductor::{
+    metrics_init,
+    Conductor,
+    Config,
+    BUILD_INFO,
+};
 use astria_eyre::eyre::WrapErr as _;
 use tokio::{
     select,
-    signal::unix::{signal, SignalKind},
+    signal::unix::{
+        signal,
+        SignalKind,
+    },
 };
-use tracing::{error, info, warn};
+use tracing::{
+    error,
+    info,
+    warn,
+};
 
 // Following the BSD convention for failing to read config
 // See here: https://freedesktop.org/software/systemd/man/systemd.exec.html#Process%20Exit%20Codes

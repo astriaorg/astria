@@ -1,19 +1,42 @@
 use std::time::Duration;
 
 use astria_core::{
-    execution::v1alpha2::{Block, CommitmentState, GenesisInfo},
+    execution::v1alpha2::{
+        Block,
+        CommitmentState,
+        GenesisInfo,
+    },
     generated::{
-        execution::{v1alpha2 as raw, v1alpha2::execution_service_client::ExecutionServiceClient},
+        execution::{
+            v1alpha2 as raw,
+            v1alpha2::execution_service_client::ExecutionServiceClient,
+        },
         sequencerblock::v1alpha1::RollupData,
     },
     Protobuf as _,
 };
-use astria_eyre::eyre::{self, ensure, WrapErr as _};
+use astria_eyre::eyre::{
+    self,
+    ensure,
+    WrapErr as _,
+};
 use bytes::Bytes;
 use pbjson_types::Timestamp;
-use tonic::transport::{Channel, Endpoint, Uri};
-use tracing::{instrument, warn, Instrument, Span};
-use tryhard::{backoff_strategies::BackoffStrategy, RetryPolicy};
+use tonic::transport::{
+    Channel,
+    Endpoint,
+    Uri,
+};
+use tracing::{
+    instrument,
+    warn,
+    Instrument,
+    Span,
+};
+use tryhard::{
+    backoff_strategies::BackoffStrategy,
+    RetryPolicy,
+};
 
 /// A newtype wrapper around [`ExecutionServiceClient`] to work with
 /// idiomatic types.
@@ -30,7 +53,10 @@ impl Client {
             .wrap_err("failed to parse provided string as uri")?;
         let endpoint = Endpoint::from(uri.clone()).connect_lazy();
         let inner = ExecutionServiceClient::new(endpoint);
-        Ok(Self { uri, inner })
+        Ok(Self {
+            uri,
+            inner,
+        })
     }
 
     /// Calls RPC astria.execution.v1alpha2.GetBlock
@@ -306,9 +332,16 @@ fn should_retry(status: &tonic::Status) -> bool {
 mod tests {
     use std::time::Duration;
 
-    use tonic::{Code, Status};
+    use tonic::{
+        Code,
+        Status,
+    };
 
-    use super::{BackoffStrategy as _, ExecutionApiRetryStrategy, RetryPolicy};
+    use super::{
+        BackoffStrategy as _,
+        ExecutionApiRetryStrategy,
+        RetryPolicy,
+    };
 
     #[track_caller]
     fn assert_retry_policy<const SHOULD_RETRY: bool>(code: Code) {

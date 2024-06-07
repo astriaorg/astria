@@ -1,14 +1,24 @@
 use std::sync::Arc;
 
-use anyhow::{Context, Result};
+use anyhow::{
+    Context,
+    Result,
+};
 use astria_core::primitive::v1::Address;
 use tendermint::{
-    abci::request::{BeginBlock, EndBlock},
+    abci::request::{
+        BeginBlock,
+        EndBlock,
+    },
     validator,
 };
 use tracing::instrument;
 
-use super::state_ext::{StateReadExt, StateWriteExt, ValidatorSet};
+use super::state_ext::{
+    StateReadExt,
+    StateWriteExt,
+    ValidatorSet,
+};
 use crate::component::Component;
 
 #[derive(Default)]

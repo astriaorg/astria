@@ -1,5 +1,9 @@
 use std::{
-    collections::{BTreeSet, HashMap, HashSet},
+    collections::{
+        BTreeSet,
+        HashMap,
+        HashSet,
+    },
     pin::Pin,
     task::Poll,
 };
@@ -7,16 +11,26 @@ use std::{
 use astria_core::{
     brotli::compress_bytes,
     generated::sequencerblock::v1alpha1::{
-        SubmittedMetadata, SubmittedMetadataList, SubmittedRollupData, SubmittedRollupDataList,
+        SubmittedMetadata,
+        SubmittedMetadataList,
+        SubmittedRollupData,
+        SubmittedRollupDataList,
     },
     primitive::v1::RollupId,
 };
-use celestia_types::{nmt::Namespace, Blob};
+use celestia_types::{
+    nmt::Namespace,
+    Blob,
+};
 use futures::Future;
 use pin_project_lite::pin_project;
 use sequencer_client::SequencerBlock;
 use tendermint::block::Height as SequencerHeight;
-use tracing::{error, trace, warn};
+use tracing::{
+    error,
+    trace,
+    warn,
+};
 
 use crate::IncludeRollup;
 
@@ -270,7 +284,12 @@ impl Input {
 
         for (namespace, entries) in self.rollup_data_for_namespace {
             payload
-                .try_add(namespace, &SubmittedRollupDataList { entries })
+                .try_add(
+                    namespace,
+                    &SubmittedRollupDataList {
+                        entries,
+                    },
+                )
                 .map_err(|source| TryIntoPayloadError::AddToPayload {
                     source,
                     type_url: SubmittedRollupDataList::full_name(),
@@ -350,7 +369,9 @@ impl NextSubmission {
     /// Only when the returned [`TakeNextSubmission`] future is polled is the data moved
     /// out, leaving behind an empty [`NextSubmission`] that can be used to accumulate more blocks.
     pub(super) fn take(&mut self) -> TakeSubmission<'_> {
-        TakeSubmission { inner: Some(self) }
+        TakeSubmission {
+            inner: Some(self),
+        }
     }
 }
 
@@ -380,7 +401,10 @@ impl<'a> Future for TakeSubmission<'a> {
                 number_of_blocks = input.num_blocks(),
                 "returning payload"
             );
-            Poll::Ready(Some(Submission { input, payload }))
+            Poll::Ready(Some(Submission {
+                input,
+                payload,
+            }))
         }
     }
 }
@@ -447,16 +471,28 @@ where
 
 #[cfg(test)]
 mod tests {
-    use astria_core::{primitive::v1::RollupId, protocol::test_utils::ConfigureSequencerBlock};
+    use astria_core::{
+        primitive::v1::RollupId,
+        protocol::test_utils::ConfigureSequencerBlock,
+    };
     use rand_chacha::{
-        rand_core::{RngCore as _, SeedableRng as _},
+        rand_core::{
+            RngCore as _,
+            SeedableRng as _,
+        },
         ChaChaRng,
     };
     use sequencer_client::SequencerBlock;
 
-    use super::{Input, NextSubmission};
+    use super::{
+        Input,
+        NextSubmission,
+    };
     use crate::{
-        relayer::write::conversion::{TryAddError, MAX_PAYLOAD_SIZE_BYTES},
+        relayer::write::conversion::{
+            TryAddError,
+            MAX_PAYLOAD_SIZE_BYTES,
+        },
         IncludeRollup,
     };
 

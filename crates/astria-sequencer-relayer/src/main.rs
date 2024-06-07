@@ -1,9 +1,21 @@
 use std::process::ExitCode;
 
 use astria_eyre::eyre::WrapErr as _;
-use astria_sequencer_relayer::{metrics_init, Config, SequencerRelayer, BUILD_INFO};
-use tokio::signal::unix::{signal, SignalKind};
-use tracing::{error, info, warn};
+use astria_sequencer_relayer::{
+    metrics_init,
+    Config,
+    SequencerRelayer,
+    BUILD_INFO,
+};
+use tokio::signal::unix::{
+    signal,
+    SignalKind,
+};
+use tracing::{
+    error,
+    info,
+    warn,
+};
 
 #[tokio::main]
 async fn main() -> ExitCode {

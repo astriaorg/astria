@@ -1,7 +1,13 @@
 //! A cache of sequencer blocks that are only yielded in sequential order.
-use std::{collections::BTreeMap, future::Future};
+use std::{
+    collections::BTreeMap,
+    future::Future,
+};
 
-use astria_core::sequencerblock::v1alpha1::{block::FilteredSequencerBlock, SubmittedMetadata};
+use astria_core::sequencerblock::v1alpha1::{
+    block::FilteredSequencerBlock,
+    SubmittedMetadata,
+};
 use pin_project_lite::pin_project;
 use sequencer_client::tendermint::block::Height;
 
@@ -64,7 +70,9 @@ impl<T> BlockCache<T> {
     ///
     /// This method exists to make fetching the next block async cancellation safe.
     pub(crate) fn next_block(&mut self) -> NextBlock<'_, T> {
-        NextBlock { cache: self }
+        NextBlock {
+            cache: self,
+        }
     }
 }
 
@@ -145,7 +153,9 @@ mod tests {
 
     impl From<Height> for DummyBlock {
         fn from(height: Height) -> DummyBlock {
-            DummyBlock { height }
+            DummyBlock {
+                height,
+            }
         }
     }
 
