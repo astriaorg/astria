@@ -30,7 +30,7 @@ use crate::{
 pub(crate) fn address_from_hex_string(s: &str) -> Address {
     let bytes = hex::decode(s).unwrap();
     let arr: [u8; ADDRESS_LEN] = bytes.try_into().unwrap();
-    Address::from_array(arr)
+    crate::astria_address(arr)
 }
 
 pub(crate) const ALICE_ADDRESS: &str = "1c0c490f1b5528d8173c5de46d131160e4b2c0c3";
@@ -47,7 +47,7 @@ pub(crate) fn get_alice_signing_key_and_address() -> (SigningKey, Address) {
             .try_into()
             .unwrap();
     let alice_signing_key = SigningKey::from(alice_secret_bytes);
-    let alice = *alice_signing_key.verification_key().address();
+    let alice = crate::astria_address(alice_signing_key.verification_key().address_bytes());
     (alice_signing_key, alice)
 }
 
@@ -58,7 +58,7 @@ pub(crate) fn get_bridge_signing_key_and_address() -> (SigningKey, Address) {
             .try_into()
             .unwrap();
     let bridge_signing_key = SigningKey::from(bridge_secret_bytes);
-    let bridge = *bridge_signing_key.verification_key().address();
+    let bridge = crate::astria_address(bridge_signing_key.verification_key().address_bytes());
     (bridge_signing_key, bridge)
 }
 
@@ -136,10 +136,11 @@ pub(crate) async fn initialize_app(
 pub(crate) fn get_mock_tx(nonce: u32) -> SignedTransaction {
     let (alice_signing_key, _) = get_alice_signing_key_and_address();
     let tx = UnsignedTransaction {
-        params: TransactionParams {
-            nonce,
-            chain_id: "test".to_string(),
-        },
+        params: TransactionParams::builder()
+            .nonce(nonce)
+            .chain_id("test")
+            .try_build()
+            .unwrap(),
         actions: vec![
             SequenceAction {
                 rollup_id: RollupId::from_unhashed_bytes([0; 32]),

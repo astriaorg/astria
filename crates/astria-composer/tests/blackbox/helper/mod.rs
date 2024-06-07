@@ -177,10 +177,7 @@ fn rollup_id_nonce_from_request(request: &Request) -> (RollupId, u32) {
         panic!("mocked sequencer expected a sequence action");
     };
 
-    (
-        sequence_action.rollup_id,
-        signed_tx.unsigned_transaction().params.nonce,
-    )
+    (sequence_action.rollup_id, signed_tx.nonce())
 }
 
 /// Deserializes the bytes contained in a `tx_sync::Request` to a signed sequencer transaction and

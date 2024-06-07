@@ -31,15 +31,12 @@ pub(crate) async fn check_nonce_mempool<S: StateReadExt + 'static>(
     tx: &SignedTransaction,
     state: &S,
 ) -> anyhow::Result<()> {
-    let signer_address = *tx.verification_key().address();
+    let signer_address = crate::astria_address(tx.verification_key().address_bytes());
     let curr_nonce = state
         .get_account_nonce(signer_address)
         .await
         .context("failed to get account nonce")?;
-    ensure!(
-        tx.unsigned_transaction().params.nonce >= curr_nonce,
-        "nonce already used by account"
-    );
+    ensure!(tx.nonce() >= curr_nonce, "nonce already used by account");
     Ok(())
 }
 
@@ -51,10 +48,7 @@ pub(crate) async fn check_chain_id_mempool<S: StateReadExt + 'static>(
         .get_chain_id()
         .await
         .context("failed to get chain id")?;
-    ensure!(
-        tx.unsigned_transaction().params.chain_id == chain_id.as_str(),
-        "chain id mismatch"
-    );
+    ensure!(tx.chain_id() == chain_id.as_str(), "chain id mismatch");
     Ok(())
 }
 
@@ -62,7 +56,7 @@ pub(crate) async fn check_balance_mempool<S: StateReadExt + 'static>(
     tx: &SignedTransaction,
     state: &S,
 ) -> anyhow::Result<()> {
-    let signer_address = *tx.verification_key().address();
+    let signer_address = crate::astria_address(tx.verification_key().address_bytes());
     check_balance_for_total_fees(tx.unsigned_transaction(), signer_address, state).await?;
     Ok(())
 }
@@ -335,7 +329,7 @@ mod test {
                 asset_id: other_asset,
                 amount,
                 fee_asset_id: native_asset,
-                to: [0; ADDRESS_LEN].into(),
+                to: crate::astria_address([0; ADDRESS_LEN]),
             }),
             Action::Sequence(SequenceAction {
                 rollup_id: RollupId::from_unhashed_bytes([0; 32]),
@@ -344,10 +338,11 @@ mod test {
             }),
         ];
 
-        let params = TransactionParams {
-            nonce: 0,
-            chain_id: "test-chain-id".to_string(),
-        };
+        let params = TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test-chain-id")
+            .try_build()
+            .unwrap();
         let tx = UnsignedTransaction {
             actions,
             params,
@@ -397,7 +392,7 @@ mod test {
                 asset_id: other_asset,
                 amount,
                 fee_asset_id: native_asset,
-                to: [0; ADDRESS_LEN].into(),
+                to: crate::astria_address([0; ADDRESS_LEN]),
             }),
             Action::Sequence(SequenceAction {
                 rollup_id: RollupId::from_unhashed_bytes([0; 32]),
@@ -406,10 +401,11 @@ mod test {
             }),
         ];
 
-        let params = TransactionParams {
-            nonce: 0,
-            chain_id: "test-chain-id".to_string(),
-        };
+        let params = TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test-chain-id")
+            .try_build()
+            .unwrap();
         let tx = UnsignedTransaction {
             actions,
             params,

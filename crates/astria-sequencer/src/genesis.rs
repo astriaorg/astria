@@ -48,8 +48,8 @@ where
 {
     use serde::de::Error as _;
     let bytes: Vec<u8> = hex::serde::deserialize(deserializer)?;
-    Address::try_from_slice(&bytes)
-        .map_err(|e| D::Error::custom(format!("failed constructing address from bytes: {e}")))
+    crate::try_astria_address(&bytes)
+        .map_err(|e| D::Error::custom(format!("failed constructing address from bytes: {e:?}")))
 }
 
 fn deserialize_addresses<'de, D>(deserializer: D) -> Result<Vec<Address>, D::Error>
@@ -68,8 +68,8 @@ where
             let s = s.as_str().ok_or(D::Error::custom("expected string"))?;
             let bytes: Vec<u8> = hex::decode(s)
                 .map_err(|e| D::Error::custom(format!("failed decoding hex string: {e}")))?;
-            Address::try_from_slice(&bytes).map_err(|e| {
-                D::Error::custom(format!("failed constructing address from bytes: {e}"))
+            crate::try_astria_address(&bytes).map_err(|e| {
+                D::Error::custom(format!("failed constructing address from bytes: {e:?}"))
             })
         })
         .collect()
