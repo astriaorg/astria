@@ -177,11 +177,7 @@ fn make_ics20_withdrawal_action() -> Action {
         amount: 99,
         memo: serde_json::to_string(&Ics20WithdrawalFromRollupMemo {
             memo: "hello".to_string(),
-            bridge_address: Address::builder()
-                .array([0u8; 20])
-                .prefix(ASTRIA_ADDRESS_PREFIX)
-                .try_build()
-                .unwrap(),
+            bridge_address: crate::astria_address([0u8; 20]),
             block_number: 1u64,
             transaction_hash: [2u8; 32],
         })

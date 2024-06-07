@@ -7,7 +7,6 @@ use std::{
 use astria_core::primitive::v1::{
     asset,
     Address,
-    ASTRIA_ADDRESS_PREFIX,
 };
 use astria_eyre::eyre::{
     self,
@@ -85,13 +84,8 @@ impl Service {
         .build()
         .wrap_err("failed to initialize submitter")?;
 
-        let bytes = hex::decode(cfg.sequencer_bridge_address.as_bytes())
-            .wrap_err("failed to decode sequencer bridge address as hex")?;
-        let sequencer_bridge_address = Address::builder()
-            .slice(bytes)
-            .prefix(ASTRIA_ADDRESS_PREFIX)
-            .try_build()
-            .wrap_err("failed to parse sequencer bridge address from bytes")?;
+        let sequencer_bridge_address = Address::try_from_bech32m(&cfg.sequencer_bridge_address)
+            .wrap_err("failed to parse sequencer bridge address")?;
 
         let ethereum_watcher = watcher::Builder {
             ethereum_contract_address,
@@ -340,4 +334,15 @@ pub(crate) fn flatten_result<T>(res: Result<eyre::Result<T>, JoinError>) -> eyre
         Ok(Err(err)) => Err(err).wrap_err("task returned with error"),
         Err(err) => Err(err).wrap_err("task panicked"),
     }
+}
+
+/// Constructs an [`Address`] prefixed by `"astria"`.
+#[cfg(test)]
+pub(crate) fn astria_address(array: [u8; astria_core::primitive::v1::ADDRESS_LEN]) -> Address {
+    use astria_core::primitive::v1::ASTRIA_ADDRESS_PREFIX;
+    Address::builder()
+        .array(array)
+        .prefix(ASTRIA_ADDRESS_PREFIX)
+        .try_build()
+        .unwrap()
 }

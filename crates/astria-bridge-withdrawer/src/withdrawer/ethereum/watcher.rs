@@ -344,10 +344,7 @@ fn address_from_string(s: &str) -> Result<ethers::types::Address> {
 
 #[cfg(test)]
 mod tests {
-    use astria_core::{
-        primitive::v1::ASTRIA_ADDRESS_PREFIX,
-        protocol::transaction::v1alpha1::Action,
-    };
+    use astria_core::protocol::transaction::v1alpha1::Action;
     use ethers::{
         prelude::SignerMiddleware,
         providers::Middleware,
@@ -456,11 +453,7 @@ mod tests {
             transaction_hash: receipt.transaction_hash,
         };
         let denom: Denom = Denom::from_base_denom("nria");
-        let bridge_address = Address::builder()
-            .array([1u8; 20])
-            .prefix(ASTRIA_ADDRESS_PREFIX)
-            .try_build()
-            .unwrap();
+        let bridge_address = crate::astria_address([1u8; 20]);
         let expected_action =
             event_to_action(expected_event, denom.id(), denom.clone(), 1, bridge_address).unwrap();
         let Action::BridgeUnlock(expected_action) = expected_action else {
@@ -543,11 +536,7 @@ mod tests {
             transaction_hash: receipt.transaction_hash,
         };
         let denom = Denom::from("transfer/channel-0/utia".to_string());
-        let bridge_address = Address::builder()
-            .array([1u8; 20])
-            .prefix(ASTRIA_ADDRESS_PREFIX)
-            .try_build()
-            .unwrap();
+        let bridge_address = crate::astria_address([1u8; 20]);
         let Action::Ics20Withdrawal(mut expected_action) =
             event_to_action(expected_event, denom.id(), denom.clone(), 1, bridge_address).unwrap()
         else {
@@ -658,8 +647,7 @@ mod tests {
             transaction_hash: receipt.transaction_hash,
         };
         let denom: Denom = Denom::from_base_denom("nria");
-        let bridge_address =
-            Address::try_from_bech32m("astria19g4z52329g4z52329g4z52329g4z5232ayenag").unwrap();
+        let bridge_address = crate::astria_address([1u8; 20]);
         let expected_action =
             event_to_action(expected_event, denom.id(), denom.clone(), 1, bridge_address).unwrap();
         let Action::BridgeUnlock(expected_action) = expected_action else {
@@ -752,8 +740,7 @@ mod tests {
             transaction_hash: receipt.transaction_hash,
         };
         let denom = Denom::from("transfer/channel-0/utia".to_string());
-        let bridge_address =
-            Address::try_from_bech32m("astria19g4z52329g4z52329g4z52329g4z5232ayenag").unwrap();
+        let bridge_address = crate::astria_address([1u8; 20]);
         let Action::Ics20Withdrawal(mut expected_action) =
             event_to_action(expected_event, denom.id(), denom.clone(), 1, bridge_address).unwrap()
         else {

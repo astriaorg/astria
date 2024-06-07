@@ -209,7 +209,7 @@ mod tests {
             denom.id(),
             denom.clone(),
             1,
-            Address::try_from_bech32m("astria19g4z52329g4z52329g4z52329g4z5232ayenag").unwrap(),
+            crate::astria_address([99u8; 20]),
         )
         .unwrap();
         let Action::BridgeUnlock(action) = action else {
@@ -217,11 +217,7 @@ mod tests {
         };
 
         let expected_action = BridgeUnlockAction {
-            to: Address::builder()
-                .array([1u8; 20])
-                .prefix(ASTRIA_ADDRESS_PREFIX)
-                .try_build()
-                .unwrap(),
+            to: crate::astria_address([1u8; 20]),
             amount: 99,
             memo: serde_json::to_vec(&BridgeUnlockMemo {
                 block_number: 1.into(),
@@ -252,11 +248,7 @@ mod tests {
             denom.id(),
             denom.clone(),
             divisor,
-            Address::builder()
-                .array([0u8; 20])
-                .prefix(ASTRIA_ADDRESS_PREFIX)
-                .try_build()
-                .unwrap(),
+            crate::astria_address([99u8; 20]),
         )
         .unwrap();
         let Action::BridgeUnlock(action) = action else {
@@ -264,11 +256,7 @@ mod tests {
         };
 
         let expected_action = BridgeUnlockAction {
-            to: Address::builder()
-                .array([1u8; 20])
-                .prefix(ASTRIA_ADDRESS_PREFIX)
-                .try_build()
-                .unwrap(),
+            to: crate::astria_address([1u8; 20]),
             amount: 99,
             memo: serde_json::to_vec(&BridgeUnlockMemo {
                 block_number: 1.into(),
@@ -296,11 +284,7 @@ mod tests {
             transaction_hash: [2u8; 32].into(),
         };
 
-        let bridge_address = Address::builder()
-            .array([1u8; 20])
-            .prefix(ASTRIA_ADDRESS_PREFIX)
-            .try_build()
-            .unwrap();
+        let bridge_address = crate::astria_address([99u8; 20]);
         let action = event_to_action(
             event_with_meta,
             denom.id(),
@@ -320,11 +304,7 @@ mod tests {
         let expected_action = Ics20Withdrawal {
             denom: denom.clone(),
             destination_chain_address,
-            return_address: Address::builder()
-                .array([0u8; 20])
-                .prefix(ASTRIA_ADDRESS_PREFIX)
-                .try_build()
-                .unwrap(),
+            return_address: crate::astria_address([0u8; 20]),
             amount: 99,
             memo: serde_json::to_string(&Ics20WithdrawalFromRollupMemo {
                 memo: "hello".to_string(),
