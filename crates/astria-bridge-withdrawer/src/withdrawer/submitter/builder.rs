@@ -41,7 +41,7 @@ impl Handle {
             .take()
             .expect("startup info should only be taken once - this is a bug")
             .await
-            .wrap_err("watcher failed to get startup info from submitter. channel was dropped.")
+            .wrap_err("failed to get startup info from submitter. channel was dropped.")
     }
 
     pub(crate) async fn send_batch(&self, batch: Batch) -> eyre::Result<()> {

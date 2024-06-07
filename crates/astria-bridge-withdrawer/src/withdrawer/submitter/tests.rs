@@ -97,7 +97,6 @@ static TELEMETRY: Lazy<()> = Lazy::new(|| {
 struct TestSubmitter {
     submitter: Option<Submitter>,
     submitter_handle: submitter::Handle,
-    _shutdown_token: CancellationToken,
     cometbft_mock: MockServer,
     submitter_task_handle: Option<JoinHandle<Result<(), eyre::Report>>>,
 }
@@ -107,7 +106,7 @@ impl TestSubmitter {
         Lazy::force(&TELEMETRY);
 
         // set up external resources
-        let _shutdown_token = CancellationToken::new();
+        let shutdown_token = CancellationToken::new();
 
         // sequencer signer key
         let keyfile = NamedTempFile::new().unwrap();
@@ -128,13 +127,13 @@ impl TestSubmitter {
         state.set_watcher_ready();
 
         let (submitter, submitter_handle) = submitter::Builder {
-            shutdown_token: _shutdown_token.clone(),
+            shutdown_token: shutdown_token.clone(),
             sequencer_key_path,
             sequencer_chain_id: SEQUENCER_CHAIN_ID.to_string(),
             sequencer_cometbft_endpoint,
             state,
             expected_fee_asset_id: Denom::from("nria".to_string()).id(),
-            min_expected_fee_asset_balance: 1000,
+            min_expected_fee_asset_balance: 1_000_000,
         }
         .build()
         .unwrap();
@@ -143,18 +142,23 @@ impl TestSubmitter {
             submitter: Some(submitter),
             submitter_task_handle: None,
             submitter_handle,
-            _shutdown_token,
             cometbft_mock,
         }
     }
 
-    async fn startup_and_spawn(&mut self) {
+    async fn startup_and_spawn_with_guards(&mut self, startup_guards: Vec<MockGuard>) {
         let submitter = self.submitter.take().unwrap();
 
         let mut state = submitter.state.subscribe();
-        let startup_guards = register_startup(&self.cometbft_mock).await;
 
         self.submitter_task_handle = Some(tokio::spawn(submitter.run()));
+
+        // wait for all startup guards to be satisfied
+        for guard in startup_guards {
+            tokio::time::timeout(Duration::from_millis(100), guard.wait_until_satisfied())
+                .await
+                .unwrap()
+        }
 
         // consume the startup info in place of the watcher
         self.submitter_handle.recv_startup_info().await.unwrap();
@@ -164,12 +168,11 @@ impl TestSubmitter {
             .wait_for(state::StateSnapshot::is_ready)
             .await
             .unwrap();
+    }
 
-        for guard in startup_guards {
-            tokio::time::timeout(Duration::from_millis(100), guard.wait_until_satisfied())
-                .await
-                .unwrap();
-        }
+    async fn startup_and_spawn(&mut self) {
+        let startup_guards = register_startup_guards(&self.cometbft_mock).await;
+        self.startup_and_spawn_with_guards(startup_guards).await;
     }
 
     async fn spawn() -> Self {
@@ -179,32 +182,33 @@ impl TestSubmitter {
     }
 }
 
-async fn register_startup(cometbft_mock: &MockServer) -> Vec<MockGuard> {
-    // verify chain id against sequencer
-    let chain_id = SEQUENCER_CHAIN_ID.to_string();
-    let verify_chain_id_guard = register_genesis_chain_id_response(&chain_id, &cometbft_mock).await;
+async fn register_default_chain_id_guard(cometbft_mock: &MockServer) -> MockGuard {
+    register_genesis_chain_id_response(SEQUENCER_CHAIN_ID, cometbft_mock).await
+}
 
-    // verify fee asset id against sequencer
-    let denom = Denom::from("nria".to_string());
-    let fee_asset_ids = vec![denom.id()];
-    let verify_fee_asset_id_guard =
-        register_allowed_fee_asset_ids_response(fee_asset_ids, &cometbft_mock).await;
+async fn register_default_fee_asset_ids_guard(cometbft_mock: &MockServer) -> MockGuard {
+    let fee_asset_ids = vec![Denom::from("nria".to_string()).id()];
+    register_allowed_fee_asset_ids_response(fee_asset_ids, cometbft_mock).await
+}
 
-    // verify min expected fee asset balance against sequencer
-    let balance = 1000u128;
-    let verify_min_expected_fee_asset_balance_guard = register_get_latest_balance(
+async fn register_default_min_expected_fee_asset_balance_guard(
+    cometbft_mock: &MockServer,
+) -> MockGuard {
+    register_get_latest_balance(
         vec![AssetBalance {
-            denom,
-            balance,
+            denom: Denom::from("nria".to_string()),
+            balance: 1_000_000u128,
         }],
-        &cometbft_mock,
+        cometbft_mock,
     )
-    .await;
+    .await
+}
 
+async fn register_startup_guards(cometbft_mock: &MockServer) -> Vec<MockGuard> {
     vec![
-        verify_chain_id_guard,
-        verify_fee_asset_id_guard,
-        verify_min_expected_fee_asset_balance_guard,
+        register_default_chain_id_guard(cometbft_mock).await,
+        register_default_fee_asset_ids_guard(cometbft_mock).await,
+        register_default_min_expected_fee_asset_balance_guard(cometbft_mock).await,
     ]
 }
 
@@ -344,18 +348,16 @@ async fn register_genesis_chain_id_response(chain_id: &str, server: &MockServer)
     };
 
     let wrapper = response::Wrapper::new_with_id(tendermint_rpc::Id::Num(1), Some(response), None);
-    Mock::given(body_partial_json(
-        json!({"jsonrpc": "2.0", "method": "genesis", "params": null}),
-    ))
-    .respond_with(
-        ResponseTemplate::new(200)
-            .set_body_json(&wrapper)
-            .append_header("Content-Type", "application/json"),
-    )
-    .up_to_n_times(1)
-    .expect(1)
-    .mount_as_scoped(server)
-    .await
+    Mock::given(body_partial_json(json!({"method": "genesis"})))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(&wrapper)
+                .append_header("Content-Type", "application/json"),
+        )
+        .up_to_n_times(1)
+        .expect(1)
+        .mount_as_scoped(server)
+        .await
 }
 
 async fn register_allowed_fee_asset_ids_response(
@@ -473,23 +475,88 @@ async fn submitter_startup_success() {
 
 /// Test that the submitter fails to start if the config `chain_id` does not match the genesis
 #[tokio::test]
-async fn submitter_startup_failure() {
-    //
-    todo!();
+#[should_panic]
+async fn submitter_startup_invalid_chain_id() {
+    let mut submitter = TestSubmitter::setup().await;
+
+    // mount a mock that returns a different chain id than `SEQUENCER_CHAIN_ID`
+    let chain_id_guard =
+        register_genesis_chain_id_response("invalid_chain_id", &submitter.cometbft_mock).await;
+
+    // mount regular startup mocks
+    let startup_guards = vec![
+        chain_id_guard,
+        register_default_fee_asset_ids_guard(&submitter.cometbft_mock).await,
+        register_default_min_expected_fee_asset_balance_guard(&submitter.cometbft_mock).await,
+    ];
+
+    submitter
+        .startup_and_spawn_with_guards(startup_guards)
+        .await;
+
+    // make sure the submitter halts and the task returns
+    let _submitter_result = tokio::time::timeout(
+        Duration::from_millis(100),
+        submitter.submitter_task_handle.take().unwrap(),
+    )
+    .await
+    .unwrap()
+    .unwrap();
 }
 
 /// Test that the submitter fails to start if the config `fee_asset_id` is not allowed on the
 /// sequencer.
 #[tokio::test]
+#[should_panic]
 async fn submitter_startup_invalid_fee_asset() {
-    todo!();
+    let mut submitter = TestSubmitter::setup().await;
+
+    // mount a mock that returns a different allowed fee asset
+    let fee_asset_id_guard = register_allowed_fee_asset_ids_response(
+        vec![Denom::from("invalid_fee_asset".to_string()).id()],
+        &submitter.cometbft_mock,
+    )
+    .await;
+
+    // mount regular startup mocks
+    let startup_guards = vec![
+        register_default_chain_id_guard(&submitter.cometbft_mock).await,
+        fee_asset_id_guard,
+        register_default_min_expected_fee_asset_balance_guard(&submitter.cometbft_mock).await,
+    ];
+
+    submitter
+        .startup_and_spawn_with_guards(startup_guards)
+        .await;
 }
 
 /// Test that the submitter fails to start if the config `min_expected_fee_asset_balance` is not
 /// met.
 #[tokio::test]
+#[should_panic]
 async fn submitter_startup_insufficient_fee_asset_balance() {
-    todo!();
+    let mut submitter = TestSubmitter::setup().await;
+
+    // mount a mock that returns an insufficient balance
+    let balance_guard = register_get_latest_balance(
+        vec![AssetBalance {
+            denom: Denom::from("nria".to_string()),
+            balance: 0,
+        }],
+        &submitter.cometbft_mock,
+    )
+    .await;
+
+    // mount regular startup mocks
+    let startup_guards = vec![
+        register_default_chain_id_guard(&submitter.cometbft_mock).await,
+        register_default_fee_asset_ids_guard(&submitter.cometbft_mock).await,
+        balance_guard,
+    ];
+
+    submitter
+        .startup_and_spawn_with_guards(startup_guards)
+        .await;
 }
 
 /// Sanity check to check that batch submission works
