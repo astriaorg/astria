@@ -316,11 +316,13 @@ pub struct InitBridgeAccountAction {
     pub fee_asset_id: ::prost::alloc::vec::Vec<u8>,
     /// the address corresponding to the key which has sudo capabilities;
     /// ie. can change the sudo and withdrawer addresses for this bridge account.
+    /// if this is empty, the sender of the transaction is used.
     #[prost(message, optional, tag = "4")]
     pub sudo_address: ::core::option::Option<
         super::super::super::primitive::v1::Address,
     >,
     /// the address corresponding to the key which can withdraw funds from this bridge account.
+    /// if this is empty, the sender of the transaction is used.
     #[prost(message, optional, tag = "5")]
     pub withdrawer_address: ::core::option::Option<
         super::super::super::primitive::v1::Address,

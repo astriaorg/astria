@@ -173,8 +173,10 @@ message InitBridgeAccountAction {
   bytes fee_asset_id = 3;
   // the address corresponding to the key which has sudo capabilities;
   // ie. can change the sudo and withdrawer addresses for this bridge account.
+  // if this is empty, the sender of the transaction is used.
   astria.primitive.v1.Address sudo_address = 4;
   // the address corresponding to the key which can withdraw funds from this bridge account.
+  // if this is empty, the sender of the transaction is used.
   astria.primitive.v1.Address withdrawer_address = 5;
 }
 
