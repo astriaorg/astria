@@ -1,7 +1,10 @@
 use astria_core::{
     crypto::SigningKey,
     primitive::v1::{
-        asset::DEFAULT_NATIVE_ASSET_DENOM,
+        asset::{
+            default_native_asset,
+            DEFAULT_NATIVE_ASSET_DENOM,
+        },
         Address,
         RollupId,
         ADDRESS_LEN,
@@ -109,7 +112,7 @@ pub(crate) async fn initialize_app_with_storage(
         ibc_relayer_addresses: vec![],
         native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         ibc_params: IBCParameters::default(),
-        allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
+        allowed_fee_assets: vec![default_native_asset()],
         fees: default_fees(),
     });
 

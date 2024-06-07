@@ -3,8 +3,12 @@ use std::sync::Arc;
 use astria_core::{
     crypto::SigningKey,
     primitive::v1::{
-        asset,
-        asset::DEFAULT_NATIVE_ASSET_DENOM,
+        asset::{
+            self,
+            default_native_asset,
+            Denom,
+            DEFAULT_NATIVE_ASSET_DENOM,
+        },
         RollupId,
     },
     protocol::transaction::v1alpha1::{
@@ -287,7 +291,7 @@ async fn app_execute_transaction_validator_update() {
         ibc_relayer_addresses: vec![],
         native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         ibc_params: IBCParameters::default(),
-        allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
+        allowed_fee_assets: vec![default_native_asset()],
         fees: default_fees(),
     };
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
@@ -326,7 +330,7 @@ async fn app_execute_transaction_ibc_relayer_change_addition() {
         ibc_sudo_address: alice_address,
         ibc_relayer_addresses: vec![],
         native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
-        allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
+        allowed_fee_assets: vec![default_native_asset()],
         ibc_params: IBCParameters::default(),
         fees: default_fees(),
     };
@@ -357,7 +361,7 @@ async fn app_execute_transaction_ibc_relayer_change_deletion() {
         ibc_sudo_address: alice_address,
         ibc_relayer_addresses: vec![alice_address],
         native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
-        allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
+        allowed_fee_assets: vec![default_native_asset()],
         ibc_params: IBCParameters::default(),
         fees: default_fees(),
     };
@@ -388,7 +392,7 @@ async fn app_execute_transaction_ibc_relayer_change_invalid() {
         ibc_sudo_address: crate::astria_address([0; 20]),
         ibc_relayer_addresses: vec![alice_address],
         native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
-        allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
+        allowed_fee_assets: vec![default_native_asset()],
         ibc_params: IBCParameters::default(),
         fees: default_fees(),
     };
@@ -418,7 +422,7 @@ async fn app_execute_transaction_sudo_address_change() {
         ibc_relayer_addresses: vec![],
         native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         ibc_params: IBCParameters::default(),
-        allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
+        allowed_fee_assets: vec![default_native_asset()],
         fees: default_fees(),
     };
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
@@ -456,7 +460,7 @@ async fn app_execute_transaction_sudo_address_change_error() {
         ibc_relayer_addresses: vec![],
         native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         ibc_params: IBCParameters::default(),
-        allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
+        allowed_fee_assets: vec![default_native_asset()],
         fees: default_fees(),
     };
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
@@ -495,7 +499,7 @@ async fn app_execute_transaction_fee_asset_change_addition() {
         ibc_relayer_addresses: vec![],
         native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         ibc_params: IBCParameters::default(),
-        allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
+        allowed_fee_assets: vec![default_native_asset()],
         fees: default_fees(),
     };
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
@@ -525,7 +529,7 @@ async fn app_execute_transaction_fee_asset_change_removal() {
     use astria_core::protocol::transaction::v1alpha1::action::FeeAssetChangeAction;
 
     let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
-    let test_asset = asset::Denom::from_base_denom("test");
+    let test_asset = "test".parse::<Denom>().unwrap();
 
     let genesis_state = GenesisState {
         accounts: default_genesis_accounts(),
@@ -534,10 +538,7 @@ async fn app_execute_transaction_fee_asset_change_removal() {
         ibc_relayer_addresses: vec![],
         native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         ibc_params: IBCParameters::default(),
-        allowed_fee_assets: vec![
-            DEFAULT_NATIVE_ASSET_DENOM.to_owned().into(),
-            test_asset.clone(),
-        ],
+        allowed_fee_assets: vec![default_native_asset(), test_asset.clone()],
         fees: default_fees(),
     };
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
@@ -578,7 +579,7 @@ async fn app_execute_transaction_fee_asset_change_invalid() {
         ibc_relayer_addresses: vec![],
         native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         ibc_params: IBCParameters::default(),
-        allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
+        allowed_fee_assets: vec![default_native_asset()],
         fees: default_fees(),
     };
     let mut app = initialize_app(Some(genesis_state), vec![]).await;

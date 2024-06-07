@@ -233,7 +233,7 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let state = StateDelta::new(snapshot);
 
-        let denom = Denom::from("test".to_string());
+        let denom = "test".parse::<Denom>().unwrap();
         let from = crate::astria_address([1u8; 20]);
         let action = action::Ics20Withdrawal {
             amount: 1,
@@ -268,7 +268,7 @@ mod tests {
         );
         state.put_bridge_account_withdrawer_address(&bridge_address, &bridge_address);
 
-        let denom = Denom::from("test".to_string());
+        let denom = "test".parse::<Denom>().unwrap();
         let action = action::Ics20Withdrawal {
             amount: 1,
             denom: denom.clone(),
@@ -305,7 +305,7 @@ mod tests {
             &crate::astria_address([2u8; 20]),
         );
 
-        let denom = Denom::from("test".to_string());
+        let denom = "test".parse::<Denom>().unwrap();
         let action = action::Ics20Withdrawal {
             amount: 1,
             denom: denom.clone(),
@@ -343,7 +343,7 @@ mod tests {
         );
         state.put_bridge_account_withdrawer_address(&bridge_address, &withdrawer_address);
 
-        let denom = Denom::from("test".to_string());
+        let denom = "test".parse::<Denom>().unwrap();
         let action = action::Ics20Withdrawal {
             amount: 1,
             denom: denom.clone(),
@@ -377,7 +377,7 @@ mod tests {
         );
         state.put_bridge_account_withdrawer_address(&bridge_address, &withdrawer_address);
 
-        let denom = Denom::from("test".to_string());
+        let denom = "test".parse::<Denom>().unwrap();
         let action = action::Ics20Withdrawal {
             amount: 1,
             denom: denom.clone(),
@@ -410,7 +410,7 @@ mod tests {
         // sender is not the withdrawer address, so must fail
         let not_bridge_address = crate::astria_address([1u8; 20]);
 
-        let denom = Denom::from("test".to_string());
+        let denom = "test".parse::<Denom>().unwrap();
         let action = action::Ics20Withdrawal {
             amount: 1,
             denom: denom.clone(),

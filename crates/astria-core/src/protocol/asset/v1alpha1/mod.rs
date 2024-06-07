@@ -3,7 +3,26 @@ use crate::primitive::v1::asset::{
     self,
     Denom,
     IncorrectAssetIdLength,
+    ParseDenomError,
 };
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct DenomResponseError(DenomResponseErrorKind);
+impl DenomResponseError {
+    #[must_use]
+    fn invalid_denom(source: ParseDenomError) -> Self {
+        Self(DenomResponseErrorKind::InvalidDenom {
+            source,
+        })
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum DenomResponseErrorKind {
+    #[error("`denom` field was invalid")]
+    InvalidDenom { source: ParseDenomError },
+}
 
 /// The sequencer response to a denomination request for a given asset ID.
 #[derive(Clone, Debug, PartialEq)]
@@ -15,16 +34,18 @@ pub struct DenomResponse {
 impl DenomResponse {
     /// Converts a protobuf [`raw::DenomResponse`] to an astria
     /// native [`DenomResponse`].
-    #[must_use]
-    pub fn from_raw(proto: &raw::DenomResponse) -> Self {
+    ///
+    /// # Errors
+    /// Returns an error if the `denom` field  of the proto file can't be parsed as a [`Denom`].
+    pub fn try_from_raw(proto: &raw::DenomResponse) -> Result<Self, DenomResponseError> {
         let raw::DenomResponse {
             height,
             denom,
         } = proto;
-        Self {
+        Ok(Self {
             height: *height,
-            denom: denom.clone().into(),
-        }
+            denom: denom.parse().map_err(DenomResponseError::invalid_denom)?,
+        })
     }
 
     /// Converts an astria native [`DenomResponse`] to a
@@ -50,19 +71,19 @@ impl raw::DenomResponse {
         }
     }
 
-    /// Converts a protobuf [`raw::DenomResponse`] to an astria
-    /// native [`DenomResponse`].
-    #[must_use]
-    pub fn into_native(self) -> DenomResponse {
-        DenomResponse::from_raw(&self)
-    }
+    // /// Converts a protobuf [`raw::DenomResponse`] to an astria
+    // /// native [`DenomResponse`].
+    // #[must_use]
+    // pub fn try_into_native(self) -> Result<DenomResponse, DenomResponseError> {
+    //     DenomResponse::try_from_raw(&self)
+    // }
 
-    /// Converts a protobuf [`raw::DenomResponse`] to an astria
-    /// native [`DenomResponse`] by allocating a new [`v1alpha1::DenomResponse`].
-    #[must_use]
-    pub fn to_native(&self) -> DenomResponse {
-        self.clone().into_native()
-    }
+    // /// Converts a protobuf [`raw::DenomResponse`] to an astria
+    // /// native [`DenomResponse`] by allocating a new [`v1alpha1::DenomResponse`].
+    // #[must_use]
+    // pub fn to_native(&self) -> Result<DenomResponse, DenomResponseError> {
+    //     DenomResponse::try_from_raw(self)
+    // }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -179,9 +200,9 @@ mod tests {
         };
         let expected = DenomResponse {
             height: 42,
-            denom: "nria".to_owned().into(),
+            denom: "nria".parse().unwrap(),
         };
-        let actual = DenomResponse::from_raw(&raw);
+        let actual = DenomResponse::try_from_raw(&raw).unwrap();
         assert_eq!(expected, actual);
     }
 
@@ -189,7 +210,7 @@ mod tests {
     fn denom_response_into_raw_is_correct() {
         let native = DenomResponse {
             height: 42,
-            denom: "nria".to_owned().into(),
+            denom: "nria".parse().unwrap(),
         };
         let expected = raw::DenomResponse {
             height: 42,
@@ -203,10 +224,10 @@ mod tests {
     fn denom_response_roundtrip_is_correct() {
         let native = DenomResponse {
             height: 42,
-            denom: "nria".to_owned().into(),
+            denom: "nria".parse().unwrap(),
         };
         let expected = native.clone();
-        let actual = native.into_raw().into_native();
+        let actual = DenomResponse::try_from_raw(&native.into_raw()).unwrap();
         assert_eq!(expected, actual);
     }
 

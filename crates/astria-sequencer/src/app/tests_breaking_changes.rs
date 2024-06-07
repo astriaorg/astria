@@ -16,7 +16,10 @@ use std::{
 
 use astria_core::{
     primitive::v1::{
-        asset::DEFAULT_NATIVE_ASSET_DENOM,
+        asset::{
+            default_native_asset,
+            DEFAULT_NATIVE_ASSET_DENOM,
+        },
         RollupId,
     },
     protocol::transaction::v1alpha1::{
@@ -182,7 +185,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         ibc_relayer_addresses: vec![],
         native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         ibc_params: IBCParameters::default(),
-        allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
+        allowed_fee_assets: vec![default_native_asset()],
         fees: default_fees(),
     };
     let (mut app, storage) = initialize_app_with_storage(Some(genesis_state), vec![]).await;

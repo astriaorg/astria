@@ -131,9 +131,8 @@ fn event_to_ics20_withdrawal(
     let sender = event.sender.to_fixed_bytes();
     let denom = rollup_asset_denom.clone();
 
-    let (_, channel) = denom
-        .prefix()
-        .rsplit_once('/')
+    let channel = denom
+        .channel()
         .ok_or_eyre("denom must have a channel to be withdrawn via IBC")?;
 
     let memo = Ics20WithdrawalFromRollupMemo {
@@ -189,12 +188,14 @@ fn calculate_packet_timeout_time(timeout_delta: Duration) -> eyre::Result<u64> {
 
 #[cfg(test)]
 mod tests {
+    use asset::default_native_asset;
+
     use super::*;
     use crate::withdrawer::ethereum::astria_withdrawer_interface::SequencerWithdrawalFilter;
 
     #[test]
     fn event_to_bridge_unlock() {
-        let denom = Denom::from("nria".to_string());
+        let denom = default_native_asset();
         let event_with_meta = EventWithMetadata {
             event: WithdrawalEvent::Sequencer(SequencerWithdrawalFilter {
                 sender: [0u8; 20].into(),
@@ -238,7 +239,7 @@ mod tests {
 
     #[test]
     fn event_to_bridge_unlock_divide_value() {
-        let denom = Denom::from("nria".to_string());
+        let denom = default_native_asset();
         let event_with_meta = EventWithMetadata {
             event: WithdrawalEvent::Sequencer(SequencerWithdrawalFilter {
                 sender: [0u8; 20].into(),
@@ -283,7 +284,7 @@ mod tests {
 
     #[test]
     fn event_to_ics20_withdrawal() {
-        let denom = Denom::from("transfer/channel-0/utia".to_string());
+        let denom = "transfer/channel-0/utia".parse::<Denom>().unwrap();
         let destination_chain_address = "address".to_string();
         let event_with_meta = EventWithMetadata {
             event: WithdrawalEvent::Ics20(Ics20WithdrawalFilter {

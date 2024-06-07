@@ -12,7 +12,7 @@ use astria_core::{
     generated::protocol::account::v1alpha1::NonceResponse,
     primitive::v1::{
         asset::{
-            self,
+            default_native_asset,
             Denom,
         },
         Address,
@@ -270,7 +270,7 @@ async fn register_sync_guards(cometbft_mock: &MockServer) -> HashMap<String, Moc
 }
 
 fn make_ics20_withdrawal_action() -> Action {
-    let denom = Denom::from(DEFAULT_IBC_DENOM.to_string());
+    let denom = "transfer/channel-0/utia".parse::<Denom>().unwrap();
     let destination_chain_address = "address".to_string();
     let inner = Ics20Withdrawal {
         denom: denom.clone(),
@@ -299,7 +299,7 @@ fn make_ics20_withdrawal_action() -> Action {
 }
 
 fn make_bridge_unlock_action() -> Action {
-    let denom = Denom::from(DEFAULT_NATIVE_DEMON.to_string());
+    let denom = default_native_asset();
     let inner = BridgeUnlockAction {
         to: Address::builder()
             .array([0u8; 20])
