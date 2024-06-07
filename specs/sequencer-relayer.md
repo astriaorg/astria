@@ -95,9 +95,7 @@ The transformation steps on receiving a new sequencer block are as follows:
   no filtering is done if the env var is empty.
 1. All the lists are converted to a single payload of Celestia blobs, one list
   per blob. Each list is encoded to bytes using Protobuf serialization then
-  compressed using Brotli. The payload also contains the total uncompressed and
-  compressed size of the data (specifically the number of bytes in the
-  Protobuf-encoded data before and after compression).
+  compressed using Brotli.
 
 Any error encountered during data transformation is cause for the entire process
 to exit, with the exception of exceeding the batch size limit, where the last
