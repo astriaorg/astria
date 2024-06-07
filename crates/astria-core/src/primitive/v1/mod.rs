@@ -455,12 +455,6 @@ impl AsRef<[u8]> for Address {
     }
 }
 
-// impl From<[u8; ADDRESS_LEN]> for Address {
-//     fn from(inner: [u8; ADDRESS_LEN]) -> Self {
-//         Self(inner)
-//     }
-// }
-
 impl From<Address> for raw::Address {
     fn from(value: Address) -> Self {
         value.into_raw()
