@@ -235,10 +235,12 @@ impl UnsignedTransaction {
         self.params.hrp
     }
 
+    #[must_use]
     pub fn nonce(&self) -> u32 {
         self.params.nonce
     }
 
+    #[must_use]
     pub fn chain_id(&self) -> &str {
         &self.params.chain_id
     }
@@ -426,6 +428,7 @@ impl TransactionParamsBuilder {
 }
 
 impl<TChainId> TransactionParamsBuilder<TChainId> {
+    #[must_use = "the transaction params builder must be built to be useful"]
     pub fn chain_id<'a, T: Into<std::borrow::Cow<'a, str>>>(
         self,
         chain_id: T,
@@ -436,6 +439,7 @@ impl<TChainId> TransactionParamsBuilder<TChainId> {
         }
     }
 
+    #[must_use = "the transaction params builder must be built to be useful"]
     pub fn nonce(self, nonce: u32) -> Self {
         Self {
             nonce,
@@ -445,19 +449,19 @@ impl<TChainId> TransactionParamsBuilder<TChainId> {
 }
 
 impl<'a> TransactionParamsBuilder<std::borrow::Cow<'a, str>> {
+    /// Constructs a [`TransactionParams`] from the configured builder.
+    ///
+    /// # Errors
+    /// Returns an error if the set chain ID does not contain a chain name that can be turned into
+    /// a bech32 human readable prefix (everything before the first dash i.e. `<name>-<rest>`).
     pub fn try_build(self) -> Result<TransactionParams, TransactionParamsError> {
         let Self {
             nonce,
             chain_id,
         } = self;
         let chain_id = chain_id.as_ref().trim().to_string();
-        let hrp = bech32::Hrp::parse(
-            chain_id
-                .split_once('-')
-                .map(|tup| tup.0)
-                .unwrap_or(&chain_id),
-        )
-        .map_err(TransactionParamsError::chain_id_not_bech32_compatible)?;
+        let hrp = bech32::Hrp::parse(chain_id.split_once('-').map_or(&chain_id, |tup| tup.0))
+            .map_err(TransactionParamsError::chain_id_not_bech32_compatible)?;
         Ok(TransactionParams {
             nonce,
             chain_id,
@@ -474,6 +478,7 @@ pub struct TransactionParams {
 }
 
 impl TransactionParams {
+    #[must_use = "the transaction params builder must be built to be useful"]
     pub fn builder() -> TransactionParamsBuilder {
         TransactionParamsBuilder::new()
     }
@@ -492,6 +497,9 @@ impl TransactionParams {
     }
 
     /// Convert from a raw protobuf [`raw::UnsignedTransaction`].
+    ///
+    /// # Errors
+    /// See [`TransactionParamsBuilder::try_build`] for errors returned by this method.
     pub fn try_from_raw(proto: raw::TransactionParams) -> Result<Self, TransactionParamsError> {
         let raw::TransactionParams {
             nonce,
