@@ -174,7 +174,7 @@ impl Watcher {
             fee_asset_id,
         } = self.submitter_handle.recv_startup_info().await?;
 
-        // connect to geth
+        // connect to eth node
         let retry_config = tryhard::RetryFutureConfig::new(1024)
             .exponential_backoff(Duration::from_millis(500))
             .max_delay(Duration::from_secs(60))
