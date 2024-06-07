@@ -28,7 +28,7 @@ use serde::{
     Serialize,
 };
 
-use crate::withdrawer::ethereum::astria_withdrawer::{
+use crate::withdrawer::ethereum::astria_withdrawer_interface::{
     Ics20WithdrawalFilter,
     SequencerWithdrawalFilter,
 };
@@ -182,7 +182,7 @@ fn calculate_packet_timeout_time(timeout_delta: Duration) -> eyre::Result<u64> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::withdrawer::ethereum::astria_withdrawer::SequencerWithdrawalFilter;
+    use crate::withdrawer::ethereum::astria_withdrawer_interface::SequencerWithdrawalFilter;
 
     #[test]
     fn event_to_bridge_unlock() {
