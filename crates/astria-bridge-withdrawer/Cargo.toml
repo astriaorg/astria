@@ -57,3 +57,4 @@ wiremock = { workspace = true }
 
 [build-dependencies]
 astria-build-info = { path = "../astria-build-info", features = ["build"] }
+ethers = { workspace = true }
