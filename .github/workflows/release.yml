@@ -59,7 +59,7 @@ jobs:
           rsync -a --delete mono/dev/ charts/dev/
       - name: Publish to Charts Repo
         run: |
-          git checkout -b "different-branch"
+          cd charts
           git config --global user.email "${{ github.actor }}@users.noreply.github.com"
           git config --global user.name "${{ github.actor }}"
           git add .
