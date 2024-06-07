@@ -49,6 +49,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: astriaorg/charts
+          ref: 'test-new-release'
           path: 'charts'
           token: ${{ secrets.CHARTS_REPO_TOKEN }}
       - name: Copy Updates to Charts Repo
@@ -58,6 +59,7 @@ jobs:
           rsync -a --delete mono/dev/ charts/dev/
       - name: Publish to Charts Repo
         run: |
+          git checkout -b "different-branch"
           git config --global user.email "${{ github.actor }}@users.noreply.github.com"
           git config --global user.name "${{ github.actor }}"
           git add .
