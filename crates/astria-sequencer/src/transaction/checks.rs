@@ -36,10 +36,7 @@ pub(crate) async fn check_nonce_mempool<S: StateReadExt + 'static>(
         .get_account_nonce(signer_address)
         .await
         .context("failed to get account nonce")?;
-    ensure!(
-        tx.unsigned_transaction().params.nonce >= curr_nonce,
-        "nonce already used by account"
-    );
+    ensure!(tx.nonce() >= curr_nonce, "nonce already used by account");
     Ok(())
 }
 
@@ -51,10 +48,7 @@ pub(crate) async fn check_chain_id_mempool<S: StateReadExt + 'static>(
         .get_chain_id()
         .await
         .context("failed to get chain id")?;
-    ensure!(
-        tx.unsigned_transaction().params.chain_id == chain_id.as_str(),
-        "chain id mismatch"
-    );
+    ensure!(tx.chain_id() == chain_id.as_str(), "chain id mismatch");
     Ok(())
 }
 
@@ -344,10 +338,11 @@ mod test {
             }),
         ];
 
-        let params = TransactionParams {
-            nonce: 0,
-            chain_id: "test-chain-id".to_string(),
-        };
+        let params = TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test-chain-id")
+            .try_build()
+            .unwrap();
         let tx = UnsignedTransaction {
             actions,
             params,
@@ -406,10 +401,11 @@ mod test {
             }),
         ];
 
-        let params = TransactionParams {
-            nonce: 0,
-            chain_id: "test-chain-id".to_string(),
-        };
+        let params = TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test-chain-id")
+            .try_build()
+            .unwrap();
         let tx = UnsignedTransaction {
             actions,
             params,

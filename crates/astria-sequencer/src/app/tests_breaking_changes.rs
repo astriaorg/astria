@@ -103,10 +103,11 @@ async fn app_finalize_block_snapshot() {
         fee_asset_id: asset_id,
     };
     let tx = UnsignedTransaction {
-        params: TransactionParams {
-            nonce: 0,
-            chain_id: "test".to_string(),
-        },
+        params: TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .try_build()
+            .unwrap(),
         actions: vec![lock_action.into(), sequence_action.into()],
     };
 
@@ -196,10 +197,11 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     app.apply(state_tx);
 
     let tx = UnsignedTransaction {
-        params: TransactionParams {
-            nonce: 0,
-            chain_id: "test".to_string(),
-        },
+        params: TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .try_build()
+            .unwrap(),
         actions: vec![
             TransferAction {
                 to: bob_address,
@@ -248,10 +250,11 @@ async fn app_execute_transaction_with_every_action_snapshot() {
 
     // execute BridgeUnlock action
     let tx = UnsignedTransaction {
-        params: TransactionParams {
-            nonce: 0,
-            chain_id: "test".to_string(),
-        },
+        params: TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .try_build()
+            .unwrap(),
         actions: vec![
             BridgeUnlockAction {
                 to: bob_address,

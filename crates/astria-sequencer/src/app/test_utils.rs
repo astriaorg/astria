@@ -136,10 +136,11 @@ pub(crate) async fn initialize_app(
 pub(crate) fn get_mock_tx(nonce: u32) -> SignedTransaction {
     let (alice_signing_key, _) = get_alice_signing_key_and_address();
     let tx = UnsignedTransaction {
-        params: TransactionParams {
-            nonce,
-            chain_id: "test".to_string(),
-        },
+        params: TransactionParams::builder()
+            .nonce(nonce)
+            .chain_id("test")
+            .try_build()
+            .unwrap(),
         actions: vec![
             SequenceAction {
                 rollup_id: RollupId::from_unhashed_bytes([0; 32]),

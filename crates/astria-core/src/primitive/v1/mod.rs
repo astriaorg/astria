@@ -313,7 +313,7 @@ impl AddressBuilder {
 }
 
 impl<TBytes, TPrefix> AddressBuilder<TBytes, TPrefix> {
-    #[must_use = "the builder must be used to construct an address to be useful"]
+    #[must_use = "the builder must be built to construct an address to be useful"]
     pub fn array(self, array: [u8; ADDRESS_LEN]) -> AddressBuilder<WithBytes<'static>, TPrefix> {
         AddressBuilder {
             bytes: WithBytes(BytesInner::Array(array)),
@@ -321,7 +321,7 @@ impl<TBytes, TPrefix> AddressBuilder<TBytes, TPrefix> {
         }
     }
 
-    #[must_use = "the builder must be used to construct an address to be useful"]
+    #[must_use = "the builder must be built to construct an address to be useful"]
     pub fn slice<'a, T: Into<std::borrow::Cow<'a, [u8]>>>(
         self,
         bytes: T,
@@ -332,7 +332,7 @@ impl<TBytes, TPrefix> AddressBuilder<TBytes, TPrefix> {
         }
     }
 
-    #[must_use = "the builder must be used to construct an address to be useful"]
+    #[must_use = "the builder must be built to construct an address to be useful"]
     pub fn prefix<'a, T: Into<std::borrow::Cow<'a, str>>>(
         self,
         prefix: T,
@@ -367,6 +367,36 @@ impl<'a, 'b> AddressBuilder<WithBytes<'a>, WithPrefix<'b>> {
             bytes,
             prefix,
         })
+    }
+}
+
+// Private setters only used within this crate to not leak bech32
+impl<TBytes, TPrefix> AddressBuilder<TBytes, TPrefix> {
+    pub(crate) fn array__(
+        self,
+        array: [u8; ADDRESS_LEN],
+    ) -> AddressBuilder<[u8; ADDRESS_LEN], TPrefix> {
+        AddressBuilder {
+            bytes: array,
+            prefix: self.prefix,
+        }
+    }
+
+    pub(crate) fn hrp__(self, prefix: bech32::Hrp) -> AddressBuilder<TBytes, bech32::Hrp> {
+        AddressBuilder {
+            bytes: self.bytes,
+            prefix,
+        }
+    }
+}
+
+// private builder to not leak bech32
+impl AddressBuilder<[u8; ADDRESS_LEN], bech32::Hrp> {
+    pub(crate) fn build(self) -> Address {
+        Address {
+            bytes: self.bytes,
+            prefix: self.prefix,
+        }
     }
 }
 

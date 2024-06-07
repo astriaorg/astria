@@ -158,10 +158,11 @@ fn create_signed_transaction() -> SignedTransaction {
         .into(),
     ];
     UnsignedTransaction {
-        params: TransactionParams {
-            nonce: 1,
-            chain_id: "test".to_string(),
-        },
+        params: TransactionParams::builder()
+            .nonce(1)
+            .chain_id("test")
+            .try_build()
+            .unwrap(),
         actions,
     }
     .into_signed(&alice_key)

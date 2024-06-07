@@ -252,10 +252,11 @@ mod test {
 
     fn make_unsigned_tx() -> UnsignedTransaction {
         UnsignedTransaction {
-            params: TransactionParams {
-                nonce: 0,
-                chain_id: "test".to_string(),
-            },
+            params: TransactionParams::builder()
+                .nonce(0)
+                .chain_id("test")
+                .try_build()
+                .unwrap(),
             actions: vec![
                 SequenceAction {
                     rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),

@@ -262,10 +262,11 @@ fn dummy_signed_tx() -> (Arc<SignedTransaction>, Address) {
     static TX: OnceLock<(Arc<SignedTransaction>, Address)> = OnceLock::new();
     let (signed_tx, address) = TX.get_or_init(|| {
         let actions = vec![];
-        let params = TransactionParams {
-            nonce: 0,
-            chain_id: String::new(),
-        };
+        let params = TransactionParams::builder()
+            .nonce(0)
+            .chain_id("dummy")
+            .try_build()
+            .expect("all params are valid");
         let signing_key = SigningKey::from([0; 32]);
         let address = crate::astria_address(signing_key.verification_key().address_bytes());
         let unsigned_tx = UnsignedTransaction {
@@ -462,10 +463,11 @@ mod test {
         let other_mock_tx = |nonce: u32| -> SignedTransaction {
             let actions = get_mock_tx(0).actions().to_vec();
             UnsignedTransaction {
-                params: TransactionParams {
-                    nonce,
-                    chain_id: "test".to_string(),
-                },
+                params: TransactionParams::builder()
+                    .nonce(nonce)
+                    .chain_id("test")
+                    .try_build()
+                    .unwrap(),
                 actions,
             }
             .into_signed(&other_signing_key)
@@ -533,10 +535,11 @@ mod test {
         let other_mock_tx = |nonce: u32| -> SignedTransaction {
             let actions = get_mock_tx(0).actions().to_vec();
             UnsignedTransaction {
-                params: TransactionParams {
-                    nonce,
-                    chain_id: "test".to_string(),
-                },
+                params: TransactionParams::builder()
+                    .nonce(nonce)
+                    .chain_id("test")
+                    .try_build()
+                    .unwrap(),
                 actions,
             }
             .into_signed(&other_signing_key)

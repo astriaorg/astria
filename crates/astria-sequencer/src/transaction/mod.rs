@@ -184,17 +184,14 @@ impl ActionHandler for UnsignedTransaction {
         // Transactions must match the chain id of the node.
         let chain_id = state.get_chain_id().await?;
         ensure!(
-            self.params.chain_id == chain_id.as_str(),
-            InvalidChainId(self.params.chain_id.clone())
+            self.chain_id() == chain_id.as_str(),
+            InvalidChainId(self.chain_id().to_string())
         );
 
         // Nonce should be equal to the number of executed transactions before this tx.
         // First tx has nonce 0.
         let curr_nonce = state.get_account_nonce(from).await?;
-        ensure!(
-            curr_nonce == self.params.nonce,
-            InvalidNonce(self.params.nonce)
-        );
+        ensure!(curr_nonce == self.nonce(), InvalidNonce(self.nonce()));
 
         // Should have enough balance to cover all actions.
         check_balance_for_total_fees(self, from, state).await?;
@@ -263,8 +260,8 @@ impl ActionHandler for UnsignedTransaction {
     #[instrument(
         skip_all,
         fields(
-            nonce = self.params.nonce,
-            from = from.to_string(),
+            nonce = self.nonce(),
+            from = %from,
         )
     )]
     async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> anyhow::Result<()> {

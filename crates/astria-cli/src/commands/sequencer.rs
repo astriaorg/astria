@@ -452,10 +452,11 @@ async fn submit_transaction(
         .wrap_err("failed to get nonce")?;
 
     let tx = UnsignedTransaction {
-        params: TransactionParams {
-            nonce: nonce_res.nonce,
-            chain_id,
-        },
+        params: TransactionParams::builder()
+            .nonce(nonce_res.nonce)
+            .chain_id(chain_id)
+            .try_build()
+            .wrap_err("failed to construct transaction params from provided chain ID")?,
         actions: vec![action],
     }
     .into_signed(&sequencer_key);

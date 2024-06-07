@@ -128,10 +128,11 @@ mod test {
 
         let signing_key = SigningKey::new(OsRng);
         let tx = UnsignedTransaction {
-            params: TransactionParams {
-                nonce: 0,
-                chain_id: "test-chain-1".to_string(),
-            },
+            params: TransactionParams::builder()
+                .nonce(0)
+                .chain_id("test-chain-1")
+                .try_build()
+                .unwrap(),
             actions: vec![sequence_action.clone().into(), transfer_action.into()],
         };
 
@@ -144,10 +145,11 @@ mod test {
 
         let signing_key = SigningKey::new(OsRng);
         let tx = UnsignedTransaction {
-            params: TransactionParams {
-                nonce: 0,
-                chain_id: "test-chain-1".to_string(),
-            },
+            params: TransactionParams::builder()
+                .nonce(0)
+                .chain_id("test-chain-1")
+                .try_build()
+                .unwrap(),
             actions: vec![sequence_action.into()],
         };
 
@@ -183,10 +185,11 @@ mod test {
 
         let signing_key = SigningKey::new(OsRng);
         let tx = UnsignedTransaction {
-            params: TransactionParams {
-                nonce: 0,
-                chain_id: "test-chain-1".to_string(),
-            },
+            params: TransactionParams::builder()
+                .nonce(0)
+                .chain_id("test-chain-1")
+                .try_build()
+                .unwrap(),
             actions: vec![sequence_action.into(), transfer_action.into()],
         };
 
