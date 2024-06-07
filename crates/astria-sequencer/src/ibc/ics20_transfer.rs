@@ -977,4 +977,113 @@ mod test {
             .expect("ics20 refund to user account from escrow account should succeed");
         assert_eq!(balance, 0);
     }
+
+    #[tokio::test]
+    async fn execute_rollup_withdrawal_refund_ok() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state_tx = StateDelta::new(snapshot.clone());
+
+        let bridge_address = Address::from([99; 20]);
+        let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
+        let denom: Denom = "dest_port/dest_channel/nootasset".to_string().into();
+
+        state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
+        state_tx
+            .put_bridge_account_asset_id(&bridge_address, &denom.id())
+            .unwrap();
+
+        let amount = 100;
+        let destination_address = "destinationaddress".to_string();
+        execute_rollup_withdrawal_refund(
+            &mut state_tx,
+            &bridge_address,
+            &denom,
+            amount,
+            destination_address,
+        )
+        .await
+        .expect("valid rollup withdrawal refund");
+
+        let balance = state_tx
+            .get_account_balance(bridge_address, denom.id())
+            .await
+            .expect("rollup withdrawal refund should have updated funds in the bridge address");
+        assert_eq!(balance, 100);
+
+        let deposit = state_tx
+            .get_block_deposits()
+            .await
+            .expect("a deposit should exist as a result of the rollup withdrawal refund");
+        assert_eq!(deposit.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn execute_ics20_transfer_rollup_withdrawal_refund() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state_tx = StateDelta::new(snapshot.clone());
+
+        let destination_chain_address = "destinationchainaddress".to_string();
+        let bridge_address = Address::from([99; 20]);
+        let denom = Denom::from("nootasset".to_string());
+        let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
+
+        state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
+        state_tx
+            .put_bridge_account_asset_id(&bridge_address, &denom.id())
+            .unwrap();
+
+        let packet = FungibleTokenPacketData {
+            denom: denom.to_string(),
+            sender: destination_chain_address.clone(),
+            amount: "100".to_string(),
+            receiver: "other-chain-address".to_string(),
+            memo: serde_json::to_string(&Ics20WithdrawalFromRollupMemo {
+                bridge_address,
+                memo: String::new(),
+                block_number: 1,
+                transaction_hash: [1u8; 32],
+            })
+            .unwrap(),
+        };
+        let packet_bytes = serde_json::to_vec(&packet).unwrap();
+
+        execute_ics20_transfer(
+            &mut state_tx,
+            &packet_bytes,
+            &"source_port".to_string().parse().unwrap(),
+            &"source_channel".to_string().parse().unwrap(),
+            &"source_port".to_string().parse().unwrap(),
+            &"source_channel".to_string().parse().unwrap(),
+            true,
+        )
+        .await
+        .expect("valid ics20 transfer refund; recipient, memo, and asset ID are valid");
+
+        let balance = state_tx
+            .get_account_balance(bridge_address, denom.id())
+            .await
+            .expect(
+                "ics20 transfer refunding to rollup should succeed and balance should be added to \
+                 the bridge account",
+            );
+        assert_eq!(balance, 100);
+
+        let deposits = state_tx
+            .get_block_deposits()
+            .await
+            .expect("a deposit should exist as a result of the rollup withdrawal refund");
+        assert_eq!(deposits.len(), 1);
+
+        let deposit = deposits.get(&rollup_id).unwrap().first().unwrap();
+        let expected_deposit = Deposit::new(
+            bridge_address,
+            rollup_id,
+            100,
+            denom.id(),
+            destination_chain_address,
+        );
+        assert_eq!(deposit, &expected_deposit);
+    }
 }

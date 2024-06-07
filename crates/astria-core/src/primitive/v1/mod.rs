@@ -80,7 +80,10 @@ impl Protobuf for merkle::Proof {
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
 #[cfg_attr(feature = "serde", serde(transparent))]
 pub struct RollupId {
-    #[cfg_attr(feature = "serde", serde(serialize_with = "crate::serde::base64"))]
+    #[cfg_attr(
+        feature = "serde",
+        serde(serialize_with = "crate::serde::base64_serialize")
+    )]
     inner: [u8; 32],
 }
 
@@ -257,7 +260,13 @@ pub struct IncorrectAddressLength {
     derive(serde::Deserialize)
 )]
 pub struct Address(
-    #[cfg_attr(feature = "serde", serde(serialize_with = "crate::serde::base64"))]
+    #[cfg_attr(
+        feature = "serde",
+        serde(
+            serialize_with = "crate::serde::base64_serialize",
+            deserialize_with = "crate::serde::base64_deserialize_address"
+        )
+    )]
     [u8; ADDRESS_LEN],
 );
 
