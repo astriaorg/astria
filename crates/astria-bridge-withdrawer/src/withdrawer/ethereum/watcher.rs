@@ -36,7 +36,7 @@ use tracing::{
 use crate::withdrawer::{
     batch::Batch,
     ethereum::{
-        astria_withdrawer::AstriaWithdrawer,
+        astria_withdrawer_interface::IAstriaWithdrawer,
         convert::{
             event_to_action,
             EventWithMetadata,
@@ -109,7 +109,7 @@ impl Watcher {
                 .await
                 .wrap_err("failed to connect to ethereum RPC endpoint")?,
         );
-        let contract = AstriaWithdrawer::new(contract_address, provider.clone());
+        let contract = IAstriaWithdrawer::new(contract_address, provider.clone());
 
         let base_chain_asset_precision = contract
             .base_chain_asset_precision()
@@ -165,7 +165,7 @@ impl Watcher {
 }
 
 async fn watch_for_sequencer_withdrawal_events(
-    contract: AstriaWithdrawer<Provider<Ws>>,
+    contract: IAstriaWithdrawer<Provider<Ws>>,
     event_tx: mpsc::Sender<(WithdrawalEvent, LogMeta)>,
     from_block: u64,
 ) -> Result<()> {
@@ -191,7 +191,7 @@ async fn watch_for_sequencer_withdrawal_events(
 }
 
 async fn watch_for_ics20_withdrawal_events(
-    contract: AstriaWithdrawer<Provider<Ws>>,
+    contract: IAstriaWithdrawer<Provider<Ws>>,
     event_tx: mpsc::Sender<(WithdrawalEvent, LogMeta)>,
     from_block: u64,
 ) -> Result<()> {
@@ -359,12 +359,17 @@ mod tests {
 
     use super::*;
     use crate::withdrawer::ethereum::{
-        astria_withdrawer::{
+        astria_bridgeable_erc20::AstriaBridgeableERC20,
+        astria_withdrawer::AstriaWithdrawer,
+        astria_withdrawer_interface::{
             Ics20WithdrawalFilter,
             SequencerWithdrawalFilter,
         },
         convert::EventWithMetadata,
-        test_utils::ConfigureAstriaWithdrawerDeployer,
+        test_utils::{
+            ConfigureAstriaBridgeableERC20Deployer,
+            ConfigureAstriaWithdrawerDeployer,
+        },
     };
 
     #[test]
@@ -410,7 +415,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "requires foundry and solc to be installed"]
+    #[ignore = "requires foundry to be installed"]
     async fn astria_withdrawer_invalid_value_fails() {
         let (contract_address, provider, wallet, _anvil) = ConfigureAstriaWithdrawerDeployer {
             base_chain_asset_precision: 15,
@@ -429,8 +434,8 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "requires foundry and solc to be installed"]
-    async fn watcher_can_watch_sequencer_withdrawals() {
+    #[ignore = "requires foundry to be installed"]
+    async fn watcher_can_watch_sequencer_withdrawals_astria_withdrawer() {
         let (contract_address, provider, wallet, anvil) =
             ConfigureAstriaWithdrawerDeployer::default().deploy().await;
         let signer = Arc::new(SignerMiddleware::new(provider, wallet.clone()));
@@ -508,8 +513,8 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "requires foundry and solc to be installed"]
-    async fn watcher_can_watch_ics20_withdrawals() {
+    #[ignore = "requires foundry to be installed"]
+    async fn watcher_can_watch_ics20_withdrawals_astria_withdrawer() {
         let (contract_address, provider, wallet, anvil) =
             ConfigureAstriaWithdrawerDeployer::default().deploy().await;
         let signer = Arc::new(SignerMiddleware::new(provider, wallet.clone()));
@@ -552,6 +557,204 @@ mod tests {
 
         // make another tx to trigger anvil to make another block
         send_ics20_withdraw_transaction(&contract, value, recipient).await;
+
+        let mut batch = event_rx.recv().await.unwrap();
+        assert_eq!(batch.actions.len(), 1);
+        let Action::Ics20Withdrawal(ref mut action) = batch.actions[0] else {
+            panic!(
+                "expected action to be Ics20Withdrawal, got {:?}",
+                batch.actions[0]
+            );
+        };
+        action.timeout_time = 0; // zero this for testing
+        assert_eq!(action, &expected_action);
+    }
+
+    async fn mint_tokens<M: Middleware>(
+        contract: &AstriaBridgeableERC20<M>,
+        amount: U256,
+        recipient: ethers::types::Address,
+    ) -> TransactionReceipt {
+        let mint_tx = contract.mint(recipient, amount);
+        let receipt = mint_tx
+            .send()
+            .await
+            .expect("failed to submit mint transaction")
+            .await
+            .expect("failed to await pending mint transaction")
+            .expect("no mint receipt found");
+
+        assert!(
+            receipt.status == Some(ethers::types::U64::from(1)),
+            "`mint` transaction failed: {receipt:?}",
+        );
+
+        receipt
+    }
+
+    async fn send_sequencer_withdraw_transaction_erc20<M: Middleware>(
+        contract: &AstriaBridgeableERC20<M>,
+        value: U256,
+        recipient: ethers::types::Address,
+    ) -> TransactionReceipt {
+        let tx = contract.withdraw_to_sequencer(value, recipient);
+        let receipt = tx
+            .send()
+            .await
+            .expect("failed to submit transaction")
+            .await
+            .expect("failed to await pending transaction")
+            .expect("no receipt found");
+
+        assert!(
+            receipt.status == Some(ethers::types::U64::from(1)),
+            "`withdraw` transaction failed: {receipt:?}",
+        );
+
+        receipt
+    }
+
+    #[tokio::test]
+    #[ignore = "requires foundry to be installed"]
+    async fn watcher_can_watch_sequencer_withdrawals_astria_bridgeable_erc20() {
+        let (contract_address, provider, wallet, anvil) = ConfigureAstriaBridgeableERC20Deployer {
+            base_chain_asset_precision: 18,
+            ..Default::default()
+        }
+        .deploy()
+        .await;
+        let signer = Arc::new(SignerMiddleware::new(provider, wallet.clone()));
+        let contract = AstriaBridgeableERC20::new(contract_address, signer.clone());
+
+        // mint some tokens to the wallet
+        mint_tokens(&contract, 2_000_000_000.into(), wallet.address()).await;
+
+        let value = 1_000_000_000.into();
+        let recipient = [0u8; 20].into();
+        let receipt = send_sequencer_withdraw_transaction_erc20(&contract, value, recipient).await;
+        let expected_event = EventWithMetadata {
+            event: WithdrawalEvent::Sequencer(SequencerWithdrawalFilter {
+                sender: wallet.address(),
+                destination_chain_address: recipient,
+                amount: value,
+            }),
+            block_number: receipt.block_number.unwrap(),
+            transaction_hash: receipt.transaction_hash,
+        };
+        let denom: Denom = Denom::from_base_denom("nria");
+        let expected_action =
+            event_to_action(expected_event, denom.id(), denom.clone(), 1).unwrap();
+        let Action::BridgeUnlock(expected_action) = expected_action else {
+            panic!("expected action to be BridgeUnlock, got {expected_action:?}");
+        };
+
+        let (event_tx, mut event_rx) = mpsc::channel(100);
+        let watcher = Watcher::new(
+            &hex::encode(contract_address),
+            &anvil.ws_endpoint(),
+            event_tx,
+            &CancellationToken::new(),
+            Arc::new(State::new()),
+            denom.id(),
+            denom,
+        )
+        .unwrap();
+
+        tokio::task::spawn(watcher.run());
+
+        // make another tx to trigger anvil to make another block
+        send_sequencer_withdraw_transaction_erc20(&contract, value, recipient).await;
+
+        let batch = event_rx.recv().await.unwrap();
+        assert_eq!(batch.actions.len(), 1);
+        let Action::BridgeUnlock(action) = &batch.actions[0] else {
+            panic!(
+                "expected action to be BridgeUnlock, got {:?}",
+                batch.actions[0]
+            );
+        };
+        assert_eq!(action, &expected_action);
+    }
+
+    async fn send_ics20_withdraw_transaction_astria_bridgeable_erc20<M: Middleware>(
+        contract: &AstriaBridgeableERC20<M>,
+        value: U256,
+        recipient: String,
+    ) -> TransactionReceipt {
+        let tx = contract.withdraw_to_ibc_chain(value, recipient, "nootwashere".to_string());
+        let receipt = tx
+            .send()
+            .await
+            .expect("failed to submit transaction")
+            .await
+            .expect("failed to await pending transaction")
+            .expect("no receipt found");
+
+        assert!(
+            receipt.status == Some(ethers::types::U64::from(1)),
+            "`withdraw` transaction failed: {receipt:?}",
+        );
+
+        receipt
+    }
+
+    #[tokio::test]
+    #[ignore = "requires foundry to be installed"]
+    async fn watcher_can_watch_ics20_withdrawals_astria_bridgeable_erc20() {
+        let (contract_address, provider, wallet, anvil) = ConfigureAstriaBridgeableERC20Deployer {
+            base_chain_asset_precision: 18,
+            ..Default::default()
+        }
+        .deploy()
+        .await;
+        let signer = Arc::new(SignerMiddleware::new(provider, wallet.clone()));
+        let contract = AstriaBridgeableERC20::new(contract_address, signer.clone());
+
+        // mint some tokens to the wallet
+        mint_tokens(&contract, 2_000_000_000.into(), wallet.address()).await;
+
+        let value = 1_000_000_000.into();
+        let recipient = "somebech32address".to_string();
+        let receipt = send_ics20_withdraw_transaction_astria_bridgeable_erc20(
+            &contract,
+            value,
+            recipient.clone(),
+        )
+        .await;
+        let expected_event = EventWithMetadata {
+            event: WithdrawalEvent::Ics20(Ics20WithdrawalFilter {
+                sender: wallet.address(),
+                destination_chain_address: recipient.clone(),
+                amount: value,
+                memo: "nootwashere".to_string(),
+            }),
+            block_number: receipt.block_number.unwrap(),
+            transaction_hash: receipt.transaction_hash,
+        };
+        let denom = Denom::from("transfer/channel-0/utia".to_string());
+        let Action::Ics20Withdrawal(mut expected_action) =
+            event_to_action(expected_event, denom.id(), denom.clone(), 1).unwrap()
+        else {
+            panic!("expected action to be Ics20Withdrawal");
+        };
+        expected_action.timeout_time = 0; // zero this for testing
+
+        let (event_tx, mut event_rx) = mpsc::channel(100);
+        let watcher = Watcher::new(
+            &hex::encode(contract_address),
+            &anvil.ws_endpoint(),
+            event_tx,
+            &CancellationToken::new(),
+            Arc::new(State::new()),
+            denom.id(),
+            denom,
+        )
+        .unwrap();
+
+        tokio::task::spawn(watcher.run());
+
+        // make another tx to trigger anvil to make another block
+        send_ics20_withdraw_transaction_astria_bridgeable_erc20(&contract, value, recipient).await;
 
         let mut batch = event_rx.recv().await.unwrap();
         assert_eq!(batch.actions.len(), 1);
