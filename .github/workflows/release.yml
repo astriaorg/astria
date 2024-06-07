@@ -50,23 +50,19 @@ jobs:
         with:
           repository: astriaorg/charts
           path: 'charts'
+          token: ${{ secrets.CHARTS_REPO_TOKEN }}
       - name: Copy Updates to Charts Repo
         run: |
           rsync -a --delete mono/charts/ charts/charts/ --exclude=charts/README.md
           rsync -a --delete mono/charts/README.md charts/README.md
           rsync -a --delete mono/dev/ charts/dev/
       - name: Publish to Charts Repo
-        uses: cpina/github-action-push-to-another-repository@v1.7.2
-        env:
-          API_TOKEN_GITHUB: ${{ secrets.CHARTS_REPO_TOKEN }}
-        with:
-          source-directory: 'charts/'
-          target-directory: '.'
-          target-branch: 'test-new-release'
-          destination-github-username: 'astriaorg'
-          destination-repository-name: 'charts'
-          user-email: '${{ github.actor }}@users.noreply.github.com'
-          user-name: '${{ github.actor }}'
+        run: |
+          git config --global user.email "${{ github.actor }}@users.noreply.github.com"
+          git config --global user.name "${{ github.actor }}"
+          git add .
+          git commit -m "Changes from astriaorg/astria@${{ github.sha }}"
+          git push
 
   conductor:
     needs: run_checker
