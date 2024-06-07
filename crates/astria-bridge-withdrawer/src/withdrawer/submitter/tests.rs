@@ -157,7 +157,7 @@ impl TestSubmitter {
         for guard in startup_guards {
             tokio::time::timeout(Duration::from_millis(100), guard.wait_until_satisfied())
                 .await
-                .unwrap()
+                .unwrap();
         }
 
         // consume the startup info in place of the watcher
@@ -475,7 +475,7 @@ async fn submitter_startup_success() {
 
 /// Test that the submitter fails to start if the config `chain_id` does not match the genesis
 #[tokio::test]
-#[should_panic]
+#[should_panic(expected = "chain_id")]
 async fn submitter_startup_invalid_chain_id() {
     let mut submitter = TestSubmitter::setup().await;
 
@@ -507,7 +507,7 @@ async fn submitter_startup_invalid_chain_id() {
 /// Test that the submitter fails to start if the config `fee_asset_id` is not allowed on the
 /// sequencer.
 #[tokio::test]
-#[should_panic]
+#[should_panic(expected = "fee_asset")]
 async fn submitter_startup_invalid_fee_asset() {
     let mut submitter = TestSubmitter::setup().await;
 
@@ -533,7 +533,7 @@ async fn submitter_startup_invalid_fee_asset() {
 /// Test that the submitter fails to start if the config `min_expected_fee_asset_balance` is not
 /// met.
 #[tokio::test]
-#[should_panic]
+#[should_panic(expected = "balance")]
 async fn submitter_startup_insufficient_fee_asset_balance() {
     let mut submitter = TestSubmitter::setup().await;
 
