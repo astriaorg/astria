@@ -1,19 +1,41 @@
-use std::{collections::HashMap, io::Write, net::SocketAddr, time::Duration};
+use std::{
+    collections::HashMap,
+    io::Write,
+    net::SocketAddr,
+    time::Duration,
+};
 
-use astria_composer::{config::Config, Composer};
+use astria_composer::{
+    config::Config,
+    Composer,
+};
 use astria_core::{
     primitive::v1::RollupId,
-    protocol::{abci::AbciErrorCode, transaction::v1alpha1::SignedTransaction},
+    protocol::{
+        abci::AbciErrorCode,
+        transaction::v1alpha1::SignedTransaction,
+    },
 };
 use astria_eyre::eyre;
 use ethers::prelude::Transaction;
 use once_cell::sync::Lazy;
 use tempfile::NamedTempFile;
-use tendermint_rpc::{endpoint::broadcast::tx_sync, request, response, Id};
+use tendermint_rpc::{
+    endpoint::broadcast::tx_sync,
+    request,
+    response,
+    Id,
+};
 use test_utils::mock::Geth;
 use tokio::task::JoinHandle;
 use tracing::debug;
-use wiremock::{Mock, MockGuard, MockServer, Request, ResponseTemplate};
+use wiremock::{
+    Mock,
+    MockGuard,
+    MockServer,
+    Request,
+    ResponseTemplate,
+};
 
 pub mod mock_sequencer;
 
@@ -41,6 +63,7 @@ pub struct TestComposer {
     pub rollup_nodes: HashMap<String, Geth>,
     pub sequencer: wiremock::MockServer,
     pub setup_guard: MockGuard,
+    pub status_guard: MockGuard,
     pub grpc_collector_addr: SocketAddr,
 }
 
@@ -60,7 +83,7 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
         rollup_nodes.insert((*id).to_string(), geth);
         rollups.push_str(&format!("{id}::{execution_url},"));
     }
-    let (sequencer, sequencer_setup_guard) = mock_sequencer::start().await;
+    let (sequencer, sequencer_setup_guard, sequencer_status_guard) = mock_sequencer::start().await;
     let sequencer_url = sequencer.uri();
     let keyfile = NamedTempFile::new().unwrap();
     (&keyfile)
@@ -98,6 +121,7 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
         rollup_nodes,
         sequencer,
         setup_guard: sequencer_setup_guard,
+        status_guard: sequencer_status_guard,
         grpc_collector_addr,
     }
 }
