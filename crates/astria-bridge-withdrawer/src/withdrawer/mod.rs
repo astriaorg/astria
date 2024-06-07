@@ -7,6 +7,7 @@ use std::{
 use astria_core::primitive::v1::{
     asset,
     Address,
+    ASTRIA_ADDRESS_PREFIX,
 };
 use astria_eyre::eyre::{
     self,
@@ -86,7 +87,10 @@ impl Service {
 
         let bytes = hex::decode(cfg.sequencer_bridge_address.as_bytes())
             .wrap_err("failed to decode sequencer bridge address as hex")?;
-        let sequencer_bridge_address = Address::try_from_slice(&bytes)
+        let sequencer_bridge_address = Address::builder()
+            .slice(bytes)
+            .prefix(ASTRIA_ADDRESS_PREFIX)
+            .try_build()
             .wrap_err("failed to parse sequencer bridge address from bytes")?;
 
         let ethereum_watcher = watcher::Builder {

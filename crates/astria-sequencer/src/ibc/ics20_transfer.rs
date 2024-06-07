@@ -407,10 +407,8 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
         return Ok(());
     }
 
-    let recipient = Address::try_from_slice(
-        &hex::decode(recipient).context("failed to decode recipient as hex string")?,
-    )
-    .context("invalid recipient address")?;
+    // the IBC packet should have the address as a bech32 string
+    let recipient = Address::try_from_bech32m(&recipient).context("invalid recipient address")?;
 
     let is_prefixed = is_prefixed(source_port, source_channel, &packet_denom);
     let is_source = if is_refund {
@@ -705,11 +703,12 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot.clone());
 
+        let recipient_address = crate::astria_address([1; 20]);
         let packet = FungibleTokenPacketData {
             denom: "nootasset".to_string(),
             sender: String::new(),
             amount: "100".to_string(),
-            receiver: "1c0c490f1b5528d8173c5de46d131160e4b2c0c3".to_string(),
+            receiver: recipient_address.to_string(),
             memo: String::new(),
         };
         let packet_bytes = serde_json::to_vec(&packet).unwrap();
@@ -726,13 +725,9 @@ mod test {
         .await
         .expect("valid ics20 transfer to user account; recipient, memo, and asset ID are valid");
 
-        let recipient = Address::try_from_slice(
-            &hex::decode("1c0c490f1b5528d8173c5de46d131160e4b2c0c3").unwrap(),
-        )
-        .unwrap();
         let denom: Denom = format!("dest_port/dest_channel/{}", "nootasset").into();
         let balance = state_tx
-            .get_account_balance(recipient, denom.id())
+            .get_account_balance(recipient_address, denom.id())
             .await
             .expect(
                 "ics20 transfer to user account should succeed and balance should be minted to \
@@ -747,7 +742,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot.clone());
 
-        let bridge_address = Address::from([99; 20]);
+        let bridge_address = crate::astria_address([99; 20]);
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
         let denom: Denom = "dest_port/dest_channel/nootasset".to_string().into();
 
@@ -760,7 +755,7 @@ mod test {
             denom: "nootasset".to_string(),
             sender: String::new(),
             amount: "100".to_string(),
-            receiver: hex::encode(bridge_address),
+            receiver: bridge_address.to_string(),
             memo: "destinationaddress".to_string(),
         };
         let packet_bytes = serde_json::to_vec(&packet).unwrap();
@@ -800,7 +795,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot.clone());
 
-        let bridge_address = Address::from([99; 20]);
+        let bridge_address = crate::astria_address([99; 20]);
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
         let denom: Denom = "dest_port/dest_channel/nootasset".to_string().into();
 
@@ -814,7 +809,7 @@ mod test {
             denom: "nootasset".to_string(),
             sender: String::new(),
             amount: "100".to_string(),
-            receiver: hex::encode(bridge_address),
+            receiver: bridge_address.to_string(),
             memo: String::new(),
         };
         let packet_bytes = serde_json::to_vec(&packet).unwrap();
@@ -838,7 +833,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot.clone());
 
-        let bridge_address = Address::from([99; 20]);
+        let bridge_address = crate::astria_address([99; 20]);
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
         let denom: Denom = "dest_port/dest_channel/nootasset".to_string().into();
 
@@ -852,7 +847,7 @@ mod test {
             denom: "fake".to_string(),
             sender: String::new(),
             amount: "100".to_string(),
-            receiver: hex::encode(bridge_address),
+            receiver: bridge_address.to_string(),
             memo: "destinationaddress".to_string(),
         };
         let packet_bytes = serde_json::to_vec(&packet).unwrap();
@@ -876,7 +871,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot.clone());
 
-        let address_string = "1c0c490f1b5528d8173c5de46d131160e4b2c0c3";
+        let recipient_address = crate::astria_address([1; 20]);
         let amount = 100;
         let base_denom: Denom = "nootasset".to_string().into();
         state_tx
@@ -891,7 +886,7 @@ mod test {
             denom: format!("source_port/source_channel/{base_denom}"),
             sender: String::new(),
             amount: amount.to_string(),
-            receiver: address_string.to_string(),
+            receiver: recipient_address.to_string(),
             memo: String::new(),
         };
         let packet_bytes = serde_json::to_vec(&packet).unwrap();
@@ -908,9 +903,8 @@ mod test {
         .await
         .expect("valid ics20 transfer to user account; recipient, memo, and asset ID are valid");
 
-        let recipient = Address::try_from_slice(&hex::decode(address_string).unwrap()).unwrap();
         let balance = state_tx
-            .get_account_balance(recipient, base_denom.id())
+            .get_account_balance(recipient_address, base_denom.id())
             .await
             .expect("ics20 transfer to user account should succeed");
         assert_eq!(balance, amount);
@@ -930,7 +924,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot.clone());
 
-        let address_string = "1c0c490f1b5528d8173c5de46d131160e4b2c0c3";
+        let recipient_address = crate::astria_address([1; 20]);
         let amount = 100;
         let base_denom: Denom = "nootasset".to_string().into();
         state_tx
@@ -943,9 +937,9 @@ mod test {
 
         let packet = FungibleTokenPacketData {
             denom: base_denom.to_string(),
-            sender: address_string.to_string(),
+            sender: recipient_address.to_string(),
             amount: amount.to_string(),
-            receiver: address_string.to_string(),
+            receiver: recipient_address.to_string(),
             memo: String::new(),
         };
         let packet_bytes = serde_json::to_vec(&packet).unwrap();
@@ -962,9 +956,8 @@ mod test {
         .await
         .expect("valid ics20 refund to user account; recipient, memo, and asset ID are valid");
 
-        let recipient = Address::try_from_slice(&hex::decode(address_string).unwrap()).unwrap();
         let balance = state_tx
-            .get_account_balance(recipient, base_denom.id())
+            .get_account_balance(recipient_address, base_denom.id())
             .await
             .expect("ics20 refund to user account should succeed");
         assert_eq!(balance, amount);
@@ -984,7 +977,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot.clone());
 
-        let bridge_address = Address::from([99; 20]);
+        let bridge_address = crate::astria_address([99u8; 20]);
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
         let denom: Denom = "dest_port/dest_channel/nootasset".to_string().into();
 
@@ -1025,7 +1018,7 @@ mod test {
         let mut state_tx = StateDelta::new(snapshot.clone());
 
         let destination_chain_address = "destinationchainaddress".to_string();
-        let bridge_address = Address::from([99; 20]);
+        let bridge_address = crate::astria_address([99u8; 20]);
         let denom = Denom::from("nootasset".to_string());
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
 

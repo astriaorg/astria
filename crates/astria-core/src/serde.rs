@@ -9,15 +9,3 @@ where
 {
     Base64Standard::serialize(value, serializer)
 }
-
-pub(crate) fn base64_deserialize_address<'de, D>(deserializer: D) -> Result<[u8; 20], D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    let bytes: Vec<u8> =
-        Base64Standard::deserialize(deserializer).map_err(serde::de::Error::custom)?;
-    let address = bytes
-        .try_into()
-        .map_err(|_| serde::de::Error::custom("address bytes length was not 20"))?;
-    Ok(address)
-}

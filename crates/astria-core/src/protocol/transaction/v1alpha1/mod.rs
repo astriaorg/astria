@@ -4,11 +4,14 @@ use prost::{
 };
 
 use super::raw;
-use crate::crypto::{
-    self,
-    Signature,
-    SigningKey,
-    VerificationKey,
+use crate::{
+    crypto::{
+        self,
+        Signature,
+        SigningKey,
+        VerificationKey,
+    },
+    primitive::v1::Address,
 };
 
 pub mod action;
@@ -76,6 +79,13 @@ pub struct SignedTransaction {
 }
 
 impl SignedTransaction {
+    pub fn address(&self) -> Address {
+        crate::primitive::v1::Address::builder()
+            .array__(self.verification_key.address_bytes())
+            .hrp__(self.transaction.hrp())
+            .build()
+    }
+
     /// Returns the transaction hash.
     ///
     /// The transaction hash is calculated by protobuf-encoding the transaction
@@ -203,9 +213,13 @@ impl SignedTransaction {
         &self.transaction
     }
 
+    pub fn chain_id(&self) -> &str {
+        self.transaction.chain_id()
+    }
+
     #[must_use]
     pub fn nonce(&self) -> u32 {
-        self.transaction.params.nonce
+        self.transaction.nonce()
     }
 }
 
@@ -217,6 +231,20 @@ pub struct UnsignedTransaction {
 }
 
 impl UnsignedTransaction {
+    fn hrp(&self) -> bech32::Hrp {
+        self.params.hrp
+    }
+
+    #[must_use]
+    pub fn nonce(&self) -> u32 {
+        self.params.nonce
+    }
+
+    #[must_use]
+    pub fn chain_id(&self) -> &str {
+        &self.params.chain_id
+    }
+
     #[must_use]
     pub fn into_signed(self, signing_key: &SigningKey) -> SignedTransaction {
         let bytes = self.to_raw().encode_to_vec();
@@ -283,7 +311,8 @@ impl UnsignedTransaction {
         let Some(params) = params else {
             return Err(UnsignedTransactionError::unset_params());
         };
-        let params = TransactionParams::from_raw(params);
+        let params = TransactionParams::try_from_raw(params)
+            .map_err(UnsignedTransactionError::transaction_params)?;
         let actions: Vec<_> = actions
             .into_iter()
             .map(Action::try_from_raw)
@@ -335,6 +364,12 @@ impl UnsignedTransactionError {
     fn decode_any(inner: prost::DecodeError) -> Self {
         Self(UnsignedTransactionErrorKind::DecodeAny(inner))
     }
+
+    fn transaction_params(source: TransactionParamsError) -> Self {
+        Self(UnsignedTransactionErrorKind::TransactionParams {
+            source,
+        })
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -354,21 +389,106 @@ enum UnsignedTransactionErrorKind {
         raw::UnsignedTransaction::type_url()
     )]
     DecodeAny(#[source] prost::DecodeError),
+    #[error("`params` field was invalid")]
+    TransactionParams { source: TransactionParamsError },
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct TransactionParamsError(TransactionParamsErrorKind);
+
+impl TransactionParamsError {
+    fn chain_id_not_bech32_compatible(source: bech32::primitives::hrp::Error) -> Self {
+        Self(TransactionParamsErrorKind::ChainIdNotBech32Compatible {
+            source,
+        })
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum TransactionParamsErrorKind {
+    #[error("the name extracted from the chain ID cannot be used as an address prefix")]
+    ChainIdNotBech32Compatible {
+        source: bech32::primitives::hrp::Error,
+    },
+}
+
+pub struct TransactionParamsBuilder<TChainId = std::borrow::Cow<'static, str>> {
+    nonce: u32,
+    chain_id: TChainId,
+}
+
+impl TransactionParamsBuilder {
+    fn new() -> Self {
+        Self {
+            nonce: 0,
+            chain_id: "".into(),
+        }
+    }
+}
+
+impl<TChainId> TransactionParamsBuilder<TChainId> {
+    #[must_use = "the transaction params builder must be built to be useful"]
+    pub fn chain_id<'a, T: Into<std::borrow::Cow<'a, str>>>(
+        self,
+        chain_id: T,
+    ) -> TransactionParamsBuilder<std::borrow::Cow<'a, str>> {
+        TransactionParamsBuilder {
+            chain_id: chain_id.into(),
+            nonce: self.nonce,
+        }
+    }
+
+    #[must_use = "the transaction params builder must be built to be useful"]
+    pub fn nonce(self, nonce: u32) -> Self {
+        Self {
+            nonce,
+            ..self
+        }
+    }
+}
+
+impl<'a> TransactionParamsBuilder<std::borrow::Cow<'a, str>> {
+    /// Constructs a [`TransactionParams`] from the configured builder.
+    ///
+    /// # Errors
+    /// Returns an error if the set chain ID does not contain a chain name that can be turned into
+    /// a bech32 human readable prefix (everything before the first dash i.e. `<name>-<rest>`).
+    pub fn try_build(self) -> Result<TransactionParams, TransactionParamsError> {
+        let Self {
+            nonce,
+            chain_id,
+        } = self;
+        let chain_id = chain_id.as_ref().trim().to_string();
+        let hrp = bech32::Hrp::parse(chain_id.split_once('-').map_or(&chain_id, |tup| tup.0))
+            .map_err(TransactionParamsError::chain_id_not_bech32_compatible)?;
+        Ok(TransactionParams {
+            nonce,
+            chain_id,
+            hrp,
+        })
+    }
 }
 
 #[derive(Clone, Debug)]
-#[allow(clippy::module_name_repetitions)]
 pub struct TransactionParams {
-    pub nonce: u32,
-    pub chain_id: String,
+    nonce: u32,
+    chain_id: String,
+    hrp: bech32::Hrp,
 }
 
 impl TransactionParams {
+    #[must_use = "the transaction params builder must be built to be useful"]
+    pub fn builder() -> TransactionParamsBuilder {
+        TransactionParamsBuilder::new()
+    }
+
     #[must_use]
     pub fn into_raw(self) -> raw::TransactionParams {
         let Self {
             nonce,
             chain_id,
+            ..
         } = self;
         raw::TransactionParams {
             nonce,
@@ -377,16 +497,15 @@ impl TransactionParams {
     }
 
     /// Convert from a raw protobuf [`raw::UnsignedTransaction`].
-    #[must_use]
-    pub fn from_raw(proto: raw::TransactionParams) -> Self {
+    ///
+    /// # Errors
+    /// See [`TransactionParamsBuilder::try_build`] for errors returned by this method.
+    pub fn try_from_raw(proto: raw::TransactionParams) -> Result<Self, TransactionParamsError> {
         let raw::TransactionParams {
             nonce,
             chain_id,
         } = proto;
-        Self {
-            nonce,
-            chain_id,
-        }
+        Self::builder().nonce(nonce).chain_id(chain_id).try_build()
     }
 }
 
@@ -397,6 +516,7 @@ mod test {
         primitive::v1::{
             asset::default_native_asset_id,
             Address,
+            ASTRIA_ADDRESS_PREFIX,
         },
         protocol::transaction::v1alpha1::action::TransferAction,
     };
@@ -416,16 +536,21 @@ mod test {
         ]);
 
         let transfer = TransferAction {
-            to: Address::from([0; 20]),
+            to: Address::builder()
+                .array([0; 20])
+                .prefix(ASTRIA_ADDRESS_PREFIX)
+                .try_build()
+                .unwrap(),
             amount: 0,
             asset_id: default_native_asset_id(),
             fee_asset_id: default_native_asset_id(),
         };
 
-        let params = TransactionParams {
+        let params = TransactionParams::try_from_raw(raw::TransactionParams {
             nonce: 1,
             chain_id: "test-1".to_string(),
-        };
+        })
+        .unwrap();
         let unsigned = UnsignedTransaction {
             actions: vec![transfer.into()],
             params,
@@ -449,16 +574,21 @@ mod test {
         ]);
 
         let transfer = TransferAction {
-            to: Address::from([0; 20]),
+            to: Address::builder()
+                .array([0; 20])
+                .prefix(ASTRIA_ADDRESS_PREFIX)
+                .try_build()
+                .unwrap(),
             amount: 0,
             asset_id: default_native_asset_id(),
             fee_asset_id: default_native_asset_id(),
         };
 
-        let params = TransactionParams {
+        let params = TransactionParams::try_from_raw(raw::TransactionParams {
             nonce: 1,
             chain_id: "test-1".to_string(),
-        };
+        })
+        .unwrap();
         let unsigned = UnsignedTransaction {
             actions: vec![transfer.into()],
             params,

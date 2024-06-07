@@ -344,7 +344,10 @@ fn address_from_string(s: &str) -> Result<ethers::types::Address> {
 
 #[cfg(test)]
 mod tests {
-    use astria_core::protocol::transaction::v1alpha1::Action;
+    use astria_core::{
+        primitive::v1::ASTRIA_ADDRESS_PREFIX,
+        protocol::transaction::v1alpha1::Action,
+    };
     use ethers::{
         prelude::SignerMiddleware,
         providers::Middleware,
@@ -453,7 +456,11 @@ mod tests {
             transaction_hash: receipt.transaction_hash,
         };
         let denom: Denom = Denom::from_base_denom("nria");
-        let bridge_address = Address::from([1u8; 20]);
+        let bridge_address = Address::builder()
+            .array([1u8; 20])
+            .prefix(ASTRIA_ADDRESS_PREFIX)
+            .try_build()
+            .unwrap();
         let expected_action =
             event_to_action(expected_event, denom.id(), denom.clone(), 1, bridge_address).unwrap();
         let Action::BridgeUnlock(expected_action) = expected_action else {
@@ -536,7 +543,11 @@ mod tests {
             transaction_hash: receipt.transaction_hash,
         };
         let denom = Denom::from("transfer/channel-0/utia".to_string());
-        let bridge_address = Address::from([1u8; 20]);
+        let bridge_address = Address::builder()
+            .array([1u8; 20])
+            .prefix(ASTRIA_ADDRESS_PREFIX)
+            .try_build()
+            .unwrap();
         let Action::Ics20Withdrawal(mut expected_action) =
             event_to_action(expected_event, denom.id(), denom.clone(), 1, bridge_address).unwrap()
         else {
@@ -647,22 +658,26 @@ mod tests {
             transaction_hash: receipt.transaction_hash,
         };
         let denom: Denom = Denom::from_base_denom("nria");
+        let bridge_address =
+            Address::try_from_bech32m("astria19g4z52329g4z52329g4z52329g4z5232ayenag").unwrap();
         let expected_action =
-            event_to_action(expected_event, denom.id(), denom.clone(), 1).unwrap();
+            event_to_action(expected_event, denom.id(), denom.clone(), 1, bridge_address).unwrap();
         let Action::BridgeUnlock(expected_action) = expected_action else {
             panic!("expected action to be BridgeUnlock, got {expected_action:?}");
         };
 
-        let (event_tx, mut event_rx) = mpsc::channel(100);
-        let watcher = Watcher::new(
-            &hex::encode(contract_address),
-            &anvil.ws_endpoint(),
-            event_tx,
-            &CancellationToken::new(),
-            Arc::new(State::new()),
-            denom.id(),
-            denom,
-        )
+        let (batch_tx, mut batch_rx) = mpsc::channel(100);
+        let watcher = Builder {
+            ethereum_contract_address: hex::encode(contract_address),
+            ethereum_rpc_endpoint: anvil.ws_endpoint(),
+            batch_tx,
+            shutdown_token: CancellationToken::new(),
+            state: Arc::new(State::new()),
+            fee_asset_id: denom.id(),
+            rollup_asset_denom: denom,
+            bridge_address,
+        }
+        .build()
         .unwrap();
 
         tokio::task::spawn(watcher.run());
@@ -670,7 +685,7 @@ mod tests {
         // make another tx to trigger anvil to make another block
         send_sequencer_withdraw_transaction_erc20(&contract, value, recipient).await;
 
-        let batch = event_rx.recv().await.unwrap();
+        let batch = batch_rx.recv().await.unwrap();
         assert_eq!(batch.actions.len(), 1);
         let Action::BridgeUnlock(action) = &batch.actions[0] else {
             panic!(
@@ -737,23 +752,27 @@ mod tests {
             transaction_hash: receipt.transaction_hash,
         };
         let denom = Denom::from("transfer/channel-0/utia".to_string());
+        let bridge_address =
+            Address::try_from_bech32m("astria19g4z52329g4z52329g4z52329g4z5232ayenag").unwrap();
         let Action::Ics20Withdrawal(mut expected_action) =
-            event_to_action(expected_event, denom.id(), denom.clone(), 1).unwrap()
+            event_to_action(expected_event, denom.id(), denom.clone(), 1, bridge_address).unwrap()
         else {
             panic!("expected action to be Ics20Withdrawal");
         };
         expected_action.timeout_time = 0; // zero this for testing
 
-        let (event_tx, mut event_rx) = mpsc::channel(100);
-        let watcher = Watcher::new(
-            &hex::encode(contract_address),
-            &anvil.ws_endpoint(),
-            event_tx,
-            &CancellationToken::new(),
-            Arc::new(State::new()),
-            denom.id(),
-            denom,
-        )
+        let (batch_tx, mut batch_rx) = mpsc::channel(100);
+        let watcher = Builder {
+            ethereum_contract_address: hex::encode(contract_address),
+            ethereum_rpc_endpoint: anvil.ws_endpoint(),
+            batch_tx,
+            shutdown_token: CancellationToken::new(),
+            state: Arc::new(State::new()),
+            fee_asset_id: denom.id(),
+            rollup_asset_denom: denom,
+            bridge_address,
+        }
+        .build()
         .unwrap();
 
         tokio::task::spawn(watcher.run());
@@ -761,7 +780,7 @@ mod tests {
         // make another tx to trigger anvil to make another block
         send_ics20_withdraw_transaction_astria_bridgeable_erc20(&contract, value, recipient).await;
 
-        let mut batch = event_rx.recv().await.unwrap();
+        let mut batch = batch_rx.recv().await.unwrap();
         assert_eq!(batch.actions.len(), 1);
         let Action::Ics20Withdrawal(ref mut action) = batch.actions[0] else {
             panic!(
