@@ -47,30 +47,31 @@ use crate::withdrawer::{
     state::State,
 };
 
-/// Watches for withdrawal events emitted by the `AstriaWithdrawer` contract.
-pub(crate) struct Watcher {
-    contract_address: ethers::types::Address,
-    ethereum_rpc_endpoint: String,
-    batch_tx: mpsc::Sender<Batch>,
-    fee_asset_id: asset::Id,
-    rollup_asset_denom: Denom,
-    bridge_address: Address,
-    state: Arc<State>,
-    shutdown_token: CancellationToken,
+pub(crate) struct Builder {
+    pub(crate) ethereum_contract_address: String,
+    pub(crate) ethereum_rpc_endpoint: String,
+    pub(crate) batch_tx: mpsc::Sender<Batch>,
+    pub(crate) shutdown_token: CancellationToken,
+    pub(crate) state: Arc<State>,
+    pub(crate) fee_asset_id: asset::Id,
+    pub(crate) rollup_asset_denom: Denom,
+    pub(crate) bridge_address: Address,
 }
 
-impl Watcher {
-    pub(crate) fn new(
-        ethereum_contract_address: &str,
-        ethereum_rpc_endpoint: &str,
-        batch_tx: mpsc::Sender<Batch>,
-        shutdown_token: &CancellationToken,
-        state: Arc<State>,
-        fee_asset_id: asset::Id,
-        rollup_asset_denom: Denom,
-        bridge_address: Address,
-    ) -> Result<Self> {
-        let contract_address = address_from_string(ethereum_contract_address)
+impl Builder {
+    pub(crate) fn build(self) -> Result<Watcher> {
+        let Builder {
+            ethereum_contract_address,
+            ethereum_rpc_endpoint,
+            batch_tx,
+            shutdown_token,
+            state,
+            fee_asset_id,
+            rollup_asset_denom,
+            bridge_address,
+        } = self;
+
+        let contract_address = address_from_string(&ethereum_contract_address)
             .wrap_err("failed to parse ethereum contract address")?;
 
         if rollup_asset_denom.prefix().is_empty() {
@@ -80,7 +81,7 @@ impl Watcher {
             );
         }
 
-        Ok(Self {
+        Ok(Watcher {
             contract_address,
             ethereum_rpc_endpoint: ethereum_rpc_endpoint.to_string(),
             batch_tx,
@@ -91,6 +92,18 @@ impl Watcher {
             bridge_address,
         })
     }
+}
+
+/// Watches for withdrawal events emitted by the `AstriaWithdrawer` contract.
+pub(crate) struct Watcher {
+    contract_address: ethers::types::Address,
+    ethereum_rpc_endpoint: String,
+    batch_tx: mpsc::Sender<Batch>,
+    fee_asset_id: asset::Id,
+    rollup_asset_denom: Denom,
+    bridge_address: Address,
+    state: Arc<State>,
+    shutdown_token: CancellationToken,
 }
 
 impl Watcher {
@@ -126,16 +139,16 @@ impl Watcher {
                  this",
             ));
 
-        let batcher = Batcher::new(
+        let batcher = Batcher {
             event_rx,
             provider,
             batch_tx,
-            &shutdown_token,
+            shutdown_token: shutdown_token.clone(),
             fee_asset_id,
             rollup_asset_denom,
             bridge_address,
             asset_withdrawal_divisor,
-        );
+        };
 
         tokio::task::spawn(batcher.run());
 
@@ -233,28 +246,6 @@ struct Batcher {
 }
 
 impl Batcher {
-    pub(crate) fn new(
-        event_rx: mpsc::Receiver<(WithdrawalEvent, LogMeta)>,
-        provider: Arc<Provider<Ws>>,
-        batch_tx: mpsc::Sender<Batch>,
-        shutdown_token: &CancellationToken,
-        fee_asset_id: asset::Id,
-        rollup_asset_denom: Denom,
-        bridge_address: Address,
-        asset_withdrawal_divisor: u128,
-    ) -> Self {
-        Self {
-            event_rx,
-            provider,
-            batch_tx,
-            shutdown_token: shutdown_token.clone(),
-            fee_asset_id,
-            rollup_asset_denom,
-            bridge_address,
-            asset_withdrawal_divisor,
-        }
-    }
-
     pub(crate) async fn run(mut self) -> Result<()> {
         let mut block_rx = self
             .provider
@@ -464,17 +455,18 @@ mod tests {
             panic!("expected action to be BridgeUnlock, got {expected_action:?}");
         };
 
-        let (event_tx, mut event_rx) = mpsc::channel(100);
-        let watcher = Watcher::new(
-            &hex::encode(contract_address),
-            &anvil.ws_endpoint(),
-            event_tx,
-            &CancellationToken::new(),
-            Arc::new(State::new()),
-            denom.id(),
-            denom,
+        let (batch_tx, mut batch_rx) = mpsc::channel(100);
+        let watcher = Builder {
+            ethereum_contract_address: hex::encode(contract_address),
+            ethereum_rpc_endpoint: anvil.ws_endpoint(),
+            batch_tx,
+            shutdown_token: CancellationToken::new(),
+            state: Arc::new(State::new()),
+            fee_asset_id: denom.id(),
+            rollup_asset_denom: denom,
             bridge_address,
-        )
+        }
+        .build()
         .unwrap();
 
         tokio::task::spawn(watcher.run());
@@ -482,7 +474,7 @@ mod tests {
         // make another tx to trigger anvil to make another block
         send_sequencer_withdraw_transaction(&contract, value, recipient).await;
 
-        let batch = event_rx.recv().await.unwrap();
+        let batch = batch_rx.recv().await.unwrap();
         assert_eq!(batch.actions.len(), 1);
         let Action::BridgeUnlock(action) = &batch.actions[0] else {
             panic!(
@@ -547,17 +539,18 @@ mod tests {
         };
         expected_action.timeout_time = 0; // zero this for testing
 
-        let (event_tx, mut event_rx) = mpsc::channel(100);
-        let watcher = Watcher::new(
-            &hex::encode(contract_address),
-            &anvil.ws_endpoint(),
-            event_tx,
-            &CancellationToken::new(),
-            Arc::new(State::new()),
-            denom.id(),
-            denom,
+        let (batch_tx, mut batch_rx) = mpsc::channel(100);
+        let watcher = Builder {
+            ethereum_contract_address: hex::encode(contract_address),
+            ethereum_rpc_endpoint: anvil.ws_endpoint(),
+            batch_tx,
+            shutdown_token: CancellationToken::new(),
+            state: Arc::new(State::new()),
+            fee_asset_id: denom.id(),
+            rollup_asset_denom: denom,
             bridge_address,
-        )
+        }
+        .build()
         .unwrap();
 
         tokio::task::spawn(watcher.run());
@@ -565,7 +558,7 @@ mod tests {
         // make another tx to trigger anvil to make another block
         send_ics20_withdraw_transaction(&contract, value, recipient).await;
 
-        let mut batch = event_rx.recv().await.unwrap();
+        let mut batch = batch_rx.recv().await.unwrap();
         assert_eq!(batch.actions.len(), 1);
         let Action::Ics20Withdrawal(ref mut action) = batch.actions[0] else {
             panic!(

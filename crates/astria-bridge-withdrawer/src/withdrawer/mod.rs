@@ -29,7 +29,7 @@ use tracing::{
 
 pub(crate) use self::state::StateSnapshot;
 use self::{
-    ethereum::Watcher,
+    ethereum::watcher,
     state::State,
     submitter::Submitter,
 };
@@ -48,7 +48,7 @@ pub struct Service {
     shutdown_token: CancellationToken,
     api_server: api::ApiServer,
     submitter: Submitter,
-    ethereum_watcher: Watcher,
+    ethereum_watcher: watcher::Watcher,
     state: Arc<State>,
 }
 
@@ -74,7 +74,7 @@ impl Service {
         let state = Arc::new(State::new());
 
         // make submitter object
-        let (submitter, batches_tx) = submitter::Builder {
+        let (submitter, batch_tx) = submitter::Builder {
             shutdown_token: shutdown_handle.token(),
             sequencer_cometbft_endpoint,
             sequencer_chain_id,
@@ -89,17 +89,18 @@ impl Service {
         let sequencer_bridge_address = Address::try_from_slice(&bytes)
             .wrap_err("failed to parse sequencer bridge address from bytes")?;
 
-        let ethereum_watcher = Watcher::new(
-            &ethereum_contract_address,
-            &ethereum_rpc_endpoint,
-            batches_tx,
-            &shutdown_handle.token(),
-            state.clone(),
-            asset::Id::from_denom(&fee_asset_denomination),
-            asset::Denom::from(cfg.rollup_asset_denomination),
-            sequencer_bridge_address,
-        )
-        .wrap_err("failed to initialize ethereum watcher")?;
+        let ethereum_watcher = watcher::Builder {
+            ethereum_contract_address,
+            ethereum_rpc_endpoint,
+            batch_tx,
+            shutdown_token: shutdown_handle.token(),
+            state: state.clone(),
+            fee_asset_id: asset::Id::from_denom(&fee_asset_denomination),
+            rollup_asset_denom: asset::Denom::from(cfg.rollup_asset_denomination),
+            bridge_address: sequencer_bridge_address,
+        }
+        .build()
+        .wrap_err("failed to build ethereum watcher")?;
 
         // make api server
         let state_rx = state.subscribe();

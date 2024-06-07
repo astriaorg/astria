@@ -1,8 +1,6 @@
 pub(crate) mod astria_withdrawer;
 pub(crate) mod convert;
-mod watcher;
-
-pub(crate) use watcher::Watcher;
+pub(crate) mod watcher;
 
 #[cfg(test)]
 mod test_utils;

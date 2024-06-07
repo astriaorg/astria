@@ -499,7 +499,7 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
 }
 
 /// execute a refund of tokens that were withdrawn from a rollup to another
-/// IBC-enabled chain via the sequencer using an Ics20Withdrawal, but were not
+/// IBC-enabled chain via the sequencer using an `Ics20Withdrawal`, but were not
 /// transferred to the destination IBC chain successfully.
 ///
 /// this functions sends the tokens back to the rollup via a `Deposit` event,
