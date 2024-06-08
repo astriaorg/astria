@@ -22,6 +22,7 @@ use crate::withdrawer::ethereum::{
     },
 };
 
+#[allow(clippy::struct_field_names)]
 pub(crate) struct ConfigureAstriaWithdrawerDeployer {
     pub(crate) base_chain_asset_precision: u32,
     pub(crate) base_chain_bridge_address: astria_core::primitive::v1::Address,
