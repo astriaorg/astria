@@ -114,6 +114,7 @@ fn event_to_bridge_unlock(
         fee_asset_id,
         bridge_address: None,
     };
+
     Ok(Action::BridgeUnlock(action))
 }
 

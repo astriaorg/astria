@@ -17,6 +17,8 @@ pub struct Config {
     pub sequencer_key_path: String,
     // The fee asset denomination to use for the bridge account's transactions.
     pub fee_asset_denomination: String,
+    // The minimum expected balance of the fee asset in the bridge account.
+    pub min_expected_fee_asset_balance: u64,
     // The asset denomination being withdrawn from the rollup.
     pub rollup_asset_denomination: String,
     // The address of the AstriaWithdrawer contract on the evm rollup.
