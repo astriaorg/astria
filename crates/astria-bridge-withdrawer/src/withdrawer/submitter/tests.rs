@@ -2,21 +2,28 @@ use std::{
     io::Write as _,
     sync::Arc,
     time::Duration,
+    vec,
 };
 
 use astria_core::{
     generated::protocol::account::v1alpha1::NonceResponse,
     primitive::v1::{
-        asset::Denom,
+        asset::{
+            self,
+            Denom,
+        },
         Address,
         ASTRIA_ADDRESS_PREFIX,
     },
-    protocol::transaction::v1alpha1::{
-        action::{
-            BridgeUnlockAction,
-            Ics20Withdrawal,
+    protocol::{
+        account::v1alpha1::AssetBalance,
+        transaction::v1alpha1::{
+            action::{
+                BridgeUnlockAction,
+                Ics20Withdrawal,
+            },
+            Action,
         },
-        Action,
     },
 };
 use astria_eyre::eyre;
@@ -38,15 +45,13 @@ use tendermint::{
         types::ExecTxResult,
     },
     block::Height,
+    chain,
 };
 use tendermint_rpc::{
     endpoint::broadcast::tx_sync,
     request,
 };
-use tokio::sync::{
-    mpsc,
-    watch,
-};
+use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use tracing::debug;
 use wiremock::{
@@ -70,7 +75,6 @@ use crate::withdrawer::{
     },
     state,
     submitter,
-    StateSnapshot,
 };
 
 const SEQUENCER_CHAIN_ID: &str = "test_sequencer-1000";
@@ -94,75 +98,122 @@ static TELEMETRY: Lazy<()> = Lazy::new(|| {
     }
 });
 
-async fn setup() -> (
-    Submitter,
-    mpsc::Sender<Batch>,
-    CancellationToken,
-    MockServer,
-    MockGuard,
-) {
-    Lazy::force(&TELEMETRY);
-
-    // set up external resources
-    let shutdown_token = CancellationToken::new();
-
-    // sequencer signer key
-    let keyfile = NamedTempFile::new().unwrap();
-    (&keyfile)
-        .write_all("2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90".as_bytes())
-        .unwrap();
-    let sequencer_key_path = keyfile.path().to_str().unwrap().to_string();
-
-    // cometbft
-    let cometbft_mock = MockServer::start().await;
-    let sequencer_cometbft_endpoint = format!("http://{}", cometbft_mock.address());
-
-    // withdrawer state
-    let state = Arc::new(state::State::new());
-    // not testing watcher here so just set it to ready
-    state.set_watcher_ready();
-
-    let (submitter, batches_tx) = submitter::Builder {
-        shutdown_token: shutdown_token.clone(),
-        sequencer_key_path,
-        sequencer_chain_id: SEQUENCER_CHAIN_ID.to_string(),
-        sequencer_cometbft_endpoint,
-        state,
-    }
-    .build()
-    .unwrap();
-
-    // mount submitter startup response
-    let startup_guard = register_genesis_response(&cometbft_mock).await;
-
-    (
-        submitter,
-        batches_tx,
-        shutdown_token,
-        cometbft_mock,
-        startup_guard,
-    )
+struct TestSubmitter {
+    submitter: Option<Submitter>,
+    submitter_handle: submitter::Handle,
+    cometbft_mock: MockServer,
+    submitter_task_handle: Option<JoinHandle<Result<(), eyre::Report>>>,
 }
 
-async fn wait_for_startup(
-    mut status: watch::Receiver<StateSnapshot>,
-    startup_guard: MockGuard,
-) -> eyre::Result<()> {
-    // wait for the submitter to be ready
-    status
-        .wait_for(state::StateSnapshot::is_ready)
-        .await
+impl TestSubmitter {
+    async fn setup() -> Self {
+        Lazy::force(&TELEMETRY);
+
+        // set up external resources
+        let shutdown_token = CancellationToken::new();
+
+        // sequencer signer key
+        let keyfile = NamedTempFile::new().unwrap();
+        (&keyfile)
+            .write_all(
+                "2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90".as_bytes(),
+            )
+            .unwrap();
+        let sequencer_key_path = keyfile.path().to_str().unwrap().to_string();
+
+        // cometbft
+        let cometbft_mock = MockServer::start().await;
+        let sequencer_cometbft_endpoint = format!("http://{}", cometbft_mock.address());
+
+        // withdrawer state
+        let state = Arc::new(state::State::new());
+        // not testing watcher here so just set it to ready
+        state.set_watcher_ready();
+
+        let (submitter, submitter_handle) = submitter::Builder {
+            shutdown_token: shutdown_token.clone(),
+            sequencer_key_path,
+            sequencer_chain_id: SEQUENCER_CHAIN_ID.to_string(),
+            sequencer_cometbft_endpoint,
+            state,
+            expected_fee_asset_id: Denom::from("nria".to_string()).id(),
+            min_expected_fee_asset_balance: 1_000_000,
+        }
+        .build()
         .unwrap();
 
-    // wait for startup guard to be satisfied
-    tokio::time::timeout(
-        Duration::from_millis(1000),
-        startup_guard.wait_until_satisfied(),
+        Self {
+            submitter: Some(submitter),
+            submitter_task_handle: None,
+            submitter_handle,
+            cometbft_mock,
+        }
+    }
+
+    async fn startup_and_spawn_with_guards(&mut self, startup_guards: Vec<MockGuard>) {
+        let submitter = self.submitter.take().unwrap();
+
+        let mut state = submitter.state.subscribe();
+
+        self.submitter_task_handle = Some(tokio::spawn(submitter.run()));
+
+        // wait for all startup guards to be satisfied
+        for guard in startup_guards {
+            tokio::time::timeout(Duration::from_millis(100), guard.wait_until_satisfied())
+                .await
+                .unwrap();
+        }
+
+        // consume the startup info in place of the watcher
+        self.submitter_handle.recv_startup_info().await.unwrap();
+
+        // wait for the submitter to be ready
+        state
+            .wait_for(state::StateSnapshot::is_ready)
+            .await
+            .unwrap();
+    }
+
+    async fn startup_and_spawn(&mut self) {
+        let startup_guards = register_startup_guards(&self.cometbft_mock).await;
+        self.startup_and_spawn_with_guards(startup_guards).await;
+    }
+
+    async fn spawn() -> Self {
+        let mut submitter = Self::setup().await;
+        submitter.startup_and_spawn().await;
+        submitter
+    }
+}
+
+async fn register_default_chain_id_guard(cometbft_mock: &MockServer) -> MockGuard {
+    register_genesis_chain_id_response(SEQUENCER_CHAIN_ID, cometbft_mock).await
+}
+
+async fn register_default_fee_asset_ids_guard(cometbft_mock: &MockServer) -> MockGuard {
+    let fee_asset_ids = vec![Denom::from("nria".to_string()).id()];
+    register_allowed_fee_asset_ids_response(fee_asset_ids, cometbft_mock).await
+}
+
+async fn register_default_min_expected_fee_asset_balance_guard(
+    cometbft_mock: &MockServer,
+) -> MockGuard {
+    register_get_latest_balance(
+        vec![AssetBalance {
+            denom: Denom::from("nria".to_string()),
+            balance: 1_000_000u128,
+        }],
+        cometbft_mock,
     )
     .await
-    .unwrap();
+}
 
-    Ok(())
+async fn register_startup_guards(cometbft_mock: &MockServer) -> Vec<MockGuard> {
+    vec![
+        register_default_chain_id_guard(cometbft_mock).await,
+        register_default_fee_asset_ids_guard(cometbft_mock).await,
+        register_default_min_expected_fee_asset_balance_guard(cometbft_mock).await,
+    ]
 }
 
 fn make_ics20_withdrawal_action() -> Action {
@@ -268,7 +319,7 @@ fn signed_tx_from_request(request: &Request) -> SignedTransaction {
     signed_tx
 }
 
-async fn register_genesis_response(server: &MockServer) -> MockGuard {
+async fn register_genesis_chain_id_response(chain_id: &str, server: &MockServer) -> MockGuard {
     use tendermint::{
         consensus::{
             params::{
@@ -283,7 +334,7 @@ async fn register_genesis_response(server: &MockServer) -> MockGuard {
     let response = tendermint_rpc::endpoint::genesis::Response::<serde_json::Value> {
         genesis: Genesis {
             genesis_time: Time::from_unix_timestamp(1, 1).unwrap(),
-            chain_id: SEQUENCER_CHAIN_ID.try_into().unwrap(),
+            chain_id: chain::Id::try_from(chain_id).unwrap(),
             initial_height: 1,
             consensus_params: Params {
                 block: tendermint::block::Size {
@@ -309,18 +360,73 @@ async fn register_genesis_response(server: &MockServer) -> MockGuard {
     };
 
     let wrapper = response::Wrapper::new_with_id(tendermint_rpc::Id::Num(1), Some(response), None);
-    Mock::given(body_partial_json(
-        json!({"jsonrpc": "2.0", "method": "genesis", "params": null}),
-    ))
-    .respond_with(
-        ResponseTemplate::new(200)
-            .set_body_json(&wrapper)
-            .append_header("Content-Type", "application/json"),
-    )
-    .up_to_n_times(1)
-    .expect(1)
-    .mount_as_scoped(server)
-    .await
+    Mock::given(body_partial_json(json!({"method": "genesis"})))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(&wrapper)
+                .append_header("Content-Type", "application/json"),
+        )
+        .up_to_n_times(1)
+        .expect(1)
+        .mount_as_scoped(server)
+        .await
+}
+
+async fn register_allowed_fee_asset_ids_response(
+    fee_asset_ids: Vec<asset::Id>,
+    cometbft_mock: &MockServer,
+) -> MockGuard {
+    let response = tendermint_rpc::endpoint::abci_query::Response {
+        response: tendermint_rpc::endpoint::abci_query::AbciQuery {
+            value: astria_core::protocol::asset::v1alpha1::AllowedFeeAssetIdsResponse {
+                fee_asset_ids,
+                height: 1,
+            }
+            .into_raw()
+            .encode_to_vec(),
+            ..Default::default()
+        },
+    };
+    let wrapper = response::Wrapper::new_with_id(tendermint_rpc::Id::Num(1), Some(response), None);
+    Mock::given(body_partial_json(json!({"method": "abci_query"})))
+        .and(body_string_contains("asset/allowed_fee_asset_ids"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(&wrapper)
+                .append_header("Content-Type", "application/json"),
+        )
+        .expect(1)
+        .mount_as_scoped(cometbft_mock)
+        .await
+}
+
+async fn register_get_latest_balance(
+    balances: Vec<AssetBalance>,
+    server: &MockServer,
+) -> MockGuard {
+    let response = tendermint_rpc::endpoint::abci_query::Response {
+        response: tendermint_rpc::endpoint::abci_query::AbciQuery {
+            value: astria_core::protocol::account::v1alpha1::BalanceResponse {
+                balances,
+                height: 1,
+            }
+            .into_raw()
+            .encode_to_vec(),
+            ..Default::default()
+        },
+    };
+
+    let wrapper = response::Wrapper::new_with_id(tendermint_rpc::Id::Num(1), Some(response), None);
+    Mock::given(body_partial_json(json!({"method": "abci_query"})))
+        .and(body_string_contains("accounts/balance"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(&wrapper)
+                .append_header("Content-Type", "application/json"),
+        )
+        .expect(1)
+        .mount_as_scoped(server)
+        .await
 }
 
 async fn register_get_nonce_response(server: &MockServer, response: NonceResponse) -> MockGuard {
@@ -373,14 +479,21 @@ fn compare_actions(expected: &Action, actual: &Action) {
     }
 }
 
-/// Sanity check to check that it works
+/// Test that the submitter starts up successfully
+#[tokio::test]
+async fn submitter_startup_success() {
+    let _submitter = TestSubmitter::spawn().await;
+}
+
+/// Sanity check to check that batch submission works
 #[tokio::test]
 async fn submitter_submit_success() {
-    // set up submitter and batch
-    let (submitter, batches_tx, _shutdown_token, cometbft_mock, startup_guard) = setup().await;
-    let state = submitter.state.subscribe();
-    let _submitter_handle = tokio::spawn(submitter.run());
-    wait_for_startup(state, startup_guard).await.unwrap();
+    let submitter = TestSubmitter::spawn().await;
+    let TestSubmitter {
+        submitter_handle,
+        cometbft_mock,
+        ..
+    } = submitter;
 
     // set up guards on mock cometbft
     let nonce_guard = register_get_nonce_response(
@@ -397,7 +510,7 @@ async fn submitter_submit_success() {
 
     // send batch to submitter
     let batch = make_batch_with_bridge_unlock_and_ics20_withdrawal();
-    batches_tx.send(batch).await.unwrap();
+    submitter_handle.send_batch(batch).await.unwrap();
 
     // wait for the nonce and broadcast guards to be satisfied
     tokio::time::timeout(
@@ -431,11 +544,13 @@ async fn submitter_submit_success() {
 /// mempool (CheckTx)
 #[tokio::test]
 async fn submitter_submit_check_tx_failure() {
-    // set up submitter and batch
-    let (submitter, batches_tx, _shutdown_token, cometbft_mock, startup_guard) = setup().await;
-    let state = submitter.state.subscribe();
-    let submitter_handle = tokio::spawn(submitter.run());
-    wait_for_startup(state, startup_guard).await.unwrap();
+    let submitter = TestSubmitter::spawn().await;
+    let TestSubmitter {
+        submitter_handle,
+        cometbft_mock,
+        mut submitter_task_handle,
+        ..
+    } = submitter;
 
     // set up guards on mock cometbft
     let nonce_guard = register_get_nonce_response(
@@ -454,7 +569,7 @@ async fn submitter_submit_check_tx_failure() {
 
     // send batch to submitter
     let batch = make_batch_with_bridge_unlock_and_ics20_withdrawal();
-    batches_tx.send(batch).await.unwrap();
+    submitter_handle.send_batch(batch).await.unwrap();
 
     // wait for the nonce and broadcast guards to be satisfied
     tokio::time::timeout(
@@ -471,21 +586,26 @@ async fn submitter_submit_check_tx_failure() {
     .unwrap();
 
     // make sure the submitter halts and the task returns
-    let _submitter_result = tokio::time::timeout(Duration::from_millis(100), submitter_handle)
-        .await
-        .unwrap()
-        .unwrap();
+    let _submitter_result = tokio::time::timeout(
+        Duration::from_millis(100),
+        submitter_task_handle.take().unwrap(),
+    )
+    .await
+    .unwrap()
+    .unwrap();
 }
 
 /// Test that the submitter halts when transaction submissions fails to be executed in a block
 /// (DeliverTx)
 #[tokio::test]
 async fn submitter_submit_deliver_tx_failure() {
-    // set up submitter and batch
-    let (submitter, batches_tx, _shutdown_token, cometbft_mock, startup_guard) = setup().await;
-    let state = submitter.state.subscribe();
-    let submitter_handle = tokio::spawn(submitter.run());
-    wait_for_startup(state, startup_guard).await.unwrap();
+    let submitter = TestSubmitter::spawn().await;
+    let TestSubmitter {
+        submitter_handle,
+        cometbft_mock,
+        mut submitter_task_handle,
+        ..
+    } = submitter;
 
     // set up guards on mock cometbft
     let nonce_guard = register_get_nonce_response(
@@ -504,7 +624,7 @@ async fn submitter_submit_deliver_tx_failure() {
 
     // send batch to submitter
     let batch = make_batch_with_bridge_unlock_and_ics20_withdrawal();
-    batches_tx.send(batch).await.unwrap();
+    submitter_handle.send_batch(batch).await.unwrap();
 
     // wait for the nonce and broadcast guards to be satisfied
     tokio::time::timeout(
@@ -521,8 +641,11 @@ async fn submitter_submit_deliver_tx_failure() {
     .unwrap();
 
     // make sure the submitter halts and the task returns
-    let _submitter_result = tokio::time::timeout(Duration::from_millis(100), submitter_handle)
-        .await
-        .unwrap()
-        .unwrap();
+    let _submitter_result = tokio::time::timeout(
+        Duration::from_millis(100),
+        submitter_task_handle.take().unwrap(),
+    )
+    .await
+    .unwrap()
+    .unwrap();
 }
