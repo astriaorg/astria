@@ -268,6 +268,8 @@ pub(crate) async fn init_bridge_account(args: &InitBridgeAccountArgs) -> eyre::R
             rollup_id,
             asset_id: default_native_asset_id(),
             fee_asset_id: default_native_asset_id(),
+            sudo_address: None,
+            withdrawer_address: None,
         }),
     )
     .await

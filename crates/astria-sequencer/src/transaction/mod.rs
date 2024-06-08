@@ -134,6 +134,10 @@ impl ActionHandler for UnsignedTransaction {
                     .check_stateless()
                     .await
                     .context("stateless check failed for SudoAddressChangeAction")?,
+                Action::FeeChange(act) => act
+                    .check_stateless()
+                    .await
+                    .context("stateless check failed for FeeChangeAction")?,
                 Action::Ibc(act) => {
                     let action = act
                         .clone()
@@ -163,14 +167,14 @@ impl ActionHandler for UnsignedTransaction {
                     .check_stateless()
                     .await
                     .context("stateless check failed for BridgeLockAction")?,
-                Action::FeeChange(act) => act
-                    .check_stateless()
-                    .await
-                    .context("stateless check failed for FeeChangeAction")?,
                 Action::BridgeUnlock(act) => act
                     .check_stateless()
                     .await
                     .context("stateless check failed for BridgeLockAction")?,
+                Action::BridgeSudoChange(act) => act
+                    .check_stateless()
+                    .await
+                    .context("stateless check failed for BridgeSudoChangeAction")?,
             }
         }
         Ok(())
@@ -214,6 +218,10 @@ impl ActionHandler for UnsignedTransaction {
                     .check_stateful(state, from)
                     .await
                     .context("stateful check failed for SudoAddressChangeAction")?,
+                Action::FeeChange(act) => act
+                    .check_stateful(state, from)
+                    .await
+                    .context("stateful check failed for FeeChangeAction")?,
                 Action::Ibc(_) => {
                     ensure!(
                         state
@@ -243,14 +251,14 @@ impl ActionHandler for UnsignedTransaction {
                     .check_stateful(state, from)
                     .await
                     .context("stateful check failed for BridgeLockAction")?,
-                Action::FeeChange(act) => act
-                    .check_stateful(state, from)
-                    .await
-                    .context("stateful check failed for FeeChangeAction")?,
                 Action::BridgeUnlock(act) => act
                     .check_stateful(state, from)
                     .await
                     .context("stateful check failed for BridgeUnlockAction")?,
+                Action::BridgeSudoChange(act) => act
+                    .check_stateful(state, from)
+                    .await
+                    .context("stateful check failed for BridgeSudoChangeAction")?,
             }
         }
 
@@ -298,6 +306,11 @@ impl ActionHandler for UnsignedTransaction {
                         .await
                         .context("execution failed for SudoAddressChangeAction")?;
                 }
+                Action::FeeChange(act) => {
+                    act.execute(state, from)
+                        .await
+                        .context("execution failed for FeeChangeAction")?;
+                }
                 Action::Ibc(act) => {
                     let action = act
                         .clone()
@@ -332,15 +345,15 @@ impl ActionHandler for UnsignedTransaction {
                         .await
                         .context("execution failed for BridgeLockAction")?;
                 }
-                Action::FeeChange(act) => {
-                    act.execute(state, from)
-                        .await
-                        .context("execution failed for FeeChangeAction")?;
-                }
                 Action::BridgeUnlock(act) => {
                     act.execute(state, from)
                         .await
                         .context("execution failed for BridgeUnlockAction")?;
+                }
+                Action::BridgeSudoChange(act) => {
+                    act.execute(state, from)
+                        .await
+                        .context("execution failed for BridgeSudoChangeAction")?;
                 }
             }
         }

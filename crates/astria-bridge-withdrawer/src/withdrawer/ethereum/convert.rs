@@ -113,6 +113,7 @@ fn event_to_bridge_unlock(
             ))?,
         memo: serde_json::to_vec(&memo).wrap_err("failed to serialize memo to json")?,
         fee_asset_id,
+        bridge_address: None,
     };
 
     Ok(Action::BridgeUnlock(action))
@@ -175,6 +176,7 @@ fn event_to_ics20_withdrawal(
         source_channel: channel
             .parse()
             .wrap_err("failed to parse channel from denom")?,
+        bridge_address: None,
     };
     Ok(Action::Ics20Withdrawal(action))
 }
@@ -226,6 +228,7 @@ mod tests {
             })
             .unwrap(),
             fee_asset_id: denom.id(),
+            bridge_address: None,
         };
 
         assert_eq!(action, expected_action);
@@ -265,6 +268,7 @@ mod tests {
             })
             .unwrap(),
             fee_asset_id: denom.id(),
+            bridge_address: None,
         };
 
         assert_eq!(action, expected_action);
@@ -318,6 +322,7 @@ mod tests {
             timeout_height: IbcHeight::new(u64::MAX, u64::MAX).unwrap(),
             timeout_time: 0, // zero this for testing
             source_channel: "channel-0".parse().unwrap(),
+            bridge_address: None,
         };
         assert_eq!(action, expected_action);
     }

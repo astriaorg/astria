@@ -82,6 +82,9 @@ impl ActionHandler for InitBridgeAccountAction {
         state
             .put_bridge_account_asset_id(&from, &self.asset_id)
             .context("failed to put asset ID")?;
+        state.put_bridge_account_sudo_address(&from, &self.sudo_address.unwrap_or(from));
+        state
+            .put_bridge_account_withdrawer_address(&from, &self.withdrawer_address.unwrap_or(from));
 
         state
             .decrease_balance(from, self.fee_asset_id, fee)

@@ -84,6 +84,10 @@ pub(crate) async fn check_balance_for_total_fees<S: StateReadExt + 'static>(
         .get_bridge_lock_byte_cost_multiplier()
         .await
         .context("failed to get bridge lock byte cost multiplier")?;
+    let bridge_sudo_change_fee = state
+        .get_bridge_sudo_change_base_fee()
+        .await
+        .context("failed to get bridge sudo change fee")?;
 
     let mut fees_by_asset = HashMap::new();
     for action in &tx.actions {
@@ -121,13 +125,19 @@ pub(crate) async fn check_balance_for_total_fees<S: StateReadExt + 'static>(
             Action::BridgeUnlock(act) => {
                 bridge_unlock_update_fees(
                     state,
-                    from,
+                    act.bridge_address.unwrap_or(from),
                     act.amount,
                     act.fee_asset_id,
                     &mut fees_by_asset,
                     transfer_fee,
                 )
                 .await?;
+            }
+            Action::BridgeSudoChange(act) => {
+                fees_by_asset
+                    .entry(act.fee_asset_id)
+                    .and_modify(|amt| *amt = amt.saturating_add(bridge_sudo_change_fee))
+                    .or_insert(bridge_sudo_change_fee);
             }
             Action::ValidatorUpdate(_)
             | Action::SudoAddressChange(_)
@@ -236,14 +246,14 @@ fn bridge_lock_update_fees(
 
 async fn bridge_unlock_update_fees<S: StateReadExt>(
     state: &S,
-    from: Address,
+    bridge_address: Address,
     amount: u128,
     fee_asset_id: asset::Id,
     fees_by_asset: &mut HashMap<asset::Id, u128>,
     transfer_fee: u128,
 ) -> anyhow::Result<()> {
     let asset_id = state
-        .get_bridge_account_asset_id(&from)
+        .get_bridge_account_asset_id(&bridge_address)
         .await
         .context("must be a bridge account for BridgeUnlock action")?;
     fees_by_asset
@@ -299,6 +309,7 @@ mod test {
         state_tx.put_ics20_withdrawal_base_fee(1).unwrap();
         state_tx.put_init_bridge_account_base_fee(12);
         state_tx.put_bridge_lock_byte_cost_multiplier(1);
+        state_tx.put_bridge_sudo_change_base_fee(24);
 
         crate::asset::initialize_native_asset(DEFAULT_NATIVE_ASSET_DENOM);
         let native_asset = crate::asset::get_native_asset().id();
@@ -366,6 +377,7 @@ mod test {
         state_tx.put_ics20_withdrawal_base_fee(1).unwrap();
         state_tx.put_init_bridge_account_base_fee(12);
         state_tx.put_bridge_lock_byte_cost_multiplier(1);
+        state_tx.put_bridge_sudo_change_base_fee(24);
 
         crate::asset::initialize_native_asset(DEFAULT_NATIVE_ASSET_DENOM);
         let native_asset = crate::asset::get_native_asset().id();
