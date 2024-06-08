@@ -94,6 +94,7 @@ impl Submitter {
     pub(super) async fn run(mut self) -> eyre::Result<()> {
         // call startup
         let startup = self.startup().await?;
+
         self.startup_tx
             .send(startup)
             .map_err(|_startup| eyre!("failed to send startup info to watcher"))?;
@@ -140,8 +141,26 @@ impl Submitter {
         Ok(())
     }
 
-    /// Confirms the config values used for initialization against the sequencer node's cometbft
-    /// instance and set the submitter state to ready.
+    /// Confirms configuration values against the sequencer node and then syncs the next sequencer
+    /// nonce and rollup block according to the latest on-chain state.
+    ///
+    /// Configuration values checked:
+    /// - `self.chain_id` matches the value returned from the sequencer node's genesis
+    /// - `self.fee_asset_id` is a valid fee asset on the sequencer node
+    /// - `self.sequencer_key.address` has a sufficient balance of `self.fee_asset_id`
+    ///
+    /// Sync process:
+    /// - Fetch the last transaction hash by the bridge account from the sequencer
+    /// - Fetch the corresponding transaction
+    /// - Extract the last nonce used from the transaction
+    /// - Extract the rollup block height from the memo of one of the withdraw actions in the
+    ///   transaction
+    ///
+    /// # Returns
+    /// A struct with the information collected and validated during startup:
+    /// - `fee_asset_id`
+    /// - `next_batch_rollup_height`
+    /// - `next_sequencer_nonce`
     ///
     /// # Errors
     ///
@@ -187,14 +206,15 @@ impl Submitter {
         );
 
         // sync to latest on-chain state
-        let last_batch_rollup_height = self.sync().await?;
+        let (next_sequencer_nonce, next_batch_rollup_height) = self.sync().await?;
 
         self.state.set_submitter_ready();
 
         // send startup info to watcher
         let startup = SequencerStartupInfo {
             fee_asset_id: self.expected_fee_asset_id,
-            last_batch_rollup_height,
+            next_batch_rollup_height,
+            next_sequencer_nonce,
         };
         Ok(startup)
     }
@@ -207,6 +227,9 @@ impl Submitter {
     /// The rollup height is extracted from the block height value in the memo of one of the actions
     /// in the batch.
     ///
+    /// # Returns
+    /// A tuple of the next nonce and the next batch rollup height.
+    ///
     /// # Errors
     ///
     /// 1. Failing to get and deserialize a valid last transaction by the bridge account from the
@@ -215,10 +238,11 @@ impl Submitter {
     ///    the sequencer logic)
     /// 3. The last transaction by the bridge account did not contain a withdrawal action
     /// 4. The memo of the last transaction by the bridge account could not be parsed
-    async fn sync(&mut self) -> eyre::Result<u64> {
+    async fn sync(&mut self) -> eyre::Result<(u32, u64)> {
         let signed_transaction = self.get_last_transaction().await?;
+        let last_nonce = signed_transaction.nonce();
         let last_batch_rollup_height = rollup_height_from_signed_transaction(signed_transaction)?;
-        Ok(last_batch_rollup_height + 1)
+        Ok((last_nonce + 1, last_batch_rollup_height + 1))
     }
 
     async fn get_last_transaction(&self) -> eyre::Result<SignedTransaction> {
@@ -243,7 +267,8 @@ impl Submitter {
         // check that the transaction actually executed
         ensure!(
             last_transaction.tx_result.code == tendermint::abci::Code::Ok,
-            "last transaction by the bridge account failed to execute"
+            "last transaction by the bridge account failed to execute. this should not happen in \
+             the sequencer logic."
         );
 
         let proto_tx =

@@ -172,7 +172,8 @@ impl Watcher {
         // wait for submitter to be ready
         let SequencerStartupInfo {
             fee_asset_id,
-            last_batch_rollup_height,
+            next_batch_rollup_height: last_batch_rollup_height,
+            ..
         } = self.submitter_handle.recv_startup_info().await?;
 
         // connect to eth node
@@ -542,7 +543,8 @@ mod tests {
         startup_tx
             .send(SequencerStartupInfo {
                 fee_asset_id: denom.id(),
-                last_batch_rollup_height: 0,
+                next_batch_rollup_height: 0,
+                next_sequencer_nonce: 0,
             })
             .unwrap();
 
@@ -631,7 +633,8 @@ mod tests {
         startup_tx
             .send(SequencerStartupInfo {
                 fee_asset_id: denom.id(),
-                last_batch_rollup_height: 0,
+                next_batch_rollup_height: 0,
+                next_sequencer_nonce: 0,
             })
             .unwrap();
 
@@ -746,7 +749,8 @@ mod tests {
         startup_tx
             .send(SequencerStartupInfo {
                 fee_asset_id: denom.id(),
-                last_batch_rollup_height: 0,
+                next_batch_rollup_height: 0,
+                next_sequencer_nonce: 0,
             })
             .unwrap();
 
@@ -845,7 +849,8 @@ mod tests {
         startup_tx
             .send(SequencerStartupInfo {
                 fee_asset_id: asset::Id::from_denom("transfer/channel-0/utia"),
-                last_batch_rollup_height: 0,
+                next_batch_rollup_height: 0,
+                next_sequencer_nonce: 0,
             })
             .unwrap();
 
