@@ -18,7 +18,6 @@ pub struct Config {
     // The fee asset denomination to use for the bridge account's transactions.
     pub fee_asset_denomination: String,
     // The minimum expected balance of the fee asset in the bridge account.
-    // TODO: This should be a u128, but the test fails to parse it as such.
     pub min_expected_fee_asset_balance: u64,
     // The asset denomination being withdrawn from the rollup.
     pub rollup_asset_denomination: String,
