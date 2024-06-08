@@ -68,18 +68,22 @@ impl Service {
             fee_asset_denomination,
             ethereum_contract_address,
             ethereum_rpc_endpoint,
+            rollup_asset_denomination,
+            min_expected_fee_asset_balance,
             ..
         } = cfg;
 
         let state = Arc::new(State::new());
 
         // make submitter object
-        let (submitter, batch_tx) = submitter::Builder {
+        let (submitter, submitter_handle) = submitter::Builder {
             shutdown_token: shutdown_handle.token(),
             sequencer_cometbft_endpoint,
             sequencer_chain_id,
             sequencer_key_path,
             state: state.clone(),
+            expected_fee_asset_id: asset::Id::from_denom(&fee_asset_denomination),
+            min_expected_fee_asset_balance: u128::from(min_expected_fee_asset_balance),
         }
         .build()
         .wrap_err("failed to initialize submitter")?;
@@ -90,11 +94,10 @@ impl Service {
         let ethereum_watcher = watcher::Builder {
             ethereum_contract_address,
             ethereum_rpc_endpoint,
-            batch_tx,
+            submitter_handle,
             shutdown_token: shutdown_handle.token(),
             state: state.clone(),
-            fee_asset_id: asset::Id::from_denom(&fee_asset_denomination),
-            rollup_asset_denom: asset::Denom::from(cfg.rollup_asset_denomination),
+            rollup_asset_denom: asset::Denom::from(rollup_asset_denomination),
             bridge_address: sequencer_bridge_address,
         }
         .build()
@@ -180,6 +183,11 @@ impl Service {
         );
         shutdown.run().await;
     }
+}
+
+#[derive(Debug)]
+pub struct SequencerStartupInfo {
+    pub fee_asset_id: asset::Id,
 }
 
 /// A handle for instructing the [`Service`] to shut down.
