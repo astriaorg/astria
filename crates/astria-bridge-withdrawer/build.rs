@@ -9,21 +9,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Abigen::new(
         "IAstriaWithdrawer",
-        "./ethereum/out/IAstriaWithdrawer.sol/IAstriaWithdrawer.json",
+        "./astria-bridge-contracts/out/IAstriaWithdrawer.sol/IAstriaWithdrawer.json",
     )?
     .generate()?
     .write_to_file("./src/withdrawer/ethereum/generated/astria_withdrawer_interface.rs")?;
 
     Abigen::new(
         "AstriaWithdrawer",
-        "./ethereum/out/AstriaWithdrawer.sol/AstriaWithdrawer.json",
+        "./astria-bridge-contracts/out/AstriaWithdrawer.sol/AstriaWithdrawer.json",
     )?
     .generate()?
     .write_to_file("./src/withdrawer/ethereum/generated/astria_withdrawer.rs")?;
 
     Abigen::new(
         "AstriaBridgeableERC20",
-        "./ethereum/out/AstriaBridgeableERC20.sol/AstriaBridgeableERC20.json",
+        "./astria-bridge-contracts/out/AstriaBridgeableERC20.sol/AstriaBridgeableERC20.json",
     )?
     .generate()?
     .write_to_file("./src/withdrawer/ethereum/generated/astria_bridgeable_erc20.rs")?;

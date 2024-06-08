@@ -99,11 +99,8 @@ fn event_to_bridge_unlock(
         transaction_hash,
     };
     let action = BridgeUnlockAction {
-        to: Address::builder()
-            .array(event.destination_chain_address.to_fixed_bytes())
-            .prefix(ASTRIA_ADDRESS_PREFIX)
-            .try_build()
-            .wrap_err("failed to construct destination address")?,
+        to: Address::try_from_bech32m(&event.destination_chain_address)
+            .wrap_err("failed to parse destination chain address as bech32m")?,
         amount: event
             .amount
             .as_u128()
@@ -202,7 +199,12 @@ mod tests {
             event: WithdrawalEvent::Sequencer(SequencerWithdrawalFilter {
                 sender: [0u8; 20].into(),
                 amount: 99.into(),
-                destination_chain_address: [1u8; 20].into(),
+                destination_chain_address: Address::builder()
+                    .array([1u8; 20])
+                    .prefix(ASTRIA_ADDRESS_PREFIX)
+                    .try_build()
+                    .unwrap()
+                    .to_string(),
             }),
             block_number: 1.into(),
             transaction_hash: [2u8; 32].into(),
@@ -241,7 +243,12 @@ mod tests {
             event: WithdrawalEvent::Sequencer(SequencerWithdrawalFilter {
                 sender: [0u8; 20].into(),
                 amount: 990.into(),
-                destination_chain_address: [1u8; 20].into(),
+                destination_chain_address: Address::builder()
+                    .array([1u8; 20])
+                    .prefix(ASTRIA_ADDRESS_PREFIX)
+                    .try_build()
+                    .unwrap()
+                    .to_string(),
             }),
             block_number: 1.into(),
             transaction_hash: [2u8; 32].into(),

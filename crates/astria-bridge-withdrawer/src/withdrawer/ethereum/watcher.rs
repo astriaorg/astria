@@ -414,7 +414,13 @@ fn address_from_string(s: &str) -> Result<ethers::types::Address> {
 
 #[cfg(test)]
 mod tests {
-    use astria_core::protocol::transaction::v1alpha1::Action;
+    use astria_core::{
+        primitive::v1::{
+            Address,
+            ASTRIA_ADDRESS_PREFIX,
+        },
+        protocol::transaction::v1alpha1::Action,
+    };
     use ethers::{
         prelude::SignerMiddleware,
         providers::Middleware,
@@ -465,9 +471,11 @@ mod tests {
     async fn send_sequencer_withdraw_transaction<M: Middleware>(
         contract: &AstriaWithdrawer<M>,
         value: U256,
-        recipient: ethers::types::Address,
+        recipient: Address,
     ) -> TransactionReceipt {
-        let tx = contract.withdraw_to_sequencer(recipient).value(value);
+        let tx = contract
+            .withdraw_to_sequencer(recipient.to_string())
+            .value(value);
         let receipt = tx
             .send()
             .await
@@ -489,6 +497,7 @@ mod tests {
     async fn astria_withdrawer_invalid_value_fails() {
         let (contract_address, provider, wallet, _anvil) = ConfigureAstriaWithdrawerDeployer {
             base_chain_asset_precision: 15,
+            ..Default::default()
         }
         .deploy()
         .await;
@@ -496,8 +505,14 @@ mod tests {
         let contract = AstriaWithdrawer::new(contract_address, signer.clone());
 
         let value: U256 = 999.into(); // 10^3 - 1
-        let recipient = [0u8; 20].into();
-        let tx = contract.withdraw_to_sequencer(recipient).value(value);
+        let recipient = Address::builder()
+            .array([1u8; 20])
+            .prefix(ASTRIA_ADDRESS_PREFIX)
+            .try_build()
+            .unwrap();
+        let tx = contract
+            .withdraw_to_sequencer(recipient.to_string())
+            .value(value);
         tx.send()
             .await
             .expect_err("`withdraw` transaction should have failed due to value < 10^3");
@@ -512,12 +527,16 @@ mod tests {
         let contract = AstriaWithdrawer::new(contract_address, signer.clone());
 
         let value = 1_000_000_000.into();
-        let recipient = [0u8; 20].into();
+        let recipient = Address::builder()
+            .array([1u8; 20])
+            .prefix(ASTRIA_ADDRESS_PREFIX)
+            .try_build()
+            .unwrap();
         let receipt = send_sequencer_withdraw_transaction(&contract, value, recipient).await;
         let expected_event = EventWithMetadata {
             event: WithdrawalEvent::Sequencer(SequencerWithdrawalFilter {
                 sender: wallet.address(),
-                destination_chain_address: recipient,
+                destination_chain_address: recipient.to_string(),
                 amount: value,
             }),
             block_number: receipt.block_number.unwrap(),
@@ -685,9 +704,9 @@ mod tests {
     async fn send_sequencer_withdraw_transaction_erc20<M: Middleware>(
         contract: &AstriaBridgeableERC20<M>,
         value: U256,
-        recipient: ethers::types::Address,
+        recipient: Address,
     ) -> TransactionReceipt {
-        let tx = contract.withdraw_to_sequencer(value, recipient);
+        let tx = contract.withdraw_to_sequencer(value, recipient.to_string());
         let receipt = tx
             .send()
             .await
@@ -720,12 +739,16 @@ mod tests {
         mint_tokens(&contract, 2_000_000_000.into(), wallet.address()).await;
 
         let value = 1_000_000_000.into();
-        let recipient = [0u8; 20].into();
+        let recipient = Address::builder()
+            .array([1u8; 20])
+            .prefix(ASTRIA_ADDRESS_PREFIX)
+            .try_build()
+            .unwrap();
         let receipt = send_sequencer_withdraw_transaction_erc20(&contract, value, recipient).await;
         let expected_event = EventWithMetadata {
             event: WithdrawalEvent::Sequencer(SequencerWithdrawalFilter {
                 sender: wallet.address(),
-                destination_chain_address: recipient,
+                destination_chain_address: recipient.to_string(),
                 amount: value,
             }),
             block_number: receipt.block_number.unwrap(),
