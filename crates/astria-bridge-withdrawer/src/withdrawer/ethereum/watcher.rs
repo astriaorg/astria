@@ -130,7 +130,7 @@ impl Watcher {
         let ics20_withdrawal_event_handler = tokio::task::spawn(watch_for_ics20_withdrawal_events(
             contract,
             event_tx.clone(),
-            1,
+            from_block,
         ));
 
         state.set_watcher_ready();

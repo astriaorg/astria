@@ -265,7 +265,7 @@ impl Submitter {
             _ => panic!("this shouldn't happen, we already filetered for only withdrawal actions"),
         };
 
-        Ok(last_batch_rollup_height.as_u64())
+        Ok(last_batch_rollup_height.as_u64() + 1)
     }
 }
 
