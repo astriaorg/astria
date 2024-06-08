@@ -8,13 +8,22 @@ use std::{
 use astria_core::{
     generated::protocol::account::v1alpha1::NonceResponse,
     primitive::v1::{
-        asset::Denom,
+        asset::{
+            self,
+            Denom,
+        },
         Address,
         ASTRIA_ADDRESS_PREFIX,
     },
-    protocol::transaction::v1alpha1::action::{
-        BridgeUnlockAction,
-        Ics20Withdrawal,
+    protocol::{
+        account::v1alpha1::AssetBalance,
+        transaction::v1alpha1::{
+            action::{
+                BridgeUnlockAction,
+                Ics20Withdrawal,
+            },
+            Action,
+        },
     },
 };
 use astria_eyre::eyre;

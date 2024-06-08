@@ -95,7 +95,7 @@ impl Builder {
                 sequencer_cometbft_client,
                 signer,
                 sequencer_chain_id,
-                startup_tx: Some(startup_tx),
+                startup_tx,
                 expected_fee_asset_id,
                 min_expected_fee_asset_balance,
             },

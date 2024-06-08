@@ -74,7 +74,7 @@ pub(super) struct Submitter {
     sequencer_cometbft_client: sequencer_client::HttpClient,
     signer: SequencerKey,
     sequencer_chain_id: String,
-    startup_tx: Option<oneshot::Sender<SequencerStartupInfo>>,
+    startup_tx: oneshot::Sender<SequencerStartupInfo>,
     expected_fee_asset_id: asset::Id,
     min_expected_fee_asset_balance: u128,
 }
@@ -82,7 +82,10 @@ pub(super) struct Submitter {
 impl Submitter {
     pub(super) async fn run(mut self) -> eyre::Result<()> {
         // call startup
-        self.startup().await?;
+        let startup = self.startup().await?;
+        self.startup_tx
+            .send(startup)
+            .map_err(|_startup| eyre!("failed to send startup info to watcher"))?;
 
         let reason = loop {
             select!(
@@ -98,7 +101,12 @@ impl Submitter {
                         info!("received None from batch channel, shutting down");
                         break Err(eyre!("batch channel closed"));
                     };
-                    if let Err(e) = self.process_batch(actions, rollup_height).await {
+                    if let Err(e) = process_batch(
+                        self.sequencer_cometbft_client.clone(),
+                        &self.signer,
+                        self.state.clone(),
+                        &self.sequencer_chain_id,
+                        actions, rollup_height).await {
                         break Err(e);
                     }
                 }
@@ -129,7 +137,7 @@ impl Submitter {
     /// - `self.chain_id` does not match the value returned from the sequencer node
     /// - `self.fee_asset_id` is not a valid fee asset on the sequencer node
     /// - `self.sequencer_key.address` does not have a sufficient balance of `self.fee_asset_id`.
-    async fn startup(&mut self) -> eyre::Result<()> {
+    async fn startup(&mut self) -> eyre::Result<SequencerStartupInfo> {
         let actual_chain_id =
             get_sequencer_chain_id(self.sequencer_cometbft_client.clone(), self.state.clone())
                 .await?;
@@ -171,86 +179,79 @@ impl Submitter {
         let startup = SequencerStartupInfo {
             fee_asset_id: self.expected_fee_asset_id,
         };
-        self.startup_tx
-            .take()
-            .expect("startup info should only be sent once - this is a bug")
-            .send(startup)
-            .map_err(|_startup| eyre!("failed to send startup info to watcher"))?;
-
-        Ok(())
+        Ok(startup)
     }
+}
 
-    async fn process_batch(
-        &mut self,
-        actions: Vec<Action>,
-        rollup_height: u64,
-    ) -> eyre::Result<()> {
-        // get nonce and make unsigned transaction
-        let nonce = get_latest_nonce(
-            self.sequencer_cometbft_client.clone(),
-            self.signer.address,
-            self.state.clone(),
-        )
-        .await?;
-        debug!(nonce, "fetched latest nonce");
+async fn process_batch(
+    sequencer_cometbft_client: sequencer_client::HttpClient,
+    sequnecer_key: &SequencerKey,
+    state: Arc<State>,
+    sequencer_chain_id: &str,
+    actions: Vec<Action>,
+    rollup_height: u64,
+) -> eyre::Result<()> {
+    // get nonce and make unsigned transaction
+    let nonce = get_latest_nonce(
+        sequencer_cometbft_client.clone(),
+        sequnecer_key.address,
+        state.clone(),
+    )
+    .await?;
+    debug!(nonce, "fetched latest nonce");
 
-        let unsigned = UnsignedTransaction {
-            actions,
-            params: TransactionParams::builder()
-                .nonce(nonce)
-                .chain_id(&self.sequencer_chain_id)
-                .try_build()
-                .context(
-                    "failed to construct transcation parameters from latest nonce and configured \
-                     sequencer chain ID",
-                )?,
-        };
+    let unsigned = UnsignedTransaction {
+        actions,
+        params: TransactionParams::builder()
+            .nonce(nonce)
+            .chain_id(sequencer_chain_id)
+            .try_build()
+            .context(
+                "failed to construct transcation parameters from latest nonce and configured \
+                 sequencer chain ID",
+            )?,
+    };
 
-        // sign transaction
-        let signed = unsigned.into_signed(&self.signer.signing_key);
-        debug!(tx_hash = %telemetry::display::hex(&signed.sha256_of_proto_encoding()), "signed transaction");
+    // sign transaction
+    let signed = unsigned.into_signed(&sequnecer_key.signing_key);
+    debug!(tx_hash = %telemetry::display::hex(&signed.sha256_of_proto_encoding()), "signed transaction");
 
-        // submit transaction and handle response
-        let rsp = submit_tx(
-            self.sequencer_cometbft_client.clone(),
-            signed,
-            self.state.clone(),
-        )
+    // submit transaction and handle response
+    let rsp = submit_tx(sequencer_cometbft_client.clone(), signed, state.clone())
         .await
         .context("failed to submit transaction to to cometbft")?;
-        if let tendermint::abci::Code::Err(check_tx_code) = rsp.check_tx.code {
-            error!(
-                abci.code = check_tx_code,
-                abci.log = rsp.check_tx.log,
-                rollup.height = rollup_height,
-                "transaction failed to be included in the mempool, aborting."
-            );
-            Err(eyre!(
-                "check_tx failure upon submitting transaction to sequencer"
-            ))
-        } else if let tendermint::abci::Code::Err(deliver_tx_code) = rsp.tx_result.code {
-            error!(
-                abci.code = deliver_tx_code,
-                abci.log = rsp.tx_result.log,
-                rollup.height = rollup_height,
-                "transaction failed to be executed in a block, aborting."
-            );
-            Err(eyre!(
-                "deliver_tx failure upon submitting transaction to sequencer"
-            ))
-        } else {
-            // update state after successful submission
-            info!(
-                sequencer.block = rsp.height.value(),
-                sequencer.tx_hash = %rsp.hash,
-                rollup.height = rollup_height,
-                "withdraw batch successfully executed."
-            );
-            self.state.set_last_rollup_height_submitted(rollup_height);
-            self.state.set_last_sequencer_height(rsp.height.value());
-            self.state.set_last_sequencer_tx_hash(rsp.hash);
-            Ok(())
-        }
+    if let tendermint::abci::Code::Err(check_tx_code) = rsp.check_tx.code {
+        error!(
+            abci.code = check_tx_code,
+            abci.log = rsp.check_tx.log,
+            rollup.height = rollup_height,
+            "transaction failed to be included in the mempool, aborting."
+        );
+        Err(eyre!(
+            "check_tx failure upon submitting transaction to sequencer"
+        ))
+    } else if let tendermint::abci::Code::Err(deliver_tx_code) = rsp.tx_result.code {
+        error!(
+            abci.code = deliver_tx_code,
+            abci.log = rsp.tx_result.log,
+            rollup.height = rollup_height,
+            "transaction failed to be executed in a block, aborting."
+        );
+        Err(eyre!(
+            "deliver_tx failure upon submitting transaction to sequencer"
+        ))
+    } else {
+        // update state after successful submission
+        info!(
+            sequencer.block = rsp.height.value(),
+            sequencer.tx_hash = %rsp.hash,
+            rollup.height = rollup_height,
+            "withdraw batch successfully executed."
+        );
+        state.set_last_rollup_height_submitted(rollup_height);
+        state.set_last_sequencer_height(rsp.height.value());
+        state.set_last_sequencer_tx_hash(rsp.hash);
+        Ok(())
     }
 }
 

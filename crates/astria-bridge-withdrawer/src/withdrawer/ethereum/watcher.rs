@@ -53,8 +53,6 @@ use crate::withdrawer::{
     SequencerStartupInfo,
 };
 
-type AstriaWithdrawerContractHandle = AstriaWithdrawer<Provider<Ws>>;
-
 /// Watches for withdrawal events emitted by the `AstriaWithdrawer` contract.
 pub(crate) struct Watcher {
     // contract: AstriaWithdrawer<Provider<Ws>>,
@@ -165,7 +163,7 @@ impl Watcher {
         &mut self,
     ) -> eyre::Result<(
         Arc<Provider<Ws>>,
-        AstriaWithdrawerContractHandle,
+        IAstriaWithdrawer<Provider<Ws>>,
         asset::Id,
         u128,
     )> {
@@ -187,7 +185,7 @@ impl Watcher {
                         attempt,
                         wait_duration,
                         error = error as &dyn std::error::Error,
-                        "attempt to connect to geth node failed; retrying after backoff",
+                        "attempt to connect to rollup node failed; retrying after backoff",
                     );
                     futures::future::ready(())
                 },
@@ -202,11 +200,11 @@ impl Watcher {
         })
         .with_config(retry_config)
         .await
-        .wrap_err("failed connecting to geth after several retries; giving up")?;
+        .wrap_err("failed connecting to rollup after several retries; giving up")?;
         let provider = Arc::new(provider);
 
         // get contract handle
-        let contract = AstriaWithdrawer::new(self.contract_address, provider.clone());
+        let contract = IAstriaWithdrawer::new(self.contract_address, provider.clone());
 
         // get asset withdrawal decimals
         let base_chain_asset_precision = contract
@@ -214,7 +212,11 @@ impl Watcher {
             .call()
             .await
             .wrap_err("failed to get asset withdrawal decimals")?;
-        let asset_withdrawal_divisor = 10u128.pow(base_chain_asset_precision);
+        let asset_withdrawal_divisor =
+            10u128.pow(18u32.checked_sub(base_chain_asset_precision).expect(
+                "base_chain_asset_precision must be <= 18, as the contract constructor enforces \
+                 this",
+            ));
 
         self.state.set_watcher_ready();
 
@@ -525,7 +527,7 @@ mod tests {
         };
         let denom: Denom = Denom::from_base_denom("nria");
         let expected_action =
-            event_to_action(expected_event, denom.id(), denom.clone(), 10u128.pow(18)).unwrap();
+            event_to_action(expected_event, denom.id(), denom.clone(), 1).unwrap();
         let Action::BridgeUnlock(expected_action) = expected_action else {
             panic!("expected action to be BridgeUnlock, got {expected_action:?}");
         };
@@ -535,7 +537,7 @@ mod tests {
         let submitter_handle = submitter::Handle::new(startup_rx, batch_tx);
         startup_tx
             .send(SequencerStartupInfo {
-                fee_asset_id: asset::Id::from_denom("nria"),
+                fee_asset_id: denom.id(),
             })
             .unwrap();
 
@@ -612,7 +614,7 @@ mod tests {
         };
         let denom = Denom::from("transfer/channel-0/utia".to_string());
         let Action::Ics20Withdrawal(mut expected_action) =
-            event_to_action(expected_event, denom.id(), denom.clone(), 10u128.pow(18)).unwrap()
+            event_to_action(expected_event, denom.id(), denom.clone(), 1).unwrap()
         else {
             panic!("expected action to be Ics20Withdrawal");
         };
@@ -623,7 +625,7 @@ mod tests {
         let submitter_handle = submitter::Handle::new(startup_rx, batch_tx);
         startup_tx
             .send(SequencerStartupInfo {
-                fee_asset_id: asset::Id::from_denom("transfer/channel-0/utia"),
+                fee_asset_id: denom.id(),
             })
             .unwrap();
 
@@ -732,11 +734,19 @@ mod tests {
             panic!("expected action to be BridgeUnlock, got {expected_action:?}");
         };
 
-        let (event_tx, mut event_rx) = mpsc::channel(100);
+        let (batch_tx, mut batch_rx) = mpsc::channel(100);
+        let (startup_tx, startup_rx) = oneshot::channel();
+        let submitter_handle = submitter::Handle::new(startup_rx, batch_tx);
+        startup_tx
+            .send(SequencerStartupInfo {
+                fee_asset_id: denom.id(),
+            })
+            .unwrap();
+
         let watcher = Watcher::new(
             &hex::encode(contract_address),
             &anvil.ws_endpoint(),
-            event_tx,
+            submitter_handle,
             &CancellationToken::new(),
             Arc::new(State::new()),
             denom,
@@ -748,7 +758,7 @@ mod tests {
         // make another tx to trigger anvil to make another block
         send_sequencer_withdraw_transaction_erc20(&contract, value, recipient).await;
 
-        let batch = event_rx.recv().await.unwrap();
+        let batch = batch_rx.recv().await.unwrap();
         assert_eq!(batch.actions.len(), 1);
         let Action::BridgeUnlock(action) = &batch.actions[0] else {
             panic!(
@@ -822,11 +832,19 @@ mod tests {
         };
         expected_action.timeout_time = 0; // zero this for testing
 
-        let (event_tx, mut event_rx) = mpsc::channel(100);
+        let (batch_tx, mut batch_rx) = mpsc::channel(100);
+        let (startup_tx, startup_rx) = oneshot::channel();
+        let submitter_handle = submitter::Handle::new(startup_rx, batch_tx);
+        startup_tx
+            .send(SequencerStartupInfo {
+                fee_asset_id: asset::Id::from_denom("transfer/channel-0/utia"),
+            })
+            .unwrap();
+
         let watcher = Watcher::new(
             &hex::encode(contract_address),
             &anvil.ws_endpoint(),
-            event_tx,
+            submitter_handle,
             &CancellationToken::new(),
             Arc::new(State::new()),
             denom,
@@ -838,7 +856,7 @@ mod tests {
         // make another tx to trigger anvil to make another block
         send_ics20_withdraw_transaction_astria_bridgeable_erc20(&contract, value, recipient).await;
 
-        let mut batch = event_rx.recv().await.unwrap();
+        let mut batch = batch_rx.recv().await.unwrap();
         assert_eq!(batch.actions.len(), 1);
         let Action::Ics20Withdrawal(ref mut action) = batch.actions[0] else {
             panic!(
