@@ -199,7 +199,29 @@ impl Submitter {
         Ok(startup)
     }
 
+    /// Gets the data necessary for syncing to the latest on-chain state from the sequencer. Since
+    /// we batch all events from a given rollup block into a single sequencer transaction, we
+    /// get the last tx finalized by the bridge account on the sequencer and extract the rollup
+    /// height from it.
+    ///
+    /// The rollup height is extracted from the block height value in the memo of one of the actions
+    /// in the batch.
+    ///
+    /// # Errors
+    ///
+    /// 1. Failing to get and deserialize a valid last transaction by the bridge account from the
+    ///    sequencer.
+    /// 2. The last transaction by the bridge account failed to execute (this should not happen in
+    ///    the sequencer logic)
+    /// 3. The last transaction by the bridge account did not contain a withdrawal action
+    /// 4. The memo of the last transaction by the bridge account could not be parsed
     async fn sync(&mut self) -> eyre::Result<u64> {
+        let signed_transaction = self.get_last_transaction().await?;
+        let last_batch_rollup_height = rollup_height_from_signed_transaction(signed_transaction)?;
+        Ok(last_batch_rollup_height + 1)
+    }
+
+    async fn get_last_transaction(&self) -> eyre::Result<SignedTransaction> {
         // get last transaction hash by the bridge account
         let last_transaction_hash_resp = get_bridge_account_last_transaction_hash(
             self.sequencer_cometbft_client.clone(),
@@ -239,33 +261,7 @@ impl Submitter {
             "fetched last transaction by the bridge account"
         );
 
-        // find the last batch's rollup block height
-        let withdrawal_action = tx
-            .actions()
-            .into_iter()
-            .find_map(|action| match action {
-                Action::BridgeUnlock(_) | Action::Ics20Withdrawal(_) => Some(action),
-                _ => None,
-            })
-            .ok_or_eyre(
-                "last transaction by the bridge account did not contain a withdrawal action",
-            )?;
-
-        let last_batch_rollup_height = match withdrawal_action {
-            Action::BridgeUnlock(action) => {
-                let memo: BridgeUnlockMemo = serde_json::from_slice(&action.memo)
-                    .wrap_err("failed to parse memo from last transaction by the bridge account")?;
-                memo.block_number
-            }
-            Action::Ics20Withdrawal(action) => {
-                let memo: Ics20WithdrawalMemo = serde_json::from_str(&action.memo)
-                    .wrap_err("failed to parse memo from last transaction by the bridge account")?;
-                memo.block_number
-            }
-            _ => panic!("this shouldn't happen, we already filetered for only withdrawal actions"),
-        };
-
-        Ok(last_batch_rollup_height.as_u64() + 1)
+        Ok(tx)
     }
 }
 
@@ -648,4 +644,40 @@ async fn get_tx(
     state.set_sequencer_connected(res.is_ok());
 
     res
+}
+
+fn rollup_height_from_signed_transaction(
+    signed_transaction: SignedTransaction,
+) -> eyre::Result<u64> {
+    // find the last batch's rollup block height
+    let withdrawal_action = signed_transaction
+        .actions()
+        .into_iter()
+        .find_map(|action| match action {
+            Action::BridgeUnlock(_) | Action::Ics20Withdrawal(_) => Some(action),
+            _ => None,
+        })
+        .ok_or_eyre("last transaction by the bridge account did not contain a withdrawal action")?;
+
+    let last_batch_rollup_height = match withdrawal_action {
+        Action::BridgeUnlock(action) => {
+            let memo: BridgeUnlockMemo = serde_json::from_slice(&action.memo)
+                .wrap_err("failed to parse memo from last transaction by the bridge account")?;
+            Some(memo.block_number.as_u64())
+        }
+        Action::Ics20Withdrawal(action) => {
+            let memo: Ics20WithdrawalMemo = serde_json::from_str(&action.memo)
+                .wrap_err("failed to parse memo from last transaction by the bridge account")?;
+            Some(memo.block_number.as_u64())
+        }
+        _ => None,
+    }
+    .expect("action is already checked to be either BridgeUnlock or Ics20Withdrawal");
+
+    info!(
+        last_batch.sequencer_hash = %telemetry::display::hex(&signed_transaction.sha256_of_proto_encoding()),
+        last_batch.rollup_height= last_batch_rollup_height,
+        "extracted rollup height from last batch of withdrawals.");
+
+    Ok(last_batch_rollup_height)
 }
