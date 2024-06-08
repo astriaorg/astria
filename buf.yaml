@@ -70,13 +70,20 @@ modules:
   - path: proto/sequencerblockapis
     name: buf.build/astria/sequencerblock-apis
     lint:
+      ignore_only:
+        PACKAGE_VERSION_SUFFIX:
+          - proto/sequencerblockapis/astria_vendored_sequencerblock/tendermint
+        ENUM_ZERO_VALUE_SUFFIX:
+          - proto/sequencerblockapis/astria_vendored_sequencerblock/tendermint
+        PACKAGE_DIRECTORY_MATCH:
+          - proto/sequencerblockapis/astria_vendored_sequencerblock/tendermint
       use:
         - BASIC
         - ENUM_VALUE_PREFIX
         - ENUM_ZERO_VALUE_SUFFIX
         - FILE_LOWER_SNAKE_CASE
-        - PACKAGE_VERSION_SUFFIX
         - RPC_REQUEST_STANDARD_NAME
+        - PACKAGE_VERSION_SUFFIX
         - SERVICE_SUFFIX
       disallow_comment_ignores: true
     breaking:

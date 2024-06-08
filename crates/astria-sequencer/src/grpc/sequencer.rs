@@ -1,18 +1,32 @@
 use std::sync::Arc;
 
+use anyhow::Context as _;
 use astria_core::{
     generated::sequencerblock::v1alpha1::{
         sequencer_service_server::SequencerService,
-        FilteredSequencerBlock as RawFilteredSequencerBlock,
+        ChainId,
+        Commit,
+        FilteredSequencerBlock,
+        GetAbciInfoRequest,
+        GetChainIdRequest,
+        GetCommitRequest,
         GetFilteredSequencerBlockRequest,
         GetPendingNonceRequest,
         GetPendingNonceResponse,
         GetSequencerBlockRequest,
-        SequencerBlock as RawSequencerBlock,
+        GetValidatorsRequest,
+        SequencerBlock,
+        Validators,
     },
     primitive::v1::RollupId,
 };
 use cnidarium::Storage;
+use tendermint_proto::abci::ResponseInfo;
+use tendermint_rpc::{
+    Client,
+    HttpClient,
+    Paging,
+};
 use tonic::{
     Request,
     Response,
@@ -33,14 +47,38 @@ use crate::{
 pub(crate) struct SequencerServer {
     storage: Storage,
     mempool: Mempool,
+    cometbft_client: HttpClient,
 }
 
 impl SequencerServer {
-    pub(crate) fn new(storage: Storage, mempool: Mempool) -> Self {
-        Self {
+    pub(crate) fn new(
+        storage: Storage,
+        mempool: Mempool,
+        cometbft_rpc_addr: &str,
+    ) -> anyhow::Result<Self> {
+        let cometbft_client = HttpClient::new(cometbft_rpc_addr)
+            .context("failed to construct cometbft RPC client")?;
+
+        Ok(Self {
             storage,
             mempool,
+            cometbft_client,
+        })
+    }
+
+    async fn validate_height(&self, request_height: u64) -> Result<(), Status> {
+        let snapshot = self.storage.latest_snapshot();
+        let curr_block_height = snapshot.get_block_height().await.map_err(|e| {
+            Status::internal(format!("failed to get block height from storage: {e}"))
+        })?;
+
+        if curr_block_height < request_height {
+            return Err(Status::invalid_argument(
+                "requested height is greater than current block height",
+            ));
         }
+
+        Ok(())
     }
 }
 
@@ -51,19 +89,10 @@ impl SequencerService for SequencerServer {
     async fn get_sequencer_block(
         self: Arc<Self>,
         request: Request<GetSequencerBlockRequest>,
-    ) -> Result<Response<RawSequencerBlock>, Status> {
-        let snapshot = self.storage.latest_snapshot();
-        let curr_block_height = snapshot.get_block_height().await.map_err(|e| {
-            Status::internal(format!("failed to get block height from storage: {e}"))
-        })?;
-
+    ) -> Result<Response<SequencerBlock>, Status> {
         let request = request.into_inner();
-
-        if curr_block_height < request.height {
-            return Err(Status::invalid_argument(
-                "requested height is greater than current block height",
-            ));
-        }
+        self.validate_height(request.height).await?;
+        let snapshot = self.storage.latest_snapshot();
 
         let block = snapshot
             .get_sequencer_block_by_height(request.height)
@@ -81,19 +110,10 @@ impl SequencerService for SequencerServer {
     async fn get_filtered_sequencer_block(
         self: Arc<Self>,
         request: Request<GetFilteredSequencerBlockRequest>,
-    ) -> Result<Response<RawFilteredSequencerBlock>, Status> {
-        let snapshot = self.storage.latest_snapshot();
-        let curr_block_height = snapshot.get_block_height().await.map_err(|e| {
-            Status::internal(format!("failed to get block height from storage: {e}"))
-        })?;
-
+    ) -> Result<Response<FilteredSequencerBlock>, Status> {
         let request = request.into_inner();
-
-        if curr_block_height < request.height {
-            return Err(Status::invalid_argument(
-                "requested height is greater than current block height",
-            ));
-        }
+        self.validate_height(request.height).await?;
+        let snapshot = self.storage.latest_snapshot();
 
         let rollup_ids = request
             .rollup_ids
@@ -150,7 +170,7 @@ impl SequencerService for SequencerServer {
 
         let all_rollup_ids = all_rollup_ids.into_iter().map(RollupId::to_vec).collect();
 
-        let block = RawFilteredSequencerBlock {
+        let block = FilteredSequencerBlock {
             block_hash: block_hash.to_vec(),
             header: Some(header.into_raw()),
             rollup_transactions,
@@ -160,6 +180,102 @@ impl SequencerService for SequencerServer {
         };
 
         Ok(Response::new(block))
+    }
+
+    #[instrument(skip_all)]
+    async fn get_chain_id(
+        self: Arc<Self>,
+        _: Request<GetChainIdRequest>,
+    ) -> Result<Response<ChainId>, Status> {
+        let snapshot = self.storage.latest_snapshot();
+
+        let chain_id = snapshot
+            .get_chain_id()
+            .await
+            .map_err(|e| Status::internal(format!("failed to get chain id from storage: {e}")))?;
+
+        Ok(Response::new(ChainId {
+            inner: chain_id.to_string(),
+        }))
+    }
+
+    #[instrument(skip_all)]
+    async fn get_commit(
+        self: Arc<Self>,
+        request: Request<GetCommitRequest>,
+    ) -> Result<Response<Commit>, Status> {
+        let request = request.into_inner();
+        self.validate_height(request.height).await?;
+
+        let height: u32 = request
+            .height
+            .try_into()
+            .map_err(|_| Status::invalid_argument("height is too large to fit into an u32"))?;
+
+        let resp =
+            self.cometbft_client.commit(height).await.map_err(|e| {
+                Status::internal(format!("failed to get commit from cometbft: {e}"))
+            })?;
+
+        let resp = Commit {
+            signed_header: Some(resp.signed_header.into()),
+            canonical: resp.canonical,
+        };
+
+        Ok(Response::new(resp))
+    }
+
+    #[instrument(skip_all)]
+    async fn get_validators(
+        self: Arc<Self>,
+        request: Request<GetValidatorsRequest>,
+    ) -> Result<Response<Validators>, Status> {
+        let request = request.into_inner();
+        self.validate_height(request.height).await?;
+
+        let height: u32 = request
+            .height
+            .try_into()
+            .map_err(|_| Status::invalid_argument("height is too large to fit into an u32"))?;
+
+        let resp = self
+            .cometbft_client
+            .validators(height, Paging::Default)
+            .await
+            .map_err(|e| Status::internal(format!("failed to get commit from cometbft: {e}")))?;
+
+        let resp = Validators {
+            validators: resp.validators.into_iter().map(Into::into).collect(),
+            height: resp.block_height.into(),
+            total: resp.total,
+        };
+
+        Ok(Response::new(resp))
+    }
+
+    #[instrument(skip_all)]
+    async fn get_abci_info(
+        self: Arc<Self>,
+        _: Request<GetAbciInfoRequest>,
+    ) -> Result<Response<ResponseInfo>, Status> {
+        let snapshot = self.storage.latest_snapshot();
+        let block_height = snapshot.get_block_height().await.unwrap_or(0);
+        let app_hash = snapshot
+            .root_hash()
+            .await
+            .map_err(|e| Status::internal(format!("failed to get app hash from storage: {e}")))?;
+
+        let response = ResponseInfo {
+            version: env!("CARGO_PKG_VERSION").to_string(),
+            app_version: 1,
+            last_block_height: u32::try_from(block_height)
+                .expect("block height must fit into u32")
+                .into(),
+            last_block_app_hash: app_hash.0.to_vec().into(),
+            data: "astria_sequencer".to_string(),
+        };
+
+        Ok(Response::new(response))
     }
 
     #[instrument(skip_all)]
@@ -242,7 +358,9 @@ mod test {
         state_tx.put_sequencer_block(block.clone()).unwrap();
         storage.commit(state_tx).await.unwrap();
 
-        let server = Arc::new(SequencerServer::new(storage.clone(), mempool));
+        let server = Arc::new(
+            SequencerServer::new(storage.clone(), mempool, "http://localhost:26657").unwrap(),
+        );
         let request = GetSequencerBlockRequest {
             height: 1,
         };
@@ -266,7 +384,9 @@ mod test {
         let tx = crate::app::test_utils::get_mock_tx(lower_nonce);
         mempool.insert(tx, 0).await.unwrap();
 
-        let server = Arc::new(SequencerServer::new(storage.clone(), mempool));
+        let server = Arc::new(
+            SequencerServer::new(storage.clone(), mempool, "http://localhost:26657").unwrap(),
+        );
         let request = GetPendingNonceRequest {
             address: Some(address.into_raw()),
         };
@@ -286,7 +406,9 @@ mod test {
         state_tx.put_account_nonce(address, 99).unwrap();
         storage.commit(state_tx).await.unwrap();
 
-        let server = Arc::new(SequencerServer::new(storage.clone(), mempool));
+        let server = Arc::new(
+            SequencerServer::new(storage.clone(), mempool, "http://localhost:26657").unwrap(),
+        );
         let request = GetPendingNonceRequest {
             address: Some(address.into_raw()),
         };

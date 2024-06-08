@@ -2,7 +2,8 @@ syntax = "proto3";
 
 package astria_vendored.tendermint.types;
 
-import "astria_vendored/tendermint/version/types.proto";
+import "astria_vendored_sequencerblock/tendermint/version/types.proto";
+import "google/api/field_behavior.proto";
 import "google/protobuf/timestamp.proto";
 
 // This file contains types which are copied from the cosmossdk tendermint types
@@ -22,6 +23,13 @@ message BlockID {
   PartSetHeader part_set_header = 2;
 }
 
+enum BlockIDFlag {
+  BLOCK_ID_FLAG_UNKNOWN = 0;
+  BLOCK_ID_FLAG_ABSENT = 1;
+  BLOCK_ID_FLAG_COMMIT = 2;
+  BLOCK_ID_FLAG_NIL = 3;
+}
+
 message PartSetHeader {
   uint32 total = 1;
   bytes hash = 2;
@@ -29,7 +37,7 @@ message PartSetHeader {
 
 message Header {
   // basic block info
-  tendermint.version.Consensus version = 1;
+  astria_vendored.tendermint.version.Consensus version = 1;
   string chain_id = 2;
   int64 height = 3;
   google.protobuf.Timestamp time = 4;
@@ -47,4 +55,23 @@ message Header {
   // consensus info
   bytes evidence_hash = 13;
   bytes proposer_address = 14;
+}
+
+message Commit {
+  int64 height = 1;
+  int32 round = 2;
+  BlockID block_id = 3 [(google.api.field_behavior) = REQUIRED];
+  repeated CommitSig signatures = 4 [(google.api.field_behavior) = REQUIRED];
+}
+
+message CommitSig {
+  BlockIDFlag block_id_flag = 1;
+  bytes validator_address = 2;
+  google.protobuf.Timestamp timestamp = 3 [(google.api.field_behavior) = REQUIRED];
+  bytes signature = 4;
+}
+
+message SignedHeader {
+  Header header = 1;
+  Commit commit = 2;
 }

@@ -25,12 +25,19 @@ use astria_core::generated::{
             SequencerService,
             SequencerServiceServer,
         },
+        ChainId,
+        Commit,
         FilteredSequencerBlock,
+        GetAbciInfoRequest,
+        GetChainIdRequest,
+        GetCommitRequest,
         GetFilteredSequencerBlockRequest,
         GetPendingNonceRequest,
         GetPendingNonceResponse,
         GetSequencerBlockRequest,
+        GetValidatorsRequest,
         SequencerBlock,
+        Validators,
     },
 };
 use astria_eyre::eyre::{
@@ -38,6 +45,7 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use astria_grpc_mock::MockServer;
+use sequencer_client::tendermint_proto::abci::ResponseInfo;
 use tokio::task::JoinHandle;
 use tonic::{
     transport::Server,
@@ -111,6 +119,34 @@ impl SequencerService for SequencerServiceImpl {
         self.mock_server
             .handle_request("get_filtered_sequencer_block", request)
             .await
+    }
+
+    async fn get_chain_id(
+        self: Arc<Self>,
+        _request: Request<GetChainIdRequest>,
+    ) -> tonic::Result<Response<ChainId>> {
+        unimplemented!()
+    }
+
+    async fn get_commit(
+        self: Arc<Self>,
+        _request: Request<GetCommitRequest>,
+    ) -> tonic::Result<Response<Commit>> {
+        unimplemented!()
+    }
+
+    async fn get_validators(
+        self: Arc<Self>,
+        _request: Request<GetValidatorsRequest>,
+    ) -> tonic::Result<Response<Validators>> {
+        unimplemented!()
+    }
+
+    async fn get_abci_info(
+        self: Arc<Self>,
+        _request: Request<GetAbciInfoRequest>,
+    ) -> tonic::Result<Response<ResponseInfo>> {
+        unimplemented!()
     }
 
     async fn get_pending_nonce(
