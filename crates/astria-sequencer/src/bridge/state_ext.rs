@@ -14,6 +14,7 @@ use astria_core::{
         asset,
         Address,
         RollupId,
+        ASTRIA_ADDRESS_PREFIX,
     },
     sequencerblock::v1alpha1::block::Deposit,
 };
@@ -154,8 +155,11 @@ pub(crate) trait StateReadExt: StateRead {
             return Ok(None);
         };
 
-        let sudo_address =
-            Address::try_from_slice(&sudo_address_bytes).context("invalid sudo address bytes")?;
+        let sudo_address = Address::builder()
+            .slice(sudo_address_bytes)
+            .prefix(ASTRIA_ADDRESS_PREFIX)
+            .try_build()
+            .context("invalid sudo address bytes")?;
         Ok(Some(sudo_address))
     }
 
@@ -175,7 +179,10 @@ pub(crate) trait StateReadExt: StateRead {
             return Ok(None);
         };
 
-        let withdrawer_address = Address::try_from_slice(&withdrawer_address_bytes)
+        let withdrawer_address = Address::builder()
+            .slice(withdrawer_address_bytes)
+            .prefix(ASTRIA_ADDRESS_PREFIX)
+            .try_build()
             .context("invalid withdrawer address bytes")?;
         Ok(Some(withdrawer_address))
     }
@@ -335,7 +342,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     ) {
         self.put_raw(
             bridge_account_sudo_address_storage_key(bridge_address),
-            sudo_address.to_vec(),
+            sudo_address.bytes().to_vec(),
         );
     }
 
@@ -347,7 +354,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     ) {
         self.put_raw(
             bridge_account_withdrawer_address_storage_key(bridge_address),
-            withdrawer_address.to_vec(),
+            withdrawer_address.bytes().to_vec(),
         );
     }
 
@@ -443,7 +450,6 @@ mod test {
     use astria_core::{
         primitive::v1::{
             asset::Id,
-            Address,
             RollupId,
         },
         sequencerblock::v1alpha1::block::Deposit,
@@ -461,7 +467,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let state = StateDelta::new(snapshot);
 
-        let address = Address::try_from_slice(&[42u8; 20]).unwrap();
+        let address = crate::astria_address([42u8; 20]);
 
         // uninitialized ok
         assert_eq!(
@@ -480,7 +486,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         let mut rollup_id = RollupId::new([1u8; 32]);
-        let address = Address::try_from_slice(&[42u8; 20]).unwrap();
+        let address = crate::astria_address([42u8; 20]);
 
         // can write new
         state.put_bridge_account_rollup_id(&address, &rollup_id);
@@ -509,7 +515,7 @@ mod test {
 
         // can write additional account and both valid
         let rollup_id_1 = RollupId::new([2u8; 32]);
-        let address_1 = Address::try_from_slice(&[41u8; 20]).unwrap();
+        let address_1 = crate::astria_address([41u8; 20]);
         state.put_bridge_account_rollup_id(&address_1, &rollup_id_1);
         assert_eq!(
             state
@@ -538,7 +544,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let state = StateDelta::new(snapshot);
 
-        let address = Address::try_from_slice(&[42u8; 20]).unwrap();
+        let address = crate::astria_address([42u8; 20]);
         state
             .get_bridge_account_asset_id(&address)
             .await
@@ -551,7 +557,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        let address = Address::try_from_slice(&[42u8; 20]).unwrap();
+        let address = crate::astria_address([42u8; 20]);
         let mut asset = Id::from_denom("asset_0");
 
         // can write
@@ -582,7 +588,7 @@ mod test {
         );
 
         // writing to other account also ok
-        let address_1 = Address::try_from_slice(&[41u8; 20]).unwrap();
+        let address_1 = crate::astria_address([41u8; 20]);
         let asset_1 = Id::from_denom("asset_0");
         state
             .put_bridge_account_asset_id(&address_1, &asset_1)
@@ -705,7 +711,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         let rollup_id = RollupId::new([1u8; 32]);
-        let bridge_address = Address::try_from_slice(&[42u8; 20]).unwrap();
+        let bridge_address = crate::astria_address([42u8; 20]);
         let mut amount = 10u128;
         let asset = Id::from_denom("asset_0");
         let destination_chain_address = "0xdeadbeef";
@@ -817,7 +823,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         let rollup_id_0 = RollupId::new([1u8; 32]);
-        let bridge_address = Address::try_from_slice(&[42u8; 20]).unwrap();
+        let bridge_address = crate::astria_address([42u8; 20]);
         let amount = 10u128;
         let asset = Id::from_denom("asset_0");
         let destination_chain_address = "0xdeadbeef";
@@ -888,7 +894,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         let rollup_id = RollupId::new([1u8; 32]);
-        let bridge_address = Address::try_from_slice(&[42u8; 20]).unwrap();
+        let bridge_address = crate::astria_address([42u8; 20]);
         let amount = 10u128;
         let asset = Id::from_denom("asset_0");
         let destination_chain_address = "0xdeadbeef";
@@ -943,7 +949,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         let rollup_id = RollupId::new([1u8; 32]);
-        let bridge_address = Address::try_from_slice(&[42u8; 20]).unwrap();
+        let bridge_address = crate::astria_address([42u8; 20]);
         let amount = 10u128;
         let asset = Id::from_denom("asset_0");
         let destination_chain_address = "0xdeadbeef";
@@ -1035,7 +1041,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         let rollup_id = RollupId::new([1u8; 32]);
-        let bridge_address = Address::try_from_slice(&[42u8; 20]).unwrap();
+        let bridge_address = crate::astria_address([42u8; 20]);
         let amount = 10u128;
         let asset = Id::from_denom("asset_0");
         let destination_chain_address = "0xdeadbeef";

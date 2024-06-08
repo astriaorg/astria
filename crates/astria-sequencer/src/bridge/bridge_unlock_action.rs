@@ -115,8 +115,8 @@ mod test {
         let asset_id = asset::Id::from_denom("test");
         let transfer_amount = 100;
 
-        let address = Address::from([1; 20]);
-        let to_address = Address::from([2; 20]);
+        let address = crate::astria_address([1; 20]);
+        let to_address = crate::astria_address([2; 20]);
 
         let bridge_unlock = BridgeUnlockAction {
             to: to_address,
@@ -146,10 +146,10 @@ mod test {
         let asset_id = asset::Id::from_denom("test");
         let transfer_amount = 100;
 
-        let sender_address = Address::from([1; 20]);
-        let to_address = Address::from([2; 20]);
+        let sender_address = crate::astria_address([1; 20]);
+        let to_address = crate::astria_address([2; 20]);
 
-        let bridge_address = Address::from([3; 20]);
+        let bridge_address = crate::astria_address([3; 20]);
         state
             .put_bridge_account_asset_id(&bridge_address, &asset_id)
             .unwrap();
@@ -183,11 +183,11 @@ mod test {
         let asset_id = asset::Id::from_denom("test");
         let transfer_amount = 100;
 
-        let sender_address = Address::from([1; 20]);
-        let to_address = Address::from([2; 20]);
+        let sender_address = crate::astria_address([1; 20]);
+        let to_address = crate::astria_address([2; 20]);
 
-        let bridge_address = Address::from([3; 20]);
-        let withdrawer_address = Address::from([4; 20]);
+        let bridge_address = crate::astria_address([3; 20]);
+        let withdrawer_address = crate::astria_address([4; 20]);
         state.put_bridge_account_withdrawer_address(&bridge_address, &withdrawer_address);
         state
             .put_bridge_account_asset_id(&bridge_address, &asset_id)
@@ -223,8 +223,8 @@ mod test {
         let transfer_amount = 100;
         state.put_transfer_base_fee(transfer_fee).unwrap();
 
-        let bridge_address = Address::from([1; 20]);
-        let to_address = Address::from([2; 20]);
+        let bridge_address = crate::astria_address([1; 20]);
+        let to_address = crate::astria_address([2; 20]);
         let rollup_id = RollupId::from_unhashed_bytes(b"test_rollup_id");
 
         state.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
@@ -276,8 +276,8 @@ mod test {
         let transfer_amount = 100;
         state.put_transfer_base_fee(transfer_fee).unwrap();
 
-        let bridge_address = Address::from([1; 20]);
-        let to_address = Address::from([2; 20]);
+        let bridge_address = crate::astria_address([1; 20]);
+        let to_address = crate::astria_address([2; 20]);
         let rollup_id = RollupId::from_unhashed_bytes(b"test_rollup_id");
 
         state.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
@@ -286,7 +286,7 @@ mod test {
             .unwrap();
         state.put_allowed_fee_asset(asset_id);
 
-        let withdrawer_address = Address::from([4; 20]);
+        let withdrawer_address = crate::astria_address([3; 20]);
         state.put_bridge_account_withdrawer_address(&bridge_address, &withdrawer_address);
 
         let bridge_unlock = BridgeUnlockAction {
@@ -331,8 +331,8 @@ mod test {
         let transfer_amount = 100;
         state.put_transfer_base_fee(transfer_fee).unwrap();
 
-        let bridge_address = Address::from([1; 20]);
-        let to_address = Address::from([2; 20]);
+        let bridge_address = crate::astria_address([1; 20]);
+        let to_address = crate::astria_address([2; 20]);
         let rollup_id = RollupId::from_unhashed_bytes(b"test_rollup_id");
 
         state.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
@@ -383,8 +383,8 @@ mod test {
         let transfer_amount = 100;
         state.put_transfer_base_fee(transfer_fee).unwrap();
 
-        let bridge_address = Address::from([1; 20]);
-        let to_address = Address::from([2; 20]);
+        let bridge_address = crate::astria_address([1; 20]);
+        let to_address = crate::astria_address([2; 20]);
         let rollup_id = RollupId::from_unhashed_bytes(b"test_rollup_id");
 
         state.put_bridge_account_rollup_id(&bridge_address, &rollup_id);

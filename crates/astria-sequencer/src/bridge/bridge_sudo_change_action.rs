@@ -95,8 +95,8 @@ mod tests {
         let asset_id = Id::from_denom("test");
         state.put_allowed_fee_asset(asset_id);
 
-        let bridge_address = Address::from([99; 20]);
-        let sudo_address = Address::from([98; 20]);
+        let bridge_address = crate::astria_address([99; 20]);
+        let sudo_address = crate::astria_address([98; 20]);
         state.put_bridge_account_sudo_address(&bridge_address, &sudo_address);
 
         let action = BridgeSudoChangeAction {
@@ -118,8 +118,8 @@ mod tests {
         let asset_id = Id::from_denom("test");
         state.put_allowed_fee_asset(asset_id);
 
-        let bridge_address = Address::from([99; 20]);
-        let sudo_address = Address::from([98; 20]);
+        let bridge_address = crate::astria_address([99; 20]);
+        let sudo_address = crate::astria_address([98; 20]);
         state.put_bridge_account_sudo_address(&bridge_address, &sudo_address);
 
         let action = BridgeSudoChangeAction {
@@ -147,9 +147,9 @@ mod tests {
         state.put_bridge_sudo_change_base_fee(10);
 
         let fee_asset_id = Id::from_denom("test");
-        let bridge_address = Address::from([99; 20]);
-        let new_sudo_address = Address::from([97; 20]);
-        let new_withdrawer_address = Address::from([96; 20]);
+        let bridge_address = crate::astria_address([99; 20]);
+        let new_sudo_address = crate::astria_address([98; 20]);
+        let new_withdrawer_address = crate::astria_address([97; 20]);
         state
             .put_account_balance(bridge_address, fee_asset_id, 10)
             .unwrap();

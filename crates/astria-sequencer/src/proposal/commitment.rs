@@ -89,12 +89,9 @@ pub(crate) fn generate_rollup_datas_commitment(
 mod test {
     use astria_core::{
         crypto::SigningKey,
-        primitive::v1::{
-            asset::{
-                Denom,
-                DEFAULT_NATIVE_ASSET_DENOM,
-            },
-            Address,
+        primitive::v1::asset::{
+            Denom,
+            DEFAULT_NATIVE_ASSET_DENOM,
         },
         protocol::transaction::v1alpha1::{
             action::{
@@ -123,7 +120,7 @@ mod test {
             fee_asset_id: get_native_asset().id(),
         };
         let transfer_action = TransferAction {
-            to: Address::from([0u8; 20]),
+            to: crate::astria_address([0u8; 20]),
             amount: 1,
             asset_id: get_native_asset().id(),
             fee_asset_id: get_native_asset().id(),
@@ -131,10 +128,11 @@ mod test {
 
         let signing_key = SigningKey::new(OsRng);
         let tx = UnsignedTransaction {
-            params: TransactionParams {
-                nonce: 0,
-                chain_id: "test-chain-1".to_string(),
-            },
+            params: TransactionParams::builder()
+                .nonce(0)
+                .chain_id("test-chain-1")
+                .try_build()
+                .unwrap(),
             actions: vec![sequence_action.clone().into(), transfer_action.into()],
         };
 
@@ -147,10 +145,11 @@ mod test {
 
         let signing_key = SigningKey::new(OsRng);
         let tx = UnsignedTransaction {
-            params: TransactionParams {
-                nonce: 0,
-                chain_id: "test-chain-1".to_string(),
-            },
+            params: TransactionParams::builder()
+                .nonce(0)
+                .chain_id("test-chain-1")
+                .try_build()
+                .unwrap(),
             actions: vec![sequence_action.into()],
         };
 
@@ -178,7 +177,7 @@ mod test {
             fee_asset_id: get_native_asset().id(),
         };
         let transfer_action = TransferAction {
-            to: Address::from([0u8; 20]),
+            to: crate::astria_address([0u8; 20]),
             amount: 1,
             asset_id: get_native_asset().id(),
             fee_asset_id: get_native_asset().id(),
@@ -186,10 +185,11 @@ mod test {
 
         let signing_key = SigningKey::new(OsRng);
         let tx = UnsignedTransaction {
-            params: TransactionParams {
-                nonce: 0,
-                chain_id: "test-chain-1".to_string(),
-            },
+            params: TransactionParams::builder()
+                .nonce(0)
+                .chain_id("test-chain-1")
+                .try_build()
+                .unwrap(),
             actions: vec![sequence_action.into(), transfer_action.into()],
         };
 

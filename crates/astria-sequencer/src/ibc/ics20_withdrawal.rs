@@ -234,12 +234,13 @@ mod tests {
         let state = StateDelta::new(snapshot);
 
         let denom = Denom::from("test".to_string());
+        let from = crate::astria_address([1u8; 20]);
         let action = action::Ics20Withdrawal {
             amount: 1,
             denom: denom.clone(),
             bridge_address: None,
             destination_chain_address: "test".to_string(),
-            return_address: Address::from([1u8; 20]),
+            return_address: from,
             timeout_height: Height::new(1, 1).unwrap(),
             timeout_time: 1,
             source_channel: "channel-0".to_string().parse().unwrap(),
@@ -247,7 +248,6 @@ mod tests {
             memo: String::new(),
         };
 
-        let from = Address::from([1u8; 20]);
         ics20_withdrawal_check_stateful_bridge_account(&action, &state, from)
             .await
             .unwrap();
@@ -261,7 +261,7 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         // sender is a bridge address, which is also the withdrawer, so it's ok
-        let bridge_address = Address::from([1u8; 20]);
+        let bridge_address = crate::astria_address([1u8; 20]);
         state.put_bridge_account_rollup_id(
             &bridge_address,
             &RollupId::from_unhashed_bytes("testrollupid"),
@@ -295,12 +295,15 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         // withdraw is *not* the bridge address, Ics20Withdrawal must be sent by the withdrawer
-        let bridge_address = Address::from([1u8; 20]);
+        let bridge_address = crate::astria_address([1u8; 20]);
         state.put_bridge_account_rollup_id(
             &bridge_address,
             &RollupId::from_unhashed_bytes("testrollupid"),
         );
-        state.put_bridge_account_withdrawer_address(&bridge_address, &Address::from([2u8; 20]));
+        state.put_bridge_account_withdrawer_address(
+            &bridge_address,
+            &crate::astria_address([2u8; 20]),
+        );
 
         let denom = Denom::from("test".to_string());
         let action = action::Ics20Withdrawal {
@@ -332,8 +335,8 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         // sender the withdrawer address, so it's ok
-        let bridge_address = Address::from([1u8; 20]);
-        let withdrawer_address = Address::from([2u8; 20]);
+        let bridge_address = crate::astria_address([1u8; 20]);
+        let withdrawer_address = crate::astria_address([2u8; 20]);
         state.put_bridge_account_rollup_id(
             &bridge_address,
             &RollupId::from_unhashed_bytes("testrollupid"),
@@ -366,8 +369,8 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         // sender is not the withdrawer address, so must fail
-        let bridge_address = Address::from([1u8; 20]);
-        let withdrawer_address = Address::from([2u8; 20]);
+        let bridge_address = crate::astria_address([1u8; 20]);
+        let withdrawer_address = crate::astria_address([2u8; 20]);
         state.put_bridge_account_rollup_id(
             &bridge_address,
             &RollupId::from_unhashed_bytes("testrollupid"),
@@ -405,7 +408,7 @@ mod tests {
         let state = StateDelta::new(snapshot);
 
         // sender is not the withdrawer address, so must fail
-        let not_bridge_address = Address::from([1u8; 20]);
+        let not_bridge_address = crate::astria_address([1u8; 20]);
 
         let denom = Denom::from("test".to_string());
         let action = action::Ics20Withdrawal {

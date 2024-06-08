@@ -17,7 +17,6 @@ use std::{
 use astria_core::{
     primitive::v1::{
         asset::DEFAULT_NATIVE_ASSET_DENOM,
-        Address,
         RollupId,
     },
     protocol::transaction::v1alpha1::{
@@ -75,7 +74,7 @@ async fn app_finalize_block_snapshot() {
     let (alice_signing_key, _) = get_alice_signing_key_and_address();
     let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
 
-    let bridge_address = Address::from([99; 20]);
+    let bridge_address = crate::astria_address([99; 20]);
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
     let asset_id = get_native_asset().id();
 
@@ -105,10 +104,11 @@ async fn app_finalize_block_snapshot() {
         fee_asset_id: asset_id,
     };
     let tx = UnsignedTransaction {
-        params: TransactionParams {
-            nonce: 0,
-            chain_id: "test".to_string(),
-        },
+        params: TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .try_build()
+            .unwrap(),
         actions: vec![lock_action.into(), sequence_action.into()],
     };
 
@@ -198,10 +198,11 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     let asset_id = get_native_asset().id();
 
     let tx = UnsignedTransaction {
-        params: TransactionParams {
-            nonce: 0,
-            chain_id: "test".to_string(),
-        },
+        params: TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .try_build()
+            .unwrap(),
         actions: vec![
             TransferAction {
                 to: bob_address,
@@ -235,10 +236,11 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     app.execute_transaction(signed_tx).await.unwrap();
 
     let tx = UnsignedTransaction {
-        params: TransactionParams {
-            nonce: 0,
-            chain_id: "test".to_string(),
-        },
+        params: TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .try_build()
+            .unwrap(),
         actions: vec![
             InitBridgeAccountAction {
                 rollup_id,
@@ -254,10 +256,11 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     app.execute_transaction(signed_tx).await.unwrap();
 
     let tx = UnsignedTransaction {
-        params: TransactionParams {
-            nonce: 1,
-            chain_id: "test".to_string(),
-        },
+        params: TransactionParams::builder()
+            .chain_id("test")
+            .nonce(1)
+            .try_build()
+            .unwrap(),
         actions: vec![
             BridgeLockAction {
                 to: bridge_address,
