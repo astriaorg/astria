@@ -96,7 +96,7 @@ impl Watcher {
 
 impl Watcher {
     pub(crate) async fn run(mut self) -> Result<()> {
-        let (provider, contract, fee_asset_id, asset_withdrawal_divisor, from_block) =
+        let (provider, contract, fee_asset_id, asset_withdrawal_divisor, last_rollup_block_height) =
             self.startup().await?;
 
         let Self {
@@ -124,13 +124,16 @@ impl Watcher {
 
         // start from block 1 right now
         // TODO: determine the last block we've seen based on the sequencer data
-        let sequencer_withdrawal_event_handler = tokio::task::spawn(
-            watch_for_sequencer_withdrawal_events(contract.clone(), event_tx.clone(), from_block),
-        );
+        let sequencer_withdrawal_event_handler =
+            tokio::task::spawn(watch_for_sequencer_withdrawal_events(
+                contract.clone(),
+                event_tx.clone(),
+                last_rollup_block_height + 1,
+            ));
         let ics20_withdrawal_event_handler = tokio::task::spawn(watch_for_ics20_withdrawal_events(
             contract,
             event_tx.clone(),
-            from_block,
+            last_rollup_block_height + 1,
         ));
 
         state.set_watcher_ready();
@@ -172,7 +175,7 @@ impl Watcher {
         // wait for submitter to be ready
         let SequencerStartupInfo {
             fee_asset_id,
-            next_batch_rollup_height: last_batch_rollup_height,
+            last_batch_rollup_height,
             ..
         } = self.submitter_handle.recv_startup_info().await?;
 
@@ -543,8 +546,8 @@ mod tests {
         startup_tx
             .send(SequencerStartupInfo {
                 fee_asset_id: denom.id(),
-                next_batch_rollup_height: 0,
-                next_sequencer_nonce: 0,
+                last_batch_rollup_height: 0,
+                last_sequencer_nonce: 0,
             })
             .unwrap();
 
@@ -633,8 +636,8 @@ mod tests {
         startup_tx
             .send(SequencerStartupInfo {
                 fee_asset_id: denom.id(),
-                next_batch_rollup_height: 0,
-                next_sequencer_nonce: 0,
+                last_batch_rollup_height: 0,
+                last_sequencer_nonce: 0,
             })
             .unwrap();
 
@@ -749,8 +752,8 @@ mod tests {
         startup_tx
             .send(SequencerStartupInfo {
                 fee_asset_id: denom.id(),
-                next_batch_rollup_height: 0,
-                next_sequencer_nonce: 0,
+                last_batch_rollup_height: 0,
+                last_sequencer_nonce: 0,
             })
             .unwrap();
 
@@ -849,8 +852,8 @@ mod tests {
         startup_tx
             .send(SequencerStartupInfo {
                 fee_asset_id: asset::Id::from_denom("transfer/channel-0/utia"),
-                next_batch_rollup_height: 0,
-                next_sequencer_nonce: 0,
+                last_batch_rollup_height: 0,
+                last_sequencer_nonce: 0,
             })
             .unwrap();
 
