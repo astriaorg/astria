@@ -7,6 +7,7 @@ use astria_core::{
     primitive::v1::asset,
     protocol::{
         asset::v1alpha1::AllowedFeeAssetIdsResponse,
+        bridge::v1alpha1::BridgeAccountLastTxHashResponse,
         transaction::v1alpha1::{
             Action,
             TransactionParams,
@@ -23,17 +24,23 @@ use astria_eyre::eyre::{
 };
 pub(crate) use builder::Builder;
 pub(super) use builder::Handle;
+use prost::Message as _;
 use sequencer_client::{
     tendermint_rpc::{
         self,
         endpoint::broadcast::tx_commit,
     },
     Address,
+    BalanceResponse,
     SequencerClientExt,
     SignedTransaction,
 };
 use signer::SequencerKey;
 use state::State;
+use tendermint_rpc::{
+    endpoint::tx,
+    Client,
+};
 use tokio::{
     select,
     sync::{
@@ -60,6 +67,10 @@ use super::{
     batch::Batch,
     state,
     SequencerStartupInfo,
+};
+use crate::withdrawer::ethereum::convert::{
+    BridgeUnlockMemo,
+    Ics20WithdrawalMemo,
 };
 
 mod builder;
@@ -158,10 +169,12 @@ impl Submitter {
         );
 
         // confirm that the sequencer key has a sufficient balance of the fee asset
-        let fee_asset_balances = self
-            .sequencer_cometbft_client
-            .get_latest_balance(self.signer.address)
-            .await?;
+        let fee_asset_balances = get_latest_balance(
+            self.sequencer_cometbft_client.clone(),
+            self.state.clone(),
+            self.signer.address,
+        )
+        .await?;
         let fee_asset_balance = fee_asset_balances
             .balances
             .into_iter()
@@ -173,13 +186,86 @@ impl Submitter {
             "sequencer key does not have a sufficient balance of the fee asset"
         );
 
+        // sync to latest on-chain state
+        let last_batch_rollup_height = self.sync().await?;
+
         self.state.set_submitter_ready();
 
         // send startup info to watcher
         let startup = SequencerStartupInfo {
             fee_asset_id: self.expected_fee_asset_id,
+            last_batch_rollup_height,
         };
         Ok(startup)
+    }
+
+    async fn sync(&mut self) -> eyre::Result<u64> {
+        // get last transaction hash by the bridge account
+        let last_transaction_hash_resp = get_bridge_account_last_transaction_hash(
+            self.sequencer_cometbft_client.clone(),
+            self.state.clone(),
+            self.signer.address,
+        )
+        .await?;
+        let tx_hash = tendermint::Hash::try_from(last_transaction_hash_resp.tx_hash.to_vec())
+            .wrap_err("failed to convert last transaction hash to Tendermint Hash")?;
+
+        // get the corresponding transaction
+        let last_transaction = get_tx(
+            self.sequencer_cometbft_client.clone(),
+            self.state.clone(),
+            tx_hash,
+        )
+        .await?;
+
+        // check that the transaction actually executed
+        ensure!(
+            last_transaction.tx_result.code == tendermint::abci::Code::Ok,
+            "last transaction by the bridge account failed to execute"
+        );
+
+        let proto_tx =
+            astria_core::generated::protocol::transaction::v1alpha1::SignedTransaction::decode(
+                &*last_transaction.tx,
+            )
+            .wrap_err("failed to convert transaction data from CometBFT to proto")?;
+
+        let tx = SignedTransaction::try_from_raw(proto_tx)
+            .wrap_err("failed to convert transaction data from proto to SignedTransaction")?;
+
+        info!(
+            last_bridge_account_tx.hash = %telemetry::display::hex(&last_transaction_hash_resp.tx_hash),
+            last_bridge_account_tx.height = i64::from(last_transaction.height),
+            "fetched last transaction by the bridge account"
+        );
+
+        // find the last batch's rollup block height
+        let withdrawal_action = tx
+            .actions()
+            .into_iter()
+            .find_map(|action| match action {
+                Action::BridgeUnlock(_) | Action::Ics20Withdrawal(_) => Some(action),
+                _ => None,
+            })
+            .ok_or_eyre(
+                "last transaction by the bridge account did not contain a withdrawal action",
+            )?;
+
+        let last_batch_rollup_height = match withdrawal_action {
+            Action::BridgeUnlock(action) => {
+                let memo: BridgeUnlockMemo = serde_json::from_slice(&action.memo)
+                    .wrap_err("failed to parse memo from last transaction by the bridge account")?;
+                memo.block_number
+            }
+            Action::Ics20Withdrawal(action) => {
+                let memo: Ics20WithdrawalMemo = serde_json::from_str(&action.memo)
+                    .wrap_err("failed to parse memo from last transaction by the bridge account")?;
+                memo.block_number
+            }
+            _ => panic!("this shouldn't happen, we already filetered for only withdrawal actions"),
+        };
+
+        Ok(last_batch_rollup_height.as_u64())
     }
 }
 
@@ -439,6 +525,125 @@ async fn get_allowed_fee_asset_ids(
         .with_config(retry_config)
         .await
         .wrap_err("failed to get allowed fee asset ids from Sequencer after a lot of attempts");
+
+    state.set_sequencer_connected(res.is_ok());
+
+    res
+}
+
+#[instrument(skip_all)]
+async fn get_latest_balance(
+    client: sequencer_client::HttpClient,
+    state: Arc<State>,
+    address: Address,
+) -> eyre::Result<BalanceResponse> {
+    let retry_config = tryhard::RetryFutureConfig::new(u32::MAX)
+        .exponential_backoff(Duration::from_millis(100))
+        .max_delay(Duration::from_secs(20))
+        .on_retry(
+            |attempt: u32,
+             next_delay: Option<Duration>,
+             error: &sequencer_client::extension_trait::Error| {
+                let state = Arc::clone(&state);
+                state.set_sequencer_connected(false);
+
+                let wait_duration = next_delay
+                    .map(humantime::format_duration)
+                    .map(tracing::field::display);
+                warn!(
+                    attempt,
+                    wait_duration,
+                    error = error as &dyn std::error::Error,
+                    "attempt to get latest balance; retrying after backoff",
+                );
+                futures::future::ready(())
+            },
+        );
+
+    let res = tryhard::retry_fn(|| client.get_latest_balance(address))
+        .with_config(retry_config)
+        .await
+        .wrap_err("failed to get latest balance from Sequencer after a lot of attempts");
+
+    state.set_sequencer_connected(res.is_ok());
+
+    res
+}
+
+#[instrument(skip_all)]
+async fn get_bridge_account_last_transaction_hash(
+    client: sequencer_client::HttpClient,
+    state: Arc<State>,
+    address: Address,
+) -> eyre::Result<BridgeAccountLastTxHashResponse> {
+    let retry_config = tryhard::RetryFutureConfig::new(u32::MAX)
+        .exponential_backoff(Duration::from_millis(100))
+        .max_delay(Duration::from_secs(20))
+        .on_retry(
+            |attempt: u32,
+             next_delay: Option<Duration>,
+             error: &sequencer_client::extension_trait::Error| {
+                let state = Arc::clone(&state);
+                state.set_sequencer_connected(false);
+
+                let wait_duration = next_delay
+                    .map(humantime::format_duration)
+                    .map(tracing::field::display);
+                warn!(
+                    attempt,
+                    wait_duration,
+                    error = error as &dyn std::error::Error,
+                    "attempt to fetch last bridge account's transaction hash; retrying after \
+                     backoff",
+                );
+                futures::future::ready(())
+            },
+        );
+
+    let res = tryhard::retry_fn(|| client.get_bridge_account_last_transaction_hash(address))
+        .with_config(retry_config)
+        .await
+        .wrap_err(
+            "failed to fetch last bridge account's transaction hash from Sequencer after a lot of \
+             attempts",
+        );
+
+    state.set_sequencer_connected(res.is_ok());
+
+    res
+}
+
+#[instrument(skip_all)]
+async fn get_tx(
+    client: sequencer_client::HttpClient,
+    state: Arc<State>,
+    tx_hash: tendermint::Hash,
+) -> eyre::Result<tx::Response> {
+    let retry_config = tryhard::RetryFutureConfig::new(u32::MAX)
+        .exponential_backoff(Duration::from_millis(100))
+        .max_delay(Duration::from_secs(20))
+        .on_retry(
+            |attempt: u32, next_delay: Option<Duration>, error: &tendermint_rpc::Error| {
+                let state = Arc::clone(&state);
+                state.set_sequencer_connected(false);
+
+                let wait_duration = next_delay
+                    .map(humantime::format_duration)
+                    .map(tracing::field::display);
+                warn!(
+                    attempt,
+                    wait_duration,
+                    error = error as &dyn std::error::Error,
+                    "attempt to get transaction from Sequencer; retrying after backoff",
+                );
+                futures::future::ready(())
+            },
+        );
+
+    let res = tryhard::retry_fn(|| client.tx(tx_hash, false))
+        .with_config(retry_config)
+        .await
+        .wrap_err("failed to get transaction from Sequencer after a lot of attempts");
 
     state.set_sequencer_connected(res.is_ok());
 
