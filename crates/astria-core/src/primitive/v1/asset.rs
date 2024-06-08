@@ -121,7 +121,11 @@ impl From<String> for Denom {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub struct Id(
-    #[cfg_attr(feature = "serde", serde(serialize_with = "crate::serde::base64"))] [u8; 32],
+    #[cfg_attr(
+        feature = "serde",
+        serde(serialize_with = "crate::serde::base64_serialize")
+    )]
+    [u8; 32],
 );
 
 impl Id {
