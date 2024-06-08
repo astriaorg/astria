@@ -322,7 +322,7 @@ async fn submit_tx(
     state: Arc<State>,
 ) -> eyre::Result<tx_commit::Response> {
     let nonce = tx.nonce();
-    metrics::gauge!(crate::metrics_init::CURRENT_NONCE).set(nonce);
+    metrics::gauge!(crate::metrics_init::CURRENT_NONCE).set(f64::from(nonce));
     let start = std::time::Instant::now();
     debug!("submitting signed transaction to sequencer");
     let span = Span::current();

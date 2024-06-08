@@ -4,7 +4,10 @@ use std::{
     time::Duration,
 };
 
-use astria_core::primitive::v1::asset;
+use astria_core::primitive::v1::{
+    asset,
+    Address,
+};
 use astria_eyre::eyre::{
     self,
     WrapErr as _,
@@ -26,7 +29,7 @@ use tracing::{
 
 pub(crate) use self::state::StateSnapshot;
 use self::{
-    ethereum::Watcher,
+    ethereum::watcher,
     state::State,
     submitter::Submitter,
 };
@@ -45,7 +48,7 @@ pub struct Service {
     shutdown_token: CancellationToken,
     api_server: api::ApiServer,
     submitter: Submitter,
-    ethereum_watcher: Watcher,
+    ethereum_watcher: watcher::Watcher,
     state: Arc<State>,
 }
 
@@ -85,15 +88,20 @@ impl Service {
         .build()
         .wrap_err("failed to initialize submitter")?;
 
-        let ethereum_watcher = Watcher::new(
-            &ethereum_contract_address,
-            &ethereum_rpc_endpoint,
+        let sequencer_bridge_address = Address::try_from_bech32m(&cfg.sequencer_bridge_address)
+            .wrap_err("failed to parse sequencer bridge address")?;
+
+        let ethereum_watcher = watcher::Builder {
+            ethereum_contract_address,
+            ethereum_rpc_endpoint,
             submitter_handle,
-            &shutdown_handle.token(),
-            state.clone(),
-            asset::Denom::from(rollup_asset_denomination),
-        )
-        .wrap_err("failed to initialize ethereum watcher")?;
+            shutdown_token: shutdown_handle.token(),
+            state: state.clone(),
+            rollup_asset_denom: asset::Denom::from(rollup_asset_denomination),
+            bridge_address: sequencer_bridge_address,
+        }
+        .build()
+        .wrap_err("failed to build ethereum watcher")?;
 
         // make api server
         let state_rx = state.subscribe();
@@ -334,4 +342,15 @@ pub(crate) fn flatten_result<T>(res: Result<eyre::Result<T>, JoinError>) -> eyre
         Ok(Err(err)) => Err(err).wrap_err("task returned with error"),
         Err(err) => Err(err).wrap_err("task panicked"),
     }
+}
+
+/// Constructs an [`Address`] prefixed by `"astria"`.
+#[cfg(test)]
+pub(crate) fn astria_address(array: [u8; astria_core::primitive::v1::ADDRESS_LEN]) -> Address {
+    use astria_core::primitive::v1::ASTRIA_ADDRESS_PREFIX;
+    Address::builder()
+        .array(array)
+        .prefix(ASTRIA_ADDRESS_PREFIX)
+        .try_build()
+        .unwrap()
 }
