@@ -56,7 +56,6 @@ use tendermint::{
     },
     block::Height,
     chain,
-    Hash,
 };
 use tendermint_rpc::{
     endpoint::{
@@ -363,7 +362,7 @@ fn make_tx_commit_deliver_tx_failure_response() -> tx_commit::Response {
 fn make_last_bridge_tx_hash_response() -> BridgeAccountLastTxHashResponse {
     BridgeAccountLastTxHashResponse {
         height: DEFAULT_LAST_ROLLUP_HEIGHT,
-        tx_hash: Hash::Sha256([0u8; 32]).as_bytes().try_into().unwrap(),
+        tx_hash: Some([0u8; 32]),
     }
 }
 
@@ -632,6 +631,15 @@ async fn submitter_submit_success() {
     } = submitter;
 
     // set up guards on mock cometbft
+    let _nonce_guard = register_get_nonce_response(
+        &cometbft_mock,
+        NonceResponse {
+            height: 1,
+            nonce: 0,
+        },
+    )
+    .await;
+
     let broadcast_guard =
         register_broadcast_tx_commit_response(&cometbft_mock, make_tx_commit_success_response())
             .await;
@@ -675,6 +683,15 @@ async fn submitter_submit_check_tx_failure() {
     } = submitter;
 
     // set up guards on mock cometbft
+    let _nonce_guard = register_get_nonce_response(
+        &cometbft_mock,
+        NonceResponse {
+            height: 1,
+            nonce: 0,
+        },
+    )
+    .await;
+
     let broadcast_guard = register_broadcast_tx_commit_response(
         &cometbft_mock,
         make_tx_commit_check_tx_failure_response(),
@@ -716,6 +733,15 @@ async fn submitter_submit_deliver_tx_failure() {
     } = submitter;
 
     // set up guards on mock cometbft
+    let _nonce_guard = register_get_nonce_response(
+        &cometbft_mock,
+        NonceResponse {
+            height: 1,
+            nonce: 0,
+        },
+    )
+    .await;
+
     let broadcast_guard = register_broadcast_tx_commit_response(
         &cometbft_mock,
         make_tx_commit_deliver_tx_failure_response(),

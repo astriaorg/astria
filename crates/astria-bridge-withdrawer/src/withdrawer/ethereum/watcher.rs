@@ -563,7 +563,6 @@ mod tests {
             .send(SequencerStartupInfo {
                 fee_asset_id: denom.id(),
                 next_batch_rollup_height: 0,
-                next_sequencer_nonce: 0,
             })
             .unwrap();
 
@@ -656,7 +655,6 @@ mod tests {
             .send(SequencerStartupInfo {
                 fee_asset_id: denom.id(),
                 next_batch_rollup_height: 0,
-                next_sequencer_nonce: 0,
             })
             .unwrap();
 
@@ -779,7 +777,6 @@ mod tests {
             .send(SequencerStartupInfo {
                 fee_asset_id: denom.id(),
                 next_batch_rollup_height: 0,
-                next_sequencer_nonce: 0,
             })
             .unwrap();
 
@@ -882,7 +879,6 @@ mod tests {
             .send(SequencerStartupInfo {
                 fee_asset_id: asset::Id::from_denom("transfer/channel-0/utia"),
                 next_batch_rollup_height: 0,
-                next_sequencer_nonce: 0,
             })
             .unwrap();
 

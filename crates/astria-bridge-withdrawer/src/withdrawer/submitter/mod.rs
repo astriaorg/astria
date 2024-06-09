@@ -50,6 +50,7 @@ use tokio::{
             self,
         },
     },
+    time::Instant,
 };
 use tokio_util::sync::CancellationToken;
 use tracing::{
@@ -91,8 +92,6 @@ impl Submitter {
     pub(super) async fn run(mut self) -> eyre::Result<()> {
         // call startup
         let startup = self.startup().await?;
-        let mut next_nonce = startup.next_sequencer_nonce + 1;
-
         self.startup_tx
             .send(startup)
             .map_err(|_startup| eyre!("failed to send startup info to watcher"))?;
@@ -117,11 +116,10 @@ impl Submitter {
                         &self.signer,
                         self.state.clone(),
                         &self.sequencer_chain_id,
-                        actions, next_nonce, rollup_height).await {
+                        actions,
+                        rollup_height,
+                    ).await {
                         break Err(e);
-                    } else{
-                        // if batch submission was successful, increment nonce for processing next batch
-                        next_nonce = next_nonce.checked_add(1).expect("nonce increment should not overflow");
                     }
                 }
             );
@@ -208,14 +206,13 @@ impl Submitter {
         );
 
         // sync to latest on-chain state
-        let (next_sequencer_nonce, next_batch_rollup_height) = self.sync().await?;
+        let next_batch_rollup_height = self.sync().await?;
 
         self.state.set_submitter_ready();
 
         // send startup info to watcher
         let startup = SequencerStartupInfo {
             fee_asset_id: self.expected_fee_asset_id,
-            next_sequencer_nonce,
             next_batch_rollup_height,
         };
         Ok(startup)
@@ -230,7 +227,7 @@ impl Submitter {
     /// in the batch.
     ///
     /// # Returns
-    /// A tuple of the next nonce and the next batch rollup height to process.
+    /// The next batch rollup height to process.
     ///
     /// # Errors
     ///
@@ -240,21 +237,16 @@ impl Submitter {
     ///    the sequencer logic)
     /// 3. The last transaction by the bridge account did not contain a withdrawal action
     /// 4. The memo of the last transaction by the bridge account could not be parsed
-    async fn sync(&mut self) -> eyre::Result<(u32, u64)> {
+    async fn sync(&mut self) -> eyre::Result<u64> {
         let signed_transaction = self.get_last_transaction().await?;
-        let (next_nonce, next_batch_rollup_height) = if let Some(signed_transaction) =
-            signed_transaction
-        {
-            (
-                signed_transaction.nonce(),
-                rollup_height_from_signed_transaction(signed_transaction).wrap_err(
-                    "failed to extract rollup height from last transaction by the bridge account",
-                )?,
-            )
+        let next_batch_rollup_height = if let Some(signed_transaction) = signed_transaction {
+            rollup_height_from_signed_transaction(signed_transaction).wrap_err(
+                "failed to extract rollup height from last transaction by the bridge account",
+            )?
         } else {
-            (0, 1)
+            1
         };
-        Ok((next_nonce, next_batch_rollup_height))
+        Ok(next_batch_rollup_height)
     }
 
     async fn get_last_transaction(&self) -> eyre::Result<Option<SignedTransaction>> {
@@ -311,13 +303,21 @@ impl Submitter {
 
 async fn process_batch(
     sequencer_cometbft_client: sequencer_client::HttpClient,
-    sequnecer_key: &SequencerKey,
+    sequencer_key: &SequencerKey,
     state: Arc<State>,
     sequencer_chain_id: &str,
     actions: Vec<Action>,
-    nonce: u32,
     rollup_height: u64,
 ) -> eyre::Result<()> {
+    // get nonce and make unsigned transaction
+    let nonce = get_latest_nonce(
+        sequencer_cometbft_client.clone(),
+        sequencer_key.address,
+        state.clone(),
+    )
+    .await?;
+    debug!(nonce, "fetched latest nonce");
+
     let unsigned = UnsignedTransaction {
         actions,
         params: TransactionParams::builder()
@@ -331,7 +331,7 @@ async fn process_batch(
     };
 
     // sign transaction
-    let signed = unsigned.into_signed(&sequnecer_key.signing_key);
+    let signed = unsigned.into_signed(&sequencer_key.signing_key);
     debug!(tx_hash = %telemetry::display::hex(&signed.sha256_of_proto_encoding()), "signed transaction");
 
     // submit transaction and handle response
@@ -371,6 +371,56 @@ async fn process_batch(
         state.set_last_sequencer_tx_hash(rsp.hash);
         Ok(())
     }
+}
+
+async fn get_latest_nonce(
+    client: sequencer_client::HttpClient,
+    address: Address,
+    state: Arc<State>,
+) -> eyre::Result<u32> {
+    debug!("fetching latest nonce from sequencer");
+    metrics::counter!(crate::metrics_init::NONCE_FETCH_COUNT).increment(1);
+    let span = Span::current();
+    let start = Instant::now();
+    let retry_config = tryhard::RetryFutureConfig::new(1024)
+        .exponential_backoff(Duration::from_millis(200))
+        .max_delay(Duration::from_secs(60))
+        .on_retry(
+            |attempt,
+             next_delay: Option<Duration>,
+             err: &sequencer_client::extension_trait::Error| {
+                metrics::counter!(crate::metrics_init::NONCE_FETCH_FAILURE_COUNT).increment(1);
+
+                let state = Arc::clone(&state);
+                state.set_sequencer_connected(false);
+
+                let wait_duration = next_delay
+                    .map(humantime::format_duration)
+                    .map(tracing::field::display);
+                warn!(
+                    parent: span.clone(),
+                    error = err as &dyn std::error::Error,
+                    attempt,
+                    wait_duration,
+                    "failed getting latest nonce from sequencer; retrying after backoff",
+                );
+                async move {}
+            },
+        );
+    let res = tryhard::retry_fn(|| {
+        let client = client.clone();
+        let span = info_span!(parent: span.clone(), "attempt get nonce");
+        async move { client.get_latest_nonce(address).await.map(|rsp| rsp.nonce) }.instrument(span)
+    })
+    .with_config(retry_config)
+    .await
+    .wrap_err("failed getting latest nonce from sequencer after 1024 attempts");
+
+    state.set_sequencer_connected(res.is_ok());
+
+    metrics::histogram!(crate::metrics_init::NONCE_FETCH_LATENCY).record(start.elapsed());
+
+    res
 }
 
 /// Submits a `SignedTransaction` to the sequencer with an exponential backoff
