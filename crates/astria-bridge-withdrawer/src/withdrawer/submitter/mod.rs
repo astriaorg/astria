@@ -91,7 +91,7 @@ impl Submitter {
     pub(super) async fn run(mut self) -> eyre::Result<()> {
         // call startup
         let startup = self.startup().await?;
-        let mut next_nonce = startup.last_sequencer_nonce + 1;
+        let mut next_nonce = startup.next_sequencer_nonce + 1;
 
         self.startup_tx
             .send(startup)
@@ -208,15 +208,15 @@ impl Submitter {
         );
 
         // sync to latest on-chain state
-        let (last_sequencer_nonce, last_batch_rollup_height) = self.sync().await?;
+        let (next_sequencer_nonce, next_batch_rollup_height) = self.sync().await?;
 
         self.state.set_submitter_ready();
 
         // send startup info to watcher
         let startup = SequencerStartupInfo {
             fee_asset_id: self.expected_fee_asset_id,
-            last_batch_rollup_height,
-            last_sequencer_nonce,
+            next_sequencer_nonce,
+            next_batch_rollup_height,
         };
         Ok(startup)
     }
@@ -242,21 +242,37 @@ impl Submitter {
     /// 4. The memo of the last transaction by the bridge account could not be parsed
     async fn sync(&mut self) -> eyre::Result<(u32, u64)> {
         let signed_transaction = self.get_last_transaction().await?;
-        let last_nonce = signed_transaction.nonce();
-        let last_batch_rollup_height = rollup_height_from_signed_transaction(signed_transaction)?;
-        Ok((last_nonce + 1, last_batch_rollup_height + 1))
+        let (next_nonce, next_batch_rollup_height) = if let Some(signed_transaction) =
+            signed_transaction
+        {
+            (
+                signed_transaction.nonce(),
+                rollup_height_from_signed_transaction(signed_transaction).wrap_err(
+                    "failed to extract rollup height from last transaction by the bridge account",
+                )?,
+            )
+        } else {
+            (0, 1)
+        };
+        Ok((next_nonce, next_batch_rollup_height))
     }
 
-    async fn get_last_transaction(&self) -> eyre::Result<SignedTransaction> {
-        // get last transaction hash by the bridge account
+    async fn get_last_transaction(&self) -> eyre::Result<Option<SignedTransaction>> {
+        // get last transaction hash by the bridge account, if it exists
         let last_transaction_hash_resp = get_bridge_account_last_transaction_hash(
             self.sequencer_cometbft_client.clone(),
             self.state.clone(),
             self.signer.address,
         )
-        .await?;
-        let tx_hash = tendermint::Hash::try_from(last_transaction_hash_resp.tx_hash.to_vec())
-            .wrap_err("failed to convert last transaction hash to Tendermint Hash")?;
+        .await
+        .wrap_err("failed to fetch last transaction hash by the bridge account")?;
+
+        let Some(tx_hash) = last_transaction_hash_resp.tx_hash else {
+            return Ok(None);
+        };
+
+        let tx_hash = tendermint::Hash::try_from(tx_hash.to_vec())
+            .wrap_err("failed to convert last transaction hash to tendermint hash")?;
 
         // get the corresponding transaction
         let last_transaction = get_tx(
@@ -264,7 +280,8 @@ impl Submitter {
             self.state.clone(),
             tx_hash,
         )
-        .await?;
+        .await
+        .wrap_err("failed to fetch last transaction by the bridge account")?;
 
         // check that the transaction actually executed
         ensure!(
@@ -283,12 +300,12 @@ impl Submitter {
             .wrap_err("failed to convert transaction data from proto to SignedTransaction")?;
 
         info!(
-            last_bridge_account_tx.hash = %telemetry::display::hex(&last_transaction_hash_resp.tx_hash),
+            last_bridge_account_tx.hash = %telemetry::display::hex(&tx_hash),
             last_bridge_account_tx.height = i64::from(last_transaction.height),
             "fetched last transaction by the bridge account"
         );
 
-        Ok(tx)
+        Ok(Some(tx))
     }
 }
 
@@ -642,9 +659,10 @@ fn rollup_height_from_signed_transaction(
     .expect("action is already checked to be either BridgeUnlock or Ics20Withdrawal");
 
     info!(
-        last_batch.sequencer_hash = %telemetry::display::hex(&signed_transaction.sha256_of_proto_encoding()),
-        last_batch.rollup_height= last_batch_rollup_height,
-        "extracted rollup height from last batch of withdrawals.");
+        last_batch.tx_hash = %telemetry::display::hex(&signed_transaction.sha256_of_proto_encoding()),
+        last_batch.rollup_height = last_batch_rollup_height,
+        "extracted rollup height from last batch of withdrawals",
+    );
 
     Ok(last_batch_rollup_height)
 }

@@ -188,8 +188,8 @@ impl Service {
 #[derive(Debug)]
 pub struct SequencerStartupInfo {
     pub fee_asset_id: asset::Id,
-    pub last_batch_rollup_height: u64,
-    pub last_sequencer_nonce: u32,
+    pub next_batch_rollup_height: u64,
+    pub next_sequencer_nonce: u32,
 }
 
 /// A handle for instructing the [`Service`] to shut down.
