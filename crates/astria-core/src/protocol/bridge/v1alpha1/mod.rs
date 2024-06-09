@@ -3,7 +3,7 @@ use super::raw;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BridgeAccountLastTxHashResponse {
     pub height: u64,
-    pub tx_hash: [u8; 32],
+    pub tx_hash: Option<[u8; 32]>,
 }
 
 impl BridgeAccountLastTxHashResponse {
@@ -18,9 +18,13 @@ impl BridgeAccountLastTxHashResponse {
     ) -> Result<Self, BridgeAccountLastTxHashResponseError> {
         Ok(Self {
             height: raw.height,
-            tx_hash: raw.tx_hash.try_into().map_err(|bytes: Vec<u8>| {
-                BridgeAccountLastTxHashResponseError::invalid_tx_hash(bytes.len())
-            })?,
+            tx_hash: raw
+                .tx_hash
+                .map(TryInto::<[u8; 32]>::try_into)
+                .transpose()
+                .map_err(|bytes: Vec<u8>| {
+                    BridgeAccountLastTxHashResponseError::invalid_tx_hash(bytes.len())
+                })?,
         })
     }
 
@@ -28,7 +32,7 @@ impl BridgeAccountLastTxHashResponse {
     pub fn into_raw(self) -> raw::BridgeAccountLastTxHashResponse {
         raw::BridgeAccountLastTxHashResponse {
             height: self.height,
-            tx_hash: self.tx_hash.to_vec(),
+            tx_hash: self.tx_hash.map(Into::into),
         }
     }
 }

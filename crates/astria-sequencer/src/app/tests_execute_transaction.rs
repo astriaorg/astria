@@ -621,6 +621,8 @@ async fn app_execute_transaction_init_bridge_account_ok() {
         rollup_id,
         asset_id,
         fee_asset_id: asset_id,
+        sudo_address: None,
+        withdrawer_address: None,
     };
     let tx = UnsignedTransaction {
         params: TransactionParams::builder()
@@ -677,6 +679,8 @@ async fn app_execute_transaction_init_bridge_account_account_already_registered(
         rollup_id,
         asset_id,
         fee_asset_id: asset_id,
+        sudo_address: None,
+        withdrawer_address: None,
     };
     let tx = UnsignedTransaction {
         params: TransactionParams::builder()
@@ -694,6 +698,8 @@ async fn app_execute_transaction_init_bridge_account_account_already_registered(
         rollup_id,
         asset_id,
         fee_asset_id: asset_id,
+        sudo_address: None,
+        withdrawer_address: None,
     };
     let tx = UnsignedTransaction {
         params: TransactionParams::builder()
@@ -1039,6 +1045,7 @@ async fn app_execute_transaction_bridge_lock_unlock_action_ok() {
     state_tx
         .put_bridge_account_asset_id(&bridge_address, &asset_id)
         .unwrap();
+    state_tx.put_bridge_account_withdrawer_address(&bridge_address, &bridge_address);
     app.apply(state_tx);
 
     let amount = 100;
@@ -1069,6 +1076,7 @@ async fn app_execute_transaction_bridge_lock_unlock_action_ok() {
         amount,
         fee_asset_id: asset_id,
         memo: b"lilywashere".to_vec(),
+        bridge_address: None,
     };
 
     let tx = UnsignedTransaction {

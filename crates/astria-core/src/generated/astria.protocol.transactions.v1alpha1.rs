@@ -59,7 +59,7 @@ impl ::prost::Name for TransactionParams {
 pub struct Action {
     #[prost(
         oneof = "action::Value",
-        tags = "1, 2, 11, 12, 13, 21, 22, 50, 51, 52, 53, 55"
+        tags = "1, 2, 11, 12, 13, 14, 21, 22, 50, 51, 52, 53, 55"
     )]
     pub value: ::core::option::Option<action::Value>,
 }
@@ -80,6 +80,8 @@ pub mod action {
         BridgeLockAction(super::BridgeLockAction),
         #[prost(message, tag = "13")]
         BridgeUnlockAction(super::BridgeUnlockAction),
+        #[prost(message, tag = "14")]
+        BridgeSudoChangeAction(super::BridgeSudoChangeAction),
         /// IBC user actions are defined on 21-30
         #[prost(message, tag = "21")]
         IbcAction(::penumbra_proto::core::component::ibc::v1::IbcRelay),
@@ -205,6 +207,19 @@ pub struct Ics20Withdrawal {
     /// a memo to include with the transfer
     #[prost(string, tag = "9")]
     pub memo: ::prost::alloc::string::String,
+    /// the address of the bridge account to transfer from, if this is a withdrawal
+    /// from a bridge account and the sender of the tx is the bridge's withdrawer,
+    /// which differs from the bridge account's address.
+    ///
+    /// if unset, and the transaction sender is not a bridge account, the withdrawal
+    /// is treated as a user (non-bridge) withdrawal.
+    ///
+    /// if unset, and the transaction sender is a bridge account, the withdrawal is
+    /// treated as a bridge withdrawal (ie. the bridge account's withdrawer address is checked).
+    #[prost(message, optional, tag = "10")]
+    pub bridge_address: ::core::option::Option<
+        super::super::super::primitive::v1::Address,
+    >,
 }
 impl ::prost::Name for Ics20Withdrawal {
     const NAME: &'static str = "Ics20Withdrawal";
@@ -301,6 +316,19 @@ pub struct InitBridgeAccountAction {
     /// the asset used to pay the transaction fee
     #[prost(bytes = "vec", tag = "3")]
     pub fee_asset_id: ::prost::alloc::vec::Vec<u8>,
+    /// the address corresponding to the key which has sudo capabilities;
+    /// ie. can change the sudo and withdrawer addresses for this bridge account.
+    /// if this is empty, the sender of the transaction is used.
+    #[prost(message, optional, tag = "4")]
+    pub sudo_address: ::core::option::Option<
+        super::super::super::primitive::v1::Address,
+    >,
+    /// the address corresponding to the key which can withdraw funds from this bridge account.
+    /// if this is empty, the sender of the transaction is used.
+    #[prost(message, optional, tag = "5")]
+    pub withdrawer_address: ::core::option::Option<
+        super::super::super::primitive::v1::Address,
+    >,
 }
 impl ::prost::Name for InitBridgeAccountAction {
     const NAME: &'static str = "InitBridgeAccountAction";
@@ -361,6 +389,13 @@ pub struct BridgeUnlockAction {
     /// memo for double spend prevention
     #[prost(bytes = "vec", tag = "4")]
     pub memo: ::prost::alloc::vec::Vec<u8>,
+    /// the address of the bridge account to transfer from,
+    /// if the bridge account's withdrawer address is not the same as the bridge address.
+    /// if unset, the signer of the transaction is used.
+    #[prost(message, optional, tag = "5")]
+    pub bridge_address: ::core::option::Option<
+        super::super::super::primitive::v1::Address,
+    >,
 }
 impl ::prost::Name for BridgeUnlockAction {
     const NAME: &'static str = "BridgeUnlockAction";
@@ -371,10 +406,39 @@ impl ::prost::Name for BridgeUnlockAction {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct BridgeSudoChangeAction {
+    /// the address of the bridge account to change the sudo or withdrawer addresses for
+    #[prost(message, optional, tag = "1")]
+    pub bridge_address: ::core::option::Option<
+        super::super::super::primitive::v1::Address,
+    >,
+    /// the new sudo address; unchanged if unset
+    #[prost(message, optional, tag = "2")]
+    pub new_sudo_address: ::core::option::Option<
+        super::super::super::primitive::v1::Address,
+    >,
+    /// the new withdrawer address; unchanged if unset
+    #[prost(message, optional, tag = "3")]
+    pub new_withdrawer_address: ::core::option::Option<
+        super::super::super::primitive::v1::Address,
+    >,
+    /// the asset used to pay the transaction fee
+    #[prost(bytes = "vec", tag = "4")]
+    pub fee_asset_id: ::prost::alloc::vec::Vec<u8>,
+}
+impl ::prost::Name for BridgeSudoChangeAction {
+    const NAME: &'static str = "BridgeSudoChangeAction";
+    const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FeeChangeAction {
     /// note that the proto number ranges are doubled from that of `Action`.
     /// this to accomodate both `base_fee` and `byte_cost_multiplier` for each action.
-    #[prost(oneof = "fee_change_action::Value", tags = "1, 2, 3, 20, 21, 40")]
+    #[prost(oneof = "fee_change_action::Value", tags = "1, 2, 3, 20, 21, 22, 40")]
     pub value: ::core::option::Option<fee_change_action::Value>,
 }
 /// Nested message and enum types in `FeeChangeAction`.
@@ -396,6 +460,8 @@ pub mod fee_change_action {
         InitBridgeAccountBaseFee(super::super::super::super::primitive::v1::Uint128),
         #[prost(message, tag = "21")]
         BridgeLockByteCostMultiplier(super::super::super::super::primitive::v1::Uint128),
+        #[prost(message, tag = "22")]
+        BridgeSudoChangeBaseFee(super::super::super::super::primitive::v1::Uint128),
         /// ibc fees are defined on 40-59
         #[prost(message, tag = "40")]
         Ics20WithdrawalBaseFee(super::super::super::super::primitive::v1::Uint128),

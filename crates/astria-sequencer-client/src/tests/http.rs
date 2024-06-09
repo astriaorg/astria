@@ -262,7 +262,7 @@ async fn get_bridge_account_last_transaction_hash() {
 
     let expected_response = BridgeAccountLastTxHashResponse {
         height: 10,
-        tx_hash: [0; 32].to_vec(),
+        tx_hash: Some([0; 32].to_vec()),
     };
 
     let _guard = register_abci_query_response(

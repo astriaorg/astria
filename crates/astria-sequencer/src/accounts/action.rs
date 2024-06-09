@@ -14,6 +14,7 @@ use crate::{
         StateReadExt,
         StateWriteExt,
     },
+    bridge::state_ext::StateReadExt as _,
     state_ext::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -85,6 +86,15 @@ impl ActionHandler for TransferAction {
         state: &S,
         from: Address,
     ) -> Result<()> {
+        ensure!(
+            state
+                .get_bridge_account_rollup_id(&from)
+                .await
+                .context("failed to get bridge account rollup id")?
+                .is_none(),
+            "cannot transfer out of bridge account; BridgeUnlock must be used",
+        );
+
         transfer_check_stateful(self, state, from)
             .await
             .context("stateful transfer check failed")
