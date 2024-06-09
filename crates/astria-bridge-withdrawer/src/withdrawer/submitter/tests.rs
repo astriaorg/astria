@@ -630,7 +630,7 @@ async fn submitter_submit_success() {
     } = submitter;
 
     // set up guards on mock cometbft
-    let _nonce_guard = register_get_nonce_response(
+    let nonce_guard = register_get_nonce_response(
         &cometbft_mock,
         NonceResponse {
             height: 1,
@@ -647,7 +647,13 @@ async fn submitter_submit_success() {
     let batch = make_batch_with_bridge_unlock_and_ics20_withdrawal();
     submitter_handle.send_batch(batch).await.unwrap();
 
-    // wait for broadcast guard to be satisfied
+    // wait for nonce and broadcast guards to be satisfied
+    tokio::time::timeout(
+        Duration::from_millis(100),
+        nonce_guard.wait_until_satisfied(),
+    )
+    .await
+    .unwrap();
     tokio::time::timeout(
         Duration::from_millis(100),
         broadcast_guard.wait_until_satisfied(),
@@ -682,7 +688,7 @@ async fn submitter_submit_check_tx_failure() {
     } = submitter;
 
     // set up guards on mock cometbft
-    let _nonce_guard = register_get_nonce_response(
+    let nonce_guard = register_get_nonce_response(
         &cometbft_mock,
         NonceResponse {
             height: 1,
@@ -701,7 +707,13 @@ async fn submitter_submit_check_tx_failure() {
     let batch = make_batch_with_bridge_unlock_and_ics20_withdrawal();
     submitter_handle.send_batch(batch).await.unwrap();
 
-    // wait for the broadcast guard to be satisfied
+    // wait for the nonce and broadcast guards to be satisfied
+    tokio::time::timeout(
+        Duration::from_millis(100),
+        nonce_guard.wait_until_satisfied(),
+    )
+    .await
+    .unwrap();
     tokio::time::timeout(
         Duration::from_millis(100),
         broadcast_guard.wait_until_satisfied(),
@@ -732,7 +744,7 @@ async fn submitter_submit_deliver_tx_failure() {
     } = submitter;
 
     // set up guards on mock cometbft
-    let _nonce_guard = register_get_nonce_response(
+    let nonce_guard = register_get_nonce_response(
         &cometbft_mock,
         NonceResponse {
             height: 1,
@@ -751,7 +763,13 @@ async fn submitter_submit_deliver_tx_failure() {
     let batch = make_batch_with_bridge_unlock_and_ics20_withdrawal();
     submitter_handle.send_batch(batch).await.unwrap();
 
-    // wait for the broadcast guard to be satisfied
+    // wait for the nonce and broadcast guards to be satisfied
+    tokio::time::timeout(
+        Duration::from_millis(100),
+        nonce_guard.wait_until_satisfied(),
+    )
+    .await
+    .unwrap();
     tokio::time::timeout(
         Duration::from_millis(100),
         broadcast_guard.wait_until_satisfied(),
