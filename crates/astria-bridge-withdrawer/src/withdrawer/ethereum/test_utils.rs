@@ -3,6 +3,7 @@ use std::{
     time::Duration,
 };
 
+use astria_core::primitive::v1::ASTRIA_ADDRESS_PREFIX;
 use ethers::{
     abi::Tokenizable,
     core::utils::Anvil,
@@ -21,19 +22,41 @@ use crate::withdrawer::ethereum::{
     },
 };
 
-#[derive(Default)]
+#[allow(clippy::struct_field_names)]
 pub(crate) struct ConfigureAstriaWithdrawerDeployer {
     pub(crate) base_chain_asset_precision: u32,
+    pub(crate) base_chain_bridge_address: astria_core::primitive::v1::Address,
+    pub(crate) base_chain_asset_denomination: String,
+}
+
+impl Default for ConfigureAstriaWithdrawerDeployer {
+    fn default() -> Self {
+        Self {
+            base_chain_asset_precision: 18,
+            base_chain_bridge_address: astria_core::primitive::v1::Address::builder()
+                .array([0u8; 20])
+                .prefix(ASTRIA_ADDRESS_PREFIX)
+                .try_build()
+                .unwrap(),
+            base_chain_asset_denomination: "test-denom".to_string(),
+        }
+    }
 }
 
 impl ConfigureAstriaWithdrawerDeployer {
-    pub(crate) async fn deploy(
-        &mut self,
-    ) -> (Address, Arc<Provider<Ws>>, LocalWallet, AnvilInstance) {
-        if self.base_chain_asset_precision == 0 {
-            self.base_chain_asset_precision = 18;
-        }
-        deploy_astria_withdrawer(self.base_chain_asset_precision.into()).await
+    pub(crate) async fn deploy(self) -> (Address, Arc<Provider<Ws>>, LocalWallet, AnvilInstance) {
+        let Self {
+            base_chain_asset_precision,
+            base_chain_bridge_address,
+            base_chain_asset_denomination,
+        } = self;
+
+        deploy_astria_withdrawer(
+            base_chain_asset_precision.into(),
+            base_chain_bridge_address,
+            base_chain_asset_denomination,
+        )
+        .await
     }
 }
 
@@ -47,6 +70,8 @@ impl ConfigureAstriaWithdrawerDeployer {
 /// - if the contract fails to deploy
 pub(crate) async fn deploy_astria_withdrawer(
     base_chain_asset_precision: U256,
+    base_chain_bridge_address: astria_core::primitive::v1::Address,
+    base_chain_asset_denomination: String,
 ) -> (Address, Arc<Provider<Ws>>, LocalWallet, AnvilInstance) {
     // setup anvil and signing wallet
     let anvil = Anvil::new().spawn();
@@ -65,14 +90,14 @@ pub(crate) async fn deploy_astria_withdrawer(
     let abi = ASTRIAWITHDRAWER_ABI.clone();
     let bytecode = ASTRIAWITHDRAWER_BYTECODE.to_vec();
 
-    // deploy contract with ASSET_WITHDRAWAL_DECIMALS as 0
+    let args = vec![
+        base_chain_asset_precision.into_token(),
+        base_chain_bridge_address.to_string().into_token(),
+        base_chain_asset_denomination.into_token(),
+    ];
+
     let factory = ContractFactory::new(abi.clone(), bytecode.into(), signer.into());
-    let contract = factory
-        .deploy(base_chain_asset_precision)
-        .unwrap()
-        .send()
-        .await
-        .unwrap();
+    let contract = factory.deploy_tokens(args).unwrap().send().await.unwrap();
     let contract_address = contract.address();
 
     (
@@ -83,12 +108,30 @@ pub(crate) async fn deploy_astria_withdrawer(
     )
 }
 
-#[derive(Default)]
 pub(crate) struct ConfigureAstriaBridgeableERC20Deployer {
     pub(crate) bridge_address: Address,
     pub(crate) base_chain_asset_precision: u32,
+    pub(crate) base_chain_bridge_address: astria_core::primitive::v1::Address,
+    pub(crate) base_chain_asset_denomination: String,
     pub(crate) name: String,
     pub(crate) symbol: String,
+}
+
+impl Default for ConfigureAstriaBridgeableERC20Deployer {
+    fn default() -> Self {
+        Self {
+            bridge_address: Address::zero(),
+            base_chain_asset_precision: 18,
+            base_chain_bridge_address: astria_core::primitive::v1::Address::builder()
+                .array([0u8; 20])
+                .prefix(ASTRIA_ADDRESS_PREFIX)
+                .try_build()
+                .unwrap(),
+            base_chain_asset_denomination: "testdenom".to_string(),
+            name: "test-token".to_string(),
+            symbol: "TT".to_string(),
+        }
+    }
 }
 
 impl ConfigureAstriaBridgeableERC20Deployer {
@@ -96,21 +139,17 @@ impl ConfigureAstriaBridgeableERC20Deployer {
         let Self {
             bridge_address,
             base_chain_asset_precision,
-            mut name,
-            mut symbol,
+            base_chain_bridge_address,
+            base_chain_asset_denomination,
+            name,
+            symbol,
         } = self;
-
-        if name.is_empty() {
-            name = "test-token".to_string();
-        }
-
-        if symbol.is_empty() {
-            symbol = "TT".to_string();
-        }
 
         deploy_astria_bridgeable_erc20(
             bridge_address,
             base_chain_asset_precision.into(),
+            base_chain_bridge_address,
+            base_chain_asset_denomination,
             name,
             symbol,
         )
@@ -129,6 +168,8 @@ impl ConfigureAstriaBridgeableERC20Deployer {
 pub(crate) async fn deploy_astria_bridgeable_erc20(
     mut bridge_address: Address,
     base_chain_asset_precision: ethers::abi::Uint,
+    base_chain_bridge_address: astria_core::primitive::v1::Address,
+    base_chain_asset_denomination: String,
     name: String,
     symbol: String,
 ) -> (Address, Arc<Provider<Ws>>, LocalWallet, AnvilInstance) {
@@ -157,6 +198,8 @@ pub(crate) async fn deploy_astria_bridgeable_erc20(
     let args = vec![
         bridge_address.into_token(),
         base_chain_asset_precision.into_token(),
+        base_chain_bridge_address.to_string().into_token(),
+        base_chain_asset_denomination.into_token(),
         name.into_token(),
         symbol.into_token(),
     ];

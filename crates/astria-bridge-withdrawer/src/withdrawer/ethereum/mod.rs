@@ -1,7 +1,5 @@
 pub(crate) mod convert;
-mod watcher;
-
-pub(crate) use watcher::Watcher;
+pub(crate) mod watcher;
 
 mod generated;
 pub(crate) use generated::*;

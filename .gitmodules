@@ -1,6 +1,3 @@
-[submodule "crates/astria-bridge-withdrawer/ethereum/lib/forge-std"]
-	path = crates/astria-bridge-withdrawer/ethereum/lib/forge-std
-	url = https://github.com/foundry-rs/forge-std
-[submodule "crates/astria-bridge-withdrawer/ethereum/lib/openzeppelin-contracts"]
-	path = crates/astria-bridge-withdrawer/ethereum/lib/openzeppelin-contracts
-	url = https://github.com/OpenZeppelin/openzeppelin-contracts
+[submodule "crates/astria-bridge-withdrawer/astria-bridge-contracts"]
+	path = crates/astria-bridge-withdrawer/astria-bridge-contracts
+	url = https://github.com/astriaorg/astria-bridge-contracts.git

@@ -42,6 +42,7 @@ message Action {
     InitBridgeAccountAction init_bridge_account_action = 11;
     BridgeLockAction bridge_lock_action = 12;
     BridgeUnlockAction bridge_unlock_action = 13;
+    BridgeSudoChangeAction bridge_sudo_change_action = 14;
 
     // IBC user actions are defined on 21-30
     astria_vendored.penumbra.core.component.ibc.v1.IbcRelay ibc_action = 21;
@@ -55,7 +56,7 @@ message Action {
     FeeChangeAction fee_change_action = 55;
   }
   reserved 3 to 10;
-  reserved 14 to 20;
+  reserved 15 to 20;
   reserved 23 to 30;
   reserved 56 to 60;
 
@@ -119,6 +120,16 @@ message Ics20Withdrawal {
   bytes fee_asset_id = 8;
   // a memo to include with the transfer
   string memo = 9;
+  // the address of the bridge account to transfer from, if this is a withdrawal
+  // from a bridge account and the sender of the tx is the bridge's withdrawer,
+  // which differs from the bridge account's address.
+  //
+  // if unset, and the transaction sender is not a bridge account, the withdrawal
+  // is treated as a user (non-bridge) withdrawal.
+  //
+  // if unset, and the transaction sender is a bridge account, the withdrawal is
+  // treated as a bridge withdrawal (ie. the bridge account's withdrawer address is checked).
+  astria.primitive.v1.Address bridge_address = 10;
 }
 
 message IbcHeight {
@@ -160,6 +171,13 @@ message InitBridgeAccountAction {
   bytes asset_id = 2;
   // the asset used to pay the transaction fee
   bytes fee_asset_id = 3;
+  // the address corresponding to the key which has sudo capabilities;
+  // ie. can change the sudo and withdrawer addresses for this bridge account.
+  // if this is empty, the sender of the transaction is used.
+  astria.primitive.v1.Address sudo_address = 4;
+  // the address corresponding to the key which can withdraw funds from this bridge account.
+  // if this is empty, the sender of the transaction is used.
+  astria.primitive.v1.Address withdrawer_address = 5;
 }
 
 // `BridgeLockAction` represents a transaction that transfers
@@ -195,6 +213,21 @@ message BridgeUnlockAction {
   bytes fee_asset_id = 3;
   // memo for double spend prevention
   bytes memo = 4;
+  // the address of the bridge account to transfer from,
+  // if the bridge account's withdrawer address is not the same as the bridge address.
+  // if unset, the signer of the transaction is used.
+  astria.primitive.v1.Address bridge_address = 5;
+}
+
+message BridgeSudoChangeAction {
+  // the address of the bridge account to change the sudo or withdrawer addresses for
+  astria.primitive.v1.Address bridge_address = 1;
+  // the new sudo address; unchanged if unset
+  astria.primitive.v1.Address new_sudo_address = 2;
+  // the new withdrawer address; unchanged if unset
+  astria.primitive.v1.Address new_withdrawer_address = 3;
+  // the asset used to pay the transaction fee
+  bytes fee_asset_id = 4;
 }
 
 message FeeChangeAction {
@@ -209,6 +242,7 @@ message FeeChangeAction {
     // bridge fees are defined on 20-39
     astria.primitive.v1.Uint128 init_bridge_account_base_fee = 20;
     astria.primitive.v1.Uint128 bridge_lock_byte_cost_multiplier = 21;
+    astria.primitive.v1.Uint128 bridge_sudo_change_base_fee = 22;
 
     // ibc fees are defined on 40-59
     astria.primitive.v1.Uint128 ics20_withdrawal_base_fee = 40;

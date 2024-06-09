@@ -4,6 +4,7 @@ use std::{
 };
 
 use astria_core::{
+    bridge::Ics20WithdrawalFromRollupMemo,
     primitive::v1::asset,
     protocol::{
         asset::v1alpha1::AllowedFeeAssetIdsResponse,
@@ -67,10 +68,7 @@ use super::{
     state,
     SequencerStartupInfo,
 };
-use crate::withdrawer::ethereum::convert::{
-    BridgeUnlockMemo,
-    Ics20WithdrawalMemo,
-};
+use crate::withdrawer::ethereum::convert::BridgeUnlockMemo;
 
 mod builder;
 mod signer;
@@ -373,7 +371,7 @@ async fn submit_tx(
     state: Arc<State>,
 ) -> eyre::Result<tx_commit::Response> {
     let nonce = tx.nonce();
-    metrics::gauge!(crate::metrics_init::CURRENT_NONCE).set(nonce);
+    metrics::gauge!(crate::metrics_init::CURRENT_NONCE).set(f64::from(nonce));
     let start = std::time::Instant::now();
     debug!("submitting signed transaction to sequencer");
     let span = Span::current();
@@ -635,9 +633,9 @@ fn rollup_height_from_signed_transaction(
             Some(memo.block_number.as_u64())
         }
         Action::Ics20Withdrawal(action) => {
-            let memo: Ics20WithdrawalMemo = serde_json::from_str(&action.memo)
+            let memo: Ics20WithdrawalFromRollupMemo = serde_json::from_str(&action.memo)
                 .wrap_err("failed to parse memo from last transaction by the bridge account")?;
-            Some(memo.block_number.as_u64())
+            Some(memo.block_number)
         }
         _ => None,
     }

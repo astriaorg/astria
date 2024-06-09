@@ -84,7 +84,10 @@ impl Protobuf for merkle::Proof {
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
 #[cfg_attr(feature = "serde", serde(transparent))]
 pub struct RollupId {
-    #[cfg_attr(feature = "serde", serde(serialize_with = "crate::serde::base64"))]
+    #[cfg_attr(
+        feature = "serde",
+        serde(serialize_with = "crate::serde::base64_serialize")
+    )]
     inner: [u8; 32],
 }
 
@@ -401,8 +404,15 @@ impl AddressBuilder<[u8; ADDRESS_LEN], bech32::Hrp> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize))]
-#[cfg_attr(feature = "serde", serde(into = "raw::Address"))]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize),
+    derive(serde::Deserialize)
+)]
+#[cfg_attr(
+    feature = "serde",
+    serde(into = "raw::Address", try_from = "raw::Address")
+)]
 pub struct Address {
     bytes: [u8; ADDRESS_LEN],
     prefix: bech32::Hrp,
@@ -488,6 +498,14 @@ impl AsRef<[u8]> for Address {
 impl From<Address> for raw::Address {
     fn from(value: Address) -> Self {
         value.into_raw()
+    }
+}
+
+impl TryFrom<raw::Address> for Address {
+    type Error = AddressError;
+
+    fn try_from(value: raw::Address) -> Result<Self, Self::Error> {
+        Self::try_from_raw(&value)
     }
 }
 
