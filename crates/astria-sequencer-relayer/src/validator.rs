@@ -13,7 +13,7 @@ use tracing::instrument;
 #[derive(Clone, Debug)]
 pub(crate) struct Validator {
     /// The tendermint validator account address; defined as
-    /// Sha256(verification_key)[..20].
+    /// Sha256(`verification_key`)[..20].
     pub(super) address: account::Id,
 }
 

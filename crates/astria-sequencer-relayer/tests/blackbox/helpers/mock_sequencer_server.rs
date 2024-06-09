@@ -44,7 +44,7 @@ const GET_SEQUENCER_BLOCK_GRPC_NAME: &str = "get_sequencer_block";
 const GET_FILTERED_SEQUENCER_BLOCK_GRPC_NAME: &str = "get_filtered_sequencer_block";
 
 pub struct MockSequencerServer {
-    pub _server: JoinHandle<eyre::Result<()>>,
+    _server: JoinHandle<eyre::Result<()>>,
     pub mock_server: MockServer,
     pub local_addr: SocketAddr,
 }
