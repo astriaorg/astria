@@ -41,19 +41,18 @@ pub(crate) async fn bridge_account_last_tx_hash_request(
         }
     };
 
-    let tx_hash = match snapshot
+    let resp = match snapshot
         .get_last_transaction_hash_for_bridge_account(&address)
         .await
     {
-        Ok(Some(tx_hash)) => tx_hash,
-        Ok(None) => {
-            return response::Query {
-                code: AbciErrorCode::VALUE_NOT_FOUND.into(),
-                info: AbciErrorCode::VALUE_NOT_FOUND.to_string(),
-                log: "no transaction hash found for provided address".into(),
-                ..response::Query::default()
-            };
-        }
+        Ok(Some(tx_hash)) => BridgeAccountLastTxHashResponse {
+            height,
+            tx_hash: Some(tx_hash),
+        },
+        Ok(None) => BridgeAccountLastTxHashResponse {
+            height,
+            tx_hash: None,
+        },
         Err(err) => {
             return response::Query {
                 code: AbciErrorCode::INTERNAL_ERROR.into(),
@@ -63,13 +62,7 @@ pub(crate) async fn bridge_account_last_tx_hash_request(
             };
         }
     };
-    let payload = BridgeAccountLastTxHashResponse {
-        height,
-        tx_hash,
-    }
-    .into_raw()
-    .encode_to_vec()
-    .into();
+    let payload = resp.into_raw().encode_to_vec().into();
 
     let height = tendermint::block::Height::try_from(height).expect("height must fit into an i64");
     response::Query {

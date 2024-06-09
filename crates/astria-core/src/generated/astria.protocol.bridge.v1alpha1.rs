@@ -1,11 +1,12 @@
-/// A response containing the last tx hash given some bridge address.
+/// A response containing the last tx hash given some bridge address,
+/// if it exists.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct BridgeAccountLastTxHashResponse {
     #[prost(uint64, tag = "2")]
     pub height: u64,
-    #[prost(bytes = "vec", tag = "3")]
-    pub tx_hash: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "vec", optional, tag = "3")]
+    pub tx_hash: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
 }
 impl ::prost::Name for BridgeAccountLastTxHashResponse {
     const NAME: &'static str = "BridgeAccountLastTxHashResponse";

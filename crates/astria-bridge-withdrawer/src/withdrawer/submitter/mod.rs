@@ -4,9 +4,11 @@ use std::{
 };
 
 use astria_core::{
+    bridge::Ics20WithdrawalFromRollupMemo,
     primitive::v1::asset,
     protocol::{
         asset::v1alpha1::AllowedFeeAssetIdsResponse,
+        bridge::v1alpha1::BridgeAccountLastTxHashResponse,
         transaction::v1alpha1::{
             Action,
             TransactionParams,
@@ -23,17 +25,23 @@ use astria_eyre::eyre::{
 };
 pub(crate) use builder::Builder;
 pub(super) use builder::Handle;
+use prost::Message as _;
 use sequencer_client::{
     tendermint_rpc::{
         self,
         endpoint::broadcast::tx_commit,
     },
     Address,
+    BalanceResponse,
     SequencerClientExt,
     SignedTransaction,
 };
 use signer::SequencerKey;
 use state::State;
+use tendermint_rpc::{
+    endpoint::tx,
+    Client,
+};
 use tokio::{
     select,
     sync::{
@@ -61,6 +69,7 @@ use super::{
     state,
     SequencerStartupInfo,
 };
+use crate::withdrawer::ethereum::convert::BridgeUnlockMemo;
 
 mod builder;
 mod signer;
@@ -101,12 +110,15 @@ impl Submitter {
                         info!("received None from batch channel, shutting down");
                         break Err(eyre!("batch channel closed"));
                     };
+                    // if batch submission fails, halt the submitter
                     if let Err(e) = process_batch(
                         self.sequencer_cometbft_client.clone(),
                         &self.signer,
                         self.state.clone(),
                         &self.sequencer_chain_id,
-                        actions, rollup_height).await {
+                        actions,
+                        rollup_height,
+                    ).await {
                         break Err(e);
                     }
                 }
@@ -129,8 +141,25 @@ impl Submitter {
         Ok(())
     }
 
-    /// Confirms the config values used for initialization against the sequencer node's cometbft
-    /// instance and set the submitter state to ready.
+    /// Confirms configuration values against the sequencer node and then syncs the next sequencer
+    /// nonce and rollup block according to the latest on-chain state.
+    ///
+    /// Configuration values checked:
+    /// - `self.chain_id` matches the value returned from the sequencer node's genesis
+    /// - `self.fee_asset_id` is a valid fee asset on the sequencer node
+    /// - `self.sequencer_key.address` has a sufficient balance of `self.fee_asset_id`
+    ///
+    /// Sync process:
+    /// - Fetch the last transaction hash by the bridge account from the sequencer
+    /// - Fetch the corresponding transaction
+    /// - Extract the last nonce used from the transaction
+    /// - Extract the rollup block height from the memo of one of the withdraw actions in the
+    ///   transaction
+    ///
+    /// # Returns
+    /// A struct with the information collected and validated during startup:
+    /// - `fee_asset_id`
+    /// - `next_batch_rollup_height`
     ///
     /// # Errors
     ///
@@ -158,10 +187,12 @@ impl Submitter {
         );
 
         // confirm that the sequencer key has a sufficient balance of the fee asset
-        let fee_asset_balances = self
-            .sequencer_cometbft_client
-            .get_latest_balance(self.signer.address)
-            .await?;
+        let fee_asset_balances = get_latest_balance(
+            self.sequencer_cometbft_client.clone(),
+            self.state.clone(),
+            self.signer.address,
+        )
+        .await?;
         let fee_asset_balance = fee_asset_balances
             .balances
             .into_iter()
@@ -173,19 +204,105 @@ impl Submitter {
             "sequencer key does not have a sufficient balance of the fee asset"
         );
 
+        // sync to latest on-chain state
+        let next_batch_rollup_height = self.get_next_rollup_height().await?;
+
         self.state.set_submitter_ready();
 
         // send startup info to watcher
         let startup = SequencerStartupInfo {
             fee_asset_id: self.expected_fee_asset_id,
+            next_batch_rollup_height,
         };
         Ok(startup)
+    }
+
+    /// Gets the data necessary for syncing to the latest on-chain state from the sequencer. Since
+    /// we batch all events from a given rollup block into a single sequencer transaction, we
+    /// get the last tx finalized by the bridge account on the sequencer and extract the rollup
+    /// height from it.
+    ///
+    /// The rollup height is extracted from the block height value in the memo of one of the actions
+    /// in the batch.
+    ///
+    /// # Returns
+    /// The next batch rollup height to process.
+    ///
+    /// # Errors
+    ///
+    /// 1. Failing to get and deserialize a valid last transaction by the bridge account from the
+    ///    sequencer.
+    /// 2. The last transaction by the bridge account failed to execute (this should not happen in
+    ///    the sequencer logic)
+    /// 3. The last transaction by the bridge account did not contain a withdrawal action
+    /// 4. The memo of the last transaction by the bridge account could not be parsed
+    async fn get_next_rollup_height(&mut self) -> eyre::Result<u64> {
+        let signed_transaction = self.get_last_transaction().await?;
+        let next_batch_rollup_height = if let Some(signed_transaction) = signed_transaction {
+            rollup_height_from_signed_transaction(&signed_transaction).wrap_err(
+                "failed to extract rollup height from last transaction by the bridge account",
+            )?
+        } else {
+            1
+        };
+        Ok(next_batch_rollup_height)
+    }
+
+    async fn get_last_transaction(&self) -> eyre::Result<Option<SignedTransaction>> {
+        // get last transaction hash by the bridge account, if it exists
+        let last_transaction_hash_resp = get_bridge_account_last_transaction_hash(
+            self.sequencer_cometbft_client.clone(),
+            self.state.clone(),
+            self.signer.address,
+        )
+        .await
+        .wrap_err("failed to fetch last transaction hash by the bridge account")?;
+
+        let Some(tx_hash) = last_transaction_hash_resp.tx_hash else {
+            return Ok(None);
+        };
+
+        let tx_hash = tendermint::Hash::try_from(tx_hash.to_vec())
+            .wrap_err("failed to convert last transaction hash to tendermint hash")?;
+
+        // get the corresponding transaction
+        let last_transaction = get_tx(
+            self.sequencer_cometbft_client.clone(),
+            self.state.clone(),
+            tx_hash,
+        )
+        .await
+        .wrap_err("failed to fetch last transaction by the bridge account")?;
+
+        // check that the transaction actually executed
+        ensure!(
+            last_transaction.tx_result.code == tendermint::abci::Code::Ok,
+            "last transaction by the bridge account failed to execute. this should not happen in \
+             the sequencer logic."
+        );
+
+        let proto_tx =
+            astria_core::generated::protocol::transaction::v1alpha1::SignedTransaction::decode(
+                &*last_transaction.tx,
+            )
+            .wrap_err("failed to convert transaction data from CometBFT to proto")?;
+
+        let tx = SignedTransaction::try_from_raw(proto_tx)
+            .wrap_err("failed to convert transaction data from proto to SignedTransaction")?;
+
+        info!(
+            last_bridge_account_tx.hash = %telemetry::display::hex(&tx_hash),
+            last_bridge_account_tx.height = i64::from(last_transaction.height),
+            "fetched last transaction by the bridge account"
+        );
+
+        Ok(Some(tx))
     }
 }
 
 async fn process_batch(
     sequencer_cometbft_client: sequencer_client::HttpClient,
-    sequnecer_key: &SequencerKey,
+    sequencer_key: &SequencerKey,
     state: Arc<State>,
     sequencer_chain_id: &str,
     actions: Vec<Action>,
@@ -194,7 +311,7 @@ async fn process_batch(
     // get nonce and make unsigned transaction
     let nonce = get_latest_nonce(
         sequencer_cometbft_client.clone(),
-        sequnecer_key.address,
+        sequencer_key.address,
         state.clone(),
     )
     .await?;
@@ -213,7 +330,7 @@ async fn process_batch(
     };
 
     // sign transaction
-    let signed = unsigned.into_signed(&sequnecer_key.signing_key);
+    let signed = unsigned.into_signed(&sequencer_key.signing_key);
     debug!(tx_hash = %telemetry::display::hex(&signed.sha256_of_proto_encoding()), "signed transaction");
 
     // submit transaction and handle response
@@ -255,8 +372,6 @@ async fn process_batch(
     }
 }
 
-/// Queries the sequencer for the latest nonce with an exponential backoff
-#[instrument(skip_all, fields(%address))]
 async fn get_latest_nonce(
     client: sequencer_client::HttpClient,
     address: Address,
@@ -443,4 +558,157 @@ async fn get_allowed_fee_asset_ids(
     state.set_sequencer_connected(res.is_ok());
 
     res
+}
+
+#[instrument(skip_all)]
+async fn get_latest_balance(
+    client: sequencer_client::HttpClient,
+    state: Arc<State>,
+    address: Address,
+) -> eyre::Result<BalanceResponse> {
+    let retry_config = tryhard::RetryFutureConfig::new(u32::MAX)
+        .exponential_backoff(Duration::from_millis(100))
+        .max_delay(Duration::from_secs(20))
+        .on_retry(
+            |attempt: u32,
+             next_delay: Option<Duration>,
+             error: &sequencer_client::extension_trait::Error| {
+                let state = Arc::clone(&state);
+                state.set_sequencer_connected(false);
+
+                let wait_duration = next_delay
+                    .map(humantime::format_duration)
+                    .map(tracing::field::display);
+                warn!(
+                    attempt,
+                    wait_duration,
+                    error = error as &dyn std::error::Error,
+                    "attempt to get latest balance; retrying after backoff",
+                );
+                futures::future::ready(())
+            },
+        );
+
+    let res = tryhard::retry_fn(|| client.get_latest_balance(address))
+        .with_config(retry_config)
+        .await
+        .wrap_err("failed to get latest balance from Sequencer after a lot of attempts");
+
+    state.set_sequencer_connected(res.is_ok());
+
+    res
+}
+
+#[instrument(skip_all)]
+async fn get_bridge_account_last_transaction_hash(
+    client: sequencer_client::HttpClient,
+    state: Arc<State>,
+    address: Address,
+) -> eyre::Result<BridgeAccountLastTxHashResponse> {
+    let retry_config = tryhard::RetryFutureConfig::new(u32::MAX)
+        .exponential_backoff(Duration::from_millis(100))
+        .max_delay(Duration::from_secs(20))
+        .on_retry(
+            |attempt: u32,
+             next_delay: Option<Duration>,
+             error: &sequencer_client::extension_trait::Error| {
+                let state = Arc::clone(&state);
+                state.set_sequencer_connected(false);
+
+                let wait_duration = next_delay
+                    .map(humantime::format_duration)
+                    .map(tracing::field::display);
+                warn!(
+                    attempt,
+                    wait_duration,
+                    error = error as &dyn std::error::Error,
+                    "attempt to fetch last bridge account's transaction hash; retrying after \
+                     backoff",
+                );
+                futures::future::ready(())
+            },
+        );
+
+    let res = tryhard::retry_fn(|| client.get_bridge_account_last_transaction_hash(address))
+        .with_config(retry_config)
+        .await
+        .wrap_err(
+            "failed to fetch last bridge account's transaction hash from Sequencer after a lot of \
+             attempts",
+        );
+
+    state.set_sequencer_connected(res.is_ok());
+
+    res
+}
+
+#[instrument(skip_all)]
+async fn get_tx(
+    client: sequencer_client::HttpClient,
+    state: Arc<State>,
+    tx_hash: tendermint::Hash,
+) -> eyre::Result<tx::Response> {
+    let retry_config = tryhard::RetryFutureConfig::new(u32::MAX)
+        .exponential_backoff(Duration::from_millis(100))
+        .max_delay(Duration::from_secs(20))
+        .on_retry(
+            |attempt: u32, next_delay: Option<Duration>, error: &tendermint_rpc::Error| {
+                let state = Arc::clone(&state);
+                state.set_sequencer_connected(false);
+
+                let wait_duration = next_delay
+                    .map(humantime::format_duration)
+                    .map(tracing::field::display);
+                warn!(
+                    attempt,
+                    wait_duration,
+                    error = error as &dyn std::error::Error,
+                    "attempt to get transaction from Sequencer; retrying after backoff",
+                );
+                futures::future::ready(())
+            },
+        );
+
+    let res = tryhard::retry_fn(|| client.tx(tx_hash, false))
+        .with_config(retry_config)
+        .await
+        .wrap_err("failed to get transaction from Sequencer after a lot of attempts");
+
+    state.set_sequencer_connected(res.is_ok());
+
+    res
+}
+
+fn rollup_height_from_signed_transaction(
+    signed_transaction: &SignedTransaction,
+) -> eyre::Result<u64> {
+    // find the last batch's rollup block height
+    let withdrawal_action = signed_transaction
+        .actions()
+        .iter()
+        .find(|action| matches!(action, Action::BridgeUnlock(_) | Action::Ics20Withdrawal(_)))
+        .ok_or_eyre("last transaction by the bridge account did not contain a withdrawal action")?;
+
+    let last_batch_rollup_height = match withdrawal_action {
+        Action::BridgeUnlock(action) => {
+            let memo: BridgeUnlockMemo = serde_json::from_slice(&action.memo)
+                .wrap_err("failed to parse memo from last transaction by the bridge account")?;
+            Some(memo.block_number.as_u64())
+        }
+        Action::Ics20Withdrawal(action) => {
+            let memo: Ics20WithdrawalFromRollupMemo = serde_json::from_str(&action.memo)
+                .wrap_err("failed to parse memo from last transaction by the bridge account")?;
+            Some(memo.block_number)
+        }
+        _ => None,
+    }
+    .expect("action is already checked to be either BridgeUnlock or Ics20Withdrawal");
+
+    info!(
+        last_batch.tx_hash = %telemetry::display::hex(&signed_transaction.sha256_of_proto_encoding()),
+        last_batch.rollup_height = last_batch_rollup_height,
+        "extracted rollup height from last batch of withdrawals",
+    );
+
+    Ok(last_batch_rollup_height)
 }

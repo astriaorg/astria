@@ -111,7 +111,8 @@ pub(crate) struct Watcher {
 
 impl Watcher {
     pub(crate) async fn run(mut self) -> Result<()> {
-        let (provider, contract, fee_asset_id, asset_withdrawal_divisor) = self.startup().await?;
+        let (provider, contract, fee_asset_id, asset_withdrawal_divisor, next_rollup_block_height) =
+            self.startup().await?;
 
         let Self {
             contract_address: _contract_address,
@@ -138,15 +139,16 @@ impl Watcher {
 
         tokio::task::spawn(batcher.run());
 
-        // start from block 1 right now
-        // TODO: determine the last block we've seen based on the sequencer data
-        let sequencer_withdrawal_event_handler = tokio::task::spawn(
-            watch_for_sequencer_withdrawal_events(contract.clone(), event_tx.clone(), 1),
-        );
+        let sequencer_withdrawal_event_handler =
+            tokio::task::spawn(watch_for_sequencer_withdrawal_events(
+                contract.clone(),
+                event_tx.clone(),
+                next_rollup_block_height,
+            ));
         let ics20_withdrawal_event_handler = tokio::task::spawn(watch_for_ics20_withdrawal_events(
             contract,
             event_tx.clone(),
-            1,
+            next_rollup_block_height,
         ));
 
         state.set_watcher_ready();
@@ -169,8 +171,8 @@ impl Watcher {
 
     /// Gets the startup data from the submitter and connects to the Ethereum node.
     ///
-    /// Returns the contract handle, the asset ID of the fee asset, and the divisor for the asset
-    /// withdrawal amount.
+    /// Returns the contract handle, the asset ID of the fee asset, the divisor for the asset
+    /// withdrawal amount, and the rollup block height to watch from.
     ///
     /// # Errors
     /// - If the fee asset ID provided in the config is not a valid fee asset on the sequencer.
@@ -183,10 +185,12 @@ impl Watcher {
         IAstriaWithdrawer<Provider<Ws>>,
         asset::Id,
         u128,
+        u64,
     )> {
         // wait for submitter to be ready
         let SequencerStartupInfo {
             fee_asset_id,
+            next_batch_rollup_height,
         } = self.submitter_handle.recv_startup_info().await?;
 
         // connect to eth node
@@ -242,6 +246,7 @@ impl Watcher {
             contract,
             fee_asset_id,
             asset_withdrawal_divisor,
+            next_batch_rollup_height,
         ))
     }
 }
@@ -556,6 +561,7 @@ mod tests {
         startup_tx
             .send(SequencerStartupInfo {
                 fee_asset_id: denom.id(),
+                next_batch_rollup_height: 0,
             })
             .unwrap();
 
@@ -647,6 +653,7 @@ mod tests {
         startup_tx
             .send(SequencerStartupInfo {
                 fee_asset_id: denom.id(),
+                next_batch_rollup_height: 0,
             })
             .unwrap();
 
@@ -768,6 +775,7 @@ mod tests {
         startup_tx
             .send(SequencerStartupInfo {
                 fee_asset_id: denom.id(),
+                next_batch_rollup_height: 0,
             })
             .unwrap();
 
@@ -869,6 +877,7 @@ mod tests {
         startup_tx
             .send(SequencerStartupInfo {
                 fee_asset_id: asset::Id::from_denom("transfer/channel-0/utia"),
+                next_batch_rollup_height: 0,
             })
             .unwrap();
 
