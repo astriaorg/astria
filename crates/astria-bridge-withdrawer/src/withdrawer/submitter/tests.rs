@@ -176,9 +176,8 @@ impl TestSubmitter {
         for (name, guard) in startup_guards {
             tokio::time::timeout(Duration::from_millis(100), guard.wait_until_satisfied())
                 .await
-                .wrap_err(format!("{} guard not satisfied in time.", name))
+                .wrap_err(format!("{name} guard not satisfied in time."))
                 .unwrap();
-            debug!("{} guard satisfied", name);
         }
 
         // consume the startup info in place of the watcher
@@ -285,8 +284,8 @@ fn make_ics20_withdrawal_action() -> Action {
         memo: serde_json::to_string(&Ics20WithdrawalFromRollupMemo {
             memo: "hello".to_string(),
             bridge_address: crate::astria_address([0u8; 20]),
-            block_number: DEFAULT_LAST_ROLLUP_HEIGHT.into(),
-            transaction_hash: [2u8; 32].into(),
+            block_number: DEFAULT_LAST_ROLLUP_HEIGHT,
+            transaction_hash: [2u8; 32],
         })
         .unwrap(),
         fee_asset_id: denom.id(),

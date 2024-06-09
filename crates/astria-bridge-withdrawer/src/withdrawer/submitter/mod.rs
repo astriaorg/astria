@@ -240,7 +240,7 @@ impl Submitter {
     async fn sync(&mut self) -> eyre::Result<u64> {
         let signed_transaction = self.get_last_transaction().await?;
         let next_batch_rollup_height = if let Some(signed_transaction) = signed_transaction {
-            rollup_height_from_signed_transaction(signed_transaction).wrap_err(
+            rollup_height_from_signed_transaction(&signed_transaction).wrap_err(
                 "failed to extract rollup height from last transaction by the bridge account",
             )?
         } else {
@@ -681,16 +681,13 @@ async fn get_tx(
 }
 
 fn rollup_height_from_signed_transaction(
-    signed_transaction: SignedTransaction,
+    signed_transaction: &SignedTransaction,
 ) -> eyre::Result<u64> {
     // find the last batch's rollup block height
     let withdrawal_action = signed_transaction
         .actions()
-        .into_iter()
-        .find_map(|action| match action {
-            Action::BridgeUnlock(_) | Action::Ics20Withdrawal(_) => Some(action),
-            _ => None,
-        })
+        .iter()
+        .find(|action| matches!(action, Action::BridgeUnlock(_) | Action::Ics20Withdrawal(_)))
         .ok_or_eyre("last transaction by the bridge account did not contain a withdrawal action")?;
 
     let last_batch_rollup_height = match withdrawal_action {
