@@ -189,7 +189,6 @@ impl Service {
 pub struct SequencerStartupInfo {
     pub fee_asset_id: asset::Id,
     pub next_batch_rollup_height: u64,
-    pub next_sequencer_nonce: u32,
 }
 
 /// A handle for instructing the [`Service`] to shut down.
