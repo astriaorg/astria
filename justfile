@@ -1,3 +1,5 @@
+# Place recipes for local testing/development here.
+import? 'localenv.just'
 import 'charts/deploy.just'
 
 default:

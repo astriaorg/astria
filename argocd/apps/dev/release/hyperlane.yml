@@ -1,0 +1,21 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: hyperlane-dusk4
+  labels:
+    network: dusk-4
+spec:
+  project: default
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: hyperlane
+  sources:
+    - repoURL: https://github.com/astriaorg/dev-cluster.git
+      targetRevision: HEAD
+      path: './charts/hyperlane-agents'
+      helm:
+        valueFiles:
+        - $values/apps/hyperlane/dusk-4/values.yaml
+    - repoURL: 'git@github.com/astriaorg/argocd-apps.git'
+      ref: values
+      targetRevision: HEAD

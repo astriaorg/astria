@@ -1,0 +1,21 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: rollup-archive-dusk4
+  labels:
+    network: dusk-4
+spec:
+  project: default
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: astria-dusk4-archive
+  sources:
+    - repoURL: https://astriaorg.github.io/charts/
+      targetRevision: 0.11.1
+      chart: evm-rollup
+      helm:
+        valueFiles:
+          - $values/apps/rollup/dusk-4/index-archive.yaml
+    - repoURL: 'git@github.com/astriaorg/argocd-apps.git'
+      ref: values
+      targetRevision: HEAD

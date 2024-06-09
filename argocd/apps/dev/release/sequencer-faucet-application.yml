@@ -1,0 +1,21 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: sequencer-dusk4-faucet
+  labels:
+    network: dusk-4
+spec:
+  project: default
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: astria-dusk4-cluster
+  sources:
+    - repoURL: https://astriaorg.github.io/dev-cluster/
+      targetRevision: 0.5.0
+      chart: sequencer-faucet
+      helm:
+        valueFiles:
+          - $values/apps/sequencer-faucet/dusk-4/values.yaml
+    - repoURL: 'git@github.com/astriaorg/argocd-apps.git'
+      ref: values
+      targetRevision: HEAD
