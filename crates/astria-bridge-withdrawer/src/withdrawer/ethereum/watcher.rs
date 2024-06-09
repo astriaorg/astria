@@ -191,7 +191,6 @@ impl Watcher {
         let SequencerStartupInfo {
             fee_asset_id,
             next_batch_rollup_height,
-            ..
         } = self.submitter_handle.recv_startup_info().await?;
 
         // connect to eth node

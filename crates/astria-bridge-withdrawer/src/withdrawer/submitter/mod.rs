@@ -160,7 +160,6 @@ impl Submitter {
     /// A struct with the information collected and validated during startup:
     /// - `fee_asset_id`
     /// - `next_batch_rollup_height`
-    /// - `next_sequencer_nonce`
     ///
     /// # Errors
     ///
@@ -206,7 +205,7 @@ impl Submitter {
         );
 
         // sync to latest on-chain state
-        let next_batch_rollup_height = self.sync().await?;
+        let next_batch_rollup_height = self.get_next_rollup_height().await?;
 
         self.state.set_submitter_ready();
 
@@ -237,7 +236,7 @@ impl Submitter {
     ///    the sequencer logic)
     /// 3. The last transaction by the bridge account did not contain a withdrawal action
     /// 4. The memo of the last transaction by the bridge account could not be parsed
-    async fn sync(&mut self) -> eyre::Result<u64> {
+    async fn get_next_rollup_height(&mut self) -> eyre::Result<u64> {
         let signed_transaction = self.get_last_transaction().await?;
         let next_batch_rollup_height = if let Some(signed_transaction) = signed_transaction {
             rollup_height_from_signed_transaction(&signed_transaction).wrap_err(

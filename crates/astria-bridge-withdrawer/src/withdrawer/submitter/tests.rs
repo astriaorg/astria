@@ -88,11 +88,11 @@ use crate::withdrawer::{
 };
 
 const SEQUENCER_CHAIN_ID: &str = "test_sequencer-1000";
-const DEFAULT_LAST_ROLLUP_HEIGHT: u64 = 0;
+const DEFAULT_LAST_ROLLUP_HEIGHT: u64 = 1;
 const DEFAULT_LAST_SEQUENCER_HEIGHT: u64 = 0;
 const DEFAULT_SEQUENCER_NONCE: u32 = 0;
 const DEFAULT_NATIVE_DEMON: &str = "nria";
-const DEFAULT_IBC_DENOM: &str = "/transfer/channel-0/utia";
+const DEFAULT_IBC_DENOM: &str = "transfer/channel-0/utia";
 
 static TELEMETRY: Lazy<()> = Lazy::new(|| {
     if std::env::var_os("TEST_LOG").is_some() {
