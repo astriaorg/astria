@@ -551,19 +551,6 @@ async fn register_last_bridge_tx_hash_guard(
         .await
 }
 
-async fn register_tx_guard(server: &MockServer, response: tx::Response) -> MockGuard {
-    let wrapper = response::Wrapper::new_with_id(tendermint_rpc::Id::Num(1), Some(response), None);
-    Mock::given(body_partial_json(json!({"method": "tx"})))
-        .respond_with(
-            ResponseTemplate::new(200)
-                .set_body_json(&wrapper)
-                .append_header("Content-Type", "application/json"),
-        )
-        .expect(1)
-        .mount_as_scoped(server)
-        .await
-}
-
 async fn register_get_nonce_response(server: &MockServer, response: NonceResponse) -> MockGuard {
     let response = tendermint_rpc::endpoint::abci_query::Response {
         response: tendermint_rpc::endpoint::abci_query::AbciQuery {
@@ -574,6 +561,19 @@ async fn register_get_nonce_response(server: &MockServer, response: NonceRespons
     let wrapper = response::Wrapper::new_with_id(tendermint_rpc::Id::Num(1), Some(response), None);
     Mock::given(body_partial_json(json!({"method": "abci_query"})))
         .and(body_string_contains("accounts/nonce"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(&wrapper)
+                .append_header("Content-Type", "application/json"),
+        )
+        .expect(1)
+        .mount_as_scoped(server)
+        .await
+}
+
+async fn register_tx_guard(server: &MockServer, response: tx::Response) -> MockGuard {
+    let wrapper = response::Wrapper::new_with_id(tendermint_rpc::Id::Num(1), Some(response), None);
+    Mock::given(body_partial_json(json!({"method": "tx"})))
         .respond_with(
             ResponseTemplate::new(200)
                 .set_body_json(&wrapper)
