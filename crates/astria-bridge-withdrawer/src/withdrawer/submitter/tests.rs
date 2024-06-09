@@ -9,7 +9,6 @@ use std::{
 use astria_core::{
     bridge::Ics20WithdrawalFromRollupMemo,
     crypto::SigningKey,
-    generated::protocol::account::v1alpha1::NonceResponse,
     primitive::v1::{
         asset::{
             self,
@@ -363,7 +362,7 @@ fn make_tx_commit_deliver_tx_failure_response() -> tx_commit::Response {
 fn make_last_bridge_tx_hash_response() -> BridgeAccountLastTxHashResponse {
     BridgeAccountLastTxHashResponse {
         height: DEFAULT_LAST_ROLLUP_HEIGHT,
-        tx_hash: Hash::Sha256([0u8; 32]).as_bytes().try_into().unwrap(),
+        tx_hash: Some(Hash::Sha256([0u8; 32]).as_bytes().try_into().unwrap()),
     }
 }
 
@@ -555,26 +554,6 @@ async fn register_last_bridge_tx_hash_guard(
 async fn register_tx_guard(server: &MockServer, response: tx::Response) -> MockGuard {
     let wrapper = response::Wrapper::new_with_id(tendermint_rpc::Id::Num(1), Some(response), None);
     Mock::given(body_partial_json(json!({"method": "tx"})))
-        .respond_with(
-            ResponseTemplate::new(200)
-                .set_body_json(&wrapper)
-                .append_header("Content-Type", "application/json"),
-        )
-        .expect(1)
-        .mount_as_scoped(server)
-        .await
-}
-
-async fn register_get_nonce_response(server: &MockServer, response: NonceResponse) -> MockGuard {
-    let response = tendermint_rpc::endpoint::abci_query::Response {
-        response: tendermint_rpc::endpoint::abci_query::AbciQuery {
-            value: response.encode_to_vec(),
-            ..Default::default()
-        },
-    };
-    let wrapper = response::Wrapper::new_with_id(tendermint_rpc::Id::Num(1), Some(response), None);
-    Mock::given(body_partial_json(json!({"method": "abci_query"})))
-        .and(body_string_contains("accounts/nonce"))
         .respond_with(
             ResponseTemplate::new(200)
                 .set_body_json(&wrapper)
