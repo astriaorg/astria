@@ -184,7 +184,7 @@ async fn refund_tokens_check<S: StateRead>(
     // if the asset is prefixed with `ibc`, the rest of the denomination string is the asset ID,
     // so we need to look up the full trace from storage.
     // see https://github.com/cosmos/ibc-go/blob/main/docs/architecture/adr-001-coin-source-tracing.md#decision
-    if denom.prefix_is("ibc") {
+    if denom.prefix_matches_exactly("ibc") {
         denom = state
             .get_ibc_asset(denom.id())
             .await
@@ -216,7 +216,7 @@ async fn refund_tokens_check<S: StateRead>(
 
 fn is_prefixed(source_port: &PortId, source_channel: &ChannelId, asset: &Denom) -> bool {
     let prefix = format!("{source_port}/{source_channel}");
-    asset.prefix_is(&prefix)
+    asset.prefix_matches_exactly(&prefix)
 }
 
 #[async_trait::async_trait]

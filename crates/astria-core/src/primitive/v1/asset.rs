@@ -65,45 +65,39 @@ impl Denom {
         self.prefix_segments.last().map(|seg| &**seg)
     }
 
-    #[must_use]
-    pub fn prefix_is(&self, prefix: &str) -> bool {
-        // For the current implementation, the number of slashes in a prefix is equal to the number
-        // of segments + 1.
-        let number_of_slashes = prefix
-            .strip_suffix('/')
-            .unwrap_or(prefix)
-            .chars()
-            .filter(|c| *c == '/')
-            .count();
-        if number_of_slashes.saturating_add(1) != self.prefix_segments.len() {
-            return false;
+    /// Returns the number of segments in `prefix` if they all match `self.prefix_segments`, or
+    /// `None` if there is any mismatch.
+    ///
+    /// Returns `Some(0)` if `prefix` and `self.prefix_segments` are both empty.
+    fn count_matching_prefix_segments(&self, prefix: &str) -> Option<usize> {
+        let prefix = prefix.strip_suffix('/').unwrap_or(prefix);
+        let mut arg_segment_count = 0;
+        for argument_segment in prefix.split('/') {
+            match self.prefix_segments.get(arg_segment_count) {
+                Some(denom_segment) if denom_segment == argument_segment => {
+                    arg_segment_count = arg_segment_count.saturating_add(1);
+                }
+                _ => return None,
+            }
         }
-        self.is_prefixed_by(prefix)
+        Some(arg_segment_count)
+    }
+
+    #[must_use]
+    pub fn prefix_matches_exactly(&self, prefix: &str) -> bool {
+        self.count_matching_prefix_segments(prefix)
+            .map(|count| count == self.prefix_segments.len())
+            .unwrap_or(false)
     }
 
     #[must_use]
     pub fn is_prefixed_by(&self, prefix: &str) -> bool {
-        let prefix = prefix.strip_suffix('/').unwrap_or(prefix);
-        for (i, argument_segment) in prefix.split('/').enumerate() {
-            match self.prefix_segments.get(i) {
-                Some(denom_segment) if denom_segment == argument_segment => continue,
-                _ => return false,
-            }
-        }
-        true
+        self.count_matching_prefix_segments(prefix).is_some()
     }
 
     #[must_use]
     pub fn remove_prefix(&self, prefix: &str) -> Option<Self> {
-        if !self.is_prefixed_by(prefix) {
-            return None;
-        }
-        // We already know it's a prefix, so just split the prefix and skip ahead
-        let segments_to_drop = prefix
-            .strip_suffix('/')
-            .unwrap_or(prefix)
-            .split('/')
-            .count();
+        let segments_to_drop = self.count_matching_prefix_segments(prefix)?;
         let prefix_segments = self.prefix_segments[segments_to_drop..].to_vec();
         let id = Id::from_denom_fmt(&DenomFmt {
             prefix_segments: &prefix_segments,
@@ -358,11 +352,11 @@ mod tests {
     fn full_prefix_of_denom() {
         let input = "path/to/denom";
         let denom = input.parse::<Denom>().unwrap();
-        assert!(denom.prefix_is("path/to"));
-        assert!(denom.prefix_is("path/to/"));
-        assert!(!denom.prefix_is("path/to/denom"));
-        assert!(!denom.prefix_is("/path/to"));
-        assert!(!denom.prefix_is("/path/to/"));
+        assert!(denom.prefix_matches_exactly("path/to"));
+        assert!(denom.prefix_matches_exactly("path/to/"));
+        assert!(!denom.prefix_matches_exactly("path/to/denom"));
+        assert!(!denom.prefix_matches_exactly("/path/to"));
+        assert!(!denom.prefix_matches_exactly("/path/to/"));
     }
 
     #[test]
@@ -388,7 +382,7 @@ mod tests {
     }
 
     #[test]
-    fn prefix_is_removed() {
+    fn prefix_matches_exactly_removed() {
         let input = "path/to/denom";
         let denom = input.parse::<Denom>().unwrap();
         assert_eq!(
