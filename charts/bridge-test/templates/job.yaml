@@ -12,14 +12,27 @@ spec:
       labels:
         app: astria-dev-cluster
     spec:
+{{/*      initContainers:*/}}
+{{/*        - name: init-bridge-account*/}}
+{{/*          image: {{ .Values.astriaGoImage }}*/}}
+{{/*          command: [ "/build/astria-go", "sequencer", "bridge", "init", {{ .Values.evmRollupName }} ]*/}}
+{{/*          args:*/}}
+{{/*            - --privkey={{ .Values.bridgeAccount.privkey }}*/}}
+{{/*            - --sequencer-url={{ .Values.sequencerURL }}*/}}
+{{/*            - --asset-id={{ .Values.assetID }}*/}}
+{{/*            - --fee-asset-id={{ .Values.feeAssetID }}*/}}
+{{/*            - --sequencer-chain-id={{ .Values.sequencerChainID }}*/}}
+{{/*            - --log-level=debug*/}}
       containers:
-        - name: init-bridge-account
-          image: {{ .Values.image }}
-          command: [ "/build/astria-go", "sequencer", "bridge",  "init", "astria-evm" ]
+        - name: ibc-transfer
+          image: {{ .Values.celestiaAppImage }}
+          command: [ "celestia-appd", "tx", "ibc-transfer", "transfer" ]
           args:
-            - --privkey={{ .Values.bridgeAccount.privkey }}
-            - --sequencer-url={{ .Values.sequencerURL }}
-            - --asset-id=transfer/channel-0/utia
-            - --fee-asset-id=nria
-            - --log-level=debug
+            - transfer
+            - channel-0
+            - {{ .Values.bridgeAccount.address }}
+            - 5300utia
+            - --memo={{ .Values.evmToAddress }}
+            - --chain-id={{ .Values.celestiaChainID }}
+            - --node={{ .Values.celestiaNodeURL }}
       restartPolicy: OnFailure

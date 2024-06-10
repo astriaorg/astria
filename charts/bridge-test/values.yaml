@@ -4,16 +4,30 @@
 
 replicaCount: 1
 
-image: ghcr.io/astriaorg/astria-go:local
+astriaGoImage: ghcr.io/astriaorg/astria-go:local
+# FIXME - is there a way to not have to define this chart version in multiple places?
+celestiaAppImage: ghcr.io/celestiaorg/celestia-app:v1.9.0
 
 imagePullSecrets: []
 nameOverride: ""
 namespaceOverride: ""
 fullnameOverride: ""
 
-sequencerURL: "http://node0-sequencer-rpc-service.astria-dev-cluster.svc.cluster.local:26657"
+celestiaChainID: "celestia-local-0"
+celestiaNodeURL: "http://celestia-service.astria-dev-cluster.svc.cluster.local:9090"
 
+sequencerURL: "http://node0-sequencer-rpc-service.astria-dev-cluster.svc.cluster.local:26657"
+# must match rollup name used in evm rollup chart values
+evmRollupName: "astria"
+# this is a shared dev address
+evmToAddress: "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
+# must match chain id used in sequencer chart values
+sequencerChainID: "sequencer-test-chain-0"
+assetID: "transfer/channel-0/utia"
+feeAssetID: "nria"
+
+# sequencer bridge account. is funded during sequencer genesis.
 bridgeAccount:
   address: "6f85297e587b61b37695a1ac17189b3e907e318e "
   privkey: "6015fbe1c365d3c5ef92dc891db8c5bb26ad454bec2db4762b96e9f8b2430285"
-  pubkey: "b78aa61c65f21e5fe0f31d221819053fa2286dd6eff83fc490e3ee746f144626 "
+  pubkey: "b78aa61c65f21e5fe0f31d221819053fa2286dd6eff83fc490e3ee746f144626"

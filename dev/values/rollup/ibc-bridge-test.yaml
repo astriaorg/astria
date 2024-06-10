@@ -1,0 +1,8 @@
+config:
+  rollup:
+    genesis:
+      bridgeAddresses:
+      - bridgeAddress: "0x6f85297e587b61b37695a1ac17189b3e907e318e"
+        startHeight: 1
+        assetDenom: "transfer/channel-0/utia"
+        assetPrecision: 6

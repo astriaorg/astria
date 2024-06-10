@@ -48,7 +48,7 @@ config:
       balance: "340282366920938463463374607431768211455"
       # NOTE - address of the bridge account. needs funds to sign bridge init tx
     - address: 6f85297e587b61b37695a1ac17189b3e907e318e
-      balance: "340282366920938463463374607431768211455"
+      balance: "53000000"
     metrics:
       enabled: false
 
