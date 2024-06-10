@@ -46,12 +46,12 @@
   "chain_id": "{{ .Values.config.cometBFT.chainId }}",
   "consensus_params": {
     "block": {
-      "max_bytes": "22020096",
+      "max_bytes": "1000000",
       "max_gas": "-1"
     },
     "evidence": {
-      "max_age_duration": "172800000000000",
-      "max_age_num_blocks": "100000",
+      "max_age_duration": "1209600000000000",
+      "max_age_num_blocks": "4000000",
       "max_bytes": "1048576"
     },
     "validator": {

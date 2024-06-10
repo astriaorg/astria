@@ -53,6 +53,8 @@ apiVersion: v1
 metadata:
   name: {{ .Values.config.moniker }}-sequencer-metrics
   namespace: {{ include "sequencer.namespace" . }}
+  labels:
+    app: {{ .Values.config.moniker }}-sequencer
 spec:
   selector:
     app: {{ .Values.config.moniker }}-sequencer
