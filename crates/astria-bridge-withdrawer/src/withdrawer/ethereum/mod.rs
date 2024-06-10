@@ -1,8 +1,9 @@
-pub(crate) mod astria_withdrawer;
 pub(crate) mod convert;
-mod watcher;
+pub(crate) mod watcher;
 
-pub(crate) use watcher::Watcher;
+#[rustfmt::skip]
+mod generated;
+pub(crate) use generated::*;
 
 #[cfg(test)]
 mod test_utils;

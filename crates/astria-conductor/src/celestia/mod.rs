@@ -223,15 +223,15 @@ struct RunningReader {
     /// The next Celestia height that will be fetched.
     celestia_next_height: u64,
 
-    /// The reference Celestia height. celestia_reference_height + celestia_variance = C is the
+    /// The reference Celestia height. `celestia_reference_height` + `celestia_variance` = C is the
     /// maximum Celestia height up to which Celestia's blobs will be fetched.
-    /// celestia_reference_height is initialized to the base Celestia height stored in the
+    /// `celestia_reference_height` is initialized to the base Celestia height stored in the
     /// rollup genesis. It is later advanced to that Celestia height from which the next block
     /// is derived that will be executed against the rollup (only if greater than the current
     /// value; it will never go down).
     celestia_reference_height: u64,
 
-    /// celestia_variance + celestia_reference_height define the maximum Celestia height from
+    /// `celestia_variance` + `celestia_reference_height` define the maximum Celestia height from
     /// Celestia blobs can be fetched. Set once during initialization to the value stored in
     /// the rollup genesis.
     celestia_variance: u64,

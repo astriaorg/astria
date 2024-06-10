@@ -4,7 +4,13 @@ use std::{
     time::Duration,
 };
 
-use astria_core::primitive::v1::asset;
+use astria_core::primitive::v1::{
+    asset::{
+        self,
+        Denom,
+    },
+    Address,
+};
 use astria_eyre::eyre::{
     self,
     WrapErr as _,
@@ -26,7 +32,7 @@ use tracing::{
 
 pub(crate) use self::state::StateSnapshot;
 use self::{
-    ethereum::Watcher,
+    ethereum::watcher,
     state::State,
     submitter::Submitter,
 };
@@ -45,7 +51,7 @@ pub struct Service {
     shutdown_token: CancellationToken,
     api_server: api::ApiServer,
     submitter: Submitter,
-    ethereum_watcher: Watcher,
+    ethereum_watcher: watcher::Watcher,
     state: Arc<State>,
 }
 
@@ -65,32 +71,42 @@ impl Service {
             fee_asset_denomination,
             ethereum_contract_address,
             ethereum_rpc_endpoint,
+            rollup_asset_denomination,
+            min_expected_fee_asset_balance,
             ..
         } = cfg;
 
         let state = Arc::new(State::new());
 
         // make submitter object
-        let (submitter, batches_tx) = submitter::Builder {
+        let (submitter, submitter_handle) = submitter::Builder {
             shutdown_token: shutdown_handle.token(),
             sequencer_cometbft_endpoint,
             sequencer_chain_id,
             sequencer_key_path,
             state: state.clone(),
+            expected_fee_asset_id: asset::Id::from_denom(&fee_asset_denomination),
+            min_expected_fee_asset_balance: u128::from(min_expected_fee_asset_balance),
         }
         .build()
         .wrap_err("failed to initialize submitter")?;
 
-        let ethereum_watcher = Watcher::new(
-            &ethereum_contract_address,
-            &ethereum_rpc_endpoint,
-            batches_tx,
-            &shutdown_handle.token(),
-            state.clone(),
-            asset::Id::from_denom(&fee_asset_denomination),
-            asset::Denom::from(cfg.rollup_asset_denomination),
-        )
-        .wrap_err("failed to initialize ethereum watcher")?;
+        let sequencer_bridge_address = Address::try_from_bech32m(&cfg.sequencer_bridge_address)
+            .wrap_err("failed to parse sequencer bridge address")?;
+
+        let ethereum_watcher = watcher::Builder {
+            ethereum_contract_address,
+            ethereum_rpc_endpoint,
+            submitter_handle,
+            shutdown_token: shutdown_handle.token(),
+            state: state.clone(),
+            rollup_asset_denom: rollup_asset_denomination
+                .parse::<Denom>()
+                .wrap_err("failed to parse ROLLUP_ASSET_DENOMINATION as Denom")?,
+            bridge_address: sequencer_bridge_address,
+        }
+        .build()
+        .wrap_err("failed to build ethereum watcher")?;
 
         // make api server
         let state_rx = state.subscribe();
@@ -172,6 +188,12 @@ impl Service {
         );
         shutdown.run().await;
     }
+}
+
+#[derive(Debug)]
+pub struct SequencerStartupInfo {
+    pub fee_asset_id: asset::Id,
+    pub next_batch_rollup_height: u64,
 }
 
 /// A handle for instructing the [`Service`] to shut down.
@@ -326,4 +348,15 @@ pub(crate) fn flatten_result<T>(res: Result<eyre::Result<T>, JoinError>) -> eyre
         Ok(Err(err)) => Err(err).wrap_err("task returned with error"),
         Err(err) => Err(err).wrap_err("task panicked"),
     }
+}
+
+/// Constructs an [`Address`] prefixed by `"astria"`.
+#[cfg(test)]
+pub(crate) fn astria_address(array: [u8; astria_core::primitive::v1::ADDRESS_LEN]) -> Address {
+    use astria_core::primitive::v1::ASTRIA_ADDRESS_PREFIX;
+    Address::builder()
+        .array(array)
+        .prefix(ASTRIA_ADDRESS_PREFIX)
+        .try_build()
+        .unwrap()
 }

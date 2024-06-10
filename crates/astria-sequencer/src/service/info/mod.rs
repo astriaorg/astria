@@ -160,13 +160,16 @@ impl Service<InfoRequest> for Info {
 
 #[cfg(test)]
 mod test {
-    use astria_core::primitive::v1::{
-        asset,
-        asset::{
+    use astria_core::{
+        primitive::v1::asset::{
+            self,
             Denom,
             DEFAULT_NATIVE_ASSET_DENOM,
         },
-        Address,
+        protocol::{
+            account::v1alpha1::BalanceResponse,
+            asset::v1alpha1::DenomResponse,
+        },
     };
     use cnidarium::StateDelta;
     use prost::Message as _;
@@ -207,7 +210,7 @@ mod test {
 
         initialize_native_asset(DEFAULT_NATIVE_ASSET_DENOM);
 
-        let address = Address::try_from_slice(
+        let address = crate::try_astria_address(
             &hex::decode("a034c743bed8f26cb8ee7b8db2230fd8347ae131").unwrap(),
         )
         .unwrap();
@@ -245,9 +248,10 @@ mod test {
             balance,
         };
 
-        let balance_resp = raw::BalanceResponse::decode(query_response.value)
-            .unwrap()
-            .to_native();
+        let balance_resp = BalanceResponse::try_from_raw(
+            &raw::BalanceResponse::decode(query_response.value).unwrap(),
+        )
+        .unwrap();
         assert_eq!(balance_resp.balances.len(), 1);
         assert_eq!(balance_resp.balances[0], expected_balance);
         assert_eq!(balance_resp.height, height);
@@ -260,7 +264,7 @@ mod test {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let mut state = StateDelta::new(storage.latest_snapshot());
 
-        let denom: Denom = "some/ibc/asset".to_string().into();
+        let denom = "some/ibc/asset".parse::<Denom>().unwrap();
         let id = denom.id();
         let height = 99;
         state.put_block_height(height);
@@ -288,9 +292,9 @@ mod test {
         };
         assert!(query_response.code.is_ok());
 
-        let denom_resp = raw::DenomResponse::decode(query_response.value)
-            .unwrap()
-            .to_native();
+        let denom_resp =
+            DenomResponse::try_from_raw(&raw::DenomResponse::decode(query_response.value).unwrap())
+                .unwrap();
         assert_eq!(denom_resp.height, height);
         assert_eq!(denom_resp.denom, denom);
     }

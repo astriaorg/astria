@@ -89,13 +89,7 @@ pub(crate) fn generate_rollup_datas_commitment(
 mod test {
     use astria_core::{
         crypto::SigningKey,
-        primitive::v1::{
-            asset::{
-                Denom,
-                DEFAULT_NATIVE_ASSET_DENOM,
-            },
-            Address,
-        },
+        primitive::v1::asset::default_native_asset,
         protocol::transaction::v1alpha1::{
             action::{
                 SequenceAction,
@@ -115,7 +109,7 @@ mod test {
 
     #[test]
     fn generate_rollup_datas_commitment_should_ignore_transfers() {
-        let _ = NATIVE_ASSET.set(Denom::from_base_denom(DEFAULT_NATIVE_ASSET_DENOM));
+        let _ = NATIVE_ASSET.set(default_native_asset());
 
         let sequence_action = SequenceAction {
             rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
@@ -123,7 +117,7 @@ mod test {
             fee_asset_id: get_native_asset().id(),
         };
         let transfer_action = TransferAction {
-            to: Address::from([0u8; 20]),
+            to: crate::astria_address([0u8; 20]),
             amount: 1,
             asset_id: get_native_asset().id(),
             fee_asset_id: get_native_asset().id(),
@@ -131,10 +125,11 @@ mod test {
 
         let signing_key = SigningKey::new(OsRng);
         let tx = UnsignedTransaction {
-            params: TransactionParams {
-                nonce: 0,
-                chain_id: "test-chain-1".to_string(),
-            },
+            params: TransactionParams::builder()
+                .nonce(0)
+                .chain_id("test-chain-1")
+                .try_build()
+                .unwrap(),
             actions: vec![sequence_action.clone().into(), transfer_action.into()],
         };
 
@@ -147,10 +142,11 @@ mod test {
 
         let signing_key = SigningKey::new(OsRng);
         let tx = UnsignedTransaction {
-            params: TransactionParams {
-                nonce: 0,
-                chain_id: "test-chain-1".to_string(),
-            },
+            params: TransactionParams::builder()
+                .nonce(0)
+                .chain_id("test-chain-1")
+                .try_build()
+                .unwrap(),
             actions: vec![sequence_action.into()],
         };
 
@@ -170,7 +166,7 @@ mod test {
         // this tests that the commitment generated is what is expected via a test vector.
         // this test will only break in the case of a breaking change to the commitment scheme,
         // thus if this test needs to be updated, we should cut a new release.
-        let _ = NATIVE_ASSET.set(Denom::from_base_denom(DEFAULT_NATIVE_ASSET_DENOM));
+        let _ = NATIVE_ASSET.set(default_native_asset());
 
         let sequence_action = SequenceAction {
             rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
@@ -178,7 +174,7 @@ mod test {
             fee_asset_id: get_native_asset().id(),
         };
         let transfer_action = TransferAction {
-            to: Address::from([0u8; 20]),
+            to: crate::astria_address([0u8; 20]),
             amount: 1,
             asset_id: get_native_asset().id(),
             fee_asset_id: get_native_asset().id(),
@@ -186,10 +182,11 @@ mod test {
 
         let signing_key = SigningKey::new(OsRng);
         let tx = UnsignedTransaction {
-            params: TransactionParams {
-                nonce: 0,
-                chain_id: "test-chain-1".to_string(),
-            },
+            params: TransactionParams::builder()
+                .nonce(0)
+                .chain_id("test-chain-1")
+                .try_build()
+                .unwrap(),
             actions: vec![sequence_action.into(), transfer_action.into()],
         };
 

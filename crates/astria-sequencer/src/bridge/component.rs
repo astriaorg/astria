@@ -24,6 +24,7 @@ impl Component for BridgeComponent {
     async fn init_chain<S: StateWriteExt>(mut state: S, app_state: &Self::AppState) -> Result<()> {
         state.put_init_bridge_account_base_fee(app_state.fees.init_bridge_account_base_fee);
         state.put_bridge_lock_byte_cost_multiplier(app_state.fees.bridge_lock_byte_cost_multiplier);
+        state.put_bridge_sudo_change_base_fee(app_state.fees.bridge_sudo_change_fee);
         Ok(())
     }
 

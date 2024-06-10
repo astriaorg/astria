@@ -1,7 +1,10 @@
 use astria_core::{
     crypto::SigningKey,
     primitive::v1::{
-        asset::DEFAULT_NATIVE_ASSET_DENOM,
+        asset::{
+            default_native_asset,
+            DEFAULT_NATIVE_ASSET_DENOM,
+        },
         Address,
         RollupId,
         ADDRESS_LEN,
@@ -30,7 +33,7 @@ use crate::{
 pub(crate) fn address_from_hex_string(s: &str) -> Address {
     let bytes = hex::decode(s).unwrap();
     let arr: [u8; ADDRESS_LEN] = bytes.try_into().unwrap();
-    Address::from_array(arr)
+    crate::astria_address(arr)
 }
 
 pub(crate) const ALICE_ADDRESS: &str = "1c0c490f1b5528d8173c5de46d131160e4b2c0c3";
@@ -47,7 +50,7 @@ pub(crate) fn get_alice_signing_key_and_address() -> (SigningKey, Address) {
             .try_into()
             .unwrap();
     let alice_signing_key = SigningKey::from(alice_secret_bytes);
-    let alice = *alice_signing_key.verification_key().address();
+    let alice = crate::astria_address(alice_signing_key.verification_key().address_bytes());
     (alice_signing_key, alice)
 }
 
@@ -58,7 +61,7 @@ pub(crate) fn get_bridge_signing_key_and_address() -> (SigningKey, Address) {
             .try_into()
             .unwrap();
     let bridge_signing_key = SigningKey::from(bridge_secret_bytes);
-    let bridge = *bridge_signing_key.verification_key().address();
+    let bridge = crate::astria_address(bridge_signing_key.verification_key().address_bytes());
     (bridge_signing_key, bridge)
 }
 
@@ -86,6 +89,7 @@ pub(crate) fn default_fees() -> genesis::Fees {
         sequence_byte_cost_multiplier: 1,
         init_bridge_account_base_fee: 48,
         bridge_lock_byte_cost_multiplier: 1,
+        bridge_sudo_change_fee: 24,
         ics20_withdrawal_base_fee: 24,
     }
 }
@@ -108,7 +112,7 @@ pub(crate) async fn initialize_app_with_storage(
         ibc_relayer_addresses: vec![],
         native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         ibc_params: IBCParameters::default(),
-        allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
+        allowed_fee_assets: vec![default_native_asset()],
         fees: default_fees(),
     });
 
@@ -136,15 +140,16 @@ pub(crate) async fn initialize_app(
 pub(crate) fn get_mock_tx(nonce: u32) -> SignedTransaction {
     let (alice_signing_key, _) = get_alice_signing_key_and_address();
     let tx = UnsignedTransaction {
-        params: TransactionParams {
-            nonce,
-            chain_id: "test".to_string(),
-        },
+        params: TransactionParams::builder()
+            .nonce(nonce)
+            .chain_id("test")
+            .try_build()
+            .unwrap(),
         actions: vec![
             SequenceAction {
                 rollup_id: RollupId::from_unhashed_bytes([0; 32]),
                 data: vec![0x99],
-                fee_asset_id: astria_core::primitive::v1::asset::default_native_asset_id(),
+                fee_asset_id: astria_core::primitive::v1::asset::default_native_asset().id(),
             }
             .into(),
         ],

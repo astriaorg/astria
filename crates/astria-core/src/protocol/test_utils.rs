@@ -15,7 +15,7 @@ use super::{
 use crate::{
     crypto::SigningKey,
     primitive::v1::{
-        asset::default_native_asset_id,
+        asset::default_native_asset,
         derive_merkle_tree_from_rollup_txs,
         RollupId,
     },
@@ -96,7 +96,7 @@ impl ConfigureSequencerBlock {
                 SequenceAction {
                     rollup_id,
                     data,
-                    fee_asset_id: default_native_asset_id(),
+                    fee_asset_id: default_native_asset().id(),
                 }
                 .into()
             })
@@ -106,10 +106,11 @@ impl ConfigureSequencerBlock {
         } else {
             let unsigned_transaction = UnsignedTransaction {
                 actions,
-                params: TransactionParams {
-                    nonce: 1,
-                    chain_id: chain_id.clone(),
-                },
+                params: TransactionParams::builder()
+                    .nonce(1)
+                    .chain_id(chain_id.clone())
+                    .try_build()
+                    .unwrap(),
             };
             vec![unsigned_transaction.into_signed(&signing_key)]
         };

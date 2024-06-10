@@ -22,7 +22,7 @@ use crate::{
         asset,
         derive_merkle_tree_from_rollup_txs,
         Address,
-        IncorrectAddressLength,
+        AddressError,
         IncorrectRollupIdLength,
         RollupId,
     },
@@ -1355,8 +1355,8 @@ impl Deposit {
         let Some(bridge_address) = bridge_address else {
             return Err(DepositError::field_not_set("bridge_address"));
         };
-        let bridge_address = Address::try_from_raw(&bridge_address)
-            .map_err(DepositError::incorrect_address_length)?;
+        let bridge_address =
+            Address::try_from_raw(&bridge_address).map_err(DepositError::address)?;
         let amount = amount.ok_or(DepositError::field_not_set("amount"))?.into();
         let Some(rollup_id) = rollup_id else {
             return Err(DepositError::field_not_set("rollup_id"));
@@ -1380,8 +1380,10 @@ impl Deposit {
 pub struct DepositError(DepositErrorKind);
 
 impl DepositError {
-    fn incorrect_address_length(source: IncorrectAddressLength) -> Self {
-        Self(DepositErrorKind::IncorrectAddressLength(source))
+    fn address(source: AddressError) -> Self {
+        Self(DepositErrorKind::Address {
+            source,
+        })
     }
 
     fn field_not_set(field: &'static str) -> Self {
@@ -1399,8 +1401,8 @@ impl DepositError {
 
 #[derive(Debug, thiserror::Error)]
 enum DepositErrorKind {
-    #[error("the address length is not 20 bytes")]
-    IncorrectAddressLength(#[source] IncorrectAddressLength),
+    #[error("the address is invalid")]
+    Address { source: AddressError },
     #[error("the expected field in the raw source type was not set: `{0}`")]
     FieldNotSet(&'static str),
     #[error("the rollup ID length is not 32 bytes")]
