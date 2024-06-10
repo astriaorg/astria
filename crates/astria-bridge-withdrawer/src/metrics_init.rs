@@ -8,7 +8,7 @@ use metrics::{
     describe_histogram,
     Unit,
 };
-use telemetry::metric_name;
+use telemetry::metric_names;
 
 /// Registers all metrics used by this crate.
 pub fn register() {
@@ -40,12 +40,14 @@ pub fn register() {
     );
 }
 
-metric_name!(pub const CURRENT_NONCE);
-metric_name!(pub const NONCE_FETCH_COUNT);
-metric_name!(pub const NONCE_FETCH_FAILURE_COUNT);
-metric_name!(pub const NONCE_FETCH_LATENCY);
-metric_name!(pub const SEQUENCER_SUBMISSION_FAILURE_COUNT);
-metric_name!(pub const SEQUENCER_SUBMISSION_LATENCY);
+metric_names!(pub const METRICS_NAMES:
+    CURRENT_NONCE,
+    NONCE_FETCH_COUNT,
+    NONCE_FETCH_FAILURE_COUNT,
+    NONCE_FETCH_LATENCY,
+    SEQUENCER_SUBMISSION_FAILURE_COUNT,
+    SEQUENCER_SUBMISSION_LATENCY
+);
 
 #[cfg(test)]
 mod tests {

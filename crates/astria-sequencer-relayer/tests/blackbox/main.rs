@@ -15,9 +15,6 @@ use helpers::{
 use reqwest::StatusCode;
 use tendermint::account::Id as AccountId;
 
-const RELAY_SELF: bool = true;
-const RELAY_ALL: bool = false;
-
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn one_block_is_relayed_to_celestia() {
     let sequencer_relayer = TestSequencerRelayerConfig::default().spawn_relayer().await;
@@ -25,7 +22,7 @@ async fn one_block_is_relayed_to_celestia() {
     sequencer_relayer.mount_abci_response(1).await;
     let block_to_mount = SequencerBlockToMount::GoodAtHeight(1);
     sequencer_relayer
-        .mount_sequencer_block_response::<RELAY_ALL>(block_to_mount, "good block 1")
+        .mount_sequencer_block_response(block_to_mount, "good block 1")
         .await;
     sequencer_relayer
         .mount_celestia_app_broadcast_tx_response("broadcast tx 1")
@@ -75,7 +72,7 @@ async fn report_degraded_if_block_fetch_fails() {
     sequencer_relayer.mount_abci_response(1).await;
     let block_to_mount = SequencerBlockToMount::GoodAtHeight(1);
     sequencer_relayer
-        .mount_sequencer_block_response::<RELAY_ALL>(block_to_mount, "good block 1")
+        .mount_sequencer_block_response(block_to_mount, "good block 1")
         .await;
     sequencer_relayer
         .mount_celestia_app_broadcast_tx_response("broadcast tx 1")
@@ -99,7 +96,7 @@ async fn report_degraded_if_block_fetch_fails() {
     sequencer_relayer.mount_abci_response(2).await;
     let block_to_mount = SequencerBlockToMount::BadAtHeight(2);
     let block_guard = sequencer_relayer
-        .mount_sequencer_block_response_as_scoped::<RELAY_ALL>(block_to_mount, "bad block 2")
+        .mount_sequencer_block_response_as_scoped(block_to_mount, "bad block 2")
         .await;
 
     // Relayer reports 500 on /healthz after fetching the block failed.
@@ -134,7 +131,7 @@ async fn later_height_in_state_leads_to_expected_relay() {
     sequencer_relayer.mount_abci_response(7).await;
     let block_to_mount = SequencerBlockToMount::GoodAtHeight(6);
     sequencer_relayer
-        .mount_sequencer_block_response::<RELAY_ALL>(block_to_mount, "good block 1")
+        .mount_sequencer_block_response(block_to_mount, "good block 1")
         .await;
     sequencer_relayer
         .mount_celestia_app_broadcast_tx_response("broadcast tx 1")
@@ -175,19 +172,19 @@ async fn three_blocks_are_relayed() {
     sequencer_relayer.mount_abci_response(1).await;
     let block_to_mount = SequencerBlockToMount::GoodAtHeight(1);
     sequencer_relayer
-        .mount_sequencer_block_response::<RELAY_ALL>(block_to_mount, "good block 1")
+        .mount_sequencer_block_response(block_to_mount, "good block 1")
         .await;
 
     sequencer_relayer.mount_abci_response(2).await;
     let block_to_mount = SequencerBlockToMount::GoodAtHeight(2);
     sequencer_relayer
-        .mount_sequencer_block_response::<RELAY_ALL>(block_to_mount, "good block 2")
+        .mount_sequencer_block_response(block_to_mount, "good block 2")
         .await;
 
     sequencer_relayer.mount_abci_response(3).await;
     let block_to_mount = SequencerBlockToMount::GoodAtHeight(3);
     sequencer_relayer
-        .mount_sequencer_block_response::<RELAY_ALL>(block_to_mount, "good block 3")
+        .mount_sequencer_block_response(block_to_mount, "good block 3")
         .await;
 
     sequencer_relayer
@@ -237,73 +234,6 @@ async fn three_blocks_are_relayed() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn block_from_other_proposer_is_skipped() {
-    let sequencer_relayer = TestSequencerRelayerConfig {
-        relay_only_self: true,
-        ..TestSequencerRelayerConfig::default()
-    }
-    .spawn_relayer()
-    .await;
-
-    sequencer_relayer.mount_abci_response(1).await;
-    let block_to_mount = SequencerBlockToMount::GoodAtHeight(1);
-    sequencer_relayer
-        .mount_sequencer_block_response::<RELAY_SELF>(block_to_mount, "good block 1")
-        .await;
-
-    sequencer_relayer.mount_abci_response(2).await;
-    let block_to_mount = SequencerBlockToMount::GoodAtHeight(2);
-    sequencer_relayer
-        .mount_sequencer_block_response::<RELAY_ALL>(block_to_mount, "good block 2")
-        .await;
-
-    sequencer_relayer.mount_abci_response(3).await;
-    let block_to_mount = SequencerBlockToMount::GoodAtHeight(3);
-    sequencer_relayer
-        .mount_sequencer_block_response::<RELAY_SELF>(block_to_mount, "good block 3")
-        .await;
-
-    // We only expect two broadcast/get Tx gRPCs - block 2 should not have been broadcast.
-    sequencer_relayer
-        .mount_celestia_app_broadcast_tx_response("broadcast tx 1")
-        .await;
-    sequencer_relayer
-        .mount_celestia_app_get_tx_response(53, "get tx 1")
-        .await;
-    sequencer_relayer
-        .mount_celestia_app_broadcast_tx_response("broadcast tx 2")
-        .await;
-    let get_tx_guard = sequencer_relayer
-        .mount_celestia_app_get_tx_response_as_scoped(53, "get tx 2")
-        .await;
-    // Each block will have taken ~1 second due to the delay before each `GetTx`, so use 4 seconds.
-    sequencer_relayer
-        .timeout_ms(
-            4_000,
-            "waiting for get tx guard",
-            get_tx_guard.wait_until_satisfied(),
-        )
-        .await;
-
-    // Assert the relayer reports the correct Celestia and sequencer heights.
-    sequencer_relayer
-        .wait_for_latest_confirmed_celestia_height(53, 1_000)
-        .await;
-    sequencer_relayer
-        .wait_for_latest_fetched_sequencer_height(3, 1_000)
-        .await;
-    sequencer_relayer
-        .wait_for_latest_observed_sequencer_height(3, 1_000)
-        .await;
-
-    assert_eq!(
-        sequencer_relayer.celestia_app_received_blob_count(),
-        4,
-        "expected 4 blobs in total, 1 header blob and 1 rollup blob per block"
-    );
-}
-
-#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn should_filter_rollup() {
     let included_rollup_ids: HashSet<_> = (0..5).map(|x| RollupId::new([x; 32])).collect();
     let excluded_rollup_ids: HashSet<_> = (0..5).map(|x| RollupId::new([100 + x; 32])).collect();
@@ -333,7 +263,7 @@ async fn should_filter_rollup() {
 
     sequencer_relayer.mount_abci_response(1).await;
     sequencer_relayer
-        .mount_sequencer_block_response::<RELAY_ALL>(block_to_mount, "good block 1")
+        .mount_sequencer_block_response(block_to_mount, "good block 1")
         .await;
     sequencer_relayer
         .mount_celestia_app_broadcast_tx_response("broadcast tx 1")
@@ -374,7 +304,7 @@ async fn should_shut_down() {
     sequencer_relayer.mount_abci_response(1).await;
     let block_to_mount = SequencerBlockToMount::GoodAtHeight(1);
     sequencer_relayer
-        .mount_sequencer_block_response::<RELAY_ALL>(block_to_mount, "good block 1")
+        .mount_sequencer_block_response(block_to_mount, "good block 1")
         .await;
     let broadcast_guard = sequencer_relayer
         .mount_celestia_app_broadcast_tx_response_as_scoped("broadcast tx 1")
