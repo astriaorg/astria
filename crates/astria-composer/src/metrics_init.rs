@@ -8,7 +8,7 @@ use metrics::{
     describe_histogram,
     Unit,
 };
-use telemetry::metric_name;
+use telemetry::metric_names;
 
 /// Labels
 pub(crate) const ROLLUP_ID_LABEL: &str = "rollup_id";
@@ -74,17 +74,19 @@ pub fn register() {
     );
 }
 
-metric_name!(pub const TRANSACTIONS_RECEIVED);
-metric_name!(pub const TRANSACTIONS_DROPPED);
-metric_name!(pub const TRANSACTIONS_DROPPED_TOO_LARGE);
-metric_name!(pub const NONCE_FETCH_COUNT);
-metric_name!(pub const NONCE_FETCH_FAILURE_COUNT);
-metric_name!(pub const NONCE_FETCH_LATENCY);
-metric_name!(pub const CURRENT_NONCE);
-metric_name!(pub const SEQUENCER_SUBMISSION_LATENCY);
-metric_name!(pub const SEQUENCER_SUBMISSION_FAILURE_COUNT);
-metric_name!(pub const TRANSACTIONS_PER_SUBMISSION);
-metric_name!(pub const BYTES_PER_SUBMISSION);
+metric_names!(pub const METRICS_NAMES:
+    TRANSACTIONS_RECEIVED,
+    TRANSACTIONS_DROPPED,
+    TRANSACTIONS_DROPPED_TOO_LARGE,
+    NONCE_FETCH_COUNT,
+    NONCE_FETCH_FAILURE_COUNT,
+    NONCE_FETCH_LATENCY,
+    CURRENT_NONCE,
+    SEQUENCER_SUBMISSION_LATENCY,
+    SEQUENCER_SUBMISSION_FAILURE_COUNT,
+    TRANSACTIONS_PER_SUBMISSION,
+    BYTES_PER_SUBMISSION
+);
 
 #[cfg(test)]
 mod tests {
