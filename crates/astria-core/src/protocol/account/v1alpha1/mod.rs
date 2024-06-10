@@ -1,5 +1,26 @@
 use super::raw;
-use crate::primitive::v1::asset::Denom;
+use crate::primitive::v1::asset::{
+    Denom,
+    ParseDenomError,
+};
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct AssetBalanceError(AssetBalanceErrorKind);
+impl AssetBalanceError {
+    #[must_use]
+    fn invalid_denom(source: ParseDenomError) -> Self {
+        Self(AssetBalanceErrorKind::InvalidDenom {
+            source,
+        })
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum AssetBalanceErrorKind {
+    #[error("`denom` field was invalid")]
+    InvalidDenom { source: ParseDenomError },
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct AssetBalance {
@@ -10,16 +31,17 @@ pub struct AssetBalance {
 impl AssetBalance {
     /// Converts a protobuf [`raw::AssetBalance`] to an astria
     /// native [`AssetBalance`].
-    #[must_use]
-    pub fn from_raw(proto: &raw::AssetBalance) -> Self {
+    /// # Errors
+    /// Returns an error if the protobuf `denom` field can't be pased as a [`Denom`].
+    pub fn try_from_raw(proto: &raw::AssetBalance) -> Result<Self, AssetBalanceError> {
         let raw::AssetBalance {
             denom,
             balance,
         } = proto;
-        Self {
-            denom: Denom::from(denom.to_owned()),
+        Ok(Self {
+            denom: denom.parse().map_err(AssetBalanceError::invalid_denom)?,
             balance: balance.map_or(0, Into::into),
-        }
+        })
     }
 
     /// Converts an astria native [`AssetBalance`] to a
@@ -47,20 +69,25 @@ impl raw::BalanceResponse {
             balances: balances.into_iter().map(AssetBalance::into_raw).collect(),
         }
     }
+}
 
-    /// Converts a protobuf [`raw::BalanceResponse`] to an astria
-    /// native [`BalanceResponse`].
-    #[must_use]
-    pub fn into_native(self) -> BalanceResponse {
-        BalanceResponse::from_raw(&self)
-    }
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct BalanceResponseError(BalanceResponseErrorKind);
 
-    /// Converts a protobuf [`raw::BalanceResponse`] to an astria
-    /// native [`BalanceResponse`] by allocating a new [`v1alpha::BalanceResponse`].
+impl BalanceResponseError {
     #[must_use]
-    pub fn to_native(&self) -> BalanceResponse {
-        self.clone().into_native()
+    fn asset_balance(source: AssetBalanceError) -> Self {
+        Self(BalanceResponseErrorKind::AssetBalance {
+            source,
+        })
     }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum BalanceResponseErrorKind {
+    #[error("`balances` contained an invalid asset balance")]
+    AssetBalance { source: AssetBalanceError },
 }
 
 /// The sequencer response to a balance request for a given account at a given height.
@@ -73,15 +100,23 @@ pub struct BalanceResponse {
 impl BalanceResponse {
     /// Converts a protobuf [`raw::BalanceResponse`] to an astria
     /// native [`BalanceResponse`].
-    pub fn from_raw(proto: &raw::BalanceResponse) -> Self {
+    ///
+    /// # Errors
+    /// Returns an error if one or more of the strings in the protobuf `balances` field can't
+    /// be pased as a [`Denom`].
+    pub fn try_from_raw(proto: &raw::BalanceResponse) -> Result<Self, BalanceResponseError> {
         let raw::BalanceResponse {
             height,
             balances,
         } = proto;
-        Self {
+        Ok(Self {
             height: *height,
-            balances: balances.iter().map(AssetBalance::from_raw).collect(),
-        }
+            balances: balances
+                .iter()
+                .map(AssetBalance::try_from_raw)
+                .collect::<Result<_, _>>()
+                .map_err(BalanceResponseError::asset_balance)?,
+        })
     }
 
     /// Converts an astria native [`BalanceResponse`] to a
@@ -163,14 +198,14 @@ mod tests {
     #[test]
     fn balance_roundtrip_is_correct() {
         let balances = vec![AssetBalance {
-            denom: "nria".to_owned().into(),
+            denom: "nria".parse().unwrap(),
             balance: 999,
         }];
         let expected = BalanceResponse {
             height: 42,
             balances,
         };
-        let actual = expected.clone().into_raw().into_native();
+        let actual = BalanceResponse::try_from_raw(&expected.clone().into_raw()).unwrap();
         assert_eq!(expected, actual);
     }
 

@@ -961,7 +961,7 @@ impl App {
     /// Executes a signed transaction.
     #[instrument(name = "App::execute_transaction", skip_all, fields(
         signed_transaction_hash = %telemetry::display::base64(&signed_tx.sha256_of_proto_encoding()),
-        sender = %signed_tx.verification_key().address(),
+        sender = %signed_tx.address(),
     ))]
     pub(crate) async fn execute_transaction(
         &mut self,

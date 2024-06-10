@@ -87,10 +87,12 @@ pub(crate) trait StateReadExt: StateRead {
             let native_asset = crate::asset::get_native_asset();
             if asset_id == native_asset.id() {
                 // TODO: this is jank, just have 1 denom type.
+                // TODO: Getting the base denom out of a native asset should not need a parse.
                 balances.push(AssetBalance {
-                    denom: astria_core::primitive::v1::asset::Denom::from(
-                        native_asset.base_denom().to_owned(),
-                    ),
+                    denom: native_asset
+                        .base_denom()
+                        .parse()
+                        .context("failed to parse a denom's base as a denom; this is a problem")?,
                     balance,
                 });
                 continue;
@@ -232,13 +234,10 @@ impl<T: StateWrite> StateWriteExt for T {}
 #[cfg(test)]
 mod test {
     use astria_core::{
-        primitive::v1::{
-            asset::{
-                Denom,
-                Id,
-                DEFAULT_NATIVE_ASSET_DENOM,
-            },
-            Address,
+        primitive::v1::asset::{
+            default_native_asset,
+            Id,
+            DEFAULT_NATIVE_ASSET_DENOM,
         },
         protocol::account::v1alpha1::AssetBalance,
     };
@@ -257,7 +256,7 @@ mod test {
         let state = StateDelta::new(snapshot);
 
         // create needed variables
-        let address = Address::try_from_slice(&[42u8; 20]).unwrap();
+        let address = crate::astria_address([42u8; 20]);
         let nonce_expected = 0u32;
 
         // uninitialized accounts return zero
@@ -278,7 +277,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         // create needed variables
-        let address = Address::try_from_slice(&[42u8; 20]).unwrap();
+        let address = crate::astria_address([42u8; 20]);
         let nonce_expected = 0u32;
 
         // can write new
@@ -316,7 +315,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         // create needed variables
-        let address = Address::try_from_slice(&[42u8; 20]).unwrap();
+        let address = crate::astria_address([42u8; 20]);
         let nonce_expected = 2u32;
 
         // can write new
@@ -333,7 +332,7 @@ mod test {
         );
 
         // writing additional account preserves first account's values
-        let address_1 = Address::try_from_slice(&[41u8; 20]).unwrap();
+        let address_1 = crate::astria_address([41u8; 20]);
         let nonce_expected_1 = 3u32;
 
         state
@@ -364,7 +363,7 @@ mod test {
         let state = StateDelta::new(snapshot);
 
         // create needed variables
-        let address = Address::try_from_slice(&[42u8; 20]).unwrap();
+        let address = crate::astria_address([42u8; 20]);
         let asset = Id::from_denom("asset_0");
         let amount_expected = 0u128;
 
@@ -386,7 +385,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         // create needed variables
-        let address = Address::try_from_slice(&[42u8; 20]).unwrap();
+        let address = crate::astria_address([42u8; 20]);
         let asset = Id::from_denom("asset_0");
         let mut amount_expected = 1u128;
 
@@ -428,7 +427,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         // create needed variables
-        let address = Address::try_from_slice(&[42u8; 20]).unwrap();
+        let address = crate::astria_address([42u8; 20]);
         let asset = Id::from_denom("asset_0");
         let amount_expected = 1u128;
 
@@ -448,7 +447,7 @@ mod test {
 
         // writing to other accounts does not affect original account
         // create needed variables
-        let address_1 = Address::try_from_slice(&[41u8; 20]).unwrap();
+        let address_1 = crate::astria_address([41u8; 20]);
         let amount_expected_1 = 2u128;
 
         state
@@ -481,7 +480,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         // create needed variables
-        let address = Address::try_from_slice(&[42u8; 20]).unwrap();
+        let address = crate::astria_address([42u8; 20]);
         let asset_0 = Id::from_denom("asset_0");
         let asset_1 = Id::from_denom("asset_1");
         let amount_expected_0 = 1u128;
@@ -520,7 +519,7 @@ mod test {
         let state = StateDelta::new(snapshot);
 
         // create needed variables
-        let address = Address::try_from_slice(&[42u8; 20]).unwrap();
+        let address = crate::astria_address([42u8; 20]);
 
         // see that call was ok
         let balances = state
@@ -547,24 +546,24 @@ mod test {
         asset::state_ext::StateWriteExt::put_ibc_asset(
             &mut state,
             asset_0,
-            &Denom::from_base_denom(DEFAULT_NATIVE_ASSET_DENOM),
+            &default_native_asset(),
         )
         .expect("should be able to call other trait method on state object");
         asset::state_ext::StateWriteExt::put_ibc_asset(
             &mut state,
             asset_1,
-            &Denom::from_base_denom("asset_1"),
+            &"asset_1".parse().unwrap(),
         )
         .expect("should be able to call other trait method on state object");
         asset::state_ext::StateWriteExt::put_ibc_asset(
             &mut state,
             asset_2,
-            &Denom::from_base_denom("asset_2"),
+            &"asset_2".parse().unwrap(),
         )
         .expect("should be able to call other trait method on state object");
 
         // create needed variables
-        let address = Address::try_from_slice(&[42u8; 20]).unwrap();
+        let address = crate::astria_address([42u8; 20]);
         let amount_expected_0 = 1u128;
         let amount_expected_1 = 2u128;
         let amount_expected_2 = 3u128;
@@ -589,15 +588,15 @@ mod test {
             balances,
             vec![
                 AssetBalance {
-                    denom: Denom::from_base_denom(DEFAULT_NATIVE_ASSET_DENOM),
+                    denom: default_native_asset(),
                     balance: amount_expected_0,
                 },
                 AssetBalance {
-                    denom: Denom::from_base_denom("asset_1"),
+                    denom: "asset_1".parse().unwrap(),
                     balance: amount_expected_1,
                 },
                 AssetBalance {
-                    denom: Denom::from_base_denom("asset_2"),
+                    denom: "asset_2".parse().unwrap(),
                     balance: amount_expected_2,
                 },
             ]
@@ -611,7 +610,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         // create needed variables
-        let address = Address::try_from_slice(&[42u8; 20]).unwrap();
+        let address = crate::astria_address([42u8; 20]);
         let asset = Id::from_denom("asset_0");
         let amount_increase = 2u128;
 
@@ -652,7 +651,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         // create needed variables
-        let address = Address::try_from_slice(&[42u8; 20]).unwrap();
+        let address = crate::astria_address([42u8; 20]);
         let asset = Id::from_denom("asset_0");
         let amount_increase = 2u128;
 
@@ -694,7 +693,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         // create needed variables
-        let address = Address::try_from_slice(&[42u8; 20]).unwrap();
+        let address = crate::astria_address([42u8; 20]);
         let asset = Id::from_denom("asset_0");
         let amount_increase = 2u128;
 

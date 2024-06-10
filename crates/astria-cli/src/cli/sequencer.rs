@@ -254,8 +254,7 @@ impl FromStr for SequencerAddressArg {
             "failed to decode address. address should be 20 bytes long. do not prefix with 0x",
         )?;
         let address =
-            Address::try_from_slice(address_bytes.as_ref()).wrap_err("failed to create address")?;
-
+            crate::try_astria_address(&address_bytes).wrap_err("failed to create address")?;
         Ok(Self(address))
     }
 }
@@ -350,7 +349,7 @@ mod tests {
     fn test_sequencer_address_arg_from_str_valid() {
         let hex_str = "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0";
         let bytes = hex::decode(hex_str).unwrap();
-        let expected_address = Address::try_from_slice(&bytes).unwrap();
+        let expected_address = crate::try_astria_address(&bytes).unwrap();
 
         let sequencer_address_arg: SequencerAddressArg = hex_str.parse().unwrap();
         assert_eq!(sequencer_address_arg, SequencerAddressArg(expected_address));

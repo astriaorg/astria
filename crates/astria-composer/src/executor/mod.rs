@@ -467,7 +467,7 @@ async fn get_latest_nonce(
     name = "submit signed transaction",
     skip_all,
     fields(
-        nonce = tx.unsigned_transaction().params.nonce,
+        nonce = tx.nonce(),
         transaction.hash = hex::encode(sha256(&tx.to_raw().encode_to_vec())),
     )
 )]
@@ -475,7 +475,7 @@ async fn submit_tx(
     client: sequencer_client::HttpClient,
     tx: SignedTransaction,
 ) -> eyre::Result<tx_sync::Response> {
-    let nonce = tx.unsigned_transaction().params.nonce;
+    let nonce = tx.nonce();
     metrics::gauge!(crate::metrics_init::CURRENT_NONCE).set(nonce);
 
     // TODO: change to info and log tx hash (to match info log in `SubmitFut`'s response handling
@@ -568,10 +568,11 @@ impl Future for SubmitFut {
 
             let new_state = match this.state.project() {
                 SubmitStateProj::NotStarted => {
-                    let params = TransactionParams {
-                        nonce: *this.nonce,
-                        chain_id: this.chain_id.clone(),
-                    };
+                    let params = TransactionParams::builder()
+                        .nonce(*this.nonce)
+                        .chain_id(&*this.chain_id)
+                        .try_build()
+                        .expect("configured chain ID is valid");
                     let tx = UnsignedTransaction {
                         actions: this.bundle.clone().into_actions(),
                         params,
@@ -653,10 +654,11 @@ impl Future for SubmitFut {
                 } => match ready!(fut.poll(cx)) {
                     Ok(nonce) => {
                         *this.nonce = nonce;
-                        let params = TransactionParams {
-                            nonce: *this.nonce,
-                            chain_id: this.chain_id.clone(),
-                        };
+                        let params = TransactionParams::builder()
+                            .nonce(*this.nonce)
+                            .chain_id(&*this.chain_id)
+                            .try_build()
+                            .expect("configured chain ID is valid");
                         let tx = UnsignedTransaction {
                             actions: this.bundle.clone().into_actions(),
                             params,

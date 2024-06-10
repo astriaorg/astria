@@ -50,6 +50,8 @@ jobs:
     if: needs.run_checker.outputs.run_tests == 'true'
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: 'true'
       - uses: dtolnay/rust-toolchain@1.76.0
       - uses: taiki-e/install-action@v2.15.2
         with:
@@ -97,6 +99,8 @@ jobs:
     if: needs.run_checker.outputs.run_tests == 'true'
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: 'true'
       - uses: dtolnay/rust-toolchain@1.76.0
       - uses: Swatinem/rust-cache@v2.7.3
         with:
@@ -123,6 +127,8 @@ jobs:
     if: needs.run_checker.outputs.run_tests == 'true'
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: 'true'
       - uses: dtolnay/rust-toolchain@1.76.0
       - uses: Swatinem/rust-cache@v2.7.3
         with:
@@ -133,18 +139,11 @@ jobs:
         with:
           version: "24.4"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install python and solc
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10' 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
       - name: Run tests
         timeout-minutes: 20
         run: |
-          pip install solc-select 
-          solc-select install 0.8.21
-          solc-select use 0.8.21
           cargo nextest run --package astria-bridge-withdrawer -- --include-ignored
 
   doctest:
@@ -153,6 +152,8 @@ jobs:
     if: needs.run_checker.outputs.run_tests == 'true'
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: 'true'
       - uses: dtolnay/rust-toolchain@1.76.0
       - uses: Swatinem/rust-cache@v2.7.3
         with:
@@ -170,6 +171,8 @@ jobs:
     if: needs.run_checker.outputs.run_tests == 'true' && needs.run_checker.outputs.run_lint_rust == 'true'
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: 'true'
       - uses: dtolnay/rust-toolchain@1.76.0
         with:
           components: clippy
@@ -196,6 +199,8 @@ jobs:
     if: needs.run_checker.outputs.run_tests == 'true' && needs.run_checker.outputs.run_lint_rust == 'true'
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: 'true'
       - uses: dtolnay/rust-toolchain@v1
         with:
           # This has to match `rust-toolchain` in the rust-toolchain file of the dylint lints

@@ -8,11 +8,21 @@
 //! The example below works with the feature `"http"` set.
 //! ```no_run
 //! # tokio_test::block_on(async {
+//! use astria_core::primitive::v1::{
+//!     Address,
+//!     ASTRIA_ADDRESS_PREFIX,
+//! };
 //! use astria_sequencer_client::SequencerClientExt as _;
 //! use tendermint_rpc::HttpClient;
 //!
 //! let client = HttpClient::new("http://127.0.0.1:26657")?;
-//! let address: [u8; 20] = hex_literal::hex!("DEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF");
+//! let address = Address::builder()
+//!     .array(hex_literal::hex!(
+//!         "DEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF"
+//!     ))
+//!     .prefix(ASTRIA_ADDRESS_PREFIX)
+//!     .try_build()
+//!     .unwrap();
 //! let height = 5u32;
 //! let balance = client.get_balance(address, height).await?;
 //! println!("{balance:?}");
@@ -26,7 +36,10 @@ use std::{
     sync::Arc,
 };
 
-use astria_core::protocol::asset::v1alpha1::AllowedFeeAssetIdsResponse;
+use astria_core::protocol::{
+    asset::v1alpha1::AllowedFeeAssetIdsResponse,
+    bridge::v1alpha1::BridgeAccountLastTxHashResponse,
+};
 pub use astria_core::{
     primitive::v1::Address,
     protocol::{
@@ -414,18 +427,17 @@ pub trait SequencerClientExt: Client {
     /// - If calling tendermint `abci_query` RPC fails.
     /// - If the bytes contained in the abci query response cannot be read as an
     ///   `astria.sequencer.v1.BalanceResponse`.
-    async fn get_balance<AddressT, HeightT>(
+    async fn get_balance<HeightT>(
         &self,
-        address: AddressT,
+        address: Address,
         height: HeightT,
     ) -> Result<BalanceResponse, Error>
     where
-        AddressT: Into<Address> + Send,
         HeightT: Into<tendermint::block::Height> + Send,
     {
         const PREFIX: &[u8] = b"accounts/balance/";
 
-        let path = make_path_from_prefix_and_address(PREFIX, address.into().get());
+        let path = make_path_from_prefix_and_address(PREFIX, address.bytes());
 
         let response = self
             .abci_query(Some(path), vec![], Some(height.into()), false)
@@ -443,7 +455,8 @@ pub trait SequencerClientExt: Client {
                     e,
                 )
             })?;
-        Ok(proto_response.to_native())
+        BalanceResponse::try_from_raw(&proto_response)
+            .map_err(|e| Error::native_conversion("BalanceResponse", Arc::new(e)))
     }
 
     /// Returns the current balance of the given account at the latest height.
@@ -451,10 +464,7 @@ pub trait SequencerClientExt: Client {
     /// # Errors
     ///
     /// This has the same error conditions as [`SequencerClientExt::get_balance`].
-    async fn get_latest_balance<A: Into<Address> + Send>(
-        &self,
-        address: A,
-    ) -> Result<BalanceResponse, Error> {
+    async fn get_latest_balance(&self, address: Address) -> Result<BalanceResponse, Error> {
         // This makes use of the fact that a height `None` and `Some(0)` are
         // treated the same.
         self.get_balance(address, 0u32).await
@@ -500,18 +510,17 @@ pub trait SequencerClientExt: Client {
     /// - If calling tendermint `abci_query` RPC fails.
     /// - If the bytes contained in the abci query response cannot be read as an
     ///   `astria.sequencer.v1.NonceResponse`.
-    async fn get_nonce<AddressT, HeightT>(
+    async fn get_nonce<HeightT>(
         &self,
-        address: AddressT,
+        address: Address,
         height: HeightT,
     ) -> Result<NonceResponse, Error>
     where
-        AddressT: Into<Address> + Send,
         HeightT: Into<tendermint::block::Height> + Send,
     {
         const PREFIX: &[u8] = b"accounts/nonce/";
 
-        let path = make_path_from_prefix_and_address(PREFIX, address.into().get());
+        let path = make_path_from_prefix_and_address(PREFIX, address.bytes());
 
         let response = self
             .abci_query(Some(path), vec![], Some(height.into()), false)
@@ -533,13 +542,43 @@ pub trait SequencerClientExt: Client {
     /// # Errors
     ///
     /// This has the same error conditions as [`SequencerClientExt::get_nonce`].
-    async fn get_latest_nonce<A: Into<Address> + Send>(
-        &self,
-        address: A,
-    ) -> Result<NonceResponse, Error> {
+    async fn get_latest_nonce(&self, address: Address) -> Result<NonceResponse, Error> {
         // This makes use of the fact that a height `None` and `Some(0)` are
         // treated the same.
         self.get_nonce(address, 0u32).await
+    }
+
+    async fn get_bridge_account_last_transaction_hash(
+        &self,
+        address: Address,
+    ) -> Result<BridgeAccountLastTxHashResponse, Error> {
+        const PREFIX: &[u8] = b"bridge/account_last_tx_hash/";
+
+        let path = make_path_from_prefix_and_address(PREFIX, address.bytes());
+
+        let response = self
+            .abci_query(Some(path), vec![], None, false)
+            .await
+            .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
+
+        let proto_response =
+            astria_core::generated::protocol::bridge::v1alpha1::BridgeAccountLastTxHashResponse::decode(
+                &*response.value,
+            )
+            .map_err(|e| {
+                Error::abci_query_deserialization(
+                    "astria.protocol.bridge.v1alpha1.BridgeAccountLastTxHashResponse",
+                    response,
+                    e,
+                )
+            })?;
+        let native = proto_response.try_into_native().map_err(|e| {
+            Error::native_conversion(
+                "astria.protocol.bridge.v1alpha1.BridgeAccountLastTxHashResponse",
+                Arc::new(e),
+            )
+        })?;
+        Ok(native)
     }
 
     /// Submits the given transaction to the Sequencer node.

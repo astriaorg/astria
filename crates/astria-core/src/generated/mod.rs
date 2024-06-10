@@ -53,6 +53,11 @@ pub mod protocol {
         pub mod v1alpha1;
     }
     #[path = ""]
+    pub mod bridge {
+        #[path = "astria.protocol.bridge.v1alpha1.rs"]
+        pub mod v1alpha1;
+    }
+    #[path = ""]
     pub mod transaction {
         #[path = "astria.protocol.transactions.v1alpha1.rs"]
         pub mod v1alpha1;

@@ -52,7 +52,9 @@ pub(crate) trait StateReadExt: StateRead {
 
         let DenominationTrace(denom_str) =
             DenominationTrace::try_from_slice(&bytes).context("invalid asset bytes")?;
-        let denom: Denom = denom_str.into();
+        let denom = denom_str
+            .parse()
+            .context("failed to parse retrieved denom string as a Denom")?;
         Ok(Some(denom))
     }
 }
@@ -91,7 +93,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let state = StateDelta::new(snapshot);
 
-        let asset = Id::from_denom("asset");
+        let asset = "asset".parse::<Denom>().unwrap().id();
 
         // gets for non existing assets should return none
         assert_eq!(
@@ -109,7 +111,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        let denom = Denom::from_base_denom("asset");
+        let denom = "asset".parse::<Denom>().unwrap();
 
         // non existing calls are ok for 'has'
         assert!(
@@ -141,7 +143,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         // can write new
-        let denom = Denom::from_base_denom("asset");
+        let denom = "asset".parse::<Denom>().unwrap();
         state
             .put_ibc_asset(denom.id(), &denom)
             .expect("putting ibc asset should not fail");
@@ -163,7 +165,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         // can write new
-        let denom = Denom::from_base_denom("asset_0");
+        let denom = "asset_0".parse::<Denom>().unwrap();
         state
             .put_ibc_asset(denom.id(), &denom)
             .expect("putting ibc asset should not fail");
@@ -178,7 +180,7 @@ mod test {
         );
 
         // can write another without affecting original
-        let denom_1 = Denom::from_base_denom("asset_1");
+        let denom_1 = "asset_1".parse::<Denom>().unwrap();
         state
             .put_ibc_asset(denom_1.id(), &denom_1)
             .expect("putting ibc asset should not fail");
@@ -210,7 +212,7 @@ mod test {
 
         // can write unrelated ids and denoms
         let id_key = Id::from_denom("asset_0");
-        let denom = Denom::from_base_denom("asset_1");
+        let denom = "asset_1".parse::<Denom>().unwrap();
         state
             .put_ibc_asset(id_key, &denom)
             .expect("putting ibc asset should not fail");

@@ -16,7 +16,7 @@ use crate::{
             Denom,
         },
         Address,
-        IncorrectAddressLength,
+        AddressError,
         IncorrectRollupIdLength,
         RollupId,
     },
@@ -36,6 +36,7 @@ pub enum Action {
     InitBridgeAccount(InitBridgeAccountAction),
     BridgeLock(BridgeLockAction),
     BridgeUnlock(BridgeUnlockAction),
+    BridgeSudoChange(BridgeSudoChangeAction),
     FeeChange(FeeChangeAction),
 }
 
@@ -55,6 +56,7 @@ impl Action {
             Action::InitBridgeAccount(act) => Value::InitBridgeAccountAction(act.into_raw()),
             Action::BridgeLock(act) => Value::BridgeLockAction(act.into_raw()),
             Action::BridgeUnlock(act) => Value::BridgeUnlockAction(act.into_raw()),
+            Action::BridgeSudoChange(act) => Value::BridgeSudoChangeAction(act.into_raw()),
             Action::FeeChange(act) => Value::FeeChangeAction(act.into_raw()),
         };
         raw::Action {
@@ -79,6 +81,7 @@ impl Action {
             Action::InitBridgeAccount(act) => Value::InitBridgeAccountAction(act.to_raw()),
             Action::BridgeLock(act) => Value::BridgeLockAction(act.to_raw()),
             Action::BridgeUnlock(act) => Value::BridgeUnlockAction(act.to_raw()),
+            Action::BridgeSudoChange(act) => Value::BridgeSudoChangeAction(act.to_raw()),
             Action::FeeChange(act) => Value::FeeChangeAction(act.to_raw()),
         };
         raw::Action {
@@ -136,6 +139,10 @@ impl Action {
             ),
             Value::BridgeUnlockAction(act) => Self::BridgeUnlock(
                 BridgeUnlockAction::try_from_raw(act).map_err(ActionError::bridge_unlock)?,
+            ),
+            Value::BridgeSudoChangeAction(act) => Self::BridgeSudoChange(
+                BridgeSudoChangeAction::try_from_raw(act)
+                    .map_err(ActionError::bridge_sudo_change)?,
             ),
             Value::FeeChangeAction(act) => Self::FeeChange(
                 FeeChangeAction::try_from_raw(&act).map_err(ActionError::fee_change)?,
@@ -221,6 +228,12 @@ impl From<BridgeUnlockAction> for Action {
     }
 }
 
+impl From<BridgeSudoChangeAction> for Action {
+    fn from(value: BridgeSudoChangeAction) -> Self {
+        Self::BridgeSudoChange(value)
+    }
+}
+
 impl From<FeeChangeAction> for Action {
     fn from(value: FeeChangeAction) -> Self {
         Self::FeeChange(value)
@@ -281,6 +294,10 @@ impl ActionError {
         Self(ActionErrorKind::BridgeUnlock(inner))
     }
 
+    fn bridge_sudo_change(inner: BridgeSudoChangeActionError) -> Self {
+        Self(ActionErrorKind::BridgeSudoChange(inner))
+    }
+
     fn fee_change(inner: FeeChangeActionError) -> Self {
         Self(ActionErrorKind::FeeChange(inner))
     }
@@ -312,6 +329,8 @@ enum ActionErrorKind {
     BridgeLock(#[source] BridgeLockActionError),
     #[error("bridge unlock action was not valid")]
     BridgeUnlock(#[source] BridgeUnlockActionError),
+    #[error("bridge sudo change action was not valid")]
+    BridgeSudoChange(#[source] BridgeSudoChangeActionError),
     #[error("fee change action was not valid")]
     FeeChange(#[source] FeeChangeActionError),
 }
@@ -467,7 +486,7 @@ impl TransferAction {
         let Some(to) = to else {
             return Err(TransferActionError::field_not_set("to"));
         };
-        let to = Address::try_from_raw(&to).map_err(TransferActionError::address_length)?;
+        let to = Address::try_from_raw(&to).map_err(TransferActionError::address)?;
         let amount = amount.map_or(0, Into::into);
         let asset_id =
             asset::Id::try_from_slice(&asset_id).map_err(TransferActionError::asset_id)?;
@@ -492,8 +511,8 @@ impl TransferActionError {
         Self(TransferActionErrorKind::FieldNotSet(field))
     }
 
-    fn address_length(inner: IncorrectAddressLength) -> Self {
-        Self(TransferActionErrorKind::AddressLength(inner))
+    fn address(inner: AddressError) -> Self {
+        Self(TransferActionErrorKind::Address(inner))
     }
 
     fn asset_id(inner: asset::IncorrectAssetIdLength) -> Self {
@@ -510,7 +529,7 @@ enum TransferActionErrorKind {
     #[error("the expected field in the raw source type was not set: `{0}`")]
     FieldNotSet(&'static str),
     #[error("`to` field did not contain a valid address")]
-    AddressLength(#[source] IncorrectAddressLength),
+    Address(#[source] AddressError),
     #[error("`asset_id` field did not contain a valid asset ID")]
     Asset(#[source] asset::IncorrectAssetIdLength),
     #[error("`fee_asset_id` field did not contain a valid asset ID")]
@@ -576,8 +595,10 @@ impl SudoAddressChangeActionError {
         Self(SudoAddressChangeActionErrorKind::FieldNotSet(field))
     }
 
-    fn address(inner: IncorrectAddressLength) -> Self {
-        Self(SudoAddressChangeActionErrorKind::Address(inner))
+    fn address(source: AddressError) -> Self {
+        Self(SudoAddressChangeActionErrorKind::Address {
+            source,
+        })
     }
 }
 
@@ -586,7 +607,7 @@ enum SudoAddressChangeActionErrorKind {
     #[error("the expected field in the raw source type was not set: `{0}`")]
     FieldNotSet(&'static str),
     #[error("`new_address` field did not contain a valid address")]
-    Address(#[source] IncorrectAddressLength),
+    Address { source: AddressError },
 }
 
 /// Represents an IBC withdrawal of an asset from a source chain to a destination chain.
@@ -618,6 +639,16 @@ pub struct Ics20Withdrawal {
     pub fee_asset_id: asset::Id,
     // a memo to include with the transfer
     pub memo: String,
+    // the address of the bridge account to transfer from, if this is a withdrawal
+    // from a bridge account and the sender of the tx is the bridge's withdrawer,
+    // which differs from the bridge account's address.
+    //
+    // if unset, and the transaction sender is not a bridge account, the withdrawal
+    // is treated as a user (non-bridge) withdrawal.
+    //
+    // if unset, and the transaction sender is a bridge account, the withdrawal is
+    // treated as a bridge withdrawal (ie. the bridge account's withdrawer address is checked).
+    pub bridge_address: Option<Address>,
 }
 
 impl Ics20Withdrawal {
@@ -683,12 +714,13 @@ impl Ics20Withdrawal {
             amount: Some(self.amount.into()),
             denom: self.denom.to_string(),
             destination_chain_address: self.destination_chain_address.clone(),
-            return_address: self.return_address.to_vec(),
+            return_address: Some(self.return_address.into_raw()),
             timeout_height: Some(self.timeout_height.into_raw()),
             timeout_time: self.timeout_time,
             source_channel: self.source_channel.to_string(),
             fee_asset_id: self.fee_asset_id.get().to_vec(),
             memo: self.memo.clone(),
+            bridge_address: self.bridge_address.as_ref().map(Address::to_raw),
         }
     }
 
@@ -698,12 +730,13 @@ impl Ics20Withdrawal {
             amount: Some(self.amount.into()),
             denom: self.denom.to_string(),
             destination_chain_address: self.destination_chain_address,
-            return_address: self.return_address.to_vec(),
+            return_address: Some(self.return_address.into_raw()),
             timeout_height: Some(self.timeout_height.into_raw()),
             timeout_time: self.timeout_time,
             source_channel: self.source_channel.to_string(),
             fee_asset_id: self.fee_asset_id.get().to_vec(),
             memo: self.memo,
+            bridge_address: self.bridge_address.map(Address::into_raw),
         }
     }
 
@@ -713,32 +746,51 @@ impl Ics20Withdrawal {
     ///
     /// - if the `amount` field is missing
     /// - if the `denom` field is invalid
-    /// - if the `return_address` field is invalid
+    /// - if the `return_address` field is invalid or missing
     /// - if the `timeout_height` field is missing
     /// - if the `source_channel` field is invalid
     pub fn try_from_raw(proto: raw::Ics20Withdrawal) -> Result<Self, Ics20WithdrawalError> {
-        let amount = proto.amount.ok_or(Ics20WithdrawalError::missing_amount())?;
-        let return_address = Address::try_from_slice(&proto.return_address)
-            .map_err(Ics20WithdrawalError::invalid_return_address)?;
-        let timeout_height = proto
-            .timeout_height
-            .ok_or(Ics20WithdrawalError::missing_timeout_height())?
+        let raw::Ics20Withdrawal {
+            amount,
+            denom,
+            destination_chain_address,
+            return_address,
+            timeout_height,
+            timeout_time,
+            source_channel,
+            fee_asset_id,
+            memo,
+            bridge_address,
+        } = proto;
+        let amount = amount.ok_or(Ics20WithdrawalError::field_not_set("amount"))?;
+        let return_address = Address::try_from_raw(
+            &return_address.ok_or(Ics20WithdrawalError::field_not_set("return_address"))?,
+        )
+        .map_err(Ics20WithdrawalError::return_address)?;
+
+        let timeout_height = timeout_height
+            .ok_or(Ics20WithdrawalError::field_not_set("timeout_height"))?
             .into();
+        let bridge_address = bridge_address
+            .as_ref()
+            .map(Address::try_from_raw)
+            .transpose()
+            .map_err(Ics20WithdrawalError::invalid_bridge_address)?;
 
         Ok(Self {
             amount: amount.into(),
-            denom: proto.denom.clone().into(),
-            destination_chain_address: proto.destination_chain_address,
+            denom: denom.parse().map_err(Ics20WithdrawalError::invalid_denom)?,
+            destination_chain_address,
             return_address,
             timeout_height,
-            timeout_time: proto.timeout_time,
-            source_channel: proto
-                .source_channel
+            timeout_time,
+            source_channel: source_channel
                 .parse()
                 .map_err(Ics20WithdrawalError::invalid_source_channel)?,
-            fee_asset_id: asset::Id::try_from_slice(&proto.fee_asset_id)
+            fee_asset_id: asset::Id::try_from_slice(&fee_asset_id)
                 .map_err(Ics20WithdrawalError::invalid_fee_asset_id)?,
-            memo: proto.memo,
+            memo,
+            bridge_address,
         })
     }
 }
@@ -777,18 +829,17 @@ pub struct Ics20WithdrawalError(Ics20WithdrawalErrorKind);
 
 impl Ics20WithdrawalError {
     #[must_use]
-    fn missing_amount() -> Self {
-        Self(Ics20WithdrawalErrorKind::MissingAmount)
+    fn field_not_set(field: &'static str) -> Self {
+        Self(Ics20WithdrawalErrorKind::FieldNotSet {
+            field,
+        })
     }
 
     #[must_use]
-    fn invalid_return_address(err: IncorrectAddressLength) -> Self {
-        Self(Ics20WithdrawalErrorKind::InvalidReturnAddress(err))
-    }
-
-    #[must_use]
-    fn missing_timeout_height() -> Self {
-        Self(Ics20WithdrawalErrorKind::MissingTimeoutHeight)
+    fn return_address(source: AddressError) -> Self {
+        Self(Ics20WithdrawalErrorKind::ReturnAddress {
+            source,
+        })
     }
 
     #[must_use]
@@ -800,20 +851,33 @@ impl Ics20WithdrawalError {
     fn invalid_fee_asset_id(err: asset::IncorrectAssetIdLength) -> Self {
         Self(Ics20WithdrawalErrorKind::InvalidFeeAssetId(err))
     }
+
+    #[must_use]
+    fn invalid_bridge_address(err: AddressError) -> Self {
+        Self(Ics20WithdrawalErrorKind::InvalidBridgeAddress(err))
+    }
+
+    fn invalid_denom(source: asset::ParseDenomError) -> Self {
+        Self(Ics20WithdrawalErrorKind::InvalidDenom {
+            source,
+        })
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
 enum Ics20WithdrawalErrorKind {
-    #[error("`amount` field was missing")]
-    MissingAmount,
+    #[error("expected field `{field}` was not set`")]
+    FieldNotSet { field: &'static str },
     #[error("`return_address` field was invalid")]
-    InvalidReturnAddress(#[source] IncorrectAddressLength),
-    #[error("`timeout_height` field was missing")]
-    MissingTimeoutHeight,
+    ReturnAddress { source: AddressError },
     #[error("`source_channel` field was invalid")]
     InvalidSourceChannel(#[source] IdentifierError),
     #[error("`fee_asset_id` field was invalid")]
     InvalidFeeAssetId(#[source] asset::IncorrectAssetIdLength),
+    #[error("`bridge_address` field was invalid")]
+    InvalidBridgeAddress(#[source] AddressError),
+    #[error("`denom` field was invalid")]
+    InvalidDenom { source: asset::ParseDenomError },
 }
 
 #[allow(clippy::module_name_repetitions)]
@@ -868,15 +932,15 @@ impl IbcRelayerChangeAction {
             raw::IbcRelayerChangeAction {
                 value: Some(raw::ibc_relayer_change_action::Value::Addition(address)),
             } => {
-                let address = Address::try_from_raw(address)
-                    .map_err(IbcRelayerChangeActionError::invalid_address)?;
+                let address =
+                    Address::try_from_raw(address).map_err(IbcRelayerChangeActionError::address)?;
                 Ok(IbcRelayerChangeAction::Addition(address))
             }
             raw::IbcRelayerChangeAction {
                 value: Some(raw::ibc_relayer_change_action::Value::Removal(address)),
             } => {
-                let address = Address::try_from_raw(address)
-                    .map_err(IbcRelayerChangeActionError::invalid_address)?;
+                let address =
+                    Address::try_from_raw(address).map_err(IbcRelayerChangeActionError::address)?;
                 Ok(IbcRelayerChangeAction::Removal(address))
             }
             _ => Err(IbcRelayerChangeActionError::missing_address()),
@@ -890,8 +954,10 @@ pub struct IbcRelayerChangeActionError(IbcRelayerChangeActionErrorKind);
 
 impl IbcRelayerChangeActionError {
     #[must_use]
-    fn invalid_address(err: IncorrectAddressLength) -> Self {
-        Self(IbcRelayerChangeActionErrorKind::InvalidAddress(err))
+    fn address(source: AddressError) -> Self {
+        Self(IbcRelayerChangeActionErrorKind::Address {
+            source,
+        })
     }
 
     #[must_use]
@@ -902,9 +968,9 @@ impl IbcRelayerChangeActionError {
 
 #[derive(Debug, thiserror::Error)]
 enum IbcRelayerChangeActionErrorKind {
-    #[error("the address was invalid")]
-    InvalidAddress(#[source] IncorrectAddressLength),
-    #[error("the address was missing")]
+    #[error("the `address` was invalid")]
+    Address { source: AddressError },
+    #[error("the `address` was not set")]
     MissingAddress,
 }
 
@@ -1009,6 +1075,13 @@ pub struct InitBridgeAccountAction {
     pub asset_id: asset::Id,
     // the fee asset which to pay this action's fees with
     pub fee_asset_id: asset::Id,
+    // the address corresponding to the key which has sudo capabilities;
+    // ie. can change the sudo and withdrawer addresses for this bridge account.
+    // if unset, this is set to the sender of the transaction.
+    pub sudo_address: Option<Address>,
+    // the address corresponding to the key which can withdraw funds from this bridge account.
+    // if unset, this is set to the sender of the transaction.
+    pub withdrawer_address: Option<Address>,
 }
 
 impl InitBridgeAccountAction {
@@ -1018,6 +1091,8 @@ impl InitBridgeAccountAction {
             rollup_id: Some(self.rollup_id.to_raw()),
             asset_id: self.asset_id.get().to_vec(),
             fee_asset_id: self.fee_asset_id.get().to_vec(),
+            sudo_address: self.sudo_address.map(Address::into_raw),
+            withdrawer_address: self.withdrawer_address.map(Address::into_raw),
         }
     }
 
@@ -1027,6 +1102,8 @@ impl InitBridgeAccountAction {
             rollup_id: Some(self.rollup_id.to_raw()),
             asset_id: self.asset_id.get().to_vec(),
             fee_asset_id: self.fee_asset_id.get().to_vec(),
+            sudo_address: self.sudo_address.as_ref().map(Address::to_raw),
+            withdrawer_address: self.withdrawer_address.as_ref().map(Address::to_raw),
         }
     }
 
@@ -1036,6 +1113,8 @@ impl InitBridgeAccountAction {
     ///
     /// - if the `rollup_id` field is not set
     /// - if the `rollup_id` field is invalid
+    /// - if the `sudo_address` field is invalid
+    /// - if the `withdrawer_address` field is invalid
     pub fn try_from_raw(
         proto: raw::InitBridgeAccountAction,
     ) -> Result<Self, InitBridgeAccountActionError> {
@@ -1048,11 +1127,25 @@ impl InitBridgeAccountAction {
             .map_err(InitBridgeAccountActionError::invalid_asset_id)?;
         let fee_asset_id = asset::Id::try_from_slice(&proto.fee_asset_id)
             .map_err(InitBridgeAccountActionError::invalid_fee_asset_id)?;
+        let sudo_address = proto
+            .sudo_address
+            .as_ref()
+            .map(Address::try_from_raw)
+            .transpose()
+            .map_err(InitBridgeAccountActionError::invalid_sudo_address)?;
+        let withdrawer_address = proto
+            .withdrawer_address
+            .as_ref()
+            .map(Address::try_from_raw)
+            .transpose()
+            .map_err(InitBridgeAccountActionError::invalid_withdrawer_address)?;
 
         Ok(Self {
             rollup_id,
             asset_id,
             fee_asset_id,
+            sudo_address,
+            withdrawer_address,
         })
     }
 }
@@ -1081,6 +1174,18 @@ impl InitBridgeAccountActionError {
     fn invalid_fee_asset_id(err: asset::IncorrectAssetIdLength) -> Self {
         Self(InitBridgeAccountActionErrorKind::InvalidFeeAssetId(err))
     }
+
+    #[must_use]
+    fn invalid_sudo_address(err: AddressError) -> Self {
+        Self(InitBridgeAccountActionErrorKind::InvalidSudoAddress(err))
+    }
+
+    #[must_use]
+    fn invalid_withdrawer_address(err: AddressError) -> Self {
+        Self(InitBridgeAccountActionErrorKind::InvalidWithdrawerAddress(
+            err,
+        ))
+    }
 }
 
 // allow pedantic clippy as the errors have the same prefix (for consistency
@@ -1097,6 +1202,10 @@ enum InitBridgeAccountActionErrorKind {
     InvalidAssetId(#[source] asset::IncorrectAssetIdLength),
     #[error("the `fee_asset_id` field was invalid")]
     InvalidFeeAssetId(#[source] asset::IncorrectAssetIdLength),
+    #[error("the `sudo_address` field was invalid")]
+    InvalidSudoAddress(#[source] AddressError),
+    #[error("the `withdrawer_address` field was invalid")]
+    InvalidWithdrawerAddress(#[source] AddressError),
 }
 
 #[allow(clippy::module_name_repetitions)]
@@ -1147,7 +1256,7 @@ impl BridgeLockAction {
         let Some(to) = proto.to else {
             return Err(BridgeLockActionError::field_not_set("to"));
         };
-        let to = Address::try_from_raw(&to).map_err(BridgeLockActionError::invalid_address)?;
+        let to = Address::try_from_raw(&to).map_err(BridgeLockActionError::address)?;
         let amount = proto
             .amount
             .ok_or(BridgeLockActionError::missing_amount())?;
@@ -1176,8 +1285,10 @@ impl BridgeLockActionError {
     }
 
     #[must_use]
-    fn invalid_address(err: IncorrectAddressLength) -> Self {
-        Self(BridgeLockActionErrorKind::InvalidAddress(err))
+    fn address(source: AddressError) -> Self {
+        Self(BridgeLockActionErrorKind::Address {
+            source,
+        })
     }
 
     #[must_use]
@@ -1201,7 +1312,7 @@ enum BridgeLockActionErrorKind {
     #[error("the expected field in the raw source type was not set: `{0}`")]
     FieldNotSet(&'static str),
     #[error("the `to` field was invalid")]
-    InvalidAddress(#[source] IncorrectAddressLength),
+    Address { source: AddressError },
     #[error("the `amount` field was not set")]
     MissingAmount,
     #[error("the `asset_id` field was invalid")]
@@ -1219,6 +1330,10 @@ pub struct BridgeUnlockAction {
     pub fee_asset_id: asset::Id,
     // memo for double spend protection.
     pub memo: Vec<u8>,
+    // the address of the bridge account to transfer from,
+    // if the bridge account's withdrawer address is not the same as the bridge address.
+    // if unset, the signer of the transaction is used.
+    pub bridge_address: Option<Address>,
 }
 
 impl BridgeUnlockAction {
@@ -1229,6 +1344,7 @@ impl BridgeUnlockAction {
             amount: Some(self.amount.into()),
             fee_asset_id: self.fee_asset_id.as_ref().to_vec(),
             memo: self.memo,
+            bridge_address: self.bridge_address.map(Address::into_raw),
         }
     }
 
@@ -1239,6 +1355,7 @@ impl BridgeUnlockAction {
             amount: Some(self.amount.into()),
             fee_asset_id: self.fee_asset_id.as_ref().to_vec(),
             memo: self.memo.clone(),
+            bridge_address: self.bridge_address.as_ref().map(Address::to_raw),
         }
     }
 
@@ -1250,21 +1367,29 @@ impl BridgeUnlockAction {
     /// - if the `to` field is invalid
     /// - if the `amount` field is invalid
     /// - if the `fee_asset_id` field is invalid
+    /// - if the `from` field is invalid
     pub fn try_from_raw(proto: raw::BridgeUnlockAction) -> Result<Self, BridgeUnlockActionError> {
         let Some(to) = proto.to else {
             return Err(BridgeUnlockActionError::field_not_set("to"));
         };
-        let to = Address::try_from_raw(&to).map_err(BridgeUnlockActionError::invalid_address)?;
+        let to = Address::try_from_raw(&to).map_err(BridgeUnlockActionError::address)?;
         let amount = proto
             .amount
             .ok_or(BridgeUnlockActionError::missing_amount())?;
         let fee_asset_id = asset::Id::try_from_slice(&proto.fee_asset_id)
             .map_err(BridgeUnlockActionError::invalid_fee_asset_id)?;
+        let bridge_address = proto
+            .bridge_address
+            .as_ref()
+            .map(Address::try_from_raw)
+            .transpose()
+            .map_err(BridgeUnlockActionError::invalid_bridge_address)?;
         Ok(Self {
             to,
             amount: amount.into(),
             fee_asset_id,
             memo: proto.memo,
+            bridge_address,
         })
     }
 }
@@ -1280,8 +1405,10 @@ impl BridgeUnlockActionError {
     }
 
     #[must_use]
-    fn invalid_address(err: IncorrectAddressLength) -> Self {
-        Self(BridgeUnlockActionErrorKind::InvalidAddress(err))
+    fn address(source: AddressError) -> Self {
+        Self(BridgeUnlockActionErrorKind::Address {
+            source,
+        })
     }
 
     #[must_use]
@@ -1293,6 +1420,11 @@ impl BridgeUnlockActionError {
     fn invalid_fee_asset_id(err: asset::IncorrectAssetIdLength) -> Self {
         Self(BridgeUnlockActionErrorKind::InvalidFeeAssetId(err))
     }
+
+    #[must_use]
+    fn invalid_bridge_address(err: AddressError) -> Self {
+        Self(BridgeUnlockActionErrorKind::InvalidBridgeAddress(err))
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -1300,9 +1432,127 @@ enum BridgeUnlockActionErrorKind {
     #[error("the expected field in the raw source type was not set: `{0}`")]
     FieldNotSet(&'static str),
     #[error("the `to` field was invalid")]
-    InvalidAddress(#[source] IncorrectAddressLength),
+    Address { source: AddressError },
     #[error("the `amount` field was not set")]
     MissingAmount,
+    #[error("the `fee_asset_id` field was invalid")]
+    InvalidFeeAssetId(#[source] asset::IncorrectAssetIdLength),
+    #[error("the `bridge_address` field was invalid")]
+    InvalidBridgeAddress(#[source] AddressError),
+}
+
+#[allow(clippy::module_name_repetitions)]
+#[derive(Debug, Clone)]
+pub struct BridgeSudoChangeAction {
+    pub bridge_address: Address,
+    pub new_sudo_address: Option<Address>,
+    pub new_withdrawer_address: Option<Address>,
+    pub fee_asset_id: asset::Id,
+}
+
+impl BridgeSudoChangeAction {
+    #[must_use]
+    pub fn into_raw(self) -> raw::BridgeSudoChangeAction {
+        raw::BridgeSudoChangeAction {
+            bridge_address: Some(self.bridge_address.to_raw()),
+            new_sudo_address: self.new_sudo_address.map(Address::into_raw),
+            new_withdrawer_address: self.new_withdrawer_address.map(Address::into_raw),
+            fee_asset_id: self.fee_asset_id.get().to_vec(),
+        }
+    }
+
+    #[must_use]
+    pub fn to_raw(&self) -> raw::BridgeSudoChangeAction {
+        raw::BridgeSudoChangeAction {
+            bridge_address: Some(self.bridge_address.to_raw()),
+            new_sudo_address: self.new_sudo_address.as_ref().map(Address::to_raw),
+            new_withdrawer_address: self.new_withdrawer_address.as_ref().map(Address::to_raw),
+            fee_asset_id: self.fee_asset_id.get().to_vec(),
+        }
+    }
+
+    /// Convert from a raw, unchecked protobuf [`raw::BridgeSudoChangeAction`].
+    ///
+    /// # Errors
+    ///
+    /// - if the `bridge_address` field is not set
+    /// - if the `bridge_address` field is invalid
+    /// - if the `new_sudo_address` field is invalid
+    /// - if the `new_withdrawer_address` field is invalid
+    /// - if the `fee_asset_id` field is invalid
+    pub fn try_from_raw(
+        proto: raw::BridgeSudoChangeAction,
+    ) -> Result<Self, BridgeSudoChangeActionError> {
+        let Some(bridge_address) = proto.bridge_address else {
+            return Err(BridgeSudoChangeActionError::field_not_set("bridge_address"));
+        };
+        let bridge_address = Address::try_from_raw(&bridge_address)
+            .map_err(BridgeSudoChangeActionError::invalid_bridge_address)?;
+        let new_sudo_address = proto
+            .new_sudo_address
+            .as_ref()
+            .map(Address::try_from_raw)
+            .transpose()
+            .map_err(BridgeSudoChangeActionError::invalid_new_sudo_address)?;
+        let new_withdrawer_address = proto
+            .new_withdrawer_address
+            .as_ref()
+            .map(Address::try_from_raw)
+            .transpose()
+            .map_err(BridgeSudoChangeActionError::invalid_new_withdrawer_address)?;
+        let fee_asset_id = asset::Id::try_from_slice(&proto.fee_asset_id)
+            .map_err(BridgeSudoChangeActionError::invalid_fee_asset_id)?;
+
+        Ok(Self {
+            bridge_address,
+            new_sudo_address,
+            new_withdrawer_address,
+            fee_asset_id,
+        })
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct BridgeSudoChangeActionError(BridgeSudoChangeActionErrorKind);
+
+impl BridgeSudoChangeActionError {
+    #[must_use]
+    fn field_not_set(field: &'static str) -> Self {
+        Self(BridgeSudoChangeActionErrorKind::FieldNotSet(field))
+    }
+
+    #[must_use]
+    fn invalid_bridge_address(err: AddressError) -> Self {
+        Self(BridgeSudoChangeActionErrorKind::InvalidBridgeAddress(err))
+    }
+
+    #[must_use]
+    fn invalid_new_sudo_address(err: AddressError) -> Self {
+        Self(BridgeSudoChangeActionErrorKind::InvalidNewSudoAddress(err))
+    }
+
+    #[must_use]
+    fn invalid_new_withdrawer_address(err: AddressError) -> Self {
+        Self(BridgeSudoChangeActionErrorKind::InvalidNewWithdrawerAddress(err))
+    }
+
+    #[must_use]
+    fn invalid_fee_asset_id(err: asset::IncorrectAssetIdLength) -> Self {
+        Self(BridgeSudoChangeActionErrorKind::InvalidFeeAssetId(err))
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum BridgeSudoChangeActionErrorKind {
+    #[error("the expected field in the raw source type was not set: `{0}`")]
+    FieldNotSet(&'static str),
+    #[error("the `bridge_address` field was invalid")]
+    InvalidBridgeAddress(#[source] AddressError),
+    #[error("the `new_sudo_address` field was invalid")]
+    InvalidNewSudoAddress(#[source] AddressError),
+    #[error("the `new_withdrawer_address` field was invalid")]
+    InvalidNewWithdrawerAddress(#[source] AddressError),
     #[error("the `fee_asset_id` field was invalid")]
     InvalidFeeAssetId(#[source] asset::IncorrectAssetIdLength),
 }
@@ -1314,6 +1564,7 @@ pub enum FeeChange {
     SequenceByteCostMultiplier,
     InitBridgeAccountBaseFee,
     BridgeLockByteCostMultiplier,
+    BridgeSudoChangeBaseFee,
     Ics20WithdrawalBaseFee,
 }
 
@@ -1351,6 +1602,9 @@ impl FeeChangeAction {
                         self.new_value.into(),
                     )
                 }
+                FeeChange::BridgeSudoChangeBaseFee => {
+                    raw::fee_change_action::Value::BridgeSudoChangeBaseFee(self.new_value.into())
+                }
                 FeeChange::Ics20WithdrawalBaseFee => {
                     raw::fee_change_action::Value::Ics20WithdrawalBaseFee(self.new_value.into())
                 }
@@ -1380,6 +1634,9 @@ impl FeeChangeAction {
             }
             Some(raw::fee_change_action::Value::BridgeLockByteCostMultiplier(new_value)) => {
                 (FeeChange::BridgeLockByteCostMultiplier, new_value)
+            }
+            Some(raw::fee_change_action::Value::BridgeSudoChangeBaseFee(new_value)) => {
+                (FeeChange::BridgeSudoChangeBaseFee, new_value)
             }
             Some(raw::fee_change_action::Value::Ics20WithdrawalBaseFee(new_value)) => {
                 (FeeChange::Ics20WithdrawalBaseFee, new_value)

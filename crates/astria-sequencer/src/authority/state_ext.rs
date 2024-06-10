@@ -98,9 +98,9 @@ pub(crate) trait StateReadExt: StateRead {
             // return error because sudo key must be set
             bail!("sudo key not found");
         };
-        let SudoAddress(address) =
+        let SudoAddress(address_bytes) =
             SudoAddress::try_from_slice(&bytes).context("invalid sudo key bytes")?;
-        Ok(Address::from(address))
+        Ok(crate::astria_address(address_bytes))
     }
 
     #[instrument(skip(self))]
@@ -144,7 +144,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     fn put_sudo_address(&mut self, address: Address) -> Result<()> {
         self.put_raw(
             SUDO_STORAGE_KEY.to_string(),
-            borsh::to_vec(&SudoAddress(address.get()))
+            borsh::to_vec(&SudoAddress(address.bytes()))
                 .context("failed to convert sudo address to vec")?,
         );
         Ok(())
@@ -179,7 +179,6 @@ impl<T: StateWrite> StateWriteExt for T {}
 
 #[cfg(test)]
 mod test {
-    use astria_core::primitive::v1::Address;
     use cnidarium::StateDelta;
     use tendermint::{
         validator,
@@ -206,7 +205,7 @@ mod test {
             .expect_err("no sudo address should exist at first");
 
         // can write new
-        let mut address_expected = Address::try_from_slice(&[42u8; 20]).unwrap();
+        let mut address_expected = crate::astria_address([42u8; 20]);
         state
             .put_sudo_address(address_expected)
             .expect("writing sudo address should not fail");
@@ -220,7 +219,7 @@ mod test {
         );
 
         // can rewrite with new value
-        address_expected = Address::try_from_slice(&[41u8; 20]).unwrap();
+        address_expected = crate::astria_address([41u8; 20]);
         state
             .put_sudo_address(address_expected)
             .expect("writing sudo address should not fail");

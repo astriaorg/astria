@@ -142,6 +142,9 @@ impl ActionHandler for FeeChangeAction {
             FeeChange::BridgeLockByteCostMultiplier => {
                 state.put_bridge_lock_byte_cost_multiplier(self.new_value);
             }
+            FeeChange::BridgeSudoChangeBaseFee => {
+                state.put_bridge_sudo_change_base_fee(self.new_value);
+            }
             FeeChange::Ics20WithdrawalBaseFee => {
                 state
                     .put_ics20_withdrawal_base_fee(self.new_value)
@@ -191,7 +194,7 @@ mod test {
         };
 
         fee_change
-            .execute(&mut state, Address::from([1; 20]))
+            .execute(&mut state, crate::astria_address([1; 20]))
             .await
             .unwrap();
         assert_eq!(state.get_transfer_base_fee().await.unwrap(), 10);
@@ -205,7 +208,7 @@ mod test {
         };
 
         fee_change
-            .execute(&mut state, Address::from([1; 20]))
+            .execute(&mut state, crate::astria_address([1; 20]))
             .await
             .unwrap();
         assert_eq!(state.get_sequence_action_base_fee().await.unwrap(), 3);
@@ -219,7 +222,7 @@ mod test {
         };
 
         fee_change
-            .execute(&mut state, Address::from([1; 20]))
+            .execute(&mut state, crate::astria_address([1; 20]))
             .await
             .unwrap();
         assert_eq!(
@@ -239,7 +242,7 @@ mod test {
         };
 
         fee_change
-            .execute(&mut state, Address::from([1; 20]))
+            .execute(&mut state, crate::astria_address([1; 20]))
             .await
             .unwrap();
         assert_eq!(state.get_init_bridge_account_base_fee().await.unwrap(), 2);
@@ -253,7 +256,7 @@ mod test {
         };
 
         fee_change
-            .execute(&mut state, Address::from([1; 20]))
+            .execute(&mut state, crate::astria_address([1; 20]))
             .await
             .unwrap();
         assert_eq!(
@@ -272,7 +275,7 @@ mod test {
         };
 
         fee_change
-            .execute(&mut state, Address::from([1; 20]))
+            .execute(&mut state, crate::astria_address([1; 20]))
             .await
             .unwrap();
         assert_eq!(state.get_ics20_withdrawal_base_fee().await.unwrap(), 2);

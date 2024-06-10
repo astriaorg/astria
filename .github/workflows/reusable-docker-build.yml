@@ -37,6 +37,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.tag }}
+          submodules: 'true'
       - uses: depot/setup-action@v1
       - name: Login to Docker Hub
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == 'astriaorg/astria'
