@@ -92,6 +92,8 @@ jobs:
       - uses: rustsec/audit-check@v1.4.1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          # `ansi_term` is Unmaintained. It is a transient dependency of penumbra crates and dylint, so cannot easily be replaced.
+          ignore: RUSTSEC-2021-0139
 
   rust:
     runs-on: buildjet-8vcpu-ubuntu-2204
