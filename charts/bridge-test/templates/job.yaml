@@ -19,9 +19,9 @@ spec:
 {{/*          args:*/}}
 {{/*            - --privkey={{ .Values.bridgeAccount.privkey }}*/}}
 {{/*            - --sequencer-url={{ .Values.sequencerURL }}*/}}
-{{/*            - --asset-id={{ .Values.assetID }}*/}}
-{{/*            - --fee-asset-id={{ .Values.feeAssetID }}*/}}
-{{/*            - --sequencer-chain-id={{ .Values.sequencerChainID }}*/}}
+{{/*            - --asset-id={{ .Values.assetId }}*/}}
+{{/*            - --fee-asset-id={{ .Values.feeAssetId }}*/}}
+{{/*            - --sequencer-chain-id={{ .Values.sequencerChainId }}*/}}
 {{/*            - --log-level=debug*/}}
       containers:
         - name: ibc-transfer
