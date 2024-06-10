@@ -750,21 +750,28 @@ impl Ics20Withdrawal {
     /// - if the `timeout_height` field is missing
     /// - if the `source_channel` field is invalid
     pub fn try_from_raw(proto: raw::Ics20Withdrawal) -> Result<Self, Ics20WithdrawalError> {
-        let amount = proto
-            .amount
-            .ok_or(Ics20WithdrawalError::field_not_set("amount"))?;
+        let raw::Ics20Withdrawal {
+            amount,
+            denom,
+            destination_chain_address,
+            return_address,
+            timeout_height,
+            timeout_time,
+            source_channel,
+            fee_asset_id,
+            memo,
+            bridge_address,
+        } = proto;
+        let amount = amount.ok_or(Ics20WithdrawalError::field_not_set("amount"))?;
         let return_address = Address::try_from_raw(
-            &proto
-                .return_address
-                .ok_or(Ics20WithdrawalError::field_not_set("return_address"))?,
+            &return_address.ok_or(Ics20WithdrawalError::field_not_set("return_address"))?,
         )
         .map_err(Ics20WithdrawalError::return_address)?;
-        let timeout_height = proto
-            .timeout_height
+
+        let timeout_height = timeout_height
             .ok_or(Ics20WithdrawalError::field_not_set("timeout_height"))?
             .into();
-        let bridge_address = proto
-            .bridge_address
+        let bridge_address = bridge_address
             .as_ref()
             .map(Address::try_from_raw)
             .transpose()
@@ -772,18 +779,17 @@ impl Ics20Withdrawal {
 
         Ok(Self {
             amount: amount.into(),
-            denom: proto.denom.clone().into(),
-            destination_chain_address: proto.destination_chain_address,
+            denom: denom.parse().map_err(Ics20WithdrawalError::invalid_denom)?,
+            destination_chain_address,
             return_address,
             timeout_height,
-            timeout_time: proto.timeout_time,
-            source_channel: proto
-                .source_channel
+            timeout_time,
+            source_channel: source_channel
                 .parse()
                 .map_err(Ics20WithdrawalError::invalid_source_channel)?,
-            fee_asset_id: asset::Id::try_from_slice(&proto.fee_asset_id)
+            fee_asset_id: asset::Id::try_from_slice(&fee_asset_id)
                 .map_err(Ics20WithdrawalError::invalid_fee_asset_id)?,
-            memo: proto.memo,
+            memo,
             bridge_address,
         })
     }
@@ -850,6 +856,12 @@ impl Ics20WithdrawalError {
     fn invalid_bridge_address(err: AddressError) -> Self {
         Self(Ics20WithdrawalErrorKind::InvalidBridgeAddress(err))
     }
+
+    fn invalid_denom(source: asset::ParseDenomError) -> Self {
+        Self(Ics20WithdrawalErrorKind::InvalidDenom {
+            source,
+        })
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -864,6 +876,8 @@ enum Ics20WithdrawalErrorKind {
     InvalidFeeAssetId(#[source] asset::IncorrectAssetIdLength),
     #[error("`bridge_address` field was invalid")]
     InvalidBridgeAddress(#[source] AddressError),
+    #[error("`denom` field was invalid")]
+    InvalidDenom { source: asset::ParseDenomError },
 }
 
 #[allow(clippy::module_name_repetitions)]

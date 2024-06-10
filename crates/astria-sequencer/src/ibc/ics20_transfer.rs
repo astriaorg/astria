@@ -176,12 +176,15 @@ async fn refund_tokens_check<S: StateRead>(
 ) -> Result<()> {
     let packet_data: FungibleTokenPacketData =
         serde_json::from_slice(data).context("failed to decode fungible token packet data json")?;
-    let mut denom: Denom = packet_data.denom.clone().into();
+    let mut denom = packet_data
+        .denom
+        .parse::<Denom>()
+        .context("failed parsing denom packet data")?;
 
     // if the asset is prefixed with `ibc`, the rest of the denomination string is the asset ID,
     // so we need to look up the full trace from storage.
     // see https://github.com/cosmos/ibc-go/blob/main/docs/architecture/adr-001-coin-source-tracing.md#decision
-    if denom.prefix_is("ibc") {
+    if denom.prefix_matches_exactly("ibc") {
         denom = state
             .get_ibc_asset(denom.id())
             .await
@@ -213,7 +216,7 @@ async fn refund_tokens_check<S: StateRead>(
 
 fn is_prefixed(source_port: &PortId, source_channel: &ChannelId, asset: &Denom) -> bool {
     let prefix = format!("{source_port}/{source_channel}");
-    asset.prefix_is(&prefix)
+    asset.prefix_matches_exactly(&prefix)
 }
 
 #[async_trait::async_trait]
@@ -325,7 +328,7 @@ async fn convert_denomination_if_ibc_prefixed<S: StateReadExt>(
     // if the asset is prefixed with `ibc`, the rest of the denomination string is the asset ID,
     // so we need to look up the full trace from storage.
     // see https://github.com/cosmos/ibc-go/blob/main/docs/architecture/adr-001-coin-source-tracing.md#decision
-    let denom = if packet_denom.prefix().starts_with("ibc") {
+    let denom = if packet_denom.is_prefixed_by("ibc") {
         let id_bytes: [u8; 32] = hex::decode(packet_denom.base_denom())
             .context("failed to decode ibc/ prefixed id as hex")?
             .try_into()
@@ -351,11 +354,19 @@ fn prefix_denomination<'a>(
     if is_refund {
         packet_denom
     } else {
-        let denom: Denom = format!("{dest_port}/{dest_channel}/{packet_denom}").into();
+        // FIXME: we should provide a method on `denom` to prepend segments to its prefix
+        let denom: Denom = format!("{dest_port}/{dest_channel}/{packet_denom}")
+            .parse()
+            .expect(
+                "dest port and channel are valid prefix segments, so this concatenation must be a \
+                 valid denom",
+            );
         Cow::Owned(denom)
     }
 }
 
+// FIXME: temporarily allowed, but this must be fixed
+#[allow(clippy::too_many_lines)]
 async fn execute_ics20_transfer<S: StateWriteExt>(
     state: &mut S,
     data: &[u8],
@@ -377,11 +388,14 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
         packet_data.receiver
     };
 
-    let packet_denom: Denom = packet_data.denom.clone().into();
+    let packet_denom = packet_data
+        .denom
+        .parse::<Denom>()
+        .context("failed parsing denom in packet data as Denom")?;
 
     // convert denomination if it's prefixed with `ibc/`
     // note: this denomination might have a prefix, but it wasn't prefixed by us right now.
-    let packet_denom = convert_denomination_if_ibc_prefixed(state, packet_denom)
+    let unprefixed_denom = convert_denomination_if_ibc_prefixed(state, packet_denom)
         .await
         .context("failed to convert denomination if ibc/ prefixed")?;
 
@@ -398,7 +412,7 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
         execute_rollup_withdrawal_refund(
             state,
             &memo.bridge_address,
-            &packet_denom,
+            &unprefixed_denom,
             packet_amount,
             recipient,
         )
@@ -410,7 +424,7 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
     // the IBC packet should have the address as a bech32 string
     let recipient = Address::try_from_bech32m(&recipient).context("invalid recipient address")?;
 
-    let is_prefixed = is_prefixed(source_port, source_channel, &packet_denom);
+    let is_prefixed = is_prefixed(source_port, source_channel, &unprefixed_denom);
     let is_source = if is_refund {
         // we are the source if the denom is not prefixed by source_port/source_channel
         !is_prefixed
@@ -421,7 +435,7 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
 
     // prefix the denomination with the destination port and channel if not a refund
     let prefixed_denomination = prefix_denomination(
-        Cow::Borrowed(&packet_denom),
+        Cow::Borrowed(&unprefixed_denom),
         dest_port,
         dest_channel,
         is_refund,
@@ -446,8 +460,15 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
 
         // strip the prefix from the denom, as we're back on the source chain
         // note: if this is a refund, this is a no-op.
-        let denom = packet_denom.to_base_denom();
-
+        let denom = if is_refund {
+            unprefixed_denom
+        } else {
+            unprefixed_denom
+                .remove_prefix(&format!("{source_port}/{source_channel}"))
+                .context(
+                    "failed to remove prefix; this shouldn't happen - wasn't it checked above?!",
+                )?
+        };
         let escrow_channel = if is_refund {
             source_channel
         } else {
@@ -619,19 +640,19 @@ mod test {
     fn is_prefixed_test() {
         let source_port = "source_port".to_string().parse().unwrap();
         let source_channel = "source_channel".to_string().parse().unwrap();
-        let asset = Denom::from("source_port/source_channel/asset".to_string());
+        let asset = "source_port/source_channel/asset".parse().unwrap();
         // in the case of a transfer in that is not a refund,
         // we are the source if the packets are prefixed by the sending chain
         assert!(is_prefixed(&source_port, &source_channel, &asset));
         // in the case of a refund, we are the source if the packets are not
         // prefixed by the sending chain
-        let asset = Denom::from("other_port/source_channel/asset".to_string());
+        let asset = "other_port/source_channel/asset".parse().unwrap();
         assert!(!is_prefixed(&source_port, &source_channel, &asset));
     }
 
     #[tokio::test]
     async fn prefix_denomination_not_refund() {
-        let packet_denom = Denom::from("asset".to_string());
+        let packet_denom = "asset".parse().unwrap();
         let dest_port = "transfer".to_string().parse().unwrap();
         let dest_channel = "channel-99".to_string().parse().unwrap();
         let is_refund = false;
@@ -642,14 +663,14 @@ mod test {
             &dest_channel,
             is_refund,
         );
-        let expected = Denom::from("transfer/channel-99/asset".to_string());
+        let expected = "transfer/channel-99/asset".parse::<Denom>().unwrap();
 
         assert_eq!(denom.into_owned(), expected);
     }
 
     #[tokio::test]
     async fn prefix_denomination_refund() {
-        let packet_denom = Denom::from("asset".to_string());
+        let packet_denom = "asset".parse::<Denom>().unwrap();
         let dest_port = "transfer".to_string().parse().unwrap();
         let dest_channel = "channel-99".to_string().parse().unwrap();
         let is_refund = true;
@@ -670,13 +691,15 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot.clone());
 
-        let denom_trace = Denom::from("asset".to_string());
+        let denom_trace = "asset".parse::<Denom>().unwrap();
         state_tx
             .put_ibc_asset(denom_trace.id(), &denom_trace)
             .unwrap();
 
         let expected = denom_trace.clone();
-        let packet_denom = format!("ibc/{}", hex::encode(denom_trace.id().as_ref())).into();
+        let packet_denom = format!("ibc/{}", hex::encode(denom_trace.id().as_ref()))
+            .parse::<Denom>()
+            .unwrap();
         let denom = convert_denomination_if_ibc_prefixed(&mut state_tx, packet_denom)
             .await
             .unwrap();
@@ -689,7 +712,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot.clone());
 
-        let packet_denom = Denom::from("asset".to_string());
+        let packet_denom = "asset".parse::<Denom>().unwrap();
         let expected = packet_denom.clone();
         let denom = convert_denomination_if_ibc_prefixed(&mut state_tx, packet_denom)
             .await
@@ -703,12 +726,15 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot.clone());
 
-        let recipient_address = crate::astria_address([1; 20]);
+        let recipient = crate::try_astria_address(
+            &hex::decode("1c0c490f1b5528d8173c5de46d131160e4b2c0c3").unwrap(),
+        )
+        .unwrap();
         let packet = FungibleTokenPacketData {
             denom: "nootasset".to_string(),
             sender: String::new(),
             amount: "100".to_string(),
-            receiver: recipient_address.to_string(),
+            receiver: recipient.to_string(),
             memo: String::new(),
         };
         let packet_bytes = serde_json::to_vec(&packet).unwrap();
@@ -725,9 +751,9 @@ mod test {
         .await
         .expect("valid ics20 transfer to user account; recipient, memo, and asset ID are valid");
 
-        let denom: Denom = format!("dest_port/dest_channel/{}", "nootasset").into();
+        let denom = "dest_port/dest_channel/nootasset".parse::<Denom>().unwrap();
         let balance = state_tx
-            .get_account_balance(recipient_address, denom.id())
+            .get_account_balance(recipient, denom.id())
             .await
             .expect(
                 "ics20 transfer to user account should succeed and balance should be minted to \
@@ -744,7 +770,7 @@ mod test {
 
         let bridge_address = crate::astria_address([99; 20]);
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
-        let denom: Denom = "dest_port/dest_channel/nootasset".to_string().into();
+        let denom = "dest_port/dest_channel/nootasset".parse::<Denom>().unwrap();
 
         state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
         state_tx
@@ -772,7 +798,7 @@ mod test {
         .await
         .expect("valid ics20 transfer to bridge account; recipient, memo, and asset ID are valid");
 
-        let denom: Denom = format!("dest_port/dest_channel/{}", "nootasset").into();
+        let denom = "dest_port/dest_channel/nootasset".parse::<Denom>().unwrap();
         let balance = state_tx
             .get_account_balance(bridge_address, denom.id())
             .await
@@ -797,7 +823,7 @@ mod test {
 
         let bridge_address = crate::astria_address([99; 20]);
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
-        let denom: Denom = "dest_port/dest_channel/nootasset".to_string().into();
+        let denom = "dest_port/dest_channel/nootasset".parse::<Denom>().unwrap();
 
         state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
         state_tx
@@ -835,7 +861,7 @@ mod test {
 
         let bridge_address = crate::astria_address([99; 20]);
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
-        let denom: Denom = "dest_port/dest_channel/nootasset".to_string().into();
+        let denom = "dest_port/dest_channel/nootasset".parse::<Denom>().unwrap();
 
         state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
         state_tx
@@ -873,7 +899,7 @@ mod test {
 
         let recipient_address = crate::astria_address([1; 20]);
         let amount = 100;
-        let base_denom: Denom = "nootasset".to_string().into();
+        let base_denom = "nootasset".parse::<Denom>().unwrap();
         state_tx
             .put_ibc_channel_balance(
                 &"dest_channel".to_string().parse().unwrap(),
@@ -926,7 +952,7 @@ mod test {
 
         let recipient_address = crate::astria_address([1; 20]);
         let amount = 100;
-        let base_denom: Denom = "nootasset".to_string().into();
+        let base_denom = "nootasset".parse::<Denom>().unwrap();
         state_tx
             .put_ibc_channel_balance(
                 &"source_channel".to_string().parse().unwrap(),
@@ -979,7 +1005,7 @@ mod test {
 
         let bridge_address = crate::astria_address([99u8; 20]);
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
-        let denom: Denom = "dest_port/dest_channel/nootasset".to_string().into();
+        let denom = "dest_port/dest_channel/nootasset".parse::<Denom>().unwrap();
 
         state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
         state_tx
@@ -1019,7 +1045,7 @@ mod test {
 
         let destination_chain_address = "destinationchainaddress".to_string();
         let bridge_address = crate::astria_address([99u8; 20]);
-        let denom = Denom::from("nootasset".to_string());
+        let denom = "nootasset".parse::<Denom>().unwrap();
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
 
         state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);

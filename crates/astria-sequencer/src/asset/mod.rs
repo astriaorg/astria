@@ -13,7 +13,9 @@ pub(crate) fn initialize_native_asset(native_asset: &str) {
         return;
     }
 
-    let denom = Denom::from_base_denom(native_asset);
+    let denom = native_asset
+        .parse::<Denom>()
+        .expect("being unable to parse the native asset breaks sequencer");
     NATIVE_ASSET
         .set(denom)
         .expect("native asset should only be set once");

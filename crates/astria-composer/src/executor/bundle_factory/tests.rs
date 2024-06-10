@@ -2,7 +2,7 @@
 mod sized_bundle_tests {
     use astria_core::{
         primitive::v1::{
-            asset::default_native_asset_id,
+            asset::default_native_asset,
             RollupId,
             FEE_ASSET_ID_LEN,
             ROLLUP_ID_LEN,
@@ -29,7 +29,7 @@ mod sized_bundle_tests {
         let seq_action = SequenceAction {
             rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
             data: vec![0; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
-            fee_asset_id: default_native_asset_id(),
+            fee_asset_id: default_native_asset().id(),
         };
         let seq_action_size = estimate_size_of_sequence_action(&seq_action);
 
@@ -46,7 +46,7 @@ mod sized_bundle_tests {
         let seq_action = SequenceAction {
             rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
             data: vec![0; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN + 1],
-            fee_asset_id: default_native_asset_id(),
+            fee_asset_id: default_native_asset().id(),
         };
 
         assert!(estimate_size_of_sequence_action(&seq_action) > 100);
@@ -65,7 +65,7 @@ mod sized_bundle_tests {
         let initial_seq_action = SequenceAction {
             rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
             data: vec![0; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
-            fee_asset_id: default_native_asset_id(),
+            fee_asset_id: default_native_asset().id(),
         };
         bundle.try_push(initial_seq_action).unwrap();
 
@@ -74,7 +74,7 @@ mod sized_bundle_tests {
         let seq_action = SequenceAction {
             rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
             data: vec![0; 1],
-            fee_asset_id: default_native_asset_id(),
+            fee_asset_id: default_native_asset().id(),
         };
 
         assert!(estimate_size_of_sequence_action(&seq_action) < 100);
@@ -94,7 +94,7 @@ mod sized_bundle_tests {
         let seq_action = SequenceAction {
             rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
             data: vec![1; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
-            fee_asset_id: default_native_asset_id(),
+            fee_asset_id: default_native_asset().id(),
         };
         bundle.try_push(seq_action.clone()).unwrap();
 
@@ -117,17 +117,17 @@ mod sized_bundle_tests {
         let seq_action1 = SequenceAction {
             rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
             data: vec![1; 50 - ROLLUP_ID_LEN],
-            fee_asset_id: default_native_asset_id(),
+            fee_asset_id: default_native_asset().id(),
         };
         let seq_action1_2 = SequenceAction {
             rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
             data: vec![1; 50 - ROLLUP_ID_LEN],
-            fee_asset_id: default_native_asset_id(),
+            fee_asset_id: default_native_asset().id(),
         };
         let seq_action2 = SequenceAction {
             rollup_id: RollupId::new([2; ROLLUP_ID_LEN]),
             data: vec![2; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
-            fee_asset_id: default_native_asset_id(),
+            fee_asset_id: default_native_asset().id(),
         };
         bundle.try_push(seq_action1).unwrap();
         bundle.try_push(seq_action1_2).unwrap();
@@ -152,7 +152,7 @@ mod sized_bundle_tests {
 mod bundle_factory_tests {
     use astria_core::{
         primitive::v1::{
-            asset::default_native_asset_id,
+            asset::default_native_asset,
             RollupId,
             FEE_ASSET_ID_LEN,
             ROLLUP_ID_LEN,
@@ -175,7 +175,7 @@ mod bundle_factory_tests {
         let seq_action = SequenceAction {
             rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
             data: vec![0; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
-            fee_asset_id: default_native_asset_id(),
+            fee_asset_id: default_native_asset().id(),
         };
         bundle_factory.try_push(seq_action).unwrap();
 
@@ -192,7 +192,7 @@ mod bundle_factory_tests {
         let seq_action = SequenceAction {
             rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
             data: vec![0; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN + 1],
-            fee_asset_id: default_native_asset_id(),
+            fee_asset_id: default_native_asset().id(),
         };
         let actual_size = estimate_size_of_sequence_action(&seq_action);
 
@@ -214,7 +214,7 @@ mod bundle_factory_tests {
         let seq_action0 = SequenceAction {
             rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
             data: vec![0; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
-            fee_asset_id: default_native_asset_id(),
+            fee_asset_id: default_native_asset().id(),
         };
         bundle_factory.try_push(seq_action0.clone()).unwrap();
 
@@ -223,7 +223,7 @@ mod bundle_factory_tests {
         let seq_action1 = SequenceAction {
             rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
             data: vec![1; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
-            fee_asset_id: default_native_asset_id(),
+            fee_asset_id: default_native_asset().id(),
         };
         bundle_factory.try_push(seq_action1).unwrap();
 
@@ -246,7 +246,7 @@ mod bundle_factory_tests {
         let seq_action = SequenceAction {
             rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
             data: vec![0; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
-            fee_asset_id: default_native_asset_id(),
+            fee_asset_id: default_native_asset().id(),
         };
         bundle_factory.try_push(seq_action.clone()).unwrap();
 
@@ -283,7 +283,7 @@ mod bundle_factory_tests {
         let seq_action = SequenceAction {
             rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
             data: vec![0; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
-            fee_asset_id: default_native_asset_id(),
+            fee_asset_id: default_native_asset().id(),
         };
         bundle_factory.try_push(seq_action.clone()).unwrap();
 
@@ -303,7 +303,7 @@ mod bundle_factory_tests {
         let seq_action = SequenceAction {
             rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
             data: vec![0; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
-            fee_asset_id: default_native_asset_id(),
+            fee_asset_id: default_native_asset().id(),
         };
         bundle_factory.try_push(seq_action.clone()).unwrap();
 
@@ -316,7 +316,7 @@ mod bundle_factory_tests {
         let seq_action1 = SequenceAction {
             rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
             data: vec![1; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
-            fee_asset_id: default_native_asset_id(),
+            fee_asset_id: default_native_asset().id(),
         };
         let full_err = bundle_factory.try_push(seq_action1.clone());
 
@@ -349,7 +349,7 @@ mod bundle_factory_tests {
         let seq_action = SequenceAction {
             rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
             data: vec![0; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
-            fee_asset_id: default_native_asset_id(),
+            fee_asset_id: default_native_asset().id(),
         };
         bundle_factory.try_push(seq_action.clone()).unwrap();
 
@@ -371,7 +371,7 @@ mod bundle_factory_tests {
         let seq_action0 = SequenceAction {
             rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
             data: vec![0; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
-            fee_asset_id: default_native_asset_id(),
+            fee_asset_id: default_native_asset().id(),
         };
         bundle_factory.try_push(seq_action0.clone()).unwrap();
 
@@ -380,7 +380,7 @@ mod bundle_factory_tests {
         let seq_action1 = SequenceAction {
             rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
             data: vec![1; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
-            fee_asset_id: default_native_asset_id(),
+            fee_asset_id: default_native_asset().id(),
         };
         bundle_factory.try_push(seq_action1).unwrap();
 
@@ -414,7 +414,7 @@ mod bundle_factory_tests {
         let seq_action0 = SequenceAction {
             rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
             data: vec![0; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
-            fee_asset_id: default_native_asset_id(),
+            fee_asset_id: default_native_asset().id(),
         };
         bundle_factory.try_push(seq_action0.clone()).unwrap();
 
@@ -423,7 +423,7 @@ mod bundle_factory_tests {
         let seq_action1 = SequenceAction {
             rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
             data: vec![1; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
-            fee_asset_id: default_native_asset_id(),
+            fee_asset_id: default_native_asset().id(),
         };
         bundle_factory.try_push(seq_action1.clone()).unwrap();
 
@@ -461,7 +461,7 @@ mod bundle_factory_tests {
         let seq_action = SequenceAction {
             rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
             data: vec![0; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
-            fee_asset_id: default_native_asset_id(),
+            fee_asset_id: default_native_asset().id(),
         };
         bundle_factory.try_push(seq_action.clone()).unwrap();
 

@@ -9,7 +9,7 @@ use astria_core::{
         SubmitRollupTransactionResponse,
     },
     primitive::v1::{
-        asset::default_native_asset_id,
+        asset::default_native_asset,
         RollupId,
     },
     protocol::transaction::v1alpha1::action::SequenceAction,
@@ -63,7 +63,7 @@ impl GrpcCollectorService for Grpc {
         let sequence_action = SequenceAction {
             rollup_id,
             data: submit_rollup_tx_request.data,
-            fee_asset_id: default_native_asset_id(),
+            fee_asset_id: default_native_asset().id(),
         };
 
         metrics::counter!(
