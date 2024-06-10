@@ -22,8 +22,7 @@ pub struct Config {
     /// The chain ID of the sequencer chain
     pub sequencer_chain_id: String,
 
-    #[allow(clippy::doc_markdown)]
-    /// A list of <rollup_name>::<url> pairs
+    /// A list of `<rollup_name>::<url>` pairs
     pub rollups: String,
 
     /// Path to private key for the sequencer account used for signing transactions
