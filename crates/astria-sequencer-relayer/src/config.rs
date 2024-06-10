@@ -31,9 +31,6 @@ pub struct Config {
     pub celestia_app_grpc_endpoint: String,
     pub celestia_app_key_file: String,
     pub block_time: u64,
-    pub relay_only_validator_key_blocks: bool,
-    #[serde(default)]
-    pub validator_key_file: String,
     // Would ideally be private; accessed via the public getter which converts this to a collection
     // of `RollupId`s.  Left public for integration tests.
     #[doc(hidden)]
