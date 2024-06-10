@@ -100,7 +100,7 @@ const GET_TX_GRPC_NAME: &str = "get_tx";
 const BROADCAST_TX_GRPC_NAME: &str = "broadcast_tx";
 
 pub struct MockCelestiaAppServer {
-    pub _server: JoinHandle<eyre::Result<()>>,
+    _server: JoinHandle<eyre::Result<()>>,
     pub mock_server: MockServer,
     pub local_addr: SocketAddr,
     pub namespaces: Arc<Mutex<Vec<Namespace>>>,
