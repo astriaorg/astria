@@ -313,7 +313,7 @@ mod test {
 
         crate::asset::initialize_native_asset(DEFAULT_NATIVE_ASSET_DENOM);
         let native_asset = crate::asset::get_native_asset().id();
-        let other_asset = Denom::from_base_denom("other").id();
+        let other_asset = "other".parse::<Denom>().unwrap().id();
 
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
         let amount = 100;
@@ -381,7 +381,7 @@ mod test {
 
         crate::asset::initialize_native_asset(DEFAULT_NATIVE_ASSET_DENOM);
         let native_asset = crate::asset::get_native_asset().id();
-        let other_asset = Denom::from_base_denom("other").id();
+        let other_asset = "other".parse::<Denom>().unwrap().id();
 
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
         let amount = 100;

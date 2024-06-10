@@ -87,10 +87,12 @@ pub(crate) trait StateReadExt: StateRead {
             let native_asset = crate::asset::get_native_asset();
             if asset_id == native_asset.id() {
                 // TODO: this is jank, just have 1 denom type.
+                // TODO: Getting the base denom out of a native asset should not need a parse.
                 balances.push(AssetBalance {
-                    denom: astria_core::primitive::v1::asset::Denom::from(
-                        native_asset.base_denom().to_owned(),
-                    ),
+                    denom: native_asset
+                        .base_denom()
+                        .parse()
+                        .context("failed to parse a denom's base as a denom; this is a problem")?,
                     balance,
                 });
                 continue;
@@ -233,7 +235,7 @@ impl<T: StateWrite> StateWriteExt for T {}
 mod test {
     use astria_core::{
         primitive::v1::asset::{
-            Denom,
+            default_native_asset,
             Id,
             DEFAULT_NATIVE_ASSET_DENOM,
         },
@@ -544,19 +546,19 @@ mod test {
         asset::state_ext::StateWriteExt::put_ibc_asset(
             &mut state,
             asset_0,
-            &Denom::from_base_denom(DEFAULT_NATIVE_ASSET_DENOM),
+            &default_native_asset(),
         )
         .expect("should be able to call other trait method on state object");
         asset::state_ext::StateWriteExt::put_ibc_asset(
             &mut state,
             asset_1,
-            &Denom::from_base_denom("asset_1"),
+            &"asset_1".parse().unwrap(),
         )
         .expect("should be able to call other trait method on state object");
         asset::state_ext::StateWriteExt::put_ibc_asset(
             &mut state,
             asset_2,
-            &Denom::from_base_denom("asset_2"),
+            &"asset_2".parse().unwrap(),
         )
         .expect("should be able to call other trait method on state object");
 
@@ -586,15 +588,15 @@ mod test {
             balances,
             vec![
                 AssetBalance {
-                    denom: Denom::from_base_denom(DEFAULT_NATIVE_ASSET_DENOM),
+                    denom: default_native_asset(),
                     balance: amount_expected_0,
                 },
                 AssetBalance {
-                    denom: Denom::from_base_denom("asset_1"),
+                    denom: "asset_1".parse().unwrap(),
                     balance: amount_expected_1,
                 },
                 AssetBalance {
-                    denom: Denom::from_base_denom("asset_2"),
+                    denom: "asset_2".parse().unwrap(),
                     balance: amount_expected_2,
                 },
             ]
