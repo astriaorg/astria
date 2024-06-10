@@ -100,8 +100,7 @@ impl Service {
             submitter_handle,
             shutdown_token: shutdown_handle.token(),
             state: state.clone(),
-            rollup_asset_denom: cfg
-                .rollup_asset_denomination
+            rollup_asset_denom: rollup_asset_denomination
                 .parse::<Denom>()
                 .wrap_err("failed to parse ROLLUP_ASSET_DENOMINATION as Denom")?,
             bridge_address: sequencer_bridge_address,

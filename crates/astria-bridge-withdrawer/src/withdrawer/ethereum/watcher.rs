@@ -762,7 +762,7 @@ mod tests {
             block_number: receipt.block_number.unwrap(),
             transaction_hash: receipt.transaction_hash,
         };
-        let denom: Denom = Denom::from_base_denom("nria");
+        let denom = default_native_asset();
         let bridge_address = crate::astria_address([1u8; 20]);
         let expected_action =
             event_to_action(expected_event, denom.id(), denom.clone(), 1, bridge_address).unwrap();
@@ -863,7 +863,7 @@ mod tests {
             block_number: receipt.block_number.unwrap(),
             transaction_hash: receipt.transaction_hash,
         };
-        let denom = Denom::from("transfer/channel-0/utia".to_string());
+        let denom = "transfer/channel-0/utia".parse::<Denom>().unwrap();
         let bridge_address = crate::astria_address([1u8; 20]);
         let Action::Ics20Withdrawal(mut expected_action) =
             event_to_action(expected_event, denom.id(), denom.clone(), 1, bridge_address).unwrap()
