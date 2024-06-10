@@ -365,6 +365,8 @@ fn prefix_denomination<'a>(
     }
 }
 
+// FIXME: temporarily allowed, but this must be fixed
+#[allow(clippy::too_many_lines)]
 async fn execute_ics20_transfer<S: StateWriteExt>(
     state: &mut S,
     data: &[u8],

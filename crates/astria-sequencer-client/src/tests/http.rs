@@ -4,7 +4,7 @@ use astria_core::{
     primitive::v1::{
         asset::{
             self,
-            default_native_asset_id,
+            default_native_asset,
         },
         Address,
         ASTRIA_ADDRESS_PREFIX,
@@ -152,8 +152,8 @@ fn create_signed_transaction() -> SignedTransaction {
         TransferAction {
             to: bob_address(),
             amount: 333_333,
-            asset_id: default_native_asset_id(),
-            fee_asset_id: default_native_asset_id(),
+            asset_id: default_native_asset().id(),
+            fee_asset_id: default_native_asset().id(),
         }
         .into(),
     ];

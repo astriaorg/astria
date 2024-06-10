@@ -1,6 +1,9 @@
 use astria_core::{
     crypto::SigningKey,
-    primitive::v1::asset,
+    primitive::v1::{
+        asset,
+        asset::default_native_asset,
+    },
     protocol::transaction::v1alpha1::{
         action::{
             Action,
@@ -172,8 +175,6 @@ pub(crate) async fn get_block_height(args: &BlockHeightGetArgs) -> eyre::Result<
 /// * If the http client cannot be created
 /// * If the latest block height cannot be retrieved
 pub(crate) async fn send_transfer(args: &TransferArgs) -> eyre::Result<()> {
-    use astria_core::primitive::v1::asset::default_native_asset_id;
-
     let res = submit_transaction(
         args.sequencer_url.as_str(),
         args.sequencer_chain_id.clone(),
@@ -181,8 +182,8 @@ pub(crate) async fn send_transfer(args: &TransferArgs) -> eyre::Result<()> {
         Action::Transfer(TransferAction {
             to: args.to_address.0,
             amount: args.amount,
-            asset_id: default_native_asset_id(),
-            fee_asset_id: default_native_asset_id(),
+            asset_id: default_native_asset().id(),
+            fee_asset_id: default_native_asset().id(),
         }),
     )
     .await
@@ -254,10 +255,7 @@ pub(crate) async fn ibc_relayer_remove(args: &IbcRelayerChangeArgs) -> eyre::Res
 /// * If the http client cannot be created
 /// * If the transaction failed to be included
 pub(crate) async fn init_bridge_account(args: &InitBridgeAccountArgs) -> eyre::Result<()> {
-    use astria_core::primitive::v1::{
-        asset::default_native_asset_id,
-        RollupId,
-    };
+    use astria_core::primitive::v1::RollupId;
 
     let rollup_id = RollupId::from_unhashed_bytes(args.rollup_name.as_bytes());
     let res = submit_transaction(
@@ -266,8 +264,8 @@ pub(crate) async fn init_bridge_account(args: &InitBridgeAccountArgs) -> eyre::R
         args.private_key.as_str(),
         Action::InitBridgeAccount(InitBridgeAccountAction {
             rollup_id,
-            asset_id: default_native_asset_id(),
-            fee_asset_id: default_native_asset_id(),
+            asset_id: default_native_asset().id(),
+            fee_asset_id: default_native_asset().id(),
             sudo_address: None,
             withdrawer_address: None,
         }),
@@ -293,17 +291,15 @@ pub(crate) async fn init_bridge_account(args: &InitBridgeAccountArgs) -> eyre::R
 /// * If the http client cannot be created
 /// * If the transaction failed to be included
 pub(crate) async fn bridge_lock(args: &BridgeLockArgs) -> eyre::Result<()> {
-    use astria_core::primitive::v1::asset::default_native_asset_id;
-
     let res = submit_transaction(
         args.sequencer_url.as_str(),
         args.sequencer_chain_id.clone(),
         args.private_key.as_str(),
         Action::BridgeLock(BridgeLockAction {
             to: args.to_address.0,
-            asset_id: default_native_asset_id(),
+            asset_id: default_native_asset().id(),
             amount: args.amount,
-            fee_asset_id: default_native_asset_id(),
+            fee_asset_id: default_native_asset().id(),
             destination_chain_address: args.destination_chain_address.clone(),
         }),
     )

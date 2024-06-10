@@ -69,20 +69,6 @@ impl raw::BalanceResponse {
             balances: balances.into_iter().map(AssetBalance::into_raw).collect(),
         }
     }
-
-    // /// Converts a protobuf [`raw::BalanceResponse`] to an astria
-    // /// native [`BalanceResponse`].
-    // #[must_use]
-    // pub fn try_into_native(self) -> Result<BalanceResponse, BalanceResponseError> {
-    //     BalanceResponse::try_from_raw(&self)
-    // }
-
-    // /// Converts a protobuf [`raw::BalanceResponse`] to an astria
-    // /// native [`BalanceResponse`] by allocating a new [`v1alpha::BalanceResponse`].
-    // #[must_use]
-    // pub fn try_to_native(&self) -> Result<BalanceResponse, BalanceResponseError> {
-    //     BalanceResponse::try_from_raw(self)
-    // }
 }
 
 #[derive(Debug, thiserror::Error)]

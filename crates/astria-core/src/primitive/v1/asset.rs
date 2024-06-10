@@ -20,17 +20,6 @@ pub fn default_native_asset() -> Denom {
         .expect("parsing a single segment string must work")
 }
 
-/// Returns the default sequencer asset ID.
-// allow: parsing single-segment assets is unit tested
-#[allow(clippy::missing_panics_doc)]
-#[must_use]
-pub fn default_native_asset_id() -> Id {
-    DEFAULT_NATIVE_ASSET_DENOM
-        .parse::<Denom>()
-        .expect("parsing a single segment string must work")
-        .id()
-}
-
 struct DenomFmt<'a> {
     prefix_segments: &'a [String],
     base_denom: &'a str,

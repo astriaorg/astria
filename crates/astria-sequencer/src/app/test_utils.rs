@@ -149,7 +149,7 @@ pub(crate) fn get_mock_tx(nonce: u32) -> SignedTransaction {
             SequenceAction {
                 rollup_id: RollupId::from_unhashed_bytes([0; 32]),
                 data: vec![0x99],
-                fee_asset_id: astria_core::primitive::v1::asset::default_native_asset_id(),
+                fee_asset_id: astria_core::primitive::v1::asset::default_native_asset().id(),
             }
             .into(),
         ],
