@@ -8,7 +8,7 @@ use std::fmt::{
 /// The default sequencer asset base denomination.
 pub const DEFAULT_NATIVE_ASSET_DENOM: &str = "nria";
 
-/// Returns the default sequencer asset ID.
+/// Returns the default sequencer asset [`Denom`].
 // allow: parsing single-segment assets is unit tested
 #[allow(clippy::missing_panics_doc)]
 // allow: used in many places already
