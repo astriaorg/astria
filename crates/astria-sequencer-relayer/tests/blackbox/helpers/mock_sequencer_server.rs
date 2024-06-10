@@ -75,24 +75,22 @@ impl MockSequencerServer {
         }
     }
 
-    pub async fn mount_sequencer_block_response<const RELAY_SELF: bool>(
+    pub async fn mount_sequencer_block_response(
         &self,
-        account: AccountId,
         block_to_mount: SequencerBlockToMount,
         debug_name: impl Into<String>,
     ) {
-        prepare_sequencer_block_response::<RELAY_SELF>(account, block_to_mount, debug_name)
+        prepare_sequencer_block_response(block_to_mount, debug_name)
             .mount(&self.mock_server)
             .await;
     }
 
-    pub async fn mount_sequencer_block_response_as_scoped<const RELAY_SELF: bool>(
+    pub async fn mount_sequencer_block_response_as_scoped(
         &self,
-        account: AccountId,
         block_to_mount: SequencerBlockToMount,
         debug_name: impl Into<String>,
     ) -> MockGuard {
-        prepare_sequencer_block_response::<RELAY_SELF>(account, block_to_mount, debug_name)
+        prepare_sequencer_block_response(block_to_mount, debug_name)
             .mount_as_scoped(&self.mock_server)
             .await
     }
@@ -136,17 +134,11 @@ impl SequencerService for SequencerServiceImpl {
     }
 }
 
-fn prepare_sequencer_block_response<const RELAY_SELF: bool>(
-    account: AccountId,
+fn prepare_sequencer_block_response(
     block_to_mount: SequencerBlockToMount,
     debug_name: impl Into<String>,
 ) -> Mock {
-    let proposer = if RELAY_SELF {
-        account
-    } else {
-        AccountId::try_from(vec![0u8; 20]).unwrap()
-    };
-
+    let proposer = AccountId::try_from(vec![0u8; 20]).unwrap();
     let should_corrupt = matches!(block_to_mount, SequencerBlockToMount::BadAtHeight(_));
 
     let block = match block_to_mount {
