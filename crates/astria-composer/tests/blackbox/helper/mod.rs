@@ -83,7 +83,7 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
         rollup_nodes.insert((*id).to_string(), geth);
         rollups.push_str(&format!("{id}::{execution_url},"));
     }
-    let (sequencer, sequencer_setup_guard, sequencer_status_guard) = mock_sequencer::start().await;
+    let (sequencer, sequencer_setup_guard, sequencer_status_response_guard) = mock_sequencer::start().await;
     let sequencer_url = sequencer.uri();
     let keyfile = NamedTempFile::new().unwrap();
     (&keyfile)
@@ -121,7 +121,7 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
         rollup_nodes,
         sequencer,
         setup_guard: sequencer_setup_guard,
-        status_guard: sequencer_status_guard,
+        status_guard: sequencer_status_response_guard,
         grpc_collector_addr,
     }
 }

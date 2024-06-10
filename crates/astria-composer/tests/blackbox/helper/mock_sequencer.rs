@@ -14,6 +14,7 @@ use wiremock::{
     MockServer,
     ResponseTemplate,
 };
+use tendermint_rpc::endpoint::status;
 
 pub async fn start() -> (MockServer, MockGuard, MockGuard) {
     use astria_core::generated::protocol::account::v1alpha1::NonceResponse;
@@ -27,8 +28,8 @@ pub async fn start() -> (MockServer, MockGuard, MockGuard) {
         },
     )
     .await;
-    let status_guard = mount_cometbft_status_response(&server, "test-chain-1").await;
-    (server, startup_guard, status_guard)
+    let status_response_guard = mount_cometbft_status_response(&server, "test-chain-1").await;
+    (server, startup_guard, status_response_guard)
 }
 
 pub async fn mount_abci_query_mock(
@@ -60,8 +61,6 @@ pub async fn mount_abci_query_mock(
 }
 
 async fn mount_cometbft_status_response(server: &MockServer, mock_sequencer_chain_id: &str) -> MockGuard {
-    use tendermint_rpc::endpoint::status;
-
     let mut status_response: status::Response = serde_json::from_str(STATUS_RESPONSE).unwrap();
     status_response.node_info.network = mock_sequencer_chain_id.to_string().parse().unwrap();
 
@@ -87,7 +86,7 @@ const STATUS_RESPONSE: &str = r#"
     },
     "id": "a1d3bbddb7800c6da2e64169fec281494e963ba3",
     "listen_addr": "tcp://0.0.0.0:26656",
-    "network": "test",
+    "network": "test-chain-1",
     "version": "0.38.6",
     "channels": "40202122233038606100",
     "moniker": "fullnode",
