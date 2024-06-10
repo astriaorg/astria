@@ -66,7 +66,7 @@ static TELEMETRY: Lazy<()> = Lazy::new(|| {
     }
 });
 
-/// Start a mock sequencer server and mount a mock for the `accounts/nonce` query.
+/// Start a mock sequencer server.
 async fn setup() -> (MockServer, Config, NamedTempFile) {
     Lazy::force(&TELEMETRY);
     let server = MockServer::start().await;
