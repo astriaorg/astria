@@ -20,10 +20,7 @@ use super::{
     CelestiaClientBuilder,
     CelestiaKeys,
 };
-use crate::{
-    validator::Validator,
-    IncludeRollup,
-};
+use crate::IncludeRollup;
 
 pub(crate) struct Builder {
     pub(crate) shutdown_token: tokio_util::sync::CancellationToken,
@@ -34,7 +31,6 @@ pub(crate) struct Builder {
     pub(crate) cometbft_endpoint: String,
     pub(crate) sequencer_poll_period: Duration,
     pub(crate) sequencer_grpc_endpoint: String,
-    pub(crate) validator_key_path: Option<String>,
     pub(crate) rollup_filter: IncludeRollup,
     pub(crate) pre_submit_path: PathBuf,
     pub(crate) post_submit_path: PathBuf,
@@ -52,7 +48,6 @@ impl Builder {
             cometbft_endpoint,
             sequencer_poll_period,
             sequencer_grpc_endpoint,
-            validator_key_path,
             rollup_filter,
             pre_submit_path,
             post_submit_path,
@@ -67,11 +62,6 @@ impl Builder {
             let endpoint = Endpoint::from(uri);
             SequencerServiceClient::new(endpoint.connect_lazy())
         };
-
-        let validator = validator_key_path
-            .map(Validator::from_path)
-            .transpose()
-            .wrap_err("failed to get validator info from file")?;
 
         let state = Arc::new(State::new());
 
@@ -92,7 +82,6 @@ impl Builder {
             sequencer_grpc_client,
             sequencer_poll_period,
             celestia_client_builder,
-            validator,
             rollup_filter,
             state,
             pre_submit_path,

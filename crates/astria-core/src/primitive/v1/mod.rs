@@ -84,7 +84,10 @@ impl Protobuf for merkle::Proof {
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
 #[cfg_attr(feature = "serde", serde(transparent))]
 pub struct RollupId {
-    #[cfg_attr(feature = "serde", serde(serialize_with = "crate::serde::base64"))]
+    #[cfg_attr(
+        feature = "serde",
+        serde(serialize_with = "crate::serde::base64_serialize")
+    )]
     inner: [u8; 32],
 }
 
@@ -401,8 +404,15 @@ impl AddressBuilder<[u8; ADDRESS_LEN], bech32::Hrp> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize))]
-#[cfg_attr(feature = "serde", serde(into = "raw::Address"))]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize),
+    derive(serde::Deserialize)
+)]
+#[cfg_attr(
+    feature = "serde",
+    serde(into = "raw::Address", try_from = "raw::Address")
+)]
 pub struct Address {
     bytes: [u8; ADDRESS_LEN],
     prefix: bech32::Hrp,
@@ -491,6 +501,14 @@ impl From<Address> for raw::Address {
     }
 }
 
+impl TryFrom<raw::Address> for Address {
+    type Error = AddressError;
+
+    fn try_from(value: raw::Address) -> Result<Self, Self::Error> {
+        Self::try_from_raw(&value)
+    }
+}
+
 impl std::fmt::Display for Address {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use bech32::EncodeError;
@@ -511,7 +529,7 @@ impl std::fmt::Display for Address {
 /// It is the responsibility of the caller to ensure that the iterable is
 /// deterministic. Prefer types like `Vec`, `BTreeMap` or `IndexMap` over
 /// `HashMap`.
-pub fn derive_merkle_tree_from_rollup_txs<'a, T: 'a, U: 'a>(rollup_ids_to_txs: T) -> merkle::Tree
+pub fn derive_merkle_tree_from_rollup_txs<'a, T, U>(rollup_ids_to_txs: T) -> merkle::Tree
 where
     T: IntoIterator<Item = (&'a RollupId, &'a U)>,
     U: AsRef<[Vec<u8>]> + 'a + ?Sized,

@@ -514,7 +514,7 @@ mod test {
     use super::*;
     use crate::{
         primitive::v1::{
-            asset::default_native_asset_id,
+            asset::default_native_asset,
             Address,
             ASTRIA_ADDRESS_PREFIX,
         },
@@ -542,8 +542,8 @@ mod test {
                 .try_build()
                 .unwrap(),
             amount: 0,
-            asset_id: default_native_asset_id(),
-            fee_asset_id: default_native_asset_id(),
+            asset_id: default_native_asset().id(),
+            fee_asset_id: default_native_asset().id(),
         };
 
         let params = TransactionParams::try_from_raw(raw::TransactionParams {
@@ -580,8 +580,8 @@ mod test {
                 .try_build()
                 .unwrap(),
             amount: 0,
-            asset_id: default_native_asset_id(),
-            fee_asset_id: default_native_asset_id(),
+            asset_id: default_native_asset().id(),
+            fee_asset_id: default_native_asset().id(),
         };
 
         let params = TransactionParams::try_from_raw(raw::TransactionParams {

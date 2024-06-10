@@ -79,7 +79,7 @@ pub struct Composer {
     /// The map of chain ID to the URLs to which geth collectors should connect.
     rollups: HashMap<String, String>,
     /// The gRPC server that listens for incoming requests from the collectors via the
-    /// GrpcCollector service. It also exposes a health service.
+    /// `GrpcCollector` service. It also exposes a health service.
     grpc_server: GrpcServer,
     /// Used to signal the Composer to shut down.
     shutdown_token: CancellationToken,

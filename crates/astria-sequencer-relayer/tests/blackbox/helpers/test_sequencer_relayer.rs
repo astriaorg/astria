@@ -169,10 +169,6 @@ pub struct TestSequencerRelayer {
 
     pub signing_key: SigningKey,
 
-    pub account: tendermint::account::Id,
-
-    pub validator_keyfile: NamedTempFile,
-
     pub pre_submit_file: NamedTempFile,
     pub post_submit_file: NamedTempFile,
     /// The sequencer chain ID which will be returned by the mock `cometbft` instance, and set via
@@ -230,13 +226,13 @@ impl TestSequencerRelayer {
     /// Mounts a Sequencer block response.
     ///
     /// The `debug_name` is assigned to the mock and is output on error to assist with debugging.
-    pub async fn mount_sequencer_block_response<const RELAY_SELF: bool>(
+    pub async fn mount_sequencer_block_response(
         &self,
         block_to_mount: SequencerBlockToMount,
         debug_name: impl Into<String>,
     ) {
         self.sequencer
-            .mount_sequencer_block_response::<RELAY_SELF>(self.account, block_to_mount, debug_name)
+            .mount_sequencer_block_response(block_to_mount, debug_name)
             .await;
     }
 
@@ -244,17 +240,13 @@ impl TestSequencerRelayer {
     /// the mock to be satisfied.
     ///
     /// The `debug_name` is assigned to the mock and is output on error to assist with debugging.
-    pub async fn mount_sequencer_block_response_as_scoped<const RELAY_SELF: bool>(
+    pub async fn mount_sequencer_block_response_as_scoped(
         &self,
         block_to_mount: SequencerBlockToMount,
         debug_name: impl Into<String>,
     ) -> GrpcMockGuard {
         self.sequencer
-            .mount_sequencer_block_response_as_scoped::<RELAY_SELF>(
-                self.account,
-                block_to_mount,
-                debug_name,
-            )
+            .mount_sequencer_block_response_as_scoped(block_to_mount, debug_name)
             .await
     }
 
@@ -668,9 +660,6 @@ impl TestSequencerRelayer {
 // allow: want the name to reflect this is a test config.
 #[allow(clippy::module_name_repetitions)]
 pub struct TestSequencerRelayerConfig {
-    /// Sets up the test relayer to ignore all blocks except those proposed by the same address
-    /// stored in its validator key.
-    pub relay_only_self: bool,
     /// Sets the start height of relayer and configures the on-disk pre- and post-submit files to
     /// look accordingly.
     pub last_written_sequencer_height: Option<u64>,
@@ -700,11 +689,8 @@ impl TestSequencerRelayerConfig {
         )
         .await;
 
-        let validator_keyfile = write_file(PRIVATE_VALIDATOR_KEY.as_bytes()).await;
         let PrivValidatorKey {
-            address,
-            priv_key,
-            ..
+            priv_key, ..
         } = PrivValidatorKey::parse_json(PRIVATE_VALIDATOR_KEY).unwrap();
         let signing_key = priv_key
             .ed25519_signing_key()
@@ -736,8 +722,6 @@ impl TestSequencerRelayerConfig {
             celestia_app_grpc_endpoint,
             celestia_app_key_file: celestia_keyfile.path().to_string_lossy().to_string(),
             block_time: 1000,
-            relay_only_validator_key_blocks: self.relay_only_self,
-            validator_key_file: validator_keyfile.path().to_string_lossy().to_string(),
             only_include_rollups,
             api_addr: "0.0.0.0:0".into(),
             log: String::new(),
@@ -765,8 +749,6 @@ impl TestSequencerRelayerConfig {
             relayer_shutdown_handle: Some(relayer_shutdown_handle),
             sequencer_relayer,
             signing_key,
-            account: address,
-            validator_keyfile,
             pre_submit_file,
             post_submit_file,
             actual_sequencer_chain_id: self.sequencer_chain_id,
@@ -784,7 +766,6 @@ impl TestSequencerRelayerConfig {
 impl Default for TestSequencerRelayerConfig {
     fn default() -> Self {
         Self {
-            relay_only_self: false,
             last_written_sequencer_height: None,
             only_include_rollups: HashSet::new(),
             sequencer_chain_id: SEQUENCER_CHAIN_ID.to_string(),

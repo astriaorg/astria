@@ -455,7 +455,8 @@ pub trait SequencerClientExt: Client {
                     e,
                 )
             })?;
-        Ok(proto_response.to_native())
+        BalanceResponse::try_from_raw(&proto_response)
+            .map_err(|e| Error::native_conversion("BalanceResponse", Arc::new(e)))
     }
 
     /// Returns the current balance of the given account at the latest height.
