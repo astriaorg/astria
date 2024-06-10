@@ -86,8 +86,7 @@ impl Denom {
     #[must_use]
     pub fn prefix_matches_exactly(&self, prefix: &str) -> bool {
         self.count_matching_prefix_segments(prefix)
-            .map(|count| count == self.prefix_segments.len())
-            .unwrap_or(false)
+            .is_some_and(|count| count == self.prefix_segments.len())
     }
 
     #[must_use]
