@@ -13,6 +13,7 @@ use astria_core::{
     primitive::v1::{
         asset::{
             self,
+            default_native_asset,
             Denom,
         },
         Address,
@@ -91,7 +92,6 @@ const SEQUENCER_CHAIN_ID: &str = "test_sequencer-1000";
 const DEFAULT_LAST_ROLLUP_HEIGHT: u64 = 1;
 const DEFAULT_LAST_SEQUENCER_HEIGHT: u64 = 0;
 const DEFAULT_SEQUENCER_NONCE: u32 = 0;
-const DEFAULT_NATIVE_DEMON: &str = "nria";
 const DEFAULT_IBC_DENOM: &str = "transfer/channel-0/utia";
 
 static TELEMETRY: Lazy<()> = Lazy::new(|| {
@@ -151,7 +151,7 @@ impl TestSubmitter {
             sequencer_chain_id: SEQUENCER_CHAIN_ID.to_string(),
             sequencer_cometbft_endpoint,
             state,
-            expected_fee_asset_id: Denom::from(DEFAULT_NATIVE_DEMON.to_string()).id(),
+            expected_fee_asset_id: default_native_asset().id(),
             min_expected_fee_asset_balance: 1_000_000,
         }
         .build()
@@ -214,7 +214,7 @@ async fn register_default_chain_id_guard(cometbft_mock: &MockServer) -> MockGuar
 }
 
 async fn register_default_fee_asset_ids_guard(cometbft_mock: &MockServer) -> MockGuard {
-    let fee_asset_ids = vec![Denom::from(DEFAULT_NATIVE_DEMON.to_string()).id()];
+    let fee_asset_ids = vec![default_native_asset().id()];
     register_allowed_fee_asset_ids_response(fee_asset_ids, cometbft_mock).await
 }
 
@@ -223,7 +223,7 @@ async fn register_default_min_expected_fee_asset_balance_guard(
 ) -> MockGuard {
     register_get_latest_balance(
         vec![AssetBalance {
-            denom: Denom::from(DEFAULT_NATIVE_DEMON.to_string()),
+            denom: default_native_asset(),
             balance: 1_000_000u128,
         }],
         cometbft_mock,
@@ -270,7 +270,7 @@ async fn register_sync_guards(cometbft_mock: &MockServer) -> HashMap<String, Moc
 }
 
 fn make_ics20_withdrawal_action() -> Action {
-    let denom = Denom::from(DEFAULT_IBC_DENOM.to_string());
+    let denom = DEFAULT_IBC_DENOM.parse::<Denom>().unwrap();
     let destination_chain_address = "address".to_string();
     let inner = Ics20Withdrawal {
         denom: denom.clone(),
@@ -299,7 +299,7 @@ fn make_ics20_withdrawal_action() -> Action {
 }
 
 fn make_bridge_unlock_action() -> Action {
-    let denom = Denom::from(DEFAULT_NATIVE_DEMON.to_string());
+    let denom = default_native_asset();
     let inner = BridgeUnlockAction {
         to: Address::builder()
             .array([0u8; 20])

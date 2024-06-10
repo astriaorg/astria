@@ -4,6 +4,7 @@ use astria_core::primitive::v1::{
 };
 use penumbra_ibc::params::IBCParameters;
 use serde::{
+    de::Error as _,
     Deserialize,
     Deserializer,
 };
@@ -57,7 +58,6 @@ fn deserialize_addresses<'de, D>(deserializer: D) -> Result<Vec<Address>, D::Err
 where
     D: Deserializer<'de>,
 {
-    use serde::de::Error as _;
     let address_strings = serde_json::Value::deserialize(deserializer)?;
     let address_strings = address_strings
         .as_array()
@@ -81,7 +81,11 @@ where
     D: Deserializer<'de>,
 {
     let strings: Vec<String> = serde::Deserialize::deserialize(deserializer)?;
-    Ok(strings.into_iter().map(asset::Denom::from).collect())
+    strings
+        .iter()
+        .map(|s| s.parse())
+        .collect::<Result<_, _>>()
+        .map_err(|e| D::Error::custom(format!("failed parsing asset: {e:?}")))
 }
 
 #[cfg(test)]
