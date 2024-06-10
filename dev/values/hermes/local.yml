@@ -60,7 +60,7 @@ chains:
         key: token
     eventSource:
       mode: push
-      url: http://celestia-app-service.astria-dev-cluster.svc.cluster.local:26657/websocket
+      url: ws://celestia-app-service.astria-dev-cluster.svc.cluster.local:26657/websocket
       batchDelay: 200ms
     gasDenom: "utia"
     gasPrice: 0.0026

@@ -6,6 +6,9 @@ metadata:
   labels:
     app: celestia-local-network
   annotations:
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    # allow requests from bridge web app
+    nginx.ingress.kubernetes.io/cors-allow-origin: "http://localhost:3000"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
 spec:

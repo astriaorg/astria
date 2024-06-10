@@ -12,27 +12,30 @@ spec:
       labels:
         app: astria-dev-cluster
     spec:
-{{/*      initContainers:*/}}
-{{/*        - name: init-bridge-account*/}}
-{{/*          image: {{ .Values.astriaGoImage }}*/}}
-{{/*          command: [ "/build/astria-go", "sequencer", "bridge", "init", {{ .Values.evmRollupName }} ]*/}}
-{{/*          args:*/}}
-{{/*            - --privkey={{ .Values.bridgeAccount.privkey }}*/}}
-{{/*            - --sequencer-url={{ .Values.sequencerURL }}*/}}
-{{/*            - --asset-id={{ .Values.assetId }}*/}}
-{{/*            - --fee-asset-id={{ .Values.feeAssetId }}*/}}
-{{/*            - --sequencer-chain-id={{ .Values.sequencerChainId }}*/}}
-{{/*            - --log-level=debug*/}}
-      containers:
-        - name: ibc-transfer
-          image: {{ .Values.celestiaAppImage }}
-          command: [ "celestia-appd", "tx", "ibc-transfer", "transfer" ]
+      initContainers:
+        - name: init-bridge-account
+          image: {{ .Values.astriaGoImage }}
+          command: [ "/build/astria-go", "sequencer", "bridge", "init", {{ .Values.evmRollupName }} ]
           args:
-            - transfer
-            - channel-0
-            - {{ .Values.bridgeAccount.address }}
-            - 5300utia
-            - --memo={{ .Values.evmToAddress }}
-            - --chain-id={{ .Values.celestiaChainID }}
-            - --node={{ .Values.celestiaNodeURL }}
+            - --privkey={{ .Values.bridgeAccount.privkey }}
+            - --sequencer-url={{ .Values.sequencerURL }}
+            - --asset-id={{ .Values.assetId }}
+            - --fee-asset-id={{ .Values.feeAssetId }}
+            - --sequencer-chain-id={{ .Values.sequencerChainId }}
+            - --log-level=debug
+      containers:
+        - name: test-ibc-transfer
+          image: {{ .Values.celestiaAppImage }}
+          command: [ "/scripts/test-ibc-transfer.sh" ]
+          volumeMounts:
+            - mountPath: /scripts/
+              name: bridge-test-scripts-volume
+          envFrom:
+            - configMapRef:
+                name: bridge-test-env
+      volumes:
+        - name: bridge-test-scripts-volume
+          configMap:
+            name: bridge-test-scripts
+            defaultMode: 0777
       restartPolicy: OnFailure

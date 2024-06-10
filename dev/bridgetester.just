@@ -18,7 +18,7 @@ deploy-ibc-test-infra tag=defaultTag:
     --set config.blockscout.enabled=false \
     --set config.faucet.enabled=false > /dev/null
   @just wait-for-rollup > /dev/null
-  @echo "Deploying hermes..."
+  @echo "Deploying Hermes and creating IBC channel..."
   @just deploy hermes-local > /dev/null
   # TODO - need to wait on hermes. do i need to implement a readinessProbe for hermes chart?
   #@just deploy bridge-tester
@@ -30,3 +30,36 @@ delete-ibc-test-infra:
   just delete rollup
   just delete hermes-local
   just delete bridge-tester
+
+# deploy a bridge tester chart that runs a job to test the ibc bridge
+deploy-bridge-tester namespace=defaultNamespace:
+  helm install --debug bridge-tester-chart ./charts/bridge-test --namespace {{namespace}}
+
+# delete the bridge tester release
+delete-bridge-tester namespace=defaultNamespace:
+  helm uninstall bridge-tester-chart --namespace {{namespace}}
+
+celestia_dev_account_mnemonic := 'enrich avocado local net will avoid dizzy truth column excuse ready lesson'
+
+add-key:
+  echo "{{celestia_dev_account_mnemonic}}" | \
+  ~/code/astria/projects/get-hermes-running/celestia-app/celestia-appd keys add \
+  "dev-account" \
+  --home "./tmp-celestia-home/celestia" \
+  --keyring-backend="test" \
+  --recover
+
+ibc-tx:
+  ~/code/astria/projects/get-hermes-running/celestia-app/celestia-appd tx ibc-transfer transfer \
+    transfer \
+    channel-0 \
+    6f85297e587b61b37695a1ac17189b3e907e318e \
+    53000utia \
+    --memo=0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30 \
+    --chain-id=celestia-local-0 \
+    --node=http://rpc.app.celestia.localdev.me:80 \
+    --from=celestia1m0ksdjl2p5nzhqy3p47fksv52at3ln885xvl96 \
+    --fees=420utia \
+    --log_level=debug \
+    --home="./tmp-celestia-home/celestia" \
+    --keyring-backend="test"
