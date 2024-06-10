@@ -53,7 +53,7 @@ ibc-tx:
   ~/code/astria/projects/get-hermes-running/celestia-app/celestia-appd tx ibc-transfer transfer \
     transfer \
     channel-0 \
-    6f85297e587b61b37695a1ac17189b3e907e318e \
+    astria1d7zjjljc0dsmxa545xkpwxym86g8uvvwhtezcr \
     53000utia \
     --memo=0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30 \
     --chain-id=celestia-local-0 \

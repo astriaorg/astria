@@ -13,7 +13,7 @@ echo "Performing IBC transfer..."
 celestia-appd tx ibc-transfer transfer \
   transfer \
   channel-0 \
-  "$bridge_account_address" \
+  "$bridge_account_address_bech32" \
   53000000utia \
   --memo="$evm_to_address" \
   --chain-id="$celestia_chain_id" \
