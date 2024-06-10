@@ -13,9 +13,6 @@ name = "astria-sequencer-relayer"
 
 [dependencies]
 bech32 = "0.11.0"
-cosmrs = "0.16.0"
-dirs = "5.0"
-futures-bounded = "0.2.3"
 http = "0.2.9"
 k256 = "0.13.3"
 serde_path_to_error = "0.1.13"
@@ -29,7 +26,6 @@ futures = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 humantime = { workspace = true }
 hyper = { workspace = true }
-itertools = { workspace = true }
 itoa = { workspace = true }
 metrics = { workspace = true }
 pbjson-types = { workspace = true }
@@ -70,13 +66,12 @@ config = { package = "astria-config", path = "../astria-config", features = [
   "tests",
 ] }
 astria-core = { path = "../astria-core", features = ["test-utils", "server"] }
-merkle = { package = "astria-merkle", path = "../astria-merkle" }
 
 async-trait = { workspace = true }
 celestia-tendermint = { workspace = true }
 celestia-types = { workspace = true }
 hyper = { workspace = true }
-jsonrpsee = { workspace = true, features = ["server"] }
+itertools = { workspace = true }
 once_cell = { workspace = true }
 rand_core = { version = "0.6", features = ["getrandom"] }
 reqwest = { workspace = true, features = ["json"] }
@@ -87,7 +82,6 @@ tokio-stream = { workspace = true, features = ["net"] }
 wiremock = { workspace = true }
 
 assert-json-diff = "2.0.2"
-tower-http = { version = "0.4", features = ["auth"] }
 tower = { version = "0.4.13" }
 tokio-test.workspace = true
 rand_chacha = "0.3.1"
