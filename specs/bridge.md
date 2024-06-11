@@ -20,4 +20,13 @@ The rollup-to-sequencer protocol works as follows:
 Since the sequencer can support multiple assets via IBC, the bridging protocol also has support for deposits and withdrawals via IBC, as well as support for various assets to be bridged to the rollup.
 
 The one-step deposit flow from another IBC chain is as follows:
-- 
+- a user initiates an ICS20 withdrawal from some IBC chain to Astria.
+- the user sets the destination chain address as the sequencer bridge address which corresponds to the rollup they wish to deposit to.
+- the user sets the withdrawal memo to their rollup address.
+- when the ICS20 transfer is executed on Astria, the funds are locked into the bridge address, and a `Deposit` event is created for that rollup's ID with the user's rollup address.
+
+The one-step withdrawal flow from a rollup to another IBC chain is as follows:
+- the user withdraws the asset by burning it on the rollup, which emits a `Withdrawal` event that includes the asset, the amount, and a memo.
+- the memo contains the needed information for creating an Ics20 withdrawal on the sequencer, such as the recipient destination chain address.
+- the bridge withdrawer sees the `Withdrawal` event and submits a sequencer transaction which withdraws the funds to the destination IBC chain.
+- in the case that the transfer to the destination IBC chain fails, the sequencer is notified of this, and emits a `Deposit` refunding the funds back to the origin rollup address.
