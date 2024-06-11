@@ -395,7 +395,7 @@ pub struct UncheckedSubmittedMetadata {
     /// Corresponds to `astria.SequencerBlock.rollup_transactions_proof`.
     pub rollup_transactions_proof: merkle::Proof,
     /// The proof that this sequencer blob includes all rollup IDs of the original sequencer
-    /// block it was derived from. This proof together with `Sha256(MHT(rollup_ids))` (Sha256
+    /// block it was derived from. This proof together with `Sha256(MTH(rollup_ids))` (Sha256
     /// applied to the Merkle Tree Hash of the rollup ID sequence) must be equal to
     /// `header.data_hash` which itself must match
     /// `astria.SequencerBlock.header.data_hash`. This field corresponds to
@@ -486,7 +486,7 @@ pub struct SubmittedMetadata {
     /// Corresponds to `astria.SequencerBlock.rollup_transactions_proof`.
     rollup_transactions_proof: merkle::Proof,
     /// The proof that this sequencer blob includes all rollup IDs of the original sequencer
-    /// block it was derived from. This proof together with `Sha256(MHT(rollup_ids))` (Sha256
+    /// block it was derived from. This proof together with `Sha256(MTH(rollup_ids))` (Sha256
     /// applied to the Merkle Tree Hash of the rollup ID sequence) must be equal to
     /// `header.data_hash` which itself must match
     /// `astria.SequencerBlock.header.data_hash`. This field corresponds to
