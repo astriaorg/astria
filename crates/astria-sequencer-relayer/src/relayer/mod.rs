@@ -53,10 +53,7 @@ use tracing::{
     Span,
 };
 
-use crate::{
-    validator::Validator,
-    IncludeRollup,
-};
+use crate::IncludeRollup;
 
 mod builder;
 mod celestia_client;
@@ -369,12 +366,4 @@ fn spawn_submitter(
         shutdown_token,
     );
     (tokio::spawn(submitter.run()), handle)
-}
-
-struct ReportValidator<'a>(&'a Validator);
-
-impl<'a> std::fmt::Display for ReportValidator<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{}", self.0.address))
-    }
 }

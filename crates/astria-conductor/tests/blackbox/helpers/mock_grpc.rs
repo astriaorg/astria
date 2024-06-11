@@ -46,7 +46,7 @@ use tonic::{
 };
 
 pub struct MockGrpc {
-    pub _server: JoinHandle<eyre::Result<()>>,
+    _server: JoinHandle<eyre::Result<()>>,
     pub mock_server: MockServer,
     pub local_addr: SocketAddr,
 }
