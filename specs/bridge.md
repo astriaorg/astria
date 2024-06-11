@@ -63,7 +63,8 @@ to the origin rollup address.
 Within the sequencer application, the bridging logic is located in the
 [`bridge`](https://github.com/astriaorg/astria/tree/main/crates/astria-sequencer/src/bridge)
 module, and the IBC-bridging logic is in the
-[`ibc`](https://github.com/astriaorg/astria/tree/main/crates/astria-sequencer/src/ibc) module.
+[`ibc`](https://github.com/astriaorg/astria/tree/main/crates/astria-sequencer/src/ibc)
+module.
 
 The bridge related actions are:
 
@@ -72,14 +73,14 @@ initializes the signer of the action as a bridge account. The associated rollup
 ID and asset ID which this account accepts are provided. Optional `sudo_address`
 and `withdrawer_address` fields can be provided, which are set to the action
 sender if unset.
-    - the account's rollup ID and asset ID cannot be changed once initialized.
-    - the account cannot be re-initialized as a bridge account, and it cannot be
+  - the account's rollup ID and asset ID cannot be changed once initialized.
+  - the account cannot be re-initialized as a bridge account, and it cannot be
     converted back into a non-bridge account.
-    - `sudo_address` is authorized to change the rollup account's `sudo_address`
+  - `sudo_address` is authorized to change the rollup account's `sudo_address`
     and `withdrawer_address`.
-    - to make withdrawals from the bridge account, the `withdrawer_address` must
+  - to make withdrawals from the bridge account, the `withdrawer_address` must
     be the transaction signer.
-    - withdrawals are allowed using either `BridgeUnlockAction` or `Ics20Withdrawal`.
+  - withdrawals are allowed using either `BridgeUnlockAction` or `Ics20Withdrawal`.
 - [`BridgeLockAction`](https://github.com/astriaorg/astria/blob/6902ef35370e5980a76302fc756e1a9a56af21b5/proto/protocolapis/astria/protocol/transactions/v1alpha1/types.proto#L188):
 transfers funds to a bridge account, locking them and emitting a
 [`Deposit`](https://github.com/astriaorg/astria/blob/6902ef35370e5980a76302fc756e1a9a56af21b5/proto/sequencerblockapis/astria/sequencerblock/v1alpha1/block.proto#L76).
@@ -92,7 +93,8 @@ The signer of this action must be the bridge account's `withdrawer_address`.
 changes the bridge account's sudo and/or withdrawer addresses. The signer of
 this action must be the bridge account's `sudo_address`.
 
-The two IBC actions which can also perform bridging actions are an `IbcRelay` which contains an `Ics20Transfer` packet, and `Ics20Withdrawal`.
+The two IBC actions which can also perform bridging actions are an `IbcRelay`
+which contains an `Ics20Transfer` packet, and `Ics20Withdrawal`.
 
 - [`Ics20Transfer`](https://github.com/astriaorg/astria/blob/6902ef35370e5980a76302fc756e1a9a56af21b5/crates/astria-sequencer/src/ibc/ics20_transfer.rs#L370)
 packets are received when an IBC transfer to Astria from another chain occurs.
