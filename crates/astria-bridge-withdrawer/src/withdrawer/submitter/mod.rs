@@ -91,7 +91,10 @@ pub(super) struct Submitter {
 impl Submitter {
     pub(super) async fn run(mut self) -> eyre::Result<()> {
         // call startup
-        let startup = self.startup().await?;
+        let startup = self
+            .startup()
+            .await
+            .wrap_err("submitter failed to start up")?;
         self.startup_tx
             .send(startup)
             .map_err(|_startup| eyre!("failed to send startup info to watcher"))?;
@@ -169,7 +172,8 @@ impl Submitter {
     async fn startup(&mut self) -> eyre::Result<SequencerStartupInfo> {
         let actual_chain_id =
             get_sequencer_chain_id(self.sequencer_cometbft_client.clone(), self.state.clone())
-                .await?;
+                .await
+                .wrap_err("failed to get chain id from sequencer")?;
         ensure!(
             self.sequencer_chain_id == actual_chain_id.to_string(),
             "sequencer_chain_id provided in config does not match chain_id returned from sequencer"
@@ -178,7 +182,8 @@ impl Submitter {
         // confirm that the fee asset ID is valid
         let allowed_fee_asset_ids_resp =
             get_allowed_fee_asset_ids(self.sequencer_cometbft_client.clone(), self.state.clone())
-                .await?;
+                .await
+                .wrap_err("failed to get allowed fee asset ids from sequencer")?;
         ensure!(
             allowed_fee_asset_ids_resp
                 .fee_asset_ids
@@ -192,7 +197,8 @@ impl Submitter {
             self.state.clone(),
             self.signer.address,
         )
-        .await?;
+        .await
+        .wrap_err("failed to get latest balance")?;
         let fee_asset_balance = fee_asset_balances
             .balances
             .into_iter()
@@ -205,7 +211,10 @@ impl Submitter {
         );
 
         // sync to latest on-chain state
-        let next_batch_rollup_height = self.get_next_rollup_height().await?;
+        let next_batch_rollup_height = self
+            .get_next_rollup_height()
+            .await
+            .wrap_err("failed to get next rollup block height")?;
 
         self.state.set_submitter_ready();
 
@@ -237,7 +246,10 @@ impl Submitter {
     /// 3. The last transaction by the bridge account did not contain a withdrawal action
     /// 4. The memo of the last transaction by the bridge account could not be parsed
     async fn get_next_rollup_height(&mut self) -> eyre::Result<u64> {
-        let signed_transaction = self.get_last_transaction().await?;
+        let signed_transaction = self
+            .get_last_transaction()
+            .await
+            .wrap_err("failed to get the bridge account's last sequencer transaction")?;
         let next_batch_rollup_height = if let Some(signed_transaction) = signed_transaction {
             rollup_height_from_signed_transaction(&signed_transaction).wrap_err(
                 "failed to extract rollup height from last transaction by the bridge account",
@@ -314,7 +326,8 @@ async fn process_batch(
         sequencer_key.address,
         state.clone(),
     )
-    .await?;
+    .await
+    .wrap_err("failed to get nonce from sequencer")?;
     debug!(nonce, "fetched latest nonce");
 
     let unsigned = UnsignedTransaction {

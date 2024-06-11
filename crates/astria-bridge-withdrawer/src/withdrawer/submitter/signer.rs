@@ -26,8 +26,9 @@ impl SequencerKey {
     ///
     /// The file should contain a hex-encoded ed25519 secret key.
     pub(super) fn try_from_path<P: AsRef<Path>>(path: P) -> eyre::Result<Self> {
-        let hex = fs::read_to_string(path)?;
-        let bytes: [u8; 32] = hex::decode(hex.trim())?
+        let hex = fs::read_to_string(path).wrap_err("failed to read sequencer key from path")?;
+        let bytes: [u8; 32] = hex::decode(hex.trim())
+            .wrap_err("failed to decode hex")?
             .try_into()
             .map_err(|_| eyre!("invalid private key length; must be 32 bytes"))?;
         let signing_key = SigningKey::from(bytes);
