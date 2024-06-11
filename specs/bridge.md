@@ -38,6 +38,7 @@ Within the sequencer application, the bridging logic is located in the [`bridge`
 The bridge related actions are:
 - [`InitBridgeAccountAction`](https://github.com/astriaorg/astria/blob/6902ef35370e5980a76302fc756e1a9a56af21b5/proto/protocolapis/astria/protocol/transactions/v1alpha1/types.proto#L167): initializes the signer of the action as a bridge account. The associated rollup ID and asset ID which this account accepts are provided. Optional `sudo_address` and `withdrawer_address` fields can be provided, which are set to the action sender if unset.
     - the account's rollup ID and asset ID cannot be changed once initialized.
+    - the account cannot be re-initialized as a bridge account, and it cannot be converted back into a non-bridge account.
     - `sudo_address` is authorized to change the rollup account's `sudo_address` and `withdrawer_address`.
     - to make withdrawals from the bridge account, the `withdrawer_address` must be the transaction signer.
     - withdrawals are allowed using either `BridgeUnlockAction` or `Ics20Withdrawal`.
