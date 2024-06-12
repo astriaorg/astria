@@ -65,10 +65,25 @@ config:
   cometBFT:
     chainId: 'sequencer-test-chain-0'
     genesisTime: '2023-09-22T17:22:35.092832Z'
-    # If using postgres for indexing, update to enabled and set the connection
+    # database directory for cometBFT
+    dbDir: "data"
+    #log configurations
+    logLevel: "info"
+    logFormat: "plain"
+    # Path to genesis file location
+    genesisFile: "/config/genesis.json"
+    # Grpc server configuration
+    grpc:
+      # Maximum number of simultaneous GRPC connections
+      maxOpenConnections: 900
+    rpc:
+      # Maximum number of simultaneous RPC connections
+      maxOpenConnections: 900
+    
     psql:
       enabled: false
       conn: postgresql://<user>:<password>@<host>:<port>/<db>?<opts>
+    
     p2p:
       # Address to listen for incoming connections, port is inferred from ports.cometBFTP2P
       laddr: "tcp://0.0.0.0"
@@ -87,7 +102,18 @@ config:
       privatePeers: []
       # Seed mode, in which node constantly crawls the network and looks for
       # peers. If another node asks it for addresses, it responds and disconnects.
-      seed_mode: false
+      seedMode: false
+      # Rate at which packets can be sent/receved, in bytes/second
+      sendRate: 5120000
+      recvRate: 5120000
+    mempool:
+      size: 2000
+      maxTxBytes: 250000
+      maxTxsBytes: 100000000
+      cacheSize: 10000
+    consensus:
+      timeoutPropose: "2s"
+      timeoutCommit: "1500ms"
     # These secrets will be generated using the devContent values turned into JSON
     # and stored unsafely as config maps. Unless SecretProvider is enabled.
     # Where the secret parameters should be then updated to suit your secret provider
