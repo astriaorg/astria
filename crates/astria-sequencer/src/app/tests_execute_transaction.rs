@@ -1,13 +1,14 @@
 use std::sync::Arc;
 
-#[cfg(feature = "mint")]
-use astria_core::protocol::transaction::v1alpha1::action::MintAction;
 use astria_core::{
     crypto::SigningKey,
     primitive::v1::{
-        asset,
-        asset::DEFAULT_NATIVE_ASSET_DENOM,
-        Address,
+        asset::{
+            self,
+            default_native_asset,
+            Denom,
+            DEFAULT_NATIVE_ASSET_DENOM,
+        },
         RollupId,
     },
     protocol::transaction::v1alpha1::{
@@ -56,10 +57,11 @@ async fn app_execute_transaction_transfer() {
     let bob_address = address_from_hex_string(BOB_ADDRESS);
     let value = 333_333;
     let tx = UnsignedTransaction {
-        params: TransactionParams {
-            nonce: 0,
-            chain_id: "test".to_string(),
-        },
+        params: TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .try_build()
+            .unwrap(),
         actions: vec![
             TransferAction {
                 to: bob_address,
@@ -113,10 +115,11 @@ async fn app_execute_transaction_transfer_not_native_token() {
     // transfer funds from Alice to Bob; use native token for fee payment
     let bob_address = address_from_hex_string(BOB_ADDRESS);
     let tx = UnsignedTransaction {
-        params: TransactionParams {
-            nonce: 0,
-            chain_id: "test".to_string(),
-        },
+        params: TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .try_build()
+            .unwrap(),
         actions: vec![
             TransferAction {
                 to: bob_address,
@@ -179,10 +182,11 @@ async fn app_execute_transaction_transfer_balance_too_low_for_fee() {
 
     // 0-value transfer; only fee is deducted from sender
     let tx = UnsignedTransaction {
-        params: TransactionParams {
-            nonce: 0,
-            chain_id: "test".to_string(),
-        },
+        params: TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .try_build()
+            .unwrap(),
         actions: vec![
             TransferAction {
                 to: bob,
@@ -219,10 +223,11 @@ async fn app_execute_transaction_sequence() {
     let fee = calculate_fee_from_state(&data, &app.state).await.unwrap();
 
     let tx = UnsignedTransaction {
-        params: TransactionParams {
-            nonce: 0,
-            chain_id: "test".to_string(),
-        },
+        params: TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .try_build()
+            .unwrap(),
         actions: vec![
             SequenceAction {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
@@ -256,10 +261,11 @@ async fn app_execute_transaction_invalid_fee_asset() {
     let fee_asset_id = asset::Id::from_denom("test");
 
     let tx = UnsignedTransaction {
-        params: TransactionParams {
-            nonce: 0,
-            chain_id: "test".to_string(),
-        },
+        params: TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .try_build()
+            .unwrap(),
         actions: vec![
             SequenceAction {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
@@ -285,7 +291,7 @@ async fn app_execute_transaction_validator_update() {
         ibc_relayer_addresses: vec![],
         native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         ibc_params: IBCParameters::default(),
-        allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
+        allowed_fee_assets: vec![default_native_asset()],
         fees: default_fees(),
     };
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
@@ -297,10 +303,11 @@ async fn app_execute_transaction_validator_update() {
     };
 
     let tx = UnsignedTransaction {
-        params: TransactionParams {
-            nonce: 0,
-            chain_id: "test".to_string(),
-        },
+        params: TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .try_build()
+            .unwrap(),
         actions: vec![Action::ValidatorUpdate(update.clone())],
     };
 
@@ -323,17 +330,18 @@ async fn app_execute_transaction_ibc_relayer_change_addition() {
         ibc_sudo_address: alice_address,
         ibc_relayer_addresses: vec![],
         native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
-        allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
+        allowed_fee_assets: vec![default_native_asset()],
         ibc_params: IBCParameters::default(),
         fees: default_fees(),
     };
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
     let tx = UnsignedTransaction {
-        params: TransactionParams {
-            nonce: 0,
-            chain_id: "test".to_string(),
-        },
+        params: TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .try_build()
+            .unwrap(),
         actions: vec![IbcRelayerChangeAction::Addition(alice_address).into()],
     };
 
@@ -353,17 +361,18 @@ async fn app_execute_transaction_ibc_relayer_change_deletion() {
         ibc_sudo_address: alice_address,
         ibc_relayer_addresses: vec![alice_address],
         native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
-        allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
+        allowed_fee_assets: vec![default_native_asset()],
         ibc_params: IBCParameters::default(),
         fees: default_fees(),
     };
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
     let tx = UnsignedTransaction {
-        params: TransactionParams {
-            nonce: 0,
-            chain_id: "test".to_string(),
-        },
+        params: TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .try_build()
+            .unwrap(),
         actions: vec![IbcRelayerChangeAction::Removal(alice_address).into()],
     };
 
@@ -380,20 +389,21 @@ async fn app_execute_transaction_ibc_relayer_change_invalid() {
     let genesis_state = GenesisState {
         accounts: default_genesis_accounts(),
         authority_sudo_address: alice_address,
-        ibc_sudo_address: Address::from([0; 20]),
+        ibc_sudo_address: crate::astria_address([0; 20]),
         ibc_relayer_addresses: vec![alice_address],
         native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
-        allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
+        allowed_fee_assets: vec![default_native_asset()],
         ibc_params: IBCParameters::default(),
         fees: default_fees(),
     };
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
     let tx = UnsignedTransaction {
-        params: TransactionParams {
-            nonce: 0,
-            chain_id: "test".to_string(),
-        },
+        params: TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .try_build()
+            .unwrap(),
         actions: vec![IbcRelayerChangeAction::Removal(alice_address).into()],
     };
 
@@ -412,7 +422,7 @@ async fn app_execute_transaction_sudo_address_change() {
         ibc_relayer_addresses: vec![],
         native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         ibc_params: IBCParameters::default(),
-        allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
+        allowed_fee_assets: vec![default_native_asset()],
         fees: default_fees(),
     };
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
@@ -420,10 +430,11 @@ async fn app_execute_transaction_sudo_address_change() {
     let new_address = address_from_hex_string(BOB_ADDRESS);
 
     let tx = UnsignedTransaction {
-        params: TransactionParams {
-            nonce: 0,
-            chain_id: "test".to_string(),
-        },
+        params: TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .try_build()
+            .unwrap(),
         actions: vec![Action::SudoAddressChange(SudoAddressChangeAction {
             new_address,
         })],
@@ -445,20 +456,21 @@ async fn app_execute_transaction_sudo_address_change_error() {
     let genesis_state = GenesisState {
         accounts: default_genesis_accounts(),
         authority_sudo_address: sudo_address,
-        ibc_sudo_address: [0u8; 20].into(),
+        ibc_sudo_address: crate::astria_address([0u8; 20]),
         ibc_relayer_addresses: vec![],
         native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         ibc_params: IBCParameters::default(),
-        allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
+        allowed_fee_assets: vec![default_native_asset()],
         fees: default_fees(),
     };
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
     let tx = UnsignedTransaction {
-        params: TransactionParams {
-            nonce: 0,
-            chain_id: "test".to_string(),
-        },
+        params: TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .try_build()
+            .unwrap(),
         actions: vec![Action::SudoAddressChange(SudoAddressChangeAction {
             new_address: alice_address,
         })],
@@ -487,7 +499,7 @@ async fn app_execute_transaction_fee_asset_change_addition() {
         ibc_relayer_addresses: vec![],
         native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         ibc_params: IBCParameters::default(),
-        allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
+        allowed_fee_assets: vec![default_native_asset()],
         fees: default_fees(),
     };
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
@@ -495,10 +507,11 @@ async fn app_execute_transaction_fee_asset_change_addition() {
     let new_asset = asset::Id::from_denom("test");
 
     let tx = UnsignedTransaction {
-        params: TransactionParams {
-            nonce: 0,
-            chain_id: "test".to_string(),
-        },
+        params: TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .try_build()
+            .unwrap(),
         actions: vec![Action::FeeAssetChange(FeeAssetChangeAction::Addition(
             new_asset,
         ))],
@@ -516,7 +529,7 @@ async fn app_execute_transaction_fee_asset_change_removal() {
     use astria_core::protocol::transaction::v1alpha1::action::FeeAssetChangeAction;
 
     let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
-    let test_asset = asset::Denom::from_base_denom("test");
+    let test_asset = "test".parse::<Denom>().unwrap();
 
     let genesis_state = GenesisState {
         accounts: default_genesis_accounts(),
@@ -525,19 +538,17 @@ async fn app_execute_transaction_fee_asset_change_removal() {
         ibc_relayer_addresses: vec![],
         native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         ibc_params: IBCParameters::default(),
-        allowed_fee_assets: vec![
-            DEFAULT_NATIVE_ASSET_DENOM.to_owned().into(),
-            test_asset.clone(),
-        ],
+        allowed_fee_assets: vec![default_native_asset(), test_asset.clone()],
         fees: default_fees(),
     };
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
     let tx = UnsignedTransaction {
-        params: TransactionParams {
-            nonce: 0,
-            chain_id: "test".to_string(),
-        },
+        params: TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .try_build()
+            .unwrap(),
         actions: vec![Action::FeeAssetChange(FeeAssetChangeAction::Removal(
             test_asset.id(),
         ))],
@@ -568,16 +579,17 @@ async fn app_execute_transaction_fee_asset_change_invalid() {
         ibc_relayer_addresses: vec![],
         native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         ibc_params: IBCParameters::default(),
-        allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
+        allowed_fee_assets: vec![default_native_asset()],
         fees: default_fees(),
     };
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
     let tx = UnsignedTransaction {
-        params: TransactionParams {
-            nonce: 0,
-            chain_id: "test".to_string(),
-        },
+        params: TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .try_build()
+            .unwrap(),
         actions: vec![Action::FeeAssetChange(FeeAssetChangeAction::Removal(
             get_native_asset().id(),
         ))],
@@ -610,12 +622,15 @@ async fn app_execute_transaction_init_bridge_account_ok() {
         rollup_id,
         asset_id,
         fee_asset_id: asset_id,
+        sudo_address: None,
+        withdrawer_address: None,
     };
     let tx = UnsignedTransaction {
-        params: TransactionParams {
-            nonce: 0,
-            chain_id: "test".to_string(),
-        },
+        params: TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .try_build()
+            .unwrap(),
         actions: vec![action.into()],
     };
 
@@ -665,12 +680,15 @@ async fn app_execute_transaction_init_bridge_account_account_already_registered(
         rollup_id,
         asset_id,
         fee_asset_id: asset_id,
+        sudo_address: None,
+        withdrawer_address: None,
     };
     let tx = UnsignedTransaction {
-        params: TransactionParams {
-            nonce: 0,
-            chain_id: "test".to_string(),
-        },
+        params: TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .try_build()
+            .unwrap(),
         actions: vec![action.into()],
     };
 
@@ -681,12 +699,15 @@ async fn app_execute_transaction_init_bridge_account_account_already_registered(
         rollup_id,
         asset_id,
         fee_asset_id: asset_id,
+        sudo_address: None,
+        withdrawer_address: None,
     };
     let tx = UnsignedTransaction {
-        params: TransactionParams {
-            nonce: 1,
-            chain_id: "test".to_string(),
-        },
+        params: TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .try_build()
+            .unwrap(),
         actions: vec![action.into()],
     };
 
@@ -699,7 +720,7 @@ async fn app_execute_transaction_bridge_lock_action_ok() {
     let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
     let mut app = initialize_app(None, vec![]).await;
 
-    let bridge_address = Address::from([99; 20]);
+    let bridge_address = crate::astria_address([99; 20]);
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
     let asset_id = get_native_asset().id();
 
@@ -719,10 +740,11 @@ async fn app_execute_transaction_bridge_lock_action_ok() {
         destination_chain_address: "nootwashere".to_string(),
     };
     let tx = UnsignedTransaction {
-        params: TransactionParams {
-            nonce: 0,
-            chain_id: "test".to_string(),
-        },
+        params: TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .try_build()
+            .unwrap(),
         actions: vec![action.into()],
     };
 
@@ -785,7 +807,7 @@ async fn app_execute_transaction_bridge_lock_action_invalid_for_eoa() {
     let mut app = initialize_app(None, vec![]).await;
 
     // don't actually register this address as a bridge address
-    let bridge_address = Address::from([99; 20]);
+    let bridge_address = crate::astria_address([99; 20]);
     let asset_id = get_native_asset().id();
 
     let amount = 100;
@@ -797,62 +819,16 @@ async fn app_execute_transaction_bridge_lock_action_invalid_for_eoa() {
         destination_chain_address: "nootwashere".to_string(),
     };
     let tx = UnsignedTransaction {
-        params: TransactionParams {
-            nonce: 0,
-            chain_id: "test".to_string(),
-        },
+        params: TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .try_build()
+            .unwrap(),
         actions: vec![action.into()],
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice_signing_key));
     assert!(app.execute_transaction(signed_tx).await.is_err());
-}
-
-#[cfg(feature = "mint")]
-#[tokio::test]
-async fn app_execute_transaction_mint() {
-    let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
-
-    let genesis_state = GenesisState {
-        accounts: default_genesis_accounts(),
-        authority_sudo_address: alice_address,
-        ibc_sudo_address: [0u8; 20].into(),
-        ibc_relayer_addresses: vec![],
-        native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
-        ibc_params: IBCParameters::default(),
-        allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
-        fees: default_fees(),
-    };
-    let mut app = initialize_app(Some(genesis_state), vec![]).await;
-
-    let bob_address = address_from_hex_string(BOB_ADDRESS);
-    let value = 333_333;
-    let tx = UnsignedTransaction {
-        params: TransactionParams {
-            nonce: 0,
-            chain_id: "test".to_string(),
-        },
-        actions: vec![
-            MintAction {
-                to: bob_address,
-                amount: value,
-            }
-            .into(),
-        ],
-    };
-
-    let signed_tx = Arc::new(tx.into_signed(&alice_signing_key));
-    app.execute_transaction(signed_tx).await.unwrap();
-
-    assert_eq!(
-        app.state
-            .get_account_balance(bob_address, get_native_asset().id())
-            .await
-            .unwrap(),
-        value + 10u128.pow(19)
-    );
-    assert_eq!(app.state.get_account_nonce(bob_address).await.unwrap(), 0);
-    assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
 }
 
 #[tokio::test]
@@ -864,10 +840,11 @@ async fn app_execute_transaction_invalid_nonce() {
     // create tx with invalid nonce 1
     let data = b"hello world".to_vec();
     let tx = UnsignedTransaction {
-        params: TransactionParams {
-            nonce: 1,
-            chain_id: "test".to_string(),
-        },
+        params: TransactionParams::builder()
+            .nonce(1)
+            .chain_id("test")
+            .try_build()
+            .unwrap(),
         actions: vec![
             SequenceAction {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
@@ -910,10 +887,11 @@ async fn app_execute_transaction_invalid_chain_id() {
     // create tx with invalid nonce 1
     let data = b"hello world".to_vec();
     let tx = UnsignedTransaction {
-        params: TransactionParams {
-            nonce: 0,
-            chain_id: "wrong-chain".to_string(),
-        },
+        params: TransactionParams::builder()
+            .nonce(0)
+            .chain_id("wrong-chain")
+            .try_build()
+            .unwrap(),
         actions: vec![
             SequenceAction {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
@@ -959,7 +937,7 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
 
     // create a new key; will have 0 balance
     let keypair = SigningKey::new(OsRng);
-    let keypair_address = *keypair.verification_key().address();
+    let keypair_address = crate::astria_address(keypair.verification_key().address_bytes());
 
     // figure out needed fee for a single transfer
     let data = b"hello world".to_vec();
@@ -969,10 +947,11 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
 
     // transfer just enough to cover single sequence fee with data
     let signed_tx = UnsignedTransaction {
-        params: TransactionParams {
-            nonce: 0,
-            chain_id: "test".to_string(),
-        },
+        params: TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .try_build()
+            .unwrap(),
         actions: vec![
             TransferAction {
                 to: keypair_address,
@@ -990,10 +969,11 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
 
     // build double transfer exceeding balance
     let signed_tx_fail = UnsignedTransaction {
-        params: TransactionParams {
-            nonce: 0,
-            chain_id: "test".to_string(),
-        },
+        params: TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .try_build()
+            .unwrap(),
         actions: vec![
             SequenceAction {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
@@ -1021,10 +1001,11 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
 
     // build single transfer to see passes
     let signed_tx_pass = UnsignedTransaction {
-        params: TransactionParams {
-            nonce: 0,
-            chain_id: "test".to_string(),
-        },
+        params: TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .try_build()
+            .unwrap(),
         actions: vec![
             SequenceAction {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
@@ -1065,6 +1046,7 @@ async fn app_execute_transaction_bridge_lock_unlock_action_ok() {
     state_tx
         .put_bridge_account_asset_id(&bridge_address, &asset_id)
         .unwrap();
+    state_tx.put_bridge_account_withdrawer_address(&bridge_address, &bridge_address);
     app.apply(state_tx);
 
     let amount = 100;
@@ -1076,10 +1058,11 @@ async fn app_execute_transaction_bridge_lock_unlock_action_ok() {
         destination_chain_address: "nootwashere".to_string(),
     };
     let tx = UnsignedTransaction {
-        params: TransactionParams {
-            nonce: 0,
-            chain_id: "test".to_string(),
-        },
+        params: TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .try_build()
+            .unwrap(),
         actions: vec![action.into()],
     };
 
@@ -1094,13 +1077,15 @@ async fn app_execute_transaction_bridge_lock_unlock_action_ok() {
         amount,
         fee_asset_id: asset_id,
         memo: b"lilywashere".to_vec(),
+        bridge_address: None,
     };
 
     let tx = UnsignedTransaction {
-        params: TransactionParams {
-            nonce: 0,
-            chain_id: "test".to_string(),
-        },
+        params: TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .try_build()
+            .unwrap(),
         actions: vec![action.into()],
     };
 

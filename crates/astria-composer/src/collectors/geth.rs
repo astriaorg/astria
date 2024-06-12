@@ -17,7 +17,7 @@ use std::time::Duration;
 
 use astria_core::{
     primitive::v1::{
-        asset::default_native_asset_id,
+        asset::default_native_asset,
         RollupId,
     },
     protocol::transaction::v1alpha1::action::SequenceAction,
@@ -211,7 +211,7 @@ impl Geth {
                         let seq_action = SequenceAction {
                             rollup_id,
                             data,
-                            fee_asset_id: default_native_asset_id(),
+                            fee_asset_id: default_native_asset().id(),
                         };
 
                         metrics::counter!(

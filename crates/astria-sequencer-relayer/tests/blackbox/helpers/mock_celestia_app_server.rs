@@ -91,7 +91,6 @@ use tonic::{
     Status,
 };
 
-const CELESTIA_NETWORK_NAME: &str = "test-celestia";
 const GET_NODE_INFO_GRPC_NAME: &str = "get_node_info";
 const QUERY_ACCOUNT_GRPC_NAME: &str = "query_account";
 const QUERY_AUTH_PARAMS_GRPC_NAME: &str = "query_auth_params";
@@ -101,21 +100,21 @@ const GET_TX_GRPC_NAME: &str = "get_tx";
 const BROADCAST_TX_GRPC_NAME: &str = "broadcast_tx";
 
 pub struct MockCelestiaAppServer {
-    pub _server: JoinHandle<eyre::Result<()>>,
+    _server: JoinHandle<eyre::Result<()>>,
     pub mock_server: MockServer,
     pub local_addr: SocketAddr,
     pub namespaces: Arc<Mutex<Vec<Namespace>>>,
 }
 
 impl MockCelestiaAppServer {
-    pub async fn spawn() -> Self {
+    pub async fn spawn(celestia_chain_id: String) -> Self {
         use tokio_stream::wrappers::TcpListenerStream;
 
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let local_addr = listener.local_addr().unwrap();
 
         let mock_server = MockServer::new();
-        register_get_node_info(&mock_server).await;
+        register_get_node_info(&mock_server, celestia_chain_id).await;
         register_query_account(&mock_server).await;
         register_query_auth_params(&mock_server).await;
         register_query_blob_params(&mock_server).await;
@@ -228,9 +227,9 @@ impl MockCelestiaAppServer {
 
 /// Registers a handler for all incoming `GetNodeInfoRequest`s which responds with the same
 /// `GetNodeInfoResponse` every time.
-async fn register_get_node_info(mock_server: &MockServer) {
+async fn register_get_node_info(mock_server: &MockServer, celestia_chain_id: String) {
     let default_node_info = Some(DefaultNodeInfo {
-        network: CELESTIA_NETWORK_NAME.to_string(),
+        network: celestia_chain_id,
         ..Default::default()
     });
     let response = GetNodeInfoResponse {

@@ -64,6 +64,9 @@ use super::{
     SequencerBlockToMount,
 };
 
+const SEQUENCER_CHAIN_ID: &str = "test-sequencer";
+const CELESTIA_CHAIN_ID: &str = "test-celestia";
+
 /// Copied verbatim from
 /// [tendermint-rs](https://github.com/informalsystems/tendermint-rs/blob/main/config/tests/support/config/priv_validator_key.ed25519.json)
 const PRIVATE_VALIDATOR_KEY: &str = r#"
@@ -79,6 +82,46 @@ const PRIVATE_VALIDATOR_KEY: &str = r#"
   }
 }
 "#;
+
+const STATUS_RESPONSE: &str = r#"
+{
+  "node_info": {
+    "protocol_version": {
+      "p2p": "8",
+      "block": "11",
+      "app": "0"
+    },
+    "id": "a1d3bbddb7800c6da2e64169fec281494e963ba3",
+    "listen_addr": "tcp://0.0.0.0:26656",
+    "network": "test",
+    "version": "0.38.6",
+    "channels": "40202122233038606100",
+    "moniker": "fullnode",
+    "other": {
+      "tx_index": "on",
+      "rpc_address": "tcp://0.0.0.0:26657"
+    }
+  },
+  "sync_info": {
+    "latest_block_hash": "A4202E4E367712AC2A797860265A7EBEA8A3ACE513CB0105C2C9058449641202",
+    "latest_app_hash": "BCC9C9B82A49EC37AADA41D32B4FBECD2441563703955413195BDA2236775A68",
+    "latest_block_height": "452605",
+    "latest_block_time": "2024-05-09T15:59:17.849713071Z",
+    "earliest_block_hash": "C34B7B0B82423554B844F444044D7D08A026D6E413E6F72848DB2F8C77ACE165",
+    "earliest_app_hash": "6B776065775471CEF46AC75DE09A4B869A0E0EB1D7725A04A342C0E46C16F472",
+    "earliest_block_height": "1",
+    "earliest_block_time": "2024-04-23T00:49:11.964127Z",
+    "catching_up": false
+  },
+  "validator_info": {
+    "address": "0B46F33BA2FA5C2E2AD4C4C4E5ECE3F1CA03D195",
+    "pub_key": {
+      "type": "tendermint/PubKeyEd25519",
+      "value": "bA6GipHUijVuiYhv+4XymdePBsn8EeTqjGqNQrBGZ4I="
+    },
+    "voting_power": "0"
+  }
+}"#;
 
 static TELEMETRY: Lazy<()> = Lazy::new(|| {
     astria_eyre::install().unwrap();
@@ -126,12 +169,14 @@ pub struct TestSequencerRelayer {
 
     pub signing_key: SigningKey,
 
-    pub account: tendermint::account::Id,
-
-    pub validator_keyfile: NamedTempFile,
-
     pub pre_submit_file: NamedTempFile,
     pub post_submit_file: NamedTempFile,
+    /// The sequencer chain ID which will be returned by the mock `cometbft` instance, and set via
+    /// `TestSequencerRelayerConfig`.
+    pub actual_sequencer_chain_id: String,
+    /// The Celestia chain ID which will be returned by the mock `celestia_app` instance, and set
+    /// via `TestSequencerRelayerConfig`.
+    pub actual_celestia_chain_id: String,
 }
 
 impl Drop for TestSequencerRelayer {
@@ -181,13 +226,13 @@ impl TestSequencerRelayer {
     /// Mounts a Sequencer block response.
     ///
     /// The `debug_name` is assigned to the mock and is output on error to assist with debugging.
-    pub async fn mount_sequencer_block_response<const RELAY_SELF: bool>(
+    pub async fn mount_sequencer_block_response(
         &self,
         block_to_mount: SequencerBlockToMount,
         debug_name: impl Into<String>,
     ) {
         self.sequencer
-            .mount_sequencer_block_response::<RELAY_SELF>(self.account, block_to_mount, debug_name)
+            .mount_sequencer_block_response(block_to_mount, debug_name)
             .await;
     }
 
@@ -195,17 +240,13 @@ impl TestSequencerRelayer {
     /// the mock to be satisfied.
     ///
     /// The `debug_name` is assigned to the mock and is output on error to assist with debugging.
-    pub async fn mount_sequencer_block_response_as_scoped<const RELAY_SELF: bool>(
+    pub async fn mount_sequencer_block_response_as_scoped(
         &self,
         block_to_mount: SequencerBlockToMount,
         debug_name: impl Into<String>,
     ) -> GrpcMockGuard {
         self.sequencer
-            .mount_sequencer_block_response_as_scoped::<RELAY_SELF>(
-                self.account,
-                block_to_mount,
-                debug_name,
-            )
+            .mount_sequencer_block_response_as_scoped(block_to_mount, debug_name)
             .await
     }
 
@@ -596,20 +637,39 @@ impl TestSequencerRelayer {
             }),
         );
     }
+
+    /// Mounts a `CometBFT` status response with the chain ID set as per
+    /// `TestSequencerRelayerConfig::sequencer_chain_id`.
+    async fn mount_cometbft_status_response(&self) {
+        use tendermint_rpc::endpoint::status;
+
+        let mut status_response: status::Response = serde_json::from_str(STATUS_RESPONSE).unwrap();
+        status_response.node_info.network = self.actual_sequencer_chain_id.parse().unwrap();
+
+        let response = Wrapper::new_with_id(Id::Num(1), Some(status_response), None);
+        wiremock::Mock::given(body_partial_json(json!({"method": "status"})))
+            .respond_with(ResponseTemplate::new(200).set_body_json(response))
+            .up_to_n_times(1)
+            .expect(1..)
+            .named("CometBFT status")
+            .mount(&self.cometbft)
+            .await;
+    }
 }
 
 // allow: want the name to reflect this is a test config.
 #[allow(clippy::module_name_repetitions)]
 pub struct TestSequencerRelayerConfig {
-    /// Sets up the test relayer to ignore all blocks except those proposed by the same address
-    /// stored in its validator key.
-    pub relay_only_self: bool,
     /// Sets the start height of relayer and configures the on-disk pre- and post-submit files to
     /// look accordingly.
     pub last_written_sequencer_height: Option<u64>,
     /// The rollup ID filter, to be stringified and provided as `Config::only_include_rollups`
     /// value.
     pub only_include_rollups: HashSet<RollupId>,
+    /// The sequencer chain ID.
+    pub sequencer_chain_id: String,
+    /// The Celestia chain ID.
+    pub celestia_chain_id: String,
 }
 
 impl TestSequencerRelayerConfig {
@@ -622,18 +682,15 @@ impl TestSequencerRelayerConfig {
         );
         Lazy::force(&TELEMETRY);
 
-        let celestia_app = MockCelestiaAppServer::spawn().await;
+        let celestia_app = MockCelestiaAppServer::spawn(self.celestia_chain_id.clone()).await;
         let celestia_app_grpc_endpoint = format!("http://{}", celestia_app.local_addr);
         let celestia_keyfile = write_file(
             b"c8076374e2a4a58db1c924e3dafc055e9685481054fe99e58ed67f5c6ed80e62".as_slice(),
         )
         .await;
 
-        let validator_keyfile = write_file(PRIVATE_VALIDATOR_KEY.as_bytes()).await;
         let PrivValidatorKey {
-            address,
-            priv_key,
-            ..
+            priv_key, ..
         } = PrivValidatorKey::parse_json(PRIVATE_VALIDATOR_KEY).unwrap();
         let signing_key = priv_key
             .ed25519_signing_key()
@@ -658,13 +715,13 @@ impl TestSequencerRelayerConfig {
         let only_include_rollups = self.only_include_rollups.iter().join(",").to_string();
 
         let config = Config {
+            sequencer_chain_id: SEQUENCER_CHAIN_ID.to_string(),
+            celestia_chain_id: CELESTIA_CHAIN_ID.to_string(),
             cometbft_endpoint: cometbft.uri(),
             sequencer_grpc_endpoint,
             celestia_app_grpc_endpoint,
             celestia_app_key_file: celestia_keyfile.path().to_string_lossy().to_string(),
             block_time: 1000,
-            relay_only_validator_key_blocks: self.relay_only_self,
-            validator_key_file: validator_keyfile.path().to_string_lossy().to_string(),
             only_include_rollups,
             api_addr: "0.0.0.0:0".into(),
             log: String::new(),
@@ -683,7 +740,7 @@ impl TestSequencerRelayerConfig {
         let api_address = sequencer_relayer.local_addr();
         let sequencer_relayer = tokio::task::spawn(sequencer_relayer.run());
 
-        TestSequencerRelayer {
+        let test_sequencer_relayer = TestSequencerRelayer {
             api_address,
             celestia_app,
             config,
@@ -692,10 +749,27 @@ impl TestSequencerRelayerConfig {
             relayer_shutdown_handle: Some(relayer_shutdown_handle),
             sequencer_relayer,
             signing_key,
-            account: address,
-            validator_keyfile,
             pre_submit_file,
             post_submit_file,
+            actual_sequencer_chain_id: self.sequencer_chain_id,
+            actual_celestia_chain_id: self.celestia_chain_id,
+        };
+
+        test_sequencer_relayer
+            .mount_cometbft_status_response()
+            .await;
+
+        test_sequencer_relayer
+    }
+}
+
+impl Default for TestSequencerRelayerConfig {
+    fn default() -> Self {
+        Self {
+            last_written_sequencer_height: None,
+            only_include_rollups: HashSet::new(),
+            sequencer_chain_id: SEQUENCER_CHAIN_ID.to_string(),
+            celestia_chain_id: CELESTIA_CHAIN_ID.to_string(),
         }
     }
 }

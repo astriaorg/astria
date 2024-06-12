@@ -14,6 +14,7 @@ use astria_core::{
 use astria_eyre::eyre::{
     self,
     bail,
+    ensure,
     eyre,
     WrapErr as _,
 };
@@ -27,6 +28,7 @@ use futures::{
 };
 use sequencer_client::{
     tendermint::block::Height as SequencerHeight,
+    tendermint_rpc,
     HttpClient as SequencerClient,
 };
 use tokio::{
@@ -43,16 +45,15 @@ use tonic::transport::Channel;
 use tracing::{
     debug,
     error,
-    field::DisplayValue,
     info,
     instrument,
+    trace,
     warn,
+    Instrument,
+    Span,
 };
 
-use crate::{
-    validator::Validator,
-    IncludeRollup,
-};
+use crate::IncludeRollup;
 
 mod builder;
 mod celestia_client;
@@ -77,6 +78,9 @@ pub(crate) struct Relayer {
     /// A token to notify relayer that it should shut down.
     shutdown_token: CancellationToken,
 
+    /// The configured chain ID of the sequencer network.
+    sequencer_chain_id: String,
+
     /// The client used to query the sequencer cometbft endpoint.
     sequencer_cometbft_client: SequencerClient,
 
@@ -88,9 +92,6 @@ pub(crate) struct Relayer {
 
     /// The gRPC client for submitting sequencer blocks to celestia.
     celestia_client_builder: CelestiaClientBuilder,
-
-    /// If this is set, only relay blocks to DA which are proposed by the same validator key.
-    validator: Option<Validator>,
 
     /// The rollups whose data should be included in submissions.
     rollup_filter: IncludeRollup,
@@ -118,6 +119,14 @@ impl Relayer {
         let submission_state = read_submission_state(&self.pre_submit_path, &self.post_submit_path)
             .await
             .wrap_err("failed reading submission state from files")?;
+
+        select!(
+            () = self.shutdown_token.cancelled() => return Ok(()),
+            init_result = confirm_sequencer_chain_id(
+                self.sequencer_chain_id.clone(),
+                self.sequencer_cometbft_client.clone()
+            ) => init_result,
+        )?;
 
         let last_submitted_sequencer_height = submission_state.last_submitted_height();
 
@@ -229,19 +238,6 @@ impl Relayer {
         reason.map(|_| ())
     }
 
-    fn report_validator(&self) -> Option<DisplayValue<ReportValidator<'_>>> {
-        self.validator
-            .as_ref()
-            .map(ReportValidator)
-            .map(tracing::field::display)
-    }
-
-    fn block_does_not_match_validator(&self, block: &SequencerBlock) -> bool {
-        self.validator
-            .as_ref()
-            .is_some_and(|val| &val.address != block.header().proposer_address())
-    }
-
     #[instrument(skip_all, fields(%height))]
     fn forward_block_for_submission(
         &self,
@@ -259,14 +255,6 @@ impl Relayer {
              congested and this future is in-flight",
         );
 
-        if self.block_does_not_match_validator(&block) {
-            info!(
-                address.validator = self.report_validator(),
-                address.block_proposer = %block.header().proposer_address(),
-                "block proposer does not match internal validator; dropping",
-            );
-            return Ok(());
-        }
         if let Err(error) = submitter.try_send(block) {
             debug!(
                 // Just print the error directly: TrySendError has no cause chain.
@@ -286,6 +274,62 @@ impl Relayer {
         }
         Ok(())
     }
+}
+
+#[instrument(skip_all)]
+async fn confirm_sequencer_chain_id(
+    configured_sequencer_chain_id: String,
+    sequencer_cometbft_client: SequencerClient,
+) -> eyre::Result<()> {
+    let span = Span::current();
+
+    let retry_config = tryhard::RetryFutureConfig::new(u32::MAX)
+        .max_delay(Duration::from_secs(30))
+        .exponential_backoff(Duration::from_secs(1))
+        .on_retry(
+            |attempt: u32, next_delay: Option<Duration>, error: &tendermint_rpc::Error| {
+                let wait_duration = next_delay
+                    .map(humantime::format_duration)
+                    .map(tracing::field::display);
+                warn!(
+                    parent: &span,
+                    attempt,
+                    wait_duration,
+                    error = %eyre::Report::new(error.clone()),
+                    "failed to fetch sequencer chain id; retrying after backoff",
+                );
+                futures::future::ready(())
+            },
+        );
+
+    let received_sequencer_chain_id =
+        tryhard::retry_fn(move || fetch_sequencer_chain_id(sequencer_cometbft_client.clone()))
+            .with_config(retry_config)
+            .in_current_span()
+            .await
+            .wrap_err("retry attempts exhausted; bailing")?;
+
+    ensure!(
+        received_sequencer_chain_id == configured_sequencer_chain_id,
+        "configured sequencer chain ID does not match received; configured: \
+         `{configured_sequencer_chain_id}`, received: `{received_sequencer_chain_id}`"
+    );
+    info!(sequencer_chain_id = %configured_sequencer_chain_id, "confirmed sequencer chain id");
+    Ok(())
+}
+
+async fn fetch_sequencer_chain_id(
+    sequencer_cometbft_client: SequencerClient,
+) -> Result<String, tendermint_rpc::Error> {
+    use sequencer_client::Client as _;
+
+    let response = sequencer_cometbft_client.status().await;
+    // trace-level logging, so using Debug format is ok.
+    #[cfg_attr(dylint_lib = "tracing_debug_field", allow(tracing_debug_field))]
+    {
+        trace!(?response);
+    }
+    response.map(|status_response| status_response.node_info.network.to_string())
 }
 
 async fn read_submission_state<P1: AsRef<Path>, P2: AsRef<Path>>(
@@ -322,12 +366,4 @@ fn spawn_submitter(
         shutdown_token,
     );
     (tokio::spawn(submitter.run()), handle)
-}
-
-struct ReportValidator<'a>(&'a Validator);
-
-impl<'a> std::fmt::Display for ReportValidator<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{}", self.0.address))
-    }
 }

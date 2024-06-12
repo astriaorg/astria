@@ -57,6 +57,8 @@ sequencer-relayer:
   enabled: true
   config:
     relayer:
+      sequencerChainId: sequencer-test-chain-0
+      celestiaChainId: celestia-local-0
       celestiaAppGrpc: http://celestia-app-service.astria-dev-cluster.svc.cluster.local:9090
       cometbftRpc: http://node0-sequencer-rpc-service.astria-dev-cluster.svc.cluster.local:26657
       sequencerGrpc: http://node0-sequencer-grpc-service.astria-dev-cluster.svc.cluster.local:8080

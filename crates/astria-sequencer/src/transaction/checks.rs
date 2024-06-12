@@ -31,15 +31,12 @@ pub(crate) async fn check_nonce_mempool<S: StateReadExt + 'static>(
     tx: &SignedTransaction,
     state: &S,
 ) -> anyhow::Result<()> {
-    let signer_address = *tx.verification_key().address();
+    let signer_address = crate::astria_address(tx.verification_key().address_bytes());
     let curr_nonce = state
         .get_account_nonce(signer_address)
         .await
         .context("failed to get account nonce")?;
-    ensure!(
-        tx.unsigned_transaction().params.nonce >= curr_nonce,
-        "nonce already used by account"
-    );
+    ensure!(tx.nonce() >= curr_nonce, "nonce already used by account");
     Ok(())
 }
 
@@ -51,10 +48,7 @@ pub(crate) async fn check_chain_id_mempool<S: StateReadExt + 'static>(
         .get_chain_id()
         .await
         .context("failed to get chain id")?;
-    ensure!(
-        tx.unsigned_transaction().params.chain_id == chain_id.as_str(),
-        "chain id mismatch"
-    );
+    ensure!(tx.chain_id() == chain_id.as_str(), "chain id mismatch");
     Ok(())
 }
 
@@ -62,7 +56,7 @@ pub(crate) async fn check_balance_mempool<S: StateReadExt + 'static>(
     tx: &SignedTransaction,
     state: &S,
 ) -> anyhow::Result<()> {
-    let signer_address = *tx.verification_key().address();
+    let signer_address = crate::astria_address(tx.verification_key().address_bytes());
     check_balance_for_total_fees(tx.unsigned_transaction(), signer_address, state).await?;
     Ok(())
 }
@@ -90,6 +84,10 @@ pub(crate) async fn check_balance_for_total_fees<S: StateReadExt + 'static>(
         .get_bridge_lock_byte_cost_multiplier()
         .await
         .context("failed to get bridge lock byte cost multiplier")?;
+    let bridge_sudo_change_fee = state
+        .get_bridge_sudo_change_base_fee()
+        .await
+        .context("failed to get bridge sudo change fee")?;
 
     let mut fees_by_asset = HashMap::new();
     for action in &tx.actions {
@@ -127,7 +125,7 @@ pub(crate) async fn check_balance_for_total_fees<S: StateReadExt + 'static>(
             Action::BridgeUnlock(act) => {
                 bridge_unlock_update_fees(
                     state,
-                    from,
+                    act.bridge_address.unwrap_or(from),
                     act.amount,
                     act.fee_asset_id,
                     &mut fees_by_asset,
@@ -135,13 +133,18 @@ pub(crate) async fn check_balance_for_total_fees<S: StateReadExt + 'static>(
                 )
                 .await?;
             }
+            Action::BridgeSudoChange(act) => {
+                fees_by_asset
+                    .entry(act.fee_asset_id)
+                    .and_modify(|amt| *amt = amt.saturating_add(bridge_sudo_change_fee))
+                    .or_insert(bridge_sudo_change_fee);
+            }
             Action::ValidatorUpdate(_)
             | Action::SudoAddressChange(_)
             | Action::Ibc(_)
             | Action::IbcRelayerChange(_)
             | Action::FeeAssetChange(_)
-            | Action::FeeChange(_)
-            | Action::Mint(_) => {
+            | Action::FeeChange(_) => {
                 continue;
             }
         }
@@ -243,14 +246,14 @@ fn bridge_lock_update_fees(
 
 async fn bridge_unlock_update_fees<S: StateReadExt>(
     state: &S,
-    from: Address,
+    bridge_address: Address,
     amount: u128,
     fee_asset_id: asset::Id,
     fees_by_asset: &mut HashMap<asset::Id, u128>,
     transfer_fee: u128,
 ) -> anyhow::Result<()> {
     let asset_id = state
-        .get_bridge_account_asset_id(&from)
+        .get_bridge_account_asset_id(&bridge_address)
         .await
         .context("must be a bridge account for BridgeUnlock action")?;
     fees_by_asset
@@ -306,10 +309,11 @@ mod test {
         state_tx.put_ics20_withdrawal_base_fee(1).unwrap();
         state_tx.put_init_bridge_account_base_fee(12);
         state_tx.put_bridge_lock_byte_cost_multiplier(1);
+        state_tx.put_bridge_sudo_change_base_fee(24);
 
         crate::asset::initialize_native_asset(DEFAULT_NATIVE_ASSET_DENOM);
         let native_asset = crate::asset::get_native_asset().id();
-        let other_asset = Denom::from_base_denom("other").id();
+        let other_asset = "other".parse::<Denom>().unwrap().id();
 
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
         let amount = 100;
@@ -336,7 +340,7 @@ mod test {
                 asset_id: other_asset,
                 amount,
                 fee_asset_id: native_asset,
-                to: [0; ADDRESS_LEN].into(),
+                to: crate::astria_address([0; ADDRESS_LEN]),
             }),
             Action::Sequence(SequenceAction {
                 rollup_id: RollupId::from_unhashed_bytes([0; 32]),
@@ -345,10 +349,11 @@ mod test {
             }),
         ];
 
-        let params = TransactionParams {
-            nonce: 0,
-            chain_id: "test-chain-id".to_string(),
-        };
+        let params = TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test-chain-id")
+            .try_build()
+            .unwrap();
         let tx = UnsignedTransaction {
             actions,
             params,
@@ -372,10 +377,11 @@ mod test {
         state_tx.put_ics20_withdrawal_base_fee(1).unwrap();
         state_tx.put_init_bridge_account_base_fee(12);
         state_tx.put_bridge_lock_byte_cost_multiplier(1);
+        state_tx.put_bridge_sudo_change_base_fee(24);
 
         crate::asset::initialize_native_asset(DEFAULT_NATIVE_ASSET_DENOM);
         let native_asset = crate::asset::get_native_asset().id();
-        let other_asset = Denom::from_base_denom("other").id();
+        let other_asset = "other".parse::<Denom>().unwrap().id();
 
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
         let amount = 100;
@@ -398,7 +404,7 @@ mod test {
                 asset_id: other_asset,
                 amount,
                 fee_asset_id: native_asset,
-                to: [0; ADDRESS_LEN].into(),
+                to: crate::astria_address([0; ADDRESS_LEN]),
             }),
             Action::Sequence(SequenceAction {
                 rollup_id: RollupId::from_unhashed_bytes([0; 32]),
@@ -407,10 +413,11 @@ mod test {
             }),
         ];
 
-        let params = TransactionParams {
-            nonce: 0,
-            chain_id: "test-chain-id".to_string(),
-        };
+        let params = TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test-chain-id")
+            .try_build()
+            .unwrap();
         let tx = UnsignedTransaction {
             actions,
             params,

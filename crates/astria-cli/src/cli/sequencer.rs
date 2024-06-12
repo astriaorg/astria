@@ -66,7 +66,6 @@ pub enum SudoCommand {
         #[command(subcommand)]
         command: FeeAssetChangeCommand,
     },
-    Mint(MintArgs),
     SudoAddressChange(SudoAddressChangeArgs),
     ValidatorUpdate(ValidatorUpdateArgs),
 }
@@ -255,8 +254,7 @@ impl FromStr for SequencerAddressArg {
             "failed to decode address. address should be 20 bytes long. do not prefix with 0x",
         )?;
         let address =
-            Address::try_from_slice(address_bytes.as_ref()).wrap_err("failed to create address")?;
-
+            crate::try_astria_address(&address_bytes).wrap_err("failed to create address")?;
         Ok(Self(address))
     }
 }
@@ -283,36 +281,6 @@ pub struct BlockHeightGetArgs {
         default_value = crate::cli::DEFAULT_SEQUENCER_CHAIN_ID
     )]
     pub sequencer_chain_id: String,
-}
-
-#[derive(Args, Debug)]
-pub struct MintArgs {
-    // TODO: https://github.com/astriaorg/astria/issues/594
-    // Don't use a plain text private, prefer wrapper like from
-    // the secrecy crate with specialized `Debug` and `Drop` implementations
-    // that overwrite the key on drop and don't reveal it when printing.
-    #[arg(long, env = "SEQUENCER_PRIVATE_KEY")]
-    pub(crate) private_key: String,
-    /// The url of the Sequencer node
-    #[arg(
-        long,
-        env = "SEQUENCER_URL",
-        default_value = crate::cli::DEFAULT_SEQUENCER_RPC
-    )]
-    pub(crate) sequencer_url: String,
-    /// The chain id of the sequencing chain being used
-    #[arg(
-        long = "sequencer.chain-id",
-        env = "ROLLUP_SEQUENCER_CHAIN_ID",
-        default_value = crate::cli::DEFAULT_SEQUENCER_CHAIN_ID
-    )]
-    pub sequencer_chain_id: String,
-    /// The address to mint to
-    #[arg(long)]
-    pub(crate) to_address: SequencerAddressArg,
-    /// The amount to mint
-    #[arg(long)]
-    pub(crate) amount: u128,
 }
 
 #[derive(Args, Debug)]
@@ -381,7 +349,7 @@ mod tests {
     fn test_sequencer_address_arg_from_str_valid() {
         let hex_str = "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0";
         let bytes = hex::decode(hex_str).unwrap();
-        let expected_address = Address::try_from_slice(&bytes).unwrap();
+        let expected_address = crate::try_astria_address(&bytes).unwrap();
 
         let sequencer_address_arg: SequencerAddressArg = hex_str.parse().unwrap();
         assert_eq!(sequencer_address_arg, SequencerAddressArg(expected_address));

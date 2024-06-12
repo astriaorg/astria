@@ -1,6 +1,9 @@
 use astria_core::{
     crypto::SigningKey,
-    primitive::v1::asset,
+    primitive::v1::{
+        asset,
+        asset::default_native_asset,
+    },
     protocol::transaction::v1alpha1::{
         action::{
             Action,
@@ -8,7 +11,6 @@ use astria_core::{
             FeeAssetChangeAction,
             IbcRelayerChangeAction,
             InitBridgeAccountAction,
-            MintAction,
             SudoAddressChangeAction,
             TransferAction,
         },
@@ -40,7 +42,6 @@ use crate::cli::sequencer::{
     FeeAssetChangeArgs,
     IbcRelayerChangeArgs,
     InitBridgeAccountArgs,
-    MintArgs,
     SudoAddressChangeArgs,
     TransferArgs,
     ValidatorUpdateArgs,
@@ -65,8 +66,7 @@ fn get_private_key_pretty(signing_key: &SigningKey) -> String {
 
 /// Get the address from the signing key
 fn get_address_pretty(signing_key: &SigningKey) -> String {
-    let address = *signing_key.verification_key().address();
-    hex::encode(address.to_vec())
+    hex::encode(signing_key.verification_key().address_bytes())
 }
 
 /// Generates a new ED25519 keypair and prints the public key, private key, and address
@@ -175,8 +175,6 @@ pub(crate) async fn get_block_height(args: &BlockHeightGetArgs) -> eyre::Result<
 /// * If the http client cannot be created
 /// * If the latest block height cannot be retrieved
 pub(crate) async fn send_transfer(args: &TransferArgs) -> eyre::Result<()> {
-    use astria_core::primitive::v1::asset::default_native_asset_id;
-
     let res = submit_transaction(
         args.sequencer_url.as_str(),
         args.sequencer_chain_id.clone(),
@@ -184,8 +182,8 @@ pub(crate) async fn send_transfer(args: &TransferArgs) -> eyre::Result<()> {
         Action::Transfer(TransferAction {
             to: args.to_address.0,
             amount: args.amount,
-            asset_id: default_native_asset_id(),
-            fee_asset_id: default_native_asset_id(),
+            asset_id: default_native_asset().id(),
+            fee_asset_id: default_native_asset().id(),
         }),
     )
     .await
@@ -257,10 +255,7 @@ pub(crate) async fn ibc_relayer_remove(args: &IbcRelayerChangeArgs) -> eyre::Res
 /// * If the http client cannot be created
 /// * If the transaction failed to be included
 pub(crate) async fn init_bridge_account(args: &InitBridgeAccountArgs) -> eyre::Result<()> {
-    use astria_core::primitive::v1::{
-        asset::default_native_asset_id,
-        RollupId,
-    };
+    use astria_core::primitive::v1::RollupId;
 
     let rollup_id = RollupId::from_unhashed_bytes(args.rollup_name.as_bytes());
     let res = submit_transaction(
@@ -269,8 +264,10 @@ pub(crate) async fn init_bridge_account(args: &InitBridgeAccountArgs) -> eyre::R
         args.private_key.as_str(),
         Action::InitBridgeAccount(InitBridgeAccountAction {
             rollup_id,
-            asset_id: default_native_asset_id(),
-            fee_asset_id: default_native_asset_id(),
+            asset_id: default_native_asset().id(),
+            fee_asset_id: default_native_asset().id(),
+            sudo_address: None,
+            withdrawer_address: None,
         }),
     )
     .await
@@ -294,17 +291,15 @@ pub(crate) async fn init_bridge_account(args: &InitBridgeAccountArgs) -> eyre::R
 /// * If the http client cannot be created
 /// * If the transaction failed to be included
 pub(crate) async fn bridge_lock(args: &BridgeLockArgs) -> eyre::Result<()> {
-    use astria_core::primitive::v1::asset::default_native_asset_id;
-
     let res = submit_transaction(
         args.sequencer_url.as_str(),
         args.sequencer_chain_id.clone(),
         args.private_key.as_str(),
         Action::BridgeLock(BridgeLockAction {
             to: args.to_address.0,
-            asset_id: default_native_asset_id(),
+            asset_id: default_native_asset().id(),
             amount: args.amount,
-            fee_asset_id: default_native_asset_id(),
+            fee_asset_id: default_native_asset().id(),
             destination_chain_address: args.destination_chain_address.clone(),
         }),
     )
@@ -366,34 +361,6 @@ pub(crate) async fn fee_asset_remove(args: &FeeAssetChangeArgs) -> eyre::Result<
     .wrap_err("failed to submit FeeAssetChangeAction::Removal transaction")?;
 
     println!("FeeAssetChangeAction::Removal completed!");
-    println!("Included in block: {}", res.height);
-    Ok(())
-}
-
-/// Mints native asset to an account
-///
-/// # Arguments
-///
-/// * `args` - The arguments passed to the command
-///
-/// # Errors
-///
-/// * If the http client cannot be created
-/// * If the transaction failed to be submitted
-pub(crate) async fn mint(args: &MintArgs) -> eyre::Result<()> {
-    let res = submit_transaction(
-        args.sequencer_url.as_str(),
-        args.sequencer_chain_id.clone(),
-        args.private_key.as_str(),
-        Action::Mint(MintAction {
-            to: args.to_address.0,
-            amount: args.amount,
-        }),
-    )
-    .await
-    .wrap_err("failed to submit Mint transaction")?;
-
-    println!("Mint completed!");
     println!("Included in block: {}", res.height);
     Ok(())
 }
@@ -474,7 +441,7 @@ async fn submit_transaction(
         .map_err(|_| eyre!("invalid private key length; must be 32 bytes"))?;
     let sequencer_key = SigningKey::from(private_key_bytes);
 
-    let from_address = *sequencer_key.verification_key().address();
+    let from_address = crate::astria_address(sequencer_key.verification_key().address_bytes());
     println!("sending tx from address: {from_address}");
 
     let nonce_res = sequencer_client
@@ -483,10 +450,11 @@ async fn submit_transaction(
         .wrap_err("failed to get nonce")?;
 
     let tx = UnsignedTransaction {
-        params: TransactionParams {
-            nonce: nonce_res.nonce,
-            chain_id,
-        },
+        params: TransactionParams::builder()
+            .nonce(nonce_res.nonce)
+            .chain_id(chain_id)
+            .try_build()
+            .wrap_err("failed to construct transaction params from provided chain ID")?,
         actions: vec![action],
     }
     .into_signed(&sequencer_key);

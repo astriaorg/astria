@@ -62,13 +62,16 @@ impl PartialOrd for TransactionPriority {
 pub(crate) struct EnqueuedTransaction {
     tx_hash: [u8; 32],
     signed_tx: Arc<SignedTransaction>,
+    address: Address,
 }
 
 impl EnqueuedTransaction {
     fn new(signed_tx: SignedTransaction) -> Self {
+        let address = crate::astria_address(signed_tx.verification_key().address_bytes());
         Self {
             tx_hash: signed_tx.sha256_of_proto_encoding(),
             signed_tx: Arc::new(signed_tx),
+            address,
         }
     }
 
@@ -94,7 +97,7 @@ impl EnqueuedTransaction {
     }
 
     pub(crate) fn address(&self) -> &Address {
-        self.signed_tx.verification_key().address()
+        &self.address
     }
 }
 
@@ -175,9 +178,11 @@ impl Mempool {
 
     /// removes a transaction from the mempool
     pub(crate) async fn remove(&self, tx_hash: [u8; 32]) {
+        let (signed_tx, address) = dummy_signed_tx();
         let enqueued_tx = EnqueuedTransaction {
             tx_hash,
-            signed_tx: dummy_signed_tx().clone(),
+            signed_tx,
+            address,
         };
         self.inner.write().await.remove(&enqueued_tx);
     }
@@ -253,21 +258,24 @@ impl Mempool {
 /// this `signed_tx` field is ignored in the `PartialEq` and `Hash` impls of `EnqueuedTransaction` -
 /// only the tx hash is considered.  So we create an `EnqueuedTransaction` on the fly with the
 /// correct tx hash and this dummy signed tx when removing from the queue.
-fn dummy_signed_tx() -> &'static Arc<SignedTransaction> {
-    static TX: OnceLock<Arc<SignedTransaction>> = OnceLock::new();
-    TX.get_or_init(|| {
+fn dummy_signed_tx() -> (Arc<SignedTransaction>, Address) {
+    static TX: OnceLock<(Arc<SignedTransaction>, Address)> = OnceLock::new();
+    let (signed_tx, address) = TX.get_or_init(|| {
         let actions = vec![];
-        let params = TransactionParams {
-            nonce: 0,
-            chain_id: String::new(),
-        };
+        let params = TransactionParams::builder()
+            .nonce(0)
+            .chain_id("dummy")
+            .try_build()
+            .expect("all params are valid");
         let signing_key = SigningKey::from([0; 32]);
+        let address = crate::astria_address(signing_key.verification_key().address_bytes());
         let unsigned_tx = UnsignedTransaction {
             actions,
             params,
         };
-        Arc::new(unsigned_tx.into_signed(&signing_key))
-    })
+        (Arc::new(unsigned_tx.into_signed(&signing_key)), address)
+    });
+    (signed_tx.clone(), *address)
 }
 
 #[cfg(test)]
@@ -346,14 +354,17 @@ mod test {
         let tx0 = EnqueuedTransaction {
             tx_hash: [0; 32],
             signed_tx: Arc::new(get_mock_tx(0)),
+            address: crate::astria_address(get_mock_tx(0).verification_key().address_bytes()),
         };
         let other_tx0 = EnqueuedTransaction {
             tx_hash: [0; 32],
             signed_tx: Arc::new(get_mock_tx(1)),
+            address: crate::astria_address(get_mock_tx(1).verification_key().address_bytes()),
         };
         let tx1 = EnqueuedTransaction {
             tx_hash: [1; 32],
             signed_tx: Arc::new(get_mock_tx(0)),
+            address: crate::astria_address(get_mock_tx(0).verification_key().address_bytes()),
         };
         assert!(tx0 == other_tx0);
         assert!(tx0 != tx1);
@@ -452,10 +463,11 @@ mod test {
         let other_mock_tx = |nonce: u32| -> SignedTransaction {
             let actions = get_mock_tx(0).actions().to_vec();
             UnsignedTransaction {
-                params: TransactionParams {
-                    nonce,
-                    chain_id: "test".to_string(),
-                },
+                params: TransactionParams::builder()
+                    .nonce(nonce)
+                    .chain_id("test")
+                    .try_build()
+                    .unwrap(),
                 actions,
             }
             .into_signed(&other_signing_key)
@@ -467,7 +479,8 @@ mod test {
 
         let (alice_signing_key, alice_address) =
             crate::app::test_utils::get_alice_signing_key_and_address();
-        let other_address = *other_signing_key.verification_key().address();
+        let other_address =
+            crate::astria_address(other_signing_key.verification_key().address_bytes());
 
         // Create a getter fn which will returns 1 for alice's current account nonce, and 101 for
         // the other signer's.
@@ -522,10 +535,11 @@ mod test {
         let other_mock_tx = |nonce: u32| -> SignedTransaction {
             let actions = get_mock_tx(0).actions().to_vec();
             UnsignedTransaction {
-                params: TransactionParams {
-                    nonce,
-                    chain_id: "test".to_string(),
-                },
+                params: TransactionParams::builder()
+                    .nonce(nonce)
+                    .chain_id("test")
+                    .try_build()
+                    .unwrap(),
                 actions,
             }
             .into_signed(&other_signing_key)
@@ -538,15 +552,23 @@ mod test {
         // Check the pending nonce for alice is 1 and for the other signer is 101.
         let alice_address = crate::app::test_utils::get_alice_signing_key_and_address().1;
         assert_eq!(mempool.pending_nonce(&alice_address).await.unwrap(), 1);
-        let other_address = *other_signing_key.verification_key().address();
+        let other_address =
+            crate::astria_address(other_signing_key.verification_key().address_bytes());
         assert_eq!(mempool.pending_nonce(&other_address).await.unwrap(), 101);
 
         // Check the pending nonce for an address with no enqueued txs is `None`.
         assert!(
             mempool
-                .pending_nonce(&Address::from([1; 20]))
+                .pending_nonce(&crate::astria_address([1; 20]))
                 .await
                 .is_none()
         );
+    }
+
+    #[test]
+    fn enqueued_transaction_can_be_instantiated() {
+        // This just tests that the constructor does not fail.
+        let signed_tx = crate::app::test_utils::get_mock_tx(0);
+        let _ = EnqueuedTransaction::new(signed_tx);
     }
 }

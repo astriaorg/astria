@@ -5,7 +5,7 @@ use std::{
 
 use astria_core::{
     primitive::v1::{
-        asset::default_native_asset_id,
+        asset::default_native_asset,
         RollupId,
         FEE_ASSET_ID_LEN,
         ROLLUP_ID_LEN,
@@ -234,13 +234,13 @@ async fn full_bundle() {
     let seq0 = SequenceAction {
         rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
         data: vec![0u8; cfg.max_bytes_per_bundle - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
-        fee_asset_id: default_native_asset_id(),
+        fee_asset_id: default_native_asset().id(),
     };
 
     let seq1 = SequenceAction {
         rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
         data: vec![1u8; 1],
-        fee_asset_id: default_native_asset_id(),
+        fee_asset_id: default_native_asset().id(),
     };
 
     // push both sequence actions to the executor in order to force the full bundle to be sent
@@ -263,7 +263,7 @@ async fn full_bundle() {
 
     // verify only one signed transaction was received by the mock sequencer
     // i.e. only the full bundle was sent and not the second one due to the block timer
-    let expected_seq_actions = vec![seq0];
+    let expected_seq_actions = [seq0];
     let requests = response_guard.received_requests().await;
     assert_eq!(requests.len(), 1);
 
@@ -325,7 +325,7 @@ async fn bundle_triggered_by_block_timer() {
     let seq0 = SequenceAction {
         rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
         data: vec![0u8; cfg.max_bytes_per_bundle / 4],
-        fee_asset_id: default_native_asset_id(),
+        fee_asset_id: default_native_asset().id(),
     };
 
     // make sure at least one block has passed so that the executor will submit the bundle
@@ -347,7 +347,7 @@ async fn bundle_triggered_by_block_timer() {
     .unwrap();
 
     // verify only one signed transaction was received by the mock sequencer
-    let expected_seq_actions = vec![seq0];
+    let expected_seq_actions = [seq0];
     let requests = response_guard.received_requests().await;
     assert_eq!(requests.len(), 1);
 
@@ -409,13 +409,13 @@ async fn two_seq_actions_single_bundle() {
     let seq0 = SequenceAction {
         rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
         data: vec![0u8; cfg.max_bytes_per_bundle / 4],
-        fee_asset_id: default_native_asset_id(),
+        fee_asset_id: default_native_asset().id(),
     };
 
     let seq1 = SequenceAction {
         rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
         data: vec![1u8; cfg.max_bytes_per_bundle / 4],
-        fee_asset_id: default_native_asset_id(),
+        fee_asset_id: default_native_asset().id(),
     };
 
     // make sure at least one block has passed so that the executor will submit the bundle
@@ -441,7 +441,7 @@ async fn two_seq_actions_single_bundle() {
     .unwrap();
 
     // verify only one signed transaction was received by the mock sequencer
-    let expected_seq_actions = vec![seq0, seq1];
+    let expected_seq_actions = [seq0, seq1];
     let requests = response_guard.received_requests().await;
     assert_eq!(requests.len(), 1);
 

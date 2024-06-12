@@ -1,2 +1,4 @@
 crates/astria-core/src/generated/** linguist-generated=true
+crates/astria-bridge-withdrawer/src/withdrawer/ethereum/generated/** linguist-generated=true
+crates/astria-bridge-withdrawer/ethereum/out/** linguist-generated=true
 specs/** linguist-documentation=true

@@ -223,15 +223,15 @@ struct RunningReader {
     /// The next Celestia height that will be fetched.
     celestia_next_height: u64,
 
-    /// The reference Celestia height. celestia_reference_height + celestia_variance = C is the
+    /// The reference Celestia height. `celestia_reference_height` + `celestia_variance` = C is the
     /// maximum Celestia height up to which Celestia's blobs will be fetched.
-    /// celestia_reference_height is initialized to the base Celestia height stored in the
+    /// `celestia_reference_height` is initialized to the base Celestia height stored in the
     /// rollup genesis. It is later advanced to that Celestia height from which the next block
     /// is derived that will be executed against the rollup (only if greater than the current
     /// value; it will never go down).
     celestia_reference_height: u64,
 
-    /// celestia_variance + celestia_reference_height define the maximum Celestia height from
+    /// `celestia_variance` + `celestia_reference_height` define the maximum Celestia height from
     /// Celestia blobs can be fetched. Set once during initialization to the value stored in
     /// the rollup genesis.
     celestia_variance: u64,
@@ -427,6 +427,7 @@ impl RunningReader {
                 rollup_id: self.rollup_id,
                 rollup_namespace: self.rollup_namespace,
                 sequencer_namespace: self.sequencer_namespace,
+                executor: self.executor.clone(),
             };
             self.reconstruction_tasks.spawn(height, task.execute());
             scheduled.push(height);
@@ -498,6 +499,7 @@ struct FetchConvertVerifyAndReconstruct {
     rollup_id: RollupId,
     rollup_namespace: Namespace,
     sequencer_namespace: Namespace,
+    executor: executor::Handle<StateIsInit>,
 }
 
 impl FetchConvertVerifyAndReconstruct {
@@ -514,6 +516,7 @@ impl FetchConvertVerifyAndReconstruct {
             rollup_id,
             rollup_namespace,
             sequencer_namespace,
+            executor,
         } = self;
 
         let new_blobs = fetch_new_blobs(
@@ -585,7 +588,7 @@ impl FetchConvertVerifyAndReconstruct {
             "decoded Sequencer header and rollup info from raw Celestia blobs",
         );
 
-        let verified_blobs = verify_metadata(blob_verifier, decoded_blobs).await;
+        let verified_blobs = verify_metadata(blob_verifier, decoded_blobs, executor).await;
 
         {
             // allow: histograms require f64; precision loss would be no problem
