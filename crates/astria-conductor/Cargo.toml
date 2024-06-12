@@ -57,7 +57,6 @@ async-trait = "0.1.73"
 futures-bounded = "0.2.3"
 http = "0.2.9"
 tokio-stream = "0.1.14"
-tracing-futures = { version = "0.2.5", features = ["futures-03"] }
 moka = { version = "0.12.5", features = ["future"] }
 tower = { version = "0.4.13", features = ["limit"] }
 
