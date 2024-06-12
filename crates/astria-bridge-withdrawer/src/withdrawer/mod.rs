@@ -46,7 +46,7 @@ mod ethereum;
 mod state;
 mod submitter;
 
-pub struct Service {
+pub struct BridgeWithdrawer {
     // Token to signal all subtasks to shut down gracefully.
     shutdown_token: CancellationToken,
     api_server: api::ApiServer,
@@ -55,7 +55,7 @@ pub struct Service {
     state: Arc<State>,
 }
 
-impl Service {
+impl BridgeWithdrawer {
     /// Instantiates a new `Service`.
     ///
     /// # Errors

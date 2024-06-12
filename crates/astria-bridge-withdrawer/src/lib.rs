@@ -8,4 +8,4 @@ pub use build_info::BUILD_INFO;
 pub use config::Config;
 #[cfg(test)]
 pub(crate) use withdrawer::astria_address;
-pub use withdrawer::Service;
+pub use withdrawer::BridgeWithdrawer;
