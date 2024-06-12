@@ -197,13 +197,13 @@ init-rollup-bridge rollupName=defaultRollupName evmDestinationAddress=evm_destin
     --fee-asset-id=$FEE_ASSET_ID --asset-id=$ASSET_ID \
     --json
 
-  astria-go sequencer bridge lock \
-    $TRANSFER_AMOUNT $SEQUENCER_BRIDGE_ADDRESS {{evmDestinationAddress}} \
-    --privkey $SEQUENCER_FUNDS_PKEY \
-    --sequencer-chain-id $SEQUENCER_CHAIN_ID \
-    --sequencer-url {{sequencer_rpc_url}} \
-    --fee-asset-id=$FEE_ASSET_ID --asset-id=$ASSET_ID \
-    --json
+#  astria-go sequencer bridge lock \
+#    $TRANSFER_AMOUNT $SEQUENCER_BRIDGE_ADDRESS {{evmDestinationAddress}} \
+#    --privkey $SEQUENCER_FUNDS_PKEY \
+#    --sequencer-chain-id $SEQUENCER_CHAIN_ID \
+#    --sequencer-url {{sequencer_rpc_url}} \
+#    --fee-asset-id=$FEE_ASSET_ID --asset-id=$ASSET_ID \
+#    --json
 
 
 eth_rpc_url := "http://executor.astria.localdev.me/"

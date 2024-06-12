@@ -27,6 +27,7 @@ config:
       - address: 00d75b270542084a54fcf0d0f6eab0402982d156
         balance: "340282366920938463463374607431768211455"
         # This account is used for bridge in smoke test.
+        # Bech32m equivalent: astria13ahqz4pjqfmynk9ylrqv4fwe4957x2p0h5782u
       - address: 8f6e015432027649d8a4f8c0caa5d9a969e3282f
         balance: "48"
     cometBFT:

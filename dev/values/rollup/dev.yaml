@@ -84,6 +84,8 @@ config:
     token: "http://celestia-service.astria-dev-cluster.svc.cluster.local:5353"
     initialBlockHeight: "2"
     heightVariance: "10"
+  blockscout:
+    enabled: true
 
 resources:
   conductor:

@@ -3,6 +3,8 @@ use astria_core::{
     primitive::v1::{
         asset,
         asset::default_native_asset,
+        Address,
+        ASTRIA_ADDRESS_PREFIX,
     },
     protocol::transaction::v1alpha1::{
         action::{
@@ -74,6 +76,11 @@ pub(crate) fn create_account() {
     let signing_key = get_new_signing_key();
     let public_key_pretty = get_public_key_pretty(&signing_key);
     let private_key_pretty = get_private_key_pretty(&signing_key);
+    let astria_address = Address::builder()
+        .array(signing_key.verification_key().address_bytes())
+        .prefix(ASTRIA_ADDRESS_PREFIX)
+        .try_build()
+        .unwrap();
     let address_pretty = get_address_pretty(&signing_key);
 
     println!("Create Sequencer Account");
@@ -82,7 +89,8 @@ pub(crate) fn create_account() {
     // https://github.com/astriaorg/astria/issues/594
     println!("Private Key: {private_key_pretty:?}");
     println!("Public Key:  {public_key_pretty:?}");
-    println!("Address:     {address_pretty:?}");
+    println!("Address:     \"{astria_address}\"");
+    println!("Address ugly: {address_pretty:?}");
 }
 
 /// Gets the balance of a Sequencer account
