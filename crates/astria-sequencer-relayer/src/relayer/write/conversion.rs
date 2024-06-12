@@ -449,7 +449,7 @@ where
         .serialize(serializer)
 }
 
-fn serialize_sequencer_heights<'a, I: 'a, S>(heights: I, serializer: S) -> Result<S::Ok, S::Error>
+fn serialize_sequencer_heights<'a, I, S>(heights: I, serializer: S) -> Result<S::Ok, S::Error>
 where
     I: IntoIterator<Item = &'a SequencerHeight>,
     S: serde::ser::Serializer,
@@ -457,7 +457,7 @@ where
     serializer.collect_seq(heights.into_iter().map(tendermint::block::Height::value))
 }
 
-fn serialize_included_rollups<'a, I: 'a, S>(rollups: I, serializer: S) -> Result<S::Ok, S::Error>
+fn serialize_included_rollups<'a, I, S>(rollups: I, serializer: S) -> Result<S::Ok, S::Error>
 where
     I: IntoIterator<Item = (&'a RollupId, &'a Namespace)>,
     S: serde::ser::Serializer,

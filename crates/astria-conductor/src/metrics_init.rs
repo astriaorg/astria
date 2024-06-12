@@ -7,7 +7,7 @@ use metrics::{
     describe_histogram,
     Unit,
 };
-use telemetry::metric_name;
+use telemetry::metric_names;
 
 pub(crate) const NAMESPACE_TYPE_LABEL: &str = "namespace_type";
 pub(crate) const NAMESPACE_TYPE_METADATA: &str = "metadata";
@@ -59,15 +59,17 @@ pub fn register() {
     );
 }
 
-metric_name!(pub const BLOBS_PER_CELESTIA_FETCH);
-metric_name!(pub const CELESTIA_BLOB_FETCH_ERROR_COUNT);
-metric_name!(pub const DECODED_ITEMS_PER_CELESTIA_FETCH);
-metric_name!(pub const SEQUENCER_BLOCKS_METADATA_VERIFIED_PER_CELESTIA_FETCH);
-metric_name!(pub const SEQUENCER_BLOCK_INFORMATION_RECONSTRUCTED_PER_CELESTIA_FETCH);
+metric_names!(pub const METRICS_NAMES:
+    BLOBS_PER_CELESTIA_FETCH,
+    CELESTIA_BLOB_FETCH_ERROR_COUNT,
+    DECODED_ITEMS_PER_CELESTIA_FETCH,
+    SEQUENCER_BLOCKS_METADATA_VERIFIED_PER_CELESTIA_FETCH,
+    SEQUENCER_BLOCK_INFORMATION_RECONSTRUCTED_PER_CELESTIA_FETCH,
 
-metric_name!(pub const EXECUTED_FIRM_BLOCK_NUMBER);
-metric_name!(pub const EXECUTED_SOFT_BLOCK_NUMBER);
-metric_name!(pub const TRANSACTIONS_PER_EXECUTED_BLOCK);
+    EXECUTED_FIRM_BLOCK_NUMBER,
+    EXECUTED_SOFT_BLOCK_NUMBER,
+    TRANSACTIONS_PER_EXECUTED_BLOCK
+);
 
 #[cfg(test)]
 mod tests {

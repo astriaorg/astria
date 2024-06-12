@@ -24,7 +24,7 @@ use crate::{
     },
 };
 
-pub(crate) fn are_rollup_ids_included<'a, TRollupIds: 'a>(
+pub(crate) fn are_rollup_ids_included<TRollupIds>(
     ids: TRollupIds,
     proof: &merkle::Proof,
     data_hash: [u8; 32],

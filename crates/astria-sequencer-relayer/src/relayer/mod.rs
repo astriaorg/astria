@@ -45,7 +45,6 @@ use tonic::transport::Channel;
 use tracing::{
     debug,
     error,
-    field::DisplayValue,
     info,
     instrument,
     trace,
@@ -54,10 +53,7 @@ use tracing::{
     Span,
 };
 
-use crate::{
-    validator::Validator,
-    IncludeRollup,
-};
+use crate::IncludeRollup;
 
 mod builder;
 mod celestia_client;
@@ -96,9 +92,6 @@ pub(crate) struct Relayer {
 
     /// The gRPC client for submitting sequencer blocks to celestia.
     celestia_client_builder: CelestiaClientBuilder,
-
-    /// If this is set, only relay blocks to DA which are proposed by the same validator key.
-    validator: Option<Validator>,
 
     /// The rollups whose data should be included in submissions.
     rollup_filter: IncludeRollup,
@@ -245,19 +238,6 @@ impl Relayer {
         reason.map(|_| ())
     }
 
-    fn report_validator(&self) -> Option<DisplayValue<ReportValidator<'_>>> {
-        self.validator
-            .as_ref()
-            .map(ReportValidator)
-            .map(tracing::field::display)
-    }
-
-    fn block_does_not_match_validator(&self, block: &SequencerBlock) -> bool {
-        self.validator
-            .as_ref()
-            .is_some_and(|val| &val.address != block.header().proposer_address())
-    }
-
     #[instrument(skip_all, fields(%height))]
     fn forward_block_for_submission(
         &self,
@@ -275,14 +255,6 @@ impl Relayer {
              congested and this future is in-flight",
         );
 
-        if self.block_does_not_match_validator(&block) {
-            info!(
-                address.validator = self.report_validator(),
-                address.block_proposer = %block.header().proposer_address(),
-                "block proposer does not match internal validator; dropping",
-            );
-            return Ok(());
-        }
         if let Err(error) = submitter.try_send(block) {
             debug!(
                 // Just print the error directly: TrySendError has no cause chain.
@@ -394,12 +366,4 @@ fn spawn_submitter(
         shutdown_token,
     );
     (tokio::spawn(submitter.run()), handle)
-}
-
-struct ReportValidator<'a>(&'a Validator);
-
-impl<'a> std::fmt::Display for ReportValidator<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{}", self.0.address))
-    }
 }
