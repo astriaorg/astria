@@ -36,7 +36,7 @@ config:
       # Configure the sequencer bridge addresses and allowed assets if using
       # the astria canonical bridge. Recommend removing alloc values if so.
       bridgeAddresses:
-        - address: "astria13ahqz4pjqfmynk9ylrqv4fwe4957x2p0h5782u"
+        - bridgeAddress: "astria13ahqz4pjqfmynk9ylrqv4fwe4957x2p0h5782u"
           startHeight: 1
           assetDenom: "nria"
           assetPrecision: 9
