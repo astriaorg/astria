@@ -236,9 +236,18 @@ mod tests {
         let raw = raw::AllowedFeeAssetIdsResponse {
             height: 42,
             fee_asset_ids: vec![
-                asset::Id::from_str_unchecked("asset_0").get().to_vec().into(),
-                asset::Id::from_str_unchecked("asset_1").get().to_vec().into(),
-                asset::Id::from_str_unchecked("asset_2").get().to_vec().into(),
+                asset::Id::from_str_unchecked("asset_0")
+                    .get()
+                    .to_vec()
+                    .into(),
+                asset::Id::from_str_unchecked("asset_1")
+                    .get()
+                    .to_vec()
+                    .into(),
+                asset::Id::from_str_unchecked("asset_2")
+                    .get()
+                    .to_vec()
+                    .into(),
             ],
         };
         let expected = AllowedFeeAssetIdsResponse {
@@ -266,9 +275,18 @@ mod tests {
         let expected = raw::AllowedFeeAssetIdsResponse {
             height: 42,
             fee_asset_ids: vec![
-                asset::Id::from_str_unchecked("asset_0").get().to_vec().into(),
-                asset::Id::from_str_unchecked("asset_1").get().to_vec().into(),
-                asset::Id::from_str_unchecked("asset_2").get().to_vec().into(),
+                asset::Id::from_str_unchecked("asset_0")
+                    .get()
+                    .to_vec()
+                    .into(),
+                asset::Id::from_str_unchecked("asset_1")
+                    .get()
+                    .to_vec()
+                    .into(),
+                asset::Id::from_str_unchecked("asset_2")
+                    .get()
+                    .to_vec()
+                    .into(),
             ],
         };
         let actual = native.into_raw();
