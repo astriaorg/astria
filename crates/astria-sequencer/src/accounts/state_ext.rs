@@ -544,7 +544,7 @@ mod test {
         asset::state_ext::StateWriteExt::put_ibc_asset(
             &mut state,
             asset_0,
-            &default_native_asset().unwrap_trace(),
+            &default_native_asset().unwrap_trace_prefixed(),
         )
         .expect("should be able to call other trait method on state object");
         asset::state_ext::StateWriteExt::put_ibc_asset(

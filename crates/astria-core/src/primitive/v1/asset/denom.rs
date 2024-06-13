@@ -59,7 +59,7 @@ impl Denom {
     #[must_use]
     pub fn unwrap_ibc_prefixed(self) -> IbcPrefixed {
         let Self::IbcPrefixed(ibc) = self else {
-            panic!("not ibc");
+            panic!("not ibc prefixed");
         };
         ibc
     }
@@ -69,9 +69,9 @@ impl Denom {
     /// # Panics
     /// Panics if the self value equals [`Self::IbcPrefixed`].
     #[must_use]
-    pub fn unwrap_trace(self) -> TracePrefixed {
+    pub fn unwrap_trace_prefixed(self) -> TracePrefixed {
         let Self::TracePrefixed(trace) = self else {
-            panic!("not trace");
+            panic!("not trace prefixed");
         };
         trace
     }

@@ -676,7 +676,7 @@ mod test {
         let mut state_tx = StateDelta::new(snapshot.clone());
 
         let packet_denom = "asset".parse::<Denom>().unwrap();
-        let expected = packet_denom.clone().unwrap_trace();
+        let expected = packet_denom.clone().unwrap_trace_prefixed();
         let denom = convert_denomination_if_ibc_prefixed(&mut state_tx, packet_denom)
             .await
             .unwrap();
