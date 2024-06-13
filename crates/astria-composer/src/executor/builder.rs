@@ -14,11 +14,9 @@ use astria_core::{
 };
 use astria_eyre::eyre::{
     self,
-    ensure,
     eyre,
     Context,
 };
-use sequencer_client::tendermint_rpc::Client;
 use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 
@@ -38,7 +36,7 @@ pub(crate) struct Builder {
 }
 
 impl Builder {
-    pub(crate) async fn build(self) -> eyre::Result<(super::Executor, executor::Handle)> {
+    pub(crate) fn build(self) -> eyre::Result<(super::Executor, executor::Handle)> {
         let Self {
             sequencer_url,
             sequencer_chain_id,
@@ -50,17 +48,6 @@ impl Builder {
         } = self;
         let sequencer_client = sequencer_client::HttpClient::new(sequencer_url.as_str())
             .wrap_err("failed constructing sequencer client")?;
-
-        let client_response = sequencer_client
-            .status()
-            .await
-            .wrap_err("failed to retrieve sequencer network status")?;
-        let client_chain_id = client_response.node_info.network.to_string();
-        ensure!(
-            sequencer_chain_id == client_chain_id,
-            "mismatch in sequencer_chain_id: {sequencer_chain_id} and client chain_id: \
-             {client_chain_id}"
-        );
 
         let (status, _) = watch::channel(Status::new());
 

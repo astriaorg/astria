@@ -24,6 +24,7 @@ use astria_core::{
 };
 use astria_eyre::eyre::{
     self,
+    ensure,
     eyre,
     WrapErr as _,
 };
@@ -40,7 +41,10 @@ use futures::{
 use pin_project_lite::pin_project;
 use prost::Message as _;
 use sequencer_client::{
-    tendermint_rpc::endpoint::broadcast::tx_sync,
+    tendermint_rpc::{
+        endpoint::broadcast::tx_sync,
+        Client,
+    },
     Address,
     SequencerClientExt as _,
 };
@@ -192,6 +196,10 @@ impl Executor {
     /// An error is returned if connecting to the sequencer fails.
     #[instrument(skip_all, fields(address = %self.address))]
     pub(super) async fn run_until_stopped(mut self) -> eyre::Result<()> {
+        let _chain_id_result = self
+            .check_chain_ids()
+            .await
+            .wrap_err("failed chain_id check");
         let mut submission_fut: Fuse<Instrumented<SubmitFut>> = Fuse::terminated();
         let mut nonce = get_latest_nonce(self.sequencer_client.clone(), self.address)
             .await
@@ -414,6 +422,23 @@ impl Executor {
         }
 
         reason.map(|_| ())
+    }
+
+    // check for mismatched configured chain_id and sequencer client chain_id
+    pub(crate) async fn check_chain_ids(&self) -> eyre::Result<()> {
+        let client_response = self
+            .sequencer_client
+            .status()
+            .await
+            .wrap_err("failed to retrieve sequencer network status")?;
+        let client_chain_id = client_response.node_info.network.to_string();
+        let configured_chain_id = self.sequencer_chain_id.clone();
+        ensure!(
+            configured_chain_id == client_chain_id,
+            "mismatch in configured chain_id: {configured_chain_id} and sequencer chain_id: \
+             {client_chain_id}"
+        );
+        Ok(())
     }
 }
 

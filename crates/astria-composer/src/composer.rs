@@ -127,7 +127,6 @@ impl Composer {
             shutdown_token: shutdown_token.clone(),
         }
         .build()
-        .await
         .wrap_err("executor construction from config failed")?;
 
         let grpc_server = grpc::Builder {
