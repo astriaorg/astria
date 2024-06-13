@@ -69,7 +69,7 @@ use super::{
     state,
     SequencerStartupInfo,
 };
-use crate::withdrawer::ethereum::convert::BridgeUnlockMemo;
+use crate::bridge_withdrawer::ethereum::convert::BridgeUnlockMemo;
 
 mod builder;
 mod signer;

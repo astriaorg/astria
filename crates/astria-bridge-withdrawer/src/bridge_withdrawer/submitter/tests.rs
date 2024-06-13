@@ -81,7 +81,7 @@ use wiremock::{
 };
 
 use super::Submitter;
-use crate::withdrawer::{
+use crate::bridge_withdrawer::{
     batch::Batch,
     ethereum::convert::BridgeUnlockMemo,
     state,

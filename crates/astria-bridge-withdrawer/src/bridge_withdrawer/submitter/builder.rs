@@ -13,7 +13,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::info;
 
 use super::state::State;
-use crate::withdrawer::{
+use crate::bridge_withdrawer::{
     submitter::Batch,
     SequencerStartupInfo,
 };
