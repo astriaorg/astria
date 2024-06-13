@@ -4,6 +4,7 @@ use astria_core::primitive::v1::{
 };
 use penumbra_ibc::params::IBCParameters;
 use serde::{
+    de::Error as _,
     Deserialize,
     Deserializer,
 };
@@ -32,6 +33,7 @@ pub(crate) struct Fees {
     pub(crate) sequence_byte_cost_multiplier: u128,
     pub(crate) init_bridge_account_base_fee: u128,
     pub(crate) bridge_lock_byte_cost_multiplier: u128,
+    pub(crate) bridge_sudo_change_fee: u128,
     pub(crate) ics20_withdrawal_base_fee: u128,
 }
 
@@ -48,15 +50,14 @@ where
 {
     use serde::de::Error as _;
     let bytes: Vec<u8> = hex::serde::deserialize(deserializer)?;
-    Address::try_from_slice(&bytes)
-        .map_err(|e| D::Error::custom(format!("failed constructing address from bytes: {e}")))
+    crate::try_astria_address(&bytes)
+        .map_err(|e| D::Error::custom(format!("failed constructing address from bytes: {e:?}")))
 }
 
 fn deserialize_addresses<'de, D>(deserializer: D) -> Result<Vec<Address>, D::Error>
 where
     D: Deserializer<'de>,
 {
-    use serde::de::Error as _;
     let address_strings = serde_json::Value::deserialize(deserializer)?;
     let address_strings = address_strings
         .as_array()
@@ -68,8 +69,8 @@ where
             let s = s.as_str().ok_or(D::Error::custom("expected string"))?;
             let bytes: Vec<u8> = hex::decode(s)
                 .map_err(|e| D::Error::custom(format!("failed decoding hex string: {e}")))?;
-            Address::try_from_slice(&bytes).map_err(|e| {
-                D::Error::custom(format!("failed constructing address from bytes: {e}"))
+            crate::try_astria_address(&bytes).map_err(|e| {
+                D::Error::custom(format!("failed constructing address from bytes: {e:?}"))
             })
         })
         .collect()
@@ -80,7 +81,11 @@ where
     D: Deserializer<'de>,
 {
     let strings: Vec<String> = serde::Deserialize::deserialize(deserializer)?;
-    Ok(strings.into_iter().map(asset::Denom::from).collect())
+    strings
+        .iter()
+        .map(|s| s.parse())
+        .collect::<Result<_, _>>()
+        .map_err(|e| D::Error::custom(format!("failed parsing asset: {e:?}")))
 }
 
 #[cfg(test)]
@@ -118,6 +123,7 @@ mod test {
                 "sequence_byte_cost_multiplier": 1,
                 "init_bridge_account_base_fee": 48,
                 "bridge_lock_byte_cost_multiplier": 1,
+                "bridge_sudo_change_fee": 24,
                 "ics20_withdrawal_base_fee": 24
             },
             "native_asset_base_denomination": "nria",

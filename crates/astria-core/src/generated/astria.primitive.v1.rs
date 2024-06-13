@@ -81,13 +81,24 @@ impl ::prost::Name for RollupId {
 }
 /// An Astria `Address`.
 ///
-/// Astria addresses are derived from the ed25519 public key,
-/// using the first 20 bytes of the sha256 hash.
+/// Astria addresses are bech32m encoded strings, with the data part being the
+/// first 20 entries of a sha256-hashed ed25519 public key.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Address {
+    /// The first 20 bytes of a sha256-hashed ed25519 public key.
+    /// Implementors must avoid setting this field in favor of `bech32m`.
+    /// Implementors must not accept both `inner` and `bech32m` being set.
+    /// DEPRECATED: this field is deprecated and only exists for backward compatibility.
+    /// Astria services assume an implicit prefix of "astria" if this field is set.
+    /// Astria services will read this field but will never emit it.
+    #[deprecated]
     #[prost(bytes = "bytes", tag = "1")]
     pub inner: ::prost::bytes::Bytes,
+    /// A bech32m encoded string. The data are the first 20 bytes of a sha256-hashed ed25519
+    /// public key. Implementors must not accept both the `bytes` and `bech32m` being set.
+    #[prost(string, tag = "2")]
+    pub bech32m: ::prost::alloc::string::String,
 }
 impl ::prost::Name for Address {
     const NAME: &'static str = "Address";

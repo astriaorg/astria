@@ -2,7 +2,7 @@
 name = "astria-bridge-withdrawer"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.73"
+rust-version = "1.76"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
 repository = "https://github.com/astriaorg/astria"
@@ -22,6 +22,7 @@ hyper = { workspace = true }
 humantime = { workspace = true }
 ibc-types = { workspace = true }
 metrics = { workspace = true }
+once_cell = { workspace = true }
 pin-project-lite = { workspace = true }
 prost = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
@@ -46,10 +47,13 @@ telemetry = { package = "astria-telemetry", path = "../astria-telemetry", featur
 
 [dev-dependencies]
 astria-core = { path = "../astria-core", features = ["server", "test-utils"] }
-astria-grpc-mock = { path = "../astria-grpc-mock" }
 config = { package = "astria-config", path = "../astria-config", features = [
   "tests",
 ] }
+tempfile = { workspace = true }
+tendermint-rpc = { workspace = true }
+wiremock = { workspace = true }
 
 [build-dependencies]
 astria-build-info = { path = "../astria-build-info", features = ["build"] }
+ethers = { workspace = true }

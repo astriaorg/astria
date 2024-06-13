@@ -16,7 +16,7 @@ use metrics::{
     Histogram,
     Unit,
 };
-use telemetry::metric_name;
+use telemetry::metric_names;
 use tracing::error;
 
 const ROLLUP_CHAIN_NAME_LABEL: &str = "rollup_chain_name";
@@ -280,17 +280,19 @@ fn register_txs_dropped_too_large<'a>(
     counters
 }
 
-metric_name!(const TRANSACTIONS_RECEIVED);
-metric_name!(const TRANSACTIONS_DROPPED);
-metric_name!(const TRANSACTIONS_DROPPED_TOO_LARGE);
-metric_name!(const NONCE_FETCH_COUNT);
-metric_name!(const NONCE_FETCH_FAILURE_COUNT);
-metric_name!(const NONCE_FETCH_LATENCY);
-metric_name!(const CURRENT_NONCE);
-metric_name!(const SEQUENCER_SUBMISSION_LATENCY);
-metric_name!(const SEQUENCER_SUBMISSION_FAILURE_COUNT);
-metric_name!(const TRANSACTIONS_PER_SUBMISSION);
-metric_name!(const BYTES_PER_SUBMISSION);
+metric_names!(pub const METRICS_NAMES:
+    TRANSACTIONS_RECEIVED,
+    TRANSACTIONS_DROPPED,
+    TRANSACTIONS_DROPPED_TOO_LARGE,
+    NONCE_FETCH_COUNT,
+    NONCE_FETCH_FAILURE_COUNT,
+    NONCE_FETCH_LATENCY,
+    CURRENT_NONCE,
+    SEQUENCER_SUBMISSION_LATENCY,
+    SEQUENCER_SUBMISSION_FAILURE_COUNT,
+    TRANSACTIONS_PER_SUBMISSION,
+    BYTES_PER_SUBMISSION
+);
 
 #[cfg(test)]
 mod tests {

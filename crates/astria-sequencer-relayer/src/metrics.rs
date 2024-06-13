@@ -12,7 +12,7 @@ use metrics::{
     Histogram,
     Unit,
 };
-use telemetry::metric_name;
+use telemetry::metric_names;
 
 pub(crate) struct Metrics {
     celestia_submission_height: Counter,
@@ -190,18 +190,20 @@ impl Metrics {
     }
 }
 
-metric_name!(pub const CELESTIA_SUBMISSION_HEIGHT);
-metric_name!(pub const CELESTIA_SUBMISSION_COUNT);
-metric_name!(pub const CELESTIA_SUBMISSION_FAILURE_COUNT);
-metric_name!(pub const BLOCKS_PER_CELESTIA_TX);
-metric_name!(pub const BLOBS_PER_CELESTIA_TX);
-metric_name!(pub const BYTES_PER_CELESTIA_TX);
-metric_name!(pub const CELESTIA_PAYLOAD_CREATION_LATENCY);
-metric_name!(pub const CELESTIA_SUBMISSION_LATENCY);
-metric_name!(pub const SEQUENCER_BLOCK_FETCH_FAILURE_COUNT);
-metric_name!(pub const SEQUENCER_HEIGHT_FETCH_FAILURE_COUNT);
-metric_name!(pub const SEQUENCER_SUBMISSION_HEIGHT);
-metric_name!(pub const COMPRESSION_RATIO_FOR_ASTRIA_BLOCK);
+metric_names!(pub const METRICS_NAMES:
+    CELESTIA_SUBMISSION_HEIGHT,
+    CELESTIA_SUBMISSION_COUNT,
+    CELESTIA_SUBMISSION_FAILURE_COUNT,
+    BLOCKS_PER_CELESTIA_TX,
+    BLOBS_PER_CELESTIA_TX,
+    BYTES_PER_CELESTIA_TX,
+    CELESTIA_PAYLOAD_CREATION_LATENCY,
+    CELESTIA_SUBMISSION_LATENCY,
+    SEQUENCER_BLOCK_FETCH_FAILURE_COUNT,
+    SEQUENCER_HEIGHT_FETCH_FAILURE_COUNT,
+    SEQUENCER_SUBMISSION_HEIGHT,
+    COMPRESSION_RATIO_FOR_ASTRIA_BLOCK
+);
 
 #[cfg(test)]
 mod tests {

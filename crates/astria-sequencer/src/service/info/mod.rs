@@ -58,6 +58,18 @@ impl Info {
         query_router
             .insert("asset/denom/:id", crate::asset::query::denom_request)
             .context("invalid path: `asset/denom/:id`")?;
+        query_router
+            .insert(
+                "asset/allowed_fee_asset_ids",
+                crate::asset::query::allowed_fee_asset_ids_request,
+            )
+            .context("invalid path: `asset/allowed_fee_asset_ids`")?;
+        query_router
+            .insert(
+                "bridge/account_last_tx_hash/:address",
+                crate::bridge::query::bridge_account_last_tx_hash_request,
+            )
+            .context("invalid path: `bridge/account_last_tx_hash/:address`")?;
         Ok(Self {
             storage,
             query_router,
@@ -148,12 +160,16 @@ impl Service<InfoRequest> for Info {
 
 #[cfg(test)]
 mod test {
-    use astria_core::primitive::v1::{
-        asset::{
+    use astria_core::{
+        primitive::v1::asset::{
+            self,
             Denom,
             DEFAULT_NATIVE_ASSET_DENOM,
         },
-        Address,
+        protocol::{
+            account::v1alpha1::BalanceResponse,
+            asset::v1alpha1::DenomResponse,
+        },
     };
     use cnidarium::StateDelta;
     use prost::Message as _;
@@ -171,7 +187,10 @@ mod test {
             initialize_native_asset,
             state_ext::StateWriteExt,
         },
-        state_ext::StateWriteExt as _,
+        state_ext::{
+            StateReadExt,
+            StateWriteExt as _,
+        },
     };
 
     #[tokio::test]
@@ -191,7 +210,7 @@ mod test {
 
         initialize_native_asset(DEFAULT_NATIVE_ASSET_DENOM);
 
-        let address = Address::try_from_slice(
+        let address = crate::try_astria_address(
             &hex::decode("a034c743bed8f26cb8ee7b8db2230fd8347ae131").unwrap(),
         )
         .unwrap();
@@ -229,9 +248,10 @@ mod test {
             balance,
         };
 
-        let balance_resp = raw::BalanceResponse::decode(query_response.value)
-            .unwrap()
-            .to_native();
+        let balance_resp = BalanceResponse::try_from_raw(
+            &raw::BalanceResponse::decode(query_response.value).unwrap(),
+        )
+        .unwrap();
         assert_eq!(balance_resp.balances.len(), 1);
         assert_eq!(balance_resp.balances[0], expected_balance);
         assert_eq!(balance_resp.height, height);
@@ -244,7 +264,7 @@ mod test {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let mut state = StateDelta::new(storage.latest_snapshot());
 
-        let denom: Denom = "some/ibc/asset".to_string().into();
+        let denom = "some/ibc/asset".parse::<Denom>().unwrap();
         let id = denom.id();
         let height = 99;
         state.put_block_height(height);
@@ -272,10 +292,72 @@ mod test {
         };
         assert!(query_response.code.is_ok());
 
-        let denom_resp = raw::DenomResponse::decode(query_response.value)
-            .unwrap()
-            .to_native();
+        let denom_resp =
+            DenomResponse::try_from_raw(&raw::DenomResponse::decode(query_response.value).unwrap())
+                .unwrap();
         assert_eq!(denom_resp.height, height);
         assert_eq!(denom_resp.denom, denom);
+    }
+
+    #[tokio::test]
+    async fn handle_allowed_fee_asset_ids_query() {
+        use astria_core::generated::protocol::asset::v1alpha1 as raw;
+
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let mut state = StateDelta::new(storage.latest_snapshot());
+
+        let asset_ids = vec![
+            asset::Id::from_denom("asset_0"),
+            asset::Id::from_denom("asset_1"),
+            asset::Id::from_denom("asset_2"),
+        ];
+        let height = 99;
+
+        for &asset_id in &asset_ids {
+            state.put_allowed_fee_asset(asset_id);
+            assert!(
+                state
+                    .is_allowed_fee_asset(asset_id)
+                    .await
+                    .expect("checking for allowed fee asset should not fail"),
+                "fee asset was expected to be allowed"
+            );
+        }
+        state.put_block_height(height);
+        storage.commit(state).await.unwrap();
+
+        let info_request = InfoRequest::Query(request::Query {
+            path: "asset/allowed_fee_asset_ids".to_string(),
+            data: vec![].into(),
+            height: u32::try_from(height).unwrap().into(),
+            prove: false,
+        });
+
+        let response = {
+            let storage = (*storage).clone();
+            let info_service = Info::new(storage).unwrap();
+            info_service
+                .handle_info_request(info_request)
+                .await
+                .unwrap()
+        };
+        let query_response = match response {
+            InfoResponse::Query(query) => query,
+            other => panic!("expected InfoResponse::Query, got {other:?}"),
+        };
+        assert!(query_response.code.is_ok());
+
+        let allowed_fee_assets_resp = raw::AllowedFeeAssetIdsResponse::decode(query_response.value)
+            .unwrap()
+            .try_to_native()
+            .unwrap();
+        assert_eq!(allowed_fee_assets_resp.height, height);
+        assert_eq!(allowed_fee_assets_resp.fee_asset_ids.len(), asset_ids.len());
+        for asset_id in asset_ids {
+            assert!(
+                allowed_fee_assets_resp.fee_asset_ids.contains(&asset_id),
+                "expected asset_id to be in allowed fee assets"
+            );
+        }
     }
 }

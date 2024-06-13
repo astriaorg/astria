@@ -1,8 +1,13 @@
 use astria_core::{
     crypto::SigningKey,
+    generated::protocol::asset::v1alpha1::AllowedFeeAssetIdsResponse,
     primitive::v1::{
-        asset::default_native_asset_id,
+        asset::{
+            self,
+            default_native_asset,
+        },
         Address,
+        ASTRIA_ADDRESS_PREFIX,
     },
     protocol::transaction::v1alpha1::{
         action::TransferAction,
@@ -39,8 +44,23 @@ use crate::{
     SequencerClientExt as _,
 };
 
-const ALICE_ADDRESS: [u8; 20] = hex!("1c0c490f1b5528d8173c5de46d131160e4b2c0c3");
-const BOB_ADDRESS: Address = Address::from_array(hex!("34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a"));
+const ALICE_ADDRESS_BYTES: [u8; 20] = hex!("1c0c490f1b5528d8173c5de46d131160e4b2c0c3");
+const BOB_ADDRESS_BYTES: [u8; 20] = hex!("34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a");
+
+fn alice_address() -> Address {
+    Address::builder()
+        .array(ALICE_ADDRESS_BYTES)
+        .prefix(ASTRIA_ADDRESS_PREFIX)
+        .try_build()
+        .unwrap()
+}
+fn bob_address() -> Address {
+    Address::builder()
+        .array(BOB_ADDRESS_BYTES)
+        .prefix(ASTRIA_ADDRESS_PREFIX)
+        .try_build()
+        .unwrap()
+}
 
 struct MockSequencer {
     server: MockServer,
@@ -130,18 +150,19 @@ fn create_signed_transaction() -> SignedTransaction {
 
     let actions = vec![
         TransferAction {
-            to: BOB_ADDRESS,
+            to: bob_address(),
             amount: 333_333,
-            asset_id: default_native_asset_id(),
-            fee_asset_id: default_native_asset_id(),
+            asset_id: default_native_asset().id(),
+            fee_asset_id: default_native_asset().id(),
         }
         .into(),
     ];
     UnsignedTransaction {
-        params: TransactionParams {
-            nonce: 1,
-            chain_id: "test".to_string(),
-        },
+        params: TransactionParams::builder()
+            .nonce(1)
+            .chain_id("test")
+            .try_build()
+            .unwrap(),
         actions,
     }
     .into_signed(&alice_key)
@@ -163,7 +184,7 @@ async fn get_latest_nonce() {
         register_abci_query_response(&server, "accounts/nonce/", expected_response.clone()).await;
 
     let actual_response = client
-        .get_latest_nonce(ALICE_ADDRESS)
+        .get_latest_nonce(alice_address())
         .await
         .unwrap()
         .into_raw();
@@ -193,10 +214,70 @@ async fn get_latest_balance() {
         register_abci_query_response(&server, "accounts/balance/", expected_response.clone()).await;
 
     let actual_response = client
-        .get_latest_balance(ALICE_ADDRESS)
+        .get_latest_balance(alice_address())
         .await
         .unwrap()
         .into_raw();
+
+    assert_eq!(expected_response, actual_response);
+}
+
+#[tokio::test]
+async fn get_allowed_fee_assets() {
+    let MockSequencer {
+        server,
+        client,
+    } = MockSequencer::start().await;
+
+    let expected_response = AllowedFeeAssetIdsResponse {
+        height: 10,
+        fee_asset_ids: vec![
+            asset::Id::from_denom("asset_0").get().to_vec().into(),
+            asset::Id::from_denom("asset_1").get().to_vec().into(),
+            asset::Id::from_denom("asset_2").get().to_vec().into(),
+        ],
+    };
+
+    let _guard = register_abci_query_response(
+        &server,
+        "asset/allowed_fee_asset_ids",
+        expected_response.clone(),
+    )
+    .await;
+
+    let actual_response = client.get_allowed_fee_asset_ids().await;
+
+    let actual_response = actual_response.unwrap().into_raw();
+    assert_eq!(expected_response, actual_response);
+}
+
+#[tokio::test]
+async fn get_bridge_account_last_transaction_hash() {
+    use astria_core::generated::protocol::bridge::v1alpha1::BridgeAccountLastTxHashResponse;
+
+    let MockSequencer {
+        server,
+        client,
+    } = MockSequencer::start().await;
+
+    let expected_response = BridgeAccountLastTxHashResponse {
+        height: 10,
+        tx_hash: Some([0; 32].to_vec()),
+    };
+
+    let _guard = register_abci_query_response(
+        &server,
+        "bridge/account_last_tx_hash",
+        expected_response.clone(),
+    )
+    .await;
+
+    let actual_response = client
+        .get_bridge_account_last_transaction_hash(alice_address())
+        .await
+        .unwrap()
+        .into_raw();
+
     assert_eq!(expected_response, actual_response);
 }
 

@@ -47,7 +47,7 @@ pub(crate) async fn check_stateful<S: StateReadExt + 'static>(
     tx: &SignedTransaction,
     state: &S,
 ) -> anyhow::Result<()> {
-    let signer_address = *tx.verification_key().address();
+    let signer_address = crate::astria_address(tx.verification_key().address_bytes());
     tx.unsigned_transaction()
         .check_stateful(state, signer_address)
         .await
@@ -57,7 +57,25 @@ pub(crate) async fn execute<S: StateWriteExt>(
     tx: &SignedTransaction,
     state: &mut S,
 ) -> anyhow::Result<()> {
-    let signer_address = *tx.verification_key().address();
+    use crate::bridge::state_ext::{
+        StateReadExt as _,
+        StateWriteExt as _,
+    };
+
+    let signer_address = crate::astria_address(tx.verification_key().address_bytes());
+
+    if state
+        .get_bridge_account_rollup_id(&signer_address)
+        .await
+        .context("failed to check account rollup id")?
+        .is_some()
+    {
+        state.put_last_transaction_hash_for_bridge_account(
+            &signer_address,
+            &tx.sha256_of_proto_encoding(),
+        );
+    }
+
     tx.unsigned_transaction()
         .execute(state, signer_address)
         .await
@@ -116,6 +134,10 @@ impl ActionHandler for UnsignedTransaction {
                     .check_stateless()
                     .await
                     .context("stateless check failed for SudoAddressChangeAction")?,
+                Action::FeeChange(act) => act
+                    .check_stateless()
+                    .await
+                    .context("stateless check failed for FeeChangeAction")?,
                 Action::Ibc(act) => {
                     let action = act
                         .clone()
@@ -145,14 +167,14 @@ impl ActionHandler for UnsignedTransaction {
                     .check_stateless()
                     .await
                     .context("stateless check failed for BridgeLockAction")?,
-                Action::FeeChange(act) => act
-                    .check_stateless()
-                    .await
-                    .context("stateless check failed for FeeChangeAction")?,
                 Action::BridgeUnlock(act) => act
                     .check_stateless()
                     .await
                     .context("stateless check failed for BridgeLockAction")?,
+                Action::BridgeSudoChange(act) => act
+                    .check_stateless()
+                    .await
+                    .context("stateless check failed for BridgeSudoChangeAction")?,
             }
         }
         Ok(())
@@ -166,17 +188,14 @@ impl ActionHandler for UnsignedTransaction {
         // Transactions must match the chain id of the node.
         let chain_id = state.get_chain_id().await?;
         ensure!(
-            self.params.chain_id == chain_id.as_str(),
-            InvalidChainId(self.params.chain_id.clone())
+            self.chain_id() == chain_id.as_str(),
+            InvalidChainId(self.chain_id().to_string())
         );
 
         // Nonce should be equal to the number of executed transactions before this tx.
         // First tx has nonce 0.
         let curr_nonce = state.get_account_nonce(from).await?;
-        ensure!(
-            curr_nonce == self.params.nonce,
-            InvalidNonce(self.params.nonce)
-        );
+        ensure!(curr_nonce == self.nonce(), InvalidNonce(self.nonce()));
 
         // Should have enough balance to cover all actions.
         check_balance_for_total_fees(self, from, state).await?;
@@ -199,6 +218,10 @@ impl ActionHandler for UnsignedTransaction {
                     .check_stateful(state, from)
                     .await
                     .context("stateful check failed for SudoAddressChangeAction")?,
+                Action::FeeChange(act) => act
+                    .check_stateful(state, from)
+                    .await
+                    .context("stateful check failed for FeeChangeAction")?,
                 Action::Ibc(_) => {
                     ensure!(
                         state
@@ -228,14 +251,14 @@ impl ActionHandler for UnsignedTransaction {
                     .check_stateful(state, from)
                     .await
                     .context("stateful check failed for BridgeLockAction")?,
-                Action::FeeChange(act) => act
-                    .check_stateful(state, from)
-                    .await
-                    .context("stateful check failed for FeeChangeAction")?,
                 Action::BridgeUnlock(act) => act
                     .check_stateful(state, from)
                     .await
                     .context("stateful check failed for BridgeUnlockAction")?,
+                Action::BridgeSudoChange(act) => act
+                    .check_stateful(state, from)
+                    .await
+                    .context("stateful check failed for BridgeSudoChangeAction")?,
             }
         }
 
@@ -245,8 +268,8 @@ impl ActionHandler for UnsignedTransaction {
     #[instrument(
         skip_all,
         fields(
-            nonce = self.params.nonce,
-            from = from.to_string(),
+            nonce = self.nonce(),
+            from = %from,
         )
     )]
     async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> anyhow::Result<()> {
@@ -283,12 +306,17 @@ impl ActionHandler for UnsignedTransaction {
                         .await
                         .context("execution failed for SudoAddressChangeAction")?;
                 }
+                Action::FeeChange(act) => {
+                    act.execute(state, from)
+                        .await
+                        .context("execution failed for FeeChangeAction")?;
+                }
                 Action::Ibc(act) => {
                     let action = act
                         .clone()
                         .with_handler::<crate::ibc::ics20_transfer::Ics20Transfer, AstriaHost>();
                     action
-                        .execute(&mut *state)
+                        .check_and_execute(&mut *state)
                         .await
                         .context("execution failed for IbcAction")?;
                 }
@@ -317,15 +345,15 @@ impl ActionHandler for UnsignedTransaction {
                         .await
                         .context("execution failed for BridgeLockAction")?;
                 }
-                Action::FeeChange(act) => {
-                    act.execute(state, from)
-                        .await
-                        .context("execution failed for FeeChangeAction")?;
-                }
                 Action::BridgeUnlock(act) => {
                     act.execute(state, from)
                         .await
                         .context("execution failed for BridgeUnlockAction")?;
+                }
+                Action::BridgeSudoChange(act) => {
+                    act.execute(state, from)
+                        .await
+                        .context("execution failed for BridgeSudoChangeAction")?;
                 }
             }
         }
