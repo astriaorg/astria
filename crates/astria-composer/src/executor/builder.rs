@@ -58,7 +58,8 @@ impl Builder {
         let client_chain_id = client_response.node_info.network.to_string();
         ensure!(
             sequencer_chain_id == client_chain_id,
-            "mismatch in sequencer_chain_id: {sequencer_chain_id} and client chain_id: {client_chain_id}"
+            "mismatch in sequencer_chain_id: {sequencer_chain_id} and client chain_id: \
+             {client_chain_id}"
         );
 
         let (status, _) = watch::channel(Status::new());

@@ -1,6 +1,7 @@
 use prost::Message;
 use serde_json::json;
 use tendermint_rpc::{
+    endpoint::status,
     response,
     Id,
 };
@@ -14,7 +15,6 @@ use wiremock::{
     MockServer,
     ResponseTemplate,
 };
-use tendermint_rpc::endpoint::status;
 
 pub async fn start() -> (MockServer, MockGuard, MockGuard) {
     use astria_core::generated::protocol::account::v1alpha1::NonceResponse;
@@ -60,7 +60,10 @@ pub async fn mount_abci_query_mock(
         .await
 }
 
-async fn mount_cometbft_status_response(server: &MockServer, mock_sequencer_chain_id: &str) -> MockGuard {
+async fn mount_cometbft_status_response(
+    server: &MockServer,
+    mock_sequencer_chain_id: &str,
+) -> MockGuard {
     let mut status_response: status::Response = serde_json::from_str(STATUS_RESPONSE).unwrap();
     status_response.node_info.network = mock_sequencer_chain_id.to_string().parse().unwrap();
 
