@@ -39,7 +39,7 @@ use tracing::{
     warn,
 };
 
-use crate::withdrawer::{
+use crate::bridge_withdrawer::{
     batch::Batch,
     ethereum::{
         astria_withdrawer_interface::IAstriaWithdrawer,
@@ -446,7 +446,7 @@ mod tests {
     use tokio::sync::oneshot;
 
     use super::*;
-    use crate::withdrawer::ethereum::{
+    use crate::bridge_withdrawer::ethereum::{
         astria_bridgeable_erc20::AstriaBridgeableERC20,
         astria_withdrawer::AstriaWithdrawer,
         astria_withdrawer_interface::{
