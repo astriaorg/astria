@@ -46,7 +46,7 @@
   "chain_id": "{{ .Values.config.cometBFT.chainId }}",
   "consensus_params": {
     "block": {
-      "max_bytes": "1000000",
+      "max_bytes": "1048576",
       "max_gas": "-1"
     },
     "evidence": {

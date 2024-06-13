@@ -65,13 +65,13 @@ config:
   cometBFT:
     chainId: 'sequencer-test-chain-0'
     genesisTime: '2023-09-22T17:22:35.092832Z'
-    # database directory for cometBFT
+    # Database directory for cometBFT
     dbDir: "data"
     #log configurations
     logLevel: "info"
     logFormat: "plain"
     # Path to genesis file location
-    genesisFile: "/config/genesis.json"
+    genesisFile: "config/genesis.json"
     # Grpc server configuration
     grpc:
       # Maximum number of simultaneous GRPC connections
@@ -79,6 +79,8 @@ config:
     rpc:
       # Maximum number of simultaneous RPC connections
       maxOpenConnections: 900
+      maxSubscriptionClients: 100
+      maxSubscriptionsPerClient: 10
     
     psql:
       enabled: false
@@ -103,17 +105,34 @@ config:
       # Seed mode, in which node constantly crawls the network and looks for
       # peers. If another node asks it for addresses, it responds and disconnects.
       seedMode: false
+      # Maximum number of inbound and outbound peers
+      maxInboundPeers: 100
+      maxOutboundPeers: 40
       # Rate at which packets can be sent/receved, in bytes/second
       sendRate: 5120000
       recvRate: 5120000
+      # p2p connection configurations
+      handshakeTimeout: 20s
+      dialTimeout: 3s
+      
+      
     mempool:
+      # Maximum number of transactions in the mempool
       size: 2000
+      # Maximum size of a single transaction in the mempool
       maxTxBytes: 250000
+      # Maximum size of all transactions in the mempool
       maxTxsBytes: 100000000
       cacheSize: 10000
+      
     consensus:
-      timeoutPropose: "2s"
-      timeoutCommit: "1500ms"
+      timeoutPropose: 2s
+      timeoutProposeDelta: 500ms
+      timeoutPrevote: 1s
+      timeoutPrevoteDelta: 500ms
+      timeoutPrecommit: 1s
+      timeoutPrecommitDelta: 500ms
+      timeoutCommit: 1500ms
     # These secrets will be generated using the devContent values turned into JSON
     # and stored unsafely as config maps. Unless SecretProvider is enabled.
     # Where the secret parameters should be then updated to suit your secret provider
