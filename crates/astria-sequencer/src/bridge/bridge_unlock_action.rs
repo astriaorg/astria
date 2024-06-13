@@ -112,7 +112,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let state = StateDelta::new(snapshot);
 
-        let asset_id = asset::Id::from_denom("test");
+        let asset_id = asset::Id::from_str_unchecked("test");
         let transfer_amount = 100;
 
         let address = crate::astria_address([1; 20]);
@@ -143,7 +143,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        let asset_id = asset::Id::from_denom("test");
+        let asset_id = asset::Id::from_str_unchecked("test");
         let transfer_amount = 100;
 
         let sender_address = crate::astria_address([1; 20]);
@@ -180,7 +180,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        let asset_id = asset::Id::from_denom("test");
+        let asset_id = asset::Id::from_str_unchecked("test");
         let transfer_amount = 100;
 
         let sender_address = crate::astria_address([1; 20]);
@@ -218,7 +218,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        let asset_id = asset::Id::from_denom("test");
+        let asset_id = asset::Id::from_str_unchecked("test");
         let transfer_fee = 10;
         let transfer_amount = 100;
         state.put_transfer_base_fee(transfer_fee).unwrap();
@@ -271,7 +271,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        let asset_id = asset::Id::from_denom("test");
+        let asset_id = asset::Id::from_str_unchecked("test");
         let transfer_fee = 10;
         let transfer_amount = 100;
         state.put_transfer_base_fee(transfer_fee).unwrap();
@@ -326,7 +326,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        let asset_id = asset::Id::from_denom("test");
+        let asset_id = asset::Id::from_str_unchecked("test");
         let transfer_fee = 10;
         let transfer_amount = 100;
         state.put_transfer_base_fee(transfer_fee).unwrap();
@@ -378,7 +378,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        let asset_id = asset::Id::from_denom("test");
+        let asset_id = asset::Id::from_str_unchecked("test");
         let transfer_fee = 10;
         let transfer_amount = 100;
         state.put_transfer_base_fee(transfer_fee).unwrap();

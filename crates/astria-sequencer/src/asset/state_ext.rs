@@ -4,7 +4,7 @@ use anyhow::{
 };
 use astria_core::primitive::v1::{
     asset,
-    asset::Denom,
+    asset::denom,
 };
 use async_trait::async_trait;
 use borsh::{
@@ -41,7 +41,7 @@ pub(crate) trait StateReadExt: StateRead {
     }
 
     #[instrument(skip(self))]
-    async fn get_ibc_asset(&self, id: asset::Id) -> Result<Option<Denom>> {
+    async fn get_ibc_asset(&self, id: asset::Id) -> Result<Option<denom::TracePrefixed>> {
         let Some(bytes) = self
             .get_raw(&asset_storage_key(id))
             .await
@@ -64,8 +64,8 @@ impl<T: ?Sized + StateRead> StateReadExt for T {}
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip(self))]
-    fn put_ibc_asset(&mut self, id: asset::Id, asset: &Denom) -> Result<()> {
-        let bytes = borsh::to_vec(&DenominationTrace(asset.denomination_trace()))
+    fn put_ibc_asset(&mut self, id: asset::Id, asset: &denom::TracePrefixed) -> Result<()> {
+        let bytes = borsh::to_vec(&DenominationTrace(asset.to_string()))
             .context("failed to serialize asset")?;
         self.put_raw(asset_storage_key(id), bytes);
         Ok(())
@@ -77,6 +77,7 @@ impl<T: StateWrite> StateWriteExt for T {}
 #[cfg(test)]
 mod test {
     use astria_core::primitive::v1::asset::{
+        denom::TracePrefixed,
         Denom,
         Id,
     };
@@ -111,7 +112,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        let denom = "asset".parse::<Denom>().unwrap();
+        let denom = "asset".parse::<TracePrefixed>().unwrap();
 
         // non existing calls are ok for 'has'
         assert!(
@@ -143,7 +144,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         // can write new
-        let denom = "asset".parse::<Denom>().unwrap();
+        let denom = "asset".parse::<TracePrefixed>().unwrap();
         state
             .put_ibc_asset(denom.id(), &denom)
             .expect("putting ibc asset should not fail");
@@ -165,7 +166,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         // can write new
-        let denom = "asset_0".parse::<Denom>().unwrap();
+        let denom = "asset_0".parse::<TracePrefixed>().unwrap();
         state
             .put_ibc_asset(denom.id(), &denom)
             .expect("putting ibc asset should not fail");
@@ -180,7 +181,7 @@ mod test {
         );
 
         // can write another without affecting original
-        let denom_1 = "asset_1".parse::<Denom>().unwrap();
+        let denom_1 = "asset_1".parse::<TracePrefixed>().unwrap();
         state
             .put_ibc_asset(denom_1.id(), &denom_1)
             .expect("putting ibc asset should not fail");
@@ -211,8 +212,8 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         // can write unrelated ids and denoms
-        let id_key = Id::from_denom("asset_0");
-        let denom = "asset_1".parse::<Denom>().unwrap();
+        let id_key = Id::from_str_unchecked("asset_0");
+        let denom = "asset_1".parse::<TracePrefixed>().unwrap();
         state
             .put_ibc_asset(id_key, &denom)
             .expect("putting ibc asset should not fail");

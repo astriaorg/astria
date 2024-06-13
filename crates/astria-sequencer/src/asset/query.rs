@@ -71,7 +71,7 @@ pub(crate) async fn denom_request(
 
     let payload = DenomResponse {
         height,
-        denom,
+        denom: denom.into(),
     }
     .into_raw()
     .encode_to_vec()
