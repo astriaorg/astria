@@ -2,7 +2,7 @@
 name = "astria-core"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.73"
+rust-version = "1.76"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
 repository = "https://github.com/astriaorg/astria"
@@ -56,11 +56,6 @@ base64-serde = ["dep:base64-serde"]
 brotli = ["dep:brotli"]
 
 [dev-dependencies]
-astria-core = { path = ".", features = ["serde"] }
 insta = { workspace = true, features = ["json"] }
 rand = { workspace = true }
-tonic-build = "0.10"
-walkdir = "2.4.0"
-
 tempfile = { workspace = true }
-which = { workspace = true }

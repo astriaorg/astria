@@ -529,7 +529,7 @@ impl std::fmt::Display for Address {
 /// It is the responsibility of the caller to ensure that the iterable is
 /// deterministic. Prefer types like `Vec`, `BTreeMap` or `IndexMap` over
 /// `HashMap`.
-pub fn derive_merkle_tree_from_rollup_txs<'a, T: 'a, U: 'a>(rollup_ids_to_txs: T) -> merkle::Tree
+pub fn derive_merkle_tree_from_rollup_txs<'a, T, U>(rollup_ids_to_txs: T) -> merkle::Tree
 where
     T: IntoIterator<Item = (&'a RollupId, &'a U)>,
     U: AsRef<[Vec<u8>]> + 'a + ?Sized,

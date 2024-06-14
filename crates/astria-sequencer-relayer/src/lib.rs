@@ -5,7 +5,6 @@ pub mod metrics_init;
 pub(crate) mod relayer;
 pub mod sequencer_relayer;
 pub(crate) mod utils;
-pub(crate) mod validator;
 
 pub use build_info::BUILD_INFO;
 pub use config::{
