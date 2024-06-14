@@ -330,7 +330,7 @@ resources:
       memory: 16Gi
 
 storage:
-  enabled: true
+  enabled: false
   local: true
   entities:
     rollupSharedStorage:
