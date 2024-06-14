@@ -333,10 +333,12 @@ pub struct PortAndChannel {
 }
 
 impl PortAndChannel {
+    #[must_use]
     pub fn channel(&self) -> &str {
         &self.channel
     }
 
+    #[must_use]
     pub fn port(&self) -> &str {
         &self.port
     }
