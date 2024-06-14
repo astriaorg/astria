@@ -168,12 +168,82 @@ impl TracePrefixed {
         self.trace.is_empty()
     }
 
+    /// Checks if the trace prefixed denom starts with `s`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use astria_core::primitive::v1::asset::denom::TracePrefixed;
+    /// let denom = "four/segments/of/a/denom".parse::<TracePrefixed>().unwrap();
+    ///
+    /// // Empty string is always true:
+    /// assert!(denom.starts_with_str(""));
+    /// // Single slash is always false:
+    /// assert!(!denom.starts_with_str("/"));
+    /// // Emptry strings are false:
+    /// assert!(!denom.starts_with_str(" "));
+    ///
+    /// // In general, whitespace is not trimmed and leads to false
+    /// assert!(!denom.starts_with_str("four/segments /"));
+    ///
+    /// // Trailing slashes don't change the result if they are part of the trace prefix:
+    /// assert!(denom.starts_with_str("four/segments"));
+    /// assert!(denom.starts_with_str("four/segments/"));
+    ///
+    /// // Trailing slashes on the full trace prefix denom however return false:
+    /// assert!(!denom.starts_with_str("four/segments/of/a/denom/"));
+    ///
+    /// // Providing only a port is true
+    /// assert!(denom.starts_with_str("four"));
+    /// // Providing a full port/channel pair followed by just a port is also true
+    /// assert!(denom.starts_with_str("four/segments/of"));
+    ///
+    /// // Half of a port or channel is false
+    /// assert!(!denom.starts_with_str("four/segm"));
+    ///
+    /// // The full trace prefixed denom is true:
+    /// assert!(denom.starts_with_str("four/segments/of/a/denom"));
+    /// ```
     #[must_use]
-    pub fn has_exact_path(&self, s: &str) -> bool {
-        s.strip_suffix('/')
-            .unwrap_or(s)
-            .parse::<TraceSegments>()
-            .is_ok_and(|parsed| parsed == self.trace)
+    pub fn starts_with_str(&self, s: &str) -> bool {
+        if s.is_empty() {
+            return true;
+        }
+        let mut had_trailing_slash = false;
+        let s = s
+            .strip_suffix('/')
+            .inspect(|_| had_trailing_slash = true)
+            .unwrap_or(s);
+        if s.is_empty() {
+            return false;
+        }
+        let mut parts = s.split('/');
+        for segment in self.trace.iter() {
+            // first iteration: we know that s is not empty after stripping the /
+            // so that this is not wrongly returning true.
+            let Some(port) = parts.next() else {
+                return true;
+            };
+            if segment.port() != port {
+                return false;
+            }
+            let Some(channel) = parts.next() else {
+                return true;
+            };
+            if segment.channel() != channel {
+                return false;
+            }
+        }
+        let Some(base_denom) = parts.next() else {
+            return true;
+        };
+        if base_denom != self.base_denom {
+            return false;
+        }
+        if had_trailing_slash {
+            return false;
+        }
+        parts.next().is_none()
     }
 
     #[must_use]
@@ -181,12 +251,12 @@ impl TracePrefixed {
         self.trace.last_channel()
     }
 
-    pub fn pop_first_port_and_channel(&mut self) -> Option<(String, String)> {
-        let PortAndChannel {
-            port,
-            channel,
-        } = self.trace.pop_first_port_and_channel()?;
-        Some((port, channel))
+    pub fn pop_trace_segment(&mut self) -> Option<PortAndChannel> {
+        self.trace.pop()
+    }
+
+    pub fn push_trace_segment(&mut self, segment: PortAndChannel) {
+        self.trace.push(segment);
     }
 }
 
@@ -196,12 +266,30 @@ struct TraceSegments {
 }
 
 impl TraceSegments {
+    fn new() -> Self {
+        Self {
+            inner: VecDeque::new(),
+        }
+    }
+
+    fn push(&mut self, seg: PortAndChannel) {
+        self.inner.push_back(seg);
+    }
+
+    fn pop(&mut self) -> Option<PortAndChannel> {
+        self.inner.pop_front()
+    }
+
     fn last_channel(&self) -> Option<&str> {
         self.inner.back().map(|segment| &*segment.channel)
     }
 
     fn is_empty(&self) -> bool {
         self.inner.is_empty()
+    }
+
+    fn iter(&self) -> impl Iterator<Item = &PortAndChannel> {
+        self.inner.iter()
     }
 }
 
@@ -238,35 +326,18 @@ impl FromStr for TraceSegments {
         Ok(parsed_segments)
     }
 }
-
-impl TraceSegments {
-    fn new() -> Self {
-        Self {
-            inner: VecDeque::new(),
-        }
-    }
-
-    fn push(&mut self, seg: PortAndChannel) {
-        self.inner.push_back(seg);
-    }
-
-    fn pop_first_port_and_channel(&mut self) -> Option<PortAndChannel> {
-        self.inner.pop_front()
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct PortAndChannel {
+pub struct PortAndChannel {
     port: String,
     channel: String,
 }
 
 impl PortAndChannel {
-    fn channel(&self) -> &str {
+    pub fn channel(&self) -> &str {
         &self.channel
     }
 
-    fn port(&self) -> &str {
+    pub fn port(&self) -> &str {
         &self.port
     }
 }
@@ -341,16 +412,16 @@ impl FromStr for TracePrefixed {
         if s.as_bytes().iter().any(u8::is_ascii_whitespace) {
             return Err(Self::Err::whitespace());
         }
-        let (base_denom, segments) = match s.rsplit_once('/') {
-            Some((path, base)) => (base, path.parse::<TraceSegments>()?),
-            None => (s, TraceSegments::new()),
+        let (trace, base_denom) = match s.rsplit_once('/') {
+            Some((path, base)) => (path.parse::<TraceSegments>()?, base),
+            None => (TraceSegments::new(), s),
         };
         if base_denom.is_empty() {
             return Err(Self::Err::base_is_empty());
         }
         Ok(Self {
             base_denom: base_denom.into(),
-            trace: segments,
+            trace,
         })
     }
 }
@@ -532,23 +603,37 @@ mod tests {
     #[test]
     fn pop_path() {
         let mut denom = "a/long/path/to/denom".parse::<TracePrefixed>().unwrap();
-        assert_eq!(
-            Some(("a".into(), "long".into())),
-            denom.pop_first_port_and_channel()
-        );
-        assert_eq!(
-            Some(("path".into(), "to".into())),
-            denom.pop_first_port_and_channel()
-        );
-        assert_eq!(None, denom.pop_first_port_and_channel());
+        let port_and_channel = denom.pop_trace_segment().unwrap();
+        assert_eq!("a", port_and_channel.port());
+        assert_eq!("long", port_and_channel.channel());
+
+        let port_and_channel = denom.pop_trace_segment().unwrap();
+        assert_eq!("path", port_and_channel.port());
+        assert_eq!("to", port_and_channel.channel());
+
+        assert_eq!(None, denom.pop_trace_segment());
     }
 
     #[test]
-    fn check_path() {
-        let denom = "path/to/denom".parse::<TracePrefixed>().unwrap();
-        assert!(denom.has_exact_path("path/to"));
-        assert!(denom.has_exact_path("path/to/"));
-        assert!(!denom.has_exact_path("path/to/denom"));
-        assert!(!denom.has_exact_path("/bad/path/input"));
+    fn start_prefixes() {
+        let denom = "four/segments/of/a/denom".parse::<TracePrefixed>().unwrap();
+
+        assert!(denom.starts_with_str(""));
+        assert!(!denom.starts_with_str("/"));
+        assert!(!denom.starts_with_str(" "));
+
+        assert!(!denom.starts_with_str("four/segments /"));
+
+        assert!(denom.starts_with_str("four/segments"));
+        assert!(denom.starts_with_str("four/segments/"));
+
+        assert!(!denom.starts_with_str("four/segments/of/a/denom/"));
+
+        assert!(denom.starts_with_str("four"));
+        assert!(denom.starts_with_str("four/segments/of"));
+
+        assert!(!denom.starts_with_str("four/segm"));
+
+        assert!(denom.starts_with_str("four/segments/of/a/denom"));
     }
 }

@@ -190,7 +190,7 @@ async fn refund_tokens_check<S: StateRead>(
             .context("failed to convert denomination if ibc/ prefixed")?
     };
 
-    let is_source = !denom.has_exact_path(&format!("{source_port}/{source_channel}"));
+    let is_source = !denom.starts_with_str(&format!("{source_port}/{source_channel}"));
     if is_source {
         // recipient of packet (us) was the source chain
         //
@@ -413,7 +413,7 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
     // the IBC packet should have the address as a bech32 string
     let recipient = Address::try_from_bech32m(&recipient).context("invalid recipient address")?;
 
-    let is_prefixed = denom_trace.has_exact_path(&format!("{source_port}/{source_channel}"));
+    let is_prefixed = denom_trace.starts_with_str(&format!("{source_port}/{source_channel}"));
     let is_source = if is_refund {
         // we are the source if the denom is not prefixed by source_port/source_channel
         !is_prefixed
@@ -446,7 +446,7 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
         // strip the prefix from the denom, as we're back on the source chain
         // note: if this is a refund, this is a no-op.
         if !is_refund {
-            denom_trace.pop_first_port_and_channel().context(
+            denom_trace.pop_trace_segment().context(
                 "there must be a source segment because above it was checked if the denom trace \
                  contains a segment",
             )?;
