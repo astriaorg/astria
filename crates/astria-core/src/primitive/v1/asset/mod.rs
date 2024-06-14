@@ -28,6 +28,7 @@ pub fn default_native_asset() -> Denom {
 /// Asset ID, which is the hash of the denomination trace.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
+#[cfg_attr(feature = "serde", serde(transparent))]
 pub struct Id(
     #[cfg_attr(
         feature = "serde",
