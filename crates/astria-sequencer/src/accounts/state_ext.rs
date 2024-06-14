@@ -86,8 +86,6 @@ pub(crate) trait StateReadExt: StateRead {
 
             let native_asset = crate::asset::get_native_asset();
             if asset_id == native_asset.id() {
-                // TODO: this is jank, just have 1 denom type.
-                // TODO: Getting the base denom out of a native asset should not need a parse.
                 balances.push(AssetBalance {
                     denom: native_asset.clone(),
                     balance,
