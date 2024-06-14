@@ -18,10 +18,10 @@ spec:
           command: [ "/build/astria-go", "sequencer", "bridge", "init", {{ .Values.evmRollupName }} ]
           args:
             - --privkey={{ .Values.bridgeAccount.privkey }}
+            - --sequencer-chain-id={{ .Values.sequencerChainId }}
             - --sequencer-url={{ .Values.sequencerURL }}
             - --asset-id={{ .Values.assetId }}
             - --fee-asset-id={{ .Values.feeAssetId }}
-            - --sequencer-chain-id={{ .Values.sequencerChainId }}
             - --log-level=debug
       containers:
         - name: test-ibc-transfer

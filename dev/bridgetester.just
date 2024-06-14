@@ -63,3 +63,14 @@ ibc-tx:
     --log_level=debug \
     --home="./tmp-celestia-home/celestia" \
     --keyring-backend="test"
+
+# helpers
+# build the astria-geth image and load into cluster. NOTE - assumes astria-geth is sibling directory to monorepo
+build-and-load-astria-geth:
+  @echo "building astria-geth local docker image..."
+  cd ../astria-geth && docker buildx build -f Dockerfile -t ghcr.io/astriaorg/astria-geth:local .
+  just load-image ghcr.io/astriaorg/astria-geth:local
+# load astria-go and astria-geth images into cluster
+load-images:
+  just load-image ghcr.io/astriaorg/astria-go:local
+  just load-image ghcr.io/astriaorg/astria-geth:local

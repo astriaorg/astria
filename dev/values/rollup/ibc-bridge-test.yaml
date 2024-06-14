@@ -1,8 +1,16 @@
+# this file contains overrides that are used for the ibc bridge tests
+
+# FIXME - remove this section after local development is done
+images:
+  geth:
+    # setting this to "local" will use the local image
+    devTag: local
+
 config:
   rollup:
     genesis:
       bridgeAddresses:
-      - bridgeAddress: "0x6f85297e587b61b37695a1ac17189b3e907e318e"
+      - bridgeAddress: "astria1d7zjjljc0dsmxa545xkpwxym86g8uvvwhtezcr"
         startHeight: 1
         assetDenom: "transfer/channel-0/utia"
         assetPrecision: 6
