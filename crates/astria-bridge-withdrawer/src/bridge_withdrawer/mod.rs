@@ -43,6 +43,7 @@ use crate::{
 
 mod batch;
 mod ethereum;
+mod startup;
 mod state;
 mod submitter;
 
@@ -52,6 +53,7 @@ pub struct BridgeWithdrawer {
     api_server: api::ApiServer,
     submitter: Submitter,
     ethereum_watcher: watcher::Watcher,
+    startup: startup::Startup,
     state: Arc<State>,
 }
 
@@ -78,15 +80,26 @@ impl BridgeWithdrawer {
 
         let state = Arc::new(State::new());
 
+        // make startup object
+        let (startup, startup_submitter_handle, startup_watcher_handle) = startup::Builder {
+            shutdown_token: shutdown_handle.token(),
+            state: state.clone(),
+            sequencer_chain_id,
+            sequencer_cometbft_endpoint: sequencer_cometbft_endpoint.clone(),
+            sequencer_key_path: sequencer_key_path.clone(),
+            expected_fee_asset_id: asset::Id::from_denom(&fee_asset_denomination),
+            expected_min_fee_asset_balance: u128::from(min_expected_fee_asset_balance),
+        }
+        .build()
+        .wrap_err("failed to initialize startup")?;
+
         // make submitter object
         let (submitter, submitter_handle) = submitter::Builder {
             shutdown_token: shutdown_handle.token(),
+            startup_handle: startup_submitter_handle,
             sequencer_cometbft_endpoint,
-            sequencer_chain_id,
             sequencer_key_path,
             state: state.clone(),
-            expected_fee_asset_id: asset::Id::from_denom(&fee_asset_denomination),
-            min_expected_fee_asset_balance: u128::from(min_expected_fee_asset_balance),
         }
         .build()
         .wrap_err("failed to initialize submitter")?;
@@ -97,13 +110,14 @@ impl BridgeWithdrawer {
         let ethereum_watcher = watcher::Builder {
             ethereum_contract_address,
             ethereum_rpc_endpoint,
-            submitter_handle,
+            startup_handle: startup_watcher_handle,
             shutdown_token: shutdown_handle.token(),
             state: state.clone(),
             rollup_asset_denom: rollup_asset_denomination
                 .parse::<Denom>()
                 .wrap_err("failed to parse ROLLUP_ASSET_DENOMINATION as Denom")?,
             bridge_address: sequencer_bridge_address,
+            submitter_handle,
         }
         .build()
         .wrap_err("failed to build ethereum watcher")?;
@@ -120,6 +134,7 @@ impl BridgeWithdrawer {
             api_server,
             submitter,
             ethereum_watcher,
+            startup,
             state,
         };
 
@@ -132,6 +147,7 @@ impl BridgeWithdrawer {
             api_server,
             submitter,
             ethereum_watcher,
+            startup,
             state: _state,
         } = self;
 
@@ -148,6 +164,9 @@ impl BridgeWithdrawer {
         });
         info!("spawned API server");
 
+        let mut startup_task = tokio::spawn(startup.run());
+        info!("spawned startup task");
+
         let mut submitter_task = tokio::spawn(submitter.run());
         info!("spawned submitter task");
         let mut ethereum_watcher_task = tokio::spawn(ethereum_watcher.run());
@@ -160,8 +179,20 @@ impl BridgeWithdrawer {
                     api_task: None,
                     submitter_task: Some(submitter_task),
                     ethereum_watcher_task: Some(ethereum_watcher_task),
+                    startup_task: Some(startup_task),
                     api_shutdown_signal,
                    token: shutdown_token
+                }
+            }
+            o = &mut startup_task => {
+                report_exit("startup", o);
+                Shutdown {
+                    api_task: Some(api_task),
+                    submitter_task: Some(submitter_task),
+                    ethereum_watcher_task: Some(ethereum_watcher_task),
+                    startup_task: None,
+                    api_shutdown_signal,
+                    token: shutdown_token
                 }
             }
             o = &mut submitter_task => {
@@ -170,6 +201,7 @@ impl BridgeWithdrawer {
                     api_task: Some(api_task),
                     submitter_task: None,
                     ethereum_watcher_task:Some(ethereum_watcher_task),
+                    startup_task: Some(startup_task),
                     api_shutdown_signal,
                     token: shutdown_token
                 }
@@ -180,6 +212,7 @@ impl BridgeWithdrawer {
                     api_task: Some(api_task),
                     submitter_task: Some(submitter_task),
                     ethereum_watcher_task: None,
+                    startup_task: Some(startup_task),
                     api_shutdown_signal,
                     token: shutdown_token
                 }
@@ -188,12 +221,6 @@ impl BridgeWithdrawer {
         );
         shutdown.run().await;
     }
-}
-
-#[derive(Debug)]
-pub struct SequencerStartupInfo {
-    pub fee_asset_id: asset::Id,
-    pub next_batch_rollup_height: u64,
 }
 
 /// A handle for instructing the [`Service`] to shut down.
@@ -254,6 +281,7 @@ struct Shutdown {
     api_task: Option<JoinHandle<eyre::Result<()>>>,
     submitter_task: Option<JoinHandle<eyre::Result<()>>>,
     ethereum_watcher_task: Option<JoinHandle<eyre::Result<()>>>,
+    startup_task: Option<JoinHandle<eyre::Result<()>>>,
     api_shutdown_signal: oneshot::Sender<()>,
     token: CancellationToken,
 }
@@ -261,18 +289,39 @@ struct Shutdown {
 impl Shutdown {
     const API_SHUTDOWN_TIMEOUT_SECONDS: u64 = 4;
     const ETHEREUM_WATCHER_SHUTDOWN_TIMEOUT_SECONDS: u64 = 5;
-    const SUBMITTER_SHUTDOWN_TIMEOUT_SECONDS: u64 = 20;
+    const STARTUP_SHUTDOWN_TIMEOUT_SECONDS: u64 = 1;
+    const SUBMITTER_SHUTDOWN_TIMEOUT_SECONDS: u64 = 19;
 
     async fn run(self) {
         let Self {
             api_task,
             submitter_task,
             ethereum_watcher_task,
+            startup_task,
             api_shutdown_signal,
             token,
         } = self;
 
         token.cancel();
+
+        // Giving startup 1 second to shutdown because it should be very quick.
+        if let Some(mut startup_task) = startup_task {
+            info!("waiting for startup task to shut down");
+            let limit = Duration::from_secs(Self::STARTUP_SHUTDOWN_TIMEOUT_SECONDS);
+            match timeout(limit, &mut startup_task).await.map(flatten_result) {
+                Ok(Ok(())) => info!("startup exited gracefully"),
+                Ok(Err(error)) => error!(%error, "startup exited with an error"),
+                Err(_) => {
+                    error!(
+                        timeout_secs = limit.as_secs(),
+                        "startup did not shut down within timeout; killing it"
+                    );
+                    startup_task.abort();
+                }
+            }
+        } else {
+            info!("startup task was already dead");
+        }
 
         // Giving submitter 20 seconds to shutdown because Kubernetes issues a SIGKILL after 30.
         if let Some(mut submitter_task) = submitter_task {

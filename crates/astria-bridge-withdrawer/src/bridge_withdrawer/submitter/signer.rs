@@ -16,16 +16,16 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 
-pub(super) struct SequencerKey {
-    pub(super) address: Address,
-    pub(super) signing_key: SigningKey,
+pub(crate) struct SequencerKey {
+    pub(crate) address: Address,
+    pub(crate) signing_key: SigningKey,
 }
 
 impl SequencerKey {
     /// Construct a `SequencerKey` from a file.
     ///
     /// The file should contain a hex-encoded ed25519 secret key.
-    pub(super) fn try_from_path<P: AsRef<Path>>(path: P) -> eyre::Result<Self> {
+    pub(crate) fn try_from_path<P: AsRef<Path>>(path: P) -> eyre::Result<Self> {
         let hex = fs::read_to_string(path).wrap_err("failed to read sequencer key from path")?;
         let bytes: [u8; 32] = hex::decode(hex.trim())
             .wrap_err("failed to decode hex")?
