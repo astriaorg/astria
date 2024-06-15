@@ -240,7 +240,7 @@ impl Composer {
         // run the collectors and executor
         spawn_geth_collectors(&mut geth_collectors, &mut geth_collector_tasks);
 
-        let _chain_id_result = executor.check_chain_ids().await.wrap_err("chain_id mismatch");
+        // let _chain_id_result = executor.check_chain_ids().await.wrap_err("chain_id mismatch");
         let executor_status = executor.subscribe().clone();
         let mut executor_task = tokio::spawn(executor.run_until_stopped());
 

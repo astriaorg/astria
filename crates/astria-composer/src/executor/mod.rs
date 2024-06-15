@@ -196,6 +196,10 @@ impl Executor {
     /// An error is returned if connecting to the sequencer fails.
     #[instrument(skip_all, fields(address = %self.address))]
     pub(super) async fn run_until_stopped(mut self) -> eyre::Result<()> {
+        let _chain_id_result = self
+            .ensure_configured_chain_id_matches_remote()
+            .await
+            .wrap_err("failed to validate chain_id")?;
         let mut submission_fut: Fuse<Instrumented<SubmitFut>> = Fuse::terminated();
         let mut nonce = get_latest_nonce(self.sequencer_client.clone(), self.address)
             .await
@@ -421,18 +425,36 @@ impl Executor {
     }
 
     // check for mismatched configured chain_id and sequencer client chain_id
-    pub(crate) async fn check_chain_ids(&self) -> eyre::Result<()> {
-        let client_response = self
-            .sequencer_client
-            .status()
-            .await
-            .wrap_err("failed to retrieve sequencer network status")?;
-        let client_chain_id = client_response.node_info.network.to_string();
-        let configured_chain_id = self.sequencer_chain_id.clone();
+    pub(crate) async fn ensure_configured_chain_id_matches_remote(&self) -> eyre::Result<()> {
+        let retry_config = tryhard::RetryFutureConfig::new(u32::MAX)
+            .exponential_backoff(Duration::from_millis(100))
+            .max_delay(Duration::from_secs(20))
+            .on_retry(
+                |attempt: u32,
+                 next_delay: Option<Duration>,
+                 error: &sequencer_client::tendermint_rpc::Error| {
+                    let wait_duration = next_delay
+                        .map(humantime::format_duration)
+                        .map(tracing::field::display);
+                    warn!(
+                        attempt,
+                        wait_duration,
+                        error = error as &dyn std::error::Error,
+                        "attempt to fetch sequencer genesis info; retrying after backoff",
+                    );
+                    futures::future::ready(())
+                },
+            );
+        let client_genesis: tendermint::Genesis =
+            tryhard::retry_fn(|| self.sequencer_client.genesis())
+                .with_config(retry_config)
+                .await
+                .wrap_err("failed to retrieve sequencer genesis after many attempts")?;
         ensure!(
-            configured_chain_id == client_chain_id,
-            "mismatch in configured chain_id: {configured_chain_id} and sequencer chain_id: \
-             {client_chain_id}"
+            self.sequencer_chain_id == client_genesis.chain_id.as_str(),
+            "mismatch in configured chain_id: {0} and sequencer chain_id: {1}",
+            self.sequencer_chain_id,
+            client_genesis.chain_id.as_str()
         );
         Ok(())
     }
