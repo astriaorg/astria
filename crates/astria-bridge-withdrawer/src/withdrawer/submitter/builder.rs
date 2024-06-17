@@ -13,9 +13,12 @@ use tokio_util::sync::CancellationToken;
 use tracing::info;
 
 use super::state::State;
-use crate::withdrawer::{
-    submitter::Batch,
-    SequencerStartupInfo,
+use crate::{
+    metrics::Metrics,
+    withdrawer::{
+        submitter::Batch,
+        SequencerStartupInfo,
+    },
 };
 
 const BATCH_QUEUE_SIZE: usize = 256;
@@ -60,6 +63,7 @@ pub(crate) struct Builder {
     pub(crate) state: Arc<State>,
     pub(crate) expected_fee_asset_id: asset::Id,
     pub(crate) min_expected_fee_asset_balance: u128,
+    pub(crate) metrics: &'static Metrics,
 }
 
 impl Builder {
@@ -73,6 +77,7 @@ impl Builder {
             state,
             expected_fee_asset_id,
             min_expected_fee_asset_balance,
+            metrics,
         } = self;
 
         let signer = super::signer::SequencerKey::try_from_path(sequencer_key_path)
@@ -98,6 +103,7 @@ impl Builder {
                 startup_tx,
                 expected_fee_asset_id,
                 min_expected_fee_asset_balance,
+                metrics,
             },
             handle,
         ))

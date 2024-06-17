@@ -17,6 +17,18 @@ spec:
         app: {{ .Values.config.rollup.name }}-astria-dev-cluster
     spec:
       initContainers:
+        {{- if .Values.config.rollup.purgeMempool }}
+        - name: purge-mempool
+          image: {{ include "rollup.image" . }}
+          command: [ "sh", "-c", "rm -f $data_dir/geth/transactions.rlp" ]
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.config.rollup.name }}-geth-env
+          volumeMounts:
+            - mountPath: /home/geth
+              name: {{ $.Values.config.rollup.name }}-rollup-shared-storage-vol
+              subPath: {{ .Values.config.rollup.name }}/executor
+        {{- end }}
         - name: init-geth
           command: [ "/scripts/init-geth.sh" ]
           image: {{ include "rollup.image" . }}

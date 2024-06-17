@@ -69,7 +69,10 @@ use super::{
     state,
     SequencerStartupInfo,
 };
-use crate::withdrawer::ethereum::convert::BridgeUnlockMemo;
+use crate::{
+    metrics::Metrics,
+    withdrawer::ethereum::convert::BridgeUnlockMemo,
+};
 
 mod builder;
 mod signer;
@@ -86,6 +89,7 @@ pub(super) struct Submitter {
     startup_tx: oneshot::Sender<SequencerStartupInfo>,
     expected_fee_asset_id: asset::Id,
     min_expected_fee_asset_balance: u128,
+    metrics: &'static Metrics,
 }
 
 impl Submitter {
@@ -118,6 +122,7 @@ impl Submitter {
                         &self.sequencer_chain_id,
                         actions,
                         rollup_height,
+                        self.metrics
                     ).await {
                         break Err(e);
                     }
@@ -307,12 +312,14 @@ async fn process_batch(
     sequencer_chain_id: &str,
     actions: Vec<Action>,
     rollup_height: u64,
+    metrics: &'static Metrics,
 ) -> eyre::Result<()> {
     // get nonce and make unsigned transaction
     let nonce = get_latest_nonce(
         sequencer_cometbft_client.clone(),
         sequencer_key.address,
         state.clone(),
+        metrics,
     )
     .await?;
     debug!(nonce, "fetched latest nonce");
@@ -334,9 +341,14 @@ async fn process_batch(
     debug!(tx_hash = %telemetry::display::hex(&signed.sha256_of_proto_encoding()), "signed transaction");
 
     // submit transaction and handle response
-    let rsp = submit_tx(sequencer_cometbft_client.clone(), signed, state.clone())
-        .await
-        .context("failed to submit transaction to to cometbft")?;
+    let rsp = submit_tx(
+        sequencer_cometbft_client.clone(),
+        signed,
+        state.clone(),
+        metrics,
+    )
+    .await
+    .context("failed to submit transaction to to cometbft")?;
     if let tendermint::abci::Code::Err(check_tx_code) = rsp.check_tx.code {
         error!(
             abci.code = check_tx_code,
@@ -376,9 +388,10 @@ async fn get_latest_nonce(
     client: sequencer_client::HttpClient,
     address: Address,
     state: Arc<State>,
+    metrics: &'static Metrics,
 ) -> eyre::Result<u32> {
     debug!("fetching latest nonce from sequencer");
-    metrics::counter!(crate::metrics_init::NONCE_FETCH_COUNT).increment(1);
+    metrics.increment_nonce_fetch_count();
     let span = Span::current();
     let start = Instant::now();
     let retry_config = tryhard::RetryFutureConfig::new(1024)
@@ -388,7 +401,7 @@ async fn get_latest_nonce(
             |attempt,
              next_delay: Option<Duration>,
              err: &sequencer_client::extension_trait::Error| {
-                metrics::counter!(crate::metrics_init::NONCE_FETCH_FAILURE_COUNT).increment(1);
+                metrics.increment_nonce_fetch_failure_count();
 
                 let state = Arc::clone(&state);
                 state.set_sequencer_connected(false);
@@ -417,7 +430,7 @@ async fn get_latest_nonce(
 
     state.set_sequencer_connected(res.is_ok());
 
-    metrics::histogram!(crate::metrics_init::NONCE_FETCH_LATENCY).record(start.elapsed());
+    metrics.record_nonce_fetch_latency(start.elapsed());
 
     res
 }
@@ -435,9 +448,10 @@ async fn submit_tx(
     client: sequencer_client::HttpClient,
     tx: SignedTransaction,
     state: Arc<State>,
+    metrics: &'static Metrics,
 ) -> eyre::Result<tx_commit::Response> {
     let nonce = tx.nonce();
-    metrics::gauge!(crate::metrics_init::CURRENT_NONCE).set(f64::from(nonce));
+    metrics.set_current_nonce(nonce);
     let start = std::time::Instant::now();
     debug!("submitting signed transaction to sequencer");
     let span = Span::current();
@@ -448,8 +462,7 @@ async fn submit_tx(
             |attempt,
              next_delay: Option<Duration>,
              err: &sequencer_client::extension_trait::Error| {
-                metrics::counter!(crate::metrics_init::SEQUENCER_SUBMISSION_FAILURE_COUNT)
-                    .increment(1);
+                metrics.increment_sequencer_submission_failure_count();
 
                 let state = Arc::clone(&state);
                 state.set_sequencer_connected(false);
@@ -479,7 +492,7 @@ async fn submit_tx(
 
     state.set_sequencer_connected(res.is_ok());
 
-    metrics::histogram!(crate::metrics_init::SEQUENCER_SUBMISSION_LATENCY).record(start.elapsed());
+    metrics.record_sequencer_submission_latency(start.elapsed());
 
     res
 }
