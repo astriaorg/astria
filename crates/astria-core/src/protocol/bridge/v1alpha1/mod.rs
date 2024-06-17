@@ -99,6 +99,18 @@ pub struct BridgeAccountInfo {
 }
 
 impl BridgeAccountInfoResponse {
+    /// Converts a protobuf [`raw::BridgeAccountInfoResponse`] to a native
+    /// [`BridgeAccountInfoResponse`].
+    ///
+    /// # Errors
+    ///
+    /// - if the `rollup_id` field is set but the `sudo_address` field is not
+    /// - if the `rollup_id` field is set but the `withdrawer_address` field is not
+    /// - if the `rollup_id` field is set but the `asset_id` field is not
+    /// - if the `asset_id` field does not contain a valid asset ID
+    /// - if the `rollup_id` field is set but invalid
+    /// - if the `sudo_address` field is set but invalid
+    /// - if the `withdrawer_address` field is set but invalid
     pub fn try_from_raw(
         raw: raw::BridgeAccountInfoResponse,
     ) -> Result<Self, BridgeAccountInfoResponseError> {
@@ -173,6 +185,12 @@ impl BridgeAccountInfoResponse {
 }
 
 impl raw::BridgeAccountInfoResponse {
+    /// Converts a protobuf [`raw::BridgeAccountInfoResponse`] to a native
+    /// [`BridgeAccountInfoResponse`].
+    ///
+    /// # Errors
+    ///
+    /// See `BridgeAccountInfoResponse::try_from_raw`.
     pub fn try_into_native(
         self,
     ) -> Result<BridgeAccountInfoResponse, BridgeAccountInfoResponseError> {
@@ -204,22 +222,27 @@ enum BridgeAccountInfoResponseErrorKind {
 }
 
 impl BridgeAccountInfoResponseError {
+    #[must_use]
     pub fn field_not_set(field: &'static str) -> Self {
         Self(BridgeAccountInfoResponseErrorKind::FieldNotSet(field))
     }
 
+    #[must_use]
     pub fn asset_id(err: asset::IncorrectAssetIdLength) -> Self {
         Self(BridgeAccountInfoResponseErrorKind::AssetId(err))
     }
 
+    #[must_use]
     pub fn invalid_rollup_id(err: IncorrectRollupIdLength) -> Self {
         Self(BridgeAccountInfoResponseErrorKind::InvalidRollupId(err))
     }
 
+    #[must_use]
     pub fn invalid_sudo_address(err: AddressError) -> Self {
         Self(BridgeAccountInfoResponseErrorKind::InvalidSudoAddress(err))
     }
 
+    #[must_use]
     pub fn invalid_withdrawer_address(err: AddressError) -> Self {
         Self(BridgeAccountInfoResponseErrorKind::InvalidWithdrawerAddress(err))
     }
