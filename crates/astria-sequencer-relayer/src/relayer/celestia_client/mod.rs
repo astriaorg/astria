@@ -95,6 +95,9 @@ use tracing::{
     warn,
 };
 
+/// All gRPCs will time out with the given duration.
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
+
 // From https://github.com/celestiaorg/cosmos-sdk/blob/v1.18.3-sdk-v0.46.14/types/errors/errors.go#L75
 const INSUFFICIENT_FEE_CODE: u32 = 13;
 

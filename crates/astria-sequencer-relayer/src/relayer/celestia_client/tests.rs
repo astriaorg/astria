@@ -1,11 +1,102 @@
-use astria_core::generated::cosmos::base::abci::v1beta1::TxResponse;
+use astria_core::generated::cosmos::{
+    base::abci::v1beta1::TxResponse,
+    tx::v1beta1::{
+        service_client::ServiceClient as TxClient,
+        service_server::{
+            Service,
+            ServiceServer as TxServer,
+        },
+        BroadcastTxRequest,
+        BroadcastTxResponse,
+        GetTxRequest,
+        GetTxResponse,
+    },
+};
 use celestia_types::{
     blob::Commitment,
     nmt::Namespace,
 };
 use prost::bytes::Bytes;
+use tendermint::private_key::Secp256k1 as SigningKey;
+use tokio::net::TcpListener;
+use tonic::{
+    transport::{
+        Endpoint,
+        Server,
+        Uri,
+    },
+    Request,
+    Response,
+    Status,
+};
 
 use super::*;
+
+#[tokio::test(start_paused = true)]
+async fn get_tx_should_timeout() {
+    #[derive(Debug, Default)]
+    struct SlowServer {}
+
+    #[tonic::async_trait]
+    impl Service for SlowServer {
+        async fn get_tx(
+            self: Arc<Self>,
+            _request: Request<GetTxRequest>,
+        ) -> Result<Response<GetTxResponse>, Status> {
+            tokio::time::sleep(Duration::from_secs(1_000)).await;
+            Ok(Response::new(GetTxResponse {
+                tx_response: None,
+                tx: None,
+            }))
+        }
+
+        async fn broadcast_tx(
+            self: Arc<Self>,
+            _request: Request<BroadcastTxRequest>,
+        ) -> Result<Response<BroadcastTxResponse>, Status> {
+            unimplemented!()
+        }
+    }
+
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let server_addr = listener.local_addr().unwrap();
+
+    tokio::spawn(async move {
+        Server::builder()
+            .add_service(TxServer::new(SlowServer::default()))
+            .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(listener))
+            .await
+            .unwrap();
+    });
+
+    let uri: Uri = format!("http://{server_addr}").parse().unwrap();
+    let grpc_channel = Endpoint::from(uri).timeout(REQUEST_TIMEOUT).connect_lazy();
+    let tx_client = TxClient::new(grpc_channel.clone());
+    let signing_key = SigningKey::from_slice(
+        &hex::decode("c8076374e2a4a58db1c924e3dafc055e9685481054fe99e58ed67f5c6ed80e62")
+            .expect("should decode"),
+    )
+    .unwrap();
+    let signing_keys = CelestiaKeys::from(signing_key);
+    let address = Bech32Address("dummy_address".to_string());
+    let chain_id = "dummy_chain".to_string();
+
+    let mut client = CelestiaClient {
+        grpc_channel,
+        tx_client,
+        signing_keys,
+        address,
+        chain_id,
+    };
+
+    let get_tx = client.get_tx(TxHash("dummy_tx".to_string()));
+    tokio::time::advance(REQUEST_TIMEOUT.saturating_mul(2)).await;
+
+    match get_tx.await.unwrap_err() {
+        TrySubmitError::FailedToGetTx(error) if error.is_timeout() => {}
+        status => panic!("unexpected status: {status:#?}"),
+    }
+}
 
 #[test]
 fn new_msg_pay_for_blobs_should_succeed() {
