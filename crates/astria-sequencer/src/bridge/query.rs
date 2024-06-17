@@ -109,12 +109,12 @@ async fn get_bridge_account_info(
         }
     };
 
-    return Ok(Some(BridgeAccountInfo {
+    Ok(Some(BridgeAccountInfo {
         rollup_id,
         asset_id,
         sudo_address,
         withdrawer_address,
-    }));
+    }))
 }
 
 pub(crate) async fn bridge_account_info_request(

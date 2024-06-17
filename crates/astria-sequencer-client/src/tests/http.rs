@@ -275,7 +275,7 @@ async fn get_bridge_account_info() {
     let expected_response = BridgeAccountInfoResponse {
         height: 10,
         rollup_id: Some(RollupId::from_unhashed_bytes(b"rollup_0").into_raw()),
-        asset_id: Some(asset::Id::from_denom("asset_0").get().to_vec()),
+        asset_id: Some(asset::Id::from_str_unchecked("asset_0").get().to_vec()),
         sudo_address: Some(alice_address().into_raw()),
         withdrawer_address: Some(alice_address().into_raw()),
     };
