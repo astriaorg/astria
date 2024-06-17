@@ -678,6 +678,7 @@ dependencies = [
  "celestia-tendermint",
  "celestia-types",
  "ed25519-consensus",
+ "hex",
  "ibc-types",
  "indexmap 2.2.6",
  "insta",

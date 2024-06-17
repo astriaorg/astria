@@ -92,7 +92,7 @@ impl Service {
             sequencer_chain_id,
             sequencer_key_path,
             state: state.clone(),
-            expected_fee_asset_id: asset::Id::from_denom(&fee_asset_denomination),
+            expected_fee_asset_id: asset::Id::from_str_unchecked(&fee_asset_denomination),
             min_expected_fee_asset_balance: u128::from(min_expected_fee_asset_balance),
             metrics,
         }

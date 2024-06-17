@@ -232,9 +232,18 @@ async fn get_allowed_fee_assets() {
     let expected_response = AllowedFeeAssetIdsResponse {
         height: 10,
         fee_asset_ids: vec![
-            asset::Id::from_denom("asset_0").get().to_vec().into(),
-            asset::Id::from_denom("asset_1").get().to_vec().into(),
-            asset::Id::from_denom("asset_2").get().to_vec().into(),
+            asset::Id::from_str_unchecked("asset_0")
+                .get()
+                .to_vec()
+                .into(),
+            asset::Id::from_str_unchecked("asset_1")
+                .get()
+                .to_vec()
+                .into(),
+            asset::Id::from_str_unchecked("asset_2")
+                .get()
+                .to_vec()
+                .into(),
         ],
     };
 
