@@ -1,7 +1,10 @@
 use anyhow::Context as _;
 use astria_core::{
     primitive::v1::Address,
-    protocol::abci::AbciErrorCode,
+    protocol::{
+        abci::AbciErrorCode,
+        bridge::v1alpha1::BridgeAccountInfo,
+    },
 };
 use cnidarium::Storage;
 use prost::Message as _;
@@ -14,6 +17,137 @@ use crate::{
     bridge::state_ext::StateReadExt as _,
     state_ext::StateReadExt as _,
 };
+
+pub(crate) async fn bridge_account_info_request(
+    storage: Storage,
+    request: request::Query,
+    params: Vec<(String, String)>,
+) -> response::Query {
+    use astria_core::protocol::bridge::v1alpha1::BridgeAccountInfoResponse;
+
+    let address = match preprocess_request(&params) {
+        Ok(tup) => tup,
+        Err(err_rsp) => return err_rsp,
+    };
+
+    let snapshot = storage.latest_snapshot();
+    let height = match snapshot.get_block_height().await {
+        Ok(height) => height,
+        Err(err) => {
+            return response::Query {
+                code: AbciErrorCode::INTERNAL_ERROR.into(),
+                info: AbciErrorCode::INTERNAL_ERROR.to_string(),
+                log: format!("failed getting block height: {err:#}"),
+                ..response::Query::default()
+            };
+        }
+    };
+
+    let rollup_id = match snapshot.get_bridge_account_rollup_id(&address).await {
+        Ok(Some(rollup_id)) => rollup_id,
+        Ok(None) => {
+            let resp = BridgeAccountInfoResponse {
+                height,
+                info: None,
+            };
+            let payload = resp.into_raw().encode_to_vec().into();
+
+            let height =
+                tendermint::block::Height::try_from(height).expect("height must fit into an i64");
+            return response::Query {
+                code: 0.into(),
+                key: request.path.clone().into_bytes().into(),
+                value: payload,
+                height,
+                ..response::Query::default()
+            };
+        }
+        Err(err) => {
+            return response::Query {
+                code: AbciErrorCode::INTERNAL_ERROR.into(),
+                info: AbciErrorCode::INTERNAL_ERROR.to_string(),
+                log: format!("failed getting rollup id: {err:#}"),
+                ..response::Query::default()
+            };
+        }
+    };
+
+    let asset_id = match snapshot.get_bridge_account_asset_id(&address).await {
+        Ok(asset_id) => asset_id,
+        Err(err) => {
+            return response::Query {
+                code: AbciErrorCode::INTERNAL_ERROR.into(),
+                info: AbciErrorCode::INTERNAL_ERROR.to_string(),
+                log: format!("failed getting asset id: {err:#}"),
+                ..response::Query::default()
+            };
+        }
+    };
+
+    let sudo_address = match snapshot.get_bridge_account_sudo_address(&address).await {
+        Ok(Some(sudo_address)) => sudo_address,
+        Ok(None) => {
+            return response::Query {
+                code: AbciErrorCode::INTERNAL_ERROR.into(),
+                info: AbciErrorCode::INTERNAL_ERROR.to_string(),
+                log: "sudo address not set".into(),
+                ..response::Query::default()
+            };
+        }
+        Err(err) => {
+            return response::Query {
+                code: AbciErrorCode::INTERNAL_ERROR.into(),
+                info: AbciErrorCode::INTERNAL_ERROR.to_string(),
+                log: format!("failed getting sudo address: {err:#}"),
+                ..response::Query::default()
+            };
+        }
+    };
+
+    let withdrawer_address = match snapshot
+        .get_bridge_account_withdrawer_address(&address)
+        .await
+    {
+        Ok(Some(withdrawer_address)) => withdrawer_address,
+        Ok(None) => {
+            return response::Query {
+                code: AbciErrorCode::INTERNAL_ERROR.into(),
+                info: AbciErrorCode::INTERNAL_ERROR.to_string(),
+                log: "withdrawer address not set".into(),
+                ..response::Query::default()
+            };
+        }
+        Err(err) => {
+            return response::Query {
+                code: AbciErrorCode::INTERNAL_ERROR.into(),
+                info: AbciErrorCode::INTERNAL_ERROR.to_string(),
+                log: format!("failed getting withdrawer address: {err:#}"),
+                ..response::Query::default()
+            };
+        }
+    };
+
+    let resp = BridgeAccountInfoResponse {
+        height,
+        info: Some(BridgeAccountInfo {
+            rollup_id,
+            asset_id,
+            sudo_address,
+            withdrawer_address,
+        }),
+    };
+
+    let payload = resp.into_raw().encode_to_vec().into();
+
+    let height = tendermint::block::Height::try_from(height).expect("height must fit into an i64");
+    response::Query {
+        code: 0.into(),
+        key: request.path.clone().into_bytes().into(),
+        value: payload,
+        height,
+        ..response::Query::default()
+    }
+}
 
 pub(crate) async fn bridge_account_last_tx_hash_request(
     storage: Storage,
