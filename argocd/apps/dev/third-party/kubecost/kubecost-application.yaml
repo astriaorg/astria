@@ -24,18 +24,35 @@ spec:
             emitPodAnnotations: true
             emitNamespaceAnnotations: true
 
+          kubecostModel:
+            extraEnv:
+              - name: LOG_LEVEL
+                value: debug
+          kubecostAggregator:
+            extraEnv:
+              - name: LOG_LEVEL
+                value: debug
+
           oidc:
             enabled: true
-            useIDToken: true
+            useIDToken: false
             clientID: "694442958934-3b6uv0ffu143f7vcmah0rlshbdh2rn1k.apps.googleusercontent.com"
-            secretName: "kubecost-oidc-secret"
+            clientSecret: ""
+            # secretName: "oidc-client-secret"
             authURL: "https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=694442958934-3b6uv0ffu143f7vcmah0rlshbdh2rn1k.apps.googleusercontent.com&scope=openid email&hd=astria.org&redirect_uri=https://kubecost.dev.astria.org/model/oidc/authorize&prompt=select_account"
             loginRedirectURL: "https://kubecost.dev.astria.org"
             discoveryURL: "https://accounts.google.com/.well-known/openid-configuration"
             hostedDomain: "astria.org"
+            rbac:
+              enabled: false
 
 
         # parameters:
+        #   - name: oidc.clientSecret
+        #     value: ""
+        #   - name: oidc.secretName
+        #     value: "oidc-client-secret"
+
         #   - name: ingress.enabled
         #     value: "true"
         #   - name: oidc.enabled
@@ -48,6 +65,4 @@ spec:
       ref: values
       targetRevision: argo-kubecost
   syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
+    automated: {}
