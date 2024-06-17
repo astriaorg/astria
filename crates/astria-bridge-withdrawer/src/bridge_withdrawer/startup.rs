@@ -97,10 +97,12 @@ impl Builder {
     }
 }
 
+#[derive(Debug)]
 pub(super) struct SubmitterInfo {
     pub(super) sequencer_chain_id: String,
 }
 
+#[derive(Debug)]
 pub(super) struct SubmitterHandle {
     info_rx: Option<oneshot::Receiver<SubmitterInfo>>,
 }
@@ -121,11 +123,13 @@ impl SubmitterHandle {
     }
 }
 
+#[derive(Debug)]
 pub(super) struct WatcherInfo {
     pub(super) fee_asset_id: asset::Id,
     pub(super) starting_rollup_height: u64,
 }
 
+#[derive(Debug)]
 pub(super) struct WatcherHandle {
     info_rx: Option<oneshot::Receiver<WatcherInfo>>,
 }
@@ -192,7 +196,7 @@ impl Startup {
         });
 
         tokio::select!(
-            _ = shutdown_token.cancelled() => {
+            () = shutdown_token.cancelled() => {
                 Err(eyre!("startup was cancelled"))
             }
             res = startup_task => {
@@ -278,8 +282,8 @@ impl Startup {
     /// 3. Failing to fetch the last transaction by the bridge account.
     /// 4. The last transaction by the bridge account failed to execute (this should not happen
     ///   in the sequencer logic).
-    /// 5. Failing to convert the transaction data from CometBFT to proto.
-    /// 6. Failing to convert the transaction data from proto to SignedTransaction.
+    /// 5. Failing to convert the transaction data from bytes to proto.
+    /// 6. Failing to convert the transaction data from proto to `SignedTransaction`.
     async fn get_last_transaction(&self) -> eyre::Result<Option<SignedTransaction>> {
         // get last transaction hash by the bridge account, if it exists
         let last_transaction_hash_resp = get_bridge_account_last_transaction_hash(

@@ -1,5 +1,4 @@
 use std::{
-    collections::HashMap,
     io::Write as _,
     sync::Arc,
     time::Duration,
@@ -8,7 +7,6 @@ use std::{
 
 use astria_core::{
     bridge::Ics20WithdrawalFromRollupMemo,
-    crypto::SigningKey,
     generated::protocol::account::v1alpha1::NonceResponse,
     primitive::v1::{
         asset::{
@@ -28,14 +26,11 @@ use astria_core::{
                 Ics20Withdrawal,
             },
             Action,
-            TransactionParams,
-            UnsignedTransaction,
         },
     },
 };
 use astria_eyre::eyre::{
     self,
-    Context,
 };
 use ibc_types::core::client::Height as IbcHeight;
 use once_cell::sync::Lazy;
@@ -51,7 +46,6 @@ use serde_json::json;
 use tempfile::NamedTempFile;
 use tendermint::{
     abci::{
-        self,
         response::CheckTx,
         types::ExecTxResult,
     },
@@ -65,7 +59,10 @@ use tendermint_rpc::{
     },
     request,
 };
-use tokio::task::JoinHandle;
+use tokio::{
+    sync::oneshot,
+    task::JoinHandle,
+};
 use tokio_util::sync::CancellationToken;
 use tracing::debug;
 use wiremock::{
@@ -84,14 +81,15 @@ use super::Submitter;
 use crate::bridge_withdrawer::{
     batch::Batch,
     ethereum::convert::BridgeUnlockMemo,
+    startup,
     state,
     submitter,
 };
 
 const SEQUENCER_CHAIN_ID: &str = "test_sequencer-1000";
 const DEFAULT_LAST_ROLLUP_HEIGHT: u64 = 1;
-const DEFAULT_LAST_SEQUENCER_HEIGHT: u64 = 0;
-const DEFAULT_SEQUENCER_NONCE: u32 = 0;
+// const DEFAULT_LAST_SEQUENCER_HEIGHT: u64 = 0;
+// const DEFAULT_SEQUENCER_NONCE: u32 = 0;
 const DEFAULT_IBC_DENOM: &str = "transfer/channel-0/utia";
 
 static TELEMETRY: Lazy<()> = Lazy::new(|| {
@@ -116,6 +114,7 @@ static TELEMETRY: Lazy<()> = Lazy::new(|| {
 struct TestSubmitter {
     submitter: Option<Submitter>,
     submitter_handle: submitter::Handle,
+    startup_tx: Option<oneshot::Sender<startup::SubmitterInfo>>,
     cometbft_mock: MockServer,
     submitter_task_handle: Option<JoinHandle<Result<(), eyre::Report>>>,
 }
@@ -144,15 +143,15 @@ impl TestSubmitter {
         let state = Arc::new(state::State::new());
         // not testing watcher here so just set it to ready
         state.set_watcher_ready();
+        let (startup_tx, startup_rx) = oneshot::channel();
+        let startup_handle = startup::SubmitterHandle::new(startup_rx);
 
         let (submitter, submitter_handle) = submitter::Builder {
             shutdown_token: shutdown_token.clone(),
+            startup_handle,
             sequencer_key_path,
-            sequencer_chain_id: SEQUENCER_CHAIN_ID.to_string(),
             sequencer_cometbft_endpoint,
             state,
-            expected_fee_asset_id: default_native_asset().id(),
-            min_expected_fee_asset_balance: 1_000_000,
         }
         .build()
         .unwrap();
@@ -160,28 +159,26 @@ impl TestSubmitter {
         Self {
             submitter: Some(submitter),
             submitter_task_handle: None,
+            startup_tx: Some(startup_tx),
             submitter_handle,
             cometbft_mock,
         }
     }
 
-    async fn startup_and_spawn_with_guards(&mut self, startup_guards: HashMap<String, MockGuard>) {
+    async fn startup(&mut self) {
         let submitter = self.submitter.take().unwrap();
 
         let mut state = submitter.state.subscribe();
 
         self.submitter_task_handle = Some(tokio::spawn(submitter.run()));
 
-        // wait for all startup guards to be satisfied
-        for (name, guard) in startup_guards {
-            tokio::time::timeout(Duration::from_millis(100), guard.wait_until_satisfied())
-                .await
-                .wrap_err(format!("{name} guard not satisfied in time."))
-                .unwrap();
-        }
-
-        // consume the startup info in place of the watcher
-        self.submitter_handle.recv_startup_info().await.unwrap();
+        self.startup_tx
+            .take()
+            .expect("should only send startup info once")
+            .send(startup::SubmitterInfo {
+                sequencer_chain_id: SEQUENCER_CHAIN_ID.to_string(),
+            })
+            .unwrap();
 
         // wait for the submitter to be ready
         state
@@ -190,38 +187,26 @@ impl TestSubmitter {
             .unwrap();
     }
 
-    async fn startup_and_spawn(&mut self) {
-        let startup_guards = register_startup_guards(&self.cometbft_mock).await;
-        let sync_guards = register_sync_guards(&self.cometbft_mock).await;
-        self.startup_and_spawn_with_guards(
-            startup_guards
-                .into_iter()
-                .chain(sync_guards.into_iter())
-                .collect(),
-        )
-        .await;
-    }
-
     async fn spawn() -> Self {
         let mut submitter = Self::setup().await;
-        submitter.startup_and_spawn().await;
+        submitter.startup().await;
         submitter
     }
 }
 
-async fn register_default_chain_id_guard(cometbft_mock: &MockServer) -> MockGuard {
-    register_genesis_chain_id_response(SEQUENCER_CHAIN_ID, cometbft_mock).await
+async fn _register_default_chain_id_guard(cometbft_mock: &MockServer) -> MockGuard {
+    _register_genesis_chain_id_response(SEQUENCER_CHAIN_ID, cometbft_mock).await
 }
 
-async fn register_default_fee_asset_ids_guard(cometbft_mock: &MockServer) -> MockGuard {
+async fn _register_default_fee_asset_ids_guard(cometbft_mock: &MockServer) -> MockGuard {
     let fee_asset_ids = vec![default_native_asset().id()];
-    register_allowed_fee_asset_ids_response(fee_asset_ids, cometbft_mock).await
+    _register_allowed_fee_asset_ids_response(fee_asset_ids, cometbft_mock).await
 }
 
-async fn register_default_min_expected_fee_asset_balance_guard(
+async fn _register_default_min_expected_fee_asset_balance_guard(
     cometbft_mock: &MockServer,
 ) -> MockGuard {
-    register_get_latest_balance(
+    _register_get_latest_balance(
         vec![AssetBalance {
             denom: default_native_asset(),
             balance: 1_000_000u128,
@@ -231,43 +216,38 @@ async fn register_default_min_expected_fee_asset_balance_guard(
     .await
 }
 
-async fn register_default_last_bridge_tx_hash_guard(cometbft_mock: &MockServer) -> MockGuard {
-    register_last_bridge_tx_hash_guard(cometbft_mock, make_last_bridge_tx_hash_response()).await
-}
+// async fn _register_default_last_bridge_tx_hash_guard(cometbft_mock: &MockServer) -> MockGuard {
+//     _register_last_bridge_tx_hash_guard(cometbft_mock,
+// _make_last_bridge_tx_hash_response()).await }
 
-async fn register_default_last_bridge_tx_guard(cometbft_mock: &MockServer) -> MockGuard {
-    register_tx_guard(cometbft_mock, make_tx_response()).await
-}
+// async fn _register_default_last_bridge_tx_guard(cometbft_mock: &MockServer) -> MockGuard {
+//     _register_tx_guard(cometbft_mock, _make_tx_response()).await
+// }
 
-async fn register_startup_guards(cometbft_mock: &MockServer) -> HashMap<String, MockGuard> {
-    HashMap::from([
-        (
-            "chain_id".to_string(),
-            register_default_chain_id_guard(cometbft_mock).await,
-        ),
-        (
-            "fee_asset_ids".to_string(),
-            register_default_fee_asset_ids_guard(cometbft_mock).await,
-        ),
-        (
-            "min_expected_fee_asset_balance".to_string(),
-            register_default_min_expected_fee_asset_balance_guard(cometbft_mock).await,
-        ),
-    ])
-}
-
-async fn register_sync_guards(cometbft_mock: &MockServer) -> HashMap<String, MockGuard> {
-    HashMap::from([
-        (
-            "tx_hash".to_string(),
-            register_default_last_bridge_tx_hash_guard(cometbft_mock).await,
-        ),
-        (
-            "last_bridge_tx".to_string(),
-            register_default_last_bridge_tx_guard(cometbft_mock).await,
-        ),
-    ])
-}
+// async fn _register_startup_guards(cometbft_mock: &MockServer) -> HashMap<String, MockGuard> {
+//     HashMap::from([
+//         (
+//             "chain_id".to_string(),
+//             _register_default_chain_id_guard(cometbft_mock).await,
+//         ),
+//         (
+//             "fee_asset_ids".to_string(),
+//             _register_default_fee_asset_ids_guard(cometbft_mock).await,
+//         ),
+//         (
+//             "min_expected_fee_asset_balance".to_string(),
+//             _register_default_min_expected_fee_asset_balance_guard(cometbft_mock).await,
+//         ),
+//         (
+//             "tx_hash".to_string(),
+//             _register_default_last_bridge_tx_hash_guard(cometbft_mock).await,
+//         ),
+//         (
+//             "last_bridge_tx".to_string(),
+//             _register_default_last_bridge_tx_guard(cometbft_mock).await,
+//         ),
+//     ])
+// }
 
 fn make_ics20_withdrawal_action() -> Action {
     let denom = DEFAULT_IBC_DENOM.parse::<Denom>().unwrap();
@@ -358,47 +338,47 @@ fn make_tx_commit_deliver_tx_failure_response() -> tx_commit::Response {
     }
 }
 
-fn make_last_bridge_tx_hash_response() -> BridgeAccountLastTxHashResponse {
-    BridgeAccountLastTxHashResponse {
-        height: DEFAULT_LAST_ROLLUP_HEIGHT,
-        tx_hash: Some([0u8; 32]),
-    }
-}
+// fn _make_last_bridge_tx_hash_response() -> BridgeAccountLastTxHashResponse {
+//     BridgeAccountLastTxHashResponse {
+//         height: DEFAULT_LAST_ROLLUP_HEIGHT,
+//         tx_hash: Some([0u8; 32]),
+//     }
+// }
 
-fn make_signed_bridge_transaction() -> SignedTransaction {
-    let alice_secret_bytes: [u8; 32] =
-        hex::decode("2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90")
-            .unwrap()
-            .try_into()
-            .unwrap();
-    let alice_key = SigningKey::from(alice_secret_bytes);
+// fn _make_signed_bridge_transaction() -> SignedTransaction {
+//     let alice_secret_bytes: [u8; 32] =
+//         hex::decode("2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90")
+//             .unwrap()
+//             .try_into()
+//             .unwrap();
+//     let alice_key = SigningKey::from(alice_secret_bytes);
 
-    let actions = vec![make_bridge_unlock_action(), make_ics20_withdrawal_action()];
-    UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(DEFAULT_SEQUENCER_NONCE)
-            .chain_id(SEQUENCER_CHAIN_ID)
-            .try_build()
-            .unwrap(),
-        actions,
-    }
-    .into_signed(&alice_key)
-}
+//     let actions = vec![make_bridge_unlock_action(), make_ics20_withdrawal_action()];
+//     UnsignedTransaction {
+//         params: TransactionParams::builder()
+//             .nonce(DEFAULT_SEQUENCER_NONCE)
+//             .chain_id(SEQUENCER_CHAIN_ID)
+//             .try_build()
+//             .unwrap(),
+//         actions,
+//     }
+//     .into_signed(&alice_key)
+// }
 
-fn make_tx_response() -> tx::Response {
-    let tx = make_signed_bridge_transaction();
-    tx::Response {
-        hash: tx.sha256_of_proto_encoding().to_vec().try_into().unwrap(),
-        height: DEFAULT_LAST_SEQUENCER_HEIGHT.try_into().unwrap(),
-        index: 0,
-        tx_result: ExecTxResult {
-            code: abci::Code::Ok,
-            ..ExecTxResult::default()
-        },
-        tx: tx.into_raw().encode_to_vec(),
-        proof: None,
-    }
-}
+// fn _make_tx_response() -> tx::Response {
+//     let tx = _make_signed_bridge_transaction();
+//     tx::Response {
+//         hash: tx.sha256_of_proto_encoding().to_vec().try_into().unwrap(),
+//         height: DEFAULT_LAST_SEQUENCER_HEIGHT.try_into().unwrap(),
+//         index: 0,
+//         tx_result: ExecTxResult {
+//             code: abci::Code::Ok,
+//             ..ExecTxResult::default()
+//         },
+//         tx: tx.into_raw().encode_to_vec(),
+//         proof: None,
+//     }
+// }
 
 /// Convert a `Request` object to a `SignedTransaction`
 fn signed_tx_from_request(request: &Request) -> SignedTransaction {
@@ -417,7 +397,7 @@ fn signed_tx_from_request(request: &Request) -> SignedTransaction {
     signed_tx
 }
 
-async fn register_genesis_chain_id_response(chain_id: &str, server: &MockServer) -> MockGuard {
+async fn _register_genesis_chain_id_response(chain_id: &str, server: &MockServer) -> MockGuard {
     use tendermint::{
         consensus::{
             params::{
@@ -470,7 +450,7 @@ async fn register_genesis_chain_id_response(chain_id: &str, server: &MockServer)
         .await
 }
 
-async fn register_allowed_fee_asset_ids_response(
+async fn _register_allowed_fee_asset_ids_response(
     fee_asset_ids: Vec<asset::Id>,
     cometbft_mock: &MockServer,
 ) -> MockGuard {
@@ -498,7 +478,7 @@ async fn register_allowed_fee_asset_ids_response(
         .await
 }
 
-async fn register_get_latest_balance(
+async fn _register_get_latest_balance(
     balances: Vec<AssetBalance>,
     server: &MockServer,
 ) -> MockGuard {
@@ -527,7 +507,7 @@ async fn register_get_latest_balance(
         .await
 }
 
-async fn register_last_bridge_tx_hash_guard(
+async fn _register_last_bridge_tx_hash_guard(
     server: &MockServer,
     response: BridgeAccountLastTxHashResponse,
 ) -> MockGuard {
@@ -570,7 +550,7 @@ async fn register_get_nonce_response(server: &MockServer, response: NonceRespons
         .await
 }
 
-async fn register_tx_guard(server: &MockServer, response: tx::Response) -> MockGuard {
+async fn _register_tx_guard(server: &MockServer, response: tx::Response) -> MockGuard {
     let wrapper = response::Wrapper::new_with_id(tendermint_rpc::Id::Num(1), Some(response), None);
     Mock::given(body_partial_json(json!({"method": "tx"})))
         .respond_with(
