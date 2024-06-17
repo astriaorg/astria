@@ -47,15 +47,11 @@ message RollupId {
 // Astria addresses are bech32m encoded strings, with the data part being the
 // first 20 entries of a sha256-hashed ed25519 public key.
 message Address {
-  // The first 20 bytes of a sha256-hashed ed25519 public key.
-  // Implementors must avoid setting this field in favor of `bech32m`.
-  // Implementors must not accept both `inner` and `bech32m` being set.
-  // DEPRECATED: this field is deprecated and only exists for backward compatibility.
-  // Astria services assume an implicit prefix of "astria" if this field is set.
-  // Astria services will read this field but will never emit it.
-  bytes inner = 1 [deprecated = true];
-
   // A bech32m encoded string. The data are the first 20 bytes of a sha256-hashed ed25519
   // public key. Implementors must not accept both the `bytes` and `bech32m` being set.
   string bech32m = 2;
+
+  // deprecated `bytes inner = 1;`
+  reserved 1;
+  reserved "inner";
 }
