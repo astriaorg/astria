@@ -1,6 +1,9 @@
 use std::{
     net::SocketAddr,
-    sync::Arc,
+    sync::{
+        Arc,
+        OnceLock,
+    },
     time::Duration,
 };
 
@@ -39,6 +42,7 @@ use self::{
 use crate::{
     api,
     config::Config,
+    metrics::Metrics,
 };
 
 mod batch;
@@ -64,6 +68,9 @@ impl BridgeWithdrawer {
     ///
     /// - If the provided `api_addr` string cannot be parsed as a socket address.
     pub fn new(cfg: Config) -> eyre::Result<(Self, ShutdownHandle)> {
+        static METRICS: OnceLock<Metrics> = OnceLock::new();
+        let metrics = METRICS.get_or_init(Metrics::new);
+
         let shutdown_handle = ShutdownHandle::new();
         let Config {
             api_addr,
@@ -87,7 +94,7 @@ impl BridgeWithdrawer {
             sequencer_chain_id,
             sequencer_cometbft_endpoint: sequencer_cometbft_endpoint.clone(),
             sequencer_key_path: sequencer_key_path.clone(),
-            expected_fee_asset_id: asset::Id::from_denom(&fee_asset_denomination),
+            expected_fee_asset_id: asset::Id::from_str_unchecked(&fee_asset_denomination),
             expected_min_fee_asset_balance: u128::from(min_expected_fee_asset_balance),
         }
         .build()
@@ -100,6 +107,7 @@ impl BridgeWithdrawer {
             sequencer_cometbft_endpoint,
             sequencer_key_path,
             state: state.clone(),
+            metrics,
         }
         .build()
         .wrap_err("failed to initialize submitter")?;

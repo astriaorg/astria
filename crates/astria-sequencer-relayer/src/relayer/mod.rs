@@ -53,8 +53,6 @@ use tracing::{
     Span,
 };
 
-use crate::IncludeRollup;
-
 mod builder;
 mod celestia_client;
 mod read;
@@ -71,8 +69,12 @@ use celestia_client::{
 };
 use state::State;
 pub(crate) use state::StateSnapshot;
+use submission::SubmissionState;
 
-use self::submission::SubmissionState;
+use crate::{
+    metrics::Metrics,
+    IncludeRollup,
+};
 
 pub(crate) struct Relayer {
     /// A token to notify relayer that it should shut down.
@@ -101,6 +103,7 @@ pub(crate) struct Relayer {
 
     pre_submit_path: PathBuf,
     post_submit_path: PathBuf,
+    metrics: &'static Metrics,
 }
 
 impl Relayer {
@@ -142,9 +145,10 @@ impl Relayer {
             self.state.clone(),
             submission_state,
             self.shutdown_token.clone(),
+            self.metrics,
         );
 
-        let mut block_stream = read::BlockStream::builder()
+        let mut block_stream = read::BlockStream::builder(self.metrics)
             .block_time(self.sequencer_poll_period)
             .client(self.sequencer_grpc_client.clone())
             .set_last_fetched_height(last_submitted_sequencer_height)
@@ -186,8 +190,7 @@ impl Relayer {
                             block_stream.set_latest_sequencer_height(height);
                         }
                         Err(error) => {
-                            metrics::counter!(crate::metrics_init::SEQUENCER_HEIGHT_FETCH_FAILURE_COUNT)
-                                .increment(1);
+                            self.metrics.increment_sequencer_height_fetch_failure_count();
                             self.state.set_sequencer_connected(false);
                             warn!(
                                 %error,
@@ -357,6 +360,7 @@ fn spawn_submitter(
     state: Arc<State>,
     submission_state: SubmissionState,
     shutdown_token: CancellationToken,
+    metrics: &'static Metrics,
 ) -> (JoinHandle<eyre::Result<()>>, write::BlobSubmitterHandle) {
     let (submitter, handle) = write::BlobSubmitter::new(
         client_builder,
@@ -364,6 +368,7 @@ fn spawn_submitter(
         state,
         submission_state,
         shutdown_token,
+        metrics,
     );
     (tokio::spawn(submitter.run()), handle)
 }

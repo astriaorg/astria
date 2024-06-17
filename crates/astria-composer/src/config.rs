@@ -1,9 +1,15 @@
-use std::net::SocketAddr;
+use std::{
+    collections::HashMap,
+    net::SocketAddr,
+};
 
+use astria_eyre::eyre::WrapErr;
 use serde::{
     Deserialize,
     Serialize,
 };
+
+use crate::rollup::Rollup;
 
 // this is a config, may have many boolean values
 #[allow(clippy::struct_excessive_bools)]
@@ -56,6 +62,17 @@ pub struct Config {
 
     /// The address at which the gRPC server is listening
     pub grpc_addr: SocketAddr,
+}
+
+impl Config {
+    pub(crate) fn parse_rollups(&self) -> astria_eyre::eyre::Result<HashMap<String, String>> {
+        self.rollups
+            .split(',')
+            .filter(|s| !s.is_empty())
+            .map(|s| Rollup::parse(s).map(Rollup::into_parts))
+            .collect::<Result<HashMap<_, _>, _>>()
+            .wrap_err("failed parsing provided <rollup_name>::<url> pairs as rollups")
+    }
 }
 
 impl config::Config for Config {

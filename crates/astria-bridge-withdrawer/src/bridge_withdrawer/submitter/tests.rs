@@ -78,12 +78,15 @@ use wiremock::{
 };
 
 use super::Submitter;
-use crate::bridge_withdrawer::{
-    batch::Batch,
-    ethereum::convert::BridgeUnlockMemo,
-    startup,
-    state,
-    submitter,
+use crate::{
+    bridge_withdrawer::{
+        batch::Batch,
+        ethereum::convert::BridgeUnlockMemo,
+        startup,
+        state,
+        submitter,
+    },
+    metrics::Metrics,
 };
 
 const SEQUENCER_CHAIN_ID: &str = "test_sequencer-1000";
@@ -146,12 +149,15 @@ impl TestSubmitter {
         let (startup_tx, startup_rx) = oneshot::channel();
         let startup_handle = startup::SubmitterHandle::new(startup_rx);
 
+        let metrics = Box::leak(Box::new(Metrics::new()));
+
         let (submitter, submitter_handle) = submitter::Builder {
             shutdown_token: shutdown_token.clone(),
             startup_handle,
             sequencer_key_path,
             sequencer_cometbft_endpoint,
             state,
+            metrics,
         }
         .build()
         .unwrap();

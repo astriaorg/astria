@@ -4,8 +4,11 @@ use std::{
 };
 
 use astria_core::primitive::v1::{
-    asset,
-    asset::Denom,
+    asset::{
+        self,
+        denom,
+        Denom,
+    },
     Address,
 };
 use astria_eyre::{
@@ -82,7 +85,10 @@ impl Builder {
         let contract_address = address_from_string(&ethereum_contract_address)
             .wrap_err("failed to parse ethereum contract address")?;
 
-        if !rollup_asset_denom.is_prefixed() {
+        if rollup_asset_denom
+            .as_trace_prefixed()
+            .map_or(false, denom::TracePrefixed::trace_is_empty)
+        {
             warn!(
                 "rollup asset denomination is not prefixed; Ics20Withdrawal actions will not be \
                  submitted"

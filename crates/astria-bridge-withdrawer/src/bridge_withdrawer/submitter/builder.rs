@@ -9,9 +9,12 @@ use tokio_util::sync::CancellationToken;
 use tracing::info;
 
 use super::state::State;
-use crate::bridge_withdrawer::{
-    startup,
-    submitter::Batch,
+use crate::{
+    bridge_withdrawer::{
+        startup,
+        submitter::Batch,
+    },
+    metrics::Metrics,
 };
 
 const BATCH_QUEUE_SIZE: usize = 256;
@@ -41,6 +44,7 @@ pub(crate) struct Builder {
     pub(crate) sequencer_key_path: String,
     pub(crate) sequencer_cometbft_endpoint: String,
     pub(crate) state: Arc<State>,
+    pub(crate) metrics: &'static Metrics,
 }
 
 impl Builder {
@@ -52,6 +56,7 @@ impl Builder {
             sequencer_key_path,
             sequencer_cometbft_endpoint,
             state,
+            metrics,
         } = self;
 
         let signer = super::signer::SequencerKey::try_from_path(sequencer_key_path)
@@ -73,6 +78,7 @@ impl Builder {
                 batches_rx,
                 sequencer_cometbft_client,
                 signer,
+                metrics,
             },
             handle,
         ))

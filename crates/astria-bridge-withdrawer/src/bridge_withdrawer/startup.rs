@@ -467,11 +467,11 @@ async fn get_tx(
     state: Arc<State>,
     tx_hash: tendermint::Hash,
 ) -> eyre::Result<tx::Response> {
-    let retry_config = tryhard::RetryFutureConfig::new(u32::MAX)
-        .exponential_backoff(Duration::from_millis(100))
-        .max_delay(Duration::from_secs(20))
+    let retry_config = tryhard::RetryFutureConfig::new(1024)
+        .exponential_backoff(Duration::from_millis(200))
+        .max_delay(Duration::from_secs(60))
         .on_retry(
-            |attempt: u32, next_delay: Option<Duration>, error: &tendermint_rpc::Error| {
+            |attempt, next_delay: Option<Duration>, error: &tendermint_rpc::Error| {
                 let state = Arc::clone(&state);
                 state.set_sequencer_connected(false);
 

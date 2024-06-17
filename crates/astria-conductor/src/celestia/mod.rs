@@ -23,7 +23,6 @@ use futures::{
     FutureExt as _,
 };
 use jsonrpsee::http_client::HttpClient as CelestiaClient;
-use metrics::histogram;
 use sequencer_client::{
     tendermint,
     tendermint::block::Height as SequencerHeight,
@@ -61,15 +60,7 @@ use crate::{
         FirmTrySendError,
         StateIsInit,
     },
-    metrics_init::{
-        BLOBS_PER_CELESTIA_FETCH,
-        DECODED_ITEMS_PER_CELESTIA_FETCH,
-        NAMESPACE_TYPE_LABEL,
-        NAMESPACE_TYPE_METADATA,
-        NAMESPACE_TYPE_ROLLUP_DATA,
-        SEQUENCER_BLOCKS_METADATA_VERIFIED_PER_CELESTIA_FETCH,
-        SEQUENCER_BLOCK_INFORMATION_RECONSTRUCTED_PER_CELESTIA_FETCH,
-    },
+    metrics::Metrics,
     utils::flatten,
 };
 
@@ -148,6 +139,8 @@ pub(crate) struct Reader {
 
     /// Token to listen for Conductor being shut down.
     shutdown: CancellationToken,
+
+    metrics: &'static Metrics,
 }
 
 impl Reader {
@@ -250,6 +243,8 @@ struct RunningReader {
     /// The Celestia namespace for which Sequencer header blobs will be requested. Derived from
     /// `sequencer_chain_id`.
     sequencer_namespace: Namespace,
+
+    metrics: &'static Metrics,
 }
 
 impl RunningReader {
@@ -264,6 +259,7 @@ impl RunningReader {
             sequencer_cometbft_client,
             shutdown,
             sequencer_requests_per_second,
+            metrics,
             ..
         } = exposed_reader;
         let block_cache =
@@ -302,6 +298,7 @@ impl RunningReader {
             rollup_namespace,
             sequencer_chain_id,
             sequencer_namespace,
+            metrics,
         })
     }
 
@@ -428,6 +425,7 @@ impl RunningReader {
                 rollup_namespace: self.rollup_namespace,
                 sequencer_namespace: self.sequencer_namespace,
                 executor: self.executor.clone(),
+                metrics: self.metrics,
             };
             self.reconstruction_tasks.spawn(height, task.execute());
             scheduled.push(height);
@@ -500,10 +498,11 @@ struct FetchConvertVerifyAndReconstruct {
     rollup_namespace: Namespace,
     sequencer_namespace: Namespace,
     executor: executor::Handle<StateIsInit>,
+    metrics: &'static Metrics,
 }
 
 impl FetchConvertVerifyAndReconstruct {
-    #[instrument( skip_all, fields(
+    #[instrument(skip_all, fields(
         celestia_height = self.celestia_height,
         rollup_namespace = %base64(self.rollup_namespace.as_bytes()),
         sequencer_namespace = %base64(self.sequencer_namespace.as_bytes()),
@@ -517,6 +516,7 @@ impl FetchConvertVerifyAndReconstruct {
             rollup_namespace,
             sequencer_namespace,
             executor,
+            metrics,
         } = self;
 
         let new_blobs = fetch_new_blobs(
@@ -524,30 +524,13 @@ impl FetchConvertVerifyAndReconstruct {
             celestia_height,
             rollup_namespace,
             sequencer_namespace,
+            metrics,
         )
         .await
         .wrap_err("failed fetching blobs from Celestia")?;
 
-        {
-            // allow: histograms require f64; precision loss would be no problem
-            #![allow(clippy::cast_precision_loss)]
-            histogram!(
-                BLOBS_PER_CELESTIA_FETCH,
-                NAMESPACE_TYPE_LABEL => NAMESPACE_TYPE_METADATA,
-            )
-            .record(new_blobs.len_header_blobs() as f64);
-        }
-
-        {
-            // allow: histograms require f64; precision loss would be no problem
-            #![allow(clippy::cast_precision_loss)]
-            histogram!(
-                BLOBS_PER_CELESTIA_FETCH,
-                NAMESPACE_TYPE_LABEL => NAMESPACE_TYPE_ROLLUP_DATA,
-            )
-            .record(new_blobs.len_rollup_blobs() as f64);
-        }
-
+        metrics.record_metadata_blobs_per_celestia_fetch(new_blobs.len_header_blobs());
+        metrics.record_rollup_data_blobs_per_celestia_fetch(new_blobs.len_rollup_blobs());
         info!(
             number_of_metadata_blobs = new_blobs.len_header_blobs(),
             number_of_rollup_blobs = new_blobs.len_rollup_blobs(),
@@ -562,26 +545,10 @@ impl FetchConvertVerifyAndReconstruct {
         .await
         .wrap_err("encountered panic while decoding raw Celestia blobs")?;
 
-        {
-            // allow: histograms require f64; precision loss would be no problem
-            #![allow(clippy::cast_precision_loss)]
-            histogram!(
-                DECODED_ITEMS_PER_CELESTIA_FETCH,
-                NAMESPACE_TYPE_LABEL => NAMESPACE_TYPE_METADATA,
-            )
-            .record(decoded_blobs.len_headers() as f64);
-        }
-
-        {
-            // allow: histograms require f64; precision loss would be no problem
-            #![allow(clippy::cast_precision_loss)]
-            histogram!(
-                DECODED_ITEMS_PER_CELESTIA_FETCH,
-                NAMESPACE_TYPE_LABEL => NAMESPACE_TYPE_ROLLUP_DATA,
-            )
-            .record(decoded_blobs.len_rollup_data_entries() as f64);
-        }
-
+        metrics.record_decoded_metadata_items_per_celestia_fetch(decoded_blobs.len_headers());
+        metrics.record_decoded_rollup_data_items_per_celestia_fetch(
+            decoded_blobs.len_rollup_data_entries(),
+        );
         info!(
             number_of_metadata_blobs = decoded_blobs.len_headers(),
             number_of_rollup_blobs = decoded_blobs.len_rollup_data_entries(),
@@ -590,13 +557,9 @@ impl FetchConvertVerifyAndReconstruct {
 
         let verified_blobs = verify_metadata(blob_verifier, decoded_blobs, executor).await;
 
-        {
-            // allow: histograms require f64; precision loss would be no problem
-            #![allow(clippy::cast_precision_loss)]
-            histogram!(SEQUENCER_BLOCKS_METADATA_VERIFIED_PER_CELESTIA_FETCH,)
-                .record(verified_blobs.len_header_blobs() as f64);
-        }
-
+        metrics.record_sequencer_blocks_metadata_verified_per_celestia_fetch(
+            verified_blobs.len_header_blobs(),
+        );
         info!(
             number_of_verified_header_blobs = verified_blobs.len_header_blobs(),
             number_of_rollup_blobs = verified_blobs.len_rollup_blobs(),
@@ -610,19 +573,14 @@ impl FetchConvertVerifyAndReconstruct {
         })
         .await
         .wrap_err("encountered panic while reconstructing blocks from verified blobs")?;
-
-        {
-            // allow: histograms require f64; precision loss would be no problem
-            #![allow(clippy::cast_precision_loss)]
-            histogram!(SEQUENCER_BLOCK_INFORMATION_RECONSTRUCTED_PER_CELESTIA_FETCH,)
-                .record(reconstructed.len() as f64);
-        }
-
         let reconstructed_blocks = ReconstructedBlocks {
             celestia_height,
             blocks: reconstructed,
         };
 
+        metrics.record_sequencer_block_information_reconstructed_per_celestia_fetch(
+            reconstructed_blocks.blocks.len(),
+        );
         info!(
             number_of_final_reconstructed_blocks = reconstructed_blocks.blocks.len(),
             blocks = %json(&ReportReconstructedBlocks(&reconstructed_blocks)),

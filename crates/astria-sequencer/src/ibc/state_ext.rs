@@ -299,7 +299,7 @@ mod test {
         let state = StateDelta::new(snapshot);
 
         let channel = ChannelId::new(0u64);
-        let asset = Id::from_denom("asset");
+        let asset = Id::from_str_unchecked("asset");
 
         assert_eq!(
             state
@@ -318,7 +318,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         let channel = ChannelId::new(0u64);
-        let asset = Id::from_denom("asset");
+        let asset = Id::from_str_unchecked("asset");
         let mut amount = 10u128;
 
         // write initial
@@ -356,8 +356,8 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         let channel = ChannelId::new(0u64);
-        let asset_0 = Id::from_denom("asset_0");
-        let asset_1 = Id::from_denom("asset_1");
+        let asset_0 = Id::from_str_unchecked("asset_0");
+        let asset_1 = Id::from_str_unchecked("asset_1");
         let amount_0 = 10u128;
         let amount_1 = 20u128;
 
@@ -394,7 +394,7 @@ mod test {
 
         let channel_0 = ChannelId::new(0u64);
         let channel_1 = ChannelId::new(1u64);
-        let asset = Id::from_denom("asset_0");
+        let asset = Id::from_str_unchecked("asset_0");
         let amount_0 = 10u128;
         let amount_1 = 20u128;
 
