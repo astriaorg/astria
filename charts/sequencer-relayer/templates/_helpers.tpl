@@ -1,5 +1,5 @@
 {{/*
-Namepsace to deploy elements into.
+Namespace to deploy elements into.
 */}}
 {{- define "sequencer-relayer.namespace" -}}
 {{- default .Release.Namespace .Values.global.namespaceOverride | trunc 63 | trimSuffix "-" -}}
