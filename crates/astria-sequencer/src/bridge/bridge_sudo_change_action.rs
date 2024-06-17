@@ -92,7 +92,7 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        let asset_id = Id::from_denom("test");
+        let asset_id = Id::from_str_unchecked("test");
         state.put_allowed_fee_asset(asset_id);
 
         let bridge_address = crate::astria_address([99; 20]);
@@ -115,7 +115,7 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        let asset_id = Id::from_denom("test");
+        let asset_id = Id::from_str_unchecked("test");
         state.put_allowed_fee_asset(asset_id);
 
         let bridge_address = crate::astria_address([99; 20]);
@@ -146,7 +146,7 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
         state.put_bridge_sudo_change_base_fee(10);
 
-        let fee_asset_id = Id::from_denom("test");
+        let fee_asset_id = Id::from_str_unchecked("test");
         let bridge_address = crate::astria_address([99; 20]);
         let new_sudo_address = crate::astria_address([98; 20]);
         let new_withdrawer_address = crate::astria_address([97; 20]);
