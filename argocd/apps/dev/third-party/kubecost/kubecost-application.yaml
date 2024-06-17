@@ -37,8 +37,8 @@ spec:
             enabled: true
             useIDToken: false
             clientID: "694442958934-3b6uv0ffu143f7vcmah0rlshbdh2rn1k.apps.googleusercontent.com"
-            clientSecret: ""
-            # secretName: "oidc-client-secret"
+            # clientSecret: ""
+            secretName: "oidc-provider"
             authURL: "https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=694442958934-3b6uv0ffu143f7vcmah0rlshbdh2rn1k.apps.googleusercontent.com&scope=openid email&hd=astria.org&redirect_uri=https://kubecost.dev.astria.org/model/oidc/authorize&prompt=select_account"
             loginRedirectURL: "https://kubecost.dev.astria.org"
             discoveryURL: "https://accounts.google.com/.well-known/openid-configuration"
