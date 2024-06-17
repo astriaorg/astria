@@ -41,6 +41,82 @@ fn error_query_response(
     }
 }
 
+async fn get_bridge_account_info(
+    snapshot: cnidarium::Snapshot,
+    address: Address,
+) -> anyhow::Result<Option<BridgeAccountInfo>, response::Query> {
+    let rollup_id = match snapshot.get_bridge_account_rollup_id(&address).await {
+        Ok(Some(rollup_id)) => rollup_id,
+        Ok(None) => {
+            return Ok(None);
+        }
+        Err(err) => {
+            return Err(error_query_response(
+                Some(err),
+                AbciErrorCode::INTERNAL_ERROR,
+                "failed to get rollup id",
+            ));
+        }
+    };
+
+    let asset_id = match snapshot.get_bridge_account_asset_id(&address).await {
+        Ok(asset_id) => asset_id,
+        Err(err) => {
+            return Err(error_query_response(
+                Some(err),
+                AbciErrorCode::INTERNAL_ERROR,
+                "failed to get asset id",
+            ));
+        }
+    };
+
+    let sudo_address = match snapshot.get_bridge_account_sudo_address(&address).await {
+        Ok(Some(sudo_address)) => sudo_address,
+        Ok(None) => {
+            return Err(error_query_response(
+                None,
+                AbciErrorCode::INTERNAL_ERROR,
+                "sudo address not set",
+            ));
+        }
+        Err(err) => {
+            return Err(error_query_response(
+                Some(err),
+                AbciErrorCode::INTERNAL_ERROR,
+                "failed to get sudo address",
+            ));
+        }
+    };
+
+    let withdrawer_address = match snapshot
+        .get_bridge_account_withdrawer_address(&address)
+        .await
+    {
+        Ok(Some(withdrawer_address)) => withdrawer_address,
+        Ok(None) => {
+            return Err(error_query_response(
+                None,
+                AbciErrorCode::INTERNAL_ERROR,
+                "withdrawer address not set",
+            ));
+        }
+        Err(err) => {
+            return Err(error_query_response(
+                Some(err),
+                AbciErrorCode::INTERNAL_ERROR,
+                "failed to get withdrawer address",
+            ));
+        }
+    };
+
+    return Ok(Some(BridgeAccountInfo {
+        rollup_id,
+        asset_id,
+        sudo_address,
+        withdrawer_address,
+    }));
+}
+
 pub(crate) async fn bridge_account_info_request(
     storage: Storage,
     request: request::Query,
@@ -65,92 +141,16 @@ pub(crate) async fn bridge_account_info_request(
         }
     };
 
-    let rollup_id = match snapshot.get_bridge_account_rollup_id(&address).await {
-        Ok(Some(rollup_id)) => rollup_id,
-        Ok(None) => {
-            let resp = BridgeAccountInfoResponse {
-                height,
-                info: None,
-            };
-            let payload = resp.into_raw().encode_to_vec().into();
-
-            let height =
-                tendermint::block::Height::try_from(height).expect("height must fit into an i64");
-            return response::Query {
-                code: 0.into(),
-                key: request.path.clone().into_bytes().into(),
-                value: payload,
-                height,
-                ..response::Query::default()
-            };
-        }
+    let info = match get_bridge_account_info(snapshot, address).await {
+        Ok(info) => info,
         Err(err) => {
-            return error_query_response(
-                Some(err),
-                AbciErrorCode::INTERNAL_ERROR,
-                "failed to get rollup id",
-            );
-        }
-    };
-
-    let asset_id = match snapshot.get_bridge_account_asset_id(&address).await {
-        Ok(asset_id) => asset_id,
-        Err(err) => {
-            return error_query_response(
-                Some(err),
-                AbciErrorCode::INTERNAL_ERROR,
-                "failed to get asset id",
-            );
-        }
-    };
-
-    let sudo_address = match snapshot.get_bridge_account_sudo_address(&address).await {
-        Ok(Some(sudo_address)) => sudo_address,
-        Ok(None) => {
-            return error_query_response(
-                None,
-                AbciErrorCode::INTERNAL_ERROR,
-                "sudo address not set",
-            );
-        }
-        Err(err) => {
-            return error_query_response(
-                Some(err),
-                AbciErrorCode::INTERNAL_ERROR,
-                "failed to get sudo address",
-            );
-        }
-    };
-
-    let withdrawer_address = match snapshot
-        .get_bridge_account_withdrawer_address(&address)
-        .await
-    {
-        Ok(Some(withdrawer_address)) => withdrawer_address,
-        Ok(None) => {
-            return error_query_response(
-                None,
-                AbciErrorCode::INTERNAL_ERROR,
-                "withdrawer address not set",
-            );
-        }
-        Err(err) => {
-            return error_query_response(
-                Some(err),
-                AbciErrorCode::INTERNAL_ERROR,
-                "failed to get withdrawer address",
-            );
+            return err;
         }
     };
 
     let resp = BridgeAccountInfoResponse {
         height,
-        info: Some(BridgeAccountInfo {
-            rollup_id,
-            asset_id,
-            sudo_address,
-            withdrawer_address,
-        }),
+        info,
     };
 
     let payload = resp.into_raw().encode_to_vec().into();
@@ -182,12 +182,11 @@ pub(crate) async fn bridge_account_last_tx_hash_request(
     let height = match snapshot.get_block_height().await {
         Ok(height) => height,
         Err(err) => {
-            return response::Query {
-                code: AbciErrorCode::INTERNAL_ERROR.into(),
-                info: AbciErrorCode::INTERNAL_ERROR.to_string(),
-                log: format!("failed getting block height: {err:#}"),
-                ..response::Query::default()
-            };
+            return error_query_response(
+                Some(err),
+                AbciErrorCode::INTERNAL_ERROR,
+                "failed to get block height",
+            );
         }
     };
 
@@ -204,12 +203,11 @@ pub(crate) async fn bridge_account_last_tx_hash_request(
             tx_hash: None,
         },
         Err(err) => {
-            return response::Query {
-                code: AbciErrorCode::INTERNAL_ERROR.into(),
-                info: AbciErrorCode::INTERNAL_ERROR.to_string(),
-                log: format!("failed getting balance for provided address: {err:?}"),
-                ..response::Query::default()
-            };
+            return error_query_response(
+                Some(err),
+                AbciErrorCode::INTERNAL_ERROR,
+                "failed getting balance for provided address",
+            );
         }
     };
     let payload = resp.into_raw().encode_to_vec().into();
@@ -229,23 +227,23 @@ fn preprocess_request(params: &[(String, String)]) -> anyhow::Result<Address, re
         .iter()
         .find_map(|(k, v)| (k == "address").then_some(v))
     else {
-        return Err(response::Query {
-            code: AbciErrorCode::INVALID_PARAMETER.into(),
-            info: AbciErrorCode::INVALID_PARAMETER.to_string(),
-            log: "path did not contain address parameter".into(),
-            ..response::Query::default()
-        });
+        return Err(error_query_response(
+            None,
+            AbciErrorCode::INVALID_PARAMETER,
+            "path did not contain address parameter",
+        ));
     };
     let address = hex::decode(address)
         .context("failed decoding hex encoded bytes")
         .and_then(|addr| {
             crate::try_astria_address(&addr).context("failed constructing address from bytes")
         })
-        .map_err(|err| response::Query {
-            code: AbciErrorCode::INVALID_PARAMETER.into(),
-            info: AbciErrorCode::INVALID_PARAMETER.to_string(),
-            log: format!("address could not be constructed from provided parameter: {err:#}"),
-            ..response::Query::default()
+        .map_err(|err| {
+            error_query_response(
+                Some(err),
+                AbciErrorCode::INVALID_PARAMETER,
+                "address could not be constructed from provided parameter",
+            )
         })?;
     Ok(address)
 }
