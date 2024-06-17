@@ -250,6 +250,7 @@ mod test {
         app::test_utils::default_fees,
         asset::get_native_asset,
         mempool::Mempool,
+        metrics::Metrics,
         proposal::commitment::generate_rollup_datas_commitment,
     };
 
@@ -492,7 +493,8 @@ mod test {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mempool = Mempool::new();
-        let mut app = App::new(snapshot, mempool.clone()).await.unwrap();
+        let metrics = Box::leak(Box::new(Metrics::new()));
+        let mut app = App::new(snapshot, mempool.clone(), metrics).await.unwrap();
         app.init_chain(storage.clone(), genesis_state, vec![], "test".to_string())
             .await
             .unwrap();
