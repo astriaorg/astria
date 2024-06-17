@@ -18,6 +18,29 @@ use crate::{
     state_ext::StateReadExt as _,
 };
 
+fn error_query_response(
+    err: Option<anyhow::Error>,
+    code: AbciErrorCode,
+    info: &str,
+) -> response::Query {
+    if err.is_none() {
+        return response::Query {
+            code: code.into(),
+            info: code.to_string(),
+            log: info.into(),
+            ..response::Query::default()
+        };
+    }
+
+    let err = err.unwrap();
+    response::Query {
+        code: code.into(),
+        info: code.to_string(),
+        log: format!("{info}: {err:#}"),
+        ..response::Query::default()
+    }
+}
+
 pub(crate) async fn bridge_account_info_request(
     storage: Storage,
     request: request::Query,
@@ -34,12 +57,11 @@ pub(crate) async fn bridge_account_info_request(
     let height = match snapshot.get_block_height().await {
         Ok(height) => height,
         Err(err) => {
-            return response::Query {
-                code: AbciErrorCode::INTERNAL_ERROR.into(),
-                info: AbciErrorCode::INTERNAL_ERROR.to_string(),
-                log: format!("failed getting block height: {err:#}"),
-                ..response::Query::default()
-            };
+            return error_query_response(
+                Some(err),
+                AbciErrorCode::INTERNAL_ERROR,
+                "failed to get block height",
+            );
         }
     };
 
@@ -63,44 +85,40 @@ pub(crate) async fn bridge_account_info_request(
             };
         }
         Err(err) => {
-            return response::Query {
-                code: AbciErrorCode::INTERNAL_ERROR.into(),
-                info: AbciErrorCode::INTERNAL_ERROR.to_string(),
-                log: format!("failed getting rollup id: {err:#}"),
-                ..response::Query::default()
-            };
+            return error_query_response(
+                Some(err),
+                AbciErrorCode::INTERNAL_ERROR,
+                "failed to get rollup id",
+            );
         }
     };
 
     let asset_id = match snapshot.get_bridge_account_asset_id(&address).await {
         Ok(asset_id) => asset_id,
         Err(err) => {
-            return response::Query {
-                code: AbciErrorCode::INTERNAL_ERROR.into(),
-                info: AbciErrorCode::INTERNAL_ERROR.to_string(),
-                log: format!("failed getting asset id: {err:#}"),
-                ..response::Query::default()
-            };
+            return error_query_response(
+                Some(err),
+                AbciErrorCode::INTERNAL_ERROR,
+                "failed to get asset id",
+            );
         }
     };
 
     let sudo_address = match snapshot.get_bridge_account_sudo_address(&address).await {
         Ok(Some(sudo_address)) => sudo_address,
         Ok(None) => {
-            return response::Query {
-                code: AbciErrorCode::INTERNAL_ERROR.into(),
-                info: AbciErrorCode::INTERNAL_ERROR.to_string(),
-                log: "sudo address not set".into(),
-                ..response::Query::default()
-            };
+            return error_query_response(
+                None,
+                AbciErrorCode::INTERNAL_ERROR,
+                "sudo address not set",
+            );
         }
         Err(err) => {
-            return response::Query {
-                code: AbciErrorCode::INTERNAL_ERROR.into(),
-                info: AbciErrorCode::INTERNAL_ERROR.to_string(),
-                log: format!("failed getting sudo address: {err:#}"),
-                ..response::Query::default()
-            };
+            return error_query_response(
+                Some(err),
+                AbciErrorCode::INTERNAL_ERROR,
+                "failed to get sudo address",
+            );
         }
     };
 
@@ -110,20 +128,18 @@ pub(crate) async fn bridge_account_info_request(
     {
         Ok(Some(withdrawer_address)) => withdrawer_address,
         Ok(None) => {
-            return response::Query {
-                code: AbciErrorCode::INTERNAL_ERROR.into(),
-                info: AbciErrorCode::INTERNAL_ERROR.to_string(),
-                log: "withdrawer address not set".into(),
-                ..response::Query::default()
-            };
+            return error_query_response(
+                None,
+                AbciErrorCode::INTERNAL_ERROR,
+                "withdrawer address not set",
+            );
         }
         Err(err) => {
-            return response::Query {
-                code: AbciErrorCode::INTERNAL_ERROR.into(),
-                info: AbciErrorCode::INTERNAL_ERROR.to_string(),
-                log: format!("failed getting withdrawer address: {err:#}"),
-                ..response::Query::default()
-            };
+            return error_query_response(
+                Some(err),
+                AbciErrorCode::INTERNAL_ERROR,
+                "failed to get withdrawer address",
+            );
         }
     };
 
