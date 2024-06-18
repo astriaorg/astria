@@ -2,15 +2,17 @@ global:
   namespaceOverride: astria-dev-cluster
   dev: true
 
-config:
-  moniker: node0
-  cometBFT:
-    validators:
+moniker: node0
+
+genesis:
+  validators:
       - name: core
         power: '1'
         address: 091E47761C58C474534F4D414AF104A6CAF90C22
         pubKey: lV57+rGs2vac7mvkGHP1oBFGHPJM3a+WoAzeFDCJDNU=
-    secrets:
+  
+cometbft:
+  secrets:
       nodeKey:
         filename: nodeKey.json
         devContent:
@@ -27,7 +29,7 @@ config:
           # private key for the validator address
           # This is a secret key, should use a secret manager for production deployments
           priv_key:
-            value: dGOTAweQV8Do9P2n+A8m5EnboDrlxgD3dg4vrYpdIRqVXnv6saza9pzua+QYc/WgEUYc8kzdr5agDN4UMIkM1Q==
+            value: dGOTAweQV8Do9P2n+A8m5EnboDrlxgD3dg4vrYpdIRqVXnv6saza9pzua+QYc/WgEUYc8kzdr5agDN4UMIkM1Q==    
 
 sequencer-relayer:
   enabled: true
