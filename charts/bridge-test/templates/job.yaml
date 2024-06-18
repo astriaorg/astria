@@ -14,8 +14,8 @@ spec:
     spec:
       initContainers:
         - name: init-bridge-account
-          image: {{ .Values.astriaGoImage }}
-          command: [ "/build/astria-go", "sequencer", "bridge", "init", {{ .Values.evmRollupName }} ]
+          image: {{ .Values.bridgeTesterUtilityImage }}
+          command: [ "astria-go", "sequencer", "bridge", "init", {{ .Values.evmRollupName }} ]
           args:
             - --privkey={{ .Values.bridgeAccount.privkey }}
             - --sequencer-chain-id={{ .Values.sequencerChainId }}
@@ -25,7 +25,7 @@ spec:
             - --log-level=debug
       containers:
         - name: test-ibc-transfer
-          image: {{ .Values.celestiaAppImage }}
+          image: {{ .Values.bridgeTesterUtilityImage }}
           command: [ "/scripts/test-ibc-transfer.sh" ]
           volumeMounts:
             - mountPath: /scripts/
@@ -38,4 +38,4 @@ spec:
           configMap:
             name: bridge-test-scripts
             defaultMode: 0777
-      restartPolicy: OnFailure
+      restartPolicy: Never

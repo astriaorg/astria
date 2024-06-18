@@ -9,6 +9,7 @@ data:
   bridge_account_address: "{{ .Values.bridgeAccount.address }}"
   bridge_account_address_bech32: "{{ .Values.bridgeAccount.bech32 }}"
   evm_to_address: "{{ .Values.evmToAddress }}"
+  evm_url: "{{ .Values.evmURL }}"
   celestia_chain_id: "{{ .Values.celestiaChainID }}"
   celestia_node_url: "{{ .Values.celestiaNodeURL }}"
   celestia_dev_account_address: "{{ .Values.celestiaDevAccount.address }}"
