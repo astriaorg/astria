@@ -42,7 +42,7 @@ use tracing::{
     warn,
 };
 
-use crate::withdrawer::{
+use crate::bridge_withdrawer::{
     batch::Batch,
     ethereum::{
         astria_withdrawer_interface::IAstriaWithdrawer,
@@ -118,7 +118,9 @@ pub(crate) struct Watcher {
 impl Watcher {
     pub(crate) async fn run(mut self) -> Result<()> {
         let (provider, contract, fee_asset_id, asset_withdrawal_divisor, next_rollup_block_height) =
-            self.startup().await?;
+            self.startup()
+                .await
+                .wrap_err("watcher failed to start up")?;
 
         let Self {
             contract_address: _contract_address,
@@ -197,7 +199,11 @@ impl Watcher {
         let SequencerStartupInfo {
             fee_asset_id,
             next_batch_rollup_height,
-        } = self.submitter_handle.recv_startup_info().await?;
+        } = self
+            .submitter_handle
+            .recv_startup_info()
+            .await
+            .wrap_err("failed to get sequencer startup info")?;
 
         // connect to eth node
         let retry_config = tryhard::RetryFutureConfig::new(1024)
@@ -379,7 +385,7 @@ impl Batcher {
                             block_number: meta.block_number,
                             transaction_hash: meta.transaction_hash,
                         };
-                        let action = event_to_action(event_with_metadata, self.fee_asset_id, self.rollup_asset_denom.clone(), self.asset_withdrawal_divisor, self.bridge_address)?;
+                        let action = event_to_action(event_with_metadata, self.fee_asset_id, self.rollup_asset_denom.clone(), self.asset_withdrawal_divisor, self.bridge_address).wrap_err("failed to convert event to action")?;
 
                         if meta.block_number.as_u64() == curr_batch.rollup_height {
                             // block number was the same; add event to current batch
@@ -446,7 +452,7 @@ mod tests {
     use tokio::sync::oneshot;
 
     use super::*;
-    use crate::withdrawer::ethereum::{
+    use crate::bridge_withdrawer::ethereum::{
         astria_bridgeable_erc20::AstriaBridgeableERC20,
         astria_withdrawer::AstriaWithdrawer,
         astria_withdrawer_interface::{

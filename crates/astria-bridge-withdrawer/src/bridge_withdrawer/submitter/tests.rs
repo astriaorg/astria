@@ -82,13 +82,13 @@ use wiremock::{
 
 use super::Submitter;
 use crate::{
-    metrics::Metrics,
-    withdrawer::{
+    bridge_withdrawer::{
         batch::Batch,
         ethereum::convert::BridgeUnlockMemo,
         state,
         submitter,
     },
+    metrics::Metrics,
 };
 
 const SEQUENCER_CHAIN_ID: &str = "test_sequencer-1000";
