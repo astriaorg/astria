@@ -13,7 +13,7 @@ use astria_core::{
 use astria_eyre::eyre::{
     self,
     eyre,
-    WrapErr as _,
+    Context,
 };
 
 pub(crate) struct SequencerKey {
@@ -26,11 +26,21 @@ impl SequencerKey {
     ///
     /// The file should contain a hex-encoded ed25519 secret key.
     pub(crate) fn try_from_path<P: AsRef<Path>>(path: P) -> eyre::Result<Self> {
-        let hex = fs::read_to_string(path).wrap_err("failed to read sequencer key from path")?;
+        let hex = fs::read_to_string(path.as_ref()).wrap_err_with(|| {
+            format!(
+                "failed to read sequencer key from path: {}",
+                path.as_ref().display()
+            )
+        })?;
         let bytes: [u8; 32] = hex::decode(hex.trim())
-            .wrap_err("failed to decode hex")?
+            .wrap_err_with(|| format!("failed to decode hex: {}", path.as_ref().display()))?
             .try_into()
-            .map_err(|_| eyre!("invalid private key length; must be 32 bytes"))?;
+            .map_err(|_| {
+                eyre!(
+                    "invalid private key length; must be 32 bytes: {}",
+                    path.as_ref().display()
+                )
+            })?;
         let signing_key = SigningKey::from(bytes);
 
         Ok(Self {
