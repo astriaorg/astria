@@ -31,7 +31,10 @@ use tracing::Instrument as _;
 
 use crate::{
     accounts::state_ext::StateReadExt,
-    mempool::Mempool as AppMempool,
+    mempool::{
+        Mempool as AppMempool,
+        RemovalReason,
+    },
     metrics::Metrics,
     transaction,
 };
@@ -189,6 +192,31 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
             log: e.to_string(),
             ..response::CheckTx::default()
         };
+    };
+
+    if let Some(removal_reason) = mempool.check_removed_comet_bft(tx_hash).await {
+        mempool.remove(tx_hash).await;
+
+        match removal_reason {
+            RemovalReason::Expired => {
+                metrics.increment_check_tx_removed_expired();
+                return response::CheckTx {
+                    code: AbciErrorCode::TRANSACTION_EXPIRED.into(),
+                    info: "transaction expired in app's mempool".into(),
+                    log: "Transaction expired in the app's mempool".into(),
+                    ..response::CheckTx::default()
+                };
+            }
+            RemovalReason::FailedPrepareProposal(err) => {
+                metrics.increment_check_tx_removed_failed_execution();
+                return response::CheckTx {
+                    code: AbciErrorCode::TRANSACTION_FAILED.into(),
+                    info: "transaction failed execution in prepare_proposal()".into(),
+                    log: format!("transaction failed execution because: {err}"),
+                    ..response::CheckTx::default()
+                };
+            }
+        }
     };
 
     // tx is valid, push to mempool
