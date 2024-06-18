@@ -74,24 +74,24 @@ are gRPC):
   to read from `H_start = C.base_celestia_height` and
   `H_end = H_start + G.celestia_block_variance * 6`[^1].
 8. For every height `H` in the range `[H_start, H_end]` (inclusive):
-    a. Call Celestia-Node JSONRPC with arguments to get Sequencer block metadata
+    1. Call Celestia-Node JSONRPC with arguments to get Sequencer block metadata
       `{"jsonrpc": "2.0", "method": "blob.GetAll", "params": [<H>, [<Ns>]]}`.
-    b. Decompress the result of a. as brotli, decode as protobuf
+    2. Decompress the result of 1. as brotli, decode as protobuf
       `astria.sequencerblock.v1alpha1.SubmittedMetadataList`.
-    c. Call Sequencer CometBFT JSONRPC with arguments to get the commitment
+    3. Call Sequencer CometBFT JSONRPC with arguments to get the commitment
       for Sequencer height `F`:
       `{"jsonrpc": "2.0", "method": "commit", "params": { "height": <F>}}`.
-    d. Call Sequencer CometBFT JSONRPC with arguments to get the set of
+    4. Call Sequencer CometBFT JSONRPC with arguments to get the set of
       validators for Sequencer height `F` (the validators for height `F` are
       found at height `F-1`):
       `{"jsonrpc": "2.0", "method": "commit", "params": { "height": <F-1>}}`.
-    e. Validate all sequencer metadata elements in steps a. and b., using the
-      information in steps c. and d.
-    f. Call Celestia-Node JSONRPC with arguments to get Rollup data
+    5. Validate all sequencer metadata elements in steps 1. and 2., using the
+      information in steps 3. and 4.
+    6. Call Celestia-Node JSONRPC with arguments to get Rollup data
       `{"jsonrpc": "2.0", "method": "blob.GetAll", "params": [<H>, [<Nr>]]}`.
-    g. Decompress the result of b. as brotli, decode as protobuf
+    7. Decompress the result of 6. as brotli, decode as protobuf
       `astria.sequencerblock.v1alpha1.SubmittedRollupDataList`.
-    h. Match pairs `P = (metadata, rollup data)` found in steps e. and g. by
+    8. Match pairs `P = (metadata, rollup data)` found in steps 5. and 7. by
      `rollup.block_hash` and `metadata.block_hash`.
 9. Get the pair `P` at height `F` (found in step 6), then go
   to step 10. If no such pair exists, exit.
