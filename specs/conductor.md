@@ -33,7 +33,7 @@ are gRPC):
 1. Call `astria.execution.v1alpha2.GetGenesisInfo` to get the rollup's genesis
   information (call this `G`).
 2. Call `astria.execution.v1alpha2.GetCommitmentState` to get the rollup's most
-  recent commitment state (call this `C`). 
+  recent commitment state (call this `C`).
 3. Map the current rollup's soft number/height to the next expected Sequencer's
   height using `S = G.sequencer_genesis_block_height + C.soft.number`.
 4. Call `astria.sequencerblock.v1alpha1.GetFilteredSequencerBlock` with
@@ -59,7 +59,7 @@ are gRPC):
 1. Call `astria.execution.v1alpha2.GetGenesisInfo` to get the rollup's genesis
   information (call this `G`).
 2. Call `astria.execution.v1alpha2.GetCommitmentState` to get the rollup's most
-  recent commitment state (call this `C`). 
+  recent commitment state (call this `C`).
 3. Call Sequencer's CometBFT JSONRPC endpoint with arguments
   `{ "jsonrpc": "2.0", "method": "genesis", "params": null }` to get its genesis
   state (call this `Gs`).
@@ -98,10 +98,9 @@ are gRPC):
 10. Call `astria.execution.v1alpha2.ExecuteBlock` with the result of step 9.
 11. Call `astria.execution.v1alpha2.UpdateCommitmentState` with the result of
   step 10, specifically updating the tracked commitment state
-  `C.firm.number == C.soft.number += 1`[^2] and `C.base_celestia_height = H`, with `H` the source
-  Celestia height of the just executed pair `P`.
+  `C.firm.number == C.soft.number += 1`[^2] and `C.base_celestia_height = H`,
+  with `H` the source Celestia height of the just executed pair `P`.
 12. Go to step 6.
-
 
 [Celestia v0 namespace]: https://celestiaorg.github.io/celestia-app/specs/namespace.html#version-0
 [^1]: It is assumed that on average 6 Sequencer heights will fit into 1
