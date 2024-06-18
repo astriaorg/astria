@@ -1,4 +1,7 @@
-use std::sync::Arc;
+use std::{
+    sync::Arc,
+    time::Duration,
+};
 
 use astria_core::generated::cosmos::{
     base::tendermint::v1beta1::{
@@ -25,8 +28,10 @@ use super::{
     CelestiaClient,
     CelestiaKeys,
     GrpcResponseError,
-    REQUEST_TIMEOUT,
 };
+
+/// All gRPCs will time out with the given duration.
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// An error when building the `CelestiaClient`.
 #[derive(Error, Clone, Debug)]
