@@ -52,13 +52,20 @@ genesis:
       blockMaxGas: "-1"
       maxAgeDuration: "1209600000000000"
       maxAgeNumBlocks: "4000000"
-      maxBytes: "1048576"     
+      maxBytes: "1048576"  
+    fees:
+      transferBaseFee: "12"
+      sequenceBaseFee: "32"
+      sequenceByteCostMultiplier: "1"
+      initBridgeAccountBaseFee: "48"
+      bridgeLockByteCostMultiplier: "1"
+      bridgeSudoChangeFee: "24"
+      ics20WithdrawalBaseFee: "24"
     validators: []
       # - name: core
       #   power: '1'
       #   address: 091E47761C58C474534F4D414AF104A6CAF90C22
       #   pubKey: lV57+rGs2vac7mvkGHP1oBFGHPJM3a+WoAzeFDCJDNU=
-      
 sequencer:
     metrics:
       enabled: false

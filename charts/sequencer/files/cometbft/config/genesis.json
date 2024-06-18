@@ -13,13 +13,13 @@
     "authority_sudo_address": "{{ .Values.genesis.authoritySudoAddress }}",
     "native_asset_base_denomination": "{{ .Values.genesis.nativeAssetBaseDenomination }}",
     "fees": {
-      "transfer_base_fee": 12,
-      "sequence_base_fee": 32,
-      "sequence_byte_cost_multiplier": 1,
-      "init_bridge_account_base_fee": 48,
-      "bridge_lock_byte_cost_multiplier": 1,
-      "bridge_sudo_change_fee": 24,
-      "ics20_withdrawal_base_fee": 24
+      "transfer_base_fee": {{ .Values.genesis.fees.transferBaseFee }},
+      "sequence_base_fee": {{ .Values.genesis.fees.sequenceBaseFee }},
+      "sequence_byte_cost_multiplier": {{ .Values.genesis.fees.sequenceByteCostMultiplier }},
+      "init_bridge_account_base_fee": {{ .Values.genesis.fees.initBridgeAccountBaseFee }},
+      "bridge_lock_byte_cost_multiplier": {{ .Values.genesis.fees.bridgeLockByteCostMultiplier }},
+      "bridge_sudo_change_fee": {{ .Values.genesis.fees.bridgeSudoChangeFee }},
+      "ics20_withdrawal_base_fee": {{ .Values.genesis.fees.ics20WithdrawalBaseFee }}
     },
     "allowed_fee_assets": [
       {{- range $index, $value := .Values.genesis.allowedFeeAssets }}
