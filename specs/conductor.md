@@ -61,7 +61,7 @@ are gRPC):
 2. Call `astria.execution.v1alpha2.GetCommitmentState` to get the rollup's most
   recent commitment state (call this `C`).
 3. Call Sequencer's CometBFT JSONRPC endpoint with arguments
-  `{ "jsonrpc": "2.0", "method": "genesis", "params": null }` to get its genesis
+  `{ "method": "genesis", "params": null }` to get its genesis
   state (call this `Gs`).
 4. Determine the rollup's [Celestia v0 namespace] from the first 10 bytes of its
   ID, `G.rollup_id[0..10]` (call this Celestia namespace `Nr`)
@@ -75,26 +75,28 @@ are gRPC):
   `H_end = H_start + G.celestia_block_variance * 6`[^1].
 8. For every height `H` in the range `[H_start, H_end]` (inclusive):
     1. Call Celestia-Node JSONRPC with arguments to get Sequencer block metadata
-      `{"jsonrpc": "2.0", "method": "blob.GetAll", "params": [<H>, [<Ns>]]}`.
+      `{"method": "blob.GetAll", "params": [<H>, [<Ns>]]}`.
     2. Decompress the result of 1. as brotli, decode as protobuf
       `astria.sequencerblock.v1alpha1.SubmittedMetadataList`.
-    3. Call Sequencer CometBFT JSONRPC with arguments to get the commitment
-      for Sequencer height `F`:
-      `{"jsonrpc": "2.0", "method": "commit", "params": { "height": <F>}}`.
-    4. Call Sequencer CometBFT JSONRPC with arguments to get the set of
-      validators for Sequencer height `F` (the validators for height `F` are
-      found at height `F-1`):
-      `{"jsonrpc": "2.0", "method": "commit", "params": { "height": <F-1>}}`.
-    5. Validate all sequencer metadata elements in steps 1. and 2., using the
-      information in steps 3. and 4.
-    6. Call Celestia-Node JSONRPC with arguments to get Rollup data
-      `{"jsonrpc": "2.0", "method": "blob.GetAll", "params": [<H>, [<Nr>]]}`.
-    7. Decompress the result of 6. as brotli, decode as protobuf
+    3. For each metadata element found in the previous step:
+        1. Call the Sequencer CometBFT JSONRPC with the following arguments to
+          get the commitment at the metadata sequencer height `M`
+          `{"method": "commit", "params": { "height": <M>}}`.
+        2. Call Sequencer CometBFT JSONRPC with the following arguments to
+          get the set of validators at the metadata sequencer height `M-1`
+          (the validators for height `M` are found at height `M-1`):
+          `{"method": "validators", "params": { "height": <M-1>}}`.
+        4. validate the metadata using the commitment and validators
+          information.
+    4. Call Celestia-Node JSONRPC with arguments to get Rollup data
+      `{"method": "blob.GetAll", "params": [<H>, [<Nr>]]}`.
+    5. Decompress the result of 6. as brotli, decode as protobuf
       `astria.sequencerblock.v1alpha1.SubmittedRollupDataList`.
-    8. Match pairs `P = (metadata, rollup data)` found in steps 5. and 7. by
-     `rollup.block_hash` and `metadata.block_hash`.
-9. Get the pair `P` at height `F` (found in step 6), then go
-  to step 10. If no such pair exists, exit.
+    6. Match pairs `P = (metadata, rollup data)` found in the previous steps
+      using `rollup.block_hash` and `metadata.block_hash`.
+9. Get that pair `P` with metadata sequencer height matching the next expected
+  firm Sequencer height `M == F` (as determined in step 6). If it exists, go to
+  step 10. If no such pair exists, exit.
 10. Call `astria.execution.v1alpha2.ExecuteBlock` with the result of step 9.
 11. Call `astria.execution.v1alpha2.UpdateCommitmentState` with the result of
   step 10, specifically updating the tracked commitment state
