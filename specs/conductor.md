@@ -86,7 +86,7 @@ are gRPC):
           get the set of validators at the metadata sequencer height `M-1`
           (the validators for height `M` are found at height `M-1`):
           `{"method": "validators", "params": { "height": <M-1>}}`.
-        4. validate the metadata using the commitment and validators
+        3. validate the metadata using the commitment and validators
           information.
     4. Call Celestia-Node JSONRPC with arguments to get Rollup data
       `{"method": "blob.GetAll", "params": [<H>, [<Nr>]]}`.
