@@ -31,8 +31,11 @@ use tracing::Instrument as _;
 
 use crate::{
     accounts::state_ext::StateReadExt,
-    mempool::Mempool as AppMempool,
-    metrics_init,
+    mempool::{
+        Mempool as AppMempool,
+        RemovalReason,
+    },
+    metrics::Metrics,
     transaction,
 };
 
@@ -45,14 +48,16 @@ const MAX_TX_SIZE: usize = 256_000; // 256 KB
 #[derive(Clone)]
 pub(crate) struct Mempool {
     storage: Storage,
-    mempool: AppMempool,
+    inner: AppMempool,
+    metrics: &'static Metrics,
 }
 
 impl Mempool {
-    pub(crate) fn new(storage: Storage, mempool: AppMempool) -> Self {
+    pub(crate) fn new(storage: Storage, mempool: AppMempool, metrics: &'static Metrics) -> Self {
         Self {
             storage,
-            mempool,
+            inner: mempool,
+            metrics,
         }
     }
 }
@@ -70,11 +75,12 @@ impl Service<MempoolRequest> for Mempool {
         use penumbra_tower_trace::v038::RequestExt as _;
         let span = req.create_span();
         let storage = self.storage.clone();
-        let mut mempool = self.mempool.clone();
+        let mut mempool = self.inner.clone();
+        let metrics = self.metrics;
         async move {
             let rsp = match req {
                 MempoolRequest::CheckTx(req) => MempoolResponse::CheckTx(
-                    handle_check_tx(req, storage.latest_snapshot(), &mut mempool).await,
+                    handle_check_tx(req, storage.latest_snapshot(), &mut mempool, metrics).await,
                 ),
             };
             Ok(rsp)
@@ -95,6 +101,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
     req: request::CheckTx,
     state: S,
     mempool: &mut AppMempool,
+    metrics: &'static Metrics,
 ) -> response::CheckTx {
     use sha2::Digest as _;
 
@@ -105,7 +112,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
     } = req;
     if tx.len() > MAX_TX_SIZE {
         mempool.remove(tx_hash).await;
-        metrics::counter!(metrics_init::CHECK_TX_REMOVED_TOO_LARGE).increment(1);
+        metrics.increment_check_tx_removed_too_large();
         return response::CheckTx {
             code: AbciErrorCode::TRANSACTION_TOO_LARGE.into(),
             log: format!(
@@ -146,7 +153,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
 
     if let Err(e) = transaction::check_stateless(&signed_tx).await {
         mempool.remove(tx_hash).await;
-        metrics::counter!(metrics_init::CHECK_TX_REMOVED_FAILED_STATELESS).increment(1);
+        metrics.increment_check_tx_removed_failed_stateless();
         return response::CheckTx {
             code: AbciErrorCode::INVALID_PARAMETER.into(),
             info: "transaction failed stateless check".into(),
@@ -157,7 +164,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
 
     if let Err(e) = transaction::check_nonce_mempool(&signed_tx, &state).await {
         mempool.remove(tx_hash).await;
-        metrics::counter!(metrics_init::CHECK_TX_REMOVED_STALE_NONCE).increment(1);
+        metrics.increment_check_tx_removed_stale_nonce();
         return response::CheckTx {
             code: AbciErrorCode::INVALID_NONCE.into(),
             info: "failed verifying transaction nonce".into(),
@@ -178,13 +185,38 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
 
     if let Err(e) = transaction::check_balance_mempool(&signed_tx, &state).await {
         mempool.remove(tx_hash).await;
-        metrics::counter!(metrics_init::CHECK_TX_REMOVED_ACCOUNT_BALANCE).increment(1);
+        metrics.increment_check_tx_removed_account_balance();
         return response::CheckTx {
             code: AbciErrorCode::INSUFFICIENT_FUNDS.into(),
             info: "failed verifying account balance".into(),
             log: e.to_string(),
             ..response::CheckTx::default()
         };
+    };
+
+    if let Some(removal_reason) = mempool.check_removed_comet_bft(tx_hash).await {
+        mempool.remove(tx_hash).await;
+
+        match removal_reason {
+            RemovalReason::Expired => {
+                metrics.increment_check_tx_removed_expired();
+                return response::CheckTx {
+                    code: AbciErrorCode::TRANSACTION_EXPIRED.into(),
+                    info: "transaction expired in app's mempool".into(),
+                    log: "Transaction expired in the app's mempool".into(),
+                    ..response::CheckTx::default()
+                };
+            }
+            RemovalReason::FailedPrepareProposal(err) => {
+                metrics.increment_check_tx_removed_failed_execution();
+                return response::CheckTx {
+                    code: AbciErrorCode::TRANSACTION_FAILED.into(),
+                    info: "transaction failed execution in prepare_proposal()".into(),
+                    log: format!("transaction failed execution because: {err}"),
+                    ..response::CheckTx::default()
+                };
+            }
+        }
     };
 
     // tx is valid, push to mempool

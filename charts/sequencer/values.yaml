@@ -87,7 +87,7 @@ config:
       privatePeers: []
       # Seed mode, in which node constantly crawls the network and looks for
       # peers. If another node asks it for addresses, it responds and disconnects.
-      seed_mode: false
+      seedMode: false
     # These secrets will be generated using the devContent values turned into JSON
     # and stored unsafely as config maps. Unless SecretProvider is enabled.
     # Where the secret parameters should be then updated to suit your secret provider

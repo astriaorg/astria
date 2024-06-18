@@ -14,7 +14,7 @@ pub(crate) mod celestia;
 pub mod conductor;
 pub mod config;
 pub(crate) mod executor;
-pub mod metrics_init;
+pub(crate) mod metrics;
 pub(crate) mod sequencer;
 mod utils;
 

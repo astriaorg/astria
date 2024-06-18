@@ -1,7 +1,6 @@
 use std::process::ExitCode;
 
 use astria_composer::{
-    metrics_init,
     Composer,
     Config,
     BUILD_INFO,
@@ -38,8 +37,7 @@ async fn main() -> ExitCode {
     if !cfg.no_metrics {
         telemetry_conf = telemetry_conf
             .metrics_addr(&cfg.metrics_http_listener_addr)
-            .service_name(env!("CARGO_PKG_NAME"))
-            .register_metrics(metrics_init::register);
+            .service_name(env!("CARGO_PKG_NAME"));
     }
 
     let _telemetry_guard = match telemetry_conf
