@@ -35,7 +35,7 @@ helm-add-if-not-exist repo url:
 hubbleEnabled := "false"
 deploy-cluster namespace=defaultNamespace enableHubble=hubbleEnabled:
   kind create cluster --image kindest/node:v1.28.9 --config ./dev/kubernetes/kind-cluster-config.yml
-  @just helm-add-if-not-exist cilium https://helm.cilium.io/ > dev/null
+  @just helm-add-if-not-exist cilium https://helm.cilium.io/ > /dev/null
   helm install cilium cilium/cilium --version 1.15.5 \
       -f ./dev/values/cilium.yml \
       {{ if enableHubble == "true" { '--set hubble.enabled=true --set hubble.relay.enabled=true --set hubble.ui.enabled=true --set hubble.ui.ingress.enabled=true' } else { '' } }} \
@@ -164,7 +164,7 @@ deploy-smoke-test tag=defaultTag:
   @just wait-for-sequencer > /dev/null
   @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart ./charts/evm-rollup -f dev/values/rollup/dev.yaml \
     {{ if tag != '' { replace('--set images.conductor.devTag=# --set images.composer.devTag=#', '#', tag) } else { '' } }} \
-    --set config.blockscout.enabled=true \
+    --set config.blockscout.enabled=false \
     --set config.faucet.enabled=false > /dev/null
   @echo "Starting Bridge Withdrawer..." && helm install -n astria-dev-cluster evm-bridge-withdrawer-chart ./charts/evm-bridge-withdrawer \
     -f dev/values/withdrawer/values.yaml \

@@ -8,9 +8,9 @@ global:
 
 images:
   geth:
-    repo: astria-geth
+    repo: ghcr.io/astriaorg/astria-geth
     tag: 0.11.0
-    devTag: test
+    devTag: pr-32
   conductor:
     repo: ghcr.io/astriaorg/conductor
     tag: "0.17.0"
