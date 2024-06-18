@@ -11,7 +11,10 @@ use crate::{
         SigningKey,
         VerificationKey,
     },
-    primitive::v1::Address,
+    primitive::v1::{
+        asset,
+        Address,
+    },
 };
 
 pub mod action;
@@ -507,6 +510,78 @@ impl TransactionParams {
         } = proto;
         Self::builder().nonce(nonce).chain_id(chain_id).try_build()
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct TransactionFeeResponse {
+    pub height: u64,
+    pub fees: Vec<(asset::Id, u128)>,
+}
+
+impl TransactionFeeResponse {
+    #[must_use]
+    pub fn into_raw(self) -> raw::TransactionFeeResponse {
+        raw::TransactionFeeResponse {
+            height: self.height,
+            fees: self
+                .fees
+                .into_iter()
+                .map(|(asset_id, fee)| raw::TransactionFee {
+                    asset_id: asset_id.get().to_vec(),
+                    fee: Some(fee.into()),
+                })
+                .collect(),
+        }
+    }
+
+    pub fn try_from_raw(
+        proto: raw::TransactionFeeResponse,
+    ) -> Result<Self, TransactionFeeResponseError> {
+        let raw::TransactionFeeResponse {
+            height,
+            fees,
+        } = proto;
+        let fees = fees
+            .into_iter()
+            .map(
+                |raw::TransactionFee {
+                     asset_id,
+                     fee,
+                 }| {
+                    let asset_id = asset::Id::try_from_slice(&asset_id)
+                        .map_err(TransactionFeeResponseError::asset_id)?;
+                    let fee = fee.ok_or(TransactionFeeResponseError::unset_fee())?;
+                    Ok((asset_id, fee.into()))
+                },
+            )
+            .collect::<Result<_, _>>()?;
+        Ok(Self {
+            height,
+            fees,
+        })
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct TransactionFeeResponseError(TransactionFeeResponseErrorKind);
+
+impl TransactionFeeResponseError {
+    fn unset_fee() -> Self {
+        Self(TransactionFeeResponseErrorKind::UnsetFee)
+    }
+
+    fn asset_id(inner: asset::IncorrectAssetIdLength) -> Self {
+        Self(TransactionFeeResponseErrorKind::AssetId(inner))
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum TransactionFeeResponseErrorKind {
+    #[error("`fee` field is unset")]
+    UnsetFee,
+    #[error("failed to convert asset ID from bytes")]
+    AssetId(#[source] asset::IncorrectAssetIdLength),
 }
 
 #[cfg(test)]

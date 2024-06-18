@@ -70,6 +70,12 @@ impl Info {
                 crate::bridge::query::bridge_account_last_tx_hash_request,
             )
             .context("invalid path: `bridge/account_last_tx_hash/:address`")?;
+        query_router
+            .insert(
+                "transaction/fee",
+                crate::transaction::query::transaction_fee_request,
+            )
+            .context("invalid path: `transaction/fee`")?;
         Ok(Self {
             storage,
             query_router,
