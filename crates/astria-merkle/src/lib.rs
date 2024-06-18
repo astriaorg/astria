@@ -270,8 +270,8 @@ pub struct Tree {
 }
 
 impl Tree {
-    /// Calculates `SHA256(0x01 || MHT_i || MHT_j)`, where
-    /// `MHT_i` is merkle tree hash of the i-th node.
+    /// Calculates `SHA256(0x01 || MTH_i || MTH_j)`, where
+    /// `MTH_i` is merkle tree hash of the i-th node.
     fn combine_nodes(&self, i: usize, j: usize) -> [u8; 32] {
         let left = self.get_node(i);
         let right = self.get_node(j);

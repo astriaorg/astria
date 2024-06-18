@@ -22,6 +22,8 @@ pub(crate) struct Metrics {
     proposal_transactions: Histogram,
     process_proposal_skipped_proposal: Counter,
     check_tx_removed_too_large: Counter,
+    check_tx_removed_expired: Counter,
+    check_tx_removed_failed_execution: Counter,
     check_tx_removed_failed_stateless: Counter,
     check_tx_removed_stale_nonce: Counter,
     check_tx_removed_account_balance: Counter,
@@ -29,6 +31,7 @@ pub(crate) struct Metrics {
 
 impl Metrics {
     #[must_use]
+    #[allow(clippy::too_many_lines)]
     pub(crate) fn new() -> Self {
         describe_counter!(
             PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_DECODE_FAILURE,
@@ -126,6 +129,22 @@ impl Metrics {
         );
         let check_tx_removed_account_balance = counter!(CHECK_TX_REMOVED_ACCOUNT_BALANCE);
 
+        describe_counter!(
+            CHECK_TX_REMOVED_FAILED_EXECUTION,
+            Unit::Count,
+            "The number of transactions that have been removed from the mempool due to failing \
+             execution in prepare_proposal()"
+        );
+        let check_tx_removed_failed_execution = counter!(CHECK_TX_REMOVED_FAILED_EXECUTION);
+
+        describe_counter!(
+            CHECK_TX_REMOVED_EXPIRED,
+            Unit::Count,
+            "The number of transactions that have been removed from the mempool due to expiring \
+             in the app's mempool"
+        );
+        let check_tx_removed_expired = counter!(CHECK_TX_REMOVED_EXPIRED);
+
         Self {
             prepare_proposal_excluded_transactions_decode_failure,
             prepare_proposal_excluded_transactions_cometbft_space,
@@ -136,6 +155,8 @@ impl Metrics {
             proposal_transactions,
             process_proposal_skipped_proposal,
             check_tx_removed_too_large,
+            check_tx_removed_expired,
+            check_tx_removed_failed_execution,
             check_tx_removed_failed_stateless,
             check_tx_removed_stale_nonce,
             check_tx_removed_account_balance,
@@ -186,6 +207,14 @@ impl Metrics {
         self.check_tx_removed_too_large.increment(1);
     }
 
+    pub(crate) fn increment_check_tx_removed_expired(&self) {
+        self.check_tx_removed_expired.increment(1);
+    }
+
+    pub(crate) fn increment_check_tx_removed_failed_execution(&self) {
+        self.check_tx_removed_failed_execution.increment(1);
+    }
+
     pub(crate) fn increment_check_tx_removed_failed_stateless(&self) {
         self.check_tx_removed_failed_stateless.increment(1);
     }
@@ -209,15 +238,19 @@ metric_names!(pub const METRICS_NAMES:
     PROPOSAL_TRANSACTIONS,
     PROCESS_PROPOSAL_SKIPPED_PROPOSAL,
     CHECK_TX_REMOVED_TOO_LARGE,
+    CHECK_TX_REMOVED_EXPIRED,
+    CHECK_TX_REMOVED_FAILED_EXECUTION,
     CHECK_TX_REMOVED_FAILED_STATELESS,
     CHECK_TX_REMOVED_STALE_NONCE,
-    CHECK_TX_REMOVED_ACCOUNT_BALANCE
+    CHECK_TX_REMOVED_ACCOUNT_BALANCE,
 );
 
 #[cfg(test)]
 mod tests {
     use super::{
         CHECK_TX_REMOVED_ACCOUNT_BALANCE,
+        CHECK_TX_REMOVED_EXPIRED,
+        CHECK_TX_REMOVED_FAILED_EXECUTION,
         CHECK_TX_REMOVED_FAILED_STATELESS,
         CHECK_TX_REMOVED_STALE_NONCE,
         CHECK_TX_REMOVED_TOO_LARGE,
@@ -268,6 +301,11 @@ mod tests {
             "process_proposal_skipped_proposal",
         );
         assert_const(CHECK_TX_REMOVED_TOO_LARGE, "check_tx_removed_too_large");
+        assert_const(CHECK_TX_REMOVED_EXPIRED, "check_tx_removed_expired");
+        assert_const(
+            CHECK_TX_REMOVED_FAILED_EXECUTION,
+            "check_tx_removed_failed_execution",
+        );
         assert_const(
             CHECK_TX_REMOVED_FAILED_STATELESS,
             "check_tx_removed_failed_stateless",
