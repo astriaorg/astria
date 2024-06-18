@@ -1,5 +1,5 @@
 {{/*
-Namepsace to deploy elements into.
+Namespace to deploy elements into.
 */}}
 {{- define "bridge-test.namespace" -}}
 {{- default .Release.Namespace .Values.namespaceOverride | trunc 63 | trimSuffix "-" -}}

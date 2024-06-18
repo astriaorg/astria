@@ -143,6 +143,37 @@ jobs:
         timeout-minutes: 1
         run: just run-smoke-test
 
+  ibc-bridge-test:
+    needs: [ run_checker, composer, conductor, sequencer, sequencer-relayer ]
+    if: (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == 'astriaorg/astria') && (github.event_name == 'merge_group' || needs.run_checker.outputs.run_docker == 'true')
+    runs-on: buildjet-8vcpu-ubuntu-2204
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install just
+        uses: taiki-e/install-action@just
+      - name: Install kind
+        uses: helm/kind-action@v1
+        with:
+          install_only: true
+      - name: Log in to GHCR
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Setup IBC Bridge Test Environment
+        timeout-minutes: 5
+        run: |
+          TAG=sha-$(git rev-parse --short HEAD)
+          just deploy cluster
+          kubectl create secret generic regcred --from-file=.dockerconfigjson=$HOME/.docker/config.json --type=kubernetes.io/dockerconfigjson
+          echo -e "\n\nDeploying with astria images tagged $TAG"
+          just deploy ibc-test-infra $TAG
+          just build-and-load-bridge-tester-image $TAG
+      - name: Run IBC Bridge Tester
+        timeout-minutes: 2
+        run: just deploy bridge-tester $TAG
+
   docker:
     if: ${{ always() && !cancelled() }}
     needs: [composer, conductor, sequencer, sequencer-relayer, evm-bridge-withdrawer, smoke-test]

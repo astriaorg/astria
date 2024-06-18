@@ -21,7 +21,6 @@
   echo "Deploying Hermes and creating IBC channel..."
   just deploy hermes-local > /dev/null
   kubectl wait -n astria-dev-cluster deployment hermes-local-chart --for=condition=Available=True --timeout=300s
-  just deploy bridge-tester > /dev/null
 
 # delete infra used for the ibc bridge test
 delete-ibc-test-infra:
@@ -32,8 +31,10 @@ delete-ibc-test-infra:
   -just delete bridge-tester
 
 # deploy a bridge tester chart that runs a job to test the ibc bridge
-deploy-bridge-tester namespace=defaultNamespace:
-  helm install --debug bridge-tester-chart ./charts/bridge-test --namespace {{namespace}}
+deploy-bridge-tester tag='local' namespace=defaultNamespace:
+  helm install --debug bridge-tester-chart ./charts/bridge-test \
+    --namespace {{namespace}} \
+    --set bridgeTesterUtilityImage=ghcr.io/astriaorg/bridge-tester-utility:{{tag}}
 
 # delete the bridge tester release
 delete-bridge-tester namespace=defaultNamespace:
@@ -46,14 +47,14 @@ delete-bridge-tester namespace=defaultNamespace:
 # NOTE - can't build for darwin because base images don't support it
 default_target_platform := 'linux/amd64'
 
-# build bridge tester utility image
-build-bridge-tester-image target_platform=default_target_platform:
+# build bridge tester utility image, load into cluster
+build-and-load-bridge-tester-image tag=defaultTag target_platform=default_target_platform:
   docker buildx build \
     --load \
     --platform {{target_platform}} \
-    -f dev/containerfiles/bridgetester.Dockerfile \
-    -t ghcr.io/astriaorg/bridge-tester-utility:local .
-  just load ghcr.io/astriaorg/bridge-tester-utility:local
+    -f dev/containerfiles/bridgetesterutility.Dockerfile \
+    -t ghcr.io/astriaorg/bridge-tester-utility:{{tag}} .
+  just load-image ghcr.io/astriaorg/bridge-tester-utility:{{tag}}
 
 # build the astria-geth image and load into cluster. NOTE - assumes astria-geth is sibling directory to monorepo
 build-and-load-astria-geth:

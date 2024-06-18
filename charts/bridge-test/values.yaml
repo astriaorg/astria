@@ -1,5 +1,6 @@
 replicaCount: 1
 
+# TODO - change tag when image is built and pushed
 bridgeTesterUtilityImage: ghcr.io/astriaorg/bridge-tester-utility:local
 
 imagePullSecrets: []
