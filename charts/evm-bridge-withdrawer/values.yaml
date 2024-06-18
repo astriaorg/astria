@@ -19,7 +19,9 @@ images:
 config:
   sequencerCometBftEndpoint: ""
   sequencerChainId: ""
+  sequencerBridgeAddress: ""
   feeAssetDenom: ""
+  minExpectedFeeAssetBalance: "1000000"
   rollupAssetDenom: ""
   evmContractAddress: "0x"
   evmRpcEndpoint: ""

@@ -12,6 +12,8 @@ global:
 config:
   sequencerCometBftEndpoint: "http://node0-sequencer-rpc-service.astria-dev-cluster.svc.cluster.local:26657"
   sequencerChainId: "sequencer-test-chain-0"
+  minExpectedFeeAssetBalance: "0"
+  sequencerBridgeAddress: "astria13ahqz4pjqfmynk9ylrqv4fwe4957x2p0h5782u"
   feeAssetDenom: "nria"
   rollupAssetDenom: "nria"
   evmContractAddress: "0xA58639fB5458e65E4fA917FF951C390292C24A15"

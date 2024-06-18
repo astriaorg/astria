@@ -164,7 +164,7 @@ deploy-smoke-test tag=defaultTag:
   @just wait-for-sequencer > /dev/null
   @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart ./charts/evm-rollup -f dev/values/rollup/dev.yaml \
     {{ if tag != '' { replace('--set images.conductor.devTag=# --set images.composer.devTag=#', '#', tag) } else { '' } }} \
-    --set config.blockscout.enabled=false \
+    --set config.blockscout.enabled=true \
     --set config.faucet.enabled=false > /dev/null
   @echo "Starting Bridge Withdrawer..." && helm install -n astria-dev-cluster evm-bridge-withdrawer-chart ./charts/evm-bridge-withdrawer \
     -f dev/values/withdrawer/values.yaml \
@@ -207,8 +207,8 @@ init-rollup-bridge rollupName=defaultRollupName evmDestinationAddress=evm_destin
 
 
 eth_rpc_url := "http://executor.astria.localdev.me/"
-bridge_tx_bytes := "0xf891808440fe1bec827f4f94a58639fb5458e65e4fa917ff951c390292c24a15880de0b6b3a7640000a49a977afe000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266820a96a0799a660d837e0098074782a8f0753f285d63554f3053c9ae30f72eed25749e7fa013bd74717f58cdc02b5dc72b343761271ee89e53c37151af3ed828c2a39bc159"
-bridge_tx_hash := "0xab86232432f9a96d1caa401872226dc04ed683f9d8e6d85de5ebc3553e6a0158"
+bridge_tx_bytes := "0xf8f280843c54e7f182898594a58639fb5458e65e4fa917ff951c390292c24a15880de0b6b3a7640000b884bab916d00000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002d617374726961313777306164656736346b7930646178776432756779756e65656c6c6d6a676e786c333935303400000000000000000000000000000000000000820a96a086b85348c9816f6d34533669db3d3626cf55eecea6a380d4d072efb1839df443a04b8b60c8b91dd30add1ca4a96097238d73bab29b0a958322d9a51755d5a5f287"
+bridge_tx_hash := "0x67db5b0825e8f60b926234e209d54e0336cd94defe6720e7acadf871e0377150"
 run-smoke-test:
   #!/usr/bin/env bash
   MAX_CHECKS=30
