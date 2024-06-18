@@ -1,19 +1,9 @@
-use astria_core::generated::cosmos::{
-    base::abci::v1beta1::TxResponse,
-    tx::v1beta1::{
-        BroadcastTxResponse,
-        GetTxResponse,
-    },
-};
+use astria_core::generated::cosmos::base::abci::v1beta1::TxResponse;
 use celestia_types::{
     blob::Commitment,
     nmt::Namespace,
 };
 use prost::bytes::Bytes;
-use tonic::{
-    Response,
-    Status,
-};
 
 use super::*;
 
