@@ -133,6 +133,7 @@ impl Conductor {
                 sequencer_grpc_client,
                 sequencer_cometbft_client: sequencer_cometbft_client.clone(),
                 sequencer_block_time: Duration::from_millis(cfg.sequencer_block_time_ms),
+                sequencer_chain_id: cfg.sequencer_chain_id,
                 shutdown: shutdown.clone(),
                 executor: executor_handle.clone(),
             }

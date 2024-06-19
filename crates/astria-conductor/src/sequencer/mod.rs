@@ -6,6 +6,7 @@ use astria_core::sequencerblock::v1alpha1::block::FilteredSequencerBlock;
 use astria_eyre::eyre::{
     self,
     bail,
+    ensure,
     Report,
     WrapErr as _,
 };
@@ -49,6 +50,10 @@ mod block_stream;
 mod builder;
 mod client;
 mod reporting;
+
+#[cfg(test)]
+mod tests;
+
 pub(crate) use builder::Builder;
 pub(crate) use client::SequencerGrpcClient;
 
@@ -74,6 +79,9 @@ pub(crate) struct Reader {
     /// height.
     sequencer_block_time: Duration,
 
+    /// The chain ID of the sequencer network the conductor will communicate with.
+    sequencer_chain_id: String,
+
     /// Token to listen for Conductor being shut down.
     shutdown: CancellationToken,
 }
@@ -96,10 +104,50 @@ impl Reader {
     }
 
     async fn initialize(&mut self) -> eyre::Result<executor::Handle<StateIsInit>> {
+        let _chain_id_result = self
+            .ensure_configured_chain_id_matches_remote()
+            .await
+            .wrap_err("failed to validate chain id")?;
+
         self.executor
             .wait_for_init()
             .await
             .wrap_err("handle to executor failed while waiting for it being initialized")
+    }
+
+    async fn ensure_configured_chain_id_matches_remote(&self) -> eyre::Result<()> {
+        use sequencer_client::Client as _;
+        let retry_config = tryhard::RetryFutureConfig::new(u32::MAX)
+            .exponential_backoff(Duration::from_millis(100))
+            .max_delay(Duration::from_secs(20))
+            .on_retry(
+                |attempt: u32,
+                 next_delay: Option<Duration>,
+                 error: &sequencer_client::tendermint_rpc::Error| {
+                    let wait_duration = next_delay
+                        .map(humantime::format_duration)
+                        .map(tracing::field::display);
+                    warn!(
+                        attempt,
+                        wait_duration,
+                        error = error as &dyn std::error::Error,
+                        "attempt to fetch sequencer genesis info; retrying after backoff",
+                    );
+                    futures::future::ready(())
+                },
+            );
+        let client_genesis: tendermint::Genesis =
+            tryhard::retry_fn(|| self.sequencer_cometbft_client.genesis())
+                .with_config(retry_config)
+                .await
+                .wrap_err("failed to retrieve sequencer genesis after many attempts")?;
+        ensure!(
+            self.sequencer_chain_id == client_genesis.chain_id.as_str(),
+            "mismatch in configured chain_id: {0} and sequencer chain_id: {1}",
+            self.sequencer_chain_id,
+            client_genesis.chain_id.as_str()
+        );
+        Ok(())
     }
 }
 

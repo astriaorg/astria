@@ -14,12 +14,15 @@ use crate::{
     mount_get_commitment_state,
     mount_get_filtered_sequencer_block,
     mount_get_genesis_info,
+    mount_sequencer_genesis,
     mount_update_commitment_state,
 };
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn simple() {
     let test_conductor = spawn_conductor(CommitLevel::SoftOnly).await;
+
+    mount_sequencer_genesis!(test_conductor);
 
     mount_get_genesis_info!(
         test_conductor,
@@ -91,6 +94,8 @@ async fn simple() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn submits_two_heights_in_succession() {
     let test_conductor = spawn_conductor(CommitLevel::SoftOnly).await;
+
+    mount_sequencer_genesis!(test_conductor);
 
     mount_get_genesis_info!(
         test_conductor,
@@ -196,6 +201,8 @@ async fn submits_two_heights_in_succession() {
 async fn skips_already_executed_heights() {
     let test_conductor = spawn_conductor(CommitLevel::SoftOnly).await;
 
+    mount_sequencer_genesis!(test_conductor);
+
     mount_get_genesis_info!(
         test_conductor,
         sequencer_genesis_block_height: 1,
@@ -266,6 +273,8 @@ async fn skips_already_executed_heights() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn requests_from_later_genesis_height() {
     let test_conductor = spawn_conductor(CommitLevel::SoftOnly).await;
+
+    mount_sequencer_genesis!(test_conductor);
 
     mount_get_genesis_info!(
         test_conductor,
