@@ -67,8 +67,8 @@ staking power of the sequencer chain.
 ![image](assets/sequencer_inclusion_proof_3.png)
 
 Additionally, the commitment to the actions for a chain actually also includes a
-merkle root. The commitment contains of the merkle root of a tree where where
-the leaves are the transactions for that rollup; ie. all the `sequence::Action`s
+merkle root. The commitment contains the merkle root of a tree where the leaves 
+are the transactions for that rollup; ie. all the `sequence::Action`s
 for that chain. "Commitment to actions for chain X" is implemented as `(chain_id
 || root of tx tree for rollup)`, allowing for easy verification that a specific
 rollup transaction was included in a sequencer block. This isn't required for
