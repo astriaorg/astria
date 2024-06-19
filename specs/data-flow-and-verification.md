@@ -165,7 +165,7 @@ The block's data (transactions) contain the `action_tree_root` of the block (see
 [sequencer inclusion proofs](sequencer-inclusion-proofs.md) for details), which
 is a commitment to the `sequence:Action`s in the block. Specifically, the
 `action_tree_root` is the root of a merkle tree where each leaf is a commitment
-to the rollup data for one spceific rollup. The block header contains the field
+to the rollup data for one specific rollup. The block header contains the field
 `data_hash` which is the merkle root of all the transactions in a block. Since
 `action_tree_root` is a transaction, we can prove its inclusion inside
 `data_hash` (the `action_tree_root_inclusion_proof` field inside
