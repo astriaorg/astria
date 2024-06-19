@@ -84,7 +84,7 @@ The Reader receives a `ReaderCommand::GetNewBlocks`
 ([link](https://github.com/astriaorg/astria/blob/3c4e47dbe1818e4228691d6bfd2b2143a06f1a6e/crates/astria-conductor/src/driver.rs#L54))
 message from the driver. The `CelestiaClient`
 ([link](https://github.com/astriaorg/astria/blob/3c4e47dbe1818e4228691d6bfd2b2143a06f1a6e/crates/astria-sequencer-relayer/src/data_availability.rs#L244))
-is then called from the Reader to get data from the Celestia DA. This data is
+is then called by the Reader to get data from the Celestia DA. This data is
 then parsed from Celestia blobs into individual partial blocks (consisting of
 relevant information needed for validation and the relevant rollup transactions
 by namespace). The block data is then validated to make sure that the proposer
