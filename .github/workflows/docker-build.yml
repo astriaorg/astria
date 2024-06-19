@@ -173,6 +173,18 @@ jobs:
       - name: Run IBC Bridge Tester
         timeout-minutes: 2
         run: just deploy bridge-tester $TAG
+      - name: Wait for Kubernetes Job to complete
+        run: |
+          kubectl wait --for=condition=complete --timeout=600s job/bridge-tester-chart -n astria-dev-cluster
+
+      - name: Check Job Status
+        id: job_status
+        run: |
+          JOB_STATUS=$(kubectl get job bridge-tester-chart -o jsonpath='{.status.succeeded}' -n astria-dev-cluster)
+          if [ "$JOB_STATUS" != "1" ]; then
+            echo "Job failed"
+            exit 1
+          fi
 
   docker:
     if: ${{ always() && !cancelled() }}
