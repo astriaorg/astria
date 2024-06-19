@@ -1,9 +1,9 @@
 replicaCount: 1
 
-# TODO - change tag when image is built and pushed
+# this image is overridden in ci/cd with the image built in ci/cd
 bridgeTesterUtilityImage: ghcr.io/astriaorg/bridge-tester-utility:local
 
-imagePullSecrets: []
+imagePullSecrets: [ ]
 nameOverride: ""
 namespaceOverride: ""
 fullnameOverride: ""
