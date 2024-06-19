@@ -176,7 +176,7 @@ jobs:
           just deploy bridge-tester $TAG
           kubectl get job bridge-tester-chart -n astria-dev-cluster
           ATTEMPTS=0
-          MAX_ATTEMPTS=20
+          MAX_ATTEMPTS=15
           SLEEP_TIME=3
           while [ $ATTEMPTS -lt $MAX_ATTEMPTS ]; do
             JOB_STATUS=$(kubectl get job bridge-tester-chart -n astria-dev-cluster -o jsonpath='{.status.succeeded}')
