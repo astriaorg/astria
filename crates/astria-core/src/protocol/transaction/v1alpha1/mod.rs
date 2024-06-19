@@ -534,6 +534,12 @@ impl TransactionFeeResponse {
         }
     }
 
+    /// Attempt to convert from a raw protobuf [`raw::TransactionFeeResponse`].
+    ///
+    /// # Errors
+    ///
+    /// - if the asset ID could not be converted from bytes
+    /// - if the fee was unset
     pub fn try_from_raw(
         proto: raw::TransactionFeeResponse,
     ) -> Result<Self, TransactionFeeResponseError> {

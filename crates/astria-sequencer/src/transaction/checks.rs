@@ -91,7 +91,7 @@ pub(crate) async fn get_fees_for_transaction<S: StateReadExt + 'static>(
     for action in &tx.actions {
         match action {
             Action::Transfer(act) => {
-                transfer_update_fees(act.fee_asset_id, &mut fees_by_asset, transfer_fee)
+                transfer_update_fees(act.fee_asset_id, &mut fees_by_asset, transfer_fee);
             }
             Action::Sequence(act) => {
                 sequence_update_fees(state, act.fee_asset_id, &mut fees_by_asset, &act.data)
@@ -115,7 +115,7 @@ pub(crate) async fn get_fees_for_transaction<S: StateReadExt + 'static>(
                 bridge_lock_byte_cost_multiplier,
             ),
             Action::BridgeUnlock(act) => {
-                bridge_unlock_update_fees(act.fee_asset_id, &mut fees_by_asset, transfer_fee).await
+                bridge_unlock_update_fees(act.fee_asset_id, &mut fees_by_asset, transfer_fee);
             }
             Action::BridgeSudoChange(act) => {
                 fees_by_asset
@@ -269,7 +269,7 @@ fn bridge_lock_update_fees(
         .or_insert(expected_deposit_fee);
 }
 
-async fn bridge_unlock_update_fees(
+fn bridge_unlock_update_fees(
     fee_asset_id: asset::Id,
     fees_by_asset: &mut HashMap<asset::Id, u128>,
     transfer_fee: u128,

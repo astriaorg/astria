@@ -55,7 +55,7 @@ pub(crate) async fn transaction_fee_request(
         }
     };
 
-    let fees = fees.into_iter().map(|(id, amount)| (id, amount)).collect();
+    let fees = fees.into_iter().collect();
 
     let resp = TransactionFeeResponse {
         height,
