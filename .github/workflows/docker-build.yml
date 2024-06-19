@@ -175,7 +175,7 @@ jobs:
         run: |
           just deploy bridge-tester $TAG
           kubectl get job bridge-tester-chart -n astria-dev-cluster
-          kubectl wait --for=condition=complete --timeout=300s job/bridge-tester-chart -n astria-dev-cluster
+          while ! kubectl wait --for=condition=complete --timeout=300s job/bridge-tester-chart -n astria-dev-cluster; do sleep 1; done
           JOB_STATUS=$(kubectl get job bridge-tester-chart -o jsonpath='{.status.succeeded}' -n astria-dev-cluster)
           if [ "$JOB_STATUS" != "1" ]; then
             echo "Job failed"
