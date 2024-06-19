@@ -26,7 +26,7 @@ on:
       - "**-v[0-9]+.[0-9]+.[0-9]+-alpha.[0-9]+"
       - "**-v[0-9]+.[0-9]+.[0-9]+-beta.[0-9]+"
       - "**-v[0-9]+.[0-9]+.[0-9]+-rc[0-9]+"
-    
+
   pull_request:
     types:
       - opened
@@ -173,8 +173,8 @@ jobs:
       - name: Run IBC Bridge Tester
         timeout-minutes: 2
         run: |
+          TAG=sha-$(git rev-parse --short HEAD)
           just deploy bridge-tester $TAG
-          kubectl get job bridge-tester-chart -n astria-dev-cluster
           ATTEMPTS=0
           MAX_ATTEMPTS=15
           SLEEP_TIME=3
