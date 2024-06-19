@@ -22,7 +22,7 @@ to generate client libraries and server implementations.
 ### Startup
 
 Upon startup, conductor first grabs the basic genesis information via
-`GetGenesisInfo`. After this succeeds, it  fetches the initial commitments in
+`GetGenesisInfo`. After this succeeds, it fetches the initial commitments in
 the state machine via `GetCommitmentState`. If started on a fresh rollup
 these will all be the same block. If running against a state machine with
 previous block data, Conductor must also track the block hash of any blocks
@@ -122,7 +122,7 @@ for each level of commitment.
 ## Sequence Diagram
 
 The sequence diagram below shows the API used within the full context of Astria
-stack. Demonstrating what happens between a user submitting a transactions, and
+stack. Demonstrating what happens between a user submitting a transaction, and
 seeing it executed as well as before soft and firm commitments.
 
 ![image](assets/execution_api_sequence.png)
