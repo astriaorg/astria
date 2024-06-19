@@ -411,7 +411,7 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
     }
 
     // the IBC packet should have the address as a bech32 string
-    let recipient = Address::try_from_bech32m(&recipient).context("invalid recipient address")?;
+    let recipient = recipient.parse().context("invalid recipient address")?;
 
     let is_prefixed = denom_trace.starts_with_str(&format!("{source_port}/{source_channel}"));
     let is_source = if is_refund {
