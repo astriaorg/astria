@@ -175,28 +175,13 @@ jobs:
         run: |
           TAG=sha-$(git rev-parse --short HEAD)
           just deploy bridge-tester $TAG
-          ATTEMPTS=0
-          MAX_ATTEMPTS=15
-          SLEEP_TIME=3
-          while [ $ATTEMPTS -lt $MAX_ATTEMPTS ]; do
-            JOB_STATUS=$(kubectl get job bridge-tester-chart -n astria-dev-cluster -o jsonpath='{.status.succeeded}')
-            if [ "$JOB_STATUS" == "1" ]; then
-              echo "Job succeeded"
-              exit 0
-            fi
-            JOB_FAILED=$(kubectl get job bridge-tester-chart -n astria-dev-cluster -o jsonpath='{.status.failed}')
-            if [ "$JOB_FAILED" == "1" ]; then
-              echo "Job failed"
-              exit 1
-            fi
-            echo "Waiting for job to complete..."
-            ATTEMPTS=$((ATTEMPTS + 1))
-            sleep $SLEEP_TIME
-          done
-          echo "Job did not complete within the expected time"
-          kubectl describe job bridge-tester-chart -n astria-dev-cluster
-          kubectl logs job/bridge-tester-chart --all-containers -n astria-dev-cluster
-          exit 1
+          # timeout before the gh job times out so we can print logs
+          kubectl wait --for=condition=complete --timeout=90s job/bridge-tester-chart -n astria-dev-cluster || (
+            echo "IBC Transfer Test failed, printing logs..."
+            kubectl describe job bridge-tester-chart -n astria-dev-cluster
+            kubectl logs job/bridge-tester-chart --all-containers -n astria-dev-cluster
+            exit 1
+          )
 
   docker:
     if: ${{ always() && !cancelled() }}
