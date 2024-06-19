@@ -45,7 +45,7 @@ mod composer;
 pub mod config;
 mod executor;
 mod grpc;
-pub mod metrics_init;
+pub(crate) mod metrics;
 mod rollup;
 
 pub use build_info::BUILD_INFO;

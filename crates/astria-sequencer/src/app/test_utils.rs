@@ -27,6 +27,7 @@ use crate::{
         GenesisState,
     },
     mempool::Mempool,
+    metrics::Metrics,
 };
 
 // attempts to decode the given hex string into an address.
@@ -103,7 +104,8 @@ pub(crate) async fn initialize_app_with_storage(
         .expect("failed to create temp storage backing chain state");
     let snapshot = storage.latest_snapshot();
     let mempool = Mempool::new();
-    let mut app = App::new(snapshot, mempool).await.unwrap();
+    let metrics = Box::leak(Box::new(Metrics::new()));
+    let mut app = App::new(snapshot, mempool, metrics).await.unwrap();
 
     let genesis_state = genesis_state.unwrap_or_else(|| GenesisState {
         accounts: default_genesis_accounts(),

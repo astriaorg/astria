@@ -245,7 +245,7 @@ mod test {
     use super::ensure_commit_has_quorum;
     use crate::celestia::block_verifier::does_commit_voting_power_have_quorum;
 
-    /// Constructs a `[merkle::Tree]` from an iterator yielding byte slices.
+    /// Constructs a [`merkle::Tree`] from an iterator yielding byte slices.
     ///
     /// This hashes each item before pushing it into the Merkle Tree, which
     /// effectively causes a double hashing. The leaf hash of an item `d_i`

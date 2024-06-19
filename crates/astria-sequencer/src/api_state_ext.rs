@@ -403,7 +403,7 @@ mod test {
             let rollup_id = RollupId::new(rng.gen());
             let bridge_address = crate::astria_address([rng.gen(); 20]);
             let amount = rng.gen::<u128>();
-            let asset_id = Id::from_denom(&rng.gen::<u8>().to_string());
+            let asset_id = Id::from_str_unchecked(&rng.gen::<u8>().to_string());
             let destination_chain_address = rng.gen::<u8>().to_string();
             let deposit = Deposit::new(
                 bridge_address,

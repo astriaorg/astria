@@ -44,6 +44,8 @@ config:
     dbEngine: pebble
     # Set to true to keep history of all blocks
     archiveNode: false
+    # Set to true to clear the mempool on startup/restart
+    purgeMempool: false
     # EVM network ID used by the chain
     networkId: "1337"
     # Determines what will drive block execution, options are:

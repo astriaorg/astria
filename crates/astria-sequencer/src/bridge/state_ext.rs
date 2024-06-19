@@ -558,7 +558,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         let address = crate::astria_address([42u8; 20]);
-        let mut asset = Id::from_denom("asset_0");
+        let mut asset = Id::from_str_unchecked("asset_0");
 
         // can write
         state
@@ -574,7 +574,7 @@ mod test {
         );
 
         // can update
-        asset = Id::from_denom("asset_2");
+        asset = Id::from_str_unchecked("asset_2");
         state
             .put_bridge_account_asset_id(&address, &asset)
             .expect("storing bridge account assets should not fail");
@@ -589,7 +589,7 @@ mod test {
 
         // writing to other account also ok
         let address_1 = crate::astria_address([41u8; 20]);
-        let asset_1 = Id::from_denom("asset_0");
+        let asset_1 = Id::from_str_unchecked("asset_0");
         state
             .put_bridge_account_asset_id(&address_1, &asset_1)
             .expect("storing bridge account assets should not fail");
@@ -713,7 +713,7 @@ mod test {
         let rollup_id = RollupId::new([1u8; 32]);
         let bridge_address = crate::astria_address([42u8; 20]);
         let mut amount = 10u128;
-        let asset = Id::from_denom("asset_0");
+        let asset = Id::from_str_unchecked("asset_0");
         let destination_chain_address = "0xdeadbeef";
         let mut deposit = Deposit::new(
             bridge_address,
@@ -825,7 +825,7 @@ mod test {
         let rollup_id_0 = RollupId::new([1u8; 32]);
         let bridge_address = crate::astria_address([42u8; 20]);
         let amount = 10u128;
-        let asset = Id::from_denom("asset_0");
+        let asset = Id::from_str_unchecked("asset_0");
         let destination_chain_address = "0xdeadbeef";
         let mut deposit = Deposit::new(
             bridge_address,
@@ -896,7 +896,7 @@ mod test {
         let rollup_id = RollupId::new([1u8; 32]);
         let bridge_address = crate::astria_address([42u8; 20]);
         let amount = 10u128;
-        let asset = Id::from_denom("asset_0");
+        let asset = Id::from_str_unchecked("asset_0");
         let destination_chain_address = "0xdeadbeef";
         let deposit = Deposit::new(
             bridge_address,
@@ -951,7 +951,7 @@ mod test {
         let rollup_id = RollupId::new([1u8; 32]);
         let bridge_address = crate::astria_address([42u8; 20]);
         let amount = 10u128;
-        let asset = Id::from_denom("asset_0");
+        let asset = Id::from_str_unchecked("asset_0");
         let destination_chain_address = "0xdeadbeef";
         let mut deposit = Deposit::new(
             bridge_address,
@@ -1043,7 +1043,7 @@ mod test {
         let rollup_id = RollupId::new([1u8; 32]);
         let bridge_address = crate::astria_address([42u8; 20]);
         let amount = 10u128;
-        let asset = Id::from_denom("asset_0");
+        let asset = Id::from_str_unchecked("asset_0");
         let destination_chain_address = "0xdeadbeef";
         let mut deposit = Deposit::new(
             bridge_address,

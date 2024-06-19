@@ -225,9 +225,9 @@ async fn app_execute_transaction_with_every_action_snapshot() {
             IbcRelayerChangeAction::Addition(carol_address).into(),
             IbcRelayerChangeAction::Removal(bob_address).into(),
             // TODO: should fee assets be stored in state?
-            FeeAssetChangeAction::Addition(asset::Id::from("test-0".to_string())).into(),
-            FeeAssetChangeAction::Addition(asset::Id::from("test-1".to_string())).into(),
-            FeeAssetChangeAction::Removal(asset::Id::from("test-0".to_string())).into(),
+            FeeAssetChangeAction::Addition(asset::Id::from_str_unchecked("test-0")).into(),
+            FeeAssetChangeAction::Addition(asset::Id::from_str_unchecked("test-1")).into(),
+            FeeAssetChangeAction::Removal(asset::Id::from_str_unchecked("test-0")).into(),
             SudoAddressChangeAction {
                 new_address: bob_address,
             }

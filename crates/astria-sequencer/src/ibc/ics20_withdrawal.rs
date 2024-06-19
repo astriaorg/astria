@@ -214,8 +214,11 @@ impl ActionHandler for action::Ics20Withdrawal {
 }
 
 fn is_source(source_port: &PortId, source_channel: &ChannelId, asset: &Denom) -> bool {
-    let prefix = format!("{source_port}/{source_channel}/");
-    !asset.prefix_matches_exactly(&prefix)
+    if let Denom::TracePrefixed(trace) = asset {
+        !trace.starts_with_str(&format!("{source_port}/{source_channel}"))
+    } else {
+        false
+    }
 }
 
 #[cfg(test)]
