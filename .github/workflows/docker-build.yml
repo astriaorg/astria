@@ -194,6 +194,8 @@ jobs:
             sleep $SLEEP_TIME
           done
           echo "Job did not complete within the expected time"
+          kubectl describe job bridge-tester-chart -n astria-dev-cluster
+          kubectl logs job/bridge-tester-chart --all-containers -n astria-dev-cluster
           exit 1
 
   docker:
