@@ -1,6 +1,8 @@
 pub mod asset;
 pub mod u128;
 
+use std::str::FromStr;
+
 use base64::{
     display::Base64Display,
     prelude::BASE64_STANDARD,
@@ -404,11 +406,7 @@ impl AddressBuilder<[u8; ADDRESS_LEN], bech32::Hrp> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[cfg_attr(
-    feature = "serde",
-    derive(serde::Serialize),
-    derive(serde::Deserialize)
-)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(
     feature = "serde",
     serde(into = "raw::Address", try_from = "raw::Address")
@@ -427,21 +425,6 @@ impl Address {
     #[must_use]
     pub fn bytes(self) -> [u8; ADDRESS_LEN] {
         self.bytes
-    }
-
-    /// Convert a string containing a bech32m string to an astria address.
-    ///
-    /// # Errors
-    /// Returns an error if:
-    /// + `input` is not bech32m encoded.
-    /// + the decoded data contained in `input` is not 20 bytes long.
-    /// + the bech32 hrp prefix exceeds 16 bytes.
-    pub fn try_from_bech32m(input: &str) -> Result<Self, AddressError> {
-        let (hrp, bytes) = bech32::decode(input).map_err(AddressError::bech32m_decode)?;
-        Self::builder()
-            .slice(bytes)
-            .prefix(hrp.as_str())
-            .try_build()
     }
 
     /// Convert [`Address`] to a [`raw::Address`].
@@ -483,7 +466,7 @@ impl Address {
                 .try_build();
         }
         if inner.is_empty() {
-            return Self::try_from_bech32m(bech32m);
+            return bech32m.parse();
         }
         Err(AddressError::fields_are_mutually_exclusive())
     }
@@ -498,6 +481,18 @@ impl AsRef<[u8]> for Address {
 impl From<Address> for raw::Address {
     fn from(value: Address) -> Self {
         value.into_raw()
+    }
+}
+
+impl FromStr for Address {
+    type Err = AddressError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (hrp, bytes) = bech32::decode(s).map_err(AddressError::bech32m_decode)?;
+        Self::builder()
+            .slice(bytes)
+            .prefix(hrp.as_str())
+            .try_build()
     }
 }
 
