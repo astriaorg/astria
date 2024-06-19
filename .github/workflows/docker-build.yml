@@ -174,14 +174,21 @@ jobs:
         timeout-minutes: 2
         run: |
           TAG=sha-$(git rev-parse --short HEAD)
-          just deploy bridge-tester $TAG
-          # timeout before the gh job times out so we can print logs
-          kubectl wait --for=condition=complete --timeout=90s job/bridge-tester-chart -n astria-dev-cluster || (
+          printlogs() {
             echo "IBC Transfer Test failed, printing logs..."
             kubectl describe job bridge-tester-chart -n astria-dev-cluster
             kubectl logs job/bridge-tester-chart --all-containers -n astria-dev-cluster
             exit 1
-          )
+          }
+          just deploy bridge-tester $TAG
+          # timeout before the gh job times out so we can print logs
+          kubectl wait --for=condition=complete --timeout=90s job/bridge-tester-chart -n astria-dev-cluster || printlogs
+          JOB_STATUS=$(kubectl get job bridge-tester-chart -n astria-dev-cluster -o jsonpath='{.status.succeeded}')
+          if [ "$JOB_STATUS" != "1" ]; then
+            printlogs
+          elif
+            echo "IBC Transfer Test passed"
+          fi
 
   docker:
     if: ${{ always() && !cancelled() }}
