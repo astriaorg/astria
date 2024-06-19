@@ -472,6 +472,13 @@ pub struct IbcPrefixed {
 
 impl IbcPrefixed {
     #[must_use]
+    pub fn new(id: [u8; 32]) -> Self {
+        Self {
+            id,
+        }
+    }
+
+    #[must_use]
     pub fn id(&self) -> super::Id {
         super::Id::new(self.id)
     }
@@ -506,6 +513,72 @@ impl FromStr for IbcPrefixed {
         Ok(Self {
             id,
         })
+    }
+}
+
+#[cfg(feature = "serde")]
+mod serde_impl {
+    use serde::{
+        Deserialize,
+        Deserializer,
+        Serialize,
+        Serializer,
+    };
+
+    macro_rules! impl_serde {
+        ($($type:ty),*$(,)?) => {
+            $(
+                impl<'de> Deserialize<'de> for $type {
+                    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+                    where
+                        D: Deserializer<'de>,
+                    {
+                        use serde::de::Error as _;
+                        let s = <&str>::deserialize(deserializer)?;
+                        s.parse().map_err(D::Error::custom)
+                    }
+                }
+
+                impl Serialize for $type {
+                    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+                    where
+                        S: Serializer,
+                    {
+                        serializer.collect_str(self)
+                    }
+                }
+            )*
+        }
+    }
+
+    impl_serde!(super::Denom, super::TracePrefixed, super::IbcPrefixed);
+
+    #[cfg(test)]
+    mod tests {
+        use super::super::IbcPrefixed;
+        use crate::primitive::v1::asset::{
+            denom::TracePrefixed,
+            Denom,
+        };
+
+        fn trace_prefixed() -> TracePrefixed {
+            "a/trace/pre/fixed/denom".parse().unwrap()
+        }
+        fn ibc_prefixed() -> IbcPrefixed {
+            use sha2::{
+                Digest as _,
+                Sha256,
+            };
+            let bytes: [u8; 32] = Sha256::digest("a/trace/pre/fixed/denom").into();
+            IbcPrefixed::new(bytes)
+        }
+        #[test]
+        fn snapshots() {
+            insta::assert_json_snapshot!(ibc_prefixed());
+            insta::assert_json_snapshot!(trace_prefixed());
+            insta::assert_json_snapshot!(Denom::from(ibc_prefixed()));
+            insta::assert_json_snapshot!(Denom::from(trace_prefixed()));
+        }
     }
 }
 
