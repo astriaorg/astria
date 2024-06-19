@@ -88,7 +88,10 @@ use crate::{
     component::Component as _,
     genesis::GenesisState,
     ibc::component::IbcComponent,
-    mempool::Mempool,
+    mempool::{
+        Mempool,
+        RemovalReason,
+    },
     metrics::Metrics,
     proposal::{
         block_size_constraints::BlockSizeConstraints,
@@ -547,12 +550,20 @@ impl App {
                     );
                     failed_tx_count = failed_tx_count.saturating_add(1);
 
-                    // we re-insert the tx into the mempool if it failed to execute
-                    // due to an invalid nonce, as it may be valid in the future.
-                    // if it's invalid due to the nonce being too low, it'll be
-                    // removed from the mempool in `update_mempool_after_finalization`.
                     if e.downcast_ref::<InvalidNonce>().is_some() {
+                        // we re-insert the tx into the mempool if it failed to execute
+                        // due to an invalid nonce, as it may be valid in the future.
+                        // if it's invalid due to the nonce being too low, it'll be
+                        // removed from the mempool in `update_mempool_after_finalization`.
                         txs_to_readd_to_mempool.push((enqueued_tx, priority));
+                    } else {
+                        // the transaction should be removed from the cometbft mempool
+                        self.mempool
+                            .track_removal_comet_bft(
+                                enqueued_tx.tx_hash(),
+                                RemovalReason::FailedPrepareProposal(e.to_string()),
+                            )
+                            .await;
                     }
                 }
             }
@@ -1119,9 +1130,7 @@ async fn update_mempool_after_finalization<S: StateReadExt>(
     state: S,
 ) -> anyhow::Result<()> {
     let current_account_nonce_getter = |address: Address| state.get_account_nonce(address);
-    mempool
-        .update_priorities(current_account_nonce_getter)
-        .await
+    mempool.run_maintenance(current_account_nonce_getter).await
 }
 
 /// relevant data of a block being executed.
