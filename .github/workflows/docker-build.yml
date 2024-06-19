@@ -186,7 +186,7 @@ jobs:
           JOB_STATUS=$(kubectl get job bridge-tester-chart -n astria-dev-cluster -o jsonpath='{.status.succeeded}')
           if [ "$JOB_STATUS" != "1" ]; then
             printlogs
-          elif
+          else
             echo "IBC Transfer Test passed"
           fi
 
