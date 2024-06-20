@@ -3,6 +3,9 @@ source: crates/astria-sequencer/src/genesis.rs
 expression: genesis_state()
 ---
 {
+  "address_prefixes": {
+    "base": "astria"
+  },
   "accounts": [
     {
       "address": {

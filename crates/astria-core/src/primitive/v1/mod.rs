@@ -427,13 +427,18 @@ impl Address {
         self.bytes
     }
 
+    #[must_use]
+    pub fn prefix(&self) -> &str {
+        self.prefix.as_str()
+    }
+
     /// Convert [`Address`] to a [`raw::Address`].
     // allow: panics are checked to not happen
     #[allow(clippy::missing_panics_doc)]
     #[must_use]
     pub fn to_raw(&self) -> raw::Address {
         let bech32m = bech32::encode_lower::<bech32::Bech32m>(self.prefix, &self.bytes())
-            .expect("must not fail because len(prefix) + len(bytes) <= 63 < BECH32M::CODELENGTH");
+            .expect("should not fail because len(prefix) + len(bytes) <= 63 < BECH32M::CODELENGTH");
         // allow: the field is deprecated, but we must still fill it in
         #[allow(deprecated)]
         raw::Address {
