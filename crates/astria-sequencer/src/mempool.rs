@@ -405,8 +405,7 @@ fn dummy_signed_tx() -> (Arc<SignedTransaction>, Address) {
         let params = TransactionParams::builder()
             .nonce(0)
             .chain_id("dummy")
-            .try_build()
-            .expect("all params are valid");
+            .build();
         let signing_key = SigningKey::from([0; 32]);
         let address = crate::address::base_prefixed(signing_key.verification_key().address_bytes());
         let unsigned_tx = UnsignedTransaction {
@@ -499,17 +498,23 @@ mod test {
         let tx0 = EnqueuedTransaction {
             tx_hash: [0; 32],
             signed_tx: Arc::new(get_mock_tx(0)),
-            address: crate::address::base_prefixed(get_mock_tx(0).verification_key().address_bytes()),
+            address: crate::address::base_prefixed(
+                get_mock_tx(0).verification_key().address_bytes(),
+            ),
         };
         let other_tx0 = EnqueuedTransaction {
             tx_hash: [0; 32],
             signed_tx: Arc::new(get_mock_tx(1)),
-            address: crate::address::base_prefixed(get_mock_tx(1).verification_key().address_bytes()),
+            address: crate::address::base_prefixed(
+                get_mock_tx(1).verification_key().address_bytes(),
+            ),
         };
         let tx1 = EnqueuedTransaction {
             tx_hash: [1; 32],
             signed_tx: Arc::new(get_mock_tx(0)),
-            address: crate::address::base_prefixed(get_mock_tx(0).verification_key().address_bytes()),
+            address: crate::address::base_prefixed(
+                get_mock_tx(0).verification_key().address_bytes(),
+            ),
         };
         assert!(tx0 == other_tx0);
         assert!(tx0 != tx1);
@@ -611,8 +616,7 @@ mod test {
                 params: TransactionParams::builder()
                     .nonce(nonce)
                     .chain_id("test")
-                    .try_build()
-                    .unwrap(),
+                    .build(),
                 actions,
             }
             .into_signed(&other_signing_key)
@@ -750,8 +754,7 @@ mod test {
                 params: TransactionParams::builder()
                     .nonce(nonce)
                     .chain_id("test")
-                    .try_build()
-                    .unwrap(),
+                    .build(),
                 actions,
             }
             .into_signed(&other_signing_key)

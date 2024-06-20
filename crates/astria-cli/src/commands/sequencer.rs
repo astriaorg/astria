@@ -453,8 +453,7 @@ async fn submit_transaction(
         params: TransactionParams::builder()
             .nonce(nonce_res.nonce)
             .chain_id(chain_id)
-            .try_build()
-            .wrap_err("failed to construct transaction params from provided chain ID")?,
+            .build(),
         actions: vec![action],
     }
     .into_signed(&sequencer_key);

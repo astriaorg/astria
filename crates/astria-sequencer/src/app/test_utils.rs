@@ -64,7 +64,8 @@ pub(crate) fn get_bridge_signing_key_and_address() -> (SigningKey, Address) {
             .try_into()
             .unwrap();
     let bridge_signing_key = SigningKey::from(bridge_secret_bytes);
-    let bridge = crate::address::base_prefixed(bridge_signing_key.verification_key().address_bytes());
+    let bridge =
+        crate::address::base_prefixed(bridge_signing_key.verification_key().address_bytes());
     (bridge_signing_key, bridge)
 }
 
@@ -158,8 +159,7 @@ pub(crate) fn get_mock_tx(nonce: u32) -> SignedTransaction {
         params: TransactionParams::builder()
             .nonce(nonce)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![
             SequenceAction {
                 rollup_id: RollupId::from_unhashed_bytes([0; 32]),

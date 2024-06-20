@@ -384,8 +384,7 @@ fn make_signed_bridge_transaction() -> SignedTransaction {
         params: TransactionParams::builder()
             .nonce(DEFAULT_SEQUENCER_NONCE)
             .chain_id(SEQUENCER_CHAIN_ID)
-            .try_build()
-            .unwrap(),
+            .build(),
         actions,
     }
     .into_signed(&alice_key)

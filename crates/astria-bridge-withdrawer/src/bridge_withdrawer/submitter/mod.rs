@@ -342,11 +342,7 @@ async fn process_batch(
         params: TransactionParams::builder()
             .nonce(nonce)
             .chain_id(sequencer_chain_id)
-            .try_build()
-            .context(
-                "failed to construct transcation parameters from latest nonce and configured \
-                 sequencer chain ID",
-            )?,
+            .build(),
     };
 
     // sign transaction

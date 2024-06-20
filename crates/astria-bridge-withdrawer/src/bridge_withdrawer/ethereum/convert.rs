@@ -102,8 +102,10 @@ fn event_to_bridge_unlock(
         transaction_hash,
     };
     let action = BridgeUnlockAction {
-        to: Address::try_from_bech32m(&event.destination_chain_address)
-            .wrap_err("failed to parse destination chain address as bech32m")?,
+        to: event
+            .destination_chain_address
+            .parse()
+            .wrap_err("failed to parse destination chain address")?,
         amount: event
             .amount
             .as_u128()

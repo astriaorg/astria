@@ -128,8 +128,7 @@ mod test {
             params: TransactionParams::builder()
                 .nonce(0)
                 .chain_id("test-chain-1")
-                .try_build()
-                .unwrap(),
+                .build(),
             actions: vec![sequence_action.clone().into(), transfer_action.into()],
         };
 
@@ -145,8 +144,7 @@ mod test {
             params: TransactionParams::builder()
                 .nonce(0)
                 .chain_id("test-chain-1")
-                .try_build()
-                .unwrap(),
+                .build(),
             actions: vec![sequence_action.into()],
         };
 
@@ -185,8 +183,7 @@ mod test {
             params: TransactionParams::builder()
                 .nonce(0)
                 .chain_id("test-chain-1")
-                .try_build()
-                .unwrap(),
+                .build(),
             actions: vec![sequence_action.into(), transfer_action.into()],
         };
 
