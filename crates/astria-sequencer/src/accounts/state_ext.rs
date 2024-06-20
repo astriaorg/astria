@@ -252,7 +252,7 @@ mod test {
         let state = StateDelta::new(snapshot);
 
         // create needed variables
-        let address = crate::astria_address([42u8; 20]);
+        let address = crate::address::base_prefixed([42u8; 20]);
         let nonce_expected = 0u32;
 
         // uninitialized accounts return zero
@@ -273,7 +273,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         // create needed variables
-        let address = crate::astria_address([42u8; 20]);
+        let address = crate::address::base_prefixed([42u8; 20]);
         let nonce_expected = 0u32;
 
         // can write new
@@ -311,7 +311,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         // create needed variables
-        let address = crate::astria_address([42u8; 20]);
+        let address = crate::address::base_prefixed([42u8; 20]);
         let nonce_expected = 2u32;
 
         // can write new
@@ -328,7 +328,7 @@ mod test {
         );
 
         // writing additional account preserves first account's values
-        let address_1 = crate::astria_address([41u8; 20]);
+        let address_1 = crate::address::base_prefixed([41u8; 20]);
         let nonce_expected_1 = 3u32;
 
         state
@@ -359,7 +359,7 @@ mod test {
         let state = StateDelta::new(snapshot);
 
         // create needed variables
-        let address = crate::astria_address([42u8; 20]);
+        let address = crate::address::base_prefixed([42u8; 20]);
         let asset = Id::from_str_unchecked("asset_0");
         let amount_expected = 0u128;
 
@@ -381,7 +381,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         // create needed variables
-        let address = crate::astria_address([42u8; 20]);
+        let address = crate::address::base_prefixed([42u8; 20]);
         let asset = Id::from_str_unchecked("asset_0");
         let mut amount_expected = 1u128;
 
@@ -423,7 +423,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         // create needed variables
-        let address = crate::astria_address([42u8; 20]);
+        let address = crate::address::base_prefixed([42u8; 20]);
         let asset = Id::from_str_unchecked("asset_0");
         let amount_expected = 1u128;
 
@@ -443,7 +443,7 @@ mod test {
 
         // writing to other accounts does not affect original account
         // create needed variables
-        let address_1 = crate::astria_address([41u8; 20]);
+        let address_1 = crate::address::base_prefixed([41u8; 20]);
         let amount_expected_1 = 2u128;
 
         state
@@ -476,7 +476,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         // create needed variables
-        let address = crate::astria_address([42u8; 20]);
+        let address = crate::address::base_prefixed([42u8; 20]);
         let asset_0 = Id::from_str_unchecked("asset_0");
         let asset_1 = Id::from_str_unchecked("asset_1");
         let amount_expected_0 = 1u128;
@@ -515,7 +515,7 @@ mod test {
         let state = StateDelta::new(snapshot);
 
         // create needed variables
-        let address = crate::astria_address([42u8; 20]);
+        let address = crate::address::base_prefixed([42u8; 20]);
 
         // see that call was ok
         let balances = state
@@ -559,7 +559,7 @@ mod test {
         .expect("should be able to call other trait method on state object");
 
         // create needed variables
-        let address = crate::astria_address([42u8; 20]);
+        let address = crate::address::base_prefixed([42u8; 20]);
         let amount_expected_0 = 1u128;
         let amount_expected_1 = 2u128;
         let amount_expected_2 = 3u128;
@@ -606,7 +606,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         // create needed variables
-        let address = crate::astria_address([42u8; 20]);
+        let address = crate::address::base_prefixed([42u8; 20]);
         let asset = Id::from_str_unchecked("asset_0");
         let amount_increase = 2u128;
 
@@ -647,7 +647,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         // create needed variables
-        let address = crate::astria_address([42u8; 20]);
+        let address = crate::address::base_prefixed([42u8; 20]);
         let asset = Id::from_str_unchecked("asset_0");
         let amount_increase = 2u128;
 
@@ -689,7 +689,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         // create needed variables
-        let address = crate::astria_address([42u8; 20]);
+        let address = crate::address::base_prefixed([42u8; 20]);
         let asset = Id::from_str_unchecked("asset_0");
         let amount_increase = 2u128;
 

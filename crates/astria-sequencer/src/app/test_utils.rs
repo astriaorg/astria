@@ -36,7 +36,7 @@ use crate::{
 pub(crate) fn address_from_hex_string(s: &str) -> Address {
     let bytes = hex::decode(s).unwrap();
     let arr: [u8; ADDRESS_LEN] = bytes.try_into().unwrap();
-    crate::astria_address(arr)
+    crate::address::base_prefixed(arr)
 }
 
 pub(crate) const ALICE_ADDRESS: &str = "1c0c490f1b5528d8173c5de46d131160e4b2c0c3";
@@ -53,7 +53,7 @@ pub(crate) fn get_alice_signing_key_and_address() -> (SigningKey, Address) {
             .try_into()
             .unwrap();
     let alice_signing_key = SigningKey::from(alice_secret_bytes);
-    let alice = crate::astria_address(alice_signing_key.verification_key().address_bytes());
+    let alice = crate::address::base_prefixed(alice_signing_key.verification_key().address_bytes());
     (alice_signing_key, alice)
 }
 
@@ -64,7 +64,7 @@ pub(crate) fn get_bridge_signing_key_and_address() -> (SigningKey, Address) {
             .try_into()
             .unwrap();
     let bridge_signing_key = SigningKey::from(bridge_secret_bytes);
-    let bridge = crate::astria_address(bridge_signing_key.verification_key().address_bytes());
+    let bridge = crate::address::base_prefixed(bridge_signing_key.verification_key().address_bytes());
     (bridge_signing_key, bridge)
 }
 

@@ -468,7 +468,7 @@ mod test {
     async fn new_consensus_service(funded_key: Option<VerificationKey>) -> (Consensus, Mempool) {
         let accounts = if funded_key.is_some() {
             vec![crate::genesis::Account {
-                address: crate::astria_address(funded_key.unwrap().address_bytes()),
+                address: crate::address::base_prefixed(funded_key.unwrap().address_bytes()),
                 balance: 10u128.pow(19),
             }]
         } else {
@@ -479,8 +479,8 @@ mod test {
             address_prefixes: AddressPrefixes {
                 base: crate::address::get_base_prefix().to_string(),
             },
-            authority_sudo_address: crate::astria_address([0; 20]),
-            ibc_sudo_address: crate::astria_address([0; 20]),
+            authority_sudo_address: crate::address::base_prefixed([0; 20]),
+            ibc_sudo_address: crate::address::base_prefixed([0; 20]),
             ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
             ibc_params: penumbra_ibc::params::IBCParameters::default(),
