@@ -62,9 +62,36 @@ use crate::{
     },
     asset::get_native_asset,
     bridge::state_ext::StateWriteExt as _,
-    genesis::GenesisState,
+    genesis::{
+        AddressPrefixes,
+        GenesisState,
+        UncheckedGenesisState,
+    },
     proposal::commitment::generate_rollup_datas_commitment,
 };
+
+/// XXX: This should be expressed in terms of crate::app::test_utils::unchecked_genesis_state to be
+/// consistent everywhere. `get_alice_sining_key` already is, why not this??
+fn unchecked_genesis_state() -> UncheckedGenesisState {
+    let (_, alice_address) = get_alice_signing_key_and_address();
+    UncheckedGenesisState {
+        accounts: vec![],
+        address_prefixes: AddressPrefixes {
+            base: crate::address::get_base_prefix().to_string(),
+        },
+        authority_sudo_address: alice_address,
+        ibc_sudo_address: alice_address,
+        ibc_relayer_addresses: vec![],
+        native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
+        ibc_params: IBCParameters::default(),
+        allowed_fee_assets: vec![default_native_asset()],
+        fees: default_fees(),
+    }
+}
+
+fn genesis_state() -> GenesisState {
+    unchecked_genesis_state().try_into().unwrap()
+}
 
 #[tokio::test]
 async fn app_genesis_snapshot() {
@@ -168,7 +195,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
 
     use crate::genesis::Account;
 
-    let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
+    let (alice_signing_key, _) = get_alice_signing_key_and_address();
     let (bridge_signing_key, bridge_address) = get_bridge_signing_key_and_address();
     let bob_address = address_from_hex_string(BOB_ADDRESS);
     let carol_address = address_from_hex_string(CAROL_ADDRESS);
@@ -178,16 +205,12 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         balance: 1_000_000_000,
     });
 
-    let genesis_state = GenesisState {
+    let genesis_state = UncheckedGenesisState {
         accounts,
-        authority_sudo_address: alice_address,
-        ibc_sudo_address: alice_address,
-        ibc_relayer_addresses: vec![],
-        native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
-        ibc_params: IBCParameters::default(),
-        allowed_fee_assets: vec![default_native_asset()],
-        fees: default_fees(),
-    };
+        ..unchecked_genesis_state()
+    }
+    .try_into()
+    .unwrap();
     let (mut app, storage) = initialize_app_with_storage(Some(genesis_state), vec![]).await;
 
     // setup for ValidatorUpdate action

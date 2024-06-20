@@ -1,4 +1,5 @@
 pub(crate) mod accounts;
+pub(crate) mod address;
 mod api_state_ext;
 pub(crate) mod app;
 pub(crate) mod asset;

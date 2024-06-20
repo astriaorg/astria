@@ -50,6 +50,7 @@ serde_json = { workspace = true }
 sha2 = { workspace = true }
 tendermint-proto = { workspace = true }
 tendermint = { workspace = true }
+thiserror = { workspace = true }
 tokio = { workspace = true, features = ["rt", "tracing"] }
 tonic = { workspace = true }
 tracing = { workspace = true }
@@ -67,6 +68,7 @@ config = { package = "astria-config", path = "../astria-config", features = [
   "tests",
 ] }
 insta = { workspace = true, features = ["json"] }
+serial_test = "3.1.1"
 tokio = { workspace = true, features = ["test-util"] }
 
 [build-dependencies]

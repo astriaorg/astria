@@ -255,7 +255,7 @@ mod test {
     fn mismatched_addresses_are_caught() {
         #[track_caller]
         fn assert_bad_prefix(unchecked: UncheckedGenesisState, bad_field: &'static str) {
-            let err = match GenesisState::try_from(unchecked).expect_err(
+            match GenesisState::try_from(unchecked).expect_err(
                 "converting to genesis state should have produced an error, but a valid state was \
                  returned",
             ) {
