@@ -98,7 +98,7 @@ fn bridge_account_withdrawer_address_storage_key(address: &Address) -> String {
 }
 
 fn last_transaction_hash_for_bridge_account_storage_key(address: &Address) -> Vec<u8> {
-    format!("{}/lasttx", bridge_account_storage_key(&address))
+    format!("{}/lasttx", bridge_account_storage_key(address))
         .as_bytes()
         .to_vec()
 }
