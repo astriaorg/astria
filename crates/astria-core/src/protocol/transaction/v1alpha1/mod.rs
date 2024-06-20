@@ -418,6 +418,7 @@ impl<'a> TransactionParamsBuilder<std::borrow::Cow<'a, str>> {
     /// # Errors
     /// Returns an error if the set chain ID does not contain a chain name that can be turned into
     /// a bech32 human readable prefix (everything before the first dash i.e. `<name>-<rest>`).
+    #[must_use]
     pub fn build(self) -> TransactionParams {
         let Self {
             nonce,
@@ -459,6 +460,7 @@ impl TransactionParams {
     ///
     /// # Errors
     /// See [`TransactionParamsBuilder::try_build`] for errors returned by this method.
+    #[must_use]
     pub fn from_raw(proto: raw::TransactionParams) -> Self {
         let raw::TransactionParams {
             nonce,
