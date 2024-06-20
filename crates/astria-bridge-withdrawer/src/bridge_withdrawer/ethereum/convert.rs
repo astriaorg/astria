@@ -34,7 +34,7 @@ use serde::{
     Serialize,
 };
 
-use crate::withdrawer::ethereum::astria_withdrawer_interface::{
+use crate::bridge_withdrawer::ethereum::astria_withdrawer_interface::{
     Ics20WithdrawalFilter,
     SequencerWithdrawalFilter,
 };
@@ -195,7 +195,7 @@ mod tests {
     use asset::default_native_asset;
 
     use super::*;
-    use crate::withdrawer::ethereum::astria_withdrawer_interface::SequencerWithdrawalFilter;
+    use crate::bridge_withdrawer::ethereum::astria_withdrawer_interface::SequencerWithdrawalFilter;
 
     #[test]
     fn event_to_bridge_unlock() {

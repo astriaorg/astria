@@ -11,7 +11,7 @@ use ethers::{
     utils::AnvilInstance,
 };
 
-use crate::withdrawer::ethereum::{
+use crate::bridge_withdrawer::ethereum::{
     astria_bridgeable_erc20::{
         ASTRIABRIDGEABLEERC20_ABI,
         ASTRIABRIDGEABLEERC20_BYTECODE,

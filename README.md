@@ -36,6 +36,7 @@ Then:
 ```sh
 git clone https://github.com/astriaorg/astria.git
 cd astria
+git submodule update --init
 cargo build --release
 ```
 

@@ -14,11 +14,11 @@ use tracing::info;
 
 use super::state::State;
 use crate::{
-    metrics::Metrics,
-    withdrawer::{
+    bridge_withdrawer::{
         submitter::Batch,
         SequencerStartupInfo,
     },
+    metrics::Metrics,
 };
 
 const BATCH_QUEUE_SIZE: usize = 256;
