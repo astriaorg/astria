@@ -37,20 +37,20 @@ struct Fee(u128);
 const ACCOUNTS_PREFIX: &str = "accounts";
 const TRANSFER_BASE_FEE_STORAGE_KEY: &str = "transferfee";
 
-fn storage_key(address: &str) -> String {
+fn storage_key(address: &Address) -> String {
     format!("{ACCOUNTS_PREFIX}/{address}")
 }
 
 fn balance_storage_key(address: Address, asset: asset::Id) -> String {
     format!(
         "{}/balance/{}",
-        storage_key(&address.encode_hex::<String>()),
+        storage_key(&address),
         asset.encode_hex::<String>()
     )
 }
 
 fn nonce_storage_key(address: Address) -> String {
-    format!("{}/nonce", storage_key(&address.encode_hex::<String>()))
+    format!("{}/nonce", storage_key(&address))
 }
 
 #[async_trait]
@@ -59,9 +59,7 @@ pub(crate) trait StateReadExt: StateRead {
     async fn get_account_balances(&self, address: Address) -> Result<Vec<AssetBalance>> {
         use crate::asset::state_ext::StateReadExt as _;
 
-        crate::address::ensure_base_prefix(&address).context("requested address is invalid")?;
-
-        let prefix = format!("{}/balance/", storage_key(&address.encode_hex::<String>()));
+        let prefix = format!("{}/balance/", storage_key(&address));
         let mut balances: Vec<AssetBalance> = Vec::new();
 
         let mut stream = std::pin::pin!(self.prefix_keys(&prefix));
@@ -111,7 +109,6 @@ pub(crate) trait StateReadExt: StateRead {
 
     #[instrument(skip_all, fields(address=%address, asset_id=%asset))]
     async fn get_account_balance(&self, address: Address, asset: asset::Id) -> Result<u128> {
-        crate::address::ensure_base_prefix(&address).context("requested address is invalid")?;
         let Some(bytes) = self
             .get_raw(&balance_storage_key(address, asset))
             .await
@@ -125,7 +122,6 @@ pub(crate) trait StateReadExt: StateRead {
 
     #[instrument(skip_all, fields(address=%address))]
     async fn get_account_nonce(&self, address: Address) -> Result<u32> {
-        crate::address::ensure_base_prefix(&address).context("requested address is invalid")?;
         let bytes = self
             .get_raw(&nonce_storage_key(address))
             .await

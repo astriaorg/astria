@@ -47,7 +47,7 @@ fn channel_balance_storage_key(channel: &ChannelId, asset: asset::Id) -> String 
 }
 
 fn ibc_relayer_key(address: &Address) -> String {
-    format!("ibc-relayer/{}", address.encode_hex::<String>())
+    format!("ibc-relayer/{address}")
 }
 
 #[async_trait]

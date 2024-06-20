@@ -65,22 +65,16 @@ const INIT_BRIDGE_ACCOUNT_BASE_FEE_STORAGE_KEY: &str = "initbridgeaccfee";
 const BRIDGE_LOCK_BYTE_COST_MULTIPLIER_STORAGE_KEY: &str = "bridgelockmultiplier";
 const BRIDGE_SUDO_CHANGE_FEE_STORAGE_KEY: &str = "bridgesudofee";
 
-fn bridge_account_storage_key(address: &str) -> String {
+fn bridge_account_storage_key(address: &Address) -> String {
     format!("{BRIDGE_ACCOUNT_PREFIX}/{address}")
 }
 
 fn rollup_id_storage_key(address: &Address) -> String {
-    format!(
-        "{}/rollupid",
-        bridge_account_storage_key(&address.encode_hex::<String>())
-    )
+    format!("{}/rollupid", bridge_account_storage_key(address))
 }
 
 fn asset_id_storage_key(address: &Address) -> String {
-    format!(
-        "{}/assetid",
-        bridge_account_storage_key(&address.encode_hex::<String>())
-    )
+    format!("{}/assetid", bridge_account_storage_key(address))
 }
 
 fn deposit_storage_key_prefix(rollup_id: &RollupId) -> String {
@@ -104,12 +98,9 @@ fn bridge_account_withdrawer_address_storage_key(address: &Address) -> String {
 }
 
 fn last_transaction_hash_for_bridge_account_storage_key(address: &Address) -> Vec<u8> {
-    format!(
-        "{}/lasttx",
-        bridge_account_storage_key(&address.encode_hex::<String>())
-    )
-    .as_bytes()
-    .to_vec()
+    format!("{}/lasttx", bridge_account_storage_key(&address))
+        .as_bytes()
+        .to_vec()
 }
 
 #[async_trait]

@@ -1,7 +1,6 @@
 use anyhow::ensure;
 use astria_core::primitive::v1::{
     Address,
-    AddressError,
     ADDRESS_LEN,
 };
 #[cfg(not(test))]
@@ -15,13 +14,6 @@ pub(crate) fn base_prefixed(arr: [u8; ADDRESS_LEN]) -> Address {
         .prefix(get_base_prefix())
         .try_build()
         .expect("the prefix must have been set as a valid bech32 prefix, so this should never fail")
-}
-
-pub(crate) fn try_base_prefixed(slice: &[u8]) -> Result<Address, AddressError> {
-    Address::builder()
-        .slice(slice)
-        .prefix(get_base_prefix())
-        .try_build()
 }
 
 pub(crate) fn ensure_base_prefix(address: &Address) -> anyhow::Result<()> {
@@ -90,6 +82,11 @@ mod regular {
 
 #[cfg(test)]
 mod testonly {
+    use astria_core::primitive::v1::{
+        Address,
+        AddressError,
+    };
+
     pub(crate) fn initialize_base_prefix(base_prefix: &str) -> anyhow::Result<()> {
         assert_eq!(
             base_prefix,
@@ -101,5 +98,12 @@ mod testonly {
 
     pub(crate) fn get_base_prefix() -> &'static str {
         "astria"
+    }
+
+    pub(crate) fn try_base_prefixed(slice: &[u8]) -> Result<Address, AddressError> {
+        Address::builder()
+            .slice(slice)
+            .prefix(get_base_prefix())
+            .try_build()
     }
 }
