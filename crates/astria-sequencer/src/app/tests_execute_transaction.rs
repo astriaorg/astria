@@ -9,7 +9,6 @@ use astria_core::{
             Denom,
             DEFAULT_NATIVE_ASSET_DENOM,
         },
-        Address,
         RollupId,
     },
     protocol::transaction::v1alpha1::{
@@ -88,8 +87,7 @@ async fn app_execute_transaction_transfer() {
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![
             TransferAction {
                 to: bob_address,
@@ -146,8 +144,7 @@ async fn app_execute_transaction_transfer_not_native_token() {
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![
             TransferAction {
                 to: bob_address,
@@ -213,8 +210,7 @@ async fn app_execute_transaction_transfer_balance_too_low_for_fee() {
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![
             TransferAction {
                 to: bob,
@@ -254,8 +250,7 @@ async fn app_execute_transaction_sequence() {
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![
             SequenceAction {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
@@ -292,8 +287,7 @@ async fn app_execute_transaction_invalid_fee_asset() {
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![
             SequenceAction {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
@@ -324,8 +318,7 @@ async fn app_execute_transaction_validator_update() {
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![Action::ValidatorUpdate(update.clone())],
     };
 
@@ -348,8 +341,7 @@ async fn app_execute_transaction_ibc_relayer_change_addition() {
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![IbcRelayerChangeAction::Addition(alice_address).into()],
     };
 
@@ -375,8 +367,7 @@ async fn app_execute_transaction_ibc_relayer_change_deletion() {
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![IbcRelayerChangeAction::Removal(alice_address).into()],
     };
 
@@ -391,11 +382,7 @@ async fn app_execute_transaction_ibc_relayer_change_invalid() {
     let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
 
     let genesis_state = UncheckedGenesisState {
-        ibc_sudo_address: Address::builder()
-            .array([0; 20])
-            .prefix(crate::address::get_base_prefix())
-            .try_build()
-            .unwrap(),
+        ibc_sudo_address: crate::address::base_prefixed([0; 20]),
         ibc_relayer_addresses: vec![alice_address],
         ..unchecked_genesis_state()
     }
@@ -407,8 +394,7 @@ async fn app_execute_transaction_ibc_relayer_change_invalid() {
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![IbcRelayerChangeAction::Removal(alice_address).into()],
     };
 
@@ -428,8 +414,7 @@ async fn app_execute_transaction_sudo_address_change() {
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![Action::SudoAddressChange(SudoAddressChangeAction {
             new_address,
         })],
@@ -450,11 +435,7 @@ async fn app_execute_transaction_sudo_address_change_error() {
 
     let genesis_state = UncheckedGenesisState {
         authority_sudo_address,
-        ibc_sudo_address: Address::builder()
-            .array([0u8; 20])
-            .prefix(crate::address::get_base_prefix())
-            .try_build()
-            .unwrap(),
+        ibc_sudo_address: crate::address::base_prefixed([0u8; 20]),
         ..unchecked_genesis_state()
     }
     .try_into()
@@ -465,8 +446,7 @@ async fn app_execute_transaction_sudo_address_change_error() {
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![Action::SudoAddressChange(SudoAddressChangeAction {
             new_address: alice_address,
         })],
@@ -496,8 +476,7 @@ async fn app_execute_transaction_fee_asset_change_addition() {
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![Action::FeeAssetChange(FeeAssetChangeAction::Addition(
             new_asset,
         ))],
@@ -529,8 +508,7 @@ async fn app_execute_transaction_fee_asset_change_removal() {
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![Action::FeeAssetChange(FeeAssetChangeAction::Removal(
             test_asset.id(),
         ))],
@@ -560,8 +538,7 @@ async fn app_execute_transaction_fee_asset_change_invalid() {
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![Action::FeeAssetChange(FeeAssetChangeAction::Removal(
             get_native_asset().id(),
         ))],
@@ -601,8 +578,7 @@ async fn app_execute_transaction_init_bridge_account_ok() {
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![action.into()],
     };
 
@@ -659,8 +635,8 @@ async fn app_execute_transaction_init_bridge_account_account_already_registered(
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
+
         actions: vec![action.into()],
     };
 
@@ -678,8 +654,7 @@ async fn app_execute_transaction_init_bridge_account_account_already_registered(
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![action.into()],
     };
 
@@ -715,8 +690,7 @@ async fn app_execute_transaction_bridge_lock_action_ok() {
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![action.into()],
     };
 
@@ -794,8 +768,7 @@ async fn app_execute_transaction_bridge_lock_action_invalid_for_eoa() {
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![action.into()],
     };
 
@@ -815,8 +788,7 @@ async fn app_execute_transaction_invalid_nonce() {
         params: TransactionParams::builder()
             .nonce(1)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![
             SequenceAction {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
@@ -862,8 +834,7 @@ async fn app_execute_transaction_invalid_chain_id() {
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("wrong-chain")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![
             SequenceAction {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
@@ -922,8 +893,7 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![
             TransferAction {
                 to: keypair_address,
@@ -944,8 +914,7 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![
             SequenceAction {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
@@ -976,8 +945,7 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![
             SequenceAction {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
@@ -1033,8 +1001,7 @@ async fn app_execute_transaction_bridge_lock_unlock_action_ok() {
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![action.into()],
     };
 
@@ -1056,8 +1023,7 @@ async fn app_execute_transaction_bridge_lock_unlock_action_ok() {
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![action.into()],
     };
 

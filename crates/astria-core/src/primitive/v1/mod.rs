@@ -375,36 +375,6 @@ impl<'a, 'b> AddressBuilder<WithBytes<'a>, WithPrefix<'b>> {
     }
 }
 
-// Private setters only used within this crate to not leak bech32
-impl<TBytes, TPrefix> AddressBuilder<TBytes, TPrefix> {
-    pub(crate) fn array__(
-        self,
-        array: [u8; ADDRESS_LEN],
-    ) -> AddressBuilder<[u8; ADDRESS_LEN], TPrefix> {
-        AddressBuilder {
-            bytes: array,
-            prefix: self.prefix,
-        }
-    }
-
-    pub(crate) fn hrp__(self, prefix: bech32::Hrp) -> AddressBuilder<TBytes, bech32::Hrp> {
-        AddressBuilder {
-            bytes: self.bytes,
-            prefix,
-        }
-    }
-}
-
-// private builder to not leak bech32
-impl AddressBuilder<[u8; ADDRESS_LEN], bech32::Hrp> {
-    pub(crate) fn build(self) -> Address {
-        Address {
-            bytes: self.bytes,
-            prefix: self.prefix,
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(

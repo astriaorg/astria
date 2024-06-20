@@ -263,8 +263,7 @@ mod test {
             params: TransactionParams::builder()
                 .nonce(0)
                 .chain_id("test")
-                .try_build()
-                .unwrap(),
+                .build(),
             actions: vec![
                 SequenceAction {
                     rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),

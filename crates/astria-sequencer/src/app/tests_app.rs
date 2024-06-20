@@ -239,8 +239,7 @@ async fn app_transfer_block_fees_to_sudo() {
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![
             TransferAction {
                 to: bob_address,
@@ -330,8 +329,7 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![lock_action.into(), sequence_action.into()],
     };
 
@@ -421,8 +419,7 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![lock_action.into(), sequence_action.into()],
     };
 
@@ -546,8 +543,7 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![
             SequenceAction {
                 rollup_id: RollupId::from([1u8; 32]),
@@ -562,8 +558,7 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
         params: TransactionParams::builder()
             .nonce(1)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![
             SequenceAction {
                 rollup_id: RollupId::from([1u8; 32]),
@@ -621,8 +616,7 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![
             SequenceAction {
                 rollup_id: RollupId::from([1u8; 32]),
@@ -637,8 +631,7 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
         params: TransactionParams::builder()
             .nonce(1)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![
             SequenceAction {
                 rollup_id: RollupId::from([1u8; 32]),

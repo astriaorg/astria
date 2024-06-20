@@ -7,12 +7,9 @@ use std::{
     time::Duration,
 };
 
-use astria_core::primitive::v1::{
-    asset::{
-        self,
-        Denom,
-    },
-    Address,
+use astria_core::primitive::v1::asset::{
+    self,
+    Denom,
 };
 use astria_eyre::eyre::{
     self,
@@ -99,7 +96,9 @@ impl BridgeWithdrawer {
         .build()
         .wrap_err("failed to initialize submitter")?;
 
-        let sequencer_bridge_address = Address::try_from_bech32m(&cfg.sequencer_bridge_address)
+        let sequencer_bridge_address = cfg
+            .sequencer_bridge_address
+            .parse()
             .wrap_err("failed to parse sequencer bridge address")?;
 
         let ethereum_watcher = watcher::Builder {
@@ -360,9 +359,11 @@ pub(crate) fn flatten_result<T>(res: Result<eyre::Result<T>, JoinError>) -> eyre
 
 /// Constructs an [`Address`] prefixed by `"astria"`.
 #[cfg(test)]
-pub(crate) fn astria_address(array: [u8; astria_core::primitive::v1::ADDRESS_LEN]) -> Address {
+pub(crate) fn astria_address(
+    array: [u8; astria_core::primitive::v1::ADDRESS_LEN],
+) -> astria_core::primitive::v1::Address {
     use astria_core::primitive::v1::ASTRIA_ADDRESS_PREFIX;
-    Address::builder()
+    astria_core::primitive::v1::Address::builder()
         .array(array)
         .prefix(ASTRIA_ADDRESS_PREFIX)
         .try_build()

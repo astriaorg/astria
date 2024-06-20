@@ -352,8 +352,7 @@ mod test {
         let params = TransactionParams::builder()
             .nonce(0)
             .chain_id("test-chain-id")
-            .try_build()
-            .unwrap();
+            .build();
         let tx = UnsignedTransaction {
             actions,
             params,
@@ -416,8 +415,7 @@ mod test {
         let params = TransactionParams::builder()
             .nonce(0)
             .chain_id("test-chain-id")
-            .try_build()
-            .unwrap();
+            .build();
         let tx = UnsignedTransaction {
             actions,
             params,

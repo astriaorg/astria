@@ -132,8 +132,7 @@ async fn app_finalize_block_snapshot() {
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![lock_action.into(), sequence_action.into()],
     };
 
@@ -222,8 +221,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![
             TransferAction {
                 to: bob_address,
@@ -260,8 +258,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![
             InitBridgeAccountAction {
                 rollup_id,
@@ -280,8 +277,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         params: TransactionParams::builder()
             .chain_id("test")
             .nonce(1)
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![
             BridgeLockAction {
                 to: bridge_address,
