@@ -1,6 +1,3 @@
-pub(crate) mod query;
-pub(crate) mod state_ext;
-
 use anyhow::ensure;
 use astria_core::primitive::v1::{
     Address,
