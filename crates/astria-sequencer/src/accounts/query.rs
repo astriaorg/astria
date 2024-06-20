@@ -140,11 +140,9 @@ async fn preprocess_request(
             ..response::Query::default()
         });
     };
-    let address = hex::decode(address)
-        .context("failed decoding hex encoded bytes")
-        .and_then(|addr| {
-            crate::address::try_base_prefixed(&addr).context("failed constructing address from bytes")
-        })
+    let address = address
+        .parse()
+        .context("failed to parse argument as address")
         .map_err(|err| response::Query {
             code: AbciErrorCode::INVALID_PARAMETER.into(),
             info: AbciErrorCode::INVALID_PARAMETER.to_string(),

@@ -59,6 +59,8 @@ pub(crate) trait StateReadExt: StateRead {
     async fn get_account_balances(&self, address: Address) -> Result<Vec<AssetBalance>> {
         use crate::asset::state_ext::StateReadExt as _;
 
+        crate::address::ensure_base_prefix(&address).context("requested address is invalid")?;
+
         let prefix = format!("{}/balance/", storage_key(&address.encode_hex::<String>()));
         let mut balances: Vec<AssetBalance> = Vec::new();
 
@@ -109,6 +111,7 @@ pub(crate) trait StateReadExt: StateRead {
 
     #[instrument(skip_all, fields(address=%address, asset_id=%asset))]
     async fn get_account_balance(&self, address: Address, asset: asset::Id) -> Result<u128> {
+        crate::address::ensure_base_prefix(&address).context("requested address is invalid")?;
         let Some(bytes) = self
             .get_raw(&balance_storage_key(address, asset))
             .await
@@ -122,6 +125,7 @@ pub(crate) trait StateReadExt: StateRead {
 
     #[instrument(skip_all, fields(address=%address))]
     async fn get_account_nonce(&self, address: Address) -> Result<u32> {
+        crate::address::ensure_base_prefix(&address).context("requested address is invalid")?;
         let bytes = self
             .get_raw(&nonce_storage_key(address))
             .await
