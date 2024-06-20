@@ -210,7 +210,7 @@ mod test {
 
         initialize_native_asset(DEFAULT_NATIVE_ASSET_DENOM);
 
-        let address = crate::try_astria_address(
+        let address = crate::address::try_base_prefixed(
             &hex::decode("a034c743bed8f26cb8ee7b8db2230fd8347ae131").unwrap(),
         )
         .unwrap();

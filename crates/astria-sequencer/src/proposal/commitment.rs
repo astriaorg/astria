@@ -117,7 +117,7 @@ mod test {
             fee_asset_id: get_native_asset().id(),
         };
         let transfer_action = TransferAction {
-            to: crate::astria_address([0u8; 20]),
+            to: crate::address::base_prefixed([0u8; 20]),
             amount: 1,
             asset_id: get_native_asset().id(),
             fee_asset_id: get_native_asset().id(),
@@ -174,7 +174,7 @@ mod test {
             fee_asset_id: get_native_asset().id(),
         };
         let transfer_action = TransferAction {
-            to: crate::astria_address([0u8; 20]),
+            to: crate::address::base_prefixed([0u8; 20]),
             amount: 1,
             asset_id: get_native_asset().id(),
             fee_asset_id: get_native_asset().id(),

@@ -89,7 +89,7 @@ fn preprocess_request(params: &[(String, String)]) -> anyhow::Result<Address, re
     let address = hex::decode(address)
         .context("failed decoding hex encoded bytes")
         .and_then(|addr| {
-            crate::try_astria_address(&addr).context("failed constructing address from bytes")
+            crate::address::try_base_prefixed(&addr).context("failed constructing address from bytes")
         })
         .map_err(|err| response::Query {
             code: AbciErrorCode::INVALID_PARAMETER.into(),

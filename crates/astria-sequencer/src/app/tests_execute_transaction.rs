@@ -692,7 +692,7 @@ async fn app_execute_transaction_bridge_lock_action_ok() {
     let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
     let mut app = initialize_app(None, vec![]).await;
 
-    let bridge_address = crate::astria_address([99; 20]);
+    let bridge_address = crate::address::base_prefixed([99; 20]);
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
     let asset_id = get_native_asset().id();
 
@@ -779,7 +779,7 @@ async fn app_execute_transaction_bridge_lock_action_invalid_for_eoa() {
     let mut app = initialize_app(None, vec![]).await;
 
     // don't actually register this address as a bridge address
-    let bridge_address = crate::astria_address([99; 20]);
+    let bridge_address = crate::address::base_prefixed([99; 20]);
     let asset_id = get_native_asset().id();
 
     let amount = 100;
@@ -909,7 +909,7 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
 
     // create a new key; will have 0 balance
     let keypair = SigningKey::new(OsRng);
-    let keypair_address = crate::astria_address(keypair.verification_key().address_bytes());
+    let keypair_address = crate::address::base_prefixed(keypair.verification_key().address_bytes());
 
     // figure out needed fee for a single transfer
     let data = b"hello world".to_vec();
