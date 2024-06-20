@@ -221,15 +221,15 @@ mod test {
             accounts: vec![
                 Account {
                     address: alice(),
-                    balance: 1000_000_000_000_000_000,
+                    balance: 1_000_000_000_000_000_000,
                 },
                 Account {
                     address: bob(),
-                    balance: 1000_000_000_000_000_000,
+                    balance: 1_000_000_000_000_000_000,
                 },
                 Account {
                     address: charlie(),
-                    balance: 1000_000_000_000_000_000,
+                    balance: 1_000_000_000_000_000_000,
                 },
             ],
             address_prefixes: AddressPrefixes {
