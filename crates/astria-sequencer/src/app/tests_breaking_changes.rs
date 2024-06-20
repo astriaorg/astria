@@ -64,7 +64,6 @@ use crate::{
     bridge::state_ext::StateWriteExt as _,
     genesis::{
         AddressPrefixes,
-        GenesisState,
         UncheckedGenesisState,
     },
     proposal::commitment::generate_rollup_datas_commitment,
@@ -87,10 +86,6 @@ fn unchecked_genesis_state() -> UncheckedGenesisState {
         allowed_fee_assets: vec![default_native_asset()],
         fees: default_fees(),
     }
-}
-
-fn genesis_state() -> GenesisState {
-    unchecked_genesis_state().try_into().unwrap()
 }
 
 #[tokio::test]
