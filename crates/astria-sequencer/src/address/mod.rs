@@ -87,6 +87,8 @@ mod testonly {
         AddressError,
     };
 
+    // allow: this has to match the definition of the non-test function
+    #[allow(clippy::unnecessary_wraps)]
     pub(crate) fn initialize_base_prefix(base_prefix: &str) -> anyhow::Result<()> {
         assert_eq!(
             base_prefix,

@@ -9,6 +9,12 @@ use serde::{
 };
 
 /// The genesis state for the application.
+///
+/// Verified to only contain valid fields (right now, addresses that have the same base prefix
+/// as set in `GenesisState::address_prefixes::base`).
+///
+/// **NOTE:** The fields should not be publicly accessible to guarantee invariants. However,
+/// it's easy to just go along with this for now.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(try_from = "UncheckedGenesisState", into = "UncheckedGenesisState")]
 pub(crate) struct GenesisState {
@@ -68,7 +74,7 @@ impl TryFrom<UncheckedGenesisState> for GenesisState {
     }
 }
 
-/// The genesis state for the application.
+/// The unchecked genesis state for the application.
 #[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct UncheckedGenesisState {
     pub(crate) address_prefixes: AddressPrefixes,
@@ -83,6 +89,8 @@ pub(crate) struct UncheckedGenesisState {
 }
 
 impl UncheckedGenesisState {
+    // allow: as for the enum definition itself: this only happens at init-chain and is negligible
+    #[allow(clippy::result_large_err)]
     fn ensure_address_has_base_prefix(
         &self,
         address: &Address,
@@ -98,6 +106,8 @@ impl UncheckedGenesisState {
         Ok(())
     }
 
+    // allow: as for the enum definition itself: this only happens at init-chain and is negligible
+    #[allow(clippy::result_large_err)]
     fn ensure_all_addresses_have_base_prefix(&self) -> Result<(), VerifiyGenesisError> {
         for (i, account) in self.accounts.iter().enumerate() {
             self.ensure_address_has_base_prefix(
@@ -211,15 +221,15 @@ mod test {
             accounts: vec![
                 Account {
                     address: alice(),
-                    balance: 1000000000000000000,
+                    balance: 1000_000_000_000_000_000,
                 },
                 Account {
                     address: bob(),
-                    balance: 1000000000000000000,
+                    balance: 1000_000_000_000_000_000,
                 },
                 Account {
                     address: charlie(),
-                    balance: 1000000000000000000,
+                    balance: 1000_000_000_000_000_000,
                 },
             ],
             address_prefixes: AddressPrefixes {
