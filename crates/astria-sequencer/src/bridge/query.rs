@@ -1,4 +1,3 @@
-use anyhow::Context as _;
 use astria_core::{
     primitive::v1::Address,
     protocol::{
@@ -233,17 +232,76 @@ fn preprocess_request(params: &[(String, String)]) -> anyhow::Result<Address, re
             "path did not contain address parameter",
         ));
     };
-    let address = hex::decode(address)
-        .context("failed decoding hex encoded bytes")
-        .and_then(|addr| {
-            crate::try_astria_address(&addr).context("failed constructing address from bytes")
-        })
-        .map_err(|err| {
-            error_query_response(
-                Some(err),
-                AbciErrorCode::INVALID_PARAMETER,
-                "address could not be constructed from provided parameter",
-            )
-        })?;
+    let address = Address::try_from_bech32m(address).map_err(|err| {
+        error_query_response(
+            Some(err.into()),
+            AbciErrorCode::INVALID_PARAMETER,
+            "address could not be constructed from provided parameter",
+        )
+    })?;
     Ok(address)
+}
+
+#[cfg(test)]
+mod test {
+    use astria_core::{
+        generated::protocol::bridge::v1alpha1::BridgeAccountInfoResponse as RawBridgeAccountInfoResponse,
+        primitive::v1::{
+            asset,
+            RollupId,
+        },
+        protocol::bridge::v1alpha1::BridgeAccountInfoResponse,
+    };
+    use cnidarium::StateDelta;
+
+    use super::*;
+    use crate::{
+        bridge::state_ext::StateWriteExt as _,
+        state_ext::StateWriteExt,
+    };
+
+    #[tokio::test]
+    async fn bridge_account_info_request_ok() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let asset_id = asset::Id::from_str_unchecked("test");
+        let rollup_id = RollupId::from_unhashed_bytes("test");
+        let bridge_address = crate::astria_address([0u8; 20]);
+        let sudo_address = crate::astria_address([1u8; 20]);
+        let withdrawer_address = crate::astria_address([2u8; 20]);
+        state.put_block_height(1);
+        state.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
+        state
+            .put_bridge_account_asset_id(&bridge_address, &asset_id)
+            .unwrap();
+        state.put_bridge_account_sudo_address(&bridge_address, &sudo_address);
+        state.put_bridge_account_withdrawer_address(&bridge_address, &withdrawer_address);
+        storage.commit(state).await.unwrap();
+
+        let query = request::Query {
+            data: vec![].into(),
+            path: "path".to_string(),
+            height: 0u32.into(),
+            prove: false,
+        };
+
+        let params = vec![("address".to_string(), bridge_address.to_string())];
+        let resp = bridge_account_info_request(storage.clone(), query, params).await;
+        assert_eq!(resp.code, 0.into(), "{}", resp.log);
+
+        let proto = RawBridgeAccountInfoResponse::decode(resp.value).unwrap();
+        let native = proto.try_into_native().unwrap();
+        let expected = BridgeAccountInfoResponse {
+            height: 1,
+            info: Some(BridgeAccountInfo {
+                rollup_id,
+                asset_id,
+                sudo_address,
+                withdrawer_address,
+            }),
+        };
+        assert_eq!(native, expected);
+    }
 }

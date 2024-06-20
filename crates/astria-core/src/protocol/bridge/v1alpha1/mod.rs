@@ -84,13 +84,13 @@ enum BridgeAccountLastTxHashResponseErrorKind {
     InvalidTxHash(usize),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BridgeAccountInfoResponse {
     pub height: u64,
     pub info: Option<BridgeAccountInfo>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BridgeAccountInfo {
     pub rollup_id: RollupId,
     pub asset_id: asset::Id,
