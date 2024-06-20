@@ -9,8 +9,10 @@ use serde::{
 };
 
 /// The genesis state for the application.
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(try_from = "UncheckedGenesisState", into = "UncheckedGenesisState")]
 pub(crate) struct GenesisState {
+    pub(crate) address_prefixes: AddressPrefixes,
     pub(crate) accounts: Vec<Account>,
     pub(crate) authority_sudo_address: Address,
     pub(crate) ibc_sudo_address: Address,
@@ -21,7 +23,128 @@ pub(crate) struct GenesisState {
     pub(crate) fees: Fees,
 }
 
+#[derive(Debug, thiserror::Error)]
+// allow: this error is only seen at chain init and never after so perf impact of too large enum
+// variants is negligible
+#[allow(clippy::result_large_err)]
+pub(crate) enum VerifiyGenesisError {
+    #[error("address `{address}` at `{field}` does not have `{base_prefix}`")]
+    AddressDoesNotMatchBase {
+        base_prefix: String,
+        address: Address,
+        field: String,
+    },
+}
+
+impl TryFrom<UncheckedGenesisState> for GenesisState {
+    type Error = VerifiyGenesisError;
+
+    fn try_from(value: UncheckedGenesisState) -> Result<Self, Self::Error> {
+        value.ensure_all_addresses_have_base_prefix()?;
+
+        let UncheckedGenesisState {
+            address_prefixes,
+            accounts,
+            authority_sudo_address,
+            ibc_sudo_address,
+            ibc_relayer_addresses,
+            native_asset_base_denomination,
+            ibc_params,
+            allowed_fee_assets,
+            fees,
+        } = value;
+
+        Ok(Self {
+            address_prefixes,
+            accounts,
+            authority_sudo_address,
+            ibc_sudo_address,
+            ibc_relayer_addresses,
+            native_asset_base_denomination,
+            ibc_params,
+            allowed_fee_assets,
+            fees,
+        })
+    }
+}
+
+/// The genesis state for the application.
 #[derive(Debug, Deserialize, Serialize)]
+pub(crate) struct UncheckedGenesisState {
+    pub(crate) address_prefixes: AddressPrefixes,
+    pub(crate) accounts: Vec<Account>,
+    pub(crate) authority_sudo_address: Address,
+    pub(crate) ibc_sudo_address: Address,
+    pub(crate) ibc_relayer_addresses: Vec<Address>,
+    pub(crate) native_asset_base_denomination: String,
+    pub(crate) ibc_params: IBCParameters,
+    pub(crate) allowed_fee_assets: Vec<asset::Denom>,
+    pub(crate) fees: Fees,
+}
+
+impl UncheckedGenesisState {
+    fn ensure_address_has_base_prefix(
+        &self,
+        address: &Address,
+        field: &str,
+    ) -> Result<(), VerifiyGenesisError> {
+        if self.address_prefixes.base != address.prefix() {
+            return Err(VerifiyGenesisError::AddressDoesNotMatchBase {
+                base_prefix: self.address_prefixes.base.clone(),
+                address: *address,
+                field: field.to_string(),
+            });
+        }
+        Ok(())
+    }
+
+    fn ensure_all_addresses_have_base_prefix(&self) -> Result<(), VerifiyGenesisError> {
+        for (i, account) in self.accounts.iter().enumerate() {
+            self.ensure_address_has_base_prefix(
+                &account.address,
+                &format!(".accounts[{i}].address"),
+            )?;
+        }
+        self.ensure_address_has_base_prefix(
+            &self.authority_sudo_address,
+            ".authority_sudo_address",
+        )?;
+        self.ensure_address_has_base_prefix(&self.ibc_sudo_address, ".ibc_sudo_address")?;
+        for (i, address) in self.ibc_relayer_addresses.iter().enumerate() {
+            self.ensure_address_has_base_prefix(address, &format!(".ibc_relayer_addresses[{i}]"))?;
+        }
+        Ok(())
+    }
+}
+
+impl From<GenesisState> for UncheckedGenesisState {
+    fn from(value: GenesisState) -> Self {
+        let GenesisState {
+            address_prefixes,
+            accounts,
+            authority_sudo_address,
+            ibc_sudo_address,
+            ibc_relayer_addresses,
+            native_asset_base_denomination,
+            ibc_params,
+            allowed_fee_assets,
+            fees,
+        } = value;
+        Self {
+            address_prefixes,
+            accounts,
+            authority_sudo_address,
+            ibc_sudo_address,
+            ibc_relayer_addresses,
+            native_asset_base_denomination,
+            ibc_params,
+            allowed_fee_assets,
+            fees,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub(crate) struct Fees {
     pub(crate) transfer_base_fee: u128,
     pub(crate) sequence_base_fee: u128,
@@ -32,10 +155,15 @@ pub(crate) struct Fees {
     pub(crate) ics20_withdrawal_base_fee: u128,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub(crate) struct Account {
     pub(crate) address: Address,
     pub(crate) balance: u128,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub(crate) struct AddressPrefixes {
+    pub(crate) base: String,
 }
 
 #[cfg(test)]
@@ -70,8 +198,16 @@ mod test {
             .unwrap()
     }
 
-    fn genesis_state() -> GenesisState {
-        GenesisState {
+    fn mallory() -> Address {
+        Address::builder()
+            .prefix("other")
+            .slice(hex::decode("60709e2d391864b732b4f0f51e387abb76743871").unwrap())
+            .try_build()
+            .unwrap()
+    }
+
+    fn unchecked_genesis_state() -> UncheckedGenesisState {
+        UncheckedGenesisState {
             accounts: vec![
                 Account {
                     address: alice(),
@@ -86,6 +222,9 @@ mod test {
                     balance: 1000000000000000000,
                 },
             ],
+            address_prefixes: AddressPrefixes {
+                base: "astria".into(),
+            },
             authority_sudo_address: alice(),
             ibc_sudo_address: alice(),
             ibc_relayer_addresses: vec![alice(), bob()],
@@ -106,6 +245,68 @@ mod test {
                 ics20_withdrawal_base_fee: 24,
             },
         }
+    }
+
+    fn genesis_state() -> GenesisState {
+        unchecked_genesis_state().try_into().unwrap()
+    }
+
+    #[test]
+    fn mismatched_addresses_are_caught() {
+        #[track_caller]
+        fn assert_bad_prefix(unchecked: UncheckedGenesisState, bad_field: &'static str) {
+            let err = match GenesisState::try_from(unchecked).expect_err(
+                "converting to genesis state should have produced an error, but a valid state was \
+                 returned",
+            ) {
+                VerifiyGenesisError::AddressDoesNotMatchBase {
+                    base_prefix,
+                    address,
+                    field,
+                } => {
+                    assert_eq!(base_prefix, ASTRIA_ADDRESS_PREFIX);
+                    assert_eq!(address, mallory());
+                    assert_eq!(field, bad_field);
+                }
+            };
+        }
+        assert_bad_prefix(
+            UncheckedGenesisState {
+                authority_sudo_address: mallory(),
+                ..unchecked_genesis_state()
+            },
+            ".authority_sudo_address",
+        );
+        assert_bad_prefix(
+            UncheckedGenesisState {
+                ibc_sudo_address: mallory(),
+                ..unchecked_genesis_state()
+            },
+            ".ibc_sudo_address",
+        );
+        assert_bad_prefix(
+            UncheckedGenesisState {
+                ibc_relayer_addresses: vec![alice(), mallory()],
+                ..unchecked_genesis_state()
+            },
+            ".ibc_relayer_addresses[1]",
+        );
+        assert_bad_prefix(
+            UncheckedGenesisState {
+                accounts: vec![
+                    Account {
+                        address: alice(),
+                        balance: 10,
+                    },
+                    Account {
+                        address: mallory(),
+                        balance: 10,
+                    },
+                ],
+                ..unchecked_genesis_state()
+            },
+            ".accounts[1].address",
+        );
     }
 
     #[test]
