@@ -215,6 +215,8 @@ impl App {
             .try_begin_transaction()
             .expect("state Arc should not be referenced elsewhere");
 
+        crate::address::initialize_base_prefix(&genesis_state.address_prefixes.base)
+            .context("failed setting global base prefix")?;
         crate::asset::initialize_native_asset(&genesis_state.native_asset_base_denomination);
         state_tx.put_native_asset_denom(&genesis_state.native_asset_base_denomination);
         state_tx.put_chain_id_and_revision_number(chain_id.try_into().context("invalid chain ID")?);

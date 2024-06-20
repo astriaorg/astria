@@ -24,7 +24,9 @@ use crate::{
     genesis::{
         self,
         Account,
+        AddressPrefixes,
         GenesisState,
+        UncheckedGenesisState,
     },
     mempool::Mempool,
     metrics::Metrics,
@@ -95,6 +97,26 @@ pub(crate) fn default_fees() -> genesis::Fees {
     }
 }
 
+pub(crate) fn unchecked_genesis_state() -> UncheckedGenesisState {
+    UncheckedGenesisState {
+        accounts: default_genesis_accounts(),
+        address_prefixes: AddressPrefixes {
+            base: crate::address::get_base_prefix().to_string(),
+        },
+        authority_sudo_address: address_from_hex_string(JUDY_ADDRESS),
+        ibc_sudo_address: address_from_hex_string(TED_ADDRESS),
+        ibc_relayer_addresses: vec![],
+        native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
+        ibc_params: IBCParameters::default(),
+        allowed_fee_assets: vec![default_native_asset()],
+        fees: default_fees(),
+    }
+}
+
+pub(crate) fn genesis_state() -> GenesisState {
+    unchecked_genesis_state().try_into().unwrap()
+}
+
 pub(crate) async fn initialize_app_with_storage(
     genesis_state: Option<GenesisState>,
     genesis_validators: Vec<tendermint::validator::Update>,
@@ -107,16 +129,7 @@ pub(crate) async fn initialize_app_with_storage(
     let metrics = Box::leak(Box::new(Metrics::new()));
     let mut app = App::new(snapshot, mempool, metrics).await.unwrap();
 
-    let genesis_state = genesis_state.unwrap_or_else(|| GenesisState {
-        accounts: default_genesis_accounts(),
-        authority_sudo_address: address_from_hex_string(JUDY_ADDRESS),
-        ibc_sudo_address: address_from_hex_string(TED_ADDRESS),
-        ibc_relayer_addresses: vec![],
-        native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
-        ibc_params: IBCParameters::default(),
-        allowed_fee_assets: vec![default_native_asset()],
-        fees: default_fees(),
-    });
+    let genesis_state = genesis_state.unwrap_or_else(|| self::genesis_state());
 
     app.init_chain(
         storage.clone(),
