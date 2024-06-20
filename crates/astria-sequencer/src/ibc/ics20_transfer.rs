@@ -77,8 +77,11 @@ use crate::{
     },
 };
 
-/// The maximum length of the encoded Ics20 FungibleTokenPacketData in bytes.
+/// The maximum length of the encoded Ics20 `FungibleTokenPacketData` in bytes.
 const MAX_PACKET_DATA_BYTE_LENGTH: usize = 2048;
+
+/// The maximum length of the rollup address in bytes.
+const MAX_ROLLUP_ADDRESS_BYTE_LENGTH: usize = 256;
 
 /// The ICS20 transfer handler.
 ///
@@ -582,6 +585,11 @@ async fn execute_ics20_transfer_bridge_lock<S: StateWriteExt>(
     ensure!(
         !deposit_memo.rollup_address.is_empty(),
         "packet memo field must be set for bridge account recipient",
+    );
+
+    ensure!(
+        deposit_memo.rollup_address.len() <= MAX_ROLLUP_ADDRESS_BYTE_LENGTH,
+        "rollup address is too long: exceeds MAX_ROLLUP_ADDRESS_BYTE_LENGTH",
     );
 
     execute_deposit(state, recipient, denom, amount, deposit_memo.rollup_address).await
