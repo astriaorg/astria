@@ -52,7 +52,7 @@ genesis:
     blockMaxGas: "-1"
     maxAgeDuration: "1209600000000000"
     maxAgeNumBlocks: "4000000"
-    maxBytes: "1048576"  
+    maxBytes: "1048576"
   fees:
     transferBaseFee: "12"
     sequenceBaseFee: "32"
@@ -80,10 +80,10 @@ sequencer:
     tracesTimeout: 10
     otlpHeaders:
     traceHeaders:
-      
+
 cometbft:
   config:
-    #log configurations
+    # Log configurations
     logLevel: "info"
     logFormat: "plain"
     # Grpc server configuration
@@ -95,11 +95,11 @@ cometbft:
       maxOpenConnections: 900
       maxSubscriptionClients: 100
       maxSubscriptionsPerClient: 10
-    
+
     psql:
       enabled: false
       conn: postgresql://<user>:<password>@<host>:<port>/<db>?<opts>
-    
+
     p2p:
       # Address to listen for incoming connections, port is inferred from ports.cometBFTP2P
       laddr: "tcp://0.0.0.0"
@@ -132,8 +132,7 @@ cometbft:
       # p2p connection configurations
       handshakeTimeout: 20s
       dialTimeout: 3s
-      
-      
+
     mempool:
       # Maximum number of transactions in the mempool
       size: 2000
@@ -142,7 +141,7 @@ cometbft:
       # Maximum size of all transactions in the mempool
       maxTxsBytes: 100000000
       cacheSize: 10000
-      
+
     consensus:
       timeoutPropose: 2s
       timeoutProposeDelta: 500ms
@@ -151,7 +150,7 @@ cometbft:
       timeoutPrecommit: 1s
       timeoutPrecommitDelta: 500ms
       timeoutCommit: 1500ms
-      
+
     instrumentation:
       namespace: "astria_cometbft"
   # These secrets will be generated using the devContent values turned into JSON
