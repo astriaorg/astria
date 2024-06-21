@@ -64,16 +64,40 @@ const INIT_BRIDGE_ACCOUNT_BASE_FEE_STORAGE_KEY: &str = "initbridgeaccfee";
 const BRIDGE_LOCK_BYTE_COST_MULTIPLIER_STORAGE_KEY: &str = "bridgelockmultiplier";
 const BRIDGE_SUDO_CHANGE_FEE_STORAGE_KEY: &str = "bridgesudofee";
 
-fn bridge_account_storage_key(address: &Address) -> String {
-    format!("{BRIDGE_ACCOUNT_PREFIX}/{address}")
+struct BridgeAccountKey<'a> {
+    prefix: &'static str,
+    address: &'a Address,
+}
+
+impl<'a> std::fmt::Display for BridgeAccountKey<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.prefix)?;
+        f.write_str("/")?;
+        for byte in self.address.bytes() {
+            f.write_fmt(format_args!("{byte:02x}"))?;
+        }
+        Ok(())
+    }
 }
 
 fn rollup_id_storage_key(address: &Address) -> String {
-    format!("{}/rollupid", bridge_account_storage_key(address))
+    format!(
+        "{}/rollupid",
+        BridgeAccountKey {
+            prefix: BRIDGE_ACCOUNT_PREFIX,
+            address
+        }
+    )
 }
 
 fn asset_id_storage_key(address: &Address) -> String {
-    format!("{}/assetid", bridge_account_storage_key(address))
+    format!(
+        "{}/assetid",
+        BridgeAccountKey {
+            prefix: BRIDGE_ACCOUNT_PREFIX,
+            address
+        }
+    )
 }
 
 fn deposit_storage_key_prefix(rollup_id: &RollupId) -> String {
@@ -89,17 +113,35 @@ fn deposit_nonce_storage_key(rollup_id: &RollupId) -> Vec<u8> {
 }
 
 fn bridge_account_sudo_address_storage_key(address: &Address) -> String {
-    format!("{BRIDGE_ACCOUNT_SUDO_PREFIX}/{address}")
+    format!(
+        "{}",
+        BridgeAccountKey {
+            prefix: BRIDGE_ACCOUNT_SUDO_PREFIX,
+            address
+        }
+    )
 }
 
 fn bridge_account_withdrawer_address_storage_key(address: &Address) -> String {
-    format!("{BRIDGE_ACCOUNT_WITHDRAWER_PREFIX}/{address}")
+    format!(
+        "{}",
+        BridgeAccountKey {
+            prefix: BRIDGE_ACCOUNT_WITHDRAWER_PREFIX,
+            address
+        }
+    )
 }
 
 fn last_transaction_hash_for_bridge_account_storage_key(address: &Address) -> Vec<u8> {
-    format!("{}/lasttx", bridge_account_storage_key(address))
-        .as_bytes()
-        .to_vec()
+    format!(
+        "{}/lasttx",
+        BridgeAccountKey {
+            prefix: BRIDGE_ACCOUNT_PREFIX,
+            address
+        }
+    )
+    .as_bytes()
+    .to_vec()
 }
 
 #[async_trait]
@@ -434,13 +476,19 @@ mod test {
     use astria_core::{
         primitive::v1::{
             asset::Id,
+            Address,
             RollupId,
         },
         sequencerblock::v1alpha1::block::Deposit,
     };
     use cnidarium::StateDelta;
+    use insta::assert_snapshot;
 
     use super::{
+        asset_id_storage_key,
+        bridge_account_sudo_address_storage_key,
+        bridge_account_withdrawer_address_storage_key,
+        rollup_id_storage_key,
         StateReadExt as _,
         StateWriteExt as _,
     };
@@ -1095,5 +1143,17 @@ mod test {
             0u32,
             "nonce should have been deleted also"
         );
+    }
+
+    #[test]
+    fn snapshots() {
+        let address: Address = "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
+            .parse()
+            .unwrap();
+
+        assert_snapshot!(rollup_id_storage_key(&address));
+        assert_snapshot!(asset_id_storage_key(&address));
+        assert_snapshot!(bridge_account_sudo_address_storage_key(&address));
+        assert_snapshot!(bridge_account_withdrawer_address_storage_key(&address));
     }
 }

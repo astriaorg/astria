@@ -39,6 +39,19 @@ struct Fee(u128);
 const IBC_SUDO_STORAGE_KEY: &str = "ibcsudo";
 const ICS20_WITHDRAWAL_BASE_FEE_STORAGE_KEY: &str = "ics20withdrawalfee";
 
+struct IbcRelayerKey<'a>(&'a Address);
+
+impl<'a> std::fmt::Display for IbcRelayerKey<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("ibc-relayer")?;
+        f.write_str("/")?;
+        for byte in self.0.bytes() {
+            f.write_fmt(format_args!("{byte:02x}"))?;
+        }
+        Ok(())
+    }
+}
+
 fn channel_balance_storage_key(channel: &ChannelId, asset: asset::Id) -> String {
     format!(
         "ibc-data/{channel}/balance/{}",
@@ -47,7 +60,7 @@ fn channel_balance_storage_key(channel: &ChannelId, asset: asset::Id) -> String 
 }
 
 fn ibc_relayer_key(address: &Address) -> String {
-    format!("ibc-relayer/{address}")
+    IbcRelayerKey(address).to_string()
 }
 
 #[async_trait]
@@ -154,9 +167,13 @@ impl<T: StateWrite> StateWriteExt for T {}
 
 #[cfg(test)]
 mod test {
-    use astria_core::primitive::v1::asset::Id;
+    use astria_core::primitive::v1::{
+        asset::Id,
+        Address,
+    };
     use cnidarium::StateDelta;
     use ibc_types::core::channel::ChannelId;
+    use insta::assert_snapshot;
 
     use super::{
         StateReadExt as _,
@@ -421,5 +438,14 @@ mod test {
             amount_1,
             "set balance for channel/asset pair not what was expected"
         );
+    }
+
+    #[test]
+    fn snapshots() {
+        let address: Address = "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
+            .parse()
+            .unwrap();
+
+        assert_snapshot!(super::ibc_relayer_key(&address));
     }
 }
