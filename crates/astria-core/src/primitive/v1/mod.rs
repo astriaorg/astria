@@ -19,8 +19,6 @@ use crate::{
 };
 
 pub const ADDRESS_LEN: usize = 20;
-/// The human readable prefix of astria addresses (also known as bech32 HRP).
-pub const ASTRIA_ADDRESS_PREFIX: &str = "astria";
 
 pub const ROLLUP_ID_LEN: usize = 32;
 pub const FEE_ASSET_ID_LEN: usize = 32;
@@ -428,6 +426,7 @@ impl Address {
     ///
     /// Returns an error if the account buffer was not 20 bytes long.
     pub fn try_from_raw(raw: &raw::Address) -> Result<Self, AddressError> {
+        const ASTRIA_ADDRESS_PREFIX: &str = "astria";
         // allow: `Address::inner` field is deprecated, but we must still check it
         #[allow(deprecated)]
         let raw::Address {
@@ -444,12 +443,6 @@ impl Address {
             return bech32m.parse();
         }
         Err(AddressError::fields_are_mutually_exclusive())
-    }
-}
-
-impl AsRef<[u8]> for Address {
-    fn as_ref(&self) -> &[u8] {
-        &self.bytes
     }
 }
 
