@@ -5,7 +5,7 @@ Brief summary of the changes made, ie "what?"
 Brief background on why these changes were made, ie "why?"
 
 ## Changes
-- List changes which were made.
+- List changes that were made.
 
 ## Testing
 How are these changes tested?
