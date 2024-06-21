@@ -58,6 +58,7 @@ impl Handle {
 pub(crate) struct Builder {
     pub(crate) shutdown_token: CancellationToken,
     pub(crate) sequencer_key_path: String,
+    pub(crate) sequencer_address_prefix: String,
     pub(crate) sequencer_chain_id: String,
     pub(crate) sequencer_cometbft_endpoint: String,
     pub(crate) state: Arc<State>,
@@ -72,6 +73,7 @@ impl Builder {
         let Self {
             shutdown_token,
             sequencer_key_path,
+            sequencer_address_prefix,
             sequencer_chain_id,
             sequencer_cometbft_endpoint,
             state,
@@ -80,9 +82,12 @@ impl Builder {
             metrics,
         } = self;
 
-        let signer = super::signer::SequencerKey::try_from_path(sequencer_key_path)
-            .wrap_err("failed to load sequencer private ky")?;
-        info!(address = %telemetry::display::hex(&signer.address), "loaded sequencer signer");
+        let signer = super::signer::SequencerKey::builder()
+            .path(sequencer_key_path)
+            .prefix(sequencer_address_prefix)
+            .try_build()
+            .wrap_err("failed to load sequencer private key")?;
+        info!(address = %signer.address(), "loaded sequencer signer");
 
         let sequencer_cometbft_client =
             sequencer_client::HttpClient::new(&*sequencer_cometbft_endpoint)
