@@ -30,7 +30,7 @@ preferred wallet using the private key in
 `helm/rollup/files/keys/private_key.txt`. This account should never be used for
 anything but test transactions.
 
-To change the wallet account which receives funds, use the `deploy-rollup`
+To change the wallet account that receives funds, use the `deploy-rollup`
 command with the optional arguments `evm_funding_address` and
 `evm_funding_private_key`.
 
