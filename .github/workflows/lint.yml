@@ -22,7 +22,7 @@ jobs:
           github_token: ${{ github.token }}
       - uses: bufbuild/buf-lint-action@v1
       - run: buf format -d --exit-code
-      # Run breaking changes against each module, running against whole workspace
+      # Run breaking changes against each module, running against the whole workspace
       # fails if new packages are added
       - uses: bufbuild/buf-breaking-action@v1
         with:
