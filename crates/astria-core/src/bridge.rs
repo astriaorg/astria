@@ -12,6 +12,10 @@ pub struct Ics20WithdrawalFromRollupMemo {
     pub memo: String,
     pub bridge_address: Address,
     pub block_number: u64,
+    #[cfg_attr(
+        feature = "serde",
+        serde(serialize_with = "crate::serde::base64_serialize")
+    )]
     pub transaction_hash: [u8; 32],
 }
 
@@ -21,11 +25,10 @@ pub struct Ics20WithdrawalFromRollupMemo {
 #[cfg_attr(
     feature = "serde",
     derive(serde::Serialize),
-    derive(serde::Deserialize)
+    derive(serde::Deserialize),
+    serde(rename_all = "camelCase", deny_unknown_fields)
 )]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Ics20TransferDepositMemo {
     /// the destination address for the deposit on the rollup
-    #[serde(rename = "rollupAddress")]
     pub rollup_address: String,
 }
