@@ -37,20 +37,28 @@ struct Fee(u128);
 const ACCOUNTS_PREFIX: &str = "accounts";
 const TRANSFER_BASE_FEE_STORAGE_KEY: &str = "transferfee";
 
-fn storage_key(address: &Address) -> String {
-    format!("{ACCOUNTS_PREFIX}/{address}")
-}
+struct StorageKey<'a>(&'a Address);
 
+impl<'a> std::fmt::Display for StorageKey<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(ACCOUNTS_PREFIX)?;
+        f.write_str("/")?;
+        for byte in self.0.bytes() {
+            f.write_fmt(format_args!("{byte:02x}"))?;
+        }
+        Ok(())
+    }
+}
 fn balance_storage_key(address: Address, asset: asset::Id) -> String {
     format!(
         "{}/balance/{}",
-        storage_key(&address),
+        StorageKey(&address),
         asset.encode_hex::<String>()
     )
 }
 
 fn nonce_storage_key(address: Address) -> String {
-    format!("{}/nonce", storage_key(&address))
+    format!("{}/nonce", StorageKey(&address))
 }
 
 #[async_trait]
@@ -59,7 +67,7 @@ pub(crate) trait StateReadExt: StateRead {
     async fn get_account_balances(&self, address: Address) -> Result<Vec<AssetBalance>> {
         use crate::asset::state_ext::StateReadExt as _;
 
-        let prefix = format!("{}/balance/", storage_key(&address));
+        let prefix = format!("{}/balance/", StorageKey(&address));
         let mut balances: Vec<AssetBalance> = Vec::new();
 
         let mut stream = std::pin::pin!(self.prefix_keys(&prefix));
@@ -230,20 +238,30 @@ impl<T: StateWrite> StateWriteExt for T {}
 #[cfg(test)]
 mod test {
     use astria_core::{
-        primitive::v1::asset::{
-            default_native_asset,
-            Id,
-            DEFAULT_NATIVE_ASSET_DENOM,
+        primitive::v1::{
+            asset::{
+                default_native_asset,
+                Id,
+                DEFAULT_NATIVE_ASSET_DENOM,
+            },
+            Address,
         },
         protocol::account::v1alpha1::AssetBalance,
     };
     use cnidarium::StateDelta;
+    use insta::assert_snapshot;
 
     use super::{
         StateReadExt as _,
         StateWriteExt as _,
     };
-    use crate::asset;
+    use crate::{
+        accounts::state_ext::{
+            balance_storage_key,
+            nonce_storage_key,
+        },
+        asset,
+    };
 
     #[tokio::test]
     async fn get_account_nonce_uninitialized_returns_zero() {
@@ -704,5 +722,20 @@ mod test {
             .decrease_balance(address, asset, amount_increase + 1)
             .await
             .expect_err("should not be able to subtract larger balance than what existed");
+    }
+
+    #[test]
+    fn snapshots() {
+        let address: Address = "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
+            .parse()
+            .unwrap();
+        let mut next = 0;
+        let id = astria_core::primitive::v1::asset::Id::new([0u8; 32].map(|_| {
+            let this = next;
+            next += 1;
+            this
+        }));
+        assert_snapshot!(balance_storage_key(address, id));
+        assert_snapshot!(nonce_storage_key(address));
     }
 }
