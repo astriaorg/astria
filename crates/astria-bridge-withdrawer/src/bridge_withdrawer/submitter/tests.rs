@@ -153,6 +153,7 @@ impl TestSubmitter {
         let (submitter, submitter_handle) = submitter::Builder {
             shutdown_token: shutdown_token.clone(),
             sequencer_key_path,
+            sequencer_address_prefix: "astria".into(),
             sequencer_chain_id: SEQUENCER_CHAIN_ID.to_string(),
             sequencer_cometbft_endpoint,
             state,
