@@ -22,64 +22,64 @@ images:
 
 moniker: "node"
 genesis:
-    chainId: 'sequencer-test-chain-0'
-    genesisTime: '2023-09-22T17:22:35.092832Z'
-    authoritySudoAddress: 1c0c490f1b5528d8173c5de46d131160e4b2c0c3
-    nativeAssetBaseDenomination: nria
-    allowedFeeAssets:
-      - nria
-    ibc:
-      enabled: true
-      inboundEnabled: true
-      outboundEnabled: true
-      sudoAddress: 1c0c490f1b5528d8173c5de46d131160e4b2c0c3
-      relayerAddresses:
-        - 1c0c490f1b5528d8173c5de46d131160e4b2c0c3
-        - 34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a
-    # Note large balances must be strings support templating with the u128 size account balances
-    genesisAccounts:
-    - address: 1c0c490f1b5528d8173c5de46d131160e4b2c0c3
-      balance: "340282366920938463463374607431768211455"
-    - address: 34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a
-      balance: "340282366920938463463374607431768211455"
-    - address: 60709e2d391864b732b4f0f51e387abb76743871
-      balance: "340282366920938463463374607431768211455"
-      # NOTE - the following address matches the privKey that funds the sequencer-faucet
-    - address: 00d75b270542084a54fcf0d0f6eab0402982d156
-      balance: "340282366920938463463374607431768211455"
-    consensusParams:
-      blockMaxBytes: "1048576"
-      blockMaxGas: "-1"
-      maxAgeDuration: "1209600000000000"
-      maxAgeNumBlocks: "4000000"
-      maxBytes: "1048576"  
-    fees:
-      transferBaseFee: "12"
-      sequenceBaseFee: "32"
-      sequenceByteCostMultiplier: "1"
-      initBridgeAccountBaseFee: "48"
-      bridgeLockByteCostMultiplier: "1"
-      bridgeSudoChangeFee: "24"
-      ics20WithdrawalBaseFee: "24"
-    validators: []
-      # - name: core
-      #   power: '1'
-      #   address: 091E47761C58C474534F4D414AF104A6CAF90C22
-      #   pubKey: lV57+rGs2vac7mvkGHP1oBFGHPJM3a+WoAzeFDCJDNU=
+  chainId: 'sequencer-test-chain-0'
+  genesisTime: '2023-09-22T17:22:35.092832Z'
+  authoritySudoAddress: 1c0c490f1b5528d8173c5de46d131160e4b2c0c3
+  nativeAssetBaseDenomination: nria
+  allowedFeeAssets:
+    - nria
+  ibc:
+    enabled: true
+    inboundEnabled: true
+    outboundEnabled: true
+    sudoAddress: 1c0c490f1b5528d8173c5de46d131160e4b2c0c3
+    relayerAddresses:
+      - 1c0c490f1b5528d8173c5de46d131160e4b2c0c3
+      - 34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a
+  # Note large balances must be strings support templating with the u128 size account balances
+  genesisAccounts:
+  - address: 1c0c490f1b5528d8173c5de46d131160e4b2c0c3
+    balance: "340282366920938463463374607431768211455"
+  - address: 34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a
+    balance: "340282366920938463463374607431768211455"
+  - address: 60709e2d391864b732b4f0f51e387abb76743871
+    balance: "340282366920938463463374607431768211455"
+    # NOTE - the following address matches the privKey that funds the sequencer-faucet
+  - address: 00d75b270542084a54fcf0d0f6eab0402982d156
+    balance: "340282366920938463463374607431768211455"
+  consensusParams:
+    blockMaxBytes: "1048576"
+    blockMaxGas: "-1"
+    maxAgeDuration: "1209600000000000"
+    maxAgeNumBlocks: "4000000"
+    maxBytes: "1048576"  
+  fees:
+    transferBaseFee: "12"
+    sequenceBaseFee: "32"
+    sequenceByteCostMultiplier: "1"
+    initBridgeAccountBaseFee: "48"
+    bridgeLockByteCostMultiplier: "1"
+    bridgeSudoChangeFee: "24"
+    ics20WithdrawalBaseFee: "24"
+  validators: []
+    # - name: core
+    #   power: '1'
+    #   address: 091E47761C58C474534F4D414AF104A6CAF90C22
+    #   pubKey: lV57+rGs2vac7mvkGHP1oBFGHPJM3a+WoAzeFDCJDNU=
 sequencer:
-    metrics:
-      enabled: false
+  metrics:
+    enabled: false
 
-    otel:
-      enabled: false
-      serviceName: |-
-        {{ include "sequencer.name" . }}
-      endpoint:
-      tracesEndpoint:
-      tracesCompression: gzip
-      tracesTimeout: 10
-      otlpHeaders:
-      traceHeaders:
+  otel:
+    enabled: false
+    serviceName: |-
+      {{ include "sequencer.name" . }}
+    endpoint:
+    tracesEndpoint:
+    tracesCompression: gzip
+    tracesTimeout: 10
+    otlpHeaders:
+    traceHeaders:
       
 cometbft:
   config:
