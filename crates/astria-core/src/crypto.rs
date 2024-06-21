@@ -76,6 +76,12 @@ impl SigningKey {
             key: self.0.verification_key(),
         }
     }
+
+    /// Returns the address bytes of the verification key associated with this signing key.
+    #[must_use]
+    pub fn address_bytes(&self) -> [u8; ADDRESS_LEN] {
+        self.verification_key().address_bytes()
+    }
 }
 
 impl Debug for SigningKey {
