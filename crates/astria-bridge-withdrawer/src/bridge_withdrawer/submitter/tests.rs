@@ -10,14 +10,10 @@ use astria_core::{
     bridge::Ics20WithdrawalFromRollupMemo,
     crypto::SigningKey,
     generated::protocol::account::v1alpha1::NonceResponse,
-    primitive::v1::{
-        asset::{
-            self,
-            default_native_asset,
-            Denom,
-        },
-        Address,
-        ASTRIA_ADDRESS_PREFIX,
+    primitive::v1::asset::{
+        self,
+        default_native_asset,
+        Denom,
     },
     protocol::{
         account::v1alpha1::AssetBalance,
@@ -282,11 +278,7 @@ fn make_ics20_withdrawal_action() -> Action {
     let inner = Ics20Withdrawal {
         denom: denom.clone(),
         destination_chain_address,
-        return_address: Address::builder()
-            .array([0u8; 20])
-            .prefix(ASTRIA_ADDRESS_PREFIX)
-            .try_build()
-            .unwrap(),
+        return_address: crate::astria_address([0u8; 20]),
         amount: 99,
         memo: serde_json::to_string(&Ics20WithdrawalFromRollupMemo {
             memo: "hello".to_string(),
@@ -308,11 +300,7 @@ fn make_ics20_withdrawal_action() -> Action {
 fn make_bridge_unlock_action() -> Action {
     let denom = default_native_asset();
     let inner = BridgeUnlockAction {
-        to: Address::builder()
-            .array([0u8; 20])
-            .prefix(ASTRIA_ADDRESS_PREFIX)
-            .try_build()
-            .unwrap(),
+        to: crate::astria_address([0u8; 20]),
         amount: 99,
         memo: serde_json::to_vec(&BridgeUnlockMemo {
             block_number: DEFAULT_LAST_ROLLUP_HEIGHT.into(),
