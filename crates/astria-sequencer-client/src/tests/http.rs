@@ -7,7 +7,6 @@ use astria_core::{
             default_native_asset,
         },
         Address,
-        ASTRIA_ADDRESS_PREFIX,
     },
     protocol::transaction::v1alpha1::{
         action::TransferAction,
@@ -46,7 +45,7 @@ use crate::{
 
 const ALICE_ADDRESS_BYTES: [u8; 20] = hex!("1c0c490f1b5528d8173c5de46d131160e4b2c0c3");
 const BOB_ADDRESS_BYTES: [u8; 20] = hex!("34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a");
-
+const ASTRIA_ADDRESS_PREFIX: &str = "astria";
 fn alice_address() -> Address {
     Address::builder()
         .array(ALICE_ADDRESS_BYTES)

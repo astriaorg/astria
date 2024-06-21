@@ -8,10 +8,7 @@
 //! The example below works with the feature `"http"` set.
 //! ```no_run
 //! # tokio_test::block_on(async {
-//! use astria_core::primitive::v1::{
-//!     Address,
-//!     ASTRIA_ADDRESS_PREFIX,
-//! };
+//! use astria_core::primitive::v1::Address;
 //! use astria_sequencer_client::SequencerClientExt as _;
 //! use tendermint_rpc::HttpClient;
 //!
@@ -20,7 +17,7 @@
 //!     .array(hex_literal::hex!(
 //!         "DEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF"
 //!     ))
-//!     .prefix(ASTRIA_ADDRESS_PREFIX)
+//!     .prefix("astria")
 //!     .try_build()
 //!     .unwrap();
 //! let height = 5u32;
