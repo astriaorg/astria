@@ -168,7 +168,7 @@ mod test {
         state.put_bridge_lock_byte_cost_multiplier(2);
 
         let bridge_address = crate::astria_address([1; 20]);
-        let asset_id = asset::Id::from_denom("test");
+        let asset_id = asset::Id::from_str_unchecked("test");
         let bridge_lock = BridgeLockAction {
             to: bridge_address,
             asset_id,
@@ -227,7 +227,7 @@ mod test {
         state.put_bridge_lock_byte_cost_multiplier(2);
 
         let bridge_address = crate::astria_address([1; 20]);
-        let asset_id = asset::Id::from_denom("test");
+        let asset_id = asset::Id::from_str_unchecked("test");
         let bridge_lock = BridgeLockAction {
             to: bridge_address,
             asset_id,

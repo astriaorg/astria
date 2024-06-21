@@ -1,4 +1,7 @@
-use std::sync::Arc;
+use std::{
+    sync::Arc,
+    time::Duration,
+};
 
 use astria_core::generated::cosmos::{
     base::tendermint::v1beta1::{
@@ -26,6 +29,9 @@ use super::{
     CelestiaKeys,
     GrpcResponseError,
 };
+
+/// All gRPCs will time out with the given duration.
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// An error when building the `CelestiaClient`.
 #[derive(Error, Clone, Debug)]
@@ -80,7 +86,7 @@ impl Builder {
         signing_keys: CelestiaKeys,
         state: Arc<State>,
     ) -> Result<Self, BuilderError> {
-        let grpc_channel = Endpoint::from(uri).connect_lazy();
+        let grpc_channel = Endpoint::from(uri).timeout(REQUEST_TIMEOUT).connect_lazy();
         let address = bech32_encode(&signing_keys.address)?;
         Ok(Self {
             configured_celestia_chain_id,
@@ -93,7 +99,7 @@ impl Builder {
 
     /// Returns a new `CelestiaClient` initialized with info retrieved from the Celestia app.
     pub(in crate::relayer) async fn try_build(self) -> Result<CelestiaClient, BuilderError> {
-        let reeceived_celestia_chain_id = self.fetch_celestia_chain_id().await?;
+        let received_celestia_chain_id = self.fetch_celestia_chain_id().await?;
 
         let Self {
             configured_celestia_chain_id,
@@ -103,14 +109,14 @@ impl Builder {
             state,
         } = self;
 
-        if reeceived_celestia_chain_id != configured_celestia_chain_id {
+        if received_celestia_chain_id != configured_celestia_chain_id {
             return Err(BuilderError::MismatchedCelestiaChainId {
                 configured: configured_celestia_chain_id,
-                received: reeceived_celestia_chain_id,
+                received: received_celestia_chain_id,
             });
         }
 
-        info!(celestia_chain_id = %reeceived_celestia_chain_id, "confirmed celestia chain id");
+        info!(celestia_chain_id = %received_celestia_chain_id, "confirmed celestia chain id");
         state.set_celestia_connected(true);
 
         let tx_client = TxClient::new(grpc_channel.clone());
@@ -119,7 +125,7 @@ impl Builder {
             tx_client,
             signing_keys,
             address,
-            chain_id: reeceived_celestia_chain_id,
+            chain_id: received_celestia_chain_id,
         })
     }
 

@@ -1,6 +1,9 @@
 use std::{
     net::SocketAddr,
-    sync::Arc,
+    sync::{
+        Arc,
+        OnceLock,
+    },
     time::Duration,
 };
 
@@ -39,6 +42,7 @@ use self::{
 use crate::{
     api,
     config::Config,
+    metrics::Metrics,
 };
 
 mod batch;
@@ -46,7 +50,7 @@ mod ethereum;
 mod state;
 mod submitter;
 
-pub struct Service {
+pub struct BridgeWithdrawer {
     // Token to signal all subtasks to shut down gracefully.
     shutdown_token: CancellationToken,
     api_server: api::ApiServer,
@@ -55,13 +59,16 @@ pub struct Service {
     state: Arc<State>,
 }
 
-impl Service {
+impl BridgeWithdrawer {
     /// Instantiates a new `Service`.
     ///
     /// # Errors
     ///
     /// - If the provided `api_addr` string cannot be parsed as a socket address.
     pub fn new(cfg: Config) -> eyre::Result<(Self, ShutdownHandle)> {
+        static METRICS: OnceLock<Metrics> = OnceLock::new();
+        let metrics = METRICS.get_or_init(Metrics::new);
+
         let shutdown_handle = ShutdownHandle::new();
         let Config {
             api_addr,
@@ -85,8 +92,9 @@ impl Service {
             sequencer_chain_id,
             sequencer_key_path,
             state: state.clone(),
-            expected_fee_asset_id: asset::Id::from_denom(&fee_asset_denomination),
+            expected_fee_asset_id: asset::Id::from_str_unchecked(&fee_asset_denomination),
             min_expected_fee_asset_balance: u128::from(min_expected_fee_asset_balance),
+            metrics,
         }
         .build()
         .wrap_err("failed to initialize submitter")?;

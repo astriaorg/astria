@@ -133,7 +133,6 @@ cometbft:
       handshakeTimeout: 20s
       dialTimeout: 3s
       
-      
     mempool:
       # Maximum number of transactions in the mempool
       size: 2000

@@ -21,7 +21,7 @@ use hyper::server::conn::AddrIncoming;
 use serde::Serialize;
 use tokio::sync::watch;
 
-use crate::withdrawer::StateSnapshot;
+use crate::bridge_withdrawer::StateSnapshot;
 
 pub(crate) type ApiServer = axum::Server<AddrIncoming, IntoMakeService<Router>>;
 

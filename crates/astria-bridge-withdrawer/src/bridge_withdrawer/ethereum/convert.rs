@@ -3,8 +3,11 @@ use std::time::Duration;
 use astria_core::{
     bridge::Ics20WithdrawalFromRollupMemo,
     primitive::v1::{
-        asset,
-        asset::Denom,
+        asset::{
+            self,
+            denom::TracePrefixed,
+            Denom,
+        },
         Address,
         ASTRIA_ADDRESS_PREFIX,
     },
@@ -31,7 +34,7 @@ use serde::{
     Serialize,
 };
 
-use crate::withdrawer::ethereum::astria_withdrawer_interface::{
+use crate::bridge_withdrawer::ethereum::astria_withdrawer_interface::{
     Ics20WithdrawalFilter,
     SequencerWithdrawalFilter,
 };
@@ -132,7 +135,8 @@ fn event_to_ics20_withdrawal(
     let denom = rollup_asset_denom.clone();
 
     let channel = denom
-        .channel()
+        .as_trace_prefixed()
+        .and_then(TracePrefixed::last_channel)
         .ok_or_eyre("denom must have a channel to be withdrawn via IBC")?;
 
     let memo = Ics20WithdrawalFromRollupMemo {
@@ -191,7 +195,7 @@ mod tests {
     use asset::default_native_asset;
 
     use super::*;
-    use crate::withdrawer::ethereum::astria_withdrawer_interface::SequencerWithdrawalFilter;
+    use crate::bridge_withdrawer::ethereum::astria_withdrawer_interface::SequencerWithdrawalFilter;
 
     #[test]
     fn event_to_bridge_unlock() {

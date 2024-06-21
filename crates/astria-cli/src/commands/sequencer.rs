@@ -326,9 +326,9 @@ pub(crate) async fn fee_asset_add(args: &FeeAssetChangeArgs) -> eyre::Result<()>
         args.sequencer_url.as_str(),
         args.sequencer_chain_id.clone(),
         args.private_key.as_str(),
-        Action::FeeAssetChange(FeeAssetChangeAction::Addition(asset::Id::from_denom(
-            &args.asset,
-        ))),
+        Action::FeeAssetChange(FeeAssetChangeAction::Addition(
+            asset::Id::from_str_unchecked(&args.asset),
+        )),
     )
     .await
     .wrap_err("failed to submit FeeAssetChangeAction::Addition transaction")?;
@@ -353,9 +353,9 @@ pub(crate) async fn fee_asset_remove(args: &FeeAssetChangeArgs) -> eyre::Result<
         args.sequencer_url.as_str(),
         args.sequencer_chain_id.clone(),
         args.private_key.as_str(),
-        Action::FeeAssetChange(FeeAssetChangeAction::Removal(asset::Id::from_denom(
-            &args.asset,
-        ))),
+        Action::FeeAssetChange(FeeAssetChangeAction::Removal(
+            asset::Id::from_str_unchecked(&args.asset),
+        )),
     )
     .await
     .wrap_err("failed to submit FeeAssetChangeAction::Removal transaction")?;
