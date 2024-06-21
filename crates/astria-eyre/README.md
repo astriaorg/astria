@@ -51,7 +51,7 @@ fn main() -> Result<(), Report> {
 Errors can be emitted as part of tracing events by simply adding a
 display-formatted field. Because the `astria-eyre` hook ensures that the full
 cause-chain is written it is not necessary to cast the error to a trait
-object to trigger trigger formatting via
+object to trigger formatting via
 [`tracing::field::Value for &dyn std::error::Error`].
 
 ```rust
