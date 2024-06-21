@@ -477,10 +477,10 @@ mod test {
         primitive::v1::{
             asset::default_native_asset,
             Address,
-            ASTRIA_ADDRESS_PREFIX,
         },
         protocol::transaction::v1alpha1::action::TransferAction,
     };
+    const ASTRIA_ADDRESS_PREFIX: &str = "astria";
 
     #[test]
     fn signed_transaction_hash() {

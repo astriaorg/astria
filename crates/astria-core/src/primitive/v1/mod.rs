@@ -508,7 +508,6 @@ where
 #[cfg(test)]
 mod tests {
     use bytes::Bytes;
-    use insta::assert_json_snapshot;
 
     use super::{
         raw,
@@ -516,8 +515,8 @@ mod tests {
         AddressError,
         AddressErrorKind,
         ADDRESS_LEN,
-        ASTRIA_ADDRESS_PREFIX,
     };
+    const ASTRIA_ADDRESS_PREFIX: &str = "astria";
 
     #[track_caller]
     fn assert_wrong_address_bytes(bad_account: &[u8]) {
@@ -546,8 +545,10 @@ mod tests {
         assert_wrong_address_bytes(&[42; 100]);
     }
 
+    #[cfg(feature = "serde")]
     #[test]
     fn snapshots() {
+        use insta::assert_json_snapshot;
         let address = Address::builder()
             .array([42; 20])
             .prefix(ASTRIA_ADDRESS_PREFIX)
