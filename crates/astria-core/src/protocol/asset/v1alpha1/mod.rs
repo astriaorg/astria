@@ -236,17 +236,26 @@ mod tests {
         let raw = raw::AllowedFeeAssetIdsResponse {
             height: 42,
             fee_asset_ids: vec![
-                asset::Id::from_denom("asset_0").get().to_vec().into(),
-                asset::Id::from_denom("asset_1").get().to_vec().into(),
-                asset::Id::from_denom("asset_2").get().to_vec().into(),
+                asset::Id::from_str_unchecked("asset_0")
+                    .get()
+                    .to_vec()
+                    .into(),
+                asset::Id::from_str_unchecked("asset_1")
+                    .get()
+                    .to_vec()
+                    .into(),
+                asset::Id::from_str_unchecked("asset_2")
+                    .get()
+                    .to_vec()
+                    .into(),
             ],
         };
         let expected = AllowedFeeAssetIdsResponse {
             height: 42,
             fee_asset_ids: vec![
-                asset::Id::from_denom("asset_0"),
-                asset::Id::from_denom("asset_1"),
-                asset::Id::from_denom("asset_2"),
+                asset::Id::from_str_unchecked("asset_0"),
+                asset::Id::from_str_unchecked("asset_1"),
+                asset::Id::from_str_unchecked("asset_2"),
             ],
         };
         let actual = AllowedFeeAssetIdsResponse::try_from_raw(&raw).unwrap();
@@ -258,17 +267,26 @@ mod tests {
         let native = AllowedFeeAssetIdsResponse {
             height: 42,
             fee_asset_ids: vec![
-                asset::Id::from_denom("asset_0"),
-                asset::Id::from_denom("asset_1"),
-                asset::Id::from_denom("asset_2"),
+                asset::Id::from_str_unchecked("asset_0"),
+                asset::Id::from_str_unchecked("asset_1"),
+                asset::Id::from_str_unchecked("asset_2"),
             ],
         };
         let expected = raw::AllowedFeeAssetIdsResponse {
             height: 42,
             fee_asset_ids: vec![
-                asset::Id::from_denom("asset_0").get().to_vec().into(),
-                asset::Id::from_denom("asset_1").get().to_vec().into(),
-                asset::Id::from_denom("asset_2").get().to_vec().into(),
+                asset::Id::from_str_unchecked("asset_0")
+                    .get()
+                    .to_vec()
+                    .into(),
+                asset::Id::from_str_unchecked("asset_1")
+                    .get()
+                    .to_vec()
+                    .into(),
+                asset::Id::from_str_unchecked("asset_2")
+                    .get()
+                    .to_vec()
+                    .into(),
             ],
         };
         let actual = native.into_raw();
@@ -280,9 +298,9 @@ mod tests {
         let native = AllowedFeeAssetIdsResponse {
             height: 42,
             fee_asset_ids: vec![
-                asset::Id::from_denom("asset_0"),
-                asset::Id::from_denom("asset_1"),
-                asset::Id::from_denom("asset_2"),
+                asset::Id::from_str_unchecked("asset_0"),
+                asset::Id::from_str_unchecked("asset_1"),
+                asset::Id::from_str_unchecked("asset_2"),
             ],
         };
         let expected = native.clone();

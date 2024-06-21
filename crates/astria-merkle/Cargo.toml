@@ -7,11 +7,19 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/astriaorg/astria"
 homepage = "https://astria.org"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 serde = { workspace = true, features = ["derive"], optional = true }
 sha2 = { workspace = true }
 
 [dev-dependencies]
+ct-merkle = "0.1.0"
+divan = "0.1.14"
 hex-literal = { workspace = true }
+
+[features]
+# Used to enable allocation data in benchmarks.
+bench_include_allocs = []
+
+[[bench]]
+name = "benchmark"
+harness = false

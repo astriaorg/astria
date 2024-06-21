@@ -103,7 +103,7 @@ async fn app_execute_transaction_transfer_not_native_token() {
     let mut app = initialize_app(None, vec![]).await;
 
     // create some asset to be transferred and update Alice's balance of it
-    let asset = asset::Id::from_denom("test");
+    let asset = asset::Id::from_str_unchecked("test");
     let value = 333_333;
     let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
     let mut state_tx = StateDelta::new(app.state.clone());
@@ -258,7 +258,7 @@ async fn app_execute_transaction_invalid_fee_asset() {
     let (alice_signing_key, _) = get_alice_signing_key_and_address();
     let data = b"hello world".to_vec();
 
-    let fee_asset_id = asset::Id::from_denom("test");
+    let fee_asset_id = asset::Id::from_str_unchecked("test");
 
     let tx = UnsignedTransaction {
         params: TransactionParams::builder()
@@ -504,7 +504,7 @@ async fn app_execute_transaction_fee_asset_change_addition() {
     };
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
-    let new_asset = asset::Id::from_denom("test");
+    let new_asset = asset::Id::from_str_unchecked("test");
 
     let tx = UnsignedTransaction {
         params: TransactionParams::builder()

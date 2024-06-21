@@ -26,7 +26,7 @@ use tryhard::{
     RetryPolicy,
 };
 
-use crate::metrics_init::CELESTIA_BLOB_FETCH_ERROR_COUNT;
+use crate::metrics::Metrics;
 
 pub(super) struct RawBlobs {
     pub(super) celestia_height: u64,
@@ -58,14 +58,20 @@ pub(super) async fn fetch_new_blobs(
     celestia_height: u64,
     rollup_namespace: Namespace,
     sequencer_namespace: Namespace,
+    metrics: &'static Metrics,
 ) -> eyre::Result<RawBlobs> {
     let header_blobs = async {
-        fetch_blobs_with_retry(client.clone(), celestia_height, sequencer_namespace)
-            .await
-            .wrap_err("failed to fetch header blobs")
+        fetch_blobs_with_retry(
+            client.clone(),
+            celestia_height,
+            sequencer_namespace,
+            metrics,
+        )
+        .await
+        .wrap_err("failed to fetch header blobs")
     };
     let rollup_blobs = async {
-        fetch_blobs_with_retry(client.clone(), celestia_height, rollup_namespace)
+        fetch_blobs_with_retry(client.clone(), celestia_height, rollup_namespace, metrics)
             .await
             .wrap_err("failed to fetch rollup blobs")
     };
@@ -83,6 +89,7 @@ async fn fetch_blobs_with_retry(
     client: CelestiaClient,
     height: u64,
     namespace: Namespace,
+    metrics: &'static Metrics,
 ) -> eyre::Result<Vec<Blob>> {
     use celestia_rpc::BlobClient as _;
 
@@ -102,7 +109,7 @@ async fn fetch_blobs_with_retry(
                     error = error as &dyn std::error::Error,
                     "attempt to fetch Celestia Blobs failed; retrying after delay",
                 );
-                metrics::counter!(CELESTIA_BLOB_FETCH_ERROR_COUNT).increment(1);
+                metrics.increment_celestia_blob_fetch_error_count();
                 futures::future::ready(())
             },
         );

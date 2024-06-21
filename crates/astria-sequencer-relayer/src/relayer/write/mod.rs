@@ -58,7 +58,7 @@ use super::{
     TrySubmitError,
 };
 use crate::{
-    metrics_init,
+    metrics::Metrics,
     IncludeRollup,
 };
 
@@ -120,6 +120,8 @@ pub(super) struct BlobSubmitter {
     /// A block that could not be added to `next_submission` because it would overflow its
     /// hardcoded limit.
     pending_block: Option<SequencerBlock>,
+
+    metrics: &'static Metrics,
 }
 
 impl BlobSubmitter {
@@ -129,6 +131,7 @@ impl BlobSubmitter {
         state: Arc<super::State>,
         submission_state: SubmissionState,
         shutdown_token: CancellationToken,
+        metrics: &'static Metrics,
     ) -> (Self, BlobSubmitterHandle) {
         // XXX: The channel size here is just a number. It should probably be based on some
         // heuristic about the number of expected blobs in a block.
@@ -136,11 +139,12 @@ impl BlobSubmitter {
         let submitter = Self {
             client_builder,
             blocks: rx,
-            next_submission: NextSubmission::new(rollup_filter),
+            next_submission: NextSubmission::new(rollup_filter, metrics),
             state,
             submission_state,
             shutdown_token,
             pending_block: None,
+            metrics,
         };
         let handle = BlobSubmitterHandle {
             tx,
@@ -199,6 +203,7 @@ impl BlobSubmitter {
                         submission,
                         self.state.clone(),
                         self.submission_state.clone(),
+                        self.metrics,
                     ).boxed().fuse();
                     if let Some(block) = self.pending_block.take() {
                         if let Err(error) = self.add_sequencer_block_to_next_submission(block) {
@@ -272,6 +277,7 @@ async fn submit_blobs(
     data: conversion::Submission,
     state: Arc<super::State>,
     submission_state: SubmissionState,
+    metrics: &'static Metrics,
 ) -> eyre::Result<SubmissionState> {
     info!(
         blocks = %telemetry::display::json(&data.input_metadata()),
@@ -283,27 +289,11 @@ async fn submit_blobs(
 
     let start = std::time::Instant::now();
 
-    // allow: gauges require f64, it's okay if the metrics get messed up by overflow or precision
-    // loss
-    #[allow(clippy::cast_precision_loss)]
-    let compressed_size = data.compressed_size() as f64;
-    metrics::histogram!(metrics_init::BYTES_PER_CELESTIA_TX).record(compressed_size);
-
-    metrics::gauge!(metrics_init::COMPRESSION_RATIO_FOR_ASTRIA_BLOCK).set(data.compression_ratio());
-
-    metrics::counter!(crate::metrics_init::CELESTIA_SUBMISSION_COUNT).increment(1);
-    // XXX: The number of sequencer blocks per celestia tx is equal to the number of heights passed
-    // into this function. This comes from the way that `QueuedBlocks::take` is implemented.
-    //
-    // allow: the number of blocks should always be low enough to not cause precision loss
-    #[allow(clippy::cast_precision_loss)]
-    let blocks_per_celestia_tx = data.num_blocks() as f64;
-    metrics::histogram!(crate::metrics_init::BLOCKS_PER_CELESTIA_TX).record(blocks_per_celestia_tx);
-
-    // allow: the number of blobs should always be low enough to not cause precision loss
-    #[allow(clippy::cast_precision_loss)]
-    let blobs_per_celestia_tx = data.num_blobs() as f64;
-    metrics::histogram!(crate::metrics_init::BLOBS_PER_CELESTIA_TX).record(blobs_per_celestia_tx);
+    metrics.record_bytes_per_celestia_tx(data.compressed_size());
+    metrics.set_compression_ratio_for_astria_block(data.compression_ratio());
+    metrics.increment_celestia_submission_count();
+    metrics.record_blocks_per_celestia_tx(data.num_blocks());
+    metrics.record_blobs_per_celestia_tx(data.num_blobs());
 
     let largest_sequencer_height = data.greatest_sequencer_height();
     let blobs = data.into_blobs();
@@ -320,7 +310,7 @@ async fn submit_blobs(
         Ok(state) => state,
     };
 
-    let celestia_height = match submit_with_retry(client, blobs, state.clone()).await {
+    let celestia_height = match submit_with_retry(client, blobs, state.clone(), metrics).await {
         Err(error) => {
             let message = "failed submitting blobs to Celestia";
             error!(%error, message);
@@ -328,10 +318,9 @@ async fn submit_blobs(
         }
         Ok(height) => height,
     };
-    metrics::counter!(crate::metrics_init::SEQUENCER_SUBMISSION_HEIGHT)
-        .absolute(largest_sequencer_height.value());
-    metrics::counter!(crate::metrics_init::CELESTIA_SUBMISSION_HEIGHT).absolute(celestia_height);
-    metrics::histogram!(crate::metrics_init::CELESTIA_SUBMISSION_LATENCY).record(start.elapsed());
+    metrics.absolute_set_sequencer_submission_height(largest_sequencer_height.value());
+    metrics.absolute_set_celestia_submission_height(celestia_height);
+    metrics.record_celestia_submission_latency(start.elapsed());
 
     info!(%celestia_height, "successfully submitted blobs to Celestia");
 
@@ -399,6 +388,7 @@ async fn submit_with_retry(
     client: CelestiaClient,
     blobs: Vec<Blob>,
     state: Arc<super::State>,
+    metrics: &'static Metrics,
 ) -> eyre::Result<u64> {
     // Moving the span into `on_retry`, because tryhard spawns these in a tokio
     // task, losing the span.
@@ -414,8 +404,7 @@ async fn submit_with_retry(
         .max_delay(Duration::from_secs(12))
         .on_retry(
             |attempt: u32, next_delay: Option<Duration>, error: &TrySubmitError| {
-                metrics::counter!(crate::metrics_init::CELESTIA_SUBMISSION_FAILURE_COUNT)
-                    .increment(1);
+                metrics.increment_celestia_submission_failure_count();
 
                 let state = Arc::clone(&state);
                 state.set_celestia_connected(false);
