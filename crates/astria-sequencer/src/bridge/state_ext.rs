@@ -14,7 +14,6 @@ use astria_core::{
         asset,
         Address,
         RollupId,
-        ASTRIA_ADDRESS_PREFIX,
     },
     sequencerblock::v1alpha1::block::Deposit,
 };
@@ -146,10 +145,7 @@ pub(crate) trait StateReadExt: StateRead {
             return Ok(None);
         };
 
-        let sudo_address = Address::builder()
-            .slice(sudo_address_bytes)
-            .prefix(ASTRIA_ADDRESS_PREFIX)
-            .try_build()
+        let sudo_address = crate::address::try_base_prefixed(&sudo_address_bytes)
             .context("invalid sudo address bytes")?;
         Ok(Some(sudo_address))
     }
@@ -170,10 +166,7 @@ pub(crate) trait StateReadExt: StateRead {
             return Ok(None);
         };
 
-        let withdrawer_address = Address::builder()
-            .slice(withdrawer_address_bytes)
-            .prefix(ASTRIA_ADDRESS_PREFIX)
-            .try_build()
+        let withdrawer_address = crate::address::try_base_prefixed(&withdrawer_address_bytes)
             .context("invalid withdrawer address bytes")?;
         Ok(Some(withdrawer_address))
     }
