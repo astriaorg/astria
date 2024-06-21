@@ -19,7 +19,6 @@ genesis:
       address: 8C17BBDC7C350C83C550163458FC9B7A5B54A64E
       pubKey: 4v1RdMiKkWgBBTTP26iRSLOEkAY99gMVfZijm6OCzjs=
 
-
 # Values for CometBFT node configuration
 cometbft:
   secrets:

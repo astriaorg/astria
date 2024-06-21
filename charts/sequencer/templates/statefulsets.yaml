@@ -46,7 +46,7 @@ spec:
           ports:
             - containerPort: {{ .Values.ports.sequencerABCI }}
               name: sequencer-abci
-            - containerPort: {{ .Values.ports.sequencerGRpc }}
+            - containerPort: {{ .Values.ports.sequencerGrpc }}
               name: sequencer-grpc
             {{- if .Values.sequencer.metrics.enabled }}
             - containerPort: {{ .Values.ports.sequencerMetrics }}

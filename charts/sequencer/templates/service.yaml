@@ -44,7 +44,7 @@ spec:
     app: {{ .Values.moniker }}-sequencer
   ports:
     - name: sequencer-grpc
-      port: {{ .Values.ports.sequencerGRpc }}
+      port: {{ .Values.ports.sequencerGrpc }}
       targetPort: sequencer-grpc
 ---
 {{- if .Values.serviceMonitor.enabled }} 

@@ -83,13 +83,9 @@ sequencer:
       
 cometbft:
   config:
-    # Database directory for cometBFT
-    dbDir: "data"
     #log configurations
     logLevel: "info"
     logFormat: "plain"
-    # Path to genesis file location
-    genesisFile: "config/genesis.json"
     # Grpc server configuration
     grpc:
       # Maximum number of simultaneous GRPC connections
@@ -118,8 +114,12 @@ cometbft:
       persistentPeers: []
       # List of node IDs, to which a connection will be (re)established ignoring any existing limits
       unconditionalPeers: []
+      # Maximum pause when redialing a persistent peer (if zero, exponential backoff is used)
+      persistentPeersMaxDialPeriod: "0s"
       # List of peer IDs to keep private (will not be gossiped to other peers)
       privatePeers: []
+      # Toggle to disable guard against peers connecting from the same ip.
+      allowDuplicateIP: false
       # Seed mode, in which node constantly crawls the network and looks for
       # peers. If another node asks it for addresses, it responds and disconnects.
       seedMode: false
@@ -151,6 +151,9 @@ cometbft:
       timeoutPrecommit: 1s
       timeoutPrecommitDelta: 500ms
       timeoutCommit: 1500ms
+      
+    instrumentation:
+      namespace: "astria_cometbft"
   # These secrets will be generated using the devContent values turned into JSON
   # and stored unsafely as config maps. Unless SecretProvider is enabled.
   # Where the secret parameters should be then updated to suit your secret provider
@@ -213,7 +216,7 @@ ports:
   cometbftRpc: 26657
   cometbftMetrics: 26660
   sequencerABCI: 26658
-  sequencerGRpc: 8080
+  sequencerGrpc: 8080
   relayerRpc: 2450
   sequencerMetrics: 9000
 
