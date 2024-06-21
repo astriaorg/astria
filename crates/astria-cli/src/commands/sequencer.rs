@@ -6,6 +6,7 @@ use astria_core::{
             default_native_asset,
         },
         Address,
+        ADDRESS_LEN,
     },
     protocol::transaction::v1alpha1::{
         action::{
@@ -40,6 +41,7 @@ use rand::rngs::OsRng;
 
 use crate::cli::sequencer::{
     BasicAccountArgs,
+    Bech32mAddressArgs,
     BlockHeightGetArgs,
     BridgeLockArgs,
     FeeAssetChangeArgs,
@@ -162,6 +164,22 @@ pub(crate) async fn get_block_height(args: &BlockHeightGetArgs) -> eyre::Result<
     println!("Block Height:");
     println!("    {}", res.block.header.height);
 
+    Ok(())
+}
+
+/// Returns a bech32m sequencer address given a prefix and hex-encoded byte slice
+pub(crate) fn make_bech32m(args: &Bech32mAddressArgs) -> eyre::Result<()> {
+    use hex::FromHex as _;
+    let bytes = <[u8; ADDRESS_LEN]>::from_hex(&args.bytes)
+        .wrap_err("failed decoding provided hex bytes")?;
+    let address = Address::builder()
+        .array(bytes)
+        .prefix(&args.prefix)
+        .try_build()
+        .wrap_err(
+            "failed constructing a valid bech32m address from the provided hex bytes and prefix",
+        )?;
+    println!("{address}");
     Ok(())
 }
 

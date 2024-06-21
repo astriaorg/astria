@@ -12,6 +12,11 @@ pub enum Command {
         #[command(subcommand)]
         command: AccountCommand,
     },
+    /// Utilities for constructing and inspecting sequencer addresses
+    Address {
+        #[command(subcommand)]
+        command: AddressCommand,
+    },
     /// Commands for interacting with Sequencer balances
     Balance {
         #[command(subcommand)]
@@ -42,6 +47,12 @@ pub enum AccountCommand {
     Create,
     Balance(BasicAccountArgs),
     Nonce(BasicAccountArgs),
+}
+
+#[derive(Debug, Subcommand)]
+pub enum AddressCommand {
+    /// Construct a bech32m Sequencer address given a public key
+    Bech32m(Bech32mAddressArgs),
 }
 
 #[derive(Debug, Subcommand)]
@@ -91,6 +102,16 @@ pub struct BasicAccountArgs {
     pub(crate) sequencer_url: String,
     /// The address of the Sequencer account
     pub(crate) address: Address,
+}
+
+#[derive(Args, Debug)]
+pub struct Bech32mAddressArgs {
+    /// The hex formatted byte part of the bech32m address
+    #[arg(long)]
+    pub(crate) bytes: String,
+    /// The human readable prefix (Hrp) of the bech32m adress
+    #[arg(long)]
+    pub(crate) prefix: String,
 }
 
 #[derive(Args, Debug)]

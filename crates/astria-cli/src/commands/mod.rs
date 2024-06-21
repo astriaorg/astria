@@ -15,6 +15,7 @@ use crate::cli::{
     },
     sequencer::{
         AccountCommand,
+        AddressCommand,
         BalanceCommand,
         BlockHeightCommand,
         Command as SequencerCommand,
@@ -70,6 +71,11 @@ pub async fn run(cli: Cli) -> eyre::Result<()> {
                     AccountCommand::Create => sequencer::create_account(),
                     AccountCommand::Balance(args) => sequencer::get_balance(&args).await?,
                     AccountCommand::Nonce(args) => sequencer::get_nonce(&args).await?,
+                },
+                SequencerCommand::Address {
+                    command,
+                } => match command {
+                    AddressCommand::Bech32m(args) => sequencer::make_bech32m(&args)?,
                 },
                 SequencerCommand::Balance {
                     command,
