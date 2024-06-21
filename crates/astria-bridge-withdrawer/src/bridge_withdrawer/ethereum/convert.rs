@@ -9,7 +9,6 @@ use astria_core::{
             Denom,
         },
         Address,
-        ASTRIA_ADDRESS_PREFIX,
     },
     protocol::transaction::v1alpha1::{
         action::{
@@ -60,6 +59,7 @@ pub(crate) fn event_to_action(
     rollup_asset_denom: Denom,
     asset_withdrawal_divisor: u128,
     bridge_address: Address,
+    sequencer_address_prefix: &str,
 ) -> eyre::Result<Action> {
     let action = match event_with_metadata.event {
         WithdrawalEvent::Sequencer(event) => event_to_bridge_unlock(
@@ -78,6 +78,7 @@ pub(crate) fn event_to_action(
             rollup_asset_denom,
             asset_withdrawal_divisor,
             bridge_address,
+            sequencer_address_prefix,
         )
         .wrap_err("failed to convert ics20 withdrawal event to action")?,
     };
@@ -121,6 +122,8 @@ fn event_to_bridge_unlock(
     Ok(Action::BridgeUnlock(action))
 }
 
+// FIXME: Get this to work for now, but replace this with a builder.
+#[allow(clippy::too_many_arguments)]
 fn event_to_ics20_withdrawal(
     event: Ics20WithdrawalFilter,
     block_number: U64,
@@ -129,6 +132,7 @@ fn event_to_ics20_withdrawal(
     rollup_asset_denom: Denom,
     asset_withdrawal_divisor: u128,
     bridge_address: Address,
+    sequencer_address_prefix: &str,
 ) -> eyre::Result<Action> {
     // TODO: make this configurable
     const ICS20_WITHDRAWAL_TIMEOUT: Duration = Duration::from_secs(300);
@@ -157,7 +161,7 @@ fn event_to_ics20_withdrawal(
         // bytes, but this won't work otherwise.
         return_address: Address::builder()
             .array(sender)
-            .prefix(ASTRIA_ADDRESS_PREFIX)
+            .prefix(sequencer_address_prefix)
             .try_build()
             .wrap_err("failed to construct return address")?,
         amount: event
@@ -206,12 +210,7 @@ mod tests {
             event: WithdrawalEvent::Sequencer(SequencerWithdrawalFilter {
                 sender: [0u8; 20].into(),
                 amount: 99.into(),
-                destination_chain_address: Address::builder()
-                    .array([1u8; 20])
-                    .prefix(ASTRIA_ADDRESS_PREFIX)
-                    .try_build()
-                    .unwrap()
-                    .to_string(),
+                destination_chain_address: crate::astria_address([1u8; 20]).to_string(),
             }),
             block_number: 1.into(),
             transaction_hash: [2u8; 32].into(),
@@ -222,6 +221,7 @@ mod tests {
             denom.clone(),
             1,
             crate::astria_address([99u8; 20]),
+            crate::ASTRIA_ADDRESS_PREFIX,
         )
         .unwrap();
         let Action::BridgeUnlock(action) = action else {
@@ -250,12 +250,7 @@ mod tests {
             event: WithdrawalEvent::Sequencer(SequencerWithdrawalFilter {
                 sender: [0u8; 20].into(),
                 amount: 990.into(),
-                destination_chain_address: Address::builder()
-                    .array([1u8; 20])
-                    .prefix(ASTRIA_ADDRESS_PREFIX)
-                    .try_build()
-                    .unwrap()
-                    .to_string(),
+                destination_chain_address: crate::astria_address([1u8; 20]).to_string(),
             }),
             block_number: 1.into(),
             transaction_hash: [2u8; 32].into(),
@@ -267,6 +262,7 @@ mod tests {
             denom.clone(),
             divisor,
             crate::astria_address([99u8; 20]),
+            crate::ASTRIA_ADDRESS_PREFIX,
         )
         .unwrap();
         let Action::BridgeUnlock(action) = action else {
@@ -291,7 +287,7 @@ mod tests {
     #[test]
     fn event_to_ics20_withdrawal() {
         let denom = "transfer/channel-0/utia".parse::<Denom>().unwrap();
-        let destination_chain_address = "address".to_string();
+        let destination_chain_address = crate::astria_address([1u8; 20]).to_string();
         let event_with_meta = EventWithMetadata {
             event: WithdrawalEvent::Ics20(Ics20WithdrawalFilter {
                 sender: [0u8; 20].into(),
@@ -310,6 +306,7 @@ mod tests {
             denom.clone(),
             1,
             bridge_address,
+            crate::ASTRIA_ADDRESS_PREFIX,
         )
         .unwrap();
         let Action::Ics20Withdrawal(mut action) = action else {
