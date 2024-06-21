@@ -40,10 +40,11 @@ spec:
             httpGet:
               path: /readyz
               port: {{ .Values.ports.healthAPI }}
-{{/*          livenessProbe:*/}}
-{{/*            httpGet:*/}}
-{{/*              path: /healthz*/}}
-{{/*              port: {{ .Values.ports.healthAPI }}*/}}
+          # TODO: Enable the liveness probe when it is more reliable
+          # livenessProbe:
+          #  httpGet:
+          #    path: /healthz
+          #    port: {{ .Values.ports.healthAPI }}
       volumes:
         - name: sequencer-private-key-volume
           {{- if $.Values.secretProvider.enabled }}

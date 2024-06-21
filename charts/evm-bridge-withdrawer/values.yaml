@@ -4,8 +4,6 @@
 global:
   namespaceOverride: ""
   replicaCount: 1
-  # Whether to use tty readable logging for astria services, when false use json.
-  # Best to be false in production environments, true for clean logs on local dev.
   useTTY: true
   dev: false
 

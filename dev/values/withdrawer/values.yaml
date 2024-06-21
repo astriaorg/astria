@@ -1,11 +1,8 @@
-# Default values for sequencer.
-# This is a YAML-formatted file.
-# Declare variables to be passed into your templates.
 global:
   namespaceOverride: ""
   replicaCount: 1
-  # Whether to use tty readable logging for astria services, when false use json.
-  # Best to be false in production environments, true for clean logs on local dev.
+  # Whether to use tty readable logging for astria services, when false uses
+  # structured json logging of tracing events.
   useTTY: true
   dev: true
 
@@ -20,49 +17,12 @@ config:
   evmRpcEndpoint: "ws://astria-evm-service.astria-dev-cluster.svc.cluster.local:8546/"
   sequencerPrivateKey:
     devContent: "dfa7108e38ab71f89f356c72afc38600d5758f11a8c337164713e4471411d2e0"
-ports:
-  bridgeWithdrawRpc: 2450
-  metrics: 9000
 
 metrics:
   enabled: false
 
 otel:
   enabled: false
-  serviceName: "astria-evm-withdrawer"
-  endpoint:
-  tracesEndpoint:
-  tracesCompression: gzip
-  tracesTimeout: 10
-  otlpHeaders:
-  traceHeaders:
 
 serviceMonitor:
   enabled: false
-  port: 26660
-  additionalLabels:
-    release: kube-prometheus-stack
-
-# When deploying in a production environment should use a secret provider
-# This is configured for use with GCP, need to set own resource names
-# and keys
-secretProvider:
-  enabled: false
-  provider: gcp
-  # May need to update this template to match the secret provider
-  # it will be passed an object containing:
-  # {
-  #   key: {
-  #     resourceName: <resourceName>,
-  #     filename: <filename>,
-  #     key: <key>
-  #   }
-  # }
-  #
-  # Can update set the source of each chain key at chain.<chain>.key.secret to
-  # match the secret provider's requirements. The default works for GCP.
-  # The secret file must be mapped to the <key.filename>
-  parametersTemplate: |-
-    secrets: |
-      - resourceName: {{ .key.resourceName }}
-        fileName: "{{ .key.filename }}"
