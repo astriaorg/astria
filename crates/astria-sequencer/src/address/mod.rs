@@ -45,19 +45,15 @@ mod regular {
     static BASE_PREFIX: OnceLock<String> = OnceLock::new();
 
     pub(crate) fn initialize_base_prefix(base_prefix: &str) -> anyhow::Result<()> {
-        assert!(
-            BASE_PREFIX.get().is_some(),
-            "the base prefix was already initialized; it must only be initialized once and upon \
-             receiving an init-chain consensus request"
-        );
-
         // construct a dummy address to see if we can construct it; fail otherwise.
         try_construct_dummy_address_from_prefix(base_prefix)
             .context("failed constructing a dummy address from the provided prefix")?;
 
-        BASE_PREFIX
-            .set(base_prefix.to_string())
-            .expect("singleton base prefix is initialized once which is asserted above");
+        BASE_PREFIX.set(base_prefix.to_string()).expect(
+            "THIS IS A BUG: the base prefix was already more than once; it must only be \
+             initialized once and upon receiving an init-chain consensus request. It can not be \
+             initialized twice or concurrently from more than one task or thread.",
+        );
 
         Ok(())
     }
