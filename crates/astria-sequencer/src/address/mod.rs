@@ -57,8 +57,9 @@ mod regular {
 
         BASE_PREFIX.set(base_prefix.to_string()).expect(
             "THIS IS A BUG: attempted to set the base prefix more than once; it should only be set
-             once when serving the `InitChain` consensus request. It cannot be initialized twice \
-             or concurrently from more than one task or thread.",
+             once when serving the `InitChain` consensus request, or immediately after Sequencer is
+             restarted. It cannot be initialized twice or concurrently from more than one task or \
+             thread.",
         );
 
         Ok(())
@@ -69,7 +70,8 @@ mod regular {
             .get()
             .expect(
                 "the base prefix must have been set while serving the `InitChain` consensus \
-                 request; if not set, the chain was initialized incorrectly",
+                 request or upon Sequencer restart; if not set, the chain was initialized \
+                 incorrectly, or the base prefix not read from storage",
             )
             .as_str()
     }
