@@ -326,8 +326,8 @@ resources:
       memory: 1Gi
   geth:
     requests:
-      cpu: 4
-      memory: 16Gi
+      cpu: 16
+      memory: 32Gi
 
 storage:
   enabled: false
