@@ -4,8 +4,14 @@ use astria_core::primitive::v1::{
     AddressError,
     ADDRESS_LEN,
 };
+
+mod state_ext;
 #[cfg(not(test))]
 pub(crate) use regular::*;
+pub(crate) use state_ext::{
+    StateReadExt,
+    StateWriteExt,
+};
 #[cfg(test)]
 pub(crate) use testonly::*;
 
