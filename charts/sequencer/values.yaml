@@ -18,14 +18,14 @@ images:
   sequencer:
     repo: ghcr.io/astriaorg/sequencer
     tag: "0.13.0"
-    devTag: "latest"
+    devTag: "sha-4b9367e"
 
 moniker: "node"
 genesis:
   chainId: 'sequencer-test-chain-0'
   genesisTime: '2023-09-22T17:22:35.092832Z'
   addressPrefixes:
-      base: "astria"
+    base: "astria"
   authoritySudoAddress: astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm
   oldAuthoritySudoAddress: 1c0c490f1b5528d8173c5de46d131160e4b2c0c3
   nativeAssetBaseDenomination: nria
