@@ -110,7 +110,7 @@ pub struct Bech32mAddressArgs {
     #[arg(long)]
     pub(crate) bytes: String,
     /// The human readable prefix (Hrp) of the bech32m adress
-    #[arg(long)]
+    #[arg(long, default_value = "astria")]
     pub(crate) prefix: String,
 }
 
