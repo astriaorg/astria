@@ -18,7 +18,10 @@ use anyhow::{
     Result,
 };
 use astria_core::{
-    bridge::Ics20WithdrawalFromRollupMemo,
+    bridge::{
+        Ics20TransferDepositMemo,
+        Ics20WithdrawalFromRollupMemo,
+    },
     primitive::v1::{
         asset::{
             denom,
@@ -73,6 +76,12 @@ use crate::{
         StateWriteExt,
     },
 };
+
+/// The maximum length of the encoded Ics20 `FungibleTokenPacketData` in bytes.
+const MAX_PACKET_DATA_BYTE_LENGTH: usize = 2048;
+
+/// The maximum length of the rollup address in bytes.
+const MAX_ROLLUP_ADDRESS_BYTE_LENGTH: usize = 256;
 
 /// The ICS20 transfer handler.
 ///
@@ -133,8 +142,17 @@ impl AppHandlerCheck for Ics20Transfer {
         Ok(())
     }
 
-    async fn recv_packet_check<S: StateRead>(_: S, _: &MsgRecvPacket) -> Result<()> {
-        // checks performed in `execute`
+    async fn recv_packet_check<S: StateRead>(_: S, msg: &MsgRecvPacket) -> Result<()> {
+        // most checks performed in `execute`
+        // perform stateless checks here
+        if msg.packet.data.is_empty() {
+            anyhow::bail!("packet data is empty");
+        }
+
+        if msg.packet.data.len() > MAX_PACKET_DATA_BYTE_LENGTH {
+            anyhow::bail!("packet data is too long: exceeds MAX_PACKET_DATA_BYTE_LENGTH");
+        }
+
         Ok(())
     }
 
@@ -533,7 +551,7 @@ async fn execute_ics20_transfer_bridge_lock<S: StateWriteExt>(
     recipient: &Address,
     denom: &denom::TracePrefixed,
     amount: u128,
-    destination_address: String,
+    memo: String,
     is_refund: bool,
 ) -> Result<()> {
     // check if the recipient is a bridge account; if so,
@@ -560,12 +578,21 @@ async fn execute_ics20_transfer_bridge_lock<S: StateWriteExt>(
         return Ok(());
     }
 
+    // assert memo is valid
+    let deposit_memo: Ics20TransferDepositMemo =
+        serde_json::from_str(&memo).context("failed to parse memo as Ics20TransferDepositMemo")?;
+
     ensure!(
-        !destination_address.is_empty(),
+        !deposit_memo.rollup_address.is_empty(),
         "packet memo field must be set for bridge account recipient",
     );
 
-    execute_deposit(state, recipient, denom, amount, destination_address).await
+    ensure!(
+        deposit_memo.rollup_address.len() <= MAX_ROLLUP_ADDRESS_BYTE_LENGTH,
+        "rollup address is too long: exceeds MAX_ROLLUP_ADDRESS_BYTE_LENGTH",
+    );
+
+    execute_deposit(state, recipient, denom, amount, deposit_memo.rollup_address).await
 }
 
 async fn execute_deposit<S: StateWriteExt>(
@@ -740,12 +767,16 @@ mod test {
             .put_bridge_account_asset_id(&bridge_address, &denom.id())
             .unwrap();
 
+        let memo = Ics20TransferDepositMemo {
+            rollup_address: "rollupaddress".to_string(),
+        };
+
         let packet = FungibleTokenPacketData {
             denom: "nootasset".to_string(),
             sender: String::new(),
             amount: "100".to_string(),
             receiver: bridge_address.to_string(),
-            memo: "destinationaddress".to_string(),
+            memo: serde_json::to_string(&memo).unwrap(),
         };
         let packet_bytes = serde_json::to_vec(&packet).unwrap();
 
@@ -793,13 +824,13 @@ mod test {
             .put_bridge_account_asset_id(&bridge_address, &denom.id())
             .unwrap();
 
-        // use empty memo, which should fail
+        // use invalid memo, which should fail
         let packet = FungibleTokenPacketData {
             denom: "nootasset".to_string(),
             sender: String::new(),
             amount: "100".to_string(),
             receiver: bridge_address.to_string(),
-            memo: String::new(),
+            memo: "invalid".to_string(),
         };
         let packet_bytes = serde_json::to_vec(&packet).unwrap();
 
