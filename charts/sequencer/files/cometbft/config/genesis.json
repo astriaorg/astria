@@ -24,18 +24,18 @@
     },
     {{- if not .Values.global.dev }}
       "accounts": [
-        {{- range $index, $value := .Values.config.sequencer.oldGenesisAccounts }}
+        {{- range $index, $value := .Values.config.sequencer.genesisAccounts }}
         {{- if $index }},{{- end }}
         {
-          "address": "{{  $value.address }}",
+          "address": "{{ $value.address }}",
           "balance": {{ toString $value.balance | replace "\"" "" }}
         }
         {{- end }}
       ],
-      "authority_sudo_address": "{{ .Values.config.sequencer.oldAuthoritySudoAddress }}",
-      "ibc_sudo_address": "{{ .Values.config.sequencer.ibc.oldSudoAddress }}",
+      "authority_sudo_address": "{{ .Values.config.sequencer.authoritySudoAddress }}",
+      "ibc_sudo_address": "{{ .Values.config.sequencer.ibc.sudoAddress }}",
       "ibc_relayer_addresses": [
-        {{- range $index, $value := .Values.config.sequencer.ibc.oldRelayerAddresses }}
+        {{- range $index, $value := .Values.config.sequencer.ibc.relayerAddresses }}
         {{- if $index }},{{- end }}
         "{{ $value }}"
         {{- end }}
@@ -48,23 +48,17 @@
         {{- range $index, $value := .Values.config.sequencer.genesisAccounts }}
         {{- if $index }},{{- end }}
         {
-          "address": {
-            "bech32m": "{{  $value.address }}"
-          },
+          "address": {{ include "sequencer.address" $value.address }},
           "balance": {{ toString $value.balance | replace "\"" "" }}
         }
         {{- end }}
       ],
-      "authority_sudo_address": {
-          "bech32m": "{{ .Values.config.sequencer.authoritySudoAddress }}"
-      },
-      "ibc_sudo_address": {
-        "bech32m": "{{ .Values.config.sequencer.ibc.sudoAddress }}"
-      },
+      "authority_sudo_address": {{ include "sequencer.address" .Values.config.sequencer.authoritySudoAddress }},
+      "ibc_sudo_address": {{ include "sequencer.address" .Values.config.sequencer.ibc.sudoAddress }},
       "ibc_relayer_addresses": [
         {{- range $index, $value := .Values.config.sequencer.ibc.relayerAddresses }}
         {{- if $index }},{{- end }}
-        {"bech32m": "{{ $value }}"}
+        {{ include "sequencer.address" $value }}
         {{- end }}
       ]
     {{- end}}
