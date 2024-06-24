@@ -19,7 +19,10 @@ use anyhow::{
 };
 use astria_core::{
     generated::protocol::transaction::v1alpha1 as raw,
-    primitive::v1::Address,
+    primitive::v1::{
+        asset::denom,
+        Address,
+    },
     protocol::{
         abci::AbciErrorCode,
         transaction::v1alpha1::{
@@ -215,8 +218,18 @@ impl App {
             .try_begin_transaction()
             .expect("state Arc should not be referenced elsewhere");
 
-        crate::asset::initialize_native_asset(&genesis_state.native_asset_base_denomination);
-        state_tx.put_native_asset_denom(&genesis_state.native_asset_base_denomination);
+        let native_denom: denom::TracePrefixed = genesis_state
+            .native_asset_base_denomination
+            .trim()
+            .parse()
+            .context(
+                "failed to native asset denomination in genesis file as trace prefixed IBC ICS20 \
+                 denom",
+            )?;
+        state_tx
+            .init_native_asset(native_denom)
+            .await
+            .context("error setting and initializing native asset denomination")?;
         state_tx.put_chain_id_and_revision_number(chain_id.try_into().context("invalid chain ID")?);
         state_tx.put_block_height(0);
 

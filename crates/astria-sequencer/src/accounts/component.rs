@@ -10,9 +10,11 @@ use tendermint::abci::request::{
 };
 use tracing::instrument;
 
-use super::state_ext::StateWriteExt;
+use super::state_ext::{
+    StateReadExt,
+    StateWriteExt,
+};
 use crate::{
-    asset::get_native_asset,
     component::Component,
     genesis::GenesisState,
 };
@@ -25,8 +27,14 @@ impl Component for AccountsComponent {
     type AppState = GenesisState;
 
     #[instrument(name = "AccountsComponent::init_chain", skip(state))]
-    async fn init_chain<S: StateWriteExt>(mut state: S, app_state: &Self::AppState) -> Result<()> {
-        let native_asset = get_native_asset();
+    async fn init_chain<S: StateWriteExt + StateReadExt>(
+        mut state: S,
+        app_state: &Self::AppState,
+    ) -> Result<()> {
+        let native_asset = state
+            .get_native_asset()
+            .await
+            .context("failed getting native asset from state")?;
         for account in &app_state.accounts {
             state
                 .put_account_balance(account.address, native_asset.id(), account.balance)

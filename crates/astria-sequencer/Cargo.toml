@@ -50,6 +50,7 @@ serde_json = { workspace = true }
 sha2 = { workspace = true }
 tendermint-proto = { workspace = true }
 tendermint = { workspace = true }
+thiserror = { workspace = true }
 tokio = { workspace = true, features = ["rt", "tracing"] }
 tonic = { workspace = true }
 tracing = { workspace = true }

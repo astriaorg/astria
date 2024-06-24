@@ -60,10 +60,10 @@ use crate::{
         BOB_ADDRESS,
         CAROL_ADDRESS,
     },
-    asset::get_native_asset,
     bridge::state_ext::StateWriteExt as _,
     genesis::GenesisState,
     proposal::commitment::generate_rollup_datas_commitment,
+    state_ext::StateReadExt as _,
 };
 
 #[tokio::test]
@@ -79,7 +79,12 @@ async fn app_finalize_block_snapshot() {
 
     let bridge_address = crate::astria_address([99; 20]);
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
-    let asset_id = get_native_asset().id();
+    let asset_id = app
+        .state
+        .get_native_asset()
+        .await
+        .expect("initializer should have populated the storage with a native asset")
+        .id();
 
     let mut state_tx = StateDelta::new(app.state.clone());
     state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
@@ -198,7 +203,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     };
 
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
-    let asset_id = get_native_asset().id();
+    let asset_id = app.state.get_native_asset().await.unwrap().id();
 
     let tx = UnsignedTransaction {
         params: TransactionParams::builder()

@@ -3,7 +3,13 @@ use anyhow::{
     Context as _,
     Result,
 };
-use astria_core::primitive::v1::asset;
+use astria_core::primitive::v1::asset::{
+    self,
+    denom::{
+        self,
+        TracePrefixed,
+    },
+};
 use async_trait::async_trait;
 use cnidarium::{
     StateRead,
@@ -28,6 +34,20 @@ fn block_fees_key(asset: asset::Id) -> Vec<u8> {
 
 fn fee_asset_key(asset: asset::Id) -> Vec<u8> {
     format!("{FEE_ASSET_PREFIX}{}", crate::utils::Hex(asset.as_ref())).into()
+}
+
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum InitNativeAssetError {
+    #[error(
+        "the native asset was already initialized from another task. It is not permitted to \
+         initialize it more than once"
+    )]
+    AlreadyInitialized,
+    #[error(
+        "a native asset already exists in storage under its hardcoded key. Refusing to override it
+    "
+    )]
+    ExistsInStorage,
 }
 
 #[async_trait]
@@ -114,16 +134,30 @@ pub(crate) trait StateReadExt: StateRead {
     }
 
     #[instrument(skip(self))]
-    async fn get_native_asset_denom(&self) -> Result<String> {
-        let Some(bytes) = self
-            .nonverifiable_get_raw(NATIVE_ASSET_KEY)
-            .await
-            .context("failed to read raw native_asset_denom from state")?
-        else {
-            bail!("native asset denom not found");
-        };
+    async fn get_native_asset(&self) -> Result<TracePrefixed> {
+        static MEMOIZED_NATIVE_ASSET: tokio::sync::OnceCell<TracePrefixed> =
+            tokio::sync::OnceCell::const_new();
 
-        String::from_utf8(bytes).context("failed to parse native asset denom from raw bytes")
+        MEMOIZED_NATIVE_ASSET
+            .get_or_try_init(|| async {
+                let Some(bytes) = self
+                    .nonverifiable_get_raw(NATIVE_ASSET_KEY)
+                    .await
+                    .context("failed to read raw native_asset_denom from state")?
+                else {
+                    bail!("native asset denom not found");
+                };
+                let denom = std::str::from_utf8(&bytes)
+                    .context("native asset denom string was not utf8 encoded")?
+                    .parse()
+                    .context(
+                        "failed parsing native asset denom string as trace prefixed IBC ICS20 \
+                         denom",
+                    )?;
+                Ok(denom)
+            })
+            .await
+            .cloned()
     }
 
     #[instrument(skip(self))]
@@ -183,7 +217,7 @@ pub(crate) trait StateReadExt: StateRead {
     }
 }
 
-impl<T: StateRead> StateReadExt for T {}
+impl<T: StateRead + ?Sized> StateReadExt for T {}
 
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
@@ -220,9 +254,34 @@ pub(crate) trait StateWriteExt: StateWrite {
         );
     }
 
+    /// Sets the native asset denomination.
+    ///
+    /// This method must only be called once, from one task/thread, and during `chain-init`.
+    ///
+    /// # Errors
+    /// Returns an error if called twice and/or concurrently.
     #[instrument(skip(self))]
-    fn put_native_asset_denom(&mut self, denom: &str) {
-        self.nonverifiable_put_raw(NATIVE_ASSET_KEY.to_vec(), denom.as_bytes().to_vec());
+    async fn init_native_asset(
+        &mut self,
+        denom: denom::TracePrefixed,
+    ) -> Result<(), InitNativeAssetError> {
+        use std::sync::atomic::{
+            AtomicBool,
+            Ordering,
+        };
+        // XXX: There are 2 checks/guards here: the atomic ensures that there is no race
+        //      between 2 different task. The database read ensures that the native asset
+        //      is not overridden.
+        static IS_INIT: AtomicBool = AtomicBool::new(false);
+        if IS_INIT.swap(true, Ordering::Relaxed) {
+            return Err(InitNativeAssetError::AlreadyInitialized);
+        }
+        match self.nonverifiable_get_raw(NATIVE_ASSET_KEY).await {
+            Ok(Some(_)) | Err(_) => return Err(InitNativeAssetError::ExistsInStorage),
+            Ok(None) => {}
+        }
+        self.nonverifiable_put_raw(NATIVE_ASSET_KEY.to_vec(), denom.to_string().into_bytes());
+        Ok(())
     }
 
     /// Adds `amount` to the block fees for `asset`.
@@ -291,7 +350,11 @@ fn revision_number_from_chain_id(chain_id: &str) -> u64 {
 
 #[cfg(test)]
 mod test {
-    use cnidarium::StateDelta;
+    use astria_core::primitive::v1::asset::denom;
+    use cnidarium::{
+        StateDelta,
+        StateWrite as _,
+    };
     use tendermint::Time;
 
     use super::{
@@ -299,6 +362,7 @@ mod test {
         StateReadExt as _,
         StateWriteExt as _,
     };
+    use crate::state_ext::NATIVE_ASSET_KEY;
 
     #[test]
     fn revision_number_from_chain_id_regex() {
@@ -533,38 +597,83 @@ mod test {
     }
 
     #[tokio::test]
-    async fn native_asset_denom() {
+    async fn native_asset_denom_not_initially_set() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let state = StateDelta::new(snapshot);
+
+        // doesn't exist at first
+        state
+            .get_native_asset()
+            .await
+            .expect_err("no native asset denom should exist at first");
+    }
+
+    #[tokio::test]
+    async fn native_asset_denom_set_and_retrieved() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        // doesn't exist at first
+        let denom_orig: denom::TracePrefixed = "denom_orig".parse().unwrap();
         state
-            .get_native_asset_denom()
+            .init_native_asset(denom_orig.clone())
             .await
-            .expect_err("no native asset denom should exist at first");
-
-        // can write
-        let denom_orig = "denom_orig";
-        state.put_native_asset_denom(denom_orig);
+            .expect("the native asset should not yet be initialized");
         assert_eq!(
-            state.get_native_asset_denom().await.expect(
+            state.get_native_asset().await.expect(
                 "a native asset denomination was written and must exist inside the database"
             ),
             denom_orig,
             "stored native asset denomination was not what was expected"
         );
+    }
 
-        // can write new value
-        let denom_update = "denom_update";
-        state.put_native_asset_denom(denom_update);
-        assert_eq!(
-            state.get_native_asset_denom().await.expect(
-                "a native asset denomination update was written and must exist inside the database"
-            ),
-            denom_update,
-            "updated native asset denomination was not what was expected"
+    #[tokio::test]
+    async fn initializing_native_asset_twice_returns_error() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let denom_orig: denom::TracePrefixed = "denom_orig".parse().unwrap();
+        state
+            .init_native_asset(denom_orig.clone())
+            .await
+            .expect("the native asset was not yet initialized");
+        let err = state
+            .init_native_asset(denom_orig.clone())
+            .await
+            .expect_err("calling the initializer twice should return an error");
+
+        match err {
+            crate::state_ext::InitNativeAssetError::AlreadyInitialized => {}
+            other => {
+                panic!("expected `InitNativeAssetError::AlreadyInitialized`, but got {other:?}")
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn cant_override_native_asset_if_already_in_storage() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let denom: denom::TracePrefixed = "denom_orig".parse().unwrap();
+        // XXX: This makes use of an implementation detail but is necesary to trigger
+        //      the check for the key already being present in the database.
+        state.nonverifiable_put_raw(NATIVE_ASSET_KEY.to_vec(), denom.to_string().into_bytes());
+
+        let err = state.init_native_asset(denom.clone()).await.expect_err(
+            "calling the initializer with a native asset key already present in the database \
+             should return an error",
         );
+        match err {
+            crate::state_ext::InitNativeAssetError::ExistsInStorage => {}
+            other => {
+                panic!("expected `InitNativeAssetError::ExistsInStorage`, but got {other:?}")
+            }
+        }
     }
 
     #[tokio::test]

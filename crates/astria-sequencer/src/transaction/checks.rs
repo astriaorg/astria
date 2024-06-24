@@ -24,7 +24,6 @@ use crate::{
     accounts::state_ext::StateReadExt,
     bridge::state_ext::StateReadExt as _,
     ibc::state_ext::StateReadExt as _,
-    state_ext::StateReadExt as _,
 };
 
 pub(crate) async fn check_nonce_mempool<S: StateReadExt + 'static>(
@@ -295,6 +294,10 @@ mod test {
         bridge::state_ext::StateWriteExt,
         ibc::state_ext::StateWriteExt as _,
         sequence::state_ext::StateWriteExt as _,
+        state_ext::{
+            StateReadExt as _,
+            StateWriteExt as _,
+        },
     };
 
     #[tokio::test]
@@ -311,8 +314,11 @@ mod test {
         state_tx.put_bridge_lock_byte_cost_multiplier(1);
         state_tx.put_bridge_sudo_change_base_fee(24);
 
-        crate::asset::initialize_native_asset(DEFAULT_NATIVE_ASSET_DENOM);
-        let native_asset = crate::asset::get_native_asset().id();
+        state_tx
+            .init_native_asset(DEFAULT_NATIVE_ASSET_DENOM.parse().unwrap())
+            .await
+            .unwrap();
+        let native_asset = state_tx.get_native_asset().await.unwrap().id();
         let other_asset = "other".parse::<Denom>().unwrap().id();
 
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
@@ -379,8 +385,11 @@ mod test {
         state_tx.put_bridge_lock_byte_cost_multiplier(1);
         state_tx.put_bridge_sudo_change_base_fee(24);
 
-        crate::asset::initialize_native_asset(DEFAULT_NATIVE_ASSET_DENOM);
-        let native_asset = crate::asset::get_native_asset().id();
+        state_tx
+            .init_native_asset(DEFAULT_NATIVE_ASSET_DENOM.parse().unwrap())
+            .await
+            .unwrap();
+        let native_asset = state_tx.get_native_asset().await.unwrap().id();
         let other_asset = "other".parse::<Denom>().unwrap().id();
 
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();

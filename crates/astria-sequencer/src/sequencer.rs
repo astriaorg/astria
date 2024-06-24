@@ -86,11 +86,12 @@ impl Sequencer {
         // on subsequent startups, we load the native asset from storage.
         if storage.latest_version() != u64::MAX {
             // native asset should be stored, fetch it
-            let native_asset = snapshot
-                .get_native_asset_denom()
+            // XXX: previously this also loaded the native asset into the
+            //      global state; now this just memoizes the function call.
+            let _ = snapshot
+                .get_native_asset()
                 .await
                 .context("failed to get native asset from storage")?;
-            crate::asset::initialize_native_asset(&native_asset);
         }
 
         let mempool = Mempool::new();

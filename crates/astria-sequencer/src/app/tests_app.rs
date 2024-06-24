@@ -40,7 +40,6 @@ use super::*;
 use crate::{
     accounts::state_ext::StateReadExt as _,
     app::test_utils::*,
-    asset::get_native_asset,
     authority::state_ext::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -82,6 +81,14 @@ async fn app_genesis_and_init_chain() {
     let app = initialize_app(None, vec![]).await;
     assert_eq!(app.state.get_block_height().await.unwrap(), 0);
 
+    let native_asset = app
+        .state
+        .get_native_asset()
+        .await
+        .expect("initializer should have populated the native asset");
+
+    assert_eq!(native_asset.to_string(), DEFAULT_NATIVE_ASSET_DENOM,);
+
     for Account {
         address,
         balance,
@@ -90,16 +97,11 @@ async fn app_genesis_and_init_chain() {
         assert_eq!(
             balance,
             app.state
-                .get_account_balance(address, get_native_asset().id())
+                .get_account_balance(address, native_asset.id())
                 .await
                 .unwrap(),
         );
     }
-
-    assert_eq!(
-        app.state.get_native_asset_denom().await.unwrap(),
-        DEFAULT_NATIVE_ASSET_DENOM
-    );
 }
 
 #[tokio::test]
@@ -188,7 +190,7 @@ async fn app_commit() {
     let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
     assert_eq!(app.state.get_block_height().await.unwrap(), 0);
 
-    let native_asset = get_native_asset().id();
+    let native_asset = app.state.get_native_asset().await.unwrap().id();
     for Account {
         address,
         balance,
@@ -230,7 +232,7 @@ async fn app_transfer_block_fees_to_sudo() {
     let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
 
     let (alice_signing_key, _) = get_alice_signing_key_and_address();
-    let native_asset = get_native_asset().id();
+    let native_asset = app.state.get_native_asset().await.unwrap().id();
 
     // transfer funds from Alice to Bob; use native token for fee payment
     let bob_address = address_from_hex_string(BOB_ADDRESS);
@@ -246,7 +248,7 @@ async fn app_transfer_block_fees_to_sudo() {
                 to: bob_address,
                 amount,
                 asset_id: native_asset,
-                fee_asset_id: get_native_asset().id(),
+                fee_asset_id: app.state.get_native_asset().await.unwrap().id(),
             }
             .into(),
         ],
@@ -302,7 +304,7 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
 
     let bridge_address = crate::astria_address([99; 20]);
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
-    let asset_id = get_native_asset().id();
+    let asset_id = app.state.get_native_asset().await.unwrap().id();
 
     let mut state_tx = StateDelta::new(app.state.clone());
     state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
@@ -393,7 +395,7 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
 
     let bridge_address = crate::astria_address([99; 20]);
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
-    let asset_id = get_native_asset().id();
+    let asset_id = app.state.get_native_asset().await.unwrap().id();
 
     let mut state_tx = StateDelta::new(app.state.clone());
     state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
@@ -552,7 +554,7 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
             SequenceAction {
                 rollup_id: RollupId::from([1u8; 32]),
                 data: vec![1u8; 100_000],
-                fee_asset_id: get_native_asset().id(),
+                fee_asset_id: app.state.get_native_asset().await.unwrap().id(),
             }
             .into(),
         ],
@@ -568,7 +570,7 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
             SequenceAction {
                 rollup_id: RollupId::from([1u8; 32]),
                 data: vec![1u8; 100_000],
-                fee_asset_id: get_native_asset().id(),
+                fee_asset_id: app.state.get_native_asset().await.unwrap().id(),
             }
             .into(),
         ],
@@ -627,7 +629,7 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
             SequenceAction {
                 rollup_id: RollupId::from([1u8; 32]),
                 data: vec![1u8; 200_000],
-                fee_asset_id: get_native_asset().id(),
+                fee_asset_id: app.state.get_native_asset().await.unwrap().id(),
             }
             .into(),
         ],
@@ -643,7 +645,7 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
             SequenceAction {
                 rollup_id: RollupId::from([1u8; 32]),
                 data: vec![1u8; 100_000],
-                fee_asset_id: get_native_asset().id(),
+                fee_asset_id: app.state.get_native_asset().await.unwrap().id(),
             }
             .into(),
         ],

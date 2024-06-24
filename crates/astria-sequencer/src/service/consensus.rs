@@ -248,7 +248,6 @@ mod test {
     use super::*;
     use crate::{
         app::test_utils::default_fees,
-        asset::get_native_asset,
         mempool::Mempool,
         metrics::Metrics,
         proposal::commitment::generate_rollup_datas_commitment,
@@ -265,7 +264,7 @@ mod test {
                 SequenceAction {
                     rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                     data: b"helloworld".to_vec(),
-                    fee_asset_id: get_native_asset().id(),
+                    fee_asset_id: default_native_asset().id(),
                 }
                 .into(),
             ],

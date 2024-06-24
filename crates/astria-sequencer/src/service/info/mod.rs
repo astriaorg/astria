@@ -182,11 +182,7 @@ mod test {
     use super::Info;
     use crate::{
         accounts::state_ext::StateWriteExt as _,
-        asset::{
-            get_native_asset,
-            initialize_native_asset,
-            state_ext::StateWriteExt,
-        },
+        asset::state_ext::StateWriteExt,
         state_ext::{
             StateReadExt,
             StateWriteExt as _,
@@ -208,7 +204,12 @@ mod test {
         let mut state = StateDelta::new(storage.latest_snapshot());
         state.put_storage_version_by_height(height, version);
 
-        initialize_native_asset(DEFAULT_NATIVE_ASSET_DENOM);
+        state
+            .init_native_asset(DEFAULT_NATIVE_ASSET_DENOM.parse().unwrap())
+            .await
+            .unwrap();
+
+        let native_denom = state.get_native_asset().await.unwrap();
 
         let address = crate::try_astria_address(
             &hex::decode("a034c743bed8f26cb8ee7b8db2230fd8347ae131").unwrap(),
@@ -217,7 +218,11 @@ mod test {
 
         let balance = 1000;
         state
-            .put_account_balance(address, get_native_asset().id(), balance)
+            .put_account_balance(
+                address,
+                state.get_native_asset().await.unwrap().id(),
+                balance,
+            )
             .unwrap();
         state.put_block_height(height);
         storage.commit(state).await.unwrap();
@@ -244,7 +249,7 @@ mod test {
         assert!(query_response.code.is_ok());
 
         let expected_balance = AssetBalance {
-            denom: get_native_asset().clone(),
+            denom: native_denom.into(),
             balance,
         };
 

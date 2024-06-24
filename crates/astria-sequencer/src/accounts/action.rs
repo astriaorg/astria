@@ -15,10 +15,7 @@ use crate::{
         StateWriteExt,
     },
     bridge::state_ext::StateReadExt as _,
-    state_ext::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    },
+    state_ext::StateWriteExt as _,
     transaction::action_handler::ActionHandler,
 };
 

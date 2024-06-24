@@ -102,25 +102,19 @@ mod test {
     use rand::rngs::OsRng;
 
     use super::*;
-    use crate::asset::{
-        get_native_asset,
-        NATIVE_ASSET,
-    };
 
     #[test]
     fn generate_rollup_datas_commitment_should_ignore_transfers() {
-        let _ = NATIVE_ASSET.set(default_native_asset());
-
         let sequence_action = SequenceAction {
             rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
             data: b"helloworld".to_vec(),
-            fee_asset_id: get_native_asset().id(),
+            fee_asset_id: default_native_asset().id(),
         };
         let transfer_action = TransferAction {
             to: crate::astria_address([0u8; 20]),
             amount: 1,
-            asset_id: get_native_asset().id(),
-            fee_asset_id: get_native_asset().id(),
+            asset_id: default_native_asset().id(),
+            fee_asset_id: default_native_asset().id(),
         };
 
         let signing_key = SigningKey::new(OsRng);
@@ -166,18 +160,17 @@ mod test {
         // this tests that the commitment generated is what is expected via a test vector.
         // this test will only break in the case of a breaking change to the commitment scheme,
         // thus if this test needs to be updated, we should cut a new release.
-        let _ = NATIVE_ASSET.set(default_native_asset());
 
         let sequence_action = SequenceAction {
             rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
             data: b"helloworld".to_vec(),
-            fee_asset_id: get_native_asset().id(),
+            fee_asset_id: default_native_asset().id(),
         };
         let transfer_action = TransferAction {
             to: crate::astria_address([0u8; 20]),
             amount: 1,
-            asset_id: get_native_asset().id(),
-            fee_asset_id: get_native_asset().id(),
+            asset_id: default_native_asset().id(),
+            fee_asset_id: default_native_asset().id(),
         };
 
         let signing_key = SigningKey::new(OsRng);

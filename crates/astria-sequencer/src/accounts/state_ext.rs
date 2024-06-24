@@ -54,7 +54,7 @@ fn nonce_storage_key(address: Address) -> String {
 }
 
 #[async_trait]
-pub(crate) trait StateReadExt: StateRead {
+pub(crate) trait StateReadExt: StateRead + crate::state_ext::StateReadExt {
     #[instrument(skip_all, fields(address=%address))]
     async fn get_account_balances(&self, address: Address) -> Result<Vec<AssetBalance>> {
         use crate::asset::state_ext::StateReadExt as _;
@@ -84,10 +84,13 @@ pub(crate) trait StateReadExt: StateRead {
             let Balance(balance) =
                 Balance::try_from_slice(&value).context("invalid balance bytes")?;
 
-            let native_asset = crate::asset::get_native_asset();
+            let native_asset = self
+                .get_native_asset()
+                .await
+                .context("failed reading native asset from stroage")?;
             if asset_id == native_asset.id() {
                 balances.push(AssetBalance {
-                    denom: native_asset.clone(),
+                    denom: native_asset.clone().into(),
                     balance,
                 });
                 continue;
@@ -243,7 +246,10 @@ mod test {
         StateReadExt as _,
         StateWriteExt as _,
     };
-    use crate::asset;
+    use crate::{
+        asset,
+        state_ext::StateWriteExt as _,
+    };
 
     #[tokio::test]
     async fn get_account_nonce_uninitialized_returns_zero() {
@@ -532,7 +538,10 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         // need to set native asset in order to use `get_account_balances()`
-        crate::asset::initialize_native_asset(DEFAULT_NATIVE_ASSET_DENOM);
+        state
+            .init_native_asset(DEFAULT_NATIVE_ASSET_DENOM.parse().unwrap())
+            .await
+            .unwrap();
 
         let asset_0 = Id::from_str_unchecked(DEFAULT_NATIVE_ASSET_DENOM);
         let asset_1 = Id::from_str_unchecked("asset_1");

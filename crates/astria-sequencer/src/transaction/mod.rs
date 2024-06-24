@@ -33,7 +33,6 @@ use crate::{
         host_interface::AstriaHost,
         state_ext::StateReadExt as _,
     },
-    state_ext::StateReadExt as _,
 };
 
 pub(crate) async fn check_stateless(tx: &SignedTransaction) -> anyhow::Result<()> {
