@@ -59,5 +59,6 @@ brotli = ["dep:brotli"]
 [dev-dependencies]
 insta = { workspace = true, features = ["json"] }
 rand = { workspace = true }
+serde_json = { workspace = true }
 tempfile = { workspace = true }
 astria-core = { path = ".", features = ["serde"] }

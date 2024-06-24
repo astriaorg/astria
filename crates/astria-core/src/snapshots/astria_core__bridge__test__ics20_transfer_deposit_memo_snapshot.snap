@@ -1,0 +1,5 @@
+---
+source: crates/astria-core/src/bridge.rs
+expression: "serde_json::to_string(&memo).unwrap()"
+---
+"{\"rollupAddress\":\"some_rollup_address\"}"
