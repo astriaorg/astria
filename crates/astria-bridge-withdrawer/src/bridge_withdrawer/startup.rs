@@ -17,6 +17,7 @@ use astria_eyre::eyre::{
     ensure,
     eyre,
     Context as _,
+    ContextCompat,
     OptionExt as _,
 };
 use prost::Message as _;
@@ -360,9 +361,12 @@ impl Startup {
             .await
             .wrap_err("failed to get the bridge account's last sequencer transaction")?;
         let starting_rollup_height = if let Some(signed_transaction) = signed_transaction {
-            rollup_height_from_signed_transaction(&signed_transaction).wrap_err(
-                "failed to extract rollup height from last transaction by the bridge account",
-            )? + 1
+            rollup_height_from_signed_transaction(&signed_transaction)
+                .wrap_err(
+                    "failed to extract rollup height from last transaction by the bridge account",
+                )?
+                .checked_add(1)
+                .wrap_err("failed to increment rollup height by 1")?
         } else {
             1
         };
