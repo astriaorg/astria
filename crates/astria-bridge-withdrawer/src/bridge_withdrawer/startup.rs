@@ -259,11 +259,11 @@ impl Startup {
             .balances
             .into_iter()
             .find(|balance| balance.denom.id() == self.expected_fee_asset_id)
-            .ok_or_eyre("withdrawer's account does not have the minimum balance of the fee asset")?
+            .ok_or_eyre("withdrawer's account balance of the fee asset is zero")?
             .balance;
         ensure!(
             fee_asset_balance >= self.expected_min_fee_asset_balance,
-            "sequencer key does not have a sufficient balance of the fee asset"
+            "withdrawer account does not have a sufficient balance of the fee asset"
         );
 
         Ok(())
@@ -362,7 +362,7 @@ impl Startup {
         let starting_rollup_height = if let Some(signed_transaction) = signed_transaction {
             rollup_height_from_signed_transaction(&signed_transaction).wrap_err(
                 "failed to extract rollup height from last transaction by the bridge account",
-            )?
+            )? + 1
         } else {
             1
         };

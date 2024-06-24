@@ -91,8 +91,6 @@ use crate::{
 
 const SEQUENCER_CHAIN_ID: &str = "test_sequencer-1000";
 const DEFAULT_LAST_ROLLUP_HEIGHT: u64 = 1;
-// const DEFAULT_LAST_SEQUENCER_HEIGHT: u64 = 0;
-// const DEFAULT_SEQUENCER_NONCE: u32 = 0;
 const DEFAULT_IBC_DENOM: &str = "transfer/channel-0/utia";
 
 static TELEMETRY: Lazy<()> = Lazy::new(|| {
@@ -222,39 +220,6 @@ async fn _register_default_min_expected_fee_asset_balance_guard(
     .await
 }
 
-// async fn _register_default_last_bridge_tx_hash_guard(cometbft_mock: &MockServer) -> MockGuard {
-//     _register_last_bridge_tx_hash_guard(cometbft_mock,
-// _make_last_bridge_tx_hash_response()).await }
-
-// async fn _register_default_last_bridge_tx_guard(cometbft_mock: &MockServer) -> MockGuard {
-//     _register_tx_guard(cometbft_mock, _make_tx_response()).await
-// }
-
-// async fn _register_startup_guards(cometbft_mock: &MockServer) -> HashMap<String, MockGuard> {
-//     HashMap::from([
-//         (
-//             "chain_id".to_string(),
-//             _register_default_chain_id_guard(cometbft_mock).await,
-//         ),
-//         (
-//             "fee_asset_ids".to_string(),
-//             _register_default_fee_asset_ids_guard(cometbft_mock).await,
-//         ),
-//         (
-//             "min_expected_fee_asset_balance".to_string(),
-//             _register_default_min_expected_fee_asset_balance_guard(cometbft_mock).await,
-//         ),
-//         (
-//             "tx_hash".to_string(),
-//             _register_default_last_bridge_tx_hash_guard(cometbft_mock).await,
-//         ),
-//         (
-//             "last_bridge_tx".to_string(),
-//             _register_default_last_bridge_tx_guard(cometbft_mock).await,
-//         ),
-//     ])
-// }
-
 fn make_ics20_withdrawal_action() -> Action {
     let denom = DEFAULT_IBC_DENOM.parse::<Denom>().unwrap();
     let destination_chain_address = "address".to_string();
@@ -343,48 +308,6 @@ fn make_tx_commit_deliver_tx_failure_response() -> tx_commit::Response {
         height: Height::default(),
     }
 }
-
-// fn _make_last_bridge_tx_hash_response() -> BridgeAccountLastTxHashResponse {
-//     BridgeAccountLastTxHashResponse {
-//         height: DEFAULT_LAST_ROLLUP_HEIGHT,
-//         tx_hash: Some([0u8; 32]),
-//     }
-// }
-
-// fn _make_signed_bridge_transaction() -> SignedTransaction {
-//     let alice_secret_bytes: [u8; 32] =
-//         hex::decode("2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90")
-//             .unwrap()
-//             .try_into()
-//             .unwrap();
-//     let alice_key = SigningKey::from(alice_secret_bytes);
-
-//     let actions = vec![make_bridge_unlock_action(), make_ics20_withdrawal_action()];
-//     UnsignedTransaction {
-//         params: TransactionParams::builder()
-//             .nonce(DEFAULT_SEQUENCER_NONCE)
-//             .chain_id(SEQUENCER_CHAIN_ID)
-//             .try_build()
-//             .unwrap(),
-//         actions,
-//     }
-//     .into_signed(&alice_key)
-// }
-
-// fn _make_tx_response() -> tx::Response {
-//     let tx = _make_signed_bridge_transaction();
-//     tx::Response {
-//         hash: tx.sha256_of_proto_encoding().to_vec().try_into().unwrap(),
-//         height: DEFAULT_LAST_SEQUENCER_HEIGHT.try_into().unwrap(),
-//         index: 0,
-//         tx_result: ExecTxResult {
-//             code: abci::Code::Ok,
-//             ..ExecTxResult::default()
-//         },
-//         tx: tx.into_raw().encode_to_vec(),
-//         proof: None,
-//     }
-// }
 
 /// Convert a `Request` object to a `SignedTransaction`
 fn signed_tx_from_request(request: &Request) -> SignedTransaction {
