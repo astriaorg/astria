@@ -33,7 +33,7 @@ pub(crate) struct GenesisState {
 // allow: this error is only seen at chain init and never after so perf impact of too large enum
 // variants is negligible
 #[allow(clippy::result_large_err)]
-pub(crate) enum VerifiyGenesisError {
+pub(crate) enum VerifyGenesisError {
     #[error("address `{address}` at `{field}` does not have `{base_prefix}`")]
     AddressDoesNotMatchBase {
         base_prefix: String,
@@ -43,7 +43,7 @@ pub(crate) enum VerifiyGenesisError {
 }
 
 impl TryFrom<UncheckedGenesisState> for GenesisState {
-    type Error = VerifiyGenesisError;
+    type Error = VerifyGenesisError;
 
     fn try_from(value: UncheckedGenesisState) -> Result<Self, Self::Error> {
         value.ensure_all_addresses_have_base_prefix()?;
@@ -95,9 +95,9 @@ impl UncheckedGenesisState {
         &self,
         address: &Address,
         field: &str,
-    ) -> Result<(), VerifiyGenesisError> {
+    ) -> Result<(), VerifyGenesisError> {
         if self.address_prefixes.base != address.prefix() {
-            return Err(VerifiyGenesisError::AddressDoesNotMatchBase {
+            return Err(VerifyGenesisError::AddressDoesNotMatchBase {
                 base_prefix: self.address_prefixes.base.clone(),
                 address: *address,
                 field: field.to_string(),
@@ -108,7 +108,7 @@ impl UncheckedGenesisState {
 
     // allow: as for the enum definition itself: this only happens at init-chain and is negligible
     #[allow(clippy::result_large_err)]
-    fn ensure_all_addresses_have_base_prefix(&self) -> Result<(), VerifiyGenesisError> {
+    fn ensure_all_addresses_have_base_prefix(&self) -> Result<(), VerifyGenesisError> {
         for (i, account) in self.accounts.iter().enumerate() {
             self.ensure_address_has_base_prefix(
                 &account.address,
@@ -269,7 +269,7 @@ mod test {
                 "converting to genesis state should have produced an error, but a valid state was \
                  returned",
             ) {
-                VerifiyGenesisError::AddressDoesNotMatchBase {
+                VerifyGenesisError::AddressDoesNotMatchBase {
                     base_prefix,
                     address,
                     field,
