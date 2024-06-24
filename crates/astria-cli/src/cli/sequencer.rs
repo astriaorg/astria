@@ -122,7 +122,7 @@ pub struct TransferArgs {
     #[arg(long)]
     pub(crate) amount: u128,
     /// The bech32m prefix that will be used for constructing addresses using the private key
-    #[arg(long)]
+    #[arg(long, default_value = "astria")]
     pub(crate) prefix: String,
     /// The private key of account being sent from
     #[arg(long, env = "SEQUENCER_PRIVATE_KEY")]
@@ -150,7 +150,7 @@ pub struct TransferArgs {
 #[derive(Args, Debug)]
 pub struct FeeAssetChangeArgs {
     /// The bech32m prefix that will be used for constructing addresses using the private key
-    #[arg(long)]
+    #[arg(long, default_value = "astria")]
     pub(crate) prefix: String,
     // TODO: https://github.com/astriaorg/astria/issues/594
     // Don't use a plain text private, prefer wrapper like from
@@ -180,7 +180,7 @@ pub struct FeeAssetChangeArgs {
 #[derive(Args, Debug)]
 pub struct IbcRelayerChangeArgs {
     /// The prefix to construct a bech32m address given the private key.
-    #[arg(long)]
+    #[arg(long, default_value = "astria")]
     pub(crate) prefix: String,
     // TODO: https://github.com/astriaorg/astria/issues/594
     // Don't use a plain text private, prefer wrapper like from
@@ -210,7 +210,7 @@ pub struct IbcRelayerChangeArgs {
 #[derive(Args, Debug)]
 pub struct InitBridgeAccountArgs {
     /// The bech32m prefix that will be used for constructing addresses using the private key
-    #[arg(long)]
+    #[arg(long, default_value = "astria")]
     pub(crate) prefix: String,
     // TODO: https://github.com/astriaorg/astria/issues/594
     // Don't use a plain text private, prefer wrapper like from
@@ -248,7 +248,7 @@ pub struct BridgeLockArgs {
     #[arg(long)]
     pub(crate) destination_chain_address: String,
     /// The prefix to construct a bech32m address given the private key.
-    #[arg(long)]
+    #[arg(long, default_value = "astria")]
     pub(crate) prefix: String,
     // TODO: https://github.com/astriaorg/astria/issues/594
     // Don't use a plain text private, prefer wrapper like from
@@ -299,7 +299,7 @@ pub struct BlockHeightGetArgs {
 #[derive(Args, Debug)]
 pub struct SudoAddressChangeArgs {
     /// The bech32m prefix that will be used for constructing addresses using the private key
-    #[arg(long)]
+    #[arg(long, default_value = "astria")]
     pub(crate) prefix: String,
     // TODO: https://github.com/astriaorg/astria/issues/594
     // Don't use a plain text private, prefer wrapper like from
@@ -343,7 +343,7 @@ pub struct ValidatorUpdateArgs {
     )]
     pub sequencer_chain_id: String,
     /// The bech32m prefix that will be used for constructing addresses using the private key
-    #[arg(long)]
+    #[arg(long, default_value = "astria")]
     pub(crate) prefix: String,
     /// The private key of the sudo account authorizing change
     #[arg(long, env = "SEQUENCER_PRIVATE_KEY")]
