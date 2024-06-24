@@ -14,7 +14,10 @@ pub struct Ics20WithdrawalFromRollupMemo {
     pub block_number: u64,
     #[cfg_attr(
         feature = "serde",
-        serde(serialize_with = "crate::serde::base64_serialize")
+        serde(
+            serialize_with = "crate::serde::base64_serialize",
+            deserialize_with = "crate::serde::base64_deserialize_array"
+        )
     )]
     pub transaction_hash: [u8; 32],
 }
