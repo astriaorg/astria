@@ -136,7 +136,7 @@ impl Watcher {
 
         let batcher = Batcher {
             event_rx,
-            provider,
+            provider: provider.clone(),
             submitter_handle,
             shutdown_token: shutdown_token.clone(),
             fee_asset_id,
@@ -147,28 +147,25 @@ impl Watcher {
 
         tokio::task::spawn(batcher.run());
 
-        let sequencer_withdrawal_event_handler =
-            tokio::task::spawn(watch_for_sequencer_withdrawal_events(
-                contract.clone(),
-                event_tx.clone(),
-                next_rollup_block_height,
-            ));
-        let ics20_withdrawal_event_handler = tokio::task::spawn(watch_for_ics20_withdrawal_events(
-            contract,
-            event_tx.clone(),
-            next_rollup_block_height,
-        ));
+        // let sequencer_withdrawal_event_handler =
+        //     tokio::task::spawn(watch_for_sequencer_withdrawal_events(
+        //         contract.clone(),
+        //         event_tx.clone(),
+        //         next_rollup_block_height,
+        //     ));
+        // let ics20_withdrawal_event_handler = tokio::task::spawn(watch_for_ics20_withdrawal_events(
+        //     contract,
+        //     event_tx.clone(),
+        //     next_rollup_block_height,
+        // ));
+        let block_handler = tokio::task::spawn(watch_for_blocks(provider, contract.address(), shutdown_token.clone()));
 
         state.set_watcher_ready();
 
         tokio::select! {
-            res = sequencer_withdrawal_event_handler => {
-                info!("sequencer withdrawal event handler exited");
-                res.context("sequencer withdrawal event handler exited")?
-            }
-            res = ics20_withdrawal_event_handler => {
-                info!("ics20 withdrawal event handler exited");
-                res.context("ics20 withdrawal event handler exited")?
+            res = block_handler => {
+                info!("block handler exited");
+                res.context("block handler exited")?
             }
            () = shutdown_token.cancelled() => {
                 info!("watcher shutting down");
@@ -263,65 +260,116 @@ impl Watcher {
     }
 }
 
-async fn watch_for_sequencer_withdrawal_events(
-    contract: IAstriaWithdrawer<Provider<Ws>>,
-    event_tx: mpsc::Sender<(WithdrawalEvent, LogMeta)>,
-    from_block: u64,
+async fn watch_for_blocks(
+    provider: Arc<Provider<Ws>>,
+    contract_address: ethers::types::Address,
+    mut shutdown_token: CancellationToken,
 ) -> Result<()> {
-    let events = contract
-        .sequencer_withdrawal_filter()
-        .from_block(from_block)
-        .address(contract.address().into());
+    use ethers::{
+        contract::EthEvent as _,
+        types::Filter,
+    };
 
-    let mut stream = events
-        .stream()
+    use crate::bridge_withdrawer::ethereum::astria_withdrawer_interface::Ics20WithdrawalFilter;
+    use crate::bridge_withdrawer::ethereum::astria_withdrawer_interface::SequencerWithdrawalFilter;
+
+    let mut block_rx = provider
+        .subscribe_blocks()
         .await
-        .wrap_err("failed to subscribe to sequencer withdrawal events")?
-        .with_meta();
+        .wrap_err("failed to subscribe to blocks")?;
 
-    while let Some(item) = stream.next().await {
-        if let Ok((event, meta)) = item {
-            event_tx
-                .send((WithdrawalEvent::Sequencer(event), meta))
-                .await
-                .wrap_err("failed to send sequencer withdrawal event; receiver dropped?")?;
-        } else if item.is_err() {
-            item.wrap_err("failed to read from event stream; event stream closed?")?;
+    let sequencer_withdrawal_event_sig = SequencerWithdrawalFilter::signature();
+    let ics20_withdrawal_event_sig = Ics20WithdrawalFilter::signature();
+
+    loop {
+        select! {
+            () = shutdown_token.cancelled() => {
+                info!("block watcher shutting down");
+                return Ok(());
+            }
+            block = block_rx.next() => {
+                if let Some(Block { number, hash, .. }) = block {
+                    let Some(block_hash) = hash else {
+                        // don't think this should happen
+                        warn!("block hash missing; skipping");
+                        continue;
+                    };
+
+                    let sequencer_withdrawal_filter = Filter::new().at_block_hash(block_hash).address(contract_address).topic0(sequencer_withdrawal_event_sig);
+                    let ics20_withdrawal_filter = Filter::new().at_block_hash(block_hash).address(contract_address).topic0(ics20_withdrawal_event_sig);
+                    let logs = provider.get_logs(&ics20_withdrawal_filter).await?;
+                    let events = logs.into_iter().map(|log| {
+                        let event = Ics20WithdrawalFilter::decode_log(log)?;
+                        Ok((WithdrawalEvent::Ics20(event), log))
+                    }).collect::<Result<Vec<_>>>()?;
+                }
+
+
+            }
         }
     }
-
     Ok(())
 }
 
-async fn watch_for_ics20_withdrawal_events(
-    contract: IAstriaWithdrawer<Provider<Ws>>,
-    event_tx: mpsc::Sender<(WithdrawalEvent, LogMeta)>,
-    from_block: u64,
-) -> Result<()> {
-    let events = contract
-        .ics_20_withdrawal_filter()
-        .from_block(from_block)
-        .address(contract.address().into());
+// async fn watch_for_sequencer_withdrawal_events(
+//     contract: IAstriaWithdrawer<Provider<Ws>>,
+//     event_tx: mpsc::Sender<(WithdrawalEvent, LogMeta)>,
+//     from_block: u64,
+// ) -> Result<()> {
+//     let events = contract
+//         .sequencer_withdrawal_filter()
+//         .from_block(from_block)
+//         .address(contract.address().into());
 
-    let mut stream = events
-        .stream()
-        .await
-        .wrap_err("failed to subscribe to ics20 withdrawal events")?
-        .with_meta();
+//     let mut stream = events
+//         .stream()
+//         .await
+//         .wrap_err("failed to subscribe to sequencer withdrawal events")?
+//         .with_meta();
 
-    while let Some(item) = stream.next().await {
-        if let Ok((event, meta)) = item {
-            event_tx
-                .send((WithdrawalEvent::Ics20(event), meta))
-                .await
-                .wrap_err("failed to send ics20 withdrawal event; receiver dropped?")?;
-        } else if item.is_err() {
-            item.wrap_err("failed to read from event stream; event stream closed?")?;
-        }
-    }
+//     while let Some(item) = stream.next().await {
+//         if let Ok((event, meta)) = item {
+//             event_tx
+//                 .send((WithdrawalEvent::Sequencer(event), meta))
+//                 .await
+//                 .wrap_err("failed to send sequencer withdrawal event; receiver dropped?")?;
+//         } else if item.is_err() {
+//             item.wrap_err("failed to read from event stream; event stream closed?")?;
+//         }
+//     }
 
-    Ok(())
-}
+//     Ok(())
+// }
+
+// async fn watch_for_ics20_withdrawal_events(
+//     contract: IAstriaWithdrawer<Provider<Ws>>,
+//     event_tx: mpsc::Sender<(WithdrawalEvent, LogMeta)>,
+//     from_block: u64,
+// ) -> Result<()> {
+//     let events = contract
+//         .ics_20_withdrawal_filter()
+//         .from_block(from_block)
+//         .address(contract.address().into());
+
+//     let mut stream = events
+//         .stream()
+//         .await
+//         .wrap_err("failed to subscribe to ics20 withdrawal events")?
+//         .with_meta();
+
+//     while let Some(item) = stream.next().await {
+//         if let Ok((event, meta)) = item {
+//             event_tx
+//                 .send((WithdrawalEvent::Ics20(event), meta))
+//                 .await
+//                 .wrap_err("failed to send ics20 withdrawal event; receiver dropped?")?;
+//         } else if item.is_err() {
+//             item.wrap_err("failed to read from event stream; event stream closed?")?;
+//         }
+//     }
+
+//     Ok(())
+// }
 
 struct Batcher {
     event_rx: mpsc::Receiver<(WithdrawalEvent, LogMeta)>,
