@@ -103,12 +103,12 @@ impl ActionHandler for action::Ics20Withdrawal {
         ensure!(self.timeout_time() != 0, "timeout time must be non-zero",);
 
         crate::address::ensure_base_prefix(&self.return_address)
-            .context("return address is incorrect")?;
+            .context("return address has an unsupported prefix")?;
         self.bridge_address
             .as_ref()
             .map(crate::address::ensure_base_prefix)
             .transpose()
-            .context("bridge address is incorrect")?;
+            .context("bridge address has an unsupported prefix")?;
 
         // NOTE (from penumbra): we could validate the destination chain address as bech32 to
         // prevent mistyped addresses, but this would preclude sending to chains that don't

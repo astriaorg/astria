@@ -27,7 +27,7 @@ impl ActionHandler for IbcRelayerChangeAction {
         match self {
             IbcRelayerChangeAction::Addition(addr) | IbcRelayerChangeAction::Removal(addr) => {
                 crate::address::ensure_base_prefix(addr)
-                    .context("provided address to be changed is invalid")?;
+                    .context("provided address to be added or removed has an unsupported prefix")?;
             }
         }
 

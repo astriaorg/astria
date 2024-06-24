@@ -33,13 +33,13 @@ impl ActionHandler for InitBridgeAccountAction {
             .as_ref()
             .map(crate::address::ensure_base_prefix)
             .transpose()
-            .context("withdrawer adress is invalid")?;
+            .context("the withdrawer address has an unsupported prefix")?;
 
         self.sudo_address
             .as_ref()
             .map(crate::address::ensure_base_prefix)
             .transpose()
-            .context("sudo address is invalid")?;
+            .context("the sudo address has an unsupported")?;
 
         Ok(())
     }

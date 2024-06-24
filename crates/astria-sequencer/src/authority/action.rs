@@ -76,7 +76,7 @@ impl ActionHandler for tendermint::validator::Update {
 impl ActionHandler for SudoAddressChangeAction {
     async fn check_stateless(&self) -> Result<()> {
         crate::address::ensure_base_prefix(&self.new_address)
-            .context("desired new sudo address is incorrect")?;
+            .context("desired new sudo address has an unsupported prefix")?;
         Ok(())
     }
 

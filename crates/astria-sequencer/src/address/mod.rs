@@ -50,9 +50,9 @@ mod regular {
             .context("failed constructing a dummy address from the provided prefix")?;
 
         BASE_PREFIX.set(base_prefix.to_string()).expect(
-            "THIS IS A BUG: the base prefix was already more than once; it must only be \
-             initialized once and upon receiving an init-chain consensus request. It can not be \
-             initialized twice or concurrently from more than one task or thread.",
+            "THIS IS A BUG: attempted to set the base prefix more than once; it should only be set
+             once when serving the `InitChain` consensus request. It cannot be initialized twice \
+             or concurrently from more than one task or thread.",
         );
 
         Ok(())
@@ -62,8 +62,8 @@ mod regular {
         BASE_PREFIX
             .get()
             .expect(
-                "the base prefix must have been set during chain init; if not set, the chain was \
-                 initialized incorrectly",
+                "the base prefix must have been set while serving the `InitChain` consensus \
+                 request; if not set, the chain was initialized incorrectly",
             )
             .as_str()
     }
