@@ -28,6 +28,22 @@ use crate::{
 
 #[async_trait::async_trait]
 impl ActionHandler for InitBridgeAccountAction {
+    async fn check_stateless(&self) -> Result<()> {
+        self.withdrawer_address
+            .as_ref()
+            .map(crate::address::ensure_base_prefix)
+            .transpose()
+            .context("withdrawer adress is invalid")?;
+
+        self.sudo_address
+            .as_ref()
+            .map(crate::address::ensure_base_prefix)
+            .transpose()
+            .context("sudo address is invalid")?;
+
+        Ok(())
+    }
+
     async fn check_stateful<S: StateReadExt + 'static>(
         &self,
         state: &S,

@@ -95,6 +95,7 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
         rollups,
         sequencer_url,
         private_key_file: keyfile.path().to_string_lossy().to_string(),
+        sequencer_address_prefix: "astria".into(),
         block_time_ms: 2000,
         max_bytes_per_bundle: 200_000,
         bundle_queue_capacity: 10,

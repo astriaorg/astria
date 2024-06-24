@@ -1,6 +1,8 @@
 pub mod asset;
 pub mod u128;
 
+use std::str::FromStr;
+
 use base64::{
     display::Base64Display,
     prelude::BASE64_STANDARD,
@@ -17,8 +19,6 @@ use crate::{
 };
 
 pub const ADDRESS_LEN: usize = 20;
-/// The human readable prefix of astria addresses (also known as bech32 HRP).
-pub const ASTRIA_ADDRESS_PREFIX: &str = "astria";
 
 pub const ROLLUP_ID_LEN: usize = 32;
 pub const FEE_ASSET_ID_LEN: usize = 32;
@@ -373,42 +373,8 @@ impl<'a, 'b> AddressBuilder<WithBytes<'a>, WithPrefix<'b>> {
     }
 }
 
-// Private setters only used within this crate to not leak bech32
-impl<TBytes, TPrefix> AddressBuilder<TBytes, TPrefix> {
-    pub(crate) fn array__(
-        self,
-        array: [u8; ADDRESS_LEN],
-    ) -> AddressBuilder<[u8; ADDRESS_LEN], TPrefix> {
-        AddressBuilder {
-            bytes: array,
-            prefix: self.prefix,
-        }
-    }
-
-    pub(crate) fn hrp__(self, prefix: bech32::Hrp) -> AddressBuilder<TBytes, bech32::Hrp> {
-        AddressBuilder {
-            bytes: self.bytes,
-            prefix,
-        }
-    }
-}
-
-// private builder to not leak bech32
-impl AddressBuilder<[u8; ADDRESS_LEN], bech32::Hrp> {
-    pub(crate) fn build(self) -> Address {
-        Address {
-            bytes: self.bytes,
-            prefix: self.prefix,
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[cfg_attr(
-    feature = "serde",
-    derive(serde::Serialize),
-    derive(serde::Deserialize)
-)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(
     feature = "serde",
     serde(into = "raw::Address", try_from = "raw::Address")
@@ -429,19 +395,9 @@ impl Address {
         self.bytes
     }
 
-    /// Convert a string containing a bech32m string to an astria address.
-    ///
-    /// # Errors
-    /// Returns an error if:
-    /// + `input` is not bech32m encoded.
-    /// + the decoded data contained in `input` is not 20 bytes long.
-    /// + the bech32 hrp prefix exceeds 16 bytes.
-    pub fn try_from_bech32m(input: &str) -> Result<Self, AddressError> {
-        let (hrp, bytes) = bech32::decode(input).map_err(AddressError::bech32m_decode)?;
-        Self::builder()
-            .slice(bytes)
-            .prefix(hrp.as_str())
-            .try_build()
+    #[must_use]
+    pub fn prefix(&self) -> &str {
+        self.prefix.as_str()
     }
 
     /// Convert [`Address`] to a [`raw::Address`].
@@ -450,7 +406,7 @@ impl Address {
     #[must_use]
     pub fn to_raw(&self) -> raw::Address {
         let bech32m = bech32::encode_lower::<bech32::Bech32m>(self.prefix, &self.bytes())
-            .expect("must not fail because len(prefix) + len(bytes) <= 63 < BECH32M::CODELENGTH");
+            .expect("should not fail because len(prefix) + len(bytes) <= 63 < BECH32M::CODELENGTH");
         // allow: the field is deprecated, but we must still fill it in
         #[allow(deprecated)]
         raw::Address {
@@ -470,6 +426,7 @@ impl Address {
     ///
     /// Returns an error if the account buffer was not 20 bytes long.
     pub fn try_from_raw(raw: &raw::Address) -> Result<Self, AddressError> {
+        const ASTRIA_ADDRESS_PREFIX: &str = "astria";
         // allow: `Address::inner` field is deprecated, but we must still check it
         #[allow(deprecated)]
         let raw::Address {
@@ -483,21 +440,27 @@ impl Address {
                 .try_build();
         }
         if inner.is_empty() {
-            return Self::try_from_bech32m(bech32m);
+            return bech32m.parse();
         }
         Err(AddressError::fields_are_mutually_exclusive())
-    }
-}
-
-impl AsRef<[u8]> for Address {
-    fn as_ref(&self) -> &[u8] {
-        &self.bytes
     }
 }
 
 impl From<Address> for raw::Address {
     fn from(value: Address) -> Self {
         value.into_raw()
+    }
+}
+
+impl FromStr for Address {
+    type Err = AddressError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (hrp, bytes) = bech32::decode(s).map_err(AddressError::bech32m_decode)?;
+        Self::builder()
+            .slice(bytes)
+            .prefix(hrp.as_str())
+            .try_build()
     }
 }
 
@@ -545,7 +508,6 @@ where
 #[cfg(test)]
 mod tests {
     use bytes::Bytes;
-    use insta::assert_json_snapshot;
 
     use super::{
         raw,
@@ -553,8 +515,8 @@ mod tests {
         AddressError,
         AddressErrorKind,
         ADDRESS_LEN,
-        ASTRIA_ADDRESS_PREFIX,
     };
+    const ASTRIA_ADDRESS_PREFIX: &str = "astria";
 
     #[track_caller]
     fn assert_wrong_address_bytes(bad_account: &[u8]) {
@@ -583,8 +545,10 @@ mod tests {
         assert_wrong_address_bytes(&[42; 100]);
     }
 
+    #[cfg(feature = "serde")]
     #[test]
     fn snapshots() {
+        use insta::assert_json_snapshot;
         let address = Address::builder()
             .array([42; 20])
             .prefix(ASTRIA_ADDRESS_PREFIX)

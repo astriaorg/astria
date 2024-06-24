@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/accounts/state_ext.rs
+expression: "balance_storage_key(address, id)"
+---
+accounts/1c0c490f1b5528d8173c5de46d131160e4b2c0c3/balance/000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
