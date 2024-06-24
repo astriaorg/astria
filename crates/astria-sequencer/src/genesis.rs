@@ -320,7 +320,7 @@ mod test {
     }
 
     #[test]
-    fn snapshots() {
+    fn genesis_state_is_unchanged() {
         insta::assert_json_snapshot!(genesis_state());
     }
 }
