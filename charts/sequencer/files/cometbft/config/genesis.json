@@ -41,7 +41,7 @@
         {{- end }}
       ]
     {{- else }}
-      "address_prefix": {
+      "address_prefixes": {
         "base": "{{ .Values.config.sequencer.addressPrefixes.base }}"
       },
       "accounts": [
