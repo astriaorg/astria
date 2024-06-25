@@ -196,10 +196,16 @@ impl Executor {
     /// An error is returned if connecting to the sequencer fails.
     #[instrument(skip_all, fields(address = %self.address))]
     pub(super) async fn run_until_stopped(mut self) -> eyre::Result<()> {
-        let _chain_id_result = self
-            .ensure_configured_chain_id_matches_remote()
+        let remote_chain_id = self
+            .get_sequencer_chain_id()
             .await
-            .wrap_err("failed to validate chain_id")?;
+            .wrap_err("failed obtain sequencer chain_id")?;
+        ensure!(
+            self.sequencer_chain_id == remote_chain_id,
+            "mismatch in configured chain_id: config specifies {0}, but sequencer rpc is for {1}",
+            self.sequencer_chain_id,
+            remote_chain_id
+        );
         let mut submission_fut: Fuse<Instrumented<SubmitFut>> = Fuse::terminated();
         let mut nonce = get_latest_nonce(self.sequencer_client.clone(), self.address)
             .await
@@ -425,7 +431,7 @@ impl Executor {
     }
 
     // check for mismatched configured chain_id and sequencer client chain_id
-    pub(crate) async fn ensure_configured_chain_id_matches_remote(&self) -> eyre::Result<()> {
+    pub(crate) async fn get_sequencer_chain_id(&self) -> eyre::Result<String> {
         let retry_config = tryhard::RetryFutureConfig::new(u32::MAX)
             .exponential_backoff(Duration::from_millis(100))
             .max_delay(Duration::from_secs(20))
@@ -450,13 +456,7 @@ impl Executor {
                 .with_config(retry_config)
                 .await
                 .wrap_err("failed to retrieve sequencer genesis after many attempts")?;
-        ensure!(
-            self.sequencer_chain_id == client_genesis.chain_id.as_str(),
-            "mismatch in configured chain_id: {0} and sequencer chain_id: {1}",
-            self.sequencer_chain_id,
-            client_genesis.chain_id.as_str()
-        );
-        Ok(())
+        Ok(client_genesis.chain_id.to_string())
     }
 }
 

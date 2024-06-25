@@ -108,11 +108,12 @@ async fn setup() -> (MockServer, Config, NamedTempFile) {
 }
 
 /// Mount a mock for the `abci_query` endpoint.
-async fn mount_nonce_query_mock(
-    server: &MockServer,
-    query_path: &str,
-    response: impl Message,
-) -> MockGuard {
+async fn mount_default_nonce_query_mock(server: &MockServer) -> MockGuard {
+    let query_path = "accounts/nonce";
+    let response = NonceResponse {
+        height: 0,
+        nonce: 0,
+    };
     let expected_body = json!({
         "method": "abci_query"
     });
@@ -271,15 +272,7 @@ async fn full_bundle() {
     .build()
     .unwrap();
 
-    let nonce_guard = mount_nonce_query_mock(
-        &sequencer,
-        "accounts/nonce",
-        NonceResponse {
-            height: 0,
-            nonce: 0,
-        },
-    )
-    .await;
+    let nonce_guard = mount_default_nonce_query_mock(&sequencer).await;
     let status = executor.subscribe();
 
     // executor.check_chain_ids().await.unwrap();
@@ -373,15 +366,7 @@ async fn bundle_triggered_by_block_timer() {
     .build()
     .unwrap();
 
-    let nonce_guard = mount_nonce_query_mock(
-        &sequencer,
-        "accounts/nonce",
-        NonceResponse {
-            height: 0,
-            nonce: 0,
-        },
-    )
-    .await;
+    let nonce_guard = mount_default_nonce_query_mock(&sequencer).await;
     let status = executor.subscribe();
 
     // executor.check_chain_ids().await.unwrap();
@@ -468,18 +453,8 @@ async fn two_seq_actions_single_bundle() {
     .build()
     .unwrap();
 
-    let nonce_guard = mount_nonce_query_mock(
-        &sequencer,
-        "accounts/nonce",
-        NonceResponse {
-            height: 0,
-            nonce: 0,
-        },
-    )
-    .await;
+    let nonce_guard = mount_default_nonce_query_mock(&sequencer).await;
     let status = executor.subscribe();
-
-    // executor.check_chain_ids().await.unwrap();
     let _executor_task = tokio::spawn(executor.run_until_stopped());
 
     // wait for sequencer to get the initial nonce request from sequencer

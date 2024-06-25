@@ -48,7 +48,6 @@ impl Builder {
         } = self;
         let sequencer_client = sequencer_client::HttpClient::new(sequencer_url.as_str())
             .wrap_err("failed constructing sequencer client")?;
-
         let (status, _) = watch::channel(Status::new());
 
         let sequencer_key = read_signing_key_from_file(&private_key_file).wrap_err_with(|| {
