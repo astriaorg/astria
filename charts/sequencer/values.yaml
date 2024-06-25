@@ -222,7 +222,7 @@ secretProvider:
   # The secret file must be mapped to the <secret_name>.filename value.
   parametersTemplate: |-
     secrets: |
-      {{- range $value := .Values.config.cometBFT.secrets }}
+      {{- range $value := .Values.cometbft.secrets }}
       - resourceName: {{ $value.secret.resourceName }}
         fileName: "{{ $value.filename }}"
       {{- end }}
