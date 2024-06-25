@@ -54,7 +54,7 @@ mod test {
             transaction_hash: [88; 32],
         };
 
-        insta::assert_json_snapshot!(serde_json::to_string(&memo).unwrap());
+        insta::assert_json_snapshot!(memo);
     }
 
     #[test]
@@ -63,6 +63,6 @@ mod test {
             rollup_address: "some_rollup_address".to_string(),
         };
 
-        insta::assert_json_snapshot!(serde_json::to_string(&memo).unwrap());
+        insta::assert_json_snapshot!(memo);
     }
 }
