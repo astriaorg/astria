@@ -62,7 +62,7 @@ pub(crate) struct Builder {
     pub(crate) sequencer_chain_id: String,
     pub(crate) sequencer_cometbft_endpoint: String,
     pub(crate) state: Arc<State>,
-    pub(crate) expected_fee_asset_id: asset::Id,
+    pub(crate) expected_fee_asset: asset::Denom,
     pub(crate) min_expected_fee_asset_balance: u128,
     pub(crate) metrics: &'static Metrics,
 }
@@ -77,7 +77,7 @@ impl Builder {
             sequencer_chain_id,
             sequencer_cometbft_endpoint,
             state,
-            expected_fee_asset_id,
+            expected_fee_asset,
             min_expected_fee_asset_balance,
             metrics,
         } = self;
@@ -97,6 +97,7 @@ impl Builder {
         let (startup_tx, startup_rx) = tokio::sync::oneshot::channel();
         let handle = Handle::new(startup_rx, batches_tx);
 
+        let expected_fee_asset_ibc = expected_fee_asset.to_ibc_prefixed();
         Ok((
             super::Submitter {
                 shutdown_token,
@@ -106,7 +107,8 @@ impl Builder {
                 signer,
                 sequencer_chain_id,
                 startup_tx,
-                expected_fee_asset_id,
+                expected_fee_asset,
+                expected_fee_asset_ibc,
                 min_expected_fee_asset_balance,
                 metrics,
             },

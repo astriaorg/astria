@@ -1,19 +1,22 @@
-#[cfg(test)]
-mod sized_bundle_tests {
-    use astria_core::{
-        primitive::v1::{
-            asset::default_native_asset,
-            RollupId,
-            FEE_ASSET_ID_LEN,
-            ROLLUP_ID_LEN,
-        },
-        protocol::transaction::v1alpha1::action::SequenceAction,
-    };
-    use insta::{
-        assert_json_snapshot,
-        Settings,
-    };
+const FEE_ASSET_ID_LEN: usize = 32;
+use astria_core::{
+    primitive::v1::{
+        RollupId,
+        ROLLUP_ID_LEN,
+    },
+    protocol::transaction::v1alpha1::action::SequenceAction,
+};
 
+fn sequence_action() -> SequenceAction {
+    SequenceAction {
+        rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
+        data: vec![],
+        fee_asset: "nria".parse().unwrap(),
+    }
+}
+
+mod sized_bundle {
+    use super::*;
     use crate::executor::bundle_factory::{
         estimate_size_of_sequence_action,
         SizedBundle,
@@ -27,9 +30,8 @@ mod sized_bundle_tests {
 
         // push a sequence action that is 100 bytes total
         let seq_action = SequenceAction {
-            rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
             data: vec![0; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
-            fee_asset_id: default_native_asset().id(),
+            ..sequence_action()
         };
         let seq_action_size = estimate_size_of_sequence_action(&seq_action);
 
@@ -44,9 +46,8 @@ mod sized_bundle_tests {
 
         // push a sequence action that is >100 bytes total
         let seq_action = SequenceAction {
-            rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
             data: vec![0; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN + 1],
-            fee_asset_id: default_native_asset().id(),
+            ..sequence_action()
         };
 
         assert!(estimate_size_of_sequence_action(&seq_action) > 100);
@@ -63,18 +64,16 @@ mod sized_bundle_tests {
 
         // push a sequence action that is 100 bytes total
         let initial_seq_action = SequenceAction {
-            rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
             data: vec![0; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
-            fee_asset_id: default_native_asset().id(),
+            ..sequence_action()
         };
         bundle.try_push(initial_seq_action).unwrap();
 
         // push another sequence action that won't fit as the bundle is full but is less than max
         // size
         let seq_action = SequenceAction {
-            rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
             data: vec![0; 1],
-            fee_asset_id: default_native_asset().id(),
+            ..sequence_action()
         };
 
         assert!(estimate_size_of_sequence_action(&seq_action) < 100);
@@ -92,9 +91,8 @@ mod sized_bundle_tests {
 
         // push a sequence action successfully
         let seq_action = SequenceAction {
-            rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
             data: vec![1; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
-            fee_asset_id: default_native_asset().id(),
+            ..sequence_action()
         };
         bundle.try_push(seq_action.clone()).unwrap();
 
@@ -112,32 +110,31 @@ mod sized_bundle_tests {
         assert_eq!(actual_seq_action.data, seq_action.data);
     }
 
-    fn snapshot_bundle() -> SizedBundle {
+    #[test]
+    fn snapshots() {
+        use insta::{
+            assert_json_snapshot,
+            Settings,
+        };
         let mut bundle = SizedBundle::new(264);
         let seq_action1 = SequenceAction {
             rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
             data: vec![1; 50 - ROLLUP_ID_LEN],
-            fee_asset_id: default_native_asset().id(),
+            ..sequence_action()
         };
         let seq_action1_2 = SequenceAction {
             rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
             data: vec![1; 50 - ROLLUP_ID_LEN],
-            fee_asset_id: default_native_asset().id(),
+            ..sequence_action()
         };
         let seq_action2 = SequenceAction {
             rollup_id: RollupId::new([2; ROLLUP_ID_LEN]),
             data: vec![2; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
-            fee_asset_id: default_native_asset().id(),
+            ..sequence_action()
         };
         bundle.try_push(seq_action1).unwrap();
         bundle.try_push(seq_action1_2).unwrap();
         bundle.try_push(seq_action2).unwrap();
-        bundle
-    }
-
-    #[test]
-    fn snapshots() {
-        let bundle = snapshot_bundle();
 
         let mut settings = Settings::new();
         settings.set_sort_maps(true);
@@ -149,17 +146,8 @@ mod sized_bundle_tests {
 }
 
 #[cfg(test)]
-mod bundle_factory_tests {
-    use astria_core::{
-        primitive::v1::{
-            asset::default_native_asset,
-            RollupId,
-            FEE_ASSET_ID_LEN,
-            ROLLUP_ID_LEN,
-        },
-        protocol::transaction::v1alpha1::action::SequenceAction,
-    };
-
+mod bundle_factory {
+    use super::*;
     use crate::executor::bundle_factory::{
         estimate_size_of_sequence_action,
         BundleFactory,
@@ -173,9 +161,8 @@ mod bundle_factory_tests {
 
         // push a sequence action that is 100 bytes total
         let seq_action = SequenceAction {
-            rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
             data: vec![0; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
-            fee_asset_id: default_native_asset().id(),
+            ..sequence_action()
         };
         bundle_factory.try_push(seq_action).unwrap();
 
@@ -190,9 +177,8 @@ mod bundle_factory_tests {
 
         // push a sequence action that is >100 bytes total
         let seq_action = SequenceAction {
-            rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
             data: vec![0; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN + 1],
-            fee_asset_id: default_native_asset().id(),
+            ..sequence_action()
         };
         let actual_size = estimate_size_of_sequence_action(&seq_action);
 
@@ -212,9 +198,8 @@ mod bundle_factory_tests {
 
         // push a sequence action that is 100 bytes total
         let seq_action0 = SequenceAction {
-            rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
             data: vec![0; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
-            fee_asset_id: default_native_asset().id(),
+            ..sequence_action()
         };
         bundle_factory.try_push(seq_action0.clone()).unwrap();
 
@@ -223,7 +208,7 @@ mod bundle_factory_tests {
         let seq_action1 = SequenceAction {
             rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
             data: vec![1; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
-            fee_asset_id: default_native_asset().id(),
+            ..sequence_action()
         };
         bundle_factory.try_push(seq_action1).unwrap();
 
@@ -244,9 +229,8 @@ mod bundle_factory_tests {
 
         // push a sequence action that is 100 bytes total
         let seq_action = SequenceAction {
-            rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
             data: vec![0; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
-            fee_asset_id: default_native_asset().id(),
+            ..sequence_action()
         };
         bundle_factory.try_push(seq_action.clone()).unwrap();
 
@@ -257,19 +241,18 @@ mod bundle_factory_tests {
         // try to push a third bundle that wouldn't fit in `curr_bundle`, forcing the factory to
         // flush it into `finished` this shouldn't work since the `finished` queue's
         // capacity is 1.
-        let full_err = bundle_factory.try_push(seq_action.clone());
+        let err = bundle_factory
+            .try_push(seq_action.clone())
+            .expect_err("the action should be rejected");
 
         // assert that the bundle factory has one bundle in the finished queue, that the factory is
         // full and that err was returned
-        assert!(matches!(
-            full_err,
-            Err(BundleFactoryError::FinishedQueueFull {
-                curr_bundle_size: _,
-                finished_queue_capacity: _,
-                sequence_action_size: _,
-                seq_action: _
-            })
-        ));
+        // allow: this is intended to match all possible variants
+        #[allow(clippy::match_wildcard_for_single_variants)]
+        match err {
+            BundleFactoryError::FinishedQueueFull(_) => {}
+            other => panic!("expected a FinishedQueueFull variant, but got {other:?}"),
+        }
         assert_eq!(bundle_factory.finished.len(), 1);
         assert!(bundle_factory.is_full());
     }
@@ -281,9 +264,8 @@ mod bundle_factory_tests {
 
         // push a sequence action that is 100 bytes total so it doesn't flush
         let seq_action = SequenceAction {
-            rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
             data: vec![0; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
-            fee_asset_id: default_native_asset().id(),
+            ..sequence_action()
         };
         bundle_factory.try_push(seq_action.clone()).unwrap();
 
@@ -301,9 +283,8 @@ mod bundle_factory_tests {
 
         // push a sequence action that is 100 bytes total
         let seq_action = SequenceAction {
-            rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
             data: vec![0; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
-            fee_asset_id: default_native_asset().id(),
+            ..sequence_action()
         };
         bundle_factory.try_push(seq_action.clone()).unwrap();
 
@@ -316,21 +297,20 @@ mod bundle_factory_tests {
         let seq_action1 = SequenceAction {
             rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
             data: vec![1; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
-            fee_asset_id: default_native_asset().id(),
+            ..sequence_action()
         };
-        let full_err = bundle_factory.try_push(seq_action1.clone());
+        let err = bundle_factory
+            .try_push(seq_action1.clone())
+            .expect_err("the action should have been rejected");
 
         // assert that the bundle factory has one bundle in the finished queue, that the factory is
         // full and that err was returned
-        assert!(matches!(
-            full_err,
-            Err(BundleFactoryError::FinishedQueueFull {
-                curr_bundle_size: _,
-                finished_queue_capacity: _,
-                sequence_action_size: _,
-                seq_action: _
-            })
-        ));
+        // allow: this is intended to match all possible variants
+        #[allow(clippy::match_wildcard_for_single_variants)]
+        match err {
+            BundleFactoryError::FinishedQueueFull(_) => {}
+            other => panic!("expected a FinishedQueueFull variant, but got {other:?}"),
+        }
         assert_eq!(bundle_factory.finished.len(), 1);
         assert!(bundle_factory.is_full());
 
@@ -347,9 +327,8 @@ mod bundle_factory_tests {
 
         // push a sequence action that is 100 bytes total so it doesn't flush
         let seq_action = SequenceAction {
-            rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
             data: vec![0; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
-            fee_asset_id: default_native_asset().id(),
+            ..sequence_action()
         };
         bundle_factory.try_push(seq_action.clone()).unwrap();
 
@@ -369,9 +348,8 @@ mod bundle_factory_tests {
 
         // push a sequence action that is 100 bytes total
         let seq_action0 = SequenceAction {
-            rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
             data: vec![0; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
-            fee_asset_id: default_native_asset().id(),
+            ..sequence_action()
         };
         bundle_factory.try_push(seq_action0.clone()).unwrap();
 
@@ -380,7 +358,7 @@ mod bundle_factory_tests {
         let seq_action1 = SequenceAction {
             rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
             data: vec![1; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
-            fee_asset_id: default_native_asset().id(),
+            ..sequence_action()
         };
         bundle_factory.try_push(seq_action1).unwrap();
 
@@ -412,9 +390,8 @@ mod bundle_factory_tests {
 
         // push a sequence action that is 100 bytes total
         let seq_action0 = SequenceAction {
-            rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
             data: vec![0; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
-            fee_asset_id: default_native_asset().id(),
+            ..sequence_action()
         };
         bundle_factory.try_push(seq_action0.clone()).unwrap();
 
@@ -423,7 +400,7 @@ mod bundle_factory_tests {
         let seq_action1 = SequenceAction {
             rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
             data: vec![1; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
-            fee_asset_id: default_native_asset().id(),
+            ..sequence_action()
         };
         bundle_factory.try_push(seq_action1.clone()).unwrap();
 
@@ -459,9 +436,8 @@ mod bundle_factory_tests {
 
         // push a sequence action that is 100 bytes total
         let seq_action = SequenceAction {
-            rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
             data: vec![0; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
-            fee_asset_id: default_native_asset().id(),
+            ..sequence_action()
         };
         bundle_factory.try_push(seq_action.clone()).unwrap();
 

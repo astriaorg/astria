@@ -1,5 +1,5 @@
-/// ! This module is responsible for bundling sequence actions into bundles that can be
-/// submitted to the sequencer.
+//! This module is responsible for bundling sequence actions into bundles that can be
+//! submitted to the sequencer.
 use std::{
     collections::{
         HashMap,
@@ -11,7 +11,6 @@ use std::{
 use astria_core::{
     primitive::v1::{
         RollupId,
-        FEE_ASSET_ID_LEN,
         ROLLUP_ID_LEN,
     },
     protocol::transaction::v1alpha1::{
@@ -25,6 +24,7 @@ use serde::ser::{
 };
 use tracing::trace;
 
+#[cfg(test)]
 mod tests;
 
 #[derive(Debug, thiserror::Error)]
@@ -133,17 +133,27 @@ impl SizedBundle {
 pub(super) enum BundleFactoryError {
     #[error("sequence action is larger than the max bundle size. seq_action size: {size}")]
     SequenceActionTooLarge { size: usize, max_size: usize },
-    #[error(
-        "finished bundle queue is at capacity and the sequence action does not fit in the current \
-         bundle. finished queue capacity: {finished_queue_capacity}, curr bundle size: \
-         {curr_bundle_size}, sequence action size: {sequence_action_size}"
-    )]
-    FinishedQueueFull {
-        curr_bundle_size: usize,
-        finished_queue_capacity: usize,
-        sequence_action_size: usize,
-        seq_action: SequenceAction,
-    },
+    #[error(transparent)]
+    FinishedQueueFull(Box<FinishedQueueFull>),
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(
+    "finished bundle queue is at capacity and the sequence action does not fit in the current \
+     bundle. finished queue capacity: {finished_queue_capacity}, curr bundle size: \
+     {curr_bundle_size}, sequence action size: {sequence_action_size}"
+)]
+pub(super) struct FinishedQueueFull {
+    curr_bundle_size: usize,
+    finished_queue_capacity: usize,
+    sequence_action_size: usize,
+    seq_action: SequenceAction,
+}
+
+impl From<FinishedQueueFull> for BundleFactoryError {
+    fn from(value: FinishedQueueFull) -> Self {
+        Self::FinishedQueueFull(Box::new(value))
+    }
 }
 
 /// Manages the bundling of sequence actions into `SizedBundle`s. A `Vec<Action>` is flushed and
@@ -187,12 +197,13 @@ impl BundleFactory {
             }
             Err(SizedBundleError::NotEnoughSpace(seq_action)) => {
                 if self.finished.len() >= self.finished_queue_capacity {
-                    Err(BundleFactoryError::FinishedQueueFull {
+                    Err(FinishedQueueFull {
                         curr_bundle_size: self.curr_bundle.curr_size,
                         finished_queue_capacity: self.finished_queue_capacity,
                         sequence_action_size: seq_action_size,
                         seq_action,
-                    })
+                    }
+                    .into())
                 } else {
                     // if the bundle is full, flush it and start a new one
                     self.finished.push_back(self.curr_bundle.flush());
@@ -264,6 +275,7 @@ impl<'a> NextFinishedBundle<'a> {
 
 /// The size of the `seq_action` in bytes, including the rollup id.
 fn estimate_size_of_sequence_action(seq_action: &SequenceAction) -> usize {
+    const FEE_ASSET_ID_LEN: usize = 32;
     seq_action
         .data
         .len()

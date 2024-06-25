@@ -1,10 +1,6 @@
 use astria_core::{
     crypto::SigningKey,
     primitive::v1::{
-        asset::{
-            default_native_asset,
-            DEFAULT_NATIVE_ASSET_DENOM,
-        },
         Address,
         RollupId,
         ADDRESS_LEN,
@@ -107,9 +103,9 @@ pub(crate) fn unchecked_genesis_state() -> UncheckedGenesisState {
         authority_sudo_address: address_from_hex_string(JUDY_ADDRESS),
         ibc_sudo_address: address_from_hex_string(TED_ADDRESS),
         ibc_relayer_addresses: vec![],
-        native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
+        native_asset_base_denomination: "nria".to_string(),
         ibc_params: IBCParameters::default(),
-        allowed_fee_assets: vec![default_native_asset()],
+        allowed_fee_assets: vec!["nria".parse().unwrap()],
         fees: default_fees(),
     }
 }
@@ -164,7 +160,7 @@ pub(crate) fn get_mock_tx(nonce: u32) -> SignedTransaction {
             SequenceAction {
                 rollup_id: RollupId::from_unhashed_bytes([0; 32]),
                 data: vec![0x99],
-                fee_asset_id: astria_core::primitive::v1::asset::default_native_asset().id(),
+                fee_asset: "astria".parse().unwrap(),
             }
             .into(),
         ],

@@ -73,9 +73,9 @@ message TransferAction {
   astria.primitive.v1.Address to = 1;
   astria.primitive.v1.Uint128 amount = 2;
   // the asset to be transferred
-  bytes asset_id = 3;
+  string asset = 3;
   // the asset used to pay the transaction fee
-  bytes fee_asset_id = 4;
+  string fee_asset = 4;
 }
 
 // `SequenceAction` represents a transaction destined for another
@@ -87,7 +87,7 @@ message SequenceAction {
   astria.primitive.v1.RollupId rollup_id = 1;
   bytes data = 2;
   // the asset used to pay the transaction fee
-  bytes fee_asset_id = 3;
+  string fee_asset = 3;
 }
 
 /// `SudoAddressChangeAction` represents a transaction that changes
@@ -117,7 +117,7 @@ message Ics20Withdrawal {
   // the source channel used for the withdrawal.
   string source_channel = 7;
   // the asset used to pay the transaction fee
-  bytes fee_asset_id = 8;
+  string fee_asset = 8;
   // a memo to include with the transfer
   string memo = 9;
   // the address of the bridge account to transfer from, if this is a withdrawal
@@ -149,12 +149,10 @@ message IbcRelayerChangeAction {
 
 // `FeeAssetChangeAction` represents a transaction that adds
 // or removes an asset for fee payments.
-// The bytes contained in each variant are the 32-byte asset ID
-// to add or remove.
 message FeeAssetChangeAction {
   oneof value {
-    bytes addition = 1;
-    bytes removal = 2;
+    string addition = 1;
+    string removal = 2;
   }
 }
 
@@ -168,9 +166,9 @@ message InitBridgeAccountAction {
   // the rollup ID to register with the bridge account (the tx sender)
   astria.primitive.v1.RollupId rollup_id = 1;
   // the asset ID accepted as an incoming transfer by the bridge account
-  bytes asset_id = 2;
+  string asset = 2;
   // the asset used to pay the transaction fee
-  bytes fee_asset_id = 3;
+  string fee_asset = 3;
   // the address corresponding to the key which has sudo capabilities;
   // ie. can change the sudo and withdrawer addresses for this bridge account.
   // if this is empty, the sender of the transaction is used.
@@ -191,9 +189,9 @@ message BridgeLockAction {
   // the amount to transfer
   astria.primitive.v1.Uint128 amount = 2;
   // the asset to be transferred
-  bytes asset_id = 3;
+  string asset = 3;
   // the asset used to pay the transaction fee
-  bytes fee_asset_id = 4;
+  string fee_asset = 4;
   // the address on the destination chain which
   // will receive the bridged funds
   string destination_chain_address = 5;
@@ -202,7 +200,7 @@ message BridgeLockAction {
 // `BridgeUnlockAction` represents a transaction that transfers
 // funds from a bridge account to a sequencer account.
 //
-// It's the same as a `TransferAction` but without the `asset_id` field
+// It's the same as a `TransferAction` but without the `asset` field
 // and with the `memo` field.
 message BridgeUnlockAction {
   // the to withdraw funds to
@@ -210,7 +208,7 @@ message BridgeUnlockAction {
   // the amount to transfer
   astria.primitive.v1.Uint128 amount = 2;
   // the asset used to pay the transaction fee
-  bytes fee_asset_id = 3;
+  string fee_asset = 3;
   // memo for double spend prevention
   bytes memo = 4;
   // the address of the bridge account to transfer from,
@@ -227,7 +225,7 @@ message BridgeSudoChangeAction {
   // the new withdrawer address; unchanged if unset
   astria.primitive.v1.Address new_withdrawer_address = 3;
   // the asset used to pay the transaction fee
-  bytes fee_asset_id = 4;
+  string fee_asset = 4;
 }
 
 message FeeChangeAction {

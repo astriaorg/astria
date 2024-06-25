@@ -120,8 +120,8 @@ pub struct Deposit {
     pub rollup_id: ::core::option::Option<super::super::primitive::v1::RollupId>,
     #[prost(message, optional, tag = "3")]
     pub amount: ::core::option::Option<super::super::primitive::v1::Uint128>,
-    #[prost(bytes = "vec", tag = "4")]
-    pub asset_id: ::prost::alloc::vec::Vec<u8>,
+    #[prost(string, tag = "4")]
+    pub asset: ::prost::alloc::string::String,
     /// the address on the destination chain which
     /// will receive the bridged funds
     #[prost(string, tag = "5")]

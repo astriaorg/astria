@@ -34,7 +34,7 @@ use std::{
 };
 
 use astria_core::protocol::{
-    asset::v1alpha1::AllowedFeeAssetIdsResponse,
+    asset::v1alpha1::AllowedFeeAssetsResponse,
     bridge::v1alpha1::BridgeAccountLastTxHashResponse,
 };
 pub use astria_core::{
@@ -472,10 +472,10 @@ pub trait SequencerClientExt: Client {
     ///
     /// - If calling tendermint `abci_query` RPC fails.
     /// - If the bytes contained in the abci query response cannot be deserialized as an
-    ///  `astria.protocol.asset.v1alpha1.AllowedFeeAssetIdsResponse`.
+    ///  `astria.protocol.asset.v1alpha1.AllowedFeeAssetsResponse`.
     /// - If the raw response cannot be converted to the native type.
-    async fn get_allowed_fee_asset_ids(&self) -> Result<AllowedFeeAssetIdsResponse, Error> {
-        let path = "asset/allowed_fee_asset_ids".to_string();
+    async fn get_allowed_fee_assets(&self) -> Result<AllowedFeeAssetsResponse, Error> {
+        let path = "asset/allowed_fee_assets".to_string();
 
         let response = self
             .abci_query(Some(path), vec![], Some(0u32.into()), false)
@@ -483,18 +483,18 @@ pub trait SequencerClientExt: Client {
             .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
 
         let proto_response =
-            astria_core::generated::protocol::asset::v1alpha1::AllowedFeeAssetIdsResponse::decode(
+            astria_core::generated::protocol::asset::v1alpha1::AllowedFeeAssetsResponse::decode(
                 &*response.value,
             )
             .map_err(|e| {
                 Error::abci_query_deserialization(
-                    "astria.protocol.asset.v1alpha1.AllowedFeeAssetIdsResponse",
+                    "astria.protocol.asset.v1alpha1.AllowedFeeAssetsResponse",
                     response,
                     e,
                 )
             })?;
-        let native_response = AllowedFeeAssetIdsResponse::try_from_raw(&proto_response)
-            .map_err(|e| Error::native_conversion("AllowedFeeAssetIdsResponse", Arc::new(e)))?;
+        let native_response = AllowedFeeAssetsResponse::try_from_raw(&proto_response)
+            .map_err(|e| Error::native_conversion("AllowedFeeAssetsResponse", Arc::new(e)))?;
 
         Ok(native_response)
     }
