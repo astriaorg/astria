@@ -56,6 +56,7 @@ use wiremock::{
 
 use crate::{
     executor,
+    metrics::Metrics,
     Config,
 };
 
@@ -259,6 +260,7 @@ async fn full_bundle() {
     // set up the executor, channel for writing seq actions, and the sequencer mock
     let (sequencer, cfg, _keyfile) = setup().await;
     let shutdown_token = CancellationToken::new();
+    let metrics = Box::leak(Box::new(Metrics::new(cfg.parse_rollups().unwrap().keys())));
     mount_genesis(&sequencer, &cfg.sequencer_chain_id).await;
     let (executor, executor_handle) = executor::Builder {
         sequencer_url: cfg.sequencer_url.clone(),
@@ -268,6 +270,7 @@ async fn full_bundle() {
         max_bytes_per_bundle: cfg.max_bytes_per_bundle,
         bundle_queue_capacity: cfg.bundle_queue_capacity,
         shutdown_token: shutdown_token.clone(),
+        metrics,
     }
     .build()
     .unwrap();
@@ -353,6 +356,7 @@ async fn bundle_triggered_by_block_timer() {
     // set up the executor, channel for writing seq actions, and the sequencer mock
     let (sequencer, cfg, _keyfile) = setup().await;
     let shutdown_token = CancellationToken::new();
+    let metrics = Box::leak(Box::new(Metrics::new(cfg.parse_rollups().unwrap().keys())));
     mount_genesis(&sequencer, &cfg.sequencer_chain_id).await;
     let (executor, executor_handle) = executor::Builder {
         sequencer_url: cfg.sequencer_url.clone(),
@@ -362,6 +366,7 @@ async fn bundle_triggered_by_block_timer() {
         max_bytes_per_bundle: cfg.max_bytes_per_bundle,
         bundle_queue_capacity: cfg.bundle_queue_capacity,
         shutdown_token: shutdown_token.clone(),
+        metrics,
     }
     .build()
     .unwrap();
@@ -440,6 +445,7 @@ async fn two_seq_actions_single_bundle() {
     // set up the executor, channel for writing seq actions, and the sequencer mock
     let (sequencer, cfg, _keyfile) = setup().await;
     let shutdown_token = CancellationToken::new();
+    let metrics = Box::leak(Box::new(Metrics::new(cfg.parse_rollups().unwrap().keys())));
     mount_genesis(&sequencer, &cfg.sequencer_chain_id).await;
     let (executor, executor_handle) = executor::Builder {
         sequencer_url: cfg.sequencer_url.clone(),
@@ -449,6 +455,7 @@ async fn two_seq_actions_single_bundle() {
         max_bytes_per_bundle: cfg.max_bytes_per_bundle,
         bundle_queue_capacity: cfg.bundle_queue_capacity,
         shutdown_token: shutdown_token.clone(),
+        metrics,
     }
     .build()
     .unwrap();

@@ -11,7 +11,10 @@ use tendermint_rpc::HttpClient as SequencerClient;
 use tokio_util::sync::CancellationToken;
 
 use super::Reader;
-use crate::executor;
+use crate::{
+    executor,
+    metrics::Metrics,
+};
 
 pub(crate) struct Builder {
     pub(crate) celestia_block_time: Duration,
@@ -21,6 +24,7 @@ pub(crate) struct Builder {
     pub(crate) sequencer_cometbft_client: SequencerClient,
     pub(crate) sequencer_requests_per_second: u32,
     pub(crate) shutdown: CancellationToken,
+    pub(crate) metrics: &'static Metrics,
 }
 
 impl Builder {
@@ -34,6 +38,7 @@ impl Builder {
             sequencer_cometbft_client,
             sequencer_requests_per_second,
             shutdown,
+            metrics,
         } = self;
 
         let celestia_client = create_celestia_client(celestia_http_endpoint, &celestia_token)
@@ -46,6 +51,7 @@ impl Builder {
             sequencer_cometbft_client,
             sequencer_requests_per_second,
             shutdown,
+            metrics,
         })
     }
 }

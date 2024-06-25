@@ -33,6 +33,7 @@ use ethers::providers::{
     ProviderError,
     Ws,
 };
+use metrics::Counter;
 use tokio::{
     select,
     sync::{
@@ -50,15 +51,9 @@ use tracing::{
 };
 
 use crate::{
-    collectors::{
-        EXECUTOR_SEND_TIMEOUT,
-        GETH,
-    },
+    collectors::EXECUTOR_SEND_TIMEOUT,
     executor,
-    metrics_init::{
-        COLLECTOR_TYPE_LABEL,
-        ROLLUP_ID_LABEL,
-    },
+    metrics::Metrics,
 };
 
 type StdError = dyn std::error::Error;
@@ -85,6 +80,7 @@ pub(crate) struct Geth {
     url: String,
     // Token to signal the geth collector to stop upon shutdown.
     shutdown_token: CancellationToken,
+    metrics: &'static Metrics,
 }
 
 #[derive(Debug)]
@@ -109,6 +105,7 @@ pub(crate) struct Builder {
     pub(crate) url: String,
     pub(crate) executor_handle: executor::Handle,
     pub(crate) shutdown_token: CancellationToken,
+    pub(crate) metrics: &'static Metrics,
 }
 
 impl Builder {
@@ -118,6 +115,7 @@ impl Builder {
             url,
             executor_handle,
             shutdown_token,
+            metrics,
         } = self;
         let (status, _) = watch::channel(Status::new());
         let rollup_id = RollupId::from_unhashed_bytes(&chain_name);
@@ -133,6 +131,7 @@ impl Builder {
             status,
             url,
             shutdown_token,
+            metrics,
         }
     }
 }
@@ -159,7 +158,29 @@ impl Geth {
             url,
             shutdown_token,
             chain_name,
+            metrics,
         } = self;
+
+        let txs_received_counter = metrics
+            .geth_txs_received(&chain_name)
+            .cloned()
+            .unwrap_or_else(|| {
+                error!(
+                    rollup_chain_name = %chain_name,
+                    "failed to get geth transactions_received counter"
+                );
+                Counter::noop()
+            });
+        let txs_dropped_counter = metrics
+            .geth_txs_dropped(&chain_name)
+            .cloned()
+            .unwrap_or_else(|| {
+                error!(
+                    rollup_chain_name = %chain_name,
+                    "failed to get geth transactions_dropped counter"
+                );
+                Counter::noop()
+            });
 
         let retry_config = tryhard::RetryFutureConfig::new(1024)
             .exponential_backoff(Duration::from_millis(500))
@@ -214,12 +235,7 @@ impl Geth {
                             fee_asset_id: default_native_asset().id(),
                         };
 
-                        metrics::counter!(
-                            crate::metrics_init::TRANSACTIONS_RECEIVED,
-                            &[
-                                (ROLLUP_ID_LABEL, chain_name.clone()),
-                                (COLLECTOR_TYPE_LABEL, GETH.to_string())
-                            ]).increment(1);
+                        txs_received_counter.increment(1);
 
                         match executor_handle
                             .send_timeout(seq_action, EXECUTOR_SEND_TIMEOUT)
@@ -232,13 +248,7 @@ impl Geth {
                                     timeout_ms = EXECUTOR_SEND_TIMEOUT.as_millis(),
                                     "timed out sending new transaction to executor; dropping tx",
                                 );
-                                metrics::counter!(
-                                    crate::metrics_init::TRANSACTIONS_DROPPED,
-                                    &[
-                                        (ROLLUP_ID_LABEL, chain_name.clone()),
-                                        (COLLECTOR_TYPE_LABEL, GETH.to_string())
-                                    ]
-                                ).increment(1);
+                                txs_dropped_counter.increment(1);
                             }
                             Err(SendTimeoutError::Closed(_seq_action)) => {
                                 warn!(
@@ -246,13 +256,7 @@ impl Geth {
                                     "executor channel closed while sending transaction; dropping transaction \
                                      and exiting event loop"
                                 );
-                                metrics::counter!(
-                                    crate::metrics_init::TRANSACTIONS_DROPPED,
-                                    &[
-                                        (ROLLUP_ID_LABEL, chain_name.clone()),
-                                        (COLLECTOR_TYPE_LABEL, GETH.to_string())
-                                    ]
-                                ).increment(1);
+                                txs_dropped_counter.increment(1);
                                 break Err(eyre!("executor channel closed while sending transaction"));
                             }
                         }

@@ -20,7 +20,10 @@ use super::{
     CelestiaClientBuilder,
     CelestiaKeys,
 };
-use crate::IncludeRollup;
+use crate::{
+    metrics::Metrics,
+    IncludeRollup,
+};
 
 pub(crate) struct Builder {
     pub(crate) shutdown_token: tokio_util::sync::CancellationToken,
@@ -34,6 +37,7 @@ pub(crate) struct Builder {
     pub(crate) rollup_filter: IncludeRollup,
     pub(crate) pre_submit_path: PathBuf,
     pub(crate) post_submit_path: PathBuf,
+    pub(crate) metrics: &'static Metrics,
 }
 
 impl Builder {
@@ -51,6 +55,7 @@ impl Builder {
             rollup_filter,
             pre_submit_path,
             post_submit_path,
+            metrics,
         } = self;
         let sequencer_cometbft_client = SequencerClient::new(&*cometbft_endpoint)
             .wrap_err("failed constructing cometbft http client")?;
@@ -86,6 +91,7 @@ impl Builder {
             state,
             pre_submit_path,
             post_submit_path,
+            metrics,
         })
     }
 }

@@ -69,7 +69,10 @@ use super::{
     state,
     SequencerStartupInfo,
 };
-use crate::withdrawer::ethereum::convert::BridgeUnlockMemo;
+use crate::{
+    bridge_withdrawer::ethereum::convert::BridgeUnlockMemo,
+    metrics::Metrics,
+};
 
 mod builder;
 mod signer;
@@ -86,12 +89,16 @@ pub(super) struct Submitter {
     startup_tx: oneshot::Sender<SequencerStartupInfo>,
     expected_fee_asset_id: asset::Id,
     min_expected_fee_asset_balance: u128,
+    metrics: &'static Metrics,
 }
 
 impl Submitter {
     pub(super) async fn run(mut self) -> eyre::Result<()> {
         // call startup
-        let startup = self.startup().await?;
+        let startup = self
+            .startup()
+            .await
+            .wrap_err("submitter failed to start up")?;
         self.startup_tx
             .send(startup)
             .map_err(|_startup| eyre!("failed to send startup info to watcher"))?;
@@ -118,6 +125,7 @@ impl Submitter {
                         &self.sequencer_chain_id,
                         actions,
                         rollup_height,
+                        self.metrics
                     ).await {
                         break Err(e);
                     }
@@ -169,7 +177,8 @@ impl Submitter {
     async fn startup(&mut self) -> eyre::Result<SequencerStartupInfo> {
         let actual_chain_id =
             get_sequencer_chain_id(self.sequencer_cometbft_client.clone(), self.state.clone())
-                .await?;
+                .await
+                .wrap_err("failed to get chain id from sequencer")?;
         ensure!(
             self.sequencer_chain_id == actual_chain_id.to_string(),
             "sequencer_chain_id provided in config does not match chain_id returned from sequencer"
@@ -178,7 +187,8 @@ impl Submitter {
         // confirm that the fee asset ID is valid
         let allowed_fee_asset_ids_resp =
             get_allowed_fee_asset_ids(self.sequencer_cometbft_client.clone(), self.state.clone())
-                .await?;
+                .await
+                .wrap_err("failed to get allowed fee asset ids from sequencer")?;
         ensure!(
             allowed_fee_asset_ids_resp
                 .fee_asset_ids
@@ -192,7 +202,8 @@ impl Submitter {
             self.state.clone(),
             self.signer.address,
         )
-        .await?;
+        .await
+        .wrap_err("failed to get latest balance")?;
         let fee_asset_balance = fee_asset_balances
             .balances
             .into_iter()
@@ -205,7 +216,10 @@ impl Submitter {
         );
 
         // sync to latest on-chain state
-        let next_batch_rollup_height = self.get_next_rollup_height().await?;
+        let next_batch_rollup_height = self
+            .get_next_rollup_height()
+            .await
+            .wrap_err("failed to get next rollup block height")?;
 
         self.state.set_submitter_ready();
 
@@ -237,7 +251,10 @@ impl Submitter {
     /// 3. The last transaction by the bridge account did not contain a withdrawal action
     /// 4. The memo of the last transaction by the bridge account could not be parsed
     async fn get_next_rollup_height(&mut self) -> eyre::Result<u64> {
-        let signed_transaction = self.get_last_transaction().await?;
+        let signed_transaction = self
+            .get_last_transaction()
+            .await
+            .wrap_err("failed to get the bridge account's last sequencer transaction")?;
         let next_batch_rollup_height = if let Some(signed_transaction) = signed_transaction {
             rollup_height_from_signed_transaction(&signed_transaction).wrap_err(
                 "failed to extract rollup height from last transaction by the bridge account",
@@ -307,14 +324,17 @@ async fn process_batch(
     sequencer_chain_id: &str,
     actions: Vec<Action>,
     rollup_height: u64,
+    metrics: &'static Metrics,
 ) -> eyre::Result<()> {
     // get nonce and make unsigned transaction
     let nonce = get_latest_nonce(
         sequencer_cometbft_client.clone(),
         sequencer_key.address,
         state.clone(),
+        metrics,
     )
-    .await?;
+    .await
+    .wrap_err("failed to get nonce from sequencer")?;
     debug!(nonce, "fetched latest nonce");
 
     let unsigned = UnsignedTransaction {
@@ -334,9 +354,14 @@ async fn process_batch(
     debug!(tx_hash = %telemetry::display::hex(&signed.sha256_of_proto_encoding()), "signed transaction");
 
     // submit transaction and handle response
-    let rsp = submit_tx(sequencer_cometbft_client.clone(), signed, state.clone())
-        .await
-        .context("failed to submit transaction to to cometbft")?;
+    let rsp = submit_tx(
+        sequencer_cometbft_client.clone(),
+        signed,
+        state.clone(),
+        metrics,
+    )
+    .await
+    .context("failed to submit transaction to to cometbft")?;
     if let tendermint::abci::Code::Err(check_tx_code) = rsp.check_tx.code {
         error!(
             abci.code = check_tx_code,
@@ -376,9 +401,10 @@ async fn get_latest_nonce(
     client: sequencer_client::HttpClient,
     address: Address,
     state: Arc<State>,
+    metrics: &'static Metrics,
 ) -> eyre::Result<u32> {
     debug!("fetching latest nonce from sequencer");
-    metrics::counter!(crate::metrics_init::NONCE_FETCH_COUNT).increment(1);
+    metrics.increment_nonce_fetch_count();
     let span = Span::current();
     let start = Instant::now();
     let retry_config = tryhard::RetryFutureConfig::new(1024)
@@ -388,7 +414,7 @@ async fn get_latest_nonce(
             |attempt,
              next_delay: Option<Duration>,
              err: &sequencer_client::extension_trait::Error| {
-                metrics::counter!(crate::metrics_init::NONCE_FETCH_FAILURE_COUNT).increment(1);
+                metrics.increment_nonce_fetch_failure_count();
 
                 let state = Arc::clone(&state);
                 state.set_sequencer_connected(false);
@@ -417,7 +443,7 @@ async fn get_latest_nonce(
 
     state.set_sequencer_connected(res.is_ok());
 
-    metrics::histogram!(crate::metrics_init::NONCE_FETCH_LATENCY).record(start.elapsed());
+    metrics.record_nonce_fetch_latency(start.elapsed());
 
     res
 }
@@ -435,9 +461,10 @@ async fn submit_tx(
     client: sequencer_client::HttpClient,
     tx: SignedTransaction,
     state: Arc<State>,
+    metrics: &'static Metrics,
 ) -> eyre::Result<tx_commit::Response> {
     let nonce = tx.nonce();
-    metrics::gauge!(crate::metrics_init::CURRENT_NONCE).set(f64::from(nonce));
+    metrics.set_current_nonce(nonce);
     let start = std::time::Instant::now();
     debug!("submitting signed transaction to sequencer");
     let span = Span::current();
@@ -448,8 +475,7 @@ async fn submit_tx(
             |attempt,
              next_delay: Option<Duration>,
              err: &sequencer_client::extension_trait::Error| {
-                metrics::counter!(crate::metrics_init::SEQUENCER_SUBMISSION_FAILURE_COUNT)
-                    .increment(1);
+                metrics.increment_sequencer_submission_failure_count();
 
                 let state = Arc::clone(&state);
                 state.set_sequencer_connected(false);
@@ -479,7 +505,7 @@ async fn submit_tx(
 
     state.set_sequencer_connected(res.is_ok());
 
-    metrics::histogram!(crate::metrics_init::SEQUENCER_SUBMISSION_LATENCY).record(start.elapsed());
+    metrics.record_sequencer_submission_latency(start.elapsed());
 
     res
 }

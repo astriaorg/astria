@@ -23,6 +23,7 @@ use tokio_util::sync::CancellationToken;
 use crate::{
     executor,
     executor::Status,
+    metrics::Metrics,
 };
 
 pub(crate) struct Builder {
@@ -33,6 +34,7 @@ pub(crate) struct Builder {
     pub(crate) max_bytes_per_bundle: usize,
     pub(crate) bundle_queue_capacity: usize,
     pub(crate) shutdown_token: CancellationToken,
+    pub(crate) metrics: &'static Metrics,
 }
 
 impl Builder {
@@ -45,6 +47,7 @@ impl Builder {
             max_bytes_per_bundle,
             bundle_queue_capacity,
             shutdown_token,
+            metrics,
         } = self;
         let sequencer_client = sequencer_client::HttpClient::new(sequencer_url.as_str())
             .wrap_err("failed constructing sequencer client")?;
@@ -75,6 +78,7 @@ impl Builder {
                 max_bytes_per_bundle,
                 bundle_queue_capacity,
                 shutdown_token,
+                metrics,
             },
             executor::Handle::new(serialized_rollup_transaction_tx),
         ))

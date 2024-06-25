@@ -86,13 +86,8 @@ pub(crate) trait StateReadExt: StateRead {
 
             let native_asset = crate::asset::get_native_asset();
             if asset_id == native_asset.id() {
-                // TODO: this is jank, just have 1 denom type.
-                // TODO: Getting the base denom out of a native asset should not need a parse.
                 balances.push(AssetBalance {
-                    denom: native_asset
-                        .base_denom()
-                        .parse()
-                        .context("failed to parse a denom's base as a denom; this is a problem")?,
+                    denom: native_asset.clone(),
                     balance,
                 });
                 continue;
@@ -102,7 +97,8 @@ pub(crate) trait StateReadExt: StateRead {
                 .get_ibc_asset(asset_id)
                 .await
                 .context("failed to get ibc asset denom")?
-                .context("asset denom not found when user has balance of it; this is a bug")?;
+                .context("asset denom not found when user has balance of it; this is a bug")?
+                .into();
             balances.push(AssetBalance {
                 denom,
                 balance,
@@ -364,7 +360,7 @@ mod test {
 
         // create needed variables
         let address = crate::astria_address([42u8; 20]);
-        let asset = Id::from_denom("asset_0");
+        let asset = Id::from_str_unchecked("asset_0");
         let amount_expected = 0u128;
 
         // non-initialized accounts return zero
@@ -386,7 +382,7 @@ mod test {
 
         // create needed variables
         let address = crate::astria_address([42u8; 20]);
-        let asset = Id::from_denom("asset_0");
+        let asset = Id::from_str_unchecked("asset_0");
         let mut amount_expected = 1u128;
 
         state
@@ -428,7 +424,7 @@ mod test {
 
         // create needed variables
         let address = crate::astria_address([42u8; 20]);
-        let asset = Id::from_denom("asset_0");
+        let asset = Id::from_str_unchecked("asset_0");
         let amount_expected = 1u128;
 
         state
@@ -481,8 +477,8 @@ mod test {
 
         // create needed variables
         let address = crate::astria_address([42u8; 20]);
-        let asset_0 = Id::from_denom("asset_0");
-        let asset_1 = Id::from_denom("asset_1");
+        let asset_0 = Id::from_str_unchecked("asset_0");
+        let asset_1 = Id::from_str_unchecked("asset_1");
         let amount_expected_0 = 1u128;
         let amount_expected_1 = 2u128;
 
@@ -538,15 +534,15 @@ mod test {
         // need to set native asset in order to use `get_account_balances()`
         crate::asset::initialize_native_asset(DEFAULT_NATIVE_ASSET_DENOM);
 
-        let asset_0 = Id::from_denom(DEFAULT_NATIVE_ASSET_DENOM);
-        let asset_1 = Id::from_denom("asset_1");
-        let asset_2 = Id::from_denom("asset_2");
+        let asset_0 = Id::from_str_unchecked(DEFAULT_NATIVE_ASSET_DENOM);
+        let asset_1 = Id::from_str_unchecked("asset_1");
+        let asset_2 = Id::from_str_unchecked("asset_2");
 
         // also need to add assets to the ibc state
         asset::state_ext::StateWriteExt::put_ibc_asset(
             &mut state,
             asset_0,
-            &default_native_asset(),
+            &default_native_asset().unwrap_trace_prefixed(),
         )
         .expect("should be able to call other trait method on state object");
         asset::state_ext::StateWriteExt::put_ibc_asset(
@@ -611,7 +607,7 @@ mod test {
 
         // create needed variables
         let address = crate::astria_address([42u8; 20]);
-        let asset = Id::from_denom("asset_0");
+        let asset = Id::from_str_unchecked("asset_0");
         let amount_increase = 2u128;
 
         state
@@ -652,7 +648,7 @@ mod test {
 
         // create needed variables
         let address = crate::astria_address([42u8; 20]);
-        let asset = Id::from_denom("asset_0");
+        let asset = Id::from_str_unchecked("asset_0");
         let amount_increase = 2u128;
 
         state
@@ -694,7 +690,7 @@ mod test {
 
         // create needed variables
         let address = crate::astria_address([42u8; 20]);
-        let asset = Id::from_denom("asset_0");
+        let asset = Id::from_str_unchecked("asset_0");
         let amount_increase = 2u128;
 
         // give initial balance

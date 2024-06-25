@@ -163,7 +163,7 @@ mod test {
     use astria_core::{
         primitive::v1::asset::{
             self,
-            Denom,
+            denom::TracePrefixed,
             DEFAULT_NATIVE_ASSET_DENOM,
         },
         protocol::{
@@ -264,7 +264,7 @@ mod test {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let mut state = StateDelta::new(storage.latest_snapshot());
 
-        let denom = "some/ibc/asset".parse::<Denom>().unwrap();
+        let denom = "some/ibc/asset".parse::<TracePrefixed>().unwrap();
         let id = denom.id();
         let height = 99;
         state.put_block_height(height);
@@ -296,7 +296,7 @@ mod test {
             DenomResponse::try_from_raw(&raw::DenomResponse::decode(query_response.value).unwrap())
                 .unwrap();
         assert_eq!(denom_resp.height, height);
-        assert_eq!(denom_resp.denom, denom);
+        assert_eq!(denom_resp.denom, denom.into());
     }
 
     #[tokio::test]
@@ -307,9 +307,9 @@ mod test {
         let mut state = StateDelta::new(storage.latest_snapshot());
 
         let asset_ids = vec![
-            asset::Id::from_denom("asset_0"),
-            asset::Id::from_denom("asset_1"),
-            asset::Id::from_denom("asset_2"),
+            asset::Id::from_str_unchecked("asset_0"),
+            asset::Id::from_str_unchecked("asset_1"),
+            asset::Id::from_str_unchecked("asset_2"),
         ];
         let height = 99;
 
