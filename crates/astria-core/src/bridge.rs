@@ -35,3 +35,34 @@ pub struct Ics20TransferDepositMemo {
     /// the destination address for the deposit on the rollup
     pub rollup_address: String,
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::primitive::v1::ASTRIA_ADDRESS_PREFIX;
+
+    #[test]
+    fn ics20_withdrawal_from_rollup_memo_snapshot() {
+        let memo = Ics20WithdrawalFromRollupMemo {
+            memo: "hello".to_string(),
+            bridge_address: Address::builder()
+                .array([99; 20])
+                .prefix(ASTRIA_ADDRESS_PREFIX)
+                .try_build()
+                .unwrap(),
+            block_number: 1,
+            transaction_hash: [88; 32],
+        };
+
+        insta::assert_json_snapshot!(memo);
+    }
+
+    #[test]
+    fn ics20_transfer_deposit_memo_snapshot() {
+        let memo = Ics20TransferDepositMemo {
+            rollup_address: "some_rollup_address".to_string(),
+        };
+
+        insta::assert_json_snapshot!(memo);
+    }
+}
