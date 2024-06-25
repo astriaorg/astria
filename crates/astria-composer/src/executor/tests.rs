@@ -542,6 +542,7 @@ async fn should_exit_if_mismatch_sequencer_chain_id() {
     // set up sequencer mock
     let (sequencer, cfg, _keyfile) = setup().await;
     let shutdown_token = CancellationToken::new();
+    let metrics = Box::leak(Box::new(Metrics::new(cfg.parse_rollups().unwrap().keys())));
 
     // mount a status response with an incorrect chain_id
     mount_genesis(&sequencer, "bad-chain-id").await;
@@ -555,6 +556,7 @@ async fn should_exit_if_mismatch_sequencer_chain_id() {
         max_bytes_per_bundle: cfg.max_bytes_per_bundle,
         bundle_queue_capacity: cfg.bundle_queue_capacity,
         shutdown_token: shutdown_token.clone(),
+        metrics,
     }
     .build()
     .unwrap();
