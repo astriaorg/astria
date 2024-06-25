@@ -63,6 +63,8 @@ spec:
               name: app-rpc
             - containerPort: {{ .Values.ports.celestiaAppGrpcPort }}
               name: app-grpc
+            - containerPort: {{ .Values.ports.celestiaAppRestPort }}
+              name: app-rest
         - name: celestia-bridge
           command: [ "/scripts/start-bridge.sh" ]
           image: {{ .Values.celestiaNodeImage }}

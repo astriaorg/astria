@@ -1,0 +1,16 @@
+# this file contains overrides that are used for the ibc bridge tests
+
+# FIXME - remove this section after local development is done
+images:
+  geth:
+    # FIXME - update with correct version when available
+    devTag: pr-32
+
+config:
+  rollup:
+    genesis:
+      bridgeAddresses:
+      - bridgeAddress: "astria1d7zjjljc0dsmxa545xkpwxym86g8uvvwhtezcr"
+        startHeight: 1
+        assetDenom: "transfer/channel-0/utia"
+        assetPrecision: 6

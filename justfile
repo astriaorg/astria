@@ -1,4 +1,5 @@
 import 'charts/deploy.just'
+import 'dev/bridgetester.just'
 
 default:
   @just --list

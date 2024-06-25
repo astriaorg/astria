@@ -57,7 +57,6 @@ account_prefix = '{{ $chain.accountPrefix }}'
 key_name = '{{ $chain.key.name }}'                                    
 store_prefix = '{{ $chain.storePrefix }}'
 ccv_consumer_chain = {{ default false $chain.ccvConsumerChain }}
-ccv_consumer_chain = {{ default false $chain.trustedNode }}
 {{- if eq $chain.eventSource.mode "push" }}
 event_source = { mode = 'push', url = '{{ $chain.eventSource.url }}', batch_delay='{{ $chain.eventSource.batchDelay }}' }
 {{- else if eq $chain.eventSource.mode "pull" }}

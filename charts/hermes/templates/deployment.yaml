@@ -54,6 +54,11 @@ spec:
               name: telemetry
             - containerPort: {{ .Values.ports.tracingServer }}
               name: tracing
+          # TODO - implement a readiness probe so we can wait on hermes startup correctly
+{{/*          readinessProbe:*/}}
+{{/*            httpGet:*/}}
+{{/*              path: /channels*/}}
+{{/*              port: {{ .Values.ports.rest }}*/}}
       volumes:
         - name: {{ include "hermes.fullname" . }}-config-volume
           configMap:
