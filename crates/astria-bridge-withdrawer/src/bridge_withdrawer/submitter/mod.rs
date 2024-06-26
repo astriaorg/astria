@@ -139,7 +139,7 @@ async fn process_batch(
     // get nonce and make unsigned transaction
     let nonce = get_latest_nonce(
         sequencer_cometbft_client.clone(),
-        sequencer_key.address,
+        *sequencer_key.address(),
         state.clone(),
         metrics,
     )
@@ -152,15 +152,11 @@ async fn process_batch(
         params: TransactionParams::builder()
             .nonce(nonce)
             .chain_id(sequencer_chain_id)
-            .try_build()
-            .context(
-                "failed to construct transcation parameters from latest nonce and configured \
-                 sequencer chain ID",
-            )?,
+            .build(),
     };
 
     // sign transaction
-    let signed = unsigned.into_signed(&sequencer_key.signing_key);
+    let signed = unsigned.into_signed(sequencer_key.signing_key());
     debug!(tx_hash = %telemetry::display::hex(&signed.sha256_of_proto_encoding()), "signed transaction");
 
     // submit transaction and handle response

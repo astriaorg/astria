@@ -249,6 +249,10 @@ mod test {
     use crate::{
         app::test_utils::default_fees,
         asset::get_native_asset,
+        genesis::{
+            AddressPrefixes,
+            UncheckedGenesisState,
+        },
         mempool::Mempool,
         metrics::Metrics,
         proposal::commitment::generate_rollup_datas_commitment,
@@ -259,8 +263,7 @@ mod test {
             params: TransactionParams::builder()
                 .nonce(0)
                 .chain_id("test")
-                .try_build()
-                .unwrap(),
+                .build(),
             actions: vec![
                 SequenceAction {
                     rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
@@ -461,34 +464,30 @@ mod test {
         }
     }
 
-    impl Default for GenesisState {
-        fn default() -> Self {
-            Self {
-                accounts: vec![],
-                authority_sudo_address: crate::astria_address([0; 20]),
-                ibc_sudo_address: crate::astria_address([0; 20]),
-                ibc_relayer_addresses: vec![],
-                native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
-                ibc_params: penumbra_ibc::params::IBCParameters::default(),
-                allowed_fee_assets: vec![default_native_asset()],
-                fees: default_fees(),
-            }
-        }
-    }
-
     async fn new_consensus_service(funded_key: Option<VerificationKey>) -> (Consensus, Mempool) {
         let accounts = if funded_key.is_some() {
             vec![crate::genesis::Account {
-                address: crate::astria_address(funded_key.unwrap().address_bytes()),
+                address: crate::address::base_prefixed(funded_key.unwrap().address_bytes()),
                 balance: 10u128.pow(19),
             }]
         } else {
             vec![]
         };
-        let genesis_state = GenesisState {
+        let genesis_state = UncheckedGenesisState {
             accounts,
-            ..Default::default()
-        };
+            address_prefixes: AddressPrefixes {
+                base: crate::address::get_base_prefix().to_string(),
+            },
+            authority_sudo_address: crate::address::base_prefixed([0; 20]),
+            ibc_sudo_address: crate::address::base_prefixed([0; 20]),
+            ibc_relayer_addresses: vec![],
+            native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
+            ibc_params: penumbra_ibc::params::IBCParameters::default(),
+            allowed_fee_assets: vec![default_native_asset()],
+            fees: default_fees(),
+        }
+        .try_into()
+        .unwrap();
 
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();

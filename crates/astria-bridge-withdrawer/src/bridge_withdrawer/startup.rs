@@ -49,7 +49,7 @@ pub(super) struct Builder {
     pub(super) state: Arc<State>,
     pub(super) sequencer_chain_id: String,
     pub(super) sequencer_cometbft_endpoint: String,
-    pub(super) sequencer_key_path: String,
+    pub(super) sequencer_bridge_address: Address,
     pub(super) expected_fee_asset_id: asset::Id,
     // TODO: change the name of this config var
     pub(super) expected_min_fee_asset_balance: u128,
@@ -62,15 +62,10 @@ impl Builder {
             state,
             sequencer_chain_id,
             sequencer_cometbft_endpoint,
-            sequencer_key_path,
+            sequencer_bridge_address,
             expected_fee_asset_id,
             expected_min_fee_asset_balance,
         } = self;
-
-        let signer = super::submitter::signer::SequencerKey::try_from_path(sequencer_key_path)
-            .wrap_err("failed to load sequencer private ky")?;
-        let address = signer.address;
-        info!(address = %telemetry::display::hex(&address), "loaded sequencer signer");
 
         let sequencer_cometbft_client =
             sequencer_client::HttpClient::new(&*sequencer_cometbft_endpoint)
@@ -89,7 +84,7 @@ impl Builder {
             watcher_tx,
             sequencer_chain_id,
             sequencer_cometbft_client,
-            address,
+            sequencer_bridge_address,
             expected_fee_asset_id,
             expected_min_fee_asset_balance,
         };
@@ -158,7 +153,7 @@ pub(super) struct Startup {
     watcher_tx: oneshot::Sender<WatcherInfo>,
     sequencer_chain_id: String,
     sequencer_cometbft_client: sequencer_client::HttpClient,
-    address: Address,
+    sequencer_bridge_address: Address,
     expected_fee_asset_id: asset::Id,
     expected_min_fee_asset_balance: u128,
 }
@@ -252,7 +247,7 @@ impl Startup {
         let fee_asset_balances = get_latest_balance(
             self.sequencer_cometbft_client.clone(),
             self.state.clone(),
-            self.address,
+            self.sequencer_bridge_address,
         )
         .await
         .wrap_err("failed to get latest balance")?;
@@ -290,7 +285,7 @@ impl Startup {
         let last_transaction_hash_resp = get_bridge_account_last_transaction_hash(
             self.sequencer_cometbft_client.clone(),
             self.state.clone(),
-            self.address,
+            self.sequencer_bridge_address,
         )
         .await
         .wrap_err("failed to fetch last transaction hash by the bridge account")?;

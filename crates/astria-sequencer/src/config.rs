@@ -5,8 +5,6 @@ use serde::{
     Serialize,
 };
 
-pub(crate) const ADDRESS_PREFIX: &str = "astria";
-
 // Allowed `struct_excessive_bools` because this is used as a container
 // for deserialization. Making this a builder-pattern is not actionable.
 #[allow(clippy::struct_excessive_bools)]
