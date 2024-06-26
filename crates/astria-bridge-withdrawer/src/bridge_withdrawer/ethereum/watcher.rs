@@ -149,27 +149,25 @@ impl Watcher {
 
         let converter = EventToActionConvertConfig {
             fee_asset_id,
-            rollup_asset_denom: rollup_asset_denom.clone(),
+            rollup_asset_denom,
             bridge_address,
             asset_withdrawal_divisor,
             sequencer_address_prefix,
         };
 
-        let block_handler = tokio::task::spawn(watch_for_blocks(
-            provider.clone(),
-            contract.address(),
-            next_rollup_block_height,
-            converter,
-            submitter_handle,
-            shutdown_token.clone(),
-        ));
-
         state.set_watcher_ready();
 
         tokio::select! {
-            res = block_handler => {
+            res = watch_for_blocks(
+                provider,
+                contract.address(),
+                next_rollup_block_height,
+                converter,
+                submitter_handle,
+                shutdown_token.clone(),
+            ) => {
                 info!("block handler exited");
-                res.context("block handler exited")?
+                res.context("block handler exited")
             }
            () = shutdown_token.cancelled() => {
                 info!("watcher shutting down");
@@ -282,8 +280,7 @@ async fn sync_from_next_rollup_block_height(
             .await
             .wrap_err("failed to get block")?
         else {
-            warn!("block with number {i} missing; skipping");
-            continue;
+            bail!("block with number {i} missing");
         };
 
         get_and_send_events_at_block(
@@ -354,6 +351,8 @@ async fn watch_for_blocks(
                     )
                     .await
                     .wrap_err("failed to get and send events at block")?;
+                } else {
+                    bail!("block subscription ended")
                 }
             }
         }
@@ -371,7 +370,7 @@ async fn get_and_send_events_at_block(
         bail!("block hash missing; skipping")
     };
 
-    let Some(number) = block.number else {
+    let Some(block_number) = block.number else {
         bail!("block number missing; skipping")
     };
 
@@ -388,7 +387,7 @@ async fn get_and_send_events_at_block(
         .flatten();
     let mut batch = Batch {
         actions: Vec::new(),
-        rollup_height: 0,
+        rollup_height: block_number.as_u64(),
     };
     for (event, log) in events {
         let Some(transaction_hash) = log.transaction_hash else {
@@ -398,7 +397,7 @@ async fn get_and_send_events_at_block(
 
         let event_with_metadata = EventWithMetadata {
             event,
-            block_number: number,
+            block_number,
             transaction_hash,
         };
         let action = converter
@@ -408,14 +407,17 @@ async fn get_and_send_events_at_block(
     }
 
     if batch.actions.is_empty() {
-        debug!("no actions to send at block {number}");
+        debug!("no actions to send at block {block_number}");
     } else {
         let actions_len = batch.actions.len();
         submitter_handle
             .send_batch(batch)
             .await
             .wrap_err("failed to send batched events; receiver dropped?")?;
-        debug!("sent batch with {} actions at block {number}", actions_len);
+        debug!(
+            "sent batch with {} actions at block {block_number}",
+            actions_len
+        );
     }
 
     Ok(())
