@@ -295,7 +295,7 @@ mod test {
         assert_eq!(resp.code, 0.into(), "{}", resp.log);
 
         let proto = RawBridgeAccountInfoResponse::decode(resp.value).unwrap();
-        let native = proto.try_into_native().unwrap();
+        let native = BridgeAccountInfoResponse::try_from_raw(proto).unwrap();
         let expected = BridgeAccountInfoResponse {
             height: 1,
             info: Some(BridgeAccountInfo {
