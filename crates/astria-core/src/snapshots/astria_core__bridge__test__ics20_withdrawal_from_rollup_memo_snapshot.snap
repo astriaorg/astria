@@ -1,0 +1,12 @@
+---
+source: crates/astria-core/src/bridge.rs
+expression: memo
+---
+{
+  "memo": "hello",
+  "bridge_address": {
+    "bech32m": "astria1vd3kxcmrvd3kxcmrvd3kxcmrvd3kxcmrj6p6kl"
+  },
+  "block_number": 1,
+  "transaction_hash": "WFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFg="
+}

@@ -221,7 +221,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
 
     // tx is valid, push to mempool
     let current_account_nonce = state
-        .get_account_nonce(crate::astria_address(
+        .get_account_nonce(crate::address::base_prefixed(
             signed_tx.verification_key().address_bytes(),
         ))
         .await

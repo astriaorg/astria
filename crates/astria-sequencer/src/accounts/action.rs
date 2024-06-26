@@ -81,6 +81,11 @@ pub(crate) async fn transfer_check_stateful<S: StateReadExt + 'static>(
 
 #[async_trait::async_trait]
 impl ActionHandler for TransferAction {
+    async fn check_stateless(&self) -> Result<()> {
+        crate::address::ensure_base_prefix(&self.to).context("destination address is invalid")?;
+        Ok(())
+    }
+
     async fn check_stateful<S: StateReadExt + 'static>(
         &self,
         state: &S,

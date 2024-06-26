@@ -60,3 +60,4 @@ brotli = ["dep:brotli"]
 insta = { workspace = true, features = ["json"] }
 rand = { workspace = true }
 tempfile = { workspace = true }
+astria-core = { path = ".", features = ["serde"] }

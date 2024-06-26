@@ -102,6 +102,14 @@ impl ActionHandler for action::Ics20Withdrawal {
     async fn check_stateless(&self) -> Result<()> {
         ensure!(self.timeout_time() != 0, "timeout time must be non-zero",);
 
+        crate::address::ensure_base_prefix(&self.return_address)
+            .context("return address has an unsupported prefix")?;
+        self.bridge_address
+            .as_ref()
+            .map(crate::address::ensure_base_prefix)
+            .transpose()
+            .context("bridge address has an unsupported prefix")?;
+
         // NOTE (from penumbra): we could validate the destination chain address as bech32 to
         // prevent mistyped addresses, but this would preclude sending to chains that don't
         // use bech32 addresses.
@@ -237,7 +245,7 @@ mod tests {
         let state = StateDelta::new(snapshot);
 
         let denom = "test".parse::<Denom>().unwrap();
-        let from = crate::astria_address([1u8; 20]);
+        let from = crate::address::base_prefixed([1u8; 20]);
         let action = action::Ics20Withdrawal {
             amount: 1,
             denom: denom.clone(),
@@ -264,7 +272,7 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         // sender is a bridge address, which is also the withdrawer, so it's ok
-        let bridge_address = crate::astria_address([1u8; 20]);
+        let bridge_address = crate::address::base_prefixed([1u8; 20]);
         state.put_bridge_account_rollup_id(
             &bridge_address,
             &RollupId::from_unhashed_bytes("testrollupid"),
@@ -298,14 +306,14 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         // withdraw is *not* the bridge address, Ics20Withdrawal must be sent by the withdrawer
-        let bridge_address = crate::astria_address([1u8; 20]);
+        let bridge_address = crate::address::base_prefixed([1u8; 20]);
         state.put_bridge_account_rollup_id(
             &bridge_address,
             &RollupId::from_unhashed_bytes("testrollupid"),
         );
         state.put_bridge_account_withdrawer_address(
             &bridge_address,
-            &crate::astria_address([2u8; 20]),
+            &crate::address::base_prefixed([2u8; 20]),
         );
 
         let denom = "test".parse::<Denom>().unwrap();
@@ -338,8 +346,8 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         // sender the withdrawer address, so it's ok
-        let bridge_address = crate::astria_address([1u8; 20]);
-        let withdrawer_address = crate::astria_address([2u8; 20]);
+        let bridge_address = crate::address::base_prefixed([1u8; 20]);
+        let withdrawer_address = crate::address::base_prefixed([2u8; 20]);
         state.put_bridge_account_rollup_id(
             &bridge_address,
             &RollupId::from_unhashed_bytes("testrollupid"),
@@ -372,8 +380,8 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         // sender is not the withdrawer address, so must fail
-        let bridge_address = crate::astria_address([1u8; 20]);
-        let withdrawer_address = crate::astria_address([2u8; 20]);
+        let bridge_address = crate::address::base_prefixed([1u8; 20]);
+        let withdrawer_address = crate::address::base_prefixed([2u8; 20]);
         state.put_bridge_account_rollup_id(
             &bridge_address,
             &RollupId::from_unhashed_bytes("testrollupid"),
@@ -411,7 +419,7 @@ mod tests {
         let state = StateDelta::new(snapshot);
 
         // sender is not the withdrawer address, so must fail
-        let not_bridge_address = crate::astria_address([1u8; 20]);
+        let not_bridge_address = crate::address::base_prefixed([1u8; 20]);
 
         let denom = "test".parse::<Denom>().unwrap();
         let action = action::Ics20Withdrawal {

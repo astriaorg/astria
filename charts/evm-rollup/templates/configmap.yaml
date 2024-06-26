@@ -67,6 +67,7 @@ data:
   OTEL_SERVICE_NAME: "{{ tpl .Values.config.rollup.otel.serviceNamePrefix . }}-composer"
   {{- if not .Values.global.dev }}
   {{- else }}
+  ASTRIA_COMPOSER_SEQUENCER_ADDRESS_PREFIX: "{{ .Values.config.sequencer.addressPrefixes.base }}"
   {{- end }}
 ---
 {{- if .Values.config.faucet.enabled }}

@@ -23,6 +23,17 @@ use crate::{
 
 #[async_trait]
 impl ActionHandler for IbcRelayerChangeAction {
+    async fn check_stateless(&self) -> Result<()> {
+        match self {
+            IbcRelayerChangeAction::Addition(addr) | IbcRelayerChangeAction::Removal(addr) => {
+                crate::address::ensure_base_prefix(addr)
+                    .context("provided address to be added or removed has an unsupported prefix")?;
+            }
+        }
+
+        Ok(())
+    }
+
     async fn check_stateful<S: StateRead + 'static>(&self, state: &S, from: Address) -> Result<()> {
         let ibc_sudo_address = state
             .get_ibc_sudo_address()

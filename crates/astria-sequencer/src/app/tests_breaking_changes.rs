@@ -62,9 +62,31 @@ use crate::{
     },
     asset::get_native_asset,
     bridge::state_ext::StateWriteExt as _,
-    genesis::GenesisState,
+    genesis::{
+        AddressPrefixes,
+        UncheckedGenesisState,
+    },
     proposal::commitment::generate_rollup_datas_commitment,
 };
+
+/// XXX: This should be expressed in terms of `crate::app::test_utils::unchecked_genesis_state` to
+/// be consistent everywhere. `get_alice_signing_key` already is, why not this?
+fn unchecked_genesis_state() -> UncheckedGenesisState {
+    let (_, alice_address) = get_alice_signing_key_and_address();
+    UncheckedGenesisState {
+        accounts: vec![],
+        address_prefixes: AddressPrefixes {
+            base: crate::address::get_base_prefix().to_string(),
+        },
+        authority_sudo_address: alice_address,
+        ibc_sudo_address: alice_address,
+        ibc_relayer_addresses: vec![],
+        native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
+        ibc_params: IBCParameters::default(),
+        allowed_fee_assets: vec![default_native_asset()],
+        fees: default_fees(),
+    }
+}
 
 #[tokio::test]
 async fn app_genesis_snapshot() {
@@ -77,7 +99,7 @@ async fn app_finalize_block_snapshot() {
     let (alice_signing_key, _) = get_alice_signing_key_and_address();
     let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
 
-    let bridge_address = crate::astria_address([99; 20]);
+    let bridge_address = crate::address::base_prefixed([99; 20]);
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
     let asset_id = get_native_asset().id();
 
@@ -110,8 +132,7 @@ async fn app_finalize_block_snapshot() {
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![lock_action.into(), sequence_action.into()],
     };
 
@@ -168,7 +189,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
 
     use crate::genesis::Account;
 
-    let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
+    let (alice_signing_key, _) = get_alice_signing_key_and_address();
     let (bridge_signing_key, bridge_address) = get_bridge_signing_key_and_address();
     let bob_address = address_from_hex_string(BOB_ADDRESS);
     let carol_address = address_from_hex_string(CAROL_ADDRESS);
@@ -178,16 +199,12 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         balance: 1_000_000_000,
     });
 
-    let genesis_state = GenesisState {
+    let genesis_state = UncheckedGenesisState {
         accounts,
-        authority_sudo_address: alice_address,
-        ibc_sudo_address: alice_address,
-        ibc_relayer_addresses: vec![],
-        native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
-        ibc_params: IBCParameters::default(),
-        allowed_fee_assets: vec![default_native_asset()],
-        fees: default_fees(),
-    };
+        ..unchecked_genesis_state()
+    }
+    .try_into()
+    .unwrap();
     let (mut app, storage) = initialize_app_with_storage(Some(genesis_state), vec![]).await;
 
     // setup for ValidatorUpdate action
@@ -204,8 +221,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![
             TransferAction {
                 to: bob_address,
@@ -242,8 +258,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![
             InitBridgeAccountAction {
                 rollup_id,
@@ -262,8 +277,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         params: TransactionParams::builder()
             .chain_id("test")
             .nonce(1)
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![
             BridgeLockAction {
                 to: bridge_address,
