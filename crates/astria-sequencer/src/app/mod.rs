@@ -67,6 +67,7 @@ use crate::{
             StateWriteExt as _,
         },
     },
+    address::StateWriteExt as _,
     api_state_ext::StateWriteExt as _,
     authority::{
         component::{
@@ -88,7 +89,10 @@ use crate::{
     component::Component as _,
     genesis::GenesisState,
     ibc::component::IbcComponent,
-    mempool::Mempool,
+    mempool::{
+        Mempool,
+        RemovalReason,
+    },
     metrics::Metrics,
     proposal::{
         block_size_constraints::BlockSizeConstraints,
@@ -211,6 +215,10 @@ impl App {
             .state
             .try_begin_transaction()
             .expect("state Arc should not be referenced elsewhere");
+
+        crate::address::initialize_base_prefix(&genesis_state.address_prefixes.base)
+            .context("failed setting global base prefix")?;
+        state_tx.put_base_prefix(&genesis_state.address_prefixes.base);
 
         crate::asset::initialize_native_asset(&genesis_state.native_asset_base_denomination);
         state_tx.put_native_asset_denom(&genesis_state.native_asset_base_denomination);
@@ -547,12 +555,20 @@ impl App {
                     );
                     failed_tx_count = failed_tx_count.saturating_add(1);
 
-                    // we re-insert the tx into the mempool if it failed to execute
-                    // due to an invalid nonce, as it may be valid in the future.
-                    // if it's invalid due to the nonce being too low, it'll be
-                    // removed from the mempool in `update_mempool_after_finalization`.
                     if e.downcast_ref::<InvalidNonce>().is_some() {
+                        // we re-insert the tx into the mempool if it failed to execute
+                        // due to an invalid nonce, as it may be valid in the future.
+                        // if it's invalid due to the nonce being too low, it'll be
+                        // removed from the mempool in `update_mempool_after_finalization`.
                         txs_to_readd_to_mempool.push((enqueued_tx, priority));
+                    } else {
+                        // the transaction should be removed from the cometbft mempool
+                        self.mempool
+                            .track_removal_comet_bft(
+                                enqueued_tx.tx_hash(),
+                                RemovalReason::FailedPrepareProposal(e.to_string()),
+                            )
+                            .await;
                     }
                 }
             }
@@ -956,7 +972,7 @@ impl App {
     /// Executes a signed transaction.
     #[instrument(name = "App::execute_transaction", skip_all, fields(
         signed_transaction_hash = %telemetry::display::base64(&signed_tx.sha256_of_proto_encoding()),
-        sender = %signed_tx.address(),
+        sender_address_bytes = %telemetry::display::base64(&signed_tx.address_bytes()),
     ))]
     pub(crate) async fn execute_transaction(
         &mut self,
@@ -1119,9 +1135,7 @@ async fn update_mempool_after_finalization<S: StateReadExt>(
     state: S,
 ) -> anyhow::Result<()> {
     let current_account_nonce_getter = |address: Address| state.get_account_nonce(address);
-    mempool
-        .update_priorities(current_account_nonce_getter)
-        .await
+    mempool.run_maintenance(current_account_nonce_getter).await
 }
 
 /// relevant data of a block being executed.

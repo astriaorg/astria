@@ -24,6 +24,22 @@ use crate::{
 
 #[async_trait::async_trait]
 impl ActionHandler for BridgeSudoChangeAction {
+    async fn check_stateless(&self) -> Result<()> {
+        crate::address::ensure_base_prefix(&self.bridge_address)
+            .context("bridge address has an unsupported prefix")?;
+        self.new_sudo_address
+            .as_ref()
+            .map(crate::address::ensure_base_prefix)
+            .transpose()
+            .context("new sudo address has an unsupported prefix")?;
+        self.new_withdrawer_address
+            .as_ref()
+            .map(crate::address::ensure_base_prefix)
+            .transpose()
+            .context("new withdrawer address has an unsupported prefix")?;
+        Ok(())
+    }
+
     async fn check_stateful<S: StateReadExt + 'static>(
         &self,
         state: &S,
@@ -95,8 +111,8 @@ mod tests {
         let asset_id = Id::from_str_unchecked("test");
         state.put_allowed_fee_asset(asset_id);
 
-        let bridge_address = crate::astria_address([99; 20]);
-        let sudo_address = crate::astria_address([98; 20]);
+        let bridge_address = crate::address::base_prefixed([99; 20]);
+        let sudo_address = crate::address::base_prefixed([98; 20]);
         state.put_bridge_account_sudo_address(&bridge_address, &sudo_address);
 
         let action = BridgeSudoChangeAction {
@@ -118,8 +134,8 @@ mod tests {
         let asset_id = Id::from_str_unchecked("test");
         state.put_allowed_fee_asset(asset_id);
 
-        let bridge_address = crate::astria_address([99; 20]);
-        let sudo_address = crate::astria_address([98; 20]);
+        let bridge_address = crate::address::base_prefixed([99; 20]);
+        let sudo_address = crate::address::base_prefixed([98; 20]);
         state.put_bridge_account_sudo_address(&bridge_address, &sudo_address);
 
         let action = BridgeSudoChangeAction {
@@ -147,9 +163,9 @@ mod tests {
         state.put_bridge_sudo_change_base_fee(10);
 
         let fee_asset_id = Id::from_str_unchecked("test");
-        let bridge_address = crate::astria_address([99; 20]);
-        let new_sudo_address = crate::astria_address([98; 20]);
-        let new_withdrawer_address = crate::astria_address([97; 20]);
+        let bridge_address = crate::address::base_prefixed([99; 20]);
+        let new_sudo_address = crate::address::base_prefixed([98; 20]);
+        let new_withdrawer_address = crate::address::base_prefixed([97; 20]);
         state
             .put_account_balance(bridge_address, fee_asset_id, 10)
             .unwrap();

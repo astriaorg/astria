@@ -1,8 +1,8 @@
 use std::process::ExitCode;
 
 use astria_bridge_withdrawer::{
+    BridgeWithdrawer,
     Config,
-    Service,
     BUILD_INFO,
 };
 use astria_eyre::eyre::WrapErr as _;
@@ -52,7 +52,8 @@ async fn main() -> ExitCode {
 
     let mut sigterm = signal(SignalKind::terminate())
         .expect("setting a SIGTERM listener should always work on Unix");
-    let (withdrawer, shutdown_handle) = Service::new(cfg).expect("could not initialize withdrawer");
+    let (withdrawer, shutdown_handle) =
+        BridgeWithdrawer::new(cfg).expect("could not initialize withdrawer");
     let withdrawer_handle = tokio::spawn(withdrawer.run());
 
     let shutdown_token = shutdown_handle.token();

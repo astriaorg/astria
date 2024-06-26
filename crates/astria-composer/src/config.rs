@@ -34,6 +34,9 @@ pub struct Config {
     /// Path to private key for the sequencer account used for signing transactions
     pub private_key_file: String,
 
+    // The address prefix to use when constructing sequencer addresses using the signing key.
+    pub sequencer_address_prefix: String,
+
     /// Sequencer block time in milliseconds
     #[serde(alias = "max_submit_interval_ms")]
     pub block_time_ms: u64,
