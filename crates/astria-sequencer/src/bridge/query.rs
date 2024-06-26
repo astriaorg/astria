@@ -1,3 +1,4 @@
+use anyhow::Context as _;
 use astria_core::{
     primitive::v1::Address,
     protocol::{
@@ -232,13 +233,15 @@ fn preprocess_request(params: &[(String, String)]) -> anyhow::Result<Address, re
             "path did not contain address parameter",
         ));
     };
-    let address = Address::try_from_bech32m(address).map_err(|err| {
-        error_query_response(
-            Some(err.into()),
-            AbciErrorCode::INVALID_PARAMETER,
-            "address could not be constructed from provided parameter",
-        )
-    })?;
+    let address = address
+        .parse()
+        .context("failed to parse argument as address")
+        .map_err(|err| response::Query {
+            code: AbciErrorCode::INVALID_PARAMETER.into(),
+            info: AbciErrorCode::INVALID_PARAMETER.to_string(),
+            log: format!("address could not be constructed from provided parameter: {err:#}"),
+            ..response::Query::default()
+        })?;
     Ok(address)
 }
 
@@ -268,9 +271,9 @@ mod test {
 
         let asset_id = asset::Id::from_str_unchecked("test");
         let rollup_id = RollupId::from_unhashed_bytes("test");
-        let bridge_address = crate::astria_address([0u8; 20]);
-        let sudo_address = crate::astria_address([1u8; 20]);
-        let withdrawer_address = crate::astria_address([2u8; 20]);
+        let bridge_address = crate::address::base_prefixed([0u8; 20]);
+        let sudo_address = crate::address::base_prefixed([1u8; 20]);
+        let withdrawer_address = crate::address::base_prefixed([2u8; 20]);
         state.put_block_height(1);
         state.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
         state

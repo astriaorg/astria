@@ -8,10 +8,7 @@
 //! The example below works with the feature `"http"` set.
 //! ```no_run
 //! # tokio_test::block_on(async {
-//! use astria_core::primitive::v1::{
-//!     Address,
-//!     ASTRIA_ADDRESS_PREFIX,
-//! };
+//! use astria_core::primitive::v1::Address;
 //! use astria_sequencer_client::SequencerClientExt as _;
 //! use tendermint_rpc::HttpClient;
 //!
@@ -20,7 +17,7 @@
 //!     .array(hex_literal::hex!(
 //!         "DEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF"
 //!     ))
-//!     .prefix(ASTRIA_ADDRESS_PREFIX)
+//!     .prefix("astria")
 //!     .try_build()
 //!     .unwrap();
 //! let height = 5u32;
@@ -438,9 +435,8 @@ pub trait SequencerClientExt: Client {
     where
         HeightT: Into<tendermint::block::Height> + Send,
     {
-        const PREFIX: &[u8] = b"accounts/balance/";
-
-        let path = make_path_from_prefix_and_address(PREFIX, address.bytes());
+        const PREFIX: &str = "accounts/balance";
+        let path = format!("{PREFIX}/{address}");
 
         let response = self
             .abci_query(Some(path), vec![], Some(height.into()), false)
@@ -521,9 +517,8 @@ pub trait SequencerClientExt: Client {
     where
         HeightT: Into<tendermint::block::Height> + Send,
     {
-        const PREFIX: &[u8] = b"accounts/nonce/";
-
-        let path = make_path_from_prefix_and_address(PREFIX, address.bytes());
+        const PREFIX: &str = "accounts/nonce";
+        let path = format!("{PREFIX}/{address}");
 
         let response = self
             .abci_query(Some(path), vec![], Some(height.into()), false)
@@ -555,9 +550,8 @@ pub trait SequencerClientExt: Client {
         &self,
         address: Address,
     ) -> Result<BridgeAccountInfoResponse, Error> {
-        const PREFIX: &[u8] = b"bridge/account_info/";
-
-        let path = make_path_from_prefix_and_address(PREFIX, address.bytes());
+        const PREFIX: &str = "bridge/account_info";
+        let path = format!("{PREFIX}/{address}");
 
         let response = self
             .abci_query(Some(path), vec![], None, false)
@@ -575,7 +569,7 @@ pub trait SequencerClientExt: Client {
                     e,
                 )
             })?;
-        let native = proto_response.try_into_native().map_err(|e| {
+        let native = BridgeAccountInfoResponse::try_from_raw(proto_response).map_err(|e| {
             Error::native_conversion(
                 "astria.protocol.bridge.v1alpha1.BridgeAccountInfoResponse",
                 Arc::new(e),
@@ -588,9 +582,8 @@ pub trait SequencerClientExt: Client {
         &self,
         address: Address,
     ) -> Result<BridgeAccountLastTxHashResponse, Error> {
-        const PREFIX: &[u8] = b"bridge/account_last_tx_hash/";
-
-        let path = make_path_from_prefix_and_address(PREFIX, address.bytes());
+        const PREFIX: &str = "bridge/account_last_tx_hash";
+        let path = format!("{PREFIX}/{address}");
 
         let response = self
             .abci_query(Some(path), vec![], None, false)
@@ -652,25 +645,4 @@ pub trait SequencerClientExt: Client {
             .await
             .map_err(|e| Error::tendermint_rpc("broadcast_tx_commit", e))
     }
-}
-
-pub(super) fn make_path_from_prefix_and_address(
-    prefix: &'static [u8],
-    address: [u8; 20],
-) -> String {
-    let address_hex_len = address
-        .len()
-        .checked_mul(2)
-        .expect("`20 * 2` should not overflow");
-    let path_len = prefix
-        .len()
-        .checked_add(address_hex_len)
-        .expect("`prefix` should not be greater than `usize::MAX - 40`");
-    let mut path = vec![0u8; path_len];
-    path[..prefix.len()].copy_from_slice(prefix);
-    hex::encode_to_slice(address, &mut path[prefix.len()..]).expect(
-        "this is a bug: a buffer of sufficient size must have been allocated to hold 20 hex \
-         encoded bytes",
-    );
-    String::from_utf8(path).expect("this is a bug: all bytes in the path buffer should be ascii")
 }

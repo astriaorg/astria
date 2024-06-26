@@ -117,7 +117,7 @@ mod test {
             fee_asset_id: get_native_asset().id(),
         };
         let transfer_action = TransferAction {
-            to: crate::astria_address([0u8; 20]),
+            to: crate::address::base_prefixed([0u8; 20]),
             amount: 1,
             asset_id: get_native_asset().id(),
             fee_asset_id: get_native_asset().id(),
@@ -128,8 +128,7 @@ mod test {
             params: TransactionParams::builder()
                 .nonce(0)
                 .chain_id("test-chain-1")
-                .try_build()
-                .unwrap(),
+                .build(),
             actions: vec![sequence_action.clone().into(), transfer_action.into()],
         };
 
@@ -145,8 +144,7 @@ mod test {
             params: TransactionParams::builder()
                 .nonce(0)
                 .chain_id("test-chain-1")
-                .try_build()
-                .unwrap(),
+                .build(),
             actions: vec![sequence_action.into()],
         };
 
@@ -174,7 +172,7 @@ mod test {
             fee_asset_id: get_native_asset().id(),
         };
         let transfer_action = TransferAction {
-            to: crate::astria_address([0u8; 20]),
+            to: crate::address::base_prefixed([0u8; 20]),
             amount: 1,
             asset_id: get_native_asset().id(),
             fee_asset_id: get_native_asset().id(),
@@ -185,8 +183,7 @@ mod test {
             params: TransactionParams::builder()
                 .nonce(0)
                 .chain_id("test-chain-1")
-                .try_build()
-                .unwrap(),
+                .build(),
             actions: vec![sequence_action.into(), transfer_action.into()],
         };
 

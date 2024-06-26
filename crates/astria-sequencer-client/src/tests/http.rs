@@ -7,7 +7,6 @@ use astria_core::{
             default_native_asset,
         },
         Address,
-        ASTRIA_ADDRESS_PREFIX,
     },
     protocol::transaction::v1alpha1::{
         action::TransferAction,
@@ -46,7 +45,7 @@ use crate::{
 
 const ALICE_ADDRESS_BYTES: [u8; 20] = hex!("1c0c490f1b5528d8173c5de46d131160e4b2c0c3");
 const BOB_ADDRESS_BYTES: [u8; 20] = hex!("34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a");
-
+const ASTRIA_ADDRESS_PREFIX: &str = "astria";
 fn alice_address() -> Address {
     Address::builder()
         .array(ALICE_ADDRESS_BYTES)
@@ -161,8 +160,7 @@ fn create_signed_transaction() -> SignedTransaction {
         params: TransactionParams::builder()
             .nonce(1)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions,
     }
     .into_signed(&alice_key)
@@ -180,8 +178,12 @@ async fn get_latest_nonce() {
         height: 10,
         nonce: 1,
     };
-    let _guard =
-        register_abci_query_response(&server, "accounts/nonce/", expected_response.clone()).await;
+    let _guard = register_abci_query_response(
+        &server,
+        &format!("accounts/nonce/{}", alice_address()),
+        expected_response.clone(),
+    )
+    .await;
 
     let actual_response = client
         .get_latest_nonce(alice_address())
@@ -210,8 +212,12 @@ async fn get_latest_balance() {
             balance: Some(10u128.pow(18).into()),
         }],
     };
-    let _guard =
-        register_abci_query_response(&server, "accounts/balance/", expected_response.clone()).await;
+    let _guard = register_abci_query_response(
+        &server,
+        &format!("accounts/balance/{}", alice_address()),
+        expected_response.clone(),
+    )
+    .await;
 
     let actual_response = client
         .get_latest_balance(alice_address())

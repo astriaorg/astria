@@ -184,25 +184,6 @@ impl BridgeAccountInfoResponse {
     }
 }
 
-impl raw::BridgeAccountInfoResponse {
-    /// Converts a protobuf [`raw::BridgeAccountInfoResponse`] to a native
-    /// [`BridgeAccountInfoResponse`].
-    ///
-    /// # Errors
-    ///
-    /// See `BridgeAccountInfoResponse::try_from_raw`.
-    pub fn try_into_native(
-        self,
-    ) -> Result<BridgeAccountInfoResponse, BridgeAccountInfoResponseError> {
-        BridgeAccountInfoResponse::try_from_raw(self)
-    }
-
-    #[must_use]
-    pub fn from_native(native: BridgeAccountInfoResponse) -> raw::BridgeAccountInfoResponse {
-        native.into_raw()
-    }
-}
-
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
 pub struct BridgeAccountInfoResponseError(BridgeAccountInfoResponseErrorKind);
