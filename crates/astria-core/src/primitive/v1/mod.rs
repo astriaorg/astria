@@ -486,8 +486,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use insta::assert_json_snapshot;
-
     use super::{
         Address,
         AddressError,
@@ -526,13 +524,12 @@ mod tests {
     #[cfg(feature = "serde")]
     #[test]
     fn snapshots() {
-        use insta::assert_json_snapshot;
         let address = Address::builder()
             .array([42; 20])
             .prefix(ASTRIA_ADDRESS_PREFIX)
             .try_build()
             .unwrap();
-        assert_json_snapshot!(address);
+        insta::assert_json_snapshot!(address);
     }
 
     #[test]
