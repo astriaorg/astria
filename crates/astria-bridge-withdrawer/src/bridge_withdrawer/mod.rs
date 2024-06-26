@@ -81,6 +81,7 @@ impl BridgeWithdrawer {
             rollup_asset_denomination,
             min_expected_fee_asset_balance,
             sequencer_bridge_address,
+            sequencer_grpc_endpoint,
             ..
         } = cfg;
 
@@ -99,6 +100,7 @@ impl BridgeWithdrawer {
             sequencer_bridge_address,
             expected_fee_asset_id: asset::Id::from_str_unchecked(&fee_asset_denomination),
             expected_min_fee_asset_balance: u128::from(min_expected_fee_asset_balance),
+            sequencer_grpc_endpoint,
         }
         .build()
         .wrap_err("failed to initialize startup")?;
