@@ -672,8 +672,15 @@ mod tests {
             block_number: receipt.block_number.unwrap(),
             transaction_hash: receipt.transaction_hash,
         };
-        let expected_action =
-            event_to_action(expected_event, denom.id(), denom, 1, bridge_address, crate::ASTRIA_ADDRESS_PREFIX).unwrap();
+        let expected_action = event_to_action(
+            expected_event,
+            denom.id(),
+            denom,
+            1,
+            bridge_address,
+            crate::ASTRIA_ADDRESS_PREFIX,
+        )
+        .unwrap();
         let Action::BridgeUnlock(expected_action) = expected_action else {
             panic!("expected action to be BridgeUnlock, got {expected_action:?}");
         };
