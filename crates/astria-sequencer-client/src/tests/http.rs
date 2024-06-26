@@ -1,10 +1,7 @@
 use astria_core::{
     crypto::SigningKey,
     generated::protocol::asset::v1alpha1::AllowedFeeAssetsResponse,
-    primitive::v1::{
-        asset::default_native_asset,
-        Address,
-    },
+    primitive::v1::Address,
     protocol::transaction::v1alpha1::{
         action::TransferAction,
         SignedTransaction,
@@ -148,8 +145,8 @@ fn create_signed_transaction() -> SignedTransaction {
         TransferAction {
             to: bob_address(),
             amount: 333_333,
-            asset: default_native_asset(),
-            fee_asset: default_native_asset(),
+            asset: "nria".parse().unwrap(),
+            fee_asset: "nria".parse().unwrap(),
         }
         .into(),
     ];
