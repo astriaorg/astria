@@ -104,7 +104,7 @@ impl Reader {
     }
 
     async fn initialize(&mut self) -> eyre::Result<executor::Handle<StateIsInit>> {
-        let _chain_id_result = self
+       self
             .ensure_configured_chain_id_matches_remote()
             .await
             .wrap_err("failed to validate chain id")?;
