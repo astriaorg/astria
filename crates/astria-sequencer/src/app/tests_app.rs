@@ -11,6 +11,7 @@ use astria_core::{
         TransactionParams,
         UnsignedTransaction,
     },
+    sequencer::Account,
     sequencerblock::v1alpha1::block::Deposit,
 };
 use cnidarium::StateDelta;
@@ -47,7 +48,6 @@ use crate::{
         StateReadExt as _,
         StateWriteExt,
     },
-    genesis::Account,
     proposal::commitment::generate_rollup_datas_commitment,
     state_ext::StateReadExt as _,
 };

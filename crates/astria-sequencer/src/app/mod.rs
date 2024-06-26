@@ -87,7 +87,6 @@ use crate::{
         },
     },
     component::Component as _,
-    genesis::GenesisState,
     ibc::component::IbcComponent,
     mempool::{
         Mempool,
@@ -207,7 +206,7 @@ impl App {
     pub(crate) async fn init_chain(
         &mut self,
         storage: Storage,
-        genesis_state: GenesisState,
+        genesis_state: astria_core::sequencer::GenesisState,
         genesis_validators: Vec<tendermint::validator::Update>,
         chain_id: String,
     ) -> anyhow::Result<AppHash> {
@@ -216,16 +215,16 @@ impl App {
             .try_begin_transaction()
             .expect("state Arc should not be referenced elsewhere");
 
-        crate::address::initialize_base_prefix(&genesis_state.address_prefixes.base)
+        crate::address::initialize_base_prefix(&genesis_state.address_prefixes().base)
             .context("failed setting global base prefix")?;
-        state_tx.put_base_prefix(&genesis_state.address_prefixes.base);
+        state_tx.put_base_prefix(&genesis_state.address_prefixes().base);
 
-        crate::asset::initialize_native_asset(&genesis_state.native_asset_base_denomination);
-        state_tx.put_native_asset_denom(&genesis_state.native_asset_base_denomination);
+        crate::asset::initialize_native_asset(genesis_state.native_asset_base_denomination());
+        state_tx.put_native_asset_denom(genesis_state.native_asset_base_denomination());
         state_tx.put_chain_id_and_revision_number(chain_id.try_into().context("invalid chain ID")?);
         state_tx.put_block_height(0);
 
-        for fee_asset in &genesis_state.allowed_fee_assets {
+        for fee_asset in genesis_state.allowed_fee_assets() {
             state_tx.put_allowed_fee_asset(fee_asset);
         }
 
@@ -236,7 +235,7 @@ impl App {
         AuthorityComponent::init_chain(
             &mut state_tx,
             &AuthorityComponentAppState {
-                authority_sudo_address: genesis_state.authority_sudo_address,
+                authority_sudo_address: *genesis_state.authority_sudo_address(),
                 genesis_validators,
             },
         )
