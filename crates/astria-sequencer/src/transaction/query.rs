@@ -49,7 +49,7 @@ pub(crate) async fn transaction_fee_request(
             return response::Query {
                 code: AbciErrorCode::INTERNAL_ERROR.into(),
                 info: AbciErrorCode::INTERNAL_ERROR.to_string(),
-                log: format!("failed calculating fees for provided transaction: {err:?}"),
+                log: format!("failed calculating fees for provided transaction: {err:#}"),
                 ..response::Query::default()
             };
         }
@@ -67,7 +67,7 @@ pub(crate) async fn transaction_fee_request(
     let height = tendermint::block::Height::try_from(height).expect("height must fit into an i64");
     response::Query {
         code: 0.into(),
-        key: request.path.clone().into_bytes().into(),
+        key: request.path.into_bytes().into(),
         value: payload,
         height,
         ..response::Query::default()
@@ -91,8 +91,8 @@ fn preprocess_request(request: &request::Query) -> Result<UnsignedTransaction, r
         Ok(tx) => tx,
         Err(err) => {
             return Err(response::Query {
-                code: AbciErrorCode::INTERNAL_ERROR.into(),
-                info: AbciErrorCode::INTERNAL_ERROR.to_string(),
+                code: AbciErrorCode::INVALID_PARAMETER.into(),
+                info: AbciErrorCode::INVALID_PARAMETER.to_string(),
                 log: format!(
                     "failed to convert raw proto unsigned transaction to native unsigned \
                      transaction: {err:#}"
