@@ -79,8 +79,8 @@ fn preprocess_request(request: &request::Query) -> Result<UnsignedTransaction, r
         Ok(tx) => tx,
         Err(err) => {
             return Err(response::Query {
-                code: AbciErrorCode::INTERNAL_ERROR.into(),
-                info: AbciErrorCode::INTERNAL_ERROR.to_string(),
+                code: AbciErrorCode::BAD_REQUEST.into(),
+                info: AbciErrorCode::BAD_REQUEST.to_string(),
                 log: format!("failed to decode request data to unsigned transaction: {err:#}"),
                 ..response::Query::default()
             });
@@ -91,8 +91,8 @@ fn preprocess_request(request: &request::Query) -> Result<UnsignedTransaction, r
         Ok(tx) => tx,
         Err(err) => {
             return Err(response::Query {
-                code: AbciErrorCode::INVALID_PARAMETER.into(),
-                info: AbciErrorCode::INVALID_PARAMETER.to_string(),
+                code: AbciErrorCode::BAD_REQUEST.into(),
+                info: AbciErrorCode::BAD_REQUEST.to_string(),
                 log: format!(
                     "failed to convert raw proto unsigned transaction to native unsigned \
                      transaction: {err:#}"
