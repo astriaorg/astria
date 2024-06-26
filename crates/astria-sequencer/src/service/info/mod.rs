@@ -210,7 +210,7 @@ mod test {
 
         initialize_native_asset(DEFAULT_NATIVE_ASSET_DENOM);
 
-        let address = crate::try_astria_address(
+        let address = crate::address::try_base_prefixed(
             &hex::decode("a034c743bed8f26cb8ee7b8db2230fd8347ae131").unwrap(),
         )
         .unwrap();
@@ -223,7 +223,7 @@ mod test {
         storage.commit(state).await.unwrap();
 
         let info_request = InfoRequest::Query(request::Query {
-            path: "accounts/balance/a034c743bed8f26cb8ee7b8db2230fd8347ae131".to_string(),
+            path: format!("accounts/balance/{address}"),
             data: vec![].into(),
             height: u32::try_from(height).unwrap().into(),
             prove: false,

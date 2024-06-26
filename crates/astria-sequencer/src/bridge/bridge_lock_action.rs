@@ -34,6 +34,12 @@ use crate::{
 
 #[async_trait::async_trait]
 impl ActionHandler for BridgeLockAction {
+    async fn check_stateless(&self) -> Result<()> {
+        crate::address::ensure_base_prefix(&self.to)
+            .context("destination address has an unsupported prefix")?;
+        Ok(())
+    }
+
     async fn check_stateful<S: StateReadExt + 'static>(
         &self,
         state: &S,
@@ -167,7 +173,7 @@ mod test {
         state.put_transfer_base_fee(transfer_fee).unwrap();
         state.put_bridge_lock_byte_cost_multiplier(2);
 
-        let bridge_address = crate::astria_address([1; 20]);
+        let bridge_address = crate::address::base_prefixed([1; 20]);
         let asset_id = asset::Id::from_str_unchecked("test");
         let bridge_lock = BridgeLockAction {
             to: bridge_address,
@@ -184,7 +190,7 @@ mod test {
             .unwrap();
         state.put_allowed_fee_asset(asset_id);
 
-        let from_address = crate::astria_address([2; 20]);
+        let from_address = crate::address::base_prefixed([2; 20]);
 
         // not enough balance; should fail
         state
@@ -226,7 +232,7 @@ mod test {
         state.put_transfer_base_fee(transfer_fee).unwrap();
         state.put_bridge_lock_byte_cost_multiplier(2);
 
-        let bridge_address = crate::astria_address([1; 20]);
+        let bridge_address = crate::address::base_prefixed([1; 20]);
         let asset_id = asset::Id::from_str_unchecked("test");
         let bridge_lock = BridgeLockAction {
             to: bridge_address,
@@ -243,7 +249,7 @@ mod test {
             .unwrap();
         state.put_allowed_fee_asset(asset_id);
 
-        let from_address = crate::astria_address([2; 20]);
+        let from_address = crate::address::base_prefixed([2; 20]);
 
         // not enough balance; should fail
         state

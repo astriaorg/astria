@@ -39,7 +39,6 @@ pub struct Ics20TransferDepositMemo {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::primitive::v1::ASTRIA_ADDRESS_PREFIX;
 
     #[test]
     fn ics20_withdrawal_from_rollup_memo_snapshot() {
@@ -47,7 +46,7 @@ mod test {
             memo: "hello".to_string(),
             bridge_address: Address::builder()
                 .array([99; 20])
-                .prefix(ASTRIA_ADDRESS_PREFIX)
+                .prefix("astria")
                 .try_build()
                 .unwrap(),
             block_number: 1,
