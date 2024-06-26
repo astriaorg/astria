@@ -1,0 +1,5 @@
+---
+source: crates/astria-core/src/primitive/v1/asset/denom.rs
+expression: "Denom::from(ibc_prefixed())"
+---
+"ibc/fe811daa715ce8dbd147308a12ec1edfe736f3a23f4a757bab28e76364a274fd"

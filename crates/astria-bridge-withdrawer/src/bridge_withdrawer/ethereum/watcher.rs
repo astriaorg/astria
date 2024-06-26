@@ -75,6 +75,7 @@ pub(crate) struct Builder {
     pub(crate) state: Arc<State>,
     pub(crate) rollup_asset_denom: Denom,
     pub(crate) bridge_address: Address,
+    pub(crate) sequencer_address_prefix: String,
 }
 
 impl Builder {
@@ -87,6 +88,7 @@ impl Builder {
             state,
             rollup_asset_denom,
             bridge_address,
+            sequencer_address_prefix,
         } = self;
 
         let contract_address = address_from_string(&ethereum_contract_address)
@@ -110,6 +112,7 @@ impl Builder {
             bridge_address,
             state,
             shutdown_token: shutdown_token.clone(),
+            sequencer_address_prefix,
         })
     }
 }
@@ -123,6 +126,7 @@ pub(crate) struct Watcher {
     bridge_address: Address,
     state: Arc<State>,
     shutdown_token: CancellationToken,
+    sequencer_address_prefix: String,
 }
 
 impl Watcher {
@@ -140,6 +144,7 @@ impl Watcher {
             bridge_address,
             state,
             shutdown_token,
+            sequencer_address_prefix,
         } = self;
 
         let converter = EventToActionConvertConfig {
@@ -147,6 +152,7 @@ impl Watcher {
             rollup_asset_denom: rollup_asset_denom.clone(),
             bridge_address,
             asset_withdrawal_divisor,
+            sequencer_address_prefix,
         };
 
         let block_handler = tokio::task::spawn(watch_for_blocks(
@@ -483,6 +489,7 @@ struct EventToActionConvertConfig {
     rollup_asset_denom: Denom,
     bridge_address: Address,
     asset_withdrawal_divisor: u128,
+    sequencer_address_prefix: String,
 }
 
 impl EventToActionConvertConfig {
@@ -493,6 +500,7 @@ impl EventToActionConvertConfig {
             self.rollup_asset_denom.clone(),
             self.asset_withdrawal_divisor,
             self.bridge_address,
+            &self.sequencer_address_prefix,
         )
     }
 }
@@ -515,10 +523,7 @@ fn address_from_string(s: &str) -> Result<ethers::types::Address> {
 mod tests {
     use asset::default_native_asset;
     use astria_core::{
-        primitive::v1::{
-            Address,
-            ASTRIA_ADDRESS_PREFIX,
-        },
+        primitive::v1::Address,
         protocol::transaction::v1alpha1::Action,
     };
     use ethers::{
@@ -609,11 +614,7 @@ mod tests {
         let contract = AstriaWithdrawer::new(contract_address, signer.clone());
 
         let value: U256 = 999.into(); // 10^3 - 1
-        let recipient = Address::builder()
-            .array([1u8; 20])
-            .prefix(ASTRIA_ADDRESS_PREFIX)
-            .try_build()
-            .unwrap();
+        let recipient = crate::astria_address([1u8; 20]);
         let tx = contract
             .withdraw_to_sequencer(recipient.to_string())
             .value(value);
@@ -631,11 +632,7 @@ mod tests {
         let contract = AstriaWithdrawer::new(contract_address, signer.clone());
 
         let value = 1_000_000_000.into();
-        let recipient = Address::builder()
-            .array([1u8; 20])
-            .prefix(ASTRIA_ADDRESS_PREFIX)
-            .try_build()
-            .unwrap();
+        let recipient = crate::astria_address([1u8; 20]);
 
         let bridge_address = crate::astria_address([1u8; 20]);
         let denom = default_native_asset();
@@ -658,6 +655,7 @@ mod tests {
             state: Arc::new(State::new()),
             rollup_asset_denom: denom.clone(),
             bridge_address,
+            sequencer_address_prefix: crate::ASTRIA_ADDRESS_PREFIX.into(),
         }
         .build()
         .unwrap();
@@ -675,7 +673,7 @@ mod tests {
             transaction_hash: receipt.transaction_hash,
         };
         let expected_action =
-            event_to_action(expected_event, denom.id(), denom, 1, bridge_address).unwrap();
+            event_to_action(expected_event, denom.id(), denom, 1, bridge_address, crate::ASTRIA_ADDRESS_PREFIX).unwrap();
         let Action::BridgeUnlock(expected_action) = expected_action else {
             panic!("expected action to be BridgeUnlock, got {expected_action:?}");
         };
@@ -702,12 +700,7 @@ mod tests {
         let contract = AstriaWithdrawer::new(contract_address, signer.clone());
 
         let value = 1_000_000_000.into();
-        let recipient = Address::builder()
-            .array([1u8; 20])
-            .prefix(ASTRIA_ADDRESS_PREFIX)
-            .try_build()
-            .unwrap();
-
+        let recipient = crate::astria_address([1u8; 20]);
         let bridge_address = crate::astria_address([1u8; 20]);
         let denom = default_native_asset();
 
@@ -723,8 +716,15 @@ mod tests {
             block_number: receipt.block_number.unwrap(),
             transaction_hash: receipt.transaction_hash,
         };
-        let expected_action =
-            event_to_action(expected_event, denom.id(), denom.clone(), 1, bridge_address).unwrap();
+        let expected_action = event_to_action(
+            expected_event,
+            denom.id(),
+            denom.clone(),
+            1,
+            bridge_address,
+            crate::ASTRIA_ADDRESS_PREFIX,
+        )
+        .unwrap();
         let Action::BridgeUnlock(expected_action) = expected_action else {
             panic!("expected action to be BridgeUnlock, got {expected_action:?}");
         };
@@ -747,6 +747,7 @@ mod tests {
             state: Arc::new(State::new()),
             rollup_asset_denom: denom.clone(),
             bridge_address,
+            sequencer_address_prefix: crate::ASTRIA_ADDRESS_PREFIX.into(),
         }
         .build()
         .unwrap();
@@ -805,7 +806,6 @@ mod tests {
 
         let value = 1_000_000_000.into();
         let recipient = "somebech32address".to_string();
-
         let bridge_address = crate::astria_address([1u8; 20]);
         let denom = "transfer/channel-0/utia".parse::<Denom>().unwrap();
 
@@ -827,6 +827,7 @@ mod tests {
             state: Arc::new(State::new()),
             rollup_asset_denom: denom.clone(),
             bridge_address,
+            sequencer_address_prefix: crate::ASTRIA_ADDRESS_PREFIX.into(),
         }
         .build()
         .unwrap();
@@ -844,9 +845,15 @@ mod tests {
             block_number: receipt.block_number.unwrap(),
             transaction_hash: receipt.transaction_hash,
         };
-        let Action::Ics20Withdrawal(mut expected_action) =
-            event_to_action(expected_event, denom.id(), denom, 1, bridge_address).unwrap()
-        else {
+        let Action::Ics20Withdrawal(mut expected_action) = event_to_action(
+            expected_event,
+            denom.id(),
+            denom,
+            1,
+            bridge_address,
+            crate::ASTRIA_ADDRESS_PREFIX,
+        )
+        .unwrap() else {
             panic!("expected action to be Ics20Withdrawal");
         };
         expected_action.timeout_time = 0; // zero this for testing
@@ -924,12 +931,7 @@ mod tests {
         mint_tokens(&contract, 2_000_000_000.into(), wallet.address()).await;
 
         let value = 1_000_000_000.into();
-        let recipient = Address::builder()
-            .array([1u8; 20])
-            .prefix(ASTRIA_ADDRESS_PREFIX)
-            .try_build()
-            .unwrap();
-
+        let recipient = crate::astria_address([1u8; 20]);
         let denom = default_native_asset();
         let bridge_address = crate::astria_address([1u8; 20]);
 
@@ -951,6 +953,7 @@ mod tests {
             state: Arc::new(State::new()),
             rollup_asset_denom: denom.clone(),
             bridge_address,
+            sequencer_address_prefix: crate::ASTRIA_ADDRESS_PREFIX.into(),
         }
         .build()
         .unwrap();
@@ -967,8 +970,15 @@ mod tests {
             block_number: receipt.block_number.unwrap(),
             transaction_hash: receipt.transaction_hash,
         };
-        let expected_action =
-            event_to_action(expected_event, denom.id(), denom, 1, bridge_address).unwrap();
+        let expected_action = event_to_action(
+            expected_event,
+            denom.id(),
+            denom,
+            1,
+            bridge_address,
+            crate::ASTRIA_ADDRESS_PREFIX,
+        )
+        .unwrap();
         let Action::BridgeUnlock(expected_action) = expected_action else {
             panic!("expected action to be BridgeUnlock, got {expected_action:?}");
         };
@@ -1024,7 +1034,6 @@ mod tests {
 
         let value = 1_000_000_000.into();
         let recipient = "somebech32address".to_string();
-
         let denom = "transfer/channel-0/utia".parse::<Denom>().unwrap();
         let bridge_address = crate::astria_address([1u8; 20]);
 
@@ -1046,6 +1055,7 @@ mod tests {
             state: Arc::new(State::new()),
             rollup_asset_denom: denom.clone(),
             bridge_address,
+            sequencer_address_prefix: crate::ASTRIA_ADDRESS_PREFIX.into(),
         }
         .build()
         .unwrap();
@@ -1068,9 +1078,15 @@ mod tests {
             block_number: receipt.block_number.unwrap(),
             transaction_hash: receipt.transaction_hash,
         };
-        let Action::Ics20Withdrawal(mut expected_action) =
-            event_to_action(expected_event, denom.id(), denom, 1, bridge_address).unwrap()
-        else {
+        let Action::Ics20Withdrawal(mut expected_action) = event_to_action(
+            expected_event,
+            denom.id(),
+            denom,
+            1,
+            bridge_address,
+            crate::ASTRIA_ADDRESS_PREFIX,
+        )
+        .unwrap() else {
             panic!("expected action to be Ics20Withdrawal");
         };
         expected_action.timeout_time = 0; // zero this for testing

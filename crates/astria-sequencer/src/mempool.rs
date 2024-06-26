@@ -78,7 +78,7 @@ pub(crate) struct EnqueuedTransaction {
 
 impl EnqueuedTransaction {
     fn new(signed_tx: SignedTransaction) -> Self {
-        let address = crate::astria_address(signed_tx.verification_key().address_bytes());
+        let address = crate::address::base_prefixed(signed_tx.verification_key().address_bytes());
         Self {
             tx_hash: signed_tx.sha256_of_proto_encoding(),
             signed_tx: Arc::new(signed_tx),
@@ -405,10 +405,9 @@ fn dummy_signed_tx() -> (Arc<SignedTransaction>, Address) {
         let params = TransactionParams::builder()
             .nonce(0)
             .chain_id("dummy")
-            .try_build()
-            .expect("all params are valid");
+            .build();
         let signing_key = SigningKey::from([0; 32]);
-        let address = crate::astria_address(signing_key.verification_key().address_bytes());
+        let address = crate::address::base_prefixed(signing_key.verification_key().address_bytes());
         let unsigned_tx = UnsignedTransaction {
             actions,
             params,
@@ -499,17 +498,23 @@ mod test {
         let tx0 = EnqueuedTransaction {
             tx_hash: [0; 32],
             signed_tx: Arc::new(get_mock_tx(0)),
-            address: crate::astria_address(get_mock_tx(0).verification_key().address_bytes()),
+            address: crate::address::base_prefixed(
+                get_mock_tx(0).verification_key().address_bytes(),
+            ),
         };
         let other_tx0 = EnqueuedTransaction {
             tx_hash: [0; 32],
             signed_tx: Arc::new(get_mock_tx(1)),
-            address: crate::astria_address(get_mock_tx(1).verification_key().address_bytes()),
+            address: crate::address::base_prefixed(
+                get_mock_tx(1).verification_key().address_bytes(),
+            ),
         };
         let tx1 = EnqueuedTransaction {
             tx_hash: [1; 32],
             signed_tx: Arc::new(get_mock_tx(0)),
-            address: crate::astria_address(get_mock_tx(0).verification_key().address_bytes()),
+            address: crate::address::base_prefixed(
+                get_mock_tx(0).verification_key().address_bytes(),
+            ),
         };
         assert!(tx0 == other_tx0);
         assert!(tx0 != tx1);
@@ -611,8 +616,7 @@ mod test {
                 params: TransactionParams::builder()
                     .nonce(nonce)
                     .chain_id("test")
-                    .try_build()
-                    .unwrap(),
+                    .build(),
                 actions,
             }
             .into_signed(&other_signing_key)
@@ -625,7 +629,7 @@ mod test {
         let (alice_signing_key, alice_address) =
             crate::app::test_utils::get_alice_signing_key_and_address();
         let other_address =
-            crate::astria_address(other_signing_key.verification_key().address_bytes());
+            crate::address::base_prefixed(other_signing_key.verification_key().address_bytes());
 
         // Create a getter fn which will returns 1 for alice's current account nonce, and 101 for
         // the other signer's.
@@ -750,8 +754,7 @@ mod test {
                 params: TransactionParams::builder()
                     .nonce(nonce)
                     .chain_id("test")
-                    .try_build()
-                    .unwrap(),
+                    .build(),
                 actions,
             }
             .into_signed(&other_signing_key)
@@ -765,13 +768,13 @@ mod test {
         let alice_address = crate::app::test_utils::get_alice_signing_key_and_address().1;
         assert_eq!(mempool.pending_nonce(&alice_address).await.unwrap(), 1);
         let other_address =
-            crate::astria_address(other_signing_key.verification_key().address_bytes());
+            crate::address::base_prefixed(other_signing_key.verification_key().address_bytes());
         assert_eq!(mempool.pending_nonce(&other_address).await.unwrap(), 101);
 
         // Check the pending nonce for an address with no enqueued txs is `None`.
         assert!(
             mempool
-                .pending_nonce(&crate::astria_address([1; 20]))
+                .pending_nonce(&crate::address::base_prefixed([1; 20]))
                 .await
                 .is_none()
         );

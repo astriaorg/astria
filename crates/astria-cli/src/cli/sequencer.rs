@@ -1,13 +1,7 @@
-use std::str::FromStr;
-
 use astria_sequencer_client::Address;
 use clap::{
     Args,
     Subcommand,
-};
-use color_eyre::{
-    eyre,
-    eyre::Context,
 };
 
 /// Interact with a Sequencer node
@@ -17,6 +11,11 @@ pub enum Command {
     Account {
         #[command(subcommand)]
         command: AccountCommand,
+    },
+    /// Utilities for constructing and inspecting sequencer addresses
+    Address {
+        #[command(subcommand)]
+        command: AddressCommand,
     },
     /// Commands for interacting with Sequencer balances
     Balance {
@@ -48,6 +47,12 @@ pub enum AccountCommand {
     Create,
     Balance(BasicAccountArgs),
     Nonce(BasicAccountArgs),
+}
+
+#[derive(Debug, Subcommand)]
+pub enum AddressCommand {
+    /// Construct a bech32m Sequencer address given a public key
+    Bech32m(Bech32mAddressArgs),
 }
 
 #[derive(Debug, Subcommand)]
@@ -96,16 +101,29 @@ pub struct BasicAccountArgs {
     )]
     pub(crate) sequencer_url: String,
     /// The address of the Sequencer account
-    pub(crate) address: SequencerAddressArg,
+    pub(crate) address: Address,
+}
+
+#[derive(Args, Debug)]
+pub struct Bech32mAddressArgs {
+    /// The hex formatted byte part of the bech32m address
+    #[arg(long)]
+    pub(crate) bytes: String,
+    /// The human readable prefix (Hrp) of the bech32m adress
+    #[arg(long, default_value = "astria")]
+    pub(crate) prefix: String,
 }
 
 #[derive(Args, Debug)]
 pub struct TransferArgs {
     // The address of the Sequencer account to send amount to
-    pub(crate) to_address: SequencerAddressArg,
+    pub(crate) to_address: Address,
     // The amount being sent
     #[arg(long)]
     pub(crate) amount: u128,
+    /// The bech32m prefix that will be used for constructing addresses using the private key
+    #[arg(long, default_value = "astria")]
+    pub(crate) prefix: String,
     /// The private key of account being sent from
     #[arg(long, env = "SEQUENCER_PRIVATE_KEY")]
     // TODO: https://github.com/astriaorg/astria/issues/594
@@ -131,6 +149,9 @@ pub struct TransferArgs {
 
 #[derive(Args, Debug)]
 pub struct FeeAssetChangeArgs {
+    /// The bech32m prefix that will be used for constructing addresses using the private key
+    #[arg(long, default_value = "astria")]
+    pub(crate) prefix: String,
     // TODO: https://github.com/astriaorg/astria/issues/594
     // Don't use a plain text private, prefer wrapper like from
     // the secrecy crate with specialized `Debug` and `Drop` implementations
@@ -158,6 +179,9 @@ pub struct FeeAssetChangeArgs {
 
 #[derive(Args, Debug)]
 pub struct IbcRelayerChangeArgs {
+    /// The prefix to construct a bech32m address given the private key.
+    #[arg(long, default_value = "astria")]
+    pub(crate) prefix: String,
     // TODO: https://github.com/astriaorg/astria/issues/594
     // Don't use a plain text private, prefer wrapper like from
     // the secrecy crate with specialized `Debug` and `Drop` implementations
@@ -180,11 +204,14 @@ pub struct IbcRelayerChangeArgs {
     pub sequencer_chain_id: String,
     /// The address to add or remove as an IBC relayer
     #[arg(long)]
-    pub(crate) address: SequencerAddressArg,
+    pub(crate) address: Address,
 }
 
 #[derive(Args, Debug)]
 pub struct InitBridgeAccountArgs {
+    /// The bech32m prefix that will be used for constructing addresses using the private key
+    #[arg(long, default_value = "astria")]
+    pub(crate) prefix: String,
     // TODO: https://github.com/astriaorg/astria/issues/594
     // Don't use a plain text private, prefer wrapper like from
     // the secrecy crate with specialized `Debug` and `Drop` implementations
@@ -214,12 +241,15 @@ pub struct InitBridgeAccountArgs {
 #[derive(Args, Debug)]
 pub struct BridgeLockArgs {
     /// The address of the Sequencer account to lock amount to
-    pub(crate) to_address: SequencerAddressArg,
+    pub(crate) to_address: Address,
     /// The amount being locked
     #[arg(long)]
     pub(crate) amount: u128,
     #[arg(long)]
     pub(crate) destination_chain_address: String,
+    /// The prefix to construct a bech32m address given the private key.
+    #[arg(long, default_value = "astria")]
+    pub(crate) prefix: String,
     // TODO: https://github.com/astriaorg/astria/issues/594
     // Don't use a plain text private, prefer wrapper like from
     // the secrecy crate with specialized `Debug` and `Drop` implementations
@@ -240,23 +270,6 @@ pub struct BridgeLockArgs {
         default_value = crate::cli::DEFAULT_SEQUENCER_CHAIN_ID
     )]
     pub sequencer_chain_id: String,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct SequencerAddressArg(pub(crate) Address);
-
-impl FromStr for SequencerAddressArg {
-    type Err = eyre::Report;
-
-    /// Parse a string into a Sequencer Address
-    fn from_str(s: &str) -> eyre::Result<Self, Self::Err> {
-        let address_bytes = hex::decode(s).wrap_err(
-            "failed to decode address. address should be 20 bytes long. do not prefix with 0x",
-        )?;
-        let address =
-            crate::try_astria_address(&address_bytes).wrap_err("failed to create address")?;
-        Ok(Self(address))
-    }
 }
 
 #[derive(Debug, Subcommand)]
@@ -285,6 +298,9 @@ pub struct BlockHeightGetArgs {
 
 #[derive(Args, Debug)]
 pub struct SudoAddressChangeArgs {
+    /// The bech32m prefix that will be used for constructing addresses using the private key
+    #[arg(long, default_value = "astria")]
+    pub(crate) prefix: String,
     // TODO: https://github.com/astriaorg/astria/issues/594
     // Don't use a plain text private, prefer wrapper like from
     // the secrecy crate with specialized `Debug` and `Drop` implementations
@@ -307,7 +323,7 @@ pub struct SudoAddressChangeArgs {
     pub sequencer_chain_id: String,
     /// The new address to take over sudo privileges
     #[arg(long)]
-    pub(crate) address: SequencerAddressArg,
+    pub(crate) address: Address,
 }
 
 #[derive(Args, Debug)]
@@ -326,6 +342,9 @@ pub struct ValidatorUpdateArgs {
         default_value = crate::cli::DEFAULT_SEQUENCER_CHAIN_ID
     )]
     pub sequencer_chain_id: String,
+    /// The bech32m prefix that will be used for constructing addresses using the private key
+    #[arg(long, default_value = "astria")]
+    pub(crate) prefix: String,
     /// The private key of the sudo account authorizing change
     #[arg(long, env = "SEQUENCER_PRIVATE_KEY")]
     // TODO: https://github.com/astriaorg/astria/issues/594
@@ -339,29 +358,4 @@ pub struct ValidatorUpdateArgs {
     /// The power the validator is being updated to
     #[arg(long)]
     pub(crate) power: u32,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_sequencer_address_arg_from_str_valid() {
-        let hex_str = "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0";
-        let bytes = hex::decode(hex_str).unwrap();
-        let expected_address = crate::try_astria_address(&bytes).unwrap();
-
-        let sequencer_address_arg: SequencerAddressArg = hex_str.parse().unwrap();
-        assert_eq!(sequencer_address_arg, SequencerAddressArg(expected_address));
-    }
-
-    #[test]
-    fn test_sequencer_address_arg_from_str_invalid() {
-        let hex_str = "invalidhexstr";
-        let result: eyre::Result<SequencerAddressArg> = hex_str.parse();
-        assert!(result.is_err());
-
-        let error_message = format!("{:?}", result.unwrap_err());
-        assert!(error_message.contains("failed to decode address"));
-    }
 }
