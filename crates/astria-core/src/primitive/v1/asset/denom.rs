@@ -29,14 +29,6 @@ impl Denom {
     }
 
     #[must_use]
-    pub fn id(&self) -> [u8; 32] {
-        match self {
-            Self::TracePrefixed(trace) => trace.id(),
-            Self::IbcPrefixed(ibc) => ibc.get(),
-        }
-    }
-
-    #[must_use]
     pub fn as_ibc_prefixed(&self) -> Option<&IbcPrefixed> {
         match self {
             Denom::TracePrefixed(_) => None,
@@ -195,13 +187,6 @@ pub struct TracePrefixed {
 impl TracePrefixed {
     #[must_use]
     pub fn to_ibc_prefixed(&self) -> IbcPrefixed {
-        IbcPrefixed {
-            id: self.id(),
-        }
-    }
-
-    #[must_use]
-    pub fn id(&self) -> [u8; 32] {
         use sha2::Digest as _;
         let mut hasher = sha2::Sha256::new();
         for segment in &self.trace.inner {
@@ -211,7 +196,10 @@ impl TracePrefixed {
             hasher.update(b"/");
         }
         hasher.update(self.base_denom.as_bytes());
-        hasher.finalize().into()
+        let id = hasher.finalize().into();
+        IbcPrefixed {
+            id,
+        }
     }
 
     #[must_use]
@@ -527,11 +515,6 @@ impl IbcPrefixed {
         Self {
             id,
         }
-    }
-
-    #[must_use]
-    pub fn id(&self) -> [u8; 32] {
-        self.id
     }
 
     #[must_use]
