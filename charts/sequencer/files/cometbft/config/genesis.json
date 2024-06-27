@@ -27,7 +27,7 @@
       {{- range $index, $value := .Values.genesis.genesisAccounts }}
       {{- if $index }},{{- end }}
       {
-        "address": "{{  $value.address }}",
+        "address": "{{ $value.address }}",
         "balance": {{ toString $value.balance | replace "\"" "" }}
       }
       {{- end }}
