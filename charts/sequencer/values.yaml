@@ -28,7 +28,7 @@ genesis:
     base: "astria"
   authoritySudoAddress: ""
   nativeAssetBaseDenomination: nria
-  allowedFeeAssets:
+  allowedFeeAssets: []
     # - nria
   ibc:
     enabled: true
@@ -37,7 +37,7 @@ genesis:
     sudoAddress: ""
     relayerAddresses: []
   # Note large balances must be strings support templating with the u128 size account balances
-  genesisAccounts:
+  genesisAccounts: []
     # - address: 1c0c490f1b5528d8173c5de46d131160e4b2c0c3
     #   balance: "333333333333333333"
 
