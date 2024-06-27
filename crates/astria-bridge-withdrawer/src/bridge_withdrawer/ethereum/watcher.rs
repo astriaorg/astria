@@ -3,24 +3,28 @@ use std::{
     time::Duration,
 };
 
-use astria_core::primitive::v1::{
-    asset::{
-        self,
-        denom,
-        Denom,
+use astria_core::{
+    primitive::v1::{
+        asset::{
+            self,
+            denom,
+            Denom,
+        },
+        Address,
     },
-    Address,
+    protocol::transaction::v1alpha1::Action,
 };
 use astria_eyre::{
     eyre::{
         self,
+        bail,
         eyre,
         WrapErr as _,
     },
     Result,
 };
 use ethers::{
-    contract::LogMeta,
+    contract::EthEvent as _,
     core::types::Block,
     providers::{
         Middleware,
@@ -29,15 +33,17 @@ use ethers::{
         StreamExt as _,
         Ws,
     },
+    types::{
+        Filter,
+        Log,
+        H256,
+    },
     utils::hex,
 };
-use tokio::{
-    select,
-    sync::mpsc,
-};
+use tokio::select;
 use tokio_util::sync::CancellationToken;
 use tracing::{
-    error,
+    debug,
     info,
     warn,
 };
@@ -45,7 +51,11 @@ use tracing::{
 use crate::bridge_withdrawer::{
     batch::Batch,
     ethereum::{
-        astria_withdrawer_interface::IAstriaWithdrawer,
+        astria_withdrawer_interface::{
+            IAstriaWithdrawer,
+            Ics20WithdrawalFilter,
+            SequencerWithdrawalFilter,
+        },
         convert::{
             event_to_action,
             EventWithMetadata,
@@ -137,13 +147,7 @@ impl Watcher {
             sequencer_address_prefix,
         } = self;
 
-        let (event_tx, event_rx) = mpsc::channel(100);
-
-        let batcher = Batcher {
-            event_rx,
-            provider,
-            submitter_handle,
-            shutdown_token: shutdown_token.clone(),
+        let converter = EventToActionConvertConfig {
             fee_asset,
             rollup_asset_denom,
             bridge_address,
@@ -151,30 +155,19 @@ impl Watcher {
             sequencer_address_prefix,
         };
 
-        tokio::task::spawn(batcher.run());
-
-        let sequencer_withdrawal_event_handler =
-            tokio::task::spawn(watch_for_sequencer_withdrawal_events(
-                contract.clone(),
-                event_tx.clone(),
-                next_rollup_block_height,
-            ));
-        let ics20_withdrawal_event_handler = tokio::task::spawn(watch_for_ics20_withdrawal_events(
-            contract,
-            event_tx.clone(),
-            next_rollup_block_height,
-        ));
-
         state.set_watcher_ready();
 
         tokio::select! {
-            res = sequencer_withdrawal_event_handler => {
-                info!("sequencer withdrawal event handler exited");
-                res.context("sequencer withdrawal event handler exited")?
-            }
-            res = ics20_withdrawal_event_handler => {
-                info!("ics20 withdrawal event handler exited");
-                res.context("ics20 withdrawal event handler exited")?
+            res = watch_for_blocks(
+                provider,
+                contract.address(),
+                next_rollup_block_height,
+                converter,
+                submitter_handle,
+                shutdown_token.clone(),
+            ) => {
+                info!("block handler exited");
+                res.context("block handler exited")
             }
            () = shutdown_token.cancelled() => {
                 info!("watcher shutting down");
@@ -269,163 +262,248 @@ impl Watcher {
     }
 }
 
-async fn watch_for_sequencer_withdrawal_events(
-    contract: IAstriaWithdrawer<Provider<Ws>>,
-    event_tx: mpsc::Sender<(WithdrawalEvent, LogMeta)>,
-    from_block: u64,
-) -> Result<()> {
-    let events = contract
-        .sequencer_withdrawal_filter()
-        .from_block(from_block)
-        .address(contract.address().into());
-
-    let mut stream = events
-        .stream()
-        .await
-        .wrap_err("failed to subscribe to sequencer withdrawal events")?
-        .with_meta();
-
-    while let Some(item) = stream.next().await {
-        if let Ok((event, meta)) = item {
-            event_tx
-                .send((WithdrawalEvent::Sequencer(event), meta))
-                .await
-                .wrap_err("failed to send sequencer withdrawal event; receiver dropped?")?;
-        } else if item.is_err() {
-            item.wrap_err("failed to read from event stream; event stream closed?")?;
-        }
-    }
-
-    Ok(())
-}
-
-async fn watch_for_ics20_withdrawal_events(
-    contract: IAstriaWithdrawer<Provider<Ws>>,
-    event_tx: mpsc::Sender<(WithdrawalEvent, LogMeta)>,
-    from_block: u64,
-) -> Result<()> {
-    let events = contract
-        .ics_20_withdrawal_filter()
-        .from_block(from_block)
-        .address(contract.address().into());
-
-    let mut stream = events
-        .stream()
-        .await
-        .wrap_err("failed to subscribe to ics20 withdrawal events")?
-        .with_meta();
-
-    while let Some(item) = stream.next().await {
-        if let Ok((event, meta)) = item {
-            event_tx
-                .send((WithdrawalEvent::Ics20(event), meta))
-                .await
-                .wrap_err("failed to send ics20 withdrawal event; receiver dropped?")?;
-        } else if item.is_err() {
-            item.wrap_err("failed to read from event stream; event stream closed?")?;
-        }
-    }
-
-    Ok(())
-}
-
-struct Batcher {
-    event_rx: mpsc::Receiver<(WithdrawalEvent, LogMeta)>,
+async fn sync_from_next_rollup_block_height(
     provider: Arc<Provider<Ws>>,
+    contract_address: ethers::types::Address,
+    converter: &EventToActionConvertConfig,
+    submitter_handle: &submitter::Handle,
+    next_rollup_block_height_to_check: u64,
+    current_rollup_block_height: u64,
+) -> Result<()> {
+    if current_rollup_block_height < next_rollup_block_height_to_check {
+        return Ok(());
+    }
+
+    for i in next_rollup_block_height_to_check..=current_rollup_block_height {
+        let Some(block) = provider
+            .get_block(i)
+            .await
+            .wrap_err("failed to get block")?
+        else {
+            bail!("block with number {i} missing");
+        };
+
+        get_and_send_events_at_block(
+            provider.clone(),
+            contract_address,
+            block,
+            converter,
+            submitter_handle,
+        )
+        .await
+        .wrap_err("failed to get and send events at block")?;
+    }
+
+    info!("synced from {next_rollup_block_height_to_check} to {current_rollup_block_height}");
+    Ok(())
+}
+
+async fn watch_for_blocks(
+    provider: Arc<Provider<Ws>>,
+    contract_address: ethers::types::Address,
+    next_rollup_block_height: u64,
+    converter: EventToActionConvertConfig,
     submitter_handle: submitter::Handle,
     shutdown_token: CancellationToken,
-    fee_asset: asset::Denom,
+) -> Result<()> {
+    let mut block_rx = provider
+        .subscribe_blocks()
+        .await
+        .wrap_err("failed to subscribe to blocks")?;
+
+    // read latest block height from subscription;
+    // use this value for syncing from the next height to submit to current.
+    let Some(current_rollup_block) = block_rx.next().await else {
+        bail!("failed to get current rollup block from subscription")
+    };
+
+    let Some(current_rollup_block_height) = current_rollup_block.number else {
+        bail!("current rollup block missing block number")
+    };
+
+    // sync any blocks missing between `next_rollup_block_height` and the current latest
+    // (inclusive).
+    sync_from_next_rollup_block_height(
+        provider.clone(),
+        contract_address,
+        &converter,
+        &submitter_handle,
+        next_rollup_block_height,
+        current_rollup_block_height.as_u64(),
+    )
+    .await
+    .wrap_err("failed to sync from next rollup block height")?;
+
+    loop {
+        select! {
+            () = shutdown_token.cancelled() => {
+                info!("block watcher shutting down");
+                return Ok(());
+            }
+            block = block_rx.next() => {
+                if let Some(block) = block {
+                    get_and_send_events_at_block(
+                        provider.clone(),
+                        contract_address,
+                        block,
+                        &converter,
+                        &submitter_handle,
+                    )
+                    .await
+                    .wrap_err("failed to get and send events at block")?;
+                } else {
+                    bail!("block subscription ended")
+                }
+            }
+        }
+    }
+}
+
+async fn get_and_send_events_at_block(
+    provider: Arc<Provider<Ws>>,
+    contract_address: ethers::types::Address,
+    block: Block<H256>,
+    converter: &EventToActionConvertConfig,
+    submitter_handle: &submitter::Handle,
+) -> Result<()> {
+    let Some(block_hash) = block.hash else {
+        bail!("block hash missing; skipping")
+    };
+
+    let Some(block_number) = block.number else {
+        bail!("block number missing; skipping")
+    };
+
+    let sequencer_withdrawal_events =
+        get_sequencer_withdrawal_events(provider.clone(), contract_address, block_hash)
+            .await
+            .wrap_err("failed to get sequencer withdrawal events")?;
+    let ics20_withdrawal_events =
+        get_ics20_withdrawal_events(provider.clone(), contract_address, block_hash)
+            .await
+            .wrap_err("failed to get ics20 withdrawal events")?;
+    let events = vec![sequencer_withdrawal_events, ics20_withdrawal_events]
+        .into_iter()
+        .flatten();
+    let mut batch = Batch {
+        actions: Vec::new(),
+        rollup_height: block_number.as_u64(),
+    };
+    for (event, log) in events {
+        let Some(transaction_hash) = log.transaction_hash else {
+            warn!("transaction hash missing; skipping");
+            continue;
+        };
+
+        let event_with_metadata = EventWithMetadata {
+            event,
+            block_number,
+            transaction_hash,
+        };
+        let action = converter
+            .convert(event_with_metadata)
+            .wrap_err("failed to convert event to action")?;
+        batch.actions.push(action);
+    }
+
+    if batch.actions.is_empty() {
+        debug!("no actions to send at block {block_number}");
+    } else {
+        let actions_len = batch.actions.len();
+        submitter_handle
+            .send_batch(batch)
+            .await
+            .wrap_err("failed to send batched events; receiver dropped?")?;
+        debug!(
+            "sent batch with {} actions at block {block_number}",
+            actions_len
+        );
+    }
+
+    Ok(())
+}
+
+async fn get_sequencer_withdrawal_events(
+    provider: Arc<Provider<Ws>>,
+    contract_address: ethers::types::Address,
+    block_hash: H256,
+) -> Result<Vec<(WithdrawalEvent, Log)>> {
+    let sequencer_withdrawal_event_sig = SequencerWithdrawalFilter::signature();
+    let sequencer_withdrawal_filter = Filter::new()
+        .at_block_hash(block_hash)
+        .address(contract_address)
+        .topic0(sequencer_withdrawal_event_sig);
+
+    let logs = provider
+        .get_logs(&sequencer_withdrawal_filter)
+        .await
+        .wrap_err("failed to get sequencer withdrawal events")?;
+
+    let events = logs
+        .into_iter()
+        .map(|log| {
+            let raw_log = ethers::abi::RawLog {
+                topics: log.topics.clone(),
+                data: log.data.to_vec(),
+            };
+            let event = SequencerWithdrawalFilter::decode_log(&raw_log)?;
+            Ok((WithdrawalEvent::Sequencer(event), log))
+        })
+        .collect::<Result<Vec<_>>>()?;
+
+    Ok(events)
+}
+
+async fn get_ics20_withdrawal_events(
+    provider: Arc<Provider<Ws>>,
+    contract_address: ethers::types::Address,
+    block_hash: H256,
+) -> Result<Vec<(WithdrawalEvent, Log)>> {
+    let ics20_withdrawal_event_sig = Ics20WithdrawalFilter::signature();
+    let ics20_withdrawal_filter = Filter::new()
+        .at_block_hash(block_hash)
+        .address(contract_address)
+        .topic0(ics20_withdrawal_event_sig);
+
+    let logs = provider
+        .get_logs(&ics20_withdrawal_filter)
+        .await
+        .wrap_err("failed to get ics20 withdrawal events")?;
+
+    let events = logs
+        .into_iter()
+        .map(|log| {
+            let raw_log = ethers::abi::RawLog {
+                topics: log.topics.clone(),
+                data: log.data.to_vec(),
+            };
+            let event = Ics20WithdrawalFilter::decode_log(&raw_log)?;
+            Ok((WithdrawalEvent::Ics20(event), log))
+        })
+        .collect::<Result<Vec<_>>>()?;
+
+    Ok(events)
+}
+
+#[derive(Clone)]
+struct EventToActionConvertConfig {
+    fee_asset: Denom,
     rollup_asset_denom: Denom,
     bridge_address: Address,
     asset_withdrawal_divisor: u128,
     sequencer_address_prefix: String,
 }
 
-impl Batcher {
-    pub(crate) async fn run(mut self) -> Result<()> {
-        let mut block_rx = self
-            .provider
-            .subscribe_blocks()
-            .await
-            .wrap_err("failed to subscribe to blocks")?;
-
-        let mut curr_batch = Batch {
-            actions: Vec::new(),
-            rollup_height: 0,
-        };
-
-        loop {
-            select! {
-                () = self.shutdown_token.cancelled() => {
-                    info!("batcher shutting down");
-                    break;
-                }
-                block = block_rx.next() => {
-                    if let Some(Block { number, .. }) = block {
-                        let Some(block_number) = number else {
-                            // don't think this should happen
-                            warn!("block number missing; skipping");
-                            continue;
-                        };
-
-                        if block_number.as_u64() > curr_batch.rollup_height {
-                            if !curr_batch.actions.is_empty() {
-                                self.submitter_handle.send_batch(curr_batch)
-                                    .await
-                                    .wrap_err("failed to send batched events; receiver dropped?")?;
-                            }
-
-                            curr_batch = Batch {
-                                actions: Vec::new(),
-                                rollup_height: block_number.as_u64(),
-                            };
-                        }
-                    } else {
-                        error!("block stream closed; shutting down batcher");
-                        break;
-                    }
-                }
-                item = self.event_rx.recv() => {
-                    if let Some((event, meta)) = item {
-                        let event_with_metadata = EventWithMetadata {
-                            event,
-                            block_number: meta.block_number,
-                            transaction_hash: meta.transaction_hash,
-                        };
-                        let action = event_to_action(
-                            event_with_metadata,
-                            self.fee_asset.clone(),
-                            self.rollup_asset_denom.clone(),
-                            self.asset_withdrawal_divisor,
-                            self.bridge_address,
-                            &self.sequencer_address_prefix,
-                        ).wrap_err("failed to convert event to action")?;
-
-                        if meta.block_number.as_u64() == curr_batch.rollup_height {
-                            // block number was the same; add event to current batch
-                            curr_batch.actions.push(action);
-                        } else {
-                            // block number increased; send current batch and start a new one
-                            if !curr_batch.actions.is_empty() {
-                                self.submitter_handle.send_batch(curr_batch)
-                                    .await
-                                    .wrap_err("failed to send batched events; receiver dropped?")?;
-                            }
-
-                            curr_batch = Batch {
-                                actions: vec![action],
-                                rollup_height: meta.block_number.as_u64(),
-                            };
-                        }
-                    } else {
-                        error!("event receiver dropped; shutting down batcher");
-                        break;
-                    }
-                }
-            }
-        }
-
-        Ok(())
+impl EventToActionConvertConfig {
+    fn convert(&self, event: EventWithMetadata) -> Result<Action> {
+        event_to_action(
+            event,
+            self.fee_asset.clone(),
+            self.rollup_asset_denom.clone(),
+            self.asset_withdrawal_divisor,
+            self.bridge_address,
+            &self.sequencer_address_prefix,
+        )
     }
 }
 
@@ -462,7 +540,11 @@ mod tests {
         },
         utils::hex,
     };
-    use tokio::sync::oneshot;
+    use tokio::sync::{
+        mpsc,
+        mpsc::error::TryRecvError::Empty,
+        oneshot,
+    };
 
     use super::*;
     use crate::bridge_withdrawer::ethereum::{
@@ -559,6 +641,35 @@ mod tests {
 
         let value = 1_000_000_000.into();
         let recipient = crate::astria_address([1u8; 20]);
+
+        let bridge_address = crate::astria_address([1u8; 20]);
+        let denom = default_native_asset();
+
+        let (batch_tx, mut batch_rx) = mpsc::channel(100);
+        let (startup_tx, startup_rx) = oneshot::channel();
+        let submitter_handle = submitter::Handle::new(startup_rx, batch_tx);
+        startup_tx
+            .send(SequencerStartupInfo {
+                fee_asset: "nria".parse().unwrap(),
+                next_batch_rollup_height: 1,
+            })
+            .unwrap();
+
+        let watcher = Builder {
+            ethereum_contract_address: hex::encode(contract_address),
+            ethereum_rpc_endpoint: anvil.ws_endpoint(),
+            submitter_handle,
+            shutdown_token: CancellationToken::new(),
+            state: Arc::new(State::new()),
+            rollup_asset_denom: denom.clone(),
+            bridge_address,
+            sequencer_address_prefix: crate::ASTRIA_ADDRESS_PREFIX.into(),
+        }
+        .build()
+        .unwrap();
+
+        tokio::task::spawn(watcher.run());
+
         let receipt = send_sequencer_withdraw_transaction(&contract, value, recipient).await;
         let expected_event = EventWithMetadata {
             event: WithdrawalEvent::Sequencer(SequencerWithdrawalFilter {
@@ -569,8 +680,57 @@ mod tests {
             block_number: receipt.block_number.unwrap(),
             transaction_hash: receipt.transaction_hash,
         };
+        let expected_action = event_to_action(
+            expected_event,
+            denom.clone(),
+            denom,
+            1,
+            bridge_address,
+            crate::ASTRIA_ADDRESS_PREFIX,
+        )
+        .unwrap();
+        let Action::BridgeUnlock(expected_action) = expected_action else {
+            panic!("expected action to be BridgeUnlock, got {expected_action:?}");
+        };
+
+        let batch = batch_rx.recv().await.unwrap();
+        assert_eq!(batch.actions.len(), 1);
+        let Action::BridgeUnlock(action) = &batch.actions[0] else {
+            panic!(
+                "expected action to be BridgeUnlock, got {:?}",
+                batch.actions[0]
+            );
+        };
+        assert_eq!(action, &expected_action);
+        assert_eq!(batch_rx.try_recv().unwrap_err(), Empty);
+    }
+
+    #[tokio::test]
+    #[ignore = "requires foundry to be installed"]
+    async fn watcher_can_watch_sequencer_withdrawals_astria_withdrawer_sync_from_next_rollup_height()
+     {
+        let (contract_address, provider, wallet, anvil) =
+            ConfigureAstriaWithdrawerDeployer::default().deploy().await;
+        let signer = Arc::new(SignerMiddleware::new(provider, wallet.clone()));
+        let contract = AstriaWithdrawer::new(contract_address, signer.clone());
+
+        let value = 1_000_000_000.into();
+        let recipient = crate::astria_address([1u8; 20]);
         let bridge_address = crate::astria_address([1u8; 20]);
         let denom = default_native_asset();
+
+        // send tx before watcher starts
+        let receipt = send_sequencer_withdraw_transaction(&contract, value, recipient).await;
+
+        let expected_event = EventWithMetadata {
+            event: WithdrawalEvent::Sequencer(SequencerWithdrawalFilter {
+                sender: wallet.address(),
+                destination_chain_address: recipient.to_string(),
+                amount: value,
+            }),
+            block_number: receipt.block_number.unwrap(),
+            transaction_hash: receipt.transaction_hash,
+        };
         let expected_action = event_to_action(
             expected_event,
             denom.clone(),
@@ -590,7 +750,7 @@ mod tests {
         startup_tx
             .send(SequencerStartupInfo {
                 fee_asset: denom.clone(),
-                next_batch_rollup_height: 0,
+                next_batch_rollup_height: 1,
             })
             .unwrap();
 
@@ -600,7 +760,7 @@ mod tests {
             submitter_handle,
             shutdown_token: CancellationToken::new(),
             state: Arc::new(State::new()),
-            rollup_asset_denom: denom,
+            rollup_asset_denom: denom.clone(),
             bridge_address,
             sequencer_address_prefix: crate::ASTRIA_ADDRESS_PREFIX.into(),
         }
@@ -609,7 +769,7 @@ mod tests {
 
         tokio::task::spawn(watcher.run());
 
-        // make another tx to trigger anvil to make another block
+        // send another tx to trigger a new block
         send_sequencer_withdraw_transaction(&contract, value, recipient).await;
 
         let batch = batch_rx.recv().await.unwrap();
@@ -621,6 +781,10 @@ mod tests {
             );
         };
         assert_eq!(action, &expected_action);
+
+        // should receive a second batch containing the second tx
+        let batch = batch_rx.recv().await.unwrap();
+        assert_eq!(batch.actions.len(), 1);
     }
 
     async fn send_ics20_withdraw_transaction<M: Middleware>(
@@ -657,31 +821,8 @@ mod tests {
 
         let value = 1_000_000_000.into();
         let recipient = "somebech32address".to_string();
-        let receipt = send_ics20_withdraw_transaction(&contract, value, recipient.clone()).await;
-        let expected_event = EventWithMetadata {
-            event: WithdrawalEvent::Ics20(Ics20WithdrawalFilter {
-                sender: wallet.address(),
-                destination_chain_address: recipient.clone(),
-                amount: value,
-                memo: "nootwashere".to_string(),
-            }),
-            block_number: receipt.block_number.unwrap(),
-            transaction_hash: receipt.transaction_hash,
-        };
         let bridge_address = crate::astria_address([1u8; 20]);
         let denom = "transfer/channel-0/utia".parse::<Denom>().unwrap();
-        let Action::Ics20Withdrawal(mut expected_action) = event_to_action(
-            expected_event,
-            denom.clone(),
-            denom.clone(),
-            1,
-            bridge_address,
-            crate::ASTRIA_ADDRESS_PREFIX,
-        )
-        .unwrap() else {
-            panic!("expected action to be Ics20Withdrawal");
-        };
-        expected_action.timeout_time = 0; // zero this for testing
 
         let (batch_tx, mut batch_rx) = mpsc::channel(100);
         let (startup_tx, startup_rx) = oneshot::channel();
@@ -689,7 +830,7 @@ mod tests {
         startup_tx
             .send(SequencerStartupInfo {
                 fee_asset: denom.clone(),
-                next_batch_rollup_height: 0,
+                next_batch_rollup_height: 1,
             })
             .unwrap();
 
@@ -708,8 +849,29 @@ mod tests {
 
         tokio::task::spawn(watcher.run());
 
-        // make another tx to trigger anvil to make another block
-        send_ics20_withdraw_transaction(&contract, value, recipient).await;
+        let receipt = send_ics20_withdraw_transaction(&contract, value, recipient.clone()).await;
+        let expected_event = EventWithMetadata {
+            event: WithdrawalEvent::Ics20(Ics20WithdrawalFilter {
+                sender: wallet.address(),
+                destination_chain_address: recipient.clone(),
+                amount: value,
+                memo: "nootwashere".to_string(),
+            }),
+            block_number: receipt.block_number.unwrap(),
+            transaction_hash: receipt.transaction_hash,
+        };
+        let Action::Ics20Withdrawal(mut expected_action) = event_to_action(
+            expected_event,
+            denom.clone(),
+            denom.clone(),
+            1,
+            bridge_address,
+            crate::ASTRIA_ADDRESS_PREFIX,
+        )
+        .unwrap() else {
+            panic!("expected action to be Ics20Withdrawal");
+        };
+        expected_action.timeout_time = 0; // zero this for testing
 
         let mut batch = batch_rx.recv().await.unwrap();
         assert_eq!(batch.actions.len(), 1);
@@ -721,6 +883,7 @@ mod tests {
         };
         action.timeout_time = 0; // zero this for testing
         assert_eq!(action, &expected_action);
+        assert_eq!(batch_rx.try_recv().unwrap_err(), Empty);
     }
 
     async fn mint_tokens<M: Middleware>(
@@ -784,38 +947,16 @@ mod tests {
 
         let value = 1_000_000_000.into();
         let recipient = crate::astria_address([1u8; 20]);
-        let receipt = send_sequencer_withdraw_transaction_erc20(&contract, value, recipient).await;
-        let expected_event = EventWithMetadata {
-            event: WithdrawalEvent::Sequencer(SequencerWithdrawalFilter {
-                sender: wallet.address(),
-                destination_chain_address: recipient.to_string(),
-                amount: value,
-            }),
-            block_number: receipt.block_number.unwrap(),
-            transaction_hash: receipt.transaction_hash,
-        };
         let denom = default_native_asset();
         let bridge_address = crate::astria_address([1u8; 20]);
-        let expected_action = event_to_action(
-            expected_event,
-            denom.clone(),
-            denom.clone(),
-            1,
-            bridge_address,
-            crate::ASTRIA_ADDRESS_PREFIX,
-        )
-        .unwrap();
-        let Action::BridgeUnlock(expected_action) = expected_action else {
-            panic!("expected action to be BridgeUnlock, got {expected_action:?}");
-        };
 
         let (batch_tx, mut batch_rx) = mpsc::channel(100);
         let (startup_tx, startup_rx) = oneshot::channel();
         let submitter_handle = submitter::Handle::new(startup_rx, batch_tx);
         startup_tx
             .send(SequencerStartupInfo {
-                fee_asset: denom.clone(),
-                next_batch_rollup_height: 0,
+                fee_asset: "nria".parse().unwrap(),
+                next_batch_rollup_height: 1,
             })
             .unwrap();
 
@@ -834,8 +975,28 @@ mod tests {
 
         tokio::task::spawn(watcher.run());
 
-        // make another tx to trigger anvil to make another block
-        send_sequencer_withdraw_transaction_erc20(&contract, value, recipient).await;
+        let receipt = send_sequencer_withdraw_transaction_erc20(&contract, value, recipient).await;
+        let expected_event = EventWithMetadata {
+            event: WithdrawalEvent::Sequencer(SequencerWithdrawalFilter {
+                sender: wallet.address(),
+                destination_chain_address: recipient.to_string(),
+                amount: value,
+            }),
+            block_number: receipt.block_number.unwrap(),
+            transaction_hash: receipt.transaction_hash,
+        };
+        let expected_action = event_to_action(
+            expected_event,
+            denom.clone(),
+            denom.clone(),
+            1,
+            bridge_address,
+            crate::ASTRIA_ADDRESS_PREFIX,
+        )
+        .unwrap();
+        let Action::BridgeUnlock(expected_action) = expected_action else {
+            panic!("expected action to be BridgeUnlock, got {expected_action:?}");
+        };
 
         let batch = batch_rx.recv().await.unwrap();
         assert_eq!(batch.actions.len(), 1);
@@ -846,6 +1007,7 @@ mod tests {
             );
         };
         assert_eq!(action, &expected_action);
+        assert_eq!(batch_rx.try_recv().unwrap_err(), Empty);
     }
 
     async fn send_ics20_withdraw_transaction_astria_bridgeable_erc20<M: Middleware>(
@@ -887,6 +1049,34 @@ mod tests {
 
         let value = 1_000_000_000.into();
         let recipient = "somebech32address".to_string();
+        let denom = "transfer/channel-0/utia".parse::<Denom>().unwrap();
+        let bridge_address = crate::astria_address([1u8; 20]);
+
+        let (batch_tx, mut batch_rx) = mpsc::channel(100);
+        let (startup_tx, startup_rx) = oneshot::channel();
+        let submitter_handle = submitter::Handle::new(startup_rx, batch_tx);
+        startup_tx
+            .send(SequencerStartupInfo {
+                fee_asset: "transfer/channel-0/utia".parse().unwrap(),
+                next_batch_rollup_height: 1,
+            })
+            .unwrap();
+
+        let watcher = Builder {
+            ethereum_contract_address: hex::encode(contract_address),
+            ethereum_rpc_endpoint: anvil.ws_endpoint(),
+            submitter_handle,
+            shutdown_token: CancellationToken::new(),
+            state: Arc::new(State::new()),
+            rollup_asset_denom: denom.clone(),
+            bridge_address,
+            sequencer_address_prefix: crate::ASTRIA_ADDRESS_PREFIX.into(),
+        }
+        .build()
+        .unwrap();
+
+        tokio::task::spawn(watcher.run());
+
         let receipt = send_ics20_withdraw_transaction_astria_bridgeable_erc20(
             &contract,
             value,
@@ -903,8 +1093,6 @@ mod tests {
             block_number: receipt.block_number.unwrap(),
             transaction_hash: receipt.transaction_hash,
         };
-        let denom = "transfer/channel-0/utia".parse::<Denom>().unwrap();
-        let bridge_address = crate::astria_address([1u8; 20]);
         let Action::Ics20Withdrawal(mut expected_action) = event_to_action(
             expected_event,
             denom.clone(),
@@ -918,34 +1106,6 @@ mod tests {
         };
         expected_action.timeout_time = 0; // zero this for testing
 
-        let (batch_tx, mut batch_rx) = mpsc::channel(100);
-        let (startup_tx, startup_rx) = oneshot::channel();
-        let submitter_handle = submitter::Handle::new(startup_rx, batch_tx);
-        startup_tx
-            .send(SequencerStartupInfo {
-                fee_asset: "transfer/channel-0/utia".parse().unwrap(),
-                next_batch_rollup_height: 0,
-            })
-            .unwrap();
-
-        let watcher = Builder {
-            ethereum_contract_address: hex::encode(contract_address),
-            ethereum_rpc_endpoint: anvil.ws_endpoint(),
-            submitter_handle,
-            shutdown_token: CancellationToken::new(),
-            state: Arc::new(State::new()),
-            rollup_asset_denom: denom,
-            bridge_address,
-            sequencer_address_prefix: crate::ASTRIA_ADDRESS_PREFIX.into(),
-        }
-        .build()
-        .unwrap();
-
-        tokio::task::spawn(watcher.run());
-
-        // make another tx to trigger anvil to make another block
-        send_ics20_withdraw_transaction_astria_bridgeable_erc20(&contract, value, recipient).await;
-
         let mut batch = batch_rx.recv().await.unwrap();
         assert_eq!(batch.actions.len(), 1);
         let Action::Ics20Withdrawal(ref mut action) = batch.actions[0] else {
@@ -956,5 +1116,6 @@ mod tests {
         };
         action.timeout_time = 0; // zero this for testing
         assert_eq!(action, &expected_action);
+        assert_eq!(batch_rx.try_recv().unwrap_err(), Empty);
     }
 }
