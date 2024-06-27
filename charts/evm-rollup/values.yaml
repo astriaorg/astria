@@ -10,7 +10,7 @@ images:
   geth:
     repo: ghcr.io/astriaorg/astria-geth
     tag: 0.11.0
-    devTag: latest
+    devTag: pr-30
   conductor:
     repo: ghcr.io/astriaorg/conductor
     tag: "0.17.0"
@@ -78,6 +78,9 @@ config:
       extraDataOverride: ""
       # If set to true the genesis block will contain extra data
       overrideGenesisExtraData: true
+      # When using an erc20 canonical bridge, the address from which tokens will
+      # be sent via the bridge contract
+      bridgeSenderAddress: "0x0000000000000000000000000000000000000000"
       # Configure the sequencer bridge addresses and allowed assets if using
       # the astria canonical bridge. Recommend removing alloc values if so.
       bridgeAddresses: []
