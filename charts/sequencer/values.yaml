@@ -18,7 +18,7 @@ images:
   sequencer:
     repo: ghcr.io/astriaorg/sequencer
     tag: "0.13.0"
-    devTag: "sha-4b9367e"
+    devTag: latest
 
 moniker: "node"
 genesis:
