@@ -5,6 +5,32 @@ global:
 
 config:
   moniker: node0
+  sequencer:
+    addressPrefixes:
+      base: "astria"
+    authoritySudoAddress: astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm
+    nativeAssetBaseDenomination: nria
+    allowedFeeAssets:
+      - nria
+    ibc:
+      enabled: true
+      inboundEnabled: true
+      outboundEnabled: true
+      sudoAddress: astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm
+      relayerAddresses:
+        - astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm
+        - astria1xnlvg0rle2u6auane79t4p27g8hxnj36ja960z
+    # Note large balances must be strings support templating with the u128 size account balances
+    genesisAccounts:
+      - address: astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm
+        balance: "333333333333333333"
+      - address: astria1xnlvg0rle2u6auane79t4p27g8hxnj36ja960z
+        balance: "333333333333333333"
+      - address: astria1vpcfutferpjtwv457r63uwr6hdm8gwr3pxt5ny
+        balance: "333333333333333333"
+        # NOTE - the following address matches the privKey that funds the sequencer-faucet
+      - address: astria1qrt4kfc9ggyy548u7rg0d64sgq5c952kzk9tg9
+        balance: "333333333333333333"
 
   # Values for CometBFT node configuration
   cometBFT:

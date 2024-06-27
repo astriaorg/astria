@@ -67,3 +67,7 @@ Selector labels
 app: {{ include "sequencer.name" . }}
 name: {{ .Values.config.moniker }}-sequencer-metrics
 {{- end }}
+
+{{/* New sequencer address */}}
+{{- define "sequencer.address"}}{ "bech32m": "{{ . }}" }
+{{- end }}

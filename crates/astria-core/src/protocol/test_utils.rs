@@ -109,8 +109,7 @@ impl ConfigureSequencerBlock {
                 params: TransactionParams::builder()
                     .nonce(1)
                     .chain_id(chain_id.clone())
-                    .try_build()
-                    .unwrap(),
+                    .build(),
             };
             vec![unsigned_transaction.into_signed(&signing_key)]
         };

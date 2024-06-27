@@ -6,17 +6,10 @@ impl serde::Serialize for Address {
     {
         use serde::ser::SerializeStruct;
         let mut len = 0;
-        if !self.inner.is_empty() {
-            len += 1;
-        }
         if !self.bech32m.is_empty() {
             len += 1;
         }
         let mut struct_ser = serializer.serialize_struct("astria.primitive.v1.Address", len)?;
-        if !self.inner.is_empty() {
-            #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("inner", pbjson::private::base64::encode(&self.inner).as_str())?;
-        }
         if !self.bech32m.is_empty() {
             struct_ser.serialize_field("bech32m", &self.bech32m)?;
         }
@@ -30,13 +23,11 @@ impl<'de> serde::Deserialize<'de> for Address {
         D: serde::Deserializer<'de>,
     {
         const FIELDS: &[&str] = &[
-            "inner",
             "bech32m",
         ];
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
-            Inner,
             Bech32m,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
@@ -59,7 +50,6 @@ impl<'de> serde::Deserialize<'de> for Address {
                         E: serde::de::Error,
                     {
                         match value {
-                            "inner" => Ok(GeneratedField::Inner),
                             "bech32m" => Ok(GeneratedField::Bech32m),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
@@ -80,18 +70,9 @@ impl<'de> serde::Deserialize<'de> for Address {
                 where
                     V: serde::de::MapAccess<'de>,
             {
-                let mut inner__ = None;
                 let mut bech32m__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
-                        GeneratedField::Inner => {
-                            if inner__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("inner"));
-                            }
-                            inner__ = 
-                                Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
-                            ;
-                        }
                         GeneratedField::Bech32m => {
                             if bech32m__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("bech32m"));
@@ -101,7 +82,6 @@ impl<'de> serde::Deserialize<'de> for Address {
                     }
                 }
                 Ok(Address {
-                    inner: inner__.unwrap_or_default(),
                     bech32m: bech32m__.unwrap_or_default(),
                 })
             }

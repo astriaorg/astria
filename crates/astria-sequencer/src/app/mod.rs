@@ -67,6 +67,7 @@ use crate::{
             StateWriteExt as _,
         },
     },
+    address::StateWriteExt as _,
     api_state_ext::StateWriteExt as _,
     authority::{
         component::{
@@ -214,6 +215,10 @@ impl App {
             .state
             .try_begin_transaction()
             .expect("state Arc should not be referenced elsewhere");
+
+        crate::address::initialize_base_prefix(&genesis_state.address_prefixes.base)
+            .context("failed setting global base prefix")?;
+        state_tx.put_base_prefix(&genesis_state.address_prefixes.base);
 
         crate::asset::initialize_native_asset(&genesis_state.native_asset_base_denomination);
         state_tx.put_native_asset_denom(&genesis_state.native_asset_base_denomination);
@@ -967,7 +972,7 @@ impl App {
     /// Executes a signed transaction.
     #[instrument(name = "App::execute_transaction", skip_all, fields(
         signed_transaction_hash = %telemetry::display::base64(&signed_tx.sha256_of_proto_encoding()),
-        sender = %signed_tx.address(),
+        sender_address_bytes = %telemetry::display::base64(&signed_tx.address_bytes()),
     ))]
     pub(crate) async fn execute_transaction(
         &mut self,

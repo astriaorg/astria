@@ -74,6 +74,12 @@ impl ActionHandler for tendermint::validator::Update {
 
 #[async_trait::async_trait]
 impl ActionHandler for SudoAddressChangeAction {
+    async fn check_stateless(&self) -> Result<()> {
+        crate::address::ensure_base_prefix(&self.new_address)
+            .context("desired new sudo address has an unsupported prefix")?;
+        Ok(())
+    }
+
     /// check that the signer of the transaction is the current sudo address,
     /// as only that address can change the sudo address
     async fn check_stateful<S: StateReadExt + 'static>(
@@ -194,7 +200,7 @@ mod test {
         };
 
         fee_change
-            .execute(&mut state, crate::astria_address([1; 20]))
+            .execute(&mut state, crate::address::base_prefixed([1; 20]))
             .await
             .unwrap();
         assert_eq!(state.get_transfer_base_fee().await.unwrap(), 10);
@@ -208,7 +214,7 @@ mod test {
         };
 
         fee_change
-            .execute(&mut state, crate::astria_address([1; 20]))
+            .execute(&mut state, crate::address::base_prefixed([1; 20]))
             .await
             .unwrap();
         assert_eq!(state.get_sequence_action_base_fee().await.unwrap(), 3);
@@ -222,7 +228,7 @@ mod test {
         };
 
         fee_change
-            .execute(&mut state, crate::astria_address([1; 20]))
+            .execute(&mut state, crate::address::base_prefixed([1; 20]))
             .await
             .unwrap();
         assert_eq!(
@@ -242,7 +248,7 @@ mod test {
         };
 
         fee_change
-            .execute(&mut state, crate::astria_address([1; 20]))
+            .execute(&mut state, crate::address::base_prefixed([1; 20]))
             .await
             .unwrap();
         assert_eq!(state.get_init_bridge_account_base_fee().await.unwrap(), 2);
@@ -256,7 +262,7 @@ mod test {
         };
 
         fee_change
-            .execute(&mut state, crate::astria_address([1; 20]))
+            .execute(&mut state, crate::address::base_prefixed([1; 20]))
             .await
             .unwrap();
         assert_eq!(
@@ -275,7 +281,7 @@ mod test {
         };
 
         fee_change
-            .execute(&mut state, crate::astria_address([1; 20]))
+            .execute(&mut state, crate::address::base_prefixed([1; 20]))
             .await
             .unwrap();
         assert_eq!(state.get_ics20_withdrawal_base_fee().await.unwrap(), 2);

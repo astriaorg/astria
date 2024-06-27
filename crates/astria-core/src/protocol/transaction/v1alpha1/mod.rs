@@ -11,7 +11,7 @@ use crate::{
         SigningKey,
         VerificationKey,
     },
-    primitive::v1::Address,
+    primitive::v1::ADDRESS_LEN,
 };
 
 pub mod action;
@@ -79,11 +79,8 @@ pub struct SignedTransaction {
 }
 
 impl SignedTransaction {
-    pub fn address(&self) -> Address {
-        crate::primitive::v1::Address::builder()
-            .array__(self.verification_key.address_bytes())
-            .hrp__(self.transaction.hrp())
-            .build()
+    pub fn address_bytes(&self) -> [u8; ADDRESS_LEN] {
+        self.verification_key.address_bytes()
     }
 
     /// Returns the transaction hash.
@@ -231,10 +228,6 @@ pub struct UnsignedTransaction {
 }
 
 impl UnsignedTransaction {
-    fn hrp(&self) -> bech32::Hrp {
-        self.params.hrp
-    }
-
     #[must_use]
     pub fn nonce(&self) -> u32 {
         self.params.nonce
@@ -311,8 +304,7 @@ impl UnsignedTransaction {
         let Some(params) = params else {
             return Err(UnsignedTransactionError::unset_params());
         };
-        let params = TransactionParams::try_from_raw(params)
-            .map_err(UnsignedTransactionError::transaction_params)?;
+        let params = TransactionParams::from_raw(params);
         let actions: Vec<_> = actions
             .into_iter()
             .map(Action::try_from_raw)
@@ -364,12 +356,6 @@ impl UnsignedTransactionError {
     fn decode_any(inner: prost::DecodeError) -> Self {
         Self(UnsignedTransactionErrorKind::DecodeAny(inner))
     }
-
-    fn transaction_params(source: TransactionParamsError) -> Self {
-        Self(UnsignedTransactionErrorKind::TransactionParams {
-            source,
-        })
-    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -389,28 +375,6 @@ enum UnsignedTransactionErrorKind {
         raw::UnsignedTransaction::type_url()
     )]
     DecodeAny(#[source] prost::DecodeError),
-    #[error("`params` field was invalid")]
-    TransactionParams { source: TransactionParamsError },
-}
-
-#[derive(Debug, thiserror::Error)]
-#[error(transparent)]
-pub struct TransactionParamsError(TransactionParamsErrorKind);
-
-impl TransactionParamsError {
-    fn chain_id_not_bech32_compatible(source: bech32::primitives::hrp::Error) -> Self {
-        Self(TransactionParamsErrorKind::ChainIdNotBech32Compatible {
-            source,
-        })
-    }
-}
-
-#[derive(Debug, thiserror::Error)]
-enum TransactionParamsErrorKind {
-    #[error("the name extracted from the chain ID cannot be used as an address prefix")]
-    ChainIdNotBech32Compatible {
-        source: bech32::primitives::hrp::Error,
-    },
 }
 
 pub struct TransactionParamsBuilder<TChainId = std::borrow::Cow<'static, str>> {
@@ -454,19 +418,16 @@ impl<'a> TransactionParamsBuilder<std::borrow::Cow<'a, str>> {
     /// # Errors
     /// Returns an error if the set chain ID does not contain a chain name that can be turned into
     /// a bech32 human readable prefix (everything before the first dash i.e. `<name>-<rest>`).
-    pub fn try_build(self) -> Result<TransactionParams, TransactionParamsError> {
+    #[must_use]
+    pub fn build(self) -> TransactionParams {
         let Self {
             nonce,
             chain_id,
         } = self;
-        let chain_id = chain_id.as_ref().trim().to_string();
-        let hrp = bech32::Hrp::parse(chain_id.split_once('-').map_or(&chain_id, |tup| tup.0))
-            .map_err(TransactionParamsError::chain_id_not_bech32_compatible)?;
-        Ok(TransactionParams {
+        TransactionParams {
             nonce,
-            chain_id,
-            hrp,
-        })
+            chain_id: chain_id.into(),
+        }
     }
 }
 
@@ -474,7 +435,6 @@ impl<'a> TransactionParamsBuilder<std::borrow::Cow<'a, str>> {
 pub struct TransactionParams {
     nonce: u32,
     chain_id: String,
-    hrp: bech32::Hrp,
 }
 
 impl TransactionParams {
@@ -500,12 +460,13 @@ impl TransactionParams {
     ///
     /// # Errors
     /// See [`TransactionParamsBuilder::try_build`] for errors returned by this method.
-    pub fn try_from_raw(proto: raw::TransactionParams) -> Result<Self, TransactionParamsError> {
+    #[must_use]
+    pub fn from_raw(proto: raw::TransactionParams) -> Self {
         let raw::TransactionParams {
             nonce,
             chain_id,
         } = proto;
-        Self::builder().nonce(nonce).chain_id(chain_id).try_build()
+        Self::builder().nonce(nonce).chain_id(chain_id).build()
     }
 }
 
@@ -516,10 +477,10 @@ mod test {
         primitive::v1::{
             asset::default_native_asset,
             Address,
-            ASTRIA_ADDRESS_PREFIX,
         },
         protocol::transaction::v1alpha1::action::TransferAction,
     };
+    const ASTRIA_ADDRESS_PREFIX: &str = "astria";
 
     #[test]
     fn signed_transaction_hash() {
@@ -546,11 +507,10 @@ mod test {
             fee_asset_id: default_native_asset().id(),
         };
 
-        let params = TransactionParams::try_from_raw(raw::TransactionParams {
+        let params = TransactionParams::from_raw(raw::TransactionParams {
             nonce: 1,
             chain_id: "test-1".to_string(),
-        })
-        .unwrap();
+        });
         let unsigned = UnsignedTransaction {
             actions: vec![transfer.into()],
             params,
@@ -584,11 +544,10 @@ mod test {
             fee_asset_id: default_native_asset().id(),
         };
 
-        let params = TransactionParams::try_from_raw(raw::TransactionParams {
+        let params = TransactionParams::from_raw(raw::TransactionParams {
             nonce: 1,
             chain_id: "test-1".to_string(),
-        })
-        .unwrap();
+        });
         let unsigned = UnsignedTransaction {
             actions: vec![transfer.into()],
             params,
