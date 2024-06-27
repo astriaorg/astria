@@ -9,10 +9,7 @@ use std::{
 };
 
 use astria_core::{
-    primitive::v1::{
-        RollupId,
-        ROLLUP_ID_LEN,
-    },
+    primitive::v1::RollupId,
     protocol::transaction::v1alpha1::{
         action::SequenceAction,
         Action,
@@ -81,7 +78,7 @@ impl SizedBundle {
     /// - `seq_action` is beyond the max size allowed for the entire bundle
     /// - `seq_action` does not fit in the remaining space in the bundle
     fn try_push(&mut self, seq_action: SequenceAction) -> Result<(), SizedBundleError> {
-        let seq_action_size = estimate_size_of_sequence_action(&seq_action);
+        let seq_action_size = encoded_len(&seq_action);
 
         if seq_action_size > self.max_size {
             return Err(SizedBundleError::SequenceActionTooLarge(seq_action));
@@ -185,7 +182,8 @@ impl BundleFactory {
         &mut self,
         seq_action: SequenceAction,
     ) -> Result<(), BundleFactoryError> {
-        let seq_action_size = estimate_size_of_sequence_action(&seq_action);
+        let seq_action = with_ibc_prefixed(seq_action);
+        let seq_action_size = encoded_len(&seq_action);
 
         match self.curr_bundle.try_push(seq_action) {
             Err(SizedBundleError::SequenceActionTooLarge(_seq_action)) => {
@@ -273,12 +271,14 @@ impl<'a> NextFinishedBundle<'a> {
     }
 }
 
-/// The size of the `seq_action` in bytes, including the rollup id.
-fn estimate_size_of_sequence_action(seq_action: &SequenceAction) -> usize {
-    const FEE_ASSET_ID_LEN: usize = 32;
-    seq_action
-        .data
-        .len()
-        .saturating_add(ROLLUP_ID_LEN)
-        .saturating_add(FEE_ASSET_ID_LEN)
+fn with_ibc_prefixed(action: SequenceAction) -> SequenceAction {
+    SequenceAction {
+        fee_asset: action.fee_asset.to_ibc_prefixed().into(),
+        ..action
+    }
+}
+
+fn encoded_len(action: &SequenceAction) -> usize {
+    use prost::Message as _;
+    action.to_raw().encoded_len()
 }

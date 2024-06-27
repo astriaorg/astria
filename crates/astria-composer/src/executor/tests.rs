@@ -43,10 +43,9 @@ use wiremock::{
 use crate::{
     executor,
     metrics::Metrics,
+    test_utils::sequence_action_of_max_size,
     Config,
 };
-
-const FEE_ASSET_ID_LEN: usize = 32;
 
 static TELEMETRY: Lazy<()> = Lazy::new(|| {
     if std::env::var_os("TEST_LOG").is_some() {
@@ -245,15 +244,11 @@ async fn full_bundle() {
     // send two sequence actions to the executor, the first of which is large enough to fill the
     // bundle sending the second should cause the first to immediately be submitted in
     // order to make space for the second
-    let seq0 = SequenceAction {
-        data: vec![0u8; cfg.max_bytes_per_bundle - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
-        ..sequence_action()
-    };
+    let seq0 = sequence_action_of_max_size(cfg.max_bytes_per_bundle);
 
     let seq1 = SequenceAction {
         rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
-        data: vec![1u8; 1],
-        ..sequence_action()
+        ..sequence_action_of_max_size(cfg.max_bytes_per_bundle)
     };
 
     // push both sequence actions to the executor in order to force the full bundle to be sent
