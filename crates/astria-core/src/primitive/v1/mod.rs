@@ -327,6 +327,11 @@ impl<TBytes, TPrefix> AddressBuilder<TBytes, TPrefix> {
         }
     }
 
+    /// Use the given verification key for address generation.
+    ///
+    /// The verification key is hashed with SHA256 and the first 20 bytes are used as the address
+    /// bytes.
+    #[allow(clippy::missing_panics_doc)] // allow clippy, as the conversion is infallible
     #[must_use = "the builder must be built to construct an address to be useful"]
     pub fn verification_key(
         self,
