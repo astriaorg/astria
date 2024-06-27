@@ -99,12 +99,6 @@ impl<'a> From<&'a SigningKey> for VerificationKey {
     }
 }
 
-impl From<Ed25519SigningKey> for SigningKey {
-    fn from(key: Ed25519SigningKey) -> Self {
-        Self(key)
-    }
-}
-
 impl TryFrom<&[u8]> for SigningKey {
     type Error = ed25519_consensus::Error;
 
@@ -216,14 +210,6 @@ impl AsRef<[u8]> for VerificationKey {
     }
 }
 
-impl From<Ed25519VerificationKey> for VerificationKey {
-    fn from(key: Ed25519VerificationKey) -> Self {
-        Self {
-            key,
-        }
-    }
-}
-
 impl TryFrom<&[u8]> for VerificationKey {
     type Error = Error;
 
@@ -273,12 +259,6 @@ impl Display for Signature {
 impl From<[u8; 64]> for Signature {
     fn from(bytes: [u8; 64]) -> Self {
         Self(Ed25519Signature::from(bytes))
-    }
-}
-
-impl From<Ed25519Signature> for Signature {
-    fn from(signature: Ed25519Signature) -> Self {
-        Self(signature)
     }
 }
 
