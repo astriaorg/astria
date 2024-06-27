@@ -44,6 +44,7 @@ pub(crate) struct Builder {
     pub(crate) sequencer_key_path: String,
     pub(crate) sequencer_address_prefix: String,
     pub(crate) sequencer_cometbft_endpoint: String,
+    pub(crate) sequencer_grpc_endpoint: String,
     pub(crate) state: Arc<State>,
     pub(crate) metrics: &'static Metrics,
 }
@@ -57,6 +58,7 @@ impl Builder {
             sequencer_key_path,
             sequencer_address_prefix,
             sequencer_cometbft_endpoint,
+            sequencer_grpc_endpoint,
             state,
             metrics,
         } = self;
@@ -82,6 +84,7 @@ impl Builder {
                 state,
                 batches_rx,
                 sequencer_cometbft_client,
+                sequencer_grpc_endpoint,
                 signer,
                 metrics,
             },

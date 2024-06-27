@@ -135,6 +135,8 @@ impl TestSubmitter {
         // cometbft
         let cometbft_mock = MockServer::start().await;
         let sequencer_cometbft_endpoint = format!("http://{}", cometbft_mock.address());
+        // TODO: use grpc mock
+        let sequencer_grpc_endpoint = format!("http://{}", cometbft_mock.address());
 
         // withdrawer state
         let state = Arc::new(state::State::new());
@@ -151,6 +153,7 @@ impl TestSubmitter {
             sequencer_key_path,
             sequencer_address_prefix: "astria".into(),
             sequencer_cometbft_endpoint,
+            sequencer_grpc_endpoint,
             state,
             metrics,
         }

@@ -100,7 +100,7 @@ impl BridgeWithdrawer {
             sequencer_bridge_address,
             expected_fee_asset_id: asset::Id::from_str_unchecked(&fee_asset_denomination),
             expected_min_fee_asset_balance: u128::from(min_expected_fee_asset_balance),
-            sequencer_grpc_endpoint,
+            sequencer_grpc_endpoint: sequencer_grpc_endpoint.clone(),
         }
         .build()
         .wrap_err("failed to initialize startup")?;
@@ -110,6 +110,7 @@ impl BridgeWithdrawer {
             shutdown_token: shutdown_handle.token(),
             startup_handle: startup_submitter_handle,
             sequencer_cometbft_endpoint,
+            sequencer_grpc_endpoint,
             sequencer_key_path,
             sequencer_address_prefix: sequencer_address_prefix.clone(),
             state: state.clone(),
