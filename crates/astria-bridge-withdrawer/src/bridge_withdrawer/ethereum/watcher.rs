@@ -131,7 +131,7 @@ pub(crate) struct Watcher {
 
 impl Watcher {
     pub(crate) async fn run(mut self) -> Result<()> {
-        let (provider, contract, fee_asset_id, asset_withdrawal_divisor, next_rollup_block_height) =
+        let (provider, contract, fee_asset, asset_withdrawal_divisor, next_rollup_block_height) =
             self.startup()
                 .await
                 .wrap_err("watcher failed to start up")?;
@@ -148,7 +148,7 @@ impl Watcher {
         } = self;
 
         let converter = EventToActionConvertConfig {
-            fee_asset_id,
+            fee_asset,
             rollup_asset_denom,
             bridge_address,
             asset_withdrawal_divisor,
@@ -190,13 +190,13 @@ impl Watcher {
     ) -> eyre::Result<(
         Arc<Provider<Ws>>,
         IAstriaWithdrawer<Provider<Ws>>,
-        asset::Id,
+        asset::Denom,
         u128,
         u64,
     )> {
         // wait for submitter to be ready
         let SequencerStartupInfo {
-            fee_asset_id,
+            fee_asset,
             next_batch_rollup_height,
         } = self
             .submitter_handle
@@ -255,7 +255,7 @@ impl Watcher {
         Ok((
             provider.clone(),
             contract,
-            fee_asset_id,
+            fee_asset,
             asset_withdrawal_divisor,
             next_batch_rollup_height,
         ))
@@ -487,7 +487,7 @@ async fn get_ics20_withdrawal_events(
 
 #[derive(Clone)]
 struct EventToActionConvertConfig {
-    fee_asset_id: asset::Id,
+    fee_asset: Denom,
     rollup_asset_denom: Denom,
     bridge_address: Address,
     asset_withdrawal_divisor: u128,
@@ -498,7 +498,7 @@ impl EventToActionConvertConfig {
     fn convert(&self, event: EventWithMetadata) -> Result<Action> {
         event_to_action(
             event,
-            self.fee_asset_id,
+            self.fee_asset.clone(),
             self.rollup_asset_denom.clone(),
             self.asset_withdrawal_divisor,
             self.bridge_address,
@@ -523,9 +523,11 @@ fn address_from_string(s: &str) -> Result<ethers::types::Address> {
 
 #[cfg(test)]
 mod tests {
-    use asset::default_native_asset;
     use astria_core::{
-        primitive::v1::Address,
+        primitive::v1::{
+            asset,
+            Address,
+        },
         protocol::transaction::v1alpha1::Action,
     };
     use ethers::{
@@ -558,6 +560,10 @@ mod tests {
             ConfigureAstriaWithdrawerDeployer,
         },
     };
+
+    fn default_native_asset() -> asset::Denom {
+        "nria".parse().unwrap()
+    }
 
     #[test]
     fn address_from_string_prefix() {
@@ -644,7 +650,7 @@ mod tests {
         let submitter_handle = submitter::Handle::new(startup_rx, batch_tx);
         startup_tx
             .send(SequencerStartupInfo {
-                fee_asset_id: denom.id(),
+                fee_asset: "nria".parse().unwrap(),
                 next_batch_rollup_height: 1,
             })
             .unwrap();
@@ -676,7 +682,7 @@ mod tests {
         };
         let expected_action = event_to_action(
             expected_event,
-            denom.id(),
+            denom.clone(),
             denom,
             1,
             bridge_address,
@@ -727,7 +733,7 @@ mod tests {
         };
         let expected_action = event_to_action(
             expected_event,
-            denom.id(),
+            denom.clone(),
             denom.clone(),
             1,
             bridge_address,
@@ -743,7 +749,7 @@ mod tests {
         let submitter_handle = submitter::Handle::new(startup_rx, batch_tx);
         startup_tx
             .send(SequencerStartupInfo {
-                fee_asset_id: denom.id(),
+                fee_asset: denom.clone(),
                 next_batch_rollup_height: 1,
             })
             .unwrap();
@@ -823,7 +829,7 @@ mod tests {
         let submitter_handle = submitter::Handle::new(startup_rx, batch_tx);
         startup_tx
             .send(SequencerStartupInfo {
-                fee_asset_id: denom.id(),
+                fee_asset: denom.clone(),
                 next_batch_rollup_height: 1,
             })
             .unwrap();
@@ -856,8 +862,8 @@ mod tests {
         };
         let Action::Ics20Withdrawal(mut expected_action) = event_to_action(
             expected_event,
-            denom.id(),
-            denom,
+            denom.clone(),
+            denom.clone(),
             1,
             bridge_address,
             crate::ASTRIA_ADDRESS_PREFIX,
@@ -949,7 +955,7 @@ mod tests {
         let submitter_handle = submitter::Handle::new(startup_rx, batch_tx);
         startup_tx
             .send(SequencerStartupInfo {
-                fee_asset_id: denom.id(),
+                fee_asset: "nria".parse().unwrap(),
                 next_batch_rollup_height: 1,
             })
             .unwrap();
@@ -981,8 +987,8 @@ mod tests {
         };
         let expected_action = event_to_action(
             expected_event,
-            denom.id(),
-            denom,
+            denom.clone(),
+            denom.clone(),
             1,
             bridge_address,
             crate::ASTRIA_ADDRESS_PREFIX,
@@ -1051,7 +1057,7 @@ mod tests {
         let submitter_handle = submitter::Handle::new(startup_rx, batch_tx);
         startup_tx
             .send(SequencerStartupInfo {
-                fee_asset_id: asset::Id::from_str_unchecked("transfer/channel-0/utia"),
+                fee_asset: "transfer/channel-0/utia".parse().unwrap(),
                 next_batch_rollup_height: 1,
             })
             .unwrap();
@@ -1089,8 +1095,8 @@ mod tests {
         };
         let Action::Ics20Withdrawal(mut expected_action) = event_to_action(
             expected_event,
-            denom.id(),
-            denom,
+            denom.clone(),
+            denom.clone(),
             1,
             bridge_address,
             crate::ASTRIA_ADDRESS_PREFIX,

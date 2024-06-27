@@ -223,13 +223,7 @@ mod test {
             SigningKey,
             VerificationKey,
         },
-        primitive::v1::{
-            asset::{
-                default_native_asset,
-                DEFAULT_NATIVE_ASSET_DENOM,
-            },
-            RollupId,
-        },
+        primitive::v1::RollupId,
         protocol::transaction::v1alpha1::{
             action::SequenceAction,
             TransactionParams,
@@ -268,7 +262,7 @@ mod test {
                 SequenceAction {
                     rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                     data: b"helloworld".to_vec(),
-                    fee_asset_id: get_native_asset().id(),
+                    fee_asset: get_native_asset().clone(),
                 }
                 .into(),
             ],
@@ -481,9 +475,9 @@ mod test {
             authority_sudo_address: crate::address::base_prefixed([0; 20]),
             ibc_sudo_address: crate::address::base_prefixed([0; 20]),
             ibc_relayer_addresses: vec![],
-            native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
+            native_asset_base_denomination: "nria".to_string(),
             ibc_params: penumbra_ibc::params::IBCParameters::default(),
-            allowed_fee_assets: vec![default_native_asset()],
+            allowed_fee_assets: vec!["nria".parse().unwrap()],
             fees: default_fees(),
         }
         .try_into()

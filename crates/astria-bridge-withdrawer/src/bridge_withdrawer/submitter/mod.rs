@@ -7,7 +7,7 @@ use astria_core::{
     bridge::Ics20WithdrawalFromRollupMemo,
     primitive::v1::asset,
     protocol::{
-        asset::v1alpha1::AllowedFeeAssetIdsResponse,
+        asset::v1alpha1::AllowedFeeAssetsResponse,
         bridge::v1alpha1::BridgeAccountLastTxHashResponse,
         transaction::v1alpha1::{
             Action,
@@ -87,7 +87,7 @@ pub(super) struct Submitter {
     signer: SequencerKey,
     sequencer_chain_id: String,
     startup_tx: oneshot::Sender<SequencerStartupInfo>,
-    expected_fee_asset_id: asset::Id,
+    expected_fee_asset: asset::Denom,
     min_expected_fee_asset_balance: u128,
     metrics: &'static Metrics,
 }
@@ -184,15 +184,17 @@ impl Submitter {
             "sequencer_chain_id provided in config does not match chain_id returned from sequencer"
         );
 
+        let expected_fee_asset_ibc = self.expected_fee_asset.to_ibc_prefixed();
         // confirm that the fee asset ID is valid
-        let allowed_fee_asset_ids_resp =
-            get_allowed_fee_asset_ids(self.sequencer_cometbft_client.clone(), self.state.clone())
+        let allowed_fee_assets_resp =
+            get_allowed_fee_assets(self.sequencer_cometbft_client.clone(), self.state.clone())
                 .await
                 .wrap_err("failed to get allowed fee asset ids from sequencer")?;
         ensure!(
-            allowed_fee_asset_ids_resp
-                .fee_asset_ids
-                .contains(&self.expected_fee_asset_id),
+            allowed_fee_assets_resp
+                .fee_assets
+                .iter()
+                .any(|asset| asset.to_ibc_prefixed() == expected_fee_asset_ibc),
             "fee_asset_id provided in config is not a valid fee asset on the sequencer"
         );
 
@@ -207,7 +209,7 @@ impl Submitter {
         let fee_asset_balance = fee_asset_balances
             .balances
             .into_iter()
-            .find(|balance| balance.denom.id() == self.expected_fee_asset_id)
+            .find(|balance| balance.denom.to_ibc_prefixed() == expected_fee_asset_ibc)
             .ok_or_eyre("withdrawer's account does not have the minimum balance of the fee asset")?
             .balance;
         ensure!(
@@ -225,7 +227,7 @@ impl Submitter {
 
         // send startup info to watcher
         let startup = SequencerStartupInfo {
-            fee_asset_id: self.expected_fee_asset_id,
+            fee_asset: self.expected_fee_asset.clone(),
             next_batch_rollup_height,
         };
         Ok(startup)
@@ -545,10 +547,10 @@ async fn get_sequencer_chain_id(
 }
 
 #[instrument(skip_all)]
-async fn get_allowed_fee_asset_ids(
+async fn get_allowed_fee_assets(
     client: sequencer_client::HttpClient,
     state: Arc<State>,
-) -> eyre::Result<AllowedFeeAssetIdsResponse> {
+) -> eyre::Result<AllowedFeeAssetsResponse> {
     let retry_config = tryhard::RetryFutureConfig::new(u32::MAX)
         .exponential_backoff(Duration::from_millis(100))
         .max_delay(Duration::from_secs(20))
@@ -572,7 +574,7 @@ async fn get_allowed_fee_asset_ids(
             },
         );
 
-    let res = tryhard::retry_fn(|| client.get_allowed_fee_asset_ids())
+    let res = tryhard::retry_fn(|| client.get_allowed_fee_assets())
         .with_config(retry_config)
         .await
         .wrap_err("failed to get allowed fee asset ids from Sequencer after a lot of attempts");

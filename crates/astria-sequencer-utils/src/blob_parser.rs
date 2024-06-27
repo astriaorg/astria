@@ -527,7 +527,7 @@ struct PrintableDeposit {
     bridge_address: String,
     rollup_id: String,
     amount: u128,
-    asset_id: String,
+    asset: String,
     destination_chain_address: String,
 }
 
@@ -540,7 +540,7 @@ impl TryFrom<&RawDeposit> for PrintableDeposit {
             bridge_address: deposit.bridge_address().to_string(),
             rollup_id: deposit.rollup_id().to_string(),
             amount: deposit.amount(),
-            asset_id: deposit.asset_id().to_string(),
+            asset: deposit.asset().to_string(),
             destination_chain_address: deposit.destination_chain_address().to_string(),
         })
     }
@@ -551,7 +551,7 @@ impl Display for PrintableDeposit {
         colored_ln(f, "bridge address", &self.bridge_address)?;
         colored_ln(f, "rollup id", &self.rollup_id)?;
         colored_ln(f, "amount", self.amount)?;
-        colored_ln(f, "asset id", &self.asset_id)?;
+        colored_ln(f, "asset id", &self.asset)?;
         colored(
             f,
             "destination chain address",
