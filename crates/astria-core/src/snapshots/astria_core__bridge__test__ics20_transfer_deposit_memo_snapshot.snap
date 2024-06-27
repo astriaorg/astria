@@ -1,0 +1,7 @@
+---
+source: crates/astria-core/src/bridge.rs
+expression: memo
+---
+{
+  "rollupAddress": "some_rollup_address"
+}

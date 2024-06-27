@@ -1,16 +1,6 @@
 {
   "app_hash": "",
   "app_state": {
-    "accounts": [
-      {{- range $index, $value := .Values.config.sequencer.genesisAccounts }}
-      {{- if $index }},{{- end }}
-      {
-        "address": "{{  $value.address }}",
-        "balance": {{ toString $value.balance | replace "\"" "" }}
-      }
-      {{- end }}
-    ],
-    "authority_sudo_address": "{{ .Values.config.sequencer.authoritySudoAddress }}",
     "native_asset_base_denomination": "{{ .Values.config.sequencer.nativeAssetBaseDenomination }}",
     "fees": {
       "transfer_base_fee": 12,
@@ -27,20 +17,50 @@
       "{{ $value }}"
       {{- end }}
     ],
-    "ibc_sudo_address": "{{ .Values.config.sequencer.ibc.sudoAddress }}",
-    "ibc_relayer_addresses": [
-      {{- range $index, $value := .Values.config.sequencer.ibc.relayerAddresses }}
-      {{- if $index }},{{- end }}
-      "{{ $value }}"
-      {{- end }}
-    ],
     "ibc_params": {
       "ibc_enabled": {{ .Values.config.sequencer.ibc.enabled }},
       "inbound_ics20_transfers_enabled": {{ .Values.config.sequencer.ibc.inboundEnabled }},
       "outbound_ics20_transfers_enabled": {{ .Values.config.sequencer.ibc.outboundEnabled }}
-    }
+    },
     {{- if not .Values.global.dev }}
+      "accounts": [
+        {{- range $index, $value := .Values.config.sequencer.genesisAccounts }}
+        {{- if $index }},{{- end }}
+        {
+          "address": "{{ $value.address }}",
+          "balance": {{ toString $value.balance | replace "\"" "" }}
+        }
+        {{- end }}
+      ],
+      "authority_sudo_address": "{{ .Values.config.sequencer.authoritySudoAddress }}",
+      "ibc_sudo_address": "{{ .Values.config.sequencer.ibc.sudoAddress }}",
+      "ibc_relayer_addresses": [
+        {{- range $index, $value := .Values.config.sequencer.ibc.relayerAddresses }}
+        {{- if $index }},{{- end }}
+        "{{ $value }}"
+        {{- end }}
+      ]
     {{- else }}
+      "address_prefixes": {
+        "base": "{{ .Values.config.sequencer.addressPrefixes.base }}"
+      },
+      "accounts": [
+        {{- range $index, $value := .Values.config.sequencer.genesisAccounts }}
+        {{- if $index }},{{- end }}
+        {
+          "address": {{ include "sequencer.address" $value.address }},
+          "balance": {{ toString $value.balance | replace "\"" "" }}
+        }
+        {{- end }}
+      ],
+      "authority_sudo_address": {{ include "sequencer.address" .Values.config.sequencer.authoritySudoAddress }},
+      "ibc_sudo_address": {{ include "sequencer.address" .Values.config.sequencer.ibc.sudoAddress }},
+      "ibc_relayer_addresses": [
+        {{- range $index, $value := .Values.config.sequencer.ibc.relayerAddresses }}
+        {{- if $index }},{{- end }}
+        {{ include "sequencer.address" $value }}
+        {{- end }}
+      ]
     {{- end}}
   },
   "chain_id": "{{ .Values.config.cometBFT.chainId }}",

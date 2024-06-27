@@ -1,0 +1,5 @@
+---
+source: crates/astria-core/src/primitive/v1/asset/denom.rs
+expression: trace_prefixed()
+---
+"a/trace/pre/fixed/denom"

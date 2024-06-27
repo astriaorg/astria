@@ -115,7 +115,7 @@ pub(super) struct BlobSubmitter {
 
     /// The shutdown token to signal that blob submitter should finish its current submission and
     /// exit.
-    shutdown_token: CancellationToken,
+    submitter_shutdown_token: CancellationToken,
 
     /// A block that could not be added to `next_submission` because it would overflow its
     /// hardcoded limit.
@@ -130,7 +130,7 @@ impl BlobSubmitter {
         rollup_filter: IncludeRollup,
         state: Arc<super::State>,
         submission_state: SubmissionState,
-        shutdown_token: CancellationToken,
+        submitter_shutdown_token: CancellationToken,
         metrics: &'static Metrics,
     ) -> (Self, BlobSubmitterHandle) {
         // XXX: The channel size here is just a number. It should probably be based on some
@@ -142,7 +142,7 @@ impl BlobSubmitter {
             next_submission: NextSubmission::new(rollup_filter, metrics),
             state,
             submission_state,
-            shutdown_token,
+            submitter_shutdown_token,
             pending_block: None,
             metrics,
         };
@@ -154,13 +154,12 @@ impl BlobSubmitter {
 
     pub(super) async fn run(mut self) -> eyre::Result<()> {
         let init_result = select!(
-            () = self.shutdown_token.cancelled() => return Ok(()),
+            () = self.submitter_shutdown_token.cancelled() => return Ok(()),
             init_result = init_with_retry(self.client_builder.clone()) => init_result,
         );
         let client = init_result.map_err(|error| {
             let message = "failed to initialize celestia client";
             error!(%error, message);
-            self.shutdown_token.cancel();
             error.wrap_err(message)
         })?;
 
@@ -171,7 +170,7 @@ impl BlobSubmitter {
             select!(
                 biased;
 
-                () = self.shutdown_token.cancelled() => {
+                () = self.submitter_shutdown_token.cancelled() => {
                     info!("shutdown signal received");
                     break Ok("received shutdown signal");
                 }

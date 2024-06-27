@@ -168,6 +168,8 @@ config:
 
   # Configuration related to sequencer connection for rollup
   sequencer:
+    addressPrefixes:
+      base: "astria"
     chainId: ""
     # Block height to start syncing rollup from
     initialBlockHeight: "2"

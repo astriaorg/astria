@@ -7,12 +7,9 @@ use std::{
     time::Duration,
 };
 
-use astria_core::primitive::v1::{
-    asset::{
-        self,
-        Denom,
-    },
-    Address,
+use astria_core::primitive::v1::asset::{
+    self,
+    Denom,
 };
 use astria_eyre::eyre::{
     self,
@@ -75,6 +72,7 @@ impl BridgeWithdrawer {
             sequencer_cometbft_endpoint,
             sequencer_chain_id,
             sequencer_key_path,
+            sequencer_address_prefix,
             fee_asset_denomination,
             ethereum_contract_address,
             ethereum_rpc_endpoint,
@@ -91,6 +89,7 @@ impl BridgeWithdrawer {
             sequencer_cometbft_endpoint,
             sequencer_chain_id,
             sequencer_key_path,
+            sequencer_address_prefix: sequencer_address_prefix.clone(),
             state: state.clone(),
             expected_fee_asset_id: asset::Id::from_str_unchecked(&fee_asset_denomination),
             min_expected_fee_asset_balance: u128::from(min_expected_fee_asset_balance),
@@ -99,7 +98,9 @@ impl BridgeWithdrawer {
         .build()
         .wrap_err("failed to initialize submitter")?;
 
-        let sequencer_bridge_address = Address::try_from_bech32m(&cfg.sequencer_bridge_address)
+        let sequencer_bridge_address = cfg
+            .sequencer_bridge_address
+            .parse()
             .wrap_err("failed to parse sequencer bridge address")?;
 
         let ethereum_watcher = watcher::Builder {
@@ -112,6 +113,7 @@ impl BridgeWithdrawer {
                 .parse::<Denom>()
                 .wrap_err("failed to parse ROLLUP_ASSET_DENOMINATION as Denom")?,
             bridge_address: sequencer_bridge_address,
+            sequencer_address_prefix: sequencer_address_prefix.clone(),
         }
         .build()
         .wrap_err("failed to build ethereum watcher")?;
@@ -358,11 +360,15 @@ pub(crate) fn flatten_result<T>(res: Result<eyre::Result<T>, JoinError>) -> eyre
     }
 }
 
+#[cfg(test)]
+pub(crate) const ASTRIA_ADDRESS_PREFIX: &str = "astria";
+
 /// Constructs an [`Address`] prefixed by `"astria"`.
 #[cfg(test)]
-pub(crate) fn astria_address(array: [u8; astria_core::primitive::v1::ADDRESS_LEN]) -> Address {
-    use astria_core::primitive::v1::ASTRIA_ADDRESS_PREFIX;
-    Address::builder()
+pub(crate) fn astria_address(
+    array: [u8; astria_core::primitive::v1::ADDRESS_LEN],
+) -> astria_core::primitive::v1::Address {
+    astria_core::primitive::v1::Address::builder()
         .array(array)
         .prefix(ASTRIA_ADDRESS_PREFIX)
         .try_build()

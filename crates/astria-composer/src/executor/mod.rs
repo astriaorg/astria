@@ -618,8 +618,7 @@ impl Future for SubmitFut {
                     let params = TransactionParams::builder()
                         .nonce(*this.nonce)
                         .chain_id(&*this.chain_id)
-                        .try_build()
-                        .expect("configured chain ID is valid");
+                        .build();
                     let tx = UnsignedTransaction {
                         actions: this.bundle.clone().into_actions(),
                         params,
@@ -699,8 +698,7 @@ impl Future for SubmitFut {
                         let params = TransactionParams::builder()
                             .nonce(*this.nonce)
                             .chain_id(&*this.chain_id)
-                            .try_build()
-                            .expect("configured chain ID is valid");
+                            .build();
                         let tx = UnsignedTransaction {
                             actions: this.bundle.clone().into_actions(),
                             params,
