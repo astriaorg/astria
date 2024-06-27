@@ -55,7 +55,10 @@ fn channel_balance_storage_key<TAsset: Into<asset::IbcPrefixed>>(
     channel: &ChannelId,
     asset: TAsset,
 ) -> String {
-    format!("ibc-data/{channel}/balance/{}", asset.into(),)
+    format!(
+        "ibc-data/{channel}/balance/{}",
+        crate::storage_keys::hunks::Asset::from(asset),
+    )
 }
 
 fn ibc_relayer_key(address: &Address) -> String {

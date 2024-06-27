@@ -22,7 +22,7 @@ use tracing::instrument;
 struct DenominationTrace(String);
 
 fn asset_storage_key<TAsset: Into<asset::IbcPrefixed>>(asset: TAsset) -> String {
-    format!("asset/{}", asset.into())
+    format!("asset/{}", crate::storage_keys::hunks::Asset::from(asset))
 }
 
 #[async_trait]

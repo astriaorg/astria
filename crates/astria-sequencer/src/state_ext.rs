@@ -23,11 +23,17 @@ fn storage_version_by_height_key(height: u64) -> Vec<u8> {
 }
 
 fn block_fees_key<TAsset: Into<asset::IbcPrefixed>>(asset: TAsset) -> String {
-    format!("{BLOCK_FEES_PREFIX}{}", asset.into(),)
+    format!(
+        "{BLOCK_FEES_PREFIX}{}",
+        crate::storage_keys::hunks::Asset::from(asset)
+    )
 }
 
 fn fee_asset_key<TAsset: Into<asset::IbcPrefixed>>(asset: TAsset) -> String {
-    format!("{FEE_ASSET_PREFIX}{}", asset.into(),)
+    format!(
+        "{FEE_ASSET_PREFIX}{}",
+        crate::storage_keys::hunks::Asset::from(asset)
+    )
 }
 
 #[async_trait]
@@ -141,8 +147,9 @@ pub(crate) trait StateReadExt: StateRead {
                 .expect("prefix must always be present");
             let asset = std::str::from_utf8(suffix)
                 .context("key suffix was not utf8 encoded; this should not happen")?
-                .parse()
-                .context("failed to parse the storage key as an ics20 ibc prefixed denom")?;
+                .parse::<crate::storage_keys::hunks::Asset>()
+                .context("failed to parse storage key suffix as address hunk")?
+                .get();
 
             let Ok(bytes): Result<[u8; 16], _> = value.try_into() else {
                 bail!("failed turning raw block fees bytes into u128; not 16 bytes?");
@@ -179,8 +186,9 @@ pub(crate) trait StateReadExt: StateRead {
                 .expect("prefix must always be present");
             let asset = std::str::from_utf8(suffix)
                 .context("key suffix was not utf8 encoded; this should not happen")?
-                .parse()
-                .context("failed to parse the storage key as an ics20 ibc prefixed denom")?;
+                .parse::<crate::storage_keys::hunks::Asset>()
+                .context("failed to parse storage key suffix as address hunk")?
+                .get();
             assets.push(asset);
         }
 

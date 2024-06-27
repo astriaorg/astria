@@ -37,7 +37,6 @@ const ACCOUNTS_PREFIX: &str = "accounts";
 const TRANSFER_BASE_FEE_STORAGE_KEY: &str = "transferfee";
 
 struct StorageKey<'a>(&'a Address);
-
 impl<'a> std::fmt::Display for StorageKey<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(ACCOUNTS_PREFIX)?;
@@ -48,11 +47,16 @@ impl<'a> std::fmt::Display for StorageKey<'a> {
         Ok(())
     }
 }
+
 fn balance_storage_key<TAsset: Into<asset::IbcPrefixed>>(
     address: Address,
     asset: TAsset,
 ) -> String {
-    format!("{}/balance/{}", StorageKey(&address), asset.into(),)
+    format!(
+        "{}/balance/{}",
+        StorageKey(&address),
+        crate::storage_keys::hunks::Asset::from(asset)
+    )
 }
 
 fn nonce_storage_key(address: Address) -> String {
@@ -83,8 +87,9 @@ pub(crate) trait StateReadExt: StateRead {
             let asset = key
                 .strip_prefix(&prefix)
                 .context("failed to strip prefix from account balance key")?
-                .parse::<asset::IbcPrefixed>()
-                .context("failed to parse storage key suffix as ics20 ibc prefixed denom")?;
+                .parse::<crate::storage_keys::hunks::Asset>()
+                .context("failed to parse storage key suffix as address hunk")?
+                .get();
 
             let Balance(balance) =
                 Balance::try_from_slice(&value).context("invalid balance bytes")?;
