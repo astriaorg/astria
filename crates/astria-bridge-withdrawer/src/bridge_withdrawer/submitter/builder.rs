@@ -97,7 +97,6 @@ impl Builder {
         let (startup_tx, startup_rx) = tokio::sync::oneshot::channel();
         let handle = Handle::new(startup_rx, batches_tx);
 
-        let expected_fee_asset_ibc = expected_fee_asset.to_ibc_prefixed();
         Ok((
             super::Submitter {
                 shutdown_token,
@@ -108,7 +107,6 @@ impl Builder {
                 sequencer_chain_id,
                 startup_tx,
                 expected_fee_asset,
-                expected_fee_asset_ibc,
                 min_expected_fee_asset_balance,
                 metrics,
             },

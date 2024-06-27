@@ -88,7 +88,6 @@ pub(super) struct Submitter {
     sequencer_chain_id: String,
     startup_tx: oneshot::Sender<SequencerStartupInfo>,
     expected_fee_asset: asset::Denom,
-    expected_fee_asset_ibc: asset::denom::IbcPrefixed,
     min_expected_fee_asset_balance: u128,
     metrics: &'static Metrics,
 }
@@ -185,6 +184,7 @@ impl Submitter {
             "sequencer_chain_id provided in config does not match chain_id returned from sequencer"
         );
 
+        let expected_fee_asset_ibc = self.expected_fee_asset.to_ibc_prefixed();
         // confirm that the fee asset ID is valid
         let allowed_fee_assets_resp =
             get_allowed_fee_assets(self.sequencer_cometbft_client.clone(), self.state.clone())
@@ -194,7 +194,7 @@ impl Submitter {
             allowed_fee_assets_resp
                 .fee_assets
                 .iter()
-                .any(|asset| asset.to_ibc_prefixed() == self.expected_fee_asset_ibc),
+                .any(|asset| asset.to_ibc_prefixed() == expected_fee_asset_ibc),
             "fee_asset_id provided in config is not a valid fee asset on the sequencer"
         );
 
@@ -209,7 +209,7 @@ impl Submitter {
         let fee_asset_balance = fee_asset_balances
             .balances
             .into_iter()
-            .find(|balance| balance.denom.to_ibc_prefixed() == self.expected_fee_asset_ibc)
+            .find(|balance| balance.denom.to_ibc_prefixed() == expected_fee_asset_ibc)
             .ok_or_eyre("withdrawer's account does not have the minimum balance of the fee asset")?
             .balance;
         ensure!(
