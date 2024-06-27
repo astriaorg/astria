@@ -26,12 +26,10 @@ data:
   OTEL_EXPORTER_OTLP_TRACE_HEADERS: "{{ .Values.config.relayer.otel.traceHeaders }}"
   OTEL_SERVICE_NAME: "{{ tpl .Values.config.relayer.otel.serviceName . }}"
   ASTRIA_SEQUENCER_RELAYER_ONLY_INCLUDE_ROLLUPS: "{{ .Values.config.relayer.onlyIncludeRollups }}"
-  {{- if not .Values.global.dev }}
-  ASTRIA_SEQUENCER_RELAYER_VALIDATOR_KEY_FILE: /cometbft/config/priv_validator_key.json
-  ASTRIA_SEQUENCER_RELAYER_RELAY_ONLY_VALIDATOR_KEY_BLOCKS: "false"
-  {{- else }}
   ASTRIA_SEQUENCER_RELAYER_SEQUENCER_CHAIN_ID: "{{ .Values.config.relayer.sequencerChainId }}"
   ASTRIA_SEQUENCER_RELAYER_CELESTIA_CHAIN_ID: "{{ .Values.config.relayer.celestiaChainId }}"
+  {{- if not .Values.global.dev }}
+  {{- else }}
   {{- end }}
 ---
 apiVersion: v1

@@ -13,42 +13,33 @@ global:
 images:
   cometBFT:
     repo: docker.io/cometbft/cometbft
-    tag: v0.38.6
-    devTag: v0.38.6
+    tag: v0.38.8
+    devTag: v0.38.8
   sequencer:
     repo: ghcr.io/astriaorg/sequencer
-    tag: "0.13.0"
+    tag: "0.14.0"
     devTag: latest
 
-moniker: "node"
+moniker: ""
 genesis:
-  chainId: 'sequencer-test-chain-0'
-  genesisTime: '2023-09-22T17:22:35.092832Z'
+  chainId: ""
+  genesisTime: ""  # '2023-09-22T17:22:35.092832Z'
   addressPrefixes:
     base: "astria"
-  authoritySudoAddress: 1c0c490f1b5528d8173c5de46d131160e4b2c0c3
+  authoritySudoAddress: ""
   nativeAssetBaseDenomination: nria
-  allowedFeeAssets:
-    - nria
+  allowedFeeAssets: []
+    # - nria
   ibc:
     enabled: true
     inboundEnabled: true
     outboundEnabled: true
-    sudoAddress: 1c0c490f1b5528d8173c5de46d131160e4b2c0c3
-    relayerAddresses:
-      - 1c0c490f1b5528d8173c5de46d131160e4b2c0c3
-      - 34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a
+    sudoAddress: ""
+    relayerAddresses: []
   # Note large balances must be strings support templating with the u128 size account balances
-  genesisAccounts:
-  - address: 1c0c490f1b5528d8173c5de46d131160e4b2c0c3
-    balance: "333333333333333333"
-  - address: 34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a
-    balance: "333333333333333333"
-  - address: 60709e2d391864b732b4f0f51e387abb76743871
-    balance: "333333333333333333"
-    # NOTE - the following address matches the privKey that funds the sequencer-faucet
-  - address: 00d75b270542084a54fcf0d0f6eab0402982d156
-    balance: "333333333333333333"
+  genesisAccounts: []
+    # - address: 1c0c490f1b5528d8173c5de46d131160e4b2c0c3
+    #   balance: "333333333333333333"
 
   consensusParams:
     blockMaxBytes: "1048576"
