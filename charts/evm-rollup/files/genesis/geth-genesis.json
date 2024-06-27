@@ -39,11 +39,11 @@
         "astriaCelestiaHeightVariance": {{ toString .Values.config.celestia.heightVariance | replace "\"" "" }},
         "astriaBridgeAddresses": {{ toPrettyJson .Values.config.rollup.genesis.bridgeAddresses | indent 8 | trim }},
         "astriaFeeCollectors": {{ toPrettyJson .Values.config.rollup.genesis.feeCollectors | indent 8 | trim }},
-        "astriaEIP1559Params": {{ toPrettyJson .Values.config.rollup.genesis.eip1559Params | indent 8 | trim }}
-        {{- if not .Values.global.dev }}
-        {{- else }},
+        "astriaEIP1559Params": {{ toPrettyJson .Values.config.rollup.genesis.eip1559Params | indent 8 | trim }},
         "astriaBridgeSenderAddress": "{{ .Values.config.rollup.genesis.bridgeSenderAddress }}",
         "astriaSequencerHrpPrefix": "{{ .Values.config.sequencer.addressPrefixes.base }}"
+        {{- if not .Values.global.dev }}
+        {{- else }}
         {{- end }}
     },
     "difficulty": "0",

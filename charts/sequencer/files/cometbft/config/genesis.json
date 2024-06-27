@@ -22,25 +22,6 @@
       "inbound_ics20_transfers_enabled": {{ .Values.genesis.ibc.inboundEnabled }},
       "outbound_ics20_transfers_enabled": {{ .Values.genesis.ibc.outboundEnabled }}
     },
-    {{- if not .Values.global.dev }}
-    "accounts": [
-      {{- range $index, $value := .Values.genesis.genesisAccounts }}
-      {{- if $index }},{{- end }}
-      {
-        "address": "{{ $value.address }}",
-        "balance": {{ toString $value.balance | replace "\"" "" }}
-      }
-      {{- end }}
-    ],
-    "authority_sudo_address": "{{ .Values.genesis.authoritySudoAddress }}",
-    "ibc_sudo_address": "{{ .Values.genesis.ibc.sudoAddress }}",
-    "ibc_relayer_addresses": [
-      {{- range $index, $value := .Values.genesis.ibc.relayerAddresses }}
-      {{- if $index }},{{- end }}
-      "{{ $value }}"
-      {{- end }}
-    ]
-    {{- else }}
     "address_prefixes": {
       "base": "{{ .Values.genesis.addressPrefixes.base }}"
     },
@@ -61,6 +42,8 @@
       {{ include "sequencer.address" $value }}
       {{- end }}
     ]
+    {{- if not .Values.global.dev }}
+    {{- else }}
     {{- end}}
   },
   "chain_id": "{{ .Values.genesis.chainId }}",

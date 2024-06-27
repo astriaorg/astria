@@ -53,6 +53,8 @@ data:
   ASTRIA_COMPOSER_MAX_BYTES_PER_BUNDLE: "{{ .Values.config.rollup.maxBytesPerBundle }}"
   ASTRIA_COMPOSER_BUNDLE_QUEUE_CAPACITY: "{{ .Values.config.rollup.bundleQueueCapacity }}"
   ASTRIA_COMPOSER_MAX_SUBMIT_INTERVAL_MS: "{{ .Values.config.rollup.maxSubmitInterval }}"
+  ASTRIA_COMPOSER_SEQUENCER_ADDRESS_PREFIX: "{{ .Values.config.sequencer.addressPrefixes.base }}"
+  ASTRIA_COMPOSER_FEE_ASSET: "{{ .Values.config.sequencer.nativeAssetBaseDenomination }}"
   ASTRIA_COMPOSER_NO_METRICS: "{{ not .Values.config.rollup.metrics.enabled }}"
   ASTRIA_COMPOSER_METRICS_HTTP_LISTENER_ADDR: "0.0.0.0:{{ .Values.ports.composerMetrics }}"
   ASTRIA_COMPOSER_FORCE_STDOUT: "{{ .Values.global.useTTY }}"
@@ -67,8 +69,6 @@ data:
   OTEL_SERVICE_NAME: "{{ tpl .Values.config.rollup.otel.serviceNamePrefix . }}-composer"
   {{- if not .Values.global.dev }}
   {{- else }}
-  ASTRIA_COMPOSER_SEQUENCER_ADDRESS_PREFIX: "{{ .Values.config.sequencer.addressPrefixes.base }}"
-  ASTRIA_COMPOSER_FEE_ASSET: "{{ .Values.config.sequencer.nativeAssetBaseDenomination }}"
   {{- end }}
 ---
 {{- if .Values.config.faucet.enabled }}

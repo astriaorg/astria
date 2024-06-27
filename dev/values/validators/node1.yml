@@ -1,36 +1,6 @@
 # Override value example for second validator from main chart
-global:
-  dev: true
-
 moniker: 'node1'
-
 genesis:
-  addressPrefixes:
-    base: "astria"
-  authoritySudoAddress: astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm
-  nativeAssetBaseDenomination: nria
-  allowedFeeAssets:
-    - nria
-  ibc:
-    enabled: true
-    inboundEnabled: true
-    outboundEnabled: true
-    sudoAddress: astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm
-    relayerAddresses:
-      - astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm
-      - astria1xnlvg0rle2u6auane79t4p27g8hxnj36ja960z
-  # Note large balances must be strings support templating with the u128 size account balances
-  genesisAccounts:
-    - address: astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm
-      balance: "333333333333333333"
-    - address: astria1xnlvg0rle2u6auane79t4p27g8hxnj36ja960z
-      balance: "333333333333333333"
-    - address: astria1vpcfutferpjtwv457r63uwr6hdm8gwr3pxt5ny
-      balance: "333333333333333333"
-      # NOTE - the following address matches the privKey that funds the sequencer-faucet
-    - address: astria1qrt4kfc9ggyy548u7rg0d64sgq5c952kzk9tg9
-      balance: "333333333333333333"
-
   validators:
     - name: node0
       power: '1'
@@ -59,17 +29,9 @@ cometbft:
           value: NDE9F44v3l4irmkZxNmrZkywoGmggLlaBo5rE/Cis8M=
         priv_key:
           value: q7D76sa0vCTcmXdHUqtVmRHV1tt9f2Ctvb8a1ijZMwA0MT0Xji/eXiKuaRnE2atmTLCgaaCAuVoGjmsT8KKzww==
-    
+
   config:
     p2p:
-      laddr: "tcp://0.0.0.0"
-      # Address to advertise to peers for them to dial. If empty, will use the same
-      # port as the laddr, and will introspect on the listener to figure out the
-      # address. IP and port are required. Example: 159.89.10.97:26656
-      externalAddress: ""
-      # List of seeds to connect to
-      seeds: []
-      # List of nodes to keep persistent connections to
       persistentPeers:
         - 2490c1fc41736a357c523fe049c319386d59d759@node0-sequencer-p2p-service.astria-dev-cluster.svc.cluster.local:26656
         - 96c652f63b5d5d5027b42e9af906082ee7c598d9@node1-sequencer-p2p-service.astria-validator-node1.svc.cluster.local:26656
