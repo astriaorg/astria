@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ .Values.config.moniker }}-cometbft-config
+  name: {{ .Values.moniker }}-cometbft-config
   namespace: {{ include "sequencer.namespace" . }}
 data:
   genesis.json: |
@@ -13,10 +13,10 @@ data:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ .Values.config.moniker }}-cometbft-secrets
+  name: {{ .Values.moniker }}-cometbft-secrets
   namespace: {{ include "sequencer.namespace" . }}
 data:
-  {{- range $secret := .Values.config.cometBFT.secrets }}
+  {{- range $secret := .Values.cometbft.secrets }}
   {{ $secret.filename }}: |
     {{- toJson $secret.devContent | nindent 4 }}
   {{- end }}
@@ -25,7 +25,7 @@ data:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ .Values.config.moniker }}-cometbft-init-scripts
+  name: {{ .Values.moniker }}-cometbft-init-scripts
   namespace: {{ include "sequencer.namespace" . }}
 data:
   init-cometbft.sh: |
@@ -34,7 +34,7 @@ data:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ .Values.config.moniker }}-cometbft-data
+  name: {{ .Values.moniker }}-cometbft-data
   namespace: {{ include "sequencer.namespace" . }}
 data:
   priv_validator_state.json: |
@@ -43,35 +43,35 @@ data:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ .Values.config.moniker }}-cometbft-env
+  name: {{ .Values.moniker }}-cometbft-env
   namespace: {{ include "sequencer.namespace" . }}
 data:
-  COMET_BFT_RPC_PORT: "{{ .Values.ports.cometBFTRPC }}"
+  COMET_BFT_RPC_PORT: "{{ .Values.ports.cometbftRpc }}"
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ .Values.config.moniker }}-sequencer-env
+  name: {{ .Values.moniker }}-sequencer-env
   namespace: {{ include "sequencer.namespace" . }}
 data:
   ASTRIA_SEQUENCER_LOG: "astria_sequencer=debug"
   ASTRIA_SEQUENCER_LISTEN_ADDR: "127.0.0.1:{{ .Values.ports.sequencerABCI }}"
   ASTRIA_SEQUENCER_DB_FILEPATH: "/sequencer/penumbra.db"
   ASTRIA_SEQUENCER_ENABLE_MINT: "false"
-  # Socket address for gRPC server
-  ASTRIA_SEQUENCER_GRPC_ADDR: "0.0.0.0:{{ .Values.ports.sequencerGRPC }}"
-  ASTRIA_SEQUENCER_NO_METRICS: "{{ not .Values.config.sequencer.metrics.enabled }}"
+  # Socket address for GRPC server
+  ASTRIA_SEQUENCER_GRPC_ADDR: "0.0.0.0:{{ .Values.ports.sequencerGrpc }}"
+  ASTRIA_SEQUENCER_NO_METRICS: "{{ not .Values.sequencer.metrics.enabled }}"
   ASTRIA_SEQUENCER_METRICS_HTTP_LISTENER_ADDR: "0.0.0.0:{{ .Values.ports.sequencerMetrics }}"
   ASTRIA_SEQUENCER_FORCE_STDOUT: "{{ .Values.global.useTTY }}"
   ASTRIA_SEQUENCER_PRETTY_PRINT: "{{ .Values.global.useTTY }}"
-  ASTRIA_SEQUENCER_NO_OTEL: "{{ not .Values.config.sequencer.otel.enabled }}"
-  OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.config.sequencer.otel.endpoint }}"
-  OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "{{ .Values.config.sequencer.otel.tracesEndpoint }}"
-  OTEL_EXPORTER_OTLP_TRACES_TIMEOUT: "{{ .Values.config.sequencer.otel.tracesTimeout }}"
-  OTEL_EXPORTER_OTLP_TRACES_COMPRESSION: "{{ .Values.config.sequencer.otel.tracesCompression }}"
-  OTEL_EXPORTER_OTLP_HEADERS: "{{ .Values.config.sequencer.otel.otlpHeaders }}"
-  OTEL_EXPORTER_OTLP_TRACE_HEADERS: "{{ .Values.config.sequencer.otel.traceHeaders }}"
-  OTEL_SERVICE_NAME: "{{ tpl .Values.config.sequencer.otel.serviceName . }}"
+  ASTRIA_SEQUENCER_NO_OTEL: "{{ not .Values.sequencer.otel.enabled }}"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.sequencer.otel.endpoint }}"
+  OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "{{ .Values.sequencer.otel.tracesEndpoint }}"
+  OTEL_EXPORTER_OTLP_TRACES_TIMEOUT: "{{ .Values.sequencer.otel.tracesTimeout }}"
+  OTEL_EXPORTER_OTLP_TRACES_COMPRESSION: "{{ .Values.sequencer.otel.tracesCompression }}"
+  OTEL_EXPORTER_OTLP_HEADERS: "{{ .Values.sequencer.otel.otlpHeaders }}"
+  OTEL_EXPORTER_OTLP_TRACE_HEADERS: "{{ .Values.sequencer.otel.traceHeaders }}"
+  OTEL_SERVICE_NAME: "{{ tpl .Values.sequencer.otel.serviceName . }}"
   {{- if not .Values.global.dev }}
   {{- else }}
   {{- end }}

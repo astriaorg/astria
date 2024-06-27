@@ -2,59 +2,59 @@ global:
   namespaceOverride: astria-dev-cluster
   dev: true
 
-config:
-  moniker: node0
-  sequencer:
-    addressPrefixes:
-      base: "astria"
-    authoritySudoAddress: astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm
-    nativeAssetBaseDenomination: nria
-    allowedFeeAssets:
-      - nria
-    ibc:
-      enabled: true
-      inboundEnabled: true
-      outboundEnabled: true
-      sudoAddress: astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm
-      relayerAddresses:
-        - astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm
-        - astria1xnlvg0rle2u6auane79t4p27g8hxnj36ja960z
-    # Note large balances must be strings support templating with the u128 size account balances
-    genesisAccounts:
-      - address: astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm
-        balance: "333333333333333333"
-      - address: astria1xnlvg0rle2u6auane79t4p27g8hxnj36ja960z
-        balance: "333333333333333333"
-      - address: astria1vpcfutferpjtwv457r63uwr6hdm8gwr3pxt5ny
-        balance: "333333333333333333"
-        # NOTE - the following address matches the privKey that funds the sequencer-faucet
-      - address: astria1qrt4kfc9ggyy548u7rg0d64sgq5c952kzk9tg9
-        balance: "333333333333333333"
+moniker: node0
 
-  cometBFT:
-    validators:
+genesis:
+  addressPrefixes:
+    base: "astria"
+  authoritySudoAddress: astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm
+  nativeAssetBaseDenomination: nria
+  allowedFeeAssets:
+    - nria
+  ibc:
+    enabled: true
+    inboundEnabled: true
+    outboundEnabled: true
+    sudoAddress: astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm
+    relayerAddresses:
+      - astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm
+      - astria1xnlvg0rle2u6auane79t4p27g8hxnj36ja960z
+  # Note large balances must be strings support templating with the u128 size account balances
+  genesisAccounts:
+    - address: astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm
+      balance: "333333333333333333"
+    - address: astria1xnlvg0rle2u6auane79t4p27g8hxnj36ja960z
+      balance: "333333333333333333"
+    - address: astria1vpcfutferpjtwv457r63uwr6hdm8gwr3pxt5ny
+      balance: "333333333333333333"
+      # NOTE - the following address matches the privKey that funds the sequencer-faucet
+    - address: astria1qrt4kfc9ggyy548u7rg0d64sgq5c952kzk9tg9
+      balance: "333333333333333333"
+  validators:
       - name: core
         power: '1'
         address: 091E47761C58C474534F4D414AF104A6CAF90C22
         pubKey: lV57+rGs2vac7mvkGHP1oBFGHPJM3a+WoAzeFDCJDNU=
-    secrets:
-      nodeKey:
-        filename: nodeKey.json
-        devContent:
-          priv_key:
-            value: HGWRtLbV8WLGFgbYhaGyaLe++DC+DBoc7O3bri81vs2ZlpR28IFfQScoO1aNOE/ygs8LIPM9UzLzbaab4VMggQ==
-      privValidatorKey:
-        filename: privValidatorKey.json
-        devContent:
-          # Ed25519 address of validator
-          address: 091E47761C58C474534F4D414AF104A6CAF90C22
-          # public key for the validator address
-          pub_key:
-            value: lV57+rGs2vac7mvkGHP1oBFGHPJM3a+WoAzeFDCJDNU=
-          # private key for the validator address
-          # This is a secret key, should use a secret manager for production deployments
-          priv_key:
-            value: dGOTAweQV8Do9P2n+A8m5EnboDrlxgD3dg4vrYpdIRqVXnv6saza9pzua+QYc/WgEUYc8kzdr5agDN4UMIkM1Q==
+
+cometbft:
+  secrets:
+    nodeKey:
+      filename: nodeKey.json
+      devContent:
+        priv_key:
+          value: HGWRtLbV8WLGFgbYhaGyaLe++DC+DBoc7O3bri81vs2ZlpR28IFfQScoO1aNOE/ygs8LIPM9UzLzbaab4VMggQ==
+    privValidatorKey:
+      filename: privValidatorKey.json
+      devContent:
+        # Ed25519 address of validator
+        address: 091E47761C58C474534F4D414AF104A6CAF90C22
+        # public key for the validator address
+        pub_key:
+          value: lV57+rGs2vac7mvkGHP1oBFGHPJM3a+WoAzeFDCJDNU=
+        # private key for the validator address
+        # This is a secret key, should use a secret manager for production deployments
+        priv_key:
+          value: dGOTAweQV8Do9P2n+A8m5EnboDrlxgD3dg4vrYpdIRqVXnv6saza9pzua+QYc/WgEUYc8kzdr5agDN4UMIkM1Q==    
 
 sequencer-relayer:
   enabled: true

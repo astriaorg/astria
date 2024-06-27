@@ -10,7 +10,7 @@ images:
   geth:
     repo: ghcr.io/astriaorg/astria-geth
     tag: 0.11.0
-    devTag: pr-30
+    devTag: latest
   conductor:
     repo: ghcr.io/astriaorg/conductor
     tag: "0.17.0"
@@ -332,8 +332,8 @@ resources:
       memory: 1Gi
   geth:
     requests:
-      cpu: 4
-      memory: 16Gi
+      cpu: 16
+      memory: 32Gi
 
 storage:
   enabled: false

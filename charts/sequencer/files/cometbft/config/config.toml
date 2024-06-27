@@ -19,7 +19,7 @@ version = "0.38.6"
 proxy_app = "tcp://127.0.0.1:{{ .Values.ports.sequencerABCI }}"
 
 # A custom human readable name for this node
-moniker = "{{ .Values.config.moniker }}"
+moniker = "{{ .Values.moniker }}"
 
 # Database backend: goleveldb | cleveldb | boltdb | rocksdb | badgerdb
 # * goleveldb (github.com/syndtr/goleveldb - most popular implementation)
@@ -45,11 +45,11 @@ db_backend = "goleveldb"
 # Database directory
 db_dir = "data"
 
-# Output level for logging, including package level options
-log_level = "info"
+# Output level for logging, including package level options, defaults to info
+log_level = "{{ .Values.cometbft.config.logLevel }}"
 
-# Output format: 'plain' (colored text) or 'json'
-log_format = "plain"
+# Output format: 'plain' (colored text) or 'json', default to plain
+log_format = "{{ .Values.cometbft.config.logFormat }}"
 
 ##### additional base config options #####
 
@@ -57,7 +57,7 @@ log_format = "plain"
 genesis_file = "config/genesis.json"
 
 # Path to the JSON file containing the private key to use as a validator in the consensus protocol
-priv_validator_key_file = "/secrets/{{ .Values.config.cometBFT.secrets.privValidatorKey.filename }}"
+priv_validator_key_file = "/secrets/{{ .Values.cometbft.secrets.privValidatorKey.filename }}"
 
 # Path to the JSON file containing the last sign state of a validator
 priv_validator_state_file = "data/priv_validator_state.json"
@@ -67,7 +67,7 @@ priv_validator_state_file = "data/priv_validator_state.json"
 priv_validator_laddr = ""
 
 # Path to the JSON file containing the private key to use for node authentication in the p2p protocol
-node_key_file = "/secrets/{{ .Values.config.cometBFT.secrets.nodeKey.filename }}"
+node_key_file = "/secrets/{{ .Values.cometbft.secrets.nodeKey.filename }}"
 
 # Mechanism to connect to the ABCI application: socket | grpc
 abci = "socket"
@@ -87,7 +87,7 @@ filter_peers = false
 [rpc]
 
 # TCP or UNIX socket address for the RPC server to listen on
-laddr = "tcp://0.0.0.0:{{ .Values.ports.cometBFTRPC }}"
+laddr = "tcp://0.0.0.0:{{ .Values.ports.cometbftRpc }}"
 
 # A list of origins a cross-domain request can be executed from
 # Default value '[]' disables cors support
@@ -111,7 +111,7 @@ grpc_laddr = ""
 # 0 - unlimited.
 # Should be < {ulimit -Sn} - {MaxNumInboundPeers} - {MaxNumOutboundPeers} - {N of wal, db and other open files}
 # 1024 - 40 - 10 - 50 = 924 = ~900
-grpc_max_open_connections = 900
+grpc_max_open_connections = {{ .Values.cometbft.config.grpc.maxOpenConnections }} 
 
 # Activate unsafe RPC commands like /dial_seeds and /unsafe_flush_mempool
 unsafe = false
@@ -123,17 +123,17 @@ unsafe = false
 # 0 - unlimited.
 # Should be < {ulimit -Sn} - {MaxNumInboundPeers} - {MaxNumOutboundPeers} - {N of wal, db and other open files}
 # 1024 - 40 - 10 - 50 = 924 = ~900
-max_open_connections = 900
+max_open_connections = {{ .Values.cometbft.config.rpc.maxOpenConnections }}
 
 # Maximum number of unique clientIDs that can /subscribe
 # If you're using /broadcast_tx_commit, set to the estimated maximum number
 # of broadcast_tx_commit calls per block.
-max_subscription_clients = 100
+max_subscription_clients = {{ .Values.cometbft.config.rpc.maxSubscriptionClients }}
 
 # Maximum number of unique queries a given client can /subscribe to
 # If you're using GRPC (or Local RPC client) and /broadcast_tx_commit, set to
 # the estimated # maximum number of broadcast_tx_commit calls per block.
-max_subscriptions_per_client = 5
+max_subscriptions_per_client = {{ .Values.cometbft.config.rpc.maxSubscriptionsPerClient }}
 
 # Experimental parameter to specify the maximum number of events a node will
 # buffer, per subscription, before returning an error and closing the
@@ -169,10 +169,10 @@ experimental_close_on_slow_client = false
 timeout_broadcast_tx_commit = "10s"
 
 # Maximum size of request body, in bytes
-max_body_bytes = 1000000
+max_body_bytes = 1_000_000
 
 # Maximum size of request header, in bytes
-max_header_bytes = 1048576
+max_header_bytes = 1_048_576
 
 # The path to a file containing certificate that is used to create the HTTPS server.
 # Might be either absolute path or path related to CometBFT's config directory.
@@ -198,18 +198,18 @@ pprof_laddr = ""
 [p2p]
 
 # Address to listen for incoming connections
-laddr = "{{ .Values.config.cometBFT.p2p.laddr }}:{{ .Values.ports.cometBFTP2P }}"
+laddr = "{{ .Values.cometbft.config.p2p.laddr }}:{{ .Values.ports.cometbftP2P }}"
 
 # Address to advertise to peers for them to dial. If empty, will use the same
 # port as the laddr, and will introspect on the listener to figure out the
 # address. IP and port are required. Example: 159.89.10.97:26656
-external_address = "{{ .Values.config.cometBFT.p2p.externalAddress }}"
+external_address = "{{ .Values.cometbft.config.p2p.externalAddress }}"
 
 # Comma separated list of seed nodes to connect to
-seeds = "{{ join "," .Values.config.cometBFT.p2p.seeds }}"
+seeds = "{{ join "," .Values.cometbft.config.p2p.seeds }}"
 
 # Comma separated list of nodes to keep persistent connections to
-persistent_peers = "{{ join "," .Values.config.cometBFT.p2p.persistentPeers }}"
+persistent_peers = "{{ join "," .Values.cometbft.config.p2p.persistentPeers }}"
 
 # Path to address book
 addr_book_file = "config/addrbook.json"
@@ -219,16 +219,16 @@ addr_book_file = "config/addrbook.json"
 addr_book_strict = true
 
 # Maximum number of inbound peers
-max_num_inbound_peers = 40
+max_num_inbound_peers = {{ .Values.cometbft.config.p2p.maxInboundPeers }}
 
 # Maximum number of outbound peers to connect to, excluding persistent peers
-max_num_outbound_peers = 10
+max_num_outbound_peers = {{ .Values.cometbft.config.p2p.maxOutboundPeers }}
 
 # List of node IDs, to which a connection will be (re)established ignoring any existing limits
-unconditional_peer_ids = "{{ join "," .Values.config.cometBFT.p2p.unconditionalPeers }}"
+unconditional_peer_ids = "{{ join "," .Values.cometbft.config.p2p.unconditionalPeers }}"
 
 # Maximum pause when redialing a persistent peer (if zero, exponential backoff is used)
-persistent_peers_max_dial_period = "0s"
+persistent_peers_max_dial_period = "{{ .Values.cometbft.config.p2p.persistentPeersMaxDialPeriod }}"
 
 # Time to wait before flushing messages out on the connection
 flush_throttle_timeout = "100ms"
@@ -237,10 +237,10 @@ flush_throttle_timeout = "100ms"
 max_packet_msg_payload_size = 1024
 
 # Rate at which packets can be sent, in bytes/second
-send_rate = 5120000
+send_rate = {{ .Values.cometbft.config.p2p.sendRate }}
 
 # Rate at which packets can be received, in bytes/second
-recv_rate = 5120000
+recv_rate = {{ .Values.cometbft.config.p2p.recvRate }}
 
 # Set true to enable the peer-exchange reactor
 pex = true
@@ -249,17 +249,17 @@ pex = true
 # peers. If another node asks it for addresses, it responds and disconnects.
 #
 # Does not work if the peer-exchange reactor is disabled.
-seed_mode = {{ .Values.config.cometBFT.p2p.seedMode }}
+seed_mode = "{{ .Values.cometbft.config.p2p.seedMode }}"
 
 # Comma separated list of peer IDs to keep private (will not be gossiped to other peers)
-private_peer_ids = "{{ join "," .Values.config.cometBFT.p2p.privatePeers }}"
+private_peer_ids = "{{ join "," .Values.cometbft.config.p2p.privatePeers }}"
 
 # Toggle to disable guard against peers connecting from the same ip.
-allow_duplicate_ip = false
+allow_duplicate_ip = "{{ .Values.cometbft.config.p2p.allowDuplicateIp }}"
 
 # Peer connection configuration.
-handshake_timeout = "20s"
-dial_timeout = "3s"
+handshake_timeout = "{{ .Values.cometbft.config.p2p.handshakeTimeout }}"
+dial_timeout = "{{ .Values.cometbft.config.p2p.dialTimeout }}"
 
 #######################################################
 ###          Mempool Configuration Option          ###
@@ -297,15 +297,15 @@ broadcast = true
 wal_dir = ""
 
 # Maximum number of transactions in the mempool
-size = 5000
+size = {{ .Values.cometbft.config.mempool.size }}
 
 # Limit the total size of all txs in the mempool.
 # This only accounts for raw transactions (e.g. given 1MB transactions and
 # max_txs_bytes=5MB, mempool will only accept 5 transactions).
-max_txs_bytes = 1073741824
+max_txs_bytes = {{ .Values.cometbft.config.mempool.maxTxsBytes}}
 
 # Size of the cache (used to filter transactions we saw earlier) in transactions
-cache_size = 10000
+cache_size = {{ .Values.cometbft.config.mempool.cacheSize}}
 
 # Do not remove invalid transactions from the cache (default: false)
 # Set to true if it's not possible for any invalid transaction to become valid
@@ -314,7 +314,7 @@ keep-invalid-txs-in-cache = false
 
 # Maximum size of a single transaction.
 # NOTE: the max size of a tx transmitted over the network is {max_tx_bytes}.
-max_tx_bytes = 1048576
+max_tx_bytes = {{ .Values.cometbft.config.mempool.maxTxBytes}}
 
 # Maximum size of a batch of transactions to send to a peer
 # Including space needed by encoding (one varint per transaction).
@@ -393,21 +393,21 @@ version = "v0"
 wal_file = "data/cs.wal/wal"
 
 # How long we wait for a proposal block before prevoting nil
-timeout_propose = "3s"
+timeout_propose = "{{ .Values.cometbft.config.consensus.timeoutPropose }}"
 # How much timeout_propose increases with each round
-timeout_propose_delta = "500ms"
+timeout_propose_delta =  "{{ .Values.cometbft.config.consensus.timeoutProposeDelta }}"
 # How long we wait after receiving +2/3 prevotes for “anything” (ie. not a single block or nil)
-timeout_prevote = "1s"
+timeout_prevote =  "{{ .Values.cometbft.config.consensus.timeoutPrevote }}"
 # How much the timeout_prevote increases with each round
-timeout_prevote_delta = "500ms"
+timeout_prevote_delta =  "{{ .Values.cometbft.config.consensus.timeoutPrevoteDelta }}"
 # How long we wait after receiving +2/3 precommits for “anything” (ie. not a single block or nil)
-timeout_precommit = "1s"
+timeout_precommit =  "{{ .Values.cometbft.config.consensus.timeoutPrecommit }}"
 # How much the timeout_precommit increases with each round
-timeout_precommit_delta = "500ms"
+timeout_precommit_delta =  "{{ .Values.cometbft.config.consensus.timeoutPrecommitDelta }}"
 # How long we wait after committing a block, before starting on the new
 # height (this gives us a chance to receive some more precommits, even
 # though we already have +2/3).
-timeout_commit = "2s"
+timeout_commit = "{{ .Values.cometbft.config.consensus.timeoutCommit }}"
 
 # How many blocks to look back to check existence of the node's consensus votes before joining consensus
 # When non-zero, the node will panic upon restart
@@ -453,7 +453,7 @@ discard_abci_responses = false
 # 		- When "kv" is chosen "tx.height" and "tx.hash" will always be indexed.
 #   3) "psql" - the indexer services backed by PostgreSQL.
 # When "kv" or "psql" is chosen "tx.height" and "tx.hash" will always be indexed.
-{{- if .Values.config.cometBFT.psql.enabled }}
+{{- if .Values.cometbft.config.psql.enabled }}
 indexer = "psql"
 {{- else }}
 indexer = "kv"
@@ -461,8 +461,8 @@ indexer = "kv"
 
 # The PostgreSQL connection configuration, the connection format:
 #   postgresql://<user>:<password>@<host>:<port>/<db>?<opts>
-{{- if .Values.config.cometBFT.psql.enabled }}
-psql-conn = "{{ .Values.config.cometBFt.psql.conn }}"
+{{- if .Values.cometbft.config.psql.enabled }}
+psql-conn = "{{ .Values.cometbft.config.psql.conn }}"
 {{- else }}
 psql-conn = ""
 {{- end }}
@@ -486,4 +486,4 @@ prometheus_listen_addr = ":26660"
 max_open_connections = 3
 
 # Instrumentation namespace
-namespace = "cometbft"
+namespace = "{{ .Values.cometbft.config.instrumentation.namespace }}"

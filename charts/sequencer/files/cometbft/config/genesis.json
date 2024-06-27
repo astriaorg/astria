@@ -1,78 +1,78 @@
 {
   "app_hash": "",
   "app_state": {
-    "native_asset_base_denomination": "{{ .Values.config.sequencer.nativeAssetBaseDenomination }}",
+    "native_asset_base_denomination": "{{ .Values.genesis.nativeAssetBaseDenomination }}",
     "fees": {
-      "transfer_base_fee": 12,
-      "sequence_base_fee": 32,
-      "sequence_byte_cost_multiplier": 1,
-      "init_bridge_account_base_fee": 48,
-      "bridge_lock_byte_cost_multiplier": 1,
-      "bridge_sudo_change_fee": 24,
-      "ics20_withdrawal_base_fee": 24
+      "transfer_base_fee": {{ .Values.genesis.fees.transferBaseFee }},
+      "sequence_base_fee": {{ .Values.genesis.fees.sequenceBaseFee }},
+      "sequence_byte_cost_multiplier": {{ .Values.genesis.fees.sequenceByteCostMultiplier }},
+      "init_bridge_account_base_fee": {{ .Values.genesis.fees.initBridgeAccountBaseFee }},
+      "bridge_lock_byte_cost_multiplier": {{ .Values.genesis.fees.bridgeLockByteCostMultiplier }},
+      "bridge_sudo_change_fee": {{ .Values.genesis.fees.bridgeSudoChangeFee }},
+      "ics20_withdrawal_base_fee": {{ .Values.genesis.fees.ics20WithdrawalBaseFee }}
     },
     "allowed_fee_assets": [
-      {{- range $index, $value := .Values.config.sequencer.allowedFeeAssets }}
+      {{- range $index, $value := .Values.genesis.allowedFeeAssets }}
       {{- if $index }},{{- end }}
       "{{ $value }}"
       {{- end }}
     ],
     "ibc_params": {
-      "ibc_enabled": {{ .Values.config.sequencer.ibc.enabled }},
-      "inbound_ics20_transfers_enabled": {{ .Values.config.sequencer.ibc.inboundEnabled }},
-      "outbound_ics20_transfers_enabled": {{ .Values.config.sequencer.ibc.outboundEnabled }}
+      "ibc_enabled": {{ .Values.genesis.ibc.enabled }},
+      "inbound_ics20_transfers_enabled": {{ .Values.genesis.ibc.inboundEnabled }},
+      "outbound_ics20_transfers_enabled": {{ .Values.genesis.ibc.outboundEnabled }}
     },
     {{- if not .Values.global.dev }}
-      "accounts": [
-        {{- range $index, $value := .Values.config.sequencer.genesisAccounts }}
-        {{- if $index }},{{- end }}
-        {
-          "address": "{{ $value.address }}",
-          "balance": {{ toString $value.balance | replace "\"" "" }}
-        }
-        {{- end }}
-      ],
-      "authority_sudo_address": "{{ .Values.config.sequencer.authoritySudoAddress }}",
-      "ibc_sudo_address": "{{ .Values.config.sequencer.ibc.sudoAddress }}",
-      "ibc_relayer_addresses": [
-        {{- range $index, $value := .Values.config.sequencer.ibc.relayerAddresses }}
-        {{- if $index }},{{- end }}
-        "{{ $value }}"
-        {{- end }}
-      ]
+    "accounts": [
+      {{- range $index, $value := .Values.genesis.genesisAccounts }}
+      {{- if $index }},{{- end }}
+      {
+        "address": "{{ $value.address }}",
+        "balance": {{ toString $value.balance | replace "\"" "" }}
+      }
+      {{- end }}
+    ],
+    "authority_sudo_address": "{{ .Values.genesis.authoritySudoAddress }}",
+    "ibc_sudo_address": "{{ .Values.genesis.ibc.sudoAddress }}",
+    "ibc_relayer_addresses": [
+      {{- range $index, $value := .Values.genesis.ibc.relayerAddresses }}
+      {{- if $index }},{{- end }}
+      "{{ $value }}"
+      {{- end }}
+    ]
     {{- else }}
-      "address_prefixes": {
-        "base": "{{ .Values.config.sequencer.addressPrefixes.base }}"
-      },
-      "accounts": [
-        {{- range $index, $value := .Values.config.sequencer.genesisAccounts }}
-        {{- if $index }},{{- end }}
-        {
-          "address": {{ include "sequencer.address" $value.address }},
-          "balance": {{ toString $value.balance | replace "\"" "" }}
-        }
-        {{- end }}
-      ],
-      "authority_sudo_address": {{ include "sequencer.address" .Values.config.sequencer.authoritySudoAddress }},
-      "ibc_sudo_address": {{ include "sequencer.address" .Values.config.sequencer.ibc.sudoAddress }},
-      "ibc_relayer_addresses": [
-        {{- range $index, $value := .Values.config.sequencer.ibc.relayerAddresses }}
-        {{- if $index }},{{- end }}
-        {{ include "sequencer.address" $value }}
-        {{- end }}
-      ]
+    "address_prefixes": {
+      "base": "{{ .Values.genesis.addressPrefixes.base }}"
+    },
+    "accounts": [
+      {{- range $index, $value := .Values.genesis.genesisAccounts }}
+      {{- if $index }},{{- end }}
+      {
+        "address": {{ include "sequencer.address" $value.address }},
+        "balance": {{ toString $value.balance | replace "\"" "" }}
+      }
+      {{- end }}
+    ],
+    "authority_sudo_address": {{ include "sequencer.address" .Values.genesis.authoritySudoAddress }},
+    "ibc_sudo_address": {{ include "sequencer.address" .Values.genesis.ibc.sudoAddress }},
+    "ibc_relayer_addresses": [
+      {{- range $index, $value := .Values.genesis.ibc.relayerAddresses }}
+      {{- if $index }},{{- end }}
+      {{ include "sequencer.address" $value }}
+      {{- end }}
+    ]
     {{- end}}
   },
-  "chain_id": "{{ .Values.config.cometBFT.chainId }}",
+  "chain_id": "{{ .Values.genesis.chainId }}",
   "consensus_params": {
     "block": {
-      "max_bytes": "22020096",
-      "max_gas": "-1"
+      "max_bytes": " {{ .Values.genesis.consensusParams.blockMaxBytes }}",
+      "max_gas": "{{ .Values.genesis.consensusParams.blockMaxGas }}"
     },
     "evidence": {
-      "max_age_duration": "172800000000000",
-      "max_age_num_blocks": "100000",
-      "max_bytes": "1048576"
+      "max_age_duration": "{{ .Values.genesis.consensusParams.maxAgeDuration }}",
+      "max_age_num_blocks": " {{ .Values.genesis.consensusParams.maxAgeNumBlocks }}",
+      "max_bytes": "{{ .Values.genesis.consensusParams.maxBytes }}"
     },
     "validator": {
       "pub_key_types": [
@@ -83,10 +83,10 @@
       "app": "0"
     }
   },
-  "genesis_time": "{{ .Values.config.cometBFT.genesisTime }}",
+  "genesis_time": "{{ .Values.genesis.genesisTime }}",
   "initial_height": "0",
   "validators": [
-  {{- range $index, $value := .Values.config.cometBFT.validators }}
+  {{- range $index, $value := .Values.genesis.validators }}
       {{- if $index }},{{- end }}
       {
         "address": "{{ $value.address }}",

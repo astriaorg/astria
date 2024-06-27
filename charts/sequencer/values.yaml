@@ -17,60 +17,94 @@ images:
     devTag: v0.38.6
   sequencer:
     repo: ghcr.io/astriaorg/sequencer
-    tag: 0.13.0
+    tag: "0.13.0"
     devTag: latest
 
-config:
-  moniker: "node"
-  sequencer:
-    addressPrefixes:
-      base: "astria"
-    authoritySudoAddress: 1c0c490f1b5528d8173c5de46d131160e4b2c0c3
-    nativeAssetBaseDenomination: nria
-    allowedFeeAssets:
-      - nria
-    ibc:
-      enabled: true
-      inboundEnabled: true
-      outboundEnabled: true
-      sudoAddress: 1c0c490f1b5528d8173c5de46d131160e4b2c0c3
-      relayerAddresses:
-        - 1c0c490f1b5528d8173c5de46d131160e4b2c0c3
-        - 34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a
-    # Note large balances must be strings support templating with the u128 size account balances
-    genesisAccounts:
-      - address: 1c0c490f1b5528d8173c5de46d131160e4b2c0c3
-        balance: "333333333333333333"
-      - address: 34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a
-        balance: "333333333333333333"
-      - address: 60709e2d391864b732b4f0f51e387abb76743871
-        balance: "333333333333333333"
-        # NOTE - the following address matches the privKey that funds the sequencer-faucet
-      - address: 00d75b270542084a54fcf0d0f6eab0402982d156
-        balance: "333333333333333333"
+moniker: "node"
+genesis:
+  chainId: 'sequencer-test-chain-0'
+  genesisTime: '2023-09-22T17:22:35.092832Z'
+  addressPrefixes:
+    base: "astria"
+  authoritySudoAddress: 1c0c490f1b5528d8173c5de46d131160e4b2c0c3
+  nativeAssetBaseDenomination: nria
+  allowedFeeAssets:
+    - nria
+  ibc:
+    enabled: true
+    inboundEnabled: true
+    outboundEnabled: true
+    sudoAddress: 1c0c490f1b5528d8173c5de46d131160e4b2c0c3
+    relayerAddresses:
+      - 1c0c490f1b5528d8173c5de46d131160e4b2c0c3
+      - 34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a
+  # Note large balances must be strings support templating with the u128 size account balances
+  genesisAccounts:
+  - address: 1c0c490f1b5528d8173c5de46d131160e4b2c0c3
+    balance: "333333333333333333"
+  - address: 34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a
+    balance: "333333333333333333"
+  - address: 60709e2d391864b732b4f0f51e387abb76743871
+    balance: "333333333333333333"
+    # NOTE - the following address matches the privKey that funds the sequencer-faucet
+  - address: 00d75b270542084a54fcf0d0f6eab0402982d156
+    balance: "333333333333333333"
 
-    metrics:
-      enabled: false
+  consensusParams:
+    blockMaxBytes: "1048576"
+    blockMaxGas: "-1"
+    maxAgeDuration: "1209600000000000"
+    maxAgeNumBlocks: "4000000"
+    maxBytes: "1048576"
 
-    otel:
-      enabled: false
-      serviceName: |-
-        {{ include "sequencer.name" . }}
-      endpoint:
-      tracesEndpoint:
-      tracesCompression: gzip
-      tracesTimeout: 10
-      otlpHeaders:
-      traceHeaders:
+  fees:
+    transferBaseFee: "12"
+    sequenceBaseFee: "32"
+    sequenceByteCostMultiplier: "1"
+    initBridgeAccountBaseFee: "48"
+    bridgeLockByteCostMultiplier: "1"
+    bridgeSudoChangeFee: "24"
+    ics20WithdrawalBaseFee: "24"
 
-  # Values for CometBFT node configuration
-  cometBFT:
-    chainId: 'sequencer-test-chain-0'
-    genesisTime: '2023-09-22T17:22:35.092832Z'
-    # If using postgres for indexing, update to enabled and set the connection
+  validators: []
+    # - name: core
+    #   power: '1'
+    #   address: 091E47761C58C474534F4D414AF104A6CAF90C22
+    #   pubKey: lV57+rGs2vac7mvkGHP1oBFGHPJM3a+WoAzeFDCJDNU=
+
+sequencer:
+  metrics:
+    enabled: false
+  otel:
+    enabled: false
+    serviceName: |-
+      {{ include "sequencer.name" . }}
+    endpoint:
+    tracesEndpoint:
+    tracesCompression: gzip
+    tracesTimeout: 10
+    otlpHeaders:
+    traceHeaders:
+
+cometbft:
+  config:
+    # Log configurations
+    logLevel: "info"
+    logFormat: "plain"
+    # Grpc server configuration
+    grpc:
+      # Maximum number of simultaneous GRPC connections
+      maxOpenConnections: 900
+    rpc:
+      # Maximum number of simultaneous RPC connections
+      maxOpenConnections: 900
+      maxSubscriptionClients: 100
+      maxSubscriptionsPerClient: 10
+
     psql:
       enabled: false
       conn: postgresql://<user>:<password>@<host>:<port>/<db>?<opts>
+
     p2p:
       # Address to listen for incoming connections, port is inferred from ports.cometBFTP2P
       laddr: "tcp://0.0.0.0"
@@ -85,45 +119,74 @@ config:
       persistentPeers: []
       # List of node IDs, to which a connection will be (re)established ignoring any existing limits
       unconditionalPeers: []
+      # Maximum pause when redialing a persistent peer (if zero, exponential backoff is used)
+      persistentPeersMaxDialPeriod: "0s"
       # List of peer IDs to keep private (will not be gossiped to other peers)
       privatePeers: []
+      # Toggle to disable guard against peers connecting from the same ip.
+      allowDuplicateIP: false
       # Seed mode, in which node constantly crawls the network and looks for
       # peers. If another node asks it for addresses, it responds and disconnects.
       seedMode: false
-    # These secrets will be generated using the devContent values turned into JSON
-    # and stored unsafely as config maps. Unless SecretProvider is enabled.
-    # Where the secret parameters should be then updated to suit your secret provider
-    # parameter template.
-    secrets:
-      nodeKey:
-        filename: nodeKey.json
-        devContent:
-          priv_key:
-            type: tendermint/PrivKeyEd25519
-            value: ""  # can override with a value for local testing
-        secret:
-          resourceName: "projects/$PROJECT_ID/secrets/privValidatorKey/versions/latest"
-      privValidatorKey:
-        filename: privValidatorKey.json
-        devContent:
-          # Ed25519 address of validator
-          address: ""  # can override with a value for local testing
-          # public key for the validator address
-          pub_key:
-            type: tendermint/PubKeyEd25519
-            value: ""  # can override with a value for local testing
-          # private key for the validator address
-          # This is a secret key, should use a secret manager for production deployments
-          priv_key:
-            type: tendermint/PrivKeyEd25519
-            value: ""  # can override with a value for local testing
-        secret:
-          resourceName: "projects/$PROJECT_ID/secrets/privValidatorKey/versions/latest"
-    validators: []
-      # - name: core
-      #   power: '1'
-      #   address: 091E47761C58C474534F4D414AF104A6CAF90C22
-      #   pubKey: lV57+rGs2vac7mvkGHP1oBFGHPJM3a+WoAzeFDCJDNU=
+      # Maximum number of inbound and outbound peers
+      maxInboundPeers: 100
+      maxOutboundPeers: 40
+      # Rate at which packets can be sent/receved, in bytes/second
+      sendRate: 5120000
+      recvRate: 5120000
+      # p2p connection configurations
+      handshakeTimeout: 20s
+      dialTimeout: 3s
+
+    mempool:
+      # Maximum number of transactions in the mempool
+      size: 2000
+      # Maximum size of a single transaction in the mempool
+      maxTxBytes: 250000
+      # Maximum size of all transactions in the mempool
+      maxTxsBytes: 100000000
+      cacheSize: 10000
+
+    consensus:
+      timeoutPropose: 2s
+      timeoutProposeDelta: 500ms
+      timeoutPrevote: 1s
+      timeoutPrevoteDelta: 500ms
+      timeoutPrecommit: 1s
+      timeoutPrecommitDelta: 500ms
+      timeoutCommit: 1500ms
+
+    instrumentation:
+      namespace: "astria_cometbft"
+  # These secrets will be generated using the devContent values turned into JSON
+  # and stored unsafely as config maps. Unless SecretProvider is enabled.
+  # Where the secret parameters should be then updated to suit your secret provider
+  # parameter template.
+  secrets:
+    nodeKey:
+      filename: nodeKey.json
+      devContent:
+        priv_key:
+          type: tendermint/PrivKeyEd25519
+          value: ""  # can override with a value for local testing
+      secret:
+        resourceName: "projects/$PROJECT_ID/secrets/privValidatorKey/versions/latest"
+    privValidatorKey:
+      filename: privValidatorKey.json
+      devContent:
+        # Ed25519 address of validator
+        address: ""  # can override with a value for local testing
+        # public key for the validator address
+        pub_key:
+          type: tendermint/PubKeyEd25519
+          value: ""  # can override with a value for local testing
+        # private key for the validator address
+        # This is a secret key, should use a secret manager for production deployments
+        priv_key:
+          type: tendermint/PrivKeyEd25519
+          value: ""  # can override with a value for local testing
+      secret:
+        resourceName: "projects/$PROJECT_ID/secrets/privValidatorKey/versions/latest"
 
 sequencer-relayer:
   enabled: false
@@ -147,18 +210,18 @@ secretProvider:
   # The secret file must be mapped to the <secret_name>.filename value.
   parametersTemplate: |-
     secrets: |
-      {{- range $value := .Values.config.cometBFT.secrets }}
+      {{- range $value := .Values.cometbft.secrets }}
       - resourceName: {{ $value.secret.resourceName }}
         fileName: "{{ $value.filename }}"
       {{- end }}
 
 ports:
-  cometBFTP2P: 26656
-  cometBFTRPC: 26657
-  cometBFTMETRICS: 26660
+  cometbftP2P: 26656
+  cometbftRpc: 26657
+  cometbftMetrics: 26660
   sequencerABCI: 26658
-  sequencerGRPC: 8080
-  relayerRPC: 2450
+  sequencerGrpc: 8080
+  relayerRpc: 2450
   sequencerMetrics: 9000
 
 # ServiceMonitor configuration
@@ -203,7 +266,7 @@ storage:
 
 ingress:
   rpc:
-    enabled: true
+    enabled: false
     hostname: sequencer.localdev.me
     ingressClassName: nginx
     # For Kubernetes >= 1.18 you should specify the ingress-controller via the field ingressClassName
