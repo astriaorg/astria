@@ -1146,7 +1146,11 @@ mod test {
     }
 
     #[test]
+<<<<<<< HEAD
     fn snapshots() {
+=======
+    fn storage_keys_have_not_changed() {
+>>>>>>> 5a3af081c47cf8b8b2d91d3eadd030f86ecf5ec1
         let address: Address = "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
             .parse()
             .unwrap();

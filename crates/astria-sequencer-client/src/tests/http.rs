@@ -178,8 +178,12 @@ async fn get_latest_nonce() {
         height: 10,
         nonce: 1,
     };
-    let _guard =
-        register_abci_query_response(&server, "accounts/nonce/", expected_response.clone()).await;
+    let _guard = register_abci_query_response(
+        &server,
+        &format!("accounts/nonce/{}", alice_address()),
+        expected_response.clone(),
+    )
+    .await;
 
     let actual_response = client
         .get_latest_nonce(alice_address())
@@ -208,8 +212,12 @@ async fn get_latest_balance() {
             balance: Some(10u128.pow(18).into()),
         }],
     };
-    let _guard =
-        register_abci_query_response(&server, "accounts/balance/", expected_response.clone()).await;
+    let _guard = register_abci_query_response(
+        &server,
+        &format!("accounts/balance/{}", alice_address()),
+        expected_response.clone(),
+    )
+    .await;
 
     let actual_response = client
         .get_latest_balance(alice_address())

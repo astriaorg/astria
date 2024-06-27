@@ -26,8 +26,7 @@ genesis:
   genesisTime: '2023-09-22T17:22:35.092832Z'
   addressPrefixes:
     base: "astria"
-  authoritySudoAddress: astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm
-  oldAuthoritySudoAddress: 1c0c490f1b5528d8173c5de46d131160e4b2c0c3
+  authoritySudoAddress: 1c0c490f1b5528d8173c5de46d131160e4b2c0c3
   nativeAssetBaseDenomination: nria
   allowedFeeAssets:
     - nria
@@ -35,26 +34,12 @@ genesis:
     enabled: true
     inboundEnabled: true
     outboundEnabled: true
-    sudoAddress: astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm
-    oldSudoAddress: 1c0c490f1b5528d8173c5de46d131160e4b2c0c3
+    sudoAddress: 1c0c490f1b5528d8173c5de46d131160e4b2c0c3
     relayerAddresses:
-      - astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm
-      - astria1xnlvg0rle2u6auane79t4p27g8hxnj36ja960z
-    oldRelayerAddresses:
       - 1c0c490f1b5528d8173c5de46d131160e4b2c0c3
       - 34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a
   # Note large balances must be strings support templating with the u128 size account balances
   genesisAccounts:
-  - address: astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm
-    balance: "333333333333333333"
-  - address: astria1xnlvg0rle2u6auane79t4p27g8hxnj36ja960z
-    balance: "333333333333333333"
-  - address: astria1vpcfutferpjtwv457r63uwr6hdm8gwr3pxt5ny
-    balance: "333333333333333333"
-    # NOTE - the following address matches the privKey that funds the sequencer-faucet
-  - address: astria1qrt4kfc9ggyy548u7rg0d64sgq5c952kzk9tg9
-    balance: "333333333333333333"
-  oldGenesisAccounts:
   - address: 1c0c490f1b5528d8173c5de46d131160e4b2c0c3
     balance: "333333333333333333"
   - address: 34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a
@@ -64,12 +49,14 @@ genesis:
     # NOTE - the following address matches the privKey that funds the sequencer-faucet
   - address: 00d75b270542084a54fcf0d0f6eab0402982d156
     balance: "333333333333333333"
+
   consensusParams:
     blockMaxBytes: "1048576"
     blockMaxGas: "-1"
     maxAgeDuration: "1209600000000000"
     maxAgeNumBlocks: "4000000"
     maxBytes: "1048576"
+
   fees:
     transferBaseFee: "12"
     sequenceBaseFee: "32"
@@ -78,15 +65,16 @@ genesis:
     bridgeLockByteCostMultiplier: "1"
     bridgeSudoChangeFee: "24"
     ics20WithdrawalBaseFee: "24"
+
   validators: []
     # - name: core
     #   power: '1'
     #   address: 091E47761C58C474534F4D414AF104A6CAF90C22
     #   pubKey: lV57+rGs2vac7mvkGHP1oBFGHPJM3a+WoAzeFDCJDNU=
+
 sequencer:
   metrics:
     enabled: false
-
   otel:
     enabled: false
     serviceName: |-

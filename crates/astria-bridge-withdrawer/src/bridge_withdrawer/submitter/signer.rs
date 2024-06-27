@@ -28,7 +28,7 @@ pub(crate) struct SequencerKeyBuilder {
 }
 
 impl SequencerKeyBuilder {
-    /// Sets the path from which a the sequencey must be read.
+    /// Sets the path from which the sequencey key is read.
     ///
     /// The file at `path` should contain a hex-encoded ed25519 secret key.
     pub(crate) fn path<P: AsRef<Path>>(self, path: P) -> Self {

@@ -126,7 +126,8 @@ const STATUS_RESPONSE: &str = r#"
 static TELEMETRY: Lazy<()> = Lazy::new(|| {
     astria_eyre::install().unwrap();
     if std::env::var_os("TEST_LOG").is_some() {
-        let filter_directives = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into());
+        let filter_directives = std::env::var("RUST_LOG")
+            .unwrap_or_else(|_| "astria_sequencer_relayer=trace,blackbox=trace,info".into());
         println!("initializing telemetry");
         telemetry::configure()
             .no_otel()
@@ -607,6 +608,7 @@ impl TestSequencerRelayer {
             .and_then(|value: serde_json::Value| serde_json::from_value::<ZPage>(value).ok())
             .map_or("unknown".to_string(), |zpage| zpage.status);
 
+            error!("timed out; context: `{context}`, state: `{state}`, healthz: `{healthz}`");
             panic!("timed out; context: `{context}`, state: `{state}`, healthz: `{healthz}`");
         }
     }

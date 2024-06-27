@@ -70,7 +70,11 @@ use crate::{
 };
 
 /// XXX: This should be expressed in terms of `crate::app::test_utils::unchecked_genesis_state` to
+<<<<<<< HEAD
 /// be consistent everywhere. `get_alice_sining_key` already is, why not this??
+=======
+/// be consistent everywhere. `get_alice_signing_key` already is, why not this?
+>>>>>>> 5a3af081c47cf8b8b2d91d3eadd030f86ecf5ec1
 fn unchecked_genesis_state() -> UncheckedGenesisState {
     let (_, alice_address) = get_alice_signing_key_and_address();
     UncheckedGenesisState {

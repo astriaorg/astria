@@ -24,7 +24,7 @@
     },
     {{- if not .Values.global.dev }}
     "accounts": [
-      {{- range $index, $value := .Values.genesis.oldGenesisAccounts }}
+      {{- range $index, $value := .Values.genesis.genesisAccounts }}
       {{- if $index }},{{- end }}
       {
         "address": "{{  $value.address }}",
@@ -32,10 +32,10 @@
       }
       {{- end }}
     ],
-    "authority_sudo_address": "{{ .Values.genesis.oldAuthoritySudoAddress }}",
-    "ibc_sudo_address": "{{ .Values.genesis.ibc.oldSudoAddress }}",
+    "authority_sudo_address": "{{ .Values.genesis.authoritySudoAddress }}",
+    "ibc_sudo_address": "{{ .Values.genesis.ibc.sudoAddress }}",
     "ibc_relayer_addresses": [
-      {{- range $index, $value := .Values.genesis.ibc.oldRelayerAddresses }}
+      {{- range $index, $value := .Values.genesis.ibc.relayerAddresses }}
       {{- if $index }},{{- end }}
       "{{ $value }}"
       {{- end }}
@@ -48,23 +48,17 @@
       {{- range $index, $value := .Values.genesis.genesisAccounts }}
       {{- if $index }},{{- end }}
       {
-        "address": {
-          "bech32m": "{{  $value.address }}"
-        },
+        "address": {{ include "sequencer.address" $value.address }},
         "balance": {{ toString $value.balance | replace "\"" "" }}
       }
       {{- end }}
     ],
-    "authority_sudo_address": {
-        "bech32m": "{{ .Values.genesis.authoritySudoAddress }}"
-    },
-    "ibc_sudo_address": {
-      "bech32m": "{{ .Values.genesis.ibc.sudoAddress }}"
-    },
+    "authority_sudo_address": {{ include "sequencer.address" .Values.genesis.authoritySudoAddress }},
+    "ibc_sudo_address": {{ include "sequencer.address" .Values.genesis.ibc.sudoAddress }},
     "ibc_relayer_addresses": [
       {{- range $index, $value := .Values.genesis.ibc.relayerAddresses }}
       {{- if $index }},{{- end }}
-      {"bech32m": "{{ $value }}"}
+      {{ include "sequencer.address" $value }}
       {{- end }}
     ]
     {{- end}}
