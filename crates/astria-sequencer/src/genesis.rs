@@ -33,11 +33,7 @@ pub(crate) struct GenesisState {
 // allow: this error is only seen at chain init and never after so perf impact of too large enum
 // variants is negligible
 #[allow(clippy::result_large_err)]
-<<<<<<< HEAD
-pub(crate) enum VerifiyGenesisError {
-=======
 pub(crate) enum VerifyGenesisError {
->>>>>>> 5a3af081c47cf8b8b2d91d3eadd030f86ecf5ec1
     #[error("address `{address}` at `{field}` does not have `{base_prefix}`")]
     AddressDoesNotMatchBase {
         base_prefix: String,
@@ -47,11 +43,7 @@ pub(crate) enum VerifyGenesisError {
 }
 
 impl TryFrom<UncheckedGenesisState> for GenesisState {
-<<<<<<< HEAD
-    type Error = VerifiyGenesisError;
-=======
     type Error = VerifyGenesisError;
->>>>>>> 5a3af081c47cf8b8b2d91d3eadd030f86ecf5ec1
 
     fn try_from(value: UncheckedGenesisState) -> Result<Self, Self::Error> {
         value.ensure_all_addresses_have_base_prefix()?;
@@ -103,15 +95,9 @@ impl UncheckedGenesisState {
         &self,
         address: &Address,
         field: &str,
-<<<<<<< HEAD
-    ) -> Result<(), VerifiyGenesisError> {
-        if self.address_prefixes.base != address.prefix() {
-            return Err(VerifiyGenesisError::AddressDoesNotMatchBase {
-=======
     ) -> Result<(), VerifyGenesisError> {
         if self.address_prefixes.base != address.prefix() {
             return Err(VerifyGenesisError::AddressDoesNotMatchBase {
->>>>>>> 5a3af081c47cf8b8b2d91d3eadd030f86ecf5ec1
                 base_prefix: self.address_prefixes.base.clone(),
                 address: *address,
                 field: field.to_string(),
@@ -122,11 +108,7 @@ impl UncheckedGenesisState {
 
     // allow: as for the enum definition itself: this only happens at init-chain and is negligible
     #[allow(clippy::result_large_err)]
-<<<<<<< HEAD
-    fn ensure_all_addresses_have_base_prefix(&self) -> Result<(), VerifiyGenesisError> {
-=======
     fn ensure_all_addresses_have_base_prefix(&self) -> Result<(), VerifyGenesisError> {
->>>>>>> 5a3af081c47cf8b8b2d91d3eadd030f86ecf5ec1
         for (i, account) in self.accounts.iter().enumerate() {
             self.ensure_address_has_base_prefix(
                 &account.address,
@@ -287,11 +269,7 @@ mod test {
                 "converting to genesis state should have produced an error, but a valid state was \
                  returned",
             ) {
-<<<<<<< HEAD
-                VerifiyGenesisError::AddressDoesNotMatchBase {
-=======
                 VerifyGenesisError::AddressDoesNotMatchBase {
->>>>>>> 5a3af081c47cf8b8b2d91d3eadd030f86ecf5ec1
                     base_prefix,
                     address,
                     field,
@@ -342,11 +320,7 @@ mod test {
     }
 
     #[test]
-<<<<<<< HEAD
-    fn snapshots() {
-=======
     fn genesis_state_is_unchanged() {
->>>>>>> 5a3af081c47cf8b8b2d91d3eadd030f86ecf5ec1
         insta::assert_json_snapshot!(genesis_state());
     }
 }

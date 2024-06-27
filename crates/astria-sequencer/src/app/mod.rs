@@ -218,11 +218,8 @@ impl App {
 
         crate::address::initialize_base_prefix(&genesis_state.address_prefixes.base)
             .context("failed setting global base prefix")?;
-<<<<<<< HEAD
-=======
         state_tx.put_base_prefix(&genesis_state.address_prefixes.base);
 
->>>>>>> 5a3af081c47cf8b8b2d91d3eadd030f86ecf5ec1
         crate::asset::initialize_native_asset(&genesis_state.native_asset_base_denomination);
         state_tx.put_native_asset_denom(&genesis_state.native_asset_base_denomination);
         state_tx.put_chain_id_and_revision_number(chain_id.try_into().context("invalid chain ID")?);

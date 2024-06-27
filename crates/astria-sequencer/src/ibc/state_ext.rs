@@ -461,15 +461,8 @@ mod tests {
     }
 
     #[test]
-<<<<<<< HEAD
-    fn snapshots() {
-=======
     fn storage_keys_have_not_changed() {
-<<<<<<< HEAD
->>>>>>> 5a3af081c47cf8b8b2d91d3eadd030f86ecf5ec1
-=======
         let channel = ChannelId::new(5);
->>>>>>> f05e8297a4a9ac7d1e1d4f1a3edc266e62b23ddb
         let address: Address = "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
             .parse()
             .unwrap();

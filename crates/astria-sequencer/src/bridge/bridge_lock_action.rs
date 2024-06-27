@@ -35,12 +35,8 @@ use crate::{
 #[async_trait::async_trait]
 impl ActionHandler for BridgeLockAction {
     async fn check_stateless(&self) -> Result<()> {
-<<<<<<< HEAD
-        crate::address::ensure_base_prefix(&self.to).context("destination address is invalid")?;
-=======
         crate::address::ensure_base_prefix(&self.to)
             .context("destination address has an unsupported prefix")?;
->>>>>>> 5a3af081c47cf8b8b2d91d3eadd030f86ecf5ec1
         Ok(())
     }
 

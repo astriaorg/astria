@@ -26,29 +26,17 @@ use crate::{
 impl ActionHandler for BridgeSudoChangeAction {
     async fn check_stateless(&self) -> Result<()> {
         crate::address::ensure_base_prefix(&self.bridge_address)
-<<<<<<< HEAD
-            .context("bridge address is invalid")?;
-=======
             .context("bridge address has an unsupported prefix")?;
->>>>>>> 5a3af081c47cf8b8b2d91d3eadd030f86ecf5ec1
         self.new_sudo_address
             .as_ref()
             .map(crate::address::ensure_base_prefix)
             .transpose()
-<<<<<<< HEAD
-            .context("new sudo address is invalid")?;
-=======
             .context("new sudo address has an unsupported prefix")?;
->>>>>>> 5a3af081c47cf8b8b2d91d3eadd030f86ecf5ec1
         self.new_withdrawer_address
             .as_ref()
             .map(crate::address::ensure_base_prefix)
             .transpose()
-<<<<<<< HEAD
-            .context("new withdrawer address is invalid")?;
-=======
             .context("new withdrawer address has an unsupported prefix")?;
->>>>>>> 5a3af081c47cf8b8b2d91d3eadd030f86ecf5ec1
         Ok(())
     }
 

@@ -26,21 +26,13 @@ use crate::{
 #[async_trait::async_trait]
 impl ActionHandler for BridgeUnlockAction {
     async fn check_stateless(&self) -> Result<()> {
-<<<<<<< HEAD
-        crate::address::ensure_base_prefix(&self.to).context("destination address is invalid")?;
-=======
         crate::address::ensure_base_prefix(&self.to)
             .context("destination address has an unsupported prefix")?;
->>>>>>> 5a3af081c47cf8b8b2d91d3eadd030f86ecf5ec1
         self.bridge_address
             .as_ref()
             .map(crate::address::ensure_base_prefix)
             .transpose()
-<<<<<<< HEAD
-            .context("bridge address is invalid")?;
-=======
             .context("bridge address has an unsupported prefix")?;
->>>>>>> 5a3af081c47cf8b8b2d91d3eadd030f86ecf5ec1
         Ok(())
     }
 
