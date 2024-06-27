@@ -79,40 +79,6 @@ mod sized_bundle {
         assert_eq!(actual_seq_action.rollup_id, seq_action.rollup_id);
         assert_eq!(actual_seq_action.data, seq_action.data);
     }
-
-    // #[test]
-    // fn snapshots() {
-    //     use insta::{
-    //         assert_json_snapshot,
-    //         Settings,
-    //     };
-    //     let mut bundle = SizedBundle::new(264);
-    //     let seq_action1 = SequenceAction {
-    //         rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
-    //         data: vec![1; 50 - ROLLUP_ID_LEN],
-    //         ..sequence_action_of_max_size()
-    //     };
-    //     let seq_action1_2 = SequenceAction {
-    //         rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
-    //         data: vec![1; 50 - ROLLUP_ID_LEN],
-    //         ..sequence_action()
-    //     };
-    //     let seq_action2 = SequenceAction {
-    //         rollup_id: RollupId::new([2; ROLLUP_ID_LEN]),
-    //         data: vec![2; 100 - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
-    //         ..sequence_action()
-    //     };
-    //     bundle.try_push(seq_action1).unwrap();
-    //     bundle.try_push(seq_action1_2).unwrap();
-    //     bundle.try_push(seq_action2).unwrap();
-
-    //     let mut settings = Settings::new();
-    //     settings.set_sort_maps(true);
-
-    //     settings.bind(|| {
-    //         assert_json_snapshot!(bundle.rollup_counts);
-    //     });
-    // }
 }
 
 #[cfg(test)]
