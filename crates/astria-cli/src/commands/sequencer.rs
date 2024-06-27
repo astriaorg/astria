@@ -107,7 +107,6 @@ pub(crate) async fn get_balance(args: &BasicAccountArgs) -> eyre::Result<()> {
 
     println!("Balances for address: {}", args.address);
     for balance in res.balances {
-        println!("    asset ID: {}", balance.denom.to_ibc_prefixed());
         println!("    {} {}", balance.balance, balance.denom);
     }
 
