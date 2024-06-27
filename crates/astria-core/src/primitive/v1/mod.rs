@@ -523,7 +523,6 @@ mod tests {
     #[cfg(feature = "serde")]
     #[test]
     fn snapshots() {
-        use insta::assert_json_snapshot;
         let address = Address::builder()
             .array([42; 20])
             .prefix(ASTRIA_ADDRESS_PREFIX)
