@@ -11,7 +11,7 @@ use std::{
 /// Note that the full denomination trace of the token is `prefix/base_denom`,
 /// in the case that a prefix is present.
 /// This is hashed to create the ID.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum Denom {
     TracePrefixed(TracePrefixed),
     IbcPrefixed(IbcPrefixed),
@@ -29,14 +29,6 @@ impl Denom {
     }
 
     #[must_use]
-    pub fn id(&self) -> super::Id {
-        match self {
-            Self::TracePrefixed(trace) => trace.id(),
-            Self::IbcPrefixed(ibc) => ibc.id(),
-        }
-    }
-
-    #[must_use]
     pub fn as_ibc_prefixed(&self) -> Option<&IbcPrefixed> {
         match self {
             Denom::TracePrefixed(_) => None,
@@ -49,6 +41,14 @@ impl Denom {
         match self {
             Denom::TracePrefixed(trace) => Some(trace),
             Denom::IbcPrefixed(_) => None,
+        }
+    }
+
+    #[must_use]
+    pub fn to_ibc_prefixed(&self) -> IbcPrefixed {
+        match self {
+            Denom::TracePrefixed(trace) => trace.to_ibc_prefixed(),
+            Denom::IbcPrefixed(ibc) => *ibc,
         }
     }
 
@@ -86,6 +86,42 @@ impl From<IbcPrefixed> for Denom {
 impl From<TracePrefixed> for Denom {
     fn from(value: TracePrefixed) -> Self {
         Self::TracePrefixed(value)
+    }
+}
+
+impl<'a> From<&'a IbcPrefixed> for Denom {
+    fn from(value: &IbcPrefixed) -> Self {
+        Self::IbcPrefixed(*value)
+    }
+}
+
+impl<'a> From<&'a TracePrefixed> for Denom {
+    fn from(value: &TracePrefixed) -> Self {
+        Self::TracePrefixed(value.clone())
+    }
+}
+
+impl From<TracePrefixed> for IbcPrefixed {
+    fn from(value: TracePrefixed) -> Self {
+        IbcPrefixed::from(&value)
+    }
+}
+
+impl<'a> From<&'a TracePrefixed> for IbcPrefixed {
+    fn from(value: &TracePrefixed) -> Self {
+        value.to_ibc_prefixed()
+    }
+}
+
+impl From<Denom> for IbcPrefixed {
+    fn from(value: Denom) -> Self {
+        value.to_ibc_prefixed()
+    }
+}
+
+impl<'a> From<&'a Denom> for IbcPrefixed {
+    fn from(value: &Denom) -> Self {
+        value.to_ibc_prefixed()
     }
 }
 
@@ -142,7 +178,7 @@ impl From<ParseTracePrefixedError> for ParseDenomError {
 }
 
 /// An ICS20 denomination of the form `[port/channel/..]base_denom`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct TracePrefixed {
     trace: TraceSegments,
     base_denom: String,
@@ -150,7 +186,7 @@ pub struct TracePrefixed {
 
 impl TracePrefixed {
     #[must_use]
-    pub fn id(&self) -> super::Id {
+    pub fn to_ibc_prefixed(&self) -> IbcPrefixed {
         use sha2::Digest as _;
         let mut hasher = sha2::Sha256::new();
         for segment in &self.trace.inner {
@@ -160,7 +196,10 @@ impl TracePrefixed {
             hasher.update(b"/");
         }
         hasher.update(self.base_denom.as_bytes());
-        super::Id::new(hasher.finalize().into())
+        let id = hasher.finalize().into();
+        IbcPrefixed {
+            id,
+        }
     }
 
     #[must_use]
@@ -260,7 +299,7 @@ impl TracePrefixed {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 struct TraceSegments {
     inner: VecDeque<PortAndChannel>,
 }
@@ -326,7 +365,7 @@ impl FromStr for TraceSegments {
         Ok(parsed_segments)
     }
 }
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct PortAndChannel {
     port: String,
     channel: String,
@@ -465,7 +504,7 @@ enum ParseIbcPrefixedErrorKind {
 }
 
 /// An ICS20 denomination of the form `ibc/<hex-sha256-hash>`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub struct IbcPrefixed {
     id: [u8; 32],
 }
@@ -479,8 +518,8 @@ impl IbcPrefixed {
     }
 
     #[must_use]
-    pub fn id(&self) -> super::Id {
-        super::Id::new(self.id)
+    pub fn get(&self) -> [u8; 32] {
+        self.id
     }
 }
 
@@ -534,8 +573,8 @@ mod serde_impl {
                         D: Deserializer<'de>,
                     {
                         use serde::de::Error as _;
-                        let s = <&str>::deserialize(deserializer)?;
-                        s.parse().map_err(D::Error::custom)
+                        let s = std::borrow::Cow::<'_, str>::deserialize(deserializer)?;
+                        s.trim().parse().map_err(D::Error::custom)
                     }
                 }
 

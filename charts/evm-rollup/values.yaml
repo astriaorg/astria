@@ -173,6 +173,7 @@ config:
   sequencer:
     addressPrefixes:
       base: "astria"
+    nativeAssetBaseDenomination: nria
     chainId: ""
     # Block height to start syncing rollup from
     initialBlockHeight: "2"

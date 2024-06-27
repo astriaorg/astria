@@ -91,7 +91,7 @@ impl BridgeWithdrawer {
             sequencer_key_path,
             sequencer_address_prefix: sequencer_address_prefix.clone(),
             state: state.clone(),
-            expected_fee_asset_id: asset::Id::from_str_unchecked(&fee_asset_denomination),
+            expected_fee_asset: fee_asset_denomination,
             min_expected_fee_asset_balance: u128::from(min_expected_fee_asset_balance),
             metrics,
         }
@@ -202,7 +202,7 @@ impl BridgeWithdrawer {
 
 #[derive(Debug)]
 pub struct SequencerStartupInfo {
-    pub fee_asset_id: asset::Id,
+    pub fee_asset: asset::Denom,
     pub next_batch_rollup_height: u64,
 }
 

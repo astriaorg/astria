@@ -226,7 +226,7 @@ impl App {
         state_tx.put_block_height(0);
 
         for fee_asset in &genesis_state.allowed_fee_assets {
-            state_tx.put_allowed_fee_asset(fee_asset.id());
+            state_tx.put_allowed_fee_asset(fee_asset);
         }
 
         // call init_chain on all components

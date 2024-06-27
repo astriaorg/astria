@@ -6,7 +6,6 @@ use astria_core::{
         asset::{
             self,
             denom::TracePrefixed,
-            Denom,
         },
         Address,
     },
@@ -55,8 +54,8 @@ pub(crate) struct EventWithMetadata {
 
 pub(crate) fn event_to_action(
     event_with_metadata: EventWithMetadata,
-    fee_asset_id: asset::Id,
-    rollup_asset_denom: Denom,
+    fee_asset: asset::Denom,
+    rollup_asset_denom: asset::Denom,
     asset_withdrawal_divisor: u128,
     bridge_address: Address,
     sequencer_address_prefix: &str,
@@ -66,7 +65,7 @@ pub(crate) fn event_to_action(
             &event,
             event_with_metadata.block_number,
             event_with_metadata.transaction_hash,
-            fee_asset_id,
+            fee_asset,
             asset_withdrawal_divisor,
         )
         .wrap_err("failed to convert sequencer withdrawal event to action")?,
@@ -74,7 +73,7 @@ pub(crate) fn event_to_action(
             event,
             event_with_metadata.block_number,
             event_with_metadata.transaction_hash,
-            fee_asset_id,
+            fee_asset,
             rollup_asset_denom,
             asset_withdrawal_divisor,
             bridge_address,
@@ -95,7 +94,7 @@ fn event_to_bridge_unlock(
     event: &SequencerWithdrawalFilter,
     block_number: U64,
     transaction_hash: TxHash,
-    fee_asset_id: asset::Id,
+    fee_asset: asset::Denom,
     asset_withdrawal_divisor: u128,
 ) -> eyre::Result<Action> {
     let memo = BridgeUnlockMemo {
@@ -115,7 +114,7 @@ fn event_to_bridge_unlock(
                 "failed to divide amount by asset withdrawal multiplier"
             ))?,
         memo: serde_json::to_vec(&memo).wrap_err("failed to serialize memo to json")?,
-        fee_asset_id,
+        fee_asset,
         bridge_address: None,
     };
 
@@ -128,8 +127,8 @@ fn event_to_ics20_withdrawal(
     event: Ics20WithdrawalFilter,
     block_number: U64,
     transaction_hash: TxHash,
-    fee_asset_id: asset::Id,
-    rollup_asset_denom: Denom,
+    fee_asset: asset::Denom,
+    rollup_asset_denom: asset::Denom,
     asset_withdrawal_divisor: u128,
     bridge_address: Address,
     sequencer_address_prefix: &str,
@@ -172,7 +171,7 @@ fn event_to_ics20_withdrawal(
                 "failed to divide amount by asset withdrawal multiplier"
             ))?,
         memo: serde_json::to_string(&memo).wrap_err("failed to serialize memo to json")?,
-        fee_asset_id,
+        fee_asset,
         // note: this refers to the timeout on the destination chain, which we are unaware of.
         // thus, we set it to the maximum possible value.
         timeout_height: IbcHeight::new(u64::MAX, u64::MAX)
@@ -198,10 +197,12 @@ fn calculate_packet_timeout_time(timeout_delta: Duration) -> eyre::Result<u64> {
 
 #[cfg(test)]
 mod tests {
-    use asset::default_native_asset;
-
     use super::*;
     use crate::bridge_withdrawer::ethereum::astria_withdrawer_interface::SequencerWithdrawalFilter;
+
+    fn default_native_asset() -> asset::Denom {
+        "nria".parse().unwrap()
+    }
 
     #[test]
     fn event_to_bridge_unlock() {
@@ -217,7 +218,7 @@ mod tests {
         };
         let action = event_to_action(
             event_with_meta,
-            denom.id(),
+            denom.clone(),
             denom.clone(),
             1,
             crate::astria_address([99u8; 20]),
@@ -236,7 +237,7 @@ mod tests {
                 transaction_hash: [2u8; 32].into(),
             })
             .unwrap(),
-            fee_asset_id: denom.id(),
+            fee_asset: denom,
             bridge_address: None,
         };
 
@@ -258,7 +259,7 @@ mod tests {
         let divisor = 10;
         let action = event_to_action(
             event_with_meta,
-            denom.id(),
+            denom.clone(),
             denom.clone(),
             divisor,
             crate::astria_address([99u8; 20]),
@@ -277,7 +278,7 @@ mod tests {
                 transaction_hash: [2u8; 32].into(),
             })
             .unwrap(),
-            fee_asset_id: denom.id(),
+            fee_asset: denom,
             bridge_address: None,
         };
 
@@ -286,7 +287,7 @@ mod tests {
 
     #[test]
     fn event_to_ics20_withdrawal() {
-        let denom = "transfer/channel-0/utia".parse::<Denom>().unwrap();
+        let denom = "transfer/channel-0/utia".parse::<asset::Denom>().unwrap();
         let destination_chain_address = crate::astria_address([1u8; 20]).to_string();
         let event_with_meta = EventWithMetadata {
             event: WithdrawalEvent::Ics20(Ics20WithdrawalFilter {
@@ -302,7 +303,7 @@ mod tests {
         let bridge_address = crate::astria_address([99u8; 20]);
         let action = event_to_action(
             event_with_meta,
-            denom.id(),
+            denom.clone(),
             denom.clone(),
             1,
             bridge_address,
@@ -329,7 +330,7 @@ mod tests {
                 transaction_hash: [2u8; 32],
             })
             .unwrap(),
-            fee_asset_id: denom.id(),
+            fee_asset: denom,
             timeout_height: IbcHeight::new(u64::MAX, u64::MAX).unwrap(),
             timeout_time: 0, // zero this for testing
             source_channel: "channel-0".parse().unwrap(),
