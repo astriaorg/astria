@@ -1,3 +1,4 @@
+use astria_core::primitive::v1::asset;
 use astria_sequencer_client::Address;
 use clap::{
     Args,
@@ -145,6 +146,12 @@ pub struct TransferArgs {
         default_value = crate::cli::DEFAULT_SEQUENCER_CHAIN_ID
     )]
     pub sequencer_chain_id: String,
+    /// The asset to transer.
+    #[arg(long, default_value = "nria")]
+    pub asset: asset::Denom,
+    /// The asset to pay the transfer fees with.
+    #[arg(long, default_value = "nria")]
+    pub fee_asset: asset::Denom,
 }
 
 #[derive(Args, Debug)]
@@ -174,7 +181,7 @@ pub struct FeeAssetChangeArgs {
     pub sequencer_chain_id: String,
     /// Asset's denomination string
     #[arg(long)]
-    pub(crate) asset: String,
+    pub(crate) asset: asset::Denom,
 }
 
 #[derive(Args, Debug)]
@@ -236,6 +243,12 @@ pub struct InitBridgeAccountArgs {
     /// to initialize the bridge account with.
     #[arg(long)]
     pub(crate) rollup_name: String,
+    /// The asset to transer.
+    #[arg(long, default_value = "nria")]
+    pub asset: asset::Denom,
+    /// The asset to pay the transfer fees with.
+    #[arg(long, default_value = "nria")]
+    pub fee_asset: asset::Denom,
 }
 
 #[derive(Args, Debug)]
@@ -270,6 +283,12 @@ pub struct BridgeLockArgs {
         default_value = crate::cli::DEFAULT_SEQUENCER_CHAIN_ID
     )]
     pub sequencer_chain_id: String,
+    /// The asset to lock.
+    #[arg(long, default_value = "nria")]
+    pub asset: asset::Denom,
+    /// The asset to pay the transfer fees with.
+    #[arg(long, default_value = "nria")]
+    pub fee_asset: asset::Denom,
 }
 
 #[derive(Debug, Subcommand)]

@@ -15,7 +15,7 @@ impl serde::Serialize for Deposit {
         if self.amount.is_some() {
             len += 1;
         }
-        if !self.asset_id.is_empty() {
+        if !self.asset.is_empty() {
             len += 1;
         }
         if !self.destination_chain_address.is_empty() {
@@ -31,9 +31,8 @@ impl serde::Serialize for Deposit {
         if let Some(v) = self.amount.as_ref() {
             struct_ser.serialize_field("amount", v)?;
         }
-        if !self.asset_id.is_empty() {
-            #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("asset_id", pbjson::private::base64::encode(&self.asset_id).as_str())?;
+        if !self.asset.is_empty() {
+            struct_ser.serialize_field("asset", &self.asset)?;
         }
         if !self.destination_chain_address.is_empty() {
             struct_ser.serialize_field("destination_chain_address", &self.destination_chain_address)?;
@@ -53,8 +52,7 @@ impl<'de> serde::Deserialize<'de> for Deposit {
             "rollup_id",
             "rollupId",
             "amount",
-            "asset_id",
-            "assetId",
+            "asset",
             "destination_chain_address",
             "destinationChainAddress",
         ];
@@ -64,7 +62,7 @@ impl<'de> serde::Deserialize<'de> for Deposit {
             BridgeAddress,
             RollupId,
             Amount,
-            AssetId,
+            Asset,
             DestinationChainAddress,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
@@ -90,7 +88,7 @@ impl<'de> serde::Deserialize<'de> for Deposit {
                             "bridgeAddress" | "bridge_address" => Ok(GeneratedField::BridgeAddress),
                             "rollupId" | "rollup_id" => Ok(GeneratedField::RollupId),
                             "amount" => Ok(GeneratedField::Amount),
-                            "assetId" | "asset_id" => Ok(GeneratedField::AssetId),
+                            "asset" => Ok(GeneratedField::Asset),
                             "destinationChainAddress" | "destination_chain_address" => Ok(GeneratedField::DestinationChainAddress),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
@@ -114,7 +112,7 @@ impl<'de> serde::Deserialize<'de> for Deposit {
                 let mut bridge_address__ = None;
                 let mut rollup_id__ = None;
                 let mut amount__ = None;
-                let mut asset_id__ = None;
+                let mut asset__ = None;
                 let mut destination_chain_address__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
@@ -136,13 +134,11 @@ impl<'de> serde::Deserialize<'de> for Deposit {
                             }
                             amount__ = map_.next_value()?;
                         }
-                        GeneratedField::AssetId => {
-                            if asset_id__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("assetId"));
+                        GeneratedField::Asset => {
+                            if asset__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("asset"));
                             }
-                            asset_id__ = 
-                                Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
-                            ;
+                            asset__ = Some(map_.next_value()?);
                         }
                         GeneratedField::DestinationChainAddress => {
                             if destination_chain_address__.is_some() {
@@ -156,7 +152,7 @@ impl<'de> serde::Deserialize<'de> for Deposit {
                     bridge_address: bridge_address__,
                     rollup_id: rollup_id__,
                     amount: amount__,
-                    asset_id: asset_id__.unwrap_or_default(),
+                    asset: asset__.unwrap_or_default(),
                     destination_chain_address: destination_chain_address__.unwrap_or_default(),
                 })
             }

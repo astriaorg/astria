@@ -121,7 +121,7 @@ pub(crate) struct Watcher {
 
 impl Watcher {
     pub(crate) async fn run(mut self) -> Result<()> {
-        let (provider, contract, fee_asset_id, asset_withdrawal_divisor, next_rollup_block_height) =
+        let (provider, contract, fee_asset, asset_withdrawal_divisor, next_rollup_block_height) =
             self.startup()
                 .await
                 .wrap_err("watcher failed to start up")?;
@@ -144,7 +144,7 @@ impl Watcher {
             provider,
             submitter_handle,
             shutdown_token: shutdown_token.clone(),
-            fee_asset_id,
+            fee_asset,
             rollup_asset_denom,
             bridge_address,
             asset_withdrawal_divisor,
@@ -197,13 +197,13 @@ impl Watcher {
     ) -> eyre::Result<(
         Arc<Provider<Ws>>,
         IAstriaWithdrawer<Provider<Ws>>,
-        asset::Id,
+        asset::Denom,
         u128,
         u64,
     )> {
         // wait for submitter to be ready
         let SequencerStartupInfo {
-            fee_asset_id,
+            fee_asset,
             next_batch_rollup_height,
         } = self
             .submitter_handle
@@ -262,7 +262,7 @@ impl Watcher {
         Ok((
             provider.clone(),
             contract,
-            fee_asset_id,
+            fee_asset,
             asset_withdrawal_divisor,
             next_batch_rollup_height,
         ))
@@ -334,7 +334,7 @@ struct Batcher {
     provider: Arc<Provider<Ws>>,
     submitter_handle: submitter::Handle,
     shutdown_token: CancellationToken,
-    fee_asset_id: asset::Id,
+    fee_asset: asset::Denom,
     rollup_asset_denom: Denom,
     bridge_address: Address,
     asset_withdrawal_divisor: u128,
@@ -394,7 +394,7 @@ impl Batcher {
                         };
                         let action = event_to_action(
                             event_with_metadata,
-                            self.fee_asset_id,
+                            self.fee_asset.clone(),
                             self.rollup_asset_denom.clone(),
                             self.asset_withdrawal_divisor,
                             self.bridge_address,
@@ -445,9 +445,11 @@ fn address_from_string(s: &str) -> Result<ethers::types::Address> {
 
 #[cfg(test)]
 mod tests {
-    use asset::default_native_asset;
     use astria_core::{
-        primitive::v1::Address,
+        primitive::v1::{
+            asset,
+            Address,
+        },
         protocol::transaction::v1alpha1::Action,
     };
     use ethers::{
@@ -476,6 +478,10 @@ mod tests {
             ConfigureAstriaWithdrawerDeployer,
         },
     };
+
+    fn default_native_asset() -> asset::Denom {
+        "nria".parse().unwrap()
+    }
 
     #[test]
     fn address_from_string_prefix() {
@@ -567,7 +573,7 @@ mod tests {
         let denom = default_native_asset();
         let expected_action = event_to_action(
             expected_event,
-            denom.id(),
+            denom.clone(),
             denom.clone(),
             1,
             bridge_address,
@@ -583,7 +589,7 @@ mod tests {
         let submitter_handle = submitter::Handle::new(startup_rx, batch_tx);
         startup_tx
             .send(SequencerStartupInfo {
-                fee_asset_id: denom.id(),
+                fee_asset: denom.clone(),
                 next_batch_rollup_height: 0,
             })
             .unwrap();
@@ -666,7 +672,7 @@ mod tests {
         let denom = "transfer/channel-0/utia".parse::<Denom>().unwrap();
         let Action::Ics20Withdrawal(mut expected_action) = event_to_action(
             expected_event,
-            denom.id(),
+            denom.clone(),
             denom.clone(),
             1,
             bridge_address,
@@ -682,7 +688,7 @@ mod tests {
         let submitter_handle = submitter::Handle::new(startup_rx, batch_tx);
         startup_tx
             .send(SequencerStartupInfo {
-                fee_asset_id: denom.id(),
+                fee_asset: denom.clone(),
                 next_batch_rollup_height: 0,
             })
             .unwrap();
@@ -693,7 +699,7 @@ mod tests {
             submitter_handle,
             shutdown_token: CancellationToken::new(),
             state: Arc::new(State::new()),
-            rollup_asset_denom: denom,
+            rollup_asset_denom: denom.clone(),
             bridge_address,
             sequencer_address_prefix: crate::ASTRIA_ADDRESS_PREFIX.into(),
         }
@@ -792,7 +798,7 @@ mod tests {
         let bridge_address = crate::astria_address([1u8; 20]);
         let expected_action = event_to_action(
             expected_event,
-            denom.id(),
+            denom.clone(),
             denom.clone(),
             1,
             bridge_address,
@@ -808,7 +814,7 @@ mod tests {
         let submitter_handle = submitter::Handle::new(startup_rx, batch_tx);
         startup_tx
             .send(SequencerStartupInfo {
-                fee_asset_id: denom.id(),
+                fee_asset: denom.clone(),
                 next_batch_rollup_height: 0,
             })
             .unwrap();
@@ -819,7 +825,7 @@ mod tests {
             submitter_handle,
             shutdown_token: CancellationToken::new(),
             state: Arc::new(State::new()),
-            rollup_asset_denom: denom,
+            rollup_asset_denom: denom.clone(),
             bridge_address,
             sequencer_address_prefix: crate::ASTRIA_ADDRESS_PREFIX.into(),
         }
@@ -901,7 +907,7 @@ mod tests {
         let bridge_address = crate::astria_address([1u8; 20]);
         let Action::Ics20Withdrawal(mut expected_action) = event_to_action(
             expected_event,
-            denom.id(),
+            denom.clone(),
             denom.clone(),
             1,
             bridge_address,
@@ -917,7 +923,7 @@ mod tests {
         let submitter_handle = submitter::Handle::new(startup_rx, batch_tx);
         startup_tx
             .send(SequencerStartupInfo {
-                fee_asset_id: asset::Id::from_str_unchecked("transfer/channel-0/utia"),
+                fee_asset: "transfer/channel-0/utia".parse().unwrap(),
                 next_batch_rollup_height: 0,
             })
             .unwrap();
