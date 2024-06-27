@@ -328,6 +328,18 @@ impl<TBytes, TPrefix> AddressBuilder<TBytes, TPrefix> {
     }
 
     #[must_use = "the builder must be built to construct an address to be useful"]
+    pub fn verification_key(
+        self,
+        key: &crate::crypto::VerificationKey,
+    ) -> AddressBuilder<WithBytes<'static>, TPrefix> {
+        let hash = Sha256::digest(key.as_bytes());
+        let array: [u8; ADDRESS_LEN] = hash[0..ADDRESS_LEN]
+            .try_into()
+            .expect("hash is 32 bytes long, so must always be able to convert to 20 bytes");
+        self.array(array)
+    }
+
+    #[must_use = "the builder must be built to construct an address to be useful"]
     pub fn prefix<'a, T: Into<std::borrow::Cow<'a, str>>>(
         self,
         prefix: T,
