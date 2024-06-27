@@ -418,29 +418,10 @@ impl Address {
     ///
     /// Returns an error if the account buffer was not 20 bytes long.
     pub fn try_from_raw(raw: &raw::Address) -> Result<Self, AddressError> {
-<<<<<<< HEAD
-        const ASTRIA_ADDRESS_PREFIX: &str = "astria";
-        // allow: `Address::inner` field is deprecated, but we must still check it
-        #[allow(deprecated)]
-=======
->>>>>>> 5a3af081c47cf8b8b2d91d3eadd030f86ecf5ec1
         let raw::Address {
             bech32m,
         } = raw;
-<<<<<<< HEAD
-        if bech32m.is_empty() {
-            return Self::builder()
-                .slice(inner.as_ref())
-                .prefix(ASTRIA_ADDRESS_PREFIX)
-                .try_build();
-        }
-        if inner.is_empty() {
-            return bech32m.parse();
-        }
-        Err(AddressError::fields_are_mutually_exclusive())
-=======
         bech32m.parse()
->>>>>>> 5a3af081c47cf8b8b2d91d3eadd030f86ecf5ec1
     }
 }
 
@@ -505,11 +486,6 @@ where
 
 #[cfg(test)]
 mod tests {
-<<<<<<< HEAD
-    use bytes::Bytes;
-
-=======
->>>>>>> 5a3af081c47cf8b8b2d91d3eadd030f86ecf5ec1
     use super::{
         Address,
         AddressError,
