@@ -64,11 +64,14 @@ pub(crate) fn generate_rollup_datas_commitment(
         group_sequence_actions_in_signed_transaction_transactions_by_rollup_id(signed_txs);
 
     for (rollup_id, deposit) in deposits {
-        rollup_ids_to_txs.entry(rollup_id).or_default().extend(
-            deposit
-                .into_iter()
-                .map(|deposit| RollupData::Deposit(deposit).into_raw().encode_to_vec()),
-        );
+        rollup_ids_to_txs
+            .entry(rollup_id)
+            .or_default()
+            .extend(deposit.into_iter().map(|deposit| {
+                RollupData::Deposit(Box::new(deposit))
+                    .into_raw()
+                    .encode_to_vec()
+            }));
     }
 
     rollup_ids_to_txs.sort_unstable_keys();
@@ -89,7 +92,6 @@ pub(crate) fn generate_rollup_datas_commitment(
 mod test {
     use astria_core::{
         crypto::SigningKey,
-        primitive::v1::asset::default_native_asset,
         protocol::transaction::v1alpha1::{
             action::{
                 SequenceAction,
@@ -102,25 +104,20 @@ mod test {
     use rand::rngs::OsRng;
 
     use super::*;
-    use crate::asset::{
-        get_native_asset,
-        NATIVE_ASSET,
-    };
+    use crate::asset::get_native_asset;
 
     #[test]
     fn generate_rollup_datas_commitment_should_ignore_transfers() {
-        let _ = NATIVE_ASSET.set(default_native_asset());
-
         let sequence_action = SequenceAction {
             rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
             data: b"helloworld".to_vec(),
-            fee_asset_id: get_native_asset().id(),
+            fee_asset: get_native_asset().clone(),
         };
         let transfer_action = TransferAction {
             to: crate::address::base_prefixed([0u8; 20]),
             amount: 1,
-            asset_id: get_native_asset().id(),
-            fee_asset_id: get_native_asset().id(),
+            asset: get_native_asset().clone(),
+            fee_asset: get_native_asset().clone(),
         };
 
         let signing_key = SigningKey::new(OsRng);
@@ -164,18 +161,17 @@ mod test {
         // this tests that the commitment generated is what is expected via a test vector.
         // this test will only break in the case of a breaking change to the commitment scheme,
         // thus if this test needs to be updated, we should cut a new release.
-        let _ = NATIVE_ASSET.set(default_native_asset());
 
         let sequence_action = SequenceAction {
             rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
             data: b"helloworld".to_vec(),
-            fee_asset_id: get_native_asset().id(),
+            fee_asset: get_native_asset().clone(),
         };
         let transfer_action = TransferAction {
             to: crate::address::base_prefixed([0u8; 20]),
             amount: 1,
-            asset_id: get_native_asset().id(),
-            fee_asset_id: get_native_asset().id(),
+            asset: get_native_asset().clone(),
+            fee_asset: get_native_asset().clone(),
         };
 
         let signing_key = SigningKey::new(OsRng);

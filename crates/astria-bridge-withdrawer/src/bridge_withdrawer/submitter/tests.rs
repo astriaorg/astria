@@ -8,11 +8,7 @@ use std::{
 use astria_core::{
     bridge::Ics20WithdrawalFromRollupMemo,
     generated::protocol::account::v1alpha1::NonceResponse,
-    primitive::v1::asset::{
-        self,
-        default_native_asset,
-        Denom,
-    },
+    primitive::v1::asset,
     protocol::{
         account::v1alpha1::AssetBalance,
         bridge::v1alpha1::BridgeAccountLastTxHashResponse,
@@ -85,6 +81,10 @@ use crate::{
 const SEQUENCER_CHAIN_ID: &str = "test_sequencer-1000";
 const DEFAULT_LAST_ROLLUP_HEIGHT: u64 = 1;
 const DEFAULT_IBC_DENOM: &str = "transfer/channel-0/utia";
+
+fn default_native_asset() -> asset::Denom {
+    "nria".parse().unwrap()
+}
 
 static TELEMETRY: Lazy<()> = Lazy::new(|| {
     if std::env::var_os("TEST_LOG").is_some() {
@@ -209,7 +209,7 @@ async fn _register_default_min_expected_fee_asset_balance_guard(
 }
 
 fn make_ics20_withdrawal_action() -> Action {
-    let denom = DEFAULT_IBC_DENOM.parse::<Denom>().unwrap();
+    let denom = DEFAULT_IBC_DENOM.parse::<asset::Denom>().unwrap();
     let destination_chain_address = "address".to_string();
     let inner = Ics20Withdrawal {
         denom: denom.clone(),
@@ -223,7 +223,7 @@ fn make_ics20_withdrawal_action() -> Action {
             transaction_hash: [2u8; 32],
         })
         .unwrap(),
-        fee_asset_id: denom.id(),
+        fee_asset: denom,
         timeout_height: IbcHeight::new(u64::MAX, u64::MAX).unwrap(),
         timeout_time: 0, // zero this for testing
         source_channel: "channel-0".parse().unwrap(),
@@ -243,7 +243,7 @@ fn make_bridge_unlock_action() -> Action {
             transaction_hash: [1u8; 32].into(),
         })
         .unwrap(),
-        fee_asset_id: denom.id(),
+        fee_asset: denom,
         bridge_address: None,
     };
     Action::BridgeUnlock(inner)
@@ -365,8 +365,8 @@ async fn _register_allowed_fee_asset_ids_response(
 ) -> MockGuard {
     let response = tendermint_rpc::endpoint::abci_query::Response {
         response: tendermint_rpc::endpoint::abci_query::AbciQuery {
-            value: astria_core::protocol::asset::v1alpha1::AllowedFeeAssetIdsResponse {
-                fee_asset_ids,
+            value: astria_core::protocol::asset::v1alpha1::AllowedFeeAssetsResponse {
+                fee_assets,
                 height: 1,
             }
             .into_raw()
@@ -376,7 +376,7 @@ async fn _register_allowed_fee_asset_ids_response(
     };
     let wrapper = response::Wrapper::new_with_id(tendermint_rpc::Id::Num(1), Some(response), None);
     Mock::given(body_partial_json(json!({"method": "abci_query"})))
-        .and(body_string_contains("asset/allowed_fee_asset_ids"))
+        .and(body_string_contains("asset/allowed_fee_assets"))
         .respond_with(
             ResponseTemplate::new(200)
                 .set_body_json(&wrapper)

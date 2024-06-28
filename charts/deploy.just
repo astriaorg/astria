@@ -61,8 +61,9 @@ wait-for-ingress-controller:
 validatorName := "single"
 deploy-sequencer name=validatorName:
   helm dependency update charts/sequencer > /dev/null
-  helm install --debug \
-    {{ replace('-f dev/values/validators/#.yml' , '#', name) }} \
+  helm install \
+    -f dev/values/validators/all.yml \
+    -f dev/values/validators/{{name}}.yml \
     -n astria-validator-{{name}} --create-namespace \
     {{name}}-sequencer-chart ./charts/sequencer
 deploy-sequencers: (deploy-sequencer "node0") (deploy-sequencer "node1") (deploy-sequencer "node2")
@@ -147,6 +148,7 @@ deploy-smoke-test tag=defaultTag:
   @helm dependency update charts/evm-rollup > /dev/null
   @echo "Setting up single astria sequencer..." && helm install \
     -n astria-validator-single single-sequencer-chart ./charts/sequencer \
+    -f dev/values/validators/all.yml \
     -f dev/values/validators/single.yml \
     {{ if tag != '' { replace('--set images.sequencer.devTag=# --set sequencer-relayer.images.sequencerRelayer.devTag=#', '#', tag) } else { '' } }} \
     --create-namespace > /dev/null

@@ -7,7 +7,7 @@ use astria_core::{
     bridge::Ics20WithdrawalFromRollupMemo,
     primitive::v1::asset,
     protocol::{
-        asset::v1alpha1::AllowedFeeAssetIdsResponse,
+        asset::v1alpha1::AllowedFeeAssetsResponse,
         bridge::v1alpha1::BridgeAccountLastTxHashResponse,
         transaction::v1alpha1::Action,
     },
@@ -504,7 +504,7 @@ async fn get_sequencer_chain_id(
 async fn get_allowed_fee_asset_ids(
     client: sequencer_client::HttpClient,
     state: Arc<State>,
-) -> eyre::Result<AllowedFeeAssetIdsResponse> {
+) -> eyre::Result<AllowedFeeAssetsResponse> {
     let retry_config = tryhard::RetryFutureConfig::new(u32::MAX)
         .exponential_backoff(Duration::from_millis(100))
         .max_delay(Duration::from_secs(20))

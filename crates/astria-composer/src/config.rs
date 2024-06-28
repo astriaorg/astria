@@ -65,6 +65,9 @@ pub struct Config {
 
     /// The address at which the gRPC server is listening
     pub grpc_addr: SocketAddr,
+
+    /// The IBC asset to pay for transactions submiited to the sequencer.
+    pub fee_asset: astria_core::primitive::v1::asset::Denom,
 }
 
 impl Config {

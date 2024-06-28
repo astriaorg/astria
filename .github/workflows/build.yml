@@ -45,9 +45,15 @@ jobs:
       package-name: 'sequencer-relayer'
       tag: ${{ inputs.tag }}
 
+  bridge-withdrawer:
+    uses: './.github/workflows/reusable-build.yml'
+    with:
+      package-name: 'bridge-withdrawer'
+      tag: ${{ inputs.tag }}
+
   build:
     if: ${{ always() && !cancelled() }}
-    needs: [cli, composer, conductor, sequencer, relayer]
+    needs: [cli, composer, conductor, sequencer, relayer, bridge-withdrawer]
     uses: ./.github/workflows/reusable-success.yml
     with:
       success: ${{ !contains(needs.*.result, 'failure') }}

@@ -15,7 +15,6 @@ use super::{
 use crate::{
     crypto::SigningKey,
     primitive::v1::{
-        asset::default_native_asset,
         derive_merkle_tree_from_rollup_txs,
         RollupId,
     },
@@ -96,7 +95,7 @@ impl ConfigureSequencerBlock {
                 SequenceAction {
                     rollup_id,
                     data,
-                    fee_asset_id: default_native_asset().id(),
+                    fee_asset: "nria".parse().unwrap(),
                 }
                 .into()
             })
@@ -126,11 +125,14 @@ impl ConfigureSequencerBlock {
         let mut rollup_transactions =
             group_sequence_actions_in_signed_transaction_transactions_by_rollup_id(&txs);
         for (rollup_id, deposit) in deposits_map.clone() {
-            rollup_transactions.entry(rollup_id).or_default().extend(
-                deposit
-                    .into_iter()
-                    .map(|deposit| RollupData::Deposit(deposit).into_raw().encode_to_vec()),
-            );
+            rollup_transactions
+                .entry(rollup_id)
+                .or_default()
+                .extend(deposit.into_iter().map(|deposit| {
+                    RollupData::Deposit(Box::new(deposit))
+                        .into_raw()
+                        .encode_to_vec()
+                }));
         }
         rollup_transactions.sort_unstable_keys();
         let rollup_transactions_tree = derive_merkle_tree_from_rollup_txs(&rollup_transactions);
