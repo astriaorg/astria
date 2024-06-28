@@ -100,6 +100,7 @@ async fn simple() {
 
     let update_commitment_state_soft = mount_update_commitment_state!(
         test_conductor,
+        mock_name: None,
         firm: (
             number: 1,
             hash: [1; 64],
@@ -111,6 +112,7 @@ async fn simple() {
             parent: [1; 64],
         ),
         base_celestia_height: 1,
+        is_soft_mount: true,
     );
 
     let update_commitment_state_firm = mount_update_commitment_state!(
@@ -130,9 +132,8 @@ async fn simple() {
 
     timeout(
         Duration::from_millis(1000),
-        join3(
+        join(
             execute_block.wait_until_satisfied(),
-            update_commitment_state_soft.wait_until_satisfied(),
             update_commitment_state_firm.wait_until_satisfied(),
         ),
     )

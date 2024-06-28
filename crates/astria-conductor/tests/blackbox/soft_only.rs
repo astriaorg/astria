@@ -150,6 +150,7 @@ async fn submits_two_heights_in_succession() {
             parent: [1; 64],
         ),
         base_celestia_height: 1,
+        is_soft_mount: false,
     );
 
     let execute_block_number_3 = mount_executed_block!(
@@ -174,6 +175,7 @@ async fn submits_two_heights_in_succession() {
             parent: [2; 64],
         ),
         base_celestia_height: 1,
+        is_soft_mount: false,
     );
 
     timeout(
@@ -331,5 +333,27 @@ async fn requests_from_later_genesis_height() {
     .expect(
         "conductor should have executed the soft block and updated the soft commitment state \
          within 1000ms",
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn soft_update_commitment_is_skipped() {
+    let test_conductor = spawn_conductor(CommitLevel::SoftOnly).await;
+
+    let _update_commitment_state = mount_update_commitment_state!(
+        test_conductor,
+        mock_name: None,
+        firm: (
+            number: 1,
+            hash: [1; 64],
+            parent: [0; 64],
+        ),
+        soft: (
+            number: 2,
+            hash: [2; 64],
+            parent: [1; 64],
+        ),
+        base_celestia_height: 1,
+        is_soft_mount: true,
     );
 }
