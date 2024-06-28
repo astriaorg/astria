@@ -55,10 +55,7 @@ use tendermint_rpc::{
     },
     request,
 };
-use tokio::{
-    sync::oneshot,
-    task::JoinHandle,
-};
+use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use tracing::debug;
 use wiremock::{
@@ -111,7 +108,6 @@ static TELEMETRY: Lazy<()> = Lazy::new(|| {
 struct TestSubmitter {
     submitter: Option<Submitter>,
     submitter_handle: submitter::Handle,
-    startup_tx: Option<oneshot::Sender<startup::SubmitterInfo>>,
     cometbft_mock: MockServer,
     submitter_task_handle: Option<JoinHandle<Result<(), eyre::Report>>>,
 }
@@ -136,12 +132,10 @@ impl TestSubmitter {
         let cometbft_mock = MockServer::start().await;
         let sequencer_cometbft_endpoint = format!("http://{}", cometbft_mock.address());
 
-        // withdrawer state
+        // startup info
         let state = Arc::new(state::State::new());
-        // not testing watcher here so just set it to ready
-        state.set_watcher_ready();
-        let (startup_tx, startup_rx) = oneshot::channel();
         let startup_handle = startup::InfoHandle::new(state.subscribe());
+        state.set_watcher_ready();
 
         let metrics = Box::leak(Box::new(Metrics::new()));
 
@@ -160,7 +154,6 @@ impl TestSubmitter {
         Self {
             submitter: Some(submitter),
             submitter_task_handle: None,
-            startup_tx: Some(startup_tx),
             submitter_handle,
             cometbft_mock,
         }
@@ -171,18 +164,13 @@ impl TestSubmitter {
 
         let mut state = submitter.state.subscribe();
 
-        self.submitter_task_handle = Some(tokio::spawn(submitter.run()));
-
         submitter.state.set_startup_info(startup::Info {
-            fee_asset_id: "fee-asset-id".to_string(),
+            fee_asset_id: asset::Id::from_str_unchecked("fee-asset-id"),
             starting_rollup_height: 1,
             chain_id: SEQUENCER_CHAIN_ID.to_string(),
         });
-        self.startup_tx
-            .take()
-            .expect("should only send startup info once")
-            .send(startup::SubmitterInfo {})
-            .unwrap();
+
+        self.submitter_task_handle = Some(tokio::spawn(submitter.run()));
 
         // wait for the submitter to be ready
         state

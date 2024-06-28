@@ -40,7 +40,7 @@ impl Handle {
 
 pub(crate) struct Builder {
     pub(crate) shutdown_token: CancellationToken,
-    pub(crate) startup_handle: startup::SubmitterHandle,
+    pub(crate) startup_handle: startup::InfoHandle,
     pub(crate) sequencer_key_path: String,
     pub(crate) sequencer_address_prefix: String,
     pub(crate) sequencer_cometbft_endpoint: String,

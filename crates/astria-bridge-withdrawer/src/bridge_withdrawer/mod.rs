@@ -91,7 +91,7 @@ impl BridgeWithdrawer {
             .wrap_err("failed to parse sequencer bridge address")?;
 
         // make startup object
-        let (startup, startup_submitter_handle, startup_watcher_handle) = startup::Builder {
+        let startup = startup::Builder {
             shutdown_token: shutdown_handle.token(),
             state: state.clone(),
             sequencer_chain_id,
@@ -103,10 +103,12 @@ impl BridgeWithdrawer {
         .build()
         .wrap_err("failed to initialize startup")?;
 
+        let startup_handle = startup::InfoHandle::new(state.subscribe());
+
         // make submitter object
         let (submitter, submitter_handle) = submitter::Builder {
             shutdown_token: shutdown_handle.token(),
-            startup_handle: startup_submitter_handle,
+            startup_handle: startup_handle.clone(),
             sequencer_cometbft_endpoint,
             sequencer_key_path,
             sequencer_address_prefix: sequencer_address_prefix.clone(),
@@ -119,7 +121,7 @@ impl BridgeWithdrawer {
         let ethereum_watcher = watcher::Builder {
             ethereum_contract_address,
             ethereum_rpc_endpoint,
-            startup_handle: startup_watcher_handle,
+            startup_handle,
             shutdown_token: shutdown_handle.token(),
             state: state.clone(),
             rollup_asset_denom: rollup_asset_denomination

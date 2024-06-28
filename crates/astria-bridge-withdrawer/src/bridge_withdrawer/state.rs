@@ -63,11 +63,11 @@ pub(crate) struct StateSnapshot {
 }
 
 impl StateSnapshot {
-    pub fn get_startup_info(&self) -> Option<startup::Info> {
+    pub(super) fn get_startup_info(&self) -> Option<startup::Info> {
         self.startup_info.clone()
     }
 
-    pub fn set_startup_info(&mut self, startup_info: startup::Info) -> bool {
+    pub(super) fn set_startup_info(&mut self, startup_info: startup::Info) -> bool {
         if self.startup_info.is_none() {
             self.startup_info = Some(startup_info);
             true

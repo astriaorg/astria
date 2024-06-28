@@ -16,9 +16,8 @@ use astria_eyre::eyre::{
     self,
     ensure,
     eyre,
-    Context as _,
-    ContextCompat,
     OptionExt as _,
+    WrapErr as _,
 };
 use prost::Message as _;
 use sequencer_client::{
@@ -93,6 +92,7 @@ pub(super) struct Info {
     pub(super) chain_id: String,
 }
 
+#[derive(Debug, Clone)]
 pub(super) struct InfoHandle {
     rx: watch::Receiver<state::StateSnapshot>,
 }
@@ -326,7 +326,7 @@ impl Startup {
                     "failed to extract rollup height from last transaction by the bridge account",
                 )?
                 .checked_add(1)
-                .wrap_err("failed to increment rollup height by 1")?
+                .ok_or_eyre("failed to increment rollup height by 1")?
         } else {
             1
         };
