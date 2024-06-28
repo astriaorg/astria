@@ -52,7 +52,7 @@ pub(super) struct Builder {
     pub(super) sequencer_chain_id: String,
     pub(super) sequencer_cometbft_endpoint: String,
     pub(super) sequencer_bridge_address: Address,
-    pub(super) expected_fee_asset_id: asset::Id,
+    pub(super) expected_fee_asset: asset::Denom,
     // TODO: change the name of this config var
     pub(super) expected_min_fee_asset_balance: u128,
 }
@@ -65,7 +65,7 @@ impl Builder {
             sequencer_chain_id,
             sequencer_cometbft_endpoint,
             sequencer_bridge_address,
-            expected_fee_asset_id,
+            expected_fee_asset,
             expected_min_fee_asset_balance,
         } = self;
 
@@ -79,7 +79,7 @@ impl Builder {
             sequencer_chain_id,
             sequencer_cometbft_client,
             sequencer_bridge_address,
-            expected_fee_asset_id,
+            expected_fee_asset,
             expected_min_fee_asset_balance,
         })
     }
@@ -88,7 +88,7 @@ impl Builder {
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub(super) struct Info {
     pub(super) starting_rollup_height: u64,
-    pub(super) fee_asset_id: asset::Id,
+    pub(super) fee_asset: asset::Denom,
     pub(super) chain_id: String,
 }
 
@@ -124,7 +124,7 @@ pub(super) struct Startup {
     sequencer_chain_id: String,
     sequencer_cometbft_client: sequencer_client::HttpClient,
     sequencer_bridge_address: Address,
-    expected_fee_asset_id: asset::Id,
+    expected_fee_asset: asset::Denom,
     expected_min_fee_asset_balance: u128,
 }
 
@@ -146,7 +146,7 @@ impl Startup {
                 // send the startup info to the submitter
                 let info = Info {
                     chain_id: self.sequencer_chain_id.clone(),
-                    fee_asset_id: self.expected_fee_asset_id,
+                    fee_asset: self.expected_fee_asset,
                     starting_rollup_height,
                 };
 
@@ -203,8 +203,8 @@ impl Startup {
                 .wrap_err("failed to get allowed fee asset ids from sequencer")?;
         ensure!(
             allowed_fee_asset_ids_resp
-                .fee_asset_ids
-                .contains(&self.expected_fee_asset_id),
+                .fee_assets
+                .contains(&self.expected_fee_asset),
             "fee_asset_id provided in config is not a valid fee asset on the sequencer"
         );
 
@@ -219,7 +219,7 @@ impl Startup {
         let fee_asset_balance = fee_asset_balances
             .balances
             .into_iter()
-            .find(|balance| balance.denom.id() == self.expected_fee_asset_id)
+            .find(|balance| balance.denom == self.expected_fee_asset)
             .ok_or_eyre("withdrawer's account balance of the fee asset is zero")?
             .balance;
         ensure!(
@@ -528,7 +528,7 @@ async fn get_allowed_fee_asset_ids(
             },
         );
 
-    let res = tryhard::retry_fn(|| client.get_allowed_fee_asset_ids())
+    let res = tryhard::retry_fn(|| client.get_allowed_fee_assets())
         .with_config(retry_config)
         .await
         .wrap_err("failed to get allowed fee asset ids from Sequencer after a lot of attempts");

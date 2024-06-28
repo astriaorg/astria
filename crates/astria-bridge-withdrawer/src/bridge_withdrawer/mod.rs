@@ -7,10 +7,7 @@ use std::{
     time::Duration,
 };
 
-use astria_core::primitive::v1::asset::{
-    self,
-    Denom,
-};
+use astria_core::primitive::v1::asset::Denom;
 use astria_eyre::eyre::{
     self,
     WrapErr as _,
@@ -97,7 +94,7 @@ impl BridgeWithdrawer {
             sequencer_chain_id,
             sequencer_cometbft_endpoint: sequencer_cometbft_endpoint.clone(),
             sequencer_bridge_address,
-            expected_fee_asset_id: asset::Id::from_str_unchecked(&fee_asset_denomination),
+            expected_fee_asset: fee_asset_denomination,
             expected_min_fee_asset_balance: u128::from(min_expected_fee_asset_balance),
         }
         .build()

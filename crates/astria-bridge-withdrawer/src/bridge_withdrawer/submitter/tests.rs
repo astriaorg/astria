@@ -165,7 +165,7 @@ impl TestSubmitter {
         let mut state = submitter.state.subscribe();
 
         submitter.state.set_startup_info(startup::Info {
-            fee_asset_id: asset::Id::from_str_unchecked("fee-asset-id"),
+            fee_asset: "fee-asset".parse::<asset::Denom>().unwrap(),
             starting_rollup_height: 1,
             chain_id: SEQUENCER_CHAIN_ID.to_string(),
         });
@@ -191,8 +191,8 @@ async fn _register_default_chain_id_guard(cometbft_mock: &MockServer) -> MockGua
 }
 
 async fn _register_default_fee_asset_ids_guard(cometbft_mock: &MockServer) -> MockGuard {
-    let fee_asset_ids = vec![default_native_asset().id()];
-    _register_allowed_fee_asset_ids_response(fee_asset_ids, cometbft_mock).await
+    let fee_assets = vec![default_native_asset()];
+    _register_allowed_fee_assets_response(fee_assets, cometbft_mock).await
 }
 
 async fn _register_default_min_expected_fee_asset_balance_guard(
@@ -359,8 +359,8 @@ async fn _register_genesis_chain_id_response(chain_id: &str, server: &MockServer
         .await
 }
 
-async fn _register_allowed_fee_asset_ids_response(
-    fee_asset_ids: Vec<asset::Id>,
+async fn _register_allowed_fee_assets_response(
+    fee_assets: Vec<asset::Denom>,
     cometbft_mock: &MockServer,
 ) -> MockGuard {
     let response = tendermint_rpc::endpoint::abci_query::Response {

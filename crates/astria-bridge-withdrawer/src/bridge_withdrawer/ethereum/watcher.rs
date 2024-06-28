@@ -198,7 +198,7 @@ impl Watcher {
         u64,
     )> {
         let startup::Info {
-            fee_asset_id,
+            fee_asset,
             starting_rollup_height,
             ..
         } = select! {
@@ -548,6 +548,10 @@ mod tests {
         },
         utils::hex,
     };
+    use tokio::sync::mpsc::{
+        self,
+        error::TryRecvError,
+    };
 
     use super::*;
     use crate::bridge_withdrawer::ethereum::{
@@ -644,6 +648,34 @@ mod tests {
 
         let value = 1_000_000_000.into();
         let recipient = crate::astria_address([1u8; 20]);
+        let bridge_address = crate::astria_address([1u8; 20]);
+        let denom = "transfer/channel-0/utia".parse::<Denom>().unwrap();
+
+        let state = Arc::new(State::new());
+        let startup_handle = startup::InfoHandle::new(state.subscribe());
+        state.set_startup_info(startup::Info {
+            starting_rollup_height: 1,
+            fee_asset: denom.clone(),
+            chain_id: "astria".to_string(),
+        });
+        let (batch_tx, mut batch_rx) = mpsc::channel(100);
+        let submitter_handle = submitter::Handle::new(batch_tx);
+
+        let watcher = Builder {
+            ethereum_contract_address: hex::encode(contract_address),
+            ethereum_rpc_endpoint: anvil.ws_endpoint(),
+            startup_handle,
+            submitter_handle,
+            shutdown_token: CancellationToken::new(),
+            state: Arc::new(State::new()),
+            rollup_asset_denom: denom.clone(),
+            bridge_address,
+            sequencer_address_prefix: crate::ASTRIA_ADDRESS_PREFIX.into(),
+        }
+        .build()
+        .unwrap();
+
+        tokio::task::spawn(watcher.run());
         let receipt = send_sequencer_withdraw_transaction(&contract, value, recipient).await;
         let expected_event = EventWithMetadata {
             event: WithdrawalEvent::Sequencer(SequencerWithdrawalFilter {
@@ -676,7 +708,7 @@ mod tests {
             );
         };
         assert_eq!(action, &expected_action);
-        assert_eq!(batch_rx.try_recv().unwrap_err(), Empty);
+        assert_eq!(batch_rx.try_recv().unwrap_err(), TryRecvError::Empty);
     }
 
     #[tokio::test]
@@ -722,7 +754,7 @@ mod tests {
         let startup_handle = startup::InfoHandle::new(state.subscribe());
         state.set_startup_info(startup::Info {
             starting_rollup_height: 1,
-            fee_asset_id: denom.id(),
+            fee_asset: denom.clone(),
             chain_id: "astria".to_string(),
         });
         let (batch_tx, mut batch_rx) = mpsc::channel(100);
@@ -806,6 +838,8 @@ mod tests {
             block_number: receipt.block_number.unwrap(),
             transaction_hash: receipt.transaction_hash,
         };
+        let bridge_address = crate::astria_address([1u8; 20]);
+        let denom = "transfer/channel-0/utia".parse::<Denom>().unwrap();
         let Action::Ics20Withdrawal(mut expected_action) = event_to_action(
             expected_event,
             denom.clone(),
@@ -823,7 +857,7 @@ mod tests {
         let startup_handle = startup::InfoHandle::new(state.subscribe());
         state.set_startup_info(startup::Info {
             starting_rollup_height: 1,
-            fee_asset_id: denom.id(),
+            fee_asset: denom.clone(),
             chain_id: "astria".to_string(),
         });
         let (batch_tx, mut batch_rx) = mpsc::channel(100);
@@ -857,7 +891,7 @@ mod tests {
         };
         action.timeout_time = 0; // zero this for testing
         assert_eq!(action, &expected_action);
-        assert_eq!(batch_rx.try_recv().unwrap_err(), Empty);
+        assert_eq!(batch_rx.try_recv().unwrap_err(), TryRecvError::Empty);
     }
 
     async fn mint_tokens<M: Middleware>(
@@ -921,6 +955,7 @@ mod tests {
 
         let value = 1_000_000_000.into();
         let recipient = crate::astria_address([1u8; 20]);
+        let bridge_address = crate::astria_address([1u8; 20]);
         let denom = default_native_asset();
         let receipt = send_sequencer_withdraw_transaction_erc20(&contract, value, recipient).await;
         let expected_event = EventWithMetadata {
@@ -949,7 +984,7 @@ mod tests {
         let startup_handle = startup::InfoHandle::new(state.subscribe());
         state.set_startup_info(startup::Info {
             starting_rollup_height: 1,
-            fee_asset_id: denom.id(),
+            fee_asset: denom.clone(),
             chain_id: "astria".to_string(),
         });
         let (batch_tx, mut batch_rx) = mpsc::channel(100);
@@ -982,7 +1017,7 @@ mod tests {
             );
         };
         assert_eq!(action, &expected_action);
-        assert_eq!(batch_rx.try_recv().unwrap_err(), Empty);
+        assert_eq!(batch_rx.try_recv().unwrap_err(), TryRecvError::Empty);
     }
 
     async fn send_ics20_withdraw_transaction_astria_bridgeable_erc20<M: Middleware>(
@@ -1024,6 +1059,7 @@ mod tests {
 
         let value = 1_000_000_000.into();
         let recipient = "somebech32address".to_string();
+        let bridge_address = crate::astria_address([1u8; 20]);
         let denom = "transfer/channel-0/utia".parse::<Denom>().unwrap();
         let receipt = send_ics20_withdraw_transaction_astria_bridgeable_erc20(
             &contract,
@@ -1058,7 +1094,7 @@ mod tests {
         let startup_handle = startup::InfoHandle::new(state.subscribe());
         state.set_startup_info(startup::Info {
             starting_rollup_height: 1,
-            fee_asset_id: denom.id(),
+            fee_asset: denom.clone(),
             chain_id: "astria".to_string(),
         });
         let (batch_tx, mut batch_rx) = mpsc::channel(100);
@@ -1092,6 +1128,6 @@ mod tests {
         };
         action.timeout_time = 0; // zero this for testing
         assert_eq!(action, &expected_action);
-        assert_eq!(batch_rx.try_recv().unwrap_err(), Empty);
+        assert_eq!(batch_rx.try_recv().unwrap_err(), TryRecvError::Empty);
     }
 }
