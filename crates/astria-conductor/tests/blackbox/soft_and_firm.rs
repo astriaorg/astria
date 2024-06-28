@@ -32,7 +32,6 @@ async fn wait_on_update_guards(soft_update: MockGuard, firm_update: MockGuard) {
     let firm_update_check = firm_update.wait_until_satisfied().fuse();
     pin_mut!(soft_update_check, firm_update_check);
 
-    
     futures::select! {
         () = soft_update_check => {
             // soft_update_check completed first, await for firm update
