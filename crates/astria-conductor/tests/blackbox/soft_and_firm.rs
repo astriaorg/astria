@@ -1,7 +1,12 @@
 use std::time::Duration;
 
 use astria_conductor::config::CommitLevel;
-use futures::future::join;
+use astria_grpc_mock::MockGuard;
+use futures::{
+    future::join,
+    pin_mut,
+    FutureExt,
+};
 use tokio::time::timeout;
 
 use crate::{
@@ -19,6 +24,25 @@ use crate::{
     mount_sequencer_validator_set,
     mount_update_commitment_state,
 };
+
+/// Helper function to skip soft commitment update check when firm commitment update guard is
+/// satisfied.
+async fn wait_on_update_guards(soft_update: MockGuard, firm_update: MockGuard) {
+    let soft_update_check = soft_update.wait_until_satisfied().fuse();
+    let firm_update_check = firm_update.wait_until_satisfied().fuse();
+    pin_mut!(soft_update_check, firm_update_check);
+
+    
+    futures::select! {
+        () = soft_update_check => {
+            // soft_update_check completed first, await for firm update
+            firm_update_check.await;
+        },
+        () = firm_update_check => {
+            // firm_update_check completed first
+        }
+    }
+}
 
 /// Tests if a single block is executed and the rollup's state updated (first soft, then firm).
 ///
@@ -95,7 +119,7 @@ async fn simple() {
         parent: [1; 64],
     );
 
-    let _update_commitment_state_soft = mount_update_commitment_state!(
+    let update_commitment_state_soft = mount_update_commitment_state!(
         test_conductor,
         mock_name: None,
         firm: (
@@ -131,7 +155,7 @@ async fn simple() {
         Duration::from_millis(1000),
         join(
             execute_block.wait_until_satisfied(),
-            update_commitment_state_firm.wait_until_satisfied(),
+            wait_on_update_guards(update_commitment_state_soft, update_commitment_state_firm),
         ),
     )
     .await
