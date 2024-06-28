@@ -9,7 +9,7 @@ global:
 images:
   geth:
     repo: ghcr.io/astriaorg/astria-geth
-    tag: 0.12.0
+    tag: 0.13.0
     devTag: latest
   conductor:
     repo: ghcr.io/astriaorg/conductor
