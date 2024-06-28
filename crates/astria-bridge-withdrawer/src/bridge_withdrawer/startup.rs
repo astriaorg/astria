@@ -32,7 +32,7 @@ use tendermint_rpc::{
     endpoint::tx,
     Client as _,
 };
-use tokio::sync::oneshot;
+use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 use tracing::{
     error,
@@ -41,7 +41,10 @@ use tracing::{
     warn,
 };
 
-use super::state::State;
+use super::state::{
+    self,
+    State,
+};
 use crate::bridge_withdrawer::ethereum::convert::BridgeUnlockMemo;
 
 pub(super) struct Builder {
@@ -56,7 +59,7 @@ pub(super) struct Builder {
 }
 
 impl Builder {
-    pub(super) fn build(self) -> eyre::Result<(Startup, SubmitterHandle, WatcherHandle)> {
+    pub(super) fn build(self) -> eyre::Result<Startup> {
         let Self {
             shutdown_token,
             state,
@@ -71,86 +74,53 @@ impl Builder {
             sequencer_client::HttpClient::new(&*sequencer_cometbft_endpoint)
                 .wrap_err("failed constructing cometbft http client")?;
 
-        let (submitter_tx, submitter_rx) = oneshot::channel();
-        let submitter_handle = SubmitterHandle::new(submitter_rx);
-
-        let (watcher_tx, watcher_rx) = oneshot::channel();
-        let watcher_handle = WatcherHandle::new(watcher_rx);
-
-        let startup = Startup {
+        Ok(Startup {
             shutdown_token,
             state,
-            submitter_tx,
-            watcher_tx,
             sequencer_chain_id,
             sequencer_cometbft_client,
             sequencer_bridge_address,
             expected_fee_asset_id,
             expected_min_fee_asset_balance,
-        };
-
-        Ok((startup, submitter_handle, watcher_handle))
+        })
     }
 }
 
-#[derive(Debug)]
-pub(super) struct SubmitterInfo {
-    pub(super) sequencer_chain_id: String,
-}
-
-#[derive(Debug)]
-pub(super) struct SubmitterHandle {
-    info_rx: Option<oneshot::Receiver<SubmitterInfo>>,
-}
-
-impl SubmitterHandle {
-    pub(super) fn new(info_rx: oneshot::Receiver<SubmitterInfo>) -> Self {
-        Self {
-            info_rx: Some(info_rx),
-        }
-    }
-
-    pub(super) async fn recv(&mut self) -> eyre::Result<SubmitterInfo> {
-        self.info_rx
-            .take()
-            .expect("startup info should only be taken once - this is a bug")
-            .await
-            .wrap_err("failed to get startup info from submitter. channel was dropped.")
-    }
-}
-
-#[derive(Debug)]
-pub(super) struct WatcherInfo {
-    pub(super) fee_asset_id: asset::Id,
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub(super) struct Info {
     pub(super) starting_rollup_height: u64,
+    pub(super) fee_asset_id: asset::Id,
+    pub(super) chain_id: String,
 }
 
-#[derive(Debug)]
-pub(super) struct WatcherHandle {
-    info_rx: Option<oneshot::Receiver<WatcherInfo>>,
+pub(super) struct InfoHandle {
+    rx: watch::Receiver<state::StateSnapshot>,
 }
 
-impl WatcherHandle {
-    pub(super) fn new(info_rx: oneshot::Receiver<WatcherInfo>) -> Self {
+impl InfoHandle {
+    pub(super) fn new(rx: watch::Receiver<state::StateSnapshot>) -> Self {
         Self {
-            info_rx: Some(info_rx),
+            rx,
         }
     }
 
-    pub(super) async fn recv(&mut self) -> eyre::Result<WatcherInfo> {
-        self.info_rx
-            .take()
-            .expect("startup info should only be taken once - this is a bug")
+    pub(super) async fn get_info(&mut self) -> eyre::Result<Info> {
+        let state = self
+            .rx
+            .wait_for(|state| state.get_startup_info().is_some())
             .await
-            .wrap_err("failed to get startup info from watcher. channel was dropped.")
+            .wrap_err("")?;
+
+        Ok(state
+            .get_startup_info()
+            .expect("the previous line guarantes that the state is intialized")
+            .clone())
     }
 }
 
 pub(super) struct Startup {
     shutdown_token: CancellationToken,
     state: Arc<State>,
-    submitter_tx: oneshot::Sender<SubmitterInfo>,
-    watcher_tx: oneshot::Sender<WatcherInfo>,
     sequencer_chain_id: String,
     sequencer_cometbft_client: sequencer_client::HttpClient,
     sequencer_bridge_address: Address,
@@ -162,33 +132,28 @@ impl Startup {
     pub(super) async fn run(mut self) -> eyre::Result<()> {
         let shutdown_token = self.shutdown_token.clone();
 
-        let startup_task = tokio::spawn(async {
-            self.confirm_sequencer_config()
-                .await
-                .wrap_err("failed to confirm sequencer config")?;
-            let starting_rollup_height = self
-                .get_starting_rollup_height()
-                .await
-                .wrap_err("failed to get next rollup block height")?;
+        let startup_task = tokio::spawn({
+            let state = self.state.clone();
+            async move {
+                self.confirm_sequencer_config()
+                    .await
+                    .wrap_err("failed to confirm sequencer config")?;
+                let starting_rollup_height = self
+                    .get_starting_rollup_height()
+                    .await
+                    .wrap_err("failed to get next rollup block height")?;
 
-            // send the startup info to the submitter
-            let submitter_info = SubmitterInfo {
-                sequencer_chain_id: self.sequencer_chain_id.clone(),
-            };
+                // send the startup info to the submitter
+                let info = Info {
+                    chain_id: self.sequencer_chain_id.clone(),
+                    fee_asset_id: self.expected_fee_asset_id,
+                    starting_rollup_height,
+                };
 
-            let watcher_info = WatcherInfo {
-                fee_asset_id: self.expected_fee_asset_id,
-                starting_rollup_height,
-            };
+                state.set_startup_info(info);
 
-            self.submitter_tx
-                .send(submitter_info)
-                .map_err(|_submitter_info| eyre!("failed to send submitter info"))?;
-            self.watcher_tx
-                .send(watcher_info)
-                .map_err(|_watcher_info| eyre!("failed to send watcher info"))?;
-
-            Ok(())
+                Ok(())
+            }
         });
 
         tokio::select!(

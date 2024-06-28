@@ -53,14 +53,13 @@ use crate::bridge_withdrawer::{
         },
     },
     startup,
-    startup::WatcherInfo as StartupInfo,
     state::State,
     submitter,
 };
 
 pub(crate) struct Builder {
     pub(crate) shutdown_token: CancellationToken,
-    pub(crate) startup_handle: startup::WatcherHandle,
+    pub(crate) startup_handle: startup::InfoHandle,
     pub(crate) ethereum_contract_address: String,
     pub(crate) ethereum_rpc_endpoint: String,
     pub(crate) state: Arc<State>,
@@ -75,8 +74,8 @@ impl Builder {
         let Builder {
             ethereum_contract_address,
             ethereum_rpc_endpoint,
-            startup_handle,
             shutdown_token,
+            startup_handle,
             state,
             rollup_asset_denom,
             bridge_address,
@@ -100,11 +99,11 @@ impl Builder {
         Ok(Watcher {
             contract_address,
             ethereum_rpc_endpoint: ethereum_rpc_endpoint.to_string(),
-            startup_handle,
             rollup_asset_denom,
             bridge_address,
             state,
             shutdown_token: shutdown_token.clone(),
+            startup_handle,
             submitter_handle,
             sequencer_address_prefix,
         })
@@ -114,7 +113,7 @@ impl Builder {
 /// Watches for withdrawal events emitted by the `AstriaWithdrawer` contract.
 pub(crate) struct Watcher {
     shutdown_token: CancellationToken,
-    startup_handle: startup::WatcherHandle,
+    startup_handle: startup::InfoHandle,
     submitter_handle: submitter::Handle,
     contract_address: ethers::types::Address,
     ethereum_rpc_endpoint: String,
@@ -205,16 +204,17 @@ impl Watcher {
         u128,
         u64,
     )> {
-        let StartupInfo {
+        let startup::Info {
             fee_asset_id,
             starting_rollup_height,
+            ..
         } = select! {
             () = self.shutdown_token.cancelled() => {
                 info!("watcher received shutdown signal while waiting for startup");
                 return Err(eyre!("watcher received shutdown signal while waiting for startup"));
             }
 
-            startup_info = self.startup_handle.recv() => {
+            startup_info = self.startup_handle.get_info() => {
                 startup_info.wrap_err("failed to receive startup info")?
             }
         };
@@ -468,7 +468,6 @@ mod tests {
         },
         utils::hex,
     };
-    use tokio::sync::oneshot;
 
     use super::*;
     use crate::bridge_withdrawer::ethereum::{
@@ -586,15 +585,14 @@ mod tests {
             panic!("expected action to be BridgeUnlock, got {expected_action:?}");
         };
 
+        let state = Arc::new(State::new());
+        let startup_handle = startup::InfoHandle::new(state.subscribe());
+        state.set_startup_info(startup::Info {
+            starting_rollup_height: 1,
+            fee_asset_id: denom.id(),
+            chain_id: "astria".to_string(),
+        });
         let (batch_tx, mut batch_rx) = mpsc::channel(100);
-        let (startup_tx, startup_rx) = oneshot::channel();
-        let startup_handle = startup::WatcherHandle::new(startup_rx);
-        startup_tx
-            .send(StartupInfo {
-                fee_asset_id: denom.id(),
-                starting_rollup_height: 0,
-            })
-            .unwrap();
 
         let watcher = Builder {
             ethereum_contract_address: hex::encode(contract_address),
@@ -686,15 +684,14 @@ mod tests {
         };
         expected_action.timeout_time = 0; // zero this for testing
 
+        let state = Arc::new(State::new());
+        let startup_handle = startup::InfoHandle::new(state.subscribe());
+        state.set_startup_info(startup::Info {
+            starting_rollup_height: 1,
+            fee_asset_id: denom.id(),
+            chain_id: "astria".to_string(),
+        });
         let (batch_tx, mut batch_rx) = mpsc::channel(100);
-        let (startup_tx, startup_rx) = oneshot::channel();
-        let startup_handle = startup::WatcherHandle::new(startup_rx);
-        startup_tx
-            .send(StartupInfo {
-                fee_asset_id: denom.id(),
-                starting_rollup_height: 0,
-            })
-            .unwrap();
 
         let watcher = Builder {
             ethereum_contract_address: hex::encode(contract_address),
@@ -813,15 +810,14 @@ mod tests {
             panic!("expected action to be BridgeUnlock, got {expected_action:?}");
         };
 
+        let state = Arc::new(State::new());
+        let startup_handle = startup::InfoHandle::new(state.subscribe());
+        state.set_startup_info(startup::Info {
+            starting_rollup_height: 1,
+            fee_asset_id: denom.id(),
+            chain_id: "astria".to_string(),
+        });
         let (batch_tx, mut batch_rx) = mpsc::channel(100);
-        let (startup_tx, startup_rx) = oneshot::channel();
-        let startup_handle = startup::WatcherHandle::new(startup_rx);
-        startup_tx
-            .send(StartupInfo {
-                fee_asset_id: denom.id(),
-                starting_rollup_height: 0,
-            })
-            .unwrap();
 
         let watcher = Builder {
             ethereum_contract_address: hex::encode(contract_address),
@@ -923,15 +919,14 @@ mod tests {
         };
         expected_action.timeout_time = 0; // zero this for testing
 
+        let state = Arc::new(State::new());
+        let startup_handle = startup::InfoHandle::new(state.subscribe());
+        state.set_startup_info(startup::Info {
+            starting_rollup_height: 1,
+            fee_asset_id: denom.id(),
+            chain_id: "astria".to_string(),
+        });
         let (batch_tx, mut batch_rx) = mpsc::channel(100);
-        let (startup_tx, startup_rx) = oneshot::channel();
-        let startup_handle = startup::WatcherHandle::new(startup_rx);
-        startup_tx
-            .send(StartupInfo {
-                fee_asset_id: denom.id(),
-                starting_rollup_height: 0,
-            })
-            .unwrap();
 
         let watcher = Builder {
             ethereum_contract_address: hex::encode(contract_address),

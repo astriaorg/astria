@@ -141,7 +141,7 @@ impl TestSubmitter {
         // not testing watcher here so just set it to ready
         state.set_watcher_ready();
         let (startup_tx, startup_rx) = oneshot::channel();
-        let startup_handle = startup::SubmitterHandle::new(startup_rx);
+        let startup_handle = startup::InfoHandle::new(state.subscribe());
 
         let metrics = Box::leak(Box::new(Metrics::new()));
 
@@ -173,12 +173,15 @@ impl TestSubmitter {
 
         self.submitter_task_handle = Some(tokio::spawn(submitter.run()));
 
+        submitter.state.set_startup_info(startup::Info {
+            fee_asset_id: "fee-asset-id".to_string(),
+            starting_rollup_height: 1,
+            chain_id: SEQUENCER_CHAIN_ID.to_string(),
+        });
         self.startup_tx
             .take()
             .expect("should only send startup info once")
-            .send(startup::SubmitterInfo {
-                sequencer_chain_id: SEQUENCER_CHAIN_ID.to_string(),
-            })
+            .send(startup::SubmitterInfo {})
             .unwrap();
 
         // wait for the submitter to be ready
