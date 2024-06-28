@@ -41,7 +41,7 @@
         "astriaFeeCollectors": {{ toPrettyJson .Values.config.rollup.genesis.feeCollectors | indent 8 | trim }},
         "astriaEIP1559Params": {{ toPrettyJson .Values.config.rollup.genesis.eip1559Params | indent 8 | trim }},
         "astriaBridgeSenderAddress": "{{ .Values.config.rollup.genesis.bridgeSenderAddress }}",
-        "astriaSequencerHrpPrefix": "{{ .Values.config.sequencer.addressPrefixes.base }}"
+        "astriaSequencerAddressPrefix": "{{ .Values.config.sequencer.addressPrefixes.base }}"
         {{- if not .Values.global.dev }}
         {{- else }}
         {{- end }}
