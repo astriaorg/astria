@@ -16,6 +16,7 @@ use astria_eyre::eyre::{
 };
 use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
+use astria_core::protocol::transaction::v1alpha1::Action;
 
 use crate::{
     executor,
@@ -63,7 +64,7 @@ impl Builder {
             .wrap_err("failed constructing a sequencer address from private key")?;
 
         let (serialized_rollup_transaction_tx, serialized_rollup_transaction_rx) =
-            tokio::sync::mpsc::channel::<SequenceAction>(256);
+            tokio::sync::mpsc::channel::<Action>(256);
 
         Ok((
             super::Executor {

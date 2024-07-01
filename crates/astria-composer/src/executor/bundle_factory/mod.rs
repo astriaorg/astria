@@ -27,9 +27,9 @@ mod tests;
 #[derive(Debug, thiserror::Error)]
 enum SizedBundleError {
     #[error("bundle does not have enough space left for the given sequence action")]
-    NotEnoughSpace(SequenceAction),
+    NotEnoughSpace(Action),
     #[error("sequence action is larger than the max bundle size")]
-    SequenceActionTooLarge(SequenceAction),
+    SequenceActionTooLarge(Action),
 }
 
 pub(super) struct SizedBundleReport<'a>(pub(super) &'a SizedBundle);
@@ -77,7 +77,7 @@ impl SizedBundle {
     /// # Errors
     /// - `seq_action` is beyond the max size allowed for the entire bundle
     /// - `seq_action` does not fit in the remaining space in the bundle
-    fn try_push(&mut self, seq_action: SequenceAction) -> Result<(), SizedBundleError> {
+    fn try_push(&mut self, seq_action: Action) -> Result<(), SizedBundleError> {
         let seq_action_size = encoded_len(&seq_action);
 
         if seq_action_size > self.max_size {
@@ -90,11 +90,13 @@ impl SizedBundle {
             return Err(SizedBundleError::NotEnoughSpace(seq_action));
         }
 
-        self.rollup_counts
-            .entry(seq_action.rollup_id)
-            .and_modify(|count| *count = count.saturating_add(1))
-            .or_insert(1);
-        self.buffer.push(Action::Sequence(seq_action));
+        if let Some(seq_action) = seq_action.as_sequence() {
+            self.rollup_counts
+                .entry(seq_action.rollup_id)
+                .and_modify(|count| *count = count.saturating_add(1))
+                .or_insert(1);
+        }
+        self.buffer.push(seq_action);
         self.curr_size = new_size;
 
         Ok(())
@@ -144,7 +146,7 @@ pub(super) struct FinishedQueueFull {
     curr_bundle_size: usize,
     finished_queue_capacity: usize,
     sequence_action_size: usize,
-    seq_action: SequenceAction,
+    seq_action: Action,
 }
 
 impl From<FinishedQueueFull> for BundleFactoryError {
@@ -180,16 +182,15 @@ impl BundleFactory {
     /// is at capacity.
     pub(super) fn try_push(
         &mut self,
-        seq_action: SequenceAction,
+        action: Action,
     ) -> Result<(), BundleFactoryError> {
-        let seq_action = with_ibc_prefixed(seq_action);
-        let seq_action_size = encoded_len(&seq_action);
+        let action_size = encoded_len(&action);
 
-        match self.curr_bundle.try_push(seq_action) {
+        match self.curr_bundle.try_push(action) {
             Err(SizedBundleError::SequenceActionTooLarge(_seq_action)) => {
                 // reject the sequence action if it is larger than the max bundle size
                 Err(BundleFactoryError::SequenceActionTooLarge {
-                    size: seq_action_size,
+                    size: action_size,
                     max_size: self.curr_bundle.max_size,
                 })
             }
@@ -198,7 +199,7 @@ impl BundleFactory {
                     Err(FinishedQueueFull {
                         curr_bundle_size: self.curr_bundle.curr_size,
                         finished_queue_capacity: self.finished_queue_capacity,
-                        sequence_action_size: seq_action_size,
+                        sequence_action_size: action_size,
                         seq_action,
                     }
                     .into())
@@ -210,7 +211,7 @@ impl BundleFactory {
                     );
                     trace!(
                         new_bundle_size = self.curr_bundle.curr_size,
-                        seq_action_size = seq_action_size,
+                        seq_action_size = action_size,
                         finished_queue.current_size = self.finished.len(),
                         finished_queue.capacity = self.finished_queue_capacity,
                         "created new bundle and bundled new sequence action"
@@ -221,7 +222,7 @@ impl BundleFactory {
             Ok(()) => {
                 trace!(
                     new_bundle_size = self.curr_bundle.curr_size,
-                    seq_action_size = seq_action_size,
+                    seq_action_size = action_size,
                     "bundled new sequence action"
                 );
                 Ok(())
@@ -278,7 +279,7 @@ fn with_ibc_prefixed(action: SequenceAction) -> SequenceAction {
     }
 }
 
-fn encoded_len(action: &SequenceAction) -> usize {
+fn encoded_len(action: &Action) -> usize {
     use prost::Message as _;
     action.to_raw().encoded_len()
 }

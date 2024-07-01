@@ -20,6 +20,7 @@ use tonic::{
     Response,
     Status,
 };
+use astria_core::protocol::transaction::v1alpha1::Action;
 
 use crate::{
     collectors::EXECUTOR_SEND_TIMEOUT,
@@ -58,29 +59,28 @@ impl GrpcCollectorService for Grpc {
     ) -> Result<Response<SubmitRollupTransactionResponse>, Status> {
         let submit_rollup_tx_request = request.into_inner();
 
-        let Ok(rollup_id) = RollupId::try_from_slice(&submit_rollup_tx_request.rollup_id) else {
-            return Err(Status::invalid_argument("invalid rollup id"));
+        let action = if let Some(action) = submit_rollup_tx_request.action {
+            action
+        } else {
+            return Err(Status::invalid_argument("missing action"));
         };
 
-        let sequence_action = SequenceAction {
-            rollup_id,
-            data: submit_rollup_tx_request.data,
-            fee_asset: self.fee_asset.clone(),
+        let new_action = if let Ok(action) = Action::try_from_raw(action) {
+            action
+        } else {
+            return Err(Status::invalid_argument("invalid action"));
         };
 
-        self.metrics.increment_grpc_txs_received(&rollup_id);
         match self
             .executor
-            .send_timeout(sequence_action, EXECUTOR_SEND_TIMEOUT)
+            .send_timeout(new_action, EXECUTOR_SEND_TIMEOUT)
             .await
         {
             Ok(()) => {}
             Err(SendTimeoutError::Timeout(_seq_action)) => {
-                self.metrics.increment_grpc_txs_dropped(&rollup_id);
                 return Err(Status::unavailable("timeout while sending txs to composer"));
             }
             Err(SendTimeoutError::Closed(_seq_action)) => {
-                self.metrics.increment_grpc_txs_dropped(&rollup_id);
                 return Err(Status::failed_precondition("composer is not available"));
             }
         }

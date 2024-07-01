@@ -1,14 +1,13 @@
+use crate::generated::protocol::transaction::v1alpha1;
 /// SubmitRollupTransactionRequest contains a rollup transaction to be submitted to the Shared Sequencer Network
 /// via the Composer
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SubmitRollupTransactionRequest {
-    /// the unhashed rollup id
-    #[prost(bytes = "vec", tag = "1")]
-    pub rollup_id: ::prost::alloc::vec::Vec<u8>,
-    /// the raw data bytes of the rollup transaction
-    #[prost(bytes = "vec", tag = "2")]
-    pub data: ::prost::alloc::vec::Vec<u8>,
+    #[prost(message, optional, tag = "1")]
+    pub action: ::core::option::Option<
+        v1alpha1::Action,
+    >,
 }
 impl ::prost::Name for SubmitRollupTransactionRequest {
     const NAME: &'static str = "SubmitRollupTransactionRequest";

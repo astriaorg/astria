@@ -40,7 +40,6 @@ use crate::{
         ApiServer,
     },
     collectors,
-    collectors::geth,
     composer,
     executor,
     executor::Executor,
@@ -71,13 +70,6 @@ pub struct Composer {
     /// responsible for signing and submitting sequencer transactions.
     /// The sequencer transactions are received from various collectors.
     executor: Executor,
-    /// The collection of geth collectors and their rollup names.
-    geth_collectors: HashMap<String, collectors::Geth>,
-    /// The collection of the status of each geth collector.
-    geth_collector_statuses: HashMap<String, watch::Receiver<collectors::geth::Status>>,
-    /// The set of tasks tracking if the geth collectors are still running and to receive
-    /// the final result of each geth collector.
-    geth_collector_tasks: JoinMap<String, eyre::Result<()>>,
     /// The map of chain ID to the URLs to which geth collectors should connect.
     rollups: HashMap<String, String>,
     /// The gRPC server that listens for incoming requests from the collectors via the
@@ -164,36 +156,12 @@ impl Composer {
             "API server listening"
         );
 
-        let geth_collectors = rollups
-            .iter()
-            .map(|(rollup_name, url)| {
-                let collector = geth::Builder {
-                    chain_name: rollup_name.clone(),
-                    url: url.clone(),
-                    executor_handle: executor_handle.clone(),
-                    shutdown_token: shutdown_token.clone(),
-                    metrics,
-                    fee_asset: cfg.fee_asset.clone(),
-                }
-                .build();
-                (rollup_name.clone(), collector)
-            })
-            .collect::<HashMap<_, _>>();
-        let geth_collector_statuses: HashMap<String, watch::Receiver<geth::Status>> =
-            geth_collectors
-                .iter()
-                .map(|(rollup_name, collector)| (rollup_name.clone(), collector.subscribe()))
-                .collect();
-
         Ok(Self {
             api_server,
             composer_status_sender,
             executor_handle,
             executor,
             rollups,
-            geth_collectors,
-            geth_collector_statuses,
-            geth_collector_tasks: JoinMap::new(),
             grpc_server,
             shutdown_token,
             metrics,
@@ -229,10 +197,7 @@ impl Composer {
             mut composer_status_sender,
             executor,
             executor_handle,
-            mut geth_collector_tasks,
-            mut geth_collectors,
             rollups,
-            mut geth_collector_statuses,
             grpc_server,
             shutdown_token,
             metrics,
@@ -252,16 +217,9 @@ impl Composer {
                 .wrap_err("api server ended unexpectedly")
         });
 
-        // run the collectors and executor
-        spawn_geth_collectors(&mut geth_collectors, &mut geth_collector_tasks);
-
         let executor_status = executor.subscribe().clone();
         let mut executor_task = tokio::spawn(executor.run_until_stopped());
 
-        // wait for collectors and executor to come online
-        wait_for_collectors(&geth_collector_statuses, &mut composer_status_sender)
-            .await
-            .wrap_err("geth collectors failed to become ready")?;
         wait_for_executor(executor_status, &mut composer_status_sender)
             .await
             .wrap_err("executor failed to become ready")?;
@@ -289,7 +247,6 @@ impl Composer {
                         api_server_task_handle: Some(api_task),
                         executor_task_handle: Some(executor_task),
                         grpc_server_task_handle: Some(grpc_server_handle),
-                        geth_collector_tasks,
                     };
             },
             o = &mut api_task => {
@@ -300,7 +257,6 @@ impl Composer {
                         api_server_task_handle: None,
                         executor_task_handle: Some(executor_task),
                         grpc_server_task_handle: Some(grpc_server_handle),
-                        geth_collector_tasks,
                     };
             },
             o = &mut executor_task => {
@@ -311,7 +267,6 @@ impl Composer {
                         api_server_task_handle: Some(api_task),
                         executor_task_handle: None,
                         grpc_server_task_handle: Some(grpc_server_handle),
-                        geth_collector_tasks,
                     };
             },
             o = &mut grpc_server_handle => {
@@ -322,29 +277,7 @@ impl Composer {
                         api_server_task_handle: Some(api_task),
                         executor_task_handle: Some(executor_task),
                         grpc_server_task_handle: None,
-                        geth_collector_tasks,
                     };
-            },
-            Some((rollup, collector_exit)) = geth_collector_tasks.join_next() => {
-                report_exit("collector", collector_exit);
-                if let Some(url) = rollups.get(&rollup) {
-                    let collector = geth::Builder {
-                        chain_name: rollup.clone(),
-                        url: url.clone(),
-                        executor_handle: executor_handle.clone(),
-                        shutdown_token: shutdown_token.clone(),
-                        metrics,
-                        fee_asset: fee_asset.clone(),
-                    }
-                    .build();
-                    geth_collector_statuses.insert(rollup.clone(), collector.subscribe());
-                    geth_collector_tasks.spawn(rollup, collector.run_until_stopped());
-                } else {
-                    error!(
-                        "rollup should have had an entry in the rollup->url map but doesn't; not reconnecting \
-                         it"
-                    );
-                }
             });
         };
 
@@ -358,7 +291,6 @@ struct ShutdownInfo {
     api_server_task_handle: Option<JoinHandle<eyre::Result<()>>>,
     executor_task_handle: Option<JoinHandle<eyre::Result<()>>>,
     grpc_server_task_handle: Option<JoinHandle<eyre::Result<()>>>,
-    geth_collector_tasks: JoinMap<String, eyre::Result<()>>,
 }
 
 impl ShutdownInfo {
@@ -369,7 +301,6 @@ impl ShutdownInfo {
             api_server_task_handle,
             executor_task_handle,
             grpc_server_task_handle,
-            mut geth_collector_tasks,
         } = self;
 
         // if the composer is shutting down because of an unexpected shutdown from any one of the
@@ -407,33 +338,6 @@ impl ShutdownInfo {
             info!("grpc server task was already dead");
         };
 
-        let shutdown_loop = async {
-            while let Some((name, res)) = geth_collector_tasks.join_next().await {
-                let message = "task shut down";
-                match flatten_result(res) {
-                    Ok(()) => info!(name, message),
-                    Err(error) => error!(name, %error, message),
-                }
-            }
-        };
-
-        // we give 5s to shut down all the other geth collectors. geth collectors shouldn't take
-        // too long to shutdown since they just need to unsubscribe to their WSS
-        // streams.
-        if timeout(GETH_COLLECTOR_SHUTDOWN_DURATION, shutdown_loop)
-            .await
-            .is_err()
-        {
-            let tasks = geth_collector_tasks.keys().join(", ");
-            warn!(
-                tasks = format_args!("[{tasks}]"),
-                "aborting all geth collector tasks that have not yet shut down",
-            );
-            geth_collector_tasks.abort_all();
-        } else {
-            info!("all geth collector tasks shut down regularly");
-        }
-
         // cancel the api server at the end
         // we give the api server 2s, since it shouldn't be getting too much traffic and should
         // be able to shut down faster.
@@ -455,15 +359,6 @@ impl ShutdownInfo {
     }
 }
 
-fn spawn_geth_collectors(
-    geth_collectors: &mut HashMap<String, collectors::Geth>,
-    geth_collector_tasks: &mut JoinMap<String, eyre::Result<()>>,
-) {
-    for (chain_id, collector) in geth_collectors.drain() {
-        geth_collector_tasks.spawn(chain_id, collector.run_until_stopped());
-    }
-}
-
 async fn wait_for_executor(
     mut executor_status: watch::Receiver<executor::Status>,
     composer_status_sender: &mut watch::Sender<composer::Status>,
@@ -475,56 +370,6 @@ async fn wait_for_executor(
 
     composer_status_sender.send_modify(|status| {
         status.set_executor_connected(true);
-    });
-
-    Ok(())
-}
-
-/// Waits for all collectors to come online.
-async fn wait_for_collectors(
-    collector_statuses: &HashMap<String, watch::Receiver<collectors::geth::Status>>,
-    composer_status_sender: &mut watch::Sender<composer::Status>,
-) -> eyre::Result<()> {
-    use futures::{
-        future::FutureExt as _,
-        stream::{
-            FuturesUnordered,
-            StreamExt as _,
-        },
-    };
-    let mut statuses = collector_statuses
-        .iter()
-        .map(|(chain_id, status)| {
-            let mut status = status.clone();
-            async move {
-                match status
-                    .wait_for(collectors::geth::Status::is_connected)
-                    .await
-                {
-                    // `wait_for` returns a reference to status; throw it
-                    // away because this future cannot return a reference to
-                    // a stack local object.
-                    Ok(_) => Ok(()),
-                    // if a collector fails while waiting for its status, this
-                    // will return an error
-                    Err(e) => Err(e),
-                }
-            }
-            .map(|fut| (chain_id.clone(), fut))
-        })
-        .collect::<FuturesUnordered<_>>();
-    while let Some((chain_id, maybe_err)) = statuses.next().await {
-        if let Err(e) = maybe_err {
-            return Err(e).wrap_err_with(|| {
-                format!(
-                    "collector for chain ID {chain_id} failed while waiting for it to become ready"
-                )
-            });
-        }
-    }
-
-    composer_status_sender.send_modify(|status| {
-        status.set_all_collectors_connected(true);
     });
 
     Ok(())

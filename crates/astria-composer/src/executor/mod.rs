@@ -69,6 +69,7 @@ use tracing::{
     Instrument,
     Span,
 };
+use astria_core::protocol::transaction::v1alpha1::Action;
 
 use self::bundle_factory::SizedBundle;
 use crate::{
@@ -104,7 +105,7 @@ pub(super) struct Executor {
     // The status of this executor
     status: watch::Sender<Status>,
     // Channel for receiving `SequenceAction`s to be bundled.
-    serialized_rollup_transactions: mpsc::Receiver<SequenceAction>,
+    serialized_rollup_transactions: mpsc::Receiver<Action>,
     // The client for submitting wrapped and signed pending eth transactions to the astria
     // sequencer.
     sequencer_client: sequencer_client::HttpClient,
@@ -127,11 +128,11 @@ pub(super) struct Executor {
 
 #[derive(Clone)]
 pub(super) struct Handle {
-    serialized_rollup_transactions_tx: mpsc::Sender<SequenceAction>,
+    serialized_rollup_transactions_tx: mpsc::Sender<Action>,
 }
 
 impl Handle {
-    fn new(serialized_rollup_transactions_tx: mpsc::Sender<SequenceAction>) -> Self {
+    fn new(serialized_rollup_transactions_tx: mpsc::Sender<Action>) -> Self {
         Self {
             serialized_rollup_transactions_tx,
         }
@@ -139,9 +140,9 @@ impl Handle {
 
     pub(super) async fn send_timeout(
         &self,
-        sequence_action: SequenceAction,
+        sequence_action: Action,
         timeout: Duration,
-    ) -> Result<(), SendTimeoutError<SequenceAction>> {
+    ) -> Result<(), SendTimeoutError<Action>> {
         self.serialized_rollup_transactions_tx
             .send_timeout(sequence_action, timeout)
             .await
@@ -247,12 +248,8 @@ impl Executor {
 
                 // receive new seq_action and bundle it. will not pull from the channel if `bundle_factory` is full
                 Some(seq_action) = self.serialized_rollup_transactions.recv(), if !bundle_factory.is_full() => {
-                    let rollup_id = seq_action.rollup_id;
-
                     if let Err(e) = bundle_factory.try_push(seq_action) {
-                        self.metrics.increment_txs_dropped_too_large(&rollup_id);
                         warn!(
-                            rollup_id = %rollup_id,
                             error = &e as &StdError,
                             "failed to bundle transaction, dropping it."
                         );
@@ -301,12 +298,8 @@ impl Executor {
 
         // drain the receiver channel
         while let Ok(seq_action) = self.serialized_rollup_transactions.try_recv() {
-            let rollup_id = seq_action.rollup_id;
-
             if let Err(e) = bundle_factory.try_push(seq_action) {
-                self.metrics.increment_txs_dropped_too_large(&rollup_id);
                 warn!(
-                    rollup_id = %rollup_id,
                     error = &e as &StdError,
                     "failed to bundle transaction, dropping it."
                 );
