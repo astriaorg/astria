@@ -499,7 +499,7 @@ async fn get_latest_balance(
     res
 }
 
-pub(self) fn make_cometbft_retry_config(
+fn make_cometbft_retry_config(
     state: Arc<State>,
     retry_message: String,
 ) -> tryhard::RetryFutureConfig<
@@ -528,7 +528,7 @@ pub(self) fn make_cometbft_retry_config(
         )
 }
 
-pub(self) fn make_sequencer_retry_config(
+fn make_sequencer_retry_config(
     state: Arc<State>,
     retry_message: String,
 ) -> tryhard::RetryFutureConfig<

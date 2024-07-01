@@ -50,6 +50,7 @@ forward_setter!(
 );
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize)]
+#[allow(clippy::struct_excessive_bools)]
 pub(crate) struct StateSnapshot {
     startup_info: Option<startup::Info>,
 
@@ -94,7 +95,7 @@ impl StateSnapshot {
         self.sequencer_connected
     }
 
-    /// Sets the CometBFT connection status to `connected`.
+    /// Sets the `CometBFT` connection status to `connected`.
     fn set_cometbft_connected(&mut self, connected: bool) -> bool {
         let changed = self.cometbft_connected ^ connected;
         self.cometbft_connected = connected;
