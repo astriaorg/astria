@@ -50,6 +50,7 @@ forward_setter!(
 );
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize)]
+// This lint is allowed because there are 4 boolean fields that are necessary to track here.
 #[allow(clippy::struct_excessive_bools)]
 pub(crate) struct StateSnapshot {
     startup_info: Option<startup::Info>,
