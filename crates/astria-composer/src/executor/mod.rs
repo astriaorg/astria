@@ -42,7 +42,7 @@ use prost::Message as _;
 use sequencer_client::{
     tendermint_rpc::{
         endpoint::broadcast::tx_sync,
-        Client,
+        Client as _,
     },
     Address,
     SequencerClientExt as _,
