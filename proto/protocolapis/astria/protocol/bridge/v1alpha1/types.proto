@@ -2,9 +2,24 @@ syntax = "proto3";
 
 package astria.protocol.bridge.v1alpha1;
 
-// A response containing the last tx hash given some bridge address,
+import "astria/primitive/v1/types.proto";
+
+// A response to the `bridge/account_last_tx_hash` ABCI query
+// containing the last tx hash given some bridge address,
 // if it exists.
 message BridgeAccountLastTxHashResponse {
   uint64 height = 2;
   optional bytes tx_hash = 3;
+}
+
+// A response to the `bridge/account_info` ABCI query
+// containing the account information given some bridge address,
+// if it exists.
+message BridgeAccountInfoResponse {
+  uint64 height = 2;
+  // if the account is not a bridge account, the following fields will be empty.
+  astria.primitive.v1.RollupId rollup_id = 3;
+  optional string asset = 4;
+  astria.primitive.v1.Address sudo_address = 5;
+  astria.primitive.v1.Address withdrawer_address = 6;
 }
