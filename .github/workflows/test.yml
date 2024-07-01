@@ -45,7 +45,7 @@ jobs:
           fi
 
   compiles:
-    runs-on: buildjet-4vcpu-ubuntu-2204
+    runs-on: depot-ubuntu-22.04-4
     needs: run_checker
     if: needs.run_checker.outputs.run_tests == 'true'
     steps:
@@ -94,7 +94,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
   rust:
-    runs-on: buildjet-8vcpu-ubuntu-2204
+    runs-on: depot-ubuntu-22.04-8
     needs: run_checker
     if: needs.run_checker.outputs.run_tests == 'true'
     steps:
@@ -147,7 +147,7 @@ jobs:
           cargo nextest run --package astria-bridge-withdrawer -- --include-ignored
 
   doctest:
-    runs-on: buildjet-8vcpu-ubuntu-2204
+    runs-on: depot-ubuntu-22.04-8
     needs: run_checker
     if: needs.run_checker.outputs.run_tests == 'true'
     steps:
@@ -166,7 +166,7 @@ jobs:
         run: cargo test --doc --all-features
 
   clippy:
-    runs-on: buildjet-8vcpu-ubuntu-2204
+    runs-on: depot-ubuntu-22.04-8
     needs: run_checker
     if: needs.run_checker.outputs.run_tests == 'true' && needs.run_checker.outputs.run_lint_rust == 'true'
     steps:
@@ -194,7 +194,7 @@ jobs:
           -- --warn clippy::pedantic --deny warnings
 
   custom-lints:
-    runs-on: buildjet-8vcpu-ubuntu-2204
+    runs-on: depot-ubuntu-22.04-8
     needs: run_checker
     if: needs.run_checker.outputs.run_tests == 'true' && needs.run_checker.outputs.run_lint_rust == 'true'
     steps:
