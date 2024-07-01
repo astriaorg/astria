@@ -1,3 +1,43 @@
+use std::time::Duration;
+
+use astria_core::{
+    generated::protocol::account::v1alpha1::NonceResponse,
+    primitive::v1::asset::default_native_asset,
+    protocol::{
+        account::v1alpha1::AssetBalance,
+        asset,
+        bridge::v1alpha1::BridgeAccountLastTxHashResponse,
+    },
+};
+use prost::Message as _;
+use tendermint::{
+    abci::{
+        response::CheckTx,
+        types::ExecTxResult,
+    },
+    block::Height,
+    chain,
+};
+use tendermint_rpc::{
+    endpoint::{
+        broadcast::tx_commit,
+        tx,
+    },
+    response,
+};
+use wiremock::{
+    matchers::{
+        body_partial_json,
+        body_string_contains,
+    },
+    Mock,
+    MockGuard,
+    MockServer,
+    ResponseTemplate,
+};
+
+const SEQUENCER_CHAIN_ID: &str = "test_sequencer-1000";
+
 async fn _register_default_chain_id_guard(cometbft_mock: &MockServer) -> MockGuard {
     _register_genesis_chain_id_response(SEQUENCER_CHAIN_ID, cometbft_mock).await
 }
@@ -94,7 +134,7 @@ async fn _register_genesis_chain_id_response(chain_id: &str, server: &MockServer
     };
 
     let wrapper = response::Wrapper::new_with_id(tendermint_rpc::Id::Num(1), Some(response), None);
-    Mock::given(body_partial_json(json!({"method": "genesis"})))
+    Mock::given(body_partial_json(serde_json::json!({"method": "genesis"})))
         .respond_with(
             ResponseTemplate::new(200)
                 .set_body_json(&wrapper)
@@ -107,13 +147,13 @@ async fn _register_genesis_chain_id_response(chain_id: &str, server: &MockServer
 }
 
 async fn _register_allowed_fee_asset_ids_response(
-    fee_asset_ids: Vec<asset::Id>,
+    fee_assets: Vec<asset::Denom>,
     cometbft_mock: &MockServer,
 ) -> MockGuard {
     let response = tendermint_rpc::endpoint::abci_query::Response {
         response: tendermint_rpc::endpoint::abci_query::AbciQuery {
             value: astria_core::protocol::asset::v1alpha1::AllowedFeeAssetIdsResponse {
-                fee_asset_ids,
+                fee_assets,
                 height: 1,
             }
             .into_raw()
@@ -122,16 +162,18 @@ async fn _register_allowed_fee_asset_ids_response(
         },
     };
     let wrapper = response::Wrapper::new_with_id(tendermint_rpc::Id::Num(1), Some(response), None);
-    Mock::given(body_partial_json(json!({"method": "abci_query"})))
-        .and(body_string_contains("asset/allowed_fee_asset_ids"))
-        .respond_with(
-            ResponseTemplate::new(200)
-                .set_body_json(&wrapper)
-                .append_header("Content-Type", "application/json"),
-        )
-        .expect(1)
-        .mount_as_scoped(cometbft_mock)
-        .await
+    Mock::given(body_partial_json(
+        serde_json::json!({"method": "abci_query"}),
+    ))
+    .and(body_string_contains("asset/allowed_fee_asset_ids"))
+    .respond_with(
+        ResponseTemplate::new(200)
+            .set_body_json(&wrapper)
+            .append_header("Content-Type", "application/json"),
+    )
+    .expect(1)
+    .mount_as_scoped(cometbft_mock)
+    .await
 }
 
 async fn _register_get_latest_balance(
@@ -151,16 +193,18 @@ async fn _register_get_latest_balance(
     };
 
     let wrapper = response::Wrapper::new_with_id(tendermint_rpc::Id::Num(1), Some(response), None);
-    Mock::given(body_partial_json(json!({"method": "abci_query"})))
-        .and(body_string_contains("accounts/balance"))
-        .respond_with(
-            ResponseTemplate::new(200)
-                .set_body_json(&wrapper)
-                .append_header("Content-Type", "application/json"),
-        )
-        .expect(1)
-        .mount_as_scoped(server)
-        .await
+    Mock::given(body_partial_json(
+        serde_json::json!({"method": "abci_query"}),
+    ))
+    .and(body_string_contains("accounts/balance"))
+    .respond_with(
+        ResponseTemplate::new(200)
+            .set_body_json(&wrapper)
+            .append_header("Content-Type", "application/json"),
+    )
+    .expect(1)
+    .mount_as_scoped(server)
+    .await
 }
 
 async fn _register_last_bridge_tx_hash_guard(
@@ -174,16 +218,18 @@ async fn _register_last_bridge_tx_hash_guard(
         },
     };
     let wrapper = response::Wrapper::new_with_id(tendermint_rpc::Id::Num(1), Some(response), None);
-    Mock::given(body_partial_json(json!({"method": "abci_query"})))
-        .and(body_string_contains("bridge/account_last_tx_hash"))
-        .respond_with(
-            ResponseTemplate::new(200)
-                .set_body_json(&wrapper)
-                .append_header("Content-Type", "application/json"),
-        )
-        .expect(1)
-        .mount_as_scoped(server)
-        .await
+    Mock::given(body_partial_json(
+        serde_json::json!({"method": "abci_query"}),
+    ))
+    .and(body_string_contains("bridge/account_last_tx_hash"))
+    .respond_with(
+        ResponseTemplate::new(200)
+            .set_body_json(&wrapper)
+            .append_header("Content-Type", "application/json"),
+    )
+    .expect(1)
+    .mount_as_scoped(server)
+    .await
 }
 
 async fn register_get_nonce_response(server: &MockServer, response: NonceResponse) -> MockGuard {
@@ -194,21 +240,23 @@ async fn register_get_nonce_response(server: &MockServer, response: NonceRespons
         },
     };
     let wrapper = response::Wrapper::new_with_id(tendermint_rpc::Id::Num(1), Some(response), None);
-    Mock::given(body_partial_json(json!({"method": "abci_query"})))
-        .and(body_string_contains("accounts/nonce"))
-        .respond_with(
-            ResponseTemplate::new(200)
-                .set_body_json(&wrapper)
-                .append_header("Content-Type", "application/json"),
-        )
-        .expect(1)
-        .mount_as_scoped(server)
-        .await
+    Mock::given(body_partial_json(
+        serde_json::json!({"method": "abci_query"}),
+    ))
+    .and(body_string_contains("accounts/nonce"))
+    .respond_with(
+        ResponseTemplate::new(200)
+            .set_body_json(&wrapper)
+            .append_header("Content-Type", "application/json"),
+    )
+    .expect(1)
+    .mount_as_scoped(server)
+    .await
 }
 
 async fn _register_tx_guard(server: &MockServer, response: tx::Response) -> MockGuard {
     let wrapper = response::Wrapper::new_with_id(tendermint_rpc::Id::Num(1), Some(response), None);
-    Mock::given(body_partial_json(json!({"method": "tx"})))
+    Mock::given(body_partial_json(serde_json::json!({"method": "tx"})))
         .respond_with(
             ResponseTemplate::new(200)
                 .set_body_json(&wrapper)
@@ -224,7 +272,7 @@ async fn register_broadcast_tx_commit_response(
     response: tx_commit::Response,
 ) -> MockGuard {
     let wrapper = response::Wrapper::new_with_id(tendermint_rpc::Id::Num(1), Some(response), None);
-    Mock::given(body_partial_json(json!({
+    Mock::given(body_partial_json(serde_json::json!({
         "method": "broadcast_tx_commit"
     })))
     .respond_with(
