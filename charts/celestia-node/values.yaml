@@ -9,10 +9,11 @@ config:
   name: celestia-node
   network: mocha-4
   chainId: mocha-4
-  coreIp: "full.consensus.mocha-4.celestia-mocha.com"
+  coreIp: ""
   type: light
   tokenAuthLevel: read  # can set to nil or false to disable rpc auth
   coreGrpcPort: 9090
+  coreRpcPort: 26657
   customInfo: ''
   startHeight: "1"
   trustedHash: "B93BBE20A0FBFDF955811B6420F8433904664D45DB4BF51022BE4200C1A1680D"

@@ -33,10 +33,35 @@ spec:
           volumeMounts:
             - name: {{ $label }}-vol
               mountPath: /celestia
+        {{- if .Values.config.tokenAuthLevel }}
+        - name: init-{{ $label }}-token
+          image: {{ .Values.images.node }}
+          command: ["/celestia/scripts/start-node.sh"]
+          imagePullPolicy: {{ .Values.images.pullPolicy }}
+          volumeMounts:
+            - name: {{ $label }}-vol
+              mountPath: /celestia
+          envFrom:
+            - configMapRef:
+                name: {{ $label }}-env
+        {{- end }}
       containers:
         - name: {{ $label }}
           image: {{ .Values.images.node }}
-          command: ["/celestia/scripts/start-node.sh"]
+          command: ["/bin/celestia", "{{ .Values.config.type }}", start]
+          args:
+            - "--node.store=/celestia"
+            {{- if not .Values.config.tokenAuthLevel }}
+            - "--rpc.skip-auth"
+            {{- end }}
+            {{- if .Values.config.coreIp }}
+            - "--core.ip {{ .Values.config.coreIp }}"
+            - "--core.grpc.port={{ .Values.config.coreGrpcPort }}"
+            - "--core.p2p.port={{ .Values.config.coreRpcPort }}"
+            {{- end }}
+            {{- if not $isCustomNetwork }}
+            - "--p2p.network={{ .Values.config.network }}"
+            {{- end }}
           securityContext:
             runAsUser: 10001
             runAsGroup: 10001
@@ -56,7 +81,7 @@ spec:
         {{- if .Values.resources }}
           resources:
             {{- toYaml .Values.resources | trim | nindent 12 }}
-        {{- end }}          
+        {{- end }}
           volumeMounts:
             - name: {{ $label }}-scripts-vol
               mountPath: /celestia/scripts
