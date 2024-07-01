@@ -288,7 +288,7 @@ mod test {
         state.put_block_height(1);
         state.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
         state
-            .put_ibc_asset(&asset.as_trace_prefixed().unwrap())
+            .put_ibc_asset(asset.as_trace_prefixed().unwrap())
             .unwrap();
         state
             .put_bridge_account_ibc_asset(&bridge_address, &asset)
