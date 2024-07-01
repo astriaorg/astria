@@ -22,11 +22,11 @@ use crate::{
 fn error_query_response(
     err: Option<anyhow::Error>,
     code: AbciErrorCode,
-    info: &str,
+    msg: &str,
 ) -> response::Query {
     let log = match err {
-        Some(err) => format!("{info}: {err:?}"),
-        None => info.into(),
+        Some(err) => format!("{msg}: {err:?}"),
+        None => msg.into(),
     };
     response::Query {
         code: code.into(),
