@@ -54,6 +54,7 @@ use wiremock::{
 
 use crate::{
     executor,
+    executor::EnsureChainIdError,
     metrics::Metrics,
     test_utils::sequence_action_of_max_size,
     Config,
@@ -194,7 +195,7 @@ async fn mount_broadcast_tx_sync_seq_actions_mock(server: &MockServer) -> MockGu
         .await
 }
 
-/// Mounts a `CometBFT` status response with a specified mock sequencer chain id
+/// Mounts genesis file with specified sequencer chain ID
 async fn mount_genesis(server: &MockServer, mock_sequencer_chain_id: &str) {
     Mock::given(body_partial_json(
         json!({"jsonrpc": "2.0", "method": "genesis", "params": null}),
@@ -288,7 +289,6 @@ async fn full_bundle() {
     let nonce_guard = mount_default_nonce_query_mock(&sequencer).await;
     let status = executor.subscribe();
 
-    // executor.check_chain_ids().await.unwrap();
     let _executor_task = tokio::spawn(executor.run_until_stopped());
     // wait for sequencer to get the initial nonce request from sequencer
     wait_for_startup(status, nonce_guard).await.unwrap();
@@ -380,7 +380,6 @@ async fn bundle_triggered_by_block_timer() {
     let nonce_guard = mount_default_nonce_query_mock(&sequencer).await;
     let status = executor.subscribe();
 
-    // executor.check_chain_ids().await.unwrap();
     let _executor_task = tokio::spawn(executor.run_until_stopped());
 
     // wait for sequencer to get the initial nonce request from sequencer
@@ -540,10 +539,12 @@ async fn two_seq_actions_single_bundle() {
     }
 }
 
-/// Test to check that executor's configured sequencer chain id and sequencer's actual chain id
-/// match
+/// Test to check that executor's chain ID check is properly checked against the sequencer's chain
+/// ID
 #[tokio::test]
-async fn should_exit_if_mismatch_sequencer_chain_id() {
+async fn chain_id_mismatch_returns_error() {
+    use tendermint::chain::Id;
+
     // set up sequencer mock
     let (sequencer, cfg, _keyfile) = setup().await;
     let shutdown_token = CancellationToken::new();
@@ -567,6 +568,28 @@ async fn should_exit_if_mismatch_sequencer_chain_id() {
     .build()
     .unwrap();
 
-    // verify that the executor chain_id check results in an error
-    assert!(executor.run_until_stopped().await.is_err());
+    let err = executor.run_until_stopped().await.expect_err(
+        "should exit with an error when reading a bad chain ID, but exited with success",
+    );
+    let mut found = false;
+    for cause in err.chain() {
+        if let Some(err) = cause.downcast_ref::<EnsureChainIdError>() {
+            match err {
+                EnsureChainIdError::WrongChainId {
+                    expected,
+                    actual,
+                } => {
+                    assert_eq!(*expected, cfg.sequencer_chain_id);
+                    assert_eq!(*actual, Id::try_from("bad-chain-id".to_string()).unwrap());
+                    found = true;
+                    break;
+                }
+                other => panic!("expected `EnsureChainIdError::WrongChainId`, but got `{other}`"),
+            }
+        }
+    }
+    assert!(
+        found,
+        "expected `EnsureChainIdError::WrongChainId` in error chain, but it was not found"
+    );
 }

@@ -12,7 +12,7 @@ use astria_core::{
 use astria_eyre::eyre::{
     self,
     eyre,
-    Context,
+    WrapErr as _,
 };
 use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;

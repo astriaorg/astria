@@ -24,7 +24,6 @@ use astria_core::{
 };
 use astria_eyre::eyre::{
     self,
-    ensure,
     eyre,
     WrapErr as _,
 };
@@ -52,8 +51,10 @@ use tendermint::crypto::Sha256;
 use tokio::{
     select,
     sync::{
-        mpsc,
-        mpsc::error::SendTimeoutError,
+        mpsc::{
+            self,
+            error::SendTimeoutError,
+        },
         watch,
     },
     time::{
@@ -98,7 +99,19 @@ pub(crate) use builder::Builder;
 const BUNDLE_DRAINING_DURATION: Duration = Duration::from_secs(16);
 
 type StdError = dyn std::error::Error;
-
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum EnsureChainIdError {
+    // <other error variants from getting genesis, etc>
+    #[error("failed to obtain sequencer chain ID")]
+    FailedToGetChainId,
+    #[error("failed to obtain sequencer genesis")]
+    FailedToGetGenesis,
+    #[error("expected chain ID `{expected}`, but received `{actual}`")]
+    WrongChainId {
+        expected: String,
+        actual: tendermint::chain::Id,
+    },
+}
 /// The `Executor` interfaces with the sequencer. It handles account nonces, transaction signing,
 /// and transaction submission.
 /// The `Executor` receives `Vec<Action>` from the bundling logic, packages them with a nonce into
@@ -203,15 +216,16 @@ impl Executor {
     /// An error is returned if connecting to the sequencer fails.
     #[instrument(skip_all, fields(address = %self.address))]
     pub(super) async fn run_until_stopped(mut self) -> eyre::Result<()> {
-        let remote_chain_id = self
-            .get_sequencer_chain_id()
-            .await
-            .wrap_err("failed obtain sequencer chain_id")?;
-        ensure!(
-            self.sequencer_chain_id == remote_chain_id,
-            "mismatch in configured chain_id: config specifies {0}, but sequencer rpc is for {1}",
-            self.sequencer_chain_id,
-            remote_chain_id
+        select!(
+            biased;
+            () = self.shutdown_token.cancelled() => {
+                info!("received shutdown signal while running initialization routines; exiting");
+                return Ok(());
+            }
+
+            res = self.pre_run_checks() => {
+                res?;
+            }
         );
         let mut submission_fut: Fuse<Instrumented<SubmitFut>> = Fuse::terminated();
         let mut nonce = get_latest_nonce(self.sequencer_client.clone(), self.address, self.metrics)
@@ -432,8 +446,29 @@ impl Executor {
         reason.map(|_| ())
     }
 
-    // check for mismatched configured chain_id and sequencer client chain_id
-    pub(crate) async fn get_sequencer_chain_id(&self) -> eyre::Result<String> {
+    /// Performs initialization checks prior to running the executor
+    async fn pre_run_checks(&self) -> eyre::Result<()> {
+        self.ensure_chain_id_is_correct().await?;
+        Ok(())
+    }
+
+    /// Performs check to ensure the configured chain ID matches the remote chain ID
+    pub(crate) async fn ensure_chain_id_is_correct(&self) -> Result<(), EnsureChainIdError> {
+        let remote_chain_id = self
+            .get_sequencer_chain_id()
+            .await
+            .map_err(|_| EnsureChainIdError::FailedToGetChainId)?;
+        if remote_chain_id.as_str() != self.sequencer_chain_id {
+            return Err(EnsureChainIdError::WrongChainId {
+                expected: self.sequencer_chain_id.clone(),
+                actual: remote_chain_id,
+            });
+        }
+        Ok(())
+    }
+
+    /// Fetch chain id from the sequencer client
+    async fn get_sequencer_chain_id(&self) -> eyre::Result<tendermint::chain::Id> {
         let retry_config = tryhard::RetryFutureConfig::new(u32::MAX)
             .exponential_backoff(Duration::from_millis(100))
             .max_delay(Duration::from_secs(20))
@@ -457,8 +492,8 @@ impl Executor {
             tryhard::retry_fn(|| self.sequencer_client.genesis())
                 .with_config(retry_config)
                 .await
-                .wrap_err("failed to retrieve sequencer genesis after many attempts")?;
-        Ok(client_genesis.chain_id.to_string())
+                .map_err(|_| EnsureChainIdError::FailedToGetGenesis)?;
+        Ok(client_genesis.chain_id)
     }
 }
 
