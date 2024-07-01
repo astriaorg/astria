@@ -25,6 +25,7 @@ const_format = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 humantime = { workspace = true }
+humantime-serde = "1.1.1"
 hyper = { workspace = true }
 itoa = { workspace = true }
 metrics = { workspace = true }
@@ -39,7 +40,12 @@ tendermint-config = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 tryhard = { workspace = true }
-tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal"] }
+tokio = { workspace = true, features = [
+  "fs",
+  "macros",
+  "rt-multi-thread",
+  "signal",
+] }
 tokio-stream = { workspace = true }
 tokio-util = { workspace = true }
 tonic = { workspace = true }
