@@ -476,7 +476,7 @@ impl TransactionParams {
 #[derive(Debug, Clone)]
 pub struct TransactionFeeResponse {
     pub height: u64,
-    pub fees: Vec<(asset::Id, u128)>,
+    pub fees: Vec<(asset::Denom, u128)>,
 }
 
 impl TransactionFeeResponse {
@@ -487,8 +487,8 @@ impl TransactionFeeResponse {
             fees: self
                 .fees
                 .into_iter()
-                .map(|(asset_id, fee)| raw::TransactionFee {
-                    asset_id: asset_id.get().to_vec(),
+                .map(|(asset, fee)| raw::TransactionFee {
+                    asset: asset.to_string(),
                     fee: Some(fee.into()),
                 })
                 .collect(),
@@ -512,13 +512,12 @@ impl TransactionFeeResponse {
             .into_iter()
             .map(
                 |raw::TransactionFee {
-                     asset_id,
+                     asset,
                      fee,
                  }| {
-                    let asset_id = asset::Id::try_from_slice(&asset_id)
-                        .map_err(TransactionFeeResponseError::asset_id)?;
+                    let asset = asset.parse().map_err(TransactionFeeResponseError::asset)?;
                     let fee = fee.ok_or(TransactionFeeResponseError::unset_fee())?;
-                    Ok((asset_id, fee.into()))
+                    Ok((asset, fee.into()))
                 },
             )
             .collect::<Result<_, _>>()?;
@@ -538,8 +537,8 @@ impl TransactionFeeResponseError {
         Self(TransactionFeeResponseErrorKind::UnsetFee)
     }
 
-    fn asset_id(inner: asset::IncorrectAssetIdLength) -> Self {
-        Self(TransactionFeeResponseErrorKind::AssetId(inner))
+    fn asset(inner: asset::ParseDenomError) -> Self {
+        Self(TransactionFeeResponseErrorKind::Asset(inner))
     }
 }
 
@@ -547,8 +546,8 @@ impl TransactionFeeResponseError {
 enum TransactionFeeResponseErrorKind {
     #[error("`fee` field is unset")]
     UnsetFee,
-    #[error("failed to convert asset ID from bytes")]
-    AssetId(#[source] asset::IncorrectAssetIdLength),
+    #[error("failed to parse asset denom")]
+    Asset(#[from] asset::ParseDenomError),
 }
 
 #[cfg(test)]
@@ -556,12 +555,16 @@ mod test {
     use super::*;
     use crate::{
         primitive::v1::{
-            asset::default_native_asset,
+            asset,
             Address,
         },
         protocol::transaction::v1alpha1::action::TransferAction,
     };
     const ASTRIA_ADDRESS_PREFIX: &str = "astria";
+
+    fn asset() -> asset::Denom {
+        "nria".parse().unwrap()
+    }
 
     #[test]
     fn signed_transaction_hash() {
@@ -584,8 +587,8 @@ mod test {
                 .try_build()
                 .unwrap(),
             amount: 0,
-            asset_id: default_native_asset().id(),
-            fee_asset_id: default_native_asset().id(),
+            asset: asset(),
+            fee_asset: asset(),
         };
 
         let params = TransactionParams::from_raw(raw::TransactionParams {
@@ -621,8 +624,8 @@ mod test {
                 .try_build()
                 .unwrap(),
             amount: 0,
-            asset_id: default_native_asset().id(),
-            fee_asset_id: default_native_asset().id(),
+            asset: asset(),
+            fee_asset: asset(),
         };
 
         let params = TransactionParams::from_raw(raw::TransactionParams {

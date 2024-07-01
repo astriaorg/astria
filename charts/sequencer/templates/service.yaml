@@ -1,66 +1,68 @@
 kind: Service
 apiVersion: v1
 metadata:
-  name: {{ .Values.config.moniker }}-sequencer-rpc-service
+  name: {{ .Values.moniker }}-sequencer-rpc-service
   namespace: {{ include "sequencer.namespace" . }}
 spec:
   selector:
-    app: {{ .Values.config.moniker }}-sequencer
+    app: {{ .Values.moniker }}-sequencer
   ports:
     - name: cometbft-rpc
-      port: {{ .Values.ports.cometBFTRPC }}
+      port: {{ .Values.ports.cometbftRpc }}
       targetPort: cometbft-rpc
 ---
 kind: Service
 apiVersion: v1
 metadata:
-  name: {{ .Values.config.moniker }}-sequencer-p2p-service
+  name: {{ .Values.moniker }}-sequencer-p2p-service
   namespace: {{ include "sequencer.namespace" . }}
 spec:
   selector:
-    app: {{ .Values.config.moniker }}-sequencer
+    app: {{ .Values.moniker }}-sequencer
   ports:
     - name: cometbft-p2p
       targetPort: cometbft-p2p
-      {{- if and .Values.config.cometBFT.p2p.externalAddress (not  .Values.ingress.p2p.enabled)}}
-      {{- $parsedExternal := splitList ":" .Values.config.cometBFT.p2p.externalAddress }}
+      {{- if and .Values.cometbft.config.p2p.externalAddress (not  .Values.ingress.p2p.enabled)}}
+      {{- $parsedExternal := splitList ":" .Values.cometbft.config.p2p.externalAddress }}
       {{- $externalAddress := index $parsedExternal 0 }}
       {{- $externalPort := index $parsedExternal 1 }}
       port: {{ $externalPort }}
   type: LoadBalancer
   loadBalancerIP: {{ $externalAddress }}
   {{- else }}
-      port: {{ .Values.ports.cometBFTP2P }}
+      port: {{ .Values.ports.cometbftP2P }}
   type: NodePort
   {{- end }}
 ---
 kind: Service
 apiVersion: v1
 metadata:
-  name: {{ .Values.config.moniker }}-sequencer-grpc-service
+  name: {{ .Values.moniker }}-sequencer-grpc-service
   namespace: {{ include "sequencer.namespace" . }}
 spec:
   selector:
-    app: {{ .Values.config.moniker }}-sequencer
+    app: {{ .Values.moniker }}-sequencer
   ports:
     - name: sequencer-grpc
-      port: {{ .Values.ports.sequencerGRPC }}
+      port: {{ .Values.ports.sequencerGrpc }}
       targetPort: sequencer-grpc
 ---
 {{- if .Values.serviceMonitor.enabled }} 
 kind: Service
 apiVersion: v1
 metadata:
-  name: {{ .Values.config.moniker }}-sequencer-metrics
+  name: {{ .Values.moniker }}-sequencer-metrics
   namespace: {{ include "sequencer.namespace" . }}
+  labels:
+    app: {{ .Values.moniker }}-sequencer
 spec:
   selector:
-    app: {{ .Values.config.moniker }}-sequencer
+    app: {{ .Values.moniker }}-sequencer
   ports:
     - name: cometbft-metric
-      port: {{ .Values.ports.cometBFTMETRICS }}
+      port: {{ .Values.ports.cometbftMetrics }}
       targetPort: cometbft-metric
-    {{- if .Values.config.sequencer.metrics.enabled }}
+    {{- if .Values.sequencer.metrics.enabled }}
     - name: seq-metric
       port: {{ .Values.ports.sequencerMetrics }}
       targetPort: seq-metric

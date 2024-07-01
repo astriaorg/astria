@@ -13,7 +13,8 @@ use tendermint::abci::{
 };
 
 use crate::{
-    state_ext::StateReadExt,
+    asset::state_ext::StateReadExt as _,
+    state_ext::StateReadExt as _,
     transaction::checks::get_fees_for_transaction,
 };
 
@@ -43,7 +44,7 @@ pub(crate) async fn transaction_fee_request(
         }
     };
 
-    let fees = match get_fees_for_transaction(&tx, &snapshot).await {
+    let fees_with_ibc_denoms = match get_fees_for_transaction(&tx, &snapshot).await {
         Ok(fees) => fees,
         Err(err) => {
             return response::Query {
@@ -55,7 +56,32 @@ pub(crate) async fn transaction_fee_request(
         }
     };
 
-    let fees = fees.into_iter().collect();
+    let mut fees = Vec::with_capacity(fees_with_ibc_denoms.len());
+    for (ibc_denom, value) in fees_with_ibc_denoms {
+        let trace_denom = match snapshot.map_ibc_to_trace_prefixed_asset(ibc_denom).await {
+            Ok(Some(trace_denom)) => trace_denom,
+            Ok(None) => {
+                return response::Query {
+                    code: AbciErrorCode::INTERNAL_ERROR.into(),
+                    info: AbciErrorCode::INTERNAL_ERROR.to_string(),
+                    log: format!(
+                        "failed mapping ibc denom to trace denom: {ibc_denom}; asset does not \
+                         exist in state"
+                    ),
+                    ..response::Query::default()
+                };
+            }
+            Err(err) => {
+                return response::Query {
+                    code: AbciErrorCode::INTERNAL_ERROR.into(),
+                    info: AbciErrorCode::INTERNAL_ERROR.to_string(),
+                    log: format!("failed mapping ibc denom to trace denom: {err:#}"),
+                    ..response::Query::default()
+                };
+            }
+        };
+        fees.push((trace_denom.into(), value));
+    }
 
     let resp = TransactionFeeResponse {
         height,

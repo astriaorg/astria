@@ -30,7 +30,7 @@ jobs:
         if: |
           steps.release_version.outputs.versionChanged == 'true' &&
           github.event_name == 'pull_request' &&
-          github.base_ref == 'main' 
+          github.base_ref == 'main'
         run: |
           FILE="${{ format('crates/astria-{0}/Cargo.toml', inputs.package-name) }}"
           TITLE="New ${{ inputs.display-name}} Release"
@@ -53,5 +53,3 @@ jobs:
           release_name: ${{ inputs.display-name }} ${{ steps.release_version.outputs.rawVersion }}
           draft: true
           prerelease: true
-    
-

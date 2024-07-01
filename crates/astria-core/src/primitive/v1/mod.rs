@@ -20,7 +20,6 @@ use crate::{
 pub const ADDRESS_LEN: usize = 20;
 
 pub const ROLLUP_ID_LEN: usize = 32;
-pub const FEE_ASSET_ID_LEN: usize = 32;
 
 impl Protobuf for merkle::Proof {
     type Error = merkle::audit::InvalidProof;
@@ -326,6 +325,23 @@ impl<TBytes, TPrefix> AddressBuilder<TBytes, TPrefix> {
             bytes: WithBytes(BytesInner::Slice(bytes.into())),
             prefix: self.prefix,
         }
+    }
+
+    /// Use the given verification key for address generation.
+    ///
+    /// The verification key is hashed with SHA256 and the first 20 bytes are used as the address
+    /// bytes.
+    #[allow(clippy::missing_panics_doc)] // allow clippy, as the conversion is infallible
+    #[must_use = "the builder must be built to construct an address to be useful"]
+    pub fn verification_key(
+        self,
+        key: &crate::crypto::VerificationKey,
+    ) -> AddressBuilder<WithBytes<'static>, TPrefix> {
+        let hash = Sha256::digest(key.as_bytes());
+        let array: [u8; ADDRESS_LEN] = hash[0..ADDRESS_LEN]
+            .try_into()
+            .expect("hash is 32 bytes long, so must always be able to convert to 20 bytes");
+        self.array(array)
     }
 
     #[must_use = "the builder must be built to construct an address to be useful"]
