@@ -11,12 +11,13 @@ global:
 images:
   evmBridgeWithdrawer:
     repo: ghcr.io/astriaorg/evm-bridge-withdrawer
-    tag: "latest"
+    tag: "0.1.0"
     devTag: latest
 
 config:
   sequencerCometBftEndpoint: ""
   sequencerChainId: ""
+  sequencerAddressPrefix: "astria"
   sequencerBridgeAddress: ""
   feeAssetDenom: ""
   minExpectedFeeAssetBalance: "1000000"

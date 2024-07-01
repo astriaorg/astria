@@ -60,8 +60,8 @@ impl Info {
             .context("invalid path: `asset/denom/:id`")?;
         query_router
             .insert(
-                "asset/allowed_fee_asset_ids",
-                crate::asset::query::allowed_fee_asset_ids_request,
+                "asset/allowed_fee_assets",
+                crate::asset::query::allowed_fee_assets_request,
             )
             .context("invalid path: `asset/allowed_fee_asset_ids`")?;
         query_router

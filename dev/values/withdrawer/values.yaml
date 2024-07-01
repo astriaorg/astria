@@ -6,6 +6,8 @@ global:
   useTTY: true
   dev: true
 
+
+
 config:
   sequencerCometBftEndpoint: "http://node0-sequencer-rpc-service.astria-dev-cluster.svc.cluster.local:26657"
   sequencerChainId: "sequencer-test-chain-0"

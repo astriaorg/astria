@@ -184,25 +184,24 @@ init-rollup-bridge rollupName=defaultRollupName evmDestinationAddress=evm_destin
   #!/usr/bin/env bash
   SEQUENCER_BRIDGE_PKEY="dfa7108e38ab71f89f356c72afc38600d5758f11a8c337164713e4471411d2e0"
   SEQUENCER_FUNDS_PKEY="934ab488f9e1900f6a08f50605ce1409ca9d95ebdc400dafc2e8a4306419fd52"
-  SEQUENCER_BRIDGE_ADDRESS="8f6e015432027649d8a4f8c0caa5d9a969e3282f"
+  SEQUENCER_BRIDGE_ADDRESS="astria13ahqz4pjqfmynk9ylrqv4fwe4957x2p0h5782u"
   SEQUENCER_CHAIN_ID="sequencer-test-chain-0"
-  ASSET_ID="nria"
-  FEE_ASSET_ID="nria"
+  ASSET="nria"
+  FEE_ASSET="nria"
   TRANSFER_AMOUNT=$(echo "{{transferAmount}} * {{sequencer_base_amount}}" | bc)
 
   astria-go sequencer bridge init {{rollupName}} \
     --privkey $SEQUENCER_BRIDGE_PKEY \
     --sequencer-chain-id $SEQUENCER_CHAIN_ID \
     --sequencer-url {{sequencer_rpc_url}} \
-    --fee-asset-id=$FEE_ASSET_ID --asset-id=$ASSET_ID \
-    --json
-
+    --fee-asset=$FEE_ASSET --asset=$ASSET \
+    --json && \
   astria-go sequencer bridge lock \
     $TRANSFER_AMOUNT $SEQUENCER_BRIDGE_ADDRESS {{evmDestinationAddress}} \
     --privkey $SEQUENCER_FUNDS_PKEY \
     --sequencer-chain-id $SEQUENCER_CHAIN_ID \
     --sequencer-url {{sequencer_rpc_url}} \
-    --fee-asset-id=$FEE_ASSET_ID --asset-id=$ASSET_ID \
+    --fee-asset=$FEE_ASSET --asset=$ASSET \
     --json
 
 
@@ -264,7 +263,7 @@ run-smoke-test:
   EXPECTED_BALANCE=$(echo "1 * {{sequencer_base_amount}}" | bc)
   while [ $CHECKS -lt $MAX_CHECKS ]; do
     CHECKS=$((CHECKS+1))
-    BALANCE=$(astria-go sequencer balances f39Fd6e51aad88F6F4ce6aB8827279cffFb92266 --sequencer-url {{sequencer_rpc_url}} --json | jq '.[0].balance')
+    BALANCE=$(astria-go sequencer balances astria17w0adeg64ky0daxwd2ugyuneellmjgnxl39504 --sequencer-url {{sequencer_rpc_url}} --json | jq '.[0].balance')
     echo "Check $CHECKS, Balance: $BALANCE, Expected: $EXPECTED_BALANCE"
     if [ "$BALANCE" == "$EXPECTED_BALANCE" ]; then
       echo "Bridge Out Sequencer success"
