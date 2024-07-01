@@ -77,3 +77,49 @@ _lint-proto:
   buf breaking proto/sequencerblockapis --against 'buf.build/astria/sequencerblock-apis'
   buf breaking proto/protocolapis --against 'buf.build/astria/protocol-apis'
   buf breaking proto/composerapis --against 'buf.build/astria/composer-apis'
+
+deploy-load-test:
+    wget https://github.com/astriaorg/goomy-blob/releases/download/v0.1/blob-spammer
+    chmod +x blob-spammer
+
+run-load-test:
+    #!/usr/bin/env bash
+    ETH_RPC_URL="http://executor.astria.localdev.me/"
+    PRIVATE_KEY=8b3a7999072c9c9314c084044fe705db11714c6c4ed7cddb64da18ea270dd203
+    MAX_WALLETS=10
+    MAX_PENDING=5
+    THROUGHPUT=5
+    TOTAL_TXS_TO_SEND=10
+
+    echo "Spamming EOA txs..."
+    if ! ./blob-spammer --privkey $PRIVATE_KEY --rpchost $ETH_RPC_URL eoatx --max-wallets $MAX_WALLETS --throughput $THROUGHPUT --max-pending $MAX_PENDING --count $TOTAL_TXS_TO_SEND; then
+        echo "Failed to spam EOA txs"
+        exit 1
+    else
+        echo "Spammed EOA txs"
+    fi
+    sleep 1
+    echo "Spamming ERC20 txs..."
+    if ! ./blob-spammer --privkey $PRIVATE_KEY --rpchost $ETH_RPC_URL erctx --max-wallets $MAX_WALLETS --throughput $THROUGHPUT --max-pending $MAX_PENDING --count $TOTAL_TXS_TO_SEND; then
+        echo "Failed to spam ERC20 txs"
+        exit 1
+    else
+        echo "Spammed ERC20 txs"
+    fi
+    sleep 1
+    echo "Spamming Gas Burner txs..."
+    if ! ./blob-spammer --privkey $PRIVATE_KEY --rpchost $ETH_RPC_URL gasburnertx --max-wallets 1 --throughput 1 --max-pending 1 --count 5 --gas-units-to-burn 7000000; then
+        echo "Failed to spam Gas Burner throughput"
+        exit 1
+    else
+        echo "Spammed Gas Burner txs"
+    fi
+    echo "Done spamming Gas Burner Txs..."
+    echo "Spamming Uniswap v2 swaps txs..."
+    if ! ./blob-spammer --privkey $PRIVATE_KEY --rpchost $ETH_RPC_URL univ2tx --max-wallets $MAX_WALLETS --throughput $THROUGHPUT --max-pending $MAX_PENDING --count $TOTAL_TXS_TO_SEND; then
+        echo "Failed to spam Uniswap v2 txs"
+        exit 1
+    else
+        echo "Spammed Uniswap v2 txs"
+    fi
+    echo "Done spamming Uniswap v2 txs..."
