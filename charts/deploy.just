@@ -190,19 +190,19 @@ init-rollup-bridge rollupName=defaultRollupName evmDestinationAddress=evm_destin
   FEE_ASSET="nria"
   TRANSFER_AMOUNT=$(echo "{{transferAmount}} * {{sequencer_base_amount}}" | bc)
 
-  astria-go sequencer bridge init {{rollupName}} \
-    --privkey $SEQUENCER_BRIDGE_PKEY \
-    --sequencer-chain-id $SEQUENCER_CHAIN_ID \
+  astria-cli sequencer init-bridge-account \
+    --rollup-name {{rollupName}} \
+    --private-key $SEQUENCER_BRIDGE_PKEY \
+    --sequencer.chain-id $SEQUENCER_CHAIN_ID \
     --sequencer-url {{sequencer_rpc_url}} \
-    --fee-asset=$FEE_ASSET --asset=$ASSET \
-    --json && \
-  astria-go sequencer bridge lock \
-    $TRANSFER_AMOUNT $SEQUENCER_BRIDGE_ADDRESS {{evmDestinationAddress}} \
-    --privkey $SEQUENCER_FUNDS_PKEY \
-    --sequencer-chain-id $SEQUENCER_CHAIN_ID \
+    --fee-asset=$FEE_ASSET --asset=$ASSET || exit 1
+  astria-cli sequencer bridge-lock $SEQUENCER_BRIDGE_ADDRESS \
+    --amount $TRANSFER_AMOUNT \
+    --destination-chain-address {{evmDestinationAddress}} \
+    --private-key $SEQUENCER_FUNDS_PKEY \
+    --sequencer.chain-id $SEQUENCER_CHAIN_ID \
     --sequencer-url {{sequencer_rpc_url}} \
-    --fee-asset=$FEE_ASSET --asset=$ASSET \
-    --json
+    --fee-asset=$FEE_ASSET --asset=$ASSET || exit 1
 
 
 eth_rpc_url := "http://executor.astria.localdev.me/"

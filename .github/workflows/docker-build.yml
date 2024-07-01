@@ -131,6 +131,9 @@ jobs:
             --output astria-go.tar.gz
           tar -xzvf astria-go.tar.gz
           mv astria-go /usr/local/bin/astria-go
+      - name: Install astria cli (rust)
+        run: |
+          just install-cli
       - name: Log in to GHCR
         uses: docker/login-action@v2
         with:
