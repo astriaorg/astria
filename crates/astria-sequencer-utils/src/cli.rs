@@ -5,6 +5,7 @@ use clap::{
 
 use super::{
     blob_parser,
+    genesis_example,
     genesis_parser,
 };
 
@@ -21,6 +22,9 @@ pub enum Command {
     /// Copy genesis state to a JSON file
     #[command(arg_required_else_help = true)]
     CopyGenesisState(genesis_parser::Args),
+
+    /// Generate an example sequencer genesis state
+    GenerateGenesisState(genesis_example::Args),
 
     /// Parse blob data from an arg, a file, or stdin
     #[command(arg_required_else_help = true)]

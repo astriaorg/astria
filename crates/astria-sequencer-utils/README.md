@@ -6,7 +6,29 @@
 
 ## General
 
-There are two functions provided by the tool, as described below.
+There are three functions provided by the tool, further described below:
+
+1. `generate-genesis-state`
+1. `copy-genesis-state`
+1. `parse-blob`
+
+### `generate-genesis-state`: create an example sequencer genesis state
+
+This subcommand creates an example genesis state file that can be
+fed into the `copy-genesis-state` command. It should be editted to
+have the desired options.
+
+#### Usage for `generate-genesis-state`
+
+1. no arguments: it will write the example genesis to stdout.
+1. `--output <PATH>`: write the example genesis to `<PATH>`.
+1. `-f`: override `<PATH>` in the previous argument if another file was present.
+
+#### Example for `generate-genesis-state`
+
+```sh
+cargo run -- generate-genesis-state -o genesis-state.json
+```
 
 ### `copy-genesis-state`: JSON-encode Genesis State to a File
 
@@ -27,8 +49,10 @@ the path to the output file
 In `crates/astria-sequencer-utils`:
 
 ```sh
+# genesis-state.json would be a file created by the generate-genesis-state
+# subcommand and then manually edited
 cargo run -- copy-genesis-state \
-  --genesis-app-state-file=../astria-sequencer/test-genesis-app-state.json \
+  --genesis-app-state-file=genesis-state.json \
   --output=$HOME/.cometbft/config/genesis.json \
   --chain-id=astria
 ```

@@ -5,6 +5,7 @@ use astria_sequencer_utils::{
         self,
         Command,
     },
+    genesis_example,
     genesis_parser,
 };
 
@@ -13,6 +14,7 @@ fn main() -> Result<()> {
         .expect("the astria eyre install hook must be called before eyre reports are constructed");
     match cli::get() {
         Command::CopyGenesisState(args) => genesis_parser::run(args),
+        Command::GenerateGenesisState(args) => genesis_example::run(&args),
         Command::ParseBlob(args) => blob_parser::run(args),
     }
 }

@@ -29,6 +29,11 @@ use astria_core::{
         TransactionParams,
         UnsignedTransaction,
     },
+    sequencer::{
+        Account,
+        AddressPrefixes,
+        UncheckedGenesisState,
+    },
     sequencerblock::v1alpha1::block::Deposit,
 };
 use cnidarium::StateDelta;
@@ -56,10 +61,6 @@ use crate::{
     },
     asset::get_native_asset,
     bridge::state_ext::StateWriteExt as _,
-    genesis::{
-        AddressPrefixes,
-        UncheckedGenesisState,
-    },
     proposal::commitment::generate_rollup_datas_commitment,
 };
 
@@ -177,8 +178,6 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         InitBridgeAccountAction,
         SudoAddressChangeAction,
     };
-
-    use crate::genesis::Account;
 
     let (alice_signing_key, _) = get_alice_signing_key_and_address();
     let (bridge_signing_key, bridge_address) = get_bridge_signing_key_and_address();
