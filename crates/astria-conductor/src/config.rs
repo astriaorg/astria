@@ -53,6 +53,9 @@ pub struct Config {
     /// URL of the Sequencer Cometbft HTTP RPC.
     pub sequencer_cometbft_url: String,
 
+    /// Chain ID of the sequencer network.
+    pub sequencer_chain_id: String,
+
     pub sequencer_block_time_ms: u64,
 
     /// The number of requests per second that will be sent to Sequencer.

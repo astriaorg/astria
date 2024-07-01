@@ -456,6 +456,7 @@ fn make_config() -> Config {
         celestia_block_time_ms: 12000,
         celestia_node_http_url: "http://127.0.0.1:26658".into(),
         celestia_bearer_token: CELESTIA_BEARER_TOKEN.into(),
+        sequencer_chain_id: "test_sequencer-1000".to_string(),
         sequencer_grpc_url: "http://127.0.0.1:8080".into(),
         sequencer_cometbft_url: "http://127.0.0.1:26657".into(),
         sequencer_requests_per_second: 500,
