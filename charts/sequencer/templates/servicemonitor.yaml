@@ -15,7 +15,7 @@ spec:
       - {{ include "sequencer.namespace" . }}
   selector:
     matchLabels:
-      app: {{ .Values.config.moniker }}-sequencer
+      app: {{ .Values.moniker }}-sequencer
   endpoints:
     - port: cometbft-metric
       path: /metrics
@@ -25,7 +25,7 @@ spec:
       {{- with .Values.serviceMonitor.scrapeTimeout  }}
       scrapeTimeout: {{ . }}
       {{- end }}
-    {{- if .Values.config.sequencer.metrics.enabled }}
+    {{- if .Values.sequencer.metrics.enabled }}
     - port: seq-metric
       path: /
       {{- with .Values.serviceMonitor.interval }}

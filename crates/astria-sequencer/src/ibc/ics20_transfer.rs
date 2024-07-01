@@ -214,7 +214,7 @@ async fn refund_tokens_check<S: StateRead>(
         //
         // check if escrow account has enough balance to refund user
         let balance = state
-            .get_ibc_channel_balance(source_channel, denom.id())
+            .get_ibc_channel_balance(source_channel, denom)
             .await
             .context("failed to get channel balance in refund_tokens_check")?;
 
@@ -342,7 +342,7 @@ async fn convert_denomination_if_ibc_prefixed<S: StateReadExt>(
     let denom = match packet_denom {
         Denom::TracePrefixed(trace) => trace,
         Denom::IbcPrefixed(ibc) => state
-            .get_ibc_asset(ibc.id())
+            .map_ibc_to_trace_prefixed_asset(ibc)
             .await
             .context("failed to get denom trace from asset id")?
             .context("denom for given asset id not found in state")?,
@@ -476,14 +476,14 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
         };
 
         let escrow_balance = state
-            .get_ibc_channel_balance(escrow_channel, denom_trace.id())
+            .get_ibc_channel_balance(escrow_channel, &denom_trace)
             .await
             .context("failed to get IBC channel balance in execute_ics20_transfer")?;
 
         state
             .put_ibc_channel_balance(
                 escrow_channel,
-                denom_trace.id(),
+                &denom_trace,
                 escrow_balance
                     .checked_sub(packet_amount)
                     .ok_or(anyhow::anyhow!(
@@ -493,23 +493,23 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
             .context("failed to update escrow account balance in execute_ics20_transfer")?;
 
         state
-            .increase_balance(recipient, denom_trace.id(), packet_amount)
+            .increase_balance(recipient, &denom_trace, packet_amount)
             .await
             .context("failed to update user account balance in execute_ics20_transfer")?;
     } else {
         // register denomination in global ID -> denom map if it's not already there
         if !state
-            .has_ibc_asset(trace_with_dest.id())
+            .has_ibc_asset(&*trace_with_dest)
             .await
             .context("failed to check if ibc asset exists in state")?
         {
             state
-                .put_ibc_asset(trace_with_dest.id(), &trace_with_dest)
+                .put_ibc_asset(&trace_with_dest)
                 .context("failed to put IBC asset in storage")?;
         }
 
         state
-            .increase_balance(recipient, trace_with_dest.id(), packet_amount)
+            .increase_balance(recipient, &*trace_with_dest, packet_amount)
             .await
             .context("failed to update user account balance in execute_ics20_transfer")?;
     }
@@ -533,7 +533,7 @@ async fn execute_rollup_withdrawal_refund<S: StateWriteExt>(
     execute_deposit(state, bridge_address, denom, amount, destination_address).await?;
 
     state
-        .increase_balance(*bridge_address, denom.id(), amount)
+        .increase_balance(*bridge_address, denom, amount)
         .await
         .context(
             "failed to update bridge account account balance in execute_rollup_withdrawal_refund",
@@ -613,12 +613,12 @@ async fn execute_deposit<S: StateWriteExt>(
         bail!("bridge account rollup ID not found in state; invalid bridge address?")
     };
 
-    let allowed_asset_id = state
-        .get_bridge_account_asset_id(bridge_address)
+    let allowed_asset = state
+        .get_bridge_account_ibc_asset(bridge_address)
         .await
         .context("failed to get bridge account asset ID")?;
     ensure!(
-        allowed_asset_id == denom.id(),
+        allowed_asset == denom.to_ibc_prefixed(),
         "asset ID is not authorized for transfer to bridge account",
     );
 
@@ -626,7 +626,7 @@ async fn execute_deposit<S: StateWriteExt>(
         *bridge_address,
         rollup_id,
         amount,
-        denom.id(),
+        denom.into(),
         destination_address,
     );
     state
@@ -644,7 +644,11 @@ mod test {
     use denom::TracePrefixed;
 
     use super::*;
-    use crate::accounts::state_ext::StateReadExt as _;
+    use crate::{
+        accounts::state_ext::StateReadExt as _,
+        bridge::state_ext::StateWriteExt,
+        ibc::state_ext::StateWriteExt as _,
+    };
 
     #[tokio::test]
     async fn prefix_denomination_not_refund() {
@@ -681,15 +685,11 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot.clone());
 
-        let denom_trace = "asset".parse::<TracePrefixed>().unwrap();
-        state_tx
-            .put_ibc_asset(denom_trace.id(), &denom_trace)
-            .unwrap();
+        let denom_trace = "asset".parse().unwrap();
+        state_tx.put_ibc_asset(&denom_trace).unwrap();
 
         let expected = denom_trace.clone();
-        let packet_denom = format!("ibc/{}", hex::encode(denom_trace.id().as_ref()))
-            .parse::<Denom>()
-            .unwrap();
+        let packet_denom = denom_trace.to_ibc_prefixed().into();
         let denom = convert_denomination_if_ibc_prefixed(&mut state_tx, packet_denom)
             .await
             .unwrap();
@@ -742,13 +742,10 @@ mod test {
         .expect("valid ics20 transfer to user account; recipient, memo, and asset ID are valid");
 
         let denom = "dest_port/dest_channel/nootasset".parse::<Denom>().unwrap();
-        let balance = state_tx
-            .get_account_balance(recipient, denom.id())
-            .await
-            .expect(
-                "ics20 transfer to user account should succeed and balance should be minted to \
-                 this account",
-            );
+        let balance = state_tx.get_account_balance(recipient, denom).await.expect(
+            "ics20 transfer to user account should succeed and balance should be minted to this \
+             account",
+        );
         assert_eq!(balance, 100);
     }
 
@@ -764,7 +761,7 @@ mod test {
 
         state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
         state_tx
-            .put_bridge_account_asset_id(&bridge_address, &denom.id())
+            .put_bridge_account_ibc_asset(&bridge_address, &denom)
             .unwrap();
 
         let memo = Ics20TransferDepositMemo {
@@ -794,7 +791,7 @@ mod test {
 
         let denom = "dest_port/dest_channel/nootasset".parse::<Denom>().unwrap();
         let balance = state_tx
-            .get_account_balance(bridge_address, denom.id())
+            .get_account_balance(bridge_address, denom)
             .await
             .expect(
                 "ics20 transfer from sender to bridge account should have updated funds in the \
@@ -821,7 +818,7 @@ mod test {
 
         state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
         state_tx
-            .put_bridge_account_asset_id(&bridge_address, &denom.id())
+            .put_bridge_account_ibc_asset(&bridge_address, &denom)
             .unwrap();
 
         // use invalid memo, which should fail
@@ -859,7 +856,7 @@ mod test {
 
         state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
         state_tx
-            .put_bridge_account_asset_id(&bridge_address, &denom.id())
+            .put_bridge_account_ibc_asset(&bridge_address, &denom)
             .unwrap();
 
         // use invalid asset, which should fail
@@ -897,7 +894,7 @@ mod test {
         state_tx
             .put_ibc_channel_balance(
                 &"dest_channel".to_string().parse().unwrap(),
-                base_denom.id(),
+                &base_denom,
                 amount,
             )
             .unwrap();
@@ -924,15 +921,12 @@ mod test {
         .expect("valid ics20 transfer to user account; recipient, memo, and asset ID are valid");
 
         let balance = state_tx
-            .get_account_balance(recipient_address, base_denom.id())
+            .get_account_balance(recipient_address, &base_denom)
             .await
             .expect("ics20 transfer to user account should succeed");
         assert_eq!(balance, amount);
         let balance = state_tx
-            .get_ibc_channel_balance(
-                &"dest_channel".to_string().parse().unwrap(),
-                base_denom.id(),
-            )
+            .get_ibc_channel_balance(&"dest_channel".to_string().parse().unwrap(), &base_denom)
             .await
             .expect("ics20 transfer to user account from escrow account should succeed");
         assert_eq!(balance, 0);
@@ -950,7 +944,7 @@ mod test {
         state_tx
             .put_ibc_channel_balance(
                 &"source_channel".to_string().parse().unwrap(),
-                base_denom.id(),
+                &base_denom,
                 amount,
             )
             .unwrap();
@@ -977,15 +971,12 @@ mod test {
         .expect("valid ics20 refund to user account; recipient, memo, and asset ID are valid");
 
         let balance = state_tx
-            .get_account_balance(recipient_address, base_denom.id())
+            .get_account_balance(recipient_address, &base_denom)
             .await
             .expect("ics20 refund to user account should succeed");
         assert_eq!(balance, amount);
         let balance = state_tx
-            .get_ibc_channel_balance(
-                &"source_channel".to_string().parse().unwrap(),
-                base_denom.id(),
-            )
+            .get_ibc_channel_balance(&"source_channel".to_string().parse().unwrap(), &base_denom)
             .await
             .expect("ics20 refund to user account from escrow account should succeed");
         assert_eq!(balance, 0);
@@ -1005,7 +996,7 @@ mod test {
 
         state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
         state_tx
-            .put_bridge_account_asset_id(&bridge_address, &denom.id())
+            .put_bridge_account_ibc_asset(&bridge_address, &denom)
             .unwrap();
 
         let amount = 100;
@@ -1021,7 +1012,7 @@ mod test {
         .expect("valid rollup withdrawal refund");
 
         let balance = state_tx
-            .get_account_balance(bridge_address, denom.id())
+            .get_account_balance(bridge_address, denom)
             .await
             .expect("rollup withdrawal refund should have updated funds in the bridge address");
         assert_eq!(balance, 100);
@@ -1046,7 +1037,7 @@ mod test {
 
         state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
         state_tx
-            .put_bridge_account_asset_id(&bridge_address, &denom.id())
+            .put_bridge_account_ibc_asset(&bridge_address, &denom)
             .unwrap();
 
         let packet = FungibleTokenPacketData {
@@ -1077,7 +1068,7 @@ mod test {
         .expect("valid ics20 transfer refund; recipient, memo, and asset ID are valid");
 
         let balance = state_tx
-            .get_account_balance(bridge_address, denom.id())
+            .get_account_balance(bridge_address, &denom)
             .await
             .expect(
                 "ics20 transfer refunding to rollup should succeed and balance should be added to \
@@ -1096,7 +1087,7 @@ mod test {
             bridge_address,
             rollup_id,
             100,
-            denom.id(),
+            denom,
             destination_chain_address,
         );
         assert_eq!(deposit, &expected_deposit);

@@ -737,10 +737,11 @@ impl SequencerBlock {
             let signed_tx = SignedTransaction::try_from_raw(raw_tx)
                 .map_err(SequencerBlockError::raw_signed_transaction_conversion)?;
             for action in signed_tx.into_unsigned().actions {
+                // XXX: The fee asset is dropped. We shjould explain why that's ok.
                 if let action::Action::Sequence(action::SequenceAction {
                     rollup_id,
                     data,
-                    fee_asset_id: _,
+                    fee_asset: _,
                 }) = action
                 {
                     let elem = rollup_datas.entry(rollup_id).or_insert(vec![]);
@@ -750,11 +751,14 @@ impl SequencerBlock {
             }
         }
         for (id, deposits) in deposits {
-            rollup_datas.entry(id).or_default().extend(
-                deposits
-                    .into_iter()
-                    .map(|deposit| RollupData::Deposit(deposit).into_raw().encode_to_vec()),
-            );
+            rollup_datas
+                .entry(id)
+                .or_default()
+                .extend(deposits.into_iter().map(|deposit| {
+                    RollupData::Deposit(Box::new(deposit))
+                        .into_raw()
+                        .encode_to_vec()
+                }));
         }
 
         // XXX: The rollup data must be sorted by its keys before constructing the merkle tree.
@@ -1263,8 +1267,8 @@ pub struct Deposit {
     rollup_id: RollupId,
     // the amount that was transferred to `bridge_address`
     amount: u128,
-    // the asset ID of the asset that was transferred
-    asset_id: asset::Id,
+    // the IBC ICS20 denom of the asset that was transferred
+    asset: asset::Denom,
     // the address on the destination chain (rollup) which to send the bridged funds to
     destination_chain_address: String,
 }
@@ -1281,14 +1285,14 @@ impl Deposit {
         bridge_address: Address,
         rollup_id: RollupId,
         amount: u128,
-        asset_id: asset::Id,
+        asset: asset::Denom,
         destination_chain_address: String,
     ) -> Self {
         Self {
             bridge_address,
             rollup_id,
             amount,
-            asset_id,
+            asset,
             destination_chain_address,
         }
     }
@@ -1309,8 +1313,8 @@ impl Deposit {
     }
 
     #[must_use]
-    pub fn asset_id(&self) -> &asset::Id {
-        &self.asset_id
+    pub fn asset(&self) -> &asset::Denom {
+        &self.asset
     }
 
     #[must_use]
@@ -1324,14 +1328,14 @@ impl Deposit {
             bridge_address,
             rollup_id,
             amount,
-            asset_id,
+            asset,
             destination_chain_address,
         } = self;
         raw::Deposit {
             bridge_address: Some(bridge_address.into_raw()),
             rollup_id: Some(rollup_id.into_raw()),
             amount: Some(amount.into()),
-            asset_id: asset_id.get().to_vec(),
+            asset: asset.to_string(),
             destination_chain_address,
         }
     }
@@ -1349,7 +1353,7 @@ impl Deposit {
             bridge_address,
             rollup_id,
             amount,
-            asset_id,
+            asset,
             destination_chain_address,
         } = raw;
         let Some(bridge_address) = bridge_address else {
@@ -1363,13 +1367,12 @@ impl Deposit {
         };
         let rollup_id =
             RollupId::try_from_raw(&rollup_id).map_err(DepositError::incorrect_rollup_id_length)?;
-        let asset_id = asset::Id::try_from_slice(&asset_id)
-            .map_err(DepositError::incorrect_asset_id_length)?;
+        let asset = asset.parse().map_err(DepositError::incorrect_asset)?;
         Ok(Self {
             bridge_address,
             rollup_id,
             amount,
-            asset_id,
+            asset,
             destination_chain_address,
         })
     }
@@ -1394,8 +1397,8 @@ impl DepositError {
         Self(DepositErrorKind::IncorrectRollupIdLength(source))
     }
 
-    fn incorrect_asset_id_length(source: asset::IncorrectAssetIdLength) -> Self {
-        Self(DepositErrorKind::IncorrectAssetIdLength(source))
+    fn incorrect_asset(source: asset::ParseDenomError) -> Self {
+        Self(DepositErrorKind::IncorrectAsset(source))
     }
 }
 
@@ -1407,8 +1410,8 @@ enum DepositErrorKind {
     FieldNotSet(&'static str),
     #[error("the rollup ID length is not 32 bytes")]
     IncorrectRollupIdLength(#[source] IncorrectRollupIdLength),
-    #[error("the asset ID length is not 32 bytes")]
-    IncorrectAssetIdLength(#[source] asset::IncorrectAssetIdLength),
+    #[error("the `asset` field could not be parsed")]
+    IncorrectAsset(#[source] asset::ParseDenomError),
 }
 
 /// A piece of data that is sent to a rollup execution node.
@@ -1421,7 +1424,7 @@ enum DepositErrorKind {
 #[derive(Debug, Clone, PartialEq)]
 pub enum RollupData {
     SequencedData(Vec<u8>),
-    Deposit(Deposit),
+    Deposit(Box<Deposit>),
 }
 
 impl RollupData {
@@ -1450,6 +1453,7 @@ impl RollupData {
         match value {
             Some(raw::rollup_data::Value::SequencedData(data)) => Ok(Self::SequencedData(data)),
             Some(raw::rollup_data::Value::Deposit(deposit)) => Deposit::try_from_raw(deposit)
+                .map(Box::new)
                 .map(Self::Deposit)
                 .map_err(RollupDataError::deposit),
             None => Err(RollupDataError::field_not_set("data")),

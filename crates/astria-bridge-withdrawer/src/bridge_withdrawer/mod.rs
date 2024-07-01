@@ -7,10 +7,7 @@ use std::{
     time::Duration,
 };
 
-use astria_core::primitive::v1::asset::{
-    self,
-    Denom,
-};
+use astria_core::primitive::v1::asset::Denom;
 use astria_eyre::eyre::{
     self,
     WrapErr as _,
@@ -92,23 +89,25 @@ impl BridgeWithdrawer {
             .wrap_err("failed to parse sequencer bridge address")?;
 
         // make startup object
-        let (startup, startup_submitter_handle, startup_watcher_handle) = startup::Builder {
+        let startup = startup::Builder {
             shutdown_token: shutdown_handle.token(),
             state: state.clone(),
             sequencer_chain_id,
             sequencer_cometbft_endpoint: sequencer_cometbft_endpoint.clone(),
             sequencer_bridge_address,
-            expected_fee_asset_id: asset::Id::from_str_unchecked(&fee_asset_denomination),
+            expected_fee_asset: fee_asset_denomination,
             expected_min_fee_asset_balance: u128::from(min_expected_fee_asset_balance),
             sequencer_grpc_endpoint: sequencer_grpc_endpoint.clone(),
         }
         .build()
         .wrap_err("failed to initialize startup")?;
 
+        let startup_handle = startup::InfoHandle::new(state.subscribe());
+
         // make submitter object
         let (submitter, submitter_handle) = submitter::Builder {
             shutdown_token: shutdown_handle.token(),
-            startup_handle: startup_submitter_handle,
+            startup_handle: startup_handle.clone(),
             sequencer_cometbft_endpoint,
             sequencer_grpc_endpoint,
             sequencer_key_path,
@@ -122,7 +121,7 @@ impl BridgeWithdrawer {
         let ethereum_watcher = watcher::Builder {
             ethereum_contract_address,
             ethereum_rpc_endpoint,
-            startup_handle: startup_watcher_handle,
+            startup_handle,
             shutdown_token: shutdown_handle.token(),
             state: state.clone(),
             rollup_asset_denom: rollup_asset_denomination

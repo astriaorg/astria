@@ -59,7 +59,6 @@ async fn main() -> ExitCode {
         SequencerRelayer::new(cfg).expect("could not initialize sequencer relayer");
     let sequencer_relayer_handle = tokio::spawn(sequencer_relayer.run());
 
-    let shutdown_token = shutdown_handle.token();
     tokio::select!(
         _ = sigterm.recv() => {
             // We don't care about the result (i.e. whether there could be more SIGTERM signals
@@ -67,7 +66,7 @@ async fn main() -> ExitCode {
             info!("received SIGTERM, issuing shutdown to all services");
             shutdown_handle.shutdown();
         }
-        () = shutdown_token.cancelled() => {
+        () = shutdown_handle.cancelled() => {
             warn!("stopped waiting for SIGTERM");
         }
     );

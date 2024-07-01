@@ -8,11 +8,7 @@ use std::{
 use astria_core::{
     bridge::Ics20WithdrawalFromRollupMemo,
     generated::protocol::account::v1alpha1::NonceResponse,
-    primitive::v1::asset::{
-        self,
-        default_native_asset,
-        Denom,
-    },
+    primitive::v1::asset,
     protocol::{
         account::v1alpha1::AssetBalance,
         bridge::v1alpha1::BridgeAccountLastTxHashResponse,
@@ -55,10 +51,7 @@ use tendermint_rpc::{
     },
     request,
 };
-use tokio::{
-    sync::oneshot,
-    task::JoinHandle,
-};
+use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use tracing::debug;
 use wiremock::{

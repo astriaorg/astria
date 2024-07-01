@@ -1,5 +1,7 @@
 use tokio::sync::watch;
 
+use super::startup;
+
 pub(crate) struct State {
     inner: tokio::sync::watch::Sender<StateSnapshot>,
 }
@@ -39,6 +41,8 @@ macro_rules! forward_setter {
 }
 
 forward_setter!(
+    [set_startup_info <- startup::Info],
+    [set_cometbft_connected <- bool],
     [set_sequencer_connected <- bool],
     [set_last_rollup_height_submitted <- u64],
     [set_last_sequencer_height <- u64],
@@ -46,10 +50,15 @@ forward_setter!(
 );
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize)]
+// This lint is allowed because there are 4 boolean fields that are necessary to track here.
+#[allow(clippy::struct_excessive_bools)]
 pub(crate) struct StateSnapshot {
+    startup_info: Option<startup::Info>,
+
     watcher_ready: bool,
     submitter_ready: bool,
 
+    cometbft_connected: bool,
     sequencer_connected: bool,
 
     last_rollup_height_submitted: Option<u64>,
@@ -58,6 +67,19 @@ pub(crate) struct StateSnapshot {
 }
 
 impl StateSnapshot {
+    pub(super) fn get_startup_info(&self) -> Option<startup::Info> {
+        self.startup_info.clone()
+    }
+
+    pub(super) fn set_startup_info(&mut self, startup_info: startup::Info) -> bool {
+        if self.startup_info.is_none() {
+            self.startup_info = Some(startup_info);
+            true
+        } else {
+            false
+        }
+    }
+
     pub(crate) fn set_watcher_ready(&mut self) {
         self.watcher_ready = true;
     }
@@ -72,6 +94,13 @@ impl StateSnapshot {
 
     pub(crate) fn is_healthy(&self) -> bool {
         self.sequencer_connected
+    }
+
+    /// Sets the `CometBFT` connection status to `connected`.
+    fn set_cometbft_connected(&mut self, connected: bool) -> bool {
+        let changed = self.cometbft_connected ^ connected;
+        self.cometbft_connected = connected;
+        changed
     }
 
     /// Sets the sequencer connection status to `connected`.
