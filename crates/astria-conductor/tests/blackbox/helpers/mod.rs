@@ -5,6 +5,7 @@ use astria_conductor::{
     config::CommitLevel,
     Conductor,
     Config,
+    Metrics,
 };
 use astria_core::{
     brotli::compress_bytes,
@@ -30,6 +31,7 @@ use sequencer_client::{
     tendermint_proto,
     tendermint_rpc,
 };
+use telemetry::metrics;
 
 #[macro_use]
 mod macros;
@@ -53,19 +55,19 @@ static TELEMETRY: Lazy<()> = Lazy::new(|| {
     if std::env::var_os("TEST_LOG").is_some() {
         let filter_directives = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into());
         println!("initializing telemetry");
-        telemetry::configure()
-            .no_otel()
-            .stdout_writer(std::io::stdout)
-            .force_stdout()
-            .pretty_print()
-            .filter_directives(&filter_directives)
-            .try_init()
+        let _ = telemetry::configure()
+            .set_no_otel(true)
+            .set_stdout_writer(std::io::stdout)
+            .set_force_stdout(true)
+            .set_pretty_print(true)
+            .set_filter_directives(&filter_directives)
+            .try_init::<Metrics>(&())
             .unwrap();
     } else {
-        telemetry::configure()
-            .no_otel()
-            .stdout_writer(std::io::sink)
-            .try_init()
+        let _ = telemetry::configure()
+            .set_no_otel(true)
+            .set_stdout_writer(std::io::sink)
+            .try_init::<Metrics>(&())
             .unwrap();
     }
 });
@@ -92,8 +94,14 @@ pub async fn spawn_conductor(execution_commit_level: CommitLevel) -> TestConduct
         ..make_config()
     };
 
+    let (metrics, metrics_handle) = metrics::ConfigBuilder::new()
+        .with_global_recorder(false)
+        .build(&())
+        .unwrap();
+    let metrics = Box::leak(Box::new(metrics));
+
     let conductor = {
-        let conductor = Conductor::new(config).unwrap();
+        let conductor = Conductor::new(config, metrics).unwrap();
         conductor.spawn()
     };
 
@@ -101,6 +109,7 @@ pub async fn spawn_conductor(execution_commit_level: CommitLevel) -> TestConduct
         conductor,
         mock_grpc,
         mock_http,
+        metrics_handle,
     }
 }
 
@@ -108,6 +117,7 @@ pub struct TestConductor {
     pub conductor: conductor::Handle,
     pub mock_grpc: MockGrpc,
     pub mock_http: wiremock::MockServer,
+    pub metrics_handle: metrics::Handle,
 }
 
 impl Drop for TestConductor {

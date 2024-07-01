@@ -239,6 +239,7 @@ async fn should_filter_rollup() {
     let excluded_rollup_ids: HashSet<_> = (0..5).map(|x| RollupId::new([100 + x; 32])).collect();
 
     let sequencer_relayer = TestSequencerRelayerConfig {
+        last_written_sequencer_height: None,
         only_include_rollups: included_rollup_ids.clone(),
         ..TestSequencerRelayerConfig::default()
     }
@@ -317,7 +318,8 @@ async fn should_shut_down() {
         )
         .await;
 
-    // Send the shutdown signal - equivalent to sigkill being issued to sequencer-relayer process.
+    // Send the shutdown signal - equivalent to sigkill being issued to sequencer-relayer
+    // process.
     sequencer_relayer.relayer_shutdown_handle.take();
 
     let get_tx_guard = sequencer_relayer

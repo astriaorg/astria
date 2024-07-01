@@ -11,6 +11,7 @@ pub use config::{
     Config,
     IncludeRollup,
 };
+pub use metrics::Metrics;
 pub use sequencer_relayer::{
     SequencerRelayer,
     ShutdownHandle,
