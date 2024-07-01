@@ -52,6 +52,7 @@ telemetry = { package = "astria-telemetry", path = "../astria-telemetry", featur
 
 [dev-dependencies]
 astria-core = { path = "../astria-core", features = ["server", "test-utils"] }
+astria-grpc-mock = { path = "../astria-grpc-mock" }
 config = { package = "astria-config", path = "../astria-config", features = [
     "tests",
 ] }

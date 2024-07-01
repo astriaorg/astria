@@ -78,7 +78,12 @@ use crate::{
 
 pub(crate) struct Relayer {
     /// A token to notify relayer that it should shut down.
-    shutdown_token: CancellationToken,
+    // allow: want the prefix to disambiguate between this token and `submitter_shutdown_token`.
+    #[allow(clippy::struct_field_names)]
+    relayer_shutdown_token: CancellationToken,
+
+    /// A child token of `relayer_shutdown_token` to notify the submitter task to shut down.
+    submitter_shutdown_token: CancellationToken,
 
     /// The configured chain ID of the sequencer network.
     sequencer_chain_id: String,
@@ -124,7 +129,7 @@ impl Relayer {
             .wrap_err("failed reading submission state from files")?;
 
         select!(
-            () = self.shutdown_token.cancelled() => return Ok(()),
+            () = self.relayer_shutdown_token.cancelled() => return Ok(()),
             init_result = confirm_sequencer_chain_id(
                 self.sequencer_chain_id.clone(),
                 self.sequencer_cometbft_client.clone()
@@ -139,12 +144,12 @@ impl Relayer {
                 .stream_latest_height(self.sequencer_poll_period)
         };
 
-        let (submitter_task, submitter) = spawn_submitter(
+        let (mut submitter_task, submitter) = spawn_submitter(
             self.celestia_client_builder.clone(),
             self.rollup_filter.clone(),
             self.state.clone(),
             submission_state,
-            self.shutdown_token.clone(),
+            self.submitter_shutdown_token.clone(),
             self.metrics,
         );
 
@@ -167,10 +172,12 @@ impl Relayer {
             select!(
                 biased;
 
-                () = self.shutdown_token.cancelled() => {
+                () = self.relayer_shutdown_token.cancelled() => {
                     info!("received shutdown signal");
                     break Ok("shutdown signal received");
                 }
+
+                _ = &mut submitter_task => break Err(eyre!("Celestia submission task returned")),
 
                 res = &mut forward_once_free, if !forward_once_free.is_terminated() => {
                     // XXX: exiting because submitter only returns an error after u32::MAX
@@ -233,9 +240,15 @@ impl Relayer {
             Err(reason) => error!(%reason, "starting shutdown"),
         }
 
-        debug!("waiting for Celestia submission task to exit");
-        if let Err(error) = submitter_task.await {
-            error!(%error, "Celestia submission task failed while waiting for it to exit before shutdown");
+        if !submitter_task.is_terminated() {
+            debug!("waiting for Celestia submission task to exit");
+            self.submitter_shutdown_token.cancel();
+            if let Err(error) = submitter_task.await {
+                error!(
+                    %error,
+                    "Celestia submission task failed while waiting for it to exit before shutdown"
+                );
+            }
         }
 
         reason.map(|_| ())
@@ -359,16 +372,19 @@ fn spawn_submitter(
     rollup_filter: IncludeRollup,
     state: Arc<State>,
     submission_state: SubmissionState,
-    shutdown_token: CancellationToken,
+    submitter_shutdown_token: CancellationToken,
     metrics: &'static Metrics,
-) -> (JoinHandle<eyre::Result<()>>, write::BlobSubmitterHandle) {
+) -> (
+    Fuse<JoinHandle<eyre::Result<()>>>,
+    write::BlobSubmitterHandle,
+) {
     let (submitter, handle) = write::BlobSubmitter::new(
         client_builder,
         rollup_filter,
         state,
         submission_state,
-        shutdown_token,
+        submitter_shutdown_token,
         metrics,
     );
-    (tokio::spawn(submitter.run()), handle)
+    (tokio::spawn(submitter.run()).fuse(), handle)
 }

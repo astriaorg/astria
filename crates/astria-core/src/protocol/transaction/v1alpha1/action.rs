@@ -348,8 +348,8 @@ impl SequenceActionError {
         Self(SequenceActionErrorKind::RollupIdLength(inner))
     }
 
-    fn fee_asset_id(inner: asset::IncorrectAssetIdLength) -> Self {
-        Self(SequenceActionErrorKind::FeeAssetId(inner))
+    fn fee_asset(inner: asset::ParseDenomError) -> Self {
+        Self(SequenceActionErrorKind::FeeAsset(inner))
     }
 }
 
@@ -359,8 +359,8 @@ enum SequenceActionErrorKind {
     FieldNotSet(&'static str),
     #[error("`rollup_id` field did not contain a valid rollup ID")]
     RollupIdLength(IncorrectRollupIdLength),
-    #[error("`fee_asset_id` field did not contain a valid asset ID")]
-    FeeAssetId(asset::IncorrectAssetIdLength),
+    #[error("`fee_asset` field did not contain a valid asset ID")]
+    FeeAsset(#[source] asset::ParseDenomError),
 }
 
 #[derive(Clone, Debug)]
@@ -369,7 +369,7 @@ pub struct SequenceAction {
     pub rollup_id: RollupId,
     pub data: Vec<u8>,
     /// asset to use for fee payment.
-    pub fee_asset_id: asset::Id,
+    pub fee_asset: asset::Denom,
 }
 
 impl SequenceAction {
@@ -378,12 +378,12 @@ impl SequenceAction {
         let Self {
             rollup_id,
             data,
-            fee_asset_id,
+            fee_asset,
         } = self;
         raw::SequenceAction {
             rollup_id: Some(rollup_id.to_raw()),
             data,
-            fee_asset_id: fee_asset_id.as_ref().to_vec(),
+            fee_asset: fee_asset.to_string(),
         }
     }
 
@@ -392,12 +392,12 @@ impl SequenceAction {
         let Self {
             rollup_id,
             data,
-            fee_asset_id,
+            fee_asset,
         } = self;
         raw::SequenceAction {
             rollup_id: Some(rollup_id.to_raw()),
             data: data.clone(),
-            fee_asset_id: fee_asset_id.as_ref().to_vec(),
+            fee_asset: fee_asset.to_string(),
         }
     }
 
@@ -409,19 +409,18 @@ impl SequenceAction {
         let raw::SequenceAction {
             rollup_id,
             data,
-            fee_asset_id,
+            fee_asset,
         } = proto;
         let Some(rollup_id) = rollup_id else {
             return Err(SequenceActionError::field_not_set("rollup_id"));
         };
         let rollup_id =
             RollupId::try_from_raw(&rollup_id).map_err(SequenceActionError::rollup_id_length)?;
-        let fee_asset_id =
-            asset::Id::try_from_slice(&fee_asset_id).map_err(SequenceActionError::fee_asset_id)?;
+        let fee_asset = fee_asset.parse().map_err(SequenceActionError::fee_asset)?;
         Ok(Self {
             rollup_id,
             data,
-            fee_asset_id,
+            fee_asset,
         })
     }
 }
@@ -432,9 +431,9 @@ pub struct TransferAction {
     pub to: Address,
     pub amount: u128,
     // asset to be transferred.
-    pub asset_id: asset::Id,
+    pub asset: asset::Denom,
     /// asset to use for fee payment.
-    pub fee_asset_id: asset::Id,
+    pub fee_asset: asset::Denom,
 }
 
 impl TransferAction {
@@ -443,14 +442,14 @@ impl TransferAction {
         let Self {
             to,
             amount,
-            asset_id,
-            fee_asset_id,
+            asset,
+            fee_asset,
         } = self;
         raw::TransferAction {
             to: Some(to.to_raw()),
             amount: Some(amount.into()),
-            asset_id: asset_id.get().to_vec(),
-            fee_asset_id: fee_asset_id.as_ref().to_vec(),
+            asset: asset.to_string(),
+            fee_asset: fee_asset.to_string(),
         }
     }
 
@@ -459,14 +458,14 @@ impl TransferAction {
         let Self {
             to,
             amount,
-            asset_id,
-            fee_asset_id,
+            asset,
+            fee_asset,
         } = self;
         raw::TransferAction {
             to: Some(to.to_raw()),
             amount: Some((*amount).into()),
-            asset_id: asset_id.get().to_vec(),
-            fee_asset_id: fee_asset_id.as_ref().to_vec(),
+            asset: asset.to_string(),
+            fee_asset: fee_asset.to_string(),
         }
     }
 
@@ -480,24 +479,22 @@ impl TransferAction {
         let raw::TransferAction {
             to,
             amount,
-            asset_id,
-            fee_asset_id,
+            asset,
+            fee_asset,
         } = proto;
         let Some(to) = to else {
             return Err(TransferActionError::field_not_set("to"));
         };
         let to = Address::try_from_raw(&to).map_err(TransferActionError::address)?;
         let amount = amount.map_or(0, Into::into);
-        let asset_id =
-            asset::Id::try_from_slice(&asset_id).map_err(TransferActionError::asset_id)?;
-        let fee_asset_id =
-            asset::Id::try_from_slice(&fee_asset_id).map_err(TransferActionError::fee_asset_id)?;
+        let asset = asset.parse().map_err(TransferActionError::asset)?;
+        let fee_asset = fee_asset.parse().map_err(TransferActionError::fee_asset)?;
 
         Ok(Self {
             to,
             amount,
-            asset_id,
-            fee_asset_id,
+            asset,
+            fee_asset,
         })
     }
 }
@@ -515,11 +512,11 @@ impl TransferActionError {
         Self(TransferActionErrorKind::Address(inner))
     }
 
-    fn asset_id(inner: asset::IncorrectAssetIdLength) -> Self {
+    fn asset(inner: asset::ParseDenomError) -> Self {
         Self(TransferActionErrorKind::Asset(inner))
     }
 
-    fn fee_asset_id(inner: asset::IncorrectAssetIdLength) -> Self {
+    fn fee_asset(inner: asset::ParseDenomError) -> Self {
         Self(TransferActionErrorKind::FeeAsset(inner))
     }
 }
@@ -530,10 +527,10 @@ enum TransferActionErrorKind {
     FieldNotSet(&'static str),
     #[error("`to` field did not contain a valid address")]
     Address(#[source] AddressError),
-    #[error("`asset_id` field did not contain a valid asset ID")]
-    Asset(#[source] asset::IncorrectAssetIdLength),
-    #[error("`fee_asset_id` field did not contain a valid asset ID")]
-    FeeAsset(#[source] asset::IncorrectAssetIdLength),
+    #[error("`asset` field did not contain a valid asset ID")]
+    Asset(#[source] asset::ParseDenomError),
+    #[error("`fee_asset` field did not contain a valid asset ID")]
+    FeeAsset(#[source] asset::ParseDenomError),
 }
 
 #[derive(Clone, Debug)]
@@ -636,7 +633,7 @@ pub struct Ics20Withdrawal {
     // the source channel used for the withdrawal.
     pub source_channel: ChannelId,
     // the asset to use for fee payment.
-    pub fee_asset_id: asset::Id,
+    pub fee_asset: asset::Denom,
     // a memo to include with the transfer
     pub memo: String,
     // the address of the bridge account to transfer from, if this is a withdrawal
@@ -688,8 +685,8 @@ impl Ics20Withdrawal {
     }
 
     #[must_use]
-    pub fn fee_asset_id(&self) -> &asset::Id {
-        &self.fee_asset_id
+    pub fn fee_asset(&self) -> &asset::Denom {
+        &self.fee_asset
     }
 
     #[must_use]
@@ -718,7 +715,7 @@ impl Ics20Withdrawal {
             timeout_height: Some(self.timeout_height.into_raw()),
             timeout_time: self.timeout_time,
             source_channel: self.source_channel.to_string(),
-            fee_asset_id: self.fee_asset_id.get().to_vec(),
+            fee_asset: self.fee_asset.to_string(),
             memo: self.memo.clone(),
             bridge_address: self.bridge_address.as_ref().map(Address::to_raw),
         }
@@ -734,7 +731,7 @@ impl Ics20Withdrawal {
             timeout_height: Some(self.timeout_height.into_raw()),
             timeout_time: self.timeout_time,
             source_channel: self.source_channel.to_string(),
-            fee_asset_id: self.fee_asset_id.get().to_vec(),
+            fee_asset: self.fee_asset.to_string(),
             memo: self.memo,
             bridge_address: self.bridge_address.map(Address::into_raw),
         }
@@ -758,7 +755,7 @@ impl Ics20Withdrawal {
             timeout_height,
             timeout_time,
             source_channel,
-            fee_asset_id,
+            fee_asset,
             memo,
             bridge_address,
         } = proto;
@@ -787,8 +784,9 @@ impl Ics20Withdrawal {
             source_channel: source_channel
                 .parse()
                 .map_err(Ics20WithdrawalError::invalid_source_channel)?,
-            fee_asset_id: asset::Id::try_from_slice(&fee_asset_id)
-                .map_err(Ics20WithdrawalError::invalid_fee_asset_id)?,
+            fee_asset: fee_asset
+                .parse()
+                .map_err(Ics20WithdrawalError::invalid_fee_asset)?,
             memo,
             bridge_address,
         })
@@ -848,8 +846,8 @@ impl Ics20WithdrawalError {
     }
 
     #[must_use]
-    fn invalid_fee_asset_id(err: asset::IncorrectAssetIdLength) -> Self {
-        Self(Ics20WithdrawalErrorKind::InvalidFeeAssetId(err))
+    fn invalid_fee_asset(err: asset::ParseDenomError) -> Self {
+        Self(Ics20WithdrawalErrorKind::InvalidFeeAsset(err))
     }
 
     #[must_use]
@@ -872,8 +870,8 @@ enum Ics20WithdrawalErrorKind {
     ReturnAddress { source: AddressError },
     #[error("`source_channel` field was invalid")]
     InvalidSourceChannel(#[source] IdentifierError),
-    #[error("`fee_asset_id` field was invalid")]
-    InvalidFeeAssetId(#[source] asset::IncorrectAssetIdLength),
+    #[error("field `fee_asset` could not be parsed")]
+    InvalidFeeAsset(#[source] asset::ParseDenomError),
     #[error("`bridge_address` field was invalid")]
     InvalidBridgeAddress(#[source] AddressError),
     #[error("`denom` field was invalid")]
@@ -977,22 +975,22 @@ enum IbcRelayerChangeActionErrorKind {
 #[allow(clippy::module_name_repetitions)]
 #[derive(Debug, Clone)]
 pub enum FeeAssetChangeAction {
-    Addition(asset::Id),
-    Removal(asset::Id),
+    Addition(asset::Denom),
+    Removal(asset::Denom),
 }
 
 impl FeeAssetChangeAction {
     #[must_use]
     pub fn into_raw(self) -> raw::FeeAssetChangeAction {
         match self {
-            FeeAssetChangeAction::Addition(asset_id) => raw::FeeAssetChangeAction {
+            FeeAssetChangeAction::Addition(asset) => raw::FeeAssetChangeAction {
                 value: Some(raw::fee_asset_change_action::Value::Addition(
-                    asset_id.get().to_vec(),
+                    asset.to_string(),
                 )),
             },
-            FeeAssetChangeAction::Removal(asset_id) => raw::FeeAssetChangeAction {
+            FeeAssetChangeAction::Removal(asset) => raw::FeeAssetChangeAction {
                 value: Some(raw::fee_asset_change_action::Value::Removal(
-                    asset_id.get().to_vec(),
+                    asset.to_string(),
                 )),
             },
         }
@@ -1001,14 +999,14 @@ impl FeeAssetChangeAction {
     #[must_use]
     pub fn to_raw(&self) -> raw::FeeAssetChangeAction {
         match self {
-            FeeAssetChangeAction::Addition(asset_id) => raw::FeeAssetChangeAction {
+            FeeAssetChangeAction::Addition(asset) => raw::FeeAssetChangeAction {
                 value: Some(raw::fee_asset_change_action::Value::Addition(
-                    asset_id.get().to_vec(),
+                    asset.to_string(),
                 )),
             },
-            FeeAssetChangeAction::Removal(asset_id) => raw::FeeAssetChangeAction {
+            FeeAssetChangeAction::Removal(asset) => raw::FeeAssetChangeAction {
                 value: Some(raw::fee_asset_change_action::Value::Removal(
-                    asset_id.get().to_vec(),
+                    asset.to_string(),
                 )),
             },
         }
@@ -1018,26 +1016,28 @@ impl FeeAssetChangeAction {
     ///
     /// # Errors
     ///
-    /// - if the `asset_id` field is invalid
+    /// - if the `asset` field is invalid
     pub fn try_from_raw(
         raw: &raw::FeeAssetChangeAction,
     ) -> Result<Self, FeeAssetChangeActionError> {
         match raw {
             raw::FeeAssetChangeAction {
-                value: Some(raw::fee_asset_change_action::Value::Addition(asset_id)),
+                value: Some(raw::fee_asset_change_action::Value::Addition(asset)),
             } => {
-                let asset_id = asset::Id::try_from_slice(asset_id)
-                    .map_err(FeeAssetChangeActionError::invalid_asset_id)?;
-                Ok(FeeAssetChangeAction::Addition(asset_id))
+                let asset = asset
+                    .parse()
+                    .map_err(FeeAssetChangeActionError::invalid_asset)?;
+                Ok(FeeAssetChangeAction::Addition(asset))
             }
             raw::FeeAssetChangeAction {
-                value: Some(raw::fee_asset_change_action::Value::Removal(asset_id)),
+                value: Some(raw::fee_asset_change_action::Value::Removal(asset)),
             } => {
-                let asset_id = asset::Id::try_from_slice(asset_id)
-                    .map_err(FeeAssetChangeActionError::invalid_asset_id)?;
-                Ok(FeeAssetChangeAction::Removal(asset_id))
+                let asset = asset
+                    .parse()
+                    .map_err(FeeAssetChangeActionError::invalid_asset)?;
+                Ok(FeeAssetChangeAction::Removal(asset))
             }
-            _ => Err(FeeAssetChangeActionError::missing_asset_id()),
+            _ => Err(FeeAssetChangeActionError::missing_asset()),
         }
     }
 }
@@ -1048,22 +1048,22 @@ pub struct FeeAssetChangeActionError(FeeAssetChangeActionErrorKind);
 
 impl FeeAssetChangeActionError {
     #[must_use]
-    fn invalid_asset_id(err: asset::IncorrectAssetIdLength) -> Self {
-        Self(FeeAssetChangeActionErrorKind::InvalidAssetId(err))
+    fn invalid_asset(err: asset::ParseDenomError) -> Self {
+        Self(FeeAssetChangeActionErrorKind::InvalidAsset(err))
     }
 
     #[must_use]
-    fn missing_asset_id() -> Self {
-        Self(FeeAssetChangeActionErrorKind::MissingAssetId)
+    fn missing_asset() -> Self {
+        Self(FeeAssetChangeActionErrorKind::MissingAsset)
     }
 }
 
 #[derive(Debug, thiserror::Error)]
 enum FeeAssetChangeActionErrorKind {
-    #[error("the asset_id was invalid")]
-    InvalidAssetId(#[source] asset::IncorrectAssetIdLength),
-    #[error("the asset_id was missing")]
-    MissingAssetId,
+    #[error("the `asset` field was invalid")]
+    InvalidAsset(#[source] asset::ParseDenomError),
+    #[error("the `asset` field was not set")]
+    MissingAsset,
 }
 
 #[allow(clippy::module_name_repetitions)]
@@ -1072,9 +1072,9 @@ pub struct InitBridgeAccountAction {
     // the rollup ID to register for the sender of this action
     pub rollup_id: RollupId,
     // the assets accepted by the bridge account
-    pub asset_id: asset::Id,
+    pub asset: asset::Denom,
     // the fee asset which to pay this action's fees with
-    pub fee_asset_id: asset::Id,
+    pub fee_asset: asset::Denom,
     // the address corresponding to the key which has sudo capabilities;
     // ie. can change the sudo and withdrawer addresses for this bridge account.
     // if unset, this is set to the sender of the transaction.
@@ -1089,8 +1089,8 @@ impl InitBridgeAccountAction {
     pub fn into_raw(self) -> raw::InitBridgeAccountAction {
         raw::InitBridgeAccountAction {
             rollup_id: Some(self.rollup_id.to_raw()),
-            asset_id: self.asset_id.get().to_vec(),
-            fee_asset_id: self.fee_asset_id.get().to_vec(),
+            asset: self.asset.to_string(),
+            fee_asset: self.fee_asset.to_string(),
             sudo_address: self.sudo_address.map(Address::into_raw),
             withdrawer_address: self.withdrawer_address.map(Address::into_raw),
         }
@@ -1100,8 +1100,8 @@ impl InitBridgeAccountAction {
     pub fn to_raw(&self) -> raw::InitBridgeAccountAction {
         raw::InitBridgeAccountAction {
             rollup_id: Some(self.rollup_id.to_raw()),
-            asset_id: self.asset_id.get().to_vec(),
-            fee_asset_id: self.fee_asset_id.get().to_vec(),
+            asset: self.asset.to_string(),
+            fee_asset: self.fee_asset.to_string(),
             sudo_address: self.sudo_address.as_ref().map(Address::to_raw),
             withdrawer_address: self.withdrawer_address.as_ref().map(Address::to_raw),
         }
@@ -1123,10 +1123,14 @@ impl InitBridgeAccountAction {
         };
         let rollup_id = RollupId::try_from_raw(&rollup_id)
             .map_err(InitBridgeAccountActionError::invalid_rollup_id)?;
-        let asset_id = asset::Id::try_from_slice(&proto.asset_id)
-            .map_err(InitBridgeAccountActionError::invalid_asset_id)?;
-        let fee_asset_id = asset::Id::try_from_slice(&proto.fee_asset_id)
-            .map_err(InitBridgeAccountActionError::invalid_fee_asset_id)?;
+        let asset = proto
+            .asset
+            .parse()
+            .map_err(InitBridgeAccountActionError::invalid_asset)?;
+        let fee_asset = proto
+            .fee_asset
+            .parse()
+            .map_err(InitBridgeAccountActionError::invalid_fee_asset)?;
         let sudo_address = proto
             .sudo_address
             .as_ref()
@@ -1142,8 +1146,8 @@ impl InitBridgeAccountAction {
 
         Ok(Self {
             rollup_id,
-            asset_id,
-            fee_asset_id,
+            asset,
+            fee_asset,
             sudo_address,
             withdrawer_address,
         })
@@ -1166,13 +1170,13 @@ impl InitBridgeAccountActionError {
     }
 
     #[must_use]
-    fn invalid_asset_id(err: asset::IncorrectAssetIdLength) -> Self {
-        Self(InitBridgeAccountActionErrorKind::InvalidAssetId(err))
+    fn invalid_asset(err: asset::ParseDenomError) -> Self {
+        Self(InitBridgeAccountActionErrorKind::InvalidAsset(err))
     }
 
     #[must_use]
-    fn invalid_fee_asset_id(err: asset::IncorrectAssetIdLength) -> Self {
-        Self(InitBridgeAccountActionErrorKind::InvalidFeeAssetId(err))
+    fn invalid_fee_asset(err: asset::ParseDenomError) -> Self {
+        Self(InitBridgeAccountActionErrorKind::InvalidFeeAsset(err))
     }
 
     #[must_use]
@@ -1199,9 +1203,9 @@ enum InitBridgeAccountActionErrorKind {
     #[error("the `rollup_id` field was invalid")]
     InvalidRollupId(#[source] IncorrectRollupIdLength),
     #[error("an asset ID was invalid")]
-    InvalidAssetId(#[source] asset::IncorrectAssetIdLength),
-    #[error("the `fee_asset_id` field was invalid")]
-    InvalidFeeAssetId(#[source] asset::IncorrectAssetIdLength),
+    InvalidAsset(#[source] asset::ParseDenomError),
+    #[error("the `fee_asset` field was invalid")]
+    InvalidFeeAsset(#[source] asset::ParseDenomError),
     #[error("the `sudo_address` field was invalid")]
     InvalidSudoAddress(#[source] AddressError),
     #[error("the `withdrawer_address` field was invalid")]
@@ -1214,9 +1218,9 @@ pub struct BridgeLockAction {
     pub to: Address,
     pub amount: u128,
     // asset to be transferred.
-    pub asset_id: asset::Id,
+    pub asset: asset::Denom,
     // asset to use for fee payment.
-    pub fee_asset_id: asset::Id,
+    pub fee_asset: asset::Denom,
     // the address on the destination chain to send the transfer to.
     pub destination_chain_address: String,
 }
@@ -1227,8 +1231,8 @@ impl BridgeLockAction {
         raw::BridgeLockAction {
             to: Some(self.to.to_raw()),
             amount: Some(self.amount.into()),
-            asset_id: self.asset_id.get().to_vec(),
-            fee_asset_id: self.fee_asset_id.as_ref().to_vec(),
+            asset: self.asset.to_string(),
+            fee_asset: self.fee_asset.to_string(),
             destination_chain_address: self.destination_chain_address,
         }
     }
@@ -1238,8 +1242,8 @@ impl BridgeLockAction {
         raw::BridgeLockAction {
             to: Some(self.to.to_raw()),
             amount: Some(self.amount.into()),
-            asset_id: self.asset_id.get().to_vec(),
-            fee_asset_id: self.fee_asset_id.as_ref().to_vec(),
+            asset: self.asset.to_string(),
+            fee_asset: self.fee_asset.to_string(),
             destination_chain_address: self.destination_chain_address.clone(),
         }
     }
@@ -1250,8 +1254,8 @@ impl BridgeLockAction {
     ///
     /// - if the `to` field is not set
     /// - if the `to` field is invalid
-    /// - if the `asset_id` field is invalid
-    /// - if the `fee_asset_id` field is invalid
+    /// - if the `asset` field is invalid
+    /// - if the `fee_asset` field is invalid
     pub fn try_from_raw(proto: raw::BridgeLockAction) -> Result<Self, BridgeLockActionError> {
         let Some(to) = proto.to else {
             return Err(BridgeLockActionError::field_not_set("to"));
@@ -1260,15 +1264,19 @@ impl BridgeLockAction {
         let amount = proto
             .amount
             .ok_or(BridgeLockActionError::missing_amount())?;
-        let asset_id = asset::Id::try_from_slice(&proto.asset_id)
-            .map_err(BridgeLockActionError::invalid_asset_id)?;
-        let fee_asset_id = asset::Id::try_from_slice(&proto.fee_asset_id)
-            .map_err(BridgeLockActionError::invalid_fee_asset_id)?;
+        let asset = proto
+            .asset
+            .parse()
+            .map_err(BridgeLockActionError::invalid_asset)?;
+        let fee_asset = proto
+            .fee_asset
+            .parse()
+            .map_err(BridgeLockActionError::invalid_fee_asset)?;
         Ok(Self {
             to,
             amount: amount.into(),
-            asset_id,
-            fee_asset_id,
+            asset,
+            fee_asset,
             destination_chain_address: proto.destination_chain_address,
         })
     }
@@ -1297,13 +1305,13 @@ impl BridgeLockActionError {
     }
 
     #[must_use]
-    fn invalid_asset_id(err: asset::IncorrectAssetIdLength) -> Self {
-        Self(BridgeLockActionErrorKind::InvalidAssetId(err))
+    fn invalid_asset(err: asset::ParseDenomError) -> Self {
+        Self(BridgeLockActionErrorKind::InvalidAsset(err))
     }
 
     #[must_use]
-    fn invalid_fee_asset_id(err: asset::IncorrectAssetIdLength) -> Self {
-        Self(BridgeLockActionErrorKind::InvalidFeeAssetId(err))
+    fn invalid_fee_asset(err: asset::ParseDenomError) -> Self {
+        Self(BridgeLockActionErrorKind::InvalidFeeAsset(err))
     }
 }
 
@@ -1315,10 +1323,10 @@ enum BridgeLockActionErrorKind {
     Address { source: AddressError },
     #[error("the `amount` field was not set")]
     MissingAmount,
-    #[error("the `asset_id` field was invalid")]
-    InvalidAssetId(#[source] asset::IncorrectAssetIdLength),
-    #[error("the `fee_asset_id` field was invalid")]
-    InvalidFeeAssetId(#[source] asset::IncorrectAssetIdLength),
+    #[error("the `asset` field was invalid")]
+    InvalidAsset(#[source] asset::ParseDenomError),
+    #[error("the `fee_asset` field was invalid")]
+    InvalidFeeAsset(#[source] asset::ParseDenomError),
 }
 
 #[allow(clippy::module_name_repetitions)]
@@ -1327,7 +1335,7 @@ pub struct BridgeUnlockAction {
     pub to: Address,
     pub amount: u128,
     // asset to use for fee payment.
-    pub fee_asset_id: asset::Id,
+    pub fee_asset: asset::Denom,
     // memo for double spend protection.
     pub memo: Vec<u8>,
     // the address of the bridge account to transfer from,
@@ -1342,7 +1350,7 @@ impl BridgeUnlockAction {
         raw::BridgeUnlockAction {
             to: Some(self.to.to_raw()),
             amount: Some(self.amount.into()),
-            fee_asset_id: self.fee_asset_id.as_ref().to_vec(),
+            fee_asset: self.fee_asset.to_string(),
             memo: self.memo,
             bridge_address: self.bridge_address.map(Address::into_raw),
         }
@@ -1353,7 +1361,7 @@ impl BridgeUnlockAction {
         raw::BridgeUnlockAction {
             to: Some(self.to.to_raw()),
             amount: Some(self.amount.into()),
-            fee_asset_id: self.fee_asset_id.as_ref().to_vec(),
+            fee_asset: self.fee_asset.to_string(),
             memo: self.memo.clone(),
             bridge_address: self.bridge_address.as_ref().map(Address::to_raw),
         }
@@ -1366,7 +1374,7 @@ impl BridgeUnlockAction {
     /// - if the `to` field is not set
     /// - if the `to` field is invalid
     /// - if the `amount` field is invalid
-    /// - if the `fee_asset_id` field is invalid
+    /// - if the `fee_asset` field is invalid
     /// - if the `from` field is invalid
     pub fn try_from_raw(proto: raw::BridgeUnlockAction) -> Result<Self, BridgeUnlockActionError> {
         let Some(to) = proto.to else {
@@ -1376,8 +1384,10 @@ impl BridgeUnlockAction {
         let amount = proto
             .amount
             .ok_or(BridgeUnlockActionError::missing_amount())?;
-        let fee_asset_id = asset::Id::try_from_slice(&proto.fee_asset_id)
-            .map_err(BridgeUnlockActionError::invalid_fee_asset_id)?;
+        let fee_asset = proto
+            .fee_asset
+            .parse()
+            .map_err(BridgeUnlockActionError::invalid_fee_asset)?;
         let bridge_address = proto
             .bridge_address
             .as_ref()
@@ -1387,7 +1397,7 @@ impl BridgeUnlockAction {
         Ok(Self {
             to,
             amount: amount.into(),
-            fee_asset_id,
+            fee_asset,
             memo: proto.memo,
             bridge_address,
         })
@@ -1417,8 +1427,8 @@ impl BridgeUnlockActionError {
     }
 
     #[must_use]
-    fn invalid_fee_asset_id(err: asset::IncorrectAssetIdLength) -> Self {
-        Self(BridgeUnlockActionErrorKind::InvalidFeeAssetId(err))
+    fn invalid_fee_asset(err: asset::ParseDenomError) -> Self {
+        Self(BridgeUnlockActionErrorKind::InvalidFeeAsset(err))
     }
 
     #[must_use]
@@ -1435,8 +1445,8 @@ enum BridgeUnlockActionErrorKind {
     Address { source: AddressError },
     #[error("the `amount` field was not set")]
     MissingAmount,
-    #[error("the `fee_asset_id` field was invalid")]
-    InvalidFeeAssetId(#[source] asset::IncorrectAssetIdLength),
+    #[error("the `fee_asset` field was invalid")]
+    InvalidFeeAsset(#[source] asset::ParseDenomError),
     #[error("the `bridge_address` field was invalid")]
     InvalidBridgeAddress(#[source] AddressError),
 }
@@ -1447,7 +1457,7 @@ pub struct BridgeSudoChangeAction {
     pub bridge_address: Address,
     pub new_sudo_address: Option<Address>,
     pub new_withdrawer_address: Option<Address>,
-    pub fee_asset_id: asset::Id,
+    pub fee_asset: asset::Denom,
 }
 
 impl BridgeSudoChangeAction {
@@ -1457,7 +1467,7 @@ impl BridgeSudoChangeAction {
             bridge_address: Some(self.bridge_address.to_raw()),
             new_sudo_address: self.new_sudo_address.map(Address::into_raw),
             new_withdrawer_address: self.new_withdrawer_address.map(Address::into_raw),
-            fee_asset_id: self.fee_asset_id.get().to_vec(),
+            fee_asset: self.fee_asset.to_string(),
         }
     }
 
@@ -1467,7 +1477,7 @@ impl BridgeSudoChangeAction {
             bridge_address: Some(self.bridge_address.to_raw()),
             new_sudo_address: self.new_sudo_address.as_ref().map(Address::to_raw),
             new_withdrawer_address: self.new_withdrawer_address.as_ref().map(Address::to_raw),
-            fee_asset_id: self.fee_asset_id.get().to_vec(),
+            fee_asset: self.fee_asset.to_string(),
         }
     }
 
@@ -1479,7 +1489,7 @@ impl BridgeSudoChangeAction {
     /// - if the `bridge_address` field is invalid
     /// - if the `new_sudo_address` field is invalid
     /// - if the `new_withdrawer_address` field is invalid
-    /// - if the `fee_asset_id` field is invalid
+    /// - if the `fee_asset` field is invalid
     pub fn try_from_raw(
         proto: raw::BridgeSudoChangeAction,
     ) -> Result<Self, BridgeSudoChangeActionError> {
@@ -1500,14 +1510,16 @@ impl BridgeSudoChangeAction {
             .map(Address::try_from_raw)
             .transpose()
             .map_err(BridgeSudoChangeActionError::invalid_new_withdrawer_address)?;
-        let fee_asset_id = asset::Id::try_from_slice(&proto.fee_asset_id)
-            .map_err(BridgeSudoChangeActionError::invalid_fee_asset_id)?;
+        let fee_asset = proto
+            .fee_asset
+            .parse()
+            .map_err(BridgeSudoChangeActionError::invalid_fee_asset)?;
 
         Ok(Self {
             bridge_address,
             new_sudo_address,
             new_withdrawer_address,
-            fee_asset_id,
+            fee_asset,
         })
     }
 }
@@ -1538,8 +1550,8 @@ impl BridgeSudoChangeActionError {
     }
 
     #[must_use]
-    fn invalid_fee_asset_id(err: asset::IncorrectAssetIdLength) -> Self {
-        Self(BridgeSudoChangeActionErrorKind::InvalidFeeAssetId(err))
+    fn invalid_fee_asset(err: asset::ParseDenomError) -> Self {
+        Self(BridgeSudoChangeActionErrorKind::InvalidFeeAsset(err))
     }
 }
 
@@ -1553,8 +1565,8 @@ enum BridgeSudoChangeActionErrorKind {
     InvalidNewSudoAddress(#[source] AddressError),
     #[error("the `new_withdrawer_address` field was invalid")]
     InvalidNewWithdrawerAddress(#[source] AddressError),
-    #[error("the `fee_asset_id` field was invalid")]
-    InvalidFeeAssetId(#[source] asset::IncorrectAssetIdLength),
+    #[error("the `fee_asset` field was invalid")]
+    InvalidFeeAsset(#[source] asset::ParseDenomError),
 }
 
 #[derive(Debug, Clone)]

@@ -50,7 +50,7 @@ impl ActionHandler for InitBridgeAccountAction {
         from: Address,
     ) -> Result<()> {
         ensure!(
-            state.is_allowed_fee_asset(self.fee_asset_id).await?,
+            state.is_allowed_fee_asset(&self.fee_asset).await?,
             "invalid fee asset",
         );
 
@@ -75,7 +75,7 @@ impl ActionHandler for InitBridgeAccountAction {
         }
 
         let balance = state
-            .get_account_balance(from, self.fee_asset_id)
+            .get_account_balance(from, &self.fee_asset)
             .await
             .context("failed getting `from` account balance for fee payment")?;
 
@@ -96,14 +96,14 @@ impl ActionHandler for InitBridgeAccountAction {
 
         state.put_bridge_account_rollup_id(&from, &self.rollup_id);
         state
-            .put_bridge_account_asset_id(&from, &self.asset_id)
+            .put_bridge_account_ibc_asset(&from, &self.asset)
             .context("failed to put asset ID")?;
         state.put_bridge_account_sudo_address(&from, &self.sudo_address.unwrap_or(from));
         state
             .put_bridge_account_withdrawer_address(&from, &self.withdrawer_address.unwrap_or(from));
 
         state
-            .decrease_balance(from, self.fee_asset_id, fee)
+            .decrease_balance(from, &self.fee_asset, fee)
             .await
             .context("failed to deduct fee from account balance")?;
         Ok(())

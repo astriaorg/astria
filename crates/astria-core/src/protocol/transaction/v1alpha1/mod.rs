@@ -475,12 +475,16 @@ mod test {
     use super::*;
     use crate::{
         primitive::v1::{
-            asset::default_native_asset,
+            asset,
             Address,
         },
         protocol::transaction::v1alpha1::action::TransferAction,
     };
     const ASTRIA_ADDRESS_PREFIX: &str = "astria";
+
+    fn asset() -> asset::Denom {
+        "nria".parse().unwrap()
+    }
 
     #[test]
     fn signed_transaction_hash() {
@@ -503,8 +507,8 @@ mod test {
                 .try_build()
                 .unwrap(),
             amount: 0,
-            asset_id: default_native_asset().id(),
-            fee_asset_id: default_native_asset().id(),
+            asset: asset(),
+            fee_asset: asset(),
         };
 
         let params = TransactionParams::from_raw(raw::TransactionParams {
@@ -540,8 +544,8 @@ mod test {
                 .try_build()
                 .unwrap(),
             amount: 0,
-            asset_id: default_native_asset().id(),
-            fee_asset_id: default_native_asset().id(),
+            asset: asset(),
+            fee_asset: asset(),
         };
 
         let params = TransactionParams::from_raw(raw::TransactionParams {

@@ -47,7 +47,7 @@ impl ActionHandler for BridgeSudoChangeAction {
     ) -> Result<()> {
         ensure!(
             state
-                .is_allowed_fee_asset(self.fee_asset_id)
+                .is_allowed_fee_asset(&self.fee_asset)
                 .await
                 .context("failed to check allowed fee assets in state")?,
             "invalid fee asset",
@@ -79,7 +79,7 @@ impl ActionHandler for BridgeSudoChangeAction {
             .await
             .context("failed to get bridge sudo change fee")?;
         state
-            .decrease_balance(self.bridge_address, self.fee_asset_id, fee)
+            .decrease_balance(self.bridge_address, &self.fee_asset, fee)
             .await
             .context("failed to decrease balance for bridge sudo change fee")?;
 
@@ -97,10 +97,14 @@ impl ActionHandler for BridgeSudoChangeAction {
 
 #[cfg(test)]
 mod tests {
-    use astria_core::primitive::v1::asset::Id;
+    use astria_core::primitive::v1::asset;
     use cnidarium::StateDelta;
 
     use super::*;
+
+    fn test_asset() -> asset::Denom {
+        "test".parse().unwrap()
+    }
 
     #[tokio::test]
     async fn bridge_sudo_change_check_stateless_ok() {
@@ -108,8 +112,8 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        let asset_id = Id::from_str_unchecked("test");
-        state.put_allowed_fee_asset(asset_id);
+        let asset = test_asset();
+        state.put_allowed_fee_asset(&asset);
 
         let bridge_address = crate::address::base_prefixed([99; 20]);
         let sudo_address = crate::address::base_prefixed([98; 20]);
@@ -119,7 +123,7 @@ mod tests {
             bridge_address,
             new_sudo_address: None,
             new_withdrawer_address: None,
-            fee_asset_id: asset_id,
+            fee_asset: asset.clone(),
         };
 
         action.check_stateful(&state, sudo_address).await.unwrap();
@@ -131,8 +135,8 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        let asset_id = Id::from_str_unchecked("test");
-        state.put_allowed_fee_asset(asset_id);
+        let asset = test_asset();
+        state.put_allowed_fee_asset(&asset);
 
         let bridge_address = crate::address::base_prefixed([99; 20]);
         let sudo_address = crate::address::base_prefixed([98; 20]);
@@ -142,7 +146,7 @@ mod tests {
             bridge_address,
             new_sudo_address: None,
             new_withdrawer_address: None,
-            fee_asset_id: asset_id,
+            fee_asset: asset.clone(),
         };
 
         assert!(
@@ -162,19 +166,19 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
         state.put_bridge_sudo_change_base_fee(10);
 
-        let fee_asset_id = Id::from_str_unchecked("test");
+        let fee_asset = test_asset();
         let bridge_address = crate::address::base_prefixed([99; 20]);
         let new_sudo_address = crate::address::base_prefixed([98; 20]);
         let new_withdrawer_address = crate::address::base_prefixed([97; 20]);
         state
-            .put_account_balance(bridge_address, fee_asset_id, 10)
+            .put_account_balance(bridge_address, &fee_asset, 10)
             .unwrap();
 
         let action = BridgeSudoChangeAction {
             bridge_address,
             new_sudo_address: Some(new_sudo_address),
             new_withdrawer_address: Some(new_withdrawer_address),
-            fee_asset_id,
+            fee_asset,
         };
 
         action.execute(&mut state, bridge_address).await.unwrap();
