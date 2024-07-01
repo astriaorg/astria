@@ -469,6 +469,7 @@ async fn get_latest_balance(
     address: Address,
 ) -> eyre::Result<BalanceResponse> {
     let res = tryhard::retry_fn(|| {
+        // only retry on tendermint_rpc errors, not deserialization or native conversion
         let client = client.clone();
         async move {
             match client.get_latest_balance(address).await {
