@@ -1,5 +1,6 @@
 use astria_core::protocol::transaction::v1alpha1::Action;
 
+#[derive(Debug)]
 pub(crate) struct Batch {
     /// The withdrawal payloads
     pub(crate) actions: Vec<Action>,

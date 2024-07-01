@@ -24,11 +24,11 @@ impl ::prost::Name for BridgeAccountLastTxHashResponse {
 pub struct BridgeAccountInfoResponse {
     #[prost(uint64, tag = "2")]
     pub height: u64,
-    /// if the accound is not a bridge account, the following fields will be empty.
+    /// if the account is not a bridge account, the following fields will be empty.
     #[prost(message, optional, tag = "3")]
     pub rollup_id: ::core::option::Option<super::super::super::primitive::v1::RollupId>,
-    #[prost(bytes = "vec", optional, tag = "4")]
-    pub asset_id: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
+    #[prost(string, optional, tag = "4")]
+    pub asset: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "5")]
     pub sudo_address: ::core::option::Option<
         super::super::super::primitive::v1::Address,

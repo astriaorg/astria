@@ -14,6 +14,7 @@ use tendermint::abci::{
 };
 
 use crate::{
+    asset::state_ext::StateReadExt as _,
     bridge::state_ext::StateReadExt as _,
     state_ext::StateReadExt as _,
 };
@@ -23,20 +24,14 @@ fn error_query_response(
     code: AbciErrorCode,
     info: &str,
 ) -> response::Query {
-    if err.is_none() {
-        return response::Query {
-            code: code.into(),
-            info: code.to_string(),
-            log: info.into(),
-            ..response::Query::default()
-        };
-    }
-
-    let err = err.unwrap();
+    let log = match err {
+        Some(err) => format!("{info}: {err:?}"),
+        None => info.into(),
+    };
     response::Query {
         code: code.into(),
         info: code.to_string(),
-        log: format!("{info}: {err:#}"),
+        log,
         ..response::Query::default()
     }
 }
@@ -59,13 +54,31 @@ async fn get_bridge_account_info(
         }
     };
 
-    let asset_id = match snapshot.get_bridge_account_asset_id(&address).await {
-        Ok(asset_id) => asset_id,
+    let ibc_asset = match snapshot.get_bridge_account_ibc_asset(&address).await {
+        Ok(asset) => asset,
         Err(err) => {
             return Err(error_query_response(
                 Some(err),
                 AbciErrorCode::INTERNAL_ERROR,
-                "failed to get asset id",
+                "failed to get bridge asset",
+            ));
+        }
+    };
+
+    let trace_asset = match snapshot.map_ibc_to_trace_prefixed_asset(ibc_asset).await {
+        Ok(Some(trace_asset)) => trace_asset,
+        Ok(None) => {
+            return Err(error_query_response(
+                None,
+                AbciErrorCode::INTERNAL_ERROR,
+                "failed to map ibc asset to trace asset; asset does not exist in state",
+            ));
+        }
+        Err(err) => {
+            return Err(error_query_response(
+                Some(err),
+                AbciErrorCode::INTERNAL_ERROR,
+                "failed to map ibc asset to trace asset",
             ));
         }
     };
@@ -111,7 +124,7 @@ async fn get_bridge_account_info(
 
     Ok(Some(BridgeAccountInfo {
         rollup_id,
-        asset_id,
+        asset: trace_asset.into(),
         sudo_address,
         withdrawer_address,
     }))
@@ -249,18 +262,16 @@ fn preprocess_request(params: &[(String, String)]) -> anyhow::Result<Address, re
 mod test {
     use astria_core::{
         generated::protocol::bridge::v1alpha1::BridgeAccountInfoResponse as RawBridgeAccountInfoResponse,
-        primitive::v1::{
-            asset,
-            RollupId,
-        },
+        primitive::v1::RollupId,
         protocol::bridge::v1alpha1::BridgeAccountInfoResponse,
     };
     use cnidarium::StateDelta;
 
     use super::*;
     use crate::{
+        asset::state_ext::StateWriteExt,
         bridge::state_ext::StateWriteExt as _,
-        state_ext::StateWriteExt,
+        state_ext::StateWriteExt as _,
     };
 
     #[tokio::test]
@@ -269,7 +280,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        let asset_id = asset::Id::from_str_unchecked("test");
+        let asset: astria_core::primitive::v1::asset::Denom = "test".parse().unwrap();
         let rollup_id = RollupId::from_unhashed_bytes("test");
         let bridge_address = crate::address::base_prefixed([0u8; 20]);
         let sudo_address = crate::address::base_prefixed([1u8; 20]);
@@ -277,7 +288,10 @@ mod test {
         state.put_block_height(1);
         state.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
         state
-            .put_bridge_account_asset_id(&bridge_address, &asset_id)
+            .put_ibc_asset(&asset.as_trace_prefixed().unwrap())
+            .unwrap();
+        state
+            .put_bridge_account_ibc_asset(&bridge_address, &asset)
             .unwrap();
         state.put_bridge_account_sudo_address(&bridge_address, &sudo_address);
         state.put_bridge_account_withdrawer_address(&bridge_address, &withdrawer_address);
@@ -300,7 +314,7 @@ mod test {
             height: 1,
             info: Some(BridgeAccountInfo {
                 rollup_id,
-                asset_id,
+                asset,
                 sudo_address,
                 withdrawer_address,
             }),

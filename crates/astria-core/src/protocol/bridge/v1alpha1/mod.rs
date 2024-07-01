@@ -1,6 +1,7 @@
 use super::raw;
 use crate::primitive::v1::{
     asset,
+    asset::denom::ParseDenomError,
     Address,
     AddressError,
     IncorrectRollupIdLength,
@@ -93,7 +94,7 @@ pub struct BridgeAccountInfoResponse {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BridgeAccountInfo {
     pub rollup_id: RollupId,
-    pub asset_id: asset::Id,
+    pub asset: asset::Denom,
     pub sudo_address: Address,
     pub withdrawer_address: Address,
 }
@@ -107,7 +108,7 @@ impl BridgeAccountInfoResponse {
     /// - if the `rollup_id` field is set but the `sudo_address` field is not
     /// - if the `rollup_id` field is set but the `withdrawer_address` field is not
     /// - if the `rollup_id` field is set but the `asset_id` field is not
-    /// - if the `asset_id` field does not contain a valid asset ID
+    /// - if the `asset` field does not contain a valid asset denom
     /// - if the `rollup_id` field is set but invalid
     /// - if the `sudo_address` field is set but invalid
     /// - if the `withdrawer_address` field is set but invalid
@@ -117,7 +118,7 @@ impl BridgeAccountInfoResponse {
         let raw::BridgeAccountInfoResponse {
             height,
             rollup_id,
-            asset_id,
+            asset,
             sudo_address,
             withdrawer_address,
         } = raw;
@@ -141,19 +142,20 @@ impl BridgeAccountInfoResponse {
             ));
         };
 
-        let Some(asset_id) = asset_id else {
-            return Err(BridgeAccountInfoResponseError::field_not_set("asset_id"));
+        let Some(asset) = asset else {
+            return Err(BridgeAccountInfoResponseError::field_not_set("asset"));
         };
 
-        let asset_id = asset::Id::try_from_slice(&asset_id)
-            .map_err(BridgeAccountInfoResponseError::asset_id)?;
+        let asset = asset
+            .parse()
+            .map_err(BridgeAccountInfoResponseError::invalid_denom)?;
 
         Ok(Self {
             height,
             info: Some(BridgeAccountInfo {
                 rollup_id: RollupId::try_from_raw(&rollup_id)
                     .map_err(BridgeAccountInfoResponseError::invalid_rollup_id)?,
-                asset_id,
+                asset,
                 sudo_address: Address::try_from_raw(&sudo_address)
                     .map_err(BridgeAccountInfoResponseError::invalid_sudo_address)?,
                 withdrawer_address: Address::try_from_raw(&withdrawer_address)
@@ -168,7 +170,7 @@ impl BridgeAccountInfoResponse {
             return raw::BridgeAccountInfoResponse {
                 height: self.height,
                 rollup_id: None,
-                asset_id: None,
+                asset: None,
                 sudo_address: None,
                 withdrawer_address: None,
             };
@@ -177,7 +179,7 @@ impl BridgeAccountInfoResponse {
         raw::BridgeAccountInfoResponse {
             height: self.height,
             rollup_id: Some(info.rollup_id.into_raw()),
-            asset_id: Some(info.asset_id.get().to_vec()),
+            asset: Some(info.asset.to_string()),
             sudo_address: Some(info.sudo_address.into_raw()),
             withdrawer_address: Some(info.withdrawer_address.into_raw()),
         }
@@ -192,8 +194,8 @@ pub struct BridgeAccountInfoResponseError(BridgeAccountInfoResponseErrorKind);
 enum BridgeAccountInfoResponseErrorKind {
     #[error("the expected field in the raw source type was not set: `{0}`")]
     FieldNotSet(&'static str),
-    #[error("`asset_id` field did not contain a valid asset ID")]
-    AssetId(#[source] asset::IncorrectAssetIdLength),
+    #[error("the `denom` field was invalid")]
+    InvalidDenom(#[source] ParseDenomError),
     #[error("the `rollup_id` field was invalid")]
     InvalidRollupId(#[source] IncorrectRollupIdLength),
     #[error("the `sudo_address` field was invalid")]
@@ -209,11 +211,6 @@ impl BridgeAccountInfoResponseError {
     }
 
     #[must_use]
-    pub fn asset_id(err: asset::IncorrectAssetIdLength) -> Self {
-        Self(BridgeAccountInfoResponseErrorKind::AssetId(err))
-    }
-
-    #[must_use]
     pub fn invalid_rollup_id(err: IncorrectRollupIdLength) -> Self {
         Self(BridgeAccountInfoResponseErrorKind::InvalidRollupId(err))
     }
@@ -226,5 +223,10 @@ impl BridgeAccountInfoResponseError {
     #[must_use]
     pub fn invalid_withdrawer_address(err: AddressError) -> Self {
         Self(BridgeAccountInfoResponseErrorKind::InvalidWithdrawerAddress(err))
+    }
+
+    #[must_use]
+    pub fn invalid_denom(err: ParseDenomError) -> Self {
+        Self(BridgeAccountInfoResponseErrorKind::InvalidDenom(err))
     }
 }

@@ -19,7 +19,6 @@ use cnidarium::{
     StateWrite,
 };
 use futures::StreamExt;
-use hex::ToHex as _;
 use tracing::instrument;
 
 /// Newtype wrapper to read and write a u32 from rocksdb.
@@ -38,7 +37,6 @@ const ACCOUNTS_PREFIX: &str = "accounts";
 const TRANSFER_BASE_FEE_STORAGE_KEY: &str = "transferfee";
 
 struct StorageKey<'a>(&'a Address);
-
 impl<'a> std::fmt::Display for StorageKey<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(ACCOUNTS_PREFIX)?;
@@ -49,11 +47,15 @@ impl<'a> std::fmt::Display for StorageKey<'a> {
         Ok(())
     }
 }
-fn balance_storage_key(address: Address, asset: asset::Id) -> String {
+
+fn balance_storage_key<TAsset: Into<asset::IbcPrefixed>>(
+    address: Address,
+    asset: TAsset,
+) -> String {
     format!(
         "{}/balance/{}",
         StorageKey(&address),
-        asset.encode_hex::<String>()
+        crate::storage_keys::hunks::Asset::from(asset)
     )
 }
 
@@ -82,18 +84,18 @@ pub(crate) trait StateReadExt: StateRead {
                 continue;
             };
 
-            let asset_id_str = key
+            let asset = key
                 .strip_prefix(&prefix)
-                .context("failed to strip prefix from account balance key")?;
-            let asset_id_bytes = hex::decode(asset_id_str).context("invalid asset id bytes")?;
+                .context("failed to strip prefix from account balance key")?
+                .parse::<crate::storage_keys::hunks::Asset>()
+                .context("failed to parse storage key suffix as address hunk")?
+                .get();
 
-            let asset_id = asset::Id::try_from_slice(&asset_id_bytes)
-                .context("failed to parse asset id from account balance key")?;
             let Balance(balance) =
                 Balance::try_from_slice(&value).context("invalid balance bytes")?;
 
             let native_asset = crate::asset::get_native_asset();
-            if asset_id == native_asset.id() {
+            if asset == native_asset.to_ibc_prefixed() {
                 balances.push(AssetBalance {
                     denom: native_asset.clone(),
                     balance,
@@ -102,7 +104,7 @@ pub(crate) trait StateReadExt: StateRead {
             }
 
             let denom = self
-                .get_ibc_asset(asset_id)
+                .map_ibc_to_trace_prefixed_asset(asset)
                 .await
                 .context("failed to get ibc asset denom")?
                 .context("asset denom not found when user has balance of it; this is a bug")?
@@ -115,8 +117,11 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(balances)
     }
 
-    #[instrument(skip_all, fields(address=%address, asset_id=%asset))]
-    async fn get_account_balance(&self, address: Address, asset: asset::Id) -> Result<u128> {
+    #[instrument(skip_all, fields(address=%address, %asset))]
+    async fn get_account_balance<'a, TAsset>(&self, address: Address, asset: TAsset) -> Result<u128>
+    where
+        TAsset: Into<asset::IbcPrefixed> + std::fmt::Display + Send,
+    {
         let Some(bytes) = self
             .get_raw(&balance_storage_key(address, asset))
             .await
@@ -162,13 +167,16 @@ impl<T: StateRead + ?Sized> StateReadExt for T {}
 
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
-    #[instrument(skip(self))]
-    fn put_account_balance(
+    #[instrument(skip(self, asset), fields(%asset))]
+    fn put_account_balance<TAsset>(
         &mut self,
         address: Address,
-        asset: asset::Id,
+        asset: TAsset,
         balance: u128,
-    ) -> Result<()> {
+    ) -> Result<()>
+    where
+        TAsset: Into<asset::IbcPrefixed> + std::fmt::Display + Send,
+    {
         let bytes = borsh::to_vec(&Balance(balance)).context("failed to serialize balance")?;
         self.put_raw(balance_storage_key(address, asset), bytes);
         Ok(())
@@ -181,13 +189,17 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip(self))]
-    async fn increase_balance(
+    #[instrument(skip(self, asset), fields(%asset))]
+    async fn increase_balance<TAsset>(
         &mut self,
         address: Address,
-        asset: asset::Id,
+        asset: TAsset,
         amount: u128,
-    ) -> Result<()> {
+    ) -> Result<()>
+    where
+        TAsset: Into<asset::IbcPrefixed> + std::fmt::Display + Send,
+    {
+        let asset = asset.into();
         let balance = self
             .get_account_balance(address, asset)
             .await
@@ -203,13 +215,17 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip(self))]
-    async fn decrease_balance(
+    #[instrument(skip(self, asset), fields(%asset))]
+    async fn decrease_balance<TAsset>(
         &mut self,
         address: Address,
-        asset: asset::Id,
+        asset: TAsset,
         amount: u128,
-    ) -> Result<()> {
+    ) -> Result<()>
+    where
+        TAsset: Into<asset::IbcPrefixed> + std::fmt::Display + Send,
+    {
+        let asset = asset.into();
         let balance = self
             .get_account_balance(address, asset)
             .await
@@ -236,16 +252,9 @@ pub(crate) trait StateWriteExt: StateWrite {
 impl<T: StateWrite> StateWriteExt for T {}
 
 #[cfg(test)]
-mod test {
+mod tests {
     use astria_core::{
-        primitive::v1::{
-            asset::{
-                default_native_asset,
-                Id,
-                DEFAULT_NATIVE_ASSET_DENOM,
-            },
-            Address,
-        },
+        primitive::v1::Address,
         protocol::account::v1alpha1::AssetBalance,
     };
     use cnidarium::StateDelta;
@@ -262,6 +271,17 @@ mod test {
         },
         asset,
     };
+
+    fn asset_0() -> astria_core::primitive::v1::asset::Denom {
+        "asset_0".parse().unwrap()
+    }
+
+    fn asset_1() -> astria_core::primitive::v1::asset::Denom {
+        "asset_1".parse().unwrap()
+    }
+    fn asset_2() -> astria_core::primitive::v1::asset::Denom {
+        "asset_2".parse().unwrap()
+    }
 
     #[tokio::test]
     async fn get_account_nonce_uninitialized_returns_zero() {
@@ -378,7 +398,7 @@ mod test {
 
         // create needed variables
         let address = crate::address::base_prefixed([42u8; 20]);
-        let asset = Id::from_str_unchecked("asset_0");
+        let asset = asset_0();
         let amount_expected = 0u128;
 
         // non-initialized accounts return zero
@@ -400,17 +420,17 @@ mod test {
 
         // create needed variables
         let address = crate::address::base_prefixed([42u8; 20]);
-        let asset = Id::from_str_unchecked("asset_0");
+        let asset = asset_0();
         let mut amount_expected = 1u128;
 
         state
-            .put_account_balance(address, asset, amount_expected)
+            .put_account_balance(address, &asset, amount_expected)
             .expect("putting an account balance should not fail");
 
         // can initialize
         assert_eq!(
             state
-                .get_account_balance(address, asset)
+                .get_account_balance(address, &asset)
                 .await
                 .expect("getting an asset balance should not fail"),
             amount_expected,
@@ -421,12 +441,12 @@ mod test {
         amount_expected = 2u128;
 
         state
-            .put_account_balance(address, asset, amount_expected)
+            .put_account_balance(address, &asset, amount_expected)
             .expect("putting an asset balance for an account should not fail");
 
         assert_eq!(
             state
-                .get_account_balance(address, asset)
+                .get_account_balance(address, &asset)
                 .await
                 .expect("getting an asset balance should not fail"),
             amount_expected,
@@ -442,17 +462,17 @@ mod test {
 
         // create needed variables
         let address = crate::address::base_prefixed([42u8; 20]);
-        let asset = Id::from_str_unchecked("asset_0");
+        let asset = asset_0();
         let amount_expected = 1u128;
 
         state
-            .put_account_balance(address, asset, amount_expected)
+            .put_account_balance(address, &asset, amount_expected)
             .expect("putting an account balance should not fail");
 
         // able to write to account's storage
         assert_eq!(
             state
-                .get_account_balance(address, asset)
+                .get_account_balance(address, &asset)
                 .await
                 .expect("getting an asset balance should not fail"),
             amount_expected,
@@ -465,11 +485,11 @@ mod test {
         let amount_expected_1 = 2u128;
 
         state
-            .put_account_balance(address_1, asset, amount_expected_1)
+            .put_account_balance(address_1, &asset, amount_expected_1)
             .expect("putting an account balance should not fail");
         assert_eq!(
             state
-                .get_account_balance(address_1, asset)
+                .get_account_balance(address_1, &asset)
                 .await
                 .expect("getting an asset balance should not fail"),
             amount_expected_1,
@@ -478,7 +498,7 @@ mod test {
         );
         assert_eq!(
             state
-                .get_account_balance(address, asset)
+                .get_account_balance(address, &asset)
                 .await
                 .expect("getting an asset balance should not fail"),
             amount_expected,
@@ -495,22 +515,22 @@ mod test {
 
         // create needed variables
         let address = crate::address::base_prefixed([42u8; 20]);
-        let asset_0 = Id::from_str_unchecked("asset_0");
-        let asset_1 = Id::from_str_unchecked("asset_1");
+        let asset_0 = asset_0();
+        let asset_1 = asset_1();
         let amount_expected_0 = 1u128;
         let amount_expected_1 = 2u128;
 
         state
-            .put_account_balance(address, asset_0, amount_expected_0)
+            .put_account_balance(address, &asset_0, amount_expected_0)
             .expect("putting an account balance should not fail");
         state
-            .put_account_balance(address, asset_1, amount_expected_1)
+            .put_account_balance(address, &asset_1, amount_expected_1)
             .expect("putting an account balance should not fail");
 
         // wrote correct balances
         assert_eq!(
             state
-                .get_account_balance(address, asset_0)
+                .get_account_balance(address, &asset_0)
                 .await
                 .expect("getting an asset balance should not fail"),
             amount_expected_0,
@@ -518,7 +538,7 @@ mod test {
         );
         assert_eq!(
             state
-                .get_account_balance(address, asset_1)
+                .get_account_balance(address, &asset_1)
                 .await
                 .expect("getting an asset balance should not fail"),
             amount_expected_1,
@@ -550,29 +570,26 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         // need to set native asset in order to use `get_account_balances()`
-        crate::asset::initialize_native_asset(DEFAULT_NATIVE_ASSET_DENOM);
+        crate::asset::initialize_native_asset("nria");
 
-        let asset_0 = Id::from_str_unchecked(DEFAULT_NATIVE_ASSET_DENOM);
-        let asset_1 = Id::from_str_unchecked("asset_1");
-        let asset_2 = Id::from_str_unchecked("asset_2");
+        let asset_0 = crate::asset::get_native_asset();
+        let asset_1 = asset_1();
+        let asset_2 = asset_2();
 
         // also need to add assets to the ibc state
         asset::state_ext::StateWriteExt::put_ibc_asset(
             &mut state,
-            asset_0,
-            &default_native_asset().unwrap_trace_prefixed(),
+            &asset_0.clone().unwrap_trace_prefixed(),
         )
         .expect("should be able to call other trait method on state object");
         asset::state_ext::StateWriteExt::put_ibc_asset(
             &mut state,
-            asset_1,
-            &"asset_1".parse().unwrap(),
+            &asset_1.clone().unwrap_trace_prefixed(),
         )
         .expect("should be able to call other trait method on state object");
         asset::state_ext::StateWriteExt::put_ibc_asset(
             &mut state,
-            asset_2,
-            &"asset_2".parse().unwrap(),
+            &asset_2.clone().unwrap_trace_prefixed(),
         )
         .expect("should be able to call other trait method on state object");
 
@@ -584,13 +601,17 @@ mod test {
 
         // add balances to the account
         state
-            .put_account_balance(address, asset_0, amount_expected_0)
+            .put_account_balance(
+                address,
+                asset_0.clone().unwrap_trace_prefixed(),
+                amount_expected_0,
+            )
             .expect("putting an account balance should not fail");
         state
-            .put_account_balance(address, asset_1, amount_expected_1)
+            .put_account_balance(address, &asset_1, amount_expected_1)
             .expect("putting an account balance should not fail");
         state
-            .put_account_balance(address, asset_2, amount_expected_2)
+            .put_account_balance(address, &asset_2, amount_expected_2)
             .expect("putting an account balance should not fail");
 
         let mut balances = state
@@ -602,15 +623,15 @@ mod test {
             balances,
             vec![
                 AssetBalance {
-                    denom: default_native_asset(),
+                    denom: asset_0.clone(),
                     balance: amount_expected_0,
                 },
                 AssetBalance {
-                    denom: "asset_1".parse().unwrap(),
+                    denom: asset_1.clone(),
                     balance: amount_expected_1,
                 },
                 AssetBalance {
-                    denom: "asset_2".parse().unwrap(),
+                    denom: asset_2.clone(),
                     balance: amount_expected_2,
                 },
             ]
@@ -625,18 +646,18 @@ mod test {
 
         // create needed variables
         let address = crate::address::base_prefixed([42u8; 20]);
-        let asset = Id::from_str_unchecked("asset_0");
+        let asset = asset_0();
         let amount_increase = 2u128;
 
         state
-            .increase_balance(address, asset, amount_increase)
+            .increase_balance(address, &asset, amount_increase)
             .await
             .expect("increasing account balance for uninitialized account should be ok");
 
         // correct balance was set
         assert_eq!(
             state
-                .get_account_balance(address, asset)
+                .get_account_balance(address, &asset)
                 .await
                 .expect("getting an asset balance should not fail"),
             amount_increase,
@@ -644,7 +665,7 @@ mod test {
         );
 
         state
-            .increase_balance(address, asset, amount_increase)
+            .increase_balance(address, &asset, amount_increase)
             .await
             .expect("increasing account balance for initialized account should be ok");
 
@@ -666,18 +687,18 @@ mod test {
 
         // create needed variables
         let address = crate::address::base_prefixed([42u8; 20]);
-        let asset = Id::from_str_unchecked("asset_0");
+        let asset = asset_0();
         let amount_increase = 2u128;
 
         state
-            .increase_balance(address, asset, amount_increase)
+            .increase_balance(address, &asset, amount_increase)
             .await
             .expect("increasing account balance for uninitialized account should be ok");
 
         // correct balance was set
         assert_eq!(
             state
-                .get_account_balance(address, asset)
+                .get_account_balance(address, &asset)
                 .await
                 .expect("getting an asset balance should not fail"),
             amount_increase,
@@ -686,13 +707,13 @@ mod test {
 
         // decrease balance
         state
-            .decrease_balance(address, asset, amount_increase)
+            .decrease_balance(address, &asset, amount_increase)
             .await
             .expect("decreasing account balance for initialized account should be ok");
 
         assert_eq!(
             state
-                .get_account_balance(address, asset)
+                .get_account_balance(address, &asset)
                 .await
                 .expect("getting an asset balance should not fail"),
             0,
@@ -708,18 +729,18 @@ mod test {
 
         // create needed variables
         let address = crate::address::base_prefixed([42u8; 20]);
-        let asset = Id::from_str_unchecked("asset_0");
+        let asset = asset_0();
         let amount_increase = 2u128;
 
         // give initial balance
         state
-            .increase_balance(address, asset, amount_increase)
+            .increase_balance(address, &asset, amount_increase)
             .await
             .expect("increasing account balance for uninitialized account should be ok");
 
         // decrease balance
         state
-            .decrease_balance(address, asset, amount_increase + 1)
+            .decrease_balance(address, &asset, amount_increase + 1)
             .await
             .expect_err("should not be able to subtract larger balance than what existed");
     }
@@ -729,13 +750,14 @@ mod test {
         let address: Address = "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
             .parse()
             .unwrap();
-        let mut next = 0;
-        let id = astria_core::primitive::v1::asset::Id::new([0u8; 32].map(|_| {
-            let this = next;
-            next += 1;
-            this
-        }));
-        assert_snapshot!(balance_storage_key(address, id));
+        let asset = "an/asset/with/a/prefix"
+            .parse::<astria_core::primitive::v1::asset::Denom>()
+            .unwrap();
+        assert_eq!(
+            balance_storage_key(address, &asset),
+            balance_storage_key(address, asset.to_ibc_prefixed())
+        );
+        assert_snapshot!(balance_storage_key(address, asset));
         assert_snapshot!(nonce_storage_key(address));
     }
 }

@@ -15,35 +15,37 @@ use cnidarium::{
     StateRead,
     StateWrite,
 };
-use hex::ToHex as _;
 use tracing::instrument;
 
 /// Newtype wrapper to read and write a denomination trace from rocksdb.
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
 struct DenominationTrace(String);
 
-fn asset_storage_key(asset: asset::Id) -> String {
-    format!("asset/{}", asset.encode_hex::<String>())
+fn asset_storage_key<TAsset: Into<asset::IbcPrefixed>>(asset: TAsset) -> String {
+    format!("asset/{}", crate::storage_keys::hunks::Asset::from(asset))
 }
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
-    #[instrument(skip(self))]
-    async fn has_ibc_asset(&self, id: asset::Id) -> Result<bool> {
-        match self
-            .get_raw(&asset_storage_key(id))
+    #[instrument(skip(self, asset), fields(%asset))]
+    async fn has_ibc_asset<TAsset>(&self, asset: TAsset) -> Result<bool>
+    where
+        TAsset: Into<asset::IbcPrefixed> + std::fmt::Display + Send,
+    {
+        Ok(self
+            .get_raw(&asset_storage_key(asset))
             .await
             .context("failed reading raw asset from state")?
-        {
-            Some(_) => Ok(true),
-            None => Ok(false),
-        }
+            .is_some())
     }
 
     #[instrument(skip(self))]
-    async fn get_ibc_asset(&self, id: asset::Id) -> Result<Option<denom::TracePrefixed>> {
+    async fn map_ibc_to_trace_prefixed_asset(
+        &self,
+        asset: asset::IbcPrefixed,
+    ) -> Result<Option<denom::TracePrefixed>> {
         let Some(bytes) = self
-            .get_raw(&asset_storage_key(id))
+            .get_raw(&asset_storage_key(asset))
             .await
             .context("failed reading raw asset from state")?
         else {
@@ -64,10 +66,10 @@ impl<T: ?Sized + StateRead> StateReadExt for T {}
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip(self))]
-    fn put_ibc_asset(&mut self, id: asset::Id, asset: &denom::TracePrefixed) -> Result<()> {
+    fn put_ibc_asset(&mut self, asset: &denom::TracePrefixed) -> Result<()> {
         let bytes = borsh::to_vec(&DenominationTrace(asset.to_string()))
             .context("failed to serialize asset")?;
-        self.put_raw(asset_storage_key(id), bytes);
+        self.put_raw(asset_storage_key(asset), bytes);
         Ok(())
     }
 }
@@ -75,18 +77,25 @@ pub(crate) trait StateWriteExt: StateWrite {
 impl<T: StateWrite> StateWriteExt for T {}
 
 #[cfg(test)]
-mod test {
-    use astria_core::primitive::v1::asset::{
-        denom::TracePrefixed,
-        Denom,
-        Id,
-    };
+mod tests {
+    use astria_core::primitive::v1::asset;
     use cnidarium::StateDelta;
 
     use super::{
-        StateReadExt as _,
+        asset_storage_key,
+        StateReadExt,
         StateWriteExt as _,
     };
+
+    fn asset() -> asset::Denom {
+        "asset".parse().unwrap()
+    }
+    fn asset_0() -> asset::Denom {
+        "asset_0".parse().unwrap()
+    }
+    fn asset_1() -> asset::Denom {
+        "asset_1".parse().unwrap()
+    }
 
     #[tokio::test]
     async fn get_ibc_asset_non_existent() {
@@ -94,12 +103,12 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let state = StateDelta::new(snapshot);
 
-        let asset = "asset".parse::<Denom>().unwrap().id();
+        let asset = asset();
 
         // gets for non existing assets should return none
         assert_eq!(
             state
-                .get_ibc_asset(asset)
+                .map_ibc_to_trace_prefixed_asset(asset.to_ibc_prefixed())
                 .await
                 .expect("getting non existing asset should not fail"),
             None
@@ -112,25 +121,25 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        let denom = "asset".parse::<TracePrefixed>().unwrap();
+        let denom = asset();
 
         // non existing calls are ok for 'has'
         assert!(
             !state
-                .has_ibc_asset(denom.id())
+                .has_ibc_asset(&denom)
                 .await
                 .expect("'has' for non existing ibc assets should be ok"),
             "query for non existing asset should return false"
         );
 
         state
-            .put_ibc_asset(denom.id(), &denom)
+            .put_ibc_asset(&denom.clone().unwrap_trace_prefixed())
             .expect("putting ibc asset should not fail");
 
         // existing calls are ok for 'has'
         assert!(
             state
-                .has_ibc_asset(denom.id())
+                .has_ibc_asset(&denom)
                 .await
                 .expect("'has' for existing ibc assets should be ok"),
             "query for existing asset should return true"
@@ -144,17 +153,17 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         // can write new
-        let denom = "asset".parse::<TracePrefixed>().unwrap();
+        let denom = asset();
         state
-            .put_ibc_asset(denom.id(), &denom)
+            .put_ibc_asset(&denom.clone().unwrap_trace_prefixed())
             .expect("putting ibc asset should not fail");
         assert_eq!(
             state
-                .get_ibc_asset(denom.id())
+                .map_ibc_to_trace_prefixed_asset(denom.to_ibc_prefixed())
                 .await
                 .unwrap()
                 .expect("an ibc asset was written and must exist inside the database"),
-            denom,
+            denom.unwrap_trace_prefixed(),
             "stored ibc asset was not what was expected"
         );
     }
@@ -166,68 +175,54 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         // can write new
-        let denom = "asset_0".parse::<TracePrefixed>().unwrap();
+        let denom = asset_0();
         state
-            .put_ibc_asset(denom.id(), &denom)
+            .put_ibc_asset(&denom.clone().unwrap_trace_prefixed())
             .expect("putting ibc asset should not fail");
         assert_eq!(
             state
-                .get_ibc_asset(denom.id())
+                .map_ibc_to_trace_prefixed_asset(denom.to_ibc_prefixed())
                 .await
                 .unwrap()
                 .expect("an ibc asset was written and must exist inside the database"),
-            denom,
+            denom.clone().unwrap_trace_prefixed(),
             "stored ibc asset was not what was expected"
         );
 
         // can write another without affecting original
-        let denom_1 = "asset_1".parse::<TracePrefixed>().unwrap();
+        let denom_1 = asset_1();
         state
-            .put_ibc_asset(denom_1.id(), &denom_1)
+            .put_ibc_asset(&denom_1.clone().unwrap_trace_prefixed())
             .expect("putting ibc asset should not fail");
         assert_eq!(
             state
-                .get_ibc_asset(denom_1.id())
+                .map_ibc_to_trace_prefixed_asset(denom_1.to_ibc_prefixed())
                 .await
                 .unwrap()
                 .expect("an additional ibc asset was written and must exist inside the database"),
-            denom_1,
+            denom_1.unwrap_trace_prefixed(),
             "additional ibc asset was not what was expected"
         );
         assert_eq!(
             state
-                .get_ibc_asset(denom.id())
+                .map_ibc_to_trace_prefixed_asset(denom.to_ibc_prefixed())
                 .await
                 .unwrap()
                 .expect("an ibc asset was written and must exist inside the database"),
-            denom,
+            denom.clone().unwrap_trace_prefixed(),
             "original ibc asset was not what was expected"
         );
     }
 
-    #[tokio::test]
-    async fn put_ibc_asset_can_write_unrelated_ids_to_denoms() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        // can write unrelated ids and denoms
-        let id_key = Id::from_str_unchecked("asset_0");
-        let denom = "asset_1".parse::<TracePrefixed>().unwrap();
-        state
-            .put_ibc_asset(id_key, &denom)
-            .expect("putting ibc asset should not fail");
-
-        // see that id key and denom's stored id differ
-        assert_ne!(
-            state
-                .get_ibc_asset(id_key)
-                .await
-                .unwrap()
-                .expect("an ibc asset was written and must exist inside the database")
-                .id(),
-            id_key,
-            "stored ibc asset was not what was expected"
+    #[test]
+    fn storage_keys_are_unchanged() {
+        let asset = "an/asset/with/a/prefix"
+            .parse::<astria_core::primitive::v1::asset::Denom>()
+            .unwrap();
+        assert_eq!(
+            asset_storage_key(&asset),
+            asset_storage_key(asset.to_ibc_prefixed()),
         );
+        insta::assert_snapshot!(asset_storage_key(asset));
     }
 }

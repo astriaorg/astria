@@ -9,7 +9,7 @@ use astria_core::{
         SubmitRollupTransactionResponse,
     },
     primitive::v1::{
-        asset::default_native_asset,
+        asset,
         RollupId,
     },
     protocol::transaction::v1alpha1::action::SequenceAction,
@@ -33,13 +33,19 @@ use crate::{
 pub(crate) struct Grpc {
     executor: executor::Handle,
     metrics: &'static Metrics,
+    fee_asset: asset::Denom,
 }
 
 impl Grpc {
-    pub(crate) fn new(executor: executor::Handle, metrics: &'static Metrics) -> Self {
+    pub(crate) fn new(
+        executor: executor::Handle,
+        metrics: &'static Metrics,
+        fee_asset: asset::Denom,
+    ) -> Self {
         Self {
             executor,
             metrics,
+            fee_asset,
         }
     }
 }
@@ -59,7 +65,7 @@ impl GrpcCollectorService for Grpc {
         let sequence_action = SequenceAction {
             rollup_id,
             data: submit_rollup_tx_request.data,
-            fee_asset_id: default_native_asset().id(),
+            fee_asset: self.fee_asset.clone(),
         };
 
         self.metrics.increment_grpc_txs_received(&rollup_id);
