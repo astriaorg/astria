@@ -17,7 +17,6 @@ use cnidarium::{
     StateRead,
     StateWrite,
 };
-use hex::ToHex as _;
 use ibc_types::core::channel::ChannelId;
 use tracing::{
     debug,
@@ -39,21 +38,44 @@ struct Fee(u128);
 const IBC_SUDO_STORAGE_KEY: &str = "ibcsudo";
 const ICS20_WITHDRAWAL_BASE_FEE_STORAGE_KEY: &str = "ics20withdrawalfee";
 
-fn channel_balance_storage_key(channel: &ChannelId, asset: asset::Id) -> String {
+struct IbcRelayerKey<'a>(&'a Address);
+
+impl<'a> std::fmt::Display for IbcRelayerKey<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("ibc-relayer")?;
+        f.write_str("/")?;
+        for byte in self.0.bytes() {
+            f.write_fmt(format_args!("{byte:02x}"))?;
+        }
+        Ok(())
+    }
+}
+
+fn channel_balance_storage_key<TAsset: Into<asset::IbcPrefixed>>(
+    channel: &ChannelId,
+    asset: TAsset,
+) -> String {
     format!(
         "ibc-data/{channel}/balance/{}",
-        asset.encode_hex::<String>()
+        crate::storage_keys::hunks::Asset::from(asset),
     )
 }
 
 fn ibc_relayer_key(address: &Address) -> String {
-    format!("ibc-relayer/{}", address.encode_hex::<String>())
+    IbcRelayerKey(address).to_string()
 }
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
-    #[instrument(skip(self))]
-    async fn get_ibc_channel_balance(&self, channel: &ChannelId, asset: asset::Id) -> Result<u128> {
+    #[instrument(skip(self, asset), fields(%asset))]
+    async fn get_ibc_channel_balance<TAsset>(
+        &self,
+        channel: &ChannelId,
+        asset: TAsset,
+    ) -> Result<u128>
+    where
+        TAsset: Into<asset::IbcPrefixed> + std::fmt::Display + Send,
+    {
         let Some(bytes) = self
             .get_raw(&channel_balance_storage_key(channel, asset))
             .await
@@ -78,7 +100,7 @@ pub(crate) trait StateReadExt: StateRead {
         };
         let SudoAddress(address_bytes) =
             SudoAddress::try_from_slice(&bytes).context("invalid ibc sudo key bytes")?;
-        Ok(crate::astria_address(address_bytes))
+        Ok(crate::address::base_prefixed(address_bytes))
     }
 
     #[instrument(skip(self))]
@@ -108,13 +130,16 @@ impl<T: StateRead> StateReadExt for T {}
 
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
-    #[instrument(skip(self))]
-    fn put_ibc_channel_balance(
+    #[instrument(skip(self, asset), fields(%asset))]
+    fn put_ibc_channel_balance<TAsset>(
         &mut self,
         channel: &ChannelId,
-        asset: asset::Id,
+        asset: TAsset,
         balance: u128,
-    ) -> Result<()> {
+    ) -> Result<()>
+    where
+        TAsset: Into<asset::IbcPrefixed> + std::fmt::Display + Send,
+    {
         let bytes = borsh::to_vec(&Balance(balance)).context("failed to serialize balance")?;
         self.put_raw(channel_balance_storage_key(channel, asset), bytes);
         Ok(())
@@ -153,15 +178,27 @@ pub(crate) trait StateWriteExt: StateWrite {
 impl<T: StateWrite> StateWriteExt for T {}
 
 #[cfg(test)]
-mod test {
-    use astria_core::primitive::v1::asset::Id;
+mod tests {
+    use astria_core::primitive::v1::{
+        asset,
+        Address,
+    };
     use cnidarium::StateDelta;
     use ibc_types::core::channel::ChannelId;
+    use insta::assert_snapshot;
 
     use super::{
         StateReadExt as _,
         StateWriteExt as _,
     };
+    use crate::ibc::state_ext::channel_balance_storage_key;
+
+    fn asset_0() -> asset::Denom {
+        "asset_0".parse().unwrap()
+    }
+    fn asset_1() -> asset::Denom {
+        "asset_1".parse().unwrap()
+    }
 
     #[tokio::test]
     async fn get_ibc_sudo_address_fails_if_not_set() {
@@ -183,7 +220,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         // can write new
-        let mut address = crate::astria_address([42u8; 20]);
+        let mut address = crate::address::base_prefixed([42u8; 20]);
         state
             .put_ibc_sudo_address(address)
             .expect("writing sudo address should not fail");
@@ -197,7 +234,7 @@ mod test {
         );
 
         // can rewrite with new value
-        address = crate::astria_address([41u8; 20]);
+        address = crate::address::base_prefixed([41u8; 20]);
         state
             .put_ibc_sudo_address(address)
             .expect("writing sudo address should not fail");
@@ -218,7 +255,7 @@ mod test {
         let state = StateDelta::new(snapshot);
 
         // unset address returns false
-        let address = crate::astria_address([42u8; 20]);
+        let address = crate::address::base_prefixed([42u8; 20]);
         assert!(
             !state
                 .is_ibc_relayer(&address)
@@ -235,7 +272,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         // can write
-        let address = crate::astria_address([42u8; 20]);
+        let address = crate::address::base_prefixed([42u8; 20]);
         state.put_ibc_relayer_address(&address);
         assert!(
             state
@@ -263,7 +300,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         // can write
-        let address = crate::astria_address([42u8; 20]);
+        let address = crate::address::base_prefixed([42u8; 20]);
         state.put_ibc_relayer_address(&address);
         assert!(
             state
@@ -274,7 +311,7 @@ mod test {
         );
 
         // can write multiple
-        let address_1 = crate::astria_address([41u8; 20]);
+        let address_1 = crate::address::base_prefixed([41u8; 20]);
         state.put_ibc_relayer_address(&address_1);
         assert!(
             state
@@ -299,7 +336,7 @@ mod test {
         let state = StateDelta::new(snapshot);
 
         let channel = ChannelId::new(0u64);
-        let asset = Id::from_denom("asset");
+        let asset = asset_0();
 
         assert_eq!(
             state
@@ -318,16 +355,16 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         let channel = ChannelId::new(0u64);
-        let asset = Id::from_denom("asset");
+        let asset = asset_0();
         let mut amount = 10u128;
 
         // write initial
         state
-            .put_ibc_channel_balance(&channel, asset, amount)
+            .put_ibc_channel_balance(&channel, &asset, amount)
             .expect("should be able to set balance for channel and asset pair");
         assert_eq!(
             state
-                .get_ibc_channel_balance(&channel, asset)
+                .get_ibc_channel_balance(&channel, &asset)
                 .await
                 .expect("retrieving asset balance for channel should not fail"),
             amount,
@@ -337,11 +374,11 @@ mod test {
         // can update
         amount = 20u128;
         state
-            .put_ibc_channel_balance(&channel, asset, amount)
+            .put_ibc_channel_balance(&channel, &asset, amount)
             .expect("should be able to set balance for channel and asset pair");
         assert_eq!(
             state
-                .get_ibc_channel_balance(&channel, asset)
+                .get_ibc_channel_balance(&channel, &asset)
                 .await
                 .expect("retrieving asset balance for channel should not fail"),
             amount,
@@ -356,21 +393,21 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         let channel = ChannelId::new(0u64);
-        let asset_0 = Id::from_denom("asset_0");
-        let asset_1 = Id::from_denom("asset_1");
+        let asset_0 = asset_0();
+        let asset_1 = asset_1();
         let amount_0 = 10u128;
         let amount_1 = 20u128;
 
         // write both
         state
-            .put_ibc_channel_balance(&channel, asset_0, amount_0)
+            .put_ibc_channel_balance(&channel, &asset_0, amount_0)
             .expect("should be able to set balance for channel and asset pair");
         state
-            .put_ibc_channel_balance(&channel, asset_1, amount_1)
+            .put_ibc_channel_balance(&channel, &asset_1, amount_1)
             .expect("should be able to set balance for channel and asset pair");
         assert_eq!(
             state
-                .get_ibc_channel_balance(&channel, asset_0)
+                .get_ibc_channel_balance(&channel, &asset_0)
                 .await
                 .expect("retrieving asset balance for channel should not fail"),
             amount_0,
@@ -378,7 +415,7 @@ mod test {
         );
         assert_eq!(
             state
-                .get_ibc_channel_balance(&channel, asset_1)
+                .get_ibc_channel_balance(&channel, &asset_1)
                 .await
                 .expect("retrieving asset balance for channel should not fail"),
             amount_1,
@@ -394,20 +431,20 @@ mod test {
 
         let channel_0 = ChannelId::new(0u64);
         let channel_1 = ChannelId::new(1u64);
-        let asset = Id::from_denom("asset_0");
+        let asset = asset_0();
         let amount_0 = 10u128;
         let amount_1 = 20u128;
 
         // write both
         state
-            .put_ibc_channel_balance(&channel_0, asset, amount_0)
+            .put_ibc_channel_balance(&channel_0, &asset, amount_0)
             .expect("should be able to set balance for channel and asset pair");
         state
-            .put_ibc_channel_balance(&channel_1, asset, amount_1)
+            .put_ibc_channel_balance(&channel_1, &asset, amount_1)
             .expect("should be able to set balance for channel and asset pair");
         assert_eq!(
             state
-                .get_ibc_channel_balance(&channel_0, asset)
+                .get_ibc_channel_balance(&channel_0, &asset)
                 .await
                 .expect("retrieving asset balance for channel should not fail"),
             amount_0,
@@ -421,5 +458,24 @@ mod test {
             amount_1,
             "set balance for channel/asset pair not what was expected"
         );
+    }
+
+    #[test]
+    fn storage_keys_have_not_changed() {
+        let channel = ChannelId::new(5);
+        let address: Address = "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
+            .parse()
+            .unwrap();
+
+        assert_snapshot!(super::ibc_relayer_key(&address));
+
+        let asset = "an/asset/with/a/prefix"
+            .parse::<astria_core::primitive::v1::asset::Denom>()
+            .unwrap();
+        assert_eq!(
+            channel_balance_storage_key(&channel, &asset),
+            channel_balance_storage_key(&channel, asset.to_ibc_prefixed()),
+        );
+        assert_snapshot!(channel_balance_storage_key(&channel, &asset));
     }
 }

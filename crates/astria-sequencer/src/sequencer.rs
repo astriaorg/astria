@@ -1,3 +1,5 @@
+use std::sync::OnceLock;
+
 use anyhow::{
     anyhow,
     Context as _,
@@ -29,11 +31,13 @@ use tracing::{
 };
 
 use crate::{
+    address::StateReadExt as _,
     app::App,
     config::Config,
     grpc::sequencer::SequencerServer,
     ibc::host_interface::AstriaHost,
     mempool::Mempool,
+    metrics::Metrics,
     service,
     state_ext::StateReadExt as _,
 };
@@ -43,6 +47,9 @@ pub struct Sequencer;
 impl Sequencer {
     #[instrument(skip_all)]
     pub async fn run_until_stopped(config: Config) -> Result<()> {
+        static METRICS: OnceLock<Metrics> = OnceLock::new();
+        let metrics = METRICS.get_or_init(Metrics::new);
+
         if config
             .db_filepath
             .try_exists()
@@ -85,10 +92,16 @@ impl Sequencer {
                 .await
                 .context("failed to get native asset from storage")?;
             crate::asset::initialize_native_asset(&native_asset);
+            let base_prefix = snapshot
+                .get_base_prefix()
+                .await
+                .context("failed to get address base prefix from storage")?;
+            crate::address::initialize_base_prefix(&base_prefix)
+                .context("failed to initialize global address base prefix")?;
         }
 
         let mempool = Mempool::new();
-        let app = App::new(snapshot, mempool.clone())
+        let app = App::new(snapshot, mempool.clone(), metrics)
             .await
             .context("failed to initialize app")?;
 
@@ -100,7 +113,7 @@ impl Sequencer {
                 let storage = storage.clone();
                 async move { service::Consensus::new(storage, app, queue).run().await }
             }));
-        let mempool_service = service::Mempool::new(storage.clone(), mempool.clone());
+        let mempool_service = service::Mempool::new(storage.clone(), mempool.clone(), metrics);
         let info_service =
             service::Info::new(storage.clone()).context("failed initializing info service")?;
         let snapshot_service = service::Snapshot;

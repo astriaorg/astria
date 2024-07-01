@@ -82,7 +82,7 @@ message Deposit {
   // the rollup_id which the funds are being deposited to
   astria.primitive.v1.RollupId rollup_id = 2;
   astria.primitive.v1.Uint128 amount = 3;
-  bytes asset_id = 4;
+  string asset = 4;
   // the address on the destination chain which
   // will receive the bridged funds
   string destination_chain_address = 5;

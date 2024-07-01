@@ -1,9 +1,8 @@
 use std::process::ExitCode;
 
 use astria_bridge_withdrawer::{
-    metrics_init,
+    BridgeWithdrawer,
     Config,
-    Service,
     BUILD_INFO,
 };
 use astria_eyre::eyre::WrapErr as _;
@@ -35,8 +34,7 @@ async fn main() -> ExitCode {
     if !cfg.no_metrics {
         telemetry_conf = telemetry_conf
             .metrics_addr(&cfg.metrics_http_listener_addr)
-            .service_name(env!("CARGO_PKG_NAME"))
-            .register_metrics(metrics_init::register);
+            .service_name(env!("CARGO_PKG_NAME"));
     }
 
     if let Err(e) = telemetry_conf
@@ -54,7 +52,8 @@ async fn main() -> ExitCode {
 
     let mut sigterm = signal(SignalKind::terminate())
         .expect("setting a SIGTERM listener should always work on Unix");
-    let (withdrawer, shutdown_handle) = Service::new(cfg).expect("could not initialize withdrawer");
+    let (withdrawer, shutdown_handle) =
+        BridgeWithdrawer::new(cfg).expect("could not initialize withdrawer");
     let withdrawer_handle = tokio::spawn(withdrawer.run());
 
     let shutdown_token = shutdown_handle.token();

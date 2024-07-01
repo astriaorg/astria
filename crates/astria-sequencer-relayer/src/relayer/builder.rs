@@ -20,10 +20,13 @@ use super::{
     CelestiaClientBuilder,
     CelestiaKeys,
 };
-use crate::IncludeRollup;
+use crate::{
+    metrics::Metrics,
+    IncludeRollup,
+};
 
 pub(crate) struct Builder {
-    pub(crate) shutdown_token: tokio_util::sync::CancellationToken,
+    pub(crate) relayer_shutdown_token: tokio_util::sync::CancellationToken,
     pub(crate) sequencer_chain_id: String,
     pub(crate) celestia_chain_id: String,
     pub(crate) celestia_app_grpc_endpoint: String,
@@ -34,13 +37,14 @@ pub(crate) struct Builder {
     pub(crate) rollup_filter: IncludeRollup,
     pub(crate) pre_submit_path: PathBuf,
     pub(crate) post_submit_path: PathBuf,
+    pub(crate) metrics: &'static Metrics,
 }
 
 impl Builder {
     /// Instantiates a `Relayer`.
     pub(crate) fn build(self) -> eyre::Result<super::Relayer> {
         let Self {
-            shutdown_token,
+            relayer_shutdown_token,
             sequencer_chain_id,
             celestia_chain_id,
             celestia_app_grpc_endpoint,
@@ -51,7 +55,11 @@ impl Builder {
             rollup_filter,
             pre_submit_path,
             post_submit_path,
+            metrics,
         } = self;
+
+        let submitter_shutdown_token = relayer_shutdown_token.child_token();
+
         let sequencer_cometbft_client = SequencerClient::new(&*cometbft_endpoint)
             .wrap_err("failed constructing cometbft http client")?;
 
@@ -76,7 +84,8 @@ impl Builder {
         };
 
         Ok(super::Relayer {
-            shutdown_token,
+            relayer_shutdown_token,
+            submitter_shutdown_token,
             sequencer_chain_id,
             sequencer_cometbft_client,
             sequencer_grpc_client,
@@ -86,6 +95,7 @@ impl Builder {
             state,
             pre_submit_path,
             post_submit_path,
+            metrics,
         })
     }
 }

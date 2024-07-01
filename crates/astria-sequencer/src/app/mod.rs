@@ -67,6 +67,7 @@ use crate::{
             StateWriteExt as _,
         },
     },
+    address::StateWriteExt as _,
     api_state_ext::StateWriteExt as _,
     authority::{
         component::{
@@ -88,8 +89,11 @@ use crate::{
     component::Component as _,
     genesis::GenesisState,
     ibc::component::IbcComponent,
-    mempool::Mempool,
-    metrics_init,
+    mempool::{
+        Mempool,
+        RemovalReason,
+    },
+    metrics::Metrics,
     proposal::{
         block_size_constraints::BlockSizeConstraints,
         commitment::{
@@ -162,11 +166,17 @@ pub(crate) struct App {
     // allow clippy because we need be specific as to what hash this is.
     #[allow(clippy::struct_field_names)]
     app_hash: AppHash,
+
+    metrics: &'static Metrics,
 }
 
 impl App {
-    pub(crate) async fn new(snapshot: Snapshot, mempool: Mempool) -> anyhow::Result<Self> {
-        tracing::debug!("initializing App instance");
+    pub(crate) async fn new(
+        snapshot: Snapshot,
+        mempool: Mempool,
+        metrics: &'static Metrics,
+    ) -> anyhow::Result<Self> {
+        debug!("initializing App instance");
 
         let app_hash: AppHash = snapshot
             .root_hash()
@@ -189,6 +199,7 @@ impl App {
             execution_results: None,
             write_batch: None,
             app_hash,
+            metrics,
         })
     }
 
@@ -205,13 +216,17 @@ impl App {
             .try_begin_transaction()
             .expect("state Arc should not be referenced elsewhere");
 
+        crate::address::initialize_base_prefix(&genesis_state.address_prefixes.base)
+            .context("failed setting global base prefix")?;
+        state_tx.put_base_prefix(&genesis_state.address_prefixes.base);
+
         crate::asset::initialize_native_asset(&genesis_state.native_asset_base_denomination);
         state_tx.put_native_asset_denom(&genesis_state.native_asset_base_denomination);
         state_tx.put_chain_id_and_revision_number(chain_id.try_into().context("invalid chain ID")?);
         state_tx.put_block_height(0);
 
         for fee_asset in &genesis_state.allowed_fee_assets {
-            state_tx.put_allowed_fee_asset(fee_asset.id());
+            state_tx.put_allowed_fee_asset(fee_asset);
         }
 
         // call init_chain on all components
@@ -299,17 +314,15 @@ impl App {
             .execute_transactions_prepare_proposal(&mut block_size_constraints)
             .await
             .context("failed to execute transactions")?;
-        #[allow(clippy::cast_precision_loss)]
-        metrics::histogram!(metrics_init::PROPOSAL_TRANSACTIONS)
-            .record(signed_txs_included.len() as f64);
+        self.metrics
+            .record_proposal_transactions(signed_txs_included.len());
 
         let deposits = self
             .state
             .get_block_deposits()
             .await
             .context("failed to get block deposits in prepare_proposal")?;
-        #[allow(clippy::cast_precision_loss)]
-        metrics::histogram!(metrics_init::PROPOSAL_DEPOSITS).record(deposits.len() as f64);
+        self.metrics.record_proposal_deposits(deposits.len());
 
         // generate commitment to sequence::Actions and deposits and commitment to the rollup IDs
         // included in the block
@@ -341,7 +354,7 @@ impl App {
                 self.executed_proposal_hash = process_proposal.hash;
                 return Ok(());
             }
-            metrics::counter!(metrics_init::PROCESS_PROPOSAL_SKIPPED_PROPOSAL).increment(1);
+            self.metrics.increment_process_proposal_skipped_proposal();
             debug!(
                 "our validator address was set but we're not the proposer, so our previous \
                  proposal was skipped, executing block"
@@ -411,16 +424,14 @@ impl App {
             execution_results.len() == expected_txs_len,
             "transactions to be included do not match expected",
         );
-        #[allow(clippy::cast_precision_loss)]
-        metrics::histogram!(metrics_init::PROPOSAL_TRANSACTIONS).record(signed_txs.len() as f64);
+        self.metrics.record_proposal_transactions(signed_txs.len());
 
         let deposits = self
             .state
             .get_block_deposits()
             .await
             .context("failed to get block deposits in process_proposal")?;
-        #[allow(clippy::cast_precision_loss)]
-        metrics::histogram!(metrics_init::PROPOSAL_DEPOSITS).record(deposits.len() as f64);
+        self.metrics.record_proposal_deposits(deposits.len());
 
         let GeneratedCommitments {
             rollup_datas_root: expected_rollup_datas_root,
@@ -483,10 +494,8 @@ impl App {
 
             // don't include tx if it would make the cometBFT block too large
             if !block_size_constraints.cometbft_has_space(tx_len) {
-                metrics::counter!(
-                    metrics_init::PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_COMETBFT_SPACE
-                )
-                .increment(1);
+                self.metrics
+                    .increment_prepare_proposal_excluded_transactions_cometbft_space();
                 debug!(
                     transaction_hash = %tx_hash_base64,
                     block_size_constraints = %json(&block_size_constraints),
@@ -537,10 +546,8 @@ impl App {
                     included_signed_txs.push((*tx).clone());
                 }
                 Err(e) => {
-                    metrics::counter!(
-                        metrics_init::PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_DECODE_FAILURE
-                    )
-                    .increment(1);
+                    self.metrics
+                        .increment_prepare_proposal_excluded_transactions_decode_failure();
                     debug!(
                         transaction_hash = %tx_hash_base64,
                         error = AsRef::<dyn std::error::Error>::as_ref(&e),
@@ -548,12 +555,20 @@ impl App {
                     );
                     failed_tx_count = failed_tx_count.saturating_add(1);
 
-                    // we re-insert the tx into the mempool if it failed to execute
-                    // due to an invalid nonce, as it may be valid in the future.
-                    // if it's invalid due to the nonce being too low, it'll be
-                    // removed from the mempool in `update_mempool_after_finalization`.
                     if e.downcast_ref::<InvalidNonce>().is_some() {
+                        // we re-insert the tx into the mempool if it failed to execute
+                        // due to an invalid nonce, as it may be valid in the future.
+                        // if it's invalid due to the nonce being too low, it'll be
+                        // removed from the mempool in `update_mempool_after_finalization`.
                         txs_to_readd_to_mempool.push((enqueued_tx, priority));
+                    } else {
+                        // the transaction should be removed from the cometbft mempool
+                        self.mempool
+                            .track_removal_comet_bft(
+                                enqueued_tx.tx_hash(),
+                                RemovalReason::FailedPrepareProposal(e.to_string()),
+                            )
+                            .await;
                     }
                 }
             }
@@ -613,10 +628,8 @@ impl App {
                 .fold(0usize, |acc, seq| acc.saturating_add(seq.data.len()));
 
             if !block_size_constraints.sequencer_has_space(tx_sequence_data_bytes) {
-                metrics::counter!(
-                    metrics_init::PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_SEQUENCER_SPACE
-                )
-                .increment(1);
+                self.metrics
+                    .increment_prepare_proposal_excluded_transactions_sequencer_space();
                 debug!(
                     transaction_hash = %telemetry::display::base64(&tx_hash),
                     block_size_constraints = %json(&block_size_constraints),
@@ -642,10 +655,8 @@ impl App {
                         .context("error growing cometBFT block size")?;
                 }
                 Err(e) => {
-                    metrics::counter!(
-                        metrics_init::PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_FAILED_EXECUTION
-                    )
-                    .increment(1);
+                    self.metrics
+                        .increment_prepare_proposal_excluded_transactions_failed_execution();
                     debug!(
                         transaction_hash = %telemetry::display::base64(&tx_hash),
                         error = AsRef::<dyn std::error::Error>::as_ref(&e),
@@ -657,8 +668,8 @@ impl App {
         }
 
         if excluded_tx_count > 0.0 {
-            metrics::gauge!(metrics_init::PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS)
-                .set(excluded_tx_count);
+            self.metrics
+                .set_prepare_proposal_excluded_transactions(excluded_tx_count);
             info!(
                 excluded_tx_count = excluded_tx_count,
                 included_tx_count = execution_results.len(),
@@ -961,7 +972,7 @@ impl App {
     /// Executes a signed transaction.
     #[instrument(name = "App::execute_transaction", skip_all, fields(
         signed_transaction_hash = %telemetry::display::base64(&signed_tx.sha256_of_proto_encoding()),
-        sender = %signed_tx.address(),
+        sender_address_bytes = %telemetry::display::base64(&signed_tx.address_bytes()),
     ))]
     pub(crate) async fn execute_transaction(
         &mut self,
@@ -1124,9 +1135,7 @@ async fn update_mempool_after_finalization<S: StateReadExt>(
     state: S,
 ) -> anyhow::Result<()> {
     let current_account_nonce_getter = |address: Address| state.get_account_nonce(address);
-    mempool
-        .update_priorities(current_account_nonce_getter)
-        .await
+    mempool.run_maintenance(current_account_nonce_getter).await
 }
 
 /// relevant data of a block being executed.

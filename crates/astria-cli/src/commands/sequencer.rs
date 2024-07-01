@@ -1,10 +1,8 @@
 use astria_core::{
     crypto::SigningKey,
     primitive::v1::{
-        asset,
-        asset::default_native_asset,
         Address,
-        ASTRIA_ADDRESS_PREFIX,
+        ADDRESS_LEN,
     },
     protocol::transaction::v1alpha1::{
         action::{
@@ -39,6 +37,7 @@ use rand::rngs::OsRng;
 
 use crate::cli::sequencer::{
     BasicAccountArgs,
+    Bech32mAddressArgs,
     BlockHeightGetArgs,
     BridgeLockArgs,
     FeeAssetChangeArgs,
@@ -76,11 +75,6 @@ pub(crate) fn create_account() {
     let signing_key = get_new_signing_key();
     let public_key_pretty = get_public_key_pretty(&signing_key);
     let private_key_pretty = get_private_key_pretty(&signing_key);
-    let astria_address = Address::builder()
-        .array(signing_key.verification_key().address_bytes())
-        .prefix(ASTRIA_ADDRESS_PREFIX)
-        .try_build()
-        .unwrap();
     let address_pretty = get_address_pretty(&signing_key);
 
     println!("Create Sequencer Account");
@@ -89,8 +83,7 @@ pub(crate) fn create_account() {
     // https://github.com/astriaorg/astria/issues/594
     println!("Private Key: {private_key_pretty:?}");
     println!("Public Key:  {public_key_pretty:?}");
-    println!("Address:     \"{astria_address}\"");
-    println!("Address ugly: {address_pretty:?}");
+    println!("Address:     {address_pretty:?}");
 }
 
 /// Gets the balance of a Sequencer account
@@ -104,18 +97,16 @@ pub(crate) fn create_account() {
 /// * If the http client cannot be created
 /// * If the balance cannot be retrieved
 pub(crate) async fn get_balance(args: &BasicAccountArgs) -> eyre::Result<()> {
-    let address = &args.address;
     let sequencer_client = HttpClient::new(args.sequencer_url.as_str())
         .wrap_err("failed constructing http sequencer client")?;
 
     let res = sequencer_client
-        .get_latest_balance(address.0)
+        .get_latest_balance(args.address)
         .await
         .wrap_err("failed to get balance")?;
 
-    println!("Balances for address {}:", hex::encode(address.0));
+    println!("Balances for address: {}", args.address);
     for balance in res.balances {
-        println!("    asset ID: {}", balance.denom.id());
         println!("    {} {}", balance.balance, balance.denom);
     }
 
@@ -132,16 +123,15 @@ pub(crate) async fn get_balance(args: &BasicAccountArgs) -> eyre::Result<()> {
 /// * If the http client cannot be created
 /// * If the balance cannot be retrieved
 pub(crate) async fn get_nonce(args: &BasicAccountArgs) -> eyre::Result<()> {
-    let address = &args.address;
     let sequencer_client = HttpClient::new(args.sequencer_url.as_str())
         .wrap_err("failed constructing http sequencer client")?;
 
     let res = sequencer_client
-        .get_latest_nonce(address.0)
+        .get_latest_nonce(args.address)
         .await
         .wrap_err("failed to get nonce")?;
 
-    println!("Nonce for address {}:", address.0);
+    println!("Nonce for address {}", args.address);
     println!("    {} at height {}", res.nonce, res.height);
 
     Ok(())
@@ -172,6 +162,22 @@ pub(crate) async fn get_block_height(args: &BlockHeightGetArgs) -> eyre::Result<
     Ok(())
 }
 
+/// Returns a bech32m sequencer address given a prefix and hex-encoded byte slice
+pub(crate) fn make_bech32m(args: &Bech32mAddressArgs) -> eyre::Result<()> {
+    use hex::FromHex as _;
+    let bytes = <[u8; ADDRESS_LEN]>::from_hex(&args.bytes)
+        .wrap_err("failed decoding provided hex bytes")?;
+    let address = Address::builder()
+        .array(bytes)
+        .prefix(&args.prefix)
+        .try_build()
+        .wrap_err(
+            "failed constructing a valid bech32m address from the provided hex bytes and prefix",
+        )?;
+    println!("{address}");
+    Ok(())
+}
+
 /// Gets the latest block height of a Sequencer node
 ///
 /// # Arguments
@@ -186,12 +192,13 @@ pub(crate) async fn send_transfer(args: &TransferArgs) -> eyre::Result<()> {
     let res = submit_transaction(
         args.sequencer_url.as_str(),
         args.sequencer_chain_id.clone(),
+        &args.prefix,
         args.private_key.as_str(),
         Action::Transfer(TransferAction {
-            to: args.to_address.0,
+            to: args.to_address,
             amount: args.amount,
-            asset_id: default_native_asset().id(),
-            fee_asset_id: default_native_asset().id(),
+            asset: args.asset.clone(),
+            fee_asset: args.fee_asset.clone(),
         }),
     )
     .await
@@ -216,8 +223,9 @@ pub(crate) async fn ibc_relayer_add(args: &IbcRelayerChangeArgs) -> eyre::Result
     let res = submit_transaction(
         args.sequencer_url.as_str(),
         args.sequencer_chain_id.clone(),
+        &args.prefix,
         args.private_key.as_str(),
-        Action::IbcRelayerChange(IbcRelayerChangeAction::Addition(args.address.0)),
+        Action::IbcRelayerChange(IbcRelayerChangeAction::Addition(args.address)),
     )
     .await
     .wrap_err("failed to submit IbcRelayerChangeAction::Addition transaction")?;
@@ -241,8 +249,9 @@ pub(crate) async fn ibc_relayer_remove(args: &IbcRelayerChangeArgs) -> eyre::Res
     let res = submit_transaction(
         args.sequencer_url.as_str(),
         args.sequencer_chain_id.clone(),
+        &args.prefix,
         args.private_key.as_str(),
-        Action::IbcRelayerChange(IbcRelayerChangeAction::Removal(args.address.0)),
+        Action::IbcRelayerChange(IbcRelayerChangeAction::Removal(args.address)),
     )
     .await
     .wrap_err("failed to submit IbcRelayerChangeAction::Removal transaction")?;
@@ -269,11 +278,12 @@ pub(crate) async fn init_bridge_account(args: &InitBridgeAccountArgs) -> eyre::R
     let res = submit_transaction(
         args.sequencer_url.as_str(),
         args.sequencer_chain_id.clone(),
+        &args.prefix,
         args.private_key.as_str(),
         Action::InitBridgeAccount(InitBridgeAccountAction {
             rollup_id,
-            asset_id: default_native_asset().id(),
-            fee_asset_id: default_native_asset().id(),
+            asset: args.asset.clone(),
+            fee_asset: args.fee_asset.clone(),
             sudo_address: None,
             withdrawer_address: None,
         }),
@@ -302,12 +312,13 @@ pub(crate) async fn bridge_lock(args: &BridgeLockArgs) -> eyre::Result<()> {
     let res = submit_transaction(
         args.sequencer_url.as_str(),
         args.sequencer_chain_id.clone(),
+        &args.prefix,
         args.private_key.as_str(),
         Action::BridgeLock(BridgeLockAction {
-            to: args.to_address.0,
-            asset_id: default_native_asset().id(),
+            to: args.to_address,
+            asset: args.asset.clone(),
             amount: args.amount,
-            fee_asset_id: default_native_asset().id(),
+            fee_asset: args.fee_asset.clone(),
             destination_chain_address: args.destination_chain_address.clone(),
         }),
     )
@@ -333,10 +344,9 @@ pub(crate) async fn fee_asset_add(args: &FeeAssetChangeArgs) -> eyre::Result<()>
     let res = submit_transaction(
         args.sequencer_url.as_str(),
         args.sequencer_chain_id.clone(),
+        &args.prefix,
         args.private_key.as_str(),
-        Action::FeeAssetChange(FeeAssetChangeAction::Addition(asset::Id::from_denom(
-            &args.asset,
-        ))),
+        Action::FeeAssetChange(FeeAssetChangeAction::Addition(args.asset.clone())),
     )
     .await
     .wrap_err("failed to submit FeeAssetChangeAction::Addition transaction")?;
@@ -360,10 +370,9 @@ pub(crate) async fn fee_asset_remove(args: &FeeAssetChangeArgs) -> eyre::Result<
     let res = submit_transaction(
         args.sequencer_url.as_str(),
         args.sequencer_chain_id.clone(),
+        &args.prefix,
         args.private_key.as_str(),
-        Action::FeeAssetChange(FeeAssetChangeAction::Removal(asset::Id::from_denom(
-            &args.asset,
-        ))),
+        Action::FeeAssetChange(FeeAssetChangeAction::Removal(args.asset.clone())),
     )
     .await
     .wrap_err("failed to submit FeeAssetChangeAction::Removal transaction")?;
@@ -387,9 +396,10 @@ pub(crate) async fn sudo_address_change(args: &SudoAddressChangeArgs) -> eyre::R
     let res = submit_transaction(
         args.sequencer_url.as_str(),
         args.sequencer_chain_id.clone(),
+        &args.prefix,
         args.private_key.as_str(),
         Action::SudoAddressChange(SudoAddressChangeAction {
-            new_address: args.address.0,
+            new_address: args.address,
         }),
     )
     .await
@@ -423,6 +433,7 @@ pub(crate) async fn validator_update(args: &ValidatorUpdateArgs) -> eyre::Result
     let res = submit_transaction(
         args.sequencer_url.as_str(),
         args.sequencer_chain_id.clone(),
+        &args.prefix,
         args.private_key.as_str(),
         Action::ValidatorUpdate(validator_update),
     )
@@ -437,6 +448,7 @@ pub(crate) async fn validator_update(args: &ValidatorUpdateArgs) -> eyre::Result
 async fn submit_transaction(
     sequencer_url: &str,
     chain_id: String,
+    prefix: &str,
     private_key: &str,
     action: Action,
 ) -> eyre::Result<endpoint::broadcast::tx_commit::Response> {
@@ -449,7 +461,11 @@ async fn submit_transaction(
         .map_err(|_| eyre!("invalid private key length; must be 32 bytes"))?;
     let sequencer_key = SigningKey::from(private_key_bytes);
 
-    let from_address = crate::astria_address(sequencer_key.verification_key().address_bytes());
+    let from_address = Address::builder()
+        .array(sequencer_key.verification_key().address_bytes())
+        .prefix(prefix)
+        .try_build()
+        .wrap_err("failed constructing a valid from address from the provided prefix")?;
     println!("sending tx from address: {from_address}");
 
     let nonce_res = sequencer_client
@@ -461,8 +477,7 @@ async fn submit_transaction(
         params: TransactionParams::builder()
             .nonce(nonce_res.nonce)
             .chain_id(chain_id)
-            .try_build()
-            .wrap_err("failed to construct transaction params from provided chain ID")?,
+            .build(),
         actions: vec![action],
     }
     .into_signed(&sequencer_key);

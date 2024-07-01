@@ -2,7 +2,6 @@ use std::process::ExitCode;
 
 use astria_eyre::eyre::WrapErr as _;
 use astria_sequencer_relayer::{
-    metrics_init,
     Config,
     SequencerRelayer,
     BUILD_INFO,
@@ -35,8 +34,7 @@ async fn main() -> ExitCode {
     if !cfg.no_metrics {
         telemetry_conf = telemetry_conf
             .metrics_addr(&cfg.metrics_http_listener_addr)
-            .service_name(env!("CARGO_PKG_NAME"))
-            .register_metrics(metrics_init::register);
+            .service_name(env!("CARGO_PKG_NAME"));
     }
 
     let _telemetry_guard = match telemetry_conf
@@ -61,7 +59,6 @@ async fn main() -> ExitCode {
         SequencerRelayer::new(cfg).expect("could not initialize sequencer relayer");
     let sequencer_relayer_handle = tokio::spawn(sequencer_relayer.run());
 
-    let shutdown_token = shutdown_handle.token();
     tokio::select!(
         _ = sigterm.recv() => {
             // We don't care about the result (i.e. whether there could be more SIGTERM signals
@@ -69,7 +66,7 @@ async fn main() -> ExitCode {
             info!("received SIGTERM, issuing shutdown to all services");
             shutdown_handle.shutdown();
         }
-        () = shutdown_token.cancelled() => {
+        () = shutdown_handle.cancelled() => {
             warn!("stopped waiting for SIGTERM");
         }
     );

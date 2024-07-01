@@ -1,40 +1,38 @@
 global:
   dev: true
 
-config:
-  sequencer:
-    authoritySudoAddress: 1c0c490f1b5528d8173c5de46d131160e4b2c0c3
-    nativeAssetBaseDenomination: nria
-    allowedFeeAssets:
-      - nria
-    ibc:
-      enabled: true
-      inboundEnabled: true
-      outboundEnabled: true
-      sudoAddress: 1c0c490f1b5528d8173c5de46d131160e4b2c0c3
-      relayerAddresses:
-        - 1c0c490f1b5528d8173c5de46d131160e4b2c0c3
-        - 34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a
-    # Note large balances must be strings support templating with the u128 size
-    # account balances
-    genesisAccounts:
-      - address: 1c0c490f1b5528d8173c5de46d131160e4b2c0c3
-        balance: "140282366920938463463374607431768211455"
-      - address: 34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a
-        balance: "340282366920938463463374607431768211455"
-      - address: 60709e2d391864b732b4f0f51e387abb76743871
-        balance: "340282366920938463463374607431768211455"
-        # NOTE - the following address matches the privKey that funds the
-        # seque
-      - address: 00d75b270542084a54fcf0d0f6eab0402982d156
-        balance: "340282366920938463463374607431768211455"
-        # This account is used for bridge in smoke test.
-        # Bech32m equivalent: astria13ahqz4pjqfmynk9ylrqv4fwe4957x2p0h5782u
-      - address: 8f6e015432027649d8a4f8c0caa5d9a969e3282f
-        balance: "48"
-    cometBFT:
-      chainId: 'sequencer-test-chain-0'
-      genesisTime: '2023-09-22T17:22:35.092832Z'
+genesis:
+  chainId: 'sequencer-test-chain-0'
+  genesisTime: '2023-09-22T17:22:35.092832Z'
+  addressPrefixes:
+    base: "astria"
+  authoritySudoAddress: astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm
+  nativeAssetBaseDenomination: nria
+  allowedFeeAssets:
+    - nria
+  ibc:
+    enabled: true
+    inboundEnabled: true
+    outboundEnabled: true
+    sudoAddress: astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm
+    relayerAddresses:
+      - astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm
+      - astria1xnlvg0rle2u6auane79t4p27g8hxnj36ja960z
+  # Note large balances must be strings support templating with the u128 size
+  # account balances
+  genesisAccounts:
+    - address: astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm
+      balance: "333333333333333333"
+    - address: astria1xnlvg0rle2u6auane79t4p27g8hxnj36ja960z
+      balance: "333333333333333333"
+    - address: astria1vpcfutferpjtwv457r63uwr6hdm8gwr3pxt5ny
+      balance: "333333333333333333"
+    # Matches the privKey that funds the dev sequencer-faucet
+    - address: astria1qrt4kfc9ggyy548u7rg0d64sgq5c952kzk9tg9
+      balance: "333333333333333333"
+    # This account is used for bridge in smoke test.
+    - address: astria13ahqz4pjqfmynk9ylrqv4fwe4957x2p0h5782u
+      balance: "48"
 
 storage:
   enabled: false

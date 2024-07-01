@@ -14,7 +14,6 @@ use astria_core::{
         asset,
         Address,
         RollupId,
-        ASTRIA_ADDRESS_PREFIX,
     },
     sequencerblock::v1alpha1::block::Deposit,
 };
@@ -47,12 +46,6 @@ struct Nonce(u32);
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
 struct AssetId([u8; 32]);
 
-impl From<&asset::Id> for AssetId {
-    fn from(id: &asset::Id) -> Self {
-        Self(id.get())
-    }
-}
-
 /// Newtype wrapper to read and write a u128 from rocksdb.
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
 struct Fee(u128);
@@ -65,21 +58,39 @@ const INIT_BRIDGE_ACCOUNT_BASE_FEE_STORAGE_KEY: &str = "initbridgeaccfee";
 const BRIDGE_LOCK_BYTE_COST_MULTIPLIER_STORAGE_KEY: &str = "bridgelockmultiplier";
 const BRIDGE_SUDO_CHANGE_FEE_STORAGE_KEY: &str = "bridgesudofee";
 
-fn bridge_account_storage_key(address: &str) -> String {
-    format!("{BRIDGE_ACCOUNT_PREFIX}/{address}")
+struct BridgeAccountKey<'a> {
+    prefix: &'static str,
+    address: &'a Address,
+}
+
+impl<'a> std::fmt::Display for BridgeAccountKey<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.prefix)?;
+        f.write_str("/")?;
+        for byte in self.address.bytes() {
+            f.write_fmt(format_args!("{byte:02x}"))?;
+        }
+        Ok(())
+    }
 }
 
 fn rollup_id_storage_key(address: &Address) -> String {
     format!(
         "{}/rollupid",
-        bridge_account_storage_key(&address.encode_hex::<String>())
+        BridgeAccountKey {
+            prefix: BRIDGE_ACCOUNT_PREFIX,
+            address
+        }
     )
 }
 
 fn asset_id_storage_key(address: &Address) -> String {
     format!(
         "{}/assetid",
-        bridge_account_storage_key(&address.encode_hex::<String>())
+        BridgeAccountKey {
+            prefix: BRIDGE_ACCOUNT_PREFIX,
+            address
+        }
     )
 }
 
@@ -96,17 +107,32 @@ fn deposit_nonce_storage_key(rollup_id: &RollupId) -> Vec<u8> {
 }
 
 fn bridge_account_sudo_address_storage_key(address: &Address) -> String {
-    format!("{BRIDGE_ACCOUNT_SUDO_PREFIX}/{address}")
+    format!(
+        "{}",
+        BridgeAccountKey {
+            prefix: BRIDGE_ACCOUNT_SUDO_PREFIX,
+            address
+        }
+    )
 }
 
 fn bridge_account_withdrawer_address_storage_key(address: &Address) -> String {
-    format!("{BRIDGE_ACCOUNT_WITHDRAWER_PREFIX}/{address}")
+    format!(
+        "{}",
+        BridgeAccountKey {
+            prefix: BRIDGE_ACCOUNT_WITHDRAWER_PREFIX,
+            address
+        }
+    )
 }
 
 fn last_transaction_hash_for_bridge_account_storage_key(address: &Address) -> Vec<u8> {
     format!(
         "{}/lasttx",
-        bridge_account_storage_key(&address.encode_hex::<String>())
+        BridgeAccountKey {
+            prefix: BRIDGE_ACCOUNT_PREFIX,
+            address
+        }
     )
     .as_bytes()
     .to_vec()
@@ -131,14 +157,15 @@ pub(crate) trait StateReadExt: StateRead {
     }
 
     #[instrument(skip(self))]
-    async fn get_bridge_account_asset_id(&self, address: &Address) -> Result<asset::Id> {
+    async fn get_bridge_account_ibc_asset(&self, address: &Address) -> Result<asset::IbcPrefixed> {
         let bytes = self
             .get_raw(&asset_id_storage_key(address))
             .await
             .context("failed reading raw asset ID from state")?
             .ok_or_else(|| anyhow!("asset ID not found"))?;
-        let asset_id = asset::Id::try_from_slice(&bytes).context("invalid asset ID bytes")?;
-        Ok(asset_id)
+        let id = borsh::from_slice::<AssetId>(&bytes)
+            .context("failed to reconstruct asset ID from storage")?;
+        Ok(asset::IbcPrefixed::new(id.0))
     }
 
     #[instrument(skip(self))]
@@ -155,10 +182,7 @@ pub(crate) trait StateReadExt: StateRead {
             return Ok(None);
         };
 
-        let sudo_address = Address::builder()
-            .slice(sudo_address_bytes)
-            .prefix(ASTRIA_ADDRESS_PREFIX)
-            .try_build()
+        let sudo_address = crate::address::try_base_prefixed(&sudo_address_bytes)
             .context("invalid sudo address bytes")?;
         Ok(Some(sudo_address))
     }
@@ -179,10 +203,7 @@ pub(crate) trait StateReadExt: StateRead {
             return Ok(None);
         };
 
-        let withdrawer_address = Address::builder()
-            .slice(withdrawer_address_bytes)
-            .prefix(ASTRIA_ADDRESS_PREFIX)
-            .try_build()
+        let withdrawer_address = crate::address::try_base_prefixed(&withdrawer_address_bytes)
             .context("invalid withdrawer address bytes")?;
         Ok(Some(withdrawer_address))
     }
@@ -321,15 +342,19 @@ pub(crate) trait StateWriteExt: StateWrite {
         self.put_raw(rollup_id_storage_key(address), rollup_id.to_vec());
     }
 
-    #[instrument(skip(self))]
-    fn put_bridge_account_asset_id(
+    #[instrument(skip(self, asset), fields(%asset))]
+    fn put_bridge_account_ibc_asset<TAsset>(
         &mut self,
         address: &Address,
-        asset_id: &asset::Id,
-    ) -> Result<()> {
+        asset: TAsset,
+    ) -> Result<()>
+    where
+        TAsset: Into<asset::IbcPrefixed> + std::fmt::Display,
+    {
+        let ibc = asset.into();
         self.put_raw(
             asset_id_storage_key(address),
-            borsh::to_vec(&AssetId::from(asset_id)).context("failed to serialize asset IDs")?,
+            borsh::to_vec(&AssetId(ibc.get())).context("failed to serialize asset IDs")?,
         );
         Ok(())
     }
@@ -449,17 +474,31 @@ impl<T: StateWrite> StateWriteExt for T {}
 mod test {
     use astria_core::{
         primitive::v1::{
-            asset::Id,
+            asset,
+            Address,
             RollupId,
         },
         sequencerblock::v1alpha1::block::Deposit,
     };
     use cnidarium::StateDelta;
+    use insta::assert_snapshot;
 
     use super::{
+        asset_id_storage_key,
+        bridge_account_sudo_address_storage_key,
+        bridge_account_withdrawer_address_storage_key,
+        rollup_id_storage_key,
         StateReadExt as _,
         StateWriteExt as _,
     };
+
+    fn asset_0() -> asset::Denom {
+        "asset_0".parse().unwrap()
+    }
+
+    fn asset_1() -> asset::Denom {
+        "asset_1".parse().unwrap()
+    }
 
     #[tokio::test]
     async fn get_bridge_account_rollup_id_uninitialized_ok() {
@@ -467,7 +506,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let state = StateDelta::new(snapshot);
 
-        let address = crate::astria_address([42u8; 20]);
+        let address = crate::address::base_prefixed([42u8; 20]);
 
         // uninitialized ok
         assert_eq!(
@@ -486,7 +525,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         let mut rollup_id = RollupId::new([1u8; 32]);
-        let address = crate::astria_address([42u8; 20]);
+        let address = crate::address::base_prefixed([42u8; 20]);
 
         // can write new
         state.put_bridge_account_rollup_id(&address, &rollup_id);
@@ -515,7 +554,7 @@ mod test {
 
         // can write additional account and both valid
         let rollup_id_1 = RollupId::new([2u8; 32]);
-        let address_1 = crate::astria_address([41u8; 20]);
+        let address_1 = crate::address::base_prefixed([41u8; 20]);
         state.put_bridge_account_rollup_id(&address_1, &rollup_id_1);
         assert_eq!(
             state
@@ -544,69 +583,72 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let state = StateDelta::new(snapshot);
 
-        let address = crate::astria_address([42u8; 20]);
+        let address = crate::address::base_prefixed([42u8; 20]);
         state
-            .get_bridge_account_asset_id(&address)
+            .get_bridge_account_ibc_asset(&address)
             .await
             .expect_err("call to get bridge account asset ids should fail if no assets");
     }
 
     #[tokio::test]
-    async fn put_bridge_account_asset_ids() {
+    async fn put_bridge_account_ibc_assets() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        let address = crate::astria_address([42u8; 20]);
-        let mut asset = Id::from_denom("asset_0");
+        let address = crate::address::base_prefixed([42u8; 20]);
+        let mut asset = asset_0();
 
         // can write
         state
-            .put_bridge_account_asset_id(&address, &asset)
+            .put_bridge_account_ibc_asset(&address, &asset)
             .expect("storing bridge account asset should not fail");
         let mut result = state
-            .get_bridge_account_asset_id(&address)
+            .get_bridge_account_ibc_asset(&address)
             .await
             .expect("bridge asset id was written and must exist inside the database");
         assert_eq!(
-            result, asset,
+            result,
+            asset.to_ibc_prefixed(),
             "returned bridge account asset id did not match expected"
         );
 
         // can update
-        asset = Id::from_denom("asset_2");
+        asset = "asset_2".parse::<asset::Denom>().unwrap();
         state
-            .put_bridge_account_asset_id(&address, &asset)
+            .put_bridge_account_ibc_asset(&address, &asset)
             .expect("storing bridge account assets should not fail");
         result = state
-            .get_bridge_account_asset_id(&address)
+            .get_bridge_account_ibc_asset(&address)
             .await
             .expect("bridge asset id was written and must exist inside the database");
         assert_eq!(
-            result, asset,
+            result,
+            asset.to_ibc_prefixed(),
             "returned bridge account asset id did not match expected"
         );
 
         // writing to other account also ok
-        let address_1 = crate::astria_address([41u8; 20]);
-        let asset_1 = Id::from_denom("asset_0");
+        let address_1 = crate::address::base_prefixed([41u8; 20]);
+        let asset_1 = asset_1();
         state
-            .put_bridge_account_asset_id(&address_1, &asset_1)
+            .put_bridge_account_ibc_asset(&address_1, &asset_1)
             .expect("storing bridge account assets should not fail");
         assert_eq!(
             state
-                .get_bridge_account_asset_id(&address_1)
+                .get_bridge_account_ibc_asset(&address_1)
                 .await
                 .expect("bridge asset id was written and must exist inside the database"),
-            asset_1,
+            asset_1.into(),
             "second bridge account asset not what was expected"
         );
         result = state
-            .get_bridge_account_asset_id(&address)
+            .get_bridge_account_ibc_asset(&address)
             .await
             .expect("original bridge asset id was written and must exist inside the database");
         assert_eq!(
-            result, asset,
+            result,
+            asset.to_ibc_prefixed(),
             "original bridge account asset id did not match expected after new bridge account \
              added"
         );
@@ -711,15 +753,15 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         let rollup_id = RollupId::new([1u8; 32]);
-        let bridge_address = crate::astria_address([42u8; 20]);
+        let bridge_address = crate::address::base_prefixed([42u8; 20]);
         let mut amount = 10u128;
-        let asset = Id::from_denom("asset_0");
+        let asset = asset_0();
         let destination_chain_address = "0xdeadbeef";
         let mut deposit = Deposit::new(
             bridge_address,
             rollup_id,
             amount,
-            asset,
+            asset.clone(),
             destination_chain_address.to_string(),
         );
 
@@ -754,7 +796,7 @@ mod test {
             bridge_address,
             rollup_id,
             amount,
-            asset,
+            asset.clone(),
             destination_chain_address.to_string(),
         );
         deposits.append(&mut vec![deposit.clone()]);
@@ -823,15 +865,15 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         let rollup_id_0 = RollupId::new([1u8; 32]);
-        let bridge_address = crate::astria_address([42u8; 20]);
+        let bridge_address = crate::address::base_prefixed([42u8; 20]);
         let amount = 10u128;
-        let asset = Id::from_denom("asset_0");
+        let asset = asset_0();
         let destination_chain_address = "0xdeadbeef";
         let mut deposit = Deposit::new(
             bridge_address,
             rollup_id_0,
             amount,
-            asset,
+            asset.clone(),
             destination_chain_address.to_string(),
         );
 
@@ -853,7 +895,7 @@ mod test {
             bridge_address,
             rollup_id_1,
             amount,
-            asset,
+            asset.clone(),
             destination_chain_address.to_string(),
         );
         state
@@ -894,9 +936,9 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         let rollup_id = RollupId::new([1u8; 32]);
-        let bridge_address = crate::astria_address([42u8; 20]);
+        let bridge_address = crate::address::base_prefixed([42u8; 20]);
         let amount = 10u128;
-        let asset = Id::from_denom("asset_0");
+        let asset = asset_0();
         let destination_chain_address = "0xdeadbeef";
         let deposit = Deposit::new(
             bridge_address,
@@ -949,15 +991,15 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         let rollup_id = RollupId::new([1u8; 32]);
-        let bridge_address = crate::astria_address([42u8; 20]);
+        let bridge_address = crate::address::base_prefixed([42u8; 20]);
         let amount = 10u128;
-        let asset = Id::from_denom("asset_0");
+        let asset = asset_0();
         let destination_chain_address = "0xdeadbeef";
         let mut deposit = Deposit::new(
             bridge_address,
             rollup_id,
             amount,
-            asset,
+            asset.clone(),
             destination_chain_address.to_string(),
         );
 
@@ -973,7 +1015,7 @@ mod test {
             bridge_address,
             rollup_id_1,
             amount,
-            asset,
+            asset.clone(),
             destination_chain_address.to_string(),
         );
         let deposits_1 = vec![deposit.clone()];
@@ -1041,15 +1083,15 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         let rollup_id = RollupId::new([1u8; 32]);
-        let bridge_address = crate::astria_address([42u8; 20]);
+        let bridge_address = crate::address::base_prefixed([42u8; 20]);
         let amount = 10u128;
-        let asset = Id::from_denom("asset_0");
+        let asset = asset_0();
         let destination_chain_address = "0xdeadbeef";
         let mut deposit = Deposit::new(
             bridge_address,
             rollup_id,
             amount,
-            asset,
+            asset.clone(),
             destination_chain_address.to_string(),
         );
 
@@ -1065,7 +1107,7 @@ mod test {
             bridge_address,
             rollup_id_1,
             amount,
-            asset,
+            asset.clone(),
             destination_chain_address.to_string(),
         );
         state
@@ -1111,5 +1153,17 @@ mod test {
             0u32,
             "nonce should have been deleted also"
         );
+    }
+
+    #[test]
+    fn storage_keys_have_not_changed() {
+        let address: Address = "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
+            .parse()
+            .unwrap();
+
+        assert_snapshot!(rollup_id_storage_key(&address));
+        assert_snapshot!(asset_id_storage_key(&address));
+        assert_snapshot!(bridge_account_sudo_address_storage_key(&address));
+        assert_snapshot!(bridge_account_withdrawer_address_storage_key(&address));
     }
 }

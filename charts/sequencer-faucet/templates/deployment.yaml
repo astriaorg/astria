@@ -26,6 +26,7 @@ spec:
             - -wallet.privkey=$(SEQUENCER_FAUCET_PRIVATE_KEY)
             - -faucet.amount=$(SEQUENCER_FAUCET_AMOUNT)
             - -proxycount=$(SEQUENCER_FAUCET_PROXYCOUNT)
+            - -sequencer.chainId=$(SEQUENCER_CHAIN_ID)
           envFrom:
             - configMapRef:
                 name: sequencer-faucet-env

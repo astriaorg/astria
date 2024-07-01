@@ -1,5 +1,6 @@
 use std::{
     future::Future,
+    sync::OnceLock,
     time::Duration,
 };
 
@@ -29,6 +30,7 @@ use tracing::{
 use crate::{
     celestia,
     executor,
+    metrics::Metrics,
     sequencer,
     utils::flatten,
     Config,
@@ -94,6 +96,9 @@ impl Conductor {
     /// actors could not be spawned (executor, sequencer reader, or data availability reader).
     /// This usually happens if the actors failed to connect to their respective endpoints.
     pub fn new(cfg: Config) -> eyre::Result<Self> {
+        static METRICS: OnceLock<Metrics> = OnceLock::new();
+        let metrics = METRICS.get_or_init(Metrics::new);
+
         let mut tasks = JoinMap::new();
 
         let sequencer_cometbft_client = HttpClient::new(&*cfg.sequencer_cometbft_url)
@@ -107,6 +112,7 @@ impl Conductor {
                 mode: cfg.execution_commit_level,
                 rollup_address: cfg.execution_rpc_url,
                 shutdown: shutdown.clone(),
+                metrics,
             }
             .build()
             .wrap_err("failed constructing executor")?;
@@ -143,6 +149,7 @@ impl Conductor {
                 sequencer_cometbft_client: sequencer_cometbft_client.clone(),
                 sequencer_requests_per_second: cfg.sequencer_requests_per_second,
                 shutdown: shutdown.clone(),
+                metrics,
             }
             .build()
             .wrap_err("failed to build Celestia Reader")?;

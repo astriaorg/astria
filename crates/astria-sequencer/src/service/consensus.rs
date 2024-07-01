@@ -223,13 +223,7 @@ mod test {
             SigningKey,
             VerificationKey,
         },
-        primitive::v1::{
-            asset::{
-                default_native_asset,
-                DEFAULT_NATIVE_ASSET_DENOM,
-            },
-            RollupId,
-        },
+        primitive::v1::RollupId,
         protocol::transaction::v1alpha1::{
             action::SequenceAction,
             TransactionParams,
@@ -249,7 +243,12 @@ mod test {
     use crate::{
         app::test_utils::default_fees,
         asset::get_native_asset,
+        genesis::{
+            AddressPrefixes,
+            UncheckedGenesisState,
+        },
         mempool::Mempool,
+        metrics::Metrics,
         proposal::commitment::generate_rollup_datas_commitment,
     };
 
@@ -258,13 +257,12 @@ mod test {
             params: TransactionParams::builder()
                 .nonce(0)
                 .chain_id("test")
-                .try_build()
-                .unwrap(),
+                .build(),
             actions: vec![
                 SequenceAction {
                     rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                     data: b"helloworld".to_vec(),
-                    fee_asset_id: get_native_asset().id(),
+                    fee_asset: get_native_asset().clone(),
                 }
                 .into(),
             ],
@@ -460,39 +458,36 @@ mod test {
         }
     }
 
-    impl Default for GenesisState {
-        fn default() -> Self {
-            Self {
-                accounts: vec![],
-                authority_sudo_address: crate::astria_address([0; 20]),
-                ibc_sudo_address: crate::astria_address([0; 20]),
-                ibc_relayer_addresses: vec![],
-                native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
-                ibc_params: penumbra_ibc::params::IBCParameters::default(),
-                allowed_fee_assets: vec![default_native_asset()],
-                fees: default_fees(),
-            }
-        }
-    }
-
     async fn new_consensus_service(funded_key: Option<VerificationKey>) -> (Consensus, Mempool) {
         let accounts = if funded_key.is_some() {
             vec![crate::genesis::Account {
-                address: crate::astria_address(funded_key.unwrap().address_bytes()),
+                address: crate::address::base_prefixed(funded_key.unwrap().address_bytes()),
                 balance: 10u128.pow(19),
             }]
         } else {
             vec![]
         };
-        let genesis_state = GenesisState {
+        let genesis_state = UncheckedGenesisState {
             accounts,
-            ..Default::default()
-        };
+            address_prefixes: AddressPrefixes {
+                base: crate::address::get_base_prefix().to_string(),
+            },
+            authority_sudo_address: crate::address::base_prefixed([0; 20]),
+            ibc_sudo_address: crate::address::base_prefixed([0; 20]),
+            ibc_relayer_addresses: vec![],
+            native_asset_base_denomination: "nria".to_string(),
+            ibc_params: penumbra_ibc::params::IBCParameters::default(),
+            allowed_fee_assets: vec!["nria".parse().unwrap()],
+            fees: default_fees(),
+        }
+        .try_into()
+        .unwrap();
 
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mempool = Mempool::new();
-        let mut app = App::new(snapshot, mempool.clone()).await.unwrap();
+        let metrics = Box::leak(Box::new(Metrics::new()));
+        let mut app = App::new(snapshot, mempool.clone(), metrics).await.unwrap();
         app.init_chain(storage.clone(), genesis_state, vec![], "test".to_string())
             .await
             .unwrap();

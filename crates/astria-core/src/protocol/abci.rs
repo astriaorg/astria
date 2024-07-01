@@ -18,6 +18,8 @@ impl AbciErrorCode {
     pub const INSUFFICIENT_FUNDS: Self = Self(6);
     pub const INVALID_CHAIN_ID: Self = Self(7);
     pub const VALUE_NOT_FOUND: Self = Self(8);
+    pub const TRANSACTION_EXPIRED: Self = Self(9);
+    pub const TRANSACTION_FAILED: Self = Self(10);
 }
 
 impl AbciErrorCode {
@@ -33,6 +35,8 @@ impl AbciErrorCode {
             6 => "insufficient funds".into(),
             7 => "the provided chain id was invalid".into(),
             8 => "the requested value was not found".into(),
+            9 => "the transaction expired in the app's mempool".into(),
+            10 => "the transaction failed to execute in prepare_proposal()".into(),
             other => format!("unknown non-zero abci error code: {other}").into(),
         }
     }
@@ -61,6 +65,8 @@ impl From<NonZeroU32> for AbciErrorCode {
             6 => Self::INSUFFICIENT_FUNDS,
             7 => Self::INVALID_CHAIN_ID,
             8 => Self::VALUE_NOT_FOUND,
+            9 => Self::TRANSACTION_EXPIRED,
+            10 => Self::TRANSACTION_FAILED,
             other => Self(other),
         }
     }

@@ -13,12 +13,16 @@ use super::{
     Handle,
     StateNotInit,
 };
-use crate::config::CommitLevel;
+use crate::{
+    config::CommitLevel,
+    metrics::Metrics,
+};
 
 pub(crate) struct Builder {
     pub(crate) mode: CommitLevel,
     pub(crate) rollup_address: String,
     pub(crate) shutdown: CancellationToken,
+    pub(crate) metrics: &'static Metrics,
 }
 
 impl Builder {
@@ -27,6 +31,7 @@ impl Builder {
             mode,
             rollup_address,
             shutdown,
+            metrics,
         } = self;
 
         let client = super::client::Client::connect_lazy(&rollup_address).wrap_err_with(|| {
@@ -67,6 +72,7 @@ impl Builder {
             blocks_pending_finalization: HashMap::new(),
 
             max_spread: None,
+            metrics,
         };
         let handle = Handle {
             firm_blocks: firm_block_tx,

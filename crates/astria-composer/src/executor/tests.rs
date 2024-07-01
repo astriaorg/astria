@@ -5,9 +5,7 @@ use std::{
 
 use astria_core::{
     primitive::v1::{
-        asset::default_native_asset,
         RollupId,
-        FEE_ASSET_ID_LEN,
         ROLLUP_ID_LEN,
     },
     protocol::transaction::v1alpha1::action::SequenceAction,
@@ -44,6 +42,8 @@ use wiremock::{
 
 use crate::{
     executor,
+    metrics::Metrics,
+    test_utils::sequence_action_of_max_size,
     Config,
 };
 
@@ -64,6 +64,14 @@ static TELEMETRY: Lazy<()> = Lazy::new(|| {
             .unwrap();
     }
 });
+
+fn sequence_action() -> SequenceAction {
+    SequenceAction {
+        rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
+        data: vec![],
+        fee_asset: "nria".parse().unwrap(),
+    }
+}
 
 /// Start a mock sequencer server and mount a mock for the `accounts/nonce` query.
 async fn setup() -> (MockServer, MockGuard, Config, NamedTempFile) {
@@ -92,6 +100,7 @@ async fn setup() -> (MockServer, MockGuard, Config, NamedTempFile) {
         sequencer_url: server.uri(),
         sequencer_chain_id: "test-chain-1".to_string(),
         private_key_file: keyfile.path().to_string_lossy().to_string(),
+        sequencer_address_prefix: "astria".into(),
         block_time_ms: 2000,
         max_bytes_per_bundle: 1000,
         bundle_queue_capacity: 10,
@@ -101,6 +110,7 @@ async fn setup() -> (MockServer, MockGuard, Config, NamedTempFile) {
         metrics_http_listener_addr: String::new(),
         pretty_print: true,
         grpc_addr: "127.0.0.1:0".parse().unwrap(),
+        fee_asset: "nria".parse().unwrap(),
     };
     (server, startup_guard, cfg, keyfile)
 }
@@ -208,14 +218,17 @@ async fn full_bundle() {
     // set up the executor, channel for writing seq actions, and the sequencer mock
     let (sequencer, nonce_guard, cfg, _keyfile) = setup().await;
     let shutdown_token = CancellationToken::new();
+    let metrics = Box::leak(Box::new(Metrics::new(cfg.parse_rollups().unwrap().keys())));
     let (executor, executor_handle) = executor::Builder {
         sequencer_url: cfg.sequencer_url.clone(),
         sequencer_chain_id: cfg.sequencer_chain_id.clone(),
         private_key_file: cfg.private_key_file.clone(),
+        sequencer_address_prefix: "astria".into(),
         block_time_ms: cfg.block_time_ms,
         max_bytes_per_bundle: cfg.max_bytes_per_bundle,
         bundle_queue_capacity: cfg.bundle_queue_capacity,
         shutdown_token: shutdown_token.clone(),
+        metrics,
     }
     .build()
     .unwrap();
@@ -231,16 +244,11 @@ async fn full_bundle() {
     // send two sequence actions to the executor, the first of which is large enough to fill the
     // bundle sending the second should cause the first to immediately be submitted in
     // order to make space for the second
-    let seq0 = SequenceAction {
-        rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
-        data: vec![0u8; cfg.max_bytes_per_bundle - ROLLUP_ID_LEN - FEE_ASSET_ID_LEN],
-        fee_asset_id: default_native_asset().id(),
-    };
+    let seq0 = sequence_action_of_max_size(cfg.max_bytes_per_bundle);
 
     let seq1 = SequenceAction {
         rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
-        data: vec![1u8; 1],
-        fee_asset_id: default_native_asset().id(),
+        ..sequence_action_of_max_size(cfg.max_bytes_per_bundle)
     };
 
     // push both sequence actions to the executor in order to force the full bundle to be sent
@@ -299,14 +307,17 @@ async fn bundle_triggered_by_block_timer() {
     // set up the executor, channel for writing seq actions, and the sequencer mock
     let (sequencer, nonce_guard, cfg, _keyfile) = setup().await;
     let shutdown_token = CancellationToken::new();
+    let metrics = Box::leak(Box::new(Metrics::new(cfg.parse_rollups().unwrap().keys())));
     let (executor, executor_handle) = executor::Builder {
         sequencer_url: cfg.sequencer_url.clone(),
         sequencer_chain_id: cfg.sequencer_chain_id.clone(),
         private_key_file: cfg.private_key_file.clone(),
+        sequencer_address_prefix: "astria".into(),
         block_time_ms: cfg.block_time_ms,
         max_bytes_per_bundle: cfg.max_bytes_per_bundle,
         bundle_queue_capacity: cfg.bundle_queue_capacity,
         shutdown_token: shutdown_token.clone(),
+        metrics,
     }
     .build()
     .unwrap();
@@ -323,9 +334,8 @@ async fn bundle_triggered_by_block_timer() {
     // send two sequence actions to the executor, both small enough to fit in a single bundle
     // without filling it
     let seq0 = SequenceAction {
-        rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
         data: vec![0u8; cfg.max_bytes_per_bundle / 4],
-        fee_asset_id: default_native_asset().id(),
+        ..sequence_action()
     };
 
     // make sure at least one block has passed so that the executor will submit the bundle
@@ -383,14 +393,17 @@ async fn two_seq_actions_single_bundle() {
     // set up the executor, channel for writing seq actions, and the sequencer mock
     let (sequencer, nonce_guard, cfg, _keyfile) = setup().await;
     let shutdown_token = CancellationToken::new();
+    let metrics = Box::leak(Box::new(Metrics::new(cfg.parse_rollups().unwrap().keys())));
     let (executor, executor_handle) = executor::Builder {
         sequencer_url: cfg.sequencer_url.clone(),
         sequencer_chain_id: cfg.sequencer_chain_id.clone(),
         private_key_file: cfg.private_key_file.clone(),
+        sequencer_address_prefix: "astria".into(),
         block_time_ms: cfg.block_time_ms,
         max_bytes_per_bundle: cfg.max_bytes_per_bundle,
         bundle_queue_capacity: cfg.bundle_queue_capacity,
         shutdown_token: shutdown_token.clone(),
+        metrics,
     }
     .build()
     .unwrap();
@@ -407,15 +420,14 @@ async fn two_seq_actions_single_bundle() {
     // send two sequence actions to the executor, both small enough to fit in a single bundle
     // without filling it
     let seq0 = SequenceAction {
-        rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
         data: vec![0u8; cfg.max_bytes_per_bundle / 4],
-        fee_asset_id: default_native_asset().id(),
+        ..sequence_action()
     };
 
     let seq1 = SequenceAction {
         rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
         data: vec![1u8; cfg.max_bytes_per_bundle / 4],
-        fee_asset_id: default_native_asset().id(),
+        ..sequence_action()
     };
 
     // make sure at least one block has passed so that the executor will submit the bundle

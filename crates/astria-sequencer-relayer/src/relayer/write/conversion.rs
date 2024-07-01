@@ -32,7 +32,10 @@ use tracing::{
     warn,
 };
 
-use crate::IncludeRollup;
+use crate::{
+    metrics::Metrics,
+    IncludeRollup,
+};
 
 /// The maximum permitted payload size in bytes that relayer will send to Celestia.
 ///
@@ -299,11 +302,11 @@ impl Input {
     }
 }
 
-#[derive(Debug)]
 pub(super) struct NextSubmission {
     rollup_filter: IncludeRollup,
     input: Input,
     payload: Payload,
+    metrics: &'static Metrics,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -324,11 +327,12 @@ pub(super) enum TryAddError {
 }
 
 impl NextSubmission {
-    pub(super) fn new(rollup_filter: IncludeRollup) -> Self {
+    pub(super) fn new(rollup_filter: IncludeRollup, metrics: &'static Metrics) -> Self {
         Self {
             rollup_filter,
             input: Input::new(),
             payload: Payload::new(),
+            metrics,
         }
     }
 
@@ -344,8 +348,8 @@ impl NextSubmission {
 
         let payload_creation_start = std::time::Instant::now();
         let payload_candidate = input_candidate.clone().try_into_payload()?;
-        metrics::histogram!(crate::metrics_init::CELESTIA_PAYLOAD_CREATION_LATENCY)
-            .record(payload_creation_start.elapsed());
+        self.metrics
+            .record_celestia_payload_creation_latency(payload_creation_start.elapsed());
 
         if payload_candidate.compressed_size <= MAX_PAYLOAD_SIZE_BYTES {
             self.input = input_candidate;
@@ -489,6 +493,7 @@ mod tests {
         NextSubmission,
     };
     use crate::{
+        metrics::Metrics,
         relayer::write::conversion::{
             TryAddError,
             MAX_PAYLOAD_SIZE_BYTES,
@@ -498,6 +503,10 @@ mod tests {
 
     fn include_all_rollups() -> IncludeRollup {
         IncludeRollup::parse("").unwrap()
+    }
+
+    fn metrics() -> &'static Metrics {
+        Box::leak(Box::new(Metrics::new()))
     }
 
     fn block(height: u32) -> SequencerBlock {
@@ -531,7 +540,7 @@ mod tests {
 
     #[tokio::test]
     async fn add_sequencer_block_to_empty_next_submission() {
-        let mut next_submission = NextSubmission::new(include_all_rollups());
+        let mut next_submission = NextSubmission::new(include_all_rollups(), metrics());
         next_submission.try_add(block(1)).unwrap();
         let submission = next_submission.take().await.unwrap();
         assert_eq!(1, submission.num_blocks());
@@ -540,7 +549,7 @@ mod tests {
 
     #[test]
     fn adding_three_sequencer_blocks_with_same_ids_doesnt_change_number_of_blobs() {
-        let mut next_submission = NextSubmission::new(include_all_rollups());
+        let mut next_submission = NextSubmission::new(include_all_rollups(), metrics());
         next_submission.try_add(block(1)).unwrap();
         next_submission.try_add(block(2)).unwrap();
         next_submission.try_add(block(3)).unwrap();
@@ -554,7 +563,7 @@ mod tests {
         // this test makes use of the fact that random data is essentially incompressible so
         // that size(uncompressed_payload) ~= size(compressed_payload).
         let mut rng = ChaChaRng::seed_from_u64(0);
-        let mut next_submission = NextSubmission::new(include_all_rollups());
+        let mut next_submission = NextSubmission::new(include_all_rollups(), metrics());
         // adding 9 blocks with 100KB random data each, which gives a (compressed) payload slightly
         // above 900KB.
         let num_bytes = 100_000usize;
@@ -576,7 +585,7 @@ mod tests {
         // this test makes use of the fact that random data is essentially incompressible so
         // that size(uncompressed_payload) ~= size(compressed_payload).
         let mut rng = ChaChaRng::seed_from_u64(0);
-        let mut next_submission = NextSubmission::new(include_all_rollups());
+        let mut next_submission = NextSubmission::new(include_all_rollups(), metrics());
 
         // using the upper limit defined in the constant and add 1KB of extra bytes to ensure
         // the block is too large
