@@ -5,7 +5,7 @@
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  name: {{ $.Values.config.moniker }}-{{ $value.persistentVolumeName }}-local
+  name: {{ $.Values.moniker }}-{{ $value.persistentVolumeName }}-local
 provisioner: kubernetes.io/no-provisioner
 volumeBindingMode: WaitForFirstConsumer
 reclaimPolicy: Retain

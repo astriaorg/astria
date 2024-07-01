@@ -1,3 +1,4 @@
+use astria_core::primitive::v1::asset;
 use serde::{
     Deserialize,
     Serialize,
@@ -16,7 +17,7 @@ pub struct Config {
     // The path to the private key used to sign transactions submitted to the sequencer.
     pub sequencer_key_path: String,
     // The fee asset denomination to use for the bridge account's transactions.
-    pub fee_asset_denomination: String,
+    pub fee_asset_denomination: asset::Denom,
     // The minimum expected balance of the fee asset in the bridge account.
     pub min_expected_fee_asset_balance: u64,
     // The asset denomination being withdrawn from the rollup.
@@ -27,6 +28,8 @@ pub struct Config {
     pub ethereum_contract_address: String,
     // The rpc endpoint of the evm rollup.
     pub ethereum_rpc_endpoint: String,
+    // The address prefix to use when constructing sequencer addresses using the signing key.
+    pub sequencer_address_prefix: String,
     // The socket address at which the bridge service will server healthz, readyz, and status
     // calls.
     pub api_addr: String,

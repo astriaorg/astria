@@ -15,13 +15,7 @@ use std::{
 };
 
 use astria_core::{
-    primitive::v1::{
-        asset::{
-            default_native_asset,
-            DEFAULT_NATIVE_ASSET_DENOM,
-        },
-        RollupId,
-    },
+    primitive::v1::RollupId,
     protocol::transaction::v1alpha1::{
         action::{
             BridgeLockAction,
@@ -62,9 +56,31 @@ use crate::{
     },
     asset::get_native_asset,
     bridge::state_ext::StateWriteExt as _,
-    genesis::GenesisState,
+    genesis::{
+        AddressPrefixes,
+        UncheckedGenesisState,
+    },
     proposal::commitment::generate_rollup_datas_commitment,
 };
+
+/// XXX: This should be expressed in terms of `crate::app::test_utils::unchecked_genesis_state` to
+/// be consistent everywhere. `get_alice_signing_key` already is, why not this?
+fn unchecked_genesis_state() -> UncheckedGenesisState {
+    let (_, alice_address) = get_alice_signing_key_and_address();
+    UncheckedGenesisState {
+        accounts: vec![],
+        address_prefixes: AddressPrefixes {
+            base: crate::address::get_base_prefix().to_string(),
+        },
+        authority_sudo_address: alice_address,
+        ibc_sudo_address: alice_address,
+        ibc_relayer_addresses: vec![],
+        native_asset_base_denomination: "nria".to_string(),
+        ibc_params: IBCParameters::default(),
+        allowed_fee_assets: vec!["nria".parse().unwrap()],
+        fees: default_fees(),
+    }
+}
 
 #[tokio::test]
 async fn app_genesis_snapshot() {
@@ -77,14 +93,14 @@ async fn app_finalize_block_snapshot() {
     let (alice_signing_key, _) = get_alice_signing_key_and_address();
     let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
 
-    let bridge_address = crate::astria_address([99; 20]);
+    let bridge_address = crate::address::base_prefixed([99; 20]);
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
-    let asset_id = get_native_asset().id();
+    let asset = get_native_asset().clone();
 
     let mut state_tx = StateDelta::new(app.state.clone());
     state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
     state_tx
-        .put_bridge_account_asset_id(&bridge_address, &asset_id)
+        .put_bridge_account_ibc_asset(&bridge_address, &asset)
         .unwrap();
     app.apply(state_tx);
 
@@ -97,21 +113,20 @@ async fn app_finalize_block_snapshot() {
     let lock_action = BridgeLockAction {
         to: bridge_address,
         amount,
-        asset_id,
-        fee_asset_id: asset_id,
+        asset: asset.clone(),
+        fee_asset: asset.clone(),
         destination_chain_address: "nootwashere".to_string(),
     };
     let sequence_action = SequenceAction {
         rollup_id,
         data: b"hello world".to_vec(),
-        fee_asset_id: asset_id,
+        fee_asset: asset.clone(),
     };
     let tx = UnsignedTransaction {
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![lock_action.into(), sequence_action.into()],
     };
 
@@ -121,7 +136,7 @@ async fn app_finalize_block_snapshot() {
         bridge_address,
         rollup_id,
         amount,
-        asset_id,
+        asset,
         "nootwashere".to_string(),
     );
     let deposits = HashMap::from_iter(vec![(rollup_id, vec![expected_deposit.clone()])]);
@@ -157,18 +172,15 @@ async fn app_finalize_block_snapshot() {
 #[allow(clippy::too_many_lines)]
 #[tokio::test]
 async fn app_execute_transaction_with_every_action_snapshot() {
-    use astria_core::{
-        primitive::v1::asset,
-        protocol::transaction::v1alpha1::action::{
-            FeeAssetChangeAction,
-            InitBridgeAccountAction,
-            SudoAddressChangeAction,
-        },
+    use astria_core::protocol::transaction::v1alpha1::action::{
+        FeeAssetChangeAction,
+        InitBridgeAccountAction,
+        SudoAddressChangeAction,
     };
 
     use crate::genesis::Account;
 
-    let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
+    let (alice_signing_key, _) = get_alice_signing_key_and_address();
     let (bridge_signing_key, bridge_address) = get_bridge_signing_key_and_address();
     let bob_address = address_from_hex_string(BOB_ADDRESS);
     let carol_address = address_from_hex_string(CAROL_ADDRESS);
@@ -178,16 +190,12 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         balance: 1_000_000_000,
     });
 
-    let genesis_state = GenesisState {
+    let genesis_state = UncheckedGenesisState {
         accounts,
-        authority_sudo_address: alice_address,
-        ibc_sudo_address: alice_address,
-        ibc_relayer_addresses: vec![],
-        native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
-        ibc_params: IBCParameters::default(),
-        allowed_fee_assets: vec![default_native_asset()],
-        fees: default_fees(),
-    };
+        ..unchecked_genesis_state()
+    }
+    .try_into()
+    .unwrap();
     let (mut app, storage) = initialize_app_with_storage(Some(genesis_state), vec![]).await;
 
     // setup for ValidatorUpdate action
@@ -198,26 +206,25 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     };
 
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
-    let asset_id = get_native_asset().id();
+    let asset = get_native_asset().clone();
 
     let tx = UnsignedTransaction {
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![
             TransferAction {
                 to: bob_address,
                 amount: 333_333,
-                asset_id,
-                fee_asset_id: asset_id,
+                asset: asset.clone(),
+                fee_asset: asset.clone(),
             }
             .into(),
             SequenceAction {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                 data: b"hello world".to_vec(),
-                fee_asset_id: asset_id,
+                fee_asset: asset.clone(),
             }
             .into(),
             Action::ValidatorUpdate(update.clone()),
@@ -225,9 +232,9 @@ async fn app_execute_transaction_with_every_action_snapshot() {
             IbcRelayerChangeAction::Addition(carol_address).into(),
             IbcRelayerChangeAction::Removal(bob_address).into(),
             // TODO: should fee assets be stored in state?
-            FeeAssetChangeAction::Addition(asset::Id::from_str_unchecked("test-0")).into(),
-            FeeAssetChangeAction::Addition(asset::Id::from_str_unchecked("test-1")).into(),
-            FeeAssetChangeAction::Removal(asset::Id::from_str_unchecked("test-0")).into(),
+            FeeAssetChangeAction::Addition("test-0".parse().unwrap()).into(),
+            FeeAssetChangeAction::Addition("test-1".parse().unwrap()).into(),
+            FeeAssetChangeAction::Removal("test-0".parse().unwrap()).into(),
             SudoAddressChangeAction {
                 new_address: bob_address,
             }
@@ -242,13 +249,12 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![
             InitBridgeAccountAction {
                 rollup_id,
-                asset_id,
-                fee_asset_id: asset_id,
+                asset: asset.clone(),
+                fee_asset: asset.clone(),
                 sudo_address: None,
                 withdrawer_address: None,
             }
@@ -262,21 +268,20 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         params: TransactionParams::builder()
             .chain_id("test")
             .nonce(1)
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![
             BridgeLockAction {
                 to: bridge_address,
                 amount: 100,
-                asset_id,
-                fee_asset_id: asset_id,
+                asset: asset.clone(),
+                fee_asset: asset.clone(),
                 destination_chain_address: "nootwashere".to_string(),
             }
             .into(),
             BridgeUnlockAction {
                 to: bob_address,
                 amount: 10,
-                fee_asset_id: asset_id,
+                fee_asset: asset.clone(),
                 memo: vec![0u8; 32],
                 bridge_address: None,
             }
@@ -285,7 +290,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
                 bridge_address,
                 new_sudo_address: Some(bob_address),
                 new_withdrawer_address: Some(bob_address),
-                fee_asset_id: asset_id,
+                fee_asset: asset.clone(),
             }
             .into(),
         ],

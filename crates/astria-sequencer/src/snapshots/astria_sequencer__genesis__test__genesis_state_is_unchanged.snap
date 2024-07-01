@@ -1,0 +1,61 @@
+---
+source: crates/astria-sequencer/src/genesis.rs
+expression: genesis_state()
+---
+{
+  "address_prefixes": {
+    "base": "astria"
+  },
+  "accounts": [
+    {
+      "address": {
+        "bech32m": "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
+      },
+      "balance": 1000000000000000000
+    },
+    {
+      "address": {
+        "bech32m": "astria1xnlvg0rle2u6auane79t4p27g8hxnj36ja960z"
+      },
+      "balance": 1000000000000000000
+    },
+    {
+      "address": {
+        "bech32m": "astria1vpcfutferpjtwv457r63uwr6hdm8gwr3pxt5ny"
+      },
+      "balance": 1000000000000000000
+    }
+  ],
+  "authority_sudo_address": {
+    "bech32m": "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
+  },
+  "ibc_sudo_address": {
+    "bech32m": "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
+  },
+  "ibc_relayer_addresses": [
+    {
+      "bech32m": "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
+    },
+    {
+      "bech32m": "astria1xnlvg0rle2u6auane79t4p27g8hxnj36ja960z"
+    }
+  ],
+  "native_asset_base_denomination": "nria",
+  "ibc_params": {
+    "ibcEnabled": true,
+    "inboundIcs20TransfersEnabled": true,
+    "outboundIcs20TransfersEnabled": true
+  },
+  "allowed_fee_assets": [
+    "nria"
+  ],
+  "fees": {
+    "transfer_base_fee": 12,
+    "sequence_base_fee": 32,
+    "sequence_byte_cost_multiplier": 1,
+    "init_bridge_account_base_fee": 48,
+    "bridge_lock_byte_cost_multiplier": 1,
+    "bridge_sudo_change_fee": 24,
+    "ics20_withdrawal_base_fee": 24
+  }
+}

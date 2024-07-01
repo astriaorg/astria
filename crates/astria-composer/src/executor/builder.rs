@@ -6,10 +6,7 @@ use std::{
 
 use astria_core::{
     crypto::SigningKey,
-    primitive::v1::{
-        Address,
-        ASTRIA_ADDRESS_PREFIX,
-    },
+    primitive::v1::Address,
     protocol::transaction::v1alpha1::action::SequenceAction,
 };
 use astria_eyre::eyre::{
@@ -30,6 +27,7 @@ pub(crate) struct Builder {
     pub(crate) sequencer_url: String,
     pub(crate) sequencer_chain_id: String,
     pub(crate) private_key_file: String,
+    pub(crate) sequencer_address_prefix: String,
     pub(crate) block_time_ms: u64,
     pub(crate) max_bytes_per_bundle: usize,
     pub(crate) bundle_queue_capacity: usize,
@@ -43,6 +41,7 @@ impl Builder {
             sequencer_url,
             sequencer_chain_id,
             private_key_file,
+            sequencer_address_prefix,
             block_time_ms,
             max_bytes_per_bundle,
             bundle_queue_capacity,
@@ -58,7 +57,7 @@ impl Builder {
         })?;
 
         let sequencer_address = Address::builder()
-            .prefix(ASTRIA_ADDRESS_PREFIX)
+            .prefix(sequencer_address_prefix)
             .array(sequencer_key.verification_key().address_bytes())
             .try_build()
             .wrap_err("failed constructing a sequencer address from private key")?;
