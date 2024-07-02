@@ -119,10 +119,11 @@ async fn setup() -> (MockServer, Config, NamedTempFile) {
 }
 
 /// Assert that given error is of correct type and contains the expected chain IDs.
+#[track_caller]
 fn assert_chain_id_err(
     err: &EnsureChainIdError,
     configured_expected: &str,
-    configured_actual: tendermint::chain::Id,
+    configured_actual: &tendermint::chain::Id,
 ) {
     match err {
         EnsureChainIdError::WrongChainId {
@@ -130,7 +131,7 @@ fn assert_chain_id_err(
             actual,
         } => {
             assert_eq!(*expected, configured_expected);
-            assert_eq!(*actual, configured_actual);
+            assert_eq!(*actual, *configured_actual);
         }
         other => panic!("expected `EnsureChainIdError::WrongChainId`, but got `{other}`"),
     }
@@ -586,28 +587,17 @@ async fn chain_id_mismatch_returns_error() {
     .build()
     .unwrap();
 
-    // ensure that the chain id check function fails
-    let chain_id_check_err = executor
-        .ensure_chain_id_is_correct()
-        .await
-        .expect_err("executor::ensure_chain_id_is_correct() should return an error");
-    assert_chain_id_err(
-        &chain_id_check_err,
-        &cfg.sequencer_chain_id,
-        Id::try_from("bad-chain-id".to_string()).unwrap(),
-    );
-
-    // ensure that executor run_until_stopped() will correctly propogate error
-    let run_err = executor.run_until_stopped().await.expect_err(
+    // ensure that run_until_stopped returns WrongChainId error
+    let err = executor.run_until_stopped().await.expect_err(
         "should exit with an error when reading a bad chain ID, but exited with success",
     );
     let mut found = false;
-    for cause in run_err.chain() {
+    for cause in err.chain() {
         if let Some(err) = cause.downcast_ref::<EnsureChainIdError>() {
             assert_chain_id_err(
                 err,
                 &cfg.sequencer_chain_id,
-                Id::try_from("bad-chain-id".to_string()).unwrap(),
+                &Id::try_from("bad-chain-id".to_string()).unwrap(),
             );
             found = true;
             break;

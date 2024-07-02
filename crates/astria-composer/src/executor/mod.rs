@@ -101,11 +101,8 @@ const BUNDLE_DRAINING_DURATION: Duration = Duration::from_secs(16);
 type StdError = dyn std::error::Error;
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum EnsureChainIdError {
-    // <other error variants from getting genesis, etc>
-    #[error("failed to obtain sequencer chain ID")]
-    FailedToGetChainId,
-    #[error("failed to obtain sequencer genesis")]
-    FailedToGetGenesis,
+    #[error("failed to obtain sequencer chain ID after multiple retries")]
+    GetChainId(#[source] sequencer_client::tendermint_rpc::Error),
     #[error("expected chain ID `{expected}`, but received `{actual}`")]
     WrongChainId {
         expected: String,
@@ -224,7 +221,7 @@ impl Executor {
             }
 
             res = self.pre_run_checks() => {
-                res?;
+                res.wrap_err("required pre-run checks failed")?;
             }
         );
         let mut submission_fut: Fuse<Instrumented<SubmitFut>> = Fuse::terminated();
@@ -457,7 +454,7 @@ impl Executor {
         let remote_chain_id = self
             .get_sequencer_chain_id()
             .await
-            .map_err(|_| EnsureChainIdError::FailedToGetChainId)?;
+            .map_err(EnsureChainIdError::GetChainId)?;
         if remote_chain_id.as_str() != self.sequencer_chain_id {
             return Err(EnsureChainIdError::WrongChainId {
                 expected: self.sequencer_chain_id.clone(),
@@ -468,7 +465,9 @@ impl Executor {
     }
 
     /// Fetch chain id from the sequencer client
-    async fn get_sequencer_chain_id(&self) -> eyre::Result<tendermint::chain::Id> {
+    async fn get_sequencer_chain_id(
+        &self,
+    ) -> Result<tendermint::chain::Id, sequencer_client::tendermint_rpc::Error> {
         let retry_config = tryhard::RetryFutureConfig::new(u32::MAX)
             .exponential_backoff(Duration::from_millis(100))
             .max_delay(Duration::from_secs(20))
@@ -491,8 +490,7 @@ impl Executor {
         let client_genesis: tendermint::Genesis =
             tryhard::retry_fn(|| self.sequencer_client.genesis())
                 .with_config(retry_config)
-                .await
-                .map_err(|_| EnsureChainIdError::FailedToGetGenesis)?;
+                .await?;
         Ok(client_genesis.chain_id)
     }
 }
