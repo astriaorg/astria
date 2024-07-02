@@ -108,11 +108,21 @@ spec:
           volumeMounts:
           - mountPath: "/var/secrets"
             name: sequencer-private-key
-          {{- if .Values.config.rollup.metrics.enabled }}
+          startupProbe:
+            httpGet:
+              path: /readyz
+              port: {{ .Values.ports.composerHealthAPI }}
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: {{ .Values.ports.composerHealthAPI }}
           ports:
+            {{- if .Values.config.rollup.metrics.enabled }}
             - containerPort: {{ .Values.ports.composerMetrics }}
               name: composer-metr
-          {{- end }}
+            {{- end }}
+            - containerPort: {{ .Values.ports.composerHealthAPI }}
+              name: composer-api
           resources:
             {{- toYaml .Values.resources.composer | trim | nindent 12 }}
         - name: conductor

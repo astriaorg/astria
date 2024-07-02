@@ -8,10 +8,13 @@ deploy tool *ARGS:
 delete tool *ARGS:
   @just delete-{{tool}} {{ARGS}}
 
+init tool *ARGS:
+  @just init-{{tool}} {{ARGS}}
+
 load-image image:
   kind load docker-image {{image}} --name astria-dev-cluster
 
-deploy-all: deploy-cluster deploy-ingress-controller wait-for-ingress-controller deploy-astria-local wait-for-sequencer (deploy-chart "sequencer-faucet") deploy-dev-rollup wait-for-rollup
+deploy-all: deploy-cluster deploy-ingress-controller wait-for-ingress-controller deploy-astria-local wait-for-sequencer (deploy-chart "sequencer-faucet") deploy-rollup
 delete-all: clean clean-persisted-data
 
 deploy-astria-local namespace=defaultNamespace: (deploy-chart "celestia-local" namespace) (deploy-sequencer)
@@ -29,13 +32,18 @@ delete-chart chart namespace=defaultNamespace:
 helm-add-if-not-exist repo url:
   helm repo list | grep -q {{repo}} || helm repo add {{repo}} {{url}}
 
-deploy-cluster namespace=defaultNamespace:
-  kind create cluster --config ./dev/kubernetes/kind-cluster-config.yml
-  @just helm-add-if-not-exist cilium https://helm.cilium.io/
-  helm install cilium cilium/cilium --version 1.14.3 \
+hubbleEnabled := "false"
+deploy-cluster namespace=defaultNamespace enableHubble=hubbleEnabled:
+  kind create cluster --image kindest/node:v1.28.9 --config ./dev/kubernetes/kind-cluster-config.yml
+  @just helm-add-if-not-exist cilium https://helm.cilium.io/ > /dev/null
+  helm install cilium cilium/cilium --version 1.15.5 \
       -f ./dev/values/cilium.yml \
+      {{ if enableHubble == "true" { '--set hubble.enabled=true --set hubble.relay.enabled=true --set hubble.ui.enabled=true --set hubble.ui.ingress.enabled=true' } else { '' } }} \
       --namespace kube-system
   kubectl create namespace {{namespace}}
+
+deploy-metrics-server:
+  kubectl apply -f ./dev/kubernetes/metrics-server-local.yml
 
 deploy-ingress-controller:
   kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
@@ -83,37 +91,38 @@ wait-for-sequencer:
   kubectl wait -n astria-dev-cluster deployment celestia-local --for=condition=Available=True --timeout=600s
   kubectl rollout status --watch statefulset/sequencer -n astria-dev-cluster --timeout=600s
 
+deploy-rollup: deploy-dev-rollup deploy-bridge-withdrawer wait-for-rollup
+wait-for-rollup: wait-for-dev-rollup wait-for-bridge-withdrawer
+delete-rollup: delete-dev-rollup delete-bridge-withdrawer
+
 defaultRollupName          := "astria"
 defaultNetworkId           := ""
-defaultGenesisAllocAddress := ""
 defaultPrivateKey          := ""
 defaultSequencerStartBlock := ""
-deploy-rollup rollupName=defaultRollupName networkId=defaultNetworkId genesisAllocAddress=defaultGenesisAllocAddress privateKey=defaultPrivateKey sequencerStartBlock=defaultSequencerStartBlock:
+deploy-dev-rollup rollupName=defaultRollupName networkId=defaultNetworkId:
   helm dependency update charts/evm-rollup > /dev/null
   helm install \
     {{ if rollupName          != '' { replace('--set config.rollup.name=# --set celestia-node.config.labelPrefix=#', '#', rollupName) } else { '' } }} \
     {{ if networkId           != '' { replace('--set config.rollup.networkId=#', '#', networkId) } else { '' } }} \
-    {{ if genesisAllocAddress != '' { replace('--set config.rollup.genesisAccounts[0].address=#', '#', genesisAllocAddress) } else { '' } }} \
-    {{ if privateKey          != '' { replace('--set config.faucet.privateKey=#', '#', privateKey) } else { '' } }} \
-    {{ if sequencerStartBlock != '' { replace('--set config.sequencer.initialBlockHeight=#', '#', sequencerStartBlock) } else { '' } }} \
-    {{rollupName}}-chain-chart ./charts/evm-rollup --namespace astria-dev-cluster
-
-deploy-dev-rollup rollupName=defaultRollupName networkId=defaultNetworkId genesisAllocAddress=defaultGenesisAllocAddress privateKey=defaultPrivateKey sequencerStartBlock=defaultSequencerStartBlock:
-  helm dependency update charts/evm-rollup > /dev/null
-  helm install \
-    {{ if rollupName          != '' { replace('--set config.rollup.name=# --set celestia-node.config.labelPrefix=#', '#', rollupName) } else { '' } }} \
-    {{ if networkId           != '' { replace('--set config.rollup.networkId=#', '#', networkId) } else { '' } }} \
-    {{ if genesisAllocAddress != '' { replace('--set config.rollup.genesisAccounts[0].address=#', '#', genesisAllocAddress) } else { '' } }} \
-    {{ if privateKey          != '' { replace('--set config.faucet.privateKey=#', '#', privateKey) } else { '' } }} \
-    {{ if sequencerStartBlock != '' { replace('--set config.sequencer.initialBlockHeight=#', '#', sequencerStartBlock) } else { '' } }} \
     -f dev/values/rollup/dev.yaml \
     {{rollupName}}-chain-chart ./charts/evm-rollup --namespace astria-dev-cluster
 
-delete-rollup rollupName=defaultRollupName:
+delete-dev-rollup rollupName=defaultRollupName:
   @just delete chart {{rollupName}}-chain
 
-wait-for-rollup rollupName=defaultRollupName:
+wait-for-dev-rollup rollupName=defaultRollupName:
   kubectl rollout status --watch statefulset/{{rollupName}}-geth -n astria-dev-cluster --timeout=600s
+
+deploy-bridge-withdrawer:
+  helm install evm-bridge-withdrawer-chart ./charts/evm-bridge-withdrawer \
+    --namespace astria-dev-cluster \
+    -f dev/values/withdrawer/values.yaml
+
+delete-bridge-withdrawer:
+  @just delete chart evm-bridge-withdrawer astria-dev-cluster
+
+wait-for-bridge-withdrawer:
+  kubectl wait -n astria-dev-cluster deployment evm-bridge-withdrawer --for=condition=Available=True --timeout=600s
 
 defaultHypAgentConfig         := ""
 defaultHypRelayerPrivateKey   := ""
@@ -141,7 +150,7 @@ deploy-local-metrics:
 defaultTag := ""
 
 deploy-smoke-test tag=defaultTag:
-  @echo "Deploying ingress controller..." && just deploy-ingress-controller > /dev/null
+  @echo "Deploying ingress controller..." && just deploy ingress-controller > /dev/null
   @just wait-for-ingress-controller > /dev/null
   @echo "Deploying local celestia instance..." && just deploy celestia-local > /dev/null
   @helm dependency update charts/sequencer > /dev/null
@@ -157,72 +166,179 @@ deploy-smoke-test tag=defaultTag:
     {{ if tag != '' { replace('--set images.conductor.devTag=# --set images.composer.devTag=#', '#', tag) } else { '' } }} \
     --set config.blockscout.enabled=false \
     --set config.faucet.enabled=false > /dev/null
+  @echo "Starting Bridge Withdrawer..." && helm install -n astria-dev-cluster evm-bridge-withdrawer-chart ./charts/evm-bridge-withdrawer \
+    -f dev/values/withdrawer/values.yaml \
+    {{ if tag != '' { replace('--set images.evmBridgeWithdrawer.devTag=#', '#', tag) } else { '' } }} > /dev/null
   @just wait-for-rollup > /dev/null
-  @sleep 15
 
+
+evm_destination_address := "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
+# 1 RIA is 10^9 nRIA
+sequencer_base_amount := "1000000000"
+# RIA is 10^9, WEI is 10^18, 10^9 * 10^9 = 10^18
+rollup_multiplier := "1000000000"
+# 10 RIA
+sequencer_transfer_amount := "10"
+sequencer_rpc_url := "http://rpc.sequencer.localdev.me"
+init-rollup-bridge rollupName=defaultRollupName evmDestinationAddress=evm_destination_address transferAmount=sequencer_transfer_amount:
+  #!/usr/bin/env bash
+  SEQUENCER_BRIDGE_PKEY="dfa7108e38ab71f89f356c72afc38600d5758f11a8c337164713e4471411d2e0"
+  SEQUENCER_FUNDS_PKEY="934ab488f9e1900f6a08f50605ce1409ca9d95ebdc400dafc2e8a4306419fd52"
+  SEQUENCER_BRIDGE_ADDRESS="astria13ahqz4pjqfmynk9ylrqv4fwe4957x2p0h5782u"
+  SEQUENCER_CHAIN_ID="sequencer-test-chain-0"
+  ASSET="nria"
+  FEE_ASSET="nria"
+  TRANSFER_AMOUNT=$(echo "{{transferAmount}} * {{sequencer_base_amount}}" | bc)
+
+  astria-cli sequencer init-bridge-account \
+    --rollup-name {{rollupName}} \
+    --private-key $SEQUENCER_BRIDGE_PKEY \
+    --sequencer.chain-id $SEQUENCER_CHAIN_ID \
+    --sequencer-url {{sequencer_rpc_url}} \
+    --fee-asset=$FEE_ASSET --asset=$ASSET || exit 1
+  astria-cli sequencer bridge-lock $SEQUENCER_BRIDGE_ADDRESS \
+    --amount $TRANSFER_AMOUNT \
+    --destination-chain-address {{evmDestinationAddress}} \
+    --private-key $SEQUENCER_FUNDS_PKEY \
+    --sequencer.chain-id $SEQUENCER_CHAIN_ID \
+    --sequencer-url {{sequencer_rpc_url}} \
+    --fee-asset=$FEE_ASSET --asset=$ASSET || exit 1
+
+
+eth_rpc_url := "http://executor.astria.localdev.me/"
+bridge_tx_bytes := "0xf8f280843c54e7f182898594a58639fb5458e65e4fa917ff951c390292c24a15880de0b6b3a7640000b884bab916d00000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002d617374726961313777306164656736346b7930646178776432756779756e65656c6c6d6a676e786c333935303400000000000000000000000000000000000000820a96a086b85348c9816f6d34533669db3d3626cf55eecea6a380d4d072efb1839df443a04b8b60c8b91dd30add1ca4a96097238d73bab29b0a958322d9a51755d5a5f287"
+bridge_tx_hash := "0x67db5b0825e8f60b926234e209d54e0336cd94defe6720e7acadf871e0377150"
 run-smoke-test:
   #!/usr/bin/env bash
-  ETH_RPC_URL="http://executor.astria.localdev.me/"
-  MAX_RUNS=30
-  echo "Testing Transfer..."
-  TRANSFER_RUNS=0
-  EXPECTED_BALANCE=1000000000000000000
-  curl -X POST $ETH_RPC_URL -s -d '{"jsonrpc":"2.0","method":"eth_sendRawTransaction","params":["0xf86d80843c54e7f182520894830b0e9bb0b1ebad01f2805278ede64c69e068fe880de0b6b3a764000080820a96a045cac19cec50c92e356c665172ec70de5f3cd3721ba09bf3cbad1976d3e83487a00ff4d49607db9ac3c4bb71160be41600f8d1b56ac20b092c0e042f0d226e5277"],"id":1}' -H 'Content-Type: application/json' -s
-  balance() {
-    HEX_NUM=$(curl -X POST $ETH_RPC_URL -s -d '{"jsonrpc":"2.0","method":"eth_getBalance","params":["0x830B0e9Bb0B1ebad01F2805278Ede64c69e068FE", "latest"],"id":1}' -H 'Content-Type: application/json' | jq -r '.result')
-    echo "$(printf "%d" $HEX_NUM)"
-  }
-  while [ $TRANSFER_RUNS -lt $MAX_RUNS ]; do
-    if [ $(balance) -eq $EXPECTED_BALANCE ]; then
-      echo "Transfer success"
-      break
-    else
-      sleep 1
-    fi
-    TRANSFER_RUNS=$((TRANSFER_RUNS+1))
-  done
-  if [ $TRANSFER_RUNS -eq $MAX_RUNS ]; then
-    echo "Transfer failure"
+  MAX_CHECKS=30
+
+  # Checking starting balance
+  BALANCE=$(just evm-get-balance {{evm_destination_address}})
+  if [ $BALANCE -ne 0 ]; then
+    echo "Starting balance is not correct"
     exit 1
   fi
 
-  echo "Testing soft commits..."
-  SOFT_RUNS=0
-  soft() {
-    HEX_NUM=$(curl -X POST $ETH_RPC_URL -s -d '{"jsonrpc":"2.0","method":"eth_getBlockByNumber","params":["safe", false],"id":1}' -H 'Content-Type: application/json' | jq -r '.result.number')
-    echo "$(printf "%d" $HEX_NUM)"
-  }
-  while [ $SOFT_RUNS -lt $MAX_RUNS ]; do
-    if [ $(soft) -gt 0 ]; then
-      echo "Soft commit success"
+  echo "Testing Bridge In..."
+  just init rollup-bridge
+  CHECKS=0
+  EXPECTED_BALANCE=$(echo "{{sequencer_transfer_amount}} * {{sequencer_base_amount}} * {{rollup_multiplier}}" | bc)
+  while [ $CHECKS -lt $MAX_CHECKS ]; do
+    CHECKS=$((CHECKS+1))
+    BALANCE=$(just evm-get-balance {{evm_destination_address}})
+    echo "Check $CHECKS, Balance: $BALANCE, Expected: $EXPECTED_BALANCE"
+    if [ "$BALANCE" == "$EXPECTED_BALANCE" ]; then
+      echo "Bridge In success"
       break
     else
       sleep 1
     fi
-    SOFT_RUNS=$((SOFT_RUNS+1))
   done
+  if [ $CHECKS -eq $MAX_CHECKS ]; then
+    echo "Bridge In failure"
+    exit 1
+  fi
 
-  echo "Testing finalization..."
-  FINALIZED_RUNS=0
-  finalized() {
-    HEX_NUM=$(curl -X POST $ETH_RPC_URL -s -d '{"jsonrpc":"2.0","method":"eth_getBlockByNumber","params":["finalized", false],"id":1}' -H 'Content-Type: application/json' | jq -r '.result.number')
-    echo "$(printf "%d" $HEX_NUM)"
-  }
-  while [ $FINALIZED_RUNS -lt $MAX_RUNS ]; do
-    FINAL=$(finalized)
-    if [ $FINAL -gt 0 ]; then
-      echo "Finalized success"
-      exit 0
+  echo "Testing Bridge Out..."
+  just evm-send-raw-transaction {{bridge_tx_bytes}}
+  TRANSFERED_BALANCE=$(echo "1 * {{sequencer_base_amount}} * {{rollup_multiplier}}" | bc)
+  EXPECTED_BALANCE=$(echo "$EXPECTED_BALANCE - $TRANSFERED_BALANCE" | bc)
+  CHECKS=0
+  while [ $CHECKS -lt $MAX_CHECKS ]; do
+    CHECKS=$((CHECKS+1))
+    BALANCE=$(just evm-get-balance {{evm_destination_address}})
+    echo "Check $CHECKS, Balance: $BALANCE, Expected: $EXPECTED_BALANCE"
+    if [ "$BALANCE" == "$EXPECTED_BALANCE" ]; then
+      echo "Bridge Out EVM success"
+      break
     else
       sleep 1
     fi
-    echo "Finalized block: $FINAL, Check number: $FINALIZED_RUNS"
-    FINALIZED_RUNS=$((FINALIZED_RUNS+1))
   done
-  echo "Finalization failure"
-  exit 1
+  if [ $CHECKS -eq $MAX_CHECKS ]; then
+    echo "Bridge Out EVM failure"
+    exit 1
+  fi
+  CHECKS=0
+  EXPECTED_BALANCE=$(echo "1 * {{sequencer_base_amount}}" | bc)
+  while [ $CHECKS -lt $MAX_CHECKS ]; do
+    CHECKS=$((CHECKS+1))
+    BALANCE=$(astria-cli sequencer account balance astria17w0adeg64ky0daxwd2ugyuneellmjgnxl39504 --sequencer-url {{sequencer_rpc_url}}  | awk '/nria/{print $(NF-1)}')
+    echo "Check $CHECKS, Balance: $BALANCE, Expected: $EXPECTED_BALANCE"
+    if [ "$BALANCE" == "$EXPECTED_BALANCE" ]; then
+      echo "Bridge Out Sequencer success"
+      break
+    else
+      sleep 1
+    fi
+  done
+  if [ $CHECKS -eq $MAX_CHECKS ]; then
+    echo "Bridge Out Sequencer failure"
+    exit 1
+  fi
+
+  echo "Testing TX Finalization"
+  CHECKS=0
+  BLOCK_NUM_HEX=$(just evm-get-transaction-receipt {{bridge_tx_hash}} | jq -r '.blockNumber')
+  BLOCK_NUM=$(just hex-to-dec $BLOCK_NUM_HEX)
+  while [ $CHECKS -lt $MAX_CHECKS ]; do
+    CHECKS=$((CHECKS+1))
+    FINALIZED_BLOCK=$(just evm-get-block-by-number finalized | jq -r '.number')
+    FINALIZED_BLOCK=$(just hex-to-dec $FINALIZED_BLOCK)
+    echo "Check $CHECKS, Finalized block: $FINALIZED_BLOCK, Expected: $BLOCK_NUM"
+    if [ $FINALIZED_BLOCK -ge $BLOCK_NUM ]; then
+      echo "Finalization success"
+      break
+    else
+      sleep 1
+    fi
+  done
+  if [ $CHECKS -eq $MAX_CHECKS ]; then
+    echo "Bridge Out Sequencer failure"
+    exit 1
+  fi
+  exit 0
 
 delete-smoke-test:
   just delete celestia-local
   just delete sequencer
   just delete rollup
+
+#############################################
+##    EVM Curl Command Helper Functions    ##
+#############################################
+
+evm-get-deployed-contract-code contractAddress rpcUrl=eth_rpc_url:
+  #!/usr/bin/env bash
+  curl -X POST {{eth_rpc_url}} -s -d '{"jsonrpc":"2.0","method":"eth_getCode","params":["{{contractAddress}}", "latest"],"id":1}' -H 'Content-Type: application/json' | jq -r '.result'
+
+evm-get-transaction-receipt txHash rpcUrl=eth_rpc_url:
+  #!/usr/bin/env bash
+  curl -X POST {{eth_rpc_url}} -s -d '{"jsonrpc":"2.0","method":"eth_getTransactionReceipt","params":["{{txHash}}"],"id":1}' -H 'Content-Type: application/json' | jq '.result'
+
+evm-get-raw-transaction txHash rpcUrl=eth_rpc_url:
+  #!/usr/bin/env bash
+  curl -X POST {{eth_rpc_url}} -s -d '{"jsonrpc":"2.0","method":"eth_getRawTransactionByHash","params":["{{txHash}}"],"id":1}' -H 'Content-Type: application/json' | jq '.result'
+
+evm-send-raw-transaction txData rpcUrl=eth_rpc_url:
+  #!/usr/bin/env bash
+  curl -X POST {{eth_rpc_url}} -s -d '{"jsonrpc":"2.0","method":"eth_sendRawTransaction","params":["{{txData}}"],"id":1}' -H 'Content-Type: application/json'
+
+evm-get-block-by-number blockNumber rpcUrl=eth_rpc_url:
+  #!/usr/bin/env bash
+  curl -X POST {{eth_rpc_url}} -s -d '{"jsonrpc":"2.0","method":"eth_getBlockByNumber","params":["{{blockNumber}}", false],"id":1}' -H 'Content-Type: application/json' | jq '.result'
+
+evm-get-balance address rpcUrl=eth_rpc_url:
+  #!/usr/bin/env bash
+  HEX_NUM=$(curl -X POST {{eth_rpc_url}} -s -d '{"jsonrpc":"2.0","method":"eth_getBalance","params":["{{address}}", "latest"],"id":1}' -H 'Content-Type: application/json' | jq -r '.result')
+  echo $(just hex-to-dec $HEX_NUM)
+
+evm-get-txpool-length rpcUrl=eth_rpc_url:
+  #!/usr/bin/env bash
+  curl -X POST {{eth_rpc_url}} -s -d '{"jsonrpc":"2.0","method":"txpool_content","params":[],"id":1}' -H 'Content-Type: application/json' | jq '.result'
+
+hex-to-dec hex:
+  #!/usr/bin/env bash
+  HEX_NUM={{hex}}
+  CLEAN_HEX=$(echo "${HEX_NUM#0x}" | tr 'a-z' 'A-Z')
+  echo $(echo "ibase=16; $CLEAN_HEX" | bc)

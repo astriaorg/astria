@@ -3,11 +3,89 @@ global:
   dev: true
 
 config:
+  # The level at which core astria components will log out
+  # Options are: error, warn, info, and debug
+  logLevel: "debug"
+
+  rollup:
+    # Default name for the rollup chain, used to generate Rollup ID
+    name: astria
+    # Set to true to keep history of all blocks
+    archiveNode: false
+    # EVM network ID used by the chain
+    networkId: "1337"
+    # Determines what will drive block execution, options are:
+    # - "SoftOnly" -> blocks are only pulled from the sequencer
+    # - "FirmOnly" -> blocks are only pulled from DA
+    # - "SoftAndFirm" -> blocks are pulled from both the sequencer and DA
+    executionCommitLevel: 'SoftAndFirm'
+    # Configuration specific to EVM rollup genesis
+    genesis:
+      # Configuration of Eth forks, setting to 0 will enable form height,
+      # left as is these forks will not activate.
+      shanghaiTime: "0"
+      cancunTime: ""
+      pragueTime: ""
+      verkleTime: ""
+      # Configure the gas Limit
+      gasLimit: "8000000"
+      # Set to a hex set of bytes if your rollup has manually configured extra data
+      extraDataOverride: ""
+      # If set to true the genesis block will contain extra data
+      overrideGenesisExtraData: true
+      # Configure the sequencer bridge addresses and allowed assets if using
+      # the astria canonical bridge. Recommend removing alloc values if so.
+      bridgeAddresses:
+        - bridgeAddress: "astria13ahqz4pjqfmynk9ylrqv4fwe4957x2p0h5782u"
+          startHeight: 1
+          assetDenom: "nria"
+          assetPrecision: 9
+      # Configure the fee collector for the evm tx fees, activated at block heights.
+      # If not configured, all tx fees will be burned.
+      feeCollectors:
+        1: "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
+      # Configure EIP-1559 params, activated at block heights
+      eip1559Params: {}
+        # 1:
+        #   minBaseFee: 0
+        #   elasticityMultiplier: 2
+      #   baseFeeChangeDenominator: 8
+      # Can configure the genesis allocs for the chain
+      alloc:
+        # Deploying the deterministic deploy proxy contract in genesis
+        # Forge and other tools use this for their CREATE2 usage, but
+        # can only be included through the genesis block after EIP-155
+        # https://github.com/Arachnid/deterministic-deployment-proxy
+        - address: "0x4e59b44847b379578588920cA78FbF26c0B4956C"
+          value:
+            balance: "0"
+            code: "0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf3"
+        - address: "0xA58639fB5458e65E4fA917FF951C390292C24A15"
+          value:
+            balance: "0"
+            code: "0x60806040526004361061004a5760003560e01c80637eb6dec71461004f578063a996e0201461009d578063b6476c7e146100b2578063bab916d0146100d4578063db97dc98146100e7575b600080fd5b34801561005b57600080fd5b506100837f000000000000000000000000000000000000000000000000000000000000000981565b60405163ffffffff90911681526020015b60405180910390f35b6100b06100ab366004610315565b6100fc565b005b3480156100be57600080fd5b506100c761019e565b6040516100949190610381565b6100b06100e23660046103cf565b61022c565b3480156100f357600080fd5b506100c76102bf565b3460006101297f000000000000000000000000000000000000000000000000000000003b9aca0083610411565b1161014f5760405162461bcd60e51b815260040161014690610433565b60405180910390fd5b34336001600160a01b03167f0c64e29a5254a71c7f4e52b3d2d236348c80e00a00ba2e1961962bd2827c03fb8787878760405161018f94939291906104ea565b60405180910390a35050505050565b600180546101ab9061051c565b80601f01602080910402602001604051908101604052809291908181526020018280546101d79061051c565b80156102245780601f106101f957610100808354040283529160200191610224565b820191906000526020600020905b81548152906001019060200180831161020757829003601f168201915b505050505081565b3460006102597f000000000000000000000000000000000000000000000000000000003b9aca0083610411565b116102765760405162461bcd60e51b815260040161014690610433565b34336001600160a01b03167f0f4961cab7530804898499aa89f5ec81d1a73102e2e4a1f30f88e5ae3513ba2a85856040516102b2929190610556565b60405180910390a3505050565b600080546101ab9061051c565b60008083601f8401126102de57600080fd5b50813567ffffffffffffffff8111156102f657600080fd5b60208301915083602082850101111561030e57600080fd5b9250929050565b6000806000806040858703121561032b57600080fd5b843567ffffffffffffffff8082111561034357600080fd5b61034f888389016102cc565b9096509450602087013591508082111561036857600080fd5b50610375878288016102cc565b95989497509550505050565b600060208083528351808285015260005b818110156103ae57858101830151858201604001528201610392565b506000604082860101526040601f19601f8301168501019250505092915050565b600080602083850312156103e257600080fd5b823567ffffffffffffffff8111156103f957600080fd5b610405858286016102cc565b90969095509350505050565b60008261042e57634e487b7160e01b600052601260045260246000fd5b500490565b60208082526062908201527f417374726961576974686472617765723a20696e73756666696369656e74207660408201527f616c75652c206d7573742062652067726561746572207468616e203130202a2a60608201527f20283138202d20424153455f434841494e5f41535345545f505245434953494f6080820152614e2960f01b60a082015260c00190565b81835281816020850137506000828201602090810191909152601f909101601f19169091010190565b6040815260006104fe6040830186886104c1565b82810360208401526105118185876104c1565b979650505050505050565b600181811c9082168061053057607f821691505b60208210810361055057634e487b7160e01b600052602260045260246000fd5b50919050565b60208152600061056a6020830184866104c1565b94935050505056fea264697066735822122047a7ef84c0be4640572989abfc01decbc1ae143d4659f1b32047978c67ebc9c864736f6c63430008150033"
+  faucet:
+    enabled: true
+    privateKey:
+      devContent: "8b3a7999072c9c9314c084044fe705db11714c6c4ed7cddb64da18ea270dd203"
+
+    # The amount of token to give per request
+    amount: 1
   sequencer:
     chainId: sequencer-test-chain-0
+    # URL path for the sequencer
+    rpc: "http://node0-sequencer-rpc-service.astria-dev-cluster.svc.cluster.local:26657"
+    # gRPC path for the sequencer
+    grpc: "http://node0-sequencer-grpc-service.astria-dev-cluster.svc.cluster.local:8080"
+    privateKey:
+      devContent: "2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90"
   celestia:
     rpc: "http://celestia-service.astria-dev-cluster.svc.cluster.local:26658"
     token: "http://celestia-service.astria-dev-cluster.svc.cluster.local:5353"
+    initialBlockHeight: "2"
+    heightVariance: "10"
+  blockscout:
+    enabled: true
 
 resources:
   conductor:
@@ -37,3 +115,16 @@ celestia-node:
 
 storage:
   enabled: false
+
+ingress:
+  enabled: true
+  services:
+    rpc:
+      enabled: true
+    ws:
+      enabled: true
+    faucet:
+      enabled: true
+    explorer:
+      enabled: true
+

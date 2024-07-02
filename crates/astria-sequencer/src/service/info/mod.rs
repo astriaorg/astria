@@ -60,8 +60,8 @@ impl Info {
             .context("invalid path: `asset/denom/:id`")?;
         query_router
             .insert(
-                "asset/allowed_fee_asset_ids",
-                crate::asset::query::allowed_fee_asset_ids_request,
+                "asset/allowed_fee_assets",
+                crate::asset::query::allowed_fee_assets_request,
             )
             .context("invalid path: `asset/allowed_fee_asset_ids`")?;
         query_router
@@ -295,7 +295,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn handle_allowed_fee_asset_ids_query() {
+    async fn handle_allowed_fee_assets_query() {
         use astria_core::generated::protocol::asset::v1alpha1 as raw;
 
         let storage = cnidarium::TempStorage::new().await.unwrap();
@@ -322,7 +322,7 @@ mod test {
         storage.commit(state).await.unwrap();
 
         let info_request = InfoRequest::Query(request::Query {
-            path: "asset/allowed_fee_asset_ids".to_string(),
+            path: "asset/allowed_fee_assets".to_string(),
             data: vec![].into(),
             height: u32::try_from(height).unwrap().into(),
             prove: false,

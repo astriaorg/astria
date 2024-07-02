@@ -2,22 +2,22 @@
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: sequencer-relayer-metrics
+  name: evm-bridge-withdrawer-metrics
   labels:
-    app: sequencer-relayer
+    app: evm-bridge-withdrawer
     {{- with .Values.serviceMonitor.additionalLabels }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
 spec:
-  jobLabel: sequencer-relayer-metric
+  jobLabel: evm-bridge-withdrawer-metric
   namespaceSelector:
     matchNames:
-      - {{ include "sequencer-relayer.namespace" . }}
+      - {{ include "evm-bridge-withdrawer.namespace" . }}
   selector:
     matchLabels:
-      app: sequencer-relayer
+      app: evm-bridge-withdrawer
   endpoints:
-    - port: metrics
+    - port: metric
       path: /
       {{- with .Values.serviceMonitor.interval }}
       interval: {{ . }}

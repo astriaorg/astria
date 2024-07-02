@@ -23,6 +23,7 @@ data:
   ASTRIA_CONDUCTOR_METRICS_HTTP_LISTENER_ADDR: "0.0.0.0:{{ .Values.ports.conductorMetrics }}"
   ASTRIA_CONDUCTOR_FORCE_STDOUT: "{{ .Values.global.useTTY }}"
   ASTRIA_CONDUCTOR_PRETTY_PRINT: "{{ .Values.global.useTTY }}"
+  NO_COLOR: "{{ .Values.global.useTTY }}"
   ASTRIA_CONDUCTOR_NO_OTEL: "{{ not .Values.config.rollup.otel.enabled }}"
   ASTRIA_CONDUCTOR_CELESTIA_BEARER_TOKEN: "{{ .Values.config.celestia.token }}"
   OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.config.rollup.otel.endpoint }}"
@@ -44,7 +45,7 @@ metadata:
   namespace: {{ include "rollup.namespace" .  }}
 data:
   ASTRIA_COMPOSER_LOG: "astria_composer={{ .Values.config.logLevel }}"
-  ASTRIA_COMPOSER_API_LISTEN_ADDR: "0.0.0.0:0"
+  ASTRIA_COMPOSER_API_LISTEN_ADDR: "0.0.0.0:{{ .Values.ports.composerHealthAPI }}"
   ASTRIA_COMPOSER_GRPC_ADDR: "0.0.0.0:{{ .Values.ports.composerGRPC }}"
   ASTRIA_COMPOSER_SEQUENCER_CHAIN_ID: "{{ .Values.config.sequencer.chainId }}"
   ASTRIA_COMPOSER_SEQUENCER_URL: "{{ .Values.config.sequencer.rpc }}"
@@ -59,6 +60,7 @@ data:
   ASTRIA_COMPOSER_METRICS_HTTP_LISTENER_ADDR: "0.0.0.0:{{ .Values.ports.composerMetrics }}"
   ASTRIA_COMPOSER_FORCE_STDOUT: "{{ .Values.global.useTTY }}"
   ASTRIA_COMPOSER_PRETTY_PRINT: "{{ .Values.global.useTTY }}"
+  NO_COLOR: "{{ .Values.global.useTTY }}"
   ASTRIA_COMPOSER_NO_OTEL: "{{ not .Values.config.rollup.otel.enabled }}"
   OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.config.rollup.otel.endpoint }}"
   OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "{{ .Values.config.rollup.otel.tracesEndpoint }}"
