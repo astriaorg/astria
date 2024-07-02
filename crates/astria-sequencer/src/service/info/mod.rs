@@ -70,6 +70,12 @@ impl Info {
                 crate::bridge::query::bridge_account_last_tx_hash_request,
             )
             .context("invalid path: `bridge/account_last_tx_hash/:address`")?;
+        query_router
+            .insert(
+                "bridge/account_info/:address",
+                crate::bridge::query::bridge_account_info_request,
+            )
+            .context("invalid path: `bridge/account_info/:address`")?;
         Ok(Self {
             storage,
             query_router,
