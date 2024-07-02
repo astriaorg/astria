@@ -6,7 +6,7 @@ metadata:
 data:
   ASTRIA_BRIDGE_WITHDRAWER_LOG: "astria_bridge_withdrawer=debug"
   ASTRIA_BRIDGE_WITHDRAWER_API_ADDR: "0.0.0.0:{{ .Values.ports.healthAPI }}"
-  ASTRIA_BRIDGE_WITHDRAWER_SEQUENCER_COMETBFT_ENDPOINT: "{{ .Values.config.sequencerCometBftEndpoint }}"
+  ASTRIA_BRIDGE_WITHDRAWER_SEQUENCER_COMETBFT_ENDPOINT: "{{ .Values.config.sequencerCometbftEndpoint }}"
   ASTRIA_BRIDGE_WITHDRAWER_SEQUENCER_CHAIN_ID: "{{ .Values.config.sequencerChainId }}"
   ASTRIA_BRIDGE_WITHDRAWER_SEQUENCER_KEY_PATH: "/secret/sequencerPrivateKey/{{ .Values.config.sequencerPrivateKey.secret.filename }}"
   ASTRIA_BRIDGE_WITHDRAWER_SEQUENCER_ADDRESS_PREFIX: "{{ .Values.config.sequencerAddressPrefix }}"
