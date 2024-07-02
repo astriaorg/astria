@@ -10,6 +10,8 @@ use serde::{
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 /// The single config for creating an astria-bridge service.
 pub struct Config {
+    // The sequencer service grpc endpoint used to fetch pending nonce.
+    pub sequencer_grpc_endpoint: String,
     // The cometbft rpc endpoint for submitting transactions to the sequencer.
     pub sequencer_cometbft_endpoint: String,
     // The chain id of the sequencer chain.
