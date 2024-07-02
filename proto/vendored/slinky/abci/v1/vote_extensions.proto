@@ -1,0 +1,12 @@
+syntax = "proto3";
+package slinky.abci.v1;
+
+option go_package = "github.com/skip-mev/slinky/abci/ve/types";
+
+// OracleVoteExtension defines the vote extension structure for oracle prices.
+message OracleVoteExtension {
+  // Prices defines a map of id(CurrencyPair) -> price.Bytes() . i.e. 1 ->
+  // 0x123.. (bytes). Notice the `id` function is determined by the
+  // `CurrencyPairIDStrategy` used in the VoteExtensionHandler.
+  map<uint64, bytes> prices = 1;
+}
