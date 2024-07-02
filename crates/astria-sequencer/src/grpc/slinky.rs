@@ -19,6 +19,11 @@ use tonic::{
 };
 use tracing::instrument;
 
+use crate::{
+    slinky::state_ext::StateReadExt as _,
+    state_ext::StateReadExt as _,
+};
+
 pub(crate) struct SequencerServer {
     storage: Storage,
 }
@@ -36,32 +41,73 @@ impl MarketMapQueryService for SequencerServer {
     #[instrument(skip_all)]
     async fn market_map(
         self: Arc<Self>,
-        request: Request<MarketMapRequest>,
+        _request: Request<MarketMapRequest>,
     ) -> Result<Response<MarketMapResponse>, Status> {
-        Ok(Response::new(MarketMapResponse::default()))
+        let snapshot = self.storage.latest_snapshot();
+        let market_map = snapshot.get_market_map().await.map_err(|e| {
+            Status::internal(format!("failed to get block market map from storage: {e}"))
+        })?;
+        let last_updated = snapshot
+            .get_market_map_last_updated_height()
+            .await
+            .map_err(|e| {
+                Status::internal(format!(
+                    "failed to get block market map last updated height from storage: {e}"
+                ))
+            })?;
+        let chain_id = snapshot
+            .get_chain_id()
+            .await
+            .map_err(|e| Status::internal(format!("failed to get chain id from storage: {e}")))?;
+
+        Ok(Response::new(MarketMapResponse {
+            market_map: market_map.map(Into::into),
+            last_updated,
+            chain_id: chain_id.to_string(), // TODO: is this the right chain id?
+        }))
     }
 
     #[instrument(skip_all)]
     async fn market(
         self: Arc<Self>,
-        request: Request<MarketRequest>,
+        _request: Request<MarketRequest>,
     ) -> Result<Response<MarketResponse>, Status> {
+        // TODO
         Ok(Response::new(MarketResponse::default()))
     }
 
     #[instrument(skip_all)]
     async fn last_updated(
         self: Arc<Self>,
-        request: Request<LastUpdatedRequest>,
+        _request: Request<LastUpdatedRequest>,
     ) -> Result<Response<LastUpdatedResponse>, Status> {
-        Ok(Response::new(LastUpdatedResponse::default()))
+        let snapshot = self.storage.latest_snapshot();
+        let last_updated = snapshot
+            .get_market_map_last_updated_height()
+            .await
+            .map_err(|e| {
+                Status::internal(format!(
+                    "failed to get block market map last updated height from storage: {e}"
+                ))
+            })?;
+
+        Ok(Response::new(LastUpdatedResponse {
+            last_updated,
+        }))
     }
 
     #[instrument(skip_all)]
     async fn params(
         self: Arc<Self>,
-        request: Request<ParamsRequest>,
+        _request: Request<ParamsRequest>,
     ) -> Result<Response<ParamsResponse>, Status> {
-        Ok(Response::new(ParamsResponse::default()))
+        let snapshot = self.storage.latest_snapshot();
+        let params = snapshot.get_params().await.map_err(|e| {
+            Status::internal(format!("failed to get block params from storage: {e}"))
+        })?;
+
+        Ok(Response::new(ParamsResponse {
+            params: params.map(Into::into),
+        }))
     }
 }

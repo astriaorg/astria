@@ -18,6 +18,7 @@ pub(crate) mod proposal;
 pub(crate) mod sequence;
 mod sequencer;
 pub(crate) mod service;
+pub(crate) mod slinky;
 pub(crate) mod state_ext;
 pub(crate) mod storage_keys;
 pub(crate) mod transaction;

@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use astria_core::{
     crypto::SigningKey,
+    generated::slinky::marketmap::v1::GenesisState as SlinkyGenesisState,
     primitive::v1::{
         asset,
         RollupId,
@@ -68,6 +69,7 @@ fn unchecked_genesis_state() -> UncheckedGenesisState {
         ibc_params: IBCParameters::default(),
         allowed_fee_assets: vec![default_native_asset()],
         fees: default_fees(),
+        slinky: SlinkyGenesisState::default(),
     }
 }
 
