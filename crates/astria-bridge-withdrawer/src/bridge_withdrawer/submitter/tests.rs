@@ -124,7 +124,6 @@ impl TestSubmitter {
         let cometbft_mock = MockServer::start().await;
         let sequencer_cometbft_endpoint = format!("http://{}", cometbft_mock.address());
 
-        // startup info
         let state = Arc::new(state::State::new());
         let startup_handle = startup::InfoHandle::new(state.subscribe());
         state.set_watcher_ready();
