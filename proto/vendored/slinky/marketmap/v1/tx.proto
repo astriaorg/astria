@@ -24,8 +24,7 @@ service Msg {
 
   // RemoveMarketAuthorities defines a method for removing market authorities
   // from the x/marketmap module. the signer must be the admin.
-  rpc RemoveMarketAuthorities(MsgRemoveMarketAuthorities)
-      returns (MsgRemoveMarketAuthoritiesResponse);
+  rpc RemoveMarketAuthorities(MsgRemoveMarketAuthorities) returns (MsgRemoveMarketAuthoritiesResponse);
 
   // UpsertMarkets wraps both Create / Update markets into a single message. Specifically
   // if a market does not exist it will be created, otherwise it will be updated. The response
@@ -33,18 +32,18 @@ service Msg {
   rpc UpsertMarkets(MsgUpsertMarkets) returns (MsgUpsertMarketsResponse);
 }
 
-// MsgUpsertMarkets defines a message carrying a payload for performing market upserts (update or 
+// MsgUpsertMarkets defines a message carrying a payload for performing market upserts (update or
 // create if does not exist) in the x/marketmap module.
 message MsgUpsertMarkets {
   option (cosmos.msg.v1.signer) = "authority";
 
   // Authority is the signer of this transaction.  This authority must be
   // authorized by the module to execute the message.
-  string authority = 1 [ (cosmos_proto.scalar) = "cosmos.AddressString" ];
+  string authority = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
 
   // CreateMarkets is the list of all markets to be created for the given
   // transaction.
-  repeated Market markets  = 2;
+  repeated Market markets = 2;
 }
 
 // MsgUpsertMarketsResponse is the response from the UpsertMarkets API in the x/marketmap module.
@@ -60,7 +59,7 @@ message MsgCreateMarkets {
 
   // Authority is the signer of this transaction.  This authority must be
   // authorized by the module to execute the message.
-  string authority = 1 [ (cosmos_proto.scalar) = "cosmos.AddressString" ];
+  string authority = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
 
   // CreateMarkets is the list of all markets to be created for the given
   // transaction.
@@ -77,7 +76,7 @@ message MsgUpdateMarkets {
 
   // Authority is the signer of this transaction.  This authority must be
   // authorized by the module to execute the message.
-  string authority = 1 [ (cosmos_proto.scalar) = "cosmos.AddressString" ];
+  string authority = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
 
   // UpdateMarkets is the list of all markets to be updated for the given
   // transaction.
@@ -96,7 +95,7 @@ message MsgParams {
   Params params = 1;
   // Authority defines the authority that is updating the x/marketmap module
   // parameters.
-  string authority = 2 [ (cosmos_proto.scalar) = "cosmos.AddressString" ];
+  string authority = 2 [(cosmos_proto.scalar) = "cosmos.AddressString"];
 }
 
 // MsgParamsResponse defines the Msg/Params response type.
@@ -113,7 +112,7 @@ message MsgRemoveMarketAuthorities {
 
   // Admin defines the authority that is the x/marketmap
   // Admin account.  This account is set in the module parameters.
-  string admin = 2 [ (cosmos_proto.scalar) = "cosmos.AddressString" ];
+  string admin = 2 [(cosmos_proto.scalar) = "cosmos.AddressString"];
 }
 
 // MsgRemoveMarketAuthoritiesResponse defines the

@@ -1,9 +1,9 @@
 syntax = "proto3";
 package slinky.service.v1;
 
+import "cosmos_sdk/cosmos_proto/cosmos.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
-import "cosmos_sdk/cosmos_proto/cosmos.proto";
 import "slinky/marketmap/v1/market.proto";
 
 option go_package = "github.com/skip-mev/slinky/service/servers/oracle/types";
@@ -13,7 +13,7 @@ service Oracle {
   // Prices defines a method for fetching the latest prices.
   rpc Prices(QueryPricesRequest) returns (QueryPricesResponse) {
     option (google.api.http).get = "/slinky/oracle/v1/prices";
-  };
+  }
 
   // MarketMap defines a method for fetching the latest market map
   // configuration.

@@ -1,9 +1,9 @@
 syntax = "proto3";
 package slinky.marketmap.v1;
 
-option go_package = "github.com/skip-mev/slinky/x/marketmap/types";
-
 import "slinky/types/v1/currency_pair.proto";
+
+option go_package = "github.com/skip-mev/slinky/x/marketmap/types";
 
 // Market encapsulates a Ticker and its provider-specific configuration.
 message Market {

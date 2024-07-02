@@ -2,9 +2,9 @@ syntax = "proto3";
 package slinky.marketmap.v1;
 
 import "google/api/annotations.proto";
-import "slinky/types/v1/currency_pair.proto";
 import "slinky/marketmap/v1/market.proto";
 import "slinky/marketmap/v1/params.proto";
+import "slinky/types/v1/currency_pair.proto";
 
 option go_package = "github.com/skip-mev/slinky/x/marketmap/types";
 
@@ -29,9 +29,7 @@ service Query {
 
   // Params returns the current x/marketmap module parameters.
   rpc Params(ParamsRequest) returns (ParamsResponse) {
-    option (google.api.http) = {
-      get : "/slinky/marketmap/v1/params"
-    };
+    option (google.api.http) = {get: "/slinky/marketmap/v1/params"};
   }
 }
 
@@ -72,7 +70,9 @@ message MarketResponse {
 message ParamsRequest {}
 
 // ParamsResponse is the response type for the Query/Params RPC method.
-message ParamsResponse { Params params = 1; }
+message ParamsResponse {
+  Params params = 1;
+}
 
 // LastUpdatedRequest is the request type for the Query/LastUpdated RPC
 // method.
@@ -80,4 +80,6 @@ message LastUpdatedRequest {}
 
 // LastUpdatedResponse is the response type for the Query/LastUpdated RPC
 // method.
-message LastUpdatedResponse { uint64 last_updated = 1; }
+message LastUpdatedResponse {
+  uint64 last_updated = 1;
+}
