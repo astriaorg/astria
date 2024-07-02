@@ -649,7 +649,7 @@ mod tests {
         let value = 1_000_000_000.into();
         let recipient = crate::astria_address([1u8; 20]);
         let bridge_address = crate::astria_address([1u8; 20]);
-        let denom = "transfer/channel-0/utia".parse::<Denom>().unwrap();
+        let denom = "nria".parse::<Denom>().unwrap();
 
         let state = Arc::new(State::new());
         let startup_handle = startup::InfoHandle::new(state.subscribe());
