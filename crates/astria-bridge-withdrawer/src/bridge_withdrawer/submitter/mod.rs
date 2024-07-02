@@ -78,7 +78,7 @@ impl Submitter {
                 return Ok(());
             }
 
-            startup_info = self.startup_handle.recv() => {
+            startup_info = self.startup_handle.get_info() => {
                 let startup::Info { chain_id, .. } = startup_info.wrap_err("submitter failed to get startup info")?;
 
                 let sequencer_grpc_client = sequencer_service_client::SequencerServiceClient::connect(
