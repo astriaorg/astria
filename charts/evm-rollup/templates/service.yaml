@@ -13,9 +13,6 @@ spec:
     - name: ws-rpc-svc
       port: {{ .Values.ports.wsRPC }}
       targetPort: ws-rpc
-    - name: gossipnet-svc
-      port: {{ .Values.ports.gossipnet }}
-      targetPort: gossipnet
 ---
 {{- if .Values.config.faucet.enabled}}
 kind: Service

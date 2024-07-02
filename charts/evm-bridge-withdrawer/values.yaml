@@ -4,41 +4,27 @@
 global:
   namespaceOverride: ""
   replicaCount: 1
-  # Whether to use tty readable logging for astria services, when false use json.
-  # Best to be false in production environments, true for clean logs on local dev.
   useTTY: true
   dev: false
 
 # sequencer core images
 images:
-  sequencerRelayer:
-    repo: ghcr.io/astriaorg/sequencer-relayer
-    tag: "0.15.0"
+  evmBridgeWithdrawer:
+    repo: ghcr.io/astriaorg/evm-bridge-withdrawer
+    tag: "0.1.0"
     devTag: latest
 
 config:
-  relayer:
-    sequencerChainId: ""
-    celestiaChainId: ""
-    celestiaAppGrpc: ""
-    cometbftRpc: ""
-    sequencerGrpc: ""
-    onlyIncludeRollups: ""
-
-    metrics:
-      enabled: false
-
-    otel:
-      enabled: false
-      serviceName: "astria-sequencer-relayer"
-      endpoint:
-      tracesEndpoint:
-      tracesCompression: gzip
-      tracesTimeout: 10
-      otlpHeaders:
-      traceHeaders:
-
-  celestiaAppPrivateKey:
+  sequencerCometbftEndpoint: ""
+  sequencerChainId: ""
+  sequencerAddressPrefix: "astria"
+  sequencerBridgeAddress: ""
+  feeAssetDenom: ""
+  minExpectedFeeAssetBalance: "1000000"
+  rollupAssetDenom: ""
+  evmContractAddress: "0x"
+  evmRpcEndpoint: ""
+  sequencerPrivateKey:
     devContent: ""
     secret:
       filename: "key.hex"
@@ -47,20 +33,24 @@ ports:
   healthAPI: 2450
   metrics: 9000
 
+metrics:
+  enabled: false
+
+otel:
+  enabled: false
+  serviceName: "astria-evm-withdrawer"
+  endpoint:
+  tracesEndpoint:
+  tracesCompression: gzip
+  tracesTimeout: 10
+  otlpHeaders:
+  traceHeaders:
+
 serviceMonitor:
   enabled: false
   port: 26660
   additionalLabels:
     release: kube-prometheus-stack
-
-storage:
-  enabled: false
-  local: true
-  entities:
-    sequencerRelayerStorage:
-      size: "1Gi"
-      persistentVolumeName: "sequencer-relayer-storage"
-      path: "/data/sequencer-relayer-data"
 
 # When deploying in a production environment should use a secret provider
 # This is configured for use with GCP, need to set own resource names
