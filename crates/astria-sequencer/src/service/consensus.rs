@@ -223,6 +223,7 @@ mod test {
             SigningKey,
             VerificationKey,
         },
+        generated::slinky::marketmap::v1::GenesisState as SlinkyGenesisState,
         primitive::v1::RollupId,
         protocol::transaction::v1alpha1::{
             action::SequenceAction,
@@ -479,6 +480,7 @@ mod test {
             ibc_params: penumbra_ibc::params::IBCParameters::default(),
             allowed_fee_assets: vec!["nria".parse().unwrap()],
             fees: default_fees(),
+            slinky: SlinkyGenesisState::default(),
         }
         .try_into()
         .unwrap();

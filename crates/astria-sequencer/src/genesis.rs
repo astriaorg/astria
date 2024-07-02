@@ -1,6 +1,9 @@
-use astria_core::primitive::v1::{
-    asset,
-    Address,
+use astria_core::{
+    generated::slinky::marketmap::v1::GenesisState as SlinkyGenesisState,
+    primitive::v1::{
+        asset,
+        Address,
+    },
 };
 use penumbra_ibc::params::IBCParameters;
 use serde::{
@@ -27,6 +30,7 @@ pub(crate) struct GenesisState {
     pub(crate) ibc_params: IBCParameters,
     pub(crate) allowed_fee_assets: Vec<asset::Denom>,
     pub(crate) fees: Fees,
+    pub(crate) slinky: SlinkyGenesisState,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -58,6 +62,7 @@ impl TryFrom<UncheckedGenesisState> for GenesisState {
             ibc_params,
             allowed_fee_assets,
             fees,
+            slinky,
         } = value;
 
         Ok(Self {
@@ -70,6 +75,7 @@ impl TryFrom<UncheckedGenesisState> for GenesisState {
             ibc_params,
             allowed_fee_assets,
             fees,
+            slinky,
         })
     }
 }
@@ -86,6 +92,7 @@ pub(crate) struct UncheckedGenesisState {
     pub(crate) ibc_params: IBCParameters,
     pub(crate) allowed_fee_assets: Vec<asset::Denom>,
     pub(crate) fees: Fees,
+    pub(crate) slinky: SlinkyGenesisState,
 }
 
 impl UncheckedGenesisState {
@@ -139,6 +146,7 @@ impl From<GenesisState> for UncheckedGenesisState {
             ibc_params,
             allowed_fee_assets,
             fees,
+            slinky,
         } = value;
         Self {
             address_prefixes,
@@ -150,6 +158,7 @@ impl From<GenesisState> for UncheckedGenesisState {
             ibc_params,
             allowed_fee_assets,
             fees,
+            slinky,
         }
     }
 }
@@ -254,6 +263,7 @@ mod test {
                 bridge_sudo_change_fee: 24,
                 ics20_withdrawal_base_fee: 24,
             },
+            slinky: SlinkyGenesisState::default(),
         }
     }
 

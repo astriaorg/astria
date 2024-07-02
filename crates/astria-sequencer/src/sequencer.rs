@@ -5,7 +5,10 @@ use anyhow::{
     Context as _,
     Result,
 };
-use astria_core::generated::sequencerblock::v1alpha1::sequencer_service_server::SequencerServiceServer;
+use astria_core::generated::{
+    sequencerblock::v1alpha1::sequencer_service_server::SequencerServiceServer,
+    slinky::marketmap::v1::query_server::QueryServer as MarketMapQueryServer,
+};
 use penumbra_tower_trace::{
     trace::request_span,
     v038::RequestExt as _,
@@ -188,6 +191,7 @@ fn start_grpc_server(
 
     let ibc = penumbra_ibc::component::rpc::IbcQuery::<AstriaHost>::new(storage.clone());
     let sequencer_api = SequencerServer::new(storage.clone(), mempool);
+    let slinky_api = crate::grpc::slinky::SequencerServer::new(storage.clone());
     let cors_layer: CorsLayer = CorsLayer::permissive();
 
     // TODO: setup HTTPS?
@@ -211,7 +215,8 @@ fn start_grpc_server(
         .add_service(ClientQueryServer::new(ibc.clone()))
         .add_service(ChannelQueryServer::new(ibc.clone()))
         .add_service(ConnectionQueryServer::new(ibc.clone()))
-        .add_service(SequencerServiceServer::new(sequencer_api));
+        .add_service(SequencerServiceServer::new(sequencer_api))
+        .add_service(MarketMapQueryServer::new(slinky_api));
 
     info!(grpc_addr = grpc_addr.to_string(), "starting grpc server");
     tokio::task::spawn(
