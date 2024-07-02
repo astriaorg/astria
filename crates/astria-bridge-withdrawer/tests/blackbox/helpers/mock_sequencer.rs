@@ -1,35 +1,41 @@
-use astria_bridge_withdrawer::bridge_withdrawer;
+use std::{
+    net::SocketAddr,
+    sync::Arc,
+};
+
 use astria_core::{
-    bridge::Ics20WithdrawalFromRollupMemo,
-    generated::{
-        protocol::transaction::v1alpha1::{
-            IbcHeight,
-            SignedTransaction,
+    self,
+    generated::sequencerblock::v1alpha1::{
+        sequencer_service_server::{
+            SequencerService,
+            SequencerServiceServer,
         },
-        sequencerblock::v1alpha1::{
-            GetPendingNonceRequest,
-            GetPendingNonceResponse,
-        },
-    },
-    primitive::v1::asset::default_native_asset,
-    protocol::transaction::v1alpha1::{
-        action::{
-            BridgeUnlockAction,
-            Ics20Withdrawal,
-        },
-        Action,
+        FilteredSequencerBlock as RawFilteredSequencerBlock,
+        GetFilteredSequencerBlockRequest,
+        GetPendingNonceRequest,
+        GetPendingNonceResponse,
+        GetSequencerBlockRequest,
+        SequencerBlock as RawSequencerBlock,
     },
 };
+use astria_eyre::eyre::{
+    self,
+    WrapErr as _,
+};
 use astria_grpc_mock::{
+    matcher::message_type,
+    response::constant_response,
     Mock,
     MockGuard,
     MockServer,
 };
-use tendermint_rpc::{
-    endpoint::broadcast::tx_sync,
-    request,
+use tokio::task::JoinHandle;
+use tonic::{
+    transport::Server,
+    Request,
+    Response,
+    Status,
 };
-use tracing::debug;
 
 const GET_PENDING_NONCE_GRPC_NAME: &str = "get_pending_nonce";
 
@@ -112,21 +118,21 @@ struct SequencerServiceImpl(MockServer);
 impl SequencerService for SequencerServiceImpl {
     async fn get_sequencer_block(
         self: Arc<Self>,
-        request: Request<GetSequencerBlockRequest>,
+        _request: Request<GetSequencerBlockRequest>,
     ) -> Result<Response<RawSequencerBlock>, Status> {
         unimplemented!()
     }
 
     async fn get_filtered_sequencer_block(
         self: Arc<Self>,
-        request: Request<GetFilteredSequencerBlockRequest>,
+        _request: Request<GetFilteredSequencerBlockRequest>,
     ) -> Result<Response<RawFilteredSequencerBlock>, Status> {
         unimplemented!()
     }
 
     async fn get_pending_nonce(
         self: Arc<Self>,
-        _request: Request<GetPendingNonceRequest>,
+        request: Request<GetPendingNonceRequest>,
     ) -> Result<Response<GetPendingNonceResponse>, Status> {
         self.0
             .handle_request(GET_PENDING_NONCE_GRPC_NAME, request)

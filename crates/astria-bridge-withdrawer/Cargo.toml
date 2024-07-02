@@ -58,6 +58,7 @@ config = { package = "astria-config", path = "../astria-config", features = [
 ] }
 tempfile = { workspace = true }
 tendermint-rpc = { workspace = true }
+tokio-stream = { workspace = true }
 wiremock = { workspace = true }
 
 [build-dependencies]

@@ -2,14 +2,14 @@ use std::time::Duration;
 
 use astria_core::{
     generated::protocol::account::v1alpha1::NonceResponse,
-    primitive::v1::asset::default_native_asset,
+    primitive::v1::asset,
     protocol::{
         account::v1alpha1::AssetBalance,
-        asset,
         bridge::v1alpha1::BridgeAccountLastTxHashResponse,
     },
 };
 use prost::Message as _;
+use sequencer_client::SignedTransaction;
 use tendermint::{
     abci::{
         response::CheckTx,
@@ -20,11 +20,15 @@ use tendermint::{
 };
 use tendermint_rpc::{
     endpoint::{
-        broadcast::tx_commit,
+        broadcast::{
+            tx_commit,
+            tx_sync,
+        },
         tx,
     },
     response,
 };
+use tracing::debug;
 use wiremock::{
     matchers::{
         body_partial_json,
@@ -36,6 +40,8 @@ use wiremock::{
     ResponseTemplate,
 };
 
+use super::test_bridge_withdrawer::default_native_asset;
+
 const SEQUENCER_CHAIN_ID: &str = "test_sequencer-1000";
 
 async fn _register_default_chain_id_guard(cometbft_mock: &MockServer) -> MockGuard {
@@ -43,8 +49,8 @@ async fn _register_default_chain_id_guard(cometbft_mock: &MockServer) -> MockGua
 }
 
 async fn _register_default_fee_asset_ids_guard(cometbft_mock: &MockServer) -> MockGuard {
-    let fee_asset_ids = vec![default_native_asset().id()];
-    _register_allowed_fee_asset_ids_response(fee_asset_ids, cometbft_mock).await
+    let fee_assets = vec![default_native_asset()];
+    _register_allowed_fee_assets_response(fee_assets, cometbft_mock).await
 }
 
 async fn _register_default_min_expected_fee_asset_balance_guard(
@@ -146,13 +152,13 @@ async fn _register_genesis_chain_id_response(chain_id: &str, server: &MockServer
         .await
 }
 
-async fn _register_allowed_fee_asset_ids_response(
+async fn _register_allowed_fee_assets_response(
     fee_assets: Vec<asset::Denom>,
     cometbft_mock: &MockServer,
 ) -> MockGuard {
     let response = tendermint_rpc::endpoint::abci_query::Response {
         response: tendermint_rpc::endpoint::abci_query::AbciQuery {
-            value: astria_core::protocol::asset::v1alpha1::AllowedFeeAssetIdsResponse {
+            value: astria_core::protocol::asset::v1alpha1::AllowedFeeAssetsResponse {
                 fee_assets,
                 height: 1,
             }
@@ -283,4 +289,21 @@ async fn register_broadcast_tx_commit_response(
     .expect(1)
     .mount_as_scoped(server)
     .await
+}
+
+/// Convert a `Request` object to a `SignedTransaction`
+fn signed_tx_from_request(request: &wiremock::Request) -> SignedTransaction {
+    use astria_core::generated::protocol::transaction::v1alpha1::SignedTransaction as RawSignedTransaction;
+    use prost::Message as _;
+
+    let wrapped_tx_sync_req: tendermint_rpc::request::Wrapper<tx_sync::Request> =
+        serde_json::from_slice(&request.body)
+            .expect("deserialize to JSONRPC wrapped tx_sync::Request");
+    let raw_signed_tx = RawSignedTransaction::decode(&*wrapped_tx_sync_req.params().tx)
+        .expect("can't deserialize signed sequencer tx from broadcast jsonrpc request");
+    let signed_tx = SignedTransaction::try_from_raw(raw_signed_tx)
+        .expect("can't convert raw signed tx to checked signed tx");
+    debug!(?signed_tx, "sequencer mock received signed transaction");
+
+    signed_tx
 }

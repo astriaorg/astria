@@ -153,6 +153,10 @@ impl BridgeWithdrawer {
         Ok((service, shutdown_handle))
     }
 
+    pub fn local_addr(&self) -> SocketAddr {
+        self.api_server.local_addr()
+    }
+
     pub async fn run(self) {
         let Self {
             shutdown_token,
@@ -409,19 +413,4 @@ pub(crate) fn flatten_result<T>(res: Result<eyre::Result<T>, JoinError>) -> eyre
         Ok(Err(err)) => Err(err).wrap_err("task returned with error"),
         Err(err) => Err(err).wrap_err("task panicked"),
     }
-}
-
-#[cfg(test)]
-pub(crate) const ASTRIA_ADDRESS_PREFIX: &str = "astria";
-
-/// Constructs an [`Address`] prefixed by `"astria"`.
-#[cfg(test)]
-pub(crate) fn astria_address(
-    array: [u8; astria_core::primitive::v1::ADDRESS_LEN],
-) -> astria_core::primitive::v1::Address {
-    astria_core::primitive::v1::Address::builder()
-        .array(array)
-        .prefix(ASTRIA_ADDRESS_PREFIX)
-        .try_build()
-        .unwrap()
 }

@@ -523,6 +523,7 @@ dependencies = [
  "tendermint",
  "tendermint-rpc",
  "tokio",
+ "tokio-stream",
  "tokio-util 0.7.10",
  "tonic 0.10.2",
  "tracing",

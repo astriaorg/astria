@@ -1,27 +1,42 @@
+use std::{
+    io::Write as _,
+    net::SocketAddr,
+};
+
 use astria_bridge_withdrawer::{
-    bridge_withdrawer::{
-        self,
-        ShutdownHandle,
-    },
+    bridge_withdrawer::ShutdownHandle,
     BridgeWithdrawer,
+    Config,
 };
 use astria_core::{
-    primitive::v1::asset::default_native_asset,
-    protocol::transaction::v1alpha1::action::BridgeUnlockAction,
+    bridge::Ics20WithdrawalFromRollupMemo,
+    primitive::v1::asset::{
+        self,
+        Denom,
+    },
+    protocol::transaction::v1alpha1::{
+        action::{
+            BridgeUnlockAction,
+            Ics20Withdrawal,
+        },
+        Action,
+    },
 };
-use astria_eyre::eyre;
+use ibc_types::core::client::Height as IbcHeight;
 use once_cell::sync::Lazy;
-use tendermint::private_key::Secp256k1;
-use tokio::{
-    net::unix::SocketAddr,
-    task::JoinHandle,
-};
-use wiremock::MockServer;
+use sequencer_client::Address;
+use tempfile::NamedTempFile;
+use tokio::task::JoinHandle;
+use tokio_util::sync::CancellationToken;
+use tracing::info;
 
 use super::MockSequencerServer;
 
 const DEFAULT_LAST_ROLLUP_HEIGHT: u64 = 1;
 const DEFAULT_IBC_DENOM: &str = "transfer/channel-0/utia";
+const DEFAULT_DENOM: &str = "nria";
+const SEQUENCER_CHAIN_ID: &str = "test-sequencer";
+const ASTRIA_ADDRESS_PREFIX: &str = "astria";
 
 static TELEMETRY: Lazy<()> = Lazy::new(|| {
     if std::env::var_os("TEST_LOG").is_some() {
@@ -42,7 +57,7 @@ static TELEMETRY: Lazy<()> = Lazy::new(|| {
     }
 });
 
-struct TestBridgeWithdrawer {
+pub struct TestBridgeWithdrawer {
     /// The address of the public API server (health, ready).
     pub api_address: SocketAddr,
 
@@ -60,7 +75,7 @@ struct TestBridgeWithdrawer {
 }
 
 impl TestBridgeWithdrawer {
-    async fn spawn() -> Self {
+    pub async fn spawn() -> Self {
         Lazy::force(&TELEMETRY);
 
         let shutdown_token = CancellationToken::new();
@@ -77,19 +92,20 @@ impl TestBridgeWithdrawer {
         let cometbft_mock = wiremock::MockServer::start().await;
 
         let sequencer_mock = MockSequencerServer::spawn().await;
-        let sequencer_grpc_endpoint = format!("http://{}", sequencer_mock.address());
+        let sequencer_grpc_endpoint = format!("http://{}", sequencer_mock.local_addr);
 
-        let config = astria_bridge_withdrawer::Config {
-            sequencer_cometbft_endpoint: cometbft_mock.address(),
-            sequencer_chain_id: todo!(),
+        let config = Config {
+            sequencer_cometbft_endpoint: cometbft_mock.uri(),
+            sequencer_grpc_endpoint,
+            sequencer_chain_id: SEQUENCER_CHAIN_ID.into(),
             sequencer_key_path,
-            fee_asset_denomination: todo!(),
-            min_expected_fee_asset_balance: todo!(),
-            rollup_asset_denomination: todo!(),
-            sequencer_bridge_address: todo!(),
+            fee_asset_denomination: DEFAULT_DENOM.parse().unwrap(),
+            min_expected_fee_asset_balance: 100,
+            rollup_asset_denomination: DEFAULT_DENOM.parse().unwrap(),
+            sequencer_bridge_address: default_bridge_address().to_string(),
             ethereum_contract_address: todo!(),
             ethereum_rpc_endpoint: todo!(),
-            sequencer_address_prefix: todo!(),
+            sequencer_address_prefix: ASTRIA_ADDRESS_PREFIX.into(),
             api_addr: "0.0.0.0".into(),
             log: String::new(),
             force_stdout: false,
@@ -122,16 +138,16 @@ fn make_ics20_withdrawal_action() -> Action {
     let inner = Ics20Withdrawal {
         denom: denom.clone(),
         destination_chain_address,
-        return_address: bridge_withdrawer::astria_address([0u8; 20]),
+        return_address: astria_address([0u8; 20]),
         amount: 99,
         memo: serde_json::to_string(&Ics20WithdrawalFromRollupMemo {
             memo: "hello".to_string(),
-            bridge_address: bridge_withdrawer::astria_address([0u8; 20]),
+            bridge_address: astria_address([0u8; 20]),
             block_number: DEFAULT_LAST_ROLLUP_HEIGHT,
             transaction_hash: [2u8; 32],
         })
         .unwrap(),
-        fee_asset_id: denom.id(),
+        fee_asset: denom,
         timeout_height: IbcHeight::new(u64::MAX, u64::MAX).unwrap(),
         timeout_time: 0, // zero this for testing
         source_channel: "channel-0".parse().unwrap(),
@@ -144,7 +160,7 @@ fn make_ics20_withdrawal_action() -> Action {
 fn make_bridge_unlock_action() -> Action {
     let denom = default_native_asset();
     let inner = BridgeUnlockAction {
-        to: bridge_withdrawer::astria_address([0u8; 20]),
+        to: astria_address([0u8; 20]),
         amount: 99,
         memo: serde_json::to_vec(&BridgeUnlockMemo {
             block_number: DEFAULT_LAST_ROLLUP_HEIGHT.into(),
@@ -157,19 +173,21 @@ fn make_bridge_unlock_action() -> Action {
     Action::BridgeUnlock(inner)
 }
 
-/// Convert a `Request` object to a `SignedTransaction`
-fn signed_tx_from_request(request: &Request) -> SignedTransaction {
-    use astria_core::generated::protocol::transaction::v1alpha1::SignedTransaction as RawSignedTransaction;
-    use prost::Message as _;
+pub(crate) fn default_native_asset() -> asset::Denom {
+    "nria".parse().unwrap()
+}
 
-    let wrapped_tx_sync_req: request::Wrapper<tx_sync::Request> =
-        serde_json::from_slice(&request.body)
-            .expect("deserialize to JSONRPC wrapped tx_sync::Request");
-    let raw_signed_tx = RawSignedTransaction::decode(&*wrapped_tx_sync_req.params().tx)
-        .expect("can't deserialize signed sequencer tx from broadcast jsonrpc request");
-    let signed_tx = SignedTransaction::try_from_raw(raw_signed_tx)
-        .expect("can't convert raw signed tx to checked signed tx");
-    debug!(?signed_tx, "sequencer mock received signed transaction");
+fn default_bridge_address() -> Address {
+    astria_address([1u8; 20])
+}
 
-    signed_tx
+/// Constructs an [`Address`] prefixed by `"astria"`.
+pub(crate) fn astria_address(
+    array: [u8; astria_core::primitive::v1::ADDRESS_LEN],
+) -> astria_core::primitive::v1::Address {
+    astria_core::primitive::v1::Address::builder()
+        .array(array)
+        .prefix(ASTRIA_ADDRESS_PREFIX)
+        .try_build()
+        .unwrap()
 }

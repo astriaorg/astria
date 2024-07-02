@@ -32,7 +32,6 @@ use state::State;
 use tokio::{
     select,
     sync::mpsc,
-    time::Instant,
 };
 use tokio_util::sync::CancellationToken;
 use tonic::transport::Channel;
@@ -86,7 +85,7 @@ impl Submitter {
                 ).await.wrap_err("failed to connect to sequencer gRPC endpoint")?;
 
                 self.state.set_submitter_ready();
-                (sequencer_chain_id, sequencer_grpc_client)
+                (chain_id, sequencer_grpc_client)
             }
         };
 
@@ -212,57 +211,6 @@ async fn process_batch(
         state.set_last_sequencer_tx_hash(rsp.hash);
         Ok(())
     }
-}
-
-async fn get_latest_nonce(
-    client: sequencer_client::HttpClient,
-    address: Address,
-    state: Arc<State>,
-    metrics: &'static Metrics,
-) -> eyre::Result<u32> {
-    debug!("fetching latest nonce from sequencer");
-    metrics.increment_nonce_fetch_count();
-    let span = Span::current();
-    let start = Instant::now();
-    let retry_config = tryhard::RetryFutureConfig::new(1024)
-        .exponential_backoff(Duration::from_millis(200))
-        .max_delay(Duration::from_secs(60))
-        .on_retry(
-            |attempt,
-             next_delay: Option<Duration>,
-             err: &sequencer_client::extension_trait::Error| {
-                metrics.increment_nonce_fetch_failure_count();
-
-                let state = Arc::clone(&state);
-                state.set_sequencer_connected(false);
-
-                let wait_duration = next_delay
-                    .map(humantime::format_duration)
-                    .map(tracing::field::display);
-                warn!(
-                    parent: span.clone(),
-                    error = err as &dyn std::error::Error,
-                    attempt,
-                    wait_duration,
-                    "failed getting latest nonce from sequencer; retrying after backoff",
-                );
-                async move {}
-            },
-        );
-    let res = tryhard::retry_fn(|| {
-        let client = client.clone();
-        let span = info_span!(parent: span.clone(), "attempt get nonce");
-        async move { client.get_latest_nonce(address).await.map(|rsp| rsp.nonce) }.instrument(span)
-    })
-    .with_config(retry_config)
-    .await
-    .wrap_err("failed getting latest nonce from sequencer after 1024 attempts");
-
-    state.set_sequencer_connected(res.is_ok());
-
-    metrics.record_nonce_fetch_latency(start.elapsed());
-
-    res
 }
 
 /// Submits a `SignedTransaction` to the sequencer with an exponential backoff

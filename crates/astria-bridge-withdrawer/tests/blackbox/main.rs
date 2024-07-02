@@ -1,10 +1,10 @@
-use astria_bridge_withdrawer::BridgeWithdrawer;
+use helpers::TestBridgeWithdrawer;
 
 mod helpers;
 
 #[tokio::test]
 async fn startup_success() {
-    let _bridge_withdrawer = BridgeWithdrawer::spawn().await;
+    let _bridge_withdrawer = TestBridgeWithdrawer::spawn().await;
 }
 
 #[tokio::test]
