@@ -1,9 +1,24 @@
-use astria_bridge_withdrawer::{bridge_withdrawer, BridgeWithdrawer};
-use astria_core::{primitive::v1::asset::default_native_asset, protocol::transaction::v1alpha1::action::BridgeUnlockAction};
+use astria_bridge_withdrawer::{
+    bridge_withdrawer::{
+        self,
+        ShutdownHandle,
+    },
+    BridgeWithdrawer,
+};
+use astria_core::{
+    primitive::v1::asset::default_native_asset,
+    protocol::transaction::v1alpha1::action::BridgeUnlockAction,
+};
 use astria_eyre::eyre;
 use once_cell::sync::Lazy;
-use tokio::task::JoinHandle;
+use tendermint::private_key::Secp256k1;
+use tokio::{
+    net::unix::SocketAddr,
+    task::JoinHandle,
+};
 use wiremock::MockServer;
+
+use super::MockSequencerServer;
 
 const DEFAULT_LAST_ROLLUP_HEIGHT: u64 = 1;
 const DEFAULT_IBC_DENOM: &str = "transfer/channel-0/utia";
@@ -28,17 +43,26 @@ static TELEMETRY: Lazy<()> = Lazy::new(|| {
 });
 
 struct TestBridgeWithdrawer {
-    bridge_withdrawer: Option<BridgeWithdrawer>,
-    cometbft_mock: MockServer,
-    grpc_mock: MockServer,
-    bridge_withdrawer_task_handle: Option<JoinHandle<Result<(), eyre::Report>>>,
+    /// The address of the public API server (health, ready).
+    pub api_address: SocketAddr,
+
+    /// The mock cometbft server.
+    pub cometbft_mock: wiremock::MockServer,
+
+    /// The mock sequencer server.
+    pub sequencer_mock: MockSequencerServer,
+
+    /// A handle to issue a shutdown to the bridge withdrawer.
+    bridge_withdrawer_shutdown_handle: Option<ShutdownHandle>,
+    bridge_withdrawer: JoinHandle<()>,
+
+    pub config: Config,
 }
 
 impl TestBridgeWithdrawer {
-    async fn setup() -> Self {
+    async fn spawn() -> Self {
         Lazy::force(&TELEMETRY);
 
-        // set up external resources
         let shutdown_token = CancellationToken::new();
 
         // sequencer signer key
@@ -50,65 +74,45 @@ impl TestBridgeWithdrawer {
             .unwrap();
         let sequencer_key_path = keyfile.path().to_str().unwrap().to_string();
 
-        // cometbft
-        let cometbft_mock = MockServer::start().await;
-        let sequencer_cometbft_endpoint = format!("http://{}", cometbft_mock.address());
-        // TODO: use grpc mock
-        let sequencer_grpc_endpoint = format!("http://{}", cometbft_mock.address());
+        let cometbft_mock = wiremock::MockServer::start().await;
 
-        // withdrawer state
-        let state = Arc::new(state::State::new());
-        // not testing watcher here so just set it to ready
-        state.set_watcher_ready();
-        let (startup_tx, startup_rx) = oneshot::channel();
-        let startup_handle = startup::SubmitterHandle::new(startup_rx);
+        let sequencer_mock = MockSequencerServer::spawn().await;
+        let sequencer_grpc_endpoint = format!("http://{}", sequencer_mock.address());
 
-        let metrics = Box::leak(Box::new(Metrics::new()));
-
-        let (submitter, submitter_handle) = submitter::Builder {
-            shutdown_token: shutdown_token.clone(),
-            startup_handle,
+        let config = astria_bridge_withdrawer::Config {
+            sequencer_cometbft_endpoint: cometbft_mock.address(),
+            sequencer_chain_id: todo!(),
             sequencer_key_path,
-            sequencer_address_prefix: "astria".into(),
-            sequencer_cometbft_endpoint,
-            sequencer_grpc_endpoint,
-            state,
-            metrics,
-        }
-        .build()
-        .unwrap();
+            fee_asset_denomination: todo!(),
+            min_expected_fee_asset_balance: todo!(),
+            rollup_asset_denomination: todo!(),
+            sequencer_bridge_address: todo!(),
+            ethereum_contract_address: todo!(),
+            ethereum_rpc_endpoint: todo!(),
+            sequencer_address_prefix: todo!(),
+            api_addr: "0.0.0.0".into(),
+            log: String::new(),
+            force_stdout: false,
+            no_otel: false,
+            no_metrics: false,
+            metrics_http_listener_addr: String::new(),
+            pretty_print: true,
+        };
+
+        info!(config = serde_json::to_string(&config).unwrap());
+        let (bridge_withdrawer, bridge_withdrawer_shutdown_handle) =
+            BridgeWithdrawer::new(config.clone()).unwrap();
+        let api_address = bridge_withdrawer.local_addr();
+        let bridge_withdrawer = tokio::task::spawn(bridge_withdrawer.run());
 
         Self {
-            todo!()
+            api_address,
+            cometbft_mock,
+            sequencer_mock,
+            bridge_withdrawer_shutdown_handle: Some(bridge_withdrawer_shutdown_handle),
+            bridge_withdrawer,
+            config,
         }
-    }
-
-    async fn startup(&mut self) {
-        let submitter = self.submitter.take().unwrap();
-
-        let mut state = submitter.state.subscribe();
-
-        self.bridge_withdrawer_task_handle = Some(tokio::spawn(submitter.run()));
-
-        self.startup_tx
-            .take()
-            .expect("should only send startup info once")
-            .send(startup::SubmitterInfo {
-                sequencer_chain_id: SEQUENCER_CHAIN_ID.to_string(),
-            })
-            .unwrap();
-
-        // wait for the submitter to be ready
-        state
-            .wait_for(state::StateSnapshot::is_ready)
-            .await
-            .unwrap();
-    }
-
-    async fn spawn() -> Self {
-        let mut submitter = Self::setup().await;
-        submitter.startup().await;
-        submitter
     }
 }
 
@@ -147,7 +151,7 @@ fn make_bridge_unlock_action() -> Action {
             transaction_hash: [1u8; 32].into(),
         })
         .unwrap(),
-        fee_asset_id: denom.id(),
+        fee_asset: denom,
         bridge_address: None,
     };
     Action::BridgeUnlock(inner)
