@@ -18,7 +18,13 @@ use anyhow::{
     Context,
 };
 use astria_core::{
-    generated::protocol::transaction::v1alpha1 as raw,
+    generated::{
+        protocol::transaction::v1alpha1 as raw,
+        slinky::service::v1::{
+            oracle_client::OracleClient,
+            QueryPricesRequest,
+        },
+    },
     primitive::v1::Address,
     protocol::{
         abci::AbciErrorCode,
@@ -53,6 +59,7 @@ use tendermint::{
     AppHash,
     Hash,
 };
+use tonic::transport::channel::Channel;
 use tracing::{
     debug,
     info,
@@ -167,6 +174,10 @@ pub(crate) struct App {
     #[allow(clippy::struct_field_names)]
     app_hash: AppHash,
 
+    // gRPC client for the slinky oracle sidecar.
+    // only set if this is a validator node.
+    oracle_client: Option<OracleClient<Channel>>,
+
     metrics: &'static Metrics,
 }
 
@@ -174,6 +185,7 @@ impl App {
     pub(crate) async fn new(
         snapshot: Snapshot,
         mempool: Mempool,
+        oracle_client: Option<OracleClient<Channel>>,
         metrics: &'static Metrics,
     ) -> anyhow::Result<Self> {
         debug!("initializing App instance");
@@ -199,6 +211,7 @@ impl App {
             execution_results: None,
             write_batch: None,
             app_hash,
+            oracle_client,
             metrics,
         })
     }

@@ -15,7 +15,7 @@ name = "astria-sequencer"
 default = []
 
 [dependencies]
-astria-core = { path = "../astria-core", features = ["server", "serde"] }
+astria-core = { path = "../astria-core", features = ["server", "client", "serde"] }
 astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
 config = { package = "astria-config", path = "../astria-config" }
 merkle = { package = "astria-merkle", path = "../astria-merkle" }

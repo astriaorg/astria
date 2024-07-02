@@ -57,5 +57,6 @@ expression: genesis_state()
     "bridge_lock_byte_cost_multiplier": 1,
     "bridge_sudo_change_fee": 24,
     "ics20_withdrawal_base_fee": 24
-  }
+  },
+  "slinky": {}
 }

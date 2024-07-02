@@ -103,8 +103,35 @@ impl Sequencer {
                 .context("failed to initialize global address base prefix")?;
         }
 
+        let oracle_client = if config.oracle_enabed {
+            use astria_core::generated::slinky::service::v1::{
+                oracle_client::OracleClient,
+                QueryPricesRequest,
+            };
+            use tonic::transport::{
+                Endpoint,
+                Uri,
+            };
+
+            let uri: Uri = config
+                .oracle_grpc_addr
+                .parse()
+                .context("failed parsing oracle grpc address as Uri")?;
+            let endpoint = Endpoint::from(uri.clone());
+            let mut oracle_client = OracleClient::new(endpoint.connect_lazy());
+
+            // ensure the oracle sidecar is reachable
+            let _ = oracle_client
+                .prices(QueryPricesRequest::default())
+                .await
+                .context("failed to get oracle prices")?;
+            Some(oracle_client)
+        } else {
+            None
+        };
+
         let mempool = Mempool::new();
-        let app = App::new(snapshot, mempool.clone(), metrics)
+        let app = App::new(snapshot, mempool.clone(), oracle_client, metrics)
             .await
             .context("failed to initialize app")?;
 
