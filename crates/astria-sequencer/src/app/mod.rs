@@ -7,6 +7,8 @@ mod tests_breaking_changes;
 #[cfg(test)]
 mod tests_execute_transaction;
 
+pub(crate) mod vote_extension;
+
 use std::{
     collections::VecDeque,
     sync::Arc,
@@ -18,13 +20,7 @@ use anyhow::{
     Context,
 };
 use astria_core::{
-    generated::{
-        protocol::transaction::v1alpha1 as raw,
-        slinky::service::v1::{
-            oracle_client::OracleClient,
-            QueryPricesRequest,
-        },
-    },
+    generated::protocol::transaction::v1alpha1 as raw,
     primitive::v1::Address,
     protocol::{
         abci::AbciErrorCode,
@@ -59,7 +55,6 @@ use tendermint::{
     AppHash,
     Hash,
 };
-use tonic::transport::channel::Channel;
 use tracing::{
     debug,
     info,
@@ -174,9 +169,8 @@ pub(crate) struct App {
     #[allow(clippy::struct_field_names)]
     app_hash: AppHash,
 
-    // gRPC client for the slinky oracle sidecar.
-    // only set if this is a validator node.
-    oracle_client: Option<OracleClient<Channel>>,
+    // should be set if this is a validator node.
+    vote_extension_handler: Option<vote_extension::Handler>,
 
     metrics: &'static Metrics,
 }
@@ -185,7 +179,7 @@ impl App {
     pub(crate) async fn new(
         snapshot: Snapshot,
         mempool: Mempool,
-        oracle_client: Option<OracleClient<Channel>>,
+        vote_extension_handler: Option<vote_extension::Handler>,
         metrics: &'static Metrics,
     ) -> anyhow::Result<Self> {
         debug!("initializing App instance");
@@ -211,7 +205,7 @@ impl App {
             execution_results: None,
             write_batch: None,
             app_hash,
-            oracle_client,
+            vote_extension_handler,
             metrics,
         })
     }
@@ -745,6 +739,33 @@ impl App {
             .context("failed to call begin_block")?;
 
         Ok(())
+    }
+
+    #[instrument(name = "App::extend_vote", skip_all)]
+    pub(crate) async fn extend_vote(
+        &mut self,
+        _extend_vote: abci::request::ExtendVote,
+    ) -> anyhow::Result<abci::response::ExtendVote> {
+        let Some(handler) = self.vote_extension_handler.as_mut() else {
+            // we allow validators to *not* use the oracle sidecar currently
+            // however, if >1/3 of validators are not using the oracle, the prices will not update.
+            return Ok(abci::response::ExtendVote {
+                vote_extension: vec![].into(),
+            });
+        };
+        handler.extend_vote().await
+    }
+
+    pub(crate) async fn verify_vote_extension(
+        &mut self,
+        vote_extension: abci::request::VerifyVoteExtension,
+    ) -> anyhow::Result<abci::response::VerifyVoteExtension> {
+        let Some(handler) = self.vote_extension_handler.as_mut() else {
+            // TODO: should we still verify if our own oracle isn't set?
+            // i think so?
+            return Ok(abci::response::VerifyVoteExtension::Accept);
+        };
+        handler.verify_vote_extension(vote_extension).await
     }
 
     /// Executes the given block, but does not write it to disk.

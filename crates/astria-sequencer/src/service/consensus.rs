@@ -99,13 +99,33 @@ impl Consensus {
                     },
                 )
             }
-            ConsensusRequest::ExtendVote(_) => {
-                ConsensusResponse::ExtendVote(response::ExtendVote {
-                    vote_extension: vec![].into(),
+            ConsensusRequest::ExtendVote(extend_vote) => {
+                ConsensusResponse::ExtendVote(match self.handle_extend_vote(extend_vote).await {
+                    Ok(response) => response,
+                    Err(e) => {
+                        warn!(
+                            error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                            "failed to extend vote, returning empty vote extension"
+                        );
+                        response::ExtendVote {
+                            vote_extension: vec![].into(),
+                        }
+                    }
                 })
             }
-            ConsensusRequest::VerifyVoteExtension(_) => {
-                ConsensusResponse::VerifyVoteExtension(response::VerifyVoteExtension::Accept)
+            ConsensusRequest::VerifyVoteExtension(vote_extension) => {
+                ConsensusResponse::VerifyVoteExtension(
+                    match self.handle_verify_vote_extension(vote_extension).await {
+                        Ok(response) => response,
+                        Err(e) => {
+                            warn!(
+                                error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                                "rejecting vote extension"
+                            );
+                            response::VerifyVoteExtension::Reject
+                        }
+                    },
+                )
             }
             ConsensusRequest::FinalizeBlock(finalize_block) => ConsensusResponse::FinalizeBlock(
                 self.finalize_block(finalize_block)
@@ -184,6 +204,24 @@ impl Consensus {
             .await?;
         tracing::debug!("proposal processed");
         Ok(())
+    }
+
+    #[instrument(skip_all)]
+    async fn handle_extend_vote(
+        &mut self,
+        extend_vote: request::ExtendVote,
+    ) -> anyhow::Result<response::ExtendVote> {
+        let extend_vote = self.app.extend_vote(extend_vote).await?;
+        Ok(extend_vote)
+    }
+
+    #[instrument(skip_all)]
+    async fn handle_verify_vote_extension(
+        &mut self,
+        vote_extension: request::VerifyVoteExtension,
+    ) -> anyhow::Result<response::VerifyVoteExtension> {
+        let result = self.app.verify_vote_extension(vote_extension).await?;
+        Ok(result)
     }
 
     #[instrument(skip_all, fields(
@@ -489,7 +527,9 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mempool = Mempool::new();
         let metrics = Box::leak(Box::new(Metrics::new()));
-        let mut app = App::new(snapshot, mempool.clone(), metrics).await.unwrap();
+        let mut app = App::new(snapshot, mempool.clone(), None, metrics)
+            .await
+            .unwrap();
         app.init_chain(storage.clone(), genesis_state, vec![], "test".to_string())
             .await
             .unwrap();

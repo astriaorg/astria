@@ -33,7 +33,7 @@ pub struct Config {
     pub pretty_print: bool,
     /// If the oracle is enabled. If true, the oracle_grpc_addr must be set.
     /// Should be true for validator nodes and false for non-validator nodes.
-    pub oracle_enabed: bool,
+    pub oracle_enabled: bool,
     /// The gRPC endpoint for the oracle sidecar.
     pub oracle_grpc_addr: String,
     /// The timeout for the responses from the oracle sidecar in milliseconds.

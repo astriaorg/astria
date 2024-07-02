@@ -7,7 +7,13 @@ use anyhow::{
 };
 use astria_core::generated::{
     sequencerblock::v1alpha1::sequencer_service_server::SequencerServiceServer,
-    slinky::marketmap::v1::query_server::QueryServer as MarketMapQueryServer,
+    slinky::{
+        marketmap::v1::query_server::QueryServer as MarketMapQueryServer,
+        service::v1::{
+            oracle_client::OracleClient,
+            QueryPricesRequest,
+        },
+    },
 };
 use penumbra_tower_trace::{
     trace::request_span,
@@ -25,6 +31,10 @@ use tokio::{
         watch,
     },
     task::JoinHandle,
+};
+use tonic::transport::{
+    Endpoint,
+    Uri,
 };
 use tower_abci::v038::Server;
 use tracing::{
@@ -103,16 +113,7 @@ impl Sequencer {
                 .context("failed to initialize global address base prefix")?;
         }
 
-        let oracle_client = if config.oracle_enabed {
-            use astria_core::generated::slinky::service::v1::{
-                oracle_client::OracleClient,
-                QueryPricesRequest,
-            };
-            use tonic::transport::{
-                Endpoint,
-                Uri,
-            };
-
+        let vote_extension_handler = if config.oracle_enabled {
             let uri: Uri = config
                 .oracle_grpc_addr
                 .parse()
@@ -121,17 +122,19 @@ impl Sequencer {
             let mut oracle_client = OracleClient::new(endpoint.connect_lazy());
 
             // ensure the oracle sidecar is reachable
+            // TODO: allow this to retry in case the oracle sidecar is not ready yet
             let _ = oracle_client
                 .prices(QueryPricesRequest::default())
                 .await
                 .context("failed to get oracle prices")?;
-            Some(oracle_client)
+            info!("oracle sidecar is reachable");
+            Some(crate::app::vote_extension::Handler::new(oracle_client))
         } else {
             None
         };
 
         let mempool = Mempool::new();
-        let app = App::new(snapshot, mempool.clone(), oracle_client, metrics)
+        let app = App::new(snapshot, mempool.clone(), vote_extension_handler, metrics)
             .await
             .context("failed to initialize app")?;
 
