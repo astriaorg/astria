@@ -9,16 +9,12 @@ use astria_core::{
     bridge::Ics20WithdrawalFromRollupMemo,
     generated::protocol::account::v1alpha1::NonceResponse,
     primitive::v1::asset,
-    protocol::{
-        account::v1alpha1::AssetBalance,
-        bridge::v1alpha1::BridgeAccountLastTxHashResponse,
-        transaction::v1alpha1::{
-            action::{
-                BridgeUnlockAction,
-                Ics20Withdrawal,
-            },
-            Action,
+    protocol::transaction::v1alpha1::{
+        action::{
+            BridgeUnlockAction,
+            Ics20Withdrawal,
         },
+        Action,
     },
 };
 use astria_eyre::eyre::{
@@ -42,13 +38,9 @@ use tendermint::{
         types::ExecTxResult,
     },
     block::Height,
-    chain,
 };
 use tendermint_rpc::{
-    endpoint::{
-        broadcast::tx_sync,
-        tx,
-    },
+    endpoint::broadcast::tx_sync,
     request,
 };
 use tokio::task::JoinHandle;
