@@ -1,0 +1,17 @@
+{{- if .Values.serviceMonitor.enabled }}
+kind: Service
+apiVersion: v1
+metadata:
+  name: evm-bridge-withdrawer-metrics
+  namespace: {{ include "evm-bridge-withdrawer.namespace" . }}
+spec:
+  selector:
+    app: evm-bridge-withdrawer
+  ports:
+    {{- if .Values.metrics.enabled }}
+    - name: metrics
+      port: {{ .Values.ports.metrics }}
+      targetPort: metrics
+    {{- end }}
+{{- end }}
+---
