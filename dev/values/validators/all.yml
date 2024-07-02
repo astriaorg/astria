@@ -27,7 +27,12 @@ genesis:
       balance: "333333333333333333"
     - address: astria1vpcfutferpjtwv457r63uwr6hdm8gwr3pxt5ny
       balance: "333333333333333333"
-    # NOTE - the following address matches the privKey that funds the
-    # sequencer-faucet
+    # Matches the privKey that funds the dev sequencer-faucet
     - address: astria1qrt4kfc9ggyy548u7rg0d64sgq5c952kzk9tg9
       balance: "333333333333333333"
+    # This account is used for bridge in smoke test.
+    - address: astria13ahqz4pjqfmynk9ylrqv4fwe4957x2p0h5782u
+      balance: "48"
+
+storage:
+  enabled: false
