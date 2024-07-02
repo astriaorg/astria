@@ -146,41 +146,46 @@ impl Startup {
     pub(super) async fn run(mut self) -> eyre::Result<()> {
         let shutdown_token = self.shutdown_token.clone();
 
-        let startup_task = tokio::spawn(async {
-            self.confirm_sequencer_config()
+        let startup_task = tokio::spawn({
+            let state = self.state.clone();
+            async move {
+                self.confirm_sequencer_config()
+                    .await
+                    .wrap_err("failed to confirm sequencer config")?;
+
+                let sequencer_grpc_client =
+                    sequencer_service_client::SequencerServiceClient::connect(format!(
+                        "http://{}",
+                        self.sequencer_grpc_endpoint
+                    ))
+                    .await
+                    .wrap_err("sequencer grpc failed to connect client")?;
+
+                wait_for_empty_mempool(
+                    self.sequencer_cometbft_client.clone(),
+                    sequencer_grpc_client,
+                    self.sequencer_bridge_address,
+                    self.state.clone(),
+                )
                 .await
-                .wrap_err("failed to confirm sequencer config")?;
+                .wrap_err("failed to wait for mempool to be empty")?;
 
-            let sequencer_grpc_client = sequencer_service_client::SequencerServiceClient::connect(
-                format!("http://{}", self.sequencer_grpc_endpoint),
-            )
-            .await
-            .wrap_err("sequencer grpc failed to connect client")?;
+                let starting_rollup_height = self
+                    .get_starting_rollup_height()
+                    .await
+                    .wrap_err("failed to get next rollup block height")?;
 
-            wait_for_empty_mempool(
-                self.sequencer_cometbft_client.clone(),
-                sequencer_grpc_client,
-                self.sequencer_bridge_address,
-                self.state.clone(),
-            )
-            .await
-            .wrap_err("failed to wait for mempool to be empty")?;
+                // send the startup info to the submitter
+                let info = Info {
+                    chain_id: self.sequencer_chain_id.clone(),
+                    fee_asset: self.expected_fee_asset,
+                    starting_rollup_height,
+                };
 
-            let starting_rollup_height = self
-                .get_starting_rollup_height()
-                .await
-                .wrap_err("failed to get next rollup block height")?;
+                state.set_startup_info(info);
 
-            // send the startup info to the submitter
-            let info = Info {
-                chain_id: self.sequencer_chain_id.clone(),
-                fee_asset: self.expected_fee_asset,
-                starting_rollup_height,
-            };
-
-            state.set_startup_info(info);
-
-            Ok(())
+                Ok(())
+            }
         });
 
         tokio::select!(
