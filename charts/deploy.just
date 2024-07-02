@@ -263,7 +263,7 @@ run-smoke-test:
   EXPECTED_BALANCE=$(echo "1 * {{sequencer_base_amount}}" | bc)
   while [ $CHECKS -lt $MAX_CHECKS ]; do
     CHECKS=$((CHECKS+1))
-    BALANCE=$(astria-go sequencer balances astria17w0adeg64ky0daxwd2ugyuneellmjgnxl39504 --sequencer-url {{sequencer_rpc_url}} --json | jq '.[0].balance')
+    BALANCE=$(astria-cli sequencer account balance astria17w0adeg64ky0daxwd2ugyuneellmjgnxl39504 --sequencer-url {{sequencer_rpc_url}}  | awk '/nria/{print $(NF-1)}')
     echo "Check $CHECKS, Balance: $BALANCE, Expected: $EXPECTED_BALANCE"
     if [ "$BALANCE" == "$EXPECTED_BALANCE" ]; then
       echo "Bridge Out Sequencer success"

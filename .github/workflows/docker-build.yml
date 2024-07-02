@@ -125,12 +125,6 @@ jobs:
         uses: helm/kind-action@v1
         with:
           install_only: true
-      - name: Install astria-go cli
-        run: |
-          curl -L https://github.com/astriaorg/astria-cli-go/releases/download/v0.10.0/astria-go-v0.10.0-linux-amd64.tar.gz \
-            --output astria-go.tar.gz
-          tar -xzvf astria-go.tar.gz
-          mv astria-go /usr/local/bin/astria-go
       - name: Install astria cli (rust)
         run: |
           just install-cli
