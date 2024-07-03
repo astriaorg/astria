@@ -14,6 +14,11 @@ use prost::Message as _;
 use tendermint::abci;
 use tonic::transport::Channel;
 
+use crate::{
+    oracle::currency_pair_strategy::DefaultCurrencyPairStrategy,
+    state_ext::StateReadExt,
+};
+
 pub(crate) struct Handler {
     // gRPC client for the slinky oracle sidecar.
     oracle_client: OracleClient<Channel>,
@@ -26,7 +31,10 @@ impl Handler {
         }
     }
 
-    pub(crate) async fn extend_vote(&mut self) -> anyhow::Result<abci::response::ExtendVote> {
+    pub(crate) async fn extend_vote<S: StateReadExt>(
+        &mut self,
+        state: &S,
+    ) -> anyhow::Result<abci::response::ExtendVote> {
         // TODO: use oracle client timeout
         let prices = match self.oracle_client.prices(QueryPricesRequest {}).await {
             Ok(prices) => prices.into_inner(),
@@ -42,7 +50,8 @@ impl Handler {
         };
 
         let oracle_vote_extension = self
-            .transform_oracle_service_prices(prices)
+            .transform_oracle_service_prices(state, prices)
+            .await
             .context("failed to transform oracle service prices")?;
         Ok(abci::response::ExtendVote {
             // TODO: what codec does skip use for this? does it matter here?
@@ -61,19 +70,26 @@ impl Handler {
     }
 
     // see https://github.com/skip-mev/slinky/blob/158cde8a4b774ac4eec5c6d1a2c16de6a8c6abb5/abci/ve/vote_extension.go#L290
-    fn transform_oracle_service_prices(
+    async fn transform_oracle_service_prices<S: StateReadExt>(
         &self,
+        state: &S,
         prices: QueryPricesResponse,
     ) -> anyhow::Result<OracleVoteExtension> {
+        let mut strategy_prices = HashMap::new();
         for (currency_pair_id, price_string) in prices.prices {
-            let _currency_pair = currency_pair_from_string(&currency_pair_id)?;
-            let _price = price_string.parse::<u128>()?;
+            let currency_pair = currency_pair_from_string(&currency_pair_id)?;
+            let price = price_string.parse::<u128>()?;
 
-            // TODO: oracle module state
+            let id = DefaultCurrencyPairStrategy::id(state, &currency_pair)
+                .await
+                .context("failed to get id for currency pair")?;
+            let encoded_price =
+                DefaultCurrencyPairStrategy::get_encoded_price(state, &currency_pair, price).await;
+            strategy_prices.insert(id, encoded_price);
         }
 
         Ok(OracleVoteExtension {
-            prices: HashMap::default(),
+            prices: strategy_prices,
         })
     }
 }

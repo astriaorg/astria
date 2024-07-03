@@ -753,7 +753,7 @@ impl App {
                 vote_extension: vec![].into(),
             });
         };
-        handler.extend_vote().await
+        handler.extend_vote(&self.state).await
     }
 
     pub(crate) async fn verify_vote_extension(

@@ -14,6 +14,7 @@ pub(crate) mod grpc;
 pub(crate) mod ibc;
 mod mempool;
 pub(crate) mod metrics;
+pub(crate) mod oracle;
 pub(crate) mod proposal;
 pub(crate) mod sequence;
 mod sequencer;
