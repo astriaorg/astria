@@ -62,7 +62,7 @@ _lint-toml:
 
 [no-exit-message]
 _lint-md:
-  markdownlint-cli2 "**/*.md" "#target" "#.github"
+  markdownlint-cli2 "**/*.md" "#target" "#.github" "#**/*/astria-bridge-contracts/lib/**/*.md"
 
 [no-exit-message]
 _fmt-proto:
