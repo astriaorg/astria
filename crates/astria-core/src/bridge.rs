@@ -1,4 +1,21 @@
+use ethers::types::{
+    TxHash,
+    U64,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+
 use crate::primitive::v1::Address;
+
+/// Memo format for a native bridge unlock from the rollup which is sent to a sequencer-native
+/// address.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct BridgeUnlockMemo {
+    pub block_number: U64,
+    pub transaction_hash: TxHash,
+}
 
 /// Memo format for a ICS20 withdrawal from the rollup which is sent to
 /// an external IBC-enabled chain.

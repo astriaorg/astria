@@ -9,7 +9,10 @@ use astria_bridge_withdrawer::{
     ShutdownHandle,
 };
 use astria_core::{
-    bridge::Ics20WithdrawalFromRollupMemo,
+    bridge::{
+        BridgeUnlockMemo,
+        Ics20WithdrawalFromRollupMemo,
+    },
     primitive::v1::asset::{
         self,
         Denom,

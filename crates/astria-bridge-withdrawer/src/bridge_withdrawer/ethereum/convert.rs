@@ -1,7 +1,10 @@
 use std::time::Duration;
 
 use astria_core::{
-    bridge::Ics20WithdrawalFromRollupMemo,
+    bridge::{
+        BridgeUnlockMemo,
+        Ics20WithdrawalFromRollupMemo,
+    },
     primitive::v1::{
         asset::{
             self,
@@ -82,12 +85,6 @@ pub(crate) fn event_to_action(
         .wrap_err("failed to convert ics20 withdrawal event to action")?,
     };
     Ok(action)
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct BridgeUnlockMemo {
-    pub(crate) block_number: U64,
-    pub(crate) transaction_hash: TxHash,
 }
 
 fn event_to_bridge_unlock(

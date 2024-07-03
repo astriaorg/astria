@@ -4,7 +4,10 @@ use std::{
 };
 
 use astria_core::{
-    bridge::Ics20WithdrawalFromRollupMemo,
+    bridge::{
+        BridgeUnlockMemo,
+        Ics20WithdrawalFromRollupMemo,
+    },
     generated::sequencerblock::v1alpha1::{
         sequencer_service_client,
         GetPendingNonceRequest,
@@ -54,7 +57,6 @@ use super::state::{
     self,
     State,
 };
-use crate::bridge_withdrawer::ethereum::convert::BridgeUnlockMemo;
 
 pub(super) struct Builder {
     pub(super) shutdown_token: CancellationToken,
