@@ -27,13 +27,15 @@ const MAXIMUM_PRICE_BYTE_LEN: usize = 33;
 
 pub(crate) struct Handler {
     // gRPC client for the slinky oracle sidecar.
-    oracle_client: OracleClient<Channel>,
+    oracle_client: Option<OracleClient<Channel>>,
+    oracle_client_timeout: tokio::time::Duration,
 }
 
 impl Handler {
-    pub(crate) fn new(oracle_client: OracleClient<Channel>) -> Self {
+    pub(crate) fn new(oracle_client: Option<OracleClient<Channel>>, oracle_client_timeout: u64) -> Self {
         Self {
             oracle_client,
+            oracle_client_timeout: tokio::time::Duration::from_millis(oracle_client_timeout),
         }
     }
 
@@ -41,13 +43,31 @@ impl Handler {
         &mut self,
         state: &S,
     ) -> anyhow::Result<abci::response::ExtendVote> {
-        // TODO: use oracle client timeout
-        let prices = match self.oracle_client.prices(QueryPricesRequest {}).await {
-            Ok(prices) => prices.into_inner(),
-            Err(e) => {
+        let Some(oracle_client) = self.oracle_client.as_mut() else {
+            // we allow validators to *not* use the oracle sidecar currently
+            // however, if >1/3 of validators are not using the oracle, the prices will not update.
+            return Ok(abci::response::ExtendVote {
+                vote_extension: vec![].into(),
+            });
+        };
+
+        // if we fail to get prices within the timeout duration, we will return an empty vote extension
+        // to ensure liveness.
+        let prices = match tokio::time::timeout(self.oracle_client_timeout, oracle_client.prices(QueryPricesRequest {})).await {
+            Ok(Ok(prices)) => prices.into_inner(),
+            Ok(Err(e)) => {
                 tracing::error!(
                     error = %e,
                     "failed to get prices from oracle sidecar"
+                );
+                return Ok(abci::response::ExtendVote {
+                    vote_extension: vec![].into(),
+                });
+            }
+            Err(e) => {
+                tracing::error!(
+                    error = %e,
+                    "failed to get prices from oracle sidecar within timeout duration"
                 );
                 return Ok(abci::response::ExtendVote {
                     vote_extension: vec![].into(),
@@ -71,7 +91,6 @@ impl Handler {
         vote_extension: abci::request::VerifyVoteExtension,
         is_proposal_phase: bool,
     ) -> anyhow::Result<abci::response::VerifyVoteExtension> {
-        // TODO: verify the vote extension based on slinky rules
         let oracle_vote_extension = OracleVoteExtension::decode(vote_extension.vote_extension)?;
 
         let max_num_currency_pairs =

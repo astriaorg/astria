@@ -58,5 +58,6 @@ expression: genesis_state()
     "bridge_sudo_change_fee": 24,
     "ics20_withdrawal_base_fee": 24
   },
-  "slinky": {}
+  "market_map": {},
+  "oracle": {}
 }

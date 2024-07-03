@@ -113,7 +113,7 @@ impl Sequencer {
                 .context("failed to initialize global address base prefix")?;
         }
 
-        let vote_extension_handler = if config.oracle_enabled {
+        let oracle_client = if config.oracle_enabled {
             let uri: Uri = config
                 .oracle_grpc_addr
                 .parse()
@@ -128,15 +128,20 @@ impl Sequencer {
                 .await
                 .context("failed to get oracle prices")?;
             info!("oracle sidecar is reachable");
-            Some(crate::app::vote_extension::Handler::new(oracle_client))
+            Some(oracle_client)
         } else {
             None
         };
 
         let mempool = Mempool::new();
-        let app = App::new(snapshot, mempool.clone(), vote_extension_handler, metrics)
-            .await
-            .context("failed to initialize app")?;
+        let app = App::new(
+            snapshot,
+            mempool.clone(),
+            crate::app::vote_extension::Handler::new(oracle_client, config.oracle_client_timeout),
+            metrics,
+        )
+        .await
+        .context("failed to initialize app")?;
 
         let consensus_service = tower::ServiceBuilder::new()
             .layer(request_span::layer(|req: &ConsensusRequest| {

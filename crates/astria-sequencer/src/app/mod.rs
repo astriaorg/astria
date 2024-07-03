@@ -169,8 +169,8 @@ pub(crate) struct App {
     #[allow(clippy::struct_field_names)]
     app_hash: AppHash,
 
-    // should be set if this is a validator node.
-    vote_extension_handler: Option<vote_extension::Handler>,
+    // used to create and verify vote extensions, if this is a validator node.
+    vote_extension_handler: vote_extension::Handler,
 
     metrics: &'static Metrics,
 }
@@ -179,7 +179,7 @@ impl App {
     pub(crate) async fn new(
         snapshot: Snapshot,
         mempool: Mempool,
-        vote_extension_handler: Option<vote_extension::Handler>,
+        vote_extension_handler: vote_extension::Handler,
         metrics: &'static Metrics,
     ) -> anyhow::Result<Self> {
         debug!("initializing App instance");
@@ -746,25 +746,14 @@ impl App {
         &mut self,
         _extend_vote: abci::request::ExtendVote,
     ) -> anyhow::Result<abci::response::ExtendVote> {
-        let Some(handler) = self.vote_extension_handler.as_mut() else {
-            // we allow validators to *not* use the oracle sidecar currently
-            // however, if >1/3 of validators are not using the oracle, the prices will not update.
-            return Ok(abci::response::ExtendVote {
-                vote_extension: vec![].into(),
-            });
-        };
-        handler.extend_vote(&self.state).await
+        self.vote_extension_handler.extend_vote(&self.state).await
     }
 
     pub(crate) async fn verify_vote_extension(
         &mut self,
         vote_extension: abci::request::VerifyVoteExtension,
     ) -> anyhow::Result<abci::response::VerifyVoteExtension> {
-        let Some(handler) = self.vote_extension_handler.as_mut() else {
-            // TODO: we should still verify if our own oracle isn't set
-            return Ok(abci::response::VerifyVoteExtension::Accept);
-        };
-        handler
+        self.vote_extension_handler
             .verify_vote_extension(&self.state, vote_extension, false)
             .await
     }
