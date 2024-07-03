@@ -11,19 +11,19 @@ use astria_core::{
         TransactionParams,
         UnsignedTransaction,
     },
+    sequencer::{
+        Account,
+        AddressPrefixes,
+        Fees,
+        GenesisState,
+        UncheckedGenesisState,
+    },
 };
 use cnidarium::Storage;
 use penumbra_ibc::params::IBCParameters;
 
 use crate::{
     app::App,
-    genesis::{
-        self,
-        Account,
-        AddressPrefixes,
-        GenesisState,
-        UncheckedGenesisState,
-    },
     mempool::Mempool,
     metrics::Metrics,
 };
@@ -82,8 +82,8 @@ pub(crate) fn default_genesis_accounts() -> Vec<Account> {
     ]
 }
 
-pub(crate) fn default_fees() -> genesis::Fees {
-    genesis::Fees {
+pub(crate) fn default_fees() -> Fees {
+    Fees {
         transfer_base_fee: 12,
         sequence_base_fee: 32,
         sequence_byte_cost_multiplier: 1,

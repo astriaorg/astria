@@ -14,7 +14,6 @@ use super::state_ext::StateWriteExt;
 use crate::{
     asset::get_native_asset,
     component::Component,
-    genesis::GenesisState,
 };
 
 #[derive(Default)]
@@ -22,19 +21,19 @@ pub(crate) struct AccountsComponent;
 
 #[async_trait::async_trait]
 impl Component for AccountsComponent {
-    type AppState = GenesisState;
+    type AppState = astria_core::sequencer::GenesisState;
 
     #[instrument(name = "AccountsComponent::init_chain", skip(state))]
     async fn init_chain<S: StateWriteExt>(mut state: S, app_state: &Self::AppState) -> Result<()> {
         let native_asset = get_native_asset();
-        for account in &app_state.accounts {
+        for account in app_state.accounts() {
             state
                 .put_account_balance(account.address, native_asset, account.balance)
                 .context("failed writing account balance to state")?;
         }
 
         state
-            .put_transfer_base_fee(app_state.fees.transfer_base_fee)
+            .put_transfer_base_fee(app_state.fees().transfer_base_fee)
             .context("failed to put transfer base fee")?;
         Ok(())
     }
