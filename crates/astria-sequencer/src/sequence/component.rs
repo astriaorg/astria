@@ -8,23 +8,21 @@ use tendermint::abci::request::{
 use tracing::instrument;
 
 use super::state_ext::StateWriteExt;
-use crate::{
-    component::Component,
-    genesis::GenesisState,
-};
+use crate::component::Component;
 
 #[derive(Default)]
 pub(crate) struct SequenceComponent;
 
 #[async_trait::async_trait]
 impl Component for SequenceComponent {
-    type AppState = GenesisState;
+    type AppState = astria_core::sequencer::GenesisState;
 
     #[instrument(name = "SequenceComponent::init_chain", skip(state))]
     async fn init_chain<S: StateWriteExt>(mut state: S, app_state: &Self::AppState) -> Result<()> {
-        state.put_sequence_action_base_fee(app_state.fees.sequence_base_fee);
-        state
-            .put_sequence_action_byte_cost_multiplier(app_state.fees.sequence_byte_cost_multiplier);
+        state.put_sequence_action_base_fee(app_state.fees().sequence_base_fee);
+        state.put_sequence_action_byte_cost_multiplier(
+            app_state.fees().sequence_byte_cost_multiplier,
+        );
         Ok(())
     }
 
