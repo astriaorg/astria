@@ -531,9 +531,14 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mempool = Mempool::new();
         let metrics = Box::leak(Box::new(Metrics::new()));
-        let mut app = App::new(snapshot, mempool.clone(), crate::app::vote_extension::Handler::new(None, 100), metrics)
-            .await
-            .unwrap();
+        let mut app = App::new(
+            snapshot,
+            mempool.clone(),
+            crate::app::vote_extension::Handler::new(None, 100),
+            metrics,
+        )
+        .await
+        .unwrap();
         app.init_chain(storage.clone(), genesis_state, vec![], "test".to_string())
             .await
             .unwrap();

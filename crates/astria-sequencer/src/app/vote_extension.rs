@@ -32,7 +32,10 @@ pub(crate) struct Handler {
 }
 
 impl Handler {
-    pub(crate) fn new(oracle_client: Option<OracleClient<Channel>>, oracle_client_timeout: u64) -> Self {
+    pub(crate) fn new(
+        oracle_client: Option<OracleClient<Channel>>,
+        oracle_client_timeout: u64,
+    ) -> Self {
         Self {
             oracle_client,
             oracle_client_timeout: tokio::time::Duration::from_millis(oracle_client_timeout),
@@ -51,9 +54,14 @@ impl Handler {
             });
         };
 
-        // if we fail to get prices within the timeout duration, we will return an empty vote extension
-        // to ensure liveness.
-        let prices = match tokio::time::timeout(self.oracle_client_timeout, oracle_client.prices(QueryPricesRequest {})).await {
+        // if we fail to get prices within the timeout duration, we will return an empty vote
+        // extension to ensure liveness.
+        let prices = match tokio::time::timeout(
+            self.oracle_client_timeout,
+            oracle_client.prices(QueryPricesRequest {}),
+        )
+        .await
+        {
             Ok(Ok(prices)) => prices.into_inner(),
             Ok(Err(e)) => {
                 tracing::error!(
@@ -75,8 +83,7 @@ impl Handler {
             }
         };
 
-        let oracle_vote_extension = self
-            .transform_oracle_service_prices(state, prices)
+        let oracle_vote_extension = transform_oracle_service_prices(state, prices)
             .await
             .context("failed to transform oracle service prices")?;
 
@@ -86,7 +93,7 @@ impl Handler {
     }
 
     pub(crate) async fn verify_vote_extension<S: StateReadExt>(
-        &mut self,
+        &self,
         state: &S,
         vote_extension: abci::request::VerifyVoteExtension,
         is_proposal_phase: bool,
@@ -112,30 +119,29 @@ impl Handler {
 
         Ok(abci::response::VerifyVoteExtension::Accept)
     }
+}
 
-    // see https://github.com/skip-mev/slinky/blob/158cde8a4b774ac4eec5c6d1a2c16de6a8c6abb5/abci/ve/vote_extension.go#L290
-    async fn transform_oracle_service_prices<S: StateReadExt>(
-        &self,
-        state: &S,
-        prices: QueryPricesResponse,
-    ) -> anyhow::Result<OracleVoteExtension> {
-        let mut strategy_prices = HashMap::new();
-        for (currency_pair_id, price_string) in prices.prices {
-            let currency_pair = currency_pair_from_string(&currency_pair_id)?;
-            let price = price_string.parse::<u128>()?;
+// see https://github.com/skip-mev/slinky/blob/158cde8a4b774ac4eec5c6d1a2c16de6a8c6abb5/abci/ve/vote_extension.go#L290
+async fn transform_oracle_service_prices<S: StateReadExt>(
+    state: &S,
+    prices: QueryPricesResponse,
+) -> anyhow::Result<OracleVoteExtension> {
+    let mut strategy_prices = HashMap::new();
+    for (currency_pair_id, price_string) in prices.prices {
+        let currency_pair = currency_pair_from_string(&currency_pair_id)?;
+        let price = price_string.parse::<u128>()?;
 
-            let id = DefaultCurrencyPairStrategy::id(state, &currency_pair)
-                .await
-                .context("failed to get id for currency pair")?;
-            let encoded_price =
-                DefaultCurrencyPairStrategy::get_encoded_price(state, &currency_pair, price).await;
-            strategy_prices.insert(id, encoded_price);
-        }
-
-        Ok(OracleVoteExtension {
-            prices: strategy_prices,
-        })
+        let id = DefaultCurrencyPairStrategy::id(state, &currency_pair)
+            .await
+            .context("failed to get id for currency pair")?;
+        let encoded_price =
+            DefaultCurrencyPairStrategy::get_encoded_price(state, &currency_pair, price).await;
+        strategy_prices.insert(id, encoded_price);
     }
+
+    Ok(OracleVoteExtension {
+        prices: strategy_prices,
+    })
 }
 
 fn currency_pair_from_string(s: &str) -> anyhow::Result<CurrencyPair> {

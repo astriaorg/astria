@@ -123,11 +123,11 @@ impl Sequencer {
 
             // ensure the oracle sidecar is reachable
             // TODO: allow this to retry in case the oracle sidecar is not ready yet
-            let _ = oracle_client
+            let prices = oracle_client
                 .prices(QueryPricesRequest::default())
                 .await
                 .context("failed to get oracle prices")?;
-            info!("oracle sidecar is reachable");
+            info!(prices = ?prices.into_inner(), "oracle sidecar is reachable");
             Some(oracle_client)
         } else {
             None

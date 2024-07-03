@@ -31,5 +31,54 @@
     "ics20_withdrawal_base_fee": 24
   },
   "native_asset_base_denomination": "nria",
-  "allowed_fee_assets": ["nria"]
+  "allowed_fee_assets": ["nria"],
+  "market_map": {
+    "marketMap": {
+      "tickers": {
+        "BITCOIN/USD": {
+          "currencyPair": {
+            "Base": "BITCOIN",
+            "Quote": "USD"
+          },
+          "decimals": "8",
+          "minProviderCount": "3"
+        }
+      },
+      "paths": {
+        "BITCOIN/USD": {
+          "paths": [
+            {
+              "operations": [
+                {
+                  "currencyPair": {
+                    "Base": "BITCOIN",
+                    "Quote": "USD"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "providers": {
+        "BITCOIN/USD": {
+          "providers": [
+            {
+              "name": "kucoin",
+              "offChainTicker": "btc_usd"
+            },
+            {
+              "name": "mexc",
+              "offChainTicker": "btc-usd"
+            },
+            {
+              "name": "binance",
+              "offChainTicker": "BTCUSD"
+            }
+          ]
+        }
+      }
+    },
+    "lastUpdated": "1"
+  }  
 }
