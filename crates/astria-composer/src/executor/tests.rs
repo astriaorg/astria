@@ -133,7 +133,9 @@ fn assert_chain_id_err(
             assert_eq!(*expected, configured_expected);
             assert_eq!(*actual, *configured_actual);
         }
-        other => panic!("expected `EnsureChainIdError::WrongChainId`, but got `{other}`"),
+        other @ EnsureChainIdError::GetChainId(_) => {
+            panic!("expected `EnsureChainIdError::WrongChainId`, but got '{other}'")
+        }
     }
 }
 
