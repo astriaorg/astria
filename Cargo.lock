@@ -540,7 +540,6 @@ dependencies = [
 name = "astria-cli"
 version = "0.3.1"
 dependencies = [
- "assert_cmd",
  "astria-core",
  "astria-sequencer-client",
  "clap",
@@ -550,7 +549,6 @@ dependencies = [
  "serde",
  "serde_yaml",
  "sha2 0.10.8",
- "test-utils",
  "tokio",
  "tracing",
  "which",
@@ -7670,15 +7668,6 @@ name = "termtree"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3369f5ac52d5eb6ab48c6b4ffdc8efbcad6b89c765749064ba298f2c68a16a76"
-
-[[package]]
-name = "test-utils"
-version = "0.1.0"
-dependencies = [
- "once_cell",
- "tempfile",
- "tokio",
-]
 
 [[package]]
 name = "tester"
