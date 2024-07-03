@@ -862,15 +862,16 @@ impl App {
         }
 
         ensure!(
-            finalize_block.txs.len() >= 2,
-            "block must contain at least two transactions: the rollup transactions commitment and
+            finalize_block.txs.len() >= 3,
+            "block must contain at least three transactions: the extended commit info, the rollup \
+             transactions commitment and
              rollup IDs commitment"
         );
 
         // cometbft expects a result for every tx in the block, so we need to return a
         // tx result for the commitments, even though they're not actually user txs.
         let mut tx_results: Vec<ExecTxResult> = Vec::with_capacity(finalize_block.txs.len());
-        tx_results.extend(std::iter::repeat(ExecTxResult::default()).take(2));
+        tx_results.extend(std::iter::repeat(ExecTxResult::default()).take(3));
 
         // When the hash is not empty, we have already executed and cached the results
         if self.executed_proposal_hash.is_empty() {
@@ -887,8 +888,8 @@ impl App {
                 .await
                 .context("failed to execute block")?;
 
-            // skip the first two transactions, as they are the rollup data commitments
-            for tx in finalize_block.txs.iter().skip(2) {
+            // skip the first three transactions, as they are injected transactions
+            for tx in finalize_block.txs.iter().skip(3) {
                 // remove any included txs from the mempool
                 let tx_hash = Sha256::digest(tx).into();
                 self.mempool.remove(tx_hash).await;

@@ -192,6 +192,10 @@ impl SequencerBlockError {
         Self(SequencerBlockErrorKind::IdProofInvalid(source))
     }
 
+    fn no_extended_commit_info() -> Self {
+        Self(SequencerBlockErrorKind::NoExtendedCommitInfo)
+    }
+
     fn no_rollup_transactions_root() -> Self {
         Self(SequencerBlockErrorKind::NoRollupTransactionsRoot)
     }
@@ -262,6 +266,10 @@ enum SequencerBlockErrorKind {
     TransactionProofInvalid(#[source] merkle::audit::InvalidProof),
     #[error("failed constructing a rollup ID proof from the raw protobuf rollup ID proof")]
     IdProofInvalid(#[source] merkle::audit::InvalidProof),
+    #[error(
+        "the cometbft block.data field was too short and did not contain the extended commit info"
+    )]
+    NoExtendedCommitInfo,
     #[error(
         "the cometbft block.data field was too short and did not contain the rollup transaction \
          root"
@@ -713,6 +721,12 @@ impl SequencerBlock {
         let data_hash = tree.root();
 
         let mut data_list = data.into_iter();
+
+        // TODO: this needs to go into the block header
+        let _extended_commit_info = data_list
+            .next()
+            .ok_or(SequencerBlockError::no_extended_commit_info())?;
+
         let rollup_transactions_root: [u8; 32] = data_list
             .next()
             .ok_or(SequencerBlockError::no_rollup_transactions_root())?

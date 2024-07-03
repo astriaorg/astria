@@ -195,6 +195,11 @@ impl ProposalHandler {
         height: u64,
         mut extended_commit_info: ExtendedCommitInfo,
     ) -> anyhow::Result<ExtendedCommitInfo> {
+        if height == 1 {
+            // we're proposing block 1, so nothing to validate
+            return Ok(extended_commit_info);
+        }
+
         for vote in extended_commit_info.votes.iter_mut() {
             let oracle_vote_extension =
                 RawOracleVoteExtension::decode(vote.vote_extension.clone())?.into();
@@ -212,6 +217,7 @@ impl ProposalHandler {
         validate_vote_extensions(state, height, &extended_commit_info)
             .await
             .context("failed to validate vote extensions in prepare_proposal")?;
+
         Ok(extended_commit_info)
     }
 
@@ -222,6 +228,11 @@ impl ProposalHandler {
         last_commit: &CommitInfo,
         extended_commit_info: &ExtendedCommitInfo,
     ) -> anyhow::Result<()> {
+        if height == 1 {
+            // we're processing block 1, so nothing to validate (no last commit yet)
+            return Ok(());
+        }
+
         // inside process_proposal, we must validate the vote extensions proposed against the last
         // commit proposed
         validate_extended_commit_against_last_commit(last_commit, extended_commit_info)?;
@@ -345,6 +356,10 @@ async fn validate_vote_extensions<S: StateReadExt>(
         "submitted voting power is less than required voting power",
     );
 
+    debug!(
+        submitted_voting_power,
+        total_voting_power, "validated extended commit info"
+    );
     Ok(())
 }
 
