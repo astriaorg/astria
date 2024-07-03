@@ -19,8 +19,10 @@ use astria_core::{
             GenesisState as MarketMapGenesisState,
             MarketMap,
             Params,
+            ProviderConfig,
         },
         oracle::v1::GenesisState as OracleGenesisState,
+        types::v1::CurrencyPair,
     },
 };
 use astria_eyre::eyre::{
@@ -55,6 +57,47 @@ fn charlie() -> Address {
 }
 
 fn genesis_state() -> GenesisState {
+    use astria_core::slinky::market_map::v1::{
+        Market,
+        Ticker,
+    };
+
+    let mut markets = std::collections::HashMap::new();
+    markets.insert(
+        "BITCOIN/USD".to_string(),
+        Market {
+            ticker: Ticker {
+                currency_pair: CurrencyPair::new("BITCOIN".to_string(), "USD".to_string()),
+                decimals: 8,
+                min_provider_count: 3,
+                enabled: true,
+                metadata_json: "".to_string(),
+            },
+            provider_configs: vec![
+                ProviderConfig {
+                    name: "kucoin_ws".to_string(),
+                    off_chain_ticker: "btc_usd".to_string(),
+                    normalize_by_pair: CurrencyPair::new("USDT".to_string(), "USD".to_string()),
+                    invert: false,
+                    metadata_json: "".to_string(),
+                },
+                ProviderConfig {
+                    name: "binance".to_string(),
+                    off_chain_ticker: "BTCUSD".to_string(),
+                    normalize_by_pair: CurrencyPair::new("USDT".to_string(), "USD".to_string()),
+                    invert: false,
+                    metadata_json: "".to_string(),
+                },
+                ProviderConfig {
+                    name: "mexc".to_string(),
+                    off_chain_ticker: "btc-usd".to_string(),
+                    normalize_by_pair: CurrencyPair::new("USDT".to_string(), "USD".to_string()),
+                    invert: false,
+                    metadata_json: "".to_string(),
+                },
+            ],
+        },
+    );
     UncheckedGenesisState {
         accounts: vec![
             Account {
@@ -94,7 +137,7 @@ fn genesis_state() -> GenesisState {
         },
         market_map: MarketMapGenesisState {
             market_map: MarketMap {
-                markets: std::collections::HashMap::new(),
+                markets,
             },
             last_updated: 0,
             params: Params {

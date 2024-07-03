@@ -48,6 +48,7 @@ impl Handler {
         &mut self,
         state: &S,
     ) -> anyhow::Result<abci::response::ExtendVote> {
+        tracing::info!("extending vote");
         let Some(oracle_client) = self.oracle_client.as_mut() else {
             // we allow validators to *not* use the oracle sidecar currently
             // however, if >1/3 of validators are not using the oracle, the prices will not update.
@@ -55,6 +56,8 @@ impl Handler {
                 vote_extension: vec![].into(),
             });
         };
+
+        tracing::info!("extending vote; getting prices from oracle sidecar");
 
         // if we fail to get prices within the timeout duration, we will return an empty vote
         // extension to ensure liveness.
@@ -84,6 +87,8 @@ impl Handler {
                 });
             }
         };
+
+        tracing::info!(prices = ?prices, "got prices from oracle sidecar; transforming prices");
 
         let oracle_vote_extension = transform_oracle_service_prices(state, prices)
             .await

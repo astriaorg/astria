@@ -80,6 +80,14 @@ fn insert_app_state_and_chain_id(dst: &mut Value, app_state: &Value, chain_id: S
     let Value::Object(dst) = dst else {
         panic!("dst is not an object");
     };
+    dst.get_mut("consensus_params")
+        .expect("consensus_params field exists in cometbft genesis")
+        .as_object_mut()
+        .expect("consensus_params field is an object")
+        .insert(
+            "abci".to_string(),
+            serde_json::json!({ "vote_extensions_enable_height": "1" }),
+        );
     dst.insert("app_state".to_string(), app_state.clone());
     dst.insert("chain_id".to_string(), chain_id.into());
 }

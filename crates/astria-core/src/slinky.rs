@@ -270,8 +270,8 @@ pub mod market_map {
         #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
         #[derive(Debug, Clone, PartialEq, Eq)]
         pub struct Market {
-            ticker: Ticker,
-            provider_configs: Vec<ProviderConfig>,
+            pub ticker: Ticker,
+            pub provider_configs: Vec<ProviderConfig>,
         }
 
         impl Market {
@@ -341,11 +341,11 @@ pub mod market_map {
         #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
         #[derive(Debug, Clone, PartialEq, Eq)]
         pub struct Ticker {
-            currency_pair: CurrencyPair,
-            decimals: u64,
-            min_provider_count: u64,
-            enabled: bool,
-            metadata_json: String,
+            pub currency_pair: CurrencyPair,
+            pub decimals: u64,
+            pub min_provider_count: u64,
+            pub enabled: bool,
+            pub metadata_json: String,
         }
 
         impl Ticker {
@@ -393,11 +393,11 @@ pub mod market_map {
         #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
         #[derive(Debug, Clone, PartialEq, Eq)]
         pub struct ProviderConfig {
-            name: String,
-            off_chain_ticker: String,
-            normalize_by_pair: CurrencyPair,
-            invert: bool,
-            metadata_json: String,
+            pub name: String,
+            pub off_chain_ticker: String,
+            pub normalize_by_pair: CurrencyPair,
+            pub invert: bool,
+            pub metadata_json: String,
         }
 
         impl ProviderConfig {
