@@ -17,7 +17,11 @@ use astria_core::{
             QueryPricesResponse,
         },
     },
-    slinky::abci::v1::OracleVoteExtension,
+    slinky::{
+        abci::v1::OracleVoteExtension,
+        oracle::v1::QuotePrice,
+        types::v1::CurrencyPair,
+    },
 };
 use prost::Message as _;
 use tendermint::{
@@ -28,12 +32,16 @@ use tendermint::{
         ExtendedCommitInfo,
     },
 };
+use tendermint_proto::google::protobuf::Timestamp;
 use tonic::transport::Channel;
 use tracing::debug;
 
 use crate::{
     authority::state_ext::StateReadExt as _,
-    slinky::oracle::currency_pair_strategy::DefaultCurrencyPairStrategy,
+    slinky::oracle::{
+        currency_pair_strategy::DefaultCurrencyPairStrategy,
+        state_ext::StateWriteExt,
+    },
     state_ext::StateReadExt,
 };
 
@@ -171,7 +179,13 @@ async fn transform_oracle_service_prices<S: StateReadExt>(
         let currency_pair = currency_pair_id
             .parse()
             .context("failed to parse currency pair")?;
-        let price = price_string.parse::<u128>()?;
+
+        // TODO: how are the prices encoded into strings in the sidecar??
+        let encoded_price = price_string.as_bytes();
+        let price =
+            DefaultCurrencyPairStrategy::get_decoded_price(state, &currency_pair, encoded_price)
+                .await
+                .context("failed to get decoded price")?;
 
         let id = DefaultCurrencyPairStrategy::id(state, &currency_pair)
             .await
@@ -419,4 +433,99 @@ fn validate_extended_commit_against_last_commit(
     }
 
     Ok(())
+}
+
+pub(crate) async fn apply_prices_from_vote_extensions<S: StateWriteExt>(
+    state: &mut S,
+    extended_commit_info: ExtendedCommitInfo,
+    timestamp: Timestamp,
+    height: u64,
+) -> anyhow::Result<()> {
+    let votes = extended_commit_info
+        .votes
+        .iter()
+        .map(|vote| {
+            let raw = RawOracleVoteExtension::decode(vote.vote_extension.clone())
+                .context("failed to decode oracle vote extension")?;
+            Ok(OracleVoteExtension::from_raw(raw))
+        })
+        .collect::<anyhow::Result<Vec<_>>>()?;
+
+    let prices = aggregate_oracle_votes(state, votes)
+        .await
+        .context("failed to aggregate oracle votes")?;
+
+    // TODO: if a currency pair exists in the state, but isn't in the prices,
+    // is it considered "removed"?
+    for (currency_pair, price) in prices {
+        let price = QuotePrice {
+            price,
+            block_timestamp: pbjson_types::Timestamp {
+                seconds: timestamp.seconds,
+                nanos: timestamp.nanos,
+            },
+            block_height: height,
+        };
+
+        state
+            .put_price_for_currency_pair(&currency_pair, price)
+            .context("failed to put price")?;
+    }
+
+    Ok(())
+}
+
+async fn aggregate_oracle_votes<S: StateReadExt>(
+    state: &S,
+    votes: Vec<OracleVoteExtension>,
+) -> anyhow::Result<HashMap<CurrencyPair, u128>> {
+    // validators are not weighted right now, so we just take the median price for each currency
+    // pair
+    //
+    // skip uses a stake-weighted median: https://github.com/skip-mev/slinky/blob/19a916122110cfd0e98d93978107d7ada1586918/pkg/math/voteweighted/voteweighted.go#L59
+    // we can implement this later, when we have stake weighting.
+    let mut currency_pair_to_price_list = HashMap::new();
+    for vote in votes {
+        for (id, price_bytes) in vote.prices {
+            if price_bytes.len() > MAXIMUM_PRICE_BYTE_LEN {
+                continue;
+            }
+
+            let Some(currency_pair) = DefaultCurrencyPairStrategy::from_id(state, id)
+                .await
+                .context("failed to get currency pair from id")?
+            else {
+                continue;
+            };
+
+            let price =
+                DefaultCurrencyPairStrategy::get_decoded_price(state, &currency_pair, &price_bytes)
+                    .await
+                    .context("failed to get decoded price")?;
+            currency_pair_to_price_list
+                .entry(currency_pair)
+                .and_modify(|prices: &mut Vec<u128>| prices.push(price))
+                .or_insert(vec![price]);
+        }
+    }
+
+    let mut prices = HashMap::new();
+    for (currency_pair, mut price_list) in currency_pair_to_price_list {
+        let median_price = if price_list.is_empty() {
+            // price list should not ever be empty,
+            // as it was only inserted if it had a price
+            0
+        } else {
+            price_list.sort_unstable();
+            let mid = price_list.len() / 2;
+            if price_list.len() % 2 == 0 {
+                (price_list[mid - 1] + price_list[mid]) / 2
+            } else {
+                price_list[mid]
+            }
+        };
+        prices.insert(currency_pair, median_price);
+    }
+
+    Ok(prices)
 }

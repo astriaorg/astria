@@ -868,6 +868,24 @@ impl App {
              rollup IDs commitment"
         );
 
+        let extended_commit_info_bytes = &finalize_block.txs[0];
+        let extended_commit_info = ExtendedCommitInfo::decode(extended_commit_info_bytes.as_ref())
+            .context("failed to decode extended commit info")?;
+        let extended_commit_info = extended_commit_info
+            .try_into()
+            .context("failed to convert extended commit info from proto to native")?;
+        let mut state_tx: StateDelta<Arc<StateDelta<Snapshot>>> =
+            StateDelta::new(self.state.clone());
+        crate::app::vote_extension::apply_prices_from_vote_extensions(
+            &mut state_tx,
+            extended_commit_info,
+            finalize_block.time.into(),
+            finalize_block.height.value(),
+        )
+        .await
+        .context("failed to apply prices from vote extensions")?;
+        let _ = self.apply(state_tx);
+
         // cometbft expects a result for every tx in the block, so we need to return a
         // tx result for the commitments, even though they're not actually user txs.
         let mut tx_results: Vec<ExecTxResult> = Vec::with_capacity(finalize_block.txs.len());
@@ -1027,7 +1045,8 @@ impl App {
         &mut self,
         begin_block: &abci::request::BeginBlock,
     ) -> anyhow::Result<Vec<abci::Event>> {
-        let mut state_tx = StateDelta::new(self.state.clone());
+        let mut state_tx: StateDelta<Arc<StateDelta<Snapshot>>> =
+            StateDelta::new(self.state.clone());
 
         // store the block height
         state_tx.put_block_height(begin_block.header.height.into());

@@ -38,7 +38,7 @@ pub mod types {
         use crate::generated::slinky::types::v1 as raw;
 
         #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-        #[derive(Debug, Clone, PartialEq, Eq)]
+        #[derive(Debug, Clone, PartialEq, Eq, Hash)]
         pub struct CurrencyPair {
             base: String,
             quote: String,
@@ -511,9 +511,9 @@ pub mod oracle {
         #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
         #[derive(Debug, Clone)]
         pub struct QuotePrice {
-            price: u128,
-            block_timestamp: Timestamp,
-            block_height: u64,
+            pub price: u128,
+            pub block_timestamp: Timestamp,
+            pub block_height: u64,
         }
 
         impl QuotePrice {

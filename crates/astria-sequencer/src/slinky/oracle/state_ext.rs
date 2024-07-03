@@ -3,7 +3,10 @@ use anyhow::{
     Result,
 };
 use astria_core::slinky::{
-    oracle::v1::CurrencyPairState,
+    oracle::v1::{
+        CurrencyPairState,
+        QuotePrice,
+    },
     types::v1::CurrencyPair,
 };
 use async_trait::async_trait;
@@ -20,6 +23,7 @@ use tracing::instrument;
 const CURRENCY_PAIR_TO_ID_PREFIX: &str = "oraclecpid";
 const ID_TO_CURRENCY_PAIR_PREFIX: &str = "oracleidcp";
 const CURRENCY_PAIR_STATE_PREFIX: &str = "oraclecpstate";
+const CURRENCY_PAIR_PRICE_PREFIX: &str = "oraclecpprice";
 
 // TODO: should these values be in nonverifiable storage?
 const NUM_CURRENCY_PAIRS_KEY: &str = "oraclenumcps";
@@ -36,6 +40,10 @@ fn id_to_currency_pair_storage_key(id: u64) -> String {
 
 fn currency_pair_state_storage_key(currency_pair: &CurrencyPair) -> String {
     format!("{CURRENCY_PAIR_STATE_PREFIX}/{currency_pair}",)
+}
+
+fn currency_pair_price_storage_key(currency_pair: &CurrencyPair) -> String {
+    format!("{CURRENCY_PAIR_PRICE_PREFIX}/{currency_pair}",)
 }
 
 /// Newtype wrapper to read and write a u64 from rocksdb.
@@ -137,6 +145,25 @@ pub(crate) trait StateReadExt: StateRead {
             Id::try_from_slice(&bytes).context("invalid next currency pair id bytes")?;
         Ok(next_currency_pair_id)
     }
+
+    #[instrument(skip(self))]
+    async fn get_price_for_currency_pair(
+        &self,
+        currency_pair: &CurrencyPair,
+    ) -> Result<Option<QuotePrice>> {
+        let bytes = self
+            .get_raw(&currency_pair_price_storage_key(currency_pair))
+            .await
+            .context("failed to get price for currency pair from state")?;
+        match bytes {
+            Some(bytes) => {
+                let price =
+                    serde_json::from_slice(&bytes).context("failed to deserialize price")?;
+                Ok(Some(price))
+            }
+            None => Ok(None),
+        }
+    }
 }
 
 impl<T: StateRead + ?Sized> StateReadExt for T {}
@@ -191,6 +218,18 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = borsh::to_vec(&Id(next_currency_pair_id))
             .context("failed to serialize next currency pair id")?;
         self.put_raw(NEXT_CURRENCY_PAIR_ID_KEY.to_string(), bytes);
+        Ok(())
+    }
+
+    #[instrument(skip(self))]
+    fn put_price_for_currency_pair(
+        &mut self,
+        currency_pair: &CurrencyPair,
+        price: QuotePrice,
+    ) -> Result<()> {
+        // TODO: also `put_currency_pair` if it didn't exist?
+        let bytes = serde_json::to_vec(&price).context("failed to serialize price")?;
+        self.put_raw(currency_pair_price_storage_key(currency_pair), bytes);
         Ok(())
     }
 }
