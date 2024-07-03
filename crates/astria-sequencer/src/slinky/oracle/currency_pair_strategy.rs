@@ -1,7 +1,7 @@
 use anyhow::Context as _;
 use astria_core::slinky::types::v1::CurrencyPair;
 
-use crate::oracle::state_ext::StateReadExt;
+use crate::slinky::oracle::state_ext::StateReadExt;
 
 /// see https://github.com/skip-mev/slinky/blob/793b2e874d6e720bd288e82e782502e41cf06f8c/abci/strategies/currencypair/default.go
 pub(crate) struct DefaultCurrencyPairStrategy;

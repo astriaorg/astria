@@ -24,6 +24,12 @@ pub mod abci {
                 }
             }
         }
+
+        impl From<raw::OracleVoteExtension> for OracleVoteExtension {
+            fn from(raw: raw::OracleVoteExtension) -> Self {
+                Self::from_raw(raw)
+            }
+        }
     }
 }
 

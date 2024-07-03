@@ -112,16 +112,7 @@ impl Consensus {
             }
             ConsensusRequest::VerifyVoteExtension(vote_extension) => {
                 ConsensusResponse::VerifyVoteExtension(
-                    match self.handle_verify_vote_extension(vote_extension).await {
-                        Ok(response) => response,
-                        Err(e) => {
-                            warn!(
-                                error = AsRef::<dyn std::error::Error>::as_ref(&e),
-                                "rejecting vote extension"
-                            );
-                            response::VerifyVoteExtension::Reject
-                        }
-                    },
+                    self.handle_verify_vote_extension(vote_extension).await,
                 )
             }
             ConsensusRequest::FinalizeBlock(finalize_block) => ConsensusResponse::FinalizeBlock(
@@ -217,9 +208,8 @@ impl Consensus {
     async fn handle_verify_vote_extension(
         &mut self,
         vote_extension: request::VerifyVoteExtension,
-    ) -> anyhow::Result<response::VerifyVoteExtension> {
-        let result = self.app.verify_vote_extension(vote_extension).await?;
-        Ok(result)
+    ) -> response::VerifyVoteExtension {
+        self.app.verify_vote_extension(vote_extension).await
     }
 
     #[instrument(skip_all, fields(

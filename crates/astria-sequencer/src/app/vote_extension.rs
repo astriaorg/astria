@@ -5,6 +5,10 @@ use anyhow::{
     Context as _,
 };
 use astria_core::{
+    crypto::{
+        Signature,
+        VerificationKey,
+    },
     generated::slinky::{
         abci::v1::OracleVoteExtension as RawOracleVoteExtension,
         service::v1::{
@@ -16,11 +20,20 @@ use astria_core::{
     slinky::abci::v1::OracleVoteExtension,
 };
 use prost::Message as _;
-use tendermint::abci;
+use tendermint::{
+    abci,
+    abci::types::{
+        BlockSignatureInfo::Flag,
+        CommitInfo,
+        ExtendedCommitInfo,
+    },
+};
 use tonic::transport::Channel;
+use tracing::debug;
 
 use crate::{
-    oracle::currency_pair_strategy::DefaultCurrencyPairStrategy,
+    authority::state_ext::StateReadExt as _,
+    slinky::oracle::currency_pair_strategy::DefaultCurrencyPairStrategy,
     state_ext::StateReadExt,
 };
 
@@ -102,30 +115,50 @@ impl Handler {
     pub(crate) async fn verify_vote_extension<S: StateReadExt>(
         &self,
         state: &S,
-        vote_extension: abci::request::VerifyVoteExtension,
+        vote: abci::request::VerifyVoteExtension,
         is_proposal_phase: bool,
-    ) -> anyhow::Result<abci::response::VerifyVoteExtension> {
-        let oracle_vote_extension = RawOracleVoteExtension::decode(vote_extension.vote_extension)?;
-
-        let max_num_currency_pairs =
-            DefaultCurrencyPairStrategy::get_max_num_currency_pairs(state, is_proposal_phase)
-                .await
-                .context("failed to get max number of currency pairs")?;
-
-        ensure!(
-            oracle_vote_extension.prices.len() as u64 <= max_num_currency_pairs,
-            "number of oracle vote extension prices exceeds max expected number of currency pairs"
-        );
-
-        for prices in oracle_vote_extension.prices.values() {
-            ensure!(
-                prices.len() <= MAXIMUM_PRICE_BYTE_LEN,
-                "encoded price length exceeded {MAXIMUM_PRICE_BYTE_LEN}"
-            );
+    ) -> abci::response::VerifyVoteExtension {
+        let oracle_vote_extension = match RawOracleVoteExtension::decode(vote.vote_extension) {
+            Ok(oracle_vote_extension) => oracle_vote_extension.into(),
+            Err(e) => {
+                tracing::error!(error = %e, "failed to decode oracle vote extension");
+                return abci::response::VerifyVoteExtension::Reject;
+            }
+        };
+        match verify_vote_extension(state, oracle_vote_extension, is_proposal_phase).await {
+            Ok(()) => abci::response::VerifyVoteExtension::Accept,
+            Err(e) => {
+                tracing::error!(error = %e, "failed to verify vote extension");
+                abci::response::VerifyVoteExtension::Reject
+            }
         }
-
-        Ok(abci::response::VerifyVoteExtension::Accept)
     }
+}
+
+// see https://github.com/skip-mev/slinky/blob/5b07f91d6c0110e617efda3f298f147a31da0f25/abci/ve/utils.go#L24
+pub(crate) async fn verify_vote_extension<S: StateReadExt>(
+    state: &S,
+    oracle_vote_extension: OracleVoteExtension,
+    is_proposal_phase: bool,
+) -> anyhow::Result<()> {
+    let max_num_currency_pairs =
+        DefaultCurrencyPairStrategy::get_max_num_currency_pairs(state, is_proposal_phase)
+            .await
+            .context("failed to get max number of currency pairs")?;
+
+    ensure!(
+        oracle_vote_extension.prices.len() as u64 <= max_num_currency_pairs,
+        "number of oracle vote extension prices exceeds max expected number of currency pairs"
+    );
+
+    for prices in oracle_vote_extension.prices.values() {
+        ensure!(
+            prices.len() <= MAXIMUM_PRICE_BYTE_LEN,
+            "encoded price length exceeded {MAXIMUM_PRICE_BYTE_LEN}"
+        );
+    }
+
+    Ok(())
 }
 
 // see https://github.com/skip-mev/slinky/blob/158cde8a4b774ac4eec5c6d1a2c16de6a8c6abb5/abci/ve/vote_extension.go#L290
@@ -151,4 +184,220 @@ async fn transform_oracle_service_prices<S: StateReadExt>(
     Ok(OracleVoteExtension {
         prices: strategy_prices,
     })
+}
+
+pub(crate) struct ProposalHandler;
+
+impl ProposalHandler {
+    // called during prepare_proposal
+    pub(crate) async fn prune_and_validate_extended_commit_info<S: StateReadExt>(
+        state: &S,
+        height: u64,
+        mut extended_commit_info: ExtendedCommitInfo,
+    ) -> anyhow::Result<ExtendedCommitInfo> {
+        for vote in extended_commit_info.votes.iter_mut() {
+            let oracle_vote_extension =
+                RawOracleVoteExtension::decode(vote.vote_extension.clone())?.into();
+            if let Err(e) = verify_vote_extension(state, oracle_vote_extension, true).await {
+                debug!(
+                    error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                    validator = crate::address::base_prefixed(vote.validator.address).to_string(),
+                    "failed to verify vote extension; pruning from proposal"
+                );
+                vote.sig_info = Flag(tendermint::block::BlockIdFlag::Absent);
+                vote.extension_signature = None;
+                vote.vote_extension = vec![].into();
+            }
+        }
+        validate_vote_extensions(state, height, &extended_commit_info)
+            .await
+            .context("failed to validate vote extensions in prepare_proposal")?;
+        Ok(extended_commit_info)
+    }
+
+    // called during process_proposal
+    pub(crate) async fn validate_extended_commit_info<S: StateReadExt>(
+        state: &S,
+        height: u64,
+        last_commit: &CommitInfo,
+        extended_commit_info: &ExtendedCommitInfo,
+    ) -> anyhow::Result<()> {
+        // inside process_proposal, we must validate the vote extensions proposed against the last
+        // commit proposed
+        validate_extended_commit_against_last_commit(last_commit, extended_commit_info)?;
+
+        validate_vote_extensions(state, height, extended_commit_info)
+            .await
+            .context("failed to validate vote extensions in validate_extended_commit_info")?;
+        Ok(())
+    }
+}
+
+// see https://github.com/skip-mev/slinky/blob/5b07f91d6c0110e617efda3f298f147a31da0f25/abci/ve/utils.go#L111
+async fn validate_vote_extensions<S: StateReadExt>(
+    state: &S,
+    height: u64,
+    extended_commit_info: &ExtendedCommitInfo,
+) -> anyhow::Result<()> {
+    use tendermint_proto::v0_38::types::CanonicalVoteExtension;
+
+    let chain_id = state
+        .get_chain_id()
+        .await
+        .context("failed to get chain id")?;
+
+    // total validator voting power
+    let mut total_voting_power: u64 = 0;
+    // the total voting power of all validators which submitted vote extensions
+    let mut submitted_voting_power: u64 = 0;
+
+    let validator_set = state
+        .get_validator_set()
+        .await
+        .context("failed to get validator set")?;
+
+    for vote in &extended_commit_info.votes {
+        total_voting_power = total_voting_power.saturating_add(vote.validator.power.value());
+
+        if vote.sig_info == Flag(tendermint::block::BlockIdFlag::Commit)
+            && vote.extension_signature.is_none()
+        {
+            anyhow::bail!(
+                "vote extension signature is missing for validator {}",
+                crate::address::base_prefixed(vote.validator.address)
+            );
+        }
+
+        if vote.sig_info != Flag(tendermint::block::BlockIdFlag::Commit)
+            && vote.vote_extension.len() > 0
+        {
+            anyhow::bail!(
+                "non-commit vote extension present for validator {}",
+                crate::address::base_prefixed(vote.validator.address)
+            );
+        }
+
+        if vote.sig_info != Flag(tendermint::block::BlockIdFlag::Commit)
+            && vote.extension_signature.is_some()
+        {
+            anyhow::bail!(
+                "non-commit extension signature present for validator {}",
+                crate::address::base_prefixed(vote.validator.address)
+            );
+        }
+
+        if vote.sig_info != Flag(tendermint::block::BlockIdFlag::Commit) {
+            continue;
+        }
+
+        submitted_voting_power =
+            submitted_voting_power.saturating_add(vote.validator.power.value());
+
+        let pubkey = validator_set
+            .get(
+                &vote
+                    .validator
+                    .address
+                    .to_vec()
+                    .try_into()
+                    .expect("can always convert 20 bytes to account::Id"),
+            )
+            .context("validator not found")?
+            .pub_key;
+        let verification_key = VerificationKey::try_from(pubkey.to_bytes().as_slice())
+            .context("failed to create verification key")?;
+
+        let vote_extension = CanonicalVoteExtension {
+            extension: vote.vote_extension.to_vec(),
+            height: (height - 1) as i64,
+            round: extended_commit_info.round.value() as i64,
+            chain_id: chain_id.to_string(),
+        };
+
+        // TODO: double check that it's length-delimited
+        let message = vote_extension.encode_length_delimited_to_vec();
+        let signature = Signature::try_from(
+            vote.extension_signature
+                .as_ref()
+                .expect("extension signature is some, as it was checked above")
+                .as_bytes(),
+        )
+        .context("failed to create signature")?;
+        verification_key
+            .verify(&signature, &message)
+            .context("failed to verify signature for vote extension")?;
+    }
+
+    // this shouldn't happen, but good to check anyways
+    if total_voting_power == 0 {
+        anyhow::bail!("total voting power is zero");
+    }
+
+    let required_voting_power = total_voting_power
+        .checked_mul(2)
+        .context("failed to multiply total voting power by 2")?
+        .checked_div(3)
+        .context("failed to divide total voting power by 3")?
+        .checked_sub(1)
+        .context("failed to subtract 1 from total voting power")?;
+    ensure!(
+        submitted_voting_power >= required_voting_power,
+        "submitted voting power is less than required voting power",
+    );
+
+    Ok(())
+}
+
+fn validate_extended_commit_against_last_commit(
+    last_commit: &CommitInfo,
+    extended_commit_info: &ExtendedCommitInfo,
+) -> anyhow::Result<()> {
+    ensure!(
+        last_commit.round == extended_commit_info.round,
+        "last commit round does not match extended commit round"
+    );
+
+    ensure!(
+        last_commit.votes.len() == extended_commit_info.votes.len(),
+        "last commit votes length does not match extended commit votes length"
+    );
+
+    ensure!(
+        extended_commit_info.votes.is_sorted_by(|a, b| {
+            if a.validator.power == b.validator.power {
+                // addresses sorted in ascending order, if the powers are the same
+                a.validator.address < b.validator.address
+            } else {
+                a.validator.power > b.validator.power
+            }
+        }),
+        "extended commit votes are not sorted by voting power",
+    );
+
+    for (i, vote) in extended_commit_info.votes.iter().enumerate() {
+        let last_commit_vote = &last_commit.votes[i];
+        ensure!(
+            last_commit_vote.validator.address == vote.validator.address,
+            "last commit vote address does not match extended commit vote address"
+        );
+        ensure!(
+            last_commit_vote.validator.power == vote.validator.power,
+            "last commit vote power does not match extended commit vote power"
+        );
+
+        // vote is absent; no need to check for the block id flag matching the last commit
+        if vote.sig_info == Flag(tendermint::block::BlockIdFlag::Absent)
+            && vote.vote_extension.len() == 0
+            && vote.extension_signature.is_none()
+        {
+            continue;
+        }
+
+        ensure!(
+            vote.sig_info == last_commit_vote.sig_info,
+            "last commit vote sig info does not match extended commit vote sig info"
+        );
+    }
+
+    Ok(())
 }

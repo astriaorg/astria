@@ -20,7 +20,7 @@ use tonic::{
 use tracing::instrument;
 
 use crate::{
-    slinky::state_ext::StateReadExt as _,
+    slinky::marketmap::state_ext::StateReadExt as _,
     state_ext::StateReadExt as _,
 };
 
