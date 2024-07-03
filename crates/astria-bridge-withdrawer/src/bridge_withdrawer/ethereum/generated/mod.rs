@@ -7,9 +7,7 @@
     clippy::pedantic
 )]
 
-pub(crate) mod astria_withdrawer_interface;
+pub mod astria_withdrawer_interface;
 
-#[cfg(test)]
-pub(crate) mod astria_bridgeable_erc20;
-#[cfg(test)]
-pub(crate) mod astria_withdrawer;
+pub mod astria_bridgeable_erc20;
+pub mod astria_withdrawer;

@@ -4,9 +4,9 @@ use std::{
 };
 
 use astria_bridge_withdrawer::{
-    bridge_withdrawer::ShutdownHandle,
     BridgeWithdrawer,
     Config,
+    ShutdownHandle,
 };
 use astria_core::{
     bridge::Ics20WithdrawalFromRollupMemo,
@@ -27,10 +27,10 @@ use once_cell::sync::Lazy;
 use sequencer_client::Address;
 use tempfile::NamedTempFile;
 use tokio::task::JoinHandle;
-use tokio_util::sync::CancellationToken;
 use tracing::info;
 
 use super::MockSequencerServer;
+use crate::helpers::ethereum::Ethereum;
 
 const DEFAULT_LAST_ROLLUP_HEIGHT: u64 = 1;
 const DEFAULT_IBC_DENOM: &str = "transfer/channel-0/utia";
@@ -67,6 +67,9 @@ pub struct TestBridgeWithdrawer {
     /// The mock sequencer server.
     pub sequencer_mock: MockSequencerServer,
 
+    /// The rollup-side ethereum smart contract
+    pub ethereum: Ethereum,
+
     /// A handle to issue a shutdown to the bridge withdrawer.
     bridge_withdrawer_shutdown_handle: Option<ShutdownHandle>,
     bridge_withdrawer: JoinHandle<()>,
@@ -78,8 +81,6 @@ impl TestBridgeWithdrawer {
     pub async fn spawn() -> Self {
         Lazy::force(&TELEMETRY);
 
-        let shutdown_token = CancellationToken::new();
-
         // sequencer signer key
         let keyfile = NamedTempFile::new().unwrap();
         (&keyfile)
@@ -88,6 +89,8 @@ impl TestBridgeWithdrawer {
             )
             .unwrap();
         let sequencer_key_path = keyfile.path().to_str().unwrap().to_string();
+
+        let ethereum = Ethereum::new().await;
 
         let cometbft_mock = wiremock::MockServer::start().await;
 
@@ -103,8 +106,8 @@ impl TestBridgeWithdrawer {
             min_expected_fee_asset_balance: 100,
             rollup_asset_denomination: DEFAULT_DENOM.parse().unwrap(),
             sequencer_bridge_address: default_bridge_address().to_string(),
-            ethereum_contract_address: todo!(),
-            ethereum_rpc_endpoint: todo!(),
+            ethereum_contract_address: ethereum.contract_address(),
+            ethereum_rpc_endpoint: ethereum.rpc_endpoint(),
             sequencer_address_prefix: ASTRIA_ADDRESS_PREFIX.into(),
             api_addr: "0.0.0.0".into(),
             log: String::new(),
@@ -123,6 +126,7 @@ impl TestBridgeWithdrawer {
 
         Self {
             api_address,
+            ethereum,
             cometbft_mock,
             sequencer_mock,
             bridge_withdrawer_shutdown_handle: Some(bridge_withdrawer_shutdown_handle),

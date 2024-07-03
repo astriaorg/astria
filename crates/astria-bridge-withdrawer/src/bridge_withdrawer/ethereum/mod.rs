@@ -3,7 +3,7 @@ pub(crate) mod watcher;
 
 #[rustfmt::skip]
 mod generated;
-pub(crate) use generated::*;
+pub use generated::*;
 
 #[cfg(test)]
 mod test_utils;

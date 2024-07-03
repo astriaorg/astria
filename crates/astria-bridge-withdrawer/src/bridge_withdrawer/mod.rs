@@ -27,6 +27,11 @@ use tracing::{
     info,
 };
 
+pub use self::ethereum::{
+    astria_bridgeable_erc20,
+    astria_withdrawer,
+    astria_withdrawer_interface,
+};
 pub(crate) use self::state::StateSnapshot;
 use self::{
     ethereum::watcher,
@@ -413,4 +418,19 @@ pub(crate) fn flatten_result<T>(res: Result<eyre::Result<T>, JoinError>) -> eyre
         Ok(Err(err)) => Err(err).wrap_err("task returned with error"),
         Err(err) => Err(err).wrap_err("task panicked"),
     }
+}
+
+#[cfg(test)]
+pub(crate) const ASTRIA_ADDRESS_PREFIX: &str = "astria";
+
+/// Constructs an [`Address`] prefixed by `"astria"`.
+#[cfg(test)]
+pub(crate) fn astria_address(
+    array: [u8; astria_core::primitive::v1::ADDRESS_LEN],
+) -> astria_core::primitive::v1::Address {
+    astria_core::primitive::v1::Address::builder()
+        .array(array)
+        .prefix(ASTRIA_ADDRESS_PREFIX)
+        .try_build()
+        .unwrap()
 }

@@ -3,8 +3,9 @@ use std::{
     time::Duration,
 };
 
-use astria_bridge_withdrawer::bridge_withdrawer::ethereum::{
+use astria_bridge_withdrawer::{
     astria_bridgeable_erc20::{
+        AstriaBridgeableERC20,
         ASTRIABRIDGEABLEERC20_ABI,
         ASTRIABRIDGEABLEERC20_BYTECODE,
     },
@@ -12,6 +13,7 @@ use astria_bridge_withdrawer::bridge_withdrawer::ethereum::{
         ASTRIAWITHDRAWER_ABI,
         ASTRIAWITHDRAWER_BYTECODE,
     },
+    bridge_withdrawer::astria_withdrawer::AstriaWithdrawer,
 };
 use ethers::{
     abi::Tokenizable,
@@ -23,9 +25,8 @@ use ethers::{
 
 use super::test_bridge_withdrawer::astria_address;
 
-pub struct Ethereum<M> {
-    pub contract_address: H160,
-    pub contract: AstriaWithdrawer<M>,
+pub struct Ethereum {
+    contract_address: H160,
     provider: Arc<Provider<Ws>>,
     wallet: LocalWallet,
     anvil: AnvilInstance,
@@ -35,24 +36,33 @@ impl Ethereum {
     pub async fn new() -> Self {
         let (contract_address, provider, wallet, anvil) =
             AstriaWithdrawerDeployerConfig::default().deploy().await;
-        let signer = Arc::new(SignerMiddleware::new(provider, wallet.clone()));
-        let contract = AstriaWithdrawer::new(contract_address, signer.clone());
 
         Self {
             contract_address,
-            contract,
             provider,
             wallet,
             anvil,
         }
     }
 
+    pub fn contract_address(&self) -> String {
+        self.contract_address.to_string()
+    }
+
+    pub fn rpc_endpoint(&self) -> String {
+        self.anvil.endpoint()
+    }
+
     async fn send_sequencer_withdraw_transaction(
         &self,
-        contract: &AstriaWithdrawer<M>,
         value: U256,
         recipient: Address,
     ) -> TransactionReceipt {
+        let signer = Arc::new(SignerMiddleware::new(
+            self.provider.clone(),
+            self.wallet.clone(),
+        ));
+        let contract = AstriaWithdrawer::new(self.contract_address, signer.clone());
         let tx = contract
             .withdraw_to_sequencer(recipient.to_string())
             .value(value);
@@ -74,10 +84,14 @@ impl Ethereum {
 
     async fn send_ics20_withdraw_transaction<M: Middleware>(
         &self,
-        contract: &AstriaWithdrawer<M>,
         value: U256,
         recipient: String,
     ) -> TransactionReceipt {
+        let signer = Arc::new(SignerMiddleware::new(
+            self.provider.clone(),
+            self.wallet.clone(),
+        ));
+        let contract = AstriaWithdrawer::new(self.contract_address, signer.clone());
         let tx = contract
             .withdraw_to_ibc_chain(recipient, "nootwashere".to_string())
             .value(value);
@@ -99,10 +113,14 @@ impl Ethereum {
 
     async fn mint_tokens<M: Middleware>(
         &self,
-        contract: &AstriaBridgeableERC20<M>,
         amount: U256,
         recipient: ethers::types::Address,
     ) -> TransactionReceipt {
+        let signer = Arc::new(SignerMiddleware::new(
+            self.provider.clone(),
+            self.wallet.clone(),
+        ));
+        let contract = AstriaBridgeableERC20::new(self.contract_address, signer.clone());
         let mint_tx = contract.mint(recipient, amount);
         let receipt = mint_tx
             .send()
@@ -122,11 +140,17 @@ impl Ethereum {
 
     async fn send_sequencer_withdraw_transaction_erc20<M: Middleware>(
         &self,
-        contract: &AstriaBridgeableERC20<M>,
         value: U256,
         recipient: Address,
     ) -> TransactionReceipt {
-        let tx = contract.withdraw_to_sequencer(value, recipient.to_string());
+        let signer = Arc::new(SignerMiddleware::new(
+            self.provider.clone(),
+            self.wallet.clone(),
+        ));
+        let contract = AstriaWithdrawer::new(self.contract_address, signer.clone());
+        let tx = contract
+            .withdraw_to_sequencer(recipient.to_string())
+            .value(value);
         let receipt = tx
             .send()
             .await
@@ -148,9 +172,14 @@ impl Ethereum {
         value: U256,
         recipient: String,
     ) -> TransactionReceipt {
-        let tx = self
-            .contract
-            .withdraw_to_ibc_chain(value, recipient, "nootwashere".to_string());
+        let signer = Arc::new(SignerMiddleware::new(
+            self.provider.clone(),
+            self.wallet.clone(),
+        ));
+        let contract = AstriaWithdrawer::new(self.contract_address, signer.clone());
+        let tx = contract
+            .withdraw_to_ibc_chain(recipient, "nootwashere".to_string())
+            .value(value);
         let receipt = tx
             .send()
             .await
@@ -264,7 +293,7 @@ impl Default for AstriaBridgeableERC20DeployerConfig {
         Self {
             bridge_address: Address::zero(),
             base_chain_asset_precision: 18,
-            base_chain_bridge_address: crate::astria_address([0u8; 20]),
+            base_chain_bridge_address: astria_address([0u8; 20]),
             base_chain_asset_denomination: "testdenom".to_string(),
             name: "test-token".to_string(),
             symbol: "TT".to_string(),

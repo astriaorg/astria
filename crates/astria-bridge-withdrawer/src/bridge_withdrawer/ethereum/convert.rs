@@ -32,7 +32,7 @@ use serde::{
     Serialize,
 };
 
-use crate::bridge_withdrawer::ethereum::astria_withdrawer_interface::{
+use crate::bridge_withdrawer::ethereum::generated::astria_withdrawer_interface::{
     Ics20WithdrawalFilter,
     SequencerWithdrawalFilter,
 };

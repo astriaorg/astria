@@ -51,15 +51,15 @@ use tracing::{
 use crate::bridge_withdrawer::{
     batch::Batch,
     ethereum::{
-        astria_withdrawer_interface::{
-            IAstriaWithdrawer,
-            Ics20WithdrawalFilter,
-            SequencerWithdrawalFilter,
-        },
         convert::{
             event_to_action,
             EventWithMetadata,
             WithdrawalEvent,
+        },
+        generated::astria_withdrawer_interface::{
+            IAstriaWithdrawer,
+            Ics20WithdrawalFilter,
+            SequencerWithdrawalFilter,
         },
     },
     startup,

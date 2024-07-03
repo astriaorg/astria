@@ -55,8 +55,6 @@ use crate::metrics::Metrics;
 
 mod builder;
 pub(crate) mod signer;
-#[cfg(test)]
-mod tests;
 
 pub(super) struct Submitter {
     shutdown_token: CancellationToken,
