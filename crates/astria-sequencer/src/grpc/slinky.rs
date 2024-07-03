@@ -61,7 +61,7 @@ impl MarketMapQueryService for SequencerServer {
             .map_err(|e| Status::internal(format!("failed to get chain id from storage: {e}")))?;
 
         Ok(Response::new(MarketMapResponse {
-            market_map: market_map.map(Into::into),
+            market_map: market_map.map(astria_core::slinky::market_map::v1::MarketMap::into_raw),
             last_updated,
             chain_id: chain_id.to_string(), // TODO: is this the right chain id?
         }))
@@ -107,7 +107,7 @@ impl MarketMapQueryService for SequencerServer {
         })?;
 
         Ok(Response::new(ParamsResponse {
-            params: params.map(Into::into),
+            params: params.map(astria_core::slinky::market_map::v1::Params::into_raw),
         }))
     }
 }

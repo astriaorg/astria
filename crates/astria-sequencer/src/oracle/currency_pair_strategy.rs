@@ -1,5 +1,5 @@
 use anyhow::Context as _;
-use astria_core::generated::slinky::types::v1::CurrencyPair;
+use astria_core::slinky::types::v1::CurrencyPair;
 
 use crate::oracle::state_ext::StateReadExt;
 

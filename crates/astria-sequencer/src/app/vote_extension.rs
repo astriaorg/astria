@@ -4,14 +4,16 @@ use anyhow::{
     ensure,
     Context as _,
 };
-use astria_core::generated::slinky::{
-    abci::v1::OracleVoteExtension,
-    service::v1::{
-        oracle_client::OracleClient,
-        QueryPricesRequest,
-        QueryPricesResponse,
+use astria_core::{
+    generated::slinky::{
+        abci::v1::OracleVoteExtension as RawOracleVoteExtension,
+        service::v1::{
+            oracle_client::OracleClient,
+            QueryPricesRequest,
+            QueryPricesResponse,
+        },
     },
-    types::v1::CurrencyPair,
+    slinky::abci::v1::OracleVoteExtension,
 };
 use prost::Message as _;
 use tendermint::abci;
@@ -88,7 +90,7 @@ impl Handler {
             .context("failed to transform oracle service prices")?;
 
         Ok(abci::response::ExtendVote {
-            vote_extension: oracle_vote_extension.encode_to_vec().into(),
+            vote_extension: oracle_vote_extension.into_raw().encode_to_vec().into(),
         })
     }
 
@@ -98,7 +100,7 @@ impl Handler {
         vote_extension: abci::request::VerifyVoteExtension,
         is_proposal_phase: bool,
     ) -> anyhow::Result<abci::response::VerifyVoteExtension> {
-        let oracle_vote_extension = OracleVoteExtension::decode(vote_extension.vote_extension)?;
+        let oracle_vote_extension = RawOracleVoteExtension::decode(vote_extension.vote_extension)?;
 
         let max_num_currency_pairs =
             DefaultCurrencyPairStrategy::get_max_num_currency_pairs(state, is_proposal_phase)
@@ -128,7 +130,9 @@ async fn transform_oracle_service_prices<S: StateReadExt>(
 ) -> anyhow::Result<OracleVoteExtension> {
     let mut strategy_prices = HashMap::new();
     for (currency_pair_id, price_string) in prices.prices {
-        let currency_pair = currency_pair_from_string(&currency_pair_id)?;
+        let currency_pair = currency_pair_id
+            .parse()
+            .context("failed to parse currency pair")?;
         let price = price_string.parse::<u128>()?;
 
         let id = DefaultCurrencyPairStrategy::id(state, &currency_pair)
@@ -141,16 +145,5 @@ async fn transform_oracle_service_prices<S: StateReadExt>(
 
     Ok(OracleVoteExtension {
         prices: strategy_prices,
-    })
-}
-
-fn currency_pair_from_string(s: &str) -> anyhow::Result<CurrencyPair> {
-    let parts: Vec<&str> = s.split('/').collect();
-    if parts.len() != 2 {
-        anyhow::bail!("invalid currency pair string: {}", s);
-    }
-    Ok(CurrencyPair {
-        base: parts[0].to_string(),
-        quote: parts[1].to_string(),
     })
 }

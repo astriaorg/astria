@@ -11,10 +11,7 @@ use tendermint::abci::request::{
 use tracing::instrument;
 
 use super::state_ext::StateWriteExt;
-use crate::{
-    component::Component,
-    genesis::GenesisState,
-};
+use crate::component::Component;
 
 // TODO rename to MarketMapComponent
 // or do we want to put all slinky stuff in one component?
@@ -23,22 +20,16 @@ pub(crate) struct SlinkyComponent;
 
 #[async_trait::async_trait]
 impl Component for SlinkyComponent {
-    type AppState = GenesisState;
+    type AppState = astria_core::sequencer::GenesisState;
 
     #[instrument(name = "SlinkyComponent::init_chain", skip(state))]
     async fn init_chain<S: StateWriteExt>(mut state: S, app_state: &Self::AppState) -> Result<()> {
-        if let Some(market_map) = &app_state.market_map.market_map {
-            state
-                .put_market_map(market_map.clone())
-                .context("failed to put market map")?;
-        }
-
-        if let Some(params) = &app_state.market_map.params {
-            state
-                .put_params(params.clone())
-                .context("failed to put params")?;
-        }
-
+        state
+            .put_market_map(app_state.market_map().market_map.clone())
+            .context("failed to put market map")?;
+        state
+            .put_params(app_state.market_map().params.clone())
+            .context("failed to put params")?;
         Ok(())
     }
 

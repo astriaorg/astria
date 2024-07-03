@@ -6,7 +6,7 @@ pub mod abci {
 
         #[derive(Debug, Clone, PartialEq, Eq)]
         pub struct OracleVoteExtension {
-            prices: HashMap<u64, Vec<u8>>,
+            pub prices: HashMap<u64, Vec<u8>>,
         }
 
         impl OracleVoteExtension {
@@ -31,6 +31,7 @@ pub mod types {
     pub mod v1 {
         use crate::generated::slinky::types::v1 as raw;
 
+        #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
         #[derive(Debug, Clone, PartialEq, Eq)]
         pub struct CurrencyPair {
             base: String,
@@ -38,6 +39,24 @@ pub mod types {
         }
 
         impl CurrencyPair {
+            #[must_use]
+            pub fn new(base: String, quote: String) -> Self {
+                Self {
+                    base,
+                    quote,
+                }
+            }
+
+            #[must_use]
+            pub fn base(&self) -> &str {
+                &self.base
+            }
+
+            #[must_use]
+            pub fn quote(&self) -> &str {
+                &self.quote
+            }
+
             #[must_use]
             pub fn from_raw(raw: raw::CurrencyPair) -> Self {
                 Self {
@@ -113,11 +132,12 @@ pub mod market_map {
             slinky::types::v1::CurrencyPair,
         };
 
+        #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
         #[derive(Debug, Clone, PartialEq, Eq)]
         pub struct GenesisState {
-            market_map: MarketMap,
-            last_updated: u64,
-            params: Params,
+            pub market_map: MarketMap,
+            pub last_updated: u64,
+            pub params: Params,
         }
 
         impl GenesisState {
@@ -190,10 +210,11 @@ pub mod market_map {
             ParamsParseError(#[from] ParamsError),
         }
 
+        #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
         #[derive(Debug, Clone, PartialEq, Eq)]
         pub struct Params {
-            market_authorities: Vec<Address>,
-            admin: Address,
+            pub market_authorities: Vec<Address>,
+            pub admin: Address,
         }
 
         impl Params {
@@ -246,6 +267,7 @@ pub mod market_map {
             AdminParseError(#[source] AddressError),
         }
 
+        #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
         #[derive(Debug, Clone, PartialEq, Eq)]
         pub struct Market {
             ticker: Ticker,
@@ -316,6 +338,7 @@ pub mod market_map {
             ProviderConfigParseError(#[from] ProviderConfigError),
         }
 
+        #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
         #[derive(Debug, Clone, PartialEq, Eq)]
         pub struct Ticker {
             currency_pair: CurrencyPair,
@@ -367,6 +390,7 @@ pub mod market_map {
             MissingCurrencyPair,
         }
 
+        #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
         #[derive(Debug, Clone, PartialEq, Eq)]
         pub struct ProviderConfig {
             name: String,
@@ -419,6 +443,7 @@ pub mod market_map {
             MissingNormalizeByPair,
         }
 
+        #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
         #[derive(Debug, Clone, PartialEq, Eq)]
         pub struct MarketMap {
             pub markets: HashMap<String, Market>,
@@ -477,6 +502,7 @@ pub mod oracle {
             slinky::types::v1::CurrencyPair,
         };
 
+        #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
         #[derive(Debug, Clone)]
         pub struct QuotePrice {
             price: u128,
@@ -533,11 +559,12 @@ pub mod oracle {
             MissingBlockTimestamp,
         }
 
+        #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
         #[derive(Debug, Clone)]
         pub struct CurrencyPairState {
-            price: QuotePrice,
-            nonce: u64,
-            id: u64,
+            pub price: QuotePrice,
+            pub nonce: u64,
+            pub id: u64,
         }
 
         impl CurrencyPairState {
@@ -593,6 +620,7 @@ pub mod oracle {
             QuotePriceParseError(QuotePriceError),
         }
 
+        #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
         #[derive(Debug, Clone)]
         pub struct CurrencyPairGenesis {
             currency_pair: CurrencyPair,
@@ -602,6 +630,26 @@ pub mod oracle {
         }
 
         impl CurrencyPairGenesis {
+            #[must_use]
+            pub fn currency_pair(&self) -> &CurrencyPair {
+                &self.currency_pair
+            }
+
+            #[must_use]
+            pub fn currency_pair_price(&self) -> &QuotePrice {
+                &self.currency_pair_price
+            }
+
+            #[must_use]
+            pub fn id(&self) -> u64 {
+                self.id
+            }
+
+            #[must_use]
+            pub fn nonce(&self) -> u64 {
+                self.nonce
+            }
+
             pub fn try_from_raw(
                 raw: raw::CurrencyPairGenesis,
             ) -> Result<Self, CurrencyPairGenesisError> {
@@ -665,6 +713,7 @@ pub mod oracle {
             QuotePriceParseError(QuotePriceError),
         }
 
+        #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
         #[derive(Debug, Clone)]
         pub struct GenesisState {
             pub currency_pair_genesis: Vec<CurrencyPairGenesis>,

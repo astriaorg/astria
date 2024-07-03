@@ -2,7 +2,7 @@ use anyhow::{
     Context,
     Result,
 };
-use astria_core::generated::slinky::marketmap::v1::{
+use astria_core::slinky::market_map::v1::{
     MarketMap,
     Params,
 };

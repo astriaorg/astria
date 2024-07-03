@@ -2,10 +2,6 @@ use std::sync::Arc;
 
 use astria_core::{
     crypto::SigningKey,
-    generated::slinky::{
-        marketmap::v1::GenesisState as MarketMapGenesisState,
-        oracle::v1::GenesisState as OracleGenesisState,
-    },
     primitive::v1::{
         asset,
         RollupId,
@@ -23,7 +19,20 @@ use astria_core::{
         TransactionParams,
         UnsignedTransaction,
     },
+    sequencer::{
+        AddressPrefixes,
+        GenesisState,
+        UncheckedGenesisState,
+    },
     sequencerblock::v1alpha1::block::Deposit,
+    slinky::{
+        market_map::v1::{
+            GenesisState as MarketMapGenesisState,
+            MarketMap,
+            Params,
+        },
+        oracle::v1::GenesisState as OracleGenesisState,
+    },
 };
 use cnidarium::StateDelta;
 use penumbra_ibc::params::IBCParameters;
@@ -36,11 +45,6 @@ use crate::{
     bridge::state_ext::{
         StateReadExt as _,
         StateWriteExt,
-    },
-    genesis::{
-        AddressPrefixes,
-        GenesisState,
-        UncheckedGenesisState,
     },
     ibc::state_ext::StateReadExt as _,
     sequence::calculate_fee_from_state,
@@ -72,8 +76,20 @@ fn unchecked_genesis_state() -> UncheckedGenesisState {
         ibc_params: IBCParameters::default(),
         allowed_fee_assets: vec![default_native_asset()],
         fees: default_fees(),
-        market_map: MarketMapGenesisState::default(),
-        oracle: OracleGenesisState::default(),
+        market_map: MarketMapGenesisState {
+            market_map: MarketMap {
+                markets: std::collections::HashMap::new(),
+            },
+            last_updated: 0,
+            params: Params {
+                market_authorities: vec![],
+                admin: address_from_hex_string(ALICE_ADDRESS),
+            },
+        },
+        oracle: OracleGenesisState {
+            currency_pair_genesis: vec![],
+            next_id: 0,
+        },
     }
 }
 

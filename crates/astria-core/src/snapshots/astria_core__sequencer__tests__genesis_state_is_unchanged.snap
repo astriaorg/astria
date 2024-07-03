@@ -1,5 +1,5 @@
 ---
-source: crates/astria-sequencer/src/genesis.rs
+source: crates/astria-core/src/sequencer.rs
 expression: genesis_state()
 ---
 {
@@ -58,6 +58,27 @@ expression: genesis_state()
     "bridge_sudo_change_fee": 24,
     "ics20_withdrawal_base_fee": 24
   },
-  "market_map": {},
-  "oracle": {}
+  "market_map": {
+    "market_map": {
+      "markets": {}
+    },
+    "last_updated": 0,
+    "params": {
+      "market_authorities": [
+        {
+          "bech32m": "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
+        },
+        {
+          "bech32m": "astria1xnlvg0rle2u6auane79t4p27g8hxnj36ja960z"
+        }
+      ],
+      "admin": {
+        "bech32m": "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
+      }
+    }
+  },
+  "oracle": {
+    "currency_pair_genesis": [],
+    "next_id": 0
+  }
 }

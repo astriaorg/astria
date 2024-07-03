@@ -18,10 +18,7 @@ use tracing::{
     Instrument,
 };
 
-use crate::{
-    app::App,
-    genesis::GenesisState,
-};
+use crate::app::App;
 
 pub(crate) struct Consensus {
     queue: mpsc::Receiver<Message<ConsensusRequest, ConsensusResponse, tower::BoxError>>,
@@ -152,8 +149,9 @@ impl Consensus {
             bail!("database already initialized");
         }
 
-        let genesis_state: GenesisState = serde_json::from_slice(&init_chain.app_state_bytes)
-            .context("failed to parse app_state in genesis file")?;
+        let genesis_state: astria_core::sequencer::GenesisState =
+            serde_json::from_slice(&init_chain.app_state_bytes)
+                .context("failed to parse app_state in genesis file")?;
         let app_hash = self
             .app
             .init_chain(
@@ -261,15 +259,20 @@ mod test {
             SigningKey,
             VerificationKey,
         },
-        generated::slinky::{
-            marketmap::v1::GenesisState as MarketMapGenesisState,
-            oracle::v1::GenesisState as OracleGenesisState,
-        },
         primitive::v1::RollupId,
         protocol::transaction::v1alpha1::{
             action::SequenceAction,
             TransactionParams,
             UnsignedTransaction,
+        },
+        sequencer::{
+            Account,
+            AddressPrefixes,
+            UncheckedGenesisState,
+        },
+        slinky::{
+            market_map::v1::GenesisState as MarketMapGenesisState,
+            oracle::v1::GenesisState as OracleGenesisState,
         },
     };
     use bytes::Bytes;
@@ -285,10 +288,6 @@ mod test {
     use crate::{
         app::test_utils::default_fees,
         asset::get_native_asset,
-        genesis::{
-            AddressPrefixes,
-            UncheckedGenesisState,
-        },
         mempool::Mempool,
         metrics::Metrics,
         proposal::commitment::generate_rollup_datas_commitment,
@@ -501,8 +500,13 @@ mod test {
     }
 
     async fn new_consensus_service(funded_key: Option<VerificationKey>) -> (Consensus, Mempool) {
+        use astria_core::slinky::market_map::v1::{
+            MarketMap,
+            Params,
+        };
+
         let accounts = if funded_key.is_some() {
-            vec![crate::genesis::Account {
+            vec![Account {
                 address: crate::address::base_prefixed(funded_key.unwrap().address_bytes()),
                 balance: 10u128.pow(19),
             }]
@@ -521,8 +525,20 @@ mod test {
             ibc_params: penumbra_ibc::params::IBCParameters::default(),
             allowed_fee_assets: vec!["nria".parse().unwrap()],
             fees: default_fees(),
-            market_map: MarketMapGenesisState::default(),
-            oracle: OracleGenesisState::default(),
+            market_map: MarketMapGenesisState {
+                market_map: MarketMap {
+                    markets: std::collections::HashMap::new(),
+                },
+                last_updated: 0,
+                params: Params {
+                    market_authorities: vec![],
+                    admin: crate::address::base_prefixed([0; 20]),
+                },
+            },
+            oracle: OracleGenesisState {
+                currency_pair_genesis: vec![],
+                next_id: 0,
+            },
         }
         .try_into()
         .unwrap();

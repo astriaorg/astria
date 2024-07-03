@@ -2,7 +2,7 @@ use anyhow::{
     Context,
     Result,
 };
-use astria_core::generated::slinky::{
+use astria_core::slinky::{
     oracle::v1::CurrencyPairState,
     types::v1::CurrencyPair,
 };
@@ -27,21 +27,15 @@ const NUM_REMOVED_CURRENCY_PAIRS_KEY: &str = "oraclenumremovedcps";
 const NEXT_CURRENCY_PAIR_ID_KEY: &str = "oraclenextcpid";
 
 fn currency_pair_to_id_storage_key(currency_pair: &CurrencyPair) -> String {
-    format!(
-        "{}/{}/{}",
-        CURRENCY_PAIR_TO_ID_PREFIX, currency_pair.base, currency_pair.quote
-    )
+    format!("{CURRENCY_PAIR_TO_ID_PREFIX}/{currency_pair}",)
 }
 
 fn id_to_currency_pair_storage_key(id: u64) -> String {
-    format!("{}/{}", ID_TO_CURRENCY_PAIR_PREFIX, id)
+    format!("{ID_TO_CURRENCY_PAIR_PREFIX}/{id}")
 }
 
 fn currency_pair_state_storage_key(currency_pair: &CurrencyPair) -> String {
-    format!(
-        "{}/{}/{}",
-        CURRENCY_PAIR_STATE_PREFIX, currency_pair.base, currency_pair.quote
-    )
+    format!("{CURRENCY_PAIR_STATE_PREFIX}/{currency_pair}",)
 }
 
 /// Newtype wrapper to read and write a u64 from rocksdb.

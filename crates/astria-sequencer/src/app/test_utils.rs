@@ -1,9 +1,5 @@
 use astria_core::{
     crypto::SigningKey,
-    generated::slinky::{
-        marketmap::v1::GenesisState as MarketMapGenesisState,
-        oracle::v1::GenesisState as OracleGenesisState,
-    },
     primitive::v1::{
         Address,
         RollupId,
@@ -15,6 +11,21 @@ use astria_core::{
         TransactionParams,
         UnsignedTransaction,
     },
+    sequencer::{
+        Account,
+        AddressPrefixes,
+        Fees,
+        GenesisState,
+        UncheckedGenesisState,
+    },
+    slinky::{
+        market_map::v1::{
+            GenesisState as MarketMapGenesisState,
+            MarketMap,
+            Params,
+        },
+        oracle::v1::GenesisState as OracleGenesisState,
+    },
 };
 use cnidarium::Storage;
 use penumbra_ibc::params::IBCParameters;
@@ -23,13 +34,6 @@ use crate::{
     app::{
         vote_extension,
         App,
-    },
-    genesis::{
-        self,
-        Account,
-        AddressPrefixes,
-        GenesisState,
-        UncheckedGenesisState,
     },
     mempool::Mempool,
     metrics::Metrics,
@@ -89,8 +93,8 @@ pub(crate) fn default_genesis_accounts() -> Vec<Account> {
     ]
 }
 
-pub(crate) fn default_fees() -> genesis::Fees {
-    genesis::Fees {
+pub(crate) fn default_fees() -> Fees {
+    Fees {
         transfer_base_fee: 12,
         sequence_base_fee: 32,
         sequence_byte_cost_multiplier: 1,
@@ -114,8 +118,20 @@ pub(crate) fn unchecked_genesis_state() -> UncheckedGenesisState {
         ibc_params: IBCParameters::default(),
         allowed_fee_assets: vec!["nria".parse().unwrap()],
         fees: default_fees(),
-        market_map: MarketMapGenesisState::default(),
-        oracle: OracleGenesisState::default(),
+        market_map: MarketMapGenesisState {
+            market_map: MarketMap {
+                markets: std::collections::HashMap::new(),
+            },
+            last_updated: 0,
+            params: Params {
+                market_authorities: vec![],
+                admin: address_from_hex_string(ALICE_ADDRESS),
+            },
+        },
+        oracle: OracleGenesisState {
+            currency_pair_genesis: vec![],
+            next_id: 0,
+        },
     }
 }
 

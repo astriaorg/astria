@@ -15,10 +15,6 @@ use std::{
 };
 
 use astria_core::{
-    generated::slinky::{
-        marketmap::v1::GenesisState as MarketMapGenesisState,
-        oracle::v1::GenesisState as OracleGenesisState,
-    },
     primitive::v1::RollupId,
     protocol::transaction::v1alpha1::{
         action::{
@@ -33,7 +29,20 @@ use astria_core::{
         TransactionParams,
         UnsignedTransaction,
     },
+    sequencer::{
+        Account,
+        AddressPrefixes,
+        UncheckedGenesisState,
+    },
     sequencerblock::v1alpha1::block::Deposit,
+    slinky::{
+        market_map::v1::{
+            GenesisState as MarketMapGenesisState,
+            MarketMap,
+            Params,
+        },
+        oracle::v1::GenesisState as OracleGenesisState,
+    },
 };
 use cnidarium::StateDelta;
 use penumbra_ibc::params::IBCParameters;
@@ -60,10 +69,6 @@ use crate::{
     },
     asset::get_native_asset,
     bridge::state_ext::StateWriteExt as _,
-    genesis::{
-        AddressPrefixes,
-        UncheckedGenesisState,
-    },
     proposal::commitment::generate_rollup_datas_commitment,
 };
 
@@ -83,8 +88,20 @@ fn unchecked_genesis_state() -> UncheckedGenesisState {
         ibc_params: IBCParameters::default(),
         allowed_fee_assets: vec!["nria".parse().unwrap()],
         fees: default_fees(),
-        market_map: MarketMapGenesisState::default(),
-        oracle: OracleGenesisState::default(),
+        market_map: MarketMapGenesisState {
+            market_map: MarketMap {
+                markets: std::collections::HashMap::new(),
+            },
+            last_updated: 0,
+            params: Params {
+                market_authorities: vec![],
+                admin: alice_address,
+            },
+        },
+        oracle: OracleGenesisState {
+            currency_pair_genesis: vec![],
+            next_id: 0,
+        },
     }
 }
 
@@ -183,8 +200,6 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         InitBridgeAccountAction,
         SudoAddressChangeAction,
     };
-
-    use crate::genesis::Account;
 
     let (alice_signing_key, _) = get_alice_signing_key_and_address();
     let (bridge_signing_key, bridge_address) = get_bridge_signing_key_and_address();
