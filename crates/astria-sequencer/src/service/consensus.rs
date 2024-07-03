@@ -261,7 +261,10 @@ mod test {
             SigningKey,
             VerificationKey,
         },
-        generated::slinky::marketmap::v1::GenesisState as SlinkyGenesisState,
+        generated::slinky::{
+            marketmap::v1::GenesisState as MarketMapGenesisState,
+            oracle::v1::GenesisState as OracleGenesisState,
+        },
         primitive::v1::RollupId,
         protocol::transaction::v1alpha1::{
             action::SequenceAction,
@@ -518,7 +521,8 @@ mod test {
             ibc_params: penumbra_ibc::params::IBCParameters::default(),
             allowed_fee_assets: vec!["nria".parse().unwrap()],
             fees: default_fees(),
-            slinky: SlinkyGenesisState::default(),
+            market_map: MarketMapGenesisState::default(),
+            oracle: OracleGenesisState::default(),
         }
         .try_into()
         .unwrap();

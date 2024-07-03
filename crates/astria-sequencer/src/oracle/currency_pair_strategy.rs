@@ -22,7 +22,7 @@ impl DefaultCurrencyPairStrategy {
     }
 
     pub(crate) async fn get_encoded_price<S: StateReadExt>(
-        state: &S,
+        _state: &S,
         _: &CurrencyPair,
         price: u128,
     ) -> Vec<u8> {
@@ -30,7 +30,7 @@ impl DefaultCurrencyPairStrategy {
     }
 
     pub(crate) async fn get_decoded_price<S: StateReadExt>(
-        state: &S,
+        _state: &S,
         _: &CurrencyPair,
         encoded_price: &[u8],
     ) -> anyhow::Result<u128> {

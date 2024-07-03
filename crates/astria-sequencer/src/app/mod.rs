@@ -761,11 +761,12 @@ impl App {
         vote_extension: abci::request::VerifyVoteExtension,
     ) -> anyhow::Result<abci::response::VerifyVoteExtension> {
         let Some(handler) = self.vote_extension_handler.as_mut() else {
-            // TODO: should we still verify if our own oracle isn't set?
-            // i think so?
+            // TODO: we should still verify if our own oracle isn't set
             return Ok(abci::response::VerifyVoteExtension::Accept);
         };
-        handler.verify_vote_extension(vote_extension).await
+        handler
+            .verify_vote_extension(&self.state, vote_extension, false)
+            .await
     }
 
     /// Executes the given block, but does not write it to disk.

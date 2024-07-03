@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use anyhow::Context as _;
+use anyhow::{
+    ensure,
+    Context as _,
+};
 use astria_core::generated::slinky::{
     abci::v1::OracleVoteExtension,
     service::v1::{
@@ -18,6 +21,9 @@ use crate::{
     oracle::currency_pair_strategy::DefaultCurrencyPairStrategy,
     state_ext::StateReadExt,
 };
+
+// https://github.com/skip-mev/slinky/blob/793b2e874d6e720bd288e82e782502e41cf06f8c/abci/types/constants.go#L6
+const MAXIMUM_PRICE_BYTE_LEN: usize = 33;
 
 pub(crate) struct Handler {
     // gRPC client for the slinky oracle sidecar.
@@ -53,19 +59,38 @@ impl Handler {
             .transform_oracle_service_prices(state, prices)
             .await
             .context("failed to transform oracle service prices")?;
+
         Ok(abci::response::ExtendVote {
-            // TODO: what codec does skip use for this? does it matter here?
-            // don't think so but good to check
             vote_extension: oracle_vote_extension.encode_to_vec().into(),
         })
     }
 
-    pub(crate) async fn verify_vote_extension(
+    pub(crate) async fn verify_vote_extension<S: StateReadExt>(
         &mut self,
+        state: &S,
         vote_extension: abci::request::VerifyVoteExtension,
+        is_proposal_phase: bool,
     ) -> anyhow::Result<abci::response::VerifyVoteExtension> {
         // TODO: verify the vote extension based on slinky rules
-        let _oracle_vote_extension = OracleVoteExtension::decode(vote_extension.vote_extension)?;
+        let oracle_vote_extension = OracleVoteExtension::decode(vote_extension.vote_extension)?;
+
+        let max_num_currency_pairs =
+            DefaultCurrencyPairStrategy::get_max_num_currency_pairs(state, is_proposal_phase)
+                .await
+                .context("failed to get max number of currency pairs")?;
+
+        ensure!(
+            oracle_vote_extension.prices.len() as u64 <= max_num_currency_pairs,
+            "number of oracle vote extension prices exceeds max expected number of currency pairs"
+        );
+
+        for prices in oracle_vote_extension.prices.values() {
+            ensure!(
+                prices.len() <= MAXIMUM_PRICE_BYTE_LEN,
+                "encoded price length exceeded {MAXIMUM_PRICE_BYTE_LEN}"
+            );
+        }
+
         Ok(abci::response::VerifyVoteExtension::Accept)
     }
 

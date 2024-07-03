@@ -1,6 +1,9 @@
 use astria_core::{
     crypto::SigningKey,
-    generated::slinky::marketmap::v1::GenesisState as SlinkyGenesisState,
+    generated::slinky::{
+        marketmap::v1::GenesisState as MarketMapGenesisState,
+        oracle::v1::GenesisState as OracleGenesisState,
+    },
     primitive::v1::{
         Address,
         RollupId,
@@ -108,7 +111,8 @@ pub(crate) fn unchecked_genesis_state() -> UncheckedGenesisState {
         ibc_params: IBCParameters::default(),
         allowed_fee_assets: vec!["nria".parse().unwrap()],
         fees: default_fees(),
-        slinky: SlinkyGenesisState::default(),
+        market_map: MarketMapGenesisState::default(),
+        oracle: OracleGenesisState::default(),
     }
 }
 

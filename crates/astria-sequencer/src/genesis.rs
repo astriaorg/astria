@@ -1,5 +1,8 @@
 use astria_core::{
-    generated::slinky::marketmap::v1::GenesisState as SlinkyGenesisState,
+    generated::slinky::{
+        marketmap::v1::GenesisState as MarketMapGenesisState,
+        oracle::v1::GenesisState as OracleGenesisState,
+    },
     primitive::v1::{
         asset,
         Address,
@@ -30,7 +33,8 @@ pub(crate) struct GenesisState {
     pub(crate) ibc_params: IBCParameters,
     pub(crate) allowed_fee_assets: Vec<asset::Denom>,
     pub(crate) fees: Fees,
-    pub(crate) slinky: SlinkyGenesisState,
+    pub(crate) market_map: MarketMapGenesisState,
+    pub(crate) oracle: OracleGenesisState,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -62,7 +66,8 @@ impl TryFrom<UncheckedGenesisState> for GenesisState {
             ibc_params,
             allowed_fee_assets,
             fees,
-            slinky,
+            market_map,
+            oracle,
         } = value;
 
         Ok(Self {
@@ -75,7 +80,8 @@ impl TryFrom<UncheckedGenesisState> for GenesisState {
             ibc_params,
             allowed_fee_assets,
             fees,
-            slinky,
+            market_map,
+            oracle,
         })
     }
 }
@@ -92,7 +98,8 @@ pub(crate) struct UncheckedGenesisState {
     pub(crate) ibc_params: IBCParameters,
     pub(crate) allowed_fee_assets: Vec<asset::Denom>,
     pub(crate) fees: Fees,
-    pub(crate) slinky: SlinkyGenesisState,
+    pub(crate) market_map: MarketMapGenesisState,
+    pub(crate) oracle: OracleGenesisState,
 }
 
 impl UncheckedGenesisState {
@@ -130,6 +137,13 @@ impl UncheckedGenesisState {
         for (i, address) in self.ibc_relayer_addresses.iter().enumerate() {
             self.ensure_address_has_base_prefix(address, &format!(".ibc_relayer_addresses[{i}]"))?;
         }
+        // TODO: make native types for these
+        // if let Some(params) = self.market_map.params {
+        //     for (i, address) in params.market_authorities.iter().enumerate() {
+        //         self.ensure_address_has_base_prefix(address,
+        // &format!(".market_map.params.market_authorities[{i}]"))?;     }
+        //     self.ensure_address_has_base_prefix(params.admin,
+        // &format!(".market_map.params.admin"))?; }
         Ok(())
     }
 }
@@ -146,7 +160,8 @@ impl From<GenesisState> for UncheckedGenesisState {
             ibc_params,
             allowed_fee_assets,
             fees,
-            slinky,
+            market_map,
+            oracle,
         } = value;
         Self {
             address_prefixes,
@@ -158,7 +173,8 @@ impl From<GenesisState> for UncheckedGenesisState {
             ibc_params,
             allowed_fee_assets,
             fees,
-            slinky,
+            market_map,
+            oracle,
         }
     }
 }
@@ -263,7 +279,8 @@ mod test {
                 bridge_sudo_change_fee: 24,
                 ics20_withdrawal_base_fee: 24,
             },
-            slinky: SlinkyGenesisState::default(),
+            market_map: MarketMapGenesisState::default(),
+            oracle: OracleGenesisState::default(),
         }
     }
 

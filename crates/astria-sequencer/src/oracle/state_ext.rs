@@ -3,10 +3,7 @@ use anyhow::{
     Result,
 };
 use astria_core::generated::slinky::{
-    marketmap::v1::{
-        MarketMap,
-        Params,
-    },
+    oracle::v1::CurrencyPairState,
     types::v1::CurrencyPair,
 };
 use async_trait::async_trait;
@@ -22,10 +19,12 @@ use tracing::instrument;
 
 const CURRENCY_PAIR_TO_ID_PREFIX: &str = "oraclecpid";
 const ID_TO_CURRENCY_PAIR_PREFIX: &str = "oracleidcp";
+const CURRENCY_PAIR_STATE_PREFIX: &str = "oraclecpstate";
 
 // TODO: should these values be in nonverifiable storage?
 const NUM_CURRENCY_PAIRS_KEY: &str = "oraclenumcps";
 const NUM_REMOVED_CURRENCY_PAIRS_KEY: &str = "oraclenumremovedcps";
+const NEXT_CURRENCY_PAIR_ID_KEY: &str = "oraclenextcpid";
 
 fn currency_pair_to_id_storage_key(currency_pair: &CurrencyPair) -> String {
     format!(
@@ -36,6 +35,13 @@ fn currency_pair_to_id_storage_key(currency_pair: &CurrencyPair) -> String {
 
 fn id_to_currency_pair_storage_key(id: u64) -> String {
     format!("{}/{}", ID_TO_CURRENCY_PAIR_PREFIX, id)
+}
+
+fn currency_pair_state_storage_key(currency_pair: &CurrencyPair) -> String {
+    format!(
+        "{}/{}/{}",
+        CURRENCY_PAIR_STATE_PREFIX, currency_pair.base, currency_pair.quote
+    )
 }
 
 /// Newtype wrapper to read and write a u64 from rocksdb.
@@ -104,6 +110,39 @@ pub(crate) trait StateReadExt: StateRead {
             .context("invalid number of removed currency pairs bytes")?;
         Ok(num_removed_currency_pairs)
     }
+
+    #[instrument(skip(self))]
+    async fn get_currency_pair_state(
+        &self,
+        currency_pair: &CurrencyPair,
+    ) -> Result<Option<CurrencyPairState>> {
+        let bytes = self
+            .get_raw(&currency_pair_state_storage_key(currency_pair))
+            .await
+            .context("failed to get currency pair state from state")?;
+        match bytes {
+            Some(bytes) => {
+                let currency_pair_state = serde_json::from_slice(&bytes)
+                    .context("failed to deserialize currency pair state")?;
+                Ok(Some(currency_pair_state))
+            }
+            None => Ok(None),
+        }
+    }
+
+    #[instrument(skip(self))]
+    async fn get_next_currency_pair_id(&self) -> Result<u64> {
+        let Some(bytes) = self
+            .get_raw(NEXT_CURRENCY_PAIR_ID_KEY)
+            .await
+            .context("failed reading next currency pair id from state")?
+        else {
+            return Ok(0);
+        };
+        let Id(next_currency_pair_id) =
+            Id::try_from_slice(&bytes).context("invalid next currency pair id bytes")?;
+        Ok(next_currency_pair_id)
+    }
 }
 
 impl<T: StateRead + ?Sized> StateReadExt for T {}
@@ -138,6 +177,26 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = borsh::to_vec(&Count(num_removed_currency_pairs))
             .context("failed to serialize number of removed currency pairs")?;
         self.put_raw(NUM_REMOVED_CURRENCY_PAIRS_KEY.to_string(), bytes);
+        Ok(())
+    }
+
+    #[instrument(skip(self))]
+    fn put_currency_pair_state(
+        &mut self,
+        currency_pair: &CurrencyPair,
+        currency_pair_state: CurrencyPairState,
+    ) -> Result<()> {
+        let bytes = serde_json::to_vec(&currency_pair_state)
+            .context("failed to serialize currency pair state")?;
+        self.put_raw(currency_pair_state_storage_key(currency_pair), bytes);
+        Ok(())
+    }
+
+    #[instrument(skip(self))]
+    fn put_next_currency_pair_id(&mut self, next_currency_pair_id: u64) -> Result<()> {
+        let bytes = borsh::to_vec(&Id(next_currency_pair_id))
+            .context("failed to serialize next currency pair id")?;
+        self.put_raw(NEXT_CURRENCY_PAIR_ID_KEY.to_string(), bytes);
         Ok(())
     }
 }
