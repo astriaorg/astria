@@ -1,5 +1,3 @@
-#![feature(is_sorted)]
-
 pub(crate) mod accounts;
 pub(crate) mod address;
 mod api_state_ext;

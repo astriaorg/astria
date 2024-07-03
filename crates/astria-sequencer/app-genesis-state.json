@@ -1,0 +1,125 @@
+{
+  "address_prefixes": {
+    "base": "astria"
+  },
+  "accounts": [
+    {
+      "address": {
+        "bech32m": "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
+      },
+      "balance": 1000000000000000000
+    },
+    {
+      "address": {
+        "bech32m": "astria1xnlvg0rle2u6auane79t4p27g8hxnj36ja960z"
+      },
+      "balance": 1000000000000000000
+    },
+    {
+      "address": {
+        "bech32m": "astria1vpcfutferpjtwv457r63uwr6hdm8gwr3pxt5ny"
+      },
+      "balance": 1000000000000000000
+    }
+  ],
+  "authority_sudo_address": {
+    "bech32m": "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
+  },
+  "ibc_sudo_address": {
+    "bech32m": "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
+  },
+  "ibc_relayer_addresses": [
+    {
+      "bech32m": "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
+    },
+    {
+      "bech32m": "astria1xnlvg0rle2u6auane79t4p27g8hxnj36ja960z"
+    }
+  ],
+  "native_asset_base_denomination": "nria",
+  "ibc_params": {
+    "ibcEnabled": true,
+    "inboundIcs20TransfersEnabled": true,
+    "outboundIcs20TransfersEnabled": true
+  },
+  "allowed_fee_assets": [
+    "nria"
+  ],
+  "fees": {
+    "transfer_base_fee": 12,
+    "sequence_base_fee": 32,
+    "sequence_byte_cost_multiplier": 1,
+    "init_bridge_account_base_fee": 48,
+    "bridge_lock_byte_cost_multiplier": 1,
+    "bridge_sudo_change_fee": 24,
+    "ics20_withdrawal_base_fee": 24
+  },
+  "market_map": {
+    "market_map": {
+      "markets": {
+        "BITCOIN/USD": {
+          "ticker": {
+            "currency_pair": {
+              "base": "BITCOIN",
+              "quote": "USD"
+            },
+            "decimals": 8,
+            "min_provider_count": 3,
+            "enabled": true,
+            "metadata_json": ""
+          },
+          "provider_configs": [
+            {
+              "name": "kucoin_ws",
+              "off_chain_ticker": "btc_usd",
+              "normalize_by_pair": {
+                "base": "USDT",
+                "quote": "USD"
+              },
+              "invert": false,
+              "metadata_json": ""
+            },
+            {
+              "name": "binance",
+              "off_chain_ticker": "BTCUSD",
+              "normalize_by_pair": {
+                "base": "USDT",
+                "quote": "USD"
+              },
+              "invert": false,
+              "metadata_json": ""
+            },
+            {
+              "name": "mexc",
+              "off_chain_ticker": "btc-usd",
+              "normalize_by_pair": {
+                "base": "USDT",
+                "quote": "USD"
+              },
+              "invert": false,
+              "metadata_json": ""
+            }
+          ]
+        }
+      }
+    },
+    "last_updated": 0,
+    "params": {
+      "market_authorities": [
+        {
+          "bech32m": "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
+        },
+        {
+          "bech32m": "astria1xnlvg0rle2u6auane79t4p27g8hxnj36ja960z"
+        }
+      ],
+      "admin": {
+        "bech32m": "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
+      }
+    }
+  },
+  "oracle": {
+    "currency_pair_genesis": [],
+    "next_id": 0
+  }
+}

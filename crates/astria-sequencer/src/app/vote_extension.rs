@@ -378,12 +378,16 @@ fn validate_extended_commit_against_last_commit(
     );
 
     ensure!(
-        extended_commit_info.votes.is_sorted_by(|a, b| {
+        is_sorted::IsSorted::is_sorted_by(&mut extended_commit_info.votes.iter(), |a, b| {
             if a.validator.power == b.validator.power {
                 // addresses sorted in ascending order, if the powers are the same
-                a.validator.address < b.validator.address
+                a.validator.address.partial_cmp(&b.validator.address)
             } else {
-                a.validator.power > b.validator.power
+                // powers sorted in descending order
+                a.validator
+                    .power
+                    .partial_cmp(&b.validator.power)
+                    .map(|v| v.reverse())
             }
         }),
         "extended commit votes are not sorted by voting power",

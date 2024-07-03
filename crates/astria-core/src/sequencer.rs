@@ -1,4 +1,4 @@
-/// specific types that are needed outside of it.
+//! Sequencer specific types that are needed outside of it.
 pub use penumbra_ibc::params::IBCParameters;
 
 use crate::{
