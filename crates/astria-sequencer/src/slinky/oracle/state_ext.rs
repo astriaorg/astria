@@ -1,4 +1,7 @@
+use std::collections::HashMap;
+
 use anyhow::{
+    bail,
     Context,
     Result,
 };
@@ -18,6 +21,7 @@ use cnidarium::{
     StateRead,
     StateWrite,
 };
+use futures::StreamExt as _;
 use tracing::instrument;
 
 const CURRENCY_PAIR_TO_ID_PREFIX: &str = "oraclecpid";
@@ -63,7 +67,7 @@ pub(crate) trait StateReadExt: StateRead {
             .await
             .context("failed reading currency pair id from state")?
         else {
-            return Ok(0);
+            bail!("currency pair not found in state")
         };
         let Id(id) = Id::try_from_slice(&bytes).context("invalid currency pair id bytes")?;
         Ok(id)
@@ -83,6 +87,32 @@ pub(crate) trait StateReadExt: StateRead {
             }
             None => Ok(None),
         }
+    }
+
+    #[instrument(skip(self))]
+    async fn get_currency_pair_mapping(&self) -> Result<HashMap<u64, CurrencyPair>> {
+        let prefix = format!("{CURRENCY_PAIR_TO_ID_PREFIX}/");
+        let mut currency_pairs = HashMap::new();
+
+        let mut stream = std::pin::pin!(self.prefix_keys(&prefix));
+        while let Some(Ok(key)) = stream.next().await {
+            let Some(bytes) = self
+                .get_raw(&key)
+                .await
+                .context("failed reading currency pair id from state")?
+            else {
+                bail!("currency pair not found in state; this is a bug")
+            };
+            let Id(id) = Id::try_from_slice(&bytes).context("invalid currency pair id bytes")?;
+
+            let currency_pair = key
+                .strip_prefix(&prefix)
+                .context("failed to strip prefix from currency pair state key")?
+                .parse::<CurrencyPair>()
+                .context("failed to parse storage key suffix as currency pair")?;
+            currency_pairs.insert(id, currency_pair);
+        }
+        Ok(currency_pairs)
     }
 
     #[instrument(skip(self))]
@@ -130,6 +160,23 @@ pub(crate) trait StateReadExt: StateRead {
             }
             None => Ok(None),
         }
+    }
+
+    #[instrument(skip(self))]
+    async fn get_all_currency_pairs(&self) -> Result<Vec<CurrencyPair>> {
+        let prefix = format!("{CURRENCY_PAIR_STATE_PREFIX}/");
+        let mut currency_pairs: Vec<CurrencyPair> = Vec::new();
+
+        let mut stream = std::pin::pin!(self.prefix_keys(&prefix));
+        while let Some(Ok(key)) = stream.next().await {
+            let currency_pair = key
+                .strip_prefix(&prefix)
+                .context("failed to strip prefix from currency pair state key")?
+                .parse::<CurrencyPair>()
+                .context("failed to parse storage key suffix as currency pair")?;
+            currency_pairs.push(currency_pair);
+        }
+        Ok(currency_pairs)
     }
 
     #[instrument(skip(self))]
@@ -202,7 +249,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     }
 
     #[instrument(skip(self))]
-    fn put_currency_pair_state(
+    fn put_currency_pair_state_and_price(
         &mut self,
         currency_pair: &CurrencyPair,
         currency_pair_state: CurrencyPairState,
@@ -210,6 +257,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = serde_json::to_vec(&currency_pair_state)
             .context("failed to serialize currency pair state")?;
         self.put_raw(currency_pair_state_storage_key(currency_pair), bytes);
+        self.put_price_for_currency_pair(currency_pair, currency_pair_state.price)?;
         Ok(())
     }
 

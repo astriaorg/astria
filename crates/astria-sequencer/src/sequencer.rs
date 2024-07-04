@@ -9,6 +9,7 @@ use astria_core::generated::{
     sequencerblock::v1alpha1::sequencer_service_server::SequencerServiceServer,
     slinky::{
         marketmap::v1::query_server::QueryServer as MarketMapQueryServer,
+        oracle::v1::query_server::QueryServer as OracleQueryServer,
         service::v1::{
             oracle_client::OracleClient,
             QueryPricesRequest,
@@ -226,7 +227,8 @@ fn start_grpc_server(
 
     let ibc = penumbra_ibc::component::rpc::IbcQuery::<AstriaHost>::new(storage.clone());
     let sequencer_api = SequencerServer::new(storage.clone(), mempool);
-    let slinky_api = crate::grpc::slinky::SequencerServer::new(storage.clone());
+    let market_map_api = crate::grpc::slinky::SequencerServer::new(storage.clone());
+    let oracle_api = crate::grpc::slinky::SequencerServer::new(storage.clone());
     let cors_layer: CorsLayer = CorsLayer::permissive();
 
     // TODO: setup HTTPS?
@@ -251,7 +253,8 @@ fn start_grpc_server(
         .add_service(ChannelQueryServer::new(ibc.clone()))
         .add_service(ConnectionQueryServer::new(ibc.clone()))
         .add_service(SequencerServiceServer::new(sequencer_api))
-        .add_service(MarketMapQueryServer::new(slinky_api));
+        .add_service(MarketMapQueryServer::new(market_map_api))
+        .add_service(OracleQueryServer::new(oracle_api));
 
     info!(grpc_addr = grpc_addr.to_string(), "starting grpc server");
     tokio::task::spawn(
