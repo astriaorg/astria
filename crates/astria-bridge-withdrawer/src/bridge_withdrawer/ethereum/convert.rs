@@ -30,10 +30,6 @@ use ethers::types::{
     U64,
 };
 use ibc_types::core::client::Height as IbcHeight;
-use serde::{
-    Deserialize,
-    Serialize,
-};
 
 use crate::bridge_withdrawer::ethereum::generated::astria_withdrawer_interface::{
     Ics20WithdrawalFilter,

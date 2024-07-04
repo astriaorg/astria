@@ -33,7 +33,11 @@ use tokio::task::JoinHandle;
 use tracing::info;
 
 use super::MockSequencerServer;
-use crate::helpers::ethereum::Ethereum;
+use crate::helpers::ethereum::{
+    AstriaWithdrawerDeployerConfig,
+    TestEthereum,
+    TestEthereumConfig,
+};
 
 const DEFAULT_LAST_ROLLUP_HEIGHT: u64 = 1;
 const DEFAULT_IBC_DENOM: &str = "transfer/channel-0/utia";
@@ -71,7 +75,7 @@ pub struct TestBridgeWithdrawer {
     pub sequencer_mock: MockSequencerServer,
 
     /// The rollup-side ethereum smart contract
-    pub ethereum: Ethereum,
+    pub ethereum: TestEthereum,
 
     /// A handle to issue a shutdown to the bridge withdrawer.
     bridge_withdrawer_shutdown_handle: Option<ShutdownHandle>,
@@ -81,7 +85,7 @@ pub struct TestBridgeWithdrawer {
 }
 
 impl TestBridgeWithdrawer {
-    pub async fn spawn() -> Self {
+    pub(crate) async fn spawn() -> Self {
         Lazy::force(&TELEMETRY);
 
         // sequencer signer key
@@ -93,7 +97,11 @@ impl TestBridgeWithdrawer {
             .unwrap();
         let sequencer_key_path = keyfile.path().to_str().unwrap().to_string();
 
-        let ethereum = Ethereum::new().await;
+        // TODO: option for configuring this
+        let ethereum =
+            TestEthereumConfig::AstriaWithdrawer(AstriaWithdrawerDeployerConfig::default())
+                .spawn()
+                .await;
 
         let cometbft_mock = wiremock::MockServer::start().await;
 
@@ -112,7 +120,7 @@ impl TestBridgeWithdrawer {
             ethereum_contract_address: ethereum.contract_address(),
             ethereum_rpc_endpoint: ethereum.rpc_endpoint(),
             sequencer_address_prefix: ASTRIA_ADDRESS_PREFIX.into(),
-            api_addr: "0.0.0.0".into(),
+            api_addr: "0.0.0.0:0".into(),
             log: String::new(),
             force_stdout: false,
             no_otel: false,

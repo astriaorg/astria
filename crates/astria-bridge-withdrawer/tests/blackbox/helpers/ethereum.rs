@@ -3,6 +3,7 @@ use std::{
     time::Duration,
 };
 
+use abi::AbiEncode as _;
 use astria_bridge_withdrawer::{
     astria_bridgeable_erc20::{
         AstriaBridgeableERC20,
@@ -22,34 +23,23 @@ use ethers::{
     signers::Signer,
     utils::AnvilInstance,
 };
+use tracing::error;
 
 use super::test_bridge_withdrawer::astria_address;
 
-pub struct Ethereum {
-    contract_address: H160,
+pub(crate) struct TestEthereum {
+    contract_address: ethers::types::Address,
     provider: Arc<Provider<Ws>>,
     wallet: LocalWallet,
     anvil: AnvilInstance,
 }
 
-impl Ethereum {
-    pub async fn new() -> Self {
-        let (contract_address, provider, wallet, anvil) =
-            AstriaWithdrawerDeployerConfig::default().deploy().await;
-
-        Self {
-            contract_address,
-            provider,
-            wallet,
-            anvil,
-        }
+impl TestEthereum {
+    pub(crate) fn contract_address(&self) -> String {
+        format!("0x{:x}", self.contract_address)
     }
 
-    pub fn contract_address(&self) -> String {
-        self.contract_address.to_string()
-    }
-
-    pub fn rpc_endpoint(&self) -> String {
+    pub(crate) fn rpc_endpoint(&self) -> String {
         self.anvil.endpoint()
     }
 
@@ -194,6 +184,61 @@ impl Ethereum {
         );
 
         receipt
+    }
+}
+
+pub enum TestEthereumConfig {
+    AstriaWithdrawer(AstriaWithdrawerDeployerConfig),
+    AstriaBridgeableERC20(AstriaBridgeableERC20DeployerConfig),
+}
+
+impl TestEthereumConfig {
+    pub async fn spawn(self) -> TestEthereum {
+        match self {
+            Self::AstriaWithdrawer(config) => {
+                let (contract_address, provider, wallet, anvil) = config.deploy().await;
+                TestEthereum {
+                    contract_address,
+                    provider,
+                    wallet,
+                    anvil,
+                }
+            }
+            Self::AstriaBridgeableERC20(config) => {
+                let (contract_address, provider, wallet, anvil) = config.deploy().await;
+                TestEthereum {
+                    contract_address,
+                    provider,
+                    wallet,
+                    anvil,
+                }
+            }
+        }
+    }
+}
+
+impl TestEthereumConfig {
+    pub async fn deploy(self) -> TestEthereum {
+        match self {
+            Self::AstriaWithdrawer(config) => {
+                let (contract_address, provider, wallet, anvil) = config.deploy().await;
+                TestEthereum {
+                    contract_address,
+                    provider,
+                    wallet,
+                    anvil,
+                }
+            }
+            Self::AstriaBridgeableERC20(config) => {
+                let (contract_address, provider, wallet, anvil) = config.deploy().await;
+                TestEthereum {
+                    contract_address,
+                    provider,
+                    wallet,
+                    anvil,
+                }
+            }
+        }
     }
 }
 
