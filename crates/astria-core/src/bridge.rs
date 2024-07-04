@@ -12,7 +12,11 @@ use crate::primitive::v1::Address;
 /// Memo format for a native bridge unlock from the rollup which is sent to a sequencer-native
 /// address.
 #[derive(Debug, Serialize, Deserialize)]
+/// Allow module name because that's what the action is called.
+// TODO: should this be renamed?
+#[allow(clippy::module_name_repetitions)]
 pub struct BridgeUnlockMemo {
+    // TODO: can we get rid of ethers types here?
     pub block_number: U64,
     pub transaction_hash: TxHash,
 }

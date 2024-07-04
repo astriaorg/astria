@@ -74,14 +74,17 @@ impl Metrics {
         }
     }
 
+    #[allow(dead_code)]
     pub(crate) fn increment_nonce_fetch_count(&self) {
         self.nonce_fetch_count.increment(1);
     }
 
+    #[allow(dead_code)]
     pub(crate) fn increment_nonce_fetch_failure_count(&self) {
         self.nonce_fetch_failure_count.increment(1);
     }
 
+    #[allow(dead_code)]
     pub(crate) fn record_nonce_fetch_latency(&self, latency: Duration) {
         self.nonce_fetch_latency.record(latency);
     }

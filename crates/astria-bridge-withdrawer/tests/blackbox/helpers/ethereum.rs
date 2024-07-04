@@ -3,7 +3,6 @@ use std::{
     time::Duration,
 };
 
-use abi::AbiEncode as _;
 use astria_bridge_withdrawer::{
     astria_bridgeable_erc20::{
         AstriaBridgeableERC20,
@@ -23,7 +22,6 @@ use ethers::{
     signers::Signer,
     utils::AnvilInstance,
 };
-use tracing::error;
 
 use super::test_bridge_withdrawer::astria_address;
 
@@ -43,7 +41,7 @@ impl TestEthereum {
         self.anvil.endpoint()
     }
 
-    async fn send_sequencer_withdraw_transaction(
+    pub(crate) async fn send_sequencer_withdraw_transaction(
         &self,
         value: U256,
         recipient: Address,
@@ -72,7 +70,7 @@ impl TestEthereum {
         receipt
     }
 
-    async fn send_ics20_withdraw_transaction<M: Middleware>(
+    async fn send_ics20_withdraw_transaction(
         &self,
         value: U256,
         recipient: String,
@@ -101,7 +99,7 @@ impl TestEthereum {
         receipt
     }
 
-    async fn mint_tokens<M: Middleware>(
+    async fn mint_tokens(
         &self,
         amount: U256,
         recipient: ethers::types::Address,
@@ -128,7 +126,7 @@ impl TestEthereum {
         receipt
     }
 
-    async fn send_sequencer_withdraw_transaction_erc20<M: Middleware>(
+    async fn send_sequencer_withdraw_transaction_erc20(
         &self,
         value: U256,
         recipient: Address,

@@ -135,6 +135,7 @@ impl Submitter {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn process_batch(
     sequencer_cometbft_client: sequencer_client::HttpClient,
     sequencer_grpc_client: sequencer_service_client::SequencerServiceClient<Channel>,
