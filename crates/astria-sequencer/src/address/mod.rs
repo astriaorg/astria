@@ -56,10 +56,8 @@ mod regular {
             .context("failed constructing a dummy address from the provided prefix")?;
 
         BASE_PREFIX.set(base_prefix.to_string()).expect(
-            "THIS IS A BUG: attempted to set the base prefix more than once; it should only be \
-             set
-             once when serving the `InitChain` consensus request, or immediately after Sequencer \
-             is
+            "THIS IS A BUG: attempted to set the base prefix more than once; it should only be set
+             once when serving the `InitChain` consensus request, or immediately after Sequencer is
              restarted. It cannot be initialized twice or concurrently from more than one task or \
              thread.",
         );
