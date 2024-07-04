@@ -18,10 +18,7 @@ use tracing::{
     Instrument,
 };
 
-use crate::{
-    app::App,
-    genesis::GenesisState,
-};
+use crate::app::App;
 
 pub(crate) struct Consensus {
     queue: mpsc::Receiver<Message<ConsensusRequest, ConsensusResponse, tower::BoxError>>,
@@ -132,8 +129,9 @@ impl Consensus {
             bail!("database already initialized");
         }
 
-        let genesis_state: GenesisState = serde_json::from_slice(&init_chain.app_state_bytes)
-            .context("failed to parse app_state in genesis file")?;
+        let genesis_state: astria_core::sequencer::GenesisState =
+            serde_json::from_slice(&init_chain.app_state_bytes)
+                .context("failed to parse app_state in genesis file")?;
         let app_hash = self
             .app
             .init_chain(
@@ -229,6 +227,11 @@ mod test {
             TransactionParams,
             UnsignedTransaction,
         },
+        sequencer::{
+            Account,
+            AddressPrefixes,
+            UncheckedGenesisState,
+        },
     };
     use bytes::Bytes;
     use prost::Message as _;
@@ -243,10 +246,6 @@ mod test {
     use crate::{
         app::test_utils::default_fees,
         asset::get_native_asset,
-        genesis::{
-            AddressPrefixes,
-            UncheckedGenesisState,
-        },
         mempool::Mempool,
         metrics::Metrics,
         proposal::commitment::generate_rollup_datas_commitment,
@@ -460,7 +459,7 @@ mod test {
 
     async fn new_consensus_service(funded_key: Option<VerificationKey>) -> (Consensus, Mempool) {
         let accounts = if funded_key.is_some() {
-            vec![crate::genesis::Account {
+            vec![Account {
                 address: crate::address::base_prefixed(funded_key.unwrap().address_bytes()),
                 balance: 10u128.pow(19),
             }]

@@ -546,8 +546,8 @@ impl TransactionFeeResponseError {
 enum TransactionFeeResponseErrorKind {
     #[error("`fee` field is unset")]
     UnsetFee,
-    #[error("failed to parse asset denom")]
-    Asset(#[from] asset::ParseDenomError),
+    #[error("failed to parse asset denom in the `assets` field")]
+    Asset(#[source] asset::ParseDenomError),
 }
 
 #[cfg(test)]

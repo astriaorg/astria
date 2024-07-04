@@ -38,7 +38,7 @@ impl AbciErrorCode {
             8 => "the requested value was not found".into(),
             9 => "the transaction expired in the app's mempool".into(),
             10 => "the transaction failed to execute in prepare_proposal()".into(),
-            11 => "the request was malformed".into(),
+            11 => "the request payload was malformed".into(),
             other => format!("unknown non-zero abci error code: {other}").into(),
         }
     }
