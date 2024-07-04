@@ -9,7 +9,7 @@
 use std::net::SocketAddr;
 
 use astria_core::{
-    generated::composer::v1alpha1::grpc_collector_service_server::GrpcCollectorServiceServer,
+    generated::composer::v1alpha1::sequencer_grpc_collector_service_server,
     primitive::v1::asset,
 };
 use astria_eyre::{
@@ -21,6 +21,7 @@ use tokio::{
     net::TcpListener,
 };
 use tokio_util::sync::CancellationToken;
+use astria_core::generated::composer::v1alpha1::sequencer_grpc_collector_service_server::SequencerGrpcCollectorServiceServer;
 
 use crate::{
     collectors,
@@ -80,13 +81,13 @@ impl GrpcServer {
     pub(crate) async fn run_until_stopped(self) -> eyre::Result<()> {
         let (mut health_reporter, health_service) = tonic_health::server::health_reporter();
 
-        let composer_service = GrpcCollectorServiceServer::new(self.grpc_collector);
+        let composer_service = SequencerGrpcCollectorServiceServer::new(self.grpc_collector);
         let grpc_server = tonic::transport::Server::builder()
             .add_service(health_service)
             .add_service(composer_service);
 
         health_reporter
-            .set_serving::<GrpcCollectorServiceServer<collectors::Grpc>>()
+            .set_serving::<SequencerGrpcCollectorServiceServer<collectors::Grpc>>()
             .await;
 
         grpc_server

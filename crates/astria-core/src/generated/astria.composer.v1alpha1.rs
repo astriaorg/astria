@@ -3,14 +3,14 @@ use crate::generated::protocol::transaction::v1alpha1;
 /// via the Composer
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct SubmitRollupTransactionRequest {
+pub struct SubmitSequencerTransactionRequest {
     #[prost(message, optional, tag = "1")]
     pub action: ::core::option::Option<
         v1alpha1::Action,
     >,
 }
-impl ::prost::Name for SubmitRollupTransactionRequest {
-    const NAME: &'static str = "SubmitRollupTransactionRequest";
+impl ::prost::Name for SubmitSequencerTransactionRequest {
+    const NAME: &'static str = "SubmitSequencerTransactionRequest";
     const PACKAGE: &'static str = "astria.composer.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.composer.v1alpha1.{}", Self::NAME)
@@ -20,9 +20,9 @@ impl ::prost::Name for SubmitRollupTransactionRequest {
 /// It's currently an empty response which can be evolved in the future to include more information
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct SubmitRollupTransactionResponse {}
-impl ::prost::Name for SubmitRollupTransactionResponse {
-    const NAME: &'static str = "SubmitRollupTransactionResponse";
+pub struct SubmitSequencerTransactionResponse {}
+impl ::prost::Name for SubmitSequencerTransactionResponse {
+    const NAME: &'static str = "SubmitSequencerTransactionResponse";
     const PACKAGE: &'static str = "astria.composer.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.composer.v1alpha1.{}", Self::NAME)
@@ -30,16 +30,16 @@ impl ::prost::Name for SubmitRollupTransactionResponse {
 }
 /// Generated client implementations.
 #[cfg(feature = "client")]
-pub mod grpc_collector_service_client {
+pub mod sequencer_grpc_collector_service_client {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
     use tonic::codegen::*;
     use tonic::codegen::http::Uri;
     /// GrpcCollectorService is a service that defines the gRPC collector of the Composer
     #[derive(Debug, Clone)]
-    pub struct GrpcCollectorServiceClient<T> {
+    pub struct SequencerGrpcCollectorServiceClient<T> {
         inner: tonic::client::Grpc<T>,
     }
-    impl GrpcCollectorServiceClient<tonic::transport::Channel> {
+    impl SequencerGrpcCollectorServiceClient<tonic::transport::Channel> {
         /// Attempt to create a new client by connecting to a given endpoint.
         pub async fn connect<D>(dst: D) -> Result<Self, tonic::transport::Error>
         where
@@ -50,7 +50,7 @@ pub mod grpc_collector_service_client {
             Ok(Self::new(conn))
         }
     }
-    impl<T> GrpcCollectorServiceClient<T>
+    impl<T> SequencerGrpcCollectorServiceClient<T>
     where
         T: tonic::client::GrpcService<tonic::body::BoxBody>,
         T::Error: Into<StdError>,
@@ -68,7 +68,7 @@ pub mod grpc_collector_service_client {
         pub fn with_interceptor<F>(
             inner: T,
             interceptor: F,
-        ) -> GrpcCollectorServiceClient<InterceptedService<T, F>>
+        ) -> SequencerGrpcCollectorServiceClient<InterceptedService<T, F>>
         where
             F: tonic::service::Interceptor,
             T::ResponseBody: Default,
@@ -82,7 +82,9 @@ pub mod grpc_collector_service_client {
                 http::Request<tonic::body::BoxBody>,
             >>::Error: Into<StdError> + Send + Sync,
         {
-            GrpcCollectorServiceClient::new(InterceptedService::new(inner, interceptor))
+            SequencerGrpcCollectorServiceClient::new(
+                InterceptedService::new(inner, interceptor),
+            )
         }
         /// Compress requests with the given encoding.
         ///
@@ -117,11 +119,11 @@ pub mod grpc_collector_service_client {
         }
         /// SubmitRollupTransaction submits a rollup transactions to the Composer.
         /// The transaction sent is bundled up with other transactions and submitted to the Shared Sequencer Network.
-        pub async fn submit_rollup_transaction(
+        pub async fn submit_sequencer_transaction(
             &mut self,
-            request: impl tonic::IntoRequest<super::SubmitRollupTransactionRequest>,
+            request: impl tonic::IntoRequest<super::SubmitSequencerTransactionRequest>,
         ) -> std::result::Result<
-            tonic::Response<super::SubmitRollupTransactionResponse>,
+            tonic::Response<super::SubmitSequencerTransactionResponse>,
             tonic::Status,
         > {
             self.inner
@@ -135,14 +137,14 @@ pub mod grpc_collector_service_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria.composer.v1alpha1.GrpcCollectorService/SubmitRollupTransaction",
+                "/astria.composer.v1alpha1.SequencerGrpcCollectorService/SubmitSequencerTransaction",
             );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
                     GrpcMethod::new(
-                        "astria.composer.v1alpha1.GrpcCollectorService",
-                        "SubmitRollupTransaction",
+                        "astria.composer.v1alpha1.SequencerGrpcCollectorService",
+                        "SubmitSequencerTransaction",
                     ),
                 );
             self.inner.unary(req, path, codec).await
@@ -151,25 +153,25 @@ pub mod grpc_collector_service_client {
 }
 /// Generated server implementations.
 #[cfg(feature = "server")]
-pub mod grpc_collector_service_server {
+pub mod sequencer_grpc_collector_service_server {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
     use tonic::codegen::*;
-    /// Generated trait containing gRPC methods that should be implemented for use with GrpcCollectorServiceServer.
+    /// Generated trait containing gRPC methods that should be implemented for use with SequencerGrpcCollectorServiceServer.
     #[async_trait]
-    pub trait GrpcCollectorService: Send + Sync + 'static {
+    pub trait SequencerGrpcCollectorService: Send + Sync + 'static {
         /// SubmitRollupTransaction submits a rollup transactions to the Composer.
         /// The transaction sent is bundled up with other transactions and submitted to the Shared Sequencer Network.
-        async fn submit_rollup_transaction(
+        async fn submit_sequencer_transaction(
             self: std::sync::Arc<Self>,
-            request: tonic::Request<super::SubmitRollupTransactionRequest>,
+            request: tonic::Request<super::SubmitSequencerTransactionRequest>,
         ) -> std::result::Result<
-            tonic::Response<super::SubmitRollupTransactionResponse>,
+            tonic::Response<super::SubmitSequencerTransactionResponse>,
             tonic::Status,
         >;
     }
     /// GrpcCollectorService is a service that defines the gRPC collector of the Composer
     #[derive(Debug)]
-    pub struct GrpcCollectorServiceServer<T: GrpcCollectorService> {
+    pub struct SequencerGrpcCollectorServiceServer<T: SequencerGrpcCollectorService> {
         inner: _Inner<T>,
         accept_compression_encodings: EnabledCompressionEncodings,
         send_compression_encodings: EnabledCompressionEncodings,
@@ -177,7 +179,7 @@ pub mod grpc_collector_service_server {
         max_encoding_message_size: Option<usize>,
     }
     struct _Inner<T>(Arc<T>);
-    impl<T: GrpcCollectorService> GrpcCollectorServiceServer<T> {
+    impl<T: SequencerGrpcCollectorService> SequencerGrpcCollectorServiceServer<T> {
         pub fn new(inner: T) -> Self {
             Self::from_arc(Arc::new(inner))
         }
@@ -230,9 +232,9 @@ pub mod grpc_collector_service_server {
         }
     }
     impl<T, B> tonic::codegen::Service<http::Request<B>>
-    for GrpcCollectorServiceServer<T>
+    for SequencerGrpcCollectorServiceServer<T>
     where
-        T: GrpcCollectorService,
+        T: SequencerGrpcCollectorService,
         B: Body + Send + 'static,
         B::Error: Into<StdError> + Send + 'static,
     {
@@ -248,16 +250,19 @@ pub mod grpc_collector_service_server {
         fn call(&mut self, req: http::Request<B>) -> Self::Future {
             let inner = self.inner.clone();
             match req.uri().path() {
-                "/astria.composer.v1alpha1.GrpcCollectorService/SubmitRollupTransaction" => {
+                "/astria.composer.v1alpha1.SequencerGrpcCollectorService/SubmitSequencerTransaction" => {
                     #[allow(non_camel_case_types)]
-                    struct SubmitRollupTransactionSvc<T: GrpcCollectorService>(
+                    struct SubmitSequencerTransactionSvc<
+                        T: SequencerGrpcCollectorService,
+                    >(
                         pub Arc<T>,
                     );
                     impl<
-                        T: GrpcCollectorService,
-                    > tonic::server::UnaryService<super::SubmitRollupTransactionRequest>
-                    for SubmitRollupTransactionSvc<T> {
-                        type Response = super::SubmitRollupTransactionResponse;
+                        T: SequencerGrpcCollectorService,
+                    > tonic::server::UnaryService<
+                        super::SubmitSequencerTransactionRequest,
+                    > for SubmitSequencerTransactionSvc<T> {
+                        type Response = super::SubmitSequencerTransactionResponse;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,
@@ -265,12 +270,12 @@ pub mod grpc_collector_service_server {
                         fn call(
                             &mut self,
                             request: tonic::Request<
-                                super::SubmitRollupTransactionRequest,
+                                super::SubmitSequencerTransactionRequest,
                             >,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as GrpcCollectorService>::submit_rollup_transaction(
+                                <T as SequencerGrpcCollectorService>::submit_sequencer_transaction(
                                         inner,
                                         request,
                                     )
@@ -286,7 +291,7 @@ pub mod grpc_collector_service_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let inner = inner.0;
-                        let method = SubmitRollupTransactionSvc(inner);
+                        let method = SubmitSequencerTransactionSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(
@@ -317,7 +322,8 @@ pub mod grpc_collector_service_server {
             }
         }
     }
-    impl<T: GrpcCollectorService> Clone for GrpcCollectorServiceServer<T> {
+    impl<T: SequencerGrpcCollectorService> Clone
+    for SequencerGrpcCollectorServiceServer<T> {
         fn clone(&self) -> Self {
             let inner = self.inner.clone();
             Self {
@@ -329,7 +335,7 @@ pub mod grpc_collector_service_server {
             }
         }
     }
-    impl<T: GrpcCollectorService> Clone for _Inner<T> {
+    impl<T: SequencerGrpcCollectorService> Clone for _Inner<T> {
         fn clone(&self) -> Self {
             Self(Arc::clone(&self.0))
         }
@@ -339,8 +345,8 @@ pub mod grpc_collector_service_server {
             write!(f, "{:?}", self.0)
         }
     }
-    impl<T: GrpcCollectorService> tonic::server::NamedService
-    for GrpcCollectorServiceServer<T> {
-        const NAME: &'static str = "astria.composer.v1alpha1.GrpcCollectorService";
+    impl<T: SequencerGrpcCollectorService> tonic::server::NamedService
+    for SequencerGrpcCollectorServiceServer<T> {
+        const NAME: &'static str = "astria.composer.v1alpha1.SequencerGrpcCollectorService";
     }
 }

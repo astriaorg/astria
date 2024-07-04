@@ -3,11 +3,6 @@
 use std::sync::Arc;
 
 use astria_core::{
-    generated::composer::v1alpha1::{
-        grpc_collector_service_server::GrpcCollectorService,
-        SubmitRollupTransactionRequest,
-        SubmitRollupTransactionResponse,
-    },
     primitive::v1::{
         asset,
         RollupId,
@@ -20,6 +15,8 @@ use tonic::{
     Response,
     Status,
 };
+use astria_core::generated::composer::v1alpha1::sequencer_grpc_collector_service_server::SequencerGrpcCollectorService;
+use astria_core::generated::composer::v1alpha1::{SubmitSequencerTransactionRequest, SubmitSequencerTransactionResponse};
 use astria_core::protocol::transaction::v1alpha1::Action;
 
 use crate::{
@@ -52,14 +49,14 @@ impl Grpc {
 }
 
 #[async_trait::async_trait]
-impl GrpcCollectorService for Grpc {
-    async fn submit_rollup_transaction(
+impl SequencerGrpcCollectorService for Grpc {
+    async fn submit_sequencer_transaction(
         self: Arc<Self>,
-        request: Request<SubmitRollupTransactionRequest>,
-    ) -> Result<Response<SubmitRollupTransactionResponse>, Status> {
-        let submit_rollup_tx_request = request.into_inner();
+        request: Request<SubmitSequencerTransactionRequest>,
+    ) -> Result<Response<SubmitSequencerTransactionResponse>, Status> {
+        let submit_sequencer_tx_request = request.into_inner();
 
-        let action = if let Some(action) = submit_rollup_tx_request.action {
+        let action = if let Some(action) = submit_sequencer_tx_request.action {
             action
         } else {
             return Err(Status::invalid_argument("missing action"));
@@ -85,6 +82,6 @@ impl GrpcCollectorService for Grpc {
             }
         }
 
-        Ok(Response::new(SubmitRollupTransactionResponse {}))
+        Ok(Response::new(SubmitSequencerTransactionResponse {}))
     }
 }
