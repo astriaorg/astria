@@ -60,6 +60,7 @@ use tracing::{
     debug,
     info,
     instrument,
+    warn,
 };
 
 use crate::{
@@ -314,27 +315,45 @@ impl App {
             anyhow::bail!("local last commit is empty; this should not occur")
         };
 
-        // TODO: if this fails, we shouldn't return an error, but instead leave
+        // if this fails, we shouldn't return an error, but instead leave
         // the vote extensions empty in this block for liveness.
         // it's not a critical error if the oracle values are not updated for a block.
-        let extended_commit_info = ProposalHandler::prune_and_validate_extended_commit_info(
+        let round = last_commit.round;
+        let extended_commit_info = match ProposalHandler::prune_and_validate_extended_commit_info(
             &self.state,
             prepare_proposal.height.into(),
             last_commit,
         )
         .await
-        .context("failed to prune and validate extended commit info")?;
+        {
+            Ok(info) => info,
+            Err(e) => {
+                debug!(
+                    error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                    "failed to generate extended commit info"
+                );
+                tendermint::abci::types::ExtendedCommitInfo {
+                    round,
+                    votes: Vec::new(),
+                }
+            }
+        };
 
-        let extended_commit_info_bytes =
+        let mut extended_commit_info_bytes =
             ExtendedCommitInfo::from(extended_commit_info).encode_to_vec();
         let max_tx_bytes = usize::try_from(prepare_proposal.max_tx_bytes)
             .context("failed to convert max_tx_bytes to usize")?;
 
-        // TODO: just zero this if it's too large
-        ensure!(
-            extended_commit_info_bytes.len() <= max_tx_bytes,
-            "extended commit info is too large to fit in block"
-        );
+        // zero the commit info if it's too large to fit in the block
+        // for liveness.
+        if extended_commit_info_bytes.len() > max_tx_bytes {
+            warn!(
+                extended_commit_info_bytes_len = extended_commit_info_bytes.len(),
+                max_tx_bytes,
+                "extended commit info is too large to fit in block; not including in block"
+            );
+            extended_commit_info_bytes = Vec::new();
+        }
 
         // adjust max block size to account for extended commit info
         let mut block_size_constraints =

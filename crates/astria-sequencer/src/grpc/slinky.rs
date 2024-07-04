@@ -178,7 +178,7 @@ impl OracleService for SequencerServer {
             price: Some(state.price.into_raw()),
             nonce: state.nonce,
             id: state.id,
-            decimals: 0, // TODO: where to get this?
+            decimals: 0, // TODO: get this from the marketmap
         }))
     }
 
@@ -216,7 +216,7 @@ impl OracleService for SequencerServer {
                 price: Some(state.price.into_raw()),
                 nonce: state.nonce,
                 id: state.id,
-                decimals: 0, // TODO: where to get this?
+                decimals: 0, // TODO: get this from the marketmap
             })
         }
         Ok(Response::new(GetPricesResponse {

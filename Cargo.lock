@@ -899,6 +899,7 @@ dependencies = [
  "hex",
  "indenter",
  "itertools 0.12.1",
+ "pbjson-types",
  "predicates",
  "prost",
  "rlp",

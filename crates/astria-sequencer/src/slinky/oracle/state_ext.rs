@@ -258,6 +258,10 @@ pub(crate) trait StateWriteExt: StateWrite {
             .context("failed to serialize currency pair state")?;
         self.put_raw(currency_pair_state_storage_key(currency_pair), bytes);
         self.put_price_for_currency_pair(currency_pair, currency_pair_state.price)?;
+        self.put_currency_pair_id(currency_pair, currency_pair_state.id)
+            .context("failed to put currency pair id")?;
+        self.put_currency_pair(currency_pair_state.id, currency_pair.clone())
+            .context("failed to put currency pair")?;
         Ok(())
     }
 

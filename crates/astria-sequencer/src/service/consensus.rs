@@ -269,6 +269,10 @@ mod test {
     use prost::Message as _;
     use rand::rngs::OsRng;
     use tendermint::{
+        abci::types::{
+            CommitInfo,
+            ExtendedCommitInfo,
+        },
         account::Id,
         Hash,
         Time,
@@ -304,7 +308,10 @@ mod test {
         request::PrepareProposal {
             txs: vec![],
             max_tx_bytes: 1024,
-            local_last_commit: None,
+            local_last_commit: Some(ExtendedCommitInfo {
+                round: 0u16.into(),
+                votes: vec![],
+            }),
             misbehavior: vec![],
             height: 1u32.into(),
             time: Time::now(),
@@ -314,9 +321,21 @@ mod test {
     }
 
     fn new_process_proposal_request(txs: Vec<Bytes>) -> request::ProcessProposal {
+        let extended_commit_info: tendermint_proto::abci::ExtendedCommitInfo = ExtendedCommitInfo {
+            round: 0u16.into(),
+            votes: vec![],
+        }
+        .into();
+        let bytes = extended_commit_info.encode_to_vec();
+        let mut txs_with_commit_info = vec![bytes.into()];
+        txs_with_commit_info.extend(txs);
+
         request::ProcessProposal {
-            txs,
-            proposed_last_commit: None,
+            txs: txs_with_commit_info,
+            proposed_last_commit: Some(CommitInfo {
+                round: 0u16.into(),
+                votes: vec![],
+            }),
             misbehavior: vec![],
             hash: Hash::default(),
             height: 1u32.into(),
@@ -344,10 +363,12 @@ mod test {
             .handle_prepare_proposal(prepare_proposal)
             .await
             .unwrap();
+        let mut expected_txs = vec![b"".to_vec().into()];
+        expected_txs.extend(res.into_transactions(txs));
         assert_eq!(
             prepare_proposal_response,
             response::PrepareProposal {
-                txs: res.into_transactions(txs)
+                txs: expected_txs,
             }
         );
 
@@ -396,15 +417,13 @@ mod test {
     async fn process_proposal_fail_wrong_commitment_length() {
         let (mut consensus_service, _) = new_consensus_service(None).await;
         let process_proposal = new_process_proposal_request(vec![[0u8; 16].to_vec().into()]);
-        assert!(
-            consensus_service
-                .handle_process_proposal(process_proposal)
-                .await
-                .err()
-                .unwrap()
-                .to_string()
-                .contains("transaction commitment must be 32 bytes")
-        );
+        let err = consensus_service
+            .handle_process_proposal(process_proposal)
+            .await
+            .err()
+            .unwrap()
+            .to_string();
+        assert!(err.contains("transaction commitment must be 32 bytes"));
     }
 
     #[tokio::test]

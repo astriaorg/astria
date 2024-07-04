@@ -39,9 +39,11 @@ use tonic::transport::{
 };
 use tower_abci::v038::Server;
 use tracing::{
+    debug,
     error,
     info,
     instrument,
+    warn,
 };
 
 use crate::{
@@ -124,11 +126,15 @@ impl Sequencer {
 
             // ensure the oracle sidecar is reachable
             // TODO: allow this to retry in case the oracle sidecar is not ready yet
-            let prices = oracle_client
+            if oracle_client
                 .prices(QueryPricesRequest::default())
                 .await
-                .context("failed to get oracle prices")?;
-            info!(prices = ?prices.into_inner(), "oracle sidecar is reachable");
+                .is_err()
+            {
+                warn!(uri = %uri, "oracle sidecar is unreachable");
+            } else {
+                debug!(uri = %uri, "oracle sidecar is reachable");
+            };
             Some(oracle_client)
         } else {
             None

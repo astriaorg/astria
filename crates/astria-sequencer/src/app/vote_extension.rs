@@ -34,7 +34,10 @@ use tendermint::{
 };
 use tendermint_proto::google::protobuf::Timestamp;
 use tonic::transport::Channel;
-use tracing::debug;
+use tracing::{
+    debug,
+    trace,
+};
 
 use crate::{
     authority::state_ext::StateReadExt as _,
@@ -69,7 +72,6 @@ impl Handler {
         &mut self,
         state: &S,
     ) -> anyhow::Result<abci::response::ExtendVote> {
-        tracing::info!("extending vote");
         let Some(oracle_client) = self.oracle_client.as_mut() else {
             // we allow validators to *not* use the oracle sidecar currently
             // however, if >1/3 of validators are not using the oracle, the prices will not update.
@@ -77,8 +79,6 @@ impl Handler {
                 vote_extension: vec![].into(),
             });
         };
-
-        tracing::info!("extending vote; getting prices from oracle sidecar");
 
         // if we fail to get prices within the timeout duration, we will return an empty vote
         // extension to ensure liveness.
@@ -109,7 +109,10 @@ impl Handler {
             }
         };
 
-        tracing::info!(prices = ?prices, "got prices from oracle sidecar; transforming prices");
+        tracing::debug!(
+            prices_count = prices.prices.len(),
+            "got prices from oracle sidecar; transforming prices"
+        );
 
         let oracle_vote_extension = transform_oracle_service_prices(state, prices)
             .await
@@ -180,18 +183,25 @@ async fn transform_oracle_service_prices<S: StateReadExt>(
             .parse()
             .context("failed to parse currency pair")?;
 
-        // TODO: how are the prices encoded into strings in the sidecar??
-        let encoded_price = price_string.as_bytes();
-        let price =
-            DefaultCurrencyPairStrategy::get_decoded_price(state, &currency_pair, encoded_price)
-                .await
-                .context("failed to get decoded price")?;
+        // prices are encoded as just a decimal string in the sidecar response
+        let price: u128 = price_string
+            .parse()
+            .context("failed to parse price string")?;
 
-        let id = DefaultCurrencyPairStrategy::id(state, &currency_pair)
-            .await
-            .context("failed to get id for currency pair")?;
+        let Ok(id) = DefaultCurrencyPairStrategy::id(state, &currency_pair).await else {
+            trace!(
+                currency_pair = currency_pair.to_string(),
+                "currency pair not found in state; skipping"
+            );
+            continue;
+        };
         let encoded_price =
             DefaultCurrencyPairStrategy::get_encoded_price(state, &currency_pair, price).await;
+
+        debug!(
+            currency_pair = currency_pair.to_string(),
+            id, price, "transformed price for inclusion in vote extension"
+        );
         strategy_prices.insert(id, encoded_price);
     }
 
@@ -466,6 +476,12 @@ pub(crate) async fn apply_prices_from_vote_extensions<S: StateWriteExt>(
             },
             block_height: height,
         };
+
+        tracing::debug!(
+            currency_pair = currency_pair.to_string(),
+            price = price.price,
+            "applied price from vote extension"
+        );
 
         state
             .put_price_for_currency_pair(&currency_pair, price)
