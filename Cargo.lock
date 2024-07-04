@@ -516,6 +516,7 @@ dependencies = [
  "once_cell",
  "pin-project-lite",
  "prost",
+ "reqwest",
  "serde",
  "serde_json",
  "sha2 0.10.8",

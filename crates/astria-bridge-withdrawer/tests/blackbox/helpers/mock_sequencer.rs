@@ -41,12 +41,12 @@ const GET_PENDING_NONCE_GRPC_NAME: &str = "get_pending_nonce";
 
 pub struct MockSequencerServer {
     _server: JoinHandle<eyre::Result<()>>,
-    pub mock_server: MockServer,
-    pub local_addr: SocketAddr,
+    pub(crate) mock_server: MockServer,
+    pub(crate) local_addr: SocketAddr,
 }
 
 impl MockSequencerServer {
-    pub async fn spawn() -> Self {
+    pub(crate) async fn spawn() -> Self {
         use tokio_stream::wrappers::TcpListenerStream;
 
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -71,19 +71,19 @@ impl MockSequencerServer {
         }
     }
 
-    pub async fn mount_pending_nonce_response(
+    pub(crate) async fn mount_pending_nonce_response(
         &self,
         nonce_to_mount: u32,
         debug_name: impl Into<String>,
     ) {
-        let nonce_req = GetPendingNonceResponse {
+        let resp = GetPendingNonceResponse {
             inner: nonce_to_mount,
         };
         Mock::for_rpc_given(
             GET_PENDING_NONCE_GRPC_NAME,
             message_type::<GetPendingNonceRequest>(),
         )
-        .respond_with(constant_response(nonce_req))
+        .respond_with(constant_response(resp))
         .up_to_n_times(1)
         .expect(1)
         .with_name(debug_name)
@@ -91,7 +91,7 @@ impl MockSequencerServer {
         .await;
     }
 
-    pub async fn mount_pending_nonce_response_as_scoped(
+    pub(crate) async fn mount_pending_nonce_response_as_scoped(
         &self,
         nonce_to_mount: u32,
         debug_name: impl Into<String>,

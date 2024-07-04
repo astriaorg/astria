@@ -211,14 +211,14 @@ impl Startup {
     /// Confirms configuration values against the sequencer node. Values checked:
     ///
     /// - `self.sequencer_chain_id` matches the value returned from the sequencer node's genesis
-    /// - `self.fee_asset_id` is a valid fee asset on the sequencer node
-    /// - `self.sequencer_bridge_address` has a sufficient balance of `self.fee_asset_id`
+    /// - `self.fee_asset` is a valid fee asset on the sequencer node
+    /// - `self.sequencer_bridge_address` has a sufficient balance of `self.fee_asse`
     ///
     /// # Errors
     ///
     /// - `self.chain_id` does not match the value returned from the sequencer node
-    /// - `self.fee_asset_id` is not a valid fee asset on the sequencer node
-    /// - `self.sequencer_bridge_address` does not have a sufficient balance of `self.fee_asset_id`.
+    /// - `self.fee_asset` is not a valid fee asset on the sequencer node
+    /// - `self.sequencer_bridge_address` does not have a sufficient balance of `self.fee_asset`.
     async fn confirm_sequencer_config(&mut self) -> eyre::Result<()> {
         // confirm the sequencer chain id
         let actual_chain_id =
@@ -231,15 +231,15 @@ impl Startup {
         );
 
         // confirm that the fee asset ID is valid
-        let allowed_fee_asset_ids_resp =
-            get_allowed_fee_asset_ids(self.sequencer_cometbft_client.clone(), self.state.clone())
+        let allowed_fee_assets_resp =
+            get_allowed_fee_assets(self.sequencer_cometbft_client.clone(), self.state.clone())
                 .await
                 .wrap_err("failed to get allowed fee asset ids from sequencer")?;
         ensure!(
-            allowed_fee_asset_ids_resp
+            allowed_fee_assets_resp
                 .fee_assets
                 .contains(&self.expected_fee_asset),
-            "fee_asset_id provided in config is not a valid fee asset on the sequencer"
+            "fee_asset provided in config is not a valid fee asset on the sequencer"
         );
 
         // confirm that the sequencer key has a sufficient balance of the fee asset
@@ -383,6 +383,11 @@ async fn check_for_empty_mempool(
         .await
         .wrap_err("failed to get latest nonce")?;
     // if not equal, wait for a bit and try again
+    debug!(
+        pending_nonce = pending,
+        latest_nonce = latest,
+        "checking for empty mempool"
+    );
     if pending == latest {
         Ok(())
     } else {
@@ -562,7 +567,7 @@ async fn get_sequencer_chain_id(
 }
 
 #[instrument(skip_all)]
-async fn get_allowed_fee_asset_ids(
+async fn get_allowed_fee_assets(
     client: sequencer_client::HttpClient,
     state: Arc<State>,
 ) -> eyre::Result<AllowedFeeAssetsResponse> {

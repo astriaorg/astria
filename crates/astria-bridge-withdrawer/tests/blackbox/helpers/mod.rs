@@ -18,6 +18,7 @@ fn compare_actions(expected: &Action, actual: &Action) {
 }
 
 pub use self::{
+    mock_cometbft::*,
     mock_sequencer::MockSequencerServer,
     test_bridge_withdrawer::TestBridgeWithdrawer,
 };

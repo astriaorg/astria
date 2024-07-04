@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use astria_core::{
-    generated::protocol::account::v1alpha1::NonceResponse,
     primitive::v1::asset,
     protocol::{
         account::v1alpha1::AssetBalance,
@@ -9,7 +8,10 @@ use astria_core::{
     },
 };
 use prost::Message as _;
-use sequencer_client::SignedTransaction;
+use sequencer_client::{
+    NonceResponse,
+    SignedTransaction,
+};
 use tendermint::{
     abci::{
         response::CheckTx,
@@ -40,33 +42,12 @@ use wiremock::{
     ResponseTemplate,
 };
 
-use super::test_bridge_withdrawer::default_native_asset;
+use super::test_bridge_withdrawer::{
+    default_native_asset,
+    SEQUENCER_CHAIN_ID,
+};
 
-const SEQUENCER_CHAIN_ID: &str = "test_sequencer-1000";
-
-async fn _register_default_chain_id_guard(cometbft_mock: &MockServer) -> MockGuard {
-    _register_genesis_chain_id_response(SEQUENCER_CHAIN_ID, cometbft_mock).await
-}
-
-async fn _register_default_fee_asset_ids_guard(cometbft_mock: &MockServer) -> MockGuard {
-    let fee_assets = vec![default_native_asset()];
-    _register_allowed_fee_assets_response(fee_assets, cometbft_mock).await
-}
-
-async fn _register_default_min_expected_fee_asset_balance_guard(
-    cometbft_mock: &MockServer,
-) -> MockGuard {
-    _register_get_latest_balance(
-        vec![AssetBalance {
-            denom: default_native_asset(),
-            balance: 1_000_000u128,
-        }],
-        cometbft_mock,
-    )
-    .await
-}
-
-fn make_tx_commit_success_response() -> tx_commit::Response {
+pub fn make_tx_commit_success_response() -> tx_commit::Response {
     tx_commit::Response {
         check_tx: CheckTx::default(),
         tx_result: ExecTxResult::default(),
@@ -75,7 +56,7 @@ fn make_tx_commit_success_response() -> tx_commit::Response {
     }
 }
 
-fn make_tx_commit_check_tx_failure_response() -> tx_commit::Response {
+pub fn make_tx_commit_check_tx_failure_response() -> tx_commit::Response {
     tx_commit::Response {
         check_tx: CheckTx {
             code: 1.into(),
@@ -87,7 +68,7 @@ fn make_tx_commit_check_tx_failure_response() -> tx_commit::Response {
     }
 }
 
-fn make_tx_commit_deliver_tx_failure_response() -> tx_commit::Response {
+pub fn make_tx_commit_deliver_tx_failure_response() -> tx_commit::Response {
     tx_commit::Response {
         check_tx: CheckTx::default(),
         tx_result: ExecTxResult {
@@ -99,7 +80,63 @@ fn make_tx_commit_deliver_tx_failure_response() -> tx_commit::Response {
     }
 }
 
-async fn _register_genesis_chain_id_response(chain_id: &str, server: &MockServer) -> MockGuard {
+pub async fn mount_default_chain_id(cometbft_mock: &MockServer) {
+    mount_genesis_chain_id_response(SEQUENCER_CHAIN_ID, cometbft_mock).await
+}
+
+pub async fn mount_default_chain_id_guard_as_scoped(cometbft_mock: &MockServer) -> MockGuard {
+    mount_genesis_chain_id_response_as_scoped(SEQUENCER_CHAIN_ID, cometbft_mock).await
+}
+
+pub async fn mount_default_fee_assets(cometbft_mock: &MockServer) {
+    let fee_assets = vec![default_native_asset()];
+    mount_allowed_fee_assets_response(fee_assets, cometbft_mock).await
+}
+
+pub async fn mount_default_fee_assets_as_scoped(cometbft_mock: &MockServer) -> MockGuard {
+    let fee_assets = vec![default_native_asset()];
+    mount_allowed_fee_assets_response_as_scoped(fee_assets, cometbft_mock).await
+}
+
+pub async fn mount_default_min_expected_fee_asset_balance(cometbft_mock: &MockServer) {
+    mount_get_latest_balance_response(
+        vec![AssetBalance {
+            denom: default_native_asset(),
+            balance: 1_000_000u128,
+        }],
+        cometbft_mock,
+    )
+    .await
+}
+pub async fn mount_default_min_expected_fee_asset_balance_as_scoped(
+    cometbft_mock: &MockServer,
+) -> MockGuard {
+    mount_get_latest_balance_response_as_scoped(
+        vec![AssetBalance {
+            denom: default_native_asset(),
+            balance: 1_000_000u128,
+        }],
+        cometbft_mock,
+    )
+    .await
+}
+
+pub async fn mount_genesis_chain_id_response(chain_id: &str, server: &MockServer) {
+    prepare_genesis_chain_id_response(chain_id)
+        .mount(server)
+        .await
+}
+
+pub async fn mount_genesis_chain_id_response_as_scoped(
+    chain_id: &str,
+    server: &MockServer,
+) -> MockGuard {
+    prepare_genesis_chain_id_response(chain_id)
+        .mount_as_scoped(server)
+        .await
+}
+
+fn prepare_genesis_chain_id_response(chain_id: &str) -> Mock {
     use tendermint::{
         consensus::{
             params::{
@@ -138,8 +175,8 @@ async fn _register_genesis_chain_id_response(chain_id: &str, server: &MockServer
             app_state: serde_json::Value::Null,
         },
     };
-
     let wrapper = response::Wrapper::new_with_id(tendermint_rpc::Id::Num(1), Some(response), None);
+
     Mock::given(body_partial_json(serde_json::json!({"method": "genesis"})))
         .respond_with(
             ResponseTemplate::new(200)
@@ -148,14 +185,27 @@ async fn _register_genesis_chain_id_response(chain_id: &str, server: &MockServer
         )
         .up_to_n_times(1)
         .expect(1)
-        .mount_as_scoped(server)
+}
+
+pub async fn mount_allowed_fee_assets_response(
+    fee_assets: Vec<asset::Denom>,
+    cometbft_mock: &MockServer,
+) {
+    prepare_allowed_fee_assets_response(fee_assets)
+        .mount(cometbft_mock)
         .await
 }
 
-async fn _register_allowed_fee_assets_response(
+pub async fn mount_allowed_fee_assets_response_as_scoped(
     fee_assets: Vec<asset::Denom>,
     cometbft_mock: &MockServer,
 ) -> MockGuard {
+    prepare_allowed_fee_assets_response(fee_assets)
+        .mount_as_scoped(cometbft_mock)
+        .await
+}
+
+fn prepare_allowed_fee_assets_response(fee_assets: Vec<asset::Denom>) -> Mock {
     let response = tendermint_rpc::endpoint::abci_query::Response {
         response: tendermint_rpc::endpoint::abci_query::AbciQuery {
             value: astria_core::protocol::asset::v1alpha1::AllowedFeeAssetsResponse {
@@ -171,21 +221,31 @@ async fn _register_allowed_fee_assets_response(
     Mock::given(body_partial_json(
         serde_json::json!({"method": "abci_query"}),
     ))
-    .and(body_string_contains("asset/allowed_fee_asset_ids"))
+    .and(body_string_contains("asset/allowed_fee_assets"))
     .respond_with(
         ResponseTemplate::new(200)
             .set_body_json(&wrapper)
             .append_header("Content-Type", "application/json"),
     )
     .expect(1)
-    .mount_as_scoped(cometbft_mock)
-    .await
 }
 
-async fn _register_get_latest_balance(
+pub async fn mount_get_latest_balance_response(balances: Vec<AssetBalance>, server: &MockServer) {
+    prepare_get_latest_balances_response(balances)
+        .mount(server)
+        .await
+}
+
+pub async fn mount_get_latest_balance_response_as_scoped(
     balances: Vec<AssetBalance>,
     server: &MockServer,
 ) -> MockGuard {
+    prepare_get_latest_balances_response(balances)
+        .mount_as_scoped(server)
+        .await
+}
+
+fn prepare_get_latest_balances_response(balances: Vec<AssetBalance>) -> Mock {
     let response = tendermint_rpc::endpoint::abci_query::Response {
         response: tendermint_rpc::endpoint::abci_query::AbciQuery {
             value: astria_core::protocol::account::v1alpha1::BalanceResponse {
@@ -209,14 +269,27 @@ async fn _register_get_latest_balance(
             .append_header("Content-Type", "application/json"),
     )
     .expect(1)
-    .mount_as_scoped(server)
-    .await
 }
 
-async fn _register_last_bridge_tx_hash_guard(
+pub async fn mount_last_bridge_tx_hash_response(
+    server: &MockServer,
+    response: BridgeAccountLastTxHashResponse,
+) {
+    prepare_last_bridge_tx_hash_response(response)
+        .mount(server)
+        .await
+}
+
+pub async fn mount_last_bridge_tx_hash_response_as_scoped(
     server: &MockServer,
     response: BridgeAccountLastTxHashResponse,
 ) -> MockGuard {
+    prepare_last_bridge_tx_hash_response(response)
+        .mount_as_scoped(server)
+        .await
+}
+
+fn prepare_last_bridge_tx_hash_response(response: BridgeAccountLastTxHashResponse) -> Mock {
     let response = tendermint_rpc::endpoint::abci_query::Response {
         response: tendermint_rpc::endpoint::abci_query::AbciQuery {
             value: response.into_raw().encode_to_vec(),
@@ -234,14 +307,25 @@ async fn _register_last_bridge_tx_hash_guard(
             .append_header("Content-Type", "application/json"),
     )
     .expect(1)
-    .mount_as_scoped(server)
-    .await
 }
 
-async fn register_get_nonce_response(server: &MockServer, response: NonceResponse) -> MockGuard {
+pub async fn mount_get_nonce_response(server: &MockServer, response: NonceResponse) {
+    prepare_get_nonce_response(response).mount(server).await
+}
+
+pub async fn mount_get_nonce_response_as_scoped(
+    server: &MockServer,
+    response: NonceResponse,
+) -> MockGuard {
+    prepare_get_nonce_response(response)
+        .mount_as_scoped(server)
+        .await
+}
+
+fn prepare_get_nonce_response(response: NonceResponse) -> Mock {
     let response = tendermint_rpc::endpoint::abci_query::Response {
         response: tendermint_rpc::endpoint::abci_query::AbciQuery {
-            value: response.encode_to_vec(),
+            value: response.into_raw().encode_to_vec(),
             ..Default::default()
         },
     };
@@ -256,11 +340,17 @@ async fn register_get_nonce_response(server: &MockServer, response: NonceRespons
             .append_header("Content-Type", "application/json"),
     )
     .expect(1)
-    .mount_as_scoped(server)
-    .await
 }
 
-async fn _register_tx_guard(server: &MockServer, response: tx::Response) -> MockGuard {
+pub async fn mount_tx_response(server: &MockServer, response: tx::Response) {
+    prepare_tx_response(response).mount(server).await
+}
+
+pub async fn mount_tx_response_as_scoped(server: &MockServer, response: tx::Response) -> MockGuard {
+    prepare_tx_response(response).mount_as_scoped(server).await
+}
+
+fn prepare_tx_response(response: tx::Response) -> Mock {
     let wrapper = response::Wrapper::new_with_id(tendermint_rpc::Id::Num(1), Some(response), None);
     Mock::given(body_partial_json(serde_json::json!({"method": "tx"})))
         .respond_with(
@@ -269,14 +359,27 @@ async fn _register_tx_guard(server: &MockServer, response: tx::Response) -> Mock
                 .append_header("Content-Type", "application/json"),
         )
         .expect(1)
+}
+
+pub async fn mount_broadcast_tx_commit_response(
+    server: &MockServer,
+    response: tx_commit::Response,
+) {
+    prepare_broadcast_tx_commit_response(response)
+        .mount(server)
+        .await
+}
+
+pub async fn mount_broadcast_tx_commit_response_as_scoped(
+    server: &MockServer,
+    response: tx_commit::Response,
+) -> MockGuard {
+    prepare_broadcast_tx_commit_response(response)
         .mount_as_scoped(server)
         .await
 }
 
-async fn register_broadcast_tx_commit_response(
-    server: &MockServer,
-    response: tx_commit::Response,
-) -> MockGuard {
+fn prepare_broadcast_tx_commit_response(response: tx_commit::Response) -> Mock {
     let wrapper = response::Wrapper::new_with_id(tendermint_rpc::Id::Num(1), Some(response), None);
     Mock::given(body_partial_json(serde_json::json!({
         "method": "broadcast_tx_commit"
@@ -287,12 +390,10 @@ async fn register_broadcast_tx_commit_response(
             .append_header("Content-Type", "application/json"),
     )
     .expect(1)
-    .mount_as_scoped(server)
-    .await
 }
 
 /// Convert a `Request` object to a `SignedTransaction`
-fn signed_tx_from_request(request: &wiremock::Request) -> SignedTransaction {
+pub fn signed_tx_from_request(request: &wiremock::Request) -> SignedTransaction {
     use astria_core::generated::protocol::transaction::v1alpha1::SignedTransaction as RawSignedTransaction;
     use prost::Message as _;
 

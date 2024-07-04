@@ -25,7 +25,7 @@ use ethers::{
 
 use super::test_bridge_withdrawer::astria_address;
 
-pub(crate) struct TestEthereum {
+pub struct TestEthereum {
     contract_address: ethers::types::Address,
     provider: Arc<Provider<Ws>>,
     wallet: LocalWallet,
@@ -33,15 +33,15 @@ pub(crate) struct TestEthereum {
 }
 
 impl TestEthereum {
-    pub(crate) fn contract_address(&self) -> String {
+    pub fn contract_address(&self) -> String {
         format!("0x{:x}", self.contract_address)
     }
 
-    pub(crate) fn rpc_endpoint(&self) -> String {
+    pub fn rpc_endpoint(&self) -> String {
         self.anvil.endpoint()
     }
 
-    pub(crate) async fn send_sequencer_withdraw_transaction(
+    pub async fn send_sequencer_withdraw_transaction(
         &self,
         value: U256,
         recipient: Address,
@@ -185,13 +185,13 @@ impl TestEthereum {
     }
 }
 
-pub enum TestEthereumConfig {
+pub(crate) enum TestEthereumConfig {
     AstriaWithdrawer(AstriaWithdrawerDeployerConfig),
     AstriaBridgeableERC20(AstriaBridgeableERC20DeployerConfig),
 }
 
 impl TestEthereumConfig {
-    pub async fn spawn(self) -> TestEthereum {
+    pub(crate) async fn spawn(self) -> TestEthereum {
         match self {
             Self::AstriaWithdrawer(config) => {
                 let (contract_address, provider, wallet, anvil) = config.deploy().await;
@@ -216,7 +216,7 @@ impl TestEthereumConfig {
 }
 
 impl TestEthereumConfig {
-    pub async fn deploy(self) -> TestEthereum {
+    pub(crate) async fn deploy(self) -> TestEthereum {
         match self {
             Self::AstriaWithdrawer(config) => {
                 let (contract_address, provider, wallet, anvil) = config.deploy().await;

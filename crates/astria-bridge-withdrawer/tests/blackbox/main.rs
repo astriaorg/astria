@@ -1,10 +1,20 @@
+use std::time::Duration;
+
 use helpers::TestBridgeWithdrawer;
 
-mod helpers;
+pub mod helpers;
 
 #[tokio::test]
 async fn startup_success() {
-    let _bridge_withdrawer = TestBridgeWithdrawer::spawn().await;
+    let bridge_withdrawer = TestBridgeWithdrawer::spawn().await;
+
+    bridge_withdrawer
+        .timeout_ms(
+            1000,
+            "startup",
+            tokio::time::sleep(Duration::from_millis(2000)),
+        )
+        .await;
 }
 
 #[tokio::test]

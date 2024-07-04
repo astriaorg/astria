@@ -1,6 +1,8 @@
 use std::{
     io::Write as _,
+    mem,
     net::SocketAddr,
+    time::Duration,
 };
 
 use astria_bridge_withdrawer::{
@@ -17,22 +19,41 @@ use astria_core::{
         self,
         Denom,
     },
-    protocol::transaction::v1alpha1::{
-        action::{
-            BridgeUnlockAction,
-            Ics20Withdrawal,
+    protocol::{
+        bridge::v1alpha1::BridgeAccountLastTxHashResponse,
+        transaction::v1alpha1::{
+            action::{
+                BridgeUnlockAction,
+                Ics20Withdrawal,
+            },
+            Action,
         },
-        Action,
     },
 };
+use futures::Future;
 use ibc_types::core::client::Height as IbcHeight;
 use once_cell::sync::Lazy;
-use sequencer_client::Address;
+use sequencer_client::{
+    Address,
+    NonceResponse,
+};
 use tempfile::NamedTempFile;
 use tokio::task::JoinHandle;
-use tracing::info;
+use tracing::{
+    error,
+    info,
+};
 
-use super::MockSequencerServer;
+use super::{
+    mock_cometbft::{
+        mount_default_chain_id,
+        mount_default_fee_assets,
+        mount_default_min_expected_fee_asset_balance,
+        mount_get_nonce_response,
+    },
+    mount_last_bridge_tx_hash_response,
+    MockSequencerServer,
+};
 use crate::helpers::ethereum::{
     AstriaWithdrawerDeployerConfig,
     TestEthereum,
@@ -41,8 +62,7 @@ use crate::helpers::ethereum::{
 
 const DEFAULT_LAST_ROLLUP_HEIGHT: u64 = 1;
 const DEFAULT_IBC_DENOM: &str = "transfer/channel-0/utia";
-const DEFAULT_DENOM: &str = "nria";
-const SEQUENCER_CHAIN_ID: &str = "test-sequencer";
+pub(crate) const SEQUENCER_CHAIN_ID: &str = "test-sequencer";
 const ASTRIA_ADDRESS_PREFIX: &str = "astria";
 
 static TELEMETRY: Lazy<()> = Lazy::new(|| {
@@ -79,13 +99,33 @@ pub struct TestBridgeWithdrawer {
 
     /// A handle to issue a shutdown to the bridge withdrawer.
     bridge_withdrawer_shutdown_handle: Option<ShutdownHandle>,
+
+    /// The bridge withdrawer task.
     bridge_withdrawer: JoinHandle<()>,
 
+    /// The config used to initialize the bridge withdrawer.
     pub config: Config,
 }
 
+impl Drop for TestBridgeWithdrawer {
+    fn drop(&mut self) {
+        // Drop the shutdown handle to cause the bridge withdrawer to shutdown.
+        let _ = self.bridge_withdrawer_shutdown_handle.take();
+
+        let bridge_withdrawer = mem::replace(&mut self.bridge_withdrawer, tokio::spawn(async {}));
+        let _ = futures::executor::block_on(async move {
+            tokio::time::timeout(Duration::from_secs(2), bridge_withdrawer)
+                .await
+                .unwrap_or_else(|_| {
+                    error!("timeout out waiting for bridge withdrawer to shut down");
+                    Ok(())
+                })
+        });
+    }
+}
+
 impl TestBridgeWithdrawer {
-    pub(crate) async fn spawn() -> Self {
+    pub async fn spawn() -> Self {
         Lazy::force(&TELEMETRY);
 
         // sequencer signer key
@@ -106,16 +146,16 @@ impl TestBridgeWithdrawer {
         let cometbft_mock = wiremock::MockServer::start().await;
 
         let sequencer_mock = MockSequencerServer::spawn().await;
-        let sequencer_grpc_endpoint = format!("http://{}", sequencer_mock.local_addr);
+        let sequencer_grpc_endpoint = sequencer_mock.local_addr.to_string();
 
         let config = Config {
             sequencer_cometbft_endpoint: cometbft_mock.uri(),
             sequencer_grpc_endpoint,
             sequencer_chain_id: SEQUENCER_CHAIN_ID.into(),
             sequencer_key_path,
-            fee_asset_denomination: DEFAULT_DENOM.parse().unwrap(),
-            min_expected_fee_asset_balance: 100,
-            rollup_asset_denomination: DEFAULT_DENOM.parse().unwrap(),
+            fee_asset_denomination: default_native_asset(),
+            min_expected_fee_asset_balance: 1_000_000_u64,
+            rollup_asset_denomination: default_native_asset().to_string(),
             sequencer_bridge_address: default_bridge_address().to_string(),
             ethereum_contract_address: ethereum.contract_address(),
             ethereum_rpc_endpoint: ethereum.rpc_endpoint(),
@@ -135,7 +175,7 @@ impl TestBridgeWithdrawer {
         let api_address = bridge_withdrawer.local_addr();
         let bridge_withdrawer = tokio::task::spawn(bridge_withdrawer.run());
 
-        Self {
+        let mut test_bridge_withdrawer = Self {
             api_address,
             ethereum,
             cometbft_mock,
@@ -143,6 +183,82 @@ impl TestBridgeWithdrawer {
             bridge_withdrawer_shutdown_handle: Some(bridge_withdrawer_shutdown_handle),
             bridge_withdrawer,
             config,
+        };
+
+        test_bridge_withdrawer.mount_startup_responses().await;
+
+        test_bridge_withdrawer
+    }
+
+    pub async fn mount_startup_responses(&mut self) {
+        self.mount_sequencer_config_responses().await;
+        self.mount_wait_for_mempool_response().await;
+        self.mount_last_bridge_tx_responses().await;
+    }
+
+    async fn mount_sequencer_config_responses(&mut self) {
+        mount_default_chain_id(&self.cometbft_mock).await;
+        mount_default_fee_assets(&self.cometbft_mock).await;
+        mount_default_min_expected_fee_asset_balance(&self.cometbft_mock).await;
+    }
+
+    async fn mount_wait_for_mempool_response(&mut self) {
+        // TODO: add config to allow testing for non-empty mempool
+        let empty_mempool_response = NonceResponse {
+            height: 0,
+            nonce: 0,
+        };
+        mount_get_nonce_response(&self.cometbft_mock, empty_mempool_response).await;
+
+        self.sequencer_mock
+            .mount_pending_nonce_response(0, "startup::wait_for_mempool()")
+            .await;
+    }
+
+    async fn mount_last_bridge_tx_responses(&mut self) {
+        // TODO: add config to allow testing sync
+        mount_last_bridge_tx_hash_response(
+            &self.cometbft_mock,
+            BridgeAccountLastTxHashResponse {
+                height: 0,
+                tx_hash: None,
+            },
+        )
+        .await
+    }
+
+    /// Executes `future` within the specified duration, returning its result.
+    ///
+    /// If execution takes more than 80% of the allowed time, an error is logged before returning.
+    ///
+    /// # Panics
+    ///
+    /// Panics if execution takes longer than the specified duration.
+    pub async fn timeout_ms<F: Future>(
+        &self,
+        num_milliseconds: u64,
+        context: &str,
+        future: F,
+    ) -> F::Output {
+        let start = std::time::Instant::now();
+        let within = Duration::from_millis(num_milliseconds);
+        if let Ok(value) = tokio::time::timeout(within, future).await {
+            let elapsed = start.elapsed();
+            if elapsed.checked_mul(5).unwrap() > within.checked_mul(4).unwrap() {
+                error!(%context,
+                    "elapsed time ({} seconds) was over 80% of the specified timeout ({} \
+                     seconds) - consider increasing the timeout",
+                    elapsed.as_secs_f32(),
+                    within.as_secs_f32()
+                );
+            }
+            value
+        } else {
+            // TODO: add handing of failed future using the api server like in sequencer-relayer
+            panic!(
+                "{} timed out after {} milliseconds",
+                context, num_milliseconds
+            );
         }
     }
 }
