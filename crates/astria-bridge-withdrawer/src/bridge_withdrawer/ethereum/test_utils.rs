@@ -3,14 +3,7 @@ use std::{
     time::Duration,
 };
 
-use ethers::{
-    abi::Tokenizable,
-    core::utils::Anvil,
-    prelude::*,
-    utils::AnvilInstance,
-};
-
-use crate::bridge_withdrawer::ethereum::{
+use astria_bridge_contracts::{
     astria_bridgeable_erc20::{
         ASTRIABRIDGEABLEERC20_ABI,
         ASTRIABRIDGEABLEERC20_BYTECODE,
@@ -19,6 +12,12 @@ use crate::bridge_withdrawer::ethereum::{
         ASTRIAWITHDRAWER_ABI,
         ASTRIAWITHDRAWER_BYTECODE,
     },
+};
+use ethers::{
+    abi::Tokenizable,
+    core::utils::Anvil,
+    prelude::*,
+    utils::AnvilInstance,
 };
 
 #[allow(clippy::struct_field_names)]

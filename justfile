@@ -17,6 +17,10 @@ install-cli:
 compile-protos:
   cargo run --manifest-path tools/protobuf-compiler/Cargo.toml
 
+# Compiles the generated rust code from protos which are used in crates.
+compile-solidity-contracts:
+  cargo run --manifest-path tools/solidity-compiler/Cargo.toml
+
 ####################################################
 ## Scripts related to formatting code and linting ##
 ####################################################
