@@ -315,6 +315,38 @@ async fn get_bridge_account_last_transaction_hash() {
 }
 
 #[tokio::test]
+async fn get_transaction_fee() {
+    use astria_core::generated::protocol::transaction::v1alpha1::{
+        TransactionFee,
+        TransactionFeeResponse,
+    };
+
+    let MockSequencer {
+        server,
+        client,
+    } = MockSequencer::start().await;
+
+    let expected_response = TransactionFeeResponse {
+        height: 10,
+        fees: vec![TransactionFee {
+            asset: "asset_0".to_string(),
+            fee: Some(100.into()),
+        }],
+    };
+
+    let _guard =
+        register_abci_query_response(&server, "transaction/fee", expected_response.clone()).await;
+
+    let actual_response = client
+        .get_transaction_fee(create_signed_transaction().into_unsigned())
+        .await
+        .unwrap()
+        .into_raw();
+
+    assert_eq!(expected_response, actual_response);
+}
+
+#[tokio::test]
 async fn submit_tx_sync() {
     let MockSequencer {
         server,
