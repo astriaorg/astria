@@ -76,7 +76,6 @@ impl BridgeWithdrawer {
             ethereum_contract_address,
             ethereum_rpc_endpoint,
             rollup_asset_denomination,
-            min_expected_fee_asset_balance,
             sequencer_bridge_address,
             ..
         } = cfg;
@@ -95,7 +94,6 @@ impl BridgeWithdrawer {
             sequencer_cometbft_endpoint: sequencer_cometbft_endpoint.clone(),
             sequencer_bridge_address,
             expected_fee_asset: fee_asset_denomination,
-            expected_min_fee_asset_balance: u128::from(min_expected_fee_asset_balance),
         }
         .build()
         .wrap_err("failed to initialize startup")?;

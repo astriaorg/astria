@@ -23,7 +23,6 @@ use prost::Message as _;
 use sequencer_client::{
     tendermint_rpc,
     Address,
-    BalanceResponse,
     SequencerClientExt as _,
     SignedTransaction,
 };
@@ -54,8 +53,6 @@ pub(super) struct Builder {
     pub(super) sequencer_cometbft_endpoint: String,
     pub(super) sequencer_bridge_address: Address,
     pub(super) expected_fee_asset: asset::Denom,
-    // TODO: change the name of this config var
-    pub(super) expected_min_fee_asset_balance: u128,
 }
 
 impl Builder {
@@ -67,7 +64,6 @@ impl Builder {
             sequencer_cometbft_endpoint,
             sequencer_bridge_address,
             expected_fee_asset,
-            expected_min_fee_asset_balance,
         } = self;
 
         let sequencer_cometbft_client =
@@ -81,7 +77,6 @@ impl Builder {
             sequencer_cometbft_client,
             sequencer_bridge_address,
             expected_fee_asset,
-            expected_min_fee_asset_balance,
         })
     }
 }
@@ -110,7 +105,7 @@ impl InfoHandle {
             .rx
             .wait_for(|state| state.get_startup_info().is_some())
             .await
-            .wrap_err("")?;
+            .wrap_err("failed to get startup info")?;
 
         Ok(state
             .get_startup_info()
@@ -126,7 +121,6 @@ pub(super) struct Startup {
     sequencer_cometbft_client: sequencer_client::HttpClient,
     sequencer_bridge_address: Address,
     expected_fee_asset: asset::Denom,
-    expected_min_fee_asset_balance: u128,
 }
 
 impl Startup {
@@ -207,25 +201,6 @@ impl Startup {
                 .fee_assets
                 .contains(&self.expected_fee_asset),
             "fee_asset_id provided in config is not a valid fee asset on the sequencer"
-        );
-
-        // confirm that the sequencer key has a sufficient balance of the fee asset
-        let fee_asset_balances = get_latest_balance(
-            self.sequencer_cometbft_client.clone(),
-            self.state.clone(),
-            self.sequencer_bridge_address,
-        )
-        .await
-        .wrap_err("failed to get latest balance")?;
-        let fee_asset_balance = fee_asset_balances
-            .balances
-            .into_iter()
-            .find(|balance| balance.denom == self.expected_fee_asset)
-            .ok_or_eyre("withdrawer's account balance of the fee asset is zero")?
-            .balance;
-        ensure!(
-            fee_asset_balance >= self.expected_min_fee_asset_balance,
-            "withdrawer account does not have a sufficient balance of the fee asset"
         );
 
         Ok(())
@@ -391,7 +366,6 @@ async fn get_bridge_account_last_transaction_hash(
 ) -> eyre::Result<BridgeAccountLastTxHashResponse> {
     let res = tryhard::retry_fn(|| client.get_bridge_account_last_transaction_hash(address))
         .with_config(make_sequencer_retry_config(
-            state.clone(),
             "attempt to fetch last bridge account's transaction hash from Sequencer; retrying \
              after backoff"
                 .to_string(),
@@ -415,7 +389,6 @@ async fn get_tx(
 ) -> eyre::Result<tx::Response> {
     let res = tryhard::retry_fn(|| client.tx(tx_hash, false))
         .with_config(make_cometbft_retry_config(
-            state.clone(),
             "attempt to get transaction from CometBFT; retrying after backoff".to_string(),
         ))
         .await
@@ -433,7 +406,6 @@ async fn get_sequencer_chain_id(
 ) -> eyre::Result<tendermint::chain::Id> {
     let genesis: tendermint::Genesis = tryhard::retry_fn(|| client.genesis())
         .with_config(make_cometbft_retry_config(
-            state.clone(),
             "attempt to get genesis from CometBFT; retrying after backoff".to_string(),
         ))
         .await
@@ -451,7 +423,6 @@ async fn get_allowed_fee_asset_ids(
 ) -> eyre::Result<AllowedFeeAssetsResponse> {
     let res = tryhard::retry_fn(|| client.get_allowed_fee_assets())
         .with_config(make_sequencer_retry_config(
-            state.clone(),
             "attempt to get allowed fee assets from Sequencer; retrying after backoff".to_string(),
         ))
         .await
@@ -462,45 +433,7 @@ async fn get_allowed_fee_asset_ids(
     res
 }
 
-#[instrument(skip_all)]
-async fn get_latest_balance(
-    client: sequencer_client::HttpClient,
-    state: Arc<State>,
-    address: Address,
-) -> eyre::Result<BalanceResponse> {
-    let res = tryhard::retry_fn(|| {
-        // only retry on tendermint_rpc errors, not deserialization or native conversion
-        let client = client.clone();
-        async move {
-            match client.get_latest_balance(address).await {
-                Ok(res) => Ok(Ok(res)),
-                Err(err) => {
-                    if let Some(tendermint_err) = err.as_tendermint_rpc() {
-                        Err(tendermint_err.inner().clone())
-                    } else {
-                        Ok(Err(err))
-                    }
-                }
-            }
-        }
-    })
-    .with_config(make_cometbft_retry_config(
-        state.clone(),
-        "attempt to get latest balance from CometBFT; retrying after backoff".to_string(),
-    ))
-    .await
-    .wrap_err("failed to get latest balance from Sequencer after a lot of attempts");
-
-    let res = res?.wrap_err("failed to deserialize the latest balance response from CometBFT");
-
-    // set cometbft as connected if received a response
-    state.set_sequencer_connected(res.is_ok());
-
-    res
-}
-
 fn make_cometbft_retry_config(
-    state: Arc<State>,
     retry_message: String,
 ) -> tryhard::RetryFutureConfig<
     ExponentialBackoff,
@@ -511,9 +444,6 @@ fn make_cometbft_retry_config(
         .max_delay(Duration::from_secs(20))
         .on_retry(
             move |attempt: u32, next_delay: Option<Duration>, error: &tendermint_rpc::Error| {
-                let state = Arc::clone(&state);
-                state.set_cometbft_connected(false);
-
                 let wait_duration = next_delay
                     .map(humantime::format_duration)
                     .map(tracing::field::display);
@@ -529,7 +459,6 @@ fn make_cometbft_retry_config(
 }
 
 fn make_sequencer_retry_config(
-    state: Arc<State>,
     retry_message: String,
 ) -> tryhard::RetryFutureConfig<
     ExponentialBackoff,
@@ -546,9 +475,6 @@ fn make_sequencer_retry_config(
             move |attempt: u32,
                   next_delay: Option<Duration>,
                   error: &sequencer_client::extension_trait::Error| {
-                let state = Arc::clone(&state);
-                state.set_sequencer_connected(false);
-
                 let wait_duration = next_delay
                     .map(humantime::format_duration)
                     .map(tracing::field::display);
