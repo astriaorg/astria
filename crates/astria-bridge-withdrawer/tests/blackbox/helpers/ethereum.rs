@@ -37,8 +37,8 @@ impl TestEthereum {
         format!("0x{:x}", self.contract_address)
     }
 
-    pub fn rpc_endpoint(&self) -> String {
-        self.anvil.endpoint()
+    pub fn ws_endpoint(&self) -> String {
+        self.anvil.ws_endpoint()
     }
 
     pub async fn send_sequencer_withdraw_transaction(

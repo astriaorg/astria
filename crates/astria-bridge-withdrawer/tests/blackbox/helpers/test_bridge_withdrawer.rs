@@ -12,8 +12,8 @@ use astria_bridge_withdrawer::{
 };
 use astria_core::{
     bridge::{
-        BridgeUnlockMemo,
         Ics20WithdrawalFromRollupMemo,
+        UnlockMemo,
     },
     primitive::v1::asset::{
         self,
@@ -158,7 +158,7 @@ impl TestBridgeWithdrawer {
             rollup_asset_denomination: default_native_asset().to_string(),
             sequencer_bridge_address: default_bridge_address().to_string(),
             ethereum_contract_address: ethereum.contract_address(),
-            ethereum_rpc_endpoint: ethereum.rpc_endpoint(),
+            ethereum_rpc_endpoint: ethereum.ws_endpoint(),
             sequencer_address_prefix: ASTRIA_ADDRESS_PREFIX.into(),
             api_addr: "0.0.0.0:0".into(),
             log: String::new(),
@@ -293,7 +293,7 @@ fn make_bridge_unlock_action() -> Action {
     let inner = BridgeUnlockAction {
         to: astria_address([0u8; 20]),
         amount: 99,
-        memo: serde_json::to_vec(&BridgeUnlockMemo {
+        memo: serde_json::to_vec(&UnlockMemo {
             block_number: DEFAULT_LAST_ROLLUP_HEIGHT.into(),
             transaction_hash: [1u8; 32].into(),
         })

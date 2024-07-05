@@ -185,7 +185,8 @@ impl BridgeWithdrawer {
         });
         info!("spawned API server");
 
-        let mut startup_task = tokio::spawn(startup.run());
+        // Fused because startup task will end while the others are long running
+        let mut startup_task = Some(tokio::spawn(startup.run()));
         info!("spawned startup task");
 
         let mut submitter_task = tokio::spawn(submitter.run());
@@ -193,53 +194,64 @@ impl BridgeWithdrawer {
         let mut ethereum_watcher_task = tokio::spawn(ethereum_watcher.run());
         info!("spawned ethereum watcher task");
 
-        let shutdown = select!(
-            o = &mut api_task => {
-                report_exit("api server", o);
-                Shutdown {
-                    api_task: None,
-                    submitter_task: Some(submitter_task),
-                    ethereum_watcher_task: Some(ethereum_watcher_task),
-                    startup_task: Some(startup_task),
-                    api_shutdown_signal,
-                   token: shutdown_token
+        let shutdown = loop {
+            select!(
+                o = async { startup_task.as_mut().unwrap().await }, if !startup_task.is_some() => {
+                    match o {
+                        Ok(_) => {
+                            info!(task = "startup", "task has exited");
+                            startup_task = None;
+                        },
+                        Err(error) => {
+                            error!(task = "startup", %error, "task returned with error");
+                            break Shutdown {
+                                api_task: Some(api_task),
+                                submitter_task: Some(submitter_task),
+                                ethereum_watcher_task: Some(ethereum_watcher_task),
+                                startup_task: None,
+                                api_shutdown_signal,
+                                token: shutdown_token,
+                            };
+                        }
+                    }
                 }
-            }
-            o = &mut startup_task => {
-                report_exit("startup", o);
-                Shutdown {
-                    api_task: Some(api_task),
-                    submitter_task: Some(submitter_task),
-                    ethereum_watcher_task: Some(ethereum_watcher_task),
-                    startup_task: None,
-                    api_shutdown_signal,
-                    token: shutdown_token
+                o = &mut api_task => {
+                    report_exit("api server", o);
+                    // if startup_task is terminated, none. else, flatten
+                    break Shutdown {
+                        api_task: None,
+                        submitter_task: Some(submitter_task),
+                        ethereum_watcher_task: Some(ethereum_watcher_task),
+                        startup_task: startup_task,
+                        api_shutdown_signal,
+                       token: shutdown_token
+                    };
                 }
-            }
-            o = &mut submitter_task => {
-                report_exit("submitter", o);
-                Shutdown {
-                    api_task: Some(api_task),
-                    submitter_task: None,
-                    ethereum_watcher_task:Some(ethereum_watcher_task),
-                    startup_task: Some(startup_task),
-                    api_shutdown_signal,
-                    token: shutdown_token
+                o = &mut submitter_task => {
+                    report_exit("submitter", o);
+                    break Shutdown {
+                        api_task: Some(api_task),
+                        submitter_task: None,
+                        ethereum_watcher_task:Some(ethereum_watcher_task),
+                        startup_task: startup_task,
+                        api_shutdown_signal,
+                        token: shutdown_token
+                    };
                 }
-            }
-            o = &mut ethereum_watcher_task => {
-                report_exit("ethereum watcher", o);
-                Shutdown {
-                    api_task: Some(api_task),
-                    submitter_task: Some(submitter_task),
-                    ethereum_watcher_task: None,
-                    startup_task: Some(startup_task),
-                    api_shutdown_signal,
-                    token: shutdown_token
+                o = &mut ethereum_watcher_task => {
+                    report_exit("ethereum watcher", o);
+                    break Shutdown {
+                        api_task: Some(api_task),
+                        submitter_task: Some(submitter_task),
+                        ethereum_watcher_task: None,
+                        startup_task: startup_task,
+                        api_shutdown_signal,
+                        token: shutdown_token
+                    };
                 }
-            }
+            )
+        };
 
-        );
         shutdown.run().await;
     }
 }
@@ -352,12 +364,12 @@ impl Shutdown {
                 .await
                 .map(flatten_result)
             {
-                Ok(Ok(())) => info!("withdrawer exited gracefully"),
-                Ok(Err(error)) => error!(%error, "withdrawer exited with an error"),
+                Ok(Ok(())) => info!("submitter exited gracefully"),
+                Ok(Err(error)) => error!(%error, "submitter exited with an error"),
                 Err(_) => {
                     error!(
                         timeout_secs = limit.as_secs(),
-                        "watcher did not shut down within timeout; killing it"
+                        "submitter did not shut down within timeout; killing it"
                     );
                     submitter_task.abort();
                 }

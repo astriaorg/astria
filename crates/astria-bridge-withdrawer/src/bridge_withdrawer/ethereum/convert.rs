@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use astria_core::{
     bridge::{
-        BridgeUnlockMemo,
+        self,
         Ics20WithdrawalFromRollupMemo,
     },
     primitive::v1::{
@@ -90,9 +90,9 @@ fn event_to_bridge_unlock(
     fee_asset: asset::Denom,
     asset_withdrawal_divisor: u128,
 ) -> eyre::Result<Action> {
-    let memo = BridgeUnlockMemo {
-        block_number,
-        transaction_hash,
+    let memo = bridge::UnlockMemo {
+        block_number: block_number.as_u64(),
+        transaction_hash: *transaction_hash.as_fixed_bytes(),
     };
     let action = BridgeUnlockAction {
         to: event
@@ -225,9 +225,9 @@ mod tests {
         let expected_action = BridgeUnlockAction {
             to: crate::astria_address([1u8; 20]),
             amount: 99,
-            memo: serde_json::to_vec(&BridgeUnlockMemo {
-                block_number: 1.into(),
-                transaction_hash: [2u8; 32].into(),
+            memo: serde_json::to_vec(&bridge::UnlockMemo {
+                block_number: 1,
+                transaction_hash: [2u8; 32],
             })
             .unwrap(),
             fee_asset: denom,
@@ -266,8 +266,8 @@ mod tests {
         let expected_action = BridgeUnlockAction {
             to: crate::astria_address([1u8; 20]),
             amount: 99,
-            memo: serde_json::to_vec(&BridgeUnlockMemo {
-                block_number: 1.into(),
+            memo: serde_json::to_vec(&bridge::UnlockMemo {
+                block_number: 1,
                 transaction_hash: [2u8; 32].into(),
             })
             .unwrap(),

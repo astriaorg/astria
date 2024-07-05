@@ -1,24 +1,23 @@
-use ethers::types::{
-    TxHash,
-    U64,
-};
-use serde::{
-    Deserialize,
-    Serialize,
-};
-
 use crate::primitive::v1::Address;
 
 /// Memo format for a native bridge unlock from the rollup which is sent to a sequencer-native
 /// address.
-#[derive(Debug, Serialize, Deserialize)]
-/// Allow module name because that's what the action is called.
-// TODO: should this be renamed?
-#[allow(clippy::module_name_repetitions)]
-pub struct BridgeUnlockMemo {
-    // TODO: can we get rid of ethers types here?
-    pub block_number: U64,
-    pub transaction_hash: TxHash,
+#[derive(Debug, Clone)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize),
+    derive(serde::Deserialize)
+)]
+pub struct UnlockMemo {
+    pub block_number: u64,
+    #[cfg_attr(
+        feature = "serde",
+        serde(
+            serialize_with = "crate::serde::base64_serialize",
+            deserialize_with = "crate::serde::base64_deserialize_array"
+        )
+    )]
+    pub transaction_hash: [u8; 32],
 }
 
 /// Memo format for a ICS20 withdrawal from the rollup which is sent to

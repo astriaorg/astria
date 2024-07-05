@@ -5,8 +5,8 @@ use std::{
 
 use astria_core::{
     bridge::{
-        BridgeUnlockMemo,
         Ics20WithdrawalFromRollupMemo,
+        UnlockMemo,
     },
     generated::sequencerblock::v1alpha1::{
         sequencer_service_client,
@@ -180,7 +180,7 @@ impl Startup {
                 // send the startup info to the submitter
                 let info = Info {
                     chain_id: self.sequencer_chain_id.clone(),
-                    fee_asset: self.expected_fee_asset,
+                    fee_asset: self.expected_fee_asset.clone(),
                     starting_rollup_height,
                 };
 
@@ -229,6 +229,7 @@ impl Startup {
             self.sequencer_chain_id == actual_chain_id.to_string(),
             "sequencer_chain_id provided in config does not match chain_id returned from sequencer"
         );
+        info!(chain_id=%actual_chain_id, "confirmed chain id returned from sequencer matches config");
 
         // confirm that the fee asset ID is valid
         let allowed_fee_assets_resp =
@@ -241,6 +242,7 @@ impl Startup {
                 .contains(&self.expected_fee_asset),
             "fee_asset provided in config is not a valid fee asset on the sequencer"
         );
+        info!(fee_asset=%self.expected_fee_asset, "confirmed fee asset is valid on sequencer");
 
         // confirm that the sequencer key has a sufficient balance of the fee asset
         let fee_asset_balances = get_latest_balance(
@@ -259,6 +261,11 @@ impl Startup {
         ensure!(
             fee_asset_balance >= self.expected_min_fee_asset_balance,
             "withdrawer account does not have a sufficient balance of the fee asset"
+        );
+        info!(
+            expected_min_balance = self.expected_min_fee_asset_balance,
+            actual_balance = fee_asset_balance,
+            "confirmed sufficient fee asset balance"
         );
 
         Ok(())
@@ -290,6 +297,11 @@ impl Startup {
         .wrap_err("failed to fetch last transaction hash by the bridge account")?;
 
         let Some(tx_hash) = last_transaction_hash_resp.tx_hash else {
+            info!(
+                bridge_account_address = %self.sequencer_bridge_address,
+                "no last transaction by the bridge account found. will process withdrawals from \
+                 the first rollup block."
+            );
             return Ok(None);
         };
 
@@ -383,16 +395,12 @@ async fn check_for_empty_mempool(
         .await
         .wrap_err("failed to get latest nonce")?;
     // if not equal, wait for a bit and try again
-    debug!(
-        pending_nonce = pending,
-        latest_nonce = latest,
-        "checking for empty mempool"
+    ensure!(
+        pending == latest,
+        "mempool is not empty, nonces did not match. pending nonce: {pending}, latest nonce: \
+         {latest}"
     );
-    if pending == latest {
-        Ok(())
-    } else {
-        Err(eyre::eyre!("mempool is not empty"))
-    }
+    Ok(())
 }
 
 /// Waits for the mempool to be empty of transactions by the given address (i.e. the bridge
@@ -432,7 +440,7 @@ async fn wait_for_empty_mempool(
                     .map(humantime::format_duration)
                     .map(tracing::field::display);
                 warn!(
-                    error = error.as_ref() as &dyn std::error::Error,
+                    %error,
                     attempt,
                     wait_duration,
                     "failed getting pending nonce from sequencing; retrying after backoff",
@@ -483,9 +491,9 @@ fn rollup_height_from_signed_transaction(
 
     let last_batch_rollup_height = match withdrawal_action {
         Action::BridgeUnlock(action) => {
-            let memo: BridgeUnlockMemo = serde_json::from_slice(&action.memo)
+            let memo: UnlockMemo = serde_json::from_slice(&action.memo)
                 .wrap_err("failed to parse memo from last transaction by the bridge account")?;
-            Some(memo.block_number.as_u64())
+            Some(memo.block_number)
         }
         Action::Ics20Withdrawal(action) => {
             let memo: Ics20WithdrawalFromRollupMemo = serde_json::from_str(&action.memo)

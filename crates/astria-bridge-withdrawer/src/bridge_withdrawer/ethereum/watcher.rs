@@ -44,6 +44,7 @@ use tokio::select;
 use tokio_util::sync::CancellationToken;
 use tracing::{
     debug,
+    error,
     info,
     warn,
 };
@@ -140,10 +141,17 @@ impl Watcher {
                 .await
                 .wrap_err("watcher failed to start up")?;
 
+        info!(
+            contract.address = %self.contract_address,
+            starting_block = next_rollup_block_height,
+            asset_withdrawal_diviser = asset_withdrawal_divisor,
+            fee_asset = %fee_asset,
+            "watcher startup complete"
+        );
+
         let Self {
             rollup_asset_denom,
             bridge_address,
-            state,
             shutdown_token,
             submitter_handle,
             sequencer_address_prefix,
@@ -157,8 +165,6 @@ impl Watcher {
             asset_withdrawal_divisor,
             sequencer_address_prefix,
         };
-
-        state.set_watcher_ready();
 
         tokio::select! {
             res = watch_for_blocks(
@@ -212,6 +218,12 @@ impl Watcher {
             }
         };
 
+        debug!(
+            fee_asset = %fee_asset,
+            starting_rollup_height = starting_rollup_height,
+            "watcher received startup info"
+        );
+
         // connect to eth node
         let retry_config = tryhard::RetryFutureConfig::new(1024)
             .exponential_backoff(Duration::from_millis(500))
@@ -258,6 +270,11 @@ impl Watcher {
                  this",
             ));
 
+        debug!(
+            precision = base_chain_asset_precision,
+            "got asset withdrawal decimals from rollup withdrawal contract"
+        );
+
         self.state.set_watcher_ready();
 
         Ok((
@@ -278,6 +295,11 @@ async fn sync_from_next_rollup_block_height(
     next_rollup_block_height_to_check: u64,
     current_rollup_block_height: u64,
 ) -> Result<()> {
+    info!(
+        next_rollup_block_height_to_check,
+        current_rollup_block_height, "syncing from next rollup block height"
+    );
+
     if current_rollup_block_height < next_rollup_block_height_to_check {
         return Ok(());
     }
@@ -328,6 +350,11 @@ async fn watch_for_blocks(
     let Some(current_rollup_block_height) = current_rollup_block.number else {
         bail!("current rollup block missing block number")
     };
+
+    debug!(
+        current_rollup_block_height = current_rollup_block_height.as_u64(),
+        "got current rollup block"
+    );
 
     // sync any blocks missing between `next_rollup_block_height` and the current latest
     // (inclusive).
@@ -386,10 +413,22 @@ async fn get_and_send_events_at_block(
         get_sequencer_withdrawal_events(provider.clone(), contract_address, block_hash)
             .await
             .wrap_err("failed to get sequencer withdrawal events")?;
+    info!(
+        block.number = %block_number,
+        block.hash = %block_hash,
+        "got sequencer withdrawal events from rollup block"
+    );
+
     let ics20_withdrawal_events =
         get_ics20_withdrawal_events(provider.clone(), contract_address, block_hash)
             .await
             .wrap_err("failed to get ics20 withdrawal events")?;
+    info!(
+        block.number = %block_number,
+        block.hash = %block_hash,
+        "got ics20 withdrawal events from rollup block"
+    );
+
     let events = vec![sequencer_withdrawal_events, ics20_withdrawal_events]
         .into_iter()
         .flatten();

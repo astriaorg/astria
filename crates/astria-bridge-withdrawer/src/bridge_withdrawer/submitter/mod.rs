@@ -87,6 +87,11 @@ impl Submitter {
             }
         };
 
+        debug!(
+            sequencer.chain_id = sequencer_chain_id,
+            "submitter startup complete"
+        );
+
         let reason = loop {
             select!(
                 biased;
