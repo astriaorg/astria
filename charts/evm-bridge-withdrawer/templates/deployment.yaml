@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: evm-bridge-withdrawer
+  labels:
+    app: evm-bridge-withdrawer
+  namespace: {{ include "evm-bridge-withdrawer.namespace" . }}
+spec:
+  replicas: {{ .Values.global.replicaCount }}
+  selector:
+    matchLabels:
+      app: evm-bridge-withdrawer
+  template:
+    metadata:
+      annotations:
+      name: astria-sequencer
+      labels:
+        app: evm-bridge-withdrawer
+    spec:
+      containers:
+        - name: evm-bridge-withdrawer
+          image: {{ include "evm-bridge-withdrawer.image" . }}
+          command: [ "/usr/local/bin/astria-bridge-withdrawer" ]
+          stdin: {{ .Values.global.useTTY }}
+          tty: {{ .Values.global.useTTY }}
+          envFrom:
+            - configMapRef:
+                name: evm-bridge-withdrawer-env
+          volumeMounts:
+            - mountPath: /secret/sequencerPrivateKey/
+              name: sequencer-private-key-volume
+          ports:
+            - containerPort: {{ .Values.ports.metrics }}
+              name: metrics
+          startupProbe:
+            httpGet:
+              path: /readyz
+              port: {{ .Values.ports.healthAPI }}
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: {{ .Values.ports.healthAPI }}
+          # TODO: Enable the liveness probe when it is more reliable
+          # livenessProbe:
+          #  httpGet:
+          #    path: /healthz
+          #    port: {{ .Values.ports.healthAPI }}
+      volumes:
+        - name: sequencer-private-key-volume
+          {{- if $.Values.secretProvider.enabled }}
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: evm-bridge-withdrawer-key
+          {{- else }}
+          configMap:
+            name: evm-bridge-withdrawer-private-key
+          {{- end }}

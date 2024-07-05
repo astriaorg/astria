@@ -1,5 +1,5 @@
 ---
-source: crates/astria-sequencer/src/genesis.rs
+source: crates/astria-core/src/sequencer.rs
 expression: genesis_state()
 ---
 {
