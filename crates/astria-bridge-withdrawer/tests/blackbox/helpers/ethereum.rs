@@ -34,7 +34,7 @@ pub struct TestEthereum {
 
 impl TestEthereum {
     pub fn contract_address(&self) -> String {
-        format!("0x{:x}", self.contract_address)
+        hex::encode(self.contract_address)
     }
 
     pub fn ws_endpoint(&self) -> String {
