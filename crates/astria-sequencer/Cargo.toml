@@ -29,7 +29,7 @@ telemetry = { package = "astria-telemetry", path = "../astria-telemetry", featur
 
 anyhow = "1"
 borsh = { version = "1", features = ["derive"] }
-# `is_sorted_by` is available in rust 1.81.0, but we haven't updated or msrv yet
+# `is_sorted_by` is available in rust 1.81.0, but we haven't updated our msrv yet
 is_sorted = "0.1.1"
 matchit = "0.7.2"
 priority-queue = "2.0.2"

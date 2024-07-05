@@ -14,7 +14,6 @@ use tracing::instrument;
 use super::state_ext::StateWriteExt;
 use crate::component::Component;
 
-// TODO do we want to put all slinky stuff in one component?
 #[derive(Default)]
 pub(crate) struct OracleComponent;
 

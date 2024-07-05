@@ -469,8 +469,6 @@ pub(crate) async fn apply_prices_from_vote_extensions<S: StateWriteExt>(
         .await
         .context("failed to aggregate oracle votes")?;
 
-    // TODO: if a currency pair exists in the state, but isn't in the prices,
-    // is it considered "removed"?
     for (currency_pair, price) in prices {
         let price = QuotePrice {
             price,
@@ -557,4 +555,25 @@ async fn aggregate_oracle_votes<S: StateReadExt>(
     }
 
     Ok(prices)
+}
+ 
+#[cfg(test)]
+mod test {
+    use super::*;
+    use tendermint::abci;
+
+    #[tokio::test]
+    async fn verify_vote_extension_proposal_phase_ok() {
+        let handler = Handler::new(None, 1000);
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+
+        let vote = abci::request::VerifyVoteExtension {
+            hash: [0u8; 32].to_vec().try_into().unwrap(),
+            vote_extension: vec![].into(),
+            validator_address: [1u8; 20].to_vec().try_into().unwrap(),
+            height: 1u32.into(),
+        };
+        assert_eq!(handler.verify_vote_extension(&snapshot, vote, true).await, abci::response::VerifyVoteExtension::Accept);
+    }    
 }
