@@ -211,7 +211,7 @@ impl UncheckedGenesisState {
         }
         self.ensure_address_has_base_prefix(
             &self.market_map.params.admin,
-            &format!(".market_map.params.admin"),
+            ".market_map.params.admin",
         )?;
         Ok(())
     }

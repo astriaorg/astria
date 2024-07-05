@@ -31,7 +31,7 @@ pub struct Config {
     pub metrics_http_listener_addr: String,
     /// Writes a human readable format to stdout instead of JSON formatted OTEL trace data.
     pub pretty_print: bool,
-    /// If the oracle is enabled. If true, the oracle_grpc_addr must be set.
+    /// If the oracle is enabled. If true, the `oracle_grpc_addr` must be set.
     /// Should be true for validator nodes and false for non-validator nodes.
     pub oracle_enabled: bool,
     /// The gRPC endpoint for the oracle sidecar.

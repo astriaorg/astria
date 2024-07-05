@@ -113,6 +113,7 @@ pub mod types {
         }
 
         impl CurrencyPairParseError {
+            #[must_use]
             pub fn invalid_currency_pair_string(s: &str) -> Self {
                 Self(CurrencyPairParseErrorKind::InvalidCurrencyPairString(
                     s.to_string(),
@@ -147,6 +148,14 @@ pub mod market_map {
         }
 
         impl GenesisState {
+            /// Converts from a raw protobuf `GenesisState` to a native `GenesisState`.
+            ///
+            /// # Errors
+            ///
+            /// - if the `market_map` field is missing
+            /// - if the `market_map` field is invalid
+            /// - if the `params` field is missing
+            /// - if the `params` field is invalid
             pub fn try_from_raw(raw: raw::GenesisState) -> Result<Self, GenesisStateError> {
                 let Some(market_map) = raw
                     .market_map
@@ -187,18 +196,22 @@ pub mod market_map {
         pub struct GenesisStateError(GenesisStateErrorKind);
 
         impl GenesisStateError {
+            #[must_use]
             pub fn missing_market_map() -> Self {
                 Self(GenesisStateErrorKind::MissingMarketMap)
             }
 
+            #[must_use]
             pub fn invalid_market_map(err: MarketMapError) -> Self {
                 Self(GenesisStateErrorKind::MarketMapParseError(err))
             }
 
+            #[must_use]
             pub fn missing_params() -> Self {
                 Self(GenesisStateErrorKind::MissingParams)
             }
 
+            #[must_use]
             pub fn invalid_params(err: ParamsError) -> Self {
                 Self(GenesisStateErrorKind::ParamsParseError(err))
             }
@@ -224,6 +237,12 @@ pub mod market_map {
         }
 
         impl Params {
+            /// Converts from a raw protobuf `Params` to a native `Params`.
+            ///
+            /// # Errors
+            ///
+            /// - if any of the `market_authorities` addresses are invalid
+            /// - if the `admin` address is invalid
             pub fn try_from_raw(raw: raw::Params) -> Result<Self, ParamsError> {
                 let market_authorities = raw
                     .market_authorities
@@ -256,10 +275,12 @@ pub mod market_map {
         pub struct ParamsError(ParamsErrorKind);
 
         impl ParamsError {
+            #[must_use]
             pub fn market_authority_parse_error(err: AddressError) -> Self {
                 Self(ParamsErrorKind::MarketAuthorityParseError(err))
             }
 
+            #[must_use]
             pub fn admin_parse_error(err: AddressError) -> Self {
                 Self(ParamsErrorKind::AdminParseError(err))
             }
@@ -281,6 +302,13 @@ pub mod market_map {
         }
 
         impl Market {
+            /// Converts from a raw protobuf `Market` to a native `Market`.
+            ///
+            /// # Errors
+            ///
+            /// - if the `ticker` field is missing
+            /// - if the `ticker` field is invalid
+            /// - if any of the `provider_configs` are invalid
             pub fn try_from_raw(raw: raw::Market) -> Result<Self, MarketError> {
                 let Some(ticker) = raw
                     .ticker
@@ -321,14 +349,17 @@ pub mod market_map {
         pub struct MarketError(MarketErrorKind);
 
         impl MarketError {
+            #[must_use]
             pub fn missing_ticker() -> Self {
                 Self(MarketErrorKind::MissingTicker)
             }
 
+            #[must_use]
             pub fn invalid_ticker(err: TickerError) -> Self {
                 Self(MarketErrorKind::TickerParseError(err))
             }
 
+            #[must_use]
             pub fn invalid_provider_config(err: ProviderConfigError) -> Self {
                 Self(MarketErrorKind::ProviderConfigParseError(err))
             }
@@ -355,6 +386,12 @@ pub mod market_map {
         }
 
         impl Ticker {
+            /// Converts from a raw protobuf `Ticker` to a native `Ticker`.
+            ///
+            /// # Errors
+            ///
+            /// - if the `currency_pair` field is missing
+            /// - if the `currency_pair` field is invalid
             pub fn try_from_raw(raw: raw::Ticker) -> Result<Self, TickerError> {
                 let Some(currency_pair) = raw.currency_pair.map(CurrencyPair::from_raw) else {
                     return Err(TickerError::missing_currency_pair());
@@ -385,6 +422,7 @@ pub mod market_map {
         pub struct TickerError(TickerErrorKind);
 
         impl TickerError {
+            #[must_use]
             pub fn missing_currency_pair() -> Self {
                 Self(TickerErrorKind::MissingCurrencyPair)
             }
@@ -407,6 +445,11 @@ pub mod market_map {
         }
 
         impl ProviderConfig {
+            /// Converts from a raw protobuf `ProviderConfig` to a native `ProviderConfig`.
+            ///
+            /// # Errors
+            ///
+            /// - if the `normalize_by_pair` field is missing
             pub fn try_from_raw(raw: raw::ProviderConfig) -> Result<Self, ProviderConfigError> {
                 let Some(normalize_by_pair) = raw.normalize_by_pair.map(CurrencyPair::from_raw)
                 else {
@@ -438,6 +481,7 @@ pub mod market_map {
         pub struct ProviderConfigError(ProviderConfigErrorKind);
 
         impl ProviderConfigError {
+            #[must_use]
             pub fn missing_normalize_by_pair() -> Self {
                 Self(ProviderConfigErrorKind::MissingNormalizeByPair)
             }
@@ -456,6 +500,12 @@ pub mod market_map {
         }
 
         impl MarketMap {
+            /// Converts from a raw protobuf `MarketMap` to a native `MarketMap`.
+            ///
+            /// # Errors
+            ///
+            /// - if any of the markets are invalid
+            /// - if any of the market names are invalid
             pub fn try_from_raw(raw: raw::MarketMap) -> Result<Self, MarketMapError> {
                 let mut markets = HashMap::new();
                 for (k, v) in raw.markets {
@@ -486,6 +536,7 @@ pub mod market_map {
         pub struct MarketMapError(MarketMapErrorKind);
 
         impl MarketMapError {
+            #[must_use]
             pub fn invalid_market(name: String, err: MarketError) -> Self {
                 Self(MarketMapErrorKind::InvalidMarket(name, err))
             }
@@ -517,12 +568,18 @@ pub mod oracle {
         }
 
         impl QuotePrice {
+            /// Converts from a raw protobuf `QuotePrice` to a native `QuotePrice`.
+            ///
+            /// # Errors
+            ///
+            /// - if the `price` field is invalid
+            /// - if the `block_timestamp` field is missing
             pub fn try_from_raw(raw: raw::QuotePrice) -> Result<Self, QuotePriceError> {
                 let price = raw
                     .price
                     .parse()
                     .map_err(QuotePriceError::price_parse_error)?;
-                let Some(block_timestamp) = raw.block_timestamp.clone() else {
+                let Some(block_timestamp) = raw.block_timestamp else {
                     return Err(QuotePriceError::missing_block_timestamp());
                 };
                 let block_height = raw.block_height;
@@ -548,10 +605,12 @@ pub mod oracle {
         pub struct QuotePriceError(QuotePriceErrorKind);
 
         impl QuotePriceError {
+            #[must_use]
             pub fn price_parse_error(err: std::num::ParseIntError) -> Self {
                 Self(QuotePriceErrorKind::PriceParseError(err))
             }
 
+            #[must_use]
             pub fn missing_block_timestamp() -> Self {
                 Self(QuotePriceErrorKind::MissingBlockTimestamp)
             }
@@ -574,6 +633,12 @@ pub mod oracle {
         }
 
         impl CurrencyPairState {
+            /// Converts from a raw protobuf `CurrencyPairState` to a native `CurrencyPairState`.
+            ///
+            /// # Errors
+            ///
+            /// - if the `price` field is missing
+            /// - if the `price` field is invalid
             pub fn try_from_raw(
                 raw: raw::CurrencyPairState,
             ) -> Result<Self, CurrencyPairStateError> {
@@ -609,10 +674,12 @@ pub mod oracle {
         pub struct CurrencyPairStateError(CurrencyPairStateErrorKind);
 
         impl CurrencyPairStateError {
+            #[must_use]
             pub fn missing_price() -> Self {
                 Self(CurrencyPairStateErrorKind::MissingPrice)
             }
 
+            #[must_use]
             pub fn quote_price_parse_error(err: QuotePriceError) -> Self {
                 Self(CurrencyPairStateErrorKind::QuotePriceParseError(err))
             }
@@ -656,6 +723,15 @@ pub mod oracle {
                 self.nonce
             }
 
+            /// Converts from a raw protobuf `CurrencyPairGenesis` to a native
+            /// `CurrencyPairGenesis`.
+            ///
+            /// # Errors
+            ///
+            /// - if the `currency_pair` field is missing
+            /// - if the `currency_pair` field is invalid
+            /// - if the `currency_pair_price` field is missing
+            /// - if the `currency_pair_price` field is invalid
             pub fn try_from_raw(
                 raw: raw::CurrencyPairGenesis,
             ) -> Result<Self, CurrencyPairGenesisError> {
@@ -696,14 +772,17 @@ pub mod oracle {
         pub struct CurrencyPairGenesisError(CurrencyPairGenesisErrorKind);
 
         impl CurrencyPairGenesisError {
+            #[must_use]
             pub fn missing_currency_pair() -> Self {
                 Self(CurrencyPairGenesisErrorKind::MissingCurrencyPair)
             }
 
+            #[must_use]
             pub fn missing_currency_pair_price() -> Self {
                 Self(CurrencyPairGenesisErrorKind::MissingCurrencyPairPrice)
             }
 
+            #[must_use]
             pub fn quote_price_parse_error(err: QuotePriceError) -> Self {
                 Self(CurrencyPairGenesisErrorKind::QuotePriceParseError(err))
             }
@@ -727,6 +806,11 @@ pub mod oracle {
         }
 
         impl GenesisState {
+            /// Converts from a raw protobuf `GenesisState` to a native `GenesisState`.
+            ///
+            /// # Errors
+            ///
+            /// - if any of the `currency_pair_genesis` are invalid
             pub fn try_from_raw(raw: raw::GenesisState) -> Result<Self, GenesisStateError> {
                 let currency_pair_genesis = raw
                     .currency_pair_genesis
@@ -759,6 +843,7 @@ pub mod oracle {
         pub struct GenesisStateError(GenesisStateErrorKind);
 
         impl GenesisStateError {
+            #[must_use]
             pub fn currency_pair_genesis_parse_error(err: CurrencyPairGenesisError) -> Self {
                 Self(GenesisStateErrorKind::CurrencyPairGenesisParseError(err))
             }

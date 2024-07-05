@@ -59,6 +59,8 @@ fn charlie() -> Address {
         .unwrap()
 }
 
+// allow clippy here because this is an example genesis state, which is long.
+#[allow(clippy::too_many_lines)]
 fn genesis_state() -> GenesisState {
     use astria_core::slinky::{
         market_map::v1::{
@@ -77,14 +79,14 @@ fn genesis_state() -> GenesisState {
                 decimals: 8,
                 min_provider_count: 3,
                 enabled: true,
-                metadata_json: "".to_string(),
+                metadata_json: String::new(),
             },
             provider_configs: vec![ProviderConfig {
                 name: "coingecko_api".to_string(),
                 off_chain_ticker: "bitcoin/usd".to_string(),
                 normalize_by_pair: CurrencyPair::new("USDT".to_string(), "USD".to_string()),
                 invert: false,
-                metadata_json: "".to_string(),
+                metadata_json: String::new(),
             }],
         },
     );
@@ -96,14 +98,14 @@ fn genesis_state() -> GenesisState {
                 decimals: 8,
                 min_provider_count: 3,
                 enabled: true,
-                metadata_json: "".to_string(),
+                metadata_json: String::new(),
             },
             provider_configs: vec![ProviderConfig {
                 name: "coingecko_api".to_string(),
                 off_chain_ticker: "ethereum/usd".to_string(),
                 normalize_by_pair: CurrencyPair::new("USDT".to_string(), "USD".to_string()),
                 invert: false,
-                metadata_json: "".to_string(),
+                metadata_json: String::new(),
             }],
         },
     );
@@ -160,10 +162,10 @@ fn genesis_state() -> GenesisState {
                     id: 0,
                     nonce: 0,
                     currency_pair_price: QuotePrice {
-                        price: 5834065777,
+                        price: 5_834_065_777,
                         block_height: 0,
                         block_timestamp: pbjson_types::Timestamp {
-                            seconds: 1720122395,
+                            seconds: 1_720_122_395,
                             nanos: 0,
                         },
                     },
@@ -173,10 +175,10 @@ fn genesis_state() -> GenesisState {
                     id: 1,
                     nonce: 0,
                     currency_pair_price: QuotePrice {
-                        price: 3138872234,
+                        price: 3_138_872_234,
                         block_height: 0,
                         block_timestamp: pbjson_types::Timestamp {
-                            seconds: 1720122395,
+                            seconds: 1_720_122_395,
                             nanos: 0,
                         },
                     },

@@ -57,10 +57,10 @@
   "market_map": {
     "market_map": {
       "markets": {
-        "BITCOIN/USD": {
+        "BTC/USD": {
           "ticker": {
             "currency_pair": {
-              "base": "BITCOIN",
+              "base": "BTC",
               "quote": "USD"
             },
             "decimals": 8,
@@ -70,28 +70,32 @@
           },
           "provider_configs": [
             {
-              "name": "kucoin_ws",
-              "off_chain_ticker": "btc_usd",
+              "name": "coingecko_api",
+              "off_chain_ticker": "bitcoin/usd",
               "normalize_by_pair": {
                 "base": "USDT",
                 "quote": "USD"
               },
               "invert": false,
               "metadata_json": ""
+            }
+          ]
+        },
+        "ETH/USD": {
+          "ticker": {
+            "currency_pair": {
+              "base": "ETH",
+              "quote": "USD"
             },
+            "decimals": 8,
+            "min_provider_count": 3,
+            "enabled": true,
+            "metadata_json": ""
+          },
+          "provider_configs": [
             {
-              "name": "binance",
-              "off_chain_ticker": "BTCUSD",
-              "normalize_by_pair": {
-                "base": "USDT",
-                "quote": "USD"
-              },
-              "invert": false,
-              "metadata_json": ""
-            },
-            {
-              "name": "mexc",
-              "off_chain_ticker": "btc-usd",
+              "name": "coingecko_api",
+              "off_chain_ticker": "ethereum/usd",
               "normalize_by_pair": {
                 "base": "USDT",
                 "quote": "USD"
@@ -119,7 +123,34 @@
     }
   },
   "oracle": {
-    "currency_pair_genesis": [],
-    "next_id": 0
+    "currency_pair_genesis": [
+      {
+        "currency_pair": {
+          "base": "BTC",
+          "quote": "USD"
+        },
+        "currency_pair_price": {
+          "price": 5834065777,
+          "block_timestamp": "2024-07-04T19:46:35+00:00",
+          "block_height": 0
+        },
+        "id": 0,
+        "nonce": 0
+      },
+      {
+        "currency_pair": {
+          "base": "ETH",
+          "quote": "USD"
+        },
+        "currency_pair_price": {
+          "price": 3138872234,
+          "block_timestamp": "2024-07-04T19:46:35+00:00",
+          "block_height": 0
+        },
+        "id": 1,
+        "nonce": 0
+      }
+    ],
+    "next_id": 2
   }
 }

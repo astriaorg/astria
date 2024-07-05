@@ -217,7 +217,7 @@ impl OracleService for SequencerServer {
                 nonce: state.nonce,
                 id: state.id,
                 decimals: 0, // TODO: get this from the marketmap
-            })
+            });
         }
         Ok(Response::new(GetPricesResponse {
             prices,

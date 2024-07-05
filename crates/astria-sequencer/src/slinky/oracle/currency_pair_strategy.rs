@@ -1,9 +1,12 @@
-use anyhow::Context as _;
+use anyhow::{
+    ensure,
+    Context as _,
+};
 use astria_core::slinky::types::v1::CurrencyPair;
 
 use crate::slinky::oracle::state_ext::StateReadExt;
 
-/// see https://github.com/skip-mev/slinky/blob/793b2e874d6e720bd288e82e782502e41cf06f8c/abci/strategies/currencypair/default.go
+/// see <https://github.com/skip-mev/slinky/blob/793b2e874d6e720bd288e82e782502e41cf06f8c/abci/strategies/currencypair/default.go>
 pub(crate) struct DefaultCurrencyPairStrategy;
 
 impl DefaultCurrencyPairStrategy {
@@ -21,7 +24,7 @@ impl DefaultCurrencyPairStrategy {
         state.get_currency_pair(id).await
     }
 
-    pub(crate) async fn get_encoded_price<S: StateReadExt>(
+    pub(crate) fn get_encoded_price<S: StateReadExt>(
         _state: &S,
         _: &CurrencyPair,
         price: u128,
@@ -29,11 +32,12 @@ impl DefaultCurrencyPairStrategy {
         price.to_be_bytes().to_vec()
     }
 
-    pub(crate) async fn get_decoded_price<S: StateReadExt>(
+    pub(crate) fn get_decoded_price<S: StateReadExt>(
         _state: &S,
         _: &CurrencyPair,
         encoded_price: &[u8],
     ) -> anyhow::Result<u128> {
+        ensure!(encoded_price.len() == 16, "invalid encoded price length");
         let mut bytes = [0; 16];
         bytes.copy_from_slice(encoded_price);
         Ok(u128::from_be_bytes(bytes))
@@ -53,7 +57,7 @@ impl DefaultCurrencyPairStrategy {
                 .get_num_removed_currency_pairs()
                 .await
                 .context("failed to get number of removed currency pairs")?;
-            Ok(current + removed)
+            Ok(current.saturating_add(removed))
         } else {
             Ok(current)
         }

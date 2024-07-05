@@ -133,6 +133,9 @@ mod tests {
             "genesis_time": "2023-06-21T15:58:36.741257Z",
             "initial_height": "0",
             "consensus_params": {
+                "abci": {
+                    "vote_extensions_enable_height": "1"
+                },
                 "validator": {
                     "pub_key_types": [
                       "ed25519"

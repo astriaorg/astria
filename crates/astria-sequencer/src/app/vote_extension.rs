@@ -37,6 +37,7 @@ use tonic::transport::Channel;
 use tracing::{
     debug,
     trace,
+    warn,
 };
 
 use crate::{
@@ -196,7 +197,7 @@ async fn transform_oracle_service_prices<S: StateReadExt>(
             continue;
         };
         let encoded_price =
-            DefaultCurrencyPairStrategy::get_encoded_price(state, &currency_pair, price).await;
+            DefaultCurrencyPairStrategy::get_encoded_price(state, &currency_pair, price);
 
         debug!(
             currency_pair = currency_pair.to_string(),
@@ -224,7 +225,7 @@ impl ProposalHandler {
             return Ok(extended_commit_info);
         }
 
-        for vote in extended_commit_info.votes.iter_mut() {
+        for vote in &mut extended_commit_info.votes {
             let oracle_vote_extension =
                 RawOracleVoteExtension::decode(vote.vote_extension.clone())?.into();
             if let Err(e) = verify_vote_extension(state, oracle_vote_extension, true).await {
@@ -304,7 +305,7 @@ async fn validate_vote_extensions<S: StateReadExt>(
         }
 
         if vote.sig_info != Flag(tendermint::block::BlockIdFlag::Commit)
-            && vote.vote_extension.len() > 0
+            && !vote.vote_extension.is_empty()
         {
             anyhow::bail!(
                 "non-commit vote extension present for validator {}",
@@ -344,8 +345,11 @@ async fn validate_vote_extensions<S: StateReadExt>(
 
         let vote_extension = CanonicalVoteExtension {
             extension: vote.vote_extension.to_vec(),
-            height: (height - 1) as i64,
-            round: extended_commit_info.round.value() as i64,
+            height: i64::try_from(height.checked_sub(1).expect(
+                "can subtract 1 from height as this function is only called for block height >1",
+            ))
+            .expect("block height must fit in an i64"),
+            round: i64::from(extended_commit_info.round.value()),
             chain_id: chain_id.to_string(),
         };
 
@@ -411,7 +415,7 @@ fn validate_extended_commit_against_last_commit(
                 a.validator
                     .power
                     .partial_cmp(&b.validator.power)
-                    .map(|v| v.reverse())
+                    .map(std::cmp::Ordering::reverse)
             }
         }),
         "extended commit votes are not sorted by voting power",
@@ -430,7 +434,7 @@ fn validate_extended_commit_against_last_commit(
 
         // vote is absent; no need to check for the block id flag matching the last commit
         if vote.sig_info == Flag(tendermint::block::BlockIdFlag::Absent)
-            && vote.vote_extension.len() == 0
+            && vote.vote_extension.is_empty()
             && vote.extension_signature.is_none()
         {
             continue;
@@ -516,7 +520,6 @@ async fn aggregate_oracle_votes<S: StateReadExt>(
 
             let price =
                 DefaultCurrencyPairStrategy::get_decoded_price(state, &currency_pair, &price_bytes)
-                    .await
                     .context("failed to get decoded price")?;
             currency_pair_to_price_list
                 .entry(currency_pair)
@@ -535,7 +538,17 @@ async fn aggregate_oracle_votes<S: StateReadExt>(
             price_list.sort_unstable();
             let mid = price_list.len() / 2;
             if price_list.len() % 2 == 0 {
-                (price_list[mid - 1] + price_list[mid]) / 2
+                let Some(num) = price_list[mid
+                    .checked_sub(1)
+                    .expect("must subtract as the length of the price list is >0")]
+                .checked_add(price_list[mid]) else {
+                    warn!(
+                        "failed to add two middle prices together; skipping currency pair: {}",
+                        currency_pair,
+                    );
+                    continue;
+                };
+                num / 2
             } else {
                 price_list[mid]
             }

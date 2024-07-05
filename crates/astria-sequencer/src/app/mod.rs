@@ -356,9 +356,15 @@ impl App {
         }
 
         // adjust max block size to account for extended commit info
-        let mut block_size_constraints =
-            BlockSizeConstraints::new(max_tx_bytes - extended_commit_info_bytes.len())
-                .context("failed to create block size constraints")?;
+        let mut block_size_constraints = BlockSizeConstraints::new(
+            max_tx_bytes
+                .checked_sub(extended_commit_info_bytes.len())
+                .expect(
+                    "extended_commit_info_bytes is shorter than max_tx_bytes, as it was checked \
+                     above",
+                ),
+        )
+        .context("failed to create block size constraints")?;
 
         let block_data = BlockData {
             misbehavior: prepare_proposal.misbehavior,
