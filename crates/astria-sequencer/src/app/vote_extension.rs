@@ -556,11 +556,12 @@ async fn aggregate_oracle_votes<S: StateReadExt>(
 
     Ok(prices)
 }
- 
+
 #[cfg(test)]
 mod test {
-    use super::*;
     use tendermint::abci;
+
+    use super::*;
 
     #[tokio::test]
     async fn verify_vote_extension_proposal_phase_ok() {
@@ -574,6 +575,27 @@ mod test {
             validator_address: [1u8; 20].to_vec().try_into().unwrap(),
             height: 1u32.into(),
         };
-        assert_eq!(handler.verify_vote_extension(&snapshot, vote, true).await, abci::response::VerifyVoteExtension::Accept);
-    }    
+        assert_eq!(
+            handler.verify_vote_extension(&snapshot, vote, true).await,
+            abci::response::VerifyVoteExtension::Accept
+        );
+    }
+
+    #[tokio::test]
+    async fn verify_vote_extension_not_proposal_phase_ok() {
+        let handler = Handler::new(None, 1000);
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+
+        let vote = abci::request::VerifyVoteExtension {
+            hash: [0u8; 32].to_vec().try_into().unwrap(),
+            vote_extension: vec![].into(),
+            validator_address: [1u8; 20].to_vec().try_into().unwrap(),
+            height: 1u32.into(),
+        };
+        assert_eq!(
+            handler.verify_vote_extension(&snapshot, vote, false).await,
+            abci::response::VerifyVoteExtension::Accept
+        );
+    }
 }

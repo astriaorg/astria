@@ -22,6 +22,9 @@ impl Component for MarketMapComponent {
 
     #[instrument(name = "MarketMapComponent::init_chain", skip(state))]
     async fn init_chain<S: StateWriteExt>(mut state: S, app_state: &Self::AppState) -> Result<()> {
+        // TODO: put market map authorites and admin in state;
+        // only required for related actions however
+
         state
             .put_market_map(app_state.market_map().market_map.clone())
             .context("failed to put market map")?;
