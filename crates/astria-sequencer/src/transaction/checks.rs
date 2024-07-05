@@ -59,7 +59,7 @@ pub(crate) async fn check_balance_mempool<S: StateReadExt + 'static>(
     let signer_address = crate::address::base_prefixed(tx.verification_key().address_bytes());
     check_balance_for_total_fees_and_transfers(tx.unsigned_transaction(), signer_address, state)
         .await
-        .context("failed to check balance to total fees and transfers")?;
+        .context("failed to check balance for total fees and transfers")?;
     Ok(())
 }
 
@@ -434,9 +434,11 @@ mod tests {
         let signed_tx = tx.into_signed(&alice_signing_key);
         let err = check_balance_mempool(&signed_tx, &state_tx)
             .await
-            .expect_err("insufficient funds for `other` asset");
+            .err()
+            .unwrap();
         assert!(
-            err.to_string()
+            err.root_cause()
+                .to_string()
                 .contains(&other_asset.to_ibc_prefixed().to_string())
         );
     }
