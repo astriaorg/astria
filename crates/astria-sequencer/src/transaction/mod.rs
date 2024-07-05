@@ -1,5 +1,6 @@
 pub(crate) mod action_handler;
 mod checks;
+pub(crate) mod query;
 
 use std::fmt;
 
@@ -17,7 +18,7 @@ use astria_core::{
     },
 };
 pub(crate) use checks::{
-    check_balance_for_total_fees,
+    check_balance_for_total_fees_and_transfers,
     check_balance_mempool,
     check_chain_id_mempool,
     check_nonce_mempool,
@@ -198,7 +199,9 @@ impl ActionHandler for UnsignedTransaction {
         ensure!(curr_nonce == self.nonce(), InvalidNonce(self.nonce()));
 
         // Should have enough balance to cover all actions.
-        check_balance_for_total_fees(self, from, state).await?;
+        check_balance_for_total_fees_and_transfers(self, from, state)
+            .await
+            .context("failed to check balance for total fees and transfers")?;
 
         for action in &self.actions {
             match action {
