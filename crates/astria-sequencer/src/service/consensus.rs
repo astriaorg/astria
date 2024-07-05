@@ -364,7 +364,8 @@ mod test {
             .await
             .unwrap();
         let mut expected_txs = vec![b"".to_vec().into()];
-        expected_txs.extend(res.into_transactions(txs));
+        let commitments_and_txs = res.into_transactions(txs);
+        expected_txs.extend(commitments_and_txs.clone());
         assert_eq!(
             prepare_proposal_response,
             response::PrepareProposal {
@@ -374,7 +375,7 @@ mod test {
 
         let (mut consensus_service, _) =
             new_consensus_service(Some(signing_key.verification_key())).await;
-        let process_proposal = new_process_proposal_request(prepare_proposal_response.txs);
+        let process_proposal = new_process_proposal_request(commitments_and_txs);
         consensus_service
             .handle_process_proposal(process_proposal)
             .await
@@ -455,10 +456,12 @@ mod test {
             .handle_prepare_proposal(prepare_proposal)
             .await
             .unwrap();
+        let mut expected_txs = vec![b"".to_vec().into()];
+        expected_txs.extend(res.into_transactions(vec![]));
         assert_eq!(
             prepare_proposal_response,
             response::PrepareProposal {
-                txs: res.into_transactions(vec![]),
+                txs: expected_txs,
             }
         );
     }
@@ -594,6 +597,7 @@ mod test {
         header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
 
         let process_proposal = new_process_proposal_request(block_data.clone());
+        let txs = process_proposal.txs.clone();
         consensus_service
             .handle_request(ConsensusRequest::ProcessProposal(process_proposal))
             .await
@@ -611,7 +615,7 @@ mod test {
                 votes: vec![],
             },
             misbehavior: vec![],
-            txs: block_data,
+            txs,
         };
         consensus_service
             .handle_request(ConsensusRequest::FinalizeBlock(finalize_block))

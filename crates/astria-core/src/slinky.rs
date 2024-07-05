@@ -629,10 +629,10 @@ pub mod oracle {
         #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
         #[derive(Debug, Clone)]
         pub struct CurrencyPairGenesis {
-            currency_pair: CurrencyPair,
-            currency_pair_price: QuotePrice,
-            id: u64,
-            nonce: u64,
+            pub currency_pair: CurrencyPair,
+            pub currency_pair_price: QuotePrice,
+            pub id: u64,
+            pub nonce: u64,
         }
 
         impl CurrencyPairGenesis {
