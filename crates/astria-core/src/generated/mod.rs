@@ -258,18 +258,6 @@ pub mod slinky {
     }
 
     pub mod marketmap {
-        pub mod module {
-            pub mod v1 {
-                include!("slinky.marketmap.module.v1.rs");
-
-                #[cfg(feature = "serde")]
-                mod _serde_impl {
-                    use super::*;
-                    include!("slinky.marketmap.module.v1.serde.rs");
-                }
-            }
-        }
-
         pub mod v1 {
             include!("slinky.marketmap.v1.rs");
 
@@ -282,18 +270,6 @@ pub mod slinky {
     }
 
     pub mod oracle {
-        pub mod module {
-            pub mod v1 {
-                include!("slinky.oracle.module.v1.rs");
-
-                #[cfg(feature = "serde")]
-                mod _serde_impl {
-                    use super::*;
-                    include!("slinky.oracle.module.v1.serde.rs");
-                }
-            }
-        }
-
         pub mod v1 {
             include!("slinky.oracle.v1.rs");
 
