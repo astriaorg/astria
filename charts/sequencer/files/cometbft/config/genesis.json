@@ -56,7 +56,7 @@
     },
     "oracle": {
       "currency_pair_genesis": [],
-      "next_id": 0,
+      "next_id": 0
     }
     {{- if not .Values.global.dev }}
     {{- else }}
@@ -65,7 +65,7 @@
   "chain_id": "{{ .Values.genesis.chainId }}",
   "consensus_params": {
     "abci": {
-      "vote_extensions_enable_height": "1",
+      "vote_extensions_enable_height": "1"
     },
     "block": {
       "max_bytes": " {{ .Values.genesis.consensusParams.blockMaxBytes }}",
