@@ -546,7 +546,7 @@ impl App {
                 }
                 Err(e) => {
                     self.metrics
-                        .increment_prepare_proposal_excluded_transactions_decode_failure();
+                        .increment_check_tx_removed_failed_execution();
                     debug!(
                         transaction_hash = %tx_hash_base64,
                         error = AsRef::<dyn std::error::Error>::as_ref(&e),
