@@ -58,7 +58,8 @@ pub(crate) async fn check_balance_mempool<S: StateReadExt + 'static>(
 ) -> anyhow::Result<()> {
     let signer_address = crate::address::base_prefixed(tx.verification_key().address_bytes());
     check_balance_for_total_fees_and_transfers(tx.unsigned_transaction(), signer_address, state)
-        .await?;
+        .await
+        .context("failed to check balance to total fees and transfers")?;
     Ok(())
 }
 
@@ -142,7 +143,9 @@ pub(crate) async fn check_balance_for_total_fees_and_transfers<S: StateReadExt +
     from: Address,
     state: &S,
 ) -> anyhow::Result<()> {
-    let mut cost_by_asset = get_fees_for_transaction(tx, state).await?;
+    let mut cost_by_asset = get_fees_for_transaction(tx, state)
+        .await
+        .context("failed to get fees for transaction")?;
 
     // add values transferred within the tx to the cost
     for action in &tx.actions {

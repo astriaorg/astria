@@ -199,7 +199,9 @@ impl ActionHandler for UnsignedTransaction {
         ensure!(curr_nonce == self.nonce(), InvalidNonce(self.nonce()));
 
         // Should have enough balance to cover all actions.
-        check_balance_for_total_fees_and_transfers(self, from, state).await?;
+        check_balance_for_total_fees_and_transfers(self, from, state)
+            .await
+            .context("failed to check balance for total fees and transfers")?;
 
         for action in &self.actions {
             match action {
