@@ -13,7 +13,6 @@ use metrics::{
 use telemetry::metric_names;
 
 pub(crate) struct Metrics {
-    prepare_proposal_excluded_transactions_decode_failure: Counter,
     prepare_proposal_excluded_transactions_cometbft_space: Counter,
     prepare_proposal_excluded_transactions_sequencer_space: Counter,
     prepare_proposal_excluded_transactions_failed_execution: Counter,
@@ -33,15 +32,6 @@ impl Metrics {
     #[must_use]
     #[allow(clippy::too_many_lines)]
     pub(crate) fn new() -> Self {
-        describe_counter!(
-            PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_DECODE_FAILURE,
-            Unit::Count,
-            "The number of transactions that have been excluded from blocks due to failing to \
-             decode"
-        );
-        let prepare_proposal_excluded_transactions_decode_failure =
-            counter!(PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_DECODE_FAILURE);
-
         describe_counter!(
             PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_COMETBFT_SPACE,
             Unit::Count,
@@ -146,7 +136,6 @@ impl Metrics {
         let check_tx_removed_expired = counter!(CHECK_TX_REMOVED_EXPIRED);
 
         Self {
-            prepare_proposal_excluded_transactions_decode_failure,
             prepare_proposal_excluded_transactions_cometbft_space,
             prepare_proposal_excluded_transactions_sequencer_space,
             prepare_proposal_excluded_transactions_failed_execution,
@@ -161,11 +150,6 @@ impl Metrics {
             check_tx_removed_stale_nonce,
             check_tx_removed_account_balance,
         }
-    }
-
-    pub(crate) fn increment_prepare_proposal_excluded_transactions_decode_failure(&self) {
-        self.prepare_proposal_excluded_transactions_decode_failure
-            .increment(1);
     }
 
     pub(crate) fn increment_prepare_proposal_excluded_transactions_cometbft_space(&self) {
@@ -229,7 +213,6 @@ impl Metrics {
 }
 
 metric_names!(pub const METRICS_NAMES:
-    PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_DECODE_FAILURE,
     PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_COMETBFT_SPACE,
     PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_SEQUENCER_SPACE,
     PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_FAILED_EXECUTION,
@@ -256,7 +239,6 @@ mod tests {
         CHECK_TX_REMOVED_TOO_LARGE,
         PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS,
         PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_COMETBFT_SPACE,
-        PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_DECODE_FAILURE,
         PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_FAILED_EXECUTION,
         PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_SEQUENCER_SPACE,
         PROCESS_PROPOSAL_SKIPPED_PROPOSAL,
@@ -274,10 +256,6 @@ mod tests {
 
     #[test]
     fn metrics_are_as_expected() {
-        assert_const(
-            PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_DECODE_FAILURE,
-            "prepare_proposal_excluded_transactions_decode_failure",
-        );
         assert_const(
             PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_COMETBFT_SPACE,
             "prepare_proposal_excluded_transactions_cometbft_space",
