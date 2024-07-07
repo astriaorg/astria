@@ -1,45 +1,102 @@
-use astria_core::primitive::v1::{
+//! Sequencer specific types that are needed outside of it.
+pub use penumbra_ibc::params::IBCParameters;
+
+use crate::primitive::v1::{
     asset,
     Address,
 };
-use penumbra_ibc::params::IBCParameters;
-use serde::{
-    Deserialize,
-    Serialize,
-};
 
-/// The genesis state for the application.
+/// The genesis state of Astria's Sequencer.
 ///
 /// Verified to only contain valid fields (right now, addresses that have the same base prefix
 /// as set in `GenesisState::address_prefixes::base`).
 ///
-/// **NOTE:** The fields should not be publicly accessible to guarantee invariants. However,
-/// it's easy to just go along with this for now.
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(try_from = "UncheckedGenesisState", into = "UncheckedGenesisState")]
-pub(crate) struct GenesisState {
-    pub(crate) address_prefixes: AddressPrefixes,
-    pub(crate) accounts: Vec<Account>,
-    pub(crate) authority_sudo_address: Address,
-    pub(crate) ibc_sudo_address: Address,
-    pub(crate) ibc_relayer_addresses: Vec<Address>,
-    pub(crate) native_asset_base_denomination: String,
-    pub(crate) ibc_params: IBCParameters,
-    pub(crate) allowed_fee_assets: Vec<asset::Denom>,
-    pub(crate) fees: Fees,
+/// *Note on the implementation:* access to all fields is through getters to uphold invariants,
+/// but most returned values themselves have publicly exposed fields. This is to make it easier
+/// to construct an [`UncheckedGenesisState`].
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(
+    feature = "serde",
+    serde(try_from = "UncheckedGenesisState", into = "UncheckedGenesisState")
+)]
+pub struct GenesisState {
+    address_prefixes: AddressPrefixes,
+    accounts: Vec<Account>,
+    authority_sudo_address: Address,
+    ibc_sudo_address: Address,
+    ibc_relayer_addresses: Vec<Address>,
+    native_asset_base_denomination: String,
+    ibc_params: IBCParameters,
+    allowed_fee_assets: Vec<asset::Denom>,
+    fees: Fees,
+}
+
+impl GenesisState {
+    #[must_use]
+    pub fn address_prefixes(&self) -> &AddressPrefixes {
+        &self.address_prefixes
+    }
+
+    #[must_use]
+    pub fn accounts(&self) -> &[Account] {
+        &self.accounts
+    }
+
+    #[must_use]
+    pub fn authority_sudo_address(&self) -> &Address {
+        &self.authority_sudo_address
+    }
+
+    #[must_use]
+    pub fn ibc_sudo_address(&self) -> &Address {
+        &self.ibc_sudo_address
+    }
+
+    #[must_use]
+    pub fn ibc_relayer_addresses(&self) -> &[Address] {
+        &self.ibc_relayer_addresses
+    }
+
+    #[must_use]
+    pub fn native_asset_base_denomination(&self) -> &str {
+        &self.native_asset_base_denomination
+    }
+
+    #[must_use]
+    pub fn ibc_params(&self) -> &IBCParameters {
+        &self.ibc_params
+    }
+
+    #[must_use]
+    pub fn allowed_fee_assets(&self) -> &[asset::Denom] {
+        &self.allowed_fee_assets
+    }
+
+    #[must_use]
+    pub fn fees(&self) -> &Fees {
+        &self.fees
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
-// allow: this error is only seen at chain init and never after so perf impact of too large enum
-// variants is negligible
-#[allow(clippy::result_large_err)]
-pub(crate) enum VerifyGenesisError {
+#[error(transparent)]
+pub struct VerifyGenesisError(Box<VerifyGenesisErrorKind>);
+
+#[derive(Debug, thiserror::Error)]
+enum VerifyGenesisErrorKind {
     #[error("address `{address}` at `{field}` does not have `{base_prefix}`")]
     AddressDoesNotMatchBase {
         base_prefix: String,
         address: Address,
         field: String,
     },
+}
+
+impl From<VerifyGenesisErrorKind> for VerifyGenesisError {
+    fn from(value: VerifyGenesisErrorKind) -> Self {
+        Self(Box::new(value))
+    }
 }
 
 impl TryFrom<UncheckedGenesisState> for GenesisState {
@@ -75,39 +132,37 @@ impl TryFrom<UncheckedGenesisState> for GenesisState {
 }
 
 /// The unchecked genesis state for the application.
-#[derive(Debug, Deserialize, Serialize)]
-pub(crate) struct UncheckedGenesisState {
-    pub(crate) address_prefixes: AddressPrefixes,
-    pub(crate) accounts: Vec<Account>,
-    pub(crate) authority_sudo_address: Address,
-    pub(crate) ibc_sudo_address: Address,
-    pub(crate) ibc_relayer_addresses: Vec<Address>,
-    pub(crate) native_asset_base_denomination: String,
-    pub(crate) ibc_params: IBCParameters,
-    pub(crate) allowed_fee_assets: Vec<asset::Denom>,
-    pub(crate) fees: Fees,
+#[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+pub struct UncheckedGenesisState {
+    pub address_prefixes: AddressPrefixes,
+    pub accounts: Vec<Account>,
+    pub authority_sudo_address: Address,
+    pub ibc_sudo_address: Address,
+    pub ibc_relayer_addresses: Vec<Address>,
+    pub native_asset_base_denomination: String,
+    pub ibc_params: IBCParameters,
+    pub allowed_fee_assets: Vec<asset::Denom>,
+    pub fees: Fees,
 }
 
 impl UncheckedGenesisState {
-    // allow: as for the enum definition itself: this only happens at init-chain and is negligible
-    #[allow(clippy::result_large_err)]
     fn ensure_address_has_base_prefix(
         &self,
         address: &Address,
         field: &str,
     ) -> Result<(), VerifyGenesisError> {
         if self.address_prefixes.base != address.prefix() {
-            return Err(VerifyGenesisError::AddressDoesNotMatchBase {
+            return Err(VerifyGenesisErrorKind::AddressDoesNotMatchBase {
                 base_prefix: self.address_prefixes.base.clone(),
                 address: *address,
                 field: field.to_string(),
-            });
+            }
+            .into());
         }
         Ok(())
     }
 
-    // allow: as for the enum definition itself: this only happens at init-chain and is negligible
-    #[allow(clippy::result_large_err)]
     fn ensure_all_addresses_have_base_prefix(&self) -> Result<(), VerifyGenesisError> {
         for (i, account) in self.accounts.iter().enumerate() {
             self.ensure_address_has_base_prefix(
@@ -154,33 +209,35 @@ impl From<GenesisState> for UncheckedGenesisState {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub(crate) struct Fees {
-    pub(crate) transfer_base_fee: u128,
-    pub(crate) sequence_base_fee: u128,
-    pub(crate) sequence_byte_cost_multiplier: u128,
-    pub(crate) init_bridge_account_base_fee: u128,
-    pub(crate) bridge_lock_byte_cost_multiplier: u128,
-    pub(crate) bridge_sudo_change_fee: u128,
-    pub(crate) ics20_withdrawal_base_fee: u128,
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+pub struct Fees {
+    pub transfer_base_fee: u128,
+    pub sequence_base_fee: u128,
+    pub sequence_byte_cost_multiplier: u128,
+    pub init_bridge_account_base_fee: u128,
+    pub bridge_lock_byte_cost_multiplier: u128,
+    pub bridge_sudo_change_fee: u128,
+    pub ics20_withdrawal_base_fee: u128,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub(crate) struct Account {
-    pub(crate) address: Address,
-    pub(crate) balance: u128,
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+pub struct Account {
+    pub address: Address,
+    pub balance: u128,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub(crate) struct AddressPrefixes {
-    pub(crate) base: String,
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+pub struct AddressPrefixes {
+    pub base: String,
 }
 
 #[cfg(test)]
-mod test {
-    use astria_core::primitive::v1::Address;
-
+mod tests {
     use super::*;
+    use crate::primitive::v1::Address;
 
     const ASTRIA_ADDRESS_PREFIX: &str = "astria";
 
@@ -265,11 +322,14 @@ mod test {
     fn mismatched_addresses_are_caught() {
         #[track_caller]
         fn assert_bad_prefix(unchecked: UncheckedGenesisState, bad_field: &'static str) {
-            match GenesisState::try_from(unchecked).expect_err(
-                "converting to genesis state should have produced an error, but a valid state was \
-                 returned",
-            ) {
-                VerifyGenesisError::AddressDoesNotMatchBase {
+            match *GenesisState::try_from(unchecked)
+                .expect_err(
+                    "converting to genesis state should have produced an error, but a valid state \
+                     was returned",
+                )
+                .0
+            {
+                VerifyGenesisErrorKind::AddressDoesNotMatchBase {
                     base_prefix,
                     address,
                     field,
@@ -319,6 +379,7 @@ mod test {
         );
     }
 
+    #[cfg(feature = "serde")]
     #[test]
     fn genesis_state_is_unchanged() {
         insta::assert_json_snapshot!(genesis_state());
