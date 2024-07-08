@@ -16,7 +16,6 @@ use astria_eyre::eyre::{
     self,
     bail,
     ensure,
-    eyre,
     OptionExt as _,
     WrapErr as _,
 };
@@ -368,8 +367,7 @@ async fn get_bridge_account_last_transaction_hash(
     let res = tryhard::retry_fn(|| client.get_bridge_account_last_transaction_hash(address))
         .with_config(make_sequencer_retry_config(
             "attempt to fetch last bridge account's transaction hash from Sequencer; retrying \
-             after backoff"
-                .to_string(),
+             after backoff",
         ))
         .await
         .wrap_err(
@@ -390,7 +388,7 @@ async fn get_sequencer_transaction_at_hash(
 ) -> eyre::Result<tx::Response> {
     let res = tryhard::retry_fn(|| client.tx(tx_hash, false))
         .with_config(make_cometbft_retry_config(
-            "attempt to get transaction from CometBFT; retrying after backoff".to_string(),
+            "attempt to get transaction from CometBFT; retrying after backoff",
         ))
         .await
         .wrap_err("failed to get transaction from Sequencer after a lot of attempts");
@@ -407,7 +405,7 @@ async fn get_sequencer_chain_id(
 ) -> eyre::Result<tendermint::chain::Id> {
     let genesis: tendermint::Genesis = tryhard::retry_fn(|| client.genesis())
         .with_config(make_cometbft_retry_config(
-            "attempt to get genesis from CometBFT; retrying after backoff".to_string(),
+            "attempt to get genesis from CometBFT; retrying after backoff",
         ))
         .await
         .wrap_err("failed to get genesis info from Sequencer after a lot of attempts")?;
@@ -424,7 +422,7 @@ async fn get_allowed_fee_asset_ids(
 ) -> eyre::Result<AllowedFeeAssetsResponse> {
     let res = tryhard::retry_fn(|| client.get_allowed_fee_assets())
         .with_config(make_sequencer_retry_config(
-            "attempt to get allowed fee assets from Sequencer; retrying after backoff".to_string(),
+            "attempt to get allowed fee assets from Sequencer; retrying after backoff",
         ))
         .await
         .wrap_err("failed to get allowed fee asset ids from Sequencer after a lot of attempts");
@@ -435,7 +433,7 @@ async fn get_allowed_fee_asset_ids(
 }
 
 fn make_cometbft_retry_config(
-    retry_message: String,
+    retry_message: &'static str,
 ) -> tryhard::RetryFutureConfig<
     ExponentialBackoff,
     impl Fn(u32, Option<Duration>, &tendermint_rpc::Error) -> futures::future::Ready<()>,
@@ -460,7 +458,7 @@ fn make_cometbft_retry_config(
 }
 
 fn make_sequencer_retry_config(
-    retry_message: String,
+    retry_message: &'static str,
 ) -> tryhard::RetryFutureConfig<
     ExponentialBackoff,
     impl Fn(
