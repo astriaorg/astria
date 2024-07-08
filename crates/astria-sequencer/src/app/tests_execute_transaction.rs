@@ -1014,7 +1014,7 @@ async fn app_execute_transaction_bridge_lock_unlock_action_ok() {
         to: alice_address,
         amount,
         fee_asset: asset.clone(),
-        memo: b"lilywashere".to_vec(),
+        memo: "{ \"msg\": \"lilywashere\" }".into(),
         bridge_address: None,
     };
 

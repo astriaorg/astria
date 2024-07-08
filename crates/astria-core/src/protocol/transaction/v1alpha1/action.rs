@@ -1337,7 +1337,7 @@ pub struct BridgeUnlockAction {
     // asset to use for fee payment.
     pub fee_asset: asset::Denom,
     // memo for double spend protection.
-    pub memo: Vec<u8>,
+    pub memo: String,
     // the address of the bridge account to transfer from,
     // if the bridge account's withdrawer address is not the same as the bridge address.
     // if unset, the signer of the transaction is used.
