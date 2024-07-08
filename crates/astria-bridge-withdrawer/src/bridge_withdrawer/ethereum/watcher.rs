@@ -3,6 +3,11 @@ use std::{
     time::Duration,
 };
 
+use astria_bridge_contracts::i_astria_withdrawer::{
+    IAstriaWithdrawer,
+    Ics20WithdrawalFilter,
+    SequencerWithdrawalFilter,
+};
 use astria_core::{
     primitive::v1::{
         asset::{
@@ -50,17 +55,10 @@ use tracing::{
 
 use crate::bridge_withdrawer::{
     batch::Batch,
-    ethereum::{
-        astria_withdrawer_interface::{
-            IAstriaWithdrawer,
-            Ics20WithdrawalFilter,
-            SequencerWithdrawalFilter,
-        },
-        convert::{
-            event_to_action,
-            EventWithMetadata,
-            WithdrawalEvent,
-        },
+    ethereum::convert::{
+        event_to_action,
+        EventWithMetadata,
+        WithdrawalEvent,
     },
     state::State,
     submitter,
@@ -523,6 +521,14 @@ fn address_from_string(s: &str) -> Result<ethers::types::Address> {
 
 #[cfg(test)]
 mod tests {
+    use astria_bridge_contracts::{
+        astria_bridgeable_erc20::AstriaBridgeableERC20,
+        astria_withdrawer::AstriaWithdrawer,
+        i_astria_withdrawer::{
+            Ics20WithdrawalFilter,
+            SequencerWithdrawalFilter,
+        },
+    };
     use astria_core::{
         primitive::v1::{
             asset,
@@ -548,12 +554,6 @@ mod tests {
 
     use super::*;
     use crate::bridge_withdrawer::ethereum::{
-        astria_bridgeable_erc20::AstriaBridgeableERC20,
-        astria_withdrawer::AstriaWithdrawer,
-        astria_withdrawer_interface::{
-            Ics20WithdrawalFilter,
-            SequencerWithdrawalFilter,
-        },
         convert::EventWithMetadata,
         test_utils::{
             ConfigureAstriaBridgeableERC20Deployer,
