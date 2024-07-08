@@ -19,8 +19,12 @@ version: 0.1.0
 
 dependencies:
   - name: evm-rollup
-    version: 0.12.3
+    version: 0.24.0
     repository: "file://../evm-rollup"
+  - name: composer
+    version: 0.1.0
+    repository: "file://../composer"
+    condition: composer.enabled
   - name: evm-faucet
     version: 0.1.0
     repository: "file://../evm-faucet"

@@ -9,7 +9,7 @@ Namepsace to deploy elements into.
 Expand the name of the chart.
 */}}
 {{- define "rollup.name" -}}
-{{- default .Values.config.rollup.name | trunc 63 | trimSuffix "-" }}-astria-dev-cluster
+{{- default .Values.genesis.rollupName | trunc 63 | trimSuffix "-" }}-astria-dev-cluster
 {{- end }}
 
 {{/*
@@ -24,6 +24,23 @@ Selector labels
 */}}
 {{- define "rollup.selectorLabels" -}}
 app: {{ include "rollup.name" . }}
+{{- end }}
+
+{{/*
+The log level represented as a number
+*/}}
+{{- define "rollup.logLevelNum" -}}
+{{- if eq .Values.config.logLevel "error" }}
+1
+{{- else if eq .Values.config.logLevel "warn" }}
+2
+{{- else if eq .Values.config.logLevel "info" }}
+3
+{{- else if eq .Values.config.logLevel "debug" }}
+4
+{{- else if eq .Values.config.logLevel "trace" }}
+5
+{{- end }}
 {{- end }}
 
 {{/*

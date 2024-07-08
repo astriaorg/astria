@@ -1,11 +1,11 @@
 kind: Service
 apiVersion: v1
 metadata:
-  name: {{ .Values.config.rollup.name }}-evm-service
+  name: {{ .Values.genesis.rollupName }}-evm-service
   namespace: {{ include "rollup.namespace" . }}
 spec:
   selector:
-    app: {{ .Values.config.rollup.name }}-astria-dev-cluster
+    app: {{ .Values.genesis.rollupName }}-astria-dev-cluster
   ports:
     - name: json-rpc-svc
       port: {{ .Values.ports.jsonRPC }}
@@ -14,24 +14,21 @@ spec:
       port: {{ .Values.ports.wsRPC }}
       targetPort: ws-rpc
 ---
-{{- if .Values.config.rollup.metrics.enabled }} 
+{{- if .Values.metrics.enabled }}
 kind: Service
 apiVersion: v1
 metadata:
-  name: {{ .Values.config.rollup.name }}-metrics
+  name: {{ .Values.genesis.rollupName }}-metrics
   namespace: {{ include "rollup.namespace" . }}
   labels:
-    app: {{ .Values.config.rollup.name }}-astria-dev-cluster
+    app: {{ .Values.genesis.rollupName }}-astria-dev-cluster
 spec:
   selector:
-    app: {{ .Values.config.rollup.name }}-astria-dev-cluster
+    app: {{ .Values.genesis.rollupName }}-astria-dev-cluster
   ports:
     - name: geth-metr
       port: {{ .Values.ports.metrics }}
       targetPort: geth-metr
-    - name: composer-metr
-      port: {{ .Values.ports.composerMetrics }}
-      targetPort: composer-metr
     - name: conductor-metr
       port: {{ .Values.ports.conductorMetrics }}
       targetPort: conductor-metr

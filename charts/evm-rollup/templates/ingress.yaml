@@ -14,7 +14,7 @@
 apiVersion: {{ include "rollup.ingress.apiVersion" $ }}
 kind: Ingress
 metadata:
-  name: {{ $.Values.config.rollup.name }}-{{ $service }}-ingress
+  name: {{ $.Values.genesis.rollupName }}-{{ $service }}-ingress
   namespace: {{ include "rollup.namespace" $  }}
   labels:
     {{- with $ingress.labels }}

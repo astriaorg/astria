@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ .Values.config.rollup.name }}-conductor-env
+  name: {{ .Values.genesis.rollupName }}-conductor-env
   namespace: {{ include "rollup.namespace" .  }}
 data:
   ASTRIA_CONDUCTOR_LOG: "astria_conductor={{ .Values.config.logLevel }}"
@@ -14,26 +14,25 @@ data:
   {{- end }}
   ASTRIA_CONDUCTOR_CELESTIA_BLOCK_TIME_MS: "12000"
   ASTRIA_CONDUCTOR_EXECUTION_RPC_URL: "http://127.0.0.1:{{ .Values.ports.executionGRPC }}"
-  ASTRIA_CONDUCTOR_EXECUTION_COMMIT_LEVEL: "{{ .Values.config.rollup.executionCommitLevel }}"
-  ASTRIA_CONDUCTOR_INITIAL_SEQUENCER_BLOCK_HEIGHT: "{{ .Values.config.sequencer.initialBlockHeight }}"
-  ASTRIA_CONDUCTOR_SEQUENCER_GRPC_URL: "{{ .Values.config.sequencer.grpc }}"
-  ASTRIA_CONDUCTOR_SEQUENCER_COMETBFT_URL: "{{ .Values.config.sequencer.rpc }}"
-  ASTRIA_CONDUCTOR_SEQUENCER_BLOCK_TIME_MS: "{{ .Values.config.sequencer.blockTimeMs }}"
-  ASTRIA_CONDUCTOR_NO_METRICS: "{{ not .Values.config.rollup.metrics.enabled }}"
+  ASTRIA_CONDUCTOR_EXECUTION_COMMIT_LEVEL: "{{ .Values.config.conductor.executionCommitLevel }}"
+  ASTRIA_CONDUCTOR_SEQUENCER_GRPC_URL: "{{ .Values.config.conductor.sequencerGrpc }}"
+  ASTRIA_CONDUCTOR_SEQUENCER_COMETBFT_URL: "{{ .Values.config.conductor.sequencerRpc }}"
+  ASTRIA_CONDUCTOR_SEQUENCER_BLOCK_TIME_MS: "{{ .Values.config.conductor.sequencerBlockTimeMs }}"
+  ASTRIA_CONDUCTOR_NO_METRICS: "{{ not .Values.metrics.enabled }}"
   ASTRIA_CONDUCTOR_METRICS_HTTP_LISTENER_ADDR: "0.0.0.0:{{ .Values.ports.conductorMetrics }}"
+  ASTRIA_CONDUCTOR_SEQUENCER_REQUESTS_PER_SECOND: "{{ .Values.config.conductor.sequencerRequestsPerSecond }}"
   ASTRIA_CONDUCTOR_FORCE_STDOUT: "{{ .Values.global.useTTY }}"
   ASTRIA_CONDUCTOR_PRETTY_PRINT: "{{ .Values.global.useTTY }}"
   NO_COLOR: "{{ .Values.global.useTTY }}"
-  ASTRIA_CONDUCTOR_NO_OTEL: "{{ not .Values.config.rollup.otel.enabled }}"
+  ASTRIA_CONDUCTOR_NO_OTEL: "{{ not .Values.otel.enabled }}"
   ASTRIA_CONDUCTOR_CELESTIA_BEARER_TOKEN: "{{ .Values.config.celestia.token }}"
-  OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.config.rollup.otel.endpoint }}"
-  OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "{{ .Values.config.rollup.otel.tracesEndpoint }}"
-  OTEL_EXPORTER_OTLP_TRACES_TIMEOUT: "{{ .Values.config.rollup.otel.tracesTimeout }}"
-  OTEL_EXPORTER_OTLP_TRACES_COMPRESSION: "{{ .Values.config.rollup.otel.tracesCompression }}"
-  OTEL_EXPORTER_OTLP_HEADERS: "{{ .Values.config.rollup.otel.otlpHeaders }}"
-  OTEL_EXPORTER_OTLP_TRACE_HEADERS: "{{ .Values.config.rollup.otel.traceHeaders }}"
-  OTEL_SERVICE_NAME: "{{ tpl .Values.config.rollup.otel.serviceNamePrefix . }}-conductor"
-  ASTRIA_CONDUCTOR_SEQUENCER_REQUESTS_PER_SECOND: "500"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.otel.endpoint }}"
+  OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "{{ .Values.otel.tracesEndpoint }}"
+  OTEL_EXPORTER_OTLP_TRACES_TIMEOUT: "{{ .Values.otel.tracesTimeout }}"
+  OTEL_EXPORTER_OTLP_TRACES_COMPRESSION: "{{ .Values.otel.tracesCompression }}"
+  OTEL_EXPORTER_OTLP_HEADERS: "{{ .Values.otel.otlpHeaders }}"
+  OTEL_EXPORTER_OTLP_TRACE_HEADERS: "{{ .Values.otel.traceHeaders }}"
+  OTEL_SERVICE_NAME: "{{ tpl .Values.otel.serviceNamePrefix . }}-conductor"
   {{- if not .Values.global.dev }}
   {{- else }}
   {{- end }}
@@ -41,51 +40,16 @@ data:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ .Values.config.rollup.name }}-composer-env
-  namespace: {{ include "rollup.namespace" .  }}
-data:
-  ASTRIA_COMPOSER_LOG: "astria_composer={{ .Values.config.logLevel }}"
-  ASTRIA_COMPOSER_API_LISTEN_ADDR: "0.0.0.0:{{ .Values.ports.composerHealthAPI }}"
-  ASTRIA_COMPOSER_GRPC_ADDR: "0.0.0.0:{{ .Values.ports.composerGRPC }}"
-  ASTRIA_COMPOSER_SEQUENCER_CHAIN_ID: "{{ .Values.config.sequencer.chainId }}"
-  ASTRIA_COMPOSER_SEQUENCER_URL: "{{ .Values.config.sequencer.rpc }}"
-  ASTRIA_COMPOSER_ROLLUPS: "{{ .Values.config.rollup.name }}::ws://127.0.0.1:{{ .Values.ports.wsRPC }}"
-  ASTRIA_COMPOSER_PRIVATE_KEY_FILE: "/var/secrets/{{ .Values.config.sequencer.privateKey.secret.filename }}"
-  ASTRIA_COMPOSER_MAX_BYTES_PER_BUNDLE: "{{ .Values.config.rollup.maxBytesPerBundle }}"
-  ASTRIA_COMPOSER_BUNDLE_QUEUE_CAPACITY: "{{ .Values.config.rollup.bundleQueueCapacity }}"
-  ASTRIA_COMPOSER_MAX_SUBMIT_INTERVAL_MS: "{{ .Values.config.rollup.maxSubmitInterval }}"
-  ASTRIA_COMPOSER_SEQUENCER_ADDRESS_PREFIX: "{{ .Values.config.sequencer.addressPrefixes.base }}"
-  ASTRIA_COMPOSER_FEE_ASSET: "{{ .Values.config.sequencer.nativeAssetBaseDenomination }}"
-  ASTRIA_COMPOSER_NO_METRICS: "{{ not .Values.config.rollup.metrics.enabled }}"
-  ASTRIA_COMPOSER_METRICS_HTTP_LISTENER_ADDR: "0.0.0.0:{{ .Values.ports.composerMetrics }}"
-  ASTRIA_COMPOSER_FORCE_STDOUT: "{{ .Values.global.useTTY }}"
-  ASTRIA_COMPOSER_PRETTY_PRINT: "{{ .Values.global.useTTY }}"
-  NO_COLOR: "{{ .Values.global.useTTY }}"
-  ASTRIA_COMPOSER_NO_OTEL: "{{ not .Values.config.rollup.otel.enabled }}"
-  OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.config.rollup.otel.endpoint }}"
-  OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "{{ .Values.config.rollup.otel.tracesEndpoint }}"
-  OTEL_EXPORTER_OTLP_TRACES_TIMEOUT: "{{ .Values.config.rollup.otel.tracesTimeout }}"
-  OTEL_EXPORTER_OTLP_TRACES_COMPRESSION: "{{ .Values.config.rollup.otel.tracesCompression }}"
-  OTEL_EXPORTER_OTLP_HEADERS: "{{ .Values.config.rollup.otel.otlpHeaders }}"
-  OTEL_EXPORTER_OTLP_TRACE_HEADERS: "{{ .Values.config.rollup.otel.traceHeaders }}"
-  OTEL_SERVICE_NAME: "{{ tpl .Values.config.rollup.otel.serviceNamePrefix . }}-composer"
-  {{- if not .Values.global.dev }}
-  {{- else }}
-  {{- end }}
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: {{ .Values.config.rollup.name }}-geth-env
+  name: {{ .Values.genesis.rollupName }}-geth-env
   namespace: {{ include "rollup.namespace" .  }}
 data:
   home_dir: "/home/geth"
-  data_dir: "/home/geth/{{ .Values.config.rollup.name }}geth"
+  data_dir: "/home/geth/{{ .Values.genesis.rollupName }}geth"
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ .Values.config.rollup.name }}-executor-scripts
+  name: {{ .Values.genesis.rollupName }}-executor-scripts
   namespace: {{ include "rollup.namespace" .  }}
 data:
   geth-genesis.json: |

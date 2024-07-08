@@ -1,0 +1,29 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: composer-service
+  namespace: {{ include "composer.namespace" . }}
+spec:
+  selector:
+    app: composer
+  ports:
+    - name: grpc
+      port: {{ .Values.ports.grpc }}
+      targetPort: grpc
+---
+{{- if .Values.metrics.enabled }}
+kind: Service
+apiVersion: v1
+metadata:
+  name: metrics
+  namespace: {{ include "composer.namespace" . }}
+  labels:
+    app: composer
+spec:
+  selector:
+    app: composer
+  ports:
+    - name: metrics
+      port: {{ .Values.ports.metrics }}
+      targetPort: geth-metr
+{{- end }}

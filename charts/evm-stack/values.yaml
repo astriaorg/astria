@@ -10,13 +10,13 @@ global:
   dev: true
 
 evm-rollup:
-  config:
+  enabled: true
 
 evm-faucet:
-  enabled: true
+  enabled: false
 
 blockscout-stack:
-  enabled: true
+  enabled: false
   config:
     id: 1337
     name: Astria
