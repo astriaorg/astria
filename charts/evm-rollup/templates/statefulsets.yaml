@@ -20,10 +20,10 @@ spec:
         {{- if .Values.config.geth.purgeMempool }}
         - name: purge-mempool
           image: {{ include "rollup.image" . }}
-          command: [ "sh", "-c", "rm -f $data_dir/geth/transactions.rlp" ]
-          envFrom:
-            - configMapRef:
-                name: {{ .Values.genesis.rollupName }}-geth-env
+          command: [ "sh", "-c", "rm" ]
+          args:
+            - -f
+            - {{ include "rollup.gethDataDir" . }}/geth/transactions.rlp
           volumeMounts:
             - mountPath: /home/geth
               name: {{ $.Values.genesis.rollupName }}-rollup-shared-storage-vol
@@ -32,15 +32,15 @@ spec:
         - name: init-geth
           command: [ "/scripts/init-geth.sh" ]
           image: {{ include "rollup.image" . }}
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.genesis.rollupName }}-geth-env
           volumeMounts:
             - mountPath: /scripts/
               name: {{ .Values.genesis.rollupName }}-executor-scripts-volume
             - mountPath: /home/geth
               name: {{ $.Values.genesis.rollupName }}-rollup-shared-storage-vol
               subPath: {{ .Values.genesis.rollupName }}/executor
-          envFrom:
-            - configMapRef:
-                name: {{ .Values.genesis.rollupName }}-geth-env
       containers:
         - name: geth
           command: [ "geth" ]
@@ -58,9 +58,6 @@ spec:
             - mountPath: /home/geth
               name: {{ $.Values.genesis.rollupName }}-rollup-shared-storage-vol
               subPath: {{ .Values.genesis.rollupName }}/executor
-          envFrom:
-            - configMapRef:
-                name: {{ .Values.genesis.rollupName }}-geth-env
           ports:
             - containerPort: {{ .Values.ports.jsonRPC }}
               name: json-rpc

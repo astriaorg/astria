@@ -7,7 +7,7 @@ if [ ! -d "$data_dir/" ]; then
 
   cp /scripts/geth-genesis.json $home_dir/genesis.json
 
-  exec geth --datadir "$data_dir/" \
+  exec geth \
     {{- range $arg := .Values.config.geth.flags -}}
     {{- if $arg.condition | default true -}}
     --{{ $arg.name }}{{ if $arg.value }}={{ tpl $arg.value $ }}{{ end }} \

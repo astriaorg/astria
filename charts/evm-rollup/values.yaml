@@ -76,7 +76,7 @@ genesis:
 
   ## Standard Eth Genesis config values
   # An EVM chain number id, different from the astria rollup name
-  chainID: ""
+  chainId: ""
   # Configuration of Eth forks, setting to 0 will enable from height,
   # left as is these forks will not activate.
   cancunTime: ""
@@ -109,6 +109,10 @@ config:
     # Set to true to clear the mempool on startup/restart
     purgeMempool: false
     flags:
+      - name: datadir
+        value: '{{ include "rollup.gethDataDir" . }}'
+      - name: networkid
+        value: "{{ .Values.genesis.chainId }}"
       - name: http
       - name: http.addr
         value: 0.0.0.0

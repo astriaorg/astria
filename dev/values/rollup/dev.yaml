@@ -58,7 +58,7 @@ evm-rollup:
 
     ## Standard Eth Genesis config values
     # An EVM chain number id, different from the astria rollup name
-    chainID: "1337"
+    chainId: "1337"
     # Configuration of Eth forks, setting to 0 will enable from height,
     # left as is these forks will not activate.
     cancunTime: ""
@@ -140,9 +140,13 @@ evm-rollup:
 composer:
   enabled: true
   config:
+    sequencerChainId: sequencer-test-chain-0
     sequencerRpc: "http://node0-sequencer-rpc-service.astria-dev-cluster.svc.cluster.local:26657"
     privateKey:
       devContent: "2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90"
+    rollups:
+      - name: "astria"
+        wsRpc: "ws://astria-evm-service.astria-dev-cluster.svc.cluster.local:8546"
 
 evm-faucet:
   enabled: true

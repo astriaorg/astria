@@ -31,9 +31,9 @@
         "astriaExtraDataOverride": "{{ .Values.genesis.extraDataOverride }}",
         {{- end }}
         "astriaOverrideGenesisExtraData": {{ .Values.genesis.overrideGenesisExtraData }},
-        "astriaSequencerInitialHeight": {{ toString .Values.genesis.sequencerInitialBlockHeight | replace "\"" "" }},
+        "astriaSequencerInitialHeight": {{ toString .Values.genesis.sequencerInitialHeight | replace "\"" "" }},
         "astriaRollupName": "{{ .Values.genesis.rollupName }}",
-        "astriaCelestiaInitialHeight": {{ toString .Values.genesis.celestiainitialBlockHeight | replace "\"" "" }},
+        "astriaCelestiaInitialHeight": {{ toString .Values.genesis.celestiaInitialHeight | replace "\"" "" }},
         "astriaCelestiaHeightVariance": {{ toString .Values.genesis.celestiaHeightVariance | replace "\"" "" }},
         "astriaBridgeAddresses": {{ toPrettyJson .Values.genesis.bridgeAddresses | indent 8 | trim }},
         "astriaFeeCollectors": {{ toPrettyJson .Values.genesis.feeCollectors | indent 8 | trim }},

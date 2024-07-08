@@ -7,24 +7,27 @@ global:
 
 images:
   composer:
-    repository: "ghcr.io/astroprotocol/astria-composer"
-    tag: 0.8.0
+    repo: ghcr.io/astriaorg/composer
+    tag: "0.8.0"
     devTag: latest
 
 config:
   logLevel: "debug"
-  maxBytesPerBundle: 1000000
-  bundleQueueCapacity: 100
-  maxSubmitInterval: 1000
+  maxBytesPerBundle: 200000
+  bundleQueueCapacity: 40000
+  maxSubmitInterval: 2000
   sequencerAddressPrefix: astria
   sequencerNativeAssetBaseDenomination: "nria"
   sequencerRpc: ""
-  sequencerChainId: "astria"
+  sequencerChainId: ""
   privateKey:
     devContent: ""
     secret:
       filename: "key.hex"
       resourceName: "projects/$PROJECT_ID/secrets/sequencerPrivateKey/versions/latest"
+  rollups:
+    - name: "astria"
+      wsRpc: "ws://"
 
 otel:
   enabled: false

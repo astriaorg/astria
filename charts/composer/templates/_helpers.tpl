@@ -20,3 +20,7 @@ Rollup config string
 {{- if $index }},{{- end }}{{- include "composer.rollupDefinition" $element }}
 {{- end }}
 {{- end }}
+
+{{- define "composer.image" -}}
+{{ .Values.images.composer.repo }}:{{ if .Values.global.dev }}{{ .Values.images.composer.devTag }}{{ else }}{{ .Values.images.composer.tag }}{{ end }}
+{{- end }}

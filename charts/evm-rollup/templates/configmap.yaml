@@ -43,8 +43,8 @@ metadata:
   name: {{ .Values.genesis.rollupName }}-geth-env
   namespace: {{ include "rollup.namespace" .  }}
 data:
-  home_dir: "/home/geth"
-  data_dir: "/home/geth/{{ .Values.genesis.rollupName }}geth"
+  home_dir: '{{ include "rollup.gethHomeDir" .  }}'
+  data_dir: '{{ include "rollup.gethDataDir" .  }}'
 ---
 apiVersion: v1
 kind: ConfigMap

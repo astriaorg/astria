@@ -90,3 +90,11 @@ Return the appropriate apiVersion for ingress.
 {{- print "extensions/v1beta1" }}
 {{- end }}
 {{- end }}
+
+{{- define "rollup.gethHomeDir" -}}
+/home/geth
+{{- end }}
+
+{{- define "rollup.gethDataDir" -}}
+{{ include "rollup.gethHomeDir" . }}/{{ .Values.genesis.rollupName }}
+{{- end }}
