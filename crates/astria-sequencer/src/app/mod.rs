@@ -516,6 +516,8 @@ impl App {
                 .fold(0usize, |acc, seq| acc.saturating_add(seq.data.len()));
 
             if !block_size_constraints.sequencer_has_space(tx_sequence_data_bytes) {
+                self.metrics
+                    .increment_prepare_proposal_excluded_transactions_sequencer_space();
                 debug!(
                     transaction_hash = %tx_hash_base64,
                     block_size_constraints = %json(&block_size_constraints),
@@ -545,13 +547,13 @@ impl App {
                     included_signed_txs.push((*tx).clone());
                 }
                 Err(e) => {
-                    self.metrics.increment_check_tx_removed_failed_execution();
+                    self.metrics
+                        .increment_prepare_proposal_excluded_transactions_failed_execution();
                     debug!(
                         transaction_hash = %tx_hash_base64,
                         error = AsRef::<dyn std::error::Error>::as_ref(&e),
                         "failed to execute transaction, not including in block"
                     );
-                    failed_tx_count = failed_tx_count.saturating_add(1);
 
                     if e.downcast_ref::<InvalidNonce>().is_some() {
                         // we re-insert the tx into the mempool if it failed to execute
@@ -560,6 +562,8 @@ impl App {
                         // removed from the mempool in `update_mempool_after_finalization`.
                         txs_to_readd_to_mempool.push((enqueued_tx, priority));
                     } else {
+                        failed_tx_count = failed_tx_count.saturating_add(1);
+
                         // the transaction should be removed from the cometbft mempool
                         self.mempool
                             .track_removal_comet_bft(
@@ -579,6 +583,11 @@ impl App {
                 "excluded transactions from block due to execution failure"
             );
         }
+        self.metrics.set_prepare_proposal_excluded_transactions(
+            txs_to_readd_to_mempool
+                .len()
+                .saturating_add(failed_tx_count),
+        );
 
         self.mempool.insert_all(txs_to_readd_to_mempool).await;
         let mempool_len = self.mempool.len().await;
@@ -626,8 +635,6 @@ impl App {
                 .fold(0usize, |acc, seq| acc.saturating_add(seq.data.len()));
 
             if !block_size_constraints.sequencer_has_space(tx_sequence_data_bytes) {
-                self.metrics
-                    .increment_prepare_proposal_excluded_transactions_sequencer_space();
                 debug!(
                     transaction_hash = %telemetry::display::base64(&tx_hash),
                     block_size_constraints = %json(&block_size_constraints),
@@ -653,8 +660,6 @@ impl App {
                         .context("error growing cometBFT block size")?;
                 }
                 Err(e) => {
-                    self.metrics
-                        .increment_prepare_proposal_excluded_transactions_failed_execution();
                     debug!(
                         transaction_hash = %telemetry::display::base64(&tx_hash),
                         error = AsRef::<dyn std::error::Error>::as_ref(&e),
@@ -666,8 +671,6 @@ impl App {
         }
 
         if excluded_tx_count > 0.0 {
-            self.metrics
-                .set_prepare_proposal_excluded_transactions(excluded_tx_count);
             info!(
                 excluded_tx_count = excluded_tx_count,
                 included_tx_count = execution_results.len(),
