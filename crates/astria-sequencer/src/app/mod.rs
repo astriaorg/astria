@@ -14,6 +14,7 @@ use std::{
 
 use anyhow::{
     anyhow,
+    bail,
     ensure,
     Context,
 };
@@ -69,6 +70,7 @@ use crate::{
     },
     address::StateWriteExt as _,
     api_state_ext::StateWriteExt as _,
+    asset::state_ext::StateWriteExt as _,
     authority::{
         component::{
             AuthorityComponent,
@@ -220,6 +222,15 @@ impl App {
         state_tx.put_base_prefix(&genesis_state.address_prefixes().base);
 
         crate::asset::initialize_native_asset(genesis_state.native_asset_base_denomination());
+        let native_asset = crate::asset::get_native_asset();
+        if let Some(trace_native_asset) = native_asset.as_trace_prefixed() {
+            state_tx
+                .put_ibc_asset(trace_native_asset)
+                .context("failed to put native asset")?;
+        } else {
+            bail!("native asset must not be in ibc/<ID> form")
+        }
+
         state_tx.put_native_asset_denom(genesis_state.native_asset_base_denomination());
         state_tx.put_chain_id_and_revision_number(chain_id.try_into().context("invalid chain ID")?);
         state_tx.put_block_height(0);
