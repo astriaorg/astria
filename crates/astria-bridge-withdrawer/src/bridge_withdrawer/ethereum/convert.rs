@@ -1,5 +1,9 @@
 use std::time::Duration;
 
+use astria_bridge_contracts::i_astria_withdrawer::{
+    Ics20WithdrawalFilter,
+    SequencerWithdrawalFilter,
+};
 use astria_core::{
     bridge::Ics20WithdrawalFromRollupMemo,
     primitive::v1::{
@@ -30,11 +34,6 @@ use ibc_types::core::client::Height as IbcHeight;
 use serde::{
     Deserialize,
     Serialize,
-};
-
-use crate::bridge_withdrawer::ethereum::astria_withdrawer_interface::{
-    Ics20WithdrawalFilter,
-    SequencerWithdrawalFilter,
 };
 
 #[derive(Debug, PartialEq, Eq)]
@@ -197,8 +196,9 @@ fn calculate_packet_timeout_time(timeout_delta: Duration) -> eyre::Result<u64> {
 
 #[cfg(test)]
 mod tests {
+    use astria_bridge_contracts::i_astria_withdrawer::SequencerWithdrawalFilter;
+
     use super::*;
-    use crate::bridge_withdrawer::ethereum::astria_withdrawer_interface::SequencerWithdrawalFilter;
 
     fn default_native_asset() -> asset::Denom {
         "nria".parse().unwrap()
