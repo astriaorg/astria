@@ -1,4 +1,3 @@
-pub(crate) mod rollup;
 pub(crate) mod sequencer;
 
 use clap::{
@@ -7,10 +6,7 @@ use clap::{
 };
 use color_eyre::eyre;
 
-use crate::cli::{
-    rollup::Command as RollupCommand,
-    sequencer::Command as SequencerCommand,
-};
+use crate::cli::sequencer::Command as SequencerCommand;
 
 const DEFAULT_SEQUENCER_RPC: &str = "https://rpc.sequencer.dusk-7.devnet.astria.org";
 const DEFAULT_SEQUENCER_CHAIN_ID: &str = "astria-dusk-7";
@@ -38,10 +34,6 @@ impl Cli {
 /// Commands that can be run
 #[derive(Debug, Subcommand)]
 pub enum Command {
-    Rollup {
-        #[command(subcommand)]
-        command: RollupCommand,
-    },
     Sequencer {
         #[command(subcommand)]
         command: SequencerCommand,

@@ -2,7 +2,6 @@ use super::raw;
 use crate::primitive::v1::asset::{
     self,
     Denom,
-    IncorrectAssetIdLength,
     ParseDenomError,
 };
 
@@ -88,102 +87,99 @@ impl raw::DenomResponse {
 
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
-pub struct AllowedFeeAssetIdsResponseError(AllowedFeeAssetIdsResponseErrorKind);
+pub struct AllowedFeeAssetsResponseError(AllowedFeeAssetsResponseErrorKind);
 
 #[derive(Debug, thiserror::Error)]
-enum AllowedFeeAssetIdsResponseErrorKind {
-    #[error("failed to convert asset ID")]
-    IncorrectAssetIdLength(#[source] IncorrectAssetIdLength),
+enum AllowedFeeAssetsResponseErrorKind {
+    #[error("failed to parse assets as IBC ICS20 denom")]
+    IncorrectAsset(#[source] ParseDenomError),
 }
 
-impl AllowedFeeAssetIdsResponseError {
-    fn incorrect_asset_id_length(inner: IncorrectAssetIdLength) -> Self {
-        Self(AllowedFeeAssetIdsResponseErrorKind::IncorrectAssetIdLength(
-            inner,
-        ))
+impl AllowedFeeAssetsResponseError {
+    fn incorrect_asset(inner: ParseDenomError) -> Self {
+        Self(AllowedFeeAssetsResponseErrorKind::IncorrectAsset(inner))
     }
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct AllowedFeeAssetIdsResponse {
+pub struct AllowedFeeAssetsResponse {
     pub height: u64,
-    pub fee_asset_ids: Vec<asset::Id>,
+    pub fee_assets: Vec<asset::Denom>,
 }
 
-impl AllowedFeeAssetIdsResponse {
-    /// Converts a protobuf [`raw::AllowedFeeAssetIdsResponse`] to an astria
-    /// native [`AllowedFeeAssetIdsResponse`].
+impl AllowedFeeAssetsResponse {
+    /// Converts a protobuf [`raw::AllowedFeeAssetsResponse`] to an astria
+    /// native [`AllowedFeeAssetsResponse`].
     ///
     /// # Errors
-    /// - If one of the serialized asset IDs cannot be converted to a [`asset::Id`].
+    /// - If one of the fee asset strings cannot be parsed as an [`asset::Denom`].
     pub fn try_from_raw(
-        proto: &raw::AllowedFeeAssetIdsResponse,
-    ) -> Result<Self, AllowedFeeAssetIdsResponseError> {
-        let raw::AllowedFeeAssetIdsResponse {
+        proto: &raw::AllowedFeeAssetsResponse,
+    ) -> Result<Self, AllowedFeeAssetsResponseError> {
+        let raw::AllowedFeeAssetsResponse {
             height,
-            fee_asset_ids,
+            fee_assets,
         } = proto;
-        let mut assets: Vec<asset::Id> = Vec::new();
+        let mut assets: Vec<asset::Denom> = Vec::new();
 
-        for raw_id in fee_asset_ids {
-            let native_id = asset::Id::try_from_slice(raw_id)
-                .map_err(AllowedFeeAssetIdsResponseError::incorrect_asset_id_length)?;
-            assets.push(native_id);
+        for s in fee_assets {
+            let native = s
+                .parse()
+                .map_err(AllowedFeeAssetsResponseError::incorrect_asset)?;
+            assets.push(native);
         }
 
         Ok(Self {
             height: *height,
-            fee_asset_ids: assets,
+            fee_assets: assets,
         })
     }
 
-    /// Converts an astria native [`AllowedFeeAssetIdsResponse`] to a
-    /// protobuf [`raw::AllowedFeeAssetIdsResponse`].
+    /// Converts an astria native [`AllowedFeeAssetsResponse`] to a
+    /// protobuf [`raw::AllowedFeeAssetsResponse`].
     #[must_use]
-    pub fn into_raw(self) -> raw::AllowedFeeAssetIdsResponse {
-        raw::AllowedFeeAssetIdsResponse::from_native(self)
+    pub fn into_raw(self) -> raw::AllowedFeeAssetsResponse {
+        raw::AllowedFeeAssetsResponse::from_native(self)
     }
 }
 
-impl raw::AllowedFeeAssetIdsResponse {
-    /// Converts an astria native [`AllowedFeeAssetIdsResponse`] to a
-    /// protobuf [`raw::AllowedFeeAssetIdsResponse`].
+impl raw::AllowedFeeAssetsResponse {
+    /// Converts an astria native [`AllowedFeeAssetsResponse`] to a
+    /// protobuf [`raw::AllowedFeeAssetsResponse`].
     #[must_use]
-    pub fn from_native(native: AllowedFeeAssetIdsResponse) -> Self {
-        let AllowedFeeAssetIdsResponse {
+    pub fn from_native(native: AllowedFeeAssetsResponse) -> Self {
+        let AllowedFeeAssetsResponse {
             height,
-            fee_asset_ids,
+            fee_assets,
         } = native;
-        let raw_assets = fee_asset_ids
+        let fee_assets = fee_assets
             .into_iter()
-            .map(|id| id.as_ref().to_vec().into())
+            .map(|denom| denom.to_string())
             .collect();
         Self {
             height,
-            fee_asset_ids: raw_assets,
+            fee_assets,
         }
     }
 
-    /// Converts a protobuf [`raw::AllowedFeeAssetIdsResponse`] to an astria
-    /// native [`AllowedFeeAssetIdsResponse`].
+    /// Converts a protobuf [`raw::AllowedFeeAssetsResponse`] to an astria
+    /// native [`AllowedFeeAssetsResponse`].
     ///
     /// # Errors
-    /// - If one of the serialized asset IDs cannot be converted to a [`asset::Id`].
+    /// - If one of the assets  cannot be parsed as an [`asset::Denom`].
     pub fn try_into_native(
         self,
-    ) -> Result<AllowedFeeAssetIdsResponse, AllowedFeeAssetIdsResponseError> {
-        AllowedFeeAssetIdsResponse::try_from_raw(&self)
+    ) -> Result<AllowedFeeAssetsResponse, AllowedFeeAssetsResponseError> {
+        AllowedFeeAssetsResponse::try_from_raw(&self)
     }
 
-    /// Converts a protobuf [`raw::AllowedFeeAssetIdsResponse`] to an astria
-    /// native [`AllowedFeeAssetIdsResponse`] by allocating a new
-    /// [`v1alpha1::AllowedFeeAssetIdsResponse`].
+    /// Converts a protobuf [`raw::AllowedFeeAssetsResponse`] to an astria
+    /// native [`AllowedFeeAssetsResponse`] by allocating a new
+    /// [`v1alpha1::AllowedFeeAssetsResponse`].
     ///
     /// # Errors
-    /// - If one of the serialized asset IDs cannot be converted to a [`asset::Id`].
-    pub fn try_to_native(
-        &self,
-    ) -> Result<AllowedFeeAssetIdsResponse, AllowedFeeAssetIdsResponseError> {
+    /// - If one of the assets  cannot be parsed as an [`asset::Denom`].
+    pub fn try_to_native(&self) -> Result<AllowedFeeAssetsResponse, AllowedFeeAssetsResponseError> {
         self.clone().try_into_native()
     }
 }
@@ -232,61 +228,43 @@ mod tests {
     }
 
     #[test]
-    fn allowed_fee_asset_ids_try_from_raw_is_correct() {
-        let raw = raw::AllowedFeeAssetIdsResponse {
+    fn allowed_fee_assets_try_from_raw_is_correct() {
+        let raw = raw::AllowedFeeAssetsResponse {
             height: 42,
-            fee_asset_ids: vec![
-                asset::Id::from_str_unchecked("asset_0")
-                    .get()
-                    .to_vec()
-                    .into(),
-                asset::Id::from_str_unchecked("asset_1")
-                    .get()
-                    .to_vec()
-                    .into(),
-                asset::Id::from_str_unchecked("asset_2")
-                    .get()
-                    .to_vec()
-                    .into(),
+            fee_assets: vec![
+                "asset_0".to_string(),
+                "asset_1".to_string(),
+                "asset_2".to_string(),
             ],
         };
-        let expected = AllowedFeeAssetIdsResponse {
+        let expected = AllowedFeeAssetsResponse {
             height: 42,
-            fee_asset_ids: vec![
-                asset::Id::from_str_unchecked("asset_0"),
-                asset::Id::from_str_unchecked("asset_1"),
-                asset::Id::from_str_unchecked("asset_2"),
+            fee_assets: vec![
+                "asset_0".parse().unwrap(),
+                "asset_1".parse().unwrap(),
+                "asset_2".parse().unwrap(),
             ],
         };
-        let actual = AllowedFeeAssetIdsResponse::try_from_raw(&raw).unwrap();
+        let actual = AllowedFeeAssetsResponse::try_from_raw(&raw).unwrap();
         assert_eq!(expected, actual);
     }
 
     #[test]
-    fn allowed_fee_asset_ids_into_raw_is_correct() {
-        let native = AllowedFeeAssetIdsResponse {
+    fn allowed_fee_assets_into_raw_is_correct() {
+        let native = AllowedFeeAssetsResponse {
             height: 42,
-            fee_asset_ids: vec![
-                asset::Id::from_str_unchecked("asset_0"),
-                asset::Id::from_str_unchecked("asset_1"),
-                asset::Id::from_str_unchecked("asset_2"),
+            fee_assets: vec![
+                "asset_0".parse().unwrap(),
+                "asset_1".parse().unwrap(),
+                "asset_2".parse().unwrap(),
             ],
         };
-        let expected = raw::AllowedFeeAssetIdsResponse {
+        let expected = raw::AllowedFeeAssetsResponse {
             height: 42,
-            fee_asset_ids: vec![
-                asset::Id::from_str_unchecked("asset_0")
-                    .get()
-                    .to_vec()
-                    .into(),
-                asset::Id::from_str_unchecked("asset_1")
-                    .get()
-                    .to_vec()
-                    .into(),
-                asset::Id::from_str_unchecked("asset_2")
-                    .get()
-                    .to_vec()
-                    .into(),
+            fee_assets: vec![
+                "asset_0".to_string(),
+                "asset_1".to_string(),
+                "asset_2".to_string(),
             ],
         };
         let actual = native.into_raw();
@@ -294,13 +272,13 @@ mod tests {
     }
 
     #[test]
-    fn allowed_fee_asset_ids_roundtrip_is_correct() {
-        let native = AllowedFeeAssetIdsResponse {
+    fn allowed_fee_assets_roundtrip_is_correct() {
+        let native = AllowedFeeAssetsResponse {
             height: 42,
-            fee_asset_ids: vec![
-                asset::Id::from_str_unchecked("asset_0"),
-                asset::Id::from_str_unchecked("asset_1"),
-                asset::Id::from_str_unchecked("asset_2"),
+            fee_assets: vec![
+                "asset_0".parse().unwrap(),
+                "asset_1".parse().unwrap(),
+                "asset_2".parse().unwrap(),
             ],
         };
         let expected = native.clone();

@@ -30,7 +30,3 @@ which = { workspace = true }
 package = "astria-sequencer-client"
 path = "../astria-sequencer-client"
 features = ["http"]
-
-[dev-dependencies]
-assert_cmd = "2.0.12"
-test-utils = { path = "./test-utils" }

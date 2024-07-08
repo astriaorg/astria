@@ -47,9 +47,9 @@ impl ActionHandler for BridgeLockAction {
     ) -> Result<()> {
         let transfer_action = TransferAction {
             to: self.to,
-            asset_id: self.asset_id,
+            asset: self.asset.clone(),
             amount: self.amount,
-            fee_asset_id: self.fee_asset_id,
+            fee_asset: self.fee_asset.clone(),
         };
 
         // ensure the recipient is a bridge account.
@@ -59,17 +59,17 @@ impl ActionHandler for BridgeLockAction {
             .context("failed to get bridge account rollup id")?
             .ok_or_else(|| anyhow::anyhow!("bridge lock must be sent to a bridge account"))?;
 
-        let allowed_asset_id = state
-            .get_bridge_account_asset_id(&self.to)
+        let allowed_asset = state
+            .get_bridge_account_ibc_asset(&self.to)
             .await
             .context("failed to get bridge account asset ID")?;
         ensure!(
-            allowed_asset_id == self.asset_id,
+            allowed_asset == self.asset.to_ibc_prefixed(),
             "asset ID is not authorized for transfer to bridge account",
         );
 
         let from_balance = state
-            .get_account_balance(from, self.fee_asset_id)
+            .get_account_balance(from, &self.fee_asset)
             .await
             .context("failed to get sender account balance")?;
         let transfer_fee = state
@@ -81,7 +81,7 @@ impl ActionHandler for BridgeLockAction {
             self.to,
             rollup_id,
             self.amount,
-            self.asset_id,
+            self.asset.clone(),
             self.destination_chain_address.clone(),
         );
 
@@ -102,9 +102,9 @@ impl ActionHandler for BridgeLockAction {
     async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> Result<()> {
         let transfer_action = TransferAction {
             to: self.to,
-            asset_id: self.asset_id,
+            asset: self.asset.clone(),
             amount: self.amount,
-            fee_asset_id: self.fee_asset_id,
+            fee_asset: self.fee_asset.clone(),
         };
 
         transfer_action
@@ -122,7 +122,7 @@ impl ActionHandler for BridgeLockAction {
             self.to,
             rollup_id,
             self.amount,
-            self.asset_id,
+            self.asset.clone(),
             self.destination_chain_address.clone(),
         );
 
@@ -135,7 +135,7 @@ impl ActionHandler for BridgeLockAction {
         let fee = byte_cost_multiplier.saturating_mul(get_deposit_byte_len(&deposit));
 
         state
-            .decrease_balance(from, self.fee_asset_id, fee)
+            .decrease_balance(from, &self.fee_asset, fee)
             .await
             .context("failed to deduct fee from account balance")?;
 
@@ -155,7 +155,7 @@ pub(crate) fn get_deposit_byte_len(deposit: &Deposit) -> u128 {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use astria_core::primitive::v1::{
         asset,
         RollupId,
@@ -163,6 +163,14 @@ mod test {
     use cnidarium::StateDelta;
 
     use super::*;
+    use crate::{
+        bridge::state_ext::StateWriteExt,
+        state_ext::StateWriteExt as _,
+    };
+
+    fn test_asset() -> asset::Denom {
+        "test".parse().unwrap()
+    }
 
     #[tokio::test]
     async fn bridge_lock_check_stateful_fee_calc() {
@@ -174,27 +182,27 @@ mod test {
         state.put_bridge_lock_byte_cost_multiplier(2);
 
         let bridge_address = crate::address::base_prefixed([1; 20]);
-        let asset_id = asset::Id::from_str_unchecked("test");
+        let asset = test_asset();
         let bridge_lock = BridgeLockAction {
             to: bridge_address,
-            asset_id,
+            asset: asset.clone(),
             amount: 100,
-            fee_asset_id: asset_id,
+            fee_asset: asset.clone(),
             destination_chain_address: "someaddress".to_string(),
         };
 
         let rollup_id = RollupId::from_unhashed_bytes(b"test_rollup_id");
         state.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
         state
-            .put_bridge_account_asset_id(&bridge_address, &asset_id)
+            .put_bridge_account_ibc_asset(&bridge_address, &asset)
             .unwrap();
-        state.put_allowed_fee_asset(asset_id);
+        state.put_allowed_fee_asset(&asset);
 
         let from_address = crate::address::base_prefixed([2; 20]);
 
         // not enough balance; should fail
         state
-            .put_account_balance(from_address, asset_id, 100)
+            .put_account_balance(from_address, &asset, 100)
             .unwrap();
         assert!(
             bridge_lock
@@ -211,11 +219,11 @@ mod test {
                 bridge_address,
                 rollup_id,
                 100,
-                asset_id,
+                asset.clone(),
                 "someaddress".to_string(),
             )) * 2;
         state
-            .put_account_balance(from_address, asset_id, 100 + expected_deposit_fee)
+            .put_account_balance(from_address, &asset, 100 + expected_deposit_fee)
             .unwrap();
         bridge_lock
             .check_stateful(&state, from_address)
@@ -233,27 +241,27 @@ mod test {
         state.put_bridge_lock_byte_cost_multiplier(2);
 
         let bridge_address = crate::address::base_prefixed([1; 20]);
-        let asset_id = asset::Id::from_str_unchecked("test");
+        let asset = test_asset();
         let bridge_lock = BridgeLockAction {
             to: bridge_address,
-            asset_id,
+            asset: asset.clone(),
             amount: 100,
-            fee_asset_id: asset_id,
+            fee_asset: asset.clone(),
             destination_chain_address: "someaddress".to_string(),
         };
 
         let rollup_id = RollupId::from_unhashed_bytes(b"test_rollup_id");
         state.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
         state
-            .put_bridge_account_asset_id(&bridge_address, &asset_id)
+            .put_bridge_account_ibc_asset(&bridge_address, &asset)
             .unwrap();
-        state.put_allowed_fee_asset(asset_id);
+        state.put_allowed_fee_asset(&asset);
 
         let from_address = crate::address::base_prefixed([2; 20]);
 
         // not enough balance; should fail
         state
-            .put_account_balance(from_address, asset_id, 100 + transfer_fee)
+            .put_account_balance(from_address, &asset, 100 + transfer_fee)
             .unwrap();
         assert!(
             bridge_lock
@@ -270,11 +278,11 @@ mod test {
                 bridge_address,
                 rollup_id,
                 100,
-                asset_id,
+                asset.clone(),
                 "someaddress".to_string(),
             )) * 2;
         state
-            .put_account_balance(from_address, asset_id, 100 + expected_deposit_fee)
+            .put_account_balance(from_address, &asset, 100 + expected_deposit_fee)
             .unwrap();
         bridge_lock.execute(&mut state, from_address).await.unwrap();
     }

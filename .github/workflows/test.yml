@@ -44,6 +44,31 @@ jobs:
             exit 1
           fi
 
+  solidity-contracts-compiled:
+    runs-on: ubuntu-22.04
+    needs: run_checker
+    if: needs.run_checker.outputs.run_tests == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@1.76.0
+      - uses: Swatinem/rust-cache@v2.7.3
+        with:
+          cache-provider: "buildjet"
+      - name: Install just
+        uses:  taiki-e/install-action@just
+      - name: Check if protobuf specs compile to commited Rust sources
+        run: |
+          just compile-solidity-contracts
+          modified=$(git status --porcelain)
+          if [[ -n "$modified" ]]; then
+            echo "ERROR: solidity contracts are out of sync with the commited Rust sources"
+            echo "Recompile locally with \`just compile-solidity-contracts\` and commit to the repository."
+            echo "Files that reported differences:"
+            echo "$modified"
+            exit 1
+          fi
+
   compiles:
     runs-on: buildjet-4vcpu-ubuntu-2204
     needs: run_checker
@@ -232,7 +257,7 @@ jobs:
 
   test:
     if: ${{ always() && !cancelled() }}
-    needs: [compiles, protos-compiled, rust, doctest, clippy, lockfile, custom-lints]
+    needs: [compiles, protos-compiled, solidity-contracts-compiled, rust, doctest, clippy, lockfile, custom-lints]
     uses: ./.github/workflows/reusable-success.yml
     with:
       success: ${{ !contains(needs.*.result, 'failure') }}

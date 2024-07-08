@@ -17,7 +17,7 @@ spec:
     matchLabels:
       app: sequencer-relayer
   endpoints:
-    - port: metric
+    - port: metrics
       path: /
       {{- with .Values.serviceMonitor.interval }}
       interval: {{ . }}

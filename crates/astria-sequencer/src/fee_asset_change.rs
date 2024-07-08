@@ -40,11 +40,12 @@ impl ActionHandler for FeeAssetChangeAction {
     async fn execute<S: StateWrite>(&self, state: &mut S, _from: Address) -> Result<()> {
         match self {
             FeeAssetChangeAction::Addition(asset) => {
-                state.put_allowed_fee_asset(*asset);
+                state.put_allowed_fee_asset(asset);
             }
             FeeAssetChangeAction::Removal(asset) => {
-                state.delete_allowed_fee_asset(*asset);
+                state.delete_allowed_fee_asset(asset);
 
+                // FIXME: context
                 if state.get_allowed_fee_assets().await?.is_empty() {
                     bail!("cannot remove last allowed fee asset");
                 }

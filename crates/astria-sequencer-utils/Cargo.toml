@@ -26,7 +26,7 @@ rlp = "0.5.2"
 serde = { workspace = true }
 serde_json = { workspace = true }
 
-astria-core = { path = "../astria-core", features = ["brotli"] }
+astria-core = { path = "../astria-core", features = ["brotli", "serde"] }
 astria-eyre = { path = "../astria-eyre" }
 astria-merkle = { path = "../astria-merkle" }
 
