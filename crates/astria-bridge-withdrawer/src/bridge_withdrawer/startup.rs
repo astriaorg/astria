@@ -36,7 +36,6 @@ use tendermint_rpc::{
 use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 use tracing::{
-    error,
     info,
     instrument,
     warn,
