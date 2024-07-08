@@ -100,12 +100,12 @@ defaultNetworkId           := ""
 defaultPrivateKey          := ""
 defaultSequencerStartBlock := ""
 deploy-dev-rollup rollupName=defaultRollupName networkId=defaultNetworkId:
-  helm dependency update charts/evm-rollup > /dev/null
+  helm dependency update charts/evm-stack > /dev/null
   helm install \
     {{ if rollupName          != '' { replace('--set config.rollup.name=# --set celestia-node.config.labelPrefix=#', '#', rollupName) } else { '' } }} \
     {{ if networkId           != '' { replace('--set config.rollup.networkId=#', '#', networkId) } else { '' } }} \
     -f dev/values/rollup/dev.yaml \
-    {{rollupName}}-chain-chart ./charts/evm-rollup --namespace astria-dev-cluster
+    {{rollupName}}-chain-chart ./charts/evm-stack --namespace astria-dev-cluster
 
 delete-dev-rollup rollupName=defaultRollupName:
   @just delete chart {{rollupName}}-chain
@@ -154,7 +154,7 @@ deploy-smoke-test tag=defaultTag:
   @just wait-for-ingress-controller > /dev/null
   @echo "Deploying local celestia instance..." && just deploy celestia-local > /dev/null
   @helm dependency update charts/sequencer > /dev/null
-  @helm dependency update charts/evm-rollup > /dev/null
+  @helm dependency update charts/evm-stack > /dev/null
   @echo "Setting up single astria sequencer..." && helm install \
     -n astria-validator-single single-sequencer-chart ./charts/sequencer \
     -f dev/values/validators/all.yml \
@@ -163,12 +163,10 @@ deploy-smoke-test tag=defaultTag:
     --create-namespace > /dev/null
   @just wait-for-sequencer > /dev/null
   @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart ./charts/evm-stack -f dev/values/rollup/dev.yaml \
-    {{ if tag != '' { replace('--set evm-rollup.images.conductor.devTag=# --set composer.images.composer.devTag=#', '#', tag) } else { '' } }} \
+    {{ if tag != '' { replace('--set evm-rollup.images.conductor.devTag=# --set composer.images.composer.devTag=# --set evm-bridge-withdrawer.images.evmBridgeWithdrawer.devTag=#', '#', tag) } else { '' } }} \
     --set blockscout.enabled=false \
+    --set postgresql.enabled=false \
     --set evm-faucet.enabled=false > /dev/null
-  @echo "Starting Bridge Withdrawer..." && helm install -n astria-dev-cluster evm-bridge-withdrawer-chart ./charts/evm-bridge-withdrawer \
-    -f dev/values/withdrawer/values.yaml \
-    {{ if tag != '' { replace('--set images.evmBridgeWithdrawer.devTag=#', '#', tag) } else { '' } }} > /dev/null
   @just wait-for-rollup > /dev/null
 
 

@@ -29,6 +29,10 @@ dependencies:
     version: 0.1.0
     repository: "file://../evm-faucet"
     condition: evm-faucet.enabled
+  - name: bridge-withdrawer
+    version: 0.0.1
+    repository: "file://../evm-bridge-withdrawer"
+    condition: bridge-withdrawer.enabled
   - name: postgresql
     version: "15.2.4"
     repository: "https://charts.bitnami.com/bitnami"
