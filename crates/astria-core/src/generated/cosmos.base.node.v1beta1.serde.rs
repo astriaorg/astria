@@ -82,7 +82,7 @@ impl serde::Serialize for ConfigResponse {
         }
         let mut struct_ser = serializer.serialize_struct("cosmos.base.node.v1beta1.ConfigResponse", len)?;
         if !self.minimum_gas_price.is_empty() {
-            struct_ser.serialize_field("minimum_gas_price", &self.minimum_gas_price)?;
+            struct_ser.serialize_field("minimumGasPrice", &self.minimum_gas_price)?;
         }
         struct_ser.end()
     }

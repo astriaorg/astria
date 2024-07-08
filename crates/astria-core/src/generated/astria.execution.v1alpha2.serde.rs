@@ -210,7 +210,7 @@ impl serde::Serialize for Block {
         }
         if !self.parent_block_hash.is_empty() {
             #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("parent_block_hash", pbjson::private::base64::encode(&self.parent_block_hash).as_str())?;
+            struct_ser.serialize_field("parentBlockHash", pbjson::private::base64::encode(&self.parent_block_hash).as_str())?;
         }
         if let Some(v) = self.timestamp.as_ref() {
             struct_ser.serialize_field("timestamp", v)?;
@@ -346,11 +346,11 @@ impl serde::Serialize for BlockIdentifier {
         if let Some(v) = self.identifier.as_ref() {
             match v {
                 block_identifier::Identifier::BlockNumber(v) => {
-                    struct_ser.serialize_field("block_number", v)?;
+                    struct_ser.serialize_field("blockNumber", v)?;
                 }
                 block_identifier::Identifier::BlockHash(v) => {
                     #[allow(clippy::needless_borrow)]
-                    struct_ser.serialize_field("block_hash", pbjson::private::base64::encode(&v).as_str())?;
+                    struct_ser.serialize_field("blockHash", pbjson::private::base64::encode(&v).as_str())?;
                 }
             }
         }
@@ -467,7 +467,7 @@ impl serde::Serialize for CommitmentState {
         }
         if self.base_celestia_height != 0 {
             #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("base_celestia_height", ToString::to_string(&self.base_celestia_height).as_str())?;
+            struct_ser.serialize_field("baseCelestiaHeight", ToString::to_string(&self.base_celestia_height).as_str())?;
         }
         struct_ser.end()
     }
@@ -590,7 +590,7 @@ impl serde::Serialize for ExecuteBlockRequest {
         let mut struct_ser = serializer.serialize_struct("astria.execution.v1alpha2.ExecuteBlockRequest", len)?;
         if !self.prev_block_hash.is_empty() {
             #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("prev_block_hash", pbjson::private::base64::encode(&self.prev_block_hash).as_str())?;
+            struct_ser.serialize_field("prevBlockHash", pbjson::private::base64::encode(&self.prev_block_hash).as_str())?;
         }
         if !self.transactions.is_empty() {
             struct_ser.serialize_field("transactions", &self.transactions)?;
@@ -719,14 +719,14 @@ impl serde::Serialize for GenesisInfo {
         let mut struct_ser = serializer.serialize_struct("astria.execution.v1alpha2.GenesisInfo", len)?;
         if !self.rollup_id.is_empty() {
             #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("rollup_id", pbjson::private::base64::encode(&self.rollup_id).as_str())?;
+            struct_ser.serialize_field("rollupId", pbjson::private::base64::encode(&self.rollup_id).as_str())?;
         }
         if self.sequencer_genesis_block_height != 0 {
-            struct_ser.serialize_field("sequencer_genesis_block_height", &self.sequencer_genesis_block_height)?;
+            struct_ser.serialize_field("sequencerGenesisBlockHeight", &self.sequencer_genesis_block_height)?;
         }
         if self.celestia_block_variance != 0 {
             #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("celestia_block_variance", ToString::to_string(&self.celestia_block_variance).as_str())?;
+            struct_ser.serialize_field("celestiaBlockVariance", ToString::to_string(&self.celestia_block_variance).as_str())?;
         }
         struct_ser.end()
     }
@@ -1081,7 +1081,7 @@ impl serde::Serialize for UpdateCommitmentStateRequest {
         }
         let mut struct_ser = serializer.serialize_struct("astria.execution.v1alpha2.UpdateCommitmentStateRequest", len)?;
         if let Some(v) = self.commitment_state.as_ref() {
-            struct_ser.serialize_field("commitment_state", v)?;
+            struct_ser.serialize_field("commitmentState", v)?;
         }
         struct_ser.end()
     }
