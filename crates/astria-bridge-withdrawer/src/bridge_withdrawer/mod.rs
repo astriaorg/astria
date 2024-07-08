@@ -326,8 +326,6 @@ impl Shutdown {
                     startup_task.abort();
                 }
             }
-        } else {
-            info!("startup task was already dead");
         }
 
         // Giving submitter 20 seconds to shutdown because Kubernetes issues a SIGKILL after 30.
@@ -348,8 +346,6 @@ impl Shutdown {
                     submitter_task.abort();
                 }
             }
-        } else {
-            info!("submitter task was already dead");
         }
 
         // Giving ethereum watcher 5 seconds to shutdown because Kubernetes issues a SIGKILL after
@@ -371,8 +367,6 @@ impl Shutdown {
                     ethereum_watcher_task.abort();
                 }
             }
-        } else {
-            info!("watcher task was already dead");
         }
 
         // Giving the API task 4 seconds. 5s for watcher + 20 for submitter + 4s = 29s (out of 30s
@@ -392,8 +386,6 @@ impl Shutdown {
                     api_task.abort();
                 }
             }
-        } else {
-            info!("API server was already dead");
         }
     }
 }

@@ -201,7 +201,6 @@ impl Watcher {
             ..
         } = select! {
             () = self.shutdown_token.cancelled() => {
-                info!("watcher received shutdown signal while waiting for startup");
                 return Err(eyre!("watcher received shutdown signal while waiting for startup"));
             }
 

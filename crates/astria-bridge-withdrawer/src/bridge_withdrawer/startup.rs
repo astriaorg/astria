@@ -14,12 +14,16 @@ use astria_core::{
 };
 use astria_eyre::eyre::{
     self,
+    bail,
     ensure,
     eyre,
     OptionExt as _,
     WrapErr as _,
 };
-use prost::Message as _;
+use prost::{
+    Message as _,
+    Name as _,
+};
 use sequencer_client::{
     tendermint_rpc,
     Address,
@@ -127,46 +131,40 @@ impl Startup {
     pub(super) async fn run(mut self) -> eyre::Result<()> {
         let shutdown_token = self.shutdown_token.clone();
 
-        let startup_task = tokio::spawn({
-            let state = self.state.clone();
-            async move {
-                self.confirm_sequencer_config()
-                    .await
-                    .wrap_err("failed to confirm sequencer config")?;
-                let starting_rollup_height = self
-                    .get_starting_rollup_height()
-                    .await
-                    .wrap_err("failed to get next rollup block height")?;
+        let state = self.state.clone();
+        let startup_task = async move {
+            self.confirm_sequencer_config()
+                .await
+                .wrap_err("failed to confirm sequencer config")?;
+            let starting_rollup_height = self
+                .get_starting_rollup_height()
+                .await
+                .wrap_err("failed to get next rollup block height")?;
 
-                // send the startup info to the submitter
-                let info = Info {
-                    chain_id: self.sequencer_chain_id.clone(),
-                    fee_asset: self.expected_fee_asset,
-                    starting_rollup_height,
-                };
+            // send the startup info to the submitter
+            let info = Info {
+                chain_id: self.sequencer_chain_id.clone(),
+                fee_asset: self.expected_fee_asset,
+                starting_rollup_height,
+            };
 
-                state.set_startup_info(info);
+            state.set_startup_info(info);
 
-                Ok(())
-            }
-        });
+            Ok(())
+        };
 
         tokio::select!(
             () = shutdown_token.cancelled() => {
-                Err(eyre!("startup was cancelled"))
+                bail!("startup was cancelled");
             }
             res = startup_task => {
-                match res {
-                    Ok(Ok(())) => Ok(()),
-                    Ok(Err(err)) => {
-                        error!(%err, "startup failed");
-                        Err(err)},
-                    Err(reason) => {
-                        Err(reason.into())
-                    }
+                if let Err(err) = res {
+                    error!(%err, "startup failed");
+                    return Err(err)
                 }
             }
-        )
+        );
+        Ok(())
     }
 
     /// Confirms configuration values against the sequencer node. Values checked:
@@ -180,7 +178,7 @@ impl Startup {
     /// - `self.chain_id` does not match the value returned from the sequencer node
     /// - `self.fee_asset_id` is not a valid fee asset on the sequencer node
     /// - `self.sequencer_key.address` does not have a sufficient balance of `self.fee_asset_id`.
-    async fn confirm_sequencer_config(&mut self) -> eyre::Result<()> {
+    async fn confirm_sequencer_config(&self) -> eyre::Result<()> {
         // confirm the sequencer chain id
         let actual_chain_id =
             get_sequencer_chain_id(self.sequencer_cometbft_client.clone(), self.state.clone())
@@ -239,7 +237,7 @@ impl Startup {
             .wrap_err("failed to convert last transaction hash to tendermint hash")?;
 
         // get the corresponding transaction
-        let last_transaction = get_tx(
+        let last_transaction = get_sequencer_transaction_at_hash(
             self.sequencer_cometbft_client.clone(),
             self.state.clone(),
             tx_hash,
@@ -258,14 +256,17 @@ impl Startup {
             astria_core::generated::protocol::transaction::v1alpha1::SignedTransaction::decode(
                 &*last_transaction.tx,
             )
-            .wrap_err("failed to convert transaction data from CometBFT to proto")?;
+            .wrap_err_with(|| format!(
+                            "failed to decode data in Sequencer CometBFT transaction as `{}`",
+                            astria_core::generated::protocol::transaction::v1alpha1::SignedTransaction::full_name(),
+                        ))?;
 
         let tx = SignedTransaction::try_from_raw(proto_tx)
-            .wrap_err("failed to convert transaction data from proto to SignedTransaction")?;
+            .wrap_err_with(|| format!("failed to verify {}", astria_core::generated::protocol::transaction::v1alpha1::SignedTransaction::full_name()))?;
 
         info!(
             last_bridge_account_tx.hash = %telemetry::display::hex(&tx_hash),
-            last_bridge_account_tx.height = i64::from(last_transaction.height),
+            last_bridge_account_tx.height = %last_transaction.height,
             "fetched last transaction by the bridge account"
         );
 
@@ -382,7 +383,7 @@ async fn get_bridge_account_last_transaction_hash(
 }
 
 #[instrument(skip_all)]
-async fn get_tx(
+async fn get_sequencer_transaction_at_hash(
     client: sequencer_client::HttpClient,
     state: Arc<State>,
     tx_hash: tendermint::Hash,
