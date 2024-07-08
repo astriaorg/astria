@@ -1,4 +1,3 @@
-mod rollup;
 mod sequencer;
 
 use color_eyre::{
@@ -8,11 +7,6 @@ use color_eyre::{
 use tracing::instrument;
 
 use crate::cli::{
-    rollup::{
-        Command as RollupCommand,
-        ConfigCommand,
-        DeploymentCommand,
-    },
     sequencer::{
         AccountCommand,
         AddressCommand,
@@ -44,24 +38,6 @@ use crate::cli::{
 pub async fn run(cli: Cli) -> eyre::Result<()> {
     if let Some(command) = cli.command {
         match command {
-            Command::Rollup {
-                command,
-            } => match command {
-                RollupCommand::Config {
-                    command,
-                } => match command {
-                    ConfigCommand::Create(args) => rollup::create_config(&args).await?,
-                    ConfigCommand::Edit(args) => rollup::edit_config(&args)?,
-                    ConfigCommand::Delete(args) => rollup::delete_config(&args)?,
-                },
-                RollupCommand::Deployment {
-                    command,
-                } => match command {
-                    DeploymentCommand::Create(args) => rollup::create_deployment(&args)?,
-                    DeploymentCommand::Delete(args) => rollup::delete_deployment(&args)?,
-                    DeploymentCommand::List => rollup::list_deployments(),
-                },
-            },
             Command::Sequencer {
                 command,
             } => match command {
