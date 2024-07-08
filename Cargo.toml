@@ -1,7 +1,8 @@
 [workspace]
-exclude = ["tools/protobuf-compiler"]
+exclude = ["tools/protobuf-compiler", "tools/solidity-compiler"]
 
 members = [
+  "crates/astria-bridge-contracts",
   "crates/astria-bridge-withdrawer",
   "crates/astria-build-info",
   "crates/astria-cli",
@@ -25,6 +26,7 @@ members = [
 # Specify default members so that cargo invocations in github actions will
 # not act on lints
 default-members = [
+  "crates/astria-bridge-contracts",
   "crates/astria-bridge-withdrawer",
   "crates/astria-build-info",
   "crates/astria-cli",
@@ -58,7 +60,7 @@ celestia-tendermint = "0.32.1"
 celestia-types = "0.1.1"
 clap = "4.5.4"
 const_format = "0.2.32"
-ethers = "2.0.11"
+ethers = { version = "2.0.11", default-features = false }
 futures = "0.3"
 hex = "0.4"
 hex-literal = "0.4.1"
