@@ -167,8 +167,10 @@ impl Metrics {
             .increment(1);
     }
 
-    pub(crate) fn set_prepare_proposal_excluded_transactions(&self, count: f64) {
-        self.prepare_proposal_excluded_transactions.set(count);
+    pub(crate) fn set_prepare_proposal_excluded_transactions(&self, count: usize) {
+        #[allow(clippy::cast_precision_loss)]
+        self.prepare_proposal_excluded_transactions
+            .set(count as f64);
     }
 
     pub(crate) fn record_proposal_deposits(&self, count: usize) {
