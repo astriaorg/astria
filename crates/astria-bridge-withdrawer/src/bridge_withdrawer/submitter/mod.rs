@@ -5,7 +5,7 @@ use std::{
 
 use astria_core::{
     bridge::{
-        BridgeUnlockMemo,
+        self,
         Ics20WithdrawalFromRollupMemo,
     },
     primitive::v1::asset,
@@ -715,7 +715,7 @@ fn rollup_height_from_signed_transaction(
 
     let last_batch_rollup_height = match withdrawal_action {
         Action::BridgeUnlock(action) => {
-            let memo: BridgeUnlockMemo = serde_json::from_slice(&action.memo)
+            let memo: bridge::UnlockMemo = serde_json::from_slice(&action.memo)
                 .wrap_err("failed to parse memo from last transaction by the bridge account")?;
             Some(memo.block_number)
         }

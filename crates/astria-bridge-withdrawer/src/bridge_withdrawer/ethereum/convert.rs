@@ -6,7 +6,7 @@ use astria_bridge_contracts::i_astria_withdrawer::{
 };
 use astria_core::{
     bridge::{
-        BridgeUnlockMemo,
+        self,
         Ics20WithdrawalFromRollupMemo,
     },
     primitive::v1::{
@@ -89,7 +89,7 @@ fn event_to_bridge_unlock(
     fee_asset: asset::Denom,
     asset_withdrawal_divisor: u128,
 ) -> eyre::Result<Action> {
-    let memo = BridgeUnlockMemo {
+    let memo = bridge::UnlockMemo {
         // XXX: The documentation mentions that the ethers U64 type will panic if it cannot be
         // converted to u64. However, this is part of a catch-all documentation that does not apply
         // to U64.
@@ -228,7 +228,7 @@ mod tests {
         let expected_action = BridgeUnlockAction {
             to: crate::astria_address([1u8; 20]),
             amount: 99,
-            memo: serde_json::to_vec(&BridgeUnlockMemo {
+            memo: serde_json::to_vec(&bridge::UnlockMemo {
                 block_number: 1,
                 transaction_hash: [2u8; 32],
             })
@@ -269,7 +269,7 @@ mod tests {
         let expected_action = BridgeUnlockAction {
             to: crate::astria_address([1u8; 20]),
             amount: 99,
-            memo: serde_json::to_vec(&BridgeUnlockMemo {
+            memo: serde_json::to_vec(&bridge::UnlockMemo {
                 block_number: 1,
                 transaction_hash: [2u8; 32],
             })

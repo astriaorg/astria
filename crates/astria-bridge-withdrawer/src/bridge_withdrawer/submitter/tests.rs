@@ -8,7 +8,7 @@ use std::{
 
 use astria_core::{
     bridge::{
-        BridgeUnlockMemo,
+        self,
         Ics20WithdrawalFromRollupMemo,
     },
     crypto::SigningKey,
@@ -304,7 +304,7 @@ fn make_bridge_unlock_action() -> Action {
     let inner = BridgeUnlockAction {
         to: crate::astria_address([0u8; 20]),
         amount: 99,
-        memo: serde_json::to_vec(&BridgeUnlockMemo {
+        memo: serde_json::to_vec(&bridge::UnlockMemo {
             block_number: DEFAULT_LAST_ROLLUP_HEIGHT,
             transaction_hash: [1u8; 32],
         })

@@ -6,7 +6,7 @@ use crate::primitive::v1::Address;
     derive(serde::Serialize),
     derive(serde::Deserialize)
 )]
-pub struct BridgeUnlockMemo {
+pub struct UnlockMemo {
     pub block_number: u64,
     #[cfg_attr(
         feature = "serde",
@@ -60,7 +60,7 @@ mod test {
 
     #[test]
     fn bridge_unlock_memo_snapshot() {
-        let memo = BridgeUnlockMemo {
+        let memo = UnlockMemo {
             block_number: 42,
             transaction_hash: [88; 32],
         };
