@@ -472,3 +472,34 @@ impl ::prost::Name for FeeChangeAction {
         ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
     }
 }
+/// Response to a transaction fee ABCI query.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TransactionFeeResponse {
+    #[prost(uint64, tag = "2")]
+    pub height: u64,
+    #[prost(message, repeated, tag = "3")]
+    pub fees: ::prost::alloc::vec::Vec<TransactionFee>,
+}
+impl ::prost::Name for TransactionFeeResponse {
+    const NAME: &'static str = "TransactionFeeResponse";
+    const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TransactionFee {
+    #[prost(string, tag = "1")]
+    pub asset: ::prost::alloc::string::String,
+    #[prost(message, optional, tag = "2")]
+    pub fee: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
+}
+impl ::prost::Name for TransactionFee {
+    const NAME: &'static str = "TransactionFee";
+    const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
+    }
+}
