@@ -7,7 +7,10 @@ use std::{
 };
 
 use astria_core::{
-    bridge::Ics20WithdrawalFromRollupMemo,
+    bridge::{
+        BridgeUnlockMemo,
+        Ics20WithdrawalFromRollupMemo,
+    },
     crypto::SigningKey,
     generated::protocol::account::v1alpha1::NonceResponse,
     primitive::v1::asset,
@@ -76,7 +79,6 @@ use super::Submitter;
 use crate::{
     bridge_withdrawer::{
         batch::Batch,
-        ethereum::convert::BridgeUnlockMemo,
         state,
         submitter,
     },
@@ -303,8 +305,8 @@ fn make_bridge_unlock_action() -> Action {
         to: crate::astria_address([0u8; 20]),
         amount: 99,
         memo: serde_json::to_vec(&BridgeUnlockMemo {
-            block_number: DEFAULT_LAST_ROLLUP_HEIGHT.into(),
-            transaction_hash: [1u8; 32].into(),
+            block_number: DEFAULT_LAST_ROLLUP_HEIGHT,
+            transaction_hash: [1u8; 32],
         })
         .unwrap(),
         fee_asset: denom,
