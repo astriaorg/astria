@@ -11,7 +11,7 @@ use std::{
 /// Note that the full denomination trace of the token is `prefix/base_denom`,
 /// in the case that a prefix is present.
 /// This is hashed to create the ID.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum Denom {
     TracePrefixed(TracePrefixed),
     IbcPrefixed(IbcPrefixed),
@@ -29,14 +29,6 @@ impl Denom {
     }
 
     #[must_use]
-    pub fn id(&self) -> super::Id {
-        match self {
-            Self::TracePrefixed(trace) => trace.id(),
-            Self::IbcPrefixed(ibc) => ibc.id(),
-        }
-    }
-
-    #[must_use]
     pub fn as_ibc_prefixed(&self) -> Option<&IbcPrefixed> {
         match self {
             Denom::TracePrefixed(_) => None,
@@ -49,6 +41,14 @@ impl Denom {
         match self {
             Denom::TracePrefixed(trace) => Some(trace),
             Denom::IbcPrefixed(_) => None,
+        }
+    }
+
+    #[must_use]
+    pub fn to_ibc_prefixed(&self) -> IbcPrefixed {
+        match self {
+            Denom::TracePrefixed(trace) => trace.to_ibc_prefixed(),
+            Denom::IbcPrefixed(ibc) => *ibc,
         }
     }
 
@@ -86,6 +86,42 @@ impl From<IbcPrefixed> for Denom {
 impl From<TracePrefixed> for Denom {
     fn from(value: TracePrefixed) -> Self {
         Self::TracePrefixed(value)
+    }
+}
+
+impl<'a> From<&'a IbcPrefixed> for Denom {
+    fn from(value: &IbcPrefixed) -> Self {
+        Self::IbcPrefixed(*value)
+    }
+}
+
+impl<'a> From<&'a TracePrefixed> for Denom {
+    fn from(value: &TracePrefixed) -> Self {
+        Self::TracePrefixed(value.clone())
+    }
+}
+
+impl From<TracePrefixed> for IbcPrefixed {
+    fn from(value: TracePrefixed) -> Self {
+        IbcPrefixed::from(&value)
+    }
+}
+
+impl<'a> From<&'a TracePrefixed> for IbcPrefixed {
+    fn from(value: &TracePrefixed) -> Self {
+        value.to_ibc_prefixed()
+    }
+}
+
+impl From<Denom> for IbcPrefixed {
+    fn from(value: Denom) -> Self {
+        value.to_ibc_prefixed()
+    }
+}
+
+impl<'a> From<&'a Denom> for IbcPrefixed {
+    fn from(value: &Denom) -> Self {
+        value.to_ibc_prefixed()
     }
 }
 
@@ -142,7 +178,7 @@ impl From<ParseTracePrefixedError> for ParseDenomError {
 }
 
 /// An ICS20 denomination of the form `[port/channel/..]base_denom`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct TracePrefixed {
     trace: TraceSegments,
     base_denom: String,
@@ -150,7 +186,7 @@ pub struct TracePrefixed {
 
 impl TracePrefixed {
     #[must_use]
-    pub fn id(&self) -> super::Id {
+    pub fn to_ibc_prefixed(&self) -> IbcPrefixed {
         use sha2::Digest as _;
         let mut hasher = sha2::Sha256::new();
         for segment in &self.trace.inner {
@@ -160,7 +196,10 @@ impl TracePrefixed {
             hasher.update(b"/");
         }
         hasher.update(self.base_denom.as_bytes());
-        super::Id::new(hasher.finalize().into())
+        let id = hasher.finalize().into();
+        IbcPrefixed {
+            id,
+        }
     }
 
     #[must_use]
@@ -260,7 +299,7 @@ impl TracePrefixed {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 struct TraceSegments {
     inner: VecDeque<PortAndChannel>,
 }
@@ -326,7 +365,7 @@ impl FromStr for TraceSegments {
         Ok(parsed_segments)
     }
 }
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct PortAndChannel {
     port: String,
     channel: String,
@@ -465,15 +504,22 @@ enum ParseIbcPrefixedErrorKind {
 }
 
 /// An ICS20 denomination of the form `ibc/<hex-sha256-hash>`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub struct IbcPrefixed {
     id: [u8; 32],
 }
 
 impl IbcPrefixed {
     #[must_use]
-    pub fn id(&self) -> super::Id {
-        super::Id::new(self.id)
+    pub fn new(id: [u8; 32]) -> Self {
+        Self {
+            id,
+        }
+    }
+
+    #[must_use]
+    pub fn get(&self) -> [u8; 32] {
+        self.id
     }
 }
 
@@ -506,6 +552,72 @@ impl FromStr for IbcPrefixed {
         Ok(Self {
             id,
         })
+    }
+}
+
+#[cfg(feature = "serde")]
+mod serde_impl {
+    use serde::{
+        Deserialize,
+        Deserializer,
+        Serialize,
+        Serializer,
+    };
+
+    macro_rules! impl_serde {
+        ($($type:ty),*$(,)?) => {
+            $(
+                impl<'de> Deserialize<'de> for $type {
+                    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+                    where
+                        D: Deserializer<'de>,
+                    {
+                        use serde::de::Error as _;
+                        let s = std::borrow::Cow::<'_, str>::deserialize(deserializer)?;
+                        s.trim().parse().map_err(D::Error::custom)
+                    }
+                }
+
+                impl Serialize for $type {
+                    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+                    where
+                        S: Serializer,
+                    {
+                        serializer.collect_str(self)
+                    }
+                }
+            )*
+        }
+    }
+
+    impl_serde!(super::Denom, super::TracePrefixed, super::IbcPrefixed);
+
+    #[cfg(test)]
+    mod tests {
+        use super::super::IbcPrefixed;
+        use crate::primitive::v1::asset::{
+            denom::TracePrefixed,
+            Denom,
+        };
+
+        fn trace_prefixed() -> TracePrefixed {
+            "a/trace/pre/fixed/denom".parse().unwrap()
+        }
+        fn ibc_prefixed() -> IbcPrefixed {
+            use sha2::{
+                Digest as _,
+                Sha256,
+            };
+            let bytes: [u8; 32] = Sha256::digest("a/trace/pre/fixed/denom").into();
+            IbcPrefixed::new(bytes)
+        }
+        #[test]
+        fn snapshots() {
+            insta::assert_json_snapshot!(ibc_prefixed());
+            insta::assert_json_snapshot!(trace_prefixed());
+            insta::assert_json_snapshot!(Denom::from(ibc_prefixed()));
+            insta::assert_json_snapshot!(Denom::from(trace_prefixed()));
+        }
     }
 }
 

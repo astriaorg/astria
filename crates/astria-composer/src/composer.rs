@@ -5,6 +5,7 @@ use std::{
     time::Duration,
 };
 
+use astria_core::primitive::v1::asset;
 use astria_eyre::eyre::{
     self,
     WrapErr as _,
@@ -85,6 +86,8 @@ pub struct Composer {
     /// Used to signal the Composer to shut down.
     shutdown_token: CancellationToken,
     metrics: &'static Metrics,
+    /// The asset set in config to pay for transactions and sequence actions.
+    fee_asset: asset::Denom,
 }
 
 /// Announces the current status of the Composer for other modules in the crate to use
@@ -128,6 +131,7 @@ impl Composer {
             sequencer_url: cfg.sequencer_url.clone(),
             sequencer_chain_id: cfg.sequencer_chain_id.clone(),
             private_key_file: cfg.private_key_file.clone(),
+            sequencer_address_prefix: cfg.sequencer_address_prefix.clone(),
             block_time_ms: cfg.block_time_ms,
             max_bytes_per_bundle: cfg.max_bytes_per_bundle,
             bundle_queue_capacity: cfg.bundle_queue_capacity,
@@ -142,6 +146,7 @@ impl Composer {
             executor: executor_handle.clone(),
             shutdown_token: shutdown_token.clone(),
             metrics,
+            fee_asset: cfg.fee_asset.clone(),
         }
         .build()
         .await
@@ -168,6 +173,7 @@ impl Composer {
                     executor_handle: executor_handle.clone(),
                     shutdown_token: shutdown_token.clone(),
                     metrics,
+                    fee_asset: cfg.fee_asset.clone(),
                 }
                 .build();
                 (rollup_name.clone(), collector)
@@ -191,6 +197,7 @@ impl Composer {
             grpc_server,
             shutdown_token,
             metrics,
+            fee_asset: cfg.fee_asset.clone(),
         })
     }
 
@@ -229,6 +236,7 @@ impl Composer {
             grpc_server,
             shutdown_token,
             metrics,
+            fee_asset,
         } = self;
 
         // we need the API server to shutdown at the end, since it is used by k8s
@@ -326,6 +334,7 @@ impl Composer {
                         executor_handle: executor_handle.clone(),
                         shutdown_token: shutdown_token.clone(),
                         metrics,
+                        fee_asset: fee_asset.clone(),
                     }
                     .build();
                     geth_collector_statuses.insert(rollup.clone(), collector.subscribe());

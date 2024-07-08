@@ -1,5 +1,6 @@
 pub(crate) mod action_handler;
 mod checks;
+pub(crate) mod query;
 
 use std::fmt;
 
@@ -17,7 +18,7 @@ use astria_core::{
     },
 };
 pub(crate) use checks::{
-    check_balance_for_total_fees,
+    check_balance_for_total_fees_and_transfers,
     check_balance_mempool,
     check_chain_id_mempool,
     check_nonce_mempool,
@@ -47,7 +48,7 @@ pub(crate) async fn check_stateful<S: StateReadExt + 'static>(
     tx: &SignedTransaction,
     state: &S,
 ) -> anyhow::Result<()> {
-    let signer_address = crate::astria_address(tx.verification_key().address_bytes());
+    let signer_address = crate::address::base_prefixed(tx.verification_key().address_bytes());
     tx.unsigned_transaction()
         .check_stateful(state, signer_address)
         .await
@@ -62,7 +63,7 @@ pub(crate) async fn execute<S: StateWriteExt>(
         StateWriteExt as _,
     };
 
-    let signer_address = crate::astria_address(tx.verification_key().address_bytes());
+    let signer_address = crate::address::base_prefixed(tx.verification_key().address_bytes());
 
     if state
         .get_bridge_account_rollup_id(&signer_address)
@@ -198,7 +199,9 @@ impl ActionHandler for UnsignedTransaction {
         ensure!(curr_nonce == self.nonce(), InvalidNonce(self.nonce()));
 
         // Should have enough balance to cover all actions.
-        check_balance_for_total_fees(self, from, state).await?;
+        check_balance_for_total_fees_and_transfers(self, from, state)
+            .await
+            .context("failed to check balance for total fees and transfers")?;
 
         for action in &self.actions {
             match action {

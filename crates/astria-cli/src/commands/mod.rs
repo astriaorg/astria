@@ -1,4 +1,3 @@
-mod rollup;
 mod sequencer;
 
 use color_eyre::{
@@ -8,13 +7,9 @@ use color_eyre::{
 use tracing::instrument;
 
 use crate::cli::{
-    rollup::{
-        Command as RollupCommand,
-        ConfigCommand,
-        DeploymentCommand,
-    },
     sequencer::{
         AccountCommand,
+        AddressCommand,
         BalanceCommand,
         BlockHeightCommand,
         Command as SequencerCommand,
@@ -43,24 +38,6 @@ use crate::cli::{
 pub async fn run(cli: Cli) -> eyre::Result<()> {
     if let Some(command) = cli.command {
         match command {
-            Command::Rollup {
-                command,
-            } => match command {
-                RollupCommand::Config {
-                    command,
-                } => match command {
-                    ConfigCommand::Create(args) => rollup::create_config(&args).await?,
-                    ConfigCommand::Edit(args) => rollup::edit_config(&args)?,
-                    ConfigCommand::Delete(args) => rollup::delete_config(&args)?,
-                },
-                RollupCommand::Deployment {
-                    command,
-                } => match command {
-                    DeploymentCommand::Create(args) => rollup::create_deployment(&args)?,
-                    DeploymentCommand::Delete(args) => rollup::delete_deployment(&args)?,
-                    DeploymentCommand::List => rollup::list_deployments(),
-                },
-            },
             Command::Sequencer {
                 command,
             } => match command {
@@ -70,6 +47,11 @@ pub async fn run(cli: Cli) -> eyre::Result<()> {
                     AccountCommand::Create => sequencer::create_account(),
                     AccountCommand::Balance(args) => sequencer::get_balance(&args).await?,
                     AccountCommand::Nonce(args) => sequencer::get_nonce(&args).await?,
+                },
+                SequencerCommand::Address {
+                    command,
+                } => match command {
+                    AddressCommand::Bech32m(args) => sequencer::make_bech32m(&args)?,
                 },
                 SequencerCommand::Balance {
                     command,

@@ -102,6 +102,14 @@ impl ActionHandler for action::Ics20Withdrawal {
     async fn check_stateless(&self) -> Result<()> {
         ensure!(self.timeout_time() != 0, "timeout time must be non-zero",);
 
+        crate::address::ensure_base_prefix(&self.return_address)
+            .context("return address has an unsupported prefix")?;
+        self.bridge_address
+            .as_ref()
+            .map(crate::address::ensure_base_prefix)
+            .transpose()
+            .context("bridge address has an unsupported prefix")?;
+
         // NOTE (from penumbra): we could validate the destination chain address as bech32 to
         // prevent mistyped addresses, but this would preclude sending to chains that don't
         // use bech32 addresses.
@@ -127,16 +135,16 @@ impl ActionHandler for action::Ics20Withdrawal {
             .await
             .context("packet failed send check")?;
 
-        let transfer_asset_id = self.denom().id();
+        let transfer_asset = self.denom();
 
         let from_fee_balance = state
-            .get_account_balance(from, *self.fee_asset_id())
+            .get_account_balance(from, self.fee_asset())
             .await
             .context("failed getting `from` account balance for fee payment")?;
 
         // if fee asset is same as transfer asset, ensure accounts has enough funds
         // to cover both the fee and the amount transferred
-        if self.fee_asset_id() == &transfer_asset_id {
+        if self.fee_asset().to_ibc_prefixed() == transfer_asset.to_ibc_prefixed() {
             let payment_amount = self
                 .amount()
                 .checked_add(fee)
@@ -155,7 +163,7 @@ impl ActionHandler for action::Ics20Withdrawal {
             );
 
             let from_transfer_balance = state
-                .get_account_balance(from, transfer_asset_id)
+                .get_account_balance(from, transfer_asset)
                 .await
                 .context("failed to get account balance in transfer check")?;
             ensure!(
@@ -176,12 +184,12 @@ impl ActionHandler for action::Ics20Withdrawal {
         let checked_packet = withdrawal_to_unchecked_ibc_packet(self).assume_checked();
 
         state
-            .decrease_balance(from, self.denom().id(), self.amount())
+            .decrease_balance(from, self.denom(), self.amount())
             .await
             .context("failed to decrease sender balance")?;
 
         state
-            .decrease_balance(from, *self.fee_asset_id(), fee)
+            .decrease_balance(from, self.fee_asset(), fee)
             .await
             .context("failed to subtract fee from sender balance")?;
 
@@ -193,14 +201,14 @@ impl ActionHandler for action::Ics20Withdrawal {
             self.denom(),
         ) {
             let channel_balance = state
-                .get_ibc_channel_balance(self.source_channel(), self.denom().id())
+                .get_ibc_channel_balance(self.source_channel(), self.denom())
                 .await
                 .context("failed to get channel balance")?;
 
             state
                 .put_ibc_channel_balance(
                     self.source_channel(),
-                    self.denom().id(),
+                    self.denom(),
                     channel_balance
                         .checked_add(self.amount())
                         .context("overflow when adding to channel balance")?,
@@ -237,7 +245,7 @@ mod tests {
         let state = StateDelta::new(snapshot);
 
         let denom = "test".parse::<Denom>().unwrap();
-        let from = crate::astria_address([1u8; 20]);
+        let from = crate::address::base_prefixed([1u8; 20]);
         let action = action::Ics20Withdrawal {
             amount: 1,
             denom: denom.clone(),
@@ -247,7 +255,7 @@ mod tests {
             timeout_height: Height::new(1, 1).unwrap(),
             timeout_time: 1,
             source_channel: "channel-0".to_string().parse().unwrap(),
-            fee_asset_id: denom.id(),
+            fee_asset: denom.clone(),
             memo: String::new(),
         };
 
@@ -264,7 +272,7 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         // sender is a bridge address, which is also the withdrawer, so it's ok
-        let bridge_address = crate::astria_address([1u8; 20]);
+        let bridge_address = crate::address::base_prefixed([1u8; 20]);
         state.put_bridge_account_rollup_id(
             &bridge_address,
             &RollupId::from_unhashed_bytes("testrollupid"),
@@ -281,7 +289,7 @@ mod tests {
             timeout_height: Height::new(1, 1).unwrap(),
             timeout_time: 1,
             source_channel: "channel-0".to_string().parse().unwrap(),
-            fee_asset_id: denom.id(),
+            fee_asset: denom.clone(),
             memo: String::new(),
         };
 
@@ -298,14 +306,14 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         // withdraw is *not* the bridge address, Ics20Withdrawal must be sent by the withdrawer
-        let bridge_address = crate::astria_address([1u8; 20]);
+        let bridge_address = crate::address::base_prefixed([1u8; 20]);
         state.put_bridge_account_rollup_id(
             &bridge_address,
             &RollupId::from_unhashed_bytes("testrollupid"),
         );
         state.put_bridge_account_withdrawer_address(
             &bridge_address,
-            &crate::astria_address([2u8; 20]),
+            &crate::address::base_prefixed([2u8; 20]),
         );
 
         let denom = "test".parse::<Denom>().unwrap();
@@ -318,7 +326,7 @@ mod tests {
             timeout_height: Height::new(1, 1).unwrap(),
             timeout_time: 1,
             source_channel: "channel-0".to_string().parse().unwrap(),
-            fee_asset_id: denom.id(),
+            fee_asset: denom.clone(),
             memo: String::new(),
         };
 
@@ -338,8 +346,8 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         // sender the withdrawer address, so it's ok
-        let bridge_address = crate::astria_address([1u8; 20]);
-        let withdrawer_address = crate::astria_address([2u8; 20]);
+        let bridge_address = crate::address::base_prefixed([1u8; 20]);
+        let withdrawer_address = crate::address::base_prefixed([2u8; 20]);
         state.put_bridge_account_rollup_id(
             &bridge_address,
             &RollupId::from_unhashed_bytes("testrollupid"),
@@ -356,7 +364,7 @@ mod tests {
             timeout_height: Height::new(1, 1).unwrap(),
             timeout_time: 1,
             source_channel: "channel-0".to_string().parse().unwrap(),
-            fee_asset_id: denom.id(),
+            fee_asset: denom.clone(),
             memo: String::new(),
         };
 
@@ -372,8 +380,8 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         // sender is not the withdrawer address, so must fail
-        let bridge_address = crate::astria_address([1u8; 20]);
-        let withdrawer_address = crate::astria_address([2u8; 20]);
+        let bridge_address = crate::address::base_prefixed([1u8; 20]);
+        let withdrawer_address = crate::address::base_prefixed([2u8; 20]);
         state.put_bridge_account_rollup_id(
             &bridge_address,
             &RollupId::from_unhashed_bytes("testrollupid"),
@@ -390,7 +398,7 @@ mod tests {
             timeout_height: Height::new(1, 1).unwrap(),
             timeout_time: 1,
             source_channel: "channel-0".to_string().parse().unwrap(),
-            fee_asset_id: denom.id(),
+            fee_asset: denom.clone(),
             memo: String::new(),
         };
 
@@ -411,7 +419,7 @@ mod tests {
         let state = StateDelta::new(snapshot);
 
         // sender is not the withdrawer address, so must fail
-        let not_bridge_address = crate::astria_address([1u8; 20]);
+        let not_bridge_address = crate::address::base_prefixed([1u8; 20]);
 
         let denom = "test".parse::<Denom>().unwrap();
         let action = action::Ics20Withdrawal {
@@ -423,7 +431,7 @@ mod tests {
             timeout_height: Height::new(1, 1).unwrap(),
             timeout_time: 1,
             source_channel: "channel-0".to_string().parse().unwrap(),
-            fee_asset_id: denom.id(),
+            fee_asset: denom.clone(),
             memo: String::new(),
         };
 

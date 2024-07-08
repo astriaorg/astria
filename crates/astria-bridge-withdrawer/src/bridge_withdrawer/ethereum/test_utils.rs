@@ -3,15 +3,7 @@ use std::{
     time::Duration,
 };
 
-use astria_core::primitive::v1::ASTRIA_ADDRESS_PREFIX;
-use ethers::{
-    abi::Tokenizable,
-    core::utils::Anvil,
-    prelude::*,
-    utils::AnvilInstance,
-};
-
-use crate::bridge_withdrawer::ethereum::{
+use astria_bridge_contracts::{
     astria_bridgeable_erc20::{
         ASTRIABRIDGEABLEERC20_ABI,
         ASTRIABRIDGEABLEERC20_BYTECODE,
@@ -20,6 +12,12 @@ use crate::bridge_withdrawer::ethereum::{
         ASTRIAWITHDRAWER_ABI,
         ASTRIAWITHDRAWER_BYTECODE,
     },
+};
+use ethers::{
+    abi::Tokenizable,
+    core::utils::Anvil,
+    prelude::*,
+    utils::AnvilInstance,
 };
 
 #[allow(clippy::struct_field_names)]
@@ -33,11 +31,7 @@ impl Default for ConfigureAstriaWithdrawerDeployer {
     fn default() -> Self {
         Self {
             base_chain_asset_precision: 18,
-            base_chain_bridge_address: astria_core::primitive::v1::Address::builder()
-                .array([0u8; 20])
-                .prefix(ASTRIA_ADDRESS_PREFIX)
-                .try_build()
-                .unwrap(),
+            base_chain_bridge_address: crate::astria_address([0u8; 20]),
             base_chain_asset_denomination: "test-denom".to_string(),
         }
     }
@@ -122,11 +116,7 @@ impl Default for ConfigureAstriaBridgeableERC20Deployer {
         Self {
             bridge_address: Address::zero(),
             base_chain_asset_precision: 18,
-            base_chain_bridge_address: astria_core::primitive::v1::Address::builder()
-                .array([0u8; 20])
-                .prefix(ASTRIA_ADDRESS_PREFIX)
-                .try_build()
-                .unwrap(),
+            base_chain_bridge_address: crate::astria_address([0u8; 20]),
             base_chain_asset_denomination: "testdenom".to_string(),
             name: "test-token".to_string(),
             symbol: "TT".to_string(),

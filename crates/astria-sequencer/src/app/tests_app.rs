@@ -1,10 +1,7 @@
 use std::collections::HashMap;
 
 use astria_core::{
-    primitive::v1::{
-        asset::DEFAULT_NATIVE_ASSET_DENOM,
-        RollupId,
-    },
+    primitive::v1::RollupId,
     protocol::transaction::v1alpha1::{
         action::{
             BridgeLockAction,
@@ -14,6 +11,7 @@ use astria_core::{
         TransactionParams,
         UnsignedTransaction,
     },
+    sequencer::Account,
     sequencerblock::v1alpha1::block::Deposit,
 };
 use cnidarium::StateDelta;
@@ -50,7 +48,6 @@ use crate::{
         StateReadExt as _,
         StateWriteExt,
     },
-    genesis::Account,
     proposal::commitment::generate_rollup_datas_commitment,
     state_ext::StateReadExt as _,
 };
@@ -90,16 +87,13 @@ async fn app_genesis_and_init_chain() {
         assert_eq!(
             balance,
             app.state
-                .get_account_balance(address, get_native_asset().id())
+                .get_account_balance(address, get_native_asset())
                 .await
                 .unwrap(),
         );
     }
 
-    assert_eq!(
-        app.state.get_native_asset_denom().await.unwrap(),
-        DEFAULT_NATIVE_ASSET_DENOM
-    );
+    assert_eq!(app.state.get_native_asset_denom().await.unwrap(), "nria");
 }
 
 #[tokio::test]
@@ -188,7 +182,7 @@ async fn app_commit() {
     let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
     assert_eq!(app.state.get_block_height().await.unwrap(), 0);
 
-    let native_asset = get_native_asset().id();
+    let native_asset = get_native_asset();
     for Account {
         address,
         balance,
@@ -230,7 +224,7 @@ async fn app_transfer_block_fees_to_sudo() {
     let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
 
     let (alice_signing_key, _) = get_alice_signing_key_and_address();
-    let native_asset = get_native_asset().id();
+    let native_asset = get_native_asset().clone();
 
     // transfer funds from Alice to Bob; use native token for fee payment
     let bob_address = address_from_hex_string(BOB_ADDRESS);
@@ -239,14 +233,13 @@ async fn app_transfer_block_fees_to_sudo() {
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![
             TransferAction {
                 to: bob_address,
                 amount,
-                asset_id: native_asset,
-                fee_asset_id: get_native_asset().id(),
+                asset: native_asset.clone(),
+                fee_asset: native_asset.clone(),
             }
             .into(),
         ],
@@ -300,14 +293,14 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
     let (alice_signing_key, _) = get_alice_signing_key_and_address();
     let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
 
-    let bridge_address = crate::astria_address([99; 20]);
+    let bridge_address = crate::address::base_prefixed([99; 20]);
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
-    let asset_id = get_native_asset().id();
+    let asset = get_native_asset().clone();
 
     let mut state_tx = StateDelta::new(app.state.clone());
     state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
     state_tx
-        .put_bridge_account_asset_id(&bridge_address, &asset_id)
+        .put_bridge_account_ibc_asset(&bridge_address, &asset)
         .unwrap();
     app.apply(state_tx);
     app.prepare_commit(storage.clone()).await.unwrap();
@@ -317,21 +310,20 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
     let lock_action = BridgeLockAction {
         to: bridge_address,
         amount,
-        asset_id,
-        fee_asset_id: asset_id,
+        asset: asset.clone(),
+        fee_asset: asset.clone(),
         destination_chain_address: "nootwashere".to_string(),
     };
     let sequence_action = SequenceAction {
         rollup_id,
         data: b"hello world".to_vec(),
-        fee_asset_id: asset_id,
+        fee_asset: asset.clone(),
     };
     let tx = UnsignedTransaction {
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![lock_action.into(), sequence_action.into()],
     };
 
@@ -341,7 +333,7 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
         bridge_address,
         rollup_id,
         amount,
-        asset_id,
+        asset,
         "nootwashere".to_string(),
     );
     let deposits = HashMap::from_iter(vec![(rollup_id, vec![expected_deposit.clone()])]);
@@ -381,7 +373,7 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
         }
     }
     assert_eq!(deposits.len(), 1);
-    assert_eq!(deposits[0], expected_deposit);
+    assert_eq!(*deposits[0], expected_deposit);
 }
 
 // it's a test, so allow a lot of lines
@@ -391,14 +383,14 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
     let (alice_signing_key, _) = get_alice_signing_key_and_address();
     let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
 
-    let bridge_address = crate::astria_address([99; 20]);
+    let bridge_address = crate::address::base_prefixed([99; 20]);
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
-    let asset_id = get_native_asset().id();
+    let asset = get_native_asset().clone();
 
     let mut state_tx = StateDelta::new(app.state.clone());
     state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
     state_tx
-        .put_bridge_account_asset_id(&bridge_address, &asset_id)
+        .put_bridge_account_ibc_asset(&bridge_address, &asset)
         .unwrap();
     app.apply(state_tx);
     app.prepare_commit(storage.clone()).await.unwrap();
@@ -408,21 +400,20 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
     let lock_action = BridgeLockAction {
         to: bridge_address,
         amount,
-        asset_id,
-        fee_asset_id: asset_id,
+        asset: asset.clone(),
+        fee_asset: asset.clone(),
         destination_chain_address: "nootwashere".to_string(),
     };
     let sequence_action = SequenceAction {
         rollup_id,
         data: b"hello world".to_vec(),
-        fee_asset_id: asset_id,
+        fee_asset: asset.clone(),
     };
     let tx = UnsignedTransaction {
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![lock_action.into(), sequence_action.into()],
     };
 
@@ -432,7 +423,7 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
         bridge_address,
         rollup_id,
         amount,
-        asset_id,
+        asset,
         "nootwashere".to_string(),
     );
     let deposits = HashMap::from_iter(vec![(rollup_id, vec![expected_deposit.clone()])]);
@@ -546,13 +537,12 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![
             SequenceAction {
                 rollup_id: RollupId::from([1u8; 32]),
                 data: vec![1u8; 100_000],
-                fee_asset_id: get_native_asset().id(),
+                fee_asset: get_native_asset().clone(),
             }
             .into(),
         ],
@@ -562,13 +552,12 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
         params: TransactionParams::builder()
             .nonce(1)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![
             SequenceAction {
                 rollup_id: RollupId::from([1u8; 32]),
                 data: vec![1u8; 100_000],
-                fee_asset_id: get_native_asset().id(),
+                fee_asset: get_native_asset().clone(),
             }
             .into(),
         ],
@@ -621,13 +610,12 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![
             SequenceAction {
                 rollup_id: RollupId::from([1u8; 32]),
                 data: vec![1u8; 200_000],
-                fee_asset_id: get_native_asset().id(),
+                fee_asset: get_native_asset().clone(),
             }
             .into(),
         ],
@@ -637,13 +625,12 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
         params: TransactionParams::builder()
             .nonce(1)
             .chain_id("test")
-            .try_build()
-            .unwrap(),
+            .build(),
         actions: vec![
             SequenceAction {
                 rollup_id: RollupId::from([1u8; 32]),
                 data: vec![1u8; 100_000],
-                fee_asset_id: get_native_asset().id(),
+                fee_asset: get_native_asset().clone(),
             }
             .into(),
         ],
@@ -704,7 +691,7 @@ async fn app_end_block_validator_updates() {
     ];
 
     let mut app = initialize_app(None, initial_validator_set).await;
-    let proposer_address = crate::astria_address([0u8; 20]);
+    let proposer_address = crate::address::base_prefixed([0u8; 20]);
 
     let validator_updates = vec![
         validator::Update {

@@ -95,6 +95,7 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
         rollups,
         sequencer_url,
         private_key_file: keyfile.path().to_string_lossy().to_string(),
+        sequencer_address_prefix: "astria".into(),
         block_time_ms: 2000,
         max_bytes_per_bundle: 200_000,
         bundle_queue_capacity: 10,
@@ -104,6 +105,7 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
         metrics_http_listener_addr: String::new(),
         pretty_print: true,
         grpc_addr: "127.0.0.1:0".parse().unwrap(),
+        fee_asset: "nria".parse().unwrap(),
     };
     let (composer_addr, grpc_collector_addr, composer_handle) = {
         let composer = Composer::from_config(&config).await.unwrap();

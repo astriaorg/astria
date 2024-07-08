@@ -17,7 +17,7 @@ http = "0.2.9"
 axum = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
-ethers = { workspace = true, features = ["ethers-solc", "ws"] }
+ethers = { workspace = true, features = ["ws"] }
 hyper = { workspace = true }
 humantime = { workspace = true }
 ibc-types = { workspace = true }
@@ -34,6 +34,7 @@ tryhard = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal"] }
 tokio-util = { workspace = true }
 
+astria-bridge-contracts = { path = "../astria-bridge-contracts" }
 astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
 astria-core = { path = "../astria-core", features = ["serde", "server"] }
 astria-eyre = { path = "../astria-eyre" }
@@ -56,4 +57,3 @@ wiremock = { workspace = true }
 
 [build-dependencies]
 astria-build-info = { path = "../astria-build-info", features = ["build"] }
-ethers = { workspace = true }

@@ -14,17 +14,17 @@ impl ::prost::Name for DenomResponse {
         ::prost::alloc::format!("astria.protocol.asset.v1alpha1.{}", Self::NAME)
     }
 }
-/// A response containing the allowed fee asset IDs.
+/// A response containing the allowed fee assets.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct AllowedFeeAssetIdsResponse {
+pub struct AllowedFeeAssetsResponse {
     #[prost(uint64, tag = "1")]
     pub height: u64,
-    #[prost(bytes = "bytes", repeated, tag = "2")]
-    pub fee_asset_ids: ::prost::alloc::vec::Vec<::prost::bytes::Bytes>,
+    #[prost(string, repeated, tag = "2")]
+    pub fee_assets: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
-impl ::prost::Name for AllowedFeeAssetIdsResponse {
-    const NAME: &'static str = "AllowedFeeAssetIdsResponse";
+impl ::prost::Name for AllowedFeeAssetsResponse {
+    const NAME: &'static str = "AllowedFeeAssetsResponse";
     const PACKAGE: &'static str = "astria.protocol.asset.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.asset.v1alpha1.{}", Self::NAME)

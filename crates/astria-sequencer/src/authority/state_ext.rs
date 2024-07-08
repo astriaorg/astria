@@ -100,7 +100,7 @@ pub(crate) trait StateReadExt: StateRead {
         };
         let SudoAddress(address_bytes) =
             SudoAddress::try_from_slice(&bytes).context("invalid sudo key bytes")?;
-        Ok(crate::astria_address(address_bytes))
+        Ok(crate::address::base_prefixed(address_bytes))
     }
 
     #[instrument(skip(self))]
@@ -205,7 +205,7 @@ mod test {
             .expect_err("no sudo address should exist at first");
 
         // can write new
-        let mut address_expected = crate::astria_address([42u8; 20]);
+        let mut address_expected = crate::address::base_prefixed([42u8; 20]);
         state
             .put_sudo_address(address_expected)
             .expect("writing sudo address should not fail");
@@ -219,7 +219,7 @@ mod test {
         );
 
         // can rewrite with new value
-        address_expected = crate::astria_address([41u8; 20]);
+        address_expected = crate::address::base_prefixed([41u8; 20]);
         state
             .put_sudo_address(address_expected)
             .expect("writing sudo address should not fail");

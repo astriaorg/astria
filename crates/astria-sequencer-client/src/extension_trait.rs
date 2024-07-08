@@ -8,10 +8,7 @@
 //! The example below works with the feature `"http"` set.
 //! ```no_run
 //! # tokio_test::block_on(async {
-//! use astria_core::primitive::v1::{
-//!     Address,
-//!     ASTRIA_ADDRESS_PREFIX,
-//! };
+//! use astria_core::primitive::v1::Address;
 //! use astria_sequencer_client::SequencerClientExt as _;
 //! use tendermint_rpc::HttpClient;
 //!
@@ -20,7 +17,7 @@
 //!     .array(hex_literal::hex!(
 //!         "DEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF"
 //!     ))
-//!     .prefix(ASTRIA_ADDRESS_PREFIX)
+//!     .prefix("astria")
 //!     .try_build()
 //!     .unwrap();
 //! let height = 5u32;
@@ -37,8 +34,15 @@ use std::{
 };
 
 use astria_core::protocol::{
-    asset::v1alpha1::AllowedFeeAssetIdsResponse,
-    bridge::v1alpha1::BridgeAccountLastTxHashResponse,
+    asset::v1alpha1::AllowedFeeAssetsResponse,
+    bridge::v1alpha1::{
+        BridgeAccountInfoResponse,
+        BridgeAccountLastTxHashResponse,
+    },
+    transaction::v1alpha1::{
+        TransactionFeeResponse,
+        UnsignedTransaction,
+    },
 };
 pub use astria_core::{
     primitive::v1::Address,
@@ -435,9 +439,8 @@ pub trait SequencerClientExt: Client {
     where
         HeightT: Into<tendermint::block::Height> + Send,
     {
-        const PREFIX: &[u8] = b"accounts/balance/";
-
-        let path = make_path_from_prefix_and_address(PREFIX, address.bytes());
+        const PREFIX: &str = "accounts/balance";
+        let path = format!("{PREFIX}/{address}");
 
         let response = self
             .abci_query(Some(path), vec![], Some(height.into()), false)
@@ -476,10 +479,10 @@ pub trait SequencerClientExt: Client {
     ///
     /// - If calling tendermint `abci_query` RPC fails.
     /// - If the bytes contained in the abci query response cannot be deserialized as an
-    ///  `astria.protocol.asset.v1alpha1.AllowedFeeAssetIdsResponse`.
+    ///  `astria.protocol.asset.v1alpha1.AllowedFeeAssetsResponse`.
     /// - If the raw response cannot be converted to the native type.
-    async fn get_allowed_fee_asset_ids(&self) -> Result<AllowedFeeAssetIdsResponse, Error> {
-        let path = "asset/allowed_fee_asset_ids".to_string();
+    async fn get_allowed_fee_assets(&self) -> Result<AllowedFeeAssetsResponse, Error> {
+        let path = "asset/allowed_fee_assets".to_string();
 
         let response = self
             .abci_query(Some(path), vec![], Some(0u32.into()), false)
@@ -487,18 +490,18 @@ pub trait SequencerClientExt: Client {
             .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
 
         let proto_response =
-            astria_core::generated::protocol::asset::v1alpha1::AllowedFeeAssetIdsResponse::decode(
+            astria_core::generated::protocol::asset::v1alpha1::AllowedFeeAssetsResponse::decode(
                 &*response.value,
             )
             .map_err(|e| {
                 Error::abci_query_deserialization(
-                    "astria.protocol.asset.v1alpha1.AllowedFeeAssetIdsResponse",
+                    "astria.protocol.asset.v1alpha1.AllowedFeeAssetsResponse",
                     response,
                     e,
                 )
             })?;
-        let native_response = AllowedFeeAssetIdsResponse::try_from_raw(&proto_response)
-            .map_err(|e| Error::native_conversion("AllowedFeeAssetIdsResponse", Arc::new(e)))?;
+        let native_response = AllowedFeeAssetsResponse::try_from_raw(&proto_response)
+            .map_err(|e| Error::native_conversion("AllowedFeeAssetsResponse", Arc::new(e)))?;
 
         Ok(native_response)
     }
@@ -518,9 +521,8 @@ pub trait SequencerClientExt: Client {
     where
         HeightT: Into<tendermint::block::Height> + Send,
     {
-        const PREFIX: &[u8] = b"accounts/nonce/";
-
-        let path = make_path_from_prefix_and_address(PREFIX, address.bytes());
+        const PREFIX: &str = "accounts/nonce";
+        let path = format!("{PREFIX}/{address}");
 
         let response = self
             .abci_query(Some(path), vec![], Some(height.into()), false)
@@ -548,13 +550,44 @@ pub trait SequencerClientExt: Client {
         self.get_nonce(address, 0u32).await
     }
 
+    async fn get_bridge_account_info(
+        &self,
+        address: Address,
+    ) -> Result<BridgeAccountInfoResponse, Error> {
+        const PREFIX: &str = "bridge/account_info";
+        let path = format!("{PREFIX}/{address}");
+
+        let response = self
+            .abci_query(Some(path), vec![], None, false)
+            .await
+            .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
+
+        let proto_response =
+            astria_core::generated::protocol::bridge::v1alpha1::BridgeAccountInfoResponse::decode(
+                &*response.value,
+            )
+            .map_err(|e| {
+                Error::abci_query_deserialization(
+                    "astria.protocol.bridge.v1alpha1.BridgeAccountInfoResponse",
+                    response,
+                    e,
+                )
+            })?;
+        let native = BridgeAccountInfoResponse::try_from_raw(proto_response).map_err(|e| {
+            Error::native_conversion(
+                "astria.protocol.bridge.v1alpha1.BridgeAccountInfoResponse",
+                Arc::new(e),
+            )
+        })?;
+        Ok(native)
+    }
+
     async fn get_bridge_account_last_transaction_hash(
         &self,
         address: Address,
     ) -> Result<BridgeAccountLastTxHashResponse, Error> {
-        const PREFIX: &[u8] = b"bridge/account_last_tx_hash/";
-
-        let path = make_path_from_prefix_and_address(PREFIX, address.bytes());
+        const PREFIX: &str = "bridge/account_last_tx_hash";
+        let path = format!("{PREFIX}/{address}");
 
         let response = self
             .abci_query(Some(path), vec![], None, false)
@@ -575,6 +608,38 @@ pub trait SequencerClientExt: Client {
         let native = proto_response.try_into_native().map_err(|e| {
             Error::native_conversion(
                 "astria.protocol.bridge.v1alpha1.BridgeAccountLastTxHashResponse",
+                Arc::new(e),
+            )
+        })?;
+        Ok(native)
+    }
+
+    async fn get_transaction_fee(
+        &self,
+        tx: UnsignedTransaction,
+    ) -> Result<TransactionFeeResponse, Error> {
+        let path = "transaction/fee".to_string();
+        let data = tx.into_raw().encode_to_vec();
+
+        let response = self
+            .abci_query(Some(path), data, None, false)
+            .await
+            .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
+
+        let proto_response =
+            astria_core::generated::protocol::transaction::v1alpha1::TransactionFeeResponse::decode(
+                &*response.value,
+            )
+            .map_err(|e| {
+                Error::abci_query_deserialization(
+                    "astria.protocol.transaction.v1alpha1.TransactionFeeResponse",
+                    response,
+                    e,
+                )
+            })?;
+        let native = TransactionFeeResponse::try_from_raw(proto_response).map_err(|e| {
+            Error::native_conversion(
+                "astria.protocol.transaction.v1alpha1.TransactionFeeResponse",
                 Arc::new(e),
             )
         })?;
@@ -616,25 +681,4 @@ pub trait SequencerClientExt: Client {
             .await
             .map_err(|e| Error::tendermint_rpc("broadcast_tx_commit", e))
     }
-}
-
-pub(super) fn make_path_from_prefix_and_address(
-    prefix: &'static [u8],
-    address: [u8; 20],
-) -> String {
-    let address_hex_len = address
-        .len()
-        .checked_mul(2)
-        .expect("`20 * 2` should not overflow");
-    let path_len = prefix
-        .len()
-        .checked_add(address_hex_len)
-        .expect("`prefix` should not be greater than `usize::MAX - 40`");
-    let mut path = vec![0u8; path_len];
-    path[..prefix.len()].copy_from_slice(prefix);
-    hex::encode_to_slice(address, &mut path[prefix.len()..]).expect(
-        "this is a bug: a buffer of sufficient size must have been allocated to hold 20 hex \
-         encoded bytes",
-    );
-    String::from_utf8(path).expect("this is a bug: all bytes in the path buffer should be ascii")
 }

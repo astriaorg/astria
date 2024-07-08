@@ -60,8 +60,8 @@ impl Info {
             .context("invalid path: `asset/denom/:id`")?;
         query_router
             .insert(
-                "asset/allowed_fee_asset_ids",
-                crate::asset::query::allowed_fee_asset_ids_request,
+                "asset/allowed_fee_assets",
+                crate::asset::query::allowed_fee_assets_request,
             )
             .context("invalid path: `asset/allowed_fee_asset_ids`")?;
         query_router
@@ -70,6 +70,18 @@ impl Info {
                 crate::bridge::query::bridge_account_last_tx_hash_request,
             )
             .context("invalid path: `bridge/account_last_tx_hash/:address`")?;
+        query_router
+            .insert(
+                "transaction/fee",
+                crate::transaction::query::transaction_fee_request,
+            )
+            .context("invalid path: `transaction/fee`")?;
+        query_router
+            .insert(
+                "bridge/account_info/:address",
+                crate::bridge::query::bridge_account_info_request,
+            )
+            .context("invalid path: `bridge/account_info/:address`")?;
         Ok(Self {
             storage,
             query_router,
@@ -161,11 +173,7 @@ impl Service<InfoRequest> for Info {
 #[cfg(test)]
 mod test {
     use astria_core::{
-        primitive::v1::asset::{
-            self,
-            denom::TracePrefixed,
-            DEFAULT_NATIVE_ASSET_DENOM,
-        },
+        primitive::v1::asset,
         protocol::{
             account::v1alpha1::BalanceResponse,
             asset::v1alpha1::DenomResponse,
@@ -208,22 +216,22 @@ mod test {
         let mut state = StateDelta::new(storage.latest_snapshot());
         state.put_storage_version_by_height(height, version);
 
-        initialize_native_asset(DEFAULT_NATIVE_ASSET_DENOM);
+        initialize_native_asset("nria");
 
-        let address = crate::try_astria_address(
+        let address = crate::address::try_base_prefixed(
             &hex::decode("a034c743bed8f26cb8ee7b8db2230fd8347ae131").unwrap(),
         )
         .unwrap();
 
         let balance = 1000;
         state
-            .put_account_balance(address, get_native_asset().id(), balance)
+            .put_account_balance(address, get_native_asset(), balance)
             .unwrap();
         state.put_block_height(height);
         storage.commit(state).await.unwrap();
 
         let info_request = InfoRequest::Query(request::Query {
-            path: "accounts/balance/a034c743bed8f26cb8ee7b8db2230fd8347ae131".to_string(),
+            path: format!("accounts/balance/{address}"),
             data: vec![].into(),
             height: u32::try_from(height).unwrap().into(),
             prove: false,
@@ -264,15 +272,14 @@ mod test {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let mut state = StateDelta::new(storage.latest_snapshot());
 
-        let denom = "some/ibc/asset".parse::<TracePrefixed>().unwrap();
-        let id = denom.id();
+        let denom = "some/ibc/asset".parse().unwrap();
         let height = 99;
         state.put_block_height(height);
-        state.put_ibc_asset(id, &denom).unwrap();
+        state.put_ibc_asset(&denom).unwrap();
         storage.commit(state).await.unwrap();
 
         let info_request = InfoRequest::Query(request::Query {
-            path: format!("asset/denom/{}", hex::encode(id)),
+            path: format!("asset/denom/{}", hex::encode(denom.to_ibc_prefixed().get())),
             data: vec![].into(),
             height: u32::try_from(height).unwrap().into(),
             prove: false,
@@ -300,24 +307,24 @@ mod test {
     }
 
     #[tokio::test]
-    async fn handle_allowed_fee_asset_ids_query() {
+    async fn handle_allowed_fee_assets_query() {
         use astria_core::generated::protocol::asset::v1alpha1 as raw;
 
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let mut state = StateDelta::new(storage.latest_snapshot());
 
-        let asset_ids = vec![
-            asset::Id::from_str_unchecked("asset_0"),
-            asset::Id::from_str_unchecked("asset_1"),
-            asset::Id::from_str_unchecked("asset_2"),
+        let assets = vec![
+            "asset_0".parse::<asset::Denom>().unwrap(),
+            "asset_1".parse::<asset::Denom>().unwrap(),
+            "asset_2".parse::<asset::Denom>().unwrap(),
         ];
         let height = 99;
 
-        for &asset_id in &asset_ids {
-            state.put_allowed_fee_asset(asset_id);
+        for asset in &assets {
+            state.put_allowed_fee_asset(asset);
             assert!(
                 state
-                    .is_allowed_fee_asset(asset_id)
+                    .is_allowed_fee_asset(asset)
                     .await
                     .expect("checking for allowed fee asset should not fail"),
                 "fee asset was expected to be allowed"
@@ -327,7 +334,7 @@ mod test {
         storage.commit(state).await.unwrap();
 
         let info_request = InfoRequest::Query(request::Query {
-            path: "asset/allowed_fee_asset_ids".to_string(),
+            path: "asset/allowed_fee_assets".to_string(),
             data: vec![].into(),
             height: u32::try_from(height).unwrap().into(),
             prove: false,
@@ -347,15 +354,17 @@ mod test {
         };
         assert!(query_response.code.is_ok());
 
-        let allowed_fee_assets_resp = raw::AllowedFeeAssetIdsResponse::decode(query_response.value)
+        let allowed_fee_assets_resp = raw::AllowedFeeAssetsResponse::decode(query_response.value)
             .unwrap()
             .try_to_native()
             .unwrap();
         assert_eq!(allowed_fee_assets_resp.height, height);
-        assert_eq!(allowed_fee_assets_resp.fee_asset_ids.len(), asset_ids.len());
-        for asset_id in asset_ids {
+        assert_eq!(allowed_fee_assets_resp.fee_assets.len(), assets.len());
+        for asset in &assets {
             assert!(
-                allowed_fee_assets_resp.fee_asset_ids.contains(&asset_id),
+                allowed_fee_assets_resp
+                    .fee_assets
+                    .contains(&asset.to_ibc_prefixed().into()),
                 "expected asset_id to be in allowed fee assets"
             );
         }

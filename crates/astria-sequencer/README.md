@@ -101,10 +101,14 @@ abci-cli query --path=accounts/nonce/<ADDRESS> 0x00
 # initialize the node
 cometbft init
 
-# inside astria-sequencer, update the genesis file to include genesis
-# application state
-../../target/debug/astria-sequencer-utils \
-    --genesis-app-state-file=test-genesis-app-state.json \
+# generate a sequencer genesis file
+cargo run -p astria-sequencer-utils -- generate-genesis-state -o genesis-state.json
+
+# Edit the generated `genesis-state.json` as desired
+
+# update the cometbft genesis file to include the sequencer genesis application state
+cargo run -p astria-sequencer-utils -- copy-genesis-state \
+    --genesis-app-state-file=genesis-state.json \
     --destination-genesis-file=$HOME/.cometbft/config/genesis.json \
     --chain-id <desired_test_chain_id>
 
