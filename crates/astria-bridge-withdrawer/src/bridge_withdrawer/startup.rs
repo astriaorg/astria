@@ -157,13 +157,9 @@ impl Startup {
                 bail!("startup was cancelled");
             }
             res = startup_task => {
-                if let Err(err) = res {
-                    error!(%err, "startup failed");
-                    return Err(err)
-                }
+                res
             }
-        );
-        Ok(())
+        )
     }
 
     /// Confirms configuration values against the sequencer node. Values checked:
