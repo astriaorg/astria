@@ -55,7 +55,6 @@ pub(crate) struct StateSnapshot {
     watcher_ready: bool,
     submitter_ready: bool,
 
-    cometbft_connected: bool,
     sequencer_connected: bool,
 
     last_rollup_height_submitted: Option<u64>,
