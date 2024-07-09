@@ -148,6 +148,8 @@ impl BridgeWithdrawer {
         Ok((service, shutdown_handle))
     }
 
+    // need this lint allow because startup_task is wrapped with an Option instead of being fused
+    #[allow(clippy::missing_panics_doc)]
     pub async fn run(self) {
         let Self {
             shutdown_token,
@@ -181,7 +183,7 @@ impl BridgeWithdrawer {
 
         let shutdown = loop {
             select!(
-                o = async { startup_task.as_mut().unwrap().await }, if !startup_task.is_some() => {
+                o = async { startup_task.as_mut().unwrap().await }, if startup_task.is_none() => {
                     match o {
                         Ok(_) => {
                             info!(task = "startup", "task has exited");
@@ -206,7 +208,7 @@ impl BridgeWithdrawer {
                         api_task: None,
                         submitter_task: Some(submitter_task),
                         ethereum_watcher_task: Some(ethereum_watcher_task),
-                        startup_task: startup_task,
+                        startup_task,
                         api_shutdown_signal,
                        token: shutdown_token
                     }
@@ -217,7 +219,7 @@ impl BridgeWithdrawer {
                         api_task: Some(api_task),
                         submitter_task: None,
                         ethereum_watcher_task:Some(ethereum_watcher_task),
-                        startup_task: startup_task,
+                        startup_task,
                         api_shutdown_signal,
                         token: shutdown_token
                     }
@@ -228,13 +230,12 @@ impl BridgeWithdrawer {
                         api_task: Some(api_task),
                         submitter_task: Some(submitter_task),
                         ethereum_watcher_task: None,
-                        startup_task: startup_task,
+                        startup_task,
                         api_shutdown_signal,
                         token: shutdown_token
                     }
                 }
-
-            )
+            );
         };
         shutdown.run().await;
     }

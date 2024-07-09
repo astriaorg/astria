@@ -50,6 +50,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{
     debug,
     info,
+    trace,
     warn,
 };
 
