@@ -412,7 +412,7 @@ async fn get_and_send_events_at_block(
     }
 
     if batch.actions.is_empty() {
-        debug!("no actions to send at block {block_number}");
+        trace!("no actions to send at block {block_number}");
     } else {
         let actions_len = batch.actions.len();
         submitter_handle

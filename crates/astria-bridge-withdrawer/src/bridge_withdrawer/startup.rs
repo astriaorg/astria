@@ -190,10 +190,12 @@ impl Startup {
             get_allowed_fee_asset_ids(self.sequencer_cometbft_client.clone(), self.state.clone())
                 .await
                 .wrap_err("failed to get allowed fee asset ids from sequencer")?;
+        let expected_fee_asset_ibc = self.expected_fee_asset.to_ibc_prefixed();
         ensure!(
             allowed_fee_asset_ids_resp
                 .fee_assets
-                .contains(&self.expected_fee_asset),
+                .iter()
+                .any(|asset| asset.to_ibc_prefixed() == expected_fee_asset_ibc),
             "fee_asset provided in config is not a valid fee asset on the sequencer"
         );
 
