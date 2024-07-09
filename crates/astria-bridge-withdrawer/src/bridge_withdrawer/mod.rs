@@ -148,7 +148,7 @@ impl BridgeWithdrawer {
         Ok((service, shutdown_handle))
     }
 
-    // need this lint allow because startup_task is wrapped with an Option instead of being fused
+    // Panic won't happen because `startup_task` is unwraped lazily after checking if it's `Some`.
     #[allow(clippy::missing_panics_doc)]
     pub async fn run(self) {
         let Self {
