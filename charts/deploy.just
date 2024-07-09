@@ -272,7 +272,7 @@ run-smoke-test:
       sleep 1
     fi
   done
-  if [ $CHECKS -eq $MAX_CHECKS ]; then
+  if [ $CHECKS -gt $MAX_CHECKS ]; then
     echo "Bridge Out Sequencer failure"
     exit 1
   fi
@@ -293,8 +293,8 @@ run-smoke-test:
       sleep 1
     fi
   done
-  if [ $CHECKS -eq $MAX_CHECKS ]; then
-    echo "Bridge Out Sequencer failure"
+  if [ $CHECKS -gt $MAX_CHECKS ]; then
+    echo "Finalization failure"
     exit 1
   fi
   exit 0
