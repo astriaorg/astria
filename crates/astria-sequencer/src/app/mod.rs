@@ -603,6 +603,7 @@ impl App {
         self.mempool.insert_all(txs_to_readd_to_mempool).await;
         let mempool_len = self.mempool.len().await;
         debug!(mempool_len, "finished executing transactions from mempool");
+        self.metrics.set_transactions_in_mempool_total(mempool_len);
 
         self.execution_results = Some(execution_results);
         Ok((validated_txs, included_signed_txs))
