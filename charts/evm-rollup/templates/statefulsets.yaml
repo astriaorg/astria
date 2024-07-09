@@ -64,9 +64,12 @@ spec:
             - --maxpeers=0
             {{- if .Values.config.rollup.archiveNode }}
             - --gcmode=archive
+            - --state.scheme=hash
             - --history.transactions=0
+            - --history.state=0
             {{- else }}
             - --state.scheme=path
+            - --history.state=540000
             {{- end }}
             {{ if .Values.config.rollup.metrics.enabled }}
             - --metrics
