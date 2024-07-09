@@ -107,7 +107,6 @@ fn main() {
     pbjson_build::Builder::new()
         .register_descriptors(&descriptor_set)
         .unwrap()
-        .preserve_proto_field_names()
         .out_dir(&out_dir)
         .build(&[
             ".astria.execution.v1alpha2",

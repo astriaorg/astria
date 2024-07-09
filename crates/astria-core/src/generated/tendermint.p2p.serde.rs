@@ -32,13 +32,13 @@ impl serde::Serialize for DefaultNodeInfo {
         }
         let mut struct_ser = serializer.serialize_struct("tendermint.p2p.DefaultNodeInfo", len)?;
         if let Some(v) = self.protocol_version.as_ref() {
-            struct_ser.serialize_field("protocol_version", v)?;
+            struct_ser.serialize_field("protocolVersion", v)?;
         }
         if !self.default_node_id.is_empty() {
-            struct_ser.serialize_field("default_node_id", &self.default_node_id)?;
+            struct_ser.serialize_field("defaultNodeId", &self.default_node_id)?;
         }
         if !self.listen_addr.is_empty() {
-            struct_ser.serialize_field("listen_addr", &self.listen_addr)?;
+            struct_ser.serialize_field("listenAddr", &self.listen_addr)?;
         }
         if !self.network.is_empty() {
             struct_ser.serialize_field("network", &self.network)?;
@@ -230,10 +230,10 @@ impl serde::Serialize for DefaultNodeInfoOther {
         }
         let mut struct_ser = serializer.serialize_struct("tendermint.p2p.DefaultNodeInfoOther", len)?;
         if !self.tx_index.is_empty() {
-            struct_ser.serialize_field("tx_index", &self.tx_index)?;
+            struct_ser.serialize_field("txIndex", &self.tx_index)?;
         }
         if !self.rpc_address.is_empty() {
-            struct_ser.serialize_field("rpc_address", &self.rpc_address)?;
+            struct_ser.serialize_field("rpcAddress", &self.rpc_address)?;
         }
         struct_ser.end()
     }
