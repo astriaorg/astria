@@ -4,7 +4,10 @@ use std::{
 };
 
 use astria_core::{
-    bridge::Ics20WithdrawalFromRollupMemo,
+    bridge::{
+        self,
+        Ics20WithdrawalFromRollupMemo,
+    },
     primitive::v1::asset,
     protocol::{
         asset::v1alpha1::AllowedFeeAssetsResponse,
@@ -46,7 +49,6 @@ use super::state::{
     self,
     State,
 };
-use crate::bridge_withdrawer::ethereum::convert::BridgeUnlockMemo;
 
 pub(super) struct Builder {
     pub(super) shutdown_token: CancellationToken,
@@ -192,7 +194,7 @@ impl Startup {
             allowed_fee_asset_ids_resp
                 .fee_assets
                 .contains(&self.expected_fee_asset),
-            "fee_asset_id provided in config is not a valid fee asset on the sequencer"
+            "fee_asset provided in config is not a valid fee asset on the sequencer"
         );
 
         Ok(())
@@ -331,9 +333,9 @@ fn rollup_height_from_signed_transaction(
 
     let last_batch_rollup_height = match withdrawal_action {
         Action::BridgeUnlock(action) => {
-            let memo: BridgeUnlockMemo = serde_json::from_slice(&action.memo)
+            let memo: bridge::UnlockMemo = serde_json::from_slice(&action.memo)
                 .wrap_err("failed to parse memo from last transaction by the bridge account")?;
-            Some(memo.block_number.as_u64())
+            Some(memo.block_number)
         }
         Action::Ics20Withdrawal(action) => {
             let memo: Ics20WithdrawalFromRollupMemo = serde_json::from_str(&action.memo)

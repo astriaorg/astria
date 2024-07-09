@@ -6,7 +6,10 @@ use std::{
 };
 
 use astria_core::{
-    bridge::Ics20WithdrawalFromRollupMemo,
+    bridge::{
+        self,
+        Ics20WithdrawalFromRollupMemo,
+    },
     generated::protocol::account::v1alpha1::NonceResponse,
     primitive::v1::asset,
     protocol::transaction::v1alpha1::{
@@ -62,7 +65,6 @@ use super::Submitter;
 use crate::{
     bridge_withdrawer::{
         batch::Batch,
-        ethereum::convert::BridgeUnlockMemo,
         startup,
         state,
         submitter,
