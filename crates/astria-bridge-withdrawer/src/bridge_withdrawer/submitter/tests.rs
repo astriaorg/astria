@@ -207,9 +207,9 @@ fn make_bridge_unlock_action() -> Action {
     let inner = BridgeUnlockAction {
         to: crate::astria_address([0u8; 20]),
         amount: 99,
-        memo: serde_json::to_vec(&BridgeUnlockMemo {
-            block_number: DEFAULT_LAST_ROLLUP_HEIGHT.into(),
-            transaction_hash: [1u8; 32].into(),
+        memo: serde_json::to_vec(&bridge::UnlockMemo {
+            block_number: DEFAULT_LAST_ROLLUP_HEIGHT,
+            transaction_hash: [1u8; 32],
         })
         .unwrap(),
         fee_asset: denom,
