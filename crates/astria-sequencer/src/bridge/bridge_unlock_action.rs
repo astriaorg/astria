@@ -137,7 +137,7 @@ mod test {
             to: to_address,
             amount: transfer_amount,
             fee_asset: asset,
-            memo: vec![0u8; 32],
+            memo: "{}".into(),
             bridge_address: None,
         };
 
@@ -174,7 +174,7 @@ mod test {
             to: to_address,
             amount: transfer_amount,
             fee_asset: asset.clone(),
-            memo: vec![0u8; 32],
+            memo: "{}".into(),
             bridge_address: Some(bridge_address),
         };
 
@@ -212,7 +212,7 @@ mod test {
             to: to_address,
             amount: transfer_amount,
             fee_asset: asset,
-            memo: vec![0u8; 32],
+            memo: "{}".into(),
             bridge_address: Some(bridge_address),
         };
 
@@ -253,7 +253,7 @@ mod test {
             to: to_address,
             amount: transfer_amount,
             fee_asset: asset.clone(),
-            memo: vec![0u8; 32],
+            memo: "{}".into(),
             bridge_address: None,
         };
 
@@ -308,7 +308,7 @@ mod test {
             to: to_address,
             amount: transfer_amount,
             fee_asset: asset.clone(),
-            memo: vec![0u8; 32],
+            memo: "{}".into(),
             bridge_address: Some(bridge_address),
         };
 
@@ -360,7 +360,7 @@ mod test {
             to: to_address,
             amount: transfer_amount,
             fee_asset: asset.clone(),
-            memo: vec![0u8; 32],
+            memo: "{}".into(),
             bridge_address: None,
         };
 
@@ -412,7 +412,7 @@ mod test {
             to: to_address,
             amount: transfer_amount,
             fee_asset: asset.clone(),
-            memo: vec![0u8; 32],
+            memo: "{}".into(),
             bridge_address: Some(bridge_address),
         };
 

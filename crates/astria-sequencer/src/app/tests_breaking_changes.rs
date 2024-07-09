@@ -281,7 +281,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
                 to: bob_address,
                 amount: 10,
                 fee_asset: asset.clone(),
-                memo: vec![0u8; 32],
+                memo: "{}".into(),
                 bridge_address: None,
             }
             .into(),
