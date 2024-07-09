@@ -4,7 +4,10 @@ use std::{
 };
 
 use astria_core::{
-    bridge::Ics20WithdrawalFromRollupMemo,
+    bridge::{
+        self,
+        Ics20WithdrawalFromRollupMemo,
+    },
     primitive::v1::asset,
     protocol::{
         asset::v1alpha1::AllowedFeeAssetsResponse,
@@ -69,10 +72,7 @@ use super::{
     state,
     SequencerStartupInfo,
 };
-use crate::{
-    bridge_withdrawer::ethereum::convert::BridgeUnlockMemo,
-    metrics::Metrics,
-};
+use crate::metrics::Metrics;
 
 mod builder;
 mod signer;
@@ -715,9 +715,9 @@ fn rollup_height_from_signed_transaction(
 
     let last_batch_rollup_height = match withdrawal_action {
         Action::BridgeUnlock(action) => {
-            let memo: BridgeUnlockMemo = serde_json::from_slice(&action.memo)
+            let memo: bridge::UnlockMemo = serde_json::from_slice(&action.memo)
                 .wrap_err("failed to parse memo from last transaction by the bridge account")?;
-            Some(memo.block_number.as_u64())
+            Some(memo.block_number)
         }
         Action::Ics20Withdrawal(action) => {
             let memo: Ics20WithdrawalFromRollupMemo = serde_json::from_str(&action.memo)
