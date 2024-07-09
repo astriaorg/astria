@@ -23,7 +23,7 @@ use ethers::{
     utils::AnvilInstance,
 };
 
-use super::test_bridge_withdrawer::astria_address;
+pub use super::test_bridge_withdrawer::astria_address;
 
 pub struct TestEthereum {
     contract_address: ethers::types::Address,

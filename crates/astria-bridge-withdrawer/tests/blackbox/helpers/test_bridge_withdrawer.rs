@@ -40,17 +40,20 @@ use sequencer_client::{
 use tempfile::NamedTempFile;
 use tokio::task::JoinHandle;
 use tracing::{
+    debug,
     error,
     info,
 };
 
 use super::{
+    make_tx_commit_success_response,
     mock_cometbft::{
         mount_default_chain_id,
         mount_default_fee_assets,
         mount_default_min_expected_fee_asset_balance,
         mount_get_nonce_response,
     },
+    mount_broadcast_tx_commit_response_as_scoped,
     mount_last_bridge_tx_hash_response,
     MockSequencerServer,
 };
@@ -109,6 +112,8 @@ pub struct TestBridgeWithdrawer {
 
 impl Drop for TestBridgeWithdrawer {
     fn drop(&mut self) {
+        debug!("dropping TestBridgeWithdrawer");
+
         // Drop the shutdown handle to cause the bridge withdrawer to shutdown.
         let _ = self.bridge_withdrawer_shutdown_handle.take();
 
@@ -261,6 +266,26 @@ impl TestBridgeWithdrawer {
             );
         }
     }
+
+    pub async fn mount_pending_nonce_response_as_scoped(
+        &self,
+        nonce: u32,
+        debug_name: &str,
+    ) -> astria_grpc_mock::MockGuard {
+        self.sequencer_mock
+            .mount_pending_nonce_response_as_scoped(nonce, debug_name)
+            .await
+    }
+
+    pub async fn mount_broadcast_tx_commit_success_response_as_scoped(
+        &self,
+    ) -> wiremock::MockGuard {
+        mount_broadcast_tx_commit_response_as_scoped(
+            &self.cometbft_mock,
+            make_tx_commit_success_response(),
+        )
+        .await
+    }
 }
 
 fn make_ics20_withdrawal_action() -> Action {
@@ -304,7 +329,7 @@ fn make_bridge_unlock_action() -> Action {
     Action::BridgeUnlock(inner)
 }
 
-pub(crate) fn default_native_asset() -> asset::Denom {
+pub fn default_native_asset() -> asset::Denom {
     "nria".parse().unwrap()
 }
 
@@ -313,7 +338,7 @@ fn default_bridge_address() -> Address {
 }
 
 /// Constructs an [`Address`] prefixed by `"astria"`.
-pub(crate) fn astria_address(
+pub fn astria_address(
     array: [u8; astria_core::primitive::v1::ADDRESS_LEN],
 ) -> astria_core::primitive::v1::Address {
     astria_core::primitive::v1::Address::builder()
