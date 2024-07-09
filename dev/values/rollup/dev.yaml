@@ -167,20 +167,27 @@ evm-faucet:
   ingress:
     enabled: true
   config:
-    rollupName: astria
+    rollupName: flame
     privateKey:
       devContent: "8b3a7999072c9c9314c084044fe705db11714c6c4ed7cddb64da18ea270dd203"
 
 postgresql:
   enabled: false
   nameOverride: blockscout-postegres
+  primary:
+    persistence:
+      enabled: false
+    resourcesPreset: "medium"
   auth:
     enablePostgresUser: true
     postgresPassword: bigsecretpassword
     username: blockscout
     password: blockscout
     database: blockscout
-
+  audit:
+    logHostname: true
+    logConnections: true
+    logDisconnections: true
 blockscout-stack:
   enabled: false
   config:
@@ -203,28 +210,54 @@ blockscout-stack:
       - name: ETHEREUM_JSONRPC_VARIANT
         value: "geth"
       - name: ETHEREUM_JSONRPC_HTTP_URL
-        value: "http://astria-geth-0.astria-dev-cluster.svc.cluster.local:8545/"
+        value: "http://astria-evm-service.astria-dev-cluster.svc.cluster.local:8545/"
       - name: ETHEREUM_JSONRPC_INSECURE
         value: "true"
       - name: ETHEREUM_JSONRPC_WS_URL
-        value: "ws://astria-geth-0.astria-dev-cluster.svc.cluster.local:8546/"
+        value: "ws://astria-evm-service.astria-dev-cluster.svc.cluster.local:8546/"
+      - name: INDEXER_DISABLE_BEACON_BLOB_FETCHER
+        value: "true"
       - name: NETWORK
         value: "Astria"
       - name: SUBNETWORK
         value: "Local"
-      - name: CHAIN_ID
-        value: "1337"
       - name: CONTRACT_VERIFICATION_ALLOWED_SOLIDITY_EVM_VERSIONS
-        value: "homestead,tangerineWhistle,spuriousDragon,byzantium,constantinople,petersburg,istanbul,berlin,london,paris,default"
+        value: "homestead,tangerineWhistle,spuriousDragon,byzantium,constantinople,petersburg,istanbul,berlin,london,paris,shanghai,default"
       - name: CONTRACT_VERIFICATION_ALLOWED_VYPER_EVM_VERSIONS
-        value: "byzantium,constantinople,petersburg,istanbul,berlin,paris,default"
+        value: "byzantium,constantinople,petersburg,istanbul,berlin,paris,shanghai,default"
+      - name: DISABLE_EXCHANGE_RATES
+        value: "true"
+      - name: COIN
+        value: "RIA"
 
     ingress:
       enabled: true
-      hostname: blockscout.localdev.me
+      hostname: explorer.astria.localdev.me
+
   frontend:
+    extraEnv:
+      - name: NEXT_PUBLIC_NETWORK_NAME
+        value: "Astria Flame"
+      - name: NEXT_PUBLIC_NETWORK_SHORT_NAME
+        value: "Flame"
+      - name: NEXT_PUBLIC_NETWORK_VERIFICATION_TYPE
+        value: "validation"
+      - name: NEXT_PUBLIC_AD_BANNER_PROVIDER
+        value: "none"
+      - name: NEXT_PUBLIC_API_PROTOCOL
+        value: "http"
+      - name: NEXT_PUBLIC_API_WEBSOCKET_PROTOCOL
+        value: "ws"
+      - name: NEXT_PUBLIC_NETWORK_CURRENCY_NAME
+        value: "Ria"
+      - name: NEXT_PUBLIC_NETWORK_CURRENCY_WEI_NAME
+        value: "aRia"
+      - name: NEXT_PUBLIC_NETWORK_CURRENCY_SYMBOL
+        value: "RIA"
+      - name: NEXT_PUBLIC_AD_TEXT_PROVIDER
+        value: "none"
     ingress:
       enabled: true
-      hostname: blockscout.localdev.me
+      hostname: explorer.astria.localdev.me
 
 

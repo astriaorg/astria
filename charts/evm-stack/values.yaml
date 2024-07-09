@@ -22,6 +22,9 @@ bridge-withdrawer:
   enabled: false
 
 blockscout-stack:
+  frontend:
+    image:
+      tag: v1.32.0
   enabled: false
 
 postgresql:
