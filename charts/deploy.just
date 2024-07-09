@@ -91,9 +91,9 @@ wait-for-sequencer:
   kubectl wait -n astria-dev-cluster deployment celestia-local --for=condition=Available=True --timeout=600s
   kubectl rollout status --watch statefulset/sequencer -n astria-dev-cluster --timeout=600s
 
-deploy-rollup: deploy-dev-rollup deploy-bridge-withdrawer wait-for-rollup
+deploy-rollup: deploy-dev-rollup wait-for-rollup
 wait-for-rollup: wait-for-dev-rollup wait-for-bridge-withdrawer
-delete-rollup: delete-dev-rollup delete-bridge-withdrawer
+delete-rollup: delete-dev-rollup
 
 defaultRollupName          := "astria"
 defaultNetworkId           := ""
@@ -164,9 +164,9 @@ deploy-smoke-test tag=defaultTag:
   @just wait-for-sequencer > /dev/null
   @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart ./charts/evm-stack -f dev/values/rollup/dev.yaml \
     {{ if tag != '' { replace('--set evm-rollup.images.conductor.devTag=# --set composer.images.composer.devTag=# --set evm-bridge-withdrawer.images.evmBridgeWithdrawer.devTag=#', '#', tag) } else { '' } }} \
-    --set blockscout.enabled=false \
-    --set postgresql.enabled=false \
-    --set evm-faucet.enabled=false > /dev/null
+    --set blockscout-stack.enabled=true \
+    --set postgresql.enabled=true \
+    --set evm-faucet.enabled=true > /dev/null
   @just wait-for-rollup > /dev/null
 
 

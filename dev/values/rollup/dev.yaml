@@ -169,12 +169,14 @@ evm-faucet:
   config:
     rollupName: astria
     privateKey:
-      devContent: 8b3a7999072c9c9314c084044fe705db11714c6c4ed7cddb64da18ea270dd203
+      devContent: "8b3a7999072c9c9314c084044fe705db11714c6c4ed7cddb64da18ea270dd203"
 
 postgresql:
   enabled: false
   nameOverride: blockscout-postegres
   auth:
+    enablePostgresUser: true
+    postgresPassword: bigsecretpassword
     username: blockscout
     password: blockscout
     database: blockscout
@@ -194,14 +196,18 @@ blockscout-stack:
       enabled: false
   blockscout:
     extraEnv:
+      - name: ECTO_USE_SSL
+        value: "false"
       - name: DATABASE_URL
-        value: "postgres://blockscout:blockscout@blockscout-postegres.astria-dev-cluster.svc.local:5432/blockscout"
+        value: "postgres://postgres:bigsecretpassword@astria-chain-chart-blockscout-postegres.astria-dev-cluster.svc.cluster.local:5432/blockscout"
       - name: ETHEREUM_JSONRPC_VARIANT
         value: "geth"
       - name: ETHEREUM_JSONRPC_HTTP_URL
-        value: "http://astria-geth-0.astria-dev-cluster.svc.local:8545/"
+        value: "http://astria-geth-0.astria-dev-cluster.svc.cluster.local:8545/"
+      - name: ETHEREUM_JSONRPC_INSECURE
+        value: "true"
       - name: ETHEREUM_JSONRPC_WS_URL
-        value: "ws://astria-geth-0.astria-dev-cluster.svc.local:8546/"
+        value: "ws://astria-geth-0.astria-dev-cluster.svc.cluster.local:8546/"
       - name: NETWORK
         value: "Astria"
       - name: SUBNETWORK
