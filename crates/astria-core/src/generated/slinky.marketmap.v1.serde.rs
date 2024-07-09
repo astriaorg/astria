@@ -17,11 +17,11 @@ impl serde::Serialize for GenesisState {
         }
         let mut struct_ser = serializer.serialize_struct("slinky.marketmap.v1.GenesisState", len)?;
         if let Some(v) = self.market_map.as_ref() {
-            struct_ser.serialize_field("market_map", v)?;
+            struct_ser.serialize_field("marketMap", v)?;
         }
         if self.last_updated != 0 {
             #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("last_updated", ToString::to_string(&self.last_updated).as_str())?;
+            struct_ser.serialize_field("lastUpdated", ToString::to_string(&self.last_updated).as_str())?;
         }
         if let Some(v) = self.params.as_ref() {
             struct_ser.serialize_field("params", v)?;
@@ -213,7 +213,7 @@ impl serde::Serialize for LastUpdatedResponse {
         let mut struct_ser = serializer.serialize_struct("slinky.marketmap.v1.LastUpdatedResponse", len)?;
         if self.last_updated != 0 {
             #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("last_updated", ToString::to_string(&self.last_updated).as_str())?;
+            struct_ser.serialize_field("lastUpdated", ToString::to_string(&self.last_updated).as_str())?;
         }
         struct_ser.end()
     }
@@ -313,7 +313,7 @@ impl serde::Serialize for Market {
             struct_ser.serialize_field("ticker", v)?;
         }
         if !self.provider_configs.is_empty() {
-            struct_ser.serialize_field("provider_configs", &self.provider_configs)?;
+            struct_ser.serialize_field("providerConfigs", &self.provider_configs)?;
         }
         struct_ser.end()
     }
@@ -586,14 +586,14 @@ impl serde::Serialize for MarketMapResponse {
         }
         let mut struct_ser = serializer.serialize_struct("slinky.marketmap.v1.MarketMapResponse", len)?;
         if let Some(v) = self.market_map.as_ref() {
-            struct_ser.serialize_field("market_map", v)?;
+            struct_ser.serialize_field("marketMap", v)?;
         }
         if self.last_updated != 0 {
             #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("last_updated", ToString::to_string(&self.last_updated).as_str())?;
+            struct_ser.serialize_field("lastUpdated", ToString::to_string(&self.last_updated).as_str())?;
         }
         if !self.chain_id.is_empty() {
-            struct_ser.serialize_field("chain_id", &self.chain_id)?;
+            struct_ser.serialize_field("chainId", &self.chain_id)?;
         }
         struct_ser.end()
     }
@@ -711,7 +711,7 @@ impl serde::Serialize for MarketRequest {
         }
         let mut struct_ser = serializer.serialize_struct("slinky.marketmap.v1.MarketRequest", len)?;
         if let Some(v) = self.currency_pair.as_ref() {
-            struct_ser.serialize_field("currency_pair", v)?;
+            struct_ser.serialize_field("currencyPair", v)?;
         }
         struct_ser.end()
     }
@@ -897,7 +897,7 @@ impl serde::Serialize for Params {
         }
         let mut struct_ser = serializer.serialize_struct("slinky.marketmap.v1.Params", len)?;
         if !self.market_authorities.is_empty() {
-            struct_ser.serialize_field("market_authorities", &self.market_authorities)?;
+            struct_ser.serialize_field("marketAuthorities", &self.market_authorities)?;
         }
         if !self.admin.is_empty() {
             struct_ser.serialize_field("admin", &self.admin)?;
@@ -1180,16 +1180,16 @@ impl serde::Serialize for ProviderConfig {
             struct_ser.serialize_field("name", &self.name)?;
         }
         if !self.off_chain_ticker.is_empty() {
-            struct_ser.serialize_field("off_chain_ticker", &self.off_chain_ticker)?;
+            struct_ser.serialize_field("offChainTicker", &self.off_chain_ticker)?;
         }
         if let Some(v) = self.normalize_by_pair.as_ref() {
-            struct_ser.serialize_field("normalize_by_pair", v)?;
+            struct_ser.serialize_field("normalizeByPair", v)?;
         }
         if self.invert {
             struct_ser.serialize_field("invert", &self.invert)?;
         }
         if !self.metadata_json.is_empty() {
-            struct_ser.serialize_field("metadata_JSON", &self.metadata_json)?;
+            struct_ser.serialize_field("metadataJSON", &self.metadata_json)?;
         }
         struct_ser.end()
     }
@@ -1339,7 +1339,7 @@ impl serde::Serialize for Ticker {
         }
         let mut struct_ser = serializer.serialize_struct("slinky.marketmap.v1.Ticker", len)?;
         if let Some(v) = self.currency_pair.as_ref() {
-            struct_ser.serialize_field("currency_pair", v)?;
+            struct_ser.serialize_field("currencyPair", v)?;
         }
         if self.decimals != 0 {
             #[allow(clippy::needless_borrow)]
@@ -1347,13 +1347,13 @@ impl serde::Serialize for Ticker {
         }
         if self.min_provider_count != 0 {
             #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("min_provider_count", ToString::to_string(&self.min_provider_count).as_str())?;
+            struct_ser.serialize_field("minProviderCount", ToString::to_string(&self.min_provider_count).as_str())?;
         }
         if self.enabled {
             struct_ser.serialize_field("enabled", &self.enabled)?;
         }
         if !self.metadata_json.is_empty() {
-            struct_ser.serialize_field("metadata_JSON", &self.metadata_json)?;
+            struct_ser.serialize_field("metadataJSON", &self.metadata_json)?;
         }
         struct_ser.end()
     }

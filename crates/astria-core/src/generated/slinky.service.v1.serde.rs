@@ -82,7 +82,7 @@ impl serde::Serialize for QueryMarketMapResponse {
         }
         let mut struct_ser = serializer.serialize_struct("slinky.service.v1.QueryMarketMapResponse", len)?;
         if let Some(v) = self.market_map.as_ref() {
-            struct_ser.serialize_field("market_map", v)?;
+            struct_ser.serialize_field("marketMap", v)?;
         }
         struct_ser.end()
     }

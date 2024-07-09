@@ -20,10 +20,10 @@ impl serde::Serialize for CurrencyPairGenesis {
         }
         let mut struct_ser = serializer.serialize_struct("slinky.oracle.v1.CurrencyPairGenesis", len)?;
         if let Some(v) = self.currency_pair.as_ref() {
-            struct_ser.serialize_field("currency_pair", v)?;
+            struct_ser.serialize_field("currencyPair", v)?;
         }
         if let Some(v) = self.currency_pair_price.as_ref() {
-            struct_ser.serialize_field("currency_pair_price", v)?;
+            struct_ser.serialize_field("currencyPairPrice", v)?;
         }
         if self.nonce != 0 {
             #[allow(clippy::needless_borrow)]
@@ -295,11 +295,11 @@ impl serde::Serialize for GenesisState {
         }
         let mut struct_ser = serializer.serialize_struct("slinky.oracle.v1.GenesisState", len)?;
         if !self.currency_pair_genesis.is_empty() {
-            struct_ser.serialize_field("currency_pair_genesis", &self.currency_pair_genesis)?;
+            struct_ser.serialize_field("currencyPairGenesis", &self.currency_pair_genesis)?;
         }
         if self.next_id != 0 {
             #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("next_id", ToString::to_string(&self.next_id).as_str())?;
+            struct_ser.serialize_field("nextId", ToString::to_string(&self.next_id).as_str())?;
         }
         struct_ser.end()
     }
@@ -476,7 +476,7 @@ impl serde::Serialize for GetAllCurrencyPairsResponse {
         }
         let mut struct_ser = serializer.serialize_struct("slinky.oracle.v1.GetAllCurrencyPairsResponse", len)?;
         if !self.currency_pairs.is_empty() {
-            struct_ser.serialize_field("currency_pairs", &self.currency_pairs)?;
+            struct_ser.serialize_field("currencyPairs", &self.currency_pairs)?;
         }
         struct_ser.end()
     }
@@ -639,7 +639,7 @@ impl serde::Serialize for GetCurrencyPairMappingResponse {
         }
         let mut struct_ser = serializer.serialize_struct("slinky.oracle.v1.GetCurrencyPairMappingResponse", len)?;
         if !self.currency_pair_mapping.is_empty() {
-            struct_ser.serialize_field("currency_pair_mapping", &self.currency_pair_mapping)?;
+            struct_ser.serialize_field("currencyPairMapping", &self.currency_pair_mapping)?;
         }
         struct_ser.end()
     }
@@ -734,7 +734,7 @@ impl serde::Serialize for GetPriceRequest {
         }
         let mut struct_ser = serializer.serialize_struct("slinky.oracle.v1.GetPriceRequest", len)?;
         if let Some(v) = self.currency_pair.as_ref() {
-            struct_ser.serialize_field("currency_pair", v)?;
+            struct_ser.serialize_field("currencyPair", v)?;
         }
         struct_ser.end()
     }
@@ -977,7 +977,7 @@ impl serde::Serialize for GetPricesRequest {
         }
         let mut struct_ser = serializer.serialize_struct("slinky.oracle.v1.GetPricesRequest", len)?;
         if !self.currency_pair_ids.is_empty() {
-            struct_ser.serialize_field("currency_pair_ids", &self.currency_pair_ids)?;
+            struct_ser.serialize_field("currencyPairIds", &self.currency_pair_ids)?;
         }
         struct_ser.end()
     }
@@ -1169,11 +1169,11 @@ impl serde::Serialize for QuotePrice {
             struct_ser.serialize_field("price", &self.price)?;
         }
         if let Some(v) = self.block_timestamp.as_ref() {
-            struct_ser.serialize_field("block_timestamp", v)?;
+            struct_ser.serialize_field("blockTimestamp", v)?;
         }
         if self.block_height != 0 {
             #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("block_height", ToString::to_string(&self.block_height).as_str())?;
+            struct_ser.serialize_field("blockHeight", ToString::to_string(&self.block_height).as_str())?;
         }
         struct_ser.end()
     }
