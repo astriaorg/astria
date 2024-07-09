@@ -28,7 +28,10 @@ use tendermint::v0_38::abci::{
 };
 use tower::Service;
 use tower_abci::BoxError;
-use tracing::Instrument as _;
+use tracing::{
+    instrument,
+    Instrument as _,
+};
 
 use crate::{
     accounts::state_ext::StateReadExt,
@@ -98,6 +101,7 @@ impl Service<MempoolRequest> for Mempool {
 ///
 /// If the tx passes all checks, status code 0 is returned.
 #[allow(clippy::too_many_lines)]
+#[instrument(skip_all)]
 async fn handle_check_tx<S: StateReadExt + 'static>(
     req: request::CheckTx,
     state: S,

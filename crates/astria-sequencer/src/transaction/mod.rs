@@ -37,6 +37,7 @@ use crate::{
     state_ext::StateReadExt as _,
 };
 
+#[instrument(skip_all)]
 pub(crate) async fn check_stateless(tx: &SignedTransaction) -> anyhow::Result<()> {
     tx.unsigned_transaction()
         .check_stateless()
@@ -44,6 +45,7 @@ pub(crate) async fn check_stateless(tx: &SignedTransaction) -> anyhow::Result<()
         .context("stateless check failed")
 }
 
+#[instrument(skip_all)]
 pub(crate) async fn check_stateful<S: StateReadExt + 'static>(
     tx: &SignedTransaction,
     state: &S,

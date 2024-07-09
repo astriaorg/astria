@@ -58,6 +58,8 @@ use tracing::{
     debug,
     info,
     instrument,
+    Instrument as _,
+    Span,
 };
 
 use crate::{
@@ -992,12 +994,17 @@ impl App {
         signed_tx: Arc<SignedTransaction>,
     ) -> anyhow::Result<Vec<Event>> {
         let signed_tx_2 = signed_tx.clone();
-        let stateless =
-            tokio::spawn(async move { transaction::check_stateless(&signed_tx_2).await });
+        let span = Span::current();
+        let stateless = tokio::spawn(
+            async move { transaction::check_stateless(&signed_tx_2).await }
+                .instrument(span.clone()),
+        );
         let signed_tx_2 = signed_tx.clone();
         let state2 = self.state.clone();
-        let stateful =
-            tokio::spawn(async move { transaction::check_stateful(&signed_tx_2, &state2).await });
+        let stateful = tokio::spawn(
+            async move { transaction::check_stateful(&signed_tx_2, &state2).await }
+                .instrument(span),
+        );
 
         stateless
             .await
