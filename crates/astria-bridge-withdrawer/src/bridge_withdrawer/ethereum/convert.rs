@@ -5,7 +5,10 @@ use astria_bridge_contracts::i_astria_withdrawer::{
     SequencerWithdrawalFilter,
 };
 use astria_core::{
-    bridge::Ics20WithdrawalFromRollupMemo,
+    bridge::{
+        self,
+        Ics20WithdrawalFromRollupMemo,
+    },
     primitive::v1::{
         asset::{
             self,
@@ -31,10 +34,6 @@ use ethers::types::{
     U64,
 };
 use ibc_types::core::client::Height as IbcHeight;
-use serde::{
-    Deserialize,
-    Serialize,
-};
 
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum WithdrawalEvent {
@@ -83,12 +82,6 @@ pub(crate) fn event_to_action(
     Ok(action)
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct BridgeUnlockMemo {
-    pub(crate) block_number: U64,
-    pub(crate) transaction_hash: TxHash,
-}
-
 fn event_to_bridge_unlock(
     event: &SequencerWithdrawalFilter,
     block_number: U64,
@@ -96,9 +89,12 @@ fn event_to_bridge_unlock(
     fee_asset: asset::Denom,
     asset_withdrawal_divisor: u128,
 ) -> eyre::Result<Action> {
-    let memo = BridgeUnlockMemo {
-        block_number,
-        transaction_hash,
+    let memo = bridge::UnlockMemo {
+        // XXX: The documentation mentions that the ethers U64 type will panic if it cannot be
+        // converted to u64. However, this is part of a catch-all documentation that does not apply
+        // to U64.
+        block_number: block_number.as_u64(),
+        transaction_hash: transaction_hash.into(),
     };
     let action = BridgeUnlockAction {
         to: event
@@ -232,9 +228,9 @@ mod tests {
         let expected_action = BridgeUnlockAction {
             to: crate::astria_address([1u8; 20]),
             amount: 99,
-            memo: serde_json::to_vec(&BridgeUnlockMemo {
-                block_number: 1.into(),
-                transaction_hash: [2u8; 32].into(),
+            memo: serde_json::to_vec(&bridge::UnlockMemo {
+                block_number: 1,
+                transaction_hash: [2u8; 32],
             })
             .unwrap(),
             fee_asset: denom,
@@ -273,9 +269,9 @@ mod tests {
         let expected_action = BridgeUnlockAction {
             to: crate::astria_address([1u8; 20]),
             amount: 99,
-            memo: serde_json::to_vec(&BridgeUnlockMemo {
-                block_number: 1.into(),
-                transaction_hash: [2u8; 32].into(),
+            memo: serde_json::to_vec(&bridge::UnlockMemo {
+                block_number: 1,
+                transaction_hash: [2u8; 32],
             })
             .unwrap(),
             fee_asset: denom,
