@@ -34,5 +34,21 @@ genesis:
     - address: astria13ahqz4pjqfmynk9ylrqv4fwe4957x2p0h5782u
       balance: "48"
 
+resources:
+  cometbft:
+    requests:
+      cpu: 1000m
+      memory: 500Mi
+    limits:
+      cpu: 1000m
+      memory: 500Mi
+  sequencer:
+    requests:
+      cpu: 1000m
+      memory: 500Mi
+    limits:
+      cpu: 1000m
+      memory: 500Mi
+
 storage:
   enabled: false

@@ -179,6 +179,22 @@ cometbft:
       secret:
         resourceName: "projects/$PROJECT_ID/secrets/privValidatorKey/versions/latest"
 
+resources:
+  cometbft:
+    requests:
+      cpu: 4000m
+      memory: 4Gi
+    limits:
+      cpu: 4000m
+      memory: 4Gi
+  sequencer:
+    requests:
+      cpu: 4000m
+      memory: 4Gi
+    limits:
+      cpu: 4000m
+      memory: 4Gi
+
 sequencer-relayer:
   enabled: false
 
