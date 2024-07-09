@@ -1898,9 +1898,12 @@ checksum = "acbf1af155f9b9ef647e42cdc158db4b64a1b61f743629225fde6f3e0be2a7c7"
 
 [[package]]
 name = "colour"
-version = "2.0.0"
+version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "692e39ee1f14432931eb080a5e8e8930a7eff3d19e638cd04091534ebc40b928"
+checksum = "b536eebcabe54980476d120a182f7da2268fe02d22575cca99cee5fdda178280"
+dependencies = [
+ "winapi",
+]
 
 [[package]]
 name = "compiletest_rs"
