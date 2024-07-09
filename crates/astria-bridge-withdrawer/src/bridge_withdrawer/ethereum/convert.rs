@@ -108,7 +108,7 @@ fn event_to_bridge_unlock(
             .ok_or(eyre::eyre!(
                 "failed to divide amount by asset withdrawal multiplier"
             ))?,
-        memo: serde_json::to_vec(&memo).wrap_err("failed to serialize memo to json")?,
+        memo: serde_json::to_string(&memo).wrap_err("failed to serialize memo to json")?,
         fee_asset,
         bridge_address: None,
     };
@@ -228,7 +228,7 @@ mod tests {
         let expected_action = BridgeUnlockAction {
             to: crate::astria_address([1u8; 20]),
             amount: 99,
-            memo: serde_json::to_vec(&bridge::UnlockMemo {
+            memo: serde_json::to_string(&bridge::UnlockMemo {
                 block_number: 1,
                 transaction_hash: [2u8; 32],
             })
@@ -269,7 +269,7 @@ mod tests {
         let expected_action = BridgeUnlockAction {
             to: crate::astria_address([1u8; 20]),
             amount: 99,
-            memo: serde_json::to_vec(&bridge::UnlockMemo {
+            memo: serde_json::to_string(&bridge::UnlockMemo {
                 block_number: 1,
                 transaction_hash: [2u8; 32],
             })

@@ -210,7 +210,7 @@ message BridgeUnlockAction {
   // the asset used to pay the transaction fee
   string fee_asset = 3;
   // memo for double spend prevention
-  bytes memo = 4;
+  string memo = 4;
   // the address of the bridge account to transfer from,
   // if the bridge account's withdrawer address is not the same as the bridge address.
   // if unset, the signer of the transaction is used.
