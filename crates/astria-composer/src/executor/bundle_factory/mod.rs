@@ -42,6 +42,7 @@ impl<'a> Serialize for SizedBundleReport<'a> {
         let mut report = serializer.serialize_struct("SizedBundleReport", 2)?;
         report.serialize_field("size", &self.0.curr_size)?;
         report.serialize_field("rollup_counts", &self.0.rollup_counts)?;
+        report.serialize_field("actions_count", &self.0.buffer.len())?;
         report.end()
     }
 }
@@ -180,10 +181,7 @@ impl BundleFactory {
     /// Buffer `seq_action` into the current bundle. If the bundle won't fit `seq_action`, flush
     /// `curr_bundle` into the `finished` queue and start a new bundle, unless the `finished` queue
     /// is at capacity.
-    pub(super) fn try_push(
-        &mut self,
-        action: Action,
-    ) -> Result<(), BundleFactoryError> {
+    pub(super) fn try_push(&mut self, action: Action) -> Result<(), BundleFactoryError> {
         let action_size = encoded_len(&action);
 
         match self.curr_bundle.try_push(action) {

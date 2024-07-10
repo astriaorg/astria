@@ -4,6 +4,7 @@ use std::{
 };
 
 use astria_core::primitive::v1::RollupId;
+use futures::stream::Count;
 use metrics::{
     counter,
     describe_counter,
@@ -37,6 +38,9 @@ pub(crate) struct Metrics {
     sequencer_submission_failure_count: Counter,
     txs_per_submission: Histogram,
     bytes_per_submission: Histogram,
+    total_txs_sent: Counter,
+    total_seq_actions_sent: Counter,
+    total_tx_bytes: Histogram
 }
 
 impl Metrics {
@@ -100,6 +104,27 @@ impl Metrics {
         );
         let bytes_per_submission = histogram!(BYTES_PER_SUBMISSION);
 
+        describe_counter!(
+            TOTAL_TXS_SENT,
+            Unit::Count,
+            "The total number of transactions sent to the sequencer"
+        );
+        let total_txs_sent = counter!(TOTAL_TXS_SENT);
+
+        describe_counter!(
+            TOTAL_SEQ_ACTIONS_SENT,
+            Unit::Count,
+            "The total number of sequence actions sent to the sequencer"
+        );
+        let total_seq_actions_sent = counter!(TOTAL_SEQ_ACTIONS_SENT);
+
+        describe_histogram!(
+            TOTAL_TX_BYTES,
+            Unit::Bytes,
+            "The total number of bytes sent to the sequencer"
+        );
+        let total_tx_bytes = histogram!(TOTAL_TX_BYTES);
+
         Self {
             geth_txs_received,
             geth_txs_dropped,
@@ -114,6 +139,9 @@ impl Metrics {
             sequencer_submission_failure_count,
             txs_per_submission,
             bytes_per_submission,
+            total_txs_sent,
+            total_seq_actions_sent,
+            total_tx_bytes
         }
     }
 
@@ -183,6 +211,20 @@ impl Metrics {
         // allow: precision loss is unlikely (values too small) but also unimportant in histograms.
         #[allow(clippy::cast_precision_loss)]
         self.bytes_per_submission.record(byte_count as f64);
+    }
+
+    pub(crate) fn increment_total_txs_sent(&self) {
+        self.total_txs_sent.increment(1);
+    }
+
+    pub(crate) fn increment_total_seq_actions_sent(&self, count: u64) {
+        self.total_seq_actions_sent.increment(count);
+    }
+
+    pub(crate) fn record_total_tx_bytes(&self, byte_count: usize) {
+        // allow: precision loss is unlikely (values too small) but also unimportant in histograms.
+        #[allow(clippy::cast_precision_loss)]
+        self.total_tx_bytes.record(byte_count as f64);
     }
 }
 
@@ -291,7 +333,10 @@ metric_names!(pub const METRICS_NAMES:
     SEQUENCER_SUBMISSION_LATENCY,
     SEQUENCER_SUBMISSION_FAILURE_COUNT,
     TRANSACTIONS_PER_SUBMISSION,
-    BYTES_PER_SUBMISSION
+    BYTES_PER_SUBMISSION,
+    TOTAL_TXS_SENT,
+    TOTAL_SEQ_ACTIONS_SENT,
+    TOTAL_TX_BYTES
 );
 
 #[cfg(test)]
@@ -304,10 +349,13 @@ mod tests {
         NONCE_FETCH_LATENCY,
         SEQUENCER_SUBMISSION_FAILURE_COUNT,
         SEQUENCER_SUBMISSION_LATENCY,
+        TOTAL_SEQ_ACTIONS_SENT,
+        TOTAL_TXS_SENT,
         TRANSACTIONS_DROPPED,
         TRANSACTIONS_DROPPED_TOO_LARGE,
         TRANSACTIONS_PER_SUBMISSION,
         TRANSACTIONS_RECEIVED,
+        TOTAL_TX_BYTES
     };
 
     #[track_caller]
@@ -337,5 +385,8 @@ mod tests {
         );
         assert_const(TRANSACTIONS_PER_SUBMISSION, "transactions_per_submission");
         assert_const(BYTES_PER_SUBMISSION, "bytes_per_submission");
+        assert_const(TOTAL_TXS_SENT, "total_txs_sent");
+        assert_const(TOTAL_SEQ_ACTIONS_SENT, "total_seq_actions_sent");
+        assert_const(TOTAL_TX_BYTES, "total_tx_bytes");
     }
 }

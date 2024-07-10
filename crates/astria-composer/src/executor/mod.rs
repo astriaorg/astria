@@ -16,6 +16,7 @@ use astria_core::{
         abci::AbciErrorCode,
         transaction::v1alpha1::{
             action::SequenceAction,
+            Action,
             SignedTransaction,
             TransactionParams,
             UnsignedTransaction,
@@ -74,7 +75,6 @@ use tracing::{
     Instrument,
     Span,
 };
-use astria_core::protocol::transaction::v1alpha1::Action;
 
 use self::bundle_factory::SizedBundle;
 use crate::{
@@ -550,6 +550,8 @@ async fn submit_tx(
 ) -> eyre::Result<tx_sync::Response> {
     let nonce = tx.nonce();
     metrics.set_current_nonce(nonce);
+    let total_seq_actions = tx.actions().len();
+    let tx_size = tx.to_raw().encode_to_vec().len();
 
     // TODO: change to info and log tx hash (to match info log in `SubmitFut`'s response handling
     // logic)
@@ -588,6 +590,9 @@ async fn submit_tx(
     .await
     .wrap_err("failed sending transaction after 1024 attempts");
 
+    metrics.record_total_tx_bytes(tx_size);
+    metrics.increment_total_txs_sent();
+    metrics.increment_total_seq_actions_sent(total_seq_actions as u64);
     metrics.record_sequencer_submission_latency(start.elapsed());
 
     res

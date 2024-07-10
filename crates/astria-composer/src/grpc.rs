@@ -9,7 +9,10 @@
 use std::net::SocketAddr;
 
 use astria_core::{
-    generated::composer::v1alpha1::sequencer_grpc_collector_service_server,
+    generated::composer::v1alpha1::{
+        sequencer_grpc_collector_service_server,
+        sequencer_grpc_collector_service_server::SequencerGrpcCollectorServiceServer,
+    },
     primitive::v1::asset,
 };
 use astria_eyre::{
@@ -21,7 +24,6 @@ use tokio::{
     net::TcpListener,
 };
 use tokio_util::sync::CancellationToken;
-use astria_core::generated::composer::v1alpha1::sequencer_grpc_collector_service_server::SequencerGrpcCollectorServiceServer;
 
 use crate::{
     collectors,

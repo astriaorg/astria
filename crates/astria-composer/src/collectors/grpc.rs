@@ -3,11 +3,19 @@
 use std::sync::Arc;
 
 use astria_core::{
+    generated::composer::v1alpha1::{
+        sequencer_grpc_collector_service_server::SequencerGrpcCollectorService,
+        SubmitSequencerTransactionRequest,
+        SubmitSequencerTransactionResponse,
+    },
     primitive::v1::{
         asset,
         RollupId,
     },
-    protocol::transaction::v1alpha1::action::SequenceAction,
+    protocol::transaction::v1alpha1::{
+        action::SequenceAction,
+        Action,
+    },
 };
 use tokio::sync::mpsc::error::SendTimeoutError;
 use tonic::{
@@ -15,9 +23,6 @@ use tonic::{
     Response,
     Status,
 };
-use astria_core::generated::composer::v1alpha1::sequencer_grpc_collector_service_server::SequencerGrpcCollectorService;
-use astria_core::generated::composer::v1alpha1::{SubmitSequencerTransactionRequest, SubmitSequencerTransactionResponse};
-use astria_core::protocol::transaction::v1alpha1::Action;
 
 use crate::{
     collectors::EXECUTOR_SEND_TIMEOUT,

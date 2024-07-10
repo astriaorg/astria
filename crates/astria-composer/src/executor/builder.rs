@@ -7,7 +7,10 @@ use std::{
 use astria_core::{
     crypto::SigningKey,
     primitive::v1::Address,
-    protocol::transaction::v1alpha1::action::SequenceAction,
+    protocol::transaction::v1alpha1::{
+        action::SequenceAction,
+        Action,
+    },
 };
 use astria_eyre::eyre::{
     self,
@@ -16,7 +19,6 @@ use astria_eyre::eyre::{
 };
 use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
-use astria_core::protocol::transaction::v1alpha1::Action;
 
 use crate::{
     executor,
