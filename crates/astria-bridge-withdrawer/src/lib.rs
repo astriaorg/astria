@@ -10,9 +10,6 @@ pub(crate) use bridge_withdrawer::{
     ASTRIA_ADDRESS_PREFIX,
 };
 pub use bridge_withdrawer::{
-    astria_bridgeable_erc20,
-    astria_withdrawer,
-    astria_withdrawer_interface,
     BridgeWithdrawer,
     ShutdownHandle,
 };

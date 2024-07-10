@@ -3,7 +3,7 @@ use std::{
     time::Duration,
 };
 
-use astria_bridge_withdrawer::{
+use astria_bridge_contracts::{
     astria_bridgeable_erc20::{
         AstriaBridgeableERC20,
         ASTRIABRIDGEABLEERC20_ABI,
@@ -13,8 +13,9 @@ use astria_bridge_withdrawer::{
         ASTRIAWITHDRAWER_ABI,
         ASTRIAWITHDRAWER_BYTECODE,
     },
-    bridge_withdrawer::astria_withdrawer::AstriaWithdrawer,
 };
+use astria_bridge_withdrawer::bridge_withdrawer::astria_withdrawer::AstriaWithdrawer;
+use astria_core::primitive::v1::Address as AstriaAddress;
 use ethers::{
     abi::Tokenizable,
     core::utils::Anvil,
@@ -22,8 +23,9 @@ use ethers::{
     signers::Signer,
     utils::AnvilInstance,
 };
+use tracing::debug;
 
-pub use super::test_bridge_withdrawer::astria_address;
+use super::test_bridge_withdrawer::astria_address;
 
 pub struct TestEthereum {
     contract_address: ethers::types::Address,
@@ -44,7 +46,7 @@ impl TestEthereum {
     pub async fn send_sequencer_withdraw_transaction(
         &self,
         value: U256,
-        recipient: Address,
+        recipient: AstriaAddress,
     ) -> TransactionReceipt {
         let signer = Arc::new(SignerMiddleware::new(
             self.provider.clone(),
@@ -61,6 +63,8 @@ impl TestEthereum {
             .await
             .expect("failed to await pending transaction")
             .expect("no receipt found");
+
+        debug!(transaction.hash = %receipt.transaction_hash, "sent sequencer withdraw tranasaction");
 
         assert!(
             receipt.status == Some(ethers::types::U64::from(1)),
@@ -288,7 +292,7 @@ pub(crate) async fn deploy_astria_withdrawer(
     base_chain_asset_denomination: String,
 ) -> (Address, Arc<Provider<Ws>>, LocalWallet, AnvilInstance) {
     // setup anvil and signing wallet
-    let anvil = Anvil::new().spawn();
+    let anvil = Anvil::new().block_time(1u64).spawn();
     let wallet: LocalWallet = anvil.keys()[0].clone().into();
     let provider = Arc::new(
         Provider::<Ws>::connect(anvil.ws_endpoint())

@@ -106,6 +106,11 @@ impl Submitter {
                         info!("received None from batch channel, shutting down");
                         break Err(eyre!("batch channel closed"));
                     };
+
+                    if rollup_height % 1 == 0 {
+                        info!(batch.rollup_height = rollup_height, batch.count = actions.len(), "processing batch of withdrawals");
+                    }
+
                     // if batch submission fails, halt the submitter
                     if let Err(e) = process_batch(
                         self.sequencer_cometbft_client.clone(),
@@ -208,7 +213,7 @@ async fn process_batch(
             sequencer.block = rsp.height.value(),
             sequencer.tx_hash = %rsp.hash,
             rollup.height = rollup_height,
-            "withdraw batch successfully executed."
+            "batch successfully executed."
         );
         state.set_last_rollup_height_submitted(rollup_height);
         state.set_last_sequencer_height(rsp.height.value());

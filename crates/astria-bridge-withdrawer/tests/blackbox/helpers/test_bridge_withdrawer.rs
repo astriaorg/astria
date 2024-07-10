@@ -159,7 +159,6 @@ impl TestBridgeWithdrawer {
             sequencer_chain_id: SEQUENCER_CHAIN_ID.into(),
             sequencer_key_path,
             fee_asset_denomination: default_native_asset(),
-            min_expected_fee_asset_balance: 1_000_000_u64,
             rollup_asset_denomination: default_native_asset().to_string(),
             sequencer_bridge_address: default_bridge_address().to_string(),
             ethereum_contract_address: ethereum.contract_address(),
@@ -257,6 +256,7 @@ impl TestBridgeWithdrawer {
                     within.as_secs_f32()
                 );
             }
+            debug!(context, "future executed without timeout");
             value
         } else {
             // TODO: add handing of failed future using the api server like in sequencer-relayer

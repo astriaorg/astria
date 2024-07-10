@@ -1,9 +1,6 @@
 use std::{
     sync::Arc,
-    time::{
-        Duration,
-        Instant,
-    },
+    time::Duration,
 };
 
 use astria_core::{
@@ -29,7 +26,6 @@ use astria_eyre::eyre::{
     OptionExt as _,
     WrapErr as _,
 };
-use futures::FutureExt;
 use prost::{
     Message as _,
     Name as _,
@@ -62,7 +58,6 @@ use super::state::{
     self,
     State,
 };
-use crate::metrics::Metrics;
 
 pub(super) struct Builder {
     pub(super) shutdown_token: CancellationToken,
@@ -236,16 +231,11 @@ impl Startup {
                 .wrap_err("failed to get allowed fee asset ids from sequencer")?;
         let expected_fee_asset_ibc = self.expected_fee_asset.to_ibc_prefixed();
         ensure!(
-            allowed_fee_asset_ids_resp
+            allowed_fee_assets_resp
                 .fee_assets
                 .iter()
                 .any(|asset| asset.to_ibc_prefixed() == expected_fee_asset_ibc),
             "fee_asset provided in config is not a valid fee asset on the sequencer"
-        );
-        info!(
-            expected_min_balance = self.expected_min_fee_asset_balance,
-            actual_balance = fee_asset_balance,
-            "confirmed sufficient fee asset balance"
         );
 
         Ok(())
@@ -578,7 +568,6 @@ async fn get_latest_nonce(
 ) -> eyre::Result<u32> {
     debug!("fetching latest nonce from sequencer");
     let span = Span::current();
-    let start = Instant::now();
     let retry_config = tryhard::RetryFutureConfig::new(1024)
         .exponential_backoff(Duration::from_millis(200))
         .max_delay(Duration::from_secs(60))

@@ -7,6 +7,11 @@ use std::{
     time::Duration,
 };
 
+pub use astria_bridge_contracts::{
+    astria_bridgeable_erc20,
+    astria_withdrawer,
+    i_astria_withdrawer,
+};
 use astria_core::primitive::v1::asset::Denom;
 use astria_eyre::eyre::{
     self,
@@ -27,11 +32,6 @@ use tracing::{
     info,
 };
 
-pub use self::ethereum::{
-    astria_bridgeable_erc20,
-    astria_withdrawer,
-    astria_withdrawer_interface,
-};
 pub(crate) use self::state::StateSnapshot;
 use self::{
     ethereum::watcher,

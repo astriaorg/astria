@@ -1,6 +1,12 @@
+use std::time::Duration;
+
 use helpers::{
     astria_address,
     TestBridgeWithdrawer,
+};
+use tracing::{
+    debug,
+    error,
 };
 
 pub mod helpers;
@@ -19,15 +25,25 @@ async fn sequencer_withdraw_success() {
     // send a tx to the rollup
     let value = 1_000_000.into();
     let recipient = astria_address([1u8; 20]);
-    bridge_withdrawer
+    let receipt = bridge_withdrawer
         .ethereum
         .send_sequencer_withdraw_transaction(value, recipient)
         .await;
 
+    debug!(receipt = %receipt.transaction_hash, "submitted withdrawal to contract");
+
     bridge_withdrawer
-        .timeout_ms(100, "startup", nonce_guard.wait_until_satisfied())
+        .timeout_ms(
+            2_000,
+            "single sequencer withdraw success",
+            nonce_guard.wait_until_satisfied(),
+        )
         .await;
     bridge_withdrawer
-        .timeout_ms(100, "startup", submission_guard.wait_until_satisfied())
+        .timeout_ms(
+            2_000,
+            "single sequencer withdraw success",
+            submission_guard.wait_until_satisfied(),
+        )
         .await;
 }
