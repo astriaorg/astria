@@ -605,6 +605,14 @@ pub struct ValidatorUpdate {
 }
 
 impl ValidatorUpdate {
+    /// Create a validator update by verifying a raw protobuf-decoded
+    /// [`crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate`].
+    ///
+    /// # Errors
+    /// Returns an error if the `.power` field is negative, if `.pub_key`
+    /// is not set, or if `.pub_key` contains a non-ed25519 variant, or
+    /// if the ed25519 has invalid bytes (that is, bytes from which an
+    /// ed25519 public key cannot be constructed).
     pub fn try_from_raw(
         value: crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate,
     ) -> Result<Self, ValidatorUpdateError> {
@@ -639,10 +647,12 @@ impl ValidatorUpdate {
         })
     }
 
+    #[must_use]
     pub fn into_raw(self) -> crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate {
         self.to_raw()
     }
 
+    #[must_use]
     pub fn to_raw(&self) -> crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate {
         use crate::generated::astria_vendored::tendermint::crypto::{
             public_key,
