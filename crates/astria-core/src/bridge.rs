@@ -1,12 +1,8 @@
 use crate::primitive::v1::Address;
 
-<<<<<<< HEAD
 /// Memo format for a native bridge unlock from the rollup which is sent to a sequencer-native
 /// address.
 #[derive(Debug, Clone)]
-=======
-#[derive(Clone, Debug)]
->>>>>>> ea1692ad12d36728dbdb672298b3b905fc4e255e
 #[cfg_attr(
     feature = "serde",
     derive(serde::Serialize),
