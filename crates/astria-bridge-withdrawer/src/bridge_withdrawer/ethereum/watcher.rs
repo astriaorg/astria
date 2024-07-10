@@ -294,11 +294,13 @@ async fn sync_from_next_rollup_block_height(
     current_rollup_block_height: u64,
 ) -> Result<()> {
     info!(
-        next_rollup_block_height_to_check,
-        current_rollup_block_height, "syncing from next rollup block height"
+        block.from_height = next_rollup_block_height_to_check,
+        block.to_height = current_rollup_block_height,
+        "syncing unproccessed rollup blocks"
     );
 
     if current_rollup_block_height < next_rollup_block_height_to_check {
+        info!("no new blocks to sync");
         return Ok(());
     }
 
@@ -411,21 +413,27 @@ async fn get_and_send_events_at_block(
         get_sequencer_withdrawal_events(provider.clone(), contract_address, block_hash)
             .await
             .wrap_err("failed to get sequencer withdrawal events")?;
-    info!(
-        block.number = %block_number,
-        block.hash = %block_hash,
-        "got sequencer withdrawal events from rollup block"
-    );
+    if sequencer_withdrawal_events.len() > 0 {
+        debug!(
+            block.number = %block_number,
+            block.hash = %block_hash,
+            sequencer_withdrawals.count = %sequencer_withdrawal_events.len(),
+            "got sequencer withdrawal events from rollup block"
+        );
+    }
 
     let ics20_withdrawal_events =
         get_ics20_withdrawal_events(provider.clone(), contract_address, block_hash)
             .await
             .wrap_err("failed to get ics20 withdrawal events")?;
-    info!(
-        block.number = %block_number,
-        block.hash = %block_hash,
-        "got ics20 withdrawal events from rollup block"
-    );
+    if ics20_withdrawal_events.len() > 0 {
+        debug!(
+            block.number = %block_number,
+            block.hash = %block_hash,
+            ics20_withdrawals.count = %ics20_withdrawal_events.len(),
+            "got ics20 withdrawal events from rollup block"
+        );
+    }
 
     let events = vec![sequencer_withdrawal_events, ics20_withdrawal_events]
         .into_iter()
