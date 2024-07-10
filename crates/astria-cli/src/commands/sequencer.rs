@@ -13,13 +13,13 @@ use astria_core::{
             InitBridgeAccountAction,
             SudoAddressChangeAction,
             TransferAction,
+            ValidatorUpdate,
         },
         TransactionParams,
         UnsignedTransaction,
     },
 };
 use astria_sequencer_client::{
-    tendermint,
     tendermint_rpc::endpoint,
     Client,
     HttpClient,
@@ -421,13 +421,14 @@ pub(crate) async fn sudo_address_change(args: &SudoAddressChangeArgs) -> eyre::R
 /// * If the http client cannot be created
 /// * If the transaction failed to be submitted
 pub(crate) async fn validator_update(args: &ValidatorUpdateArgs) -> eyre::Result<()> {
-    let public_key_raw = hex::decode(args.validator_public_key.as_str())
-        .wrap_err("failed to decode public key into bytes")?;
-    let pub_key = tendermint::PublicKey::from_raw_ed25519(&public_key_raw)
-        .expect("failed to parse public key from parsed bytes");
-    let validator_update = tendermint::validator::Update {
-        pub_key,
-        power: args.power.into(),
+    let verification_key = astria_core::crypto::VerificationKey::try_from(
+        &*hex::decode(&args.validator_public_key)
+            .wrap_err("failed to decode public key bytes from argument")?,
+    )
+    .wrap_err("failed to construct public key from bytes")?;
+    let validator_update = ValidatorUpdate {
+        power: args.power,
+        verification_key,
     };
 
     let res = submit_transaction(
