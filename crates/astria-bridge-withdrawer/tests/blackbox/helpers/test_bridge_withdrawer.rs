@@ -203,7 +203,6 @@ impl TestBridgeWithdrawer {
     async fn mount_sequencer_config_responses(&mut self) {
         mount_default_chain_id(&self.cometbft_mock).await;
         mount_default_fee_assets(&self.cometbft_mock).await;
-        mount_default_min_expected_fee_asset_balance(&self.cometbft_mock).await;
     }
 
     async fn mount_wait_for_mempool_response(&mut self) {
