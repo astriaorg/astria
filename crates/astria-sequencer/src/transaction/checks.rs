@@ -27,17 +27,19 @@ use crate::{
     state_ext::StateReadExt as _,
 };
 
-pub(crate) async fn check_nonce_mempool<S: StateReadExt + 'static>(
+/// Returns the currently stored nonce of the tx signer's account if the tx nonce is not less than
+/// it.
+pub(crate) async fn get_current_nonce_if_tx_nonce_valid<S: StateReadExt + 'static>(
     tx: &SignedTransaction,
     state: &S,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<u32> {
     let signer_address = crate::address::base_prefixed(tx.verification_key().address_bytes());
     let curr_nonce = state
         .get_account_nonce(signer_address)
         .await
         .context("failed to get account nonce")?;
     ensure!(tx.nonce() >= curr_nonce, "nonce already used by account");
-    Ok(())
+    Ok(curr_nonce)
 }
 
 pub(crate) async fn check_chain_id_mempool<S: StateReadExt + 'static>(
@@ -59,7 +61,7 @@ pub(crate) async fn check_balance_mempool<S: StateReadExt + 'static>(
     let signer_address = crate::address::base_prefixed(tx.verification_key().address_bytes());
     check_balance_for_total_fees_and_transfers(tx.unsigned_transaction(), signer_address, state)
         .await
-        .context("failed to check balance for total fees and transfers")?;
+        .context("balance check for total fees and transfers failed")?;
     Ok(())
 }
 

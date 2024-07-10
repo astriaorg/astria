@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use astria_core::{
     crypto::SigningKey,
     primitive::v1::{
@@ -152,7 +154,7 @@ pub(crate) async fn initialize_app(
     app
 }
 
-pub(crate) fn get_mock_tx(nonce: u32) -> SignedTransaction {
+pub(crate) fn get_mock_tx(nonce: u32) -> Arc<SignedTransaction> {
     let (alice_signing_key, _) = get_alice_signing_key_and_address();
     let tx = UnsignedTransaction {
         params: TransactionParams::builder()
@@ -169,5 +171,5 @@ pub(crate) fn get_mock_tx(nonce: u32) -> SignedTransaction {
         ],
     };
 
-    tx.into_signed(&alice_signing_key)
+    Arc::new(tx.into_signed(&alice_signing_key))
 }

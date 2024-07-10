@@ -21,7 +21,7 @@ pub(crate) use checks::{
     check_balance_for_total_fees_and_transfers,
     check_balance_mempool,
     check_chain_id_mempool,
-    check_nonce_mempool,
+    get_current_nonce_if_tx_nonce_valid,
 };
 use tracing::instrument;
 

@@ -444,7 +444,7 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
     // don't commit the result, now call prepare_proposal with the same data.
     // this will reset the app state.
     // this simulates executing the same block as a validator (specifically the proposer).
-    app.mempool.insert(signed_tx, 0).await.unwrap();
+    app.mempool.insert(Arc::new(signed_tx), 0).await.unwrap();
 
     let proposer_address = [88u8; 20].to_vec().try_into().unwrap();
     let prepare_proposal = PrepareProposal {
@@ -553,8 +553,8 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
     }
     .into_signed(&alice_signing_key);
 
-    app.mempool.insert(tx_pass, 0).await.unwrap();
-    app.mempool.insert(tx_overflow, 0).await.unwrap();
+    app.mempool.insert(Arc::new(tx_pass), 0).await.unwrap();
+    app.mempool.insert(Arc::new(tx_overflow), 0).await.unwrap();
 
     // send to prepare_proposal
     let prepare_args = abci::request::PrepareProposal {
@@ -626,8 +626,8 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
     }
     .into_signed(&alice_signing_key);
 
-    app.mempool.insert(tx_pass, 0).await.unwrap();
-    app.mempool.insert(tx_overflow, 0).await.unwrap();
+    app.mempool.insert(Arc::new(tx_pass), 0).await.unwrap();
+    app.mempool.insert(Arc::new(tx_overflow), 0).await.unwrap();
 
     // send to prepare_proposal
     let prepare_args = abci::request::PrepareProposal {
