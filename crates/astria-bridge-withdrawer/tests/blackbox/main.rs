@@ -11,7 +11,7 @@ use tracing::{
 
 pub mod helpers;
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn sequencer_withdraw_success() {
     let bridge_withdrawer = TestBridgeWithdrawer::spawn().await;
 
@@ -25,24 +25,18 @@ async fn sequencer_withdraw_success() {
     // send a tx to the rollup
     let value = 1_000_000.into();
     let recipient = astria_address([1u8; 20]);
-    let receipt = bridge_withdrawer
+    let _receipt = bridge_withdrawer
         .ethereum
         .send_sequencer_withdraw_transaction(value, recipient)
         .await;
 
-    debug!(receipt = %receipt.transaction_hash, "submitted withdrawal to contract");
-
     bridge_withdrawer
-        .timeout_ms(
-            2_000,
-            "single sequencer withdraw success",
-            nonce_guard.wait_until_satisfied(),
-        )
+        .timeout_ms(2_000, "batch 1 nonce", nonce_guard.wait_until_satisfied())
         .await;
     bridge_withdrawer
         .timeout_ms(
             2_000,
-            "single sequencer withdraw success",
+            "batch 1 execution",
             submission_guard.wait_until_satisfied(),
         )
         .await;

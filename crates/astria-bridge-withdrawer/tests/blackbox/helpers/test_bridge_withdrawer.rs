@@ -210,12 +210,12 @@ impl TestBridgeWithdrawer {
         // TODO: add config to allow testing for non-empty mempool
         let empty_mempool_response = NonceResponse {
             height: 0,
-            nonce: 0,
+            nonce: 1,
         };
         mount_get_nonce_response(&self.cometbft_mock, empty_mempool_response).await;
 
         self.sequencer_mock
-            .mount_pending_nonce_response(0, "startup::wait_for_mempool()")
+            .mount_pending_nonce_response(1, "startup::wait_for_mempool()")
             .await;
     }
 
