@@ -7,6 +7,7 @@
   helm dependency update ./charts/evm-rollup > /dev/null
   echo "Setting up single astria sequencer..." && helm install \
     -n astria-validator-single single-sequencer-chart charts/sequencer \
+    -f ./dev/values/validators/all.yml \
     -f ./dev/values/validators/single.yml \
     {{ if tag != '' { replace('--set images.sequencer.devTag=# --set sequencer-relayer.images.sequencerRelayer.devTag=#', '#', tag) } else { '' } }} \
     --create-namespace > /dev/null
@@ -17,7 +18,7 @@
     {{ if tag != '' { replace('--set images.conductor.devTag=# --set images.composer.devTag=#', '#', tag) } else { '' } }} \
     --set config.blockscout.enabled=false \
     --set config.faucet.enabled=false > /dev/null
-  just wait-for-rollup > /dev/null
+  just wait-for-dev-rollup > /dev/null
   echo "Deploying Hermes and creating IBC channel..."
   just deploy hermes-local > /dev/null
   kubectl wait -n astria-dev-cluster deployment hermes-local-chart --for=condition=Available=True --timeout=300s
