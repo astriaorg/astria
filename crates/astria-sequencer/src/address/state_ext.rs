@@ -33,7 +33,7 @@ impl<T: ?Sized + StateRead> StateReadExt for T {}
 
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
-    #[instrument(skip_all, fields(%prefix))]
+    #[instrument(skip_all)]
     fn put_base_prefix(&mut self, prefix: &str) {
         self.put_raw(base_prefix_key().into(), prefix.into());
     }

@@ -985,10 +985,7 @@ impl App {
     }
 
     /// Executes a signed transaction.
-    #[instrument(name = "App::execute_transaction", skip_all, fields(
-        signed_transaction_hash = %telemetry::display::base64(&signed_tx.sha256_of_proto_encoding()),
-        sender_address_bytes = %telemetry::display::base64(&signed_tx.address_bytes()),
-    ))]
+    #[instrument(name = "App::execute_transaction", skip_all)]
     pub(crate) async fn execute_transaction(
         &mut self,
         signed_tx: Arc<SignedTransaction>,

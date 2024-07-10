@@ -103,7 +103,7 @@ pub(crate) trait StateReadExt: StateRead {
             .context("failed to parse timestamp from raw timestamp bytes")
     }
 
-    #[instrument(skip_all, fields(%height))]
+    #[instrument(skip_all)]
     async fn get_storage_version_by_height(&self, height: u64) -> Result<u64> {
         let key = storage_version_by_height_key(height);
         let Some(bytes) = self
@@ -161,7 +161,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(fees)
     }
 
-    #[instrument(skip_all, fields(%asset))]
+    #[instrument(skip_all)]
     async fn is_allowed_fee_asset<TAsset>(&self, asset: TAsset) -> Result<bool>
     where
         TAsset: Into<asset::IbcPrefixed> + std::fmt::Display + Send,
@@ -200,14 +200,14 @@ impl<T: StateRead> StateReadExt for T {}
 
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
-    #[instrument(skip_all, fields(%chain_id))]
+    #[instrument(skip_all)]
     fn put_chain_id_and_revision_number(&mut self, chain_id: tendermint::chain::Id) {
         let revision_number = revision_number_from_chain_id(chain_id.as_str());
         self.put_raw("chain_id".into(), chain_id.as_bytes().to_vec());
         self.put_revision_number(revision_number);
     }
 
-    #[instrument(skip_all, fields(%revision_number))]
+    #[instrument(skip_all)]
     fn put_revision_number(&mut self, revision_number: u64) {
         self.put_raw(
             REVISION_NUMBER_KEY.into(),
@@ -215,17 +215,17 @@ pub(crate) trait StateWriteExt: StateWrite {
         );
     }
 
-    #[instrument(skip_all, fields(%height))]
+    #[instrument(skip_all)]
     fn put_block_height(&mut self, height: u64) {
         self.put_raw("block_height".into(), height.to_be_bytes().to_vec());
     }
 
-    #[instrument(skip_all, fields(%timestamp))]
+    #[instrument(skip_all)]
     fn put_block_timestamp(&mut self, timestamp: Time) {
         self.put_raw("block_timestamp".into(), timestamp.to_rfc3339().into());
     }
 
-    #[instrument(skip_all, fields(%height, %version))]
+    #[instrument(skip_all)]
     fn put_storage_version_by_height(&mut self, height: u64, version: u64) {
         self.nonverifiable_put_raw(
             storage_version_by_height_key(height),
@@ -233,13 +233,13 @@ pub(crate) trait StateWriteExt: StateWrite {
         );
     }
 
-    #[instrument(skip_all, fields(%denom))]
+    #[instrument(skip_all)]
     fn put_native_asset_denom(&mut self, denom: &str) {
         self.nonverifiable_put_raw(NATIVE_ASSET_KEY.to_vec(), denom.as_bytes().to_vec());
     }
 
     /// Adds `amount` to the block fees for `asset`.
-    #[instrument(skip_all, fields(%asset, %amount))]
+    #[instrument(skip_all)]
     async fn get_and_increase_block_fees<TAsset>(
         &mut self,
         asset: TAsset,
@@ -280,7 +280,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         }
     }
 
-    #[instrument(skip_all, fields(%asset))]
+    #[instrument(skip_all)]
     fn put_allowed_fee_asset<TAsset>(&mut self, asset: TAsset)
     where
         TAsset: Into<asset::IbcPrefixed> + std::fmt::Display + Send,
@@ -288,7 +288,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         self.nonverifiable_put_raw(fee_asset_key(asset).into(), vec![]);
     }
 
-    #[instrument(skip_all, fields(%asset))]
+    #[instrument(skip_all)]
     fn delete_allowed_fee_asset<TAsset>(&mut self, asset: TAsset)
     where
         TAsset: Into<asset::IbcPrefixed> + std::fmt::Display,

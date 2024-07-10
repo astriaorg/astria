@@ -116,7 +116,7 @@ impl ActionHandler for action::Ics20Withdrawal {
         Ok(())
     }
 
-    #[instrument(skip_all, fields(%from))]
+    #[instrument(skip_all)]
     async fn check_stateful<S: StateReadExt + 'static>(
         &self,
         state: &S,
@@ -175,7 +175,7 @@ impl ActionHandler for action::Ics20Withdrawal {
         Ok(())
     }
 
-    #[instrument(skip_all, fields(%from))]
+    #[instrument(skip_all)]
     async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> Result<()> {
         let fee = state
             .get_ics20_withdrawal_base_fee()

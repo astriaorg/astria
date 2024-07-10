@@ -270,13 +270,7 @@ impl ActionHandler for UnsignedTransaction {
         Ok(())
     }
 
-    #[instrument(
-        skip_all,
-        fields(
-            nonce = self.nonce(),
-            from = %from,
-        )
-    )]
+    #[instrument(skip_all)]
     async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> anyhow::Result<()> {
         let from_nonce = state
             .get_account_nonce(from)
