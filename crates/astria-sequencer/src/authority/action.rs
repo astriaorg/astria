@@ -64,9 +64,7 @@ impl ActionHandler for ValidatorUpdate {
             .get_validator_updates()
             .await
             .context("failed getting validator updates from state")?;
-        validator_updates
-            .push_update(self.clone())
-            .context("failed adding validator to update-list of validators")?;
+        validator_updates.push_update(self.clone());
         state
             .put_validator_updates(validator_updates)
             .context("failed to put validator updates in state")?;

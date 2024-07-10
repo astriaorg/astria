@@ -72,9 +72,8 @@ impl ValidatorSet {
         self.0.get(&address.into())
     }
 
-    pub(crate) fn push_update(&mut self, update: ValidatorUpdate) -> anyhow::Result<()> {
+    pub(crate) fn push_update(&mut self, update: ValidatorUpdate) {
         self.0.insert(update.verification_key.into(), update);
-        Ok(())
     }
 
     pub(crate) fn remove<T: Into<ValidatorSetKey>>(&mut self, address: T) {
