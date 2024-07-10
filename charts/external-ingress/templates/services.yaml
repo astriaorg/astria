@@ -1,0 +1,16 @@
+{{ $namespace := include "external-ingress.namespace" . }}
+{{- range $name, $service := .Values.services }}
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ $name }}
+  namespace: {{ $namespace }}
+  labels:
+    {{- range $key, $value := $service.labels }}
+    {{ $key }}: {{ $value }}
+    {{- end }}
+spec:
+  type: ExternalName
+  externalName: {{ $service.externalServiceName }}
+---
+{{- end }}
