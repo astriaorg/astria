@@ -1,3 +1,4 @@
+pub(crate) mod bridge;
 pub(crate) mod sequencer;
 
 use clap::{
@@ -34,6 +35,10 @@ impl Cli {
 /// Commands that can be run
 #[derive(Debug, Subcommand)]
 pub enum Command {
+    Bridge {
+        #[command(subcommand)]
+        command: bridge::Command,
+    },
     Sequencer {
         #[command(subcommand)]
         command: SequencerCommand,

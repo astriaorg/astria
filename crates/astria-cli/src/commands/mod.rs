@@ -1,3 +1,4 @@
+pub(crate) mod bridge;
 mod sequencer;
 
 use color_eyre::{
@@ -38,6 +39,9 @@ use crate::cli::{
 pub async fn run(cli: Cli) -> eyre::Result<()> {
     if let Some(command) = cli.command {
         match command {
+            Command::Bridge {
+                command,
+            } => command.run().await?,
             Command::Sequencer {
                 command,
             } => match command {
