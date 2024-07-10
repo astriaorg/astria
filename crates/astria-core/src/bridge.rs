@@ -1,8 +1,12 @@
 use crate::primitive::v1::Address;
 
+<<<<<<< HEAD
 /// Memo format for a native bridge unlock from the rollup which is sent to a sequencer-native
 /// address.
 #[derive(Debug, Clone)]
+=======
+#[derive(Clone, Debug)]
+>>>>>>> ea1692ad12d36728dbdb672298b3b905fc4e255e
 #[cfg_attr(
     feature = "serde",
     derive(serde::Serialize),
@@ -59,6 +63,16 @@ pub struct Ics20TransferDepositMemo {
 #[cfg(test)]
 mod test {
     use super::*;
+
+    #[test]
+    fn bridge_unlock_memo_snapshot() {
+        let memo = UnlockMemo {
+            block_number: 42,
+            transaction_hash: [88; 32],
+        };
+
+        insta::assert_json_snapshot!(memo);
+    }
 
     #[test]
     fn ics20_withdrawal_from_rollup_memo_snapshot() {

@@ -19,6 +19,11 @@ use astria_core::{
         TransactionParams,
         UnsignedTransaction,
     },
+    sequencer::{
+        AddressPrefixes,
+        GenesisState,
+        UncheckedGenesisState,
+    },
     sequencerblock::v1alpha1::block::Deposit,
 };
 use cnidarium::StateDelta;
@@ -32,11 +37,6 @@ use crate::{
     bridge::state_ext::{
         StateReadExt as _,
         StateWriteExt,
-    },
-    genesis::{
-        AddressPrefixes,
-        GenesisState,
-        UncheckedGenesisState,
     },
     ibc::state_ext::StateReadExt as _,
     sequence::calculate_fee_from_state,

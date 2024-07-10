@@ -44,7 +44,7 @@ config:
       filename: "key.hex"
       resourceName: "projects/$PROJECT_ID/secrets/celestiaPrivateKey/versions/latest"
 ports:
-  relayerRPC: 2450
+  healthAPI: 2450
   metrics: 9000
 
 serviceMonitor:

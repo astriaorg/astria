@@ -111,7 +111,7 @@ fn preprocess_request(
     Ok(asset)
 }
 
-pub(crate) async fn allowed_fee_asset_ids_request(
+pub(crate) async fn allowed_fee_assets_request(
     storage: Storage,
     request: request::Query,
     _params: Vec<(String, String)>,

@@ -35,7 +35,14 @@ use std::{
 
 use astria_core::protocol::{
     asset::v1alpha1::AllowedFeeAssetsResponse,
-    bridge::v1alpha1::BridgeAccountLastTxHashResponse,
+    bridge::v1alpha1::{
+        BridgeAccountInfoResponse,
+        BridgeAccountLastTxHashResponse,
+    },
+    transaction::v1alpha1::{
+        TransactionFeeResponse,
+        UnsignedTransaction,
+    },
 };
 pub use astria_core::{
     primitive::v1::Address,
@@ -543,6 +550,38 @@ pub trait SequencerClientExt: Client {
         self.get_nonce(address, 0u32).await
     }
 
+    async fn get_bridge_account_info(
+        &self,
+        address: Address,
+    ) -> Result<BridgeAccountInfoResponse, Error> {
+        const PREFIX: &str = "bridge/account_info";
+        let path = format!("{PREFIX}/{address}");
+
+        let response = self
+            .abci_query(Some(path), vec![], None, false)
+            .await
+            .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
+
+        let proto_response =
+            astria_core::generated::protocol::bridge::v1alpha1::BridgeAccountInfoResponse::decode(
+                &*response.value,
+            )
+            .map_err(|e| {
+                Error::abci_query_deserialization(
+                    "astria.protocol.bridge.v1alpha1.BridgeAccountInfoResponse",
+                    response,
+                    e,
+                )
+            })?;
+        let native = BridgeAccountInfoResponse::try_from_raw(proto_response).map_err(|e| {
+            Error::native_conversion(
+                "astria.protocol.bridge.v1alpha1.BridgeAccountInfoResponse",
+                Arc::new(e),
+            )
+        })?;
+        Ok(native)
+    }
+
     async fn get_bridge_account_last_transaction_hash(
         &self,
         address: Address,
@@ -569,6 +608,38 @@ pub trait SequencerClientExt: Client {
         let native = proto_response.try_into_native().map_err(|e| {
             Error::native_conversion(
                 "astria.protocol.bridge.v1alpha1.BridgeAccountLastTxHashResponse",
+                Arc::new(e),
+            )
+        })?;
+        Ok(native)
+    }
+
+    async fn get_transaction_fee(
+        &self,
+        tx: UnsignedTransaction,
+    ) -> Result<TransactionFeeResponse, Error> {
+        let path = "transaction/fee".to_string();
+        let data = tx.into_raw().encode_to_vec();
+
+        let response = self
+            .abci_query(Some(path), data, None, false)
+            .await
+            .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
+
+        let proto_response =
+            astria_core::generated::protocol::transaction::v1alpha1::TransactionFeeResponse::decode(
+                &*response.value,
+            )
+            .map_err(|e| {
+                Error::abci_query_deserialization(
+                    "astria.protocol.transaction.v1alpha1.TransactionFeeResponse",
+                    response,
+                    e,
+                )
+            })?;
+        let native = TransactionFeeResponse::try_from_raw(proto_response).map_err(|e| {
+            Error::native_conversion(
+                "astria.protocol.transaction.v1alpha1.TransactionFeeResponse",
                 Arc::new(e),
             )
         })?;

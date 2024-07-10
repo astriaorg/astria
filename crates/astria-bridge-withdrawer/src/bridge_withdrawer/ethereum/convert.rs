@@ -1,5 +1,9 @@
 use std::time::Duration;
 
+use astria_bridge_contracts::i_astria_withdrawer::{
+    Ics20WithdrawalFilter,
+    SequencerWithdrawalFilter,
+};
 use astria_core::{
     bridge::{
         self,
@@ -30,11 +34,6 @@ use ethers::types::{
     U64,
 };
 use ibc_types::core::client::Height as IbcHeight;
-
-use crate::bridge_withdrawer::ethereum::generated::astria_withdrawer_interface::{
-    Ics20WithdrawalFilter,
-    SequencerWithdrawalFilter,
-};
 
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum WithdrawalEvent {
@@ -91,8 +90,11 @@ fn event_to_bridge_unlock(
     asset_withdrawal_divisor: u128,
 ) -> eyre::Result<Action> {
     let memo = bridge::UnlockMemo {
+        // XXX: The documentation mentions that the ethers U64 type will panic if it cannot be
+        // converted to u64. However, this is part of a catch-all documentation that does not apply
+        // to U64.
         block_number: block_number.as_u64(),
-        transaction_hash: *transaction_hash.as_fixed_bytes(),
+        transaction_hash: transaction_hash.into(),
     };
     let action = BridgeUnlockAction {
         to: event
@@ -190,8 +192,9 @@ fn calculate_packet_timeout_time(timeout_delta: Duration) -> eyre::Result<u64> {
 
 #[cfg(test)]
 mod tests {
+    use astria_bridge_contracts::i_astria_withdrawer::SequencerWithdrawalFilter;
+
     use super::*;
-    use crate::bridge_withdrawer::ethereum::astria_withdrawer_interface::SequencerWithdrawalFilter;
 
     fn default_native_asset() -> asset::Denom {
         "nria".parse().unwrap()
@@ -268,7 +271,7 @@ mod tests {
             amount: 99,
             memo: serde_json::to_vec(&bridge::UnlockMemo {
                 block_number: 1,
-                transaction_hash: [2u8; 32].into(),
+                transaction_hash: [2u8; 32],
             })
             .unwrap(),
             fee_asset: denom,

@@ -81,7 +81,6 @@ impl BridgeWithdrawer {
             ethereum_contract_address,
             ethereum_rpc_endpoint,
             rollup_asset_denomination,
-            min_expected_fee_asset_balance,
             sequencer_bridge_address,
             sequencer_grpc_endpoint,
             ..
@@ -100,9 +99,8 @@ impl BridgeWithdrawer {
             sequencer_chain_id,
             sequencer_cometbft_endpoint: sequencer_cometbft_endpoint.clone(),
             sequencer_bridge_address,
-            expected_fee_asset: fee_asset_denomination,
-            expected_min_fee_asset_balance: u128::from(min_expected_fee_asset_balance),
             sequencer_grpc_endpoint: sequencer_grpc_endpoint.clone(),
+            expected_fee_asset: fee_asset_denomination,
         }
         .build()
         .wrap_err("failed to initialize startup")?;
@@ -162,6 +160,8 @@ impl BridgeWithdrawer {
         self.api_server.local_addr()
     }
 
+    // Panic won't happen because `startup_task` is unwraped lazily after checking if it's `Some`.
+    #[allow(clippy::missing_panics_doc)]
     pub async fn run(self) {
         let Self {
             shutdown_token,
@@ -185,7 +185,6 @@ impl BridgeWithdrawer {
         });
         info!("spawned API server");
 
-        // Fused because startup task will end while the others are long running
         let mut startup_task = Some(tokio::spawn(startup.run()));
         info!("spawned startup task");
 
@@ -196,7 +195,7 @@ impl BridgeWithdrawer {
 
         let shutdown = loop {
             select!(
-                o = async { startup_task.as_mut().unwrap().await }, if !startup_task.is_some() => {
+                o = async { startup_task.as_mut().unwrap().await }, if startup_task.is_none() => {
                     match o {
                         Ok(_) => {
                             info!(task = "startup", "task has exited");
@@ -217,15 +216,14 @@ impl BridgeWithdrawer {
                 }
                 o = &mut api_task => {
                     report_exit("api server", o);
-                    // if startup_task is terminated, none. else, flatten
                     break Shutdown {
                         api_task: None,
                         submitter_task: Some(submitter_task),
                         ethereum_watcher_task: Some(ethereum_watcher_task),
-                        startup_task: startup_task,
+                        startup_task,
                         api_shutdown_signal,
                        token: shutdown_token
-                    };
+                    }
                 }
                 o = &mut submitter_task => {
                     report_exit("submitter", o);
@@ -233,10 +231,10 @@ impl BridgeWithdrawer {
                         api_task: Some(api_task),
                         submitter_task: None,
                         ethereum_watcher_task:Some(ethereum_watcher_task),
-                        startup_task: startup_task,
+                        startup_task,
                         api_shutdown_signal,
                         token: shutdown_token
-                    };
+                    }
                 }
                 o = &mut ethereum_watcher_task => {
                     report_exit("ethereum watcher", o);
@@ -244,14 +242,13 @@ impl BridgeWithdrawer {
                         api_task: Some(api_task),
                         submitter_task: Some(submitter_task),
                         ethereum_watcher_task: None,
-                        startup_task: startup_task,
+                        startup_task,
                         api_shutdown_signal,
                         token: shutdown_token
-                    };
+                    }
                 }
-            )
+            );
         };
-
         shutdown.run().await;
     }
 }
@@ -352,8 +349,6 @@ impl Shutdown {
                     startup_task.abort();
                 }
             }
-        } else {
-            info!("startup task was already dead");
         }
 
         // Giving submitter 20 seconds to shutdown because Kubernetes issues a SIGKILL after 30.
@@ -374,8 +369,6 @@ impl Shutdown {
                     submitter_task.abort();
                 }
             }
-        } else {
-            info!("submitter task was already dead");
         }
 
         // Giving ethereum watcher 5 seconds to shutdown because Kubernetes issues a SIGKILL after
@@ -397,8 +390,6 @@ impl Shutdown {
                     ethereum_watcher_task.abort();
                 }
             }
-        } else {
-            info!("watcher task was already dead");
         }
 
         // Giving the API task 4 seconds. 5s for watcher + 20 for submitter + 4s = 29s (out of 30s
@@ -418,8 +409,6 @@ impl Shutdown {
                     api_task.abort();
                 }
             }
-        } else {
-            info!("API server was already dead");
         }
     }
 }
