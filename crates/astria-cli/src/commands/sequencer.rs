@@ -1,3 +1,5 @@
+use std::fs;
+
 use astria_core::{
     crypto::SigningKey,
     primitive::v1::{
@@ -71,7 +73,8 @@ fn get_address_pretty(signing_key: &SigningKey) -> String {
     hex::encode(signing_key.verification_key().address_bytes())
 }
 
-/// Generates a new ED25519 keypair and prints the public key, private key, and address
+/// Generates a new ED25519 keypair and prints the public key, address,
+/// and output private key to file
 pub(crate) fn create_account() {
     let signing_key = get_new_signing_key();
     let public_key_pretty = get_public_key_pretty(&signing_key);
@@ -80,11 +83,12 @@ pub(crate) fn create_account() {
 
     println!("Create Sequencer Account");
     println!();
-    // TODO: don't print private keys to CLI, prefer writing to file:
-    // https://github.com/astriaorg/astria/issues/594
-    println!("Private Key: {private_key_pretty:?}");
     println!("Public Key:  {public_key_pretty:?}");
     println!("Address:     {address_pretty:?}");
+    fs::write("priv.key", private_key_pretty).expect("write private key to file error");
+    println!(
+        "Private Key has been output into priv.key.\nNote: Do not share or lose this private key!"
+    );
 }
 
 /// Gets the balance of a Sequencer account
