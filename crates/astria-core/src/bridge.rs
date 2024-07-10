@@ -1,5 +1,23 @@
 use crate::primitive::v1::Address;
 
+#[derive(Clone, Debug)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize),
+    derive(serde::Deserialize)
+)]
+pub struct UnlockMemo {
+    pub block_number: u64,
+    #[cfg_attr(
+        feature = "serde",
+        serde(
+            serialize_with = "crate::serde::base64_serialize",
+            deserialize_with = "crate::serde::base64_deserialize_array"
+        )
+    )]
+    pub transaction_hash: [u8; 32],
+}
+
 /// Memo format for a ICS20 withdrawal from the rollup which is sent to
 /// an external IBC-enabled chain.
 #[derive(Debug, Clone)]
@@ -39,6 +57,16 @@ pub struct Ics20TransferDepositMemo {
 #[cfg(test)]
 mod test {
     use super::*;
+
+    #[test]
+    fn bridge_unlock_memo_snapshot() {
+        let memo = UnlockMemo {
+            block_number: 42,
+            transaction_hash: [88; 32],
+        };
+
+        insta::assert_json_snapshot!(memo);
+    }
 
     #[test]
     fn ics20_withdrawal_from_rollup_memo_snapshot() {

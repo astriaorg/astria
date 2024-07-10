@@ -1,34 +1,42 @@
 use std::{
     sync::Arc,
-    time::Duration,
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 use astria_core::{
-    bridge::Ics20WithdrawalFromRollupMemo,
+    bridge::{
+        self,
+        Ics20WithdrawalFromRollupMemo,
+    },
     generated::sequencerblock::v1alpha1::{
         sequencer_service_client,
         GetPendingNonceRequest,
     },
     primitive::v1::asset,
     protocol::{
-        asset::v1alpha1::AllowedFeeAssetIdsResponse,
+        asset::v1alpha1::AllowedFeeAssetsResponse,
         bridge::v1alpha1::BridgeAccountLastTxHashResponse,
         transaction::v1alpha1::Action,
     },
 };
 use astria_eyre::eyre::{
     self,
+    bail,
     ensure,
-    eyre,
-    Context as _,
-    ContextCompat,
     OptionExt as _,
+    WrapErr as _,
 };
-use prost::Message as _;
+use futures::FutureExt;
+use prost::{
+    Message as _,
+    Name as _,
+};
 use sequencer_client::{
     tendermint_rpc,
     Address,
-    BalanceResponse,
     SequencerClientExt as _,
     SignedTransaction,
 };
@@ -36,12 +44,11 @@ use tendermint_rpc::{
     endpoint::tx,
     Client as _,
 };
-use tokio::sync::oneshot;
+use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 use tonic::transport::Channel;
 use tracing::{
     debug,
-    error,
     info,
     info_span,
     instrument,
@@ -49,24 +56,26 @@ use tracing::{
     Instrument as _,
     Span,
 };
+use tryhard::backoff_strategies::ExponentialBackoff;
 
-use super::state::State;
-use crate::bridge_withdrawer::ethereum::convert::BridgeUnlockMemo;
+use super::state::{
+    self,
+    State,
+};
+use crate::metrics::Metrics;
 
 pub(super) struct Builder {
     pub(super) shutdown_token: CancellationToken,
     pub(super) state: Arc<State>,
     pub(super) sequencer_chain_id: String,
     pub(super) sequencer_cometbft_endpoint: String,
-    pub(super) sequencer_bridge_address: Address,
     pub(super) sequencer_grpc_endpoint: String,
-    pub(super) expected_fee_asset_id: asset::Id,
-    // TODO: change the name of this config var
-    pub(super) expected_min_fee_asset_balance: u128,
+    pub(super) sequencer_bridge_address: Address,
+    pub(super) expected_fee_asset: asset::Denom,
 }
 
 impl Builder {
-    pub(super) fn build(self) -> eyre::Result<(Startup, SubmitterHandle, WatcherHandle)> {
+    pub(super) fn build(self) -> eyre::Result<Startup> {
         let Self {
             shutdown_token,
             state,
@@ -74,108 +83,74 @@ impl Builder {
             sequencer_cometbft_endpoint,
             sequencer_bridge_address,
             sequencer_grpc_endpoint,
-            expected_fee_asset_id,
-            expected_min_fee_asset_balance,
+            expected_fee_asset,
         } = self;
 
         let sequencer_cometbft_client =
             sequencer_client::HttpClient::new(&*sequencer_cometbft_endpoint)
                 .wrap_err("failed constructing cometbft http client")?;
 
-        let (submitter_tx, submitter_rx) = oneshot::channel();
-        let submitter_handle = SubmitterHandle::new(submitter_rx);
-
-        let (watcher_tx, watcher_rx) = oneshot::channel();
-        let watcher_handle = WatcherHandle::new(watcher_rx);
-
-        let startup = Startup {
+        Ok(Startup {
+            sequencer_grpc_endpoint,
             shutdown_token,
             state,
-            submitter_tx,
-            watcher_tx,
             sequencer_chain_id,
             sequencer_cometbft_client,
             sequencer_bridge_address,
-            sequencer_grpc_endpoint,
-            expected_fee_asset_id,
-            expected_min_fee_asset_balance,
-        };
-
-        Ok((startup, submitter_handle, watcher_handle))
+            expected_fee_asset,
+        })
     }
 }
 
-#[derive(Debug)]
-pub(super) struct SubmitterInfo {
-    pub(super) sequencer_chain_id: String,
-}
-
-#[derive(Debug)]
-pub(super) struct SubmitterHandle {
-    info_rx: Option<oneshot::Receiver<SubmitterInfo>>,
-}
-
-impl SubmitterHandle {
-    pub(super) fn new(info_rx: oneshot::Receiver<SubmitterInfo>) -> Self {
-        Self {
-            info_rx: Some(info_rx),
-        }
-    }
-
-    pub(super) async fn recv(&mut self) -> eyre::Result<SubmitterInfo> {
-        self.info_rx
-            .take()
-            .expect("startup info should only be taken once - this is a bug")
-            .await
-            .wrap_err("failed to get startup info from submitter. channel was dropped.")
-    }
-}
-
-#[derive(Debug)]
-pub(super) struct WatcherInfo {
-    pub(super) fee_asset_id: asset::Id,
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub(super) struct Info {
     pub(super) starting_rollup_height: u64,
+    pub(super) fee_asset: asset::Denom,
+    pub(super) chain_id: String,
 }
 
-#[derive(Debug)]
-pub(super) struct WatcherHandle {
-    info_rx: Option<oneshot::Receiver<WatcherInfo>>,
+#[derive(Debug, Clone)]
+pub(super) struct InfoHandle {
+    rx: watch::Receiver<state::StateSnapshot>,
 }
 
-impl WatcherHandle {
-    pub(super) fn new(info_rx: oneshot::Receiver<WatcherInfo>) -> Self {
+impl InfoHandle {
+    pub(super) fn new(rx: watch::Receiver<state::StateSnapshot>) -> Self {
         Self {
-            info_rx: Some(info_rx),
+            rx,
         }
     }
 
-    pub(super) async fn recv(&mut self) -> eyre::Result<WatcherInfo> {
-        self.info_rx
-            .take()
-            .expect("startup info should only be taken once - this is a bug")
+    pub(super) async fn get_info(&mut self) -> eyre::Result<Info> {
+        let state = self
+            .rx
+            .wait_for(|state| state.get_startup_info().is_some())
             .await
-            .wrap_err("failed to get startup info from watcher. channel was dropped.")
+            .wrap_err("failed to get startup info")?;
+
+        Ok(state
+            .get_startup_info()
+            .expect("the previous line guarantes that the state is intialized")
+            .clone())
     }
 }
 
 pub(super) struct Startup {
     shutdown_token: CancellationToken,
     state: Arc<State>,
-    submitter_tx: oneshot::Sender<SubmitterInfo>,
-    watcher_tx: oneshot::Sender<WatcherInfo>,
     sequencer_chain_id: String,
     sequencer_cometbft_client: sequencer_client::HttpClient,
-    sequencer_bridge_address: Address,
     sequencer_grpc_endpoint: String,
-    expected_fee_asset_id: asset::Id,
-    expected_min_fee_asset_balance: u128,
+    sequencer_bridge_address: Address,
+    expected_fee_asset: asset::Denom,
 }
 
 impl Startup {
     pub(super) async fn run(mut self) -> eyre::Result<()> {
         let shutdown_token = self.shutdown_token.clone();
 
-        let startup_task = tokio::spawn(async {
+        let state = self.state.clone();
+        let startup_task = async move {
             self.confirm_sequencer_config()
                 .await
                 .wrap_err("failed to confirm sequencer config")?;
@@ -201,39 +176,23 @@ impl Startup {
                 .wrap_err("failed to get next rollup block height")?;
 
             // send the startup info to the submitter
-            let submitter_info = SubmitterInfo {
-                sequencer_chain_id: self.sequencer_chain_id.clone(),
-            };
-
-            let watcher_info = WatcherInfo {
-                fee_asset_id: self.expected_fee_asset_id,
+            let info = Info {
+                chain_id: self.sequencer_chain_id.clone(),
+                fee_asset: self.expected_fee_asset,
                 starting_rollup_height,
             };
 
-            self.submitter_tx
-                .send(submitter_info)
-                .map_err(|_submitter_info| eyre!("failed to send submitter info"))?;
-            self.watcher_tx
-                .send(watcher_info)
-                .map_err(|_watcher_info| eyre!("failed to send watcher info"))?;
+            state.set_startup_info(info);
 
             Ok(())
-        });
+        };
 
         tokio::select!(
             () = shutdown_token.cancelled() => {
-                Err(eyre!("startup was cancelled"))
+                bail!("startup was cancelled");
             }
             res = startup_task => {
-                match res {
-                    Ok(Ok(())) => Ok(()),
-                    Ok(Err(err)) => {
-                        error!(%err, "startup failed");
-                        Err(err)},
-                    Err(reason) => {
-                        Err(reason.into())
-                    }
-                }
+                res
             }
         )
     }
@@ -248,8 +207,8 @@ impl Startup {
     ///
     /// - `self.chain_id` does not match the value returned from the sequencer node
     /// - `self.fee_asset_id` is not a valid fee asset on the sequencer node
-    /// - `self.sequencer_bridge_address` does not have a sufficient balance of `self.fee_asset_id`.
-    async fn confirm_sequencer_config(&mut self) -> eyre::Result<()> {
+    /// - `self.sequencer_bridge_address` does not have a sufficient balance of `self.fee_asset`.
+    async fn confirm_sequencer_config(&self) -> eyre::Result<()> {
         // confirm the sequencer chain id
         let actual_chain_id =
             get_sequencer_chain_id(self.sequencer_cometbft_client.clone(), self.state.clone())
@@ -265,30 +224,13 @@ impl Startup {
             get_allowed_fee_asset_ids(self.sequencer_cometbft_client.clone(), self.state.clone())
                 .await
                 .wrap_err("failed to get allowed fee asset ids from sequencer")?;
+        let expected_fee_asset_ibc = self.expected_fee_asset.to_ibc_prefixed();
         ensure!(
             allowed_fee_asset_ids_resp
-                .fee_asset_ids
-                .contains(&self.expected_fee_asset_id),
-            "fee_asset_id provided in config is not a valid fee asset on the sequencer"
-        );
-
-        // confirm that the sequencer key has a sufficient balance of the fee asset
-        let fee_asset_balances = get_latest_balance(
-            self.sequencer_cometbft_client.clone(),
-            self.state.clone(),
-            self.sequencer_bridge_address,
-        )
-        .await
-        .wrap_err("failed to get latest balance")?;
-        let fee_asset_balance = fee_asset_balances
-            .balances
-            .into_iter()
-            .find(|balance| balance.denom.id() == self.expected_fee_asset_id)
-            .ok_or_eyre("withdrawer's account balance of the fee asset is zero")?
-            .balance;
-        ensure!(
-            fee_asset_balance >= self.expected_min_fee_asset_balance,
-            "withdrawer account does not have a sufficient balance of the fee asset"
+                .fee_assets
+                .iter()
+                .any(|asset| asset.to_ibc_prefixed() == expected_fee_asset_ibc),
+            "fee_asset provided in config is not a valid fee asset on the sequencer"
         );
 
         Ok(())
@@ -327,7 +269,7 @@ impl Startup {
             .wrap_err("failed to convert last transaction hash to tendermint hash")?;
 
         // get the corresponding transaction
-        let last_transaction = get_tx(
+        let last_transaction = get_sequencer_transaction_at_hash(
             self.sequencer_cometbft_client.clone(),
             self.state.clone(),
             tx_hash,
@@ -346,14 +288,17 @@ impl Startup {
             astria_core::generated::protocol::transaction::v1alpha1::SignedTransaction::decode(
                 &*last_transaction.tx,
             )
-            .wrap_err("failed to convert transaction data from CometBFT to proto")?;
+            .wrap_err_with(|| format!(
+                            "failed to decode data in Sequencer CometBFT transaction as `{}`",
+                            astria_core::generated::protocol::transaction::v1alpha1::SignedTransaction::full_name(),
+                        ))?;
 
         let tx = SignedTransaction::try_from_raw(proto_tx)
-            .wrap_err("failed to convert transaction data from proto to SignedTransaction")?;
+            .wrap_err_with(|| format!("failed to verify {}", astria_core::generated::protocol::transaction::v1alpha1::SignedTransaction::full_name()))?;
 
         info!(
             last_bridge_account_tx.hash = %telemetry::display::hex(&tx_hash),
-            last_bridge_account_tx.height = i64::from(last_transaction.height),
+            last_bridge_account_tx.height = %last_transaction.height,
             "fetched last transaction by the bridge account"
         );
 
@@ -390,7 +335,7 @@ impl Startup {
                     "failed to extract rollup height from last transaction by the bridge account",
                 )?
                 .checked_add(1)
-                .wrap_err("failed to increment rollup height by 1")?
+                .ok_or_eyre("failed to increment rollup height by 1")?
         } else {
             1
         };
@@ -405,11 +350,11 @@ async fn check_for_empty_mempool(
     state: Arc<State>,
 ) -> eyre::Result<()> {
     // get pending nonce from sequencer mempool
-    let pending = get_pending_nonce(sequencer_client, address, state.clone())
+    let pending = get_pending_nonce(sequencer_client, state.clone(), address)
         .await
         .wrap_err("failed to get pending nonce")?;
     // get next nonce from cometbft mempool
-    let latest = get_latest_nonce(cometbft_client, address, state)
+    let latest = get_latest_nonce(cometbft_client, state, address)
         .await
         .wrap_err("failed to get latest nonce")?;
     // if not equal, wait for a bit and try again
@@ -508,9 +453,9 @@ fn rollup_height_from_signed_transaction(
 
     let last_batch_rollup_height = match withdrawal_action {
         Action::BridgeUnlock(action) => {
-            let memo: BridgeUnlockMemo = serde_json::from_slice(&action.memo)
+            let memo: bridge::UnlockMemo = serde_json::from_slice(&action.memo)
                 .wrap_err("failed to parse memo from last transaction by the bridge account")?;
-            Some(memo.block_number.as_u64())
+            Some(memo.block_number)
         }
         Action::Ics20Withdrawal(action) => {
             let memo: Ics20WithdrawalFromRollupMemo = serde_json::from_str(&action.memo)
@@ -536,32 +481,11 @@ async fn get_bridge_account_last_transaction_hash(
     state: Arc<State>,
     address: Address,
 ) -> eyre::Result<BridgeAccountLastTxHashResponse> {
-    let retry_config = tryhard::RetryFutureConfig::new(u32::MAX)
-        .exponential_backoff(Duration::from_millis(100))
-        .max_delay(Duration::from_secs(20))
-        .on_retry(
-            |attempt: u32,
-             next_delay: Option<Duration>,
-             error: &sequencer_client::extension_trait::Error| {
-                let state = Arc::clone(&state);
-                state.set_sequencer_connected(false);
-
-                let wait_duration = next_delay
-                    .map(humantime::format_duration)
-                    .map(tracing::field::display);
-                warn!(
-                    attempt,
-                    wait_duration,
-                    error = error as &dyn std::error::Error,
-                    "attempt to fetch last bridge account's transaction hash; retrying after \
-                     backoff",
-                );
-                futures::future::ready(())
-            },
-        );
-
     let res = tryhard::retry_fn(|| client.get_bridge_account_last_transaction_hash(address))
-        .with_config(retry_config)
+        .with_config(make_cometbft_ext_retry_config(
+            "attempt to fetch last bridge account's transaction hash from Sequencer; retrying \
+             after backoff",
+        ))
         .await
         .wrap_err(
             "failed to fetch last bridge account's transaction hash from Sequencer after a lot of \
@@ -574,34 +498,15 @@ async fn get_bridge_account_last_transaction_hash(
 }
 
 #[instrument(skip_all)]
-async fn get_tx(
+async fn get_sequencer_transaction_at_hash(
     client: sequencer_client::HttpClient,
     state: Arc<State>,
     tx_hash: tendermint::Hash,
 ) -> eyre::Result<tx::Response> {
-    let retry_config = tryhard::RetryFutureConfig::new(1024)
-        .exponential_backoff(Duration::from_millis(200))
-        .max_delay(Duration::from_secs(60))
-        .on_retry(
-            |attempt, next_delay: Option<Duration>, error: &tendermint_rpc::Error| {
-                let state = Arc::clone(&state);
-                state.set_sequencer_connected(false);
-
-                let wait_duration = next_delay
-                    .map(humantime::format_duration)
-                    .map(tracing::field::display);
-                warn!(
-                    attempt,
-                    wait_duration,
-                    error = error as &dyn std::error::Error,
-                    "attempt to get transaction from Sequencer; retrying after backoff",
-                );
-                futures::future::ready(())
-            },
-        );
-
     let res = tryhard::retry_fn(|| client.tx(tx_hash, false))
-        .with_config(retry_config)
+        .with_config(make_cometbft_retry_config(
+            "attempt to get transaction from CometBFT; retrying after backoff",
+        ))
         .await
         .wrap_err("failed to get transaction from Sequencer after a lot of attempts");
 
@@ -615,31 +520,10 @@ async fn get_sequencer_chain_id(
     client: sequencer_client::HttpClient,
     state: Arc<State>,
 ) -> eyre::Result<tendermint::chain::Id> {
-    use sequencer_client::Client as _;
-
-    let retry_config = tryhard::RetryFutureConfig::new(u32::MAX)
-        .exponential_backoff(Duration::from_millis(100))
-        .max_delay(Duration::from_secs(20))
-        .on_retry(
-            |attempt: u32, next_delay: Option<Duration>, error: &tendermint_rpc::Error| {
-                let state = Arc::clone(&state);
-                state.set_sequencer_connected(false);
-
-                let wait_duration = next_delay
-                    .map(humantime::format_duration)
-                    .map(tracing::field::display);
-                warn!(
-                    attempt,
-                    wait_duration,
-                    error = error as &dyn std::error::Error,
-                    "attempt to fetch sequencer genesis info; retrying after backoff",
-                );
-                futures::future::ready(())
-            },
-        );
-
     let genesis: tendermint::Genesis = tryhard::retry_fn(|| client.genesis())
-        .with_config(retry_config)
+        .with_config(make_cometbft_retry_config(
+            "attempt to get genesis from CometBFT; retrying after backoff",
+        ))
         .await
         .wrap_err("failed to get genesis info from Sequencer after a lot of attempts")?;
 
@@ -652,32 +536,11 @@ async fn get_sequencer_chain_id(
 async fn get_allowed_fee_asset_ids(
     client: sequencer_client::HttpClient,
     state: Arc<State>,
-) -> eyre::Result<AllowedFeeAssetIdsResponse> {
-    let retry_config = tryhard::RetryFutureConfig::new(u32::MAX)
-        .exponential_backoff(Duration::from_millis(100))
-        .max_delay(Duration::from_secs(20))
-        .on_retry(
-            |attempt: u32,
-             next_delay: Option<Duration>,
-             error: &sequencer_client::extension_trait::Error| {
-                let state = Arc::clone(&state);
-                state.set_sequencer_connected(false);
-
-                let wait_duration = next_delay
-                    .map(humantime::format_duration)
-                    .map(tracing::field::display);
-                warn!(
-                    attempt,
-                    wait_duration,
-                    error = error as &dyn std::error::Error,
-                    "attempt to fetch sequencer allowed fee asset ids; retrying after backoff",
-                );
-                futures::future::ready(())
-            },
-        );
-
-    let res = tryhard::retry_fn(|| client.get_allowed_fee_asset_ids())
-        .with_config(retry_config)
+) -> eyre::Result<AllowedFeeAssetsResponse> {
+    let res = tryhard::retry_fn(|| client.get_allowed_fee_assets())
+        .with_config(make_cometbft_ext_retry_config(
+            "attempt to get allowed fee assets from Sequencer; retrying after backoff",
+        ))
         .await
         .wrap_err("failed to get allowed fee asset ids from Sequencer after a lot of attempts");
 
@@ -687,54 +550,14 @@ async fn get_allowed_fee_asset_ids(
 }
 
 #[instrument(skip_all)]
-async fn get_latest_balance(
-    client: sequencer_client::HttpClient,
-    state: Arc<State>,
-    address: Address,
-) -> eyre::Result<BalanceResponse> {
-    let retry_config = tryhard::RetryFutureConfig::new(u32::MAX)
-        .exponential_backoff(Duration::from_millis(100))
-        .max_delay(Duration::from_secs(20))
-        .on_retry(
-            |attempt: u32,
-             next_delay: Option<Duration>,
-             error: &sequencer_client::extension_trait::Error| {
-                let state = Arc::clone(&state);
-                state.set_sequencer_connected(false);
-
-                let wait_duration = next_delay
-                    .map(humantime::format_duration)
-                    .map(tracing::field::display);
-                warn!(
-                    attempt,
-                    wait_duration,
-                    error = error as &dyn std::error::Error,
-                    "attempt to get latest balance; retrying after backoff",
-                );
-                futures::future::ready(())
-            },
-        );
-
-    let res = tryhard::retry_fn(|| client.get_latest_balance(address))
-        .with_config(retry_config)
-        .await
-        .wrap_err("failed to get latest balance from Sequencer after a lot of attempts");
-
-    state.set_sequencer_connected(res.is_ok());
-
-    res
-}
-
 async fn get_latest_nonce(
     client: sequencer_client::HttpClient,
-    address: Address,
     state: Arc<State>,
-    // metrics: &'static Metrics,
+    address: Address,
 ) -> eyre::Result<u32> {
     debug!("fetching latest nonce from sequencer");
-    // metrics.increment_nonce_fetch_count();
     let span = Span::current();
-    // let start = Instant::now();
+    let start = Instant::now();
     let retry_config = tryhard::RetryFutureConfig::new(1024)
         .exponential_backoff(Duration::from_millis(200))
         .max_delay(Duration::from_secs(60))
@@ -742,8 +565,6 @@ async fn get_latest_nonce(
             |attempt,
              next_delay: Option<Duration>,
              err: &sequencer_client::extension_trait::Error| {
-                // metrics.increment_nonce_fetch_failure_count();
-
                 let state = Arc::clone(&state);
                 state.set_sequencer_connected(false);
 
@@ -762,7 +583,7 @@ async fn get_latest_nonce(
         );
     let res = tryhard::retry_fn(|| {
         let client = client.clone();
-        let span = info_span!(parent: span.clone(), "attempt get latest nonce");
+        let span = info_span!(parent: span.clone(), "attempt get nonce");
         async move { client.get_latest_nonce(address).await.map(|rsp| rsp.nonce) }.instrument(span)
     })
     .with_config(retry_config)
@@ -771,42 +592,16 @@ async fn get_latest_nonce(
 
     state.set_sequencer_connected(res.is_ok());
 
-    // metrics.record_nonce_fetch_latency(start.elapsed());
-
     res
 }
 
+#[instrument(skip_all)]
 async fn get_pending_nonce(
     client: sequencer_service_client::SequencerServiceClient<Channel>,
-    address: Address,
     state: Arc<State>,
-    // metrics: &'static Metrics,
+    address: Address,
 ) -> eyre::Result<u32> {
-    debug!("fetching pending nonce from sequencing");
-    // TODO: add metric and start time
     let span = Span::current();
-    let retry_config = tryhard::RetryFutureConfig::new(1024)
-        .exponential_backoff(Duration::from_millis(200))
-        .max_delay(Duration::from_secs(60))
-        .on_retry(
-            |attempt, next_delay: Option<Duration>, err: &tonic::Status| {
-                // TODO: update metrics here
-                let state = Arc::clone(&state);
-                state.set_sequencer_connected(false);
-
-                let wait_duration = next_delay
-                    .map(humantime::format_duration)
-                    .map(tracing::field::display);
-                warn!(
-                    error = err as &dyn std::error::Error,
-                    attempt,
-                    wait_duration,
-                    "failed getting pending nonce from sequencing; retrying after backoff",
-                );
-                futures::future::ready(())
-            },
-        );
-
     let res = tryhard::retry_fn(|| {
         let mut client = client.clone();
         let span = info_span!(parent: span.clone(), "attempt get pending nonce");
@@ -820,13 +615,94 @@ async fn get_pending_nonce(
         }
         .instrument(span)
     })
-    .with_config(retry_config)
+    .with_config(make_sequencer_grpc_retry_config(
+        "attempt to get pending nonce from sequencer; retrying after backoff",
+    ))
     .await
     .wrap_err("failed getting pending nonce from sequencing after 1024 attempts");
 
     state.set_sequencer_connected(res.is_ok());
 
-    // TODO: record latency metric
-
     res
+}
+
+fn make_cometbft_retry_config(
+    retry_message: &'static str,
+) -> tryhard::RetryFutureConfig<
+    ExponentialBackoff,
+    impl Fn(u32, Option<Duration>, &tendermint_rpc::Error) -> futures::future::Ready<()>,
+> {
+    tryhard::RetryFutureConfig::new(u32::MAX)
+        .exponential_backoff(Duration::from_millis(100))
+        .max_delay(Duration::from_secs(20))
+        .on_retry(
+            move |attempt: u32, next_delay: Option<Duration>, error: &tendermint_rpc::Error| {
+                let wait_duration = next_delay
+                    .map(humantime::format_duration)
+                    .map(tracing::field::display);
+                warn!(
+                    attempt,
+                    wait_duration,
+                    error = error as &dyn std::error::Error,
+                    retry_message,
+                );
+                futures::future::ready(())
+            },
+        )
+}
+
+fn make_cometbft_ext_retry_config(
+    retry_message: &'static str,
+) -> tryhard::RetryFutureConfig<
+    ExponentialBackoff,
+    impl Fn(
+        u32,
+        Option<Duration>,
+        &sequencer_client::extension_trait::Error,
+    ) -> futures::future::Ready<()>,
+> {
+    tryhard::RetryFutureConfig::new(u32::MAX)
+        .exponential_backoff(Duration::from_millis(100))
+        .max_delay(Duration::from_secs(20))
+        .on_retry(
+            move |attempt: u32,
+                  next_delay: Option<Duration>,
+                  error: &sequencer_client::extension_trait::Error| {
+                let wait_duration = next_delay
+                    .map(humantime::format_duration)
+                    .map(tracing::field::display);
+                warn!(
+                    attempt,
+                    wait_duration,
+                    error = error as &dyn std::error::Error,
+                    retry_message,
+                );
+                futures::future::ready(())
+            },
+        )
+}
+
+fn make_sequencer_grpc_retry_config(
+    retry_message: &'static str,
+) -> tryhard::RetryFutureConfig<
+    ExponentialBackoff,
+    impl Fn(u32, Option<Duration>, &tonic::Status) -> futures::future::Ready<()>,
+> {
+    tryhard::RetryFutureConfig::new(u32::MAX)
+        .exponential_backoff(Duration::from_millis(100))
+        .max_delay(Duration::from_secs(20))
+        .on_retry(
+            move |attempt: u32, next_delay: Option<Duration>, error: &tonic::Status| {
+                let wait_duration = next_delay
+                    .map(humantime::format_duration)
+                    .map(tracing::field::display);
+                warn!(
+                    attempt,
+                    wait_duration,
+                    error = error as &dyn std::error::Error,
+                    retry_message,
+                );
+                futures::future::ready(())
+            },
+        )
 }

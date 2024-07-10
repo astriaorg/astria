@@ -64,9 +64,12 @@ spec:
             - --maxpeers=0
             {{- if .Values.config.rollup.archiveNode }}
             - --gcmode=archive
+            - --state.scheme=hash
             - --history.transactions=0
+            - --history.state=0
             {{- else }}
             - --state.scheme=path
+            - --history.state=540000
             {{- end }}
             {{ if .Values.config.rollup.metrics.enabled }}
             - --metrics
@@ -108,11 +111,21 @@ spec:
           volumeMounts:
           - mountPath: "/var/secrets"
             name: sequencer-private-key
-          {{- if .Values.config.rollup.metrics.enabled }}
+          startupProbe:
+            httpGet:
+              path: /readyz
+              port: {{ .Values.ports.composerHealthAPI }}
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: {{ .Values.ports.composerHealthAPI }}
           ports:
+            {{- if .Values.config.rollup.metrics.enabled }}
             - containerPort: {{ .Values.ports.composerMetrics }}
               name: composer-metr
-          {{- end }}
+            {{- end }}
+            - containerPort: {{ .Values.ports.composerHealthAPI }}
+              name: composer-api
           resources:
             {{- toYaml .Values.resources.composer | trim | nindent 12 }}
         - name: conductor

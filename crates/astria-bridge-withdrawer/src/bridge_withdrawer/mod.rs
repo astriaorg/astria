@@ -7,10 +7,7 @@ use std::{
     time::Duration,
 };
 
-use astria_core::primitive::v1::asset::{
-    self,
-    Denom,
-};
+use astria_core::primitive::v1::asset::Denom;
 use astria_eyre::eyre::{
     self,
     WrapErr as _,
@@ -79,7 +76,6 @@ impl BridgeWithdrawer {
             ethereum_contract_address,
             ethereum_rpc_endpoint,
             rollup_asset_denomination,
-            min_expected_fee_asset_balance,
             sequencer_bridge_address,
             sequencer_grpc_endpoint,
             ..
@@ -92,23 +88,24 @@ impl BridgeWithdrawer {
             .wrap_err("failed to parse sequencer bridge address")?;
 
         // make startup object
-        let (startup, startup_submitter_handle, startup_watcher_handle) = startup::Builder {
+        let startup = startup::Builder {
             shutdown_token: shutdown_handle.token(),
             state: state.clone(),
             sequencer_chain_id,
             sequencer_cometbft_endpoint: sequencer_cometbft_endpoint.clone(),
             sequencer_bridge_address,
-            expected_fee_asset_id: asset::Id::from_str_unchecked(&fee_asset_denomination),
-            expected_min_fee_asset_balance: u128::from(min_expected_fee_asset_balance),
             sequencer_grpc_endpoint: sequencer_grpc_endpoint.clone(),
+            expected_fee_asset: fee_asset_denomination,
         }
         .build()
         .wrap_err("failed to initialize startup")?;
 
+        let startup_handle = startup::InfoHandle::new(state.subscribe());
+
         // make submitter object
         let (submitter, submitter_handle) = submitter::Builder {
             shutdown_token: shutdown_handle.token(),
-            startup_handle: startup_submitter_handle,
+            startup_handle: startup_handle.clone(),
             sequencer_cometbft_endpoint,
             sequencer_grpc_endpoint,
             sequencer_key_path,
@@ -122,7 +119,7 @@ impl BridgeWithdrawer {
         let ethereum_watcher = watcher::Builder {
             ethereum_contract_address,
             ethereum_rpc_endpoint,
-            startup_handle: startup_watcher_handle,
+            startup_handle,
             shutdown_token: shutdown_handle.token(),
             state: state.clone(),
             rollup_asset_denom: rollup_asset_denomination
@@ -154,6 +151,8 @@ impl BridgeWithdrawer {
         Ok((service, shutdown_handle))
     }
 
+    // Panic won't happen because `startup_task` is unwraped lazily after checking if it's `Some`.
+    #[allow(clippy::missing_panics_doc)]
     pub async fn run(self) {
         let Self {
             shutdown_token,
@@ -177,7 +176,7 @@ impl BridgeWithdrawer {
         });
         info!("spawned API server");
 
-        let mut startup_task = tokio::spawn(startup.run());
+        let mut startup_task = Some(tokio::spawn(startup.run()));
         info!("spawned startup task");
 
         let mut submitter_task = tokio::spawn(submitter.run());
@@ -185,53 +184,62 @@ impl BridgeWithdrawer {
         let mut ethereum_watcher_task = tokio::spawn(ethereum_watcher.run());
         info!("spawned ethereum watcher task");
 
-        let shutdown = select!(
-            o = &mut api_task => {
-                report_exit("api server", o);
-                Shutdown {
-                    api_task: None,
-                    submitter_task: Some(submitter_task),
-                    ethereum_watcher_task: Some(ethereum_watcher_task),
-                    startup_task: Some(startup_task),
-                    api_shutdown_signal,
-                   token: shutdown_token
+        let shutdown = loop {
+            select!(
+                o = async { startup_task.as_mut().unwrap().await }, if startup_task.is_none() => {
+                    match o {
+                        Ok(_) => {
+                            info!(task = "startup", "task has exited");
+                            startup_task = None;
+                        },
+                        Err(error) => {
+                            error!(task = "startup", %error, "task returned with error");
+                            break Shutdown {
+                                api_task: Some(api_task),
+                                submitter_task: Some(submitter_task),
+                                ethereum_watcher_task: Some(ethereum_watcher_task),
+                                startup_task: None,
+                                api_shutdown_signal,
+                                token: shutdown_token,
+                            };
+                        }
+                    }
                 }
-            }
-            o = &mut startup_task => {
-                report_exit("startup", o);
-                Shutdown {
-                    api_task: Some(api_task),
-                    submitter_task: Some(submitter_task),
-                    ethereum_watcher_task: Some(ethereum_watcher_task),
-                    startup_task: None,
-                    api_shutdown_signal,
-                    token: shutdown_token
+                o = &mut api_task => {
+                    report_exit("api server", o);
+                    break Shutdown {
+                        api_task: None,
+                        submitter_task: Some(submitter_task),
+                        ethereum_watcher_task: Some(ethereum_watcher_task),
+                        startup_task,
+                        api_shutdown_signal,
+                       token: shutdown_token
+                    }
                 }
-            }
-            o = &mut submitter_task => {
-                report_exit("submitter", o);
-                Shutdown {
-                    api_task: Some(api_task),
-                    submitter_task: None,
-                    ethereum_watcher_task:Some(ethereum_watcher_task),
-                    startup_task: Some(startup_task),
-                    api_shutdown_signal,
-                    token: shutdown_token
+                o = &mut submitter_task => {
+                    report_exit("submitter", o);
+                    break Shutdown {
+                        api_task: Some(api_task),
+                        submitter_task: None,
+                        ethereum_watcher_task:Some(ethereum_watcher_task),
+                        startup_task,
+                        api_shutdown_signal,
+                        token: shutdown_token
+                    }
                 }
-            }
-            o = &mut ethereum_watcher_task => {
-                report_exit("ethereum watcher", o);
-                Shutdown {
-                    api_task: Some(api_task),
-                    submitter_task: Some(submitter_task),
-                    ethereum_watcher_task: None,
-                    startup_task: Some(startup_task),
-                    api_shutdown_signal,
-                    token: shutdown_token
+                o = &mut ethereum_watcher_task => {
+                    report_exit("ethereum watcher", o);
+                    break Shutdown {
+                        api_task: Some(api_task),
+                        submitter_task: Some(submitter_task),
+                        ethereum_watcher_task: None,
+                        startup_task,
+                        api_shutdown_signal,
+                        token: shutdown_token
+                    }
                 }
-            }
-
-        );
+            );
+        };
         shutdown.run().await;
     }
 }
@@ -332,8 +340,6 @@ impl Shutdown {
                     startup_task.abort();
                 }
             }
-        } else {
-            info!("startup task was already dead");
         }
 
         // Giving submitter 20 seconds to shutdown because Kubernetes issues a SIGKILL after 30.
@@ -354,8 +360,6 @@ impl Shutdown {
                     submitter_task.abort();
                 }
             }
-        } else {
-            info!("submitter task was already dead");
         }
 
         // Giving ethereum watcher 5 seconds to shutdown because Kubernetes issues a SIGKILL after
@@ -377,8 +381,6 @@ impl Shutdown {
                     ethereum_watcher_task.abort();
                 }
             }
-        } else {
-            info!("watcher task was already dead");
         }
 
         // Giving the API task 4 seconds. 5s for watcher + 20 for submitter + 4s = 29s (out of 30s
@@ -398,8 +400,6 @@ impl Shutdown {
                     api_task.abort();
                 }
             }
-        } else {
-            info!("API server was already dead");
         }
     }
 }

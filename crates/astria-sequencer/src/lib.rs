@@ -9,7 +9,6 @@ mod build_info;
 pub(crate) mod component;
 pub mod config;
 pub(crate) mod fee_asset_change;
-pub(crate) mod genesis;
 pub(crate) mod grpc;
 pub(crate) mod ibc;
 mod mempool;
@@ -19,6 +18,7 @@ pub(crate) mod sequence;
 mod sequencer;
 pub(crate) mod service;
 pub(crate) mod state_ext;
+pub(crate) mod storage_keys;
 pub(crate) mod transaction;
 mod utils;
 

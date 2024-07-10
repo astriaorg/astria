@@ -52,10 +52,7 @@ use super::{
     startup,
     state,
 };
-use crate::{
-    bridge_withdrawer::startup::SubmitterInfo as StartupInfo,
-    metrics::Metrics,
-};
+use crate::metrics::Metrics;
 
 mod builder;
 pub(crate) mod signer;
@@ -64,7 +61,7 @@ mod tests;
 
 pub(super) struct Submitter {
     shutdown_token: CancellationToken,
-    startup_handle: startup::SubmitterHandle,
+    startup_handle: startup::InfoHandle,
     state: Arc<State>,
     batches_rx: mpsc::Receiver<Batch>,
     sequencer_cometbft_client: sequencer_client::HttpClient,
@@ -81,15 +78,15 @@ impl Submitter {
                 return Ok(());
             }
 
-            startup_info = self.startup_handle.recv() => {
-                let StartupInfo { sequencer_chain_id } = startup_info.wrap_err("submitter failed to get startup info")?;
+            startup_info = self.startup_handle.get_info() => {
+                let startup::Info { chain_id, .. } = startup_info.wrap_err("submitter failed to get startup info")?;
 
                 let sequencer_grpc_client = sequencer_service_client::SequencerServiceClient::connect(
                     format!("http://{}", self.sequencer_grpc_endpoint),
                 ).await.wrap_err("failed to connect to sequencer gRPC endpoint")?;
 
                 self.state.set_submitter_ready();
-                (sequencer_chain_id, sequencer_grpc_client)
+                (chain_id, sequencer_grpc_client)
             }
         };
 

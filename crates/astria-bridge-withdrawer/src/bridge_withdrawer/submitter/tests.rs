@@ -6,23 +6,18 @@ use std::{
 };
 
 use astria_core::{
-    bridge::Ics20WithdrawalFromRollupMemo,
-    generated::protocol::account::v1alpha1::NonceResponse,
-    primitive::v1::asset::{
+    bridge::{
         self,
-        default_native_asset,
-        Denom,
+        Ics20WithdrawalFromRollupMemo,
     },
-    protocol::{
-        account::v1alpha1::AssetBalance,
-        bridge::v1alpha1::BridgeAccountLastTxHashResponse,
-        transaction::v1alpha1::{
-            action::{
-                BridgeUnlockAction,
-                Ics20Withdrawal,
-            },
-            Action,
+    generated::protocol::account::v1alpha1::NonceResponse,
+    primitive::v1::asset,
+    protocol::transaction::v1alpha1::{
+        action::{
+            BridgeUnlockAction,
+            Ics20Withdrawal,
         },
+        Action,
     },
 };
 use astria_eyre::eyre::{
@@ -46,13 +41,9 @@ use tendermint::{
         types::ExecTxResult,
     },
     block::Height,
-    chain,
 };
 use tendermint_rpc::{
-    endpoint::{
-        broadcast::tx_sync,
-        tx,
-    },
+    endpoint::broadcast::tx_sync,
     request,
 };
 use tokio::{
@@ -77,7 +68,6 @@ use super::Submitter;
 use crate::{
     bridge_withdrawer::{
         batch::Batch,
-        ethereum::convert::BridgeUnlockMemo,
         startup,
         state,
         submitter,
@@ -88,6 +78,10 @@ use crate::{
 const SEQUENCER_CHAIN_ID: &str = "test_sequencer-1000";
 const DEFAULT_LAST_ROLLUP_HEIGHT: u64 = 1;
 const DEFAULT_IBC_DENOM: &str = "transfer/channel-0/utia";
+
+fn default_native_asset() -> asset::Denom {
+    "nria".parse().unwrap()
+}
 
 static TELEMETRY: Lazy<()> = Lazy::new(|| {
     if std::env::var_os("TEST_LOG").is_some() {
@@ -111,7 +105,6 @@ static TELEMETRY: Lazy<()> = Lazy::new(|| {
 struct TestSubmitter {
     submitter: Option<Submitter>,
     submitter_handle: submitter::Handle,
-    startup_tx: Option<oneshot::Sender<startup::SubmitterInfo>>,
     cometbft_mock: MockServer,
     submitter_task_handle: Option<JoinHandle<Result<(), eyre::Report>>>,
 }
@@ -138,12 +131,10 @@ impl TestSubmitter {
         // TODO: use grpc mock
         let sequencer_grpc_endpoint = format!("http://{}", cometbft_mock.address());
 
-        // withdrawer state
         let state = Arc::new(state::State::new());
-        // not testing watcher here so just set it to ready
+        let startup_handle = startup::InfoHandle::new(state.subscribe());
         state.set_watcher_ready();
-        let (startup_tx, startup_rx) = oneshot::channel();
-        let startup_handle = startup::SubmitterHandle::new(startup_rx);
+        let startup_handle = startup::InfoHandle::new(state.subscribe());
 
         let metrics = Box::leak(Box::new(Metrics::new()));
 
@@ -163,7 +154,6 @@ impl TestSubmitter {
         Self {
             submitter: Some(submitter),
             submitter_task_handle: None,
-            startup_tx: Some(startup_tx),
             submitter_handle,
             cometbft_mock,
         }
@@ -174,15 +164,13 @@ impl TestSubmitter {
 
         let mut state = submitter.state.subscribe();
 
-        self.submitter_task_handle = Some(tokio::spawn(submitter.run()));
+        submitter.state.set_startup_info(startup::Info {
+            fee_asset: "fee-asset".parse::<asset::Denom>().unwrap(),
+            starting_rollup_height: 1,
+            chain_id: SEQUENCER_CHAIN_ID.to_string(),
+        });
 
-        self.startup_tx
-            .take()
-            .expect("should only send startup info once")
-            .send(startup::SubmitterInfo {
-                sequencer_chain_id: SEQUENCER_CHAIN_ID.to_string(),
-            })
-            .unwrap();
+        self.submitter_task_handle = Some(tokio::spawn(submitter.run()));
 
         // wait for the submitter to be ready
         state
@@ -198,30 +186,8 @@ impl TestSubmitter {
     }
 }
 
-async fn _register_default_chain_id_guard(cometbft_mock: &MockServer) -> MockGuard {
-    _register_genesis_chain_id_response(SEQUENCER_CHAIN_ID, cometbft_mock).await
-}
-
-async fn _register_default_fee_asset_ids_guard(cometbft_mock: &MockServer) -> MockGuard {
-    let fee_asset_ids = vec![default_native_asset().id()];
-    _register_allowed_fee_asset_ids_response(fee_asset_ids, cometbft_mock).await
-}
-
-async fn _register_default_min_expected_fee_asset_balance_guard(
-    cometbft_mock: &MockServer,
-) -> MockGuard {
-    _register_get_latest_balance(
-        vec![AssetBalance {
-            denom: default_native_asset(),
-            balance: 1_000_000u128,
-        }],
-        cometbft_mock,
-    )
-    .await
-}
-
 fn make_ics20_withdrawal_action() -> Action {
-    let denom = DEFAULT_IBC_DENOM.parse::<Denom>().unwrap();
+    let denom = DEFAULT_IBC_DENOM.parse::<asset::Denom>().unwrap();
     let destination_chain_address = "address".to_string();
     let inner = Ics20Withdrawal {
         denom: denom.clone(),
@@ -235,7 +201,7 @@ fn make_ics20_withdrawal_action() -> Action {
             transaction_hash: [2u8; 32],
         })
         .unwrap(),
-        fee_asset_id: denom.id(),
+        fee_asset: denom,
         timeout_height: IbcHeight::new(u64::MAX, u64::MAX).unwrap(),
         timeout_time: 0, // zero this for testing
         source_channel: "channel-0".parse().unwrap(),
@@ -250,12 +216,12 @@ fn make_bridge_unlock_action() -> Action {
     let inner = BridgeUnlockAction {
         to: crate::astria_address([0u8; 20]),
         amount: 99,
-        memo: serde_json::to_vec(&BridgeUnlockMemo {
-            block_number: DEFAULT_LAST_ROLLUP_HEIGHT.into(),
-            transaction_hash: [1u8; 32].into(),
+        memo: serde_json::to_vec(&bridge::UnlockMemo {
+            block_number: DEFAULT_LAST_ROLLUP_HEIGHT,
+            transaction_hash: [1u8; 32],
         })
         .unwrap(),
-        fee_asset_id: denom.id(),
+        fee_asset: denom,
         bridge_address: None,
     };
     Action::BridgeUnlock(inner)
@@ -318,139 +284,6 @@ fn signed_tx_from_request(request: &Request) -> SignedTransaction {
     signed_tx
 }
 
-async fn _register_genesis_chain_id_response(chain_id: &str, server: &MockServer) -> MockGuard {
-    use tendermint::{
-        consensus::{
-            params::{
-                AbciParams,
-                ValidatorParams,
-            },
-            Params,
-        },
-        genesis::Genesis,
-        time::Time,
-    };
-    let response = tendermint_rpc::endpoint::genesis::Response::<serde_json::Value> {
-        genesis: Genesis {
-            genesis_time: Time::from_unix_timestamp(1, 1).unwrap(),
-            chain_id: chain::Id::try_from(chain_id).unwrap(),
-            initial_height: 1,
-            consensus_params: Params {
-                block: tendermint::block::Size {
-                    max_bytes: 1024,
-                    max_gas: 1024,
-                    time_iota_ms: 1000,
-                },
-                evidence: tendermint::evidence::Params {
-                    max_age_num_blocks: 1000,
-                    max_age_duration: tendermint::evidence::Duration(Duration::from_secs(3600)),
-                    max_bytes: 1_048_576,
-                },
-                validator: ValidatorParams {
-                    pub_key_types: vec![tendermint::public_key::Algorithm::Ed25519],
-                },
-                version: None,
-                abci: AbciParams::default(),
-            },
-            validators: vec![],
-            app_hash: tendermint::hash::AppHash::default(),
-            app_state: serde_json::Value::Null,
-        },
-    };
-
-    let wrapper = response::Wrapper::new_with_id(tendermint_rpc::Id::Num(1), Some(response), None);
-    Mock::given(body_partial_json(json!({"method": "genesis"})))
-        .respond_with(
-            ResponseTemplate::new(200)
-                .set_body_json(&wrapper)
-                .append_header("Content-Type", "application/json"),
-        )
-        .up_to_n_times(1)
-        .expect(1)
-        .mount_as_scoped(server)
-        .await
-}
-
-async fn _register_allowed_fee_asset_ids_response(
-    fee_asset_ids: Vec<asset::Id>,
-    cometbft_mock: &MockServer,
-) -> MockGuard {
-    let response = tendermint_rpc::endpoint::abci_query::Response {
-        response: tendermint_rpc::endpoint::abci_query::AbciQuery {
-            value: astria_core::protocol::asset::v1alpha1::AllowedFeeAssetIdsResponse {
-                fee_asset_ids,
-                height: 1,
-            }
-            .into_raw()
-            .encode_to_vec(),
-            ..Default::default()
-        },
-    };
-    let wrapper = response::Wrapper::new_with_id(tendermint_rpc::Id::Num(1), Some(response), None);
-    Mock::given(body_partial_json(json!({"method": "abci_query"})))
-        .and(body_string_contains("asset/allowed_fee_asset_ids"))
-        .respond_with(
-            ResponseTemplate::new(200)
-                .set_body_json(&wrapper)
-                .append_header("Content-Type", "application/json"),
-        )
-        .expect(1)
-        .mount_as_scoped(cometbft_mock)
-        .await
-}
-
-async fn _register_get_latest_balance(
-    balances: Vec<AssetBalance>,
-    server: &MockServer,
-) -> MockGuard {
-    let response = tendermint_rpc::endpoint::abci_query::Response {
-        response: tendermint_rpc::endpoint::abci_query::AbciQuery {
-            value: astria_core::protocol::account::v1alpha1::BalanceResponse {
-                balances,
-                height: 1,
-            }
-            .into_raw()
-            .encode_to_vec(),
-            ..Default::default()
-        },
-    };
-
-    let wrapper = response::Wrapper::new_with_id(tendermint_rpc::Id::Num(1), Some(response), None);
-    Mock::given(body_partial_json(json!({"method": "abci_query"})))
-        .and(body_string_contains("accounts/balance"))
-        .respond_with(
-            ResponseTemplate::new(200)
-                .set_body_json(&wrapper)
-                .append_header("Content-Type", "application/json"),
-        )
-        .expect(1)
-        .mount_as_scoped(server)
-        .await
-}
-
-async fn _register_last_bridge_tx_hash_guard(
-    server: &MockServer,
-    response: BridgeAccountLastTxHashResponse,
-) -> MockGuard {
-    let response = tendermint_rpc::endpoint::abci_query::Response {
-        response: tendermint_rpc::endpoint::abci_query::AbciQuery {
-            value: response.into_raw().encode_to_vec(),
-            ..Default::default()
-        },
-    };
-    let wrapper = response::Wrapper::new_with_id(tendermint_rpc::Id::Num(1), Some(response), None);
-    Mock::given(body_partial_json(json!({"method": "abci_query"})))
-        .and(body_string_contains("bridge/account_last_tx_hash"))
-        .respond_with(
-            ResponseTemplate::new(200)
-                .set_body_json(&wrapper)
-                .append_header("Content-Type", "application/json"),
-        )
-        .expect(1)
-        .mount_as_scoped(server)
-        .await
-}
-
 async fn register_get_nonce_response(server: &MockServer, response: NonceResponse) -> MockGuard {
     let response = tendermint_rpc::endpoint::abci_query::Response {
         response: tendermint_rpc::endpoint::abci_query::AbciQuery {
@@ -461,19 +294,6 @@ async fn register_get_nonce_response(server: &MockServer, response: NonceRespons
     let wrapper = response::Wrapper::new_with_id(tendermint_rpc::Id::Num(1), Some(response), None);
     Mock::given(body_partial_json(json!({"method": "abci_query"})))
         .and(body_string_contains("accounts/nonce"))
-        .respond_with(
-            ResponseTemplate::new(200)
-                .set_body_json(&wrapper)
-                .append_header("Content-Type", "application/json"),
-        )
-        .expect(1)
-        .mount_as_scoped(server)
-        .await
-}
-
-async fn _register_tx_guard(server: &MockServer, response: tx::Response) -> MockGuard {
-    let wrapper = response::Wrapper::new_with_id(tendermint_rpc::Id::Num(1), Some(response), None);
-    Mock::given(body_partial_json(json!({"method": "tx"})))
         .respond_with(
             ResponseTemplate::new(200)
                 .set_body_json(&wrapper)
