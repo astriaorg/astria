@@ -52,6 +52,13 @@ spec:
             - containerPort: {{ .Values.ports.sequencerMetrics }}
               name: seq-metric
             {{- end }}
+          resources:
+            requests:
+              cpu: {{ .Values.resources.sequencer.requests.cpu }}
+              memory: {{ .Values.resources.sequencer.requests.memory }}
+            limits:
+              cpu: {{ .Values.resources.sequencer.limits.cpu }}
+              memory: {{ .Values.resources.sequencer.limits.memory }}
         - name: cometbft
           imagePullPolicy: IfNotPresent
           command: [ "cometbft", "start" ]
@@ -78,6 +85,13 @@ spec:
             - containerPort: {{ .Values.ports.cometbftMetrics }}
               name: cometbft-metric
             {{- end }}
+          resources:
+            requests:
+              cpu: {{ .Values.resources.cometbft.requests.cpu }}
+              memory: {{ .Values.resources.cometbft.requests.memory }}
+            limits:
+              cpu: {{ .Values.resources.cometbft.limits.cpu }}
+              memory: {{ .Values.resources.cometbft.limits.memory }}
       volumes:
         - name: cometbft-config-volume
           configMap:

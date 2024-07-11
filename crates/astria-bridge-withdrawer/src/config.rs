@@ -18,8 +18,6 @@ pub struct Config {
     pub sequencer_key_path: String,
     // The fee asset denomination to use for the bridge account's transactions.
     pub fee_asset_denomination: asset::Denom,
-    // The minimum expected balance of the fee asset in the bridge account.
-    pub min_expected_fee_asset_balance: u64,
     // The asset denomination being withdrawn from the rollup.
     pub rollup_asset_denomination: String,
     // The bridge address corresponding to the bridged rollup asset on the sequencer.
