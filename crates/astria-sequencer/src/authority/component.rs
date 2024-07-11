@@ -4,13 +4,13 @@ use anyhow::{
     Context,
     Result,
 };
-use astria_core::primitive::v1::Address;
-use tendermint::{
-    abci::request::{
-        BeginBlock,
-        EndBlock,
-    },
-    validator,
+use astria_core::{
+    primitive::v1::Address,
+    protocol::transaction::v1alpha1::action::ValidatorUpdate,
+};
+use tendermint::abci::request::{
+    BeginBlock,
+    EndBlock,
 };
 use tracing::instrument;
 
@@ -27,7 +27,7 @@ pub(crate) struct AuthorityComponent;
 #[derive(Debug)]
 pub(crate) struct AuthorityComponentAppState {
     pub(crate) authority_sudo_address: Address,
-    pub(crate) genesis_validators: Vec<validator::Update>,
+    pub(crate) genesis_validators: Vec<ValidatorUpdate>,
 }
 
 #[async_trait::async_trait]
@@ -40,10 +40,9 @@ impl Component for AuthorityComponent {
         state
             .put_sudo_address(app_state.authority_sudo_address)
             .context("failed to set sudo key")?;
+        let genesis_validators = app_state.genesis_validators.clone();
         state
-            .put_validator_set(ValidatorSet::new_from_updates(
-                app_state.genesis_validators.clone(),
-            ))
+            .put_validator_set(ValidatorSet::new_from_updates(genesis_validators))
             .context("failed to set validator set")?;
         Ok(())
     }
@@ -59,8 +58,7 @@ impl Component for AuthorityComponent {
             .context("failed getting validator set")?;
 
         for misbehaviour in &begin_block.byzantine_validators {
-            let address = tendermint::account::Id::new(misbehaviour.validator.address);
-            current_set.remove(&address);
+            current_set.remove(misbehaviour.validator.address);
         }
 
         let state = Arc::get_mut(state)
