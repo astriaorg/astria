@@ -404,3 +404,8 @@ pub(crate) async fn deploy_astria_bridgeable_erc20(
         anvil,
     )
 }
+
+#[must_use]
+pub fn default_rollup_address() -> Address {
+    Address::from_slice(&[1u8; 20])
+}

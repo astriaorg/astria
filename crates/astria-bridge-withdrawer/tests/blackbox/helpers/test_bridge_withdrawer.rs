@@ -46,6 +46,7 @@ use tracing::{
 };
 
 use super::{
+    default_rollup_address,
     ethereum::AstriaBridgeableERC20DeployerConfig,
     make_tx_commit_success_response,
     mock_cometbft::{
@@ -265,7 +266,7 @@ impl TestBridgeWithdrawerConfig {
             sequencer_key_path,
             fee_asset_denomination: asset_denom.clone(),
             rollup_asset_denomination: asset_denom.to_string(),
-            sequencer_bridge_address: asset_denom.to_string(),
+            sequencer_bridge_address: default_bridge_address().to_string(),
             ethereum_contract_address: ethereum.contract_address(),
             ethereum_rpc_endpoint: ethereum.ws_endpoint(),
             sequencer_address_prefix: ASTRIA_ADDRESS_PREFIX.into(),
@@ -351,15 +352,15 @@ impl Default for TestBridgeWithdrawerConfig {
 pub fn make_bridge_unlock_action() -> Action {
     let denom = default_native_asset();
     let inner = BridgeUnlockAction {
-        to: astria_address([0u8; 20]),
-        amount: 99,
+        to: default_sequencer_address(),
+        amount: 1_000_000u128,
         memo: serde_json::to_vec(&UnlockMemo {
             block_number: DEFAULT_LAST_ROLLUP_HEIGHT,
-            transaction_hash: [1u8; 32],
+            transaction_hash: [2u8; 32],
         })
         .unwrap(),
         fee_asset: denom,
-        bridge_address: Some(default_bridge_address()),
+        bridge_address: None,
     };
     Action::BridgeUnlock(inner)
 }
@@ -367,12 +368,12 @@ pub fn make_bridge_unlock_action() -> Action {
 #[must_use]
 pub fn make_ics20_withdrawal_action() -> Action {
     let denom = DEFAULT_IBC_DENOM.parse::<Denom>().unwrap();
-    let destination_chain_address = "address".to_string();
+    let destination_chain_address = default_sequencer_address();
     let inner = Ics20Withdrawal {
         denom: denom.clone(),
-        destination_chain_address,
+        destination_chain_address: default_sequencer_address().to_string(),
         return_address: default_bridge_address(),
-        amount: 99,
+        amount: 1_000_000u128,
         memo: serde_json::to_string(&Ics20WithdrawalFromRollupMemo {
             memo: "hello".to_string(),
             bridge_address: default_bridge_address(),
@@ -384,7 +385,7 @@ pub fn make_ics20_withdrawal_action() -> Action {
         timeout_height: IbcHeight::new(u64::MAX, u64::MAX).unwrap(),
         timeout_time: 0, // zero this for testing
         source_channel: "channel-0".parse().unwrap(),
-        bridge_address: Some(default_bridge_address()),
+        bridge_address: None,
     };
 
     Action::Ics20Withdrawal(inner)
@@ -396,8 +397,13 @@ pub fn default_native_asset() -> asset::Denom {
 }
 
 #[must_use]
-fn default_bridge_address() -> Address {
+pub(crate) fn default_bridge_address() -> Address {
     astria_address([1u8; 20])
+}
+
+#[must_use]
+pub fn default_sequencer_address() -> Address {
+    astria_address([2u8; 20])
 }
 
 /// Constructs an [`Address`] prefixed by `"astria"`.

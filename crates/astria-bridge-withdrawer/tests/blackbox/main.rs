@@ -1,6 +1,7 @@
 use helpers::{
     astria_address,
     compare_actions,
+    default_sequencer_address,
     make_bridge_unlock_action,
     make_ics20_withdrawal_action,
     signed_tx_from_request,
@@ -23,7 +24,7 @@ async fn sequencer_withdraw_success() {
 
     // send a native sequencer withdrawal tx to the rollup
     let value = 1_000_000.into();
-    let recipient = astria_address([1u8; 20]);
+    let recipient = default_sequencer_address();
     let _receipt = bridge_withdrawer
         .ethereum
         .send_sequencer_withdraw_transaction(value, recipient)
@@ -68,7 +69,7 @@ async fn ics20_withdraw_success() {
 
     // send an ics20 withdrawal tx to the rollup
     let value = 1_000_000.into();
-    let recipient = astria_address([1u8; 20]);
+    let recipient = default_sequencer_address();
     let _receipt = bridge_withdrawer
         .ethereum
         .send_ics20_withdraw_transaction(value, recipient.to_string())
