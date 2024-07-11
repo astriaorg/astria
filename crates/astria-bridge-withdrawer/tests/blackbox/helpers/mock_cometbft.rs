@@ -44,6 +44,7 @@ use super::test_bridge_withdrawer::{
     SEQUENCER_CHAIN_ID,
 };
 
+#[must_use]
 pub fn make_tx_commit_success_response() -> tx_commit::Response {
     tx_commit::Response {
         check_tx: CheckTx::default(),
@@ -53,6 +54,7 @@ pub fn make_tx_commit_success_response() -> tx_commit::Response {
     }
 }
 
+#[must_use]
 pub fn make_tx_commit_check_tx_failure_response() -> tx_commit::Response {
     tx_commit::Response {
         check_tx: CheckTx {
@@ -65,6 +67,7 @@ pub fn make_tx_commit_check_tx_failure_response() -> tx_commit::Response {
     }
 }
 
+#[must_use]
 pub fn make_tx_commit_deliver_tx_failure_response() -> tx_commit::Response {
     tx_commit::Response {
         check_tx: CheckTx::default(),
@@ -78,7 +81,7 @@ pub fn make_tx_commit_deliver_tx_failure_response() -> tx_commit::Response {
 }
 
 pub async fn mount_default_chain_id(cometbft_mock: &MockServer) {
-    mount_genesis_chain_id_response(SEQUENCER_CHAIN_ID, cometbft_mock).await
+    mount_genesis_chain_id_response(SEQUENCER_CHAIN_ID, cometbft_mock).await;
 }
 
 pub async fn mount_default_chain_id_guard_as_scoped(cometbft_mock: &MockServer) -> MockGuard {
@@ -87,7 +90,7 @@ pub async fn mount_default_chain_id_guard_as_scoped(cometbft_mock: &MockServer) 
 
 pub async fn mount_default_fee_assets(cometbft_mock: &MockServer) {
     let fee_assets = vec![default_native_asset()];
-    mount_allowed_fee_assets_response(fee_assets, cometbft_mock).await
+    mount_allowed_fee_assets_response(fee_assets, cometbft_mock).await;
 }
 
 pub async fn mount_default_fee_assets_as_scoped(cometbft_mock: &MockServer) -> MockGuard {
@@ -98,7 +101,7 @@ pub async fn mount_default_fee_assets_as_scoped(cometbft_mock: &MockServer) -> M
 pub async fn mount_genesis_chain_id_response(chain_id: &str, server: &MockServer) {
     prepare_genesis_chain_id_response(chain_id)
         .mount(server)
-        .await
+        .await;
 }
 
 pub async fn mount_genesis_chain_id_response_as_scoped(
@@ -154,7 +157,7 @@ fn prepare_genesis_chain_id_response(chain_id: &str) -> Mock {
     Mock::given(body_partial_json(serde_json::json!({"method": "genesis"})))
         .respond_with(
             ResponseTemplate::new(200)
-                .set_body_json(&wrapper)
+                .set_body_json(wrapper)
                 .append_header("Content-Type", "application/json"),
         )
         .up_to_n_times(1)
@@ -167,7 +170,7 @@ pub async fn mount_allowed_fee_assets_response(
 ) {
     prepare_allowed_fee_assets_response(fee_assets)
         .mount(cometbft_mock)
-        .await
+        .await;
 }
 
 pub async fn mount_allowed_fee_assets_response_as_scoped(
@@ -198,7 +201,7 @@ fn prepare_allowed_fee_assets_response(fee_assets: Vec<asset::Denom>) -> Mock {
     .and(body_string_contains("asset/allowed_fee_assets"))
     .respond_with(
         ResponseTemplate::new(200)
-            .set_body_json(&wrapper)
+            .set_body_json(wrapper)
             .append_header("Content-Type", "application/json"),
     )
     .expect(1)
@@ -210,7 +213,7 @@ pub async fn mount_last_bridge_tx_hash_response(
 ) {
     prepare_last_bridge_tx_hash_response(response)
         .mount(server)
-        .await
+        .await;
 }
 
 pub async fn mount_last_bridge_tx_hash_response_as_scoped(
@@ -236,14 +239,14 @@ fn prepare_last_bridge_tx_hash_response(response: BridgeAccountLastTxHashRespons
     .and(body_string_contains("bridge/account_last_tx_hash"))
     .respond_with(
         ResponseTemplate::new(200)
-            .set_body_json(&wrapper)
+            .set_body_json(wrapper)
             .append_header("Content-Type", "application/json"),
     )
     .expect(1)
 }
 
 pub async fn mount_get_nonce_response(server: &MockServer, response: NonceResponse) {
-    prepare_get_nonce_response(response).mount(server).await
+    prepare_get_nonce_response(response).mount(server).await;
 }
 
 pub async fn mount_get_nonce_response_as_scoped(
@@ -269,14 +272,14 @@ fn prepare_get_nonce_response(response: NonceResponse) -> Mock {
     .and(body_string_contains("accounts/nonce"))
     .respond_with(
         ResponseTemplate::new(200)
-            .set_body_json(&wrapper)
+            .set_body_json(wrapper)
             .append_header("Content-Type", "application/json"),
     )
     .expect(1)
 }
 
 pub async fn mount_tx_response(server: &MockServer, response: tx::Response) {
-    prepare_tx_response(response).mount(server).await
+    prepare_tx_response(response).mount(server).await;
 }
 
 pub async fn mount_tx_response_as_scoped(server: &MockServer, response: tx::Response) -> MockGuard {
@@ -300,7 +303,7 @@ pub async fn mount_broadcast_tx_commit_response(
 ) {
     prepare_broadcast_tx_commit_response(response)
         .mount(server)
-        .await
+        .await;
 }
 
 pub async fn mount_broadcast_tx_commit_response_as_scoped(

@@ -27,6 +27,8 @@ use tracing::debug;
 
 use super::test_bridge_withdrawer::astria_address;
 
+// allow: want the name to reflect this is a test config.
+#[allow(clippy::module_name_repetitions)]
 pub struct TestEthereum {
     contract_address: ethers::types::Address,
     provider: Arc<Provider<Ws>>,
@@ -34,8 +36,6 @@ pub struct TestEthereum {
     anvil: AnvilInstance,
 }
 
-// allow: want the name to reflect this is a test config.
-#[allow(clippy::module_name_repetitions)]
 impl TestEthereum {
     pub fn contract_address(&self) -> String {
         hex::encode(self.contract_address)
@@ -76,7 +76,7 @@ impl TestEthereum {
         receipt
     }
 
-    async fn send_ics20_withdraw_transaction(
+    pub async fn send_ics20_withdraw_transaction(
         &self,
         value: U256,
         recipient: String,
@@ -191,7 +191,7 @@ impl TestEthereum {
     }
 }
 
-pub(crate) enum TestEthereumConfig {
+pub enum TestEthereumConfig {
     AstriaWithdrawer(AstriaWithdrawerDeployerConfig),
     AstriaBridgeableERC20(AstriaBridgeableERC20DeployerConfig),
 }
@@ -221,36 +221,11 @@ impl TestEthereumConfig {
     }
 }
 
-impl TestEthereumConfig {
-    pub(crate) async fn deploy(self) -> TestEthereum {
-        match self {
-            Self::AstriaWithdrawer(config) => {
-                let (contract_address, provider, wallet, anvil) = config.deploy().await;
-                TestEthereum {
-                    contract_address,
-                    provider,
-                    wallet,
-                    anvil,
-                }
-            }
-            Self::AstriaBridgeableERC20(config) => {
-                let (contract_address, provider, wallet, anvil) = config.deploy().await;
-                TestEthereum {
-                    contract_address,
-                    provider,
-                    wallet,
-                    anvil,
-                }
-            }
-        }
-    }
-}
-
 #[allow(clippy::struct_field_names)]
-pub(crate) struct AstriaWithdrawerDeployerConfig {
-    pub(crate) base_chain_asset_precision: u32,
-    pub(crate) base_chain_bridge_address: astria_core::primitive::v1::Address,
-    pub(crate) base_chain_asset_denomination: String,
+pub struct AstriaWithdrawerDeployerConfig {
+    pub base_chain_asset_precision: u32,
+    pub base_chain_bridge_address: astria_core::primitive::v1::Address,
+    pub base_chain_asset_denomination: String,
 }
 
 impl Default for AstriaWithdrawerDeployerConfig {
@@ -264,7 +239,7 @@ impl Default for AstriaWithdrawerDeployerConfig {
 }
 
 impl AstriaWithdrawerDeployerConfig {
-    pub(crate) async fn deploy(self) -> (Address, Arc<Provider<Ws>>, LocalWallet, AnvilInstance) {
+    pub async fn deploy(self) -> (Address, Arc<Provider<Ws>>, LocalWallet, AnvilInstance) {
         let Self {
             base_chain_asset_precision,
             base_chain_bridge_address,
@@ -328,13 +303,13 @@ pub(crate) async fn deploy_astria_withdrawer(
     )
 }
 
-pub(crate) struct AstriaBridgeableERC20DeployerConfig {
-    pub(crate) bridge_address: Address,
-    pub(crate) base_chain_asset_precision: u32,
-    pub(crate) base_chain_bridge_address: astria_core::primitive::v1::Address,
-    pub(crate) base_chain_asset_denomination: String,
-    pub(crate) name: String,
-    pub(crate) symbol: String,
+pub struct AstriaBridgeableERC20DeployerConfig {
+    pub bridge_address: Address,
+    pub base_chain_asset_precision: u32,
+    pub base_chain_bridge_address: astria_core::primitive::v1::Address,
+    pub base_chain_asset_denomination: String,
+    pub name: String,
+    pub symbol: String,
 }
 
 impl Default for AstriaBridgeableERC20DeployerConfig {

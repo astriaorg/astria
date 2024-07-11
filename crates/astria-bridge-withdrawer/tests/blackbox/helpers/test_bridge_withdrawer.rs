@@ -46,6 +46,7 @@ use tracing::{
 };
 
 use super::{
+    ethereum::AstriaBridgeableERC20DeployerConfig,
     make_tx_commit_success_response,
     mock_cometbft::{
         mount_default_chain_id,
@@ -129,68 +130,9 @@ impl Drop for TestBridgeWithdrawer {
 }
 
 impl TestBridgeWithdrawer {
-    pub async fn spawn() -> Self {
-        Lazy::force(&TELEMETRY);
-
-        // sequencer signer key
-        let keyfile = NamedTempFile::new().unwrap();
-        (&keyfile)
-            .write_all(
-                "2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90".as_bytes(),
-            )
-            .unwrap();
-        let sequencer_key_path = keyfile.path().to_str().unwrap().to_string();
-
-        // TODO: option for configuring this
-        let ethereum =
-            TestEthereumConfig::AstriaWithdrawer(AstriaWithdrawerDeployerConfig::default())
-                .spawn()
-                .await;
-
-        let cometbft_mock = wiremock::MockServer::start().await;
-
-        let sequencer_mock = MockSequencerServer::spawn().await;
-        let sequencer_grpc_endpoint = sequencer_mock.local_addr.to_string();
-
-        let config = Config {
-            sequencer_cometbft_endpoint: cometbft_mock.uri(),
-            sequencer_grpc_endpoint,
-            sequencer_chain_id: SEQUENCER_CHAIN_ID.into(),
-            sequencer_key_path,
-            fee_asset_denomination: default_native_asset(),
-            rollup_asset_denomination: default_native_asset().to_string(),
-            sequencer_bridge_address: default_bridge_address().to_string(),
-            ethereum_contract_address: ethereum.contract_address(),
-            ethereum_rpc_endpoint: ethereum.ws_endpoint(),
-            sequencer_address_prefix: ASTRIA_ADDRESS_PREFIX.into(),
-            api_addr: "0.0.0.0:0".into(),
-            log: String::new(),
-            force_stdout: false,
-            no_otel: false,
-            no_metrics: false,
-            metrics_http_listener_addr: String::new(),
-            pretty_print: true,
-        };
-
-        info!(config = serde_json::to_string(&config).unwrap());
-        let (bridge_withdrawer, bridge_withdrawer_shutdown_handle) =
-            BridgeWithdrawer::new(config.clone()).unwrap();
-        let api_address = bridge_withdrawer.local_addr();
-        let bridge_withdrawer = tokio::task::spawn(bridge_withdrawer.run());
-
-        let mut test_bridge_withdrawer = Self {
-            api_address,
-            ethereum,
-            cometbft_mock,
-            sequencer_mock,
-            bridge_withdrawer_shutdown_handle: Some(bridge_withdrawer_shutdown_handle),
-            bridge_withdrawer,
-            config,
-        };
-
-        test_bridge_withdrawer.mount_startup_responses().await;
-
-        test_bridge_withdrawer
+    #[must_use]
+    pub fn asset_denom(&self) -> Denom {
+        self.config.rollup_asset_denomination.parse().unwrap()
     }
 
     pub async fn mount_startup_responses(&mut self) {
@@ -226,7 +168,7 @@ impl TestBridgeWithdrawer {
                 tx_hash: None,
             },
         )
-        .await
+        .await;
     }
 
     /// Executes `future` within the specified duration, returning its result.
@@ -283,6 +225,129 @@ impl TestBridgeWithdrawer {
     }
 }
 
+#[allow(clippy::module_name_repetitions)]
+pub struct TestBridgeWithdrawerConfig {
+    /// Configures the rollup's withdrawal smart contract to either native or ERC20.
+    pub ethereum_config: TestEthereumConfig,
+    /// The denomination of the asset
+    pub asset_denom: Denom,
+}
+
+impl TestBridgeWithdrawerConfig {
+    pub async fn spawn(self) -> TestBridgeWithdrawer {
+        let Self {
+            ethereum_config,
+            asset_denom,
+        } = self;
+        Lazy::force(&TELEMETRY);
+
+        // sequencer signer key
+        let keyfile = NamedTempFile::new().unwrap();
+        (&keyfile)
+            .write_all(
+                "2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90".as_bytes(),
+            )
+            .unwrap();
+        let sequencer_key_path = keyfile.path().to_str().unwrap().to_string();
+
+        // TODO: option for configuring this
+        let ethereum = ethereum_config.spawn().await;
+
+        let cometbft_mock = wiremock::MockServer::start().await;
+
+        let sequencer_mock = MockSequencerServer::spawn().await;
+        let sequencer_grpc_endpoint = sequencer_mock.local_addr.to_string();
+
+        let config = Config {
+            sequencer_cometbft_endpoint: cometbft_mock.uri(),
+            sequencer_grpc_endpoint,
+            sequencer_chain_id: SEQUENCER_CHAIN_ID.into(),
+            sequencer_key_path,
+            fee_asset_denomination: asset_denom.clone(),
+            rollup_asset_denomination: asset_denom.to_string(),
+            sequencer_bridge_address: asset_denom.to_string(),
+            ethereum_contract_address: ethereum.contract_address(),
+            ethereum_rpc_endpoint: ethereum.ws_endpoint(),
+            sequencer_address_prefix: ASTRIA_ADDRESS_PREFIX.into(),
+            api_addr: "0.0.0.0:0".into(),
+            log: String::new(),
+            force_stdout: false,
+            no_otel: false,
+            no_metrics: false,
+            metrics_http_listener_addr: String::new(),
+            pretty_print: true,
+        };
+
+        info!(config = serde_json::to_string(&config).unwrap());
+        let (bridge_withdrawer, bridge_withdrawer_shutdown_handle) =
+            BridgeWithdrawer::new(config.clone()).unwrap();
+        let api_address = bridge_withdrawer.local_addr();
+        let bridge_withdrawer = tokio::task::spawn(bridge_withdrawer.run());
+
+        let mut test_bridge_withdrawer = TestBridgeWithdrawer {
+            api_address,
+            ethereum,
+            cometbft_mock,
+            sequencer_mock,
+            bridge_withdrawer_shutdown_handle: Some(bridge_withdrawer_shutdown_handle),
+            bridge_withdrawer,
+            config,
+        };
+
+        test_bridge_withdrawer.mount_startup_responses().await;
+
+        test_bridge_withdrawer
+    }
+
+    #[must_use]
+    pub fn native_ics20_config() -> Self {
+        Self {
+            ethereum_config: TestEthereumConfig::AstriaWithdrawer(
+                AstriaWithdrawerDeployerConfig::default(),
+            ),
+            asset_denom: DEFAULT_IBC_DENOM.parse().unwrap(),
+        }
+    }
+
+    #[must_use]
+    pub fn erc20_sequencer_unlock_config() -> Self {
+        Self {
+            ethereum_config: TestEthereumConfig::AstriaBridgeableERC20(
+                AstriaBridgeableERC20DeployerConfig {
+                    base_chain_asset_precision: 18,
+                    ..Default::default()
+                },
+            ),
+            asset_denom: default_native_asset(),
+        }
+    }
+
+    #[must_use]
+    pub fn erc20_ics20_config() -> Self {
+        Self {
+            ethereum_config: TestEthereumConfig::AstriaBridgeableERC20(
+                AstriaBridgeableERC20DeployerConfig {
+                    base_chain_asset_precision: 18,
+                    ..Default::default()
+                },
+            ),
+            asset_denom: DEFAULT_IBC_DENOM.parse().unwrap(),
+        }
+    }
+}
+
+impl Default for TestBridgeWithdrawerConfig {
+    fn default() -> Self {
+        Self {
+            ethereum_config: TestEthereumConfig::AstriaWithdrawer(
+                AstriaWithdrawerDeployerConfig::default(),
+            ),
+            asset_denom: default_native_asset(),
+        }
+    }
+}
+
+#[must_use]
 pub fn make_bridge_unlock_action() -> Action {
     let denom = default_native_asset();
     let inner = BridgeUnlockAction {
@@ -294,22 +359,23 @@ pub fn make_bridge_unlock_action() -> Action {
         })
         .unwrap(),
         fee_asset: denom,
-        bridge_address: None,
+        bridge_address: Some(default_bridge_address()),
     };
     Action::BridgeUnlock(inner)
 }
 
+#[must_use]
 pub fn make_ics20_withdrawal_action() -> Action {
     let denom = DEFAULT_IBC_DENOM.parse::<Denom>().unwrap();
     let destination_chain_address = "address".to_string();
     let inner = Ics20Withdrawal {
         denom: denom.clone(),
         destination_chain_address,
-        return_address: astria_address([0u8; 20]),
+        return_address: default_bridge_address(),
         amount: 99,
         memo: serde_json::to_string(&Ics20WithdrawalFromRollupMemo {
             memo: "hello".to_string(),
-            bridge_address: astria_address([0u8; 20]),
+            bridge_address: default_bridge_address(),
             block_number: DEFAULT_LAST_ROLLUP_HEIGHT,
             transaction_hash: [2u8; 32],
         })
@@ -318,21 +384,24 @@ pub fn make_ics20_withdrawal_action() -> Action {
         timeout_height: IbcHeight::new(u64::MAX, u64::MAX).unwrap(),
         timeout_time: 0, // zero this for testing
         source_channel: "channel-0".parse().unwrap(),
-        bridge_address: None,
+        bridge_address: Some(default_bridge_address()),
     };
 
     Action::Ics20Withdrawal(inner)
 }
 
+#[must_use]
 pub fn default_native_asset() -> asset::Denom {
     "nria".parse().unwrap()
 }
 
+#[must_use]
 fn default_bridge_address() -> Address {
     astria_address([1u8; 20])
 }
 
 /// Constructs an [`Address`] prefixed by `"astria"`.
+#[must_use]
 pub fn astria_address(
     array: [u8; astria_core::primitive::v1::ADDRESS_LEN],
 ) -> astria_core::primitive::v1::Address {

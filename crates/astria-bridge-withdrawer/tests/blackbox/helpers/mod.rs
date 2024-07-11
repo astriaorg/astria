@@ -5,7 +5,7 @@ mod mock_cometbft;
 mod mock_sequencer;
 mod test_bridge_withdrawer;
 
-fn compare_actions(expected: &Action, actual: &Action) {
+pub fn compare_actions(expected: &Action, actual: &Action) {
     match (expected, actual) {
         (Action::BridgeUnlock(expected), Action::BridgeUnlock(actual)) => {
             assert_eq!(expected, actual, "BridgeUnlock actions do not match");
@@ -26,5 +26,6 @@ pub use self::{
         make_bridge_unlock_action,
         make_ics20_withdrawal_action,
         TestBridgeWithdrawer,
+        TestBridgeWithdrawerConfig,
     },
 };
