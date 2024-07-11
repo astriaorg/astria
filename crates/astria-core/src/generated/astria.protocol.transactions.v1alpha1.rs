@@ -91,7 +91,9 @@ pub mod action {
         #[prost(message, tag = "50")]
         SudoAddressChangeAction(super::SudoAddressChangeAction),
         #[prost(message, tag = "51")]
-        ValidatorUpdateAction(::tendermint_proto::abci::ValidatorUpdate),
+        ValidatorUpdateAction(
+            crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate,
+        ),
         #[prost(message, tag = "52")]
         IbcRelayerChangeAction(super::IbcRelayerChangeAction),
         #[prost(message, tag = "53")]
@@ -385,8 +387,8 @@ pub struct BridgeUnlockAction {
     #[prost(string, tag = "3")]
     pub fee_asset: ::prost::alloc::string::String,
     /// memo for double spend prevention
-    #[prost(bytes = "vec", tag = "4")]
-    pub memo: ::prost::alloc::vec::Vec<u8>,
+    #[prost(string, tag = "4")]
+    pub memo: ::prost::alloc::string::String,
     /// the address of the bridge account to transfer from,
     /// if the bridge account's withdrawer address is not the same as the bridge address.
     /// if unset, the signer of the transaction is used.
@@ -467,6 +469,37 @@ pub mod fee_change_action {
 }
 impl ::prost::Name for FeeChangeAction {
     const NAME: &'static str = "FeeChangeAction";
+    const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
+    }
+}
+/// Response to a transaction fee ABCI query.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TransactionFeeResponse {
+    #[prost(uint64, tag = "2")]
+    pub height: u64,
+    #[prost(message, repeated, tag = "3")]
+    pub fees: ::prost::alloc::vec::Vec<TransactionFee>,
+}
+impl ::prost::Name for TransactionFeeResponse {
+    const NAME: &'static str = "TransactionFeeResponse";
+    const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TransactionFee {
+    #[prost(string, tag = "1")]
+    pub asset: ::prost::alloc::string::String,
+    #[prost(message, optional, tag = "2")]
+    pub fee: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
+}
+impl ::prost::Name for TransactionFee {
+    const NAME: &'static str = "TransactionFee";
     const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)

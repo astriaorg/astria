@@ -24,10 +24,16 @@ use astria_core::{
             IbcRelayerChangeAction,
             SequenceAction,
             TransferAction,
+            ValidatorUpdate,
         },
         Action,
         TransactionParams,
         UnsignedTransaction,
+    },
+    sequencer::{
+        Account,
+        AddressPrefixes,
+        UncheckedGenesisState,
     },
     sequencerblock::v1alpha1::block::Deposit,
 };
@@ -56,10 +62,6 @@ use crate::{
     },
     asset::get_native_asset,
     bridge::state_ext::StateWriteExt as _,
-    genesis::{
-        AddressPrefixes,
-        UncheckedGenesisState,
-    },
     proposal::commitment::generate_rollup_datas_commitment,
 };
 
@@ -178,8 +180,6 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         SudoAddressChangeAction,
     };
 
-    use crate::genesis::Account;
-
     let (alice_signing_key, _) = get_alice_signing_key_and_address();
     let (bridge_signing_key, bridge_address) = get_bridge_signing_key_and_address();
     let bob_address = address_from_hex_string(BOB_ADDRESS);
@@ -199,10 +199,9 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     let (mut app, storage) = initialize_app_with_storage(Some(genesis_state), vec![]).await;
 
     // setup for ValidatorUpdate action
-    let pub_key = tendermint::public_key::PublicKey::from_raw_ed25519(&[1u8; 32]).unwrap();
-    let update = tendermint::validator::Update {
-        pub_key,
-        power: 100u32.into(),
+    let update = ValidatorUpdate {
+        power: 100,
+        verification_key: crate::test_utils::verification_key(1),
     };
 
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
@@ -282,7 +281,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
                 to: bob_address,
                 amount: 10,
                 fee_asset: asset.clone(),
-                memo: vec![0u8; 32],
+                memo: "{}".into(),
                 bridge_address: None,
             }
             .into(),

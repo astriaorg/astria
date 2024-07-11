@@ -1,6 +1,6 @@
 [package]
 name = "astria-sequencer"
-version = "0.14.0"
+version = "0.14.1"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 rust-version = "1.76"
@@ -30,7 +30,9 @@ priority-queue = "2.0.2"
 tower = "0.4"
 tower-abci = "0.12.0"
 tower-actor = "0.1.0"
-cnidarium = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.78.0" }
+cnidarium = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.78.0", features = [
+  "metrics",
+] }
 cnidarium-component = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.78.0" }
 
 async-trait = { workspace = true }
@@ -68,6 +70,7 @@ config = { package = "astria-config", path = "../astria-config", features = [
   "tests",
 ] }
 insta = { workspace = true, features = ["json"] }
+rand_chacha = "0.3.1"
 tokio = { workspace = true, features = ["test-util"] }
 
 [build-dependencies]

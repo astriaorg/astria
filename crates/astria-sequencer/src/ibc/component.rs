@@ -16,7 +16,6 @@ use tracing::instrument;
 
 use crate::{
     component::Component,
-    genesis::GenesisState,
     ibc::{
         host_interface::AstriaHost,
         state_ext::StateWriteExt,
@@ -28,28 +27,28 @@ pub(crate) struct IbcComponent;
 
 #[async_trait::async_trait]
 impl Component for IbcComponent {
-    type AppState = GenesisState;
+    type AppState = astria_core::sequencer::GenesisState;
 
     #[instrument(name = "IbcComponent::init_chain", skip(state))]
     async fn init_chain<S: StateWriteExt>(mut state: S, app_state: &Self::AppState) -> Result<()> {
         Ibc::init_chain(
             &mut state,
             Some(&Content {
-                ibc_params: app_state.ibc_params.clone(),
+                ibc_params: app_state.ibc_params().clone(),
             }),
         )
         .await;
 
         state
-            .put_ibc_sudo_address(app_state.ibc_sudo_address)
+            .put_ibc_sudo_address(*app_state.ibc_sudo_address())
             .context("failed to set IBC sudo key")?;
 
-        for address in &app_state.ibc_relayer_addresses {
+        for address in app_state.ibc_relayer_addresses() {
             state.put_ibc_relayer_address(address);
         }
 
         state
-            .put_ics20_withdrawal_base_fee(app_state.fees.ics20_withdrawal_base_fee)
+            .put_ics20_withdrawal_base_fee(app_state.fees().ics20_withdrawal_base_fee)
             .context("failed to put ics20 withdrawal base fee")?;
         Ok(())
     }

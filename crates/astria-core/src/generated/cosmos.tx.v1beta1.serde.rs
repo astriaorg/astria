@@ -17,7 +17,7 @@ impl serde::Serialize for AuthInfo {
         }
         let mut struct_ser = serializer.serialize_struct("cosmos.tx.v1beta1.AuthInfo", len)?;
         if !self.signer_infos.is_empty() {
-            struct_ser.serialize_field("signer_infos", &self.signer_infos)?;
+            struct_ser.serialize_field("signerInfos", &self.signer_infos)?;
         }
         if let Some(v) = self.fee.as_ref() {
             struct_ser.serialize_field("fee", v)?;
@@ -218,7 +218,7 @@ impl serde::Serialize for BroadcastTxRequest {
         let mut struct_ser = serializer.serialize_struct("cosmos.tx.v1beta1.BroadcastTxRequest", len)?;
         if !self.tx_bytes.is_empty() {
             #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("tx_bytes", pbjson::private::base64::encode(&self.tx_bytes).as_str())?;
+            struct_ser.serialize_field("txBytes", pbjson::private::base64::encode(&self.tx_bytes).as_str())?;
         }
         if self.mode != 0 {
             let v = BroadcastMode::try_from(self.mode)
@@ -328,7 +328,7 @@ impl serde::Serialize for BroadcastTxResponse {
         }
         let mut struct_ser = serializer.serialize_struct("cosmos.tx.v1beta1.BroadcastTxResponse", len)?;
         if let Some(v) = self.tx_response.as_ref() {
-            struct_ser.serialize_field("tx_response", v)?;
+            struct_ser.serialize_field("txResponse", v)?;
         }
         struct_ser.end()
     }
@@ -433,7 +433,7 @@ impl serde::Serialize for Fee {
         }
         if self.gas_limit != 0 {
             #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("gas_limit", ToString::to_string(&self.gas_limit).as_str())?;
+            struct_ser.serialize_field("gasLimit", ToString::to_string(&self.gas_limit).as_str())?;
         }
         if !self.payer.is_empty() {
             struct_ser.serialize_field("payer", &self.payer)?;
@@ -663,7 +663,7 @@ impl serde::Serialize for GetTxResponse {
             struct_ser.serialize_field("tx", v)?;
         }
         if let Some(v) = self.tx_response.as_ref() {
-            struct_ser.serialize_field("tx_response", v)?;
+            struct_ser.serialize_field("txResponse", v)?;
         }
         struct_ser.end()
     }
@@ -881,7 +881,7 @@ impl serde::Serialize for mode_info::Multi {
             struct_ser.serialize_field("bitarray", v)?;
         }
         if !self.mode_infos.is_empty() {
-            struct_ser.serialize_field("mode_infos", &self.mode_infos)?;
+            struct_ser.serialize_field("modeInfos", &self.mode_infos)?;
         }
         struct_ser.end()
     }
@@ -1087,18 +1087,18 @@ impl serde::Serialize for SignDoc {
         let mut struct_ser = serializer.serialize_struct("cosmos.tx.v1beta1.SignDoc", len)?;
         if !self.body_bytes.is_empty() {
             #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("body_bytes", pbjson::private::base64::encode(&self.body_bytes).as_str())?;
+            struct_ser.serialize_field("bodyBytes", pbjson::private::base64::encode(&self.body_bytes).as_str())?;
         }
         if !self.auth_info_bytes.is_empty() {
             #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("auth_info_bytes", pbjson::private::base64::encode(&self.auth_info_bytes).as_str())?;
+            struct_ser.serialize_field("authInfoBytes", pbjson::private::base64::encode(&self.auth_info_bytes).as_str())?;
         }
         if !self.chain_id.is_empty() {
-            struct_ser.serialize_field("chain_id", &self.chain_id)?;
+            struct_ser.serialize_field("chainId", &self.chain_id)?;
         }
         if self.account_number != 0 {
             #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("account_number", ToString::to_string(&self.account_number).as_str())?;
+            struct_ser.serialize_field("accountNumber", ToString::to_string(&self.account_number).as_str())?;
         }
         struct_ser.end()
     }
@@ -1238,10 +1238,10 @@ impl serde::Serialize for SignerInfo {
         }
         let mut struct_ser = serializer.serialize_struct("cosmos.tx.v1beta1.SignerInfo", len)?;
         if let Some(v) = self.public_key.as_ref() {
-            struct_ser.serialize_field("public_key", v)?;
+            struct_ser.serialize_field("publicKey", v)?;
         }
         if let Some(v) = self.mode_info.as_ref() {
-            struct_ser.serialize_field("mode_info", v)?;
+            struct_ser.serialize_field("modeInfo", v)?;
         }
         if self.sequence != 0 {
             #[allow(clippy::needless_borrow)]
@@ -1479,7 +1479,7 @@ impl serde::Serialize for Tx {
             struct_ser.serialize_field("body", v)?;
         }
         if let Some(v) = self.auth_info.as_ref() {
-            struct_ser.serialize_field("auth_info", v)?;
+            struct_ser.serialize_field("authInfo", v)?;
         }
         if !self.signatures.is_empty() {
             struct_ser.serialize_field("signatures", &self.signatures.iter().map(pbjson::private::base64::encode).collect::<Vec<_>>())?;
@@ -1618,13 +1618,13 @@ impl serde::Serialize for TxBody {
         }
         if self.timeout_height != 0 {
             #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("timeout_height", ToString::to_string(&self.timeout_height).as_str())?;
+            struct_ser.serialize_field("timeoutHeight", ToString::to_string(&self.timeout_height).as_str())?;
         }
         if !self.extension_options.is_empty() {
-            struct_ser.serialize_field("extension_options", &self.extension_options)?;
+            struct_ser.serialize_field("extensionOptions", &self.extension_options)?;
         }
         if !self.non_critical_extension_options.is_empty() {
-            struct_ser.serialize_field("non_critical_extension_options", &self.non_critical_extension_options)?;
+            struct_ser.serialize_field("nonCriticalExtensionOptions", &self.non_critical_extension_options)?;
         }
         struct_ser.end()
     }

@@ -11,7 +11,10 @@ use crate::{
         SigningKey,
         VerificationKey,
     },
-    primitive::v1::ADDRESS_LEN,
+    primitive::v1::{
+        asset,
+        ADDRESS_LEN,
+    },
 };
 
 pub mod action;
@@ -468,6 +471,83 @@ impl TransactionParams {
         } = proto;
         Self::builder().nonce(nonce).chain_id(chain_id).build()
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct TransactionFeeResponse {
+    pub height: u64,
+    pub fees: Vec<(asset::Denom, u128)>,
+}
+
+impl TransactionFeeResponse {
+    #[must_use]
+    pub fn into_raw(self) -> raw::TransactionFeeResponse {
+        raw::TransactionFeeResponse {
+            height: self.height,
+            fees: self
+                .fees
+                .into_iter()
+                .map(|(asset, fee)| raw::TransactionFee {
+                    asset: asset.to_string(),
+                    fee: Some(fee.into()),
+                })
+                .collect(),
+        }
+    }
+
+    /// Attempt to convert from a raw protobuf [`raw::TransactionFeeResponse`].
+    ///
+    /// # Errors
+    ///
+    /// - if the asset ID could not be converted from bytes
+    /// - if the fee was unset
+    pub fn try_from_raw(
+        proto: raw::TransactionFeeResponse,
+    ) -> Result<Self, TransactionFeeResponseError> {
+        let raw::TransactionFeeResponse {
+            height,
+            fees,
+        } = proto;
+        let fees = fees
+            .into_iter()
+            .map(
+                |raw::TransactionFee {
+                     asset,
+                     fee,
+                 }| {
+                    let asset = asset.parse().map_err(TransactionFeeResponseError::asset)?;
+                    let fee = fee.ok_or(TransactionFeeResponseError::unset_fee())?;
+                    Ok((asset, fee.into()))
+                },
+            )
+            .collect::<Result<_, _>>()?;
+        Ok(Self {
+            height,
+            fees,
+        })
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct TransactionFeeResponseError(TransactionFeeResponseErrorKind);
+
+impl TransactionFeeResponseError {
+    fn unset_fee() -> Self {
+        Self(TransactionFeeResponseErrorKind::UnsetFee)
+    }
+
+    fn asset(inner: asset::ParseDenomError) -> Self {
+        Self(TransactionFeeResponseErrorKind::Asset(inner))
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum TransactionFeeResponseErrorKind {
+    #[error("`fee` field is unset")]
+    UnsetFee,
+    #[error("failed to parse asset denom in the `assets` field")]
+    Asset(#[source] asset::ParseDenomError),
 }
 
 #[cfg(test)]
