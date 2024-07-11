@@ -137,7 +137,15 @@ impl Consensus {
             .init_chain(
                 self.storage.clone(),
                 genesis_state,
-                init_chain.validators.clone(),
+                init_chain
+                    .validators
+                    .iter()
+                    .cloned()
+                    .map(crate::utils::cometbft_to_sequencer_validator)
+                    .collect::<Result<_, _>>()
+                    .context(
+                        "failed converting cometbft genesis validators to astria validators",
+                    )?,
                 init_chain.chain_id,
             )
             .await

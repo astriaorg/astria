@@ -24,6 +24,7 @@ use astria_core::{
             IbcRelayerChangeAction,
             SequenceAction,
             TransferAction,
+            ValidatorUpdate,
         },
         Action,
         TransactionParams,
@@ -198,10 +199,9 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     let (mut app, storage) = initialize_app_with_storage(Some(genesis_state), vec![]).await;
 
     // setup for ValidatorUpdate action
-    let pub_key = tendermint::public_key::PublicKey::from_raw_ed25519(&[1u8; 32]).unwrap();
-    let update = tendermint::validator::Update {
-        pub_key,
-        power: 100u32.into(),
+    let update = ValidatorUpdate {
+        power: 100,
+        verification_key: crate::test_utils::verification_key(1),
     };
 
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");

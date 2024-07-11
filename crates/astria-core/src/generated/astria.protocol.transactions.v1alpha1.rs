@@ -91,7 +91,9 @@ pub mod action {
         #[prost(message, tag = "50")]
         SudoAddressChangeAction(super::SudoAddressChangeAction),
         #[prost(message, tag = "51")]
-        ValidatorUpdateAction(::tendermint_proto::abci::ValidatorUpdate),
+        ValidatorUpdateAction(
+            crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate,
+        ),
         #[prost(message, tag = "52")]
         IbcRelayerChangeAction(super::IbcRelayerChangeAction),
         #[prost(message, tag = "53")]
