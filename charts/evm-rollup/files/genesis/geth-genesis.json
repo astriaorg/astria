@@ -34,7 +34,6 @@
         {{- end }}
         "astriaOverrideGenesisExtraData": {{ .Values.config.rollup.genesis.overrideGenesisExtraData }},
         "astriaSequencerInitialHeight": {{ toString .Values.config.sequencer.initialBlockHeight | replace "\"" "" }},
-        "AstriaSequencerHrpPrefix": "{{ .Values.config.sequencer.hrpPrefix }}",
         "astriaRollupName": "{{ .Values.config.rollup.name }}",
         "astriaCelestiaInitialHeight": {{ toString .Values.config.celestia.initialBlockHeight | replace "\"" "" }},
         "astriaCelestiaHeightVariance": {{ toString .Values.config.celestia.heightVariance | replace "\"" "" }},

@@ -18,8 +18,8 @@ evmURL: "http://astria-evm-service.astria-dev-cluster.svc.cluster.local:8545"
 sequencerURL: "http://node0-sequencer-rpc-service.astria-dev-cluster.svc.cluster.local:26657"
 # must match chain id used in sequencer chart values
 sequencerChainId: "sequencer-test-chain-0"
-assetId: "transfer/channel-0/utia"
-feeAssetId: "nria"
+asset: "transfer/channel-0/utia"
+feeAsset: "nria"
 
 # sequencer bridge account. is funded during sequencer genesis.
 bridgeAccount:

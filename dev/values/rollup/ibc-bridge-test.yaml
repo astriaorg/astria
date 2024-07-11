@@ -1,11 +1,5 @@
 # this file contains overrides that are used for the ibc bridge tests
 
-# FIXME - remove this section after local development is done
-images:
-  geth:
-    # FIXME - update with correct version when available
-    devTag: pr-32
-
 config:
   rollup:
     genesis:

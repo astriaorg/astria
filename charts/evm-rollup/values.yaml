@@ -178,8 +178,6 @@ config:
     chainId: ""
     # Block height to start syncing rollup from
     initialBlockHeight: "2"
-    # human-readable prefix for bech32m address
-    hrpPrefix: "astria"
     # Fastest block time possible in MS
     blockTimeMs: 2000
     # URL path for the sequencer
