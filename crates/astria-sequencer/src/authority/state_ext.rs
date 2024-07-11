@@ -36,7 +36,6 @@ struct SudoAddress([u8; ADDRESS_LEN]);
 ///
 /// Contains a map of hex-encoded public keys to validator updates.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-// #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ValidatorSet(BTreeMap<ValidatorSetKey, ValidatorUpdate>);
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Ord, PartialOrd)]

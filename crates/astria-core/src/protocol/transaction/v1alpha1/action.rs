@@ -24,9 +24,9 @@ use crate::{
 };
 
 #[derive(Clone, Debug)]
-#[cfg_attr(feature = "serde", derive(::serde::Deserialize, ::serde::Serialize))]
 #[cfg_attr(
     feature = "serde",
+    derive(::serde::Deserialize, ::serde::Serialize),
     serde(into = "raw::Action", try_from = "raw::Action")
 )]
 pub enum Action {
@@ -591,9 +591,9 @@ enum ValidatorUpdateErrorKind {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(
     feature = "serde",
+    derive(::serde::Deserialize, ::serde::Serialize),
     serde(
         into = "crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate",
         try_from = "crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate",
