@@ -237,6 +237,10 @@ impl Startup {
                 .any(|asset| asset.to_ibc_prefixed() == expected_fee_asset_ibc),
             "fee_asset provided in config is not a valid fee asset on the sequencer"
         );
+        info!(
+            fee_asset = %self.expected_fee_asset,
+            "confirmed fee asset is valid on sequencer"
+        );
 
         Ok(())
     }

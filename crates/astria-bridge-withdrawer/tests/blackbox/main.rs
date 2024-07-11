@@ -1,5 +1,4 @@
 use helpers::{
-    astria_address,
     compare_actions,
     default_sequencer_address,
     make_bridge_unlock_action,
@@ -25,7 +24,7 @@ async fn sequencer_withdraw_success() {
     // send a native sequencer withdrawal tx to the rollup
     let value = 1_000_000.into();
     let recipient = default_sequencer_address();
-    let _receipt = bridge_withdrawer
+    let receipt = bridge_withdrawer
         .ethereum
         .send_sequencer_withdraw_transaction(value, recipient)
         .await;
@@ -49,7 +48,7 @@ async fn sequencer_withdraw_success() {
     let actions = tx.actions();
     assert_eq!(actions.len(), 1);
 
-    let expected_action = make_bridge_unlock_action();
+    let expected_action = make_bridge_unlock_action(&receipt);
     let actual_action = actions[0].clone();
     compare_actions(&expected_action, &actual_action);
 }
@@ -70,7 +69,7 @@ async fn ics20_withdraw_success() {
     // send an ics20 withdrawal tx to the rollup
     let value = 1_000_000.into();
     let recipient = default_sequencer_address();
-    let _receipt = bridge_withdrawer
+    let receipt = bridge_withdrawer
         .ethereum
         .send_ics20_withdraw_transaction(value, recipient.to_string())
         .await;
@@ -94,7 +93,7 @@ async fn ics20_withdraw_success() {
     let actions = tx.actions();
     assert_eq!(actions.len(), 1);
 
-    let expected_action = make_ics20_withdrawal_action();
+    let expected_action = make_ics20_withdrawal_action(&receipt);
     let actual_action = actions[0].clone();
     compare_actions(&expected_action, &actual_action);
 }

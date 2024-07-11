@@ -25,7 +25,13 @@ use ethers::{
 };
 use tracing::debug;
 
-use super::test_bridge_withdrawer::astria_address;
+use super::{
+    default_native_asset,
+    test_bridge_withdrawer::{
+        astria_address,
+        default_bridge_address,
+    },
+};
 
 // allow: want the name to reflect this is a test config.
 #[allow(clippy::module_name_repetitions)]
@@ -232,8 +238,8 @@ impl Default for AstriaWithdrawerDeployerConfig {
     fn default() -> Self {
         Self {
             base_chain_asset_precision: 18,
-            base_chain_bridge_address: astria_address([1u8; 20]),
-            base_chain_asset_denomination: "test-denom".to_string(),
+            base_chain_bridge_address: default_bridge_address(),
+            base_chain_asset_denomination: default_native_asset().to_string(),
         }
     }
 }

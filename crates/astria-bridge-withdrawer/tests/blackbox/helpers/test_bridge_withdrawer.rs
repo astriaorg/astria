@@ -30,6 +30,7 @@ use astria_core::{
         },
     },
 };
+use ethers::types::TransactionReceipt;
 use futures::Future;
 use ibc_types::core::client::Height as IbcHeight;
 use once_cell::sync::Lazy;
@@ -46,15 +47,15 @@ use tracing::{
 };
 
 use super::{
-    default_rollup_address,
     ethereum::AstriaBridgeableERC20DeployerConfig,
     make_tx_commit_success_response,
     mock_cometbft::{
         mount_default_chain_id,
-        mount_default_fee_assets,
         mount_get_nonce_response,
+        mount_native_fee_asset,
     },
     mount_broadcast_tx_commit_response_as_scoped,
+    mount_ibc_fee_asset,
     mount_last_bridge_tx_hash_response,
     MockSequencerServer,
 };
@@ -65,7 +66,7 @@ use crate::helpers::ethereum::{
 };
 
 const DEFAULT_LAST_ROLLUP_HEIGHT: u64 = 1;
-const DEFAULT_IBC_DENOM: &str = "transfer/channel-0/utia";
+pub(crate) const DEFAULT_IBC_DENOM: &str = "transfer/channel-0/utia";
 pub(crate) const SEQUENCER_CHAIN_ID: &str = "test-sequencer";
 const ASTRIA_ADDRESS_PREFIX: &str = "astria";
 
@@ -144,7 +145,11 @@ impl TestBridgeWithdrawer {
 
     async fn mount_sequencer_config_responses(&mut self) {
         mount_default_chain_id(&self.cometbft_mock).await;
-        mount_default_fee_assets(&self.cometbft_mock).await;
+        if self.asset_denom() == default_native_asset() {
+            mount_native_fee_asset(&self.cometbft_mock).await;
+        } else {
+            mount_ibc_fee_asset(&self.cometbft_mock).await;
+        }
     }
 
     async fn mount_wait_for_mempool_response(&mut self) {
@@ -251,7 +256,6 @@ impl TestBridgeWithdrawerConfig {
             .unwrap();
         let sequencer_key_path = keyfile.path().to_str().unwrap().to_string();
 
-        // TODO: option for configuring this
         let ethereum = ethereum_config.spawn().await;
 
         let cometbft_mock = wiremock::MockServer::start().await;
@@ -303,9 +307,10 @@ impl TestBridgeWithdrawerConfig {
     #[must_use]
     pub fn native_ics20_config() -> Self {
         Self {
-            ethereum_config: TestEthereumConfig::AstriaWithdrawer(
-                AstriaWithdrawerDeployerConfig::default(),
-            ),
+            ethereum_config: TestEthereumConfig::AstriaWithdrawer(AstriaWithdrawerDeployerConfig {
+                base_chain_asset_denomination: DEFAULT_IBC_DENOM.to_string(),
+                ..Default::default()
+            }),
             asset_denom: DEFAULT_IBC_DENOM.parse().unwrap(),
         }
     }
@@ -348,15 +353,27 @@ impl Default for TestBridgeWithdrawerConfig {
     }
 }
 
+pub fn compare_actions(expected: &Action, actual: &Action) {
+    match (expected, actual) {
+        (Action::BridgeUnlock(expected), Action::BridgeUnlock(actual)) => {
+            assert_eq!(expected, actual, "BridgeUnlock actions do not match");
+        }
+        (Action::Ics20Withdrawal(expected), Action::Ics20Withdrawal(actual)) => {
+            assert_eq!(expected, actual, "Ics20Withdrawal actions do not match");
+        }
+        _ => panic!("Actions do not match"),
+    }
+}
+
 #[must_use]
-pub fn make_bridge_unlock_action() -> Action {
+pub fn make_bridge_unlock_action(receipt: &TransactionReceipt) -> Action {
     let denom = default_native_asset();
     let inner = BridgeUnlockAction {
         to: default_sequencer_address(),
         amount: 1_000_000u128,
         memo: serde_json::to_vec(&UnlockMemo {
-            block_number: DEFAULT_LAST_ROLLUP_HEIGHT,
-            transaction_hash: [2u8; 32],
+            block_number: DEFAULT_LAST_ROLLUP_HEIGHT + 1,
+            transaction_hash: receipt.transaction_hash.0,
         })
         .unwrap(),
         fee_asset: denom,
@@ -366,19 +383,18 @@ pub fn make_bridge_unlock_action() -> Action {
 }
 
 #[must_use]
-pub fn make_ics20_withdrawal_action() -> Action {
+pub fn make_ics20_withdrawal_action(receipt: &TransactionReceipt) -> Action {
     let denom = DEFAULT_IBC_DENOM.parse::<Denom>().unwrap();
-    let destination_chain_address = default_sequencer_address();
     let inner = Ics20Withdrawal {
         denom: denom.clone(),
         destination_chain_address: default_sequencer_address().to_string(),
-        return_address: default_bridge_address(),
+        return_address: astria_address(receipt.from.0),
         amount: 1_000_000u128,
         memo: serde_json::to_string(&Ics20WithdrawalFromRollupMemo {
-            memo: "hello".to_string(),
+            memo: "nootwashere".to_string(),
             bridge_address: default_bridge_address(),
-            block_number: DEFAULT_LAST_ROLLUP_HEIGHT,
-            transaction_hash: [2u8; 32],
+            block_number: DEFAULT_LAST_ROLLUP_HEIGHT + 1,
+            transaction_hash: receipt.transaction_hash.0,
         })
         .unwrap(),
         fee_asset: denom,

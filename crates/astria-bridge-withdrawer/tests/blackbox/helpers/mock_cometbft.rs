@@ -41,6 +41,7 @@ use wiremock::{
 
 use super::test_bridge_withdrawer::{
     default_native_asset,
+    DEFAULT_IBC_DENOM,
     SEQUENCER_CHAIN_ID,
 };
 
@@ -88,12 +89,22 @@ pub async fn mount_default_chain_id_guard_as_scoped(cometbft_mock: &MockServer) 
     mount_genesis_chain_id_response_as_scoped(SEQUENCER_CHAIN_ID, cometbft_mock).await
 }
 
-pub async fn mount_default_fee_assets(cometbft_mock: &MockServer) {
+pub async fn mount_native_fee_asset(cometbft_mock: &MockServer) {
     let fee_assets = vec![default_native_asset()];
     mount_allowed_fee_assets_response(fee_assets, cometbft_mock).await;
 }
 
-pub async fn mount_default_fee_assets_as_scoped(cometbft_mock: &MockServer) -> MockGuard {
+pub async fn mount_native_fee_asset_as_scoped(cometbft_mock: &MockServer) -> MockGuard {
+    let fee_assets = vec![DEFAULT_IBC_DENOM.parse().unwrap()];
+    mount_allowed_fee_assets_response_as_scoped(fee_assets, cometbft_mock).await
+}
+
+pub async fn mount_ibc_fee_asset(cometbft_mock: &MockServer) {
+    let fee_assets = vec![DEFAULT_IBC_DENOM.parse().unwrap()];
+    mount_allowed_fee_assets_response(fee_assets, cometbft_mock).await;
+}
+
+pub async fn mount_ibc_fee_asset_as_scoped(cometbft_mock: &MockServer) -> MockGuard {
     let fee_assets = vec![default_native_asset()];
     mount_allowed_fee_assets_response_as_scoped(fee_assets, cometbft_mock).await
 }
