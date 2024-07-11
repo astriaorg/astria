@@ -65,6 +65,7 @@ pub(crate) fn event_to_action(
             event_with_metadata.transaction_hash,
             fee_asset,
             asset_withdrawal_divisor,
+            bridge_address,
         )
         .wrap_err("failed to convert sequencer withdrawal event to action")?,
         WithdrawalEvent::Ics20(event) => event_to_ics20_withdrawal(
@@ -88,6 +89,7 @@ fn event_to_bridge_unlock(
     transaction_hash: TxHash,
     fee_asset: asset::Denom,
     asset_withdrawal_divisor: u128,
+    bridge_address: Address,
 ) -> eyre::Result<Action> {
     let memo = bridge::UnlockMemo {
         // XXX: The documentation mentions that the ethers U64 type will panic if it cannot be
@@ -110,7 +112,7 @@ fn event_to_bridge_unlock(
             ))?,
         memo: serde_json::to_string(&memo).wrap_err("failed to serialize memo to json")?,
         fee_asset,
-        bridge_address: None,
+        bridge_address: Some(bridge_address),
     };
 
     Ok(Action::BridgeUnlock(action))
@@ -176,7 +178,7 @@ fn event_to_ics20_withdrawal(
         source_channel: channel
             .parse()
             .wrap_err("failed to parse channel from denom")?,
-        bridge_address: None,
+        bridge_address: Some(bridge_address),
     };
     Ok(Action::Ics20Withdrawal(action))
 }
@@ -212,12 +214,13 @@ mod tests {
             block_number: 1.into(),
             transaction_hash: [2u8; 32].into(),
         };
+        let bridge_address = crate::astria_address([99u8; 20]);
         let action = event_to_action(
             event_with_meta,
             denom.clone(),
             denom.clone(),
             1,
-            crate::astria_address([99u8; 20]),
+            bridge_address,
             crate::ASTRIA_ADDRESS_PREFIX,
         )
         .unwrap();
@@ -234,7 +237,7 @@ mod tests {
             })
             .unwrap(),
             fee_asset: denom,
-            bridge_address: None,
+            bridge_address: Some(bridge_address),
         };
 
         assert_eq!(action, expected_action);
@@ -253,12 +256,13 @@ mod tests {
             transaction_hash: [2u8; 32].into(),
         };
         let divisor = 10;
+        let bridge_address = crate::astria_address([99u8; 20]);
         let action = event_to_action(
             event_with_meta,
             denom.clone(),
             denom.clone(),
             divisor,
-            crate::astria_address([99u8; 20]),
+            bridge_address,
             crate::ASTRIA_ADDRESS_PREFIX,
         )
         .unwrap();
@@ -275,7 +279,7 @@ mod tests {
             })
             .unwrap(),
             fee_asset: denom,
-            bridge_address: None,
+            bridge_address: Some(bridge_address),
         };
 
         assert_eq!(action, expected_action);
@@ -330,7 +334,7 @@ mod tests {
             timeout_height: IbcHeight::new(u64::MAX, u64::MAX).unwrap(),
             timeout_time: 0, // zero this for testing
             source_channel: "channel-0".parse().unwrap(),
-            bridge_address: None,
+            bridge_address: Some(bridge_address),
         };
         assert_eq!(action, expected_action);
     }
