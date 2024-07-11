@@ -91,7 +91,9 @@ pub mod action {
         #[prost(message, tag = "50")]
         SudoAddressChangeAction(super::SudoAddressChangeAction),
         #[prost(message, tag = "51")]
-        ValidatorUpdateAction(::tendermint_proto::abci::ValidatorUpdate),
+        ValidatorUpdateAction(
+            crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate,
+        ),
         #[prost(message, tag = "52")]
         IbcRelayerChangeAction(super::IbcRelayerChangeAction),
         #[prost(message, tag = "53")]
@@ -119,11 +121,11 @@ pub struct TransferAction {
     #[prost(message, optional, tag = "2")]
     pub amount: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
     /// the asset to be transferred
-    #[prost(bytes = "vec", tag = "3")]
-    pub asset_id: ::prost::alloc::vec::Vec<u8>,
+    #[prost(string, tag = "3")]
+    pub asset: ::prost::alloc::string::String,
     /// the asset used to pay the transaction fee
-    #[prost(bytes = "vec", tag = "4")]
-    pub fee_asset_id: ::prost::alloc::vec::Vec<u8>,
+    #[prost(string, tag = "4")]
+    pub fee_asset: ::prost::alloc::string::String,
 }
 impl ::prost::Name for TransferAction {
     const NAME: &'static str = "TransferAction";
@@ -145,8 +147,8 @@ pub struct SequenceAction {
     #[prost(bytes = "vec", tag = "2")]
     pub data: ::prost::alloc::vec::Vec<u8>,
     /// the asset used to pay the transaction fee
-    #[prost(bytes = "vec", tag = "3")]
-    pub fee_asset_id: ::prost::alloc::vec::Vec<u8>,
+    #[prost(string, tag = "3")]
+    pub fee_asset: ::prost::alloc::string::String,
 }
 impl ::prost::Name for SequenceAction {
     const NAME: &'static str = "SequenceAction";
@@ -202,8 +204,8 @@ pub struct Ics20Withdrawal {
     #[prost(string, tag = "7")]
     pub source_channel: ::prost::alloc::string::String,
     /// the asset used to pay the transaction fee
-    #[prost(bytes = "vec", tag = "8")]
-    pub fee_asset_id: ::prost::alloc::vec::Vec<u8>,
+    #[prost(string, tag = "8")]
+    pub fee_asset: ::prost::alloc::string::String,
     /// a memo to include with the transfer
     #[prost(string, tag = "9")]
     pub memo: ::prost::alloc::string::String,
@@ -272,8 +274,6 @@ impl ::prost::Name for IbcRelayerChangeAction {
 }
 /// `FeeAssetChangeAction` represents a transaction that adds
 /// or removes an asset for fee payments.
-/// The bytes contained in each variant are the 32-byte asset ID
-/// to add or remove.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FeeAssetChangeAction {
@@ -285,10 +285,10 @@ pub mod fee_asset_change_action {
     #[allow(clippy::derive_partial_eq_without_eq)]
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Value {
-        #[prost(bytes, tag = "1")]
-        Addition(::prost::alloc::vec::Vec<u8>),
-        #[prost(bytes, tag = "2")]
-        Removal(::prost::alloc::vec::Vec<u8>),
+        #[prost(string, tag = "1")]
+        Addition(::prost::alloc::string::String),
+        #[prost(string, tag = "2")]
+        Removal(::prost::alloc::string::String),
     }
 }
 impl ::prost::Name for FeeAssetChangeAction {
@@ -311,11 +311,11 @@ pub struct InitBridgeAccountAction {
     #[prost(message, optional, tag = "1")]
     pub rollup_id: ::core::option::Option<super::super::super::primitive::v1::RollupId>,
     /// the asset ID accepted as an incoming transfer by the bridge account
-    #[prost(bytes = "vec", tag = "2")]
-    pub asset_id: ::prost::alloc::vec::Vec<u8>,
+    #[prost(string, tag = "2")]
+    pub asset: ::prost::alloc::string::String,
     /// the asset used to pay the transaction fee
-    #[prost(bytes = "vec", tag = "3")]
-    pub fee_asset_id: ::prost::alloc::vec::Vec<u8>,
+    #[prost(string, tag = "3")]
+    pub fee_asset: ::prost::alloc::string::String,
     /// the address corresponding to the key which has sudo capabilities;
     /// ie. can change the sudo and withdrawer addresses for this bridge account.
     /// if this is empty, the sender of the transaction is used.
@@ -352,11 +352,11 @@ pub struct BridgeLockAction {
     #[prost(message, optional, tag = "2")]
     pub amount: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
     /// the asset to be transferred
-    #[prost(bytes = "vec", tag = "3")]
-    pub asset_id: ::prost::alloc::vec::Vec<u8>,
+    #[prost(string, tag = "3")]
+    pub asset: ::prost::alloc::string::String,
     /// the asset used to pay the transaction fee
-    #[prost(bytes = "vec", tag = "4")]
-    pub fee_asset_id: ::prost::alloc::vec::Vec<u8>,
+    #[prost(string, tag = "4")]
+    pub fee_asset: ::prost::alloc::string::String,
     /// the address on the destination chain which
     /// will receive the bridged funds
     #[prost(string, tag = "5")]
@@ -372,7 +372,7 @@ impl ::prost::Name for BridgeLockAction {
 /// `BridgeUnlockAction` represents a transaction that transfers
 /// funds from a bridge account to a sequencer account.
 ///
-/// It's the same as a `TransferAction` but without the `asset_id` field
+/// It's the same as a `TransferAction` but without the `asset` field
 /// and with the `memo` field.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -384,11 +384,11 @@ pub struct BridgeUnlockAction {
     #[prost(message, optional, tag = "2")]
     pub amount: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
     /// the asset used to pay the transaction fee
-    #[prost(bytes = "vec", tag = "3")]
-    pub fee_asset_id: ::prost::alloc::vec::Vec<u8>,
+    #[prost(string, tag = "3")]
+    pub fee_asset: ::prost::alloc::string::String,
     /// memo for double spend prevention
-    #[prost(bytes = "vec", tag = "4")]
-    pub memo: ::prost::alloc::vec::Vec<u8>,
+    #[prost(string, tag = "4")]
+    pub memo: ::prost::alloc::string::String,
     /// the address of the bridge account to transfer from,
     /// if the bridge account's withdrawer address is not the same as the bridge address.
     /// if unset, the signer of the transaction is used.
@@ -423,8 +423,8 @@ pub struct BridgeSudoChangeAction {
         super::super::super::primitive::v1::Address,
     >,
     /// the asset used to pay the transaction fee
-    #[prost(bytes = "vec", tag = "4")]
-    pub fee_asset_id: ::prost::alloc::vec::Vec<u8>,
+    #[prost(string, tag = "4")]
+    pub fee_asset: ::prost::alloc::string::String,
 }
 impl ::prost::Name for BridgeSudoChangeAction {
     const NAME: &'static str = "BridgeSudoChangeAction";
@@ -469,6 +469,37 @@ pub mod fee_change_action {
 }
 impl ::prost::Name for FeeChangeAction {
     const NAME: &'static str = "FeeChangeAction";
+    const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
+    }
+}
+/// Response to a transaction fee ABCI query.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TransactionFeeResponse {
+    #[prost(uint64, tag = "2")]
+    pub height: u64,
+    #[prost(message, repeated, tag = "3")]
+    pub fees: ::prost::alloc::vec::Vec<TransactionFee>,
+}
+impl ::prost::Name for TransactionFeeResponse {
+    const NAME: &'static str = "TransactionFeeResponse";
+    const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TransactionFee {
+    #[prost(string, tag = "1")]
+    pub asset: ::prost::alloc::string::String,
+    #[prost(message, optional, tag = "2")]
+    pub fee: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
+}
+impl ::prost::Name for TransactionFee {
+    const NAME: &'static str = "TransactionFee";
     const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)

@@ -17,7 +17,7 @@ use std::time::Duration;
 
 use astria_core::{
     primitive::v1::{
-        asset::default_native_asset,
+        asset,
         RollupId,
     },
     protocol::transaction::v1alpha1::action::SequenceAction,
@@ -81,6 +81,7 @@ pub(crate) struct Geth {
     // Token to signal the geth collector to stop upon shutdown.
     shutdown_token: CancellationToken,
     metrics: &'static Metrics,
+    fee_asset: asset::Denom,
 }
 
 #[derive(Debug)]
@@ -106,6 +107,7 @@ pub(crate) struct Builder {
     pub(crate) executor_handle: executor::Handle,
     pub(crate) shutdown_token: CancellationToken,
     pub(crate) metrics: &'static Metrics,
+    pub(crate) fee_asset: asset::Denom,
 }
 
 impl Builder {
@@ -116,6 +118,7 @@ impl Builder {
             executor_handle,
             shutdown_token,
             metrics,
+            fee_asset,
         } = self;
         let (status, _) = watch::channel(Status::new());
         let rollup_id = RollupId::from_unhashed_bytes(&chain_name);
@@ -132,6 +135,7 @@ impl Builder {
             url,
             shutdown_token,
             metrics,
+            fee_asset,
         }
     }
 }
@@ -159,6 +163,7 @@ impl Geth {
             shutdown_token,
             chain_name,
             metrics,
+            fee_asset,
         } = self;
 
         let txs_received_counter = metrics
@@ -232,7 +237,7 @@ impl Geth {
                         let seq_action = SequenceAction {
                             rollup_id,
                             data,
-                            fee_asset_id: default_native_asset().id(),
+                            fee_asset: fee_asset.clone(),
                         };
 
                         txs_received_counter.increment(1);

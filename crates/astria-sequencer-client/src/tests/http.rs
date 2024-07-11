@@ -1,13 +1,7 @@
 use astria_core::{
     crypto::SigningKey,
-    generated::protocol::asset::v1alpha1::AllowedFeeAssetIdsResponse,
-    primitive::v1::{
-        asset::{
-            self,
-            default_native_asset,
-        },
-        Address,
-    },
+    generated::protocol::asset::v1alpha1::AllowedFeeAssetsResponse,
+    primitive::v1::Address,
     protocol::transaction::v1alpha1::{
         action::TransferAction,
         SignedTransaction,
@@ -151,8 +145,8 @@ fn create_signed_transaction() -> SignedTransaction {
         TransferAction {
             to: bob_address(),
             amount: 333_333,
-            asset_id: default_native_asset().id(),
-            fee_asset_id: default_native_asset().id(),
+            asset: "nria".parse().unwrap(),
+            fee_asset: "nria".parse().unwrap(),
         }
         .into(),
     ];
@@ -235,34 +229,58 @@ async fn get_allowed_fee_assets() {
         client,
     } = MockSequencer::start().await;
 
-    let expected_response = AllowedFeeAssetIdsResponse {
+    let expected_response = AllowedFeeAssetsResponse {
         height: 10,
-        fee_asset_ids: vec![
-            asset::Id::from_str_unchecked("asset_0")
-                .get()
-                .to_vec()
-                .into(),
-            asset::Id::from_str_unchecked("asset_1")
-                .get()
-                .to_vec()
-                .into(),
-            asset::Id::from_str_unchecked("asset_2")
-                .get()
-                .to_vec()
-                .into(),
+        fee_assets: vec![
+            "asset_0".to_string(),
+            "asset_1".to_string(),
+            "asset_2".to_string(),
         ],
     };
 
     let _guard = register_abci_query_response(
         &server,
-        "asset/allowed_fee_asset_ids",
+        "asset/allowed_fee_assets",
         expected_response.clone(),
     )
     .await;
 
-    let actual_response = client.get_allowed_fee_asset_ids().await;
+    let actual_response = client.get_allowed_fee_assets().await;
 
     let actual_response = actual_response.unwrap().into_raw();
+    assert_eq!(expected_response, actual_response);
+}
+
+#[tokio::test]
+async fn get_bridge_account_info() {
+    use astria_core::{
+        generated::protocol::bridge::v1alpha1::BridgeAccountInfoResponse,
+        primitive::v1::RollupId,
+    };
+
+    let MockSequencer {
+        server,
+        client,
+    } = MockSequencer::start().await;
+
+    let expected_response = BridgeAccountInfoResponse {
+        height: 10,
+        rollup_id: Some(RollupId::from_unhashed_bytes(b"rollup_0").into_raw()),
+        asset: Some("asset_0".parse().unwrap()),
+        sudo_address: Some(alice_address().into_raw()),
+        withdrawer_address: Some(alice_address().into_raw()),
+    };
+
+    let _guard =
+        register_abci_query_response(&server, "bridge/account_info", expected_response.clone())
+            .await;
+
+    let actual_response = client
+        .get_bridge_account_info(alice_address())
+        .await
+        .unwrap()
+        .into_raw();
+
     assert_eq!(expected_response, actual_response);
 }
 
@@ -289,6 +307,38 @@ async fn get_bridge_account_last_transaction_hash() {
 
     let actual_response = client
         .get_bridge_account_last_transaction_hash(alice_address())
+        .await
+        .unwrap()
+        .into_raw();
+
+    assert_eq!(expected_response, actual_response);
+}
+
+#[tokio::test]
+async fn get_transaction_fee() {
+    use astria_core::generated::protocol::transaction::v1alpha1::{
+        TransactionFee,
+        TransactionFeeResponse,
+    };
+
+    let MockSequencer {
+        server,
+        client,
+    } = MockSequencer::start().await;
+
+    let expected_response = TransactionFeeResponse {
+        height: 10,
+        fees: vec![TransactionFee {
+            asset: "asset_0".to_string(),
+            fee: Some(100.into()),
+        }],
+    };
+
+    let _guard =
+        register_abci_query_response(&server, "transaction/fee", expected_response.clone()).await;
+
+    let actual_response = client
+        .get_transaction_fee(create_signed_transaction().into_unsigned())
         .await
         .unwrap()
         .into_raw();

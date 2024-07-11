@@ -14,7 +14,13 @@ use astria_composer::{
     Metrics,
 };
 use astria_core::{
-    primitive::v1::RollupId,
+    primitive::v1::{
+        asset::{
+            Denom,
+            IbcPrefixed,
+        },
+        RollupId,
+    },
     protocol::{
         abci::AbciErrorCode,
         transaction::v1alpha1::SignedTransaction,
@@ -64,6 +70,7 @@ static TELEMETRY: Lazy<()> = Lazy::new(|| {
         metrics_http_listener_addr: String::new(),
         pretty_print: false,
         grpc_addr: SocketAddr::new(IpAddr::from([0, 0, 0, 0]), 0),
+        fee_asset: Denom::IbcPrefixed(IbcPrefixed::new([0; 32])),
     };
     if std::env::var_os("TEST_LOG").is_some() {
         let filter_directives = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into());
@@ -133,6 +140,7 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
         metrics_http_listener_addr: String::new(),
         pretty_print: true,
         grpc_addr: "127.0.0.1:0".parse().unwrap(),
+        fee_asset: "nria".parse().unwrap(),
     };
 
     let (metrics, metrics_handle) = metrics::ConfigBuilder::new()

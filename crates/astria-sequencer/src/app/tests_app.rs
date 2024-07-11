@@ -1,10 +1,7 @@
 use std::collections::HashMap;
 
 use astria_core::{
-    primitive::v1::{
-        asset::DEFAULT_NATIVE_ASSET_DENOM,
-        RollupId,
-    },
+    primitive::v1::RollupId,
     protocol::transaction::v1alpha1::{
         action::{
             BridgeLockAction,
@@ -14,6 +11,7 @@ use astria_core::{
         TransactionParams,
         UnsignedTransaction,
     },
+    sequencer::Account,
     sequencerblock::v1alpha1::block::Deposit,
 };
 use cnidarium::StateDelta;
@@ -50,9 +48,9 @@ use crate::{
         StateReadExt as _,
         StateWriteExt,
     },
-    genesis::Account,
     proposal::commitment::generate_rollup_datas_commitment,
     state_ext::StateReadExt as _,
+    test_utils::verification_key,
 };
 
 fn default_tendermint_header() -> Header {
@@ -90,16 +88,13 @@ async fn app_genesis_and_init_chain() {
         assert_eq!(
             balance,
             app.state
-                .get_account_balance(address, get_native_asset().id())
+                .get_account_balance(address, get_native_asset())
                 .await
                 .unwrap(),
         );
     }
 
-    assert_eq!(
-        app.state.get_native_asset_denom().await.unwrap(),
-        DEFAULT_NATIVE_ASSET_DENOM
-    );
+    assert_eq!(app.state.get_native_asset_denom().await.unwrap(), "nria");
 }
 
 #[tokio::test]
@@ -126,22 +121,16 @@ async fn app_pre_execute_transactions() {
 
 #[tokio::test]
 async fn app_begin_block_remove_byzantine_validators() {
-    use tendermint::{
-        abci::types,
-        validator,
-    };
-
-    let pubkey_a = tendermint::public_key::PublicKey::from_raw_ed25519(&[1; 32]).unwrap();
-    let pubkey_b = tendermint::public_key::PublicKey::from_raw_ed25519(&[2; 32]).unwrap();
+    use tendermint::abci::types;
 
     let initial_validator_set = vec![
-        validator::Update {
-            pub_key: pubkey_a,
-            power: 100u32.into(),
+        ValidatorUpdate {
+            power: 100u32,
+            verification_key: verification_key(1),
         },
-        validator::Update {
-            pub_key: pubkey_b,
-            power: 1u32.into(),
+        ValidatorUpdate {
+            power: 1u32,
+            verification_key: verification_key(2),
         },
     ];
 
@@ -150,10 +139,7 @@ async fn app_begin_block_remove_byzantine_validators() {
     let misbehavior = types::Misbehavior {
         kind: types::MisbehaviorKind::Unknown,
         validator: types::Validator {
-            address: tendermint::account::Id::from(pubkey_a)
-                .as_bytes()
-                .try_into()
-                .unwrap(),
+            address: crate::test_utils::verification_key(1).address_bytes(),
             power: 0u32.into(),
         },
         height: Height::default(),
@@ -177,10 +163,7 @@ async fn app_begin_block_remove_byzantine_validators() {
     // assert that validator with pubkey_a is removed
     let validator_set = app.state.get_validator_set().await.unwrap();
     assert_eq!(validator_set.len(), 1);
-    assert_eq!(
-        validator_set.get(&pubkey_b.into()).unwrap().power,
-        1u32.into()
-    );
+    assert_eq!(validator_set.get(verification_key(2)).unwrap().power, 1,);
 }
 
 #[tokio::test]
@@ -188,7 +171,7 @@ async fn app_commit() {
     let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
     assert_eq!(app.state.get_block_height().await.unwrap(), 0);
 
-    let native_asset = get_native_asset().id();
+    let native_asset = get_native_asset();
     for Account {
         address,
         balance,
@@ -230,7 +213,7 @@ async fn app_transfer_block_fees_to_sudo() {
     let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
 
     let (alice_signing_key, _) = get_alice_signing_key_and_address();
-    let native_asset = get_native_asset().id();
+    let native_asset = get_native_asset().clone();
 
     // transfer funds from Alice to Bob; use native token for fee payment
     let bob_address = address_from_hex_string(BOB_ADDRESS);
@@ -244,8 +227,8 @@ async fn app_transfer_block_fees_to_sudo() {
             TransferAction {
                 to: bob_address,
                 amount,
-                asset_id: native_asset,
-                fee_asset_id: get_native_asset().id(),
+                asset: native_asset.clone(),
+                fee_asset: native_asset.clone(),
             }
             .into(),
         ],
@@ -301,12 +284,12 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
 
     let bridge_address = crate::address::base_prefixed([99; 20]);
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
-    let asset_id = get_native_asset().id();
+    let asset = get_native_asset().clone();
 
     let mut state_tx = StateDelta::new(app.state.clone());
     state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
     state_tx
-        .put_bridge_account_asset_id(&bridge_address, &asset_id)
+        .put_bridge_account_ibc_asset(&bridge_address, &asset)
         .unwrap();
     app.apply(state_tx);
     app.prepare_commit(storage.clone()).await.unwrap();
@@ -316,14 +299,14 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
     let lock_action = BridgeLockAction {
         to: bridge_address,
         amount,
-        asset_id,
-        fee_asset_id: asset_id,
+        asset: asset.clone(),
+        fee_asset: asset.clone(),
         destination_chain_address: "nootwashere".to_string(),
     };
     let sequence_action = SequenceAction {
         rollup_id,
         data: b"hello world".to_vec(),
-        fee_asset_id: asset_id,
+        fee_asset: asset.clone(),
     };
     let tx = UnsignedTransaction {
         params: TransactionParams::builder()
@@ -339,7 +322,7 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
         bridge_address,
         rollup_id,
         amount,
-        asset_id,
+        asset,
         "nootwashere".to_string(),
     );
     let deposits = HashMap::from_iter(vec![(rollup_id, vec![expected_deposit.clone()])]);
@@ -379,7 +362,7 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
         }
     }
     assert_eq!(deposits.len(), 1);
-    assert_eq!(deposits[0], expected_deposit);
+    assert_eq!(*deposits[0], expected_deposit);
 }
 
 // it's a test, so allow a lot of lines
@@ -391,12 +374,12 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
 
     let bridge_address = crate::address::base_prefixed([99; 20]);
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
-    let asset_id = get_native_asset().id();
+    let asset = get_native_asset().clone();
 
     let mut state_tx = StateDelta::new(app.state.clone());
     state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
     state_tx
-        .put_bridge_account_asset_id(&bridge_address, &asset_id)
+        .put_bridge_account_ibc_asset(&bridge_address, &asset)
         .unwrap();
     app.apply(state_tx);
     app.prepare_commit(storage.clone()).await.unwrap();
@@ -406,14 +389,14 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
     let lock_action = BridgeLockAction {
         to: bridge_address,
         amount,
-        asset_id,
-        fee_asset_id: asset_id,
+        asset: asset.clone(),
+        fee_asset: asset.clone(),
         destination_chain_address: "nootwashere".to_string(),
     };
     let sequence_action = SequenceAction {
         rollup_id,
         data: b"hello world".to_vec(),
-        fee_asset_id: asset_id,
+        fee_asset: asset.clone(),
     };
     let tx = UnsignedTransaction {
         params: TransactionParams::builder()
@@ -429,7 +412,7 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
         bridge_address,
         rollup_id,
         amount,
-        asset_id,
+        asset,
         "nootwashere".to_string(),
     );
     let deposits = HashMap::from_iter(vec![(rollup_id, vec![expected_deposit.clone()])]);
@@ -548,7 +531,7 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
             SequenceAction {
                 rollup_id: RollupId::from([1u8; 32]),
                 data: vec![1u8; 100_000],
-                fee_asset_id: get_native_asset().id(),
+                fee_asset: get_native_asset().clone(),
             }
             .into(),
         ],
@@ -563,7 +546,7 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
             SequenceAction {
                 rollup_id: RollupId::from([1u8; 32]),
                 data: vec![1u8; 100_000],
-                fee_asset_id: get_native_asset().id(),
+                fee_asset: get_native_asset().clone(),
             }
             .into(),
         ],
@@ -621,7 +604,7 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
             SequenceAction {
                 rollup_id: RollupId::from([1u8; 32]),
                 data: vec![1u8; 200_000],
-                fee_asset_id: get_native_asset().id(),
+                fee_asset: get_native_asset().clone(),
             }
             .into(),
         ],
@@ -636,7 +619,7 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
             SequenceAction {
                 rollup_id: RollupId::from([1u8; 32]),
                 data: vec![1u8; 100_000],
-                fee_asset_id: get_native_asset().id(),
+                fee_asset: get_native_asset().clone(),
             }
             .into(),
         ],
@@ -679,20 +662,14 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
 
 #[tokio::test]
 async fn app_end_block_validator_updates() {
-    use tendermint::validator;
-
-    let pubkey_a = tendermint::public_key::PublicKey::from_raw_ed25519(&[1; 32]).unwrap();
-    let pubkey_b = tendermint::public_key::PublicKey::from_raw_ed25519(&[2; 32]).unwrap();
-    let pubkey_c = tendermint::public_key::PublicKey::from_raw_ed25519(&[3; 32]).unwrap();
-
     let initial_validator_set = vec![
-        validator::Update {
-            pub_key: pubkey_a,
-            power: 100u32.into(),
+        ValidatorUpdate {
+            power: 100,
+            verification_key: crate::test_utils::verification_key(1),
         },
-        validator::Update {
-            pub_key: pubkey_b,
-            power: 1u32.into(),
+        ValidatorUpdate {
+            power: 1,
+            verification_key: crate::test_utils::verification_key(2),
         },
     ];
 
@@ -700,17 +677,17 @@ async fn app_end_block_validator_updates() {
     let proposer_address = crate::address::base_prefixed([0u8; 20]);
 
     let validator_updates = vec![
-        validator::Update {
-            pub_key: pubkey_a,
-            power: 0u32.into(),
+        ValidatorUpdate {
+            power: 0,
+            verification_key: verification_key(0),
         },
-        validator::Update {
-            pub_key: pubkey_b,
-            power: 100u32.into(),
+        ValidatorUpdate {
+            power: 100,
+            verification_key: verification_key(1),
         },
-        validator::Update {
-            pub_key: pubkey_c,
-            power: 100u32.into(),
+        ValidatorUpdate {
+            power: 100,
+            verification_key: verification_key(2),
         },
     ];
 
@@ -730,11 +707,15 @@ async fn app_end_block_validator_updates() {
     // validator with pubkey_c should be added
     let validator_set = app.state.get_validator_set().await.unwrap();
     assert_eq!(validator_set.len(), 2);
-    let validator_b = validator_set.get(&pubkey_b.into()).unwrap();
-    assert_eq!(validator_b.pub_key, pubkey_b);
-    assert_eq!(validator_b.power, 100u32.into());
-    let validator_c = validator_set.get(&pubkey_c.into()).unwrap();
-    assert_eq!(validator_c.pub_key, pubkey_c);
-    assert_eq!(validator_c.power, 100u32.into());
+    let validator_b = validator_set
+        .get(verification_key(1).address_bytes())
+        .unwrap();
+    assert_eq!(validator_b.verification_key, verification_key(1));
+    assert_eq!(validator_b.power, 100);
+    let validator_c = validator_set
+        .get(verification_key(2).address_bytes())
+        .unwrap();
+    assert_eq!(validator_c.verification_key, verification_key(2));
+    assert_eq!(validator_c.power, 100);
     assert_eq!(app.state.get_validator_updates().await.unwrap().len(), 0);
 }

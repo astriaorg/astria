@@ -1,19 +1,25 @@
 use astria_core::{
     crypto::SigningKey,
     primitive::v1::{
-        asset::{
-            default_native_asset,
-            DEFAULT_NATIVE_ASSET_DENOM,
-        },
         Address,
         RollupId,
         ADDRESS_LEN,
     },
     protocol::transaction::v1alpha1::{
-        action::SequenceAction,
+        action::{
+            SequenceAction,
+            ValidatorUpdate,
+        },
         SignedTransaction,
         TransactionParams,
         UnsignedTransaction,
+    },
+    sequencer::{
+        Account,
+        AddressPrefixes,
+        Fees,
+        GenesisState,
+        UncheckedGenesisState,
     },
 };
 use cnidarium::Storage;
@@ -22,13 +28,6 @@ use telemetry::metrics::Metrics as _;
 
 use crate::{
     app::App,
-    genesis::{
-        self,
-        Account,
-        AddressPrefixes,
-        GenesisState,
-        UncheckedGenesisState,
-    },
     mempool::Mempool,
     metrics::Metrics,
 };
@@ -87,8 +86,8 @@ pub(crate) fn default_genesis_accounts() -> Vec<Account> {
     ]
 }
 
-pub(crate) fn default_fees() -> genesis::Fees {
-    genesis::Fees {
+pub(crate) fn default_fees() -> Fees {
+    Fees {
         transfer_base_fee: 12,
         sequence_base_fee: 32,
         sequence_byte_cost_multiplier: 1,
@@ -108,9 +107,9 @@ pub(crate) fn unchecked_genesis_state() -> UncheckedGenesisState {
         authority_sudo_address: address_from_hex_string(JUDY_ADDRESS),
         ibc_sudo_address: address_from_hex_string(TED_ADDRESS),
         ibc_relayer_addresses: vec![],
-        native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
+        native_asset_base_denomination: "nria".to_string(),
         ibc_params: IBCParameters::default(),
-        allowed_fee_assets: vec![default_native_asset()],
+        allowed_fee_assets: vec!["nria".parse().unwrap()],
         fees: default_fees(),
     }
 }
@@ -121,7 +120,7 @@ pub(crate) fn genesis_state() -> GenesisState {
 
 pub(crate) async fn initialize_app_with_storage(
     genesis_state: Option<GenesisState>,
-    genesis_validators: Vec<tendermint::validator::Update>,
+    genesis_validators: Vec<ValidatorUpdate>,
 ) -> (App, Storage) {
     let storage = cnidarium::TempStorage::new()
         .await
@@ -148,7 +147,7 @@ pub(crate) async fn initialize_app_with_storage(
 
 pub(crate) async fn initialize_app(
     genesis_state: Option<GenesisState>,
-    genesis_validators: Vec<tendermint::validator::Update>,
+    genesis_validators: Vec<ValidatorUpdate>,
 ) -> App {
     let (app, _storage) = initialize_app_with_storage(genesis_state, genesis_validators).await;
     app
@@ -165,7 +164,7 @@ pub(crate) fn get_mock_tx(nonce: u32) -> SignedTransaction {
             SequenceAction {
                 rollup_id: RollupId::from_unhashed_bytes([0; 32]),
                 data: vec![0x99],
-                fee_asset_id: astria_core::primitive::v1::asset::default_native_asset().id(),
+                fee_asset: "astria".parse().unwrap(),
             }
             .into(),
         ],

@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use telemetry::{
     metric_names,
     metrics::{
@@ -9,8 +11,9 @@ use telemetry::{
     },
 };
 
+const CHECK_TX_STAGE: &str = "stage";
+
 pub struct Metrics {
-    prepare_proposal_excluded_transactions_decode_failure: Counter,
     prepare_proposal_excluded_transactions_cometbft_space: Counter,
     prepare_proposal_excluded_transactions_sequencer_space: Counter,
     prepare_proposal_excluded_transactions_failed_execution: Counter,
@@ -24,14 +27,19 @@ pub struct Metrics {
     check_tx_removed_failed_stateless: Counter,
     check_tx_removed_stale_nonce: Counter,
     check_tx_removed_account_balance: Counter,
+    check_tx_duration_seconds_parse_tx: Histogram,
+    check_tx_duration_seconds_check_stateless: Histogram,
+    check_tx_duration_seconds_check_nonce: Histogram,
+    check_tx_duration_seconds_check_chain_id: Histogram,
+    check_tx_duration_seconds_check_balance: Histogram,
+    check_tx_duration_seconds_check_removed: Histogram,
+    check_tx_duration_seconds_insert_to_app_mempool: Histogram,
+    actions_per_transaction_in_mempool: Histogram,
+    transaction_in_mempool_size_bytes: Histogram,
+    transactions_in_mempool_total: Gauge,
 }
 
 impl Metrics {
-    pub(crate) fn increment_prepare_proposal_excluded_transactions_decode_failure(&self) {
-        self.prepare_proposal_excluded_transactions_decode_failure
-            .increment(1);
-    }
-
     pub(crate) fn increment_prepare_proposal_excluded_transactions_cometbft_space(&self) {
         self.prepare_proposal_excluded_transactions_cometbft_space
             .increment(1);
@@ -47,8 +55,10 @@ impl Metrics {
             .increment(1);
     }
 
-    pub(crate) fn set_prepare_proposal_excluded_transactions(&self, count: f64) {
-        self.prepare_proposal_excluded_transactions.set(count);
+    pub(crate) fn set_prepare_proposal_excluded_transactions(&self, count: usize) {
+        #[allow(clippy::cast_precision_loss)]
+        self.prepare_proposal_excluded_transactions
+            .set(count as f64);
     }
 
     pub(crate) fn record_proposal_deposits(&self, count: usize) {
@@ -90,6 +100,59 @@ impl Metrics {
     pub(crate) fn increment_check_tx_removed_account_balance(&self) {
         self.check_tx_removed_account_balance.increment(1);
     }
+
+    pub(crate) fn record_check_tx_duration_seconds_parse_tx(&self, duration: Duration) {
+        self.check_tx_duration_seconds_parse_tx.record(duration);
+    }
+
+    pub(crate) fn record_check_tx_duration_seconds_check_stateless(&self, duration: Duration) {
+        self.check_tx_duration_seconds_check_stateless
+            .record(duration);
+    }
+
+    pub(crate) fn record_check_tx_duration_seconds_check_nonce(&self, duration: Duration) {
+        self.check_tx_duration_seconds_check_nonce.record(duration);
+    }
+
+    pub(crate) fn record_check_tx_duration_seconds_check_chain_id(&self, duration: Duration) {
+        self.check_tx_duration_seconds_check_chain_id
+            .record(duration);
+    }
+
+    pub(crate) fn record_check_tx_duration_seconds_check_balance(&self, duration: Duration) {
+        self.check_tx_duration_seconds_check_balance
+            .record(duration);
+    }
+
+    pub(crate) fn record_check_tx_duration_seconds_check_removed(&self, duration: Duration) {
+        self.check_tx_duration_seconds_check_removed
+            .record(duration);
+    }
+
+    pub(crate) fn record_check_tx_duration_seconds_insert_to_app_mempool(
+        &self,
+        duration: Duration,
+    ) {
+        self.check_tx_duration_seconds_insert_to_app_mempool
+            .record(duration);
+    }
+
+    pub(crate) fn record_actions_per_transaction_in_mempool(&self, count: usize) {
+        // allow: precision loss is unlikely (values too small) but also unimportant in histograms.
+        #[allow(clippy::cast_precision_loss)]
+        self.actions_per_transaction_in_mempool.record(count as f64);
+    }
+
+    pub(crate) fn record_transaction_in_mempool_size_bytes(&self, count: usize) {
+        // allow: precision loss is unlikely (values too small) but also unimportant in histograms.
+        #[allow(clippy::cast_precision_loss)]
+        self.transaction_in_mempool_size_bytes.record(count as f64);
+    }
+
+    pub(crate) fn set_transactions_in_mempool_total(&self, count: usize) {
+        #[allow(clippy::cast_precision_loss)]
+        self.transactions_in_mempool_total.set(count as f64);
+    }
 }
 
 impl metrics::Metrics for Metrics {
@@ -102,14 +165,6 @@ impl metrics::Metrics for Metrics {
         builder: &mut RegisteringBuilder,
         _config: &Self::Config,
     ) -> Result<Self, metrics::Error> {
-        let prepare_proposal_excluded_transactions_decode_failure = builder
-            .new_counter_factory(
-                PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_DECODE_FAILURE,
-                "The number of transactions that have been excluded from blocks due to failing to \
-                 decode",
-            )?
-            .register()?;
-
         let prepare_proposal_excluded_transactions_cometbft_space = builder
             .new_counter_factory(
                 PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_COMETBFT_SPACE,
@@ -208,8 +263,49 @@ impl metrics::Metrics for Metrics {
             )?
             .register()?;
 
+        let mut check_tx_duration_factory = builder.new_histogram_factory(
+            CHECK_TX_DURATION_SECONDS,
+            "The amount of time taken in seconds to successfully complete the various stages of \
+             check_tx",
+        )?;
+        let check_tx_duration_seconds_parse_tx = check_tx_duration_factory.register_with_labels(
+            &[(CHECK_TX_STAGE, "length check and parse raw tx".to_string())],
+        )?;
+        let check_tx_duration_seconds_check_stateless = check_tx_duration_factory
+            .register_with_labels(&[(CHECK_TX_STAGE, "stateless check".to_string())])?;
+        let check_tx_duration_seconds_check_nonce = check_tx_duration_factory
+            .register_with_labels(&[(CHECK_TX_STAGE, "nonce check".to_string())])?;
+        let check_tx_duration_seconds_check_chain_id = check_tx_duration_factory
+            .register_with_labels(&[(CHECK_TX_STAGE, "chain id check".to_string())])?;
+        let check_tx_duration_seconds_check_balance = check_tx_duration_factory
+            .register_with_labels(&[(CHECK_TX_STAGE, "balance check".to_string())])?;
+        let check_tx_duration_seconds_check_removed = check_tx_duration_factory
+            .register_with_labels(&[(CHECK_TX_STAGE, "check for removal".to_string())])?;
+        let check_tx_duration_seconds_insert_to_app_mempool = check_tx_duration_factory
+            .register_with_labels(&[(CHECK_TX_STAGE, "insert to app mempool".to_string())])?;
+
+        let actions_per_transaction_in_mempool = builder
+            .new_histogram_factory(
+                ACTIONS_PER_TRANSACTION_IN_MEMPOOL,
+                "The number of actions in a transaction added to the app mempool",
+            )?
+            .register()?;
+
+        let transaction_in_mempool_size_bytes = builder
+            .new_histogram_factory(
+                TRANSACTION_IN_MEMPOOL_SIZE_BYTES,
+                "The number of bytes in a transaction added to the app mempool",
+            )?
+            .register()?;
+
+        let transactions_in_mempool_total = builder
+            .new_gauge_factory(
+                TRANSACTIONS_IN_MEMPOOL_TOTAL,
+                "The number of transactions in the app mempool",
+            )?
+            .register()?;
+
         Ok(Self {
-            prepare_proposal_excluded_transactions_decode_failure,
             prepare_proposal_excluded_transactions_cometbft_space,
             prepare_proposal_excluded_transactions_sequencer_space,
             prepare_proposal_excluded_transactions_failed_execution,
@@ -223,12 +319,21 @@ impl metrics::Metrics for Metrics {
             check_tx_removed_failed_stateless,
             check_tx_removed_stale_nonce,
             check_tx_removed_account_balance,
+            check_tx_duration_seconds_parse_tx,
+            check_tx_duration_seconds_check_stateless,
+            check_tx_duration_seconds_check_nonce,
+            check_tx_duration_seconds_check_chain_id,
+            check_tx_duration_seconds_check_balance,
+            check_tx_duration_seconds_check_removed,
+            check_tx_duration_seconds_insert_to_app_mempool,
+            actions_per_transaction_in_mempool,
+            transaction_in_mempool_size_bytes,
+            transactions_in_mempool_total,
         })
     }
 }
 
 metric_names!(const METRICS_NAMES:
-    PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_DECODE_FAILURE,
     PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_COMETBFT_SPACE,
     PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_SEQUENCER_SPACE,
     PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_FAILED_EXECUTION,
@@ -242,11 +347,17 @@ metric_names!(const METRICS_NAMES:
     CHECK_TX_REMOVED_FAILED_STATELESS,
     CHECK_TX_REMOVED_STALE_NONCE,
     CHECK_TX_REMOVED_ACCOUNT_BALANCE,
+    CHECK_TX_DURATION_SECONDS,
+    ACTIONS_PER_TRANSACTION_IN_MEMPOOL,
+    TRANSACTION_IN_MEMPOOL_SIZE_BYTES,
+    TRANSACTIONS_IN_MEMPOOL_TOTAL
 );
 
 #[cfg(test)]
 mod tests {
     use super::{
+        ACTIONS_PER_TRANSACTION_IN_MEMPOOL,
+        CHECK_TX_DURATION_SECONDS,
         CHECK_TX_REMOVED_ACCOUNT_BALANCE,
         CHECK_TX_REMOVED_EXPIRED,
         CHECK_TX_REMOVED_FAILED_EXECUTION,
@@ -255,12 +366,13 @@ mod tests {
         CHECK_TX_REMOVED_TOO_LARGE,
         PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS,
         PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_COMETBFT_SPACE,
-        PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_DECODE_FAILURE,
         PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_FAILED_EXECUTION,
         PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_SEQUENCER_SPACE,
         PROCESS_PROPOSAL_SKIPPED_PROPOSAL,
         PROPOSAL_DEPOSITS,
         PROPOSAL_TRANSACTIONS,
+        TRANSACTIONS_IN_MEMPOOL_TOTAL,
+        TRANSACTION_IN_MEMPOOL_SIZE_BYTES,
     };
 
     #[track_caller]
@@ -273,10 +385,6 @@ mod tests {
 
     #[test]
     fn metrics_are_as_expected() {
-        assert_const(
-            PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_DECODE_FAILURE,
-            "prepare_proposal_excluded_transactions_decode_failure",
-        );
         assert_const(
             PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_COMETBFT_SPACE,
             "prepare_proposal_excluded_transactions_cometbft_space",
@@ -313,6 +421,19 @@ mod tests {
         assert_const(
             CHECK_TX_REMOVED_ACCOUNT_BALANCE,
             "check_tx_removed_account_balance",
+        );
+        assert_const(CHECK_TX_DURATION_SECONDS, "check_tx_duration_seconds");
+        assert_const(
+            ACTIONS_PER_TRANSACTION_IN_MEMPOOL,
+            "actions_per_transaction_in_mempool",
+        );
+        assert_const(
+            TRANSACTION_IN_MEMPOOL_SIZE_BYTES,
+            "transaction_in_mempool_size_bytes",
+        );
+        assert_const(
+            TRANSACTIONS_IN_MEMPOOL_TOTAL,
+            "transactions_in_mempool_total",
         );
     }
 }

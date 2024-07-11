@@ -36,6 +36,18 @@ spec:
           ports:
             - containerPort: {{ .Values.ports.metrics }}
               name: metrics
+          startupProbe:
+            httpGet:
+              path: /readyz
+              port: {{ .Values.ports.healthAPI }}
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: {{ .Values.ports.healthAPI }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.ports.healthAPI }}
       volumes:
         - name: relayer-scripts-volume
           configMap:

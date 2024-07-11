@@ -66,3 +66,11 @@ pub trait Metrics {
         Self::register(&mut builder, config)
     }
 }
+
+/// Registers the given histogram to the global recorder, if it has been set.
+///
+/// This should only be used to register a histogram from a third party crate.  All Astria metrics
+/// should be added to a struct that implements `Metrics` and registered via `Metrics::register`.
+pub fn register_histogram_global(name: &'static str) {
+    let _ = metrics::histogram!(name);
+}

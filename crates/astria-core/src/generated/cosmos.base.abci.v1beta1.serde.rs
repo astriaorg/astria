@@ -17,7 +17,7 @@ impl serde::Serialize for AbciMessageLog {
         }
         let mut struct_ser = serializer.serialize_struct("cosmos.base.abci.v1beta1.ABCIMessageLog", len)?;
         if self.msg_index != 0 {
-            struct_ser.serialize_field("msg_index", &self.msg_index)?;
+            struct_ser.serialize_field("msgIndex", &self.msg_index)?;
         }
         if !self.log.is_empty() {
             struct_ser.serialize_field("log", &self.log)?;
@@ -407,7 +407,7 @@ impl serde::Serialize for TxResponse {
             struct_ser.serialize_field("data", &self.data)?;
         }
         if !self.raw_log.is_empty() {
-            struct_ser.serialize_field("raw_log", &self.raw_log)?;
+            struct_ser.serialize_field("rawLog", &self.raw_log)?;
         }
         if !self.logs.is_empty() {
             struct_ser.serialize_field("logs", &self.logs)?;
@@ -417,11 +417,11 @@ impl serde::Serialize for TxResponse {
         }
         if self.gas_wanted != 0 {
             #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("gas_wanted", ToString::to_string(&self.gas_wanted).as_str())?;
+            struct_ser.serialize_field("gasWanted", ToString::to_string(&self.gas_wanted).as_str())?;
         }
         if self.gas_used != 0 {
             #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("gas_used", ToString::to_string(&self.gas_used).as_str())?;
+            struct_ser.serialize_field("gasUsed", ToString::to_string(&self.gas_used).as_str())?;
         }
         if let Some(v) = self.tx.as_ref() {
             struct_ser.serialize_field("tx", v)?;

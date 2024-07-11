@@ -50,7 +50,7 @@ Return the appropriate apiVersion for ingress.
 Expand the name of the chart.
 */}}
 {{- define "sequencer.name" -}}
-{{- default .Values.config.moniker | trunc 63 | trimSuffix "-" }}-sequencer
+{{- default .Values.moniker | trunc 63 | trimSuffix "-" }}-sequencer
 {{- end }}
 
 {{/*
@@ -65,7 +65,7 @@ Selector labels
 */}}
 {{- define "sequencer.selectorLabels" -}}
 app: {{ include "sequencer.name" . }}
-name: {{ .Values.config.moniker }}-sequencer-metrics
+name: {{ .Values.moniker }}-sequencer-metrics
 {{- end }}
 
 {{/* New sequencer address */}}

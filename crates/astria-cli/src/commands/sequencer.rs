@@ -1,10 +1,6 @@
 use astria_core::{
     crypto::SigningKey,
     primitive::v1::{
-        asset::{
-            self,
-            default_native_asset,
-        },
         Address,
         ADDRESS_LEN,
     },
@@ -17,13 +13,13 @@ use astria_core::{
             InitBridgeAccountAction,
             SudoAddressChangeAction,
             TransferAction,
+            ValidatorUpdate,
         },
         TransactionParams,
         UnsignedTransaction,
     },
 };
 use astria_sequencer_client::{
-    tendermint,
     tendermint_rpc::endpoint,
     Client,
     HttpClient,
@@ -111,7 +107,6 @@ pub(crate) async fn get_balance(args: &BasicAccountArgs) -> eyre::Result<()> {
 
     println!("Balances for address: {}", args.address);
     for balance in res.balances {
-        println!("    asset ID: {}", balance.denom.id());
         println!("    {} {}", balance.balance, balance.denom);
     }
 
@@ -202,8 +197,8 @@ pub(crate) async fn send_transfer(args: &TransferArgs) -> eyre::Result<()> {
         Action::Transfer(TransferAction {
             to: args.to_address,
             amount: args.amount,
-            asset_id: default_native_asset().id(),
-            fee_asset_id: default_native_asset().id(),
+            asset: args.asset.clone(),
+            fee_asset: args.fee_asset.clone(),
         }),
     )
     .await
@@ -287,8 +282,8 @@ pub(crate) async fn init_bridge_account(args: &InitBridgeAccountArgs) -> eyre::R
         args.private_key.as_str(),
         Action::InitBridgeAccount(InitBridgeAccountAction {
             rollup_id,
-            asset_id: default_native_asset().id(),
-            fee_asset_id: default_native_asset().id(),
+            asset: args.asset.clone(),
+            fee_asset: args.fee_asset.clone(),
             sudo_address: None,
             withdrawer_address: None,
         }),
@@ -321,9 +316,9 @@ pub(crate) async fn bridge_lock(args: &BridgeLockArgs) -> eyre::Result<()> {
         args.private_key.as_str(),
         Action::BridgeLock(BridgeLockAction {
             to: args.to_address,
-            asset_id: default_native_asset().id(),
+            asset: args.asset.clone(),
             amount: args.amount,
-            fee_asset_id: default_native_asset().id(),
+            fee_asset: args.fee_asset.clone(),
             destination_chain_address: args.destination_chain_address.clone(),
         }),
     )
@@ -351,9 +346,7 @@ pub(crate) async fn fee_asset_add(args: &FeeAssetChangeArgs) -> eyre::Result<()>
         args.sequencer_chain_id.clone(),
         &args.prefix,
         args.private_key.as_str(),
-        Action::FeeAssetChange(FeeAssetChangeAction::Addition(
-            asset::Id::from_str_unchecked(&args.asset),
-        )),
+        Action::FeeAssetChange(FeeAssetChangeAction::Addition(args.asset.clone())),
     )
     .await
     .wrap_err("failed to submit FeeAssetChangeAction::Addition transaction")?;
@@ -379,9 +372,7 @@ pub(crate) async fn fee_asset_remove(args: &FeeAssetChangeArgs) -> eyre::Result<
         args.sequencer_chain_id.clone(),
         &args.prefix,
         args.private_key.as_str(),
-        Action::FeeAssetChange(FeeAssetChangeAction::Removal(
-            asset::Id::from_str_unchecked(&args.asset),
-        )),
+        Action::FeeAssetChange(FeeAssetChangeAction::Removal(args.asset.clone())),
     )
     .await
     .wrap_err("failed to submit FeeAssetChangeAction::Removal transaction")?;
@@ -430,13 +421,14 @@ pub(crate) async fn sudo_address_change(args: &SudoAddressChangeArgs) -> eyre::R
 /// * If the http client cannot be created
 /// * If the transaction failed to be submitted
 pub(crate) async fn validator_update(args: &ValidatorUpdateArgs) -> eyre::Result<()> {
-    let public_key_raw = hex::decode(args.validator_public_key.as_str())
-        .wrap_err("failed to decode public key into bytes")?;
-    let pub_key = tendermint::PublicKey::from_raw_ed25519(&public_key_raw)
-        .expect("failed to parse public key from parsed bytes");
-    let validator_update = tendermint::validator::Update {
-        pub_key,
-        power: args.power.into(),
+    let verification_key = astria_core::crypto::VerificationKey::try_from(
+        &*hex::decode(&args.validator_public_key)
+            .wrap_err("failed to decode public key bytes from argument")?,
+    )
+    .wrap_err("failed to construct public key from bytes")?;
+    let validator_update = ValidatorUpdate {
+        power: args.power,
+        verification_key,
     };
 
     let res = submit_transaction(

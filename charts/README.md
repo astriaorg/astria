@@ -18,21 +18,18 @@ For contract deployment:
 * Forge (part of Foundry) -
   <https://book.getfoundry.sh/getting-started/installation>
 
+For funding via bridge:
+
+* Astria Go CLI - <https://github.com/astriaorg/astria-cli-go/?tab=readme-ov-file#installation>
+
 ## Setup
 
-In order to startup you will need to have docker running on your machine
+In order to startup you will need to have docker running on your machine.
 
 ### Configuring Funding of Geth
 
-By default, running this local rollup will fund a wallet address
-`0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30`, which you can add to your
-preferred wallet using the private key in
-`helm/rollup/files/keys/private_key.txt`. This account should never be used for
-anything but test transactions.
-
-To change the wallet account which receives funds, use the `deploy-rollup`
-command with the optional arguments `evm_funding_address` and
-`evm_funding_private_key`.
+By default, running this local rollup will not have any funds, but will be
+configured to use the sequencer account bridge.
 
 ```bash
 # create control plane cluster
@@ -48,13 +45,21 @@ just wait-for-ingress-controller
 just deploy astria-local
 
 # Deploys a geth rollup chain + faucet + blockscout + ingress
-# w/ defaults running against local network
+# w/ defaults running against local network, along with a bridge withdawer.
 # NOTE - default values can be found in `helm/rollup/values.yaml`
+just deploy rollup
+
+# Deploy only the rollup chain, faucet, blockscout instance without withdrawer:
 just deploy dev-rollup
-# w/ custom name and id
+# w/ custom name and id for further customization see the values file at
+# `dev/values/rollup/dev.yml`
 just deploy dev-rollup <rollup_name> <network_id>
-# w/ custom name, id, and funding address
-just deploy dev-rollup <rollup_name> <network_id> <evm_funding_address> <evm_funding_private_key>
+
+# Send funds into the rollup chain, by default transfers 10 RIA to the rollup
+# using prefunded default test sequencer accounts. 
+just init rollup-bridge
+# Update the amounts to init
+just init rollup-bridge <rollup_name> <evm_address> <ria_amount>
 
 # Delete default rollup
 just delete rollup
@@ -104,7 +109,7 @@ If you deploy a custom rollup, then the endpoints will be
 * adding the default network
   * network name: `astria`
   * rpc url: `http://executor.astria.localdev.me`
-  * chain id: `912559`
+  * chain id: `1337`
   * currency symbol: `RIA`
 
 * adding a custom network
@@ -158,14 +163,15 @@ pattern (especially in config maps and genesis files):
 
 ## Running a Smoke Test
 
-You can run a basic smoke test, which deploys the astria components and a basic
-rollup, runs a tx e2e to ensure it has executed correctly.
+You can run a smoke test which ensures that full bridge functionality is working
+both up and down the stack.
 
 To deploy and run this:
 
 ```sh
 # only if cluster not already created
 > just deploy cluster 
+# deploys all the components needed to run the test.
 > just deploy smoke-test
 # deploys all components needed to run the smoke test
 > just run-smoke-test
@@ -174,7 +180,7 @@ To deploy and run this:
 # Clean up deployed test
 ```
 
-## Examing Deployments
+## Examining Deployments
 
 [k9s](https://k9scli.io/) is a useful utility for inspecting deployed
 containers, logs and services. Additionally you may interact directly with the

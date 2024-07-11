@@ -47,6 +47,8 @@ mod executor;
 mod grpc;
 pub(crate) mod metrics;
 mod rollup;
+#[cfg(test)]
+pub(crate) mod test_utils;
 
 pub use build_info::BUILD_INFO;
 pub use composer::Composer;

@@ -1,0 +1,8 @@
+---
+source: crates/astria-core/src/bridge.rs
+expression: memo
+---
+{
+  "block_number": 42,
+  "transaction_hash": "WFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFg="
+}
