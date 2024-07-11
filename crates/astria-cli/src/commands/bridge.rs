@@ -98,19 +98,11 @@ impl CollectWithdrawalEvents {
         let block_provider = connect_to_rollup(&rollup_endpoint)
             .await
             .wrap_err("failed to connect to rollup")?;
-        let contract = get_contract(contract_address, block_provider.clone());
-
-        let base_chain_asset_precision = contract
-            .base_chain_asset_precision()
-            .call()
-            .await
-            .wrap_err("failed to get asset withdrawal decimals")?;
 
         let asset_withdrawal_divisor =
-            10u128.pow(18u32.checked_sub(base_chain_asset_precision).expect(
-                "base_chain_asset_precision must be <= 18, as the contract constructor enforces \
-                 this",
-            ));
+            get_asset_withdrawal_divisor(contract_address, block_provider.clone())
+                .await
+                .wrap_err("failed determining asset withdrawal divisor")?;
 
         let mut block_subscription = block_provider
             .subscribe_blocks()
@@ -180,13 +172,13 @@ impl CollectWithdrawalEvents {
             }
         }
 
-        write_collected_actions(output_file, actions).wrap_err("failed to write actions to file")
+        write_collected_actions(output_file, &actions).wrap_err("failed to write actions to file")
     }
 }
 
-fn write_collected_actions(output_file: std::fs::File, actions: Vec<Action>) -> eyre::Result<()> {
+fn write_collected_actions(output_file: std::fs::File, actions: &[Action]) -> eyre::Result<()> {
     let writer = std::io::BufWriter::new(output_file);
-    serde_json::to_writer(writer, &actions).wrap_err("failed writing actions to file")
+    serde_json::to_writer(writer, actions).wrap_err("failed writing actions to file")
 }
 
 async fn connect_to_rollup(rollup_endpoint: &str) -> eyre::Result<Arc<Provider<Ws>>> {
@@ -214,11 +206,24 @@ async fn connect_to_rollup(rollup_endpoint: &str) -> eyre::Result<Arc<Provider<W
     Ok(Arc::new(provider))
 }
 
-fn get_contract(
+async fn get_asset_withdrawal_divisor(
     address: ethers::types::Address,
     provider: Arc<Provider<Ws>>,
-) -> IAstriaWithdrawer<Provider<Ws>> {
-    IAstriaWithdrawer::new(address, provider)
+) -> eyre::Result<u128> {
+    let contract = IAstriaWithdrawer::new(address, provider);
+
+    let base_chain_asset_precision = contract
+        .base_chain_asset_precision()
+        .call()
+        .await
+        .wrap_err("failed to get asset withdrawal decimals")?;
+
+    let exponent = 18u32.checked_sub(base_chain_asset_precision).ok_or_eyre(
+        "failed calculating asset divisor. The base chain asset precision should be <= 18 as \
+         that's enforced by the contract, so the construction should work. Did the precision \
+         change?",
+    )?;
+    Ok(10u128.pow(exponent))
 }
 
 fn packet_timeout_time() -> eyre::Result<u64> {
