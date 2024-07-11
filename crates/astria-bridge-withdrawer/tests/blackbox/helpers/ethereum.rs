@@ -34,6 +34,8 @@ pub struct TestEthereum {
     anvil: AnvilInstance,
 }
 
+// allow: want the name to reflect this is a test config.
+#[allow(clippy::module_name_repetitions)]
 impl TestEthereum {
     pub fn contract_address(&self) -> String {
         hex::encode(self.contract_address)

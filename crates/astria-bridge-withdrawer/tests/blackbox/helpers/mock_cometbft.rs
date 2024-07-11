@@ -2,10 +2,7 @@ use std::time::Duration;
 
 use astria_core::{
     primitive::v1::asset,
-    protocol::{
-        account::v1alpha1::AssetBalance,
-        bridge::v1alpha1::BridgeAccountLastTxHashResponse,
-    },
+    protocol::bridge::v1alpha1::BridgeAccountLastTxHashResponse,
 };
 use prost::Message as _;
 use sequencer_client::{
@@ -96,29 +93,6 @@ pub async fn mount_default_fee_assets(cometbft_mock: &MockServer) {
 pub async fn mount_default_fee_assets_as_scoped(cometbft_mock: &MockServer) -> MockGuard {
     let fee_assets = vec![default_native_asset()];
     mount_allowed_fee_assets_response_as_scoped(fee_assets, cometbft_mock).await
-}
-
-pub async fn mount_default_min_expected_fee_asset_balance(cometbft_mock: &MockServer) {
-    mount_get_latest_balance_response(
-        vec![AssetBalance {
-            denom: default_native_asset(),
-            balance: 1_000_000u128,
-        }],
-        cometbft_mock,
-    )
-    .await
-}
-pub async fn mount_default_min_expected_fee_asset_balance_as_scoped(
-    cometbft_mock: &MockServer,
-) -> MockGuard {
-    mount_get_latest_balance_response_as_scoped(
-        vec![AssetBalance {
-            denom: default_native_asset(),
-            balance: 1_000_000u128,
-        }],
-        cometbft_mock,
-    )
-    .await
 }
 
 pub async fn mount_genesis_chain_id_response(chain_id: &str, server: &MockServer) {
@@ -222,47 +196,6 @@ fn prepare_allowed_fee_assets_response(fee_assets: Vec<asset::Denom>) -> Mock {
         serde_json::json!({"method": "abci_query"}),
     ))
     .and(body_string_contains("asset/allowed_fee_assets"))
-    .respond_with(
-        ResponseTemplate::new(200)
-            .set_body_json(&wrapper)
-            .append_header("Content-Type", "application/json"),
-    )
-    .expect(1)
-}
-
-pub async fn mount_get_latest_balance_response(balances: Vec<AssetBalance>, server: &MockServer) {
-    prepare_get_latest_balances_response(balances)
-        .mount(server)
-        .await
-}
-
-pub async fn mount_get_latest_balance_response_as_scoped(
-    balances: Vec<AssetBalance>,
-    server: &MockServer,
-) -> MockGuard {
-    prepare_get_latest_balances_response(balances)
-        .mount_as_scoped(server)
-        .await
-}
-
-fn prepare_get_latest_balances_response(balances: Vec<AssetBalance>) -> Mock {
-    let response = tendermint_rpc::endpoint::abci_query::Response {
-        response: tendermint_rpc::endpoint::abci_query::AbciQuery {
-            value: astria_core::protocol::account::v1alpha1::BalanceResponse {
-                balances,
-                height: 1,
-            }
-            .into_raw()
-            .encode_to_vec(),
-            ..Default::default()
-        },
-    };
-
-    let wrapper = response::Wrapper::new_with_id(tendermint_rpc::Id::Num(1), Some(response), None);
-    Mock::given(body_partial_json(
-        serde_json::json!({"method": "abci_query"}),
-    ))
-    .and(body_string_contains("accounts/balance"))
     .respond_with(
         ResponseTemplate::new(200)
             .set_body_json(&wrapper)

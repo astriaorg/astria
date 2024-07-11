@@ -23,6 +23,8 @@ pub use self::{
     test_bridge_withdrawer::{
         astria_address,
         default_native_asset,
+        make_bridge_unlock_action,
+        make_ics20_withdrawal_action,
         TestBridgeWithdrawer,
     },
 };

@@ -50,7 +50,6 @@ use super::{
     mock_cometbft::{
         mount_default_chain_id,
         mount_default_fee_assets,
-        mount_default_min_expected_fee_asset_balance,
         mount_get_nonce_response,
     },
     mount_broadcast_tx_commit_response_as_scoped,
@@ -259,10 +258,7 @@ impl TestBridgeWithdrawer {
             value
         } else {
             // TODO: add handing of failed future using the api server like in sequencer-relayer
-            panic!(
-                "{} timed out after {} milliseconds",
-                context, num_milliseconds
-            );
+            panic!("{context} timed out after {num_milliseconds} milliseconds");
         }
     }
 
@@ -287,7 +283,23 @@ impl TestBridgeWithdrawer {
     }
 }
 
-fn make_ics20_withdrawal_action() -> Action {
+pub fn make_bridge_unlock_action() -> Action {
+    let denom = default_native_asset();
+    let inner = BridgeUnlockAction {
+        to: astria_address([0u8; 20]),
+        amount: 99,
+        memo: serde_json::to_vec(&UnlockMemo {
+            block_number: DEFAULT_LAST_ROLLUP_HEIGHT,
+            transaction_hash: [1u8; 32],
+        })
+        .unwrap(),
+        fee_asset: denom,
+        bridge_address: None,
+    };
+    Action::BridgeUnlock(inner)
+}
+
+pub fn make_ics20_withdrawal_action() -> Action {
     let denom = DEFAULT_IBC_DENOM.parse::<Denom>().unwrap();
     let destination_chain_address = "address".to_string();
     let inner = Ics20Withdrawal {
@@ -310,22 +322,6 @@ fn make_ics20_withdrawal_action() -> Action {
     };
 
     Action::Ics20Withdrawal(inner)
-}
-
-fn make_bridge_unlock_action() -> Action {
-    let denom = default_native_asset();
-    let inner = BridgeUnlockAction {
-        to: astria_address([0u8; 20]),
-        amount: 99,
-        memo: serde_json::to_vec(&UnlockMemo {
-            block_number: DEFAULT_LAST_ROLLUP_HEIGHT.into(),
-            transaction_hash: [1u8; 32].into(),
-        })
-        .unwrap(),
-        fee_asset: denom,
-        bridge_address: None,
-    };
-    Action::BridgeUnlock(inner)
 }
 
 pub fn default_native_asset() -> asset::Denom {

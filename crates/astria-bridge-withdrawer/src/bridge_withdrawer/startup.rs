@@ -90,8 +90,8 @@ impl Builder {
             state,
             sequencer_chain_id,
             sequencer_cometbft_client,
-            sequencer_bridge_address,
             sequencer_grpc_endpoint,
+            sequencer_bridge_address,
             expected_fee_asset,
         })
     }

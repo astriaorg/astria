@@ -49,7 +49,6 @@ use tokio::select;
 use tokio_util::sync::CancellationToken;
 use tracing::{
     debug,
-    error,
     info,
     trace,
     warn,
@@ -413,7 +412,7 @@ async fn get_and_send_events_at_block(
         get_sequencer_withdrawal_events(provider.clone(), contract_address, block_hash)
             .await
             .wrap_err("failed to get sequencer withdrawal events")?;
-    if sequencer_withdrawal_events.len() > 0 {
+    if !sequencer_withdrawal_events.is_empty() {
         debug!(
             block.number = %block_number,
             block.hash = %block_hash,
@@ -426,7 +425,7 @@ async fn get_and_send_events_at_block(
         get_ics20_withdrawal_events(provider.clone(), contract_address, block_hash)
             .await
             .wrap_err("failed to get ics20 withdrawal events")?;
-    if ics20_withdrawal_events.len() > 0 {
+    if !ics20_withdrawal_events.is_empty() {
         debug!(
             block.number = %block_number,
             block.hash = %block_hash,

@@ -107,7 +107,7 @@ impl Submitter {
                         break Err(eyre!("batch channel closed"));
                     };
 
-                    if rollup_height % 1 == 0 {
+                    if rollup_height % 100 == 0 {
                         info!(batch.rollup_height = rollup_height, batch.count = actions.len(), "processing batch of withdrawals");
                     }
 
