@@ -195,7 +195,7 @@ impl Startup {
     ///
     /// - `self.sequencer_chain_id` matches the value returned from the sequencer node's genesis
     /// - `self.fee_asset` is a valid fee asset on the sequencer node
-    /// - `self.sequencer_bridge_address` has a sufficient balance of `self.fee_asse`
+    /// - `self.sequencer_bridge_address` has a sufficient balance of `self.fee_asset`
     ///
     /// # Errors
     ///
