@@ -418,7 +418,7 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
             maybe_memo.expect("memo is valid as it was checked by is_ok()");
         execute_rollup_withdrawal_refund(
             state,
-            &memo.bridge_address,
+            &memo.sequencer_bridge_address,
             &denom_trace,
             packet_amount,
             recipient,
@@ -1046,9 +1046,10 @@ mod test {
             amount: "100".to_string(),
             receiver: "other-chain-address".to_string(),
             memo: serde_json::to_string(&Ics20WithdrawalFromRollupMemo {
-                bridge_address,
                 memo: String::new(),
                 block_number: 1,
+                rollup_return_address: "rollup-defined".to_string(),
+                sequencer_bridge_address: bridge_address,
                 transaction_hash: [1u8; 32],
             })
             .unwrap(),
