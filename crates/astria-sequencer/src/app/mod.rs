@@ -26,6 +26,7 @@ use astria_core::{
     protocol::{
         abci::AbciErrorCode,
         transaction::v1alpha1::{
+            action::ValidatorUpdate,
             Action,
             SignedTransaction,
         },
@@ -223,7 +224,7 @@ impl App {
         &mut self,
         storage: Storage,
         genesis_state: astria_core::sequencer::GenesisState,
-        genesis_validators: Vec<tendermint::validator::Update>,
+        genesis_validators: Vec<ValidatorUpdate>,
         chain_id: String,
     ) -> anyhow::Result<AppHash> {
         let mut state_tx = self
@@ -700,6 +701,7 @@ impl App {
         self.mempool.insert_all(txs_to_readd_to_mempool).await;
         let mempool_len = self.mempool.len().await;
         debug!(mempool_len, "finished executing transactions from mempool");
+        self.metrics.set_transactions_in_mempool_total(mempool_len);
 
         self.execution_results = Some(execution_results);
         Ok((validated_txs, included_signed_txs))
@@ -1232,7 +1234,9 @@ impl App {
 
         let events = self.apply(state_tx);
         Ok(abci::response::EndBlock {
-            validator_updates: validator_updates.into_tendermint_validator_updates(),
+            validator_updates: validator_updates
+                .try_into_cometbft()
+                .context("failed converting astria validators to cometbft compatible type")?,
             events,
             ..Default::default()
         })

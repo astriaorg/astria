@@ -14,6 +14,7 @@ use astria_core::{
             SequenceAction,
             SudoAddressChangeAction,
             TransferAction,
+            ValidatorUpdate,
         },
         Action,
         TransactionParams,
@@ -334,10 +335,9 @@ async fn app_execute_transaction_validator_update() {
 
     let mut app = initialize_app(Some(genesis_state()), vec![]).await;
 
-    let pub_key = tendermint::public_key::PublicKey::from_raw_ed25519(&[1u8; 32]).unwrap();
-    let update = tendermint::validator::Update {
-        pub_key,
-        power: 100u32.into(),
+    let update = ValidatorUpdate {
+        power: 100,
+        verification_key: crate::test_utils::verification_key(1),
     };
 
     let tx = UnsignedTransaction {
@@ -354,7 +354,10 @@ async fn app_execute_transaction_validator_update() {
 
     let validator_updates = app.state.get_validator_updates().await.unwrap();
     assert_eq!(validator_updates.len(), 1);
-    assert_eq!(validator_updates.get(&pub_key.into()).unwrap(), &update);
+    assert_eq!(
+        validator_updates.get(crate::test_utils::verification_key(1).address_bytes()),
+        Some(&update)
+    );
 }
 
 #[tokio::test]
@@ -1036,7 +1039,7 @@ async fn app_execute_transaction_bridge_lock_unlock_action_ok() {
         to: alice_address,
         amount,
         fee_asset: asset.clone(),
-        memo: b"lilywashere".to_vec(),
+        memo: "{ \"msg\": \"lilywashere\" }".into(),
         bridge_address: None,
     };
 
