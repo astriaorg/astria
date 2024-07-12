@@ -124,7 +124,9 @@ impl Sequencer {
                 .oracle_grpc_addr
                 .parse()
                 .context("failed parsing oracle grpc address as Uri")?;
-            let endpoint = Endpoint::from(uri.clone());
+            let endpoint = Endpoint::from(uri.clone()).timeout(std::time::Duration::from_millis(
+                config.oracle_client_timeout_milliseconds,
+            ));
             let mut oracle_client = OracleClient::new(endpoint.connect_lazy());
 
             // ensure the oracle sidecar is reachable
@@ -147,7 +149,7 @@ impl Sequencer {
         let app = App::new(
             snapshot,
             mempool.clone(),
-            crate::app::vote_extension::Handler::new(oracle_client, config.oracle_client_timeout),
+            crate::app::vote_extension::Handler::new(oracle_client),
             metrics,
         )
         .await

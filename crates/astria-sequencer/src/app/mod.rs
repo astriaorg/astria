@@ -356,27 +356,22 @@ impl App {
         let max_tx_bytes = usize::try_from(prepare_proposal.max_tx_bytes)
             .context("failed to convert max_tx_bytes to usize")?;
 
-        // zero the commit info if it's too large to fit in the block
-        // for liveness.
-        if extended_commit_info_bytes.len() > max_tx_bytes {
-            warn!(
-                extended_commit_info_bytes_len = extended_commit_info_bytes.len(),
-                max_tx_bytes,
-                "extended commit info is too large to fit in block; not including in block"
-            );
-            extended_commit_info_bytes = Vec::new();
-        }
-
         // adjust max block size to account for extended commit info
-        let mut block_size_constraints = BlockSizeConstraints::new(
-            max_tx_bytes
-                .checked_sub(extended_commit_info_bytes.len())
-                .expect(
-                    "extended_commit_info_bytes is shorter than max_tx_bytes, as it was checked \
-                     above",
-                ),
-        )
-        .context("failed to create block size constraints")?;
+        let adjusted_max_tx_bytes = max_tx_bytes
+            .checked_sub(extended_commit_info_bytes.len())
+            .unwrap_or_else(|| {
+                // zero the commit info if it's too large to fit in the block
+                // for liveness.
+                warn!(
+                    extended_commit_info_bytes_len = extended_commit_info_bytes.len(),
+                    max_tx_bytes,
+                    "extended commit info is too large to fit in block; not including in block"
+                );
+                extended_commit_info_bytes.clear();
+                max_tx_bytes
+            });
+        let mut block_size_constraints = BlockSizeConstraints::new(adjusted_max_tx_bytes)
+            .context("failed to create block size constraints")?;
 
         let block_data = BlockData {
             misbehavior: prepare_proposal.misbehavior,
@@ -410,8 +405,9 @@ impl App {
         let res = generate_rollup_datas_commitment(&signed_txs_included, deposits);
 
         // inject the extended commit info into the start of the block's txs
-        let mut txs = vec![extended_commit_info_bytes.into()];
-        txs.extend(res.into_transactions(included_tx_bytes));
+        let txs = std::iter::once(extended_commit_info_bytes.into())
+            .chain(res.into_transactions(included_tx_bytes))
+            .collect();
         Ok(abci::response::PrepareProposal {
             txs,
         })

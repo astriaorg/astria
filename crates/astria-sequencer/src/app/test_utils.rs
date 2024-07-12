@@ -155,7 +155,7 @@ pub(crate) async fn initialize_app_with_storage(
     let mut app = App::new(
         snapshot,
         mempool,
-        vote_extension::Handler::new(None, 100),
+        vote_extension::Handler::new(None),
         metrics,
     )
     .await

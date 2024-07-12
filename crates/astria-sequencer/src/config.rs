@@ -37,7 +37,7 @@ pub struct Config {
     /// The gRPC endpoint for the oracle sidecar.
     pub oracle_grpc_addr: String,
     /// The timeout for the responses from the oracle sidecar in milliseconds.
-    pub oracle_client_timeout: u64,
+    pub oracle_client_timeout_milliseconds: u64,
 }
 
 impl config::Config for Config {

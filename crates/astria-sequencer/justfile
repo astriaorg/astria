@@ -14,10 +14,10 @@ run:
 run-cometbft:
   cometbft init
   cargo run -p astria-sequencer-utils -- \
-    generate-genesis-state -o app-genesis-state.json
+    generate-genesis-state -o ../../target/app-genesis-state.json
   cargo run -p astria-sequencer-utils -- \
     copy-genesis-state \
-    --genesis-app-state-file=app-genesis-state.json \
+    --genesis-app-state-file=../../target/app-genesis-state.json \
     --destination-genesis-file=$HOME/.cometbft/config/genesis.json \
     --chain-id=astria
   sed -i'.bak' 's/timeout_commit = "1s"/timeout_commit = "2s"/g' ~/.cometbft/config/config.toml

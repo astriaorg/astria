@@ -570,7 +570,7 @@ mod test {
         let mut app = App::new(
             snapshot,
             mempool.clone(),
-            crate::app::vote_extension::Handler::new(None, 100),
+            crate::app::vote_extension::Handler::new(None),
             metrics,
         )
         .await

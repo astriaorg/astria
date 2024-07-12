@@ -67,20 +67,22 @@ impl MarketMapQueryService for SequencerServer {
     ) -> Result<Response<MarketMapResponse>, Status> {
         let snapshot = self.storage.latest_snapshot();
         let market_map = snapshot.get_market_map().await.map_err(|e| {
-            Status::internal(format!("failed to get block market map from storage: {e}"))
+            Status::internal(format!(
+                "failed to get block market map from storage: {e:#}"
+            ))
         })?;
         let last_updated = snapshot
             .get_market_map_last_updated_height()
             .await
             .map_err(|e| {
                 Status::internal(format!(
-                    "failed to get block market map last updated height from storage: {e}"
+                    "failed to get block market map last updated height from storage: {e:#}"
                 ))
             })?;
         let chain_id = snapshot
             .get_chain_id()
             .await
-            .map_err(|e| Status::internal(format!("failed to get chain id from storage: {e}")))?;
+            .map_err(|e| Status::internal(format!("failed to get chain id from storage: {e:#}")))?;
 
         Ok(Response::new(MarketMapResponse {
             market_map: market_map.map(astria_core::slinky::market_map::v1::MarketMap::into_raw),
@@ -94,8 +96,7 @@ impl MarketMapQueryService for SequencerServer {
         self: Arc<Self>,
         _request: Request<MarketRequest>,
     ) -> Result<Response<MarketResponse>, Status> {
-        // TODO
-        Ok(Response::new(MarketResponse::default()))
+        Err(Status::unimplemented("market endpoint is not implemented"))
     }
 
     #[instrument(skip_all)]
@@ -109,7 +110,7 @@ impl MarketMapQueryService for SequencerServer {
             .await
             .map_err(|e| {
                 Status::internal(format!(
-                    "failed to get block market map last updated height from storage: {e}"
+                    "failed to get block market map last updated height from storage: {e:#}"
                 ))
             })?;
 
@@ -125,7 +126,7 @@ impl MarketMapQueryService for SequencerServer {
     ) -> Result<Response<ParamsResponse>, Status> {
         let snapshot = self.storage.latest_snapshot();
         let params = snapshot.get_params().await.map_err(|e| {
-            Status::internal(format!("failed to get block params from storage: {e}"))
+            Status::internal(format!("failed to get block params from storage: {e:#}"))
         })?;
 
         Ok(Response::new(ParamsResponse {
@@ -144,7 +145,7 @@ impl OracleService for SequencerServer {
         let snapshot = self.storage.latest_snapshot();
         let currency_pairs = snapshot.get_all_currency_pairs().await.map_err(|e| {
             Status::internal(format!(
-                "failed to get all currency pairs from storage: {e}"
+                "failed to get all currency pairs from storage: {e:#}"
             ))
         })?;
         Ok(Response::new(GetAllCurrencyPairsResponse {
@@ -169,16 +170,31 @@ impl OracleService for SequencerServer {
         let Some(state) = snapshot
             .get_currency_pair_state(&currency_pair)
             .await
-            .map_err(|e| Status::internal(format!("failed to get state from storage: {e}")))?
+            .map_err(|e| Status::internal(format!("failed to get state from storage: {e:#}")))?
         else {
             return Err(Status::not_found("currency pair state not found"));
+        };
+
+        let Some(market_map) = snapshot.get_market_map().await.map_err(|e| {
+            Status::internal(format!(
+                "failed to get block market map from storage: {e:#}"
+            ))
+        })?
+        else {
+            return Err(Status::internal("market map not found"));
+        };
+
+        let Some(market) = market_map.markets.get(&currency_pair.to_string()) else {
+            return Err(Status::not_found(format!(
+                "market not found for {currency_pair}"
+            )));
         };
 
         Ok(Response::new(GetPriceResponse {
             price: Some(state.price.into_raw()),
             nonce: state.nonce,
             id: state.id,
-            decimals: 0, // TODO: get this from the marketmap
+            decimals: market.ticker.decimals,
         }))
     }
 
@@ -197,26 +213,46 @@ impl OracleService for SequencerServer {
             Ok(currency_pairs) => currency_pairs,
             Err(e) => {
                 return Err(Status::invalid_argument(format!(
-                    "invalid currency pair id: {e}"
+                    "invalid currency pair id: {e:#}"
                 )));
             }
         };
 
         let snapshot = self.storage.latest_snapshot();
+        let Some(market_map) = snapshot.get_market_map().await.map_err(|e| {
+            Status::internal(format!(
+                "failed to get block market map from storage: {e:#}"
+            ))
+        })?
+        else {
+            return Err(Status::internal("market map not found"));
+        };
+
         let mut prices = Vec::new();
         for currency_pair in currency_pairs {
             let Some(state) = snapshot
                 .get_currency_pair_state(&currency_pair)
                 .await
-                .map_err(|e| Status::internal(format!("failed to get state from storage: {e}")))?
+                .map_err(|e| {
+                    Status::internal(format!("failed to get state from storage: {e:#}"))
+                })?
             else {
-                return Err(Status::not_found("currency pair state not found"));
+                return Err(Status::not_found(format!(
+                    "currency pair state for {currency_pair} not found"
+                )));
             };
+
+            let Some(market) = market_map.markets.get(&currency_pair.to_string()) else {
+                return Err(Status::not_found(format!(
+                    "market not found for {currency_pair}"
+                )));
+            };
+
             prices.push(GetPriceResponse {
                 price: Some(state.price.into_raw()),
                 nonce: state.nonce,
                 id: state.id,
-                decimals: 0, // TODO: get this from the marketmap
+                decimals: market.ticker.decimals,
             });
         }
         Ok(Response::new(GetPricesResponse {
@@ -232,7 +268,7 @@ impl OracleService for SequencerServer {
         let snapshot = self.storage.latest_snapshot();
         let currency_pair_mapping = snapshot.get_currency_pair_mapping().await.map_err(|e| {
             Status::internal(format!(
-                "failed to get currency pair mapping from storage: {e}"
+                "failed to get currency pair mapping from storage: {e:#}"
             ))
         })?;
         let currency_pair_mapping = currency_pair_mapping

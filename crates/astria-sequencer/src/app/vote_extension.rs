@@ -1,14 +1,12 @@
 use std::collections::HashMap;
 
 use anyhow::{
+    bail,
     ensure,
     Context as _,
 };
 use astria_core::{
-    crypto::{
-        Signature,
-        VerificationKey,
-    },
+    crypto::Signature,
     generated::slinky::{
         abci::v1::OracleVoteExtension as RawOracleVoteExtension,
         service::v1::{
@@ -55,17 +53,12 @@ const MAXIMUM_PRICE_BYTE_LEN: usize = 33;
 pub(crate) struct Handler {
     // gRPC client for the slinky oracle sidecar.
     oracle_client: Option<OracleClient<Channel>>,
-    oracle_client_timeout: tokio::time::Duration,
 }
 
 impl Handler {
-    pub(crate) fn new(
-        oracle_client: Option<OracleClient<Channel>>,
-        oracle_client_timeout: u64,
-    ) -> Self {
+    pub(crate) fn new(oracle_client: Option<OracleClient<Channel>>) -> Self {
         Self {
             oracle_client,
-            oracle_client_timeout: tokio::time::Duration::from_millis(oracle_client_timeout),
         }
     }
 
@@ -74,35 +67,21 @@ impl Handler {
         state: &S,
     ) -> anyhow::Result<abci::response::ExtendVote> {
         let Some(oracle_client) = self.oracle_client.as_mut() else {
-            // we allow validators to *not* use the oracle sidecar currently
+            // we allow validators to *not* use the oracle sidecar currently,
+            // so this will get converted to an empty vote extension when bubbled up.
+            //
             // however, if >1/3 of validators are not using the oracle, the prices will not update.
-            return Ok(abci::response::ExtendVote {
-                vote_extension: vec![].into(),
-            });
+            bail!("oracle client not set")
         };
 
         // if we fail to get prices within the timeout duration, we will return an empty vote
         // extension to ensure liveness.
-        let prices = match tokio::time::timeout(
-            self.oracle_client_timeout,
-            oracle_client.prices(QueryPricesRequest {}),
-        )
-        .await
-        {
-            Ok(Ok(prices)) => prices.into_inner(),
-            Ok(Err(e)) => {
-                tracing::error!(
-                    error = %e,
-                    "failed to get prices from oracle sidecar"
-                );
-                return Ok(abci::response::ExtendVote {
-                    vote_extension: vec![].into(),
-                });
-            }
+        let prices = match oracle_client.prices(QueryPricesRequest {}).await {
+            Ok(prices) => prices.into_inner(),
             Err(e) => {
                 tracing::error!(
                     error = %e,
-                    "failed to get prices from oracle sidecar within timeout duration"
+                    "failed to get prices from oracle sidecar"
                 );
                 return Ok(abci::response::ExtendVote {
                     vote_extension: vec![].into(),
@@ -329,19 +308,10 @@ async fn validate_vote_extensions<S: StateReadExt>(
         submitted_voting_power =
             submitted_voting_power.saturating_add(vote.validator.power.value());
 
-        let pubkey = validator_set
-            .get(
-                &vote
-                    .validator
-                    .address
-                    .to_vec()
-                    .try_into()
-                    .expect("can always convert 20 bytes to account::Id"),
-            )
+        let verification_key = validator_set
+            .get(vote.validator.address)
             .context("validator not found")?
-            .pub_key;
-        let verification_key = VerificationKey::try_from(pubkey.to_bytes().as_slice())
-            .context("failed to create verification key")?;
+            .verification_key;
 
         let vote_extension = CanonicalVoteExtension {
             extension: vote.vote_extension.to_vec(),
@@ -565,7 +535,7 @@ mod test {
 
     #[tokio::test]
     async fn verify_vote_extension_proposal_phase_ok() {
-        let handler = Handler::new(None, 1000);
+        let handler = Handler::new(None);
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
 
@@ -583,7 +553,7 @@ mod test {
 
     #[tokio::test]
     async fn verify_vote_extension_not_proposal_phase_ok() {
-        let handler = Handler::new(None, 1000);
+        let handler = Handler::new(None);
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
 

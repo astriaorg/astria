@@ -692,7 +692,7 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
     assert_eq!(
         result.txs.len(),
         4,
-        "total transaction length should be three, including the extended commit info, two \
+        "total transaction length should be four, including the extended commit info, two \
          commitments and the one tx that fit"
     );
     assert_eq!(
