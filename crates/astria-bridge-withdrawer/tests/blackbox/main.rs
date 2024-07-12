@@ -1,5 +1,5 @@
 use helpers::{
-    compare_actions,
+    assert_actions_eq,
     default_sequencer_address,
     make_bridge_unlock_action,
     make_ics20_withdrawal_action,
@@ -50,7 +50,7 @@ async fn native_sequencer_withdraw_success() {
 
     let expected_action = make_bridge_unlock_action(&receipt);
     let actual_action = actions[0].clone();
-    compare_actions(expected_action, actual_action);
+    assert_actions_eq(expected_action, actual_action);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -95,7 +95,7 @@ async fn native_ics20_withdraw_success() {
 
     let expected_action = make_ics20_withdrawal_action(&receipt);
     let actual_action = actions[0].clone();
-    compare_actions(expected_action, actual_action);
+    assert_actions_eq(expected_action, actual_action);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -146,7 +146,7 @@ async fn erc20_sequencer_withdraw_success() {
 
     let expected_action = make_bridge_unlock_action(&receipt);
     let actual_action = actions[0].clone();
-    compare_actions(expected_action, actual_action);
+    assert_actions_eq(expected_action, actual_action);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -197,5 +197,5 @@ async fn erc20_ics20_withdraw_success() {
 
     let expected_action = make_ics20_withdrawal_action(&receipt);
     let actual_action = actions[0].clone();
-    compare_actions(expected_action, actual_action);
+    assert_actions_eq(expected_action, actual_action);
 }

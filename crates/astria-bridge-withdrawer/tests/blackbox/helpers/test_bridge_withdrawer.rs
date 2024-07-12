@@ -360,19 +360,22 @@ impl Default for TestBridgeWithdrawerConfig {
     }
 }
 
-pub fn compare_actions(expected: Action, actual: Action) {
-    match (expected, actual) {
+#[track_caller]
+pub fn assert_actions_eq(expected: Action, actual: Action) {
+    match (expected.clone(), actual.clone()) {
         (Action::BridgeUnlock(expected), Action::BridgeUnlock(actual)) => {
             assert_eq!(expected, actual, "BridgeUnlock actions do not match");
         }
         (Action::Ics20Withdrawal(expected), Action::Ics20Withdrawal(actual)) => {
             assert_eq!(
-                TestIcs20Withdrawal::from(expected),
-                TestIcs20Withdrawal::from(actual),
+                SubsetOfIcs20Withdrawal::from(expected),
+                SubsetOfIcs20Withdrawal::from(actual),
                 "Ics20Withdrawal actions do not match"
             );
         }
-        _ => panic!("Actions do not match"),
+        _ => {
+            panic!("actions have a differing variants:\nexpected: {expected:?}\nactual: {actual:?}")
+        }
     }
 }
 
@@ -380,7 +383,7 @@ pub fn compare_actions(expected: Action, actual: Action) {
 /// the timout timestamp (which is based on the current `tendermint::Time::now()` in the
 /// implementation)
 #[derive(Debug, PartialEq)]
-struct TestIcs20Withdrawal {
+struct SubsetOfIcs20Withdrawal {
     amount: u128,
     denom: Denom,
     destination_chain_address: String,
@@ -392,7 +395,7 @@ struct TestIcs20Withdrawal {
     bridge_address: Option<Address>,
 }
 
-impl From<Ics20Withdrawal> for TestIcs20Withdrawal {
+impl From<Ics20Withdrawal> for SubsetOfIcs20Withdrawal {
     fn from(value: Ics20Withdrawal) -> Self {
         let Ics20Withdrawal {
             amount,

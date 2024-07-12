@@ -8,8 +8,8 @@ pub use self::{
     mock_cometbft::*,
     mock_sequencer::MockSequencerServer,
     test_bridge_withdrawer::{
+        assert_actions_eq,
         astria_address,
-        compare_actions,
         default_ibc_asset,
         default_native_asset,
         default_sequencer_address,
