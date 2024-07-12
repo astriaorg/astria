@@ -117,7 +117,10 @@ impl Drop for TestConductor {
             let err_msg =
                 match tokio::time::timeout(Duration::from_secs(2), self.conductor.shutdown()).await
                 {
-                    Ok(Ok(())) => None,
+                    Ok(Ok(Ok(()))) => None,
+                    Ok(Ok(Err(conductor_err))) => Some(format!(
+                        "conductor shut down with a runtime error:\n{conductor_err:?}"
+                    )),
                     Ok(Err(conductor_err)) => Some(format!(
                         "conductor shut down with an error:\n{conductor_err:?}"
                     )),
@@ -277,7 +280,7 @@ impl TestConductor {
         .await;
     }
 
-    pub async fn mount_genesis(&self) {
+    pub async fn mount_genesis(&self, chain_id: &str) {
         use tendermint::{
             consensus::{
                 params::{
@@ -304,7 +307,7 @@ impl TestConductor {
                     tendermint_rpc::endpoint::genesis::Response::<serde_json::Value> {
                         genesis: Genesis {
                             genesis_time: Time::from_unix_timestamp(1, 1).unwrap(),
-                            chain_id: SEQUENCER_CHAIN_ID.try_into().unwrap(),
+                            chain_id: chain_id.try_into().unwrap(),
                             initial_height: 1,
                             consensus_params: Params {
                                 block: tendermint::block::Size {
@@ -473,6 +476,8 @@ fn make_config() -> Config {
         sequencer_cometbft_url: "http://127.0.0.1:26657".into(),
         sequencer_requests_per_second: 500,
         sequencer_block_time_ms: 2000,
+        sequencer_chain_id: "test_sequencer-1000".into(),
+        celestia_chain_id: "test_celestia-1000".into(),
         execution_rpc_url: "http://127.0.0.1:50051".into(),
         log: "info".into(),
         execution_commit_level: astria_conductor::config::CommitLevel::SoftAndFirm,

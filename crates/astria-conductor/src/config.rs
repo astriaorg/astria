@@ -58,6 +58,12 @@ pub struct Config {
     /// The number of requests per second that will be sent to Sequencer.
     pub sequencer_requests_per_second: u32,
 
+    /// Configured sequencer chain ID
+    pub sequencer_chain_id: String,
+
+    /// Configured Celestia chain ID
+    pub celestia_chain_id: String,
+
     /// Address of the RPC server for execution
     pub execution_rpc_url: String,
 

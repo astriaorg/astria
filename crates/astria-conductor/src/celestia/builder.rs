@@ -56,7 +56,10 @@ impl Builder {
     }
 }
 
-fn create_celestia_client(endpoint: String, bearer_token: &str) -> eyre::Result<CelestiaClient> {
+pub(crate) fn create_celestia_client(
+    endpoint: String,
+    bearer_token: &str,
+) -> eyre::Result<CelestiaClient> {
     use jsonrpsee::http_client::{
         HeaderMap,
         HttpClientBuilder,
