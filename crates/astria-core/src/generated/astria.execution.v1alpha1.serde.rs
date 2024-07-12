@@ -1,4 +1,4 @@
-impl serde::Serialize for Address {
+impl serde::Serialize for DoBlockRequest {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -6,130 +6,47 @@ impl serde::Serialize for Address {
     {
         use serde::ser::SerializeStruct;
         let mut len = 0;
-        if !self.bech32m.is_empty() {
+        if !self.prev_block_hash.is_empty() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.primitive.v1.Address", len)?;
-        if !self.bech32m.is_empty() {
-            struct_ser.serialize_field("bech32m", &self.bech32m)?;
-        }
-        struct_ser.end()
-    }
-}
-impl<'de> serde::Deserialize<'de> for Address {
-    #[allow(deprecated)]
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        const FIELDS: &[&str] = &[
-            "bech32m",
-        ];
-
-        #[allow(clippy::enum_variant_names)]
-        enum GeneratedField {
-            Bech32m,
-        }
-        impl<'de> serde::Deserialize<'de> for GeneratedField {
-            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
-            where
-                D: serde::Deserializer<'de>,
-            {
-                struct GeneratedVisitor;
-
-                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-                    type Value = GeneratedField;
-
-                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        write!(formatter, "expected one of: {:?}", &FIELDS)
-                    }
-
-                    #[allow(unused_variables)]
-                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
-                    where
-                        E: serde::de::Error,
-                    {
-                        match value {
-                            "bech32m" => Ok(GeneratedField::Bech32m),
-                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
-                        }
-                    }
-                }
-                deserializer.deserialize_identifier(GeneratedVisitor)
-            }
-        }
-        struct GeneratedVisitor;
-        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = Address;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.primitive.v1.Address")
-            }
-
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<Address, V::Error>
-                where
-                    V: serde::de::MapAccess<'de>,
-            {
-                let mut bech32m__ = None;
-                while let Some(k) = map_.next_key()? {
-                    match k {
-                        GeneratedField::Bech32m => {
-                            if bech32m__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("bech32m"));
-                            }
-                            bech32m__ = Some(map_.next_value()?);
-                        }
-                    }
-                }
-                Ok(Address {
-                    bech32m: bech32m__.unwrap_or_default(),
-                })
-            }
-        }
-        deserializer.deserialize_struct("astria.primitive.v1.Address", FIELDS, GeneratedVisitor)
-    }
-}
-impl serde::Serialize for Denom {
-    #[allow(deprecated)]
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use serde::ser::SerializeStruct;
-        let mut len = 0;
-        if !self.id.is_empty() {
+        if !self.transactions.is_empty() {
             len += 1;
         }
-        if !self.base_denom.is_empty() {
+        if self.timestamp.is_some() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.primitive.v1.Denom", len)?;
-        if !self.id.is_empty() {
+        let mut struct_ser = serializer.serialize_struct("astria.execution.v1alpha1.DoBlockRequest", len)?;
+        if !self.prev_block_hash.is_empty() {
             #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("id", pbjson::private::base64::encode(&self.id).as_str())?;
+            struct_ser.serialize_field("prevBlockHash", pbjson::private::base64::encode(&self.prev_block_hash).as_str())?;
         }
-        if !self.base_denom.is_empty() {
-            struct_ser.serialize_field("baseDenom", &self.base_denom)?;
+        if !self.transactions.is_empty() {
+            struct_ser.serialize_field("transactions", &self.transactions.iter().map(pbjson::private::base64::encode).collect::<Vec<_>>())?;
+        }
+        if let Some(v) = self.timestamp.as_ref() {
+            struct_ser.serialize_field("timestamp", v)?;
         }
         struct_ser.end()
     }
 }
-impl<'de> serde::Deserialize<'de> for Denom {
+impl<'de> serde::Deserialize<'de> for DoBlockRequest {
     #[allow(deprecated)]
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
         const FIELDS: &[&str] = &[
-            "id",
-            "base_denom",
-            "baseDenom",
+            "prev_block_hash",
+            "prevBlockHash",
+            "transactions",
+            "timestamp",
         ];
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
-            Id,
-            BaseDenom,
+            PrevBlockHash,
+            Transactions,
+            Timestamp,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -151,8 +68,9 @@ impl<'de> serde::Deserialize<'de> for Denom {
                         E: serde::de::Error,
                     {
                         match value {
-                            "id" => Ok(GeneratedField::Id),
-                            "baseDenom" | "base_denom" => Ok(GeneratedField::BaseDenom),
+                            "prevBlockHash" | "prev_block_hash" => Ok(GeneratedField::PrevBlockHash),
+                            "transactions" => Ok(GeneratedField::Transactions),
+                            "timestamp" => Ok(GeneratedField::Timestamp),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -162,46 +80,57 @@ impl<'de> serde::Deserialize<'de> for Denom {
         }
         struct GeneratedVisitor;
         impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = Denom;
+            type Value = DoBlockRequest;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.primitive.v1.Denom")
+                formatter.write_str("struct astria.execution.v1alpha1.DoBlockRequest")
             }
 
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<Denom, V::Error>
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<DoBlockRequest, V::Error>
                 where
                     V: serde::de::MapAccess<'de>,
             {
-                let mut id__ = None;
-                let mut base_denom__ = None;
+                let mut prev_block_hash__ = None;
+                let mut transactions__ = None;
+                let mut timestamp__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
-                        GeneratedField::Id => {
-                            if id__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("id"));
+                        GeneratedField::PrevBlockHash => {
+                            if prev_block_hash__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("prevBlockHash"));
                             }
-                            id__ = 
+                            prev_block_hash__ = 
                                 Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
                             ;
                         }
-                        GeneratedField::BaseDenom => {
-                            if base_denom__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("baseDenom"));
+                        GeneratedField::Transactions => {
+                            if transactions__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("transactions"));
                             }
-                            base_denom__ = Some(map_.next_value()?);
+                            transactions__ = 
+                                Some(map_.next_value::<Vec<::pbjson::private::BytesDeserialize<_>>>()?
+                                    .into_iter().map(|x| x.0).collect())
+                            ;
+                        }
+                        GeneratedField::Timestamp => {
+                            if timestamp__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("timestamp"));
+                            }
+                            timestamp__ = map_.next_value()?;
                         }
                     }
                 }
-                Ok(Denom {
-                    id: id__.unwrap_or_default(),
-                    base_denom: base_denom__.unwrap_or_default(),
+                Ok(DoBlockRequest {
+                    prev_block_hash: prev_block_hash__.unwrap_or_default(),
+                    transactions: transactions__.unwrap_or_default(),
+                    timestamp: timestamp__,
                 })
             }
         }
-        deserializer.deserialize_struct("astria.primitive.v1.Denom", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.execution.v1alpha1.DoBlockRequest", FIELDS, GeneratedVisitor)
     }
 }
-impl serde::Serialize for Proof {
+impl serde::Serialize for DoBlockResponse {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -209,51 +138,31 @@ impl serde::Serialize for Proof {
     {
         use serde::ser::SerializeStruct;
         let mut len = 0;
-        if !self.audit_path.is_empty() {
+        if !self.block_hash.is_empty() {
             len += 1;
         }
-        if self.leaf_index != 0 {
-            len += 1;
-        }
-        if self.tree_size != 0 {
-            len += 1;
-        }
-        let mut struct_ser = serializer.serialize_struct("astria.primitive.v1.Proof", len)?;
-        if !self.audit_path.is_empty() {
+        let mut struct_ser = serializer.serialize_struct("astria.execution.v1alpha1.DoBlockResponse", len)?;
+        if !self.block_hash.is_empty() {
             #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("auditPath", pbjson::private::base64::encode(&self.audit_path).as_str())?;
-        }
-        if self.leaf_index != 0 {
-            #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("leafIndex", ToString::to_string(&self.leaf_index).as_str())?;
-        }
-        if self.tree_size != 0 {
-            #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("treeSize", ToString::to_string(&self.tree_size).as_str())?;
+            struct_ser.serialize_field("blockHash", pbjson::private::base64::encode(&self.block_hash).as_str())?;
         }
         struct_ser.end()
     }
 }
-impl<'de> serde::Deserialize<'de> for Proof {
+impl<'de> serde::Deserialize<'de> for DoBlockResponse {
     #[allow(deprecated)]
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
         const FIELDS: &[&str] = &[
-            "audit_path",
-            "auditPath",
-            "leaf_index",
-            "leafIndex",
-            "tree_size",
-            "treeSize",
+            "block_hash",
+            "blockHash",
         ];
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
-            AuditPath,
-            LeafIndex,
-            TreeSize,
+            BlockHash,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -275,9 +184,7 @@ impl<'de> serde::Deserialize<'de> for Proof {
                         E: serde::de::Error,
                     {
                         match value {
-                            "auditPath" | "audit_path" => Ok(GeneratedField::AuditPath),
-                            "leafIndex" | "leaf_index" => Ok(GeneratedField::LeafIndex),
-                            "treeSize" | "tree_size" => Ok(GeneratedField::TreeSize),
+                            "blockHash" | "block_hash" => Ok(GeneratedField::BlockHash),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -287,152 +194,38 @@ impl<'de> serde::Deserialize<'de> for Proof {
         }
         struct GeneratedVisitor;
         impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = Proof;
+            type Value = DoBlockResponse;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.primitive.v1.Proof")
+                formatter.write_str("struct astria.execution.v1alpha1.DoBlockResponse")
             }
 
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<Proof, V::Error>
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<DoBlockResponse, V::Error>
                 where
                     V: serde::de::MapAccess<'de>,
             {
-                let mut audit_path__ = None;
-                let mut leaf_index__ = None;
-                let mut tree_size__ = None;
+                let mut block_hash__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
-                        GeneratedField::AuditPath => {
-                            if audit_path__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("auditPath"));
+                        GeneratedField::BlockHash => {
+                            if block_hash__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("blockHash"));
                             }
-                            audit_path__ = 
-                                Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
-                            ;
-                        }
-                        GeneratedField::LeafIndex => {
-                            if leaf_index__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("leafIndex"));
-                            }
-                            leaf_index__ = 
-                                Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
-                            ;
-                        }
-                        GeneratedField::TreeSize => {
-                            if tree_size__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("treeSize"));
-                            }
-                            tree_size__ = 
-                                Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
-                            ;
-                        }
-                    }
-                }
-                Ok(Proof {
-                    audit_path: audit_path__.unwrap_or_default(),
-                    leaf_index: leaf_index__.unwrap_or_default(),
-                    tree_size: tree_size__.unwrap_or_default(),
-                })
-            }
-        }
-        deserializer.deserialize_struct("astria.primitive.v1.Proof", FIELDS, GeneratedVisitor)
-    }
-}
-impl serde::Serialize for RollupId {
-    #[allow(deprecated)]
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use serde::ser::SerializeStruct;
-        let mut len = 0;
-        if !self.inner.is_empty() {
-            len += 1;
-        }
-        let mut struct_ser = serializer.serialize_struct("astria.primitive.v1.RollupId", len)?;
-        if !self.inner.is_empty() {
-            #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("inner", pbjson::private::base64::encode(&self.inner).as_str())?;
-        }
-        struct_ser.end()
-    }
-}
-impl<'de> serde::Deserialize<'de> for RollupId {
-    #[allow(deprecated)]
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        const FIELDS: &[&str] = &[
-            "inner",
-        ];
-
-        #[allow(clippy::enum_variant_names)]
-        enum GeneratedField {
-            Inner,
-        }
-        impl<'de> serde::Deserialize<'de> for GeneratedField {
-            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
-            where
-                D: serde::Deserializer<'de>,
-            {
-                struct GeneratedVisitor;
-
-                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-                    type Value = GeneratedField;
-
-                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        write!(formatter, "expected one of: {:?}", &FIELDS)
-                    }
-
-                    #[allow(unused_variables)]
-                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
-                    where
-                        E: serde::de::Error,
-                    {
-                        match value {
-                            "inner" => Ok(GeneratedField::Inner),
-                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
-                        }
-                    }
-                }
-                deserializer.deserialize_identifier(GeneratedVisitor)
-            }
-        }
-        struct GeneratedVisitor;
-        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = RollupId;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.primitive.v1.RollupId")
-            }
-
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<RollupId, V::Error>
-                where
-                    V: serde::de::MapAccess<'de>,
-            {
-                let mut inner__ = None;
-                while let Some(k) = map_.next_key()? {
-                    match k {
-                        GeneratedField::Inner => {
-                            if inner__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("inner"));
-                            }
-                            inner__ = 
+                            block_hash__ = 
                                 Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
                             ;
                         }
                     }
                 }
-                Ok(RollupId {
-                    inner: inner__.unwrap_or_default(),
+                Ok(DoBlockResponse {
+                    block_hash: block_hash__.unwrap_or_default(),
                 })
             }
         }
-        deserializer.deserialize_struct("astria.primitive.v1.RollupId", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.execution.v1alpha1.DoBlockResponse", FIELDS, GeneratedVisitor)
     }
 }
-impl serde::Serialize for Uint128 {
+impl serde::Serialize for FinalizeBlockRequest {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -440,39 +233,31 @@ impl serde::Serialize for Uint128 {
     {
         use serde::ser::SerializeStruct;
         let mut len = 0;
-        if self.lo != 0 {
+        if !self.block_hash.is_empty() {
             len += 1;
         }
-        if self.hi != 0 {
-            len += 1;
-        }
-        let mut struct_ser = serializer.serialize_struct("astria.primitive.v1.Uint128", len)?;
-        if self.lo != 0 {
+        let mut struct_ser = serializer.serialize_struct("astria.execution.v1alpha1.FinalizeBlockRequest", len)?;
+        if !self.block_hash.is_empty() {
             #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("lo", ToString::to_string(&self.lo).as_str())?;
-        }
-        if self.hi != 0 {
-            #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("hi", ToString::to_string(&self.hi).as_str())?;
+            struct_ser.serialize_field("blockHash", pbjson::private::base64::encode(&self.block_hash).as_str())?;
         }
         struct_ser.end()
     }
 }
-impl<'de> serde::Deserialize<'de> for Uint128 {
+impl<'de> serde::Deserialize<'de> for FinalizeBlockRequest {
     #[allow(deprecated)]
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
         const FIELDS: &[&str] = &[
-            "lo",
-            "hi",
+            "block_hash",
+            "blockHash",
         ];
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
-            Lo,
-            Hi,
+            BlockHash,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -494,8 +279,7 @@ impl<'de> serde::Deserialize<'de> for Uint128 {
                         E: serde::de::Error,
                     {
                         match value {
-                            "lo" => Ok(GeneratedField::Lo),
-                            "hi" => Ok(GeneratedField::Hi),
+                            "blockHash" | "block_hash" => Ok(GeneratedField::BlockHash),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -505,44 +289,271 @@ impl<'de> serde::Deserialize<'de> for Uint128 {
         }
         struct GeneratedVisitor;
         impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = Uint128;
+            type Value = FinalizeBlockRequest;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.primitive.v1.Uint128")
+                formatter.write_str("struct astria.execution.v1alpha1.FinalizeBlockRequest")
             }
 
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<Uint128, V::Error>
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<FinalizeBlockRequest, V::Error>
                 where
                     V: serde::de::MapAccess<'de>,
             {
-                let mut lo__ = None;
-                let mut hi__ = None;
+                let mut block_hash__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
-                        GeneratedField::Lo => {
-                            if lo__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("lo"));
+                        GeneratedField::BlockHash => {
+                            if block_hash__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("blockHash"));
                             }
-                            lo__ = 
-                                Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
-                            ;
-                        }
-                        GeneratedField::Hi => {
-                            if hi__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("hi"));
-                            }
-                            hi__ = 
-                                Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
+                            block_hash__ = 
+                                Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
                             ;
                         }
                     }
                 }
-                Ok(Uint128 {
-                    lo: lo__.unwrap_or_default(),
-                    hi: hi__.unwrap_or_default(),
+                Ok(FinalizeBlockRequest {
+                    block_hash: block_hash__.unwrap_or_default(),
                 })
             }
         }
-        deserializer.deserialize_struct("astria.primitive.v1.Uint128", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.execution.v1alpha1.FinalizeBlockRequest", FIELDS, GeneratedVisitor)
+    }
+}
+impl serde::Serialize for FinalizeBlockResponse {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let len = 0;
+        let struct_ser = serializer.serialize_struct("astria.execution.v1alpha1.FinalizeBlockResponse", len)?;
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for FinalizeBlockResponse {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                            Err(serde::de::Error::unknown_field(value, FIELDS))
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = FinalizeBlockResponse;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.execution.v1alpha1.FinalizeBlockResponse")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<FinalizeBlockResponse, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                while map_.next_key::<GeneratedField>()?.is_some() {
+                    let _ = map_.next_value::<serde::de::IgnoredAny>()?;
+                }
+                Ok(FinalizeBlockResponse {
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.execution.v1alpha1.FinalizeBlockResponse", FIELDS, GeneratedVisitor)
+    }
+}
+impl serde::Serialize for InitStateRequest {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let len = 0;
+        let struct_ser = serializer.serialize_struct("astria.execution.v1alpha1.InitStateRequest", len)?;
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for InitStateRequest {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                            Err(serde::de::Error::unknown_field(value, FIELDS))
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = InitStateRequest;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.execution.v1alpha1.InitStateRequest")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<InitStateRequest, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                while map_.next_key::<GeneratedField>()?.is_some() {
+                    let _ = map_.next_value::<serde::de::IgnoredAny>()?;
+                }
+                Ok(InitStateRequest {
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.execution.v1alpha1.InitStateRequest", FIELDS, GeneratedVisitor)
+    }
+}
+impl serde::Serialize for InitStateResponse {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if !self.block_hash.is_empty() {
+            len += 1;
+        }
+        let mut struct_ser = serializer.serialize_struct("astria.execution.v1alpha1.InitStateResponse", len)?;
+        if !self.block_hash.is_empty() {
+            #[allow(clippy::needless_borrow)]
+            struct_ser.serialize_field("blockHash", pbjson::private::base64::encode(&self.block_hash).as_str())?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for InitStateResponse {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "block_hash",
+            "blockHash",
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            BlockHash,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "blockHash" | "block_hash" => Ok(GeneratedField::BlockHash),
+                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = InitStateResponse;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.execution.v1alpha1.InitStateResponse")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<InitStateResponse, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                let mut block_hash__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::BlockHash => {
+                            if block_hash__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("blockHash"));
+                            }
+                            block_hash__ = 
+                                Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
+                            ;
+                        }
+                    }
+                }
+                Ok(InitStateResponse {
+                    block_hash: block_hash__.unwrap_or_default(),
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.execution.v1alpha1.InitStateResponse", FIELDS, GeneratedVisitor)
     }
 }

@@ -1,4 +1,4 @@
-impl serde::Serialize for CompactBitArray {
+impl serde::Serialize for SubmitRollupTransactionRequest {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -6,39 +6,40 @@ impl serde::Serialize for CompactBitArray {
     {
         use serde::ser::SerializeStruct;
         let mut len = 0;
-        if self.extra_bits_stored != 0 {
+        if !self.rollup_id.is_empty() {
             len += 1;
         }
-        if !self.elems.is_empty() {
+        if !self.data.is_empty() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("cosmos.crypto.multisig.v1beta1.CompactBitArray", len)?;
-        if self.extra_bits_stored != 0 {
-            struct_ser.serialize_field("extraBitsStored", &self.extra_bits_stored)?;
-        }
-        if !self.elems.is_empty() {
+        let mut struct_ser = serializer.serialize_struct("astria.composer.v1alpha1.SubmitRollupTransactionRequest", len)?;
+        if !self.rollup_id.is_empty() {
             #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("elems", pbjson::private::base64::encode(&self.elems).as_str())?;
+            struct_ser.serialize_field("rollupId", pbjson::private::base64::encode(&self.rollup_id).as_str())?;
+        }
+        if !self.data.is_empty() {
+            #[allow(clippy::needless_borrow)]
+            struct_ser.serialize_field("data", pbjson::private::base64::encode(&self.data).as_str())?;
         }
         struct_ser.end()
     }
 }
-impl<'de> serde::Deserialize<'de> for CompactBitArray {
+impl<'de> serde::Deserialize<'de> for SubmitRollupTransactionRequest {
     #[allow(deprecated)]
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
         const FIELDS: &[&str] = &[
-            "extra_bits_stored",
-            "extraBitsStored",
-            "elems",
+            "rollup_id",
+            "rollupId",
+            "data",
         ];
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
-            ExtraBitsStored,
-            Elems,
+            RollupId,
+            Data,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -60,8 +61,8 @@ impl<'de> serde::Deserialize<'de> for CompactBitArray {
                         E: serde::de::Error,
                     {
                         match value {
-                            "extraBitsStored" | "extra_bits_stored" => Ok(GeneratedField::ExtraBitsStored),
-                            "elems" => Ok(GeneratedField::Elems),
+                            "rollupId" | "rollup_id" => Ok(GeneratedField::RollupId),
+                            "data" => Ok(GeneratedField::Data),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -71,78 +72,70 @@ impl<'de> serde::Deserialize<'de> for CompactBitArray {
         }
         struct GeneratedVisitor;
         impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = CompactBitArray;
+            type Value = SubmitRollupTransactionRequest;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct cosmos.crypto.multisig.v1beta1.CompactBitArray")
+                formatter.write_str("struct astria.composer.v1alpha1.SubmitRollupTransactionRequest")
             }
 
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<CompactBitArray, V::Error>
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<SubmitRollupTransactionRequest, V::Error>
                 where
                     V: serde::de::MapAccess<'de>,
             {
-                let mut extra_bits_stored__ = None;
-                let mut elems__ = None;
+                let mut rollup_id__ = None;
+                let mut data__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
-                        GeneratedField::ExtraBitsStored => {
-                            if extra_bits_stored__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("extraBitsStored"));
+                        GeneratedField::RollupId => {
+                            if rollup_id__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("rollupId"));
                             }
-                            extra_bits_stored__ = 
-                                Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
+                            rollup_id__ = 
+                                Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
                             ;
                         }
-                        GeneratedField::Elems => {
-                            if elems__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("elems"));
+                        GeneratedField::Data => {
+                            if data__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("data"));
                             }
-                            elems__ = 
+                            data__ = 
                                 Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
                             ;
                         }
                     }
                 }
-                Ok(CompactBitArray {
-                    extra_bits_stored: extra_bits_stored__.unwrap_or_default(),
-                    elems: elems__.unwrap_or_default(),
+                Ok(SubmitRollupTransactionRequest {
+                    rollup_id: rollup_id__.unwrap_or_default(),
+                    data: data__.unwrap_or_default(),
                 })
             }
         }
-        deserializer.deserialize_struct("cosmos.crypto.multisig.v1beta1.CompactBitArray", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.composer.v1alpha1.SubmitRollupTransactionRequest", FIELDS, GeneratedVisitor)
     }
 }
-impl serde::Serialize for MultiSignature {
+impl serde::Serialize for SubmitRollupTransactionResponse {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
         use serde::ser::SerializeStruct;
-        let mut len = 0;
-        if !self.signatures.is_empty() {
-            len += 1;
-        }
-        let mut struct_ser = serializer.serialize_struct("cosmos.crypto.multisig.v1beta1.MultiSignature", len)?;
-        if !self.signatures.is_empty() {
-            struct_ser.serialize_field("signatures", &self.signatures.iter().map(pbjson::private::base64::encode).collect::<Vec<_>>())?;
-        }
+        let len = 0;
+        let struct_ser = serializer.serialize_struct("astria.composer.v1alpha1.SubmitRollupTransactionResponse", len)?;
         struct_ser.end()
     }
 }
-impl<'de> serde::Deserialize<'de> for MultiSignature {
+impl<'de> serde::Deserialize<'de> for SubmitRollupTransactionResponse {
     #[allow(deprecated)]
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
         const FIELDS: &[&str] = &[
-            "signatures",
         ];
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
-            Signatures,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -163,10 +156,7 @@ impl<'de> serde::Deserialize<'de> for MultiSignature {
                     where
                         E: serde::de::Error,
                     {
-                        match value {
-                            "signatures" => Ok(GeneratedField::Signatures),
-                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
-                        }
+                            Err(serde::de::Error::unknown_field(value, FIELDS))
                     }
                 }
                 deserializer.deserialize_identifier(GeneratedVisitor)
@@ -174,35 +164,23 @@ impl<'de> serde::Deserialize<'de> for MultiSignature {
         }
         struct GeneratedVisitor;
         impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = MultiSignature;
+            type Value = SubmitRollupTransactionResponse;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct cosmos.crypto.multisig.v1beta1.MultiSignature")
+                formatter.write_str("struct astria.composer.v1alpha1.SubmitRollupTransactionResponse")
             }
 
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<MultiSignature, V::Error>
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<SubmitRollupTransactionResponse, V::Error>
                 where
                     V: serde::de::MapAccess<'de>,
             {
-                let mut signatures__ = None;
-                while let Some(k) = map_.next_key()? {
-                    match k {
-                        GeneratedField::Signatures => {
-                            if signatures__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("signatures"));
-                            }
-                            signatures__ = 
-                                Some(map_.next_value::<Vec<::pbjson::private::BytesDeserialize<_>>>()?
-                                    .into_iter().map(|x| x.0).collect())
-                            ;
-                        }
-                    }
+                while map_.next_key::<GeneratedField>()?.is_some() {
+                    let _ = map_.next_value::<serde::de::IgnoredAny>()?;
                 }
-                Ok(MultiSignature {
-                    signatures: signatures__.unwrap_or_default(),
+                Ok(SubmitRollupTransactionResponse {
                 })
             }
         }
-        deserializer.deserialize_struct("cosmos.crypto.multisig.v1beta1.MultiSignature", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.composer.v1alpha1.SubmitRollupTransactionResponse", FIELDS, GeneratedVisitor)
     }
 }

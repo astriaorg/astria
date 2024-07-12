@@ -4,13 +4,39 @@
     clippy::needless_borrows_for_generic_args,
     clippy::arithmetic_side_effects
 )]
+//! Files generated using [`tonic-build`] and [`buf`] via the [`tools/protobuf-compiler`]
+//! build tool.
+//!
+//! [`tonic-build`]: https://docs.rs/tonic-build
+//! [`buf`]: https://buf.build
+//! [`tools/protobuf-compiler`]: ../../../../tools/protobuf-compiler
 
-/// Files generated using [`tonic-build`] and [`buf`] via the [`tools/protobuf-compiler`]
-/// build tool.
-///
-/// [`tonic-build`]: https://docs.rs/tonic-build
-/// [`buf`]: https://buf.build
-/// [`tools/protobuf-compiler`]: ../../../../tools/protobuf-compiler
+#[path = ""]
+pub mod astria_vendored {
+    #[path = ""]
+    pub mod tendermint {
+        pub mod abci {
+            include!("astria_vendored.tendermint.abci.rs");
+
+            #[cfg(feature = "serde")]
+            mod _serde_impl {
+                use super::*;
+                include!("astria_vendored.tendermint.abci.serde.rs");
+            }
+        }
+
+        pub mod crypto {
+            include!("astria_vendored.tendermint.crypto.rs");
+
+            #[cfg(feature = "serde")]
+            mod _serde_impl {
+                use super::*;
+                include!("astria_vendored.tendermint.crypto.serde.rs");
+            }
+        }
+    }
+}
+
 #[path = ""]
 pub mod execution {
     #[path = "astria.execution.v1alpha1.rs"]
@@ -59,8 +85,15 @@ pub mod protocol {
     }
     #[path = ""]
     pub mod transaction {
-        #[path = "astria.protocol.transactions.v1alpha1.rs"]
-        pub mod v1alpha1;
+        pub mod v1alpha1 {
+            include!("astria.protocol.transactions.v1alpha1.rs");
+
+            #[cfg(feature = "serde")]
+            mod _serde_impl {
+                use super::*;
+                include!("astria.protocol.transactions.v1alpha1.serde.rs");
+            }
+        }
     }
 }
 

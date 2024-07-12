@@ -1,4 +1,4 @@
-impl serde::Serialize for CompactBitArray {
+impl serde::Serialize for AllowedFeeAssetsResponse {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -6,39 +6,39 @@ impl serde::Serialize for CompactBitArray {
     {
         use serde::ser::SerializeStruct;
         let mut len = 0;
-        if self.extra_bits_stored != 0 {
+        if self.height != 0 {
             len += 1;
         }
-        if !self.elems.is_empty() {
+        if !self.fee_assets.is_empty() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("cosmos.crypto.multisig.v1beta1.CompactBitArray", len)?;
-        if self.extra_bits_stored != 0 {
-            struct_ser.serialize_field("extraBitsStored", &self.extra_bits_stored)?;
-        }
-        if !self.elems.is_empty() {
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.asset.v1alpha1.AllowedFeeAssetsResponse", len)?;
+        if self.height != 0 {
             #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("elems", pbjson::private::base64::encode(&self.elems).as_str())?;
+            struct_ser.serialize_field("height", ToString::to_string(&self.height).as_str())?;
+        }
+        if !self.fee_assets.is_empty() {
+            struct_ser.serialize_field("feeAssets", &self.fee_assets)?;
         }
         struct_ser.end()
     }
 }
-impl<'de> serde::Deserialize<'de> for CompactBitArray {
+impl<'de> serde::Deserialize<'de> for AllowedFeeAssetsResponse {
     #[allow(deprecated)]
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
         const FIELDS: &[&str] = &[
-            "extra_bits_stored",
-            "extraBitsStored",
-            "elems",
+            "height",
+            "fee_assets",
+            "feeAssets",
         ];
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
-            ExtraBitsStored,
-            Elems,
+            Height,
+            FeeAssets,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -60,8 +60,8 @@ impl<'de> serde::Deserialize<'de> for CompactBitArray {
                         E: serde::de::Error,
                     {
                         match value {
-                            "extraBitsStored" | "extra_bits_stored" => Ok(GeneratedField::ExtraBitsStored),
-                            "elems" => Ok(GeneratedField::Elems),
+                            "height" => Ok(GeneratedField::Height),
+                            "feeAssets" | "fee_assets" => Ok(GeneratedField::FeeAssets),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -71,48 +71,46 @@ impl<'de> serde::Deserialize<'de> for CompactBitArray {
         }
         struct GeneratedVisitor;
         impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = CompactBitArray;
+            type Value = AllowedFeeAssetsResponse;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct cosmos.crypto.multisig.v1beta1.CompactBitArray")
+                formatter.write_str("struct astria.protocol.asset.v1alpha1.AllowedFeeAssetsResponse")
             }
 
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<CompactBitArray, V::Error>
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<AllowedFeeAssetsResponse, V::Error>
                 where
                     V: serde::de::MapAccess<'de>,
             {
-                let mut extra_bits_stored__ = None;
-                let mut elems__ = None;
+                let mut height__ = None;
+                let mut fee_assets__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
-                        GeneratedField::ExtraBitsStored => {
-                            if extra_bits_stored__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("extraBitsStored"));
+                        GeneratedField::Height => {
+                            if height__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("height"));
                             }
-                            extra_bits_stored__ = 
+                            height__ = 
                                 Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
                             ;
                         }
-                        GeneratedField::Elems => {
-                            if elems__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("elems"));
+                        GeneratedField::FeeAssets => {
+                            if fee_assets__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("feeAssets"));
                             }
-                            elems__ = 
-                                Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
-                            ;
+                            fee_assets__ = Some(map_.next_value()?);
                         }
                     }
                 }
-                Ok(CompactBitArray {
-                    extra_bits_stored: extra_bits_stored__.unwrap_or_default(),
-                    elems: elems__.unwrap_or_default(),
+                Ok(AllowedFeeAssetsResponse {
+                    height: height__.unwrap_or_default(),
+                    fee_assets: fee_assets__.unwrap_or_default(),
                 })
             }
         }
-        deserializer.deserialize_struct("cosmos.crypto.multisig.v1beta1.CompactBitArray", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.protocol.asset.v1alpha1.AllowedFeeAssetsResponse", FIELDS, GeneratedVisitor)
     }
 }
-impl serde::Serialize for MultiSignature {
+impl serde::Serialize for DenomResponse {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -120,29 +118,38 @@ impl serde::Serialize for MultiSignature {
     {
         use serde::ser::SerializeStruct;
         let mut len = 0;
-        if !self.signatures.is_empty() {
+        if self.height != 0 {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("cosmos.crypto.multisig.v1beta1.MultiSignature", len)?;
-        if !self.signatures.is_empty() {
-            struct_ser.serialize_field("signatures", &self.signatures.iter().map(pbjson::private::base64::encode).collect::<Vec<_>>())?;
+        if !self.denom.is_empty() {
+            len += 1;
+        }
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.asset.v1alpha1.DenomResponse", len)?;
+        if self.height != 0 {
+            #[allow(clippy::needless_borrow)]
+            struct_ser.serialize_field("height", ToString::to_string(&self.height).as_str())?;
+        }
+        if !self.denom.is_empty() {
+            struct_ser.serialize_field("denom", &self.denom)?;
         }
         struct_ser.end()
     }
 }
-impl<'de> serde::Deserialize<'de> for MultiSignature {
+impl<'de> serde::Deserialize<'de> for DenomResponse {
     #[allow(deprecated)]
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
         const FIELDS: &[&str] = &[
-            "signatures",
+            "height",
+            "denom",
         ];
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
-            Signatures,
+            Height,
+            Denom,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -164,7 +171,8 @@ impl<'de> serde::Deserialize<'de> for MultiSignature {
                         E: serde::de::Error,
                     {
                         match value {
-                            "signatures" => Ok(GeneratedField::Signatures),
+                            "height" => Ok(GeneratedField::Height),
+                            "denom" => Ok(GeneratedField::Denom),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -174,35 +182,42 @@ impl<'de> serde::Deserialize<'de> for MultiSignature {
         }
         struct GeneratedVisitor;
         impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = MultiSignature;
+            type Value = DenomResponse;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct cosmos.crypto.multisig.v1beta1.MultiSignature")
+                formatter.write_str("struct astria.protocol.asset.v1alpha1.DenomResponse")
             }
 
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<MultiSignature, V::Error>
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<DenomResponse, V::Error>
                 where
                     V: serde::de::MapAccess<'de>,
             {
-                let mut signatures__ = None;
+                let mut height__ = None;
+                let mut denom__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
-                        GeneratedField::Signatures => {
-                            if signatures__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("signatures"));
+                        GeneratedField::Height => {
+                            if height__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("height"));
                             }
-                            signatures__ = 
-                                Some(map_.next_value::<Vec<::pbjson::private::BytesDeserialize<_>>>()?
-                                    .into_iter().map(|x| x.0).collect())
+                            height__ = 
+                                Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
                             ;
+                        }
+                        GeneratedField::Denom => {
+                            if denom__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("denom"));
+                            }
+                            denom__ = Some(map_.next_value()?);
                         }
                     }
                 }
-                Ok(MultiSignature {
-                    signatures: signatures__.unwrap_or_default(),
+                Ok(DenomResponse {
+                    height: height__.unwrap_or_default(),
+                    denom: denom__.unwrap_or_default(),
                 })
             }
         }
-        deserializer.deserialize_struct("cosmos.crypto.multisig.v1beta1.MultiSignature", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.protocol.asset.v1alpha1.DenomResponse", FIELDS, GeneratedVisitor)
     }
 }

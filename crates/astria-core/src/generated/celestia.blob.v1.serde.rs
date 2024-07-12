@@ -29,13 +29,13 @@ impl serde::Serialize for MsgPayForBlobs {
             struct_ser.serialize_field("namespaces", &self.namespaces.iter().map(pbjson::private::base64::encode).collect::<Vec<_>>())?;
         }
         if !self.blob_sizes.is_empty() {
-            struct_ser.serialize_field("blob_sizes", &self.blob_sizes)?;
+            struct_ser.serialize_field("blobSizes", &self.blob_sizes)?;
         }
         if !self.share_commitments.is_empty() {
-            struct_ser.serialize_field("share_commitments", &self.share_commitments.iter().map(pbjson::private::base64::encode).collect::<Vec<_>>())?;
+            struct_ser.serialize_field("shareCommitments", &self.share_commitments.iter().map(pbjson::private::base64::encode).collect::<Vec<_>>())?;
         }
         if !self.share_versions.is_empty() {
-            struct_ser.serialize_field("share_versions", &self.share_versions)?;
+            struct_ser.serialize_field("shareVersions", &self.share_versions)?;
         }
         struct_ser.end()
     }
@@ -188,11 +188,11 @@ impl serde::Serialize for Params {
         }
         let mut struct_ser = serializer.serialize_struct("celestia.blob.v1.Params", len)?;
         if self.gas_per_blob_byte != 0 {
-            struct_ser.serialize_field("gas_per_blob_byte", &self.gas_per_blob_byte)?;
+            struct_ser.serialize_field("gasPerBlobByte", &self.gas_per_blob_byte)?;
         }
         if self.gov_max_square_size != 0 {
             #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("gov_max_square_size", ToString::to_string(&self.gov_max_square_size).as_str())?;
+            struct_ser.serialize_field("govMaxSquareSize", ToString::to_string(&self.gov_max_square_size).as_str())?;
         }
         struct_ser.end()
     }
