@@ -154,10 +154,8 @@ impl TestEthereum {
             self.provider.clone(),
             self.wallet.clone(),
         ));
-        let contract = AstriaWithdrawer::new(self.contract_address, signer.clone());
-        let tx = contract
-            .withdraw_to_sequencer(recipient.to_string())
-            .value(value);
+        let contract = AstriaBridgeableERC20::new(self.contract_address, signer.clone());
+        let tx = contract.withdraw_to_sequencer(value, recipient.to_string());
 
         let receipt = tx
             .send()
@@ -184,10 +182,8 @@ impl TestEthereum {
             self.provider.clone(),
             self.wallet.clone(),
         ));
-        let contract = AstriaWithdrawer::new(self.contract_address, signer.clone());
-        let tx = contract
-            .withdraw_to_ibc_chain(recipient, "nootwashere".to_string())
-            .value(value);
+        let contract = AstriaBridgeableERC20::new(self.contract_address, signer.clone());
+        let tx = contract.withdraw_to_ibc_chain(value, recipient, "nootwashere".to_string());
         let receipt = tx
             .send()
             .await

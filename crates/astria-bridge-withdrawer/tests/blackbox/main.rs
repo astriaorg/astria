@@ -118,7 +118,7 @@ async fn erc20_sequencer_withdraw_success() {
         .await;
 
     // send an ics20 withdrawal tx to the rollup
-    let value = 1_000_000_000.into();
+    let value = 1_000_000.into();
     let recipient = default_sequencer_address();
     let receipt = bridge_withdrawer
         .ethereum

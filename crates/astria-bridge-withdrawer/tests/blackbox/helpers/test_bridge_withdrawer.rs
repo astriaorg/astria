@@ -403,7 +403,7 @@ pub fn make_bridge_unlock_action(receipt: &TransactionReceipt) -> Action {
         to: default_sequencer_address(),
         amount: 1_000_000u128,
         memo: serde_json::to_vec(&UnlockMemo {
-            block_number: DEFAULT_LAST_ROLLUP_HEIGHT + 1,
+            block_number: receipt.block_number.unwrap().as_u64(),
             transaction_hash: receipt.transaction_hash.0,
         })
         .unwrap(),
@@ -426,7 +426,7 @@ pub fn make_ics20_withdrawal_action(receipt: &TransactionReceipt) -> Action {
         memo: serde_json::to_string(&Ics20WithdrawalFromRollupMemo {
             memo: "nootwashere".to_string(),
             bridge_address: default_bridge_address(),
-            block_number: DEFAULT_LAST_ROLLUP_HEIGHT + 1,
+            block_number: receipt.block_number.unwrap().as_u64(),
             transaction_hash: receipt.transaction_hash.0,
         })
         .unwrap(),
