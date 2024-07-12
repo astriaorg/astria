@@ -326,6 +326,7 @@ impl BlockToActions {
     fn log_to_sequencer_withdrawal_action(&self, log: Log) -> eyre::Result<Action> {
         LogToSequencerWithdrawalAction {
             log,
+            bridge_address: self.bridge_address,
             fee_asset: self.fee_asset.clone(),
             asset_withdrawal_divisor: self.asset_withdrawal_divisor,
         }
@@ -429,6 +430,7 @@ struct LogToSequencerWithdrawalAction {
     log: Log,
     fee_asset: asset::Denom,
     asset_withdrawal_divisor: u128,
+    bridge_address: Address,
 }
 
 impl LogToSequencerWithdrawalAction {
@@ -437,6 +439,7 @@ impl LogToSequencerWithdrawalAction {
             log,
             fee_asset,
             asset_withdrawal_divisor,
+            bridge_address,
         } = self;
         let (event, block_number, transaction_hash) =
             action_inputs_from_log::<SequencerWithdrawalFilter>(log)
