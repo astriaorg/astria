@@ -73,23 +73,11 @@ fn main() {
         ])
         .client_mod_attribute(".", "#[cfg(feature=\"client\")]")
         .server_mod_attribute(".", "#[cfg(feature=\"server\")]")
-        .extern_path(
-            ".astria_vendored.tendermint.abci",
-            "::tendermint-proto::abci",
-        )
-        .extern_path(
-            ".astria_vendored.tendermint.crypto",
-            "::tendermint-proto::crypto",
-        )
-        .extern_path(
-            ".astria_vendored.tendermint.version",
-            "::tendermint-proto::version",
-        )
-        .extern_path(
-            ".astria_vendored.tendermint.types",
-            "::tendermint-proto::types",
-        )
         .extern_path(".astria_vendored.penumbra", "::penumbra-proto")
+        .extern_path(
+            ".astria_vendored.tendermint.abci.ValidatorUpdate",
+            "crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate",
+        )
         .type_attribute(".astria.primitive.v1.Uint128", "#[derive(Copy)]")
         .use_arc_self(true)
         // override prost-types with pbjson-types
@@ -109,9 +97,8 @@ fn main() {
         .unwrap()
         .out_dir(&out_dir)
         .build(&[
-            ".astria.execution.v1alpha2",
-            ".astria.primitive.v1",
-            ".astria.sequencerblock.v1alpha1",
+            ".astria",
+            ".astria_vendored",
             ".celestia",
             ".cosmos",
             ".tendermint",
@@ -150,6 +137,7 @@ fn clean_non_astria_code(generated: &mut ContentMap) {
         .keys()
         .filter(|name| {
             !name.starts_with("astria.")
+                && !name.starts_with("astria_vendored.")
                 && !name.starts_with("celestia.")
                 && !name.starts_with("cosmos.")
                 && !name.starts_with("tendermint.")
