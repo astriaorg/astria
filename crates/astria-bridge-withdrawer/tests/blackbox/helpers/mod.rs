@@ -10,6 +10,7 @@ pub use self::{
     test_bridge_withdrawer::{
         astria_address,
         compare_actions,
+        default_ibc_asset,
         default_native_asset,
         default_sequencer_address,
         make_bridge_unlock_action,

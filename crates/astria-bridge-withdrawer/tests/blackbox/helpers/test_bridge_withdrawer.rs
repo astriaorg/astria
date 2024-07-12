@@ -137,6 +137,11 @@ impl TestBridgeWithdrawer {
         self.config.rollup_asset_denomination.parse().unwrap()
     }
 
+    #[must_use]
+    pub fn rollup_wallet_addr(&self) -> ethers::types::Address {
+        self.ethereum.wallet_addr()
+    }
+
     pub async fn mount_startup_responses(&mut self) {
         self.mount_sequencer_config_responses().await;
         self.mount_wait_for_mempool_response().await;
@@ -316,7 +321,7 @@ impl TestBridgeWithdrawerConfig {
     }
 
     #[must_use]
-    pub fn erc20_sequencer_unlock_config() -> Self {
+    pub fn erc20_sequencer_withdraw_config() -> Self {
         Self {
             ethereum_config: TestEthereumConfig::AstriaBridgeableERC20(
                 AstriaBridgeableERC20DeployerConfig {
@@ -353,15 +358,41 @@ impl Default for TestBridgeWithdrawerConfig {
     }
 }
 
-pub fn compare_actions(expected: &Action, actual: &Action) {
+pub fn compare_actions(expected: Action, actual: Action) {
     match (expected, actual) {
         (Action::BridgeUnlock(expected), Action::BridgeUnlock(actual)) => {
             assert_eq!(expected, actual, "BridgeUnlock actions do not match");
         }
         (Action::Ics20Withdrawal(expected), Action::Ics20Withdrawal(actual)) => {
-            assert_eq!(expected, actual, "Ics20Withdrawal actions do not match");
+            assert_eq!(
+                TestIcs20Withdrawal(expected),
+                TestIcs20Withdrawal(actual),
+                "Ics20Withdrawal actions do not match"
+            );
         }
         _ => panic!("Actions do not match"),
+    }
+}
+
+/// A test wrapper around the `BridgeWithdrawer` for comparing the type without taking into account
+/// the timout timestamp (which is based on the current tendermint::Time::now() in the
+/// implementation)
+#[derive(Debug)]
+struct TestIcs20Withdrawal(Ics20Withdrawal);
+
+impl PartialEq for TestIcs20Withdrawal {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.timeout_height == other.0.timeout_height
+            && self.0.amount == other.0.amount
+            && self.0.denom == other.0.denom
+            && self.0.destination_chain_address == other.0.destination_chain_address
+            && self.0.return_address == other.0.return_address
+            && self.0.timeout_height == other.0.timeout_height
+            // ignore the timeout timestamp when comparing because it depends on the current time during runtime
+            && self.0.source_channel == other.0.source_channel
+            && self.0.fee_asset == other.0.fee_asset
+            && self.0.memo == other.0.memo
+            && self.0.bridge_address == other.0.bridge_address
     }
 }
 
@@ -384,7 +415,9 @@ pub fn make_bridge_unlock_action(receipt: &TransactionReceipt) -> Action {
 
 #[must_use]
 pub fn make_ics20_withdrawal_action(receipt: &TransactionReceipt) -> Action {
-    let denom = DEFAULT_IBC_DENOM.parse::<Denom>().unwrap();
+    let timeout_height = IbcHeight::new(u64::MAX, u64::MAX).unwrap();
+    let timeout_time = make_ibc_timeout_time();
+    let denom = default_ibc_asset();
     let inner = Ics20Withdrawal {
         denom: denom.clone(),
         destination_chain_address: default_sequencer_address().to_string(),
@@ -398,8 +431,8 @@ pub fn make_ics20_withdrawal_action(receipt: &TransactionReceipt) -> Action {
         })
         .unwrap(),
         fee_asset: denom,
-        timeout_height: IbcHeight::new(u64::MAX, u64::MAX).unwrap(),
-        timeout_time: 0, // zero this for testing
+        timeout_height,
+        timeout_time,
         source_channel: "channel-0".parse().unwrap(),
         bridge_address: None,
     };
@@ -408,8 +441,26 @@ pub fn make_ics20_withdrawal_action(receipt: &TransactionReceipt) -> Action {
 }
 
 #[must_use]
+fn make_ibc_timeout_time() -> u64 {
+    // this is copied from `bridge_withdrawer::ethereum::convert`
+    const ICS20_WITHDRAWAL_TIMEOUT: Duration = Duration::from_secs(300);
+
+    tendermint::Time::now()
+        .checked_add(ICS20_WITHDRAWAL_TIMEOUT)
+        .unwrap()
+        .unix_timestamp_nanos()
+        .try_into()
+        .unwrap()
+}
+
+#[must_use]
 pub fn default_native_asset() -> asset::Denom {
     "nria".parse().unwrap()
+}
+
+#[must_use]
+pub fn default_ibc_asset() -> asset::Denom {
+    DEFAULT_IBC_DENOM.parse::<Denom>().unwrap()
 }
 
 #[must_use]

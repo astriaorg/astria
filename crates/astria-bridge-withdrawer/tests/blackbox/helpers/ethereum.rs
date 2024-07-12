@@ -23,7 +23,10 @@ use ethers::{
     signers::Signer,
     utils::AnvilInstance,
 };
-use tracing::debug;
+use tracing::{
+    debug,
+    error,
+};
 
 use super::{
     default_native_asset,
@@ -43,6 +46,10 @@ pub struct TestEthereum {
 }
 
 impl TestEthereum {
+    pub fn wallet_addr(&self) -> ethers::types::Address {
+        self.wallet.address()
+    }
+
     pub fn contract_address(&self) -> String {
         hex::encode(self.contract_address)
     }
@@ -111,7 +118,7 @@ impl TestEthereum {
         receipt
     }
 
-    async fn mint_tokens(
+    pub async fn mint_tokens(
         &self,
         amount: U256,
         recipient: ethers::types::Address,
@@ -138,10 +145,10 @@ impl TestEthereum {
         receipt
     }
 
-    async fn send_sequencer_withdraw_transaction_erc20(
+    pub async fn send_sequencer_withdraw_transaction_erc20(
         &self,
         value: U256,
-        recipient: Address,
+        recipient: AstriaAddress,
     ) -> TransactionReceipt {
         let signer = Arc::new(SignerMiddleware::new(
             self.provider.clone(),
@@ -151,6 +158,7 @@ impl TestEthereum {
         let tx = contract
             .withdraw_to_sequencer(recipient.to_string())
             .value(value);
+
         let receipt = tx
             .send()
             .await
@@ -167,7 +175,7 @@ impl TestEthereum {
         receipt
     }
 
-    async fn send_ics20_withdraw_transaction_astria_bridgeable_erc20(
+    pub async fn send_ics20_withdraw_transaction_astria_bridgeable_erc20(
         &self,
         value: U256,
         recipient: String,
@@ -412,6 +420,6 @@ pub(crate) async fn deploy_astria_bridgeable_erc20(
 }
 
 #[must_use]
-pub fn default_rollup_address() -> Address {
-    Address::from_slice(&[1u8; 20])
+pub fn default_rollup_address() -> ethers::types::Address {
+    Address::random()
 }
