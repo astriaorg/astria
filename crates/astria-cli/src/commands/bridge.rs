@@ -54,8 +54,11 @@ use ethers::{
     },
 };
 use futures::stream::BoxStream;
-use tokio::select;
-use tracing::warn;
+use tracing::{
+    error,
+    info,
+    warn,
+};
 
 #[derive(Args, Debug)]
 pub struct CollectWithdrawalEvents {
@@ -130,7 +133,7 @@ impl CollectWithdrawalEvents {
 
         let mut actions = Vec::new();
         loop {
-            select! {
+            tokio::select! {
                 biased;
 
                 _ = tokio::signal::ctrl_c() => {
@@ -150,11 +153,17 @@ impl CollectWithdrawalEvents {
                                 asset_withdrawal_divisor,
                                 sequencer_address_prefix: sequencer_address_prefix.clone(),
                              }.run().await),
-                        Some(Err(error)) => warn!(
-                            error = AsRef::<dyn std::error::Error>::as_ref(&error),
-                            "encountered an error getting block; skipping"
-                        ),
-                        None => bail!("block subscription ended"),
+                        Some(Err(error)) => {
+                            error!(
+                                error = AsRef::<dyn std::error::Error>::as_ref(&error),
+                                "encountered an error getting block; exiting stream",
+                            );
+                            break;
+                        },
+                        None => {
+                            info!("block subscription ended");
+                            break;
+                        }
                     }
                 }
             }
