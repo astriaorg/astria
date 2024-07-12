@@ -21,23 +21,3 @@ where
     let bytes = Base64Standard::deserialize(deserializer)?;
     T::try_from(bytes).map_err(|_| serde::de::Error::custom("invalid array length"))
 }
-
-pub(crate) mod address_string {
-    use serde::{
-        Deserialize as _,
-        Deserializer,
-        Serializer,
-    };
-
-    use crate::primitive::v1::Address;
-
-    pub(crate) fn serialize<S: Serializer>(address: &Address, ser: S) -> Result<S::Ok, S::Error> {
-        ser.collect_str(address)
-    }
-
-    pub(crate) fn deserialize<'de, D: Deserializer<'de>>(deser: D) -> Result<Address, D::Error> {
-        use serde::de::Error as _;
-        let s = std::borrow::Cow::<'_, str>::deserialize(deser)?;
-        s.trim().parse().map_err(D::Error::custom)
-    }
-}

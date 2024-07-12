@@ -141,7 +141,6 @@ fn event_to_ics20_withdrawal(
         memo: event.memo,
         block_number: block_number.as_u64(),
         rollup_return_address: event.sender.to_string(),
-        sequencer_bridge_address: bridge_address,
         transaction_hash: transaction_hash.into(),
     };
 
@@ -313,7 +312,6 @@ mod tests {
                 memo: "hello".to_string(),
                 block_number: 1u64,
                 rollup_return_address: ethers::types::Address::from([0u8; 20]).to_string(),
-                sequencer_bridge_address: bridge_address,
                 transaction_hash: [2u8; 32],
             })
             .unwrap(),

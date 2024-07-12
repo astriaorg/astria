@@ -1,5 +1,3 @@
-use crate::primitive::v1::Address;
-
 #[derive(Clone, Debug)]
 #[cfg_attr(
     feature = "serde",
@@ -32,8 +30,6 @@ pub struct Ics20WithdrawalFromRollupMemo {
     pub memo: String,
     pub block_number: u64,
     pub rollup_return_address: String,
-    #[cfg_attr(feature = "serde", serde(with = "crate::serde::address_string"))]
-    pub sequencer_bridge_address: Address,
     #[cfg_attr(
         feature = "serde",
         serde(
@@ -78,11 +74,6 @@ mod test {
             memo: "hello".to_string(),
             block_number: 1,
             rollup_return_address: "rollup-defined".to_string(),
-            sequencer_bridge_address: Address::builder()
-                .array([99; 20])
-                .prefix("astria")
-                .try_build()
-                .unwrap(),
             transaction_hash: [88; 32],
         };
 

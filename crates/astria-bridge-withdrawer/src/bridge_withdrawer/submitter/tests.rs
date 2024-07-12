@@ -191,7 +191,6 @@ fn make_ics20_withdrawal_action() -> Action {
             memo: "hello".to_string(),
             block_number: DEFAULT_LAST_ROLLUP_HEIGHT,
             rollup_return_address: ethers::types::Address::from([0u8; 20]).to_string(),
-            sequencer_bridge_address: crate::astria_address([0u8; 20]),
             transaction_hash: [2u8; 32],
         })
         .unwrap(),
