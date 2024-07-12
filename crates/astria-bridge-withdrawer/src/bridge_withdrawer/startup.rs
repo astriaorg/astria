@@ -170,22 +170,12 @@ impl Startup {
                 .await
                 .wrap_err("failed to get next rollup block height")?;
 
-            // send the startup info to the submitter
-            let info = Info {
-                chain_id: self.sequencer_chain_id.clone(),
-                fee_asset: self.expected_fee_asset.clone(),
-                starting_rollup_height,
-            };
-
-            state.set_startup_info(info);
-
-            // send the startup info to the submitter
+            // update the startup info in the global state for submitter and watcher to use
             let info = Info {
                 chain_id: self.sequencer_chain_id.clone(),
                 fee_asset: self.expected_fee_asset,
                 starting_rollup_height,
             };
-
             state.set_startup_info(info);
 
             Ok(())
