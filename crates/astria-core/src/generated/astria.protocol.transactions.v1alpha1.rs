@@ -188,12 +188,10 @@ pub struct Ics20Withdrawal {
     /// to interpret it.
     #[prost(string, tag = "3")]
     pub destination_chain_address: ::prost::alloc::string::String,
-    /// an Astria address to use to return funds from this withdrawal
-    /// in the case it fails.
-    #[prost(message, optional, tag = "4")]
-    pub return_address: ::core::option::Option<
-        super::super::super::primitive::v1::Address,
-    >,
+    /// the address on the rollup to return funds to shold this withdrawal fail.
+    /// ideally formatted as a human-readable string in the convention of the rollup.
+    #[prost(string, tag = "4")]
+    pub rollup_return_address: ::prost::alloc::string::String,
     /// the height (on Astria) at which this transfer expires.
     #[prost(message, optional, tag = "5")]
     pub timeout_height: ::core::option::Option<IbcHeight>,

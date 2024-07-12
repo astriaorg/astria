@@ -102,8 +102,6 @@ impl ActionHandler for action::Ics20Withdrawal {
     async fn check_stateless(&self) -> Result<()> {
         ensure!(self.timeout_time() != 0, "timeout time must be non-zero",);
 
-        crate::address::ensure_base_prefix(&self.return_address)
-            .context("return address has an unsupported prefix")?;
         self.bridge_address
             .as_ref()
             .map(crate::address::ensure_base_prefix)
@@ -251,7 +249,7 @@ mod tests {
             denom: denom.clone(),
             bridge_address: None,
             destination_chain_address: "test".to_string(),
-            return_address: from,
+            rollup_return_address: "rollup_defined".to_string(),
             timeout_height: Height::new(1, 1).unwrap(),
             timeout_time: 1,
             source_channel: "channel-0".to_string().parse().unwrap(),
@@ -285,7 +283,7 @@ mod tests {
             denom: denom.clone(),
             bridge_address: None,
             destination_chain_address: "test".to_string(),
-            return_address: bridge_address,
+            rollup_return_address: "rollup_defined".to_string(),
             timeout_height: Height::new(1, 1).unwrap(),
             timeout_time: 1,
             source_channel: "channel-0".to_string().parse().unwrap(),
@@ -322,7 +320,7 @@ mod tests {
             denom: denom.clone(),
             bridge_address: None,
             destination_chain_address: "test".to_string(),
-            return_address: bridge_address,
+            rollup_return_address: "rollup_defined".to_string(),
             timeout_height: Height::new(1, 1).unwrap(),
             timeout_time: 1,
             source_channel: "channel-0".to_string().parse().unwrap(),
@@ -360,7 +358,7 @@ mod tests {
             denom: denom.clone(),
             bridge_address: Some(bridge_address),
             destination_chain_address: "test".to_string(),
-            return_address: bridge_address,
+            rollup_return_address: "rollup_defined".to_string(),
             timeout_height: Height::new(1, 1).unwrap(),
             timeout_time: 1,
             source_channel: "channel-0".to_string().parse().unwrap(),
@@ -394,7 +392,7 @@ mod tests {
             denom: denom.clone(),
             bridge_address: Some(bridge_address),
             destination_chain_address: "test".to_string(),
-            return_address: bridge_address,
+            rollup_return_address: "rollup_defined".to_string(),
             timeout_height: Height::new(1, 1).unwrap(),
             timeout_time: 1,
             source_channel: "channel-0".to_string().parse().unwrap(),
@@ -427,7 +425,7 @@ mod tests {
             denom: denom.clone(),
             bridge_address: Some(not_bridge_address),
             destination_chain_address: "test".to_string(),
-            return_address: not_bridge_address,
+            rollup_return_address: "rollup_defined".to_string(),
             timeout_height: Height::new(1, 1).unwrap(),
             timeout_time: 1,
             source_channel: "channel-0".to_string().parse().unwrap(),

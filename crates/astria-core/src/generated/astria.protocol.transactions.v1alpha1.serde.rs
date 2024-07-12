@@ -1261,7 +1261,7 @@ impl serde::Serialize for Ics20Withdrawal {
         if !self.destination_chain_address.is_empty() {
             len += 1;
         }
-        if self.return_address.is_some() {
+        if !self.rollup_return_address.is_empty() {
             len += 1;
         }
         if self.timeout_height.is_some() {
@@ -1292,8 +1292,8 @@ impl serde::Serialize for Ics20Withdrawal {
         if !self.destination_chain_address.is_empty() {
             struct_ser.serialize_field("destinationChainAddress", &self.destination_chain_address)?;
         }
-        if let Some(v) = self.return_address.as_ref() {
-            struct_ser.serialize_field("returnAddress", v)?;
+        if !self.rollup_return_address.is_empty() {
+            struct_ser.serialize_field("rollupReturnAddress", &self.rollup_return_address)?;
         }
         if let Some(v) = self.timeout_height.as_ref() {
             struct_ser.serialize_field("timeoutHeight", v)?;
@@ -1328,8 +1328,8 @@ impl<'de> serde::Deserialize<'de> for Ics20Withdrawal {
             "denom",
             "destination_chain_address",
             "destinationChainAddress",
-            "return_address",
-            "returnAddress",
+            "rollup_return_address",
+            "rollupReturnAddress",
             "timeout_height",
             "timeoutHeight",
             "timeout_time",
@@ -1348,7 +1348,7 @@ impl<'de> serde::Deserialize<'de> for Ics20Withdrawal {
             Amount,
             Denom,
             DestinationChainAddress,
-            ReturnAddress,
+            RollupReturnAddress,
             TimeoutHeight,
             TimeoutTime,
             SourceChannel,
@@ -1379,7 +1379,7 @@ impl<'de> serde::Deserialize<'de> for Ics20Withdrawal {
                             "amount" => Ok(GeneratedField::Amount),
                             "denom" => Ok(GeneratedField::Denom),
                             "destinationChainAddress" | "destination_chain_address" => Ok(GeneratedField::DestinationChainAddress),
-                            "returnAddress" | "return_address" => Ok(GeneratedField::ReturnAddress),
+                            "rollupReturnAddress" | "rollup_return_address" => Ok(GeneratedField::RollupReturnAddress),
                             "timeoutHeight" | "timeout_height" => Ok(GeneratedField::TimeoutHeight),
                             "timeoutTime" | "timeout_time" => Ok(GeneratedField::TimeoutTime),
                             "sourceChannel" | "source_channel" => Ok(GeneratedField::SourceChannel),
@@ -1408,7 +1408,7 @@ impl<'de> serde::Deserialize<'de> for Ics20Withdrawal {
                 let mut amount__ = None;
                 let mut denom__ = None;
                 let mut destination_chain_address__ = None;
-                let mut return_address__ = None;
+                let mut rollup_return_address__ = None;
                 let mut timeout_height__ = None;
                 let mut timeout_time__ = None;
                 let mut source_channel__ = None;
@@ -1435,11 +1435,11 @@ impl<'de> serde::Deserialize<'de> for Ics20Withdrawal {
                             }
                             destination_chain_address__ = Some(map_.next_value()?);
                         }
-                        GeneratedField::ReturnAddress => {
-                            if return_address__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("returnAddress"));
+                        GeneratedField::RollupReturnAddress => {
+                            if rollup_return_address__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("rollupReturnAddress"));
                             }
-                            return_address__ = map_.next_value()?;
+                            rollup_return_address__ = Some(map_.next_value()?);
                         }
                         GeneratedField::TimeoutHeight => {
                             if timeout_height__.is_some() {
@@ -1485,7 +1485,7 @@ impl<'de> serde::Deserialize<'de> for Ics20Withdrawal {
                     amount: amount__,
                     denom: denom__.unwrap_or_default(),
                     destination_chain_address: destination_chain_address__.unwrap_or_default(),
-                    return_address: return_address__,
+                    rollup_return_address: rollup_return_address__.unwrap_or_default(),
                     timeout_height: timeout_height__,
                     timeout_time: timeout_time__.unwrap_or_default(),
                     source_channel: source_channel__.unwrap_or_default(),

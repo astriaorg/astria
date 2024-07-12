@@ -185,7 +185,7 @@ fn make_ics20_withdrawal_action() -> Action {
     let inner = Ics20Withdrawal {
         denom: denom.clone(),
         destination_chain_address,
-        return_address: crate::astria_address([0u8; 20]),
+        rollup_return_address: ethers::types::Address::from([0u8; 20]).to_string(),
         amount: 99,
         memo: serde_json::to_string(&Ics20WithdrawalFromRollupMemo {
             memo: "hello".to_string(),

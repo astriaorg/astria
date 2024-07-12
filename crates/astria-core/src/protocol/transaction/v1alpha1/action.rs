@@ -784,9 +784,9 @@ pub struct Ics20Withdrawal {
     pub denom: Denom,
     // the address on the destination chain to send the transfer to.
     pub destination_chain_address: String,
-    // an Astria address to use to return funds from this withdrawal
-    // in the case it fails.
-    pub return_address: Address,
+    // the address on the rollup to return funds to shold this withdrawal fail.
+    // ideally formatted as a human-readable string in the convention of the rollup.
+    pub rollup_return_address: String,
     // the height (on Astria) at which this transfer expires.
     pub timeout_height: IbcHeight,
     // the unix timestamp (in nanoseconds) at which this transfer expires.
@@ -826,8 +826,8 @@ impl Ics20Withdrawal {
     }
 
     #[must_use]
-    pub fn return_address(&self) -> &Address {
-        &self.return_address
+    pub fn return_address(&self) -> &str {
+        &self.rollup_return_address
     }
 
     #[must_use]
@@ -860,7 +860,7 @@ impl Ics20Withdrawal {
         FungibleTokenPacketData {
             amount: self.amount.to_string(),
             denom: self.denom.to_string(),
-            sender: self.return_address.to_string(),
+            sender: self.rollup_return_address.to_string(),
             receiver: self.destination_chain_address.clone(),
             memo: self.memo.clone(),
         }
@@ -872,7 +872,7 @@ impl Ics20Withdrawal {
             amount: Some(self.amount.into()),
             denom: self.denom.to_string(),
             destination_chain_address: self.destination_chain_address.clone(),
-            return_address: Some(self.return_address.into_raw()),
+            rollup_return_address: self.rollup_return_address.clone(),
             timeout_height: Some(self.timeout_height.into_raw()),
             timeout_time: self.timeout_time,
             source_channel: self.source_channel.to_string(),
@@ -888,7 +888,7 @@ impl Ics20Withdrawal {
             amount: Some(self.amount.into()),
             denom: self.denom.to_string(),
             destination_chain_address: self.destination_chain_address,
-            return_address: Some(self.return_address.into_raw()),
+            rollup_return_address: self.rollup_return_address,
             timeout_height: Some(self.timeout_height.into_raw()),
             timeout_time: self.timeout_time,
             source_channel: self.source_channel.to_string(),
@@ -904,7 +904,6 @@ impl Ics20Withdrawal {
     ///
     /// - if the `amount` field is missing
     /// - if the `denom` field is invalid
-    /// - if the `return_address` field is invalid or missing
     /// - if the `timeout_height` field is missing
     /// - if the `source_channel` field is invalid
     pub fn try_from_raw(proto: raw::Ics20Withdrawal) -> Result<Self, Ics20WithdrawalError> {
@@ -912,7 +911,7 @@ impl Ics20Withdrawal {
             amount,
             denom,
             destination_chain_address,
-            return_address,
+            rollup_return_address,
             timeout_height,
             timeout_time,
             source_channel,
@@ -921,10 +920,6 @@ impl Ics20Withdrawal {
             bridge_address,
         } = proto;
         let amount = amount.ok_or(Ics20WithdrawalError::field_not_set("amount"))?;
-        let return_address = Address::try_from_raw(
-            &return_address.ok_or(Ics20WithdrawalError::field_not_set("return_address"))?,
-        )
-        .map_err(Ics20WithdrawalError::return_address)?;
 
         let timeout_height = timeout_height
             .ok_or(Ics20WithdrawalError::field_not_set("timeout_height"))?
@@ -939,7 +934,7 @@ impl Ics20Withdrawal {
             amount: amount.into(),
             denom: denom.parse().map_err(Ics20WithdrawalError::invalid_denom)?,
             destination_chain_address,
-            return_address,
+            rollup_return_address,
             timeout_height,
             timeout_time,
             source_channel: source_channel
@@ -995,13 +990,6 @@ impl Ics20WithdrawalError {
     }
 
     #[must_use]
-    fn return_address(source: AddressError) -> Self {
-        Self(Ics20WithdrawalErrorKind::ReturnAddress {
-            source,
-        })
-    }
-
-    #[must_use]
     fn invalid_source_channel(err: IdentifierError) -> Self {
         Self(Ics20WithdrawalErrorKind::InvalidSourceChannel(err))
     }
@@ -1027,8 +1015,6 @@ impl Ics20WithdrawalError {
 enum Ics20WithdrawalErrorKind {
     #[error("expected field `{field}` was not set`")]
     FieldNotSet { field: &'static str },
-    #[error("`return_address` field was invalid")]
-    ReturnAddress { source: AddressError },
     #[error("`source_channel` field was invalid")]
     InvalidSourceChannel(#[source] IdentifierError),
     #[error("field `fee_asset` could not be parsed")]
