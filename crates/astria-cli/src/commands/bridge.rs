@@ -418,7 +418,7 @@ impl LogToIcs20WithdrawalAction {
             timeout_time: packet_timeout_time()
                 .wrap_err("failed to calculate packet timeout time")?,
             source_channel,
-            bridge_address: None,
+            bridge_address: Some(bridge_address),
         };
         Ok(Action::Ics20Withdrawal(action))
     }
@@ -459,7 +459,7 @@ impl LogToSequencerWithdrawalAction {
                 .ok_or_eyre("failed to divide amount by asset withdrawal multiplier")?,
             memo: serde_json::to_string(&memo).wrap_err("failed to serialize memo to json")?,
             fee_asset,
-            bridge_address: None,
+            bridge_address: Some(bridge_address),
         };
 
         Ok(Action::BridgeUnlock(action))
