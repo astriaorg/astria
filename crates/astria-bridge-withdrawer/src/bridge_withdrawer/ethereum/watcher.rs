@@ -352,7 +352,7 @@ async fn watch_for_blocks(
 
     debug!(
         current_rollup_block_height = current_rollup_block_height.as_u64(),
-        "got current rollup block"
+        "got current rollup block height"
     );
 
     // sync any blocks missing between `next_rollup_block_height` and the current latest
@@ -412,7 +412,7 @@ async fn get_and_send_events_at_block(
         get_sequencer_withdrawal_events(provider.clone(), contract_address, block_hash)
             .await
             .wrap_err("failed to get sequencer withdrawal events")?;
-    if !sequencer_withdrawal_events.is_empty() {
+    if block_number.as_u64() % 100 == 0 && !sequencer_withdrawal_events.is_empty() {
         debug!(
             block.number = %block_number,
             block.hash = %block_hash,
@@ -425,7 +425,7 @@ async fn get_and_send_events_at_block(
         get_ics20_withdrawal_events(provider.clone(), contract_address, block_hash)
             .await
             .wrap_err("failed to get ics20 withdrawal events")?;
-    if !ics20_withdrawal_events.is_empty() {
+    if block_number.as_u64() % 100 == 0 && !ics20_withdrawal_events.is_empty() {
         debug!(
             block.number = %block_number,
             block.hash = %block_hash,
@@ -466,10 +466,12 @@ async fn get_and_send_events_at_block(
             .send_batch(batch)
             .await
             .wrap_err("failed to send batched events; receiver dropped?")?;
-        debug!(
-            "sent batch with {} actions at block {block_number}",
-            actions_len
-        );
+        if block_number.as_u64() % 100 == 0 {
+            debug!(
+                "sent batch with {} actions at block {block_number}",
+                actions_len
+            );
+        }
     }
 
     Ok(())

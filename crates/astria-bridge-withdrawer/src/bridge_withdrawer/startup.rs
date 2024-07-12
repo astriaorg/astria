@@ -202,7 +202,7 @@ impl Startup {
     /// - `self.chain_id` does not match the value returned from the sequencer node
     /// - `self.fee_asset` is not a valid fee asset on the sequencer node
     /// - `self.sequencer_bridge_address` does not have a sufficient balance of `self.fee_asset`.
-    async fn confirm_sequencer_config(&mut self) -> eyre::Result<()> {
+    async fn confirm_sequencer_config(&self) -> eyre::Result<()> {
         // confirm the sequencer chain id
         let actual_chain_id =
             get_sequencer_chain_id(self.sequencer_cometbft_client.clone(), self.state.clone())
