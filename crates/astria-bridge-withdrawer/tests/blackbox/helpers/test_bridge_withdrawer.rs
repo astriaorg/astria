@@ -32,7 +32,10 @@ use astria_core::{
 };
 use ethers::types::TransactionReceipt;
 use futures::Future;
-use ibc_types::core::client::Height as IbcHeight;
+use ibc_types::core::{
+    channel::ChannelId,
+    client::Height as IbcHeight,
+};
 use once_cell::sync::Lazy;
 use sequencer_client::{
     Address,
@@ -65,7 +68,6 @@ use crate::helpers::ethereum::{
     TestEthereumConfig,
 };
 
-const DEFAULT_LAST_ROLLUP_HEIGHT: u64 = 1;
 pub(crate) const DEFAULT_IBC_DENOM: &str = "transfer/channel-0/utia";
 pub(crate) const SEQUENCER_CHAIN_ID: &str = "test-sequencer";
 const ASTRIA_ADDRESS_PREFIX: &str = "astria";
@@ -365,8 +367,8 @@ pub fn compare_actions(expected: Action, actual: Action) {
         }
         (Action::Ics20Withdrawal(expected), Action::Ics20Withdrawal(actual)) => {
             assert_eq!(
-                TestIcs20Withdrawal(expected),
-                TestIcs20Withdrawal(actual),
+                TestIcs20Withdrawal::from(expected),
+                TestIcs20Withdrawal::from(actual),
                 "Ics20Withdrawal actions do not match"
             );
         }
@@ -375,24 +377,46 @@ pub fn compare_actions(expected: Action, actual: Action) {
 }
 
 /// A test wrapper around the `BridgeWithdrawer` for comparing the type without taking into account
-/// the timout timestamp (which is based on the current tendermint::Time::now() in the
+/// the timout timestamp (which is based on the current `tendermint::Time::now()` in the
 /// implementation)
-#[derive(Debug)]
-struct TestIcs20Withdrawal(Ics20Withdrawal);
+#[derive(Debug, PartialEq)]
+struct TestIcs20Withdrawal {
+    amount: u128,
+    denom: Denom,
+    destination_chain_address: String,
+    return_address: Address,
+    timeout_height: IbcHeight,
+    source_channel: ChannelId,
+    fee_asset: asset::Denom,
+    memo: String,
+    bridge_address: Option<Address>,
+}
 
-impl PartialEq for TestIcs20Withdrawal {
-    fn eq(&self, other: &Self) -> bool {
-        self.0.timeout_height == other.0.timeout_height
-            && self.0.amount == other.0.amount
-            && self.0.denom == other.0.denom
-            && self.0.destination_chain_address == other.0.destination_chain_address
-            && self.0.return_address == other.0.return_address
-            && self.0.timeout_height == other.0.timeout_height
-            // ignore the timeout timestamp when comparing because it depends on the current time during runtime
-            && self.0.source_channel == other.0.source_channel
-            && self.0.fee_asset == other.0.fee_asset
-            && self.0.memo == other.0.memo
-            && self.0.bridge_address == other.0.bridge_address
+impl From<Ics20Withdrawal> for TestIcs20Withdrawal {
+    fn from(value: Ics20Withdrawal) -> Self {
+        let Ics20Withdrawal {
+            amount,
+            denom,
+            destination_chain_address,
+            return_address,
+            timeout_height,
+            timeout_time: _timeout_time,
+            source_channel,
+            fee_asset,
+            memo,
+            bridge_address,
+        } = value;
+        Self {
+            amount,
+            denom,
+            destination_chain_address,
+            return_address,
+            timeout_height,
+            source_channel,
+            fee_asset,
+            memo,
+            bridge_address,
+        }
     }
 }
 

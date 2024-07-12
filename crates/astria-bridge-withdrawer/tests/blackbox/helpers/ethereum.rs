@@ -23,10 +23,7 @@ use ethers::{
     signers::Signer,
     utils::AnvilInstance,
 };
-use tracing::{
-    debug,
-    error,
-};
+use tracing::debug;
 
 use super::{
     default_native_asset,
