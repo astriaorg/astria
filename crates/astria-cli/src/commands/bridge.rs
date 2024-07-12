@@ -53,25 +53,43 @@ use ethers::{
         H256,
     },
 };
+use futures::stream::BoxStream;
 use tokio::select;
 use tracing::warn;
 
 #[derive(Args, Debug)]
 pub struct CollectWithdrawalEvents {
+    /// The websocket endpoint of a geth compatible rollup.
     #[arg(long)]
     rollup_endpoint: String,
+    /// The eth address of the astria bridge contracts.
     #[arg(long)]
     contract_address: ethers::types::Address,
+    /// The start rollup height from which blocks will be checked for withdrawal events.
     #[arg(long)]
-    next_rollup_block_height: u64,
+    from_rollup_height: u64,
+    /// The end rollup height from which blocks will be checked for withdrawal events.
+    /// If not set, then this tool will stream blocks until SIGINT is received.
+    #[arg(long)]
+    to_rollup_height: Option<u64>,
+    /// The asset that will be used to pay the Sequencer fees (should the generated
+    /// actions be submitted to the Sequencer).
     #[arg(long, default_value = "nria")]
     fee_asset: asset::Denom,
+    /// The asset denomination of the asset that's withdrawn from the bridge.
     #[arg(long)]
     rollup_asset_denom: asset::Denom,
+    /// The bech32-encoded bridge address corresponding to the bridged rollup
+    ///  asset on the sequencer. Should match the bridge address in the geth
+    /// rollup's bridge configuration for that asset.
     #[arg(long)]
     bridge_address: Address,
+    /// The address prefix which will be used to construct the
+    /// return address should the withdrawal fail.
     #[arg(long, default_value = "astria")]
     sequencer_address_prefix: String,
+    /// The path to write the collected withdrawal events converted
+    /// to Sequencer actions.
     #[arg(long, short)]
     output: PathBuf,
 }
@@ -81,7 +99,8 @@ impl CollectWithdrawalEvents {
         let Self {
             rollup_endpoint,
             contract_address,
-            next_rollup_block_height,
+            from_rollup_height,
+            to_rollup_height,
             fee_asset,
             rollup_asset_denom,
             bridge_address,
@@ -104,41 +123,10 @@ impl CollectWithdrawalEvents {
                 .await
                 .wrap_err("failed determining asset withdrawal divisor")?;
 
-        let mut block_subscription = block_provider
-            .subscribe_blocks()
-            .await
-            .wrap_err("failed to subscribe to blocks from rollup")?
-            .boxed();
-
-        let Some(current_rollup_block) = block_subscription.next().await else {
-            bail!("failed to get current rollup block from subscription")
-        };
-
-        let Some(current_rollup_block_height) = current_rollup_block.number else {
-            bail!(
-                "couldn't determine current rollup block height; value was not set on current on \
-                 most recent block",
-            );
-        };
-
-        let incoming_blocks =
-            futures::stream::iter(next_rollup_block_height..current_rollup_block_height.as_u64())
-                .then(|height| {
-                    let block_provider = block_provider.clone();
-                    async move {
-                        block_provider
-                            .get_block(height)
-                            .await
-                            .wrap_err("failed to get block")?
-                            .ok_or_else(|| eyre!("block with number {height} missing"))
-                    }
-                })
-                .chain(futures::stream::once(
-                    async move { Ok(current_rollup_block) },
-                ))
-                .chain(block_subscription.map(Ok));
-
-        tokio::pin!(incoming_blocks);
+        let mut incoming_blocks =
+            create_stream_of_blocks(&block_provider, from_rollup_height, to_rollup_height)
+                .await
+                .wrap_err("failed initializing stream of rollup blocks")?;
 
         let mut actions = Vec::new();
         loop {
@@ -179,6 +167,58 @@ impl CollectWithdrawalEvents {
 fn write_collected_actions(output_file: std::fs::File, actions: &[Action]) -> eyre::Result<()> {
     let writer = std::io::BufWriter::new(output_file);
     serde_json::to_writer(writer, actions).wrap_err("failed writing actions to file")
+}
+
+/// Constructs a block stream from `start` until `maybe_end`, if `Some`.
+/// Constructs an open ended stream from `start` if `None`.
+async fn create_stream_of_blocks(
+    block_provider: &Provider<Ws>,
+    start: u64,
+    maybe_end: Option<u64>,
+) -> eyre::Result<BoxStream<'_, eyre::Result<Block<H256>>>> {
+    let subscription = if let Some(end) = maybe_end {
+        futures::stream::iter(start..=end)
+            .then(move |height| async move {
+                block_provider
+                    .get_block(height)
+                    .await
+                    .wrap_err("failed to get block")?
+                    .ok_or_else(|| eyre!("block with number {height} missing"))
+            })
+            .boxed()
+    } else {
+        let mut block_subscription = block_provider
+            .subscribe_blocks()
+            .await
+            .wrap_err("failed to subscribe to blocks from rollup")?
+            .boxed();
+
+        let Some(current_rollup_block) = block_subscription.next().await else {
+            bail!("failed to get current rollup block from subscription")
+        };
+
+        let Some(current_rollup_block_height) = current_rollup_block.number else {
+            bail!(
+                "couldn't determine current rollup block height; value was not set on current on \
+                 most recent block",
+            );
+        };
+
+        futures::stream::iter(start..current_rollup_block_height.as_u64())
+            .then(move |height| async move {
+                block_provider
+                    .get_block(height)
+                    .await
+                    .wrap_err("failed to get block")?
+                    .ok_or_else(|| eyre!("block with number {height} missing"))
+            })
+            .chain(futures::stream::once(
+                async move { Ok(current_rollup_block) },
+            ))
+            .chain(block_subscription.map(Ok))
+            .boxed()
+    };
+    Ok(subscription)
 }
 
 async fn connect_to_rollup(rollup_endpoint: &str) -> eyre::Result<Arc<Provider<Ws>>> {
