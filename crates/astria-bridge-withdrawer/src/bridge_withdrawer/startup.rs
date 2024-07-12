@@ -1,9 +1,6 @@
 use std::{
     sync::Arc,
-    time::{
-        Duration,
-        Instant,
-    },
+    time::Duration,
 };
 
 use astria_core::{
@@ -29,7 +26,6 @@ use astria_eyre::eyre::{
     OptionExt as _,
     WrapErr as _,
 };
-use futures::FutureExt;
 use prost::{
     Message as _,
     Name as _,
@@ -62,7 +58,6 @@ use super::state::{
     self,
     State,
 };
-use crate::metrics::Metrics;
 
 pub(super) struct Builder {
     pub(super) shutdown_token: CancellationToken,
@@ -91,11 +86,11 @@ impl Builder {
                 .wrap_err("failed constructing cometbft http client")?;
 
         Ok(Startup {
-            sequencer_grpc_endpoint,
             shutdown_token,
             state,
             sequencer_chain_id,
             sequencer_cometbft_client,
+            sequencer_grpc_endpoint,
             sequencer_bridge_address,
             expected_fee_asset,
         })
@@ -557,7 +552,6 @@ async fn get_latest_nonce(
 ) -> eyre::Result<u32> {
     debug!("fetching latest nonce from sequencer");
     let span = Span::current();
-    let start = Instant::now();
     let retry_config = tryhard::RetryFutureConfig::new(1024)
         .exponential_backoff(Duration::from_millis(200))
         .max_delay(Duration::from_secs(60))
