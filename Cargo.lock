@@ -539,17 +539,26 @@ dependencies = [
 name = "astria-cli"
 version = "0.3.1"
 dependencies = [
+ "astria-bridge-contracts",
  "astria-core",
  "astria-sequencer-client",
  "clap",
  "color-eyre",
+ "ethers",
+ "futures",
  "hex",
+ "humantime",
+ "ibc-types",
  "rand 0.8.5",
  "serde",
+ "serde_json",
  "serde_yaml",
  "sha2 0.10.8",
+ "tendermint",
  "tokio",
  "tracing",
+ "tracing-subscriber 0.3.18",
+ "tryhard",
  "which",
 ]
 
