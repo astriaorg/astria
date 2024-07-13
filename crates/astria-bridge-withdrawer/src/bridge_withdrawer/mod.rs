@@ -124,7 +124,6 @@ impl BridgeWithdrawer {
                 .wrap_err("failed to parse ROLLUP_ASSET_DENOMINATION as Denom")?,
             bridge_address: sequencer_bridge_address,
             submitter_handle,
-            sequencer_address_prefix: sequencer_address_prefix.clone(),
         }
         .build()
         .wrap_err("failed to build ethereum watcher")?;
@@ -410,8 +409,6 @@ pub(crate) fn flatten_result<T>(res: Result<eyre::Result<T>, JoinError>) -> eyre
 }
 
 #[cfg(test)]
-pub(crate) const ASTRIA_ADDRESS_PREFIX: &str = "astria";
-
 /// Constructs an [`Address`] prefixed by `"astria"`.
 #[cfg(test)]
 pub(crate) fn astria_address(
@@ -419,7 +416,7 @@ pub(crate) fn astria_address(
 ) -> astria_core::primitive::v1::Address {
     astria_core::primitive::v1::Address::builder()
         .array(array)
-        .prefix(ASTRIA_ADDRESS_PREFIX)
+        .prefix("astria")
         .try_build()
         .unwrap()
 }

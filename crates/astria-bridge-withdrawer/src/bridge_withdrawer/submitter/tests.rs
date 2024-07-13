@@ -189,8 +189,8 @@ fn make_ics20_withdrawal_action() -> Action {
         amount: 99,
         memo: serde_json::to_string(&Ics20WithdrawalFromRollupMemo {
             memo: "hello".to_string(),
-            bridge_address: crate::astria_address([0u8; 20]),
             block_number: DEFAULT_LAST_ROLLUP_HEIGHT,
+            rollup_return_address: ethers::types::Address::from([0u8; 20]).to_string(),
             transaction_hash: [2u8; 32],
         })
         .unwrap(),
