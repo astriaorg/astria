@@ -87,10 +87,6 @@ pub struct CollectWithdrawalEvents {
     /// rollup's bridge configuration for that asset.
     #[arg(long)]
     bridge_address: Address,
-    /// The address prefix which will be used to construct the
-    /// return address should the withdrawal fail.
-    #[arg(long, default_value = "astria")]
-    sequencer_address_prefix: String,
     /// The path to write the collected withdrawal events converted
     /// to Sequencer actions.
     #[arg(long, short)]
@@ -107,7 +103,6 @@ impl CollectWithdrawalEvents {
             fee_asset,
             rollup_asset_denom,
             bridge_address,
-            sequencer_address_prefix,
             output,
         } = self;
 
@@ -151,7 +146,6 @@ impl CollectWithdrawalEvents {
                                 rollup_asset_denom: rollup_asset_denom.clone(),
                                 bridge_address,
                                 asset_withdrawal_divisor,
-                                sequencer_address_prefix: sequencer_address_prefix.clone(),
                              }.run().await),
                         Some(Err(error)) => {
                             error!(
@@ -292,7 +286,6 @@ struct BlockToActions {
     rollup_asset_denom: asset::Denom,
     bridge_address: Address,
     asset_withdrawal_divisor: u128,
-    sequencer_address_prefix: String,
 }
 
 impl BlockToActions {
@@ -366,7 +359,6 @@ impl BlockToActions {
             rollup_asset_denom: self.rollup_asset_denom.clone(),
             asset_withdrawal_divisor: self.asset_withdrawal_divisor,
             bridge_address: self.bridge_address,
-            sequencer_address_prefix: self.sequencer_address_prefix.clone(),
         }
         .try_convert()
         .wrap_err("failed converting log to ics20 withdrawal action")
@@ -406,7 +398,6 @@ struct LogToIcs20WithdrawalAction {
     rollup_asset_denom: asset::Denom,
     asset_withdrawal_divisor: u128,
     bridge_address: Address,
-    sequencer_address_prefix: String,
 }
 
 impl LogToIcs20WithdrawalAction {
@@ -417,14 +408,11 @@ impl LogToIcs20WithdrawalAction {
             rollup_asset_denom,
             asset_withdrawal_divisor,
             bridge_address,
-            sequencer_address_prefix,
         } = self;
 
         let (event, block_number, transaction_hash) =
             action_inputs_from_log::<Ics20WithdrawalFilter>(log)
                 .wrap_err("failed getting required data from log")?;
-
-        let sender = event.sender.to_fixed_bytes();
 
         let source_channel = rollup_asset_denom
             .as_trace_prefixed()
@@ -435,8 +423,8 @@ impl LogToIcs20WithdrawalAction {
 
         let memo = Ics20WithdrawalFromRollupMemo {
             memo: event.memo,
-            bridge_address,
             block_number,
+            rollup_return_address: event.sender.to_string(),
             transaction_hash,
         };
 
@@ -447,11 +435,7 @@ impl LogToIcs20WithdrawalAction {
             // returned to the rollup.
             // this is only ok for now because addresses on the sequencer and the rollup are both 20
             // bytes, but this won't work otherwise.
-            return_address: Address::builder()
-                .array(sender)
-                .prefix(sequencer_address_prefix)
-                .try_build()
-                .wrap_err("failed to construct return address")?,
+            return_address: bridge_address,
             amount: event
                 .amount
                 .as_u128()
