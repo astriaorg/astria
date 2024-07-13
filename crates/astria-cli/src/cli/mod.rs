@@ -1,3 +1,4 @@
+pub(crate) mod bridge;
 pub(crate) mod sequencer;
 
 use clap::{
@@ -16,7 +17,7 @@ const DEFAULT_SEQUENCER_CHAIN_ID: &str = "astria-dusk-7";
 #[command(name = "astria-cli", version)]
 pub struct Cli {
     #[command(subcommand)]
-    pub command: Option<Command>,
+    pub(crate) command: Option<Command>,
 }
 
 impl Cli {
@@ -33,7 +34,11 @@ impl Cli {
 
 /// Commands that can be run
 #[derive(Debug, Subcommand)]
-pub enum Command {
+pub(crate) enum Command {
+    Bridge {
+        #[command(subcommand)]
+        command: bridge::Command,
+    },
     Sequencer {
         #[command(subcommand)]
         command: SequencerCommand,
