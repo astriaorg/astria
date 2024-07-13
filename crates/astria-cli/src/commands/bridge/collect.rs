@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeMap,
     path::PathBuf,
     sync::Arc,
     time::Duration,
@@ -33,6 +34,7 @@ use clap::Args;
 use color_eyre::eyre::{
     self,
     bail,
+    ensure,
     eyre,
     OptionExt as _,
     WrapErr as _,
@@ -61,7 +63,7 @@ use tracing::{
 };
 
 #[derive(Args, Debug)]
-pub struct CollectWithdrawalEvents {
+pub(crate) struct WithdrawalEvents {
     /// The websocket endpoint of a geth compatible rollup.
     #[arg(long)]
     rollup_endpoint: String,
@@ -93,7 +95,7 @@ pub struct CollectWithdrawalEvents {
     output: PathBuf,
 }
 
-impl CollectWithdrawalEvents {
+impl WithdrawalEvents {
     pub(crate) async fn run(self) -> eyre::Result<()> {
         let Self {
             rollup_endpoint,
@@ -126,7 +128,7 @@ impl CollectWithdrawalEvents {
                 .await
                 .wrap_err("failed initializing stream of rollup blocks")?;
 
-        let mut actions = Vec::new();
+        let mut actions_by_rollup_height = ActionsByRollupHeight::new();
         loop {
             tokio::select! {
                 biased;
@@ -138,7 +140,7 @@ impl CollectWithdrawalEvents {
                 block = incoming_blocks.next() => {
                     match block {
                         Some(Ok(block)) =>
-                            actions.append(&mut BlockToActions {
+                            if let Err(err) = actions_by_rollup_height.convert_and_insert(BlockToActions {
                                 block_provider: block_provider.clone(),
                                 contract_address,
                                 block,
@@ -146,7 +148,12 @@ impl CollectWithdrawalEvents {
                                 rollup_asset_denom: rollup_asset_denom.clone(),
                                 bridge_address,
                                 asset_withdrawal_divisor,
-                             }.run().await),
+                             }).await {
+                                 error!(
+                                     err = AsRef::<dyn std::error::Error>::as_ref(&err),
+                                     "failed converting contract block to Sequencer actions and storing them; exiting stream");
+                                 break;
+                             }
                         Some(Err(error)) => {
                             error!(
                                 error = AsRef::<dyn std::error::Error>::as_ref(&error),
@@ -163,13 +170,44 @@ impl CollectWithdrawalEvents {
             }
         }
 
-        write_collected_actions(output_file, &actions).wrap_err("failed to write actions to file")
+        actions_by_rollup_height
+            .write_to_file(output_file)
+            .wrap_err("failed to write actions to file")
     }
 }
 
-fn write_collected_actions(output_file: std::fs::File, actions: &[Action]) -> eyre::Result<()> {
-    let writer = std::io::BufWriter::new(output_file);
-    serde_json::to_writer(writer, actions).wrap_err("failed writing actions to file")
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+#[serde(transparent)]
+pub(crate) struct ActionsByRollupHeight(BTreeMap<u64, Vec<Action>>);
+
+impl ActionsByRollupHeight {
+    fn new() -> Self {
+        Self(BTreeMap::new())
+    }
+
+    pub(crate) fn into_inner(self) -> BTreeMap<u64, Vec<Action>> {
+        self.0
+    }
+
+    async fn convert_and_insert(&mut self, block_to_actions: BlockToActions) -> eyre::Result<()> {
+        let rollup_height = block_to_actions
+            .block
+            .number
+            .ok_or_eyre("block was missing a number")?
+            .as_u64();
+        let actions = block_to_actions.run().await;
+        ensure!(
+            self.0.insert(rollup_height, actions).is_none(),
+            "already collected actions for block at rollup height `{rollup_height}`; no 2 blocks \
+             with the same height should have been seen",
+        );
+        Ok(())
+    }
+
+    fn write_to_file(self, file: std::fs::File) -> eyre::Result<()> {
+        let writer = std::io::BufWriter::new(file);
+        serde_json::to_writer(writer, &self.0).wrap_err("failed writing actions to file")
+    }
 }
 
 /// Constructs a block stream from `start` until `maybe_end`, if `Some`.
