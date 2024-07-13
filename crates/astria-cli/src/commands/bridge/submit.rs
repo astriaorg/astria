@@ -23,7 +23,11 @@ use color_eyre::eyre::{
     ensure,
     WrapErr as _,
 };
-use tracing::info;
+use tracing::{
+    error,
+    info,
+    warn,
+};
 
 #[derive(Args, Debug)]
 pub(crate) struct WithdrawalEvents {
@@ -56,7 +60,14 @@ impl WithdrawalEvents {
             .wrap_err("failed constructing http sequencer client")?;
 
         for (rollup_height, actions) in actions_by_rollup_number.into_inner() {
-            let response = submit_transaction(
+            if actions.is_empty() {
+                warn!(
+                    rollup_height,
+                    "entry for rollup height exists, but actions were empty; skipping"
+                );
+                continue;
+            }
+            match submit_transaction(
                 sequencer_client.clone(),
                 &self.sequencer_chain_id,
                 &self.sequencer_address_prefix,
@@ -64,14 +75,22 @@ impl WithdrawalEvents {
                 actions,
             )
             .await
-            .wrap_err_with(move || {
-                "failed withdrawal actions for rollup height `{rollup_height}`"
-            })?;
-            info!(
-                sequencer_height = %response.height,
-                rollup_height,
-                "actions derived from rollup succesfully submitted to sequencer"
-            );
+            .wrap_err_with(|| {
+                format!("submitting withdrawal actions for rollup height `{rollup_height}` failed")
+            }) {
+                Err(e) => {
+                    error!(
+                        rollup_height,
+                        "failed submitting actions; bailing and not submitting the rest"
+                    );
+                    return Err(e);
+                }
+                Ok(response) => info!(
+                    sequencer_height = %response.height,
+                    rollup_height,
+                    "actions derived from rollup succesfully submitted to sequencer"
+                ),
+            }
         }
         Ok(())
     }
@@ -90,6 +109,7 @@ fn read_signing_key<P: AsRef<Path>>(path: P) -> eyre::Result<SigningKey> {
     SigningKey::try_from(&*bytes).wrap_err("failed to construct signing key hex-decoded bytes")
 }
 
+#[instrument(skip_all, fields(actions = actions.len()), err)]
 async fn submit_transaction(
     client: HttpClient,
     chain_id: &str,
