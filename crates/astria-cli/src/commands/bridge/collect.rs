@@ -1,6 +1,9 @@
 use std::{
     collections::BTreeMap,
-    path::PathBuf,
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
     time::Duration,
 };
@@ -59,6 +62,7 @@ use futures::stream::BoxStream;
 use tracing::{
     error,
     info,
+    instrument,
     warn,
 };
 
@@ -108,11 +112,7 @@ impl WithdrawalEvents {
             output,
         } = self;
 
-        let output_file = std::fs::File::options()
-            .write(true)
-            .create_new(true)
-            .open(&output)
-            .wrap_err("failed to open specified file for writing")?;
+        let output = open_output(&output).wrap_err("failed to open output for writing")?;
 
         let block_provider = connect_to_rollup(&rollup_endpoint)
             .await
@@ -171,7 +171,7 @@ impl WithdrawalEvents {
         }
 
         actions_by_rollup_height
-            .write_to_file(output_file)
+            .write_to_output(output)
             .wrap_err("failed to write actions to file")
     }
 }
@@ -189,6 +189,7 @@ impl ActionsByRollupHeight {
         self.0
     }
 
+    #[instrument(skip_all, err)]
     async fn convert_and_insert(&mut self, block_to_actions: BlockToActions) -> eyre::Result<()> {
         let rollup_height = block_to_actions
             .block
@@ -204,14 +205,16 @@ impl ActionsByRollupHeight {
         Ok(())
     }
 
-    fn write_to_file(self, file: std::fs::File) -> eyre::Result<()> {
-        let writer = std::io::BufWriter::new(file);
+    #[instrument(skip_all, fields(target = %output.path.display()), err)]
+    fn write_to_output(self, output: Output) -> eyre::Result<()> {
+        let writer = std::io::BufWriter::new(output.handle);
         serde_json::to_writer(writer, &self.0).wrap_err("failed writing actions to file")
     }
 }
 
 /// Constructs a block stream from `start` until `maybe_end`, if `Some`.
 /// Constructs an open ended stream from `start` if `None`.
+#[instrument(skip_all, fields(start, end = maybe_end), err)]
 async fn create_stream_of_blocks(
     block_provider: &Provider<Ws>,
     start: u64,
@@ -262,6 +265,26 @@ async fn create_stream_of_blocks(
     Ok(subscription)
 }
 
+#[derive(Debug)]
+struct Output {
+    handle: std::fs::File,
+    path: PathBuf,
+}
+
+#[instrument(skip_all, fields(target = %target.as_ref().display()), err)]
+fn open_output<P: AsRef<Path>>(target: P) -> eyre::Result<Output> {
+    let handle = std::fs::File::options()
+        .write(true)
+        .create_new(true)
+        .open(&target)
+        .wrap_err("failed to open specified fil}e for writing")?;
+    Ok(Output {
+        handle,
+        path: target.as_ref().to_path_buf(),
+    })
+}
+
+#[instrument(err)]
 async fn connect_to_rollup(rollup_endpoint: &str) -> eyre::Result<Arc<Provider<Ws>>> {
     let retry_config = tryhard::RetryFutureConfig::new(10)
         .fixed_backoff(Duration::from_secs(2))
@@ -287,11 +310,12 @@ async fn connect_to_rollup(rollup_endpoint: &str) -> eyre::Result<Arc<Provider<W
     Ok(Arc::new(provider))
 }
 
+#[instrument(skip_all, fields(%contract_address), err, ret)]
 async fn get_asset_withdrawal_divisor(
-    address: ethers::types::Address,
+    contract_address: ethers::types::Address,
     provider: Arc<Provider<Ws>>,
 ) -> eyre::Result<u128> {
-    let contract = IAstriaWithdrawer::new(address, provider);
+    let contract = IAstriaWithdrawer::new(contract_address, provider);
 
     let base_chain_asset_precision = contract
         .base_chain_asset_precision()
