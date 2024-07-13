@@ -26,6 +26,7 @@ use color_eyre::eyre::{
 use tracing::{
     error,
     info,
+    instrument,
     warn,
 };
 
