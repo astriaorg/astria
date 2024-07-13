@@ -56,7 +56,6 @@ pub(crate) fn event_to_action(
     rollup_asset_denom: asset::Denom,
     asset_withdrawal_divisor: u128,
     bridge_address: Address,
-    sequencer_address_prefix: &str,
 ) -> eyre::Result<Action> {
     let action = match event_with_metadata.event {
         WithdrawalEvent::Sequencer(event) => event_to_bridge_unlock(
@@ -76,7 +75,6 @@ pub(crate) fn event_to_action(
             rollup_asset_denom,
             asset_withdrawal_divisor,
             bridge_address,
-            sequencer_address_prefix,
         )
         .wrap_err("failed to convert ics20 withdrawal event to action")?,
     };
@@ -128,12 +126,10 @@ fn event_to_ics20_withdrawal(
     rollup_asset_denom: asset::Denom,
     asset_withdrawal_divisor: u128,
     bridge_address: Address,
-    sequencer_address_prefix: &str,
 ) -> eyre::Result<Action> {
     // TODO: make this configurable
     const ICS20_WITHDRAWAL_TIMEOUT: Duration = Duration::from_secs(300);
 
-    let sender = event.sender.to_fixed_bytes();
     let denom = rollup_asset_denom.clone();
 
     let channel = denom
@@ -143,23 +139,15 @@ fn event_to_ics20_withdrawal(
 
     let memo = Ics20WithdrawalFromRollupMemo {
         memo: event.memo,
-        bridge_address,
         block_number: block_number.as_u64(),
+        rollup_return_address: event.sender.to_string(),
         transaction_hash: transaction_hash.into(),
     };
 
     let action = Ics20Withdrawal {
         denom: rollup_asset_denom,
         destination_chain_address: event.destination_chain_address,
-        // note: this is actually a rollup address; we expect failed ics20 withdrawals to be
-        // returned to the rollup.
-        // this is only ok for now because addresses on the sequencer and the rollup are both 20
-        // bytes, but this won't work otherwise.
-        return_address: Address::builder()
-            .array(sender)
-            .prefix(sequencer_address_prefix)
-            .try_build()
-            .wrap_err("failed to construct return address")?,
+        return_address: bridge_address,
         amount: event
             .amount
             .as_u128()
@@ -221,7 +209,6 @@ mod tests {
             denom.clone(),
             1,
             bridge_address,
-            crate::ASTRIA_ADDRESS_PREFIX,
         )
         .unwrap();
         let Action::BridgeUnlock(action) = action else {
@@ -263,7 +250,6 @@ mod tests {
             denom.clone(),
             divisor,
             bridge_address,
-            crate::ASTRIA_ADDRESS_PREFIX,
         )
         .unwrap();
         let Action::BridgeUnlock(action) = action else {
@@ -307,7 +293,6 @@ mod tests {
             denom.clone(),
             1,
             bridge_address,
-            crate::ASTRIA_ADDRESS_PREFIX,
         )
         .unwrap();
         let Action::Ics20Withdrawal(mut action) = action else {
@@ -321,12 +306,12 @@ mod tests {
         let expected_action = Ics20Withdrawal {
             denom: denom.clone(),
             destination_chain_address,
-            return_address: crate::astria_address([0u8; 20]),
+            return_address: bridge_address,
             amount: 99,
             memo: serde_json::to_string(&Ics20WithdrawalFromRollupMemo {
                 memo: "hello".to_string(),
-                bridge_address,
                 block_number: 1u64,
+                rollup_return_address: ethers::types::Address::from([0u8; 20]).to_string(),
                 transaction_hash: [2u8; 32],
             })
             .unwrap(),
