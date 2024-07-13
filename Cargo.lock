@@ -557,6 +557,7 @@ dependencies = [
  "tendermint",
  "tokio",
  "tracing",
+ "tracing-subscriber 0.3.18",
  "tryhard",
  "which",
 ]

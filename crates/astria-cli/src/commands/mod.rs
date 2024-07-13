@@ -5,7 +5,6 @@ use color_eyre::{
     eyre,
     eyre::eyre,
 };
-use tracing::instrument;
 
 use crate::cli::{
     sequencer::{
@@ -35,7 +34,6 @@ use crate::cli::{
 /// # Panics
 ///
 /// * If the command is not recognized
-#[instrument]
 pub async fn run(cli: Cli) -> eyre::Result<()> {
     if let Some(command) = cli.command {
         match command {
