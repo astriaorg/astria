@@ -310,7 +310,7 @@ async fn connect_to_rollup(rollup_endpoint: &str) -> eyre::Result<Arc<Provider<W
     Ok(Arc::new(provider))
 }
 
-#[instrument(skip_all, fields(%contract_address), err, ret)]
+#[instrument(skip_all, fields(%contract_address), err(Display))]
 async fn get_asset_withdrawal_divisor(
     contract_address: ethers::types::Address,
     provider: Arc<Provider<Ws>>,
