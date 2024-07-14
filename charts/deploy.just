@@ -383,6 +383,12 @@ run-smoke-cli:
   CURRENT_BLOCK=$(just hex-to-dec $CURRENT_BLOCK_HEX)
   echo {{sequencer_bridge_pkey}} > test_se
 
+  withdrawals_dst="$(mktemp)"
+  # uncomment this line if you want to inspect `withdrawals_dst`
+  trap "rm -f ${withdrawals_dst@Q}" EXIT
+
+  echo "passing ${withdrawals_dst} to astria-cli"
+
   astria-cli bridge collect-withdrawals \
     --rollup-endpoint {{eth_ws_url}} \
     --contract-address {{evm_contract_address}} \
@@ -390,13 +396,12 @@ run-smoke-cli:
     --to-rollup-height $CURRENT_BLOCK \
     --rollup-asset-denom nria \
     --bridge-address {{sequencer_bridge_address}} \
-    --output ./withdrawals.json
+    --output "${withdrawals_dst}"
    astria-cli bridge submit-withdrawals \
     --signing-key <(printf "%s" "{{sequencer_bridge_pkey}}") \
     --sequencer-chain-id {{sequencer_chain_id}} \
     --sequencer-url {{sequencer_rpc_url}} \
-    --input ./withdrawals.json
-
+    --input "${withdrawals_dst}"
 
   CHECKS=0
   EXPECTED_BALANCE=$(echo "1 * {{sequencer_base_amount}}" | bc)
