@@ -37,12 +37,14 @@ pub use generated::*;
 pub struct BuildError(BuildErrorKind);
 
 impl BuildError {
+    #[must_use]
     fn bad_divisor(base_chain_asset_precision: u32) -> Self {
         Self(BuildErrorKind::BadDivisor {
             base_chain_asset_precision,
         })
     }
 
+    #[must_use]
     fn call_base_chain_asset_precision<
         T: Into<Box<dyn std::error::Error + Send + Sync + 'static>>,
     >(
@@ -53,20 +55,24 @@ impl BuildError {
         })
     }
 
+    #[must_use]
     pub fn no_withdraws_configured() -> Self {
         Self(BuildErrorKind::NoWithdrawsConfigured)
     }
 
+    #[must_use]
     fn not_set(field: &'static str) -> Self {
         Self(BuildErrorKind::NotSet {
             field,
         })
     }
 
+    #[must_use]
     fn ics20_asset_without_channel() -> Self {
         Self(BuildErrorKind::Ics20AssetWithoutChannel)
     }
 
+    #[must_use]
     fn parse_ics20_asset_source_channel(source: ibc_types::IdentifierError) -> Self {
         Self(BuildErrorKind::ParseIcs20AssetSourceChannel {
             source,
@@ -118,6 +124,7 @@ impl Default for GetWithdrawalActionsBuilder {
 }
 
 impl GetWithdrawalActionsBuilder {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             provider: NoProvider,
@@ -131,6 +138,7 @@ impl GetWithdrawalActionsBuilder {
 }
 
 impl<P> GetWithdrawalActionsBuilder<P> {
+    #[must_use]
     pub fn provider<Q>(self, provider: Arc<Q>) -> GetWithdrawalActionsBuilder<WithProvider<Q>> {
         let Self {
             contract_address,
@@ -150,6 +158,7 @@ impl<P> GetWithdrawalActionsBuilder<P> {
         }
     }
 
+    #[must_use]
     pub fn contract_address(self, contract_address: ethers::types::Address) -> Self {
         Self {
             contract_address: Some(contract_address),
@@ -157,6 +166,7 @@ impl<P> GetWithdrawalActionsBuilder<P> {
         }
     }
 
+    #[must_use]
     pub fn bridge_address(self, bridge_address: Address) -> Self {
         Self {
             bridge_address: Some(bridge_address),
@@ -164,6 +174,7 @@ impl<P> GetWithdrawalActionsBuilder<P> {
         }
     }
 
+    #[must_use]
     pub fn fee_asset(self, fee_asset: asset::Denom) -> Self {
         Self {
             fee_asset: Some(fee_asset),
@@ -171,10 +182,12 @@ impl<P> GetWithdrawalActionsBuilder<P> {
         }
     }
 
+    #[must_use]
     pub fn sequencer_asset_to_withdraw(self, sequencer_asset_to_withdraw: asset::Denom) -> Self {
         self.set_sequencer_asset_to_withdraw(Some(sequencer_asset_to_withdraw))
     }
 
+    #[must_use]
     pub fn set_sequencer_asset_to_withdraw(
         self,
         sequencer_asset_to_withdraw: Option<asset::Denom>,
@@ -185,10 +198,12 @@ impl<P> GetWithdrawalActionsBuilder<P> {
         }
     }
 
+    #[must_use]
     pub fn ics20_asset_to_withdraw(self, ics20_asset_to_withdraw: asset::TracePrefixed) -> Self {
         self.set_ics20_asset_to_withdraw(Some(ics20_asset_to_withdraw))
     }
 
+    #[must_use]
     pub fn set_ics20_asset_to_withdraw(
         self,
         ics20_asset_to_withdraw: Option<asset::TracePrefixed>,
@@ -205,6 +220,19 @@ where
     P: Middleware + 'static,
     P::Error: std::error::Error + 'static,
 {
+    /// Constructs a [`GetWithdrawalActions`] fetcher.
+    ///
+    /// # Errors
+    /// Returns an error in one of these cases:
+    /// + `contract_address` is not set
+    /// + `bridge_address` is not set
+    /// + `fee_asset` is not set
+    /// + neither `source_asset_to_withdraw` nor `ics20_asset_to_withdraw` are set
+    /// + `ics20_asset_to_withdraw` is set, but does not contain a ics20 channel
+    /// + the `BASE_CHAIN_ASSET_PRECISION` call on the provided `contract_address` cannot be
+    ///   executed
+    /// + the base chain asset precision retrieved from the contract at `contract_address` is
+    ///   greater than 18 (this is currently hardcoded in the smart contract).
     pub async fn try_build(self) -> Result<GetWithdrawalActions<P>, BuildError> {
         let Self {
             provider: WithProvider(provider),
@@ -292,6 +320,12 @@ where
         self.ics20_asset_to_withdraw.is_some()
     }
 
+    /// Gets all withdrawal events for `block_hash` and converts them to astria sequencer actions.
+    ///
+    /// # Errors
+    /// Returns an error in one of the following cases:
+    /// + fetching logs for either ics20 or sequencer withdrawal events fails
+    /// + converting either event to Sequencer actions fails due to the events being malformed.
     pub async fn get_for_block_hash(
         &self,
         block_hash: H256,

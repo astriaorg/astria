@@ -73,7 +73,7 @@ pub(crate) struct WithdrawalEvents {
     sequencer_asset_to_withdraw: Option<asset::Denom>,
     /// The is20 asset withdrawn through the bridge.
     #[arg(long)]
-    ics20_asset_to_withdraw: Option<asset::Denom>,
+    ics20_asset_to_withdraw: Option<asset::TracePrefixed>,
     /// The bech32-encoded bridge address corresponding to the bridged rollup
     ///  asset on the sequencer. Should match the bridge address in the geth
     /// rollup's bridge configuration for that asset.
