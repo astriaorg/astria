@@ -388,7 +388,7 @@ run-smoke-cli:
     --contract-address {{evm_contract_address}} \
     --from-rollup-height 1 \
     --to-rollup-height $CURRENT_BLOCK \
-    --rollup-asset-denom nria \
+    --sequencer-asset-to-withdraw nria \
     --bridge-address {{sequencer_bridge_address}} \
     --output ./withdrawals.json
    astria-cli bridge submit-withdrawals \
