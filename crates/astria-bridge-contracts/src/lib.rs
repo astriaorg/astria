@@ -46,7 +46,9 @@ impl BuildError {
         })
     }
 
-    fn call_base_chain_asset_precision<T: Into<Box<dyn std::error::Error + 'static>>>(
+    fn call_base_chain_asset_precision<
+        T: Into<Box<dyn std::error::Error + Send + Sync + 'static>>,
+    >(
         source: T,
     ) -> Self {
         Self(BuildErrorKind::CallBaseChainAssetPrecision {
@@ -83,7 +85,7 @@ enum BuildErrorKind {
     NotSet { field: &'static str },
     #[error("failed to call the `BASE_CHAIN_ASSET_PRECISION` of the provided contract")]
     CallBaseChainAssetPrecision {
-        source: Box<dyn std::error::Error + 'static>,
+        source: Box<dyn std::error::Error + Send + Sync + 'static>,
     },
     #[error("rollup asset denom must have a channel to be withdrawn via IBC")]
     RollupAssetWithoutChannel,
@@ -172,7 +174,7 @@ where
     P: Middleware + 'static,
     P::Error: std::error::Error + 'static,
 {
-    pub async fn build(self) -> Result<GetWithdrawalActions<P>, BuildError> {
+    pub async fn try_build(self) -> Result<GetWithdrawalActions<P>, BuildError> {
         let Self {
             provider: WithProvider(provider),
             contract_address,
@@ -429,7 +431,7 @@ struct DecodeLogError {
     event_name: Cow<'static, str>,
     // use a trait object instead of the error to not force the middleware
     // type parameter into the error.
-    source: Box<dyn std::error::Error>,
+    source: Box<dyn std::error::Error + Send + Sync + 'static>,
 }
 
 fn decode_log<T: EthEvent>(log: Log) -> Result<T, DecodeLogError> {
@@ -445,7 +447,7 @@ struct GetLogsError {
     event_name: Cow<'static, str>,
     // use a trait object instead of the error to not force the middleware
     // type parameter into the error.
-    source: Box<dyn std::error::Error>,
+    source: Box<dyn std::error::Error + Send + Sync + 'static>,
 }
 
 async fn get_logs<T: EthEvent, M>(

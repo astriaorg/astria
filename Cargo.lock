@@ -488,7 +488,13 @@ dependencies = [
 name = "astria-bridge-contracts"
 version = "0.1.0"
 dependencies = [
+ "astria-core",
  "ethers",
+ "futures",
+ "ibc-types",
+ "serde_json",
+ "tendermint",
+ "thiserror",
 ]
 
 [[package]]
