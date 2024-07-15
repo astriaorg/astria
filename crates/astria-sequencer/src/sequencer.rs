@@ -5,7 +5,17 @@ use anyhow::{
     Context as _,
     Result,
 };
-use astria_core::generated::sequencerblock::v1alpha1::sequencer_service_server::SequencerServiceServer;
+use astria_core::generated::{
+    sequencerblock::v1alpha1::sequencer_service_server::SequencerServiceServer,
+    slinky::{
+        marketmap::v1::query_server::QueryServer as MarketMapQueryServer,
+        oracle::v1::query_server::QueryServer as OracleQueryServer,
+        service::v1::{
+            oracle_client::OracleClient,
+            QueryPricesRequest,
+        },
+    },
+};
 use penumbra_tower_trace::{
     trace::request_span,
     v038::RequestExt as _,
@@ -23,11 +33,17 @@ use tokio::{
     },
     task::JoinHandle,
 };
+use tonic::transport::{
+    Endpoint,
+    Uri,
+};
 use tower_abci::v038::Server;
 use tracing::{
+    debug,
     error,
     info,
     instrument,
+    warn,
 };
 
 use crate::{
@@ -103,10 +119,41 @@ impl Sequencer {
                 .context("failed to initialize global address base prefix")?;
         }
 
+        let oracle_client = if config.oracle_enabled {
+            let uri: Uri = config
+                .oracle_grpc_addr
+                .parse()
+                .context("failed parsing oracle grpc address as Uri")?;
+            let endpoint = Endpoint::from(uri.clone()).timeout(std::time::Duration::from_millis(
+                config.oracle_client_timeout_milliseconds,
+            ));
+            let mut oracle_client = OracleClient::new(endpoint.connect_lazy());
+
+            // ensure the oracle sidecar is reachable
+            // TODO: allow this to retry in case the oracle sidecar is not ready yet
+            if oracle_client
+                .prices(QueryPricesRequest::default())
+                .await
+                .is_err()
+            {
+                warn!(uri = %uri, "oracle sidecar is unreachable");
+            } else {
+                debug!(uri = %uri, "oracle sidecar is reachable");
+            };
+            Some(oracle_client)
+        } else {
+            None
+        };
+
         let mempool = Mempool::new();
-        let app = App::new(snapshot, mempool.clone(), metrics)
-            .await
-            .context("failed to initialize app")?;
+        let app = App::new(
+            snapshot,
+            mempool.clone(),
+            crate::app::vote_extension::Handler::new(oracle_client),
+            metrics,
+        )
+        .await
+        .context("failed to initialize app")?;
 
         let consensus_service = tower::ServiceBuilder::new()
             .layer(request_span::layer(|req: &ConsensusRequest| {
@@ -191,6 +238,8 @@ fn start_grpc_server(
 
     let ibc = penumbra_ibc::component::rpc::IbcQuery::<AstriaHost>::new(storage.clone());
     let sequencer_api = SequencerServer::new(storage.clone(), mempool);
+    let market_map_api = crate::grpc::slinky::SequencerServer::new(storage.clone());
+    let oracle_api = crate::grpc::slinky::SequencerServer::new(storage.clone());
     let cors_layer: CorsLayer = CorsLayer::permissive();
 
     // TODO: setup HTTPS?
@@ -214,7 +263,9 @@ fn start_grpc_server(
         .add_service(ClientQueryServer::new(ibc.clone()))
         .add_service(ChannelQueryServer::new(ibc.clone()))
         .add_service(ConnectionQueryServer::new(ibc.clone()))
-        .add_service(SequencerServiceServer::new(sequencer_api));
+        .add_service(SequencerServiceServer::new(sequencer_api))
+        .add_service(MarketMapQueryServer::new(market_map_api))
+        .add_service(OracleQueryServer::new(oracle_api));
 
     info!(grpc_addr = grpc_addr.to_string(), "starting grpc server");
     tokio::task::spawn(

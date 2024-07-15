@@ -7,6 +7,8 @@ mod tests_breaking_changes;
 #[cfg(test)]
 mod tests_execute_transaction;
 
+pub(crate) mod vote_extension;
+
 use std::{
     collections::VecDeque,
     sync::Arc,
@@ -55,10 +57,12 @@ use tendermint::{
     AppHash,
     Hash,
 };
+use tendermint_proto::abci::ExtendedCommitInfo;
 use tracing::{
     debug,
     info,
     instrument,
+    warn,
 };
 
 use crate::{
@@ -71,6 +75,7 @@ use crate::{
     },
     address::StateWriteExt as _,
     api_state_ext::StateWriteExt as _,
+    app::vote_extension::ProposalHandler,
     asset::state_ext::StateWriteExt as _,
     authority::{
         component::{
@@ -104,6 +109,10 @@ use crate::{
         },
     },
     sequence::component::SequenceComponent,
+    slinky::{
+        marketmap::component::MarketMapComponent,
+        oracle::component::OracleComponent,
+    },
     state_ext::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -169,6 +178,9 @@ pub(crate) struct App {
     #[allow(clippy::struct_field_names)]
     app_hash: AppHash,
 
+    // used to create and verify vote extensions, if this is a validator node.
+    vote_extension_handler: vote_extension::Handler,
+
     metrics: &'static Metrics,
 }
 
@@ -176,6 +188,7 @@ impl App {
     pub(crate) async fn new(
         snapshot: Snapshot,
         mempool: Mempool,
+        vote_extension_handler: vote_extension::Handler,
         metrics: &'static Metrics,
     ) -> anyhow::Result<Self> {
         debug!("initializing App instance");
@@ -201,6 +214,7 @@ impl App {
             execution_results: None,
             write_batch: None,
             app_hash,
+            vote_extension_handler,
             metrics,
         })
     }
@@ -262,6 +276,12 @@ impl App {
         SequenceComponent::init_chain(&mut state_tx, &genesis_state)
             .await
             .context("failed to call init_chain on SequenceComponent")?;
+        MarketMapComponent::init_chain(&mut state_tx, &genesis_state)
+            .await
+            .context("failed to call init_chain on MarketMapComponent")?;
+        OracleComponent::init_chain(&mut state_tx, &genesis_state)
+            .await
+            .context("failed to call init_chain on OracleComponent")?;
 
         state_tx.apply();
 
@@ -302,11 +322,56 @@ impl App {
         self.validator_address = Some(prepare_proposal.proposer_address);
         self.update_state_for_new_round(&storage);
 
-        let mut block_size_constraints = BlockSizeConstraints::new(
-            usize::try_from(prepare_proposal.max_tx_bytes)
-                .context("failed to convert max_tx_bytes to usize")?,
+        // create the extended commit info from the local last commit
+        let Some(last_commit) = prepare_proposal.local_last_commit else {
+            anyhow::bail!("local last commit is empty; this should not occur")
+        };
+
+        // if this fails, we shouldn't return an error, but instead leave
+        // the vote extensions empty in this block for liveness.
+        // it's not a critical error if the oracle values are not updated for a block.
+        let round = last_commit.round;
+        let extended_commit_info = match ProposalHandler::prune_and_validate_extended_commit_info(
+            &self.state,
+            prepare_proposal.height.into(),
+            last_commit,
         )
-        .context("failed to create block size constraints")?;
+        .await
+        {
+            Ok(info) => info,
+            Err(e) => {
+                debug!(
+                    error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                    "failed to generate extended commit info"
+                );
+                tendermint::abci::types::ExtendedCommitInfo {
+                    round,
+                    votes: Vec::new(),
+                }
+            }
+        };
+
+        let mut extended_commit_info_bytes =
+            ExtendedCommitInfo::from(extended_commit_info).encode_to_vec();
+        let max_tx_bytes = usize::try_from(prepare_proposal.max_tx_bytes)
+            .context("failed to convert max_tx_bytes to usize")?;
+
+        // adjust max block size to account for extended commit info
+        let adjusted_max_tx_bytes = max_tx_bytes
+            .checked_sub(extended_commit_info_bytes.len())
+            .unwrap_or_else(|| {
+                // zero the commit info if it's too large to fit in the block
+                // for liveness.
+                warn!(
+                    extended_commit_info_bytes_len = extended_commit_info_bytes.len(),
+                    max_tx_bytes,
+                    "extended commit info is too large to fit in block; not including in block"
+                );
+                extended_commit_info_bytes.clear();
+                max_tx_bytes
+            });
+        let mut block_size_constraints = BlockSizeConstraints::new(adjusted_max_tx_bytes)
+            .context("failed to create block size constraints")?;
 
         let block_data = BlockData {
             misbehavior: prepare_proposal.misbehavior,
@@ -339,8 +404,12 @@ impl App {
         // included in the block
         let res = generate_rollup_datas_commitment(&signed_txs_included, deposits);
 
+        // inject the extended commit info into the start of the block's txs
+        let txs = std::iter::once(extended_commit_info_bytes.into())
+            .chain(res.into_transactions(included_tx_bytes))
+            .collect();
         Ok(abci::response::PrepareProposal {
-            txs: res.into_transactions(included_tx_bytes),
+            txs,
         })
     }
 
@@ -376,6 +445,30 @@ impl App {
         self.update_state_for_new_round(&storage);
 
         let mut txs = VecDeque::from(process_proposal.txs);
+
+        // the first transaction in the block should be the extended commit info
+        let extended_commit_info_bytes = txs
+            .pop_front()
+            .context("no extended commit info in proposal")?;
+
+        // decode the extended commit info and validate it
+        let extended_commit_info = ExtendedCommitInfo::decode(extended_commit_info_bytes.as_ref())
+            .context("failed to decode extended commit info")?;
+        let extended_commit_info = extended_commit_info
+            .try_into()
+            .context("failed to convert extended commit info from proto to native")?;
+        let Some(last_commit) = process_proposal.proposed_last_commit else {
+            anyhow::bail!("proposed last commit is empty; this should not occur")
+        };
+        ProposalHandler::validate_extended_commit_info(
+            &self.state,
+            process_proposal.height.value(),
+            &last_commit,
+            &extended_commit_info,
+        )
+        .await
+        .context("failed to validate extended commit info")?;
+
         let received_rollup_datas_root: [u8; 32] = txs
             .pop_front()
             .context("no transaction commitment in proposal")?
@@ -748,6 +841,23 @@ impl App {
         Ok(())
     }
 
+    #[instrument(name = "App::extend_vote", skip_all)]
+    pub(crate) async fn extend_vote(
+        &mut self,
+        _extend_vote: abci::request::ExtendVote,
+    ) -> anyhow::Result<abci::response::ExtendVote> {
+        self.vote_extension_handler.extend_vote(&self.state).await
+    }
+
+    pub(crate) async fn verify_vote_extension(
+        &mut self,
+        vote_extension: abci::request::VerifyVoteExtension,
+    ) -> abci::response::VerifyVoteExtension {
+        self.vote_extension_handler
+            .verify_vote_extension(&self.state, vote_extension, false)
+            .await
+    }
+
     /// Executes the given block, but does not write it to disk.
     ///
     /// `commit` must be called after this to write the block to disk.
@@ -788,15 +898,34 @@ impl App {
         }
 
         ensure!(
-            finalize_block.txs.len() >= 2,
-            "block must contain at least two transactions: the rollup transactions commitment and
+            finalize_block.txs.len() >= 3,
+            "block must contain at least three transactions: the extended commit info, the rollup \
+             transactions commitment and
              rollup IDs commitment"
         );
+
+        let extended_commit_info_bytes = &finalize_block.txs[0];
+        let extended_commit_info = ExtendedCommitInfo::decode(extended_commit_info_bytes.as_ref())
+            .context("failed to decode extended commit info")?;
+        let extended_commit_info = extended_commit_info
+            .try_into()
+            .context("failed to convert extended commit info from proto to native")?;
+        let mut state_tx: StateDelta<Arc<StateDelta<Snapshot>>> =
+            StateDelta::new(self.state.clone());
+        crate::app::vote_extension::apply_prices_from_vote_extensions(
+            &mut state_tx,
+            extended_commit_info,
+            finalize_block.time.into(),
+            finalize_block.height.value(),
+        )
+        .await
+        .context("failed to apply prices from vote extensions")?;
+        let _ = self.apply(state_tx);
 
         // cometbft expects a result for every tx in the block, so we need to return a
         // tx result for the commitments, even though they're not actually user txs.
         let mut tx_results: Vec<ExecTxResult> = Vec::with_capacity(finalize_block.txs.len());
-        tx_results.extend(std::iter::repeat(ExecTxResult::default()).take(2));
+        tx_results.extend(std::iter::repeat(ExecTxResult::default()).take(3));
 
         // When the hash is not empty, we have already executed and cached the results
         if self.executed_proposal_hash.is_empty() {
@@ -813,8 +942,8 @@ impl App {
                 .await
                 .context("failed to execute block")?;
 
-            // skip the first two transactions, as they are the rollup data commitments
-            for tx in finalize_block.txs.iter().skip(2) {
+            // skip the first three transactions, as they are injected transactions
+            for tx in finalize_block.txs.iter().skip(3) {
                 // remove any included txs from the mempool
                 let tx_hash = Sha256::digest(tx).into();
                 self.mempool.remove(tx_hash).await;
@@ -952,7 +1081,8 @@ impl App {
         &mut self,
         begin_block: &abci::request::BeginBlock,
     ) -> anyhow::Result<Vec<abci::Event>> {
-        let mut state_tx = StateDelta::new(self.state.clone());
+        let mut state_tx: StateDelta<Arc<StateDelta<Snapshot>>> =
+            StateDelta::new(self.state.clone());
 
         // store the block height
         state_tx.put_block_height(begin_block.header.height.into());
@@ -976,6 +1106,12 @@ impl App {
         SequenceComponent::begin_block(&mut arc_state_tx, begin_block)
             .await
             .context("failed to call begin_block on SequenceComponent")?;
+        MarketMapComponent::begin_block(&mut arc_state_tx, begin_block)
+            .await
+            .context("failed to call begin_block on MarketMapComponent")?;
+        OracleComponent::begin_block(&mut arc_state_tx, begin_block)
+            .await
+            .context("failed to call begin_block on OracleComponent")?;
 
         let state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
@@ -1055,6 +1191,12 @@ impl App {
         SequenceComponent::end_block(&mut arc_state_tx, &end_block)
             .await
             .context("failed to call end_block on SequenceComponent")?;
+        MarketMapComponent::end_block(&mut arc_state_tx, &end_block)
+            .await
+            .context("failed to call end_block on MarketMapComponent")?;
+        OracleComponent::end_block(&mut arc_state_tx, &end_block)
+            .await
+            .context("failed to call end_block on OracleComponent")?;
 
         let mut state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");

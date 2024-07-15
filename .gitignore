@@ -15,3 +15,4 @@ target/
 charts/*/charts
 
 crates/astria-bridge-withdrawer/src/withdrawer/ethereum/generated/
+crates/astria-sequencer/app-genesis-state.json

@@ -96,13 +96,24 @@ impl Consensus {
                     },
                 )
             }
-            ConsensusRequest::ExtendVote(_) => {
-                ConsensusResponse::ExtendVote(response::ExtendVote {
-                    vote_extension: vec![].into(),
+            ConsensusRequest::ExtendVote(extend_vote) => {
+                ConsensusResponse::ExtendVote(match self.handle_extend_vote(extend_vote).await {
+                    Ok(response) => response,
+                    Err(e) => {
+                        warn!(
+                            error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                            "failed to extend vote, returning empty vote extension"
+                        );
+                        response::ExtendVote {
+                            vote_extension: vec![].into(),
+                        }
+                    }
                 })
             }
-            ConsensusRequest::VerifyVoteExtension(_) => {
-                ConsensusResponse::VerifyVoteExtension(response::VerifyVoteExtension::Accept)
+            ConsensusRequest::VerifyVoteExtension(vote_extension) => {
+                ConsensusResponse::VerifyVoteExtension(
+                    self.handle_verify_vote_extension(vote_extension).await,
+                )
             }
             ConsensusRequest::FinalizeBlock(finalize_block) => ConsensusResponse::FinalizeBlock(
                 self.finalize_block(finalize_block)
@@ -192,6 +203,23 @@ impl Consensus {
         Ok(())
     }
 
+    #[instrument(skip_all)]
+    async fn handle_extend_vote(
+        &mut self,
+        extend_vote: request::ExtendVote,
+    ) -> anyhow::Result<response::ExtendVote> {
+        let extend_vote = self.app.extend_vote(extend_vote).await?;
+        Ok(extend_vote)
+    }
+
+    #[instrument(skip_all)]
+    async fn handle_verify_vote_extension(
+        &mut self,
+        vote_extension: request::VerifyVoteExtension,
+    ) -> response::VerifyVoteExtension {
+        self.app.verify_vote_extension(vote_extension).await
+    }
+
     #[instrument(skip_all, fields(
         hash = %finalize_block.hash,
         height = %finalize_block.height,
@@ -240,11 +268,19 @@ mod test {
             AddressPrefixes,
             UncheckedGenesisState,
         },
+        slinky::{
+            market_map::v1::GenesisState as MarketMapGenesisState,
+            oracle::v1::GenesisState as OracleGenesisState,
+        },
     };
     use bytes::Bytes;
     use prost::Message as _;
     use rand::rngs::OsRng;
     use tendermint::{
+        abci::types::{
+            CommitInfo,
+            ExtendedCommitInfo,
+        },
         account::Id,
         Hash,
         Time,
@@ -280,7 +316,10 @@ mod test {
         request::PrepareProposal {
             txs: vec![],
             max_tx_bytes: 1024,
-            local_last_commit: None,
+            local_last_commit: Some(ExtendedCommitInfo {
+                round: 0u16.into(),
+                votes: vec![],
+            }),
             misbehavior: vec![],
             height: 1u32.into(),
             time: Time::now(),
@@ -290,9 +329,21 @@ mod test {
     }
 
     fn new_process_proposal_request(txs: Vec<Bytes>) -> request::ProcessProposal {
+        let extended_commit_info: tendermint_proto::abci::ExtendedCommitInfo = ExtendedCommitInfo {
+            round: 0u16.into(),
+            votes: vec![],
+        }
+        .into();
+        let bytes = extended_commit_info.encode_to_vec();
+        let mut txs_with_commit_info = vec![bytes.into()];
+        txs_with_commit_info.extend(txs);
+
         request::ProcessProposal {
-            txs,
-            proposed_last_commit: None,
+            txs: txs_with_commit_info,
+            proposed_last_commit: Some(CommitInfo {
+                round: 0u16.into(),
+                votes: vec![],
+            }),
             misbehavior: vec![],
             hash: Hash::default(),
             height: 1u32.into(),
@@ -320,16 +371,19 @@ mod test {
             .handle_prepare_proposal(prepare_proposal)
             .await
             .unwrap();
+        let mut expected_txs = vec![b"".to_vec().into()];
+        let commitments_and_txs = res.into_transactions(txs);
+        expected_txs.extend(commitments_and_txs.clone());
         assert_eq!(
             prepare_proposal_response,
             response::PrepareProposal {
-                txs: res.into_transactions(txs)
+                txs: expected_txs,
             }
         );
 
         let (mut consensus_service, _) =
             new_consensus_service(Some(signing_key.verification_key())).await;
-        let process_proposal = new_process_proposal_request(prepare_proposal_response.txs);
+        let process_proposal = new_process_proposal_request(commitments_and_txs);
         consensus_service
             .handle_process_proposal(process_proposal)
             .await
@@ -372,15 +426,13 @@ mod test {
     async fn process_proposal_fail_wrong_commitment_length() {
         let (mut consensus_service, _) = new_consensus_service(None).await;
         let process_proposal = new_process_proposal_request(vec![[0u8; 16].to_vec().into()]);
-        assert!(
-            consensus_service
-                .handle_process_proposal(process_proposal)
-                .await
-                .err()
-                .unwrap()
-                .to_string()
-                .contains("transaction commitment must be 32 bytes")
-        );
+        let err = consensus_service
+            .handle_process_proposal(process_proposal)
+            .await
+            .err()
+            .unwrap()
+            .to_string();
+        assert!(err.contains("transaction commitment must be 32 bytes"));
     }
 
     #[tokio::test]
@@ -412,10 +464,12 @@ mod test {
             .handle_prepare_proposal(prepare_proposal)
             .await
             .unwrap();
+        let mut expected_txs = vec![b"".to_vec().into()];
+        expected_txs.extend(res.into_transactions(vec![]));
         assert_eq!(
             prepare_proposal_response,
             response::PrepareProposal {
-                txs: res.into_transactions(vec![]),
+                txs: expected_txs,
             }
         );
     }
@@ -466,6 +520,11 @@ mod test {
     }
 
     async fn new_consensus_service(funded_key: Option<VerificationKey>) -> (Consensus, Mempool) {
+        use astria_core::slinky::market_map::v1::{
+            MarketMap,
+            Params,
+        };
+
         let accounts = if funded_key.is_some() {
             vec![Account {
                 address: crate::address::base_prefixed(funded_key.unwrap().address_bytes()),
@@ -486,6 +545,20 @@ mod test {
             ibc_params: penumbra_ibc::params::IBCParameters::default(),
             allowed_fee_assets: vec!["nria".parse().unwrap()],
             fees: default_fees(),
+            market_map: MarketMapGenesisState {
+                market_map: MarketMap {
+                    markets: std::collections::HashMap::new(),
+                },
+                last_updated: 0,
+                params: Params {
+                    market_authorities: vec![],
+                    admin: crate::address::base_prefixed([0; 20]),
+                },
+            },
+            oracle: OracleGenesisState {
+                currency_pair_genesis: vec![],
+                next_id: 0,
+            },
         }
         .try_into()
         .unwrap();
@@ -494,7 +567,14 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mempool = Mempool::new();
         let metrics = Box::leak(Box::new(Metrics::new()));
-        let mut app = App::new(snapshot, mempool.clone(), metrics).await.unwrap();
+        let mut app = App::new(
+            snapshot,
+            mempool.clone(),
+            crate::app::vote_extension::Handler::new(None),
+            metrics,
+        )
+        .await
+        .unwrap();
         app.init_chain(storage.clone(), genesis_state, vec![], "test".to_string())
             .await
             .unwrap();
@@ -525,6 +605,7 @@ mod test {
         header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
 
         let process_proposal = new_process_proposal_request(block_data.clone());
+        let txs = process_proposal.txs.clone();
         consensus_service
             .handle_request(ConsensusRequest::ProcessProposal(process_proposal))
             .await
@@ -542,7 +623,7 @@ mod test {
                 votes: vec![],
             },
             misbehavior: vec![],
-            txs: block_data,
+            txs,
         };
         consensus_service
             .handle_request(ConsensusRequest::FinalizeBlock(finalize_block))

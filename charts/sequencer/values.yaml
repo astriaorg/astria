@@ -27,6 +27,7 @@ genesis:
   addressPrefixes:
     base: "astria"
   authoritySudoAddress: ""
+  marketAdminAddress: ""
   nativeAssetBaseDenomination: nria
   allowedFeeAssets: []
     # - nria
@@ -227,6 +228,7 @@ ports:
   cometbftRpc: 26657
   cometbftMetrics: 26660
   sequencerABCI: 26658
+  # TODO: change to 9090 if running with oracle sidecar
   sequencerGrpc: 8080
   relayerRpc: 2450
   sequencerMetrics: 9000

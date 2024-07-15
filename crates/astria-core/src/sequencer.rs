@@ -1,9 +1,15 @@
 //! Sequencer specific types that are needed outside of it.
 pub use penumbra_ibc::params::IBCParameters;
 
-use crate::primitive::v1::{
-    asset,
-    Address,
+use crate::{
+    primitive::v1::{
+        asset,
+        Address,
+    },
+    slinky::{
+        market_map::v1::GenesisState as MarketMapGenesisState,
+        oracle::v1::GenesisState as OracleGenesisState,
+    },
 };
 
 /// The genesis state of Astria's Sequencer.
@@ -30,6 +36,8 @@ pub struct GenesisState {
     ibc_params: IBCParameters,
     allowed_fee_assets: Vec<asset::Denom>,
     fees: Fees,
+    market_map: MarketMapGenesisState,
+    oracle: OracleGenesisState,
 }
 
 impl GenesisState {
@@ -77,6 +85,16 @@ impl GenesisState {
     pub fn fees(&self) -> &Fees {
         &self.fees
     }
+
+    #[must_use]
+    pub fn market_map(&self) -> &MarketMapGenesisState {
+        &self.market_map
+    }
+
+    #[must_use]
+    pub fn oracle(&self) -> &OracleGenesisState {
+        &self.oracle
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -115,6 +133,8 @@ impl TryFrom<UncheckedGenesisState> for GenesisState {
             ibc_params,
             allowed_fee_assets,
             fees,
+            market_map,
+            oracle,
         } = value;
 
         Ok(Self {
@@ -127,6 +147,8 @@ impl TryFrom<UncheckedGenesisState> for GenesisState {
             ibc_params,
             allowed_fee_assets,
             fees,
+            market_map,
+            oracle,
         })
     }
 }
@@ -144,6 +166,8 @@ pub struct UncheckedGenesisState {
     pub ibc_params: IBCParameters,
     pub allowed_fee_assets: Vec<asset::Denom>,
     pub fees: Fees,
+    pub market_map: MarketMapGenesisState,
+    pub oracle: OracleGenesisState,
 }
 
 impl UncheckedGenesisState {
@@ -178,6 +202,17 @@ impl UncheckedGenesisState {
         for (i, address) in self.ibc_relayer_addresses.iter().enumerate() {
             self.ensure_address_has_base_prefix(address, &format!(".ibc_relayer_addresses[{i}]"))?;
         }
+
+        for (i, address) in self.market_map.params.market_authorities.iter().enumerate() {
+            self.ensure_address_has_base_prefix(
+                address,
+                &format!(".market_map.params.market_authorities[{i}]"),
+            )?;
+        }
+        self.ensure_address_has_base_prefix(
+            &self.market_map.params.admin,
+            ".market_map.params.admin",
+        )?;
         Ok(())
     }
 }
@@ -194,6 +229,8 @@ impl From<GenesisState> for UncheckedGenesisState {
             ibc_params,
             allowed_fee_assets,
             fees,
+            market_map,
+            oracle,
         } = value;
         Self {
             address_prefixes,
@@ -205,6 +242,8 @@ impl From<GenesisState> for UncheckedGenesisState {
             ibc_params,
             allowed_fee_assets,
             fees,
+            market_map,
+            oracle,
         }
     }
 }
@@ -274,6 +313,11 @@ mod tests {
     }
 
     fn unchecked_genesis_state() -> UncheckedGenesisState {
+        use crate::slinky::market_map::v1::{
+            MarketMap,
+            Params,
+        };
+
         UncheckedGenesisState {
             accounts: vec![
                 Account {
@@ -310,6 +354,20 @@ mod tests {
                 bridge_lock_byte_cost_multiplier: 1,
                 bridge_sudo_change_fee: 24,
                 ics20_withdrawal_base_fee: 24,
+            },
+            market_map: MarketMapGenesisState {
+                market_map: MarketMap {
+                    markets: std::collections::HashMap::new(),
+                },
+                last_updated: 0,
+                params: Params {
+                    market_authorities: vec![alice(), bob()],
+                    admin: alice(),
+                },
+            },
+            oracle: OracleGenesisState {
+                currency_pair_genesis: vec![],
+                next_id: 0,
             },
         }
     }

@@ -26,6 +26,14 @@ use astria_core::{
         UncheckedGenesisState,
     },
     sequencerblock::v1alpha1::block::Deposit,
+    slinky::{
+        market_map::v1::{
+            GenesisState as MarketMapGenesisState,
+            MarketMap,
+            Params,
+        },
+        oracle::v1::GenesisState as OracleGenesisState,
+    },
 };
 use cnidarium::StateDelta;
 use penumbra_ibc::params::IBCParameters;
@@ -69,6 +77,20 @@ fn unchecked_genesis_state() -> UncheckedGenesisState {
         ibc_params: IBCParameters::default(),
         allowed_fee_assets: vec![default_native_asset()],
         fees: default_fees(),
+        market_map: MarketMapGenesisState {
+            market_map: MarketMap {
+                markets: std::collections::HashMap::new(),
+            },
+            last_updated: 0,
+            params: Params {
+                market_authorities: vec![],
+                admin: address_from_hex_string(ALICE_ADDRESS),
+            },
+        },
+        oracle: OracleGenesisState {
+            currency_pair_genesis: vec![],
+            next_id: 0,
+        },
     }
 }
 

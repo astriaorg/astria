@@ -21,12 +21,23 @@ use astria_core::{
         GenesisState,
         UncheckedGenesisState,
     },
+    slinky::{
+        market_map::v1::{
+            GenesisState as MarketMapGenesisState,
+            MarketMap,
+            Params,
+        },
+        oracle::v1::GenesisState as OracleGenesisState,
+    },
 };
 use cnidarium::Storage;
 use penumbra_ibc::params::IBCParameters;
 
 use crate::{
-    app::App,
+    app::{
+        vote_extension,
+        App,
+    },
     mempool::Mempool,
     metrics::Metrics,
 };
@@ -110,6 +121,20 @@ pub(crate) fn unchecked_genesis_state() -> UncheckedGenesisState {
         ibc_params: IBCParameters::default(),
         allowed_fee_assets: vec!["nria".parse().unwrap()],
         fees: default_fees(),
+        market_map: MarketMapGenesisState {
+            market_map: MarketMap {
+                markets: std::collections::HashMap::new(),
+            },
+            last_updated: 0,
+            params: Params {
+                market_authorities: vec![],
+                admin: address_from_hex_string(ALICE_ADDRESS),
+            },
+        },
+        oracle: OracleGenesisState {
+            currency_pair_genesis: vec![],
+            next_id: 0,
+        },
     }
 }
 
@@ -127,7 +152,14 @@ pub(crate) async fn initialize_app_with_storage(
     let snapshot = storage.latest_snapshot();
     let mempool = Mempool::new();
     let metrics = Box::leak(Box::new(Metrics::new()));
-    let mut app = App::new(snapshot, mempool, metrics).await.unwrap();
+    let mut app = App::new(
+        snapshot,
+        mempool,
+        vote_extension::Handler::new(None),
+        metrics,
+    )
+    .await
+    .unwrap();
 
     let genesis_state = genesis_state.unwrap_or_else(self::genesis_state);
 

@@ -102,6 +102,7 @@ fn main() {
             ".celestia",
             ".cosmos",
             ".tendermint",
+            ".slinky",
         ])
         .unwrap();
 
@@ -140,6 +141,7 @@ fn clean_non_astria_code(generated: &mut ContentMap) {
                 && !name.starts_with("astria_vendored.")
                 && !name.starts_with("celestia.")
                 && !name.starts_with("cosmos.")
+                && !name.starts_with("slinky.")
                 && !name.starts_with("tendermint.")
         })
         .cloned()
