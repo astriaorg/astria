@@ -6,7 +6,6 @@ metadata:
 data:
   ASTRIA_BRIDGE_WITHDRAWER_LOG: "astria_bridge_withdrawer=debug"
   ASTRIA_BRIDGE_WITHDRAWER_API_ADDR: "0.0.0.0:{{ .Values.ports.healthAPI }}"
-  ASTRIA_BRIDGE_WITHDRAWER_SEQUENCER_GRPC_ENDPOINT: "{{ .Values.config.sequencerGrpcEndpoint }}"
   ASTRIA_BRIDGE_WITHDRAWER_SEQUENCER_COMETBFT_ENDPOINT: "{{ .Values.config.sequencerCometbftEndpoint }}"
   ASTRIA_BRIDGE_WITHDRAWER_SEQUENCER_CHAIN_ID: "{{ .Values.config.sequencerChainId }}"
   ASTRIA_BRIDGE_WITHDRAWER_SEQUENCER_KEY_PATH: "/secret/sequencerPrivateKey/{{ .Values.config.sequencerPrivateKey.secret.filename }}"
@@ -32,6 +31,7 @@ data:
   {{- if not .Values.global.dev }}
   ASTRIA_BRIDGE_WITHDRAWER_MIN_EXPECTED_FEE_ASSET_BALANCE: "{{ .Values.config.minExpectedFeeAssetBalance }}"
   {{- else }}
+  ASTRIA_BRIDGE_WITHDRAWER_SEQUENCER_GRPC_ENDPOINT: "{{ .Values.config.sequencerGrpcEndpoint }}"
   {{- end }}
 ---
 {{- if not .Values.secretProvider.enabled }}
