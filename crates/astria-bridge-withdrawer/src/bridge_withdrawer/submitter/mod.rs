@@ -5,7 +5,10 @@ use std::{
 
 use astria_core::{
     generated::sequencerblock::v1alpha1::{
-        sequencer_service_client,
+        sequencer_service_client::{
+            self,
+            SequencerServiceClient,
+        },
         GetPendingNonceRequest,
     },
     protocol::transaction::v1alpha1::{
@@ -62,14 +65,14 @@ pub(super) struct Submitter {
     state: Arc<State>,
     batches_rx: mpsc::Receiver<Batch>,
     sequencer_cometbft_client: sequencer_client::HttpClient,
-    sequencer_grpc_endpoint: String,
+    sequencer_grpc_client: SequencerServiceClient<Channel>,
     signer: SequencerKey,
     metrics: &'static Metrics,
 }
 
 impl Submitter {
     pub(super) async fn run(mut self) -> eyre::Result<()> {
-        let (sequencer_chain_id, sequencer_grpc_client) = select! {
+        let sequencer_chain_id = select! {
             () = self.shutdown_token.cancelled() => {
                 info!("submitter received shutdown signal while waiting for startup");
                 return Ok(());
@@ -77,15 +80,10 @@ impl Submitter {
 
             startup_info = self.startup_handle.get_info() => {
                 let startup::Info { chain_id, .. } = startup_info.wrap_err("submitter failed to get startup info")?;
-
-                let sequencer_grpc_client = sequencer_service_client::SequencerServiceClient::connect(
-                    format!("http://{}", self.sequencer_grpc_endpoint),
-                ).await.wrap_err("failed to connect to sequencer gRPC endpoint")?;
-
-                self.state.set_submitter_ready();
-                (chain_id, sequencer_grpc_client)
+                chain_id
             }
         };
+        self.state.set_submitter_ready();
 
         let reason = loop {
             select!(
@@ -104,7 +102,7 @@ impl Submitter {
                     // if batch submission fails, halt the submitter
                     if let Err(e) = process_batch(
                         self.sequencer_cometbft_client.clone(),
-                        sequencer_grpc_client.clone(),
+                        self.sequencer_grpc_client.clone(),
                         &self.signer,
                         self.state.clone(),
                         &sequencer_chain_id,

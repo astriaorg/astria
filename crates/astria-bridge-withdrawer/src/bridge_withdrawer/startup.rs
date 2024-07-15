@@ -9,7 +9,10 @@ use astria_core::{
         Ics20WithdrawalFromRollupMemo,
     },
     generated::sequencerblock::v1alpha1::{
-        sequencer_service_client,
+        sequencer_service_client::{
+            self,
+            SequencerServiceClient,
+        },
         GetPendingNonceRequest,
     },
     primitive::v1::asset,
@@ -150,15 +153,9 @@ impl Startup {
                 .await
                 .wrap_err("failed to confirm sequencer config")?;
 
-            let sequencer_grpc_client = sequencer_service_client::SequencerServiceClient::connect(
-                format!("http://{}", self.sequencer_grpc_endpoint),
-            )
-            .await
-            .wrap_err("sequencer grpc failed to connect client")?;
-
             wait_for_empty_mempool(
                 self.sequencer_cometbft_client.clone(),
-                sequencer_grpc_client,
+                self.sequencer_grpc_endpoint.clone(),
                 self.sequencer_bridge_address,
                 self.state.clone(),
             )
@@ -384,7 +381,7 @@ async fn check_for_empty_mempool(
 ///    cometBFT's mempool after the exponential backoff times out.
 async fn wait_for_empty_mempool(
     cometbft_client: sequencer_client::HttpClient,
-    sequencer_client: sequencer_service_client::SequencerServiceClient<Channel>,
+    sequencer_grpc_endpoint: String,
     address: Address,
     state: Arc<State>,
 ) -> eyre::Result<()> {
@@ -407,7 +404,11 @@ async fn wait_for_empty_mempool(
                 futures::future::ready(())
             },
         );
-
+    let sequencer_client = SequencerServiceClient::connect(sequencer_grpc_endpoint.clone())
+        .await
+        .wrap_err_with(|| {
+            format!("failed to connect to sequencer at `{sequencer_grpc_endpoint}`")
+        })?;
     tryhard::retry_fn(|| {
         let sequencer_client = sequencer_client.clone();
         let cometbft_client = cometbft_client.clone();
