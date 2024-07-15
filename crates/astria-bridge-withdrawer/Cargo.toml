@@ -33,10 +33,15 @@ tracing = { workspace = true }
 tryhard = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal"] }
 tokio-util = { workspace = true }
+tonic = { workspace = true }
 
 astria-bridge-contracts = { path = "../astria-bridge-contracts" }
 astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
-astria-core = { path = "../astria-core", features = ["serde", "server"] }
+astria-core = { path = "../astria-core", features = [
+  "serde",
+  "server",
+  "client",
+] }
 astria-eyre = { path = "../astria-eyre" }
 config = { package = "astria-config", path = "../astria-config" }
 sequencer-client = { package = "astria-sequencer-client", path = "../astria-sequencer-client", features = [

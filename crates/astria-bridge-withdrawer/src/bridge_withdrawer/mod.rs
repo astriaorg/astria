@@ -76,6 +76,7 @@ impl BridgeWithdrawer {
             ethereum_rpc_endpoint,
             rollup_asset_denomination,
             sequencer_bridge_address,
+            sequencer_grpc_endpoint,
             ..
         } = cfg;
 
@@ -92,6 +93,7 @@ impl BridgeWithdrawer {
             sequencer_chain_id,
             sequencer_cometbft_endpoint: sequencer_cometbft_endpoint.clone(),
             sequencer_bridge_address,
+            sequencer_grpc_endpoint: sequencer_grpc_endpoint.clone(),
             expected_fee_asset: fee_asset_denomination,
         }
         .build()
@@ -104,6 +106,7 @@ impl BridgeWithdrawer {
             shutdown_token: shutdown_handle.token(),
             startup_handle: startup_handle.clone(),
             sequencer_cometbft_endpoint,
+            sequencer_grpc_endpoint,
             sequencer_key_path,
             sequencer_address_prefix: sequencer_address_prefix.clone(),
             state: state.clone(),
@@ -403,17 +406,4 @@ pub(crate) fn flatten_result<T>(res: Result<eyre::Result<T>, JoinError>) -> eyre
         Ok(Err(err)) => Err(err).wrap_err("task returned with error"),
         Err(err) => Err(err).wrap_err("task panicked"),
     }
-}
-
-#[cfg(test)]
-/// Constructs an [`Address`] prefixed by `"astria"`.
-#[cfg(test)]
-pub(crate) fn astria_address(
-    array: [u8; astria_core::primitive::v1::ADDRESS_LEN],
-) -> astria_core::primitive::v1::Address {
-    astria_core::primitive::v1::Address::builder()
-        .array(array)
-        .prefix("astria")
-        .try_build()
-        .unwrap()
 }

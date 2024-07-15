@@ -17,6 +17,7 @@ config:
   evmRpcEndpoint: "ws://astria-evm-service.astria-dev-cluster.svc.cluster.local:8546/"
   sequencerPrivateKey:
     devContent: "dfa7108e38ab71f89f356c72afc38600d5758f11a8c337164713e4471411d2e0"
+  sequencerGrpcEndpoint: "http://node0-sequencer-grpc-service.astria-dev-cluster.svc.cluster.local:8080"
 
 metrics:
   enabled: false
