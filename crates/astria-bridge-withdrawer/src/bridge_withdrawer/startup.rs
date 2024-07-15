@@ -394,7 +394,7 @@ async fn wait_for_empty_mempool(
                     "failed getting pending nonce from sequencing; retrying after backoff",
                 );
 
-                // TODO: update metrics here?
+                // TODO(https://github.com/astriaorg/astria/issues/1272): update metrics here?
                 futures::future::ready(())
             },
         );
