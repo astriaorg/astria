@@ -56,18 +56,22 @@ impl BuildError {
         })
     }
 
+    pub fn no_withdraws_configured() -> Self {
+        Self(BuildErrorKind::NoWithdrawsConfigured)
+    }
+
     fn not_set(field: &'static str) -> Self {
         Self(BuildErrorKind::NotSet {
             field,
         })
     }
 
-    fn rollup_asset_without_channel() -> Self {
-        Self(BuildErrorKind::RollupAssetWithoutChannel)
+    fn ics20_asset_without_channel() -> Self {
+        Self(BuildErrorKind::Ics20AssetWithoutChannel)
     }
 
-    fn parse_rollup_asset_source_channel(source: ibc_types::IdentifierError) -> Self {
-        Self(BuildErrorKind::ParseRollupAssetSourceChannel {
+    fn parse_ics20_asset_source_channel(source: ibc_types::IdentifierError) -> Self {
+        Self(BuildErrorKind::ParseIcs20AssetSourceChannel {
             source,
         })
     }
@@ -83,14 +87,19 @@ enum BuildErrorKind {
     BadDivisor { base_chain_asset_precision: u32 },
     #[error("required option `{field}` not set")]
     NotSet { field: &'static str },
+    #[error(
+        "getting withdraws actions must be configured for one of sequencer or ics20 (or both); \
+         neither was set"
+    )]
+    NoWithdrawsConfigured,
     #[error("failed to call the `BASE_CHAIN_ASSET_PRECISION` of the provided contract")]
     CallBaseChainAssetPrecision {
         source: Box<dyn std::error::Error + Send + Sync + 'static>,
     },
-    #[error("rollup asset denom must have a channel to be withdrawn via IBC")]
-    RollupAssetWithoutChannel,
-    #[error("could not parse rollup asset channel as channel ID")]
-    ParseRollupAssetSourceChannel { source: ibc_types::IdentifierError },
+    #[error("ics20 asset must have a channel to be withdrawn via IBC")]
+    Ics20AssetWithoutChannel,
+    #[error("could not parse ics20 asset channel as channel ID")]
+    ParseIcs20AssetSourceChannel { source: ibc_types::IdentifierError },
 }
 
 pub struct NoProvider;
@@ -101,7 +110,8 @@ pub struct GetWithdrawalActionsBuilder<TProvider = NoProvider> {
     contract_address: Option<ethers::types::Address>,
     bridge_address: Option<Address>,
     fee_asset: Option<asset::Denom>,
-    rollup_asset_denom: Option<asset::Denom>,
+    sequencer_asset_to_withdraw: Option<asset::Denom>,
+    ics20_asset_to_withdraw: Option<asset::Denom>,
 }
 
 impl Default for GetWithdrawalActionsBuilder {
@@ -117,7 +127,8 @@ impl GetWithdrawalActionsBuilder {
             contract_address: None,
             bridge_address: None,
             fee_asset: None,
-            rollup_asset_denom: None,
+            sequencer_asset_to_withdraw: None,
+            ics20_asset_to_withdraw: None,
         }
     }
 }
@@ -128,7 +139,8 @@ impl<P> GetWithdrawalActionsBuilder<P> {
             contract_address,
             bridge_address,
             fee_asset,
-            rollup_asset_denom,
+            sequencer_asset_to_withdraw,
+            ics20_asset_to_withdraw,
             ..
         } = self;
         GetWithdrawalActionsBuilder {
@@ -136,7 +148,8 @@ impl<P> GetWithdrawalActionsBuilder<P> {
             contract_address,
             bridge_address,
             fee_asset,
-            rollup_asset_denom,
+            sequencer_asset_to_withdraw,
+            ics20_asset_to_withdraw,
         }
     }
 
@@ -161,9 +174,30 @@ impl<P> GetWithdrawalActionsBuilder<P> {
         }
     }
 
-    pub fn rollup_asset_denom(self, rollup_asset_denom: asset::Denom) -> Self {
+    pub fn sequencer_asset_to_withdraw(self, sequencer_asset_to_withdraw: asset::Denom) -> Self {
+        self.set_sequencer_asset_to_withdraw(Some(sequencer_asset_to_withdraw))
+    }
+
+    pub fn set_sequencer_asset_to_withdraw(
+        self,
+        sequencer_asset_to_withdraw: Option<asset::Denom>,
+    ) -> Self {
         Self {
-            rollup_asset_denom: Some(rollup_asset_denom),
+            sequencer_asset_to_withdraw,
+            ..self
+        }
+    }
+
+    pub fn ics20_asset_to_withdraw(self, ics20_asset_to_withdraw: asset::Denom) -> Self {
+        self.set_ics20_asset_to_withdraw(Some(ics20_asset_to_withdraw))
+    }
+
+    pub fn set_ics20_asset_to_withdraw(
+        self,
+        ics20_asset_to_withdraw: Option<asset::Denom>,
+    ) -> Self {
+        Self {
+            ics20_asset_to_withdraw,
             ..self
         }
     }
@@ -180,7 +214,8 @@ where
             contract_address,
             bridge_address,
             fee_asset,
-            rollup_asset_denom,
+            sequencer_asset_to_withdraw,
+            ics20_asset_to_withdraw,
         } = self;
 
         let Some(contract_address) = contract_address else {
@@ -192,16 +227,22 @@ where
         let Some(fee_asset) = fee_asset else {
             return Err(BuildError::not_set("fee_asset"));
         };
-        let Some(rollup_asset_denom) = rollup_asset_denom else {
-            return Err(BuildError::not_set("rollup_asset_denom"));
-        };
 
-        let rollup_asset_source_channel = rollup_asset_denom
-            .as_trace_prefixed()
-            .and_then(TracePrefixed::last_channel)
-            .ok_or(BuildError::rollup_asset_without_channel())?
-            .parse()
-            .map_err(BuildError::parse_rollup_asset_source_channel)?;
+        if sequencer_asset_to_withdraw.is_none() && ics20_asset_to_withdraw.is_none() {
+            return Err(BuildError::no_withdraws_configured());
+        }
+
+        let mut ics20_source_channel = None;
+        if let Some(ics20_asset_to_withdraw) = &ics20_asset_to_withdraw {
+            ics20_source_channel.replace(
+                ics20_asset_to_withdraw
+                    .as_trace_prefixed()
+                    .and_then(TracePrefixed::last_channel)
+                    .ok_or(BuildError::ics20_asset_without_channel())?
+                    .parse()
+                    .map_err(BuildError::parse_ics20_asset_source_channel)?,
+            );
+        };
 
         let contract =
             i_astria_withdrawer::IAstriaWithdrawer::new(contract_address, provider.clone());
@@ -224,8 +265,9 @@ where
             asset_withdrawal_divisor,
             bridge_address,
             fee_asset,
-            rollup_asset_denom,
-            rollup_asset_source_channel,
+            sequencer_asset_to_withdraw,
+            ics20_asset_to_withdraw,
+            ics20_source_channel,
         })
     }
 }
@@ -236,8 +278,9 @@ pub struct GetWithdrawalActions<P> {
     asset_withdrawal_divisor: u128,
     bridge_address: Address,
     fee_asset: asset::Denom,
-    rollup_asset_denom: asset::Denom,
-    rollup_asset_source_channel: ibc_types::core::channel::ChannelId,
+    sequencer_asset_to_withdraw: Option<asset::Denom>,
+    ics20_asset_to_withdraw: Option<asset::Denom>,
+    ics20_source_channel: Option<ibc_types::core::channel::ChannelId>,
 }
 
 impl<P> GetWithdrawalActions<P>
@@ -245,21 +288,43 @@ where
     P: Middleware,
     P::Error: std::error::Error + 'static,
 {
+    fn configured_for_sequencer_withdrawals(&self) -> bool {
+        self.sequencer_asset_to_withdraw.is_some()
+    }
+
+    fn configured_for_ics20_withdrawals(&self) -> bool {
+        self.ics20_asset_to_withdraw.is_some()
+    }
+
     pub async fn get_for_block_hash(
         &self,
         block_hash: H256,
     ) -> Result<Vec<Action>, GetWithdrawalActionsError> {
-        let (ics20_logs, sequencer_logs) = futures::future::try_join(
-            get_logs::<Ics20WithdrawalFilter, _>(&self.provider, self.contract_address, block_hash),
+        use futures::FutureExt as _;
+        let get_ics20_logs = if self.configured_for_ics20_withdrawals() {
+            get_logs::<Ics20WithdrawalFilter, _>(&self.provider, self.contract_address, block_hash)
+                .boxed()
+        } else {
+            futures::future::ready(Ok(vec![])).boxed()
+        };
+        let get_sequencer_logs = if self.configured_for_sequencer_withdrawals() {
             get_logs::<SequencerWithdrawalFilter, _>(
                 &self.provider,
                 self.contract_address,
                 block_hash,
-            ),
-        )
-        .await
-        .map_err(GetWithdrawalActionsError::get_logs)?;
+            )
+            .boxed()
+        } else {
+            futures::future::ready(Ok(vec![])).boxed()
+        };
+        let (ics20_logs, sequencer_logs) =
+            futures::future::try_join(get_ics20_logs, get_sequencer_logs)
+                .await
+                .map_err(GetWithdrawalActionsError::get_logs)?;
 
+        // XXX: The calls to `log_to_*_action` rely on only be called if `GetWithdrawalActions`
+        // is configured for either ics20 or sequencer withdrawals (or both). They would panic
+        // otherwise.
         ics20_logs
             .into_iter()
             .map(|log| self.log_to_ics20_withdrawal_action(log))
@@ -288,7 +353,14 @@ where
         let event = decode_log::<Ics20WithdrawalFilter>(log)
             .map_err(GetWithdrawalActionsError::decode_log)?;
 
-        let source_channel = self.rollup_asset_source_channel.clone();
+        let (denom, source_channel) = (
+            self.ics20_asset_to_withdraw
+                .clone()
+                .expect("must be set if this method is entered"),
+            self.ics20_source_channel
+                .clone()
+                .expect("must be set if this method is entered"),
+        );
 
         let memo = serde_json::to_string(&astria_core::bridge::Ics20WithdrawalFromRollupMemo {
             memo: event.memo.clone(),
@@ -304,7 +376,7 @@ where
             .map_err(GetWithdrawalActionsError::calculate_withdrawal_amount)?;
 
         let action = Ics20Withdrawal {
-            denom: self.rollup_asset_denom.clone(),
+            denom,
             destination_chain_address: event.destination_chain_address,
             return_address: self.bridge_address,
             amount,

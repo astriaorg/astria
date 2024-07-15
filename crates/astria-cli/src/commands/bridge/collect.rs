@@ -68,9 +68,12 @@ pub(crate) struct WithdrawalEvents {
     /// actions be submitted to the Sequencer).
     #[arg(long, default_value = "nria")]
     fee_asset: asset::Denom,
-    /// The asset denomination of the asset that's withdrawn from the bridge.
+    /// The sequencer asset withdrawn through the bridge.
     #[arg(long)]
-    rollup_asset_denom: asset::Denom,
+    sequencer_asset_to_withdraw: Option<asset::Denom>,
+    /// The is20 asset withdrawn through the bridge.
+    #[arg(long)]
+    ics20_asset_to_withdraw: Option<asset::Denom>,
     /// The bech32-encoded bridge address corresponding to the bridged rollup
     ///  asset on the sequencer. Should match the bridge address in the geth
     /// rollup's bridge configuration for that asset.
@@ -89,8 +92,9 @@ impl WithdrawalEvents {
             contract_address,
             from_rollup_height,
             to_rollup_height,
+            sequencer_asset_to_withdraw,
+            ics20_asset_to_withdraw,
             fee_asset,
-            rollup_asset_denom,
             bridge_address,
             output,
         } = self;
@@ -105,7 +109,8 @@ impl WithdrawalEvents {
             .provider(block_provider.clone())
             .contract_address(contract_address)
             .fee_asset(fee_asset)
-            .rollup_asset_denom(rollup_asset_denom)
+            .set_ics20_asset_to_withdraw(ics20_asset_to_withdraw)
+            .set_sequencer_asset_to_withdraw(sequencer_asset_to_withdraw)
             .bridge_address(bridge_address)
             .try_build()
             .await
@@ -156,6 +161,16 @@ impl WithdrawalEvents {
                 }
             }
         }
+
+        info!(
+            "collected a total of {} actions across {} rollup heights; writing to file",
+            actions_by_rollup_height
+                .0
+                .values()
+                .map(Vec::len)
+                .sum::<usize>(),
+            actions_by_rollup_height.0.len(),
+        );
 
         actions_by_rollup_height
             .write_to_output(output)
