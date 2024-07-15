@@ -6,7 +6,7 @@
 {{- range $service, $ingress := .Values.ingress.services }}
 {{- if $ingress.enabled -}}
 {{- $servicePort := $ingress.service.port -}}
-{{- $serviceName := $ingress.service.name -}}
+{{- $serviceName := tpl $ingress.service.name $ -}}
 {{- $ingressPath := $ingress.path -}}
 {{- $ingressPathType := $ingress.pathType -}}
 {{- $extraPaths := $ingress.extraPaths }}
@@ -14,8 +14,8 @@
 apiVersion: {{ include "rollup.ingress.apiVersion" $ }}
 kind: Ingress
 metadata:
-  name: {{ $.Values.genesis.rollupName }}-{{ $service }}-ingress
-  namespace: {{ include "rollup.namespace" $  }}
+  name: {{ include "rollup.name" $ }}-{{ $service }}-ingress
+  namespace: {{ include "rollup.namespace" $ }}
   labels:
     {{- with $ingress.labels }}
       {{- toYaml . | nindent 4 }}

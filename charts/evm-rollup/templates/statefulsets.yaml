@@ -1,20 +1,20 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ .Values.genesis.rollupName }}-geth
+  name: {{ include "rollup.name" . }}-geth
   labels:
-    app: {{ .Values.genesis.rollupName }}-astria-dev-cluster
+    app: {{ include "rollup.appName" . }}
   namespace: {{ include "rollup.namespace" . }}
 spec:
   replicas : {{ .Values.global.replicaCount }}
   selector:
     matchLabels:
-      app: {{ .Values.genesis.rollupName }}-astria-dev-cluster
+      app: {{ include "rollup.appName" . }}
   template:
     metadata:
-      name: {{ .Values.genesis.rollupName }}-execution-chain
+      name: {{ include "rollup.name" . }}-execution-chain
       labels:
-        app: {{ .Values.genesis.rollupName }}-astria-dev-cluster
+        app: {{ include "rollup.appName" . }}
     spec:
       initContainers:
         {{- if .Values.config.geth.purgeMempool }}
@@ -26,21 +26,21 @@ spec:
             - {{ include "rollup.gethDataDir" . }}/geth/transactions.rlp
           volumeMounts:
             - mountPath: /home/geth
-              name: {{ $.Values.genesis.rollupName }}-rollup-shared-storage-vol
-              subPath: {{ .Values.genesis.rollupName }}/executor
+              name: {{ include "rollup.name" $ }}-rollup-shared-storage-vol
+              subPath: {{ include "rollup.name" . }}/executor
         {{- end }}
         - name: init-geth
           command: [ "/scripts/init-geth.sh" ]
           image: {{ include "rollup.image" . }}
           envFrom:
             - configMapRef:
-                name: {{ .Values.genesis.rollupName }}-geth-env
+                name: {{ include "rollup.name" . }}-geth-env
           volumeMounts:
             - mountPath: /scripts/
-              name: {{ .Values.genesis.rollupName }}-executor-scripts-volume
+              name: {{ include "rollup.name" . }}-executor-scripts-volume
             - mountPath: /home/geth
-              name: {{ $.Values.genesis.rollupName }}-rollup-shared-storage-vol
-              subPath: {{ .Values.genesis.rollupName }}/executor
+              name: {{ include "rollup.name" $ }}-rollup-shared-storage-vol
+              subPath: {{ include "rollup.name" . }}/executor
       containers:
         - name: geth
           command: [ "geth" ]
@@ -53,11 +53,11 @@ spec:
           image: {{ include "rollup.image" . }}
           volumeMounts:
             - mountPath: /scripts/
-              name: {{ .Values.genesis.rollupName }}-executor-scripts-volume
+              name: {{ include "rollup.name" . }}-executor-scripts-volume
               readOnly: true
             - mountPath: /home/geth
-              name: {{ $.Values.genesis.rollupName }}-rollup-shared-storage-vol
-              subPath: {{ .Values.genesis.rollupName }}/executor
+              name: {{ include "rollup.name" . }}-rollup-shared-storage-vol
+              subPath: {{ include "rollup.name" . }}/executor
           ports:
             - containerPort: {{ .Values.ports.jsonRPC }}
               name: json-rpc
@@ -78,7 +78,7 @@ spec:
           tty: {{ .Values.global.useTTY }}
           envFrom:
             - configMapRef:
-                name: {{ .Values.genesis.rollupName }}-conductor-env
+                name: {{ include "rollup.name" . }}-conductor-env
           resources:
             {{- toYaml .Values.resources.conductor | trim | nindent 12 }}
           {{- if .Values.metrics.enabled }}
@@ -87,14 +87,14 @@ spec:
               name: conductor-metr
           {{- end }}
       volumes:
-        - name: {{ .Values.genesis.rollupName }}-executor-scripts-volume
+        - name: {{ include "rollup.name" . }}-executor-scripts-volume
           configMap:
-            name: {{ .Values.genesis.rollupName }}-executor-scripts
+            name: {{ include "rollup.name" . }}-executor-scripts
             defaultMode: 0500
-        - name: {{ $.Values.genesis.rollupName }}-rollup-shared-storage-vol
+        - name: {{ include "rollup.name" $ }}-rollup-shared-storage-vol
           {{- if .Values.storage.enabled }}
           persistentVolumeClaim:
-            claimName: {{ $.Values.genesis.rollupName }}-rollup-shared-storage-pvc-geth
+            claimName: {{ include "rollup.name" $ }}-rollup-shared-storage-pvc-geth
           {{- else }}
           emptyDir: {}
           {{- end }}

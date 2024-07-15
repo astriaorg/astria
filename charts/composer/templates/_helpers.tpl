@@ -17,7 +17,7 @@ Rollup config string
 */}}
 {{- define "composer.rollups" }}
 {{- range $index, $element := .Values.config.rollups }}
-{{- if $index }},{{- end }}{{- include "composer.rollupDefinition" $element }}
+{{- if $index }},{{- end }}{{- tpl (include "composer.rollupDefinition" $element) $ }}
 {{- end }}
 {{- end }}
 

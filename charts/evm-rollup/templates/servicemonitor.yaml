@@ -2,7 +2,7 @@
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: {{ .Values.genesis.rollupName }}-geth-metrics
+  name: {{include "rollup.name" . }}-geth-metrics
   labels:
     {{- include "rollup.labels" . | nindent 4 }}
     {{- with .Values.serviceMonitor.additionalLabels }}
@@ -15,7 +15,7 @@ spec:
       - {{ include "rollup.namespace" . }}
   selector:
     matchLabels:
-      app: {{ .Values.genesis.rollupName }}-astria-dev-cluster
+      app: {{ include "rollup.appName" . }}
   endpoints:
     - port: geth-metr
       path: /debug/metrics/prometheus

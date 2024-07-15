@@ -36,11 +36,11 @@ ingress:
   services:
     faucet:
       hosts:
-        - faucet.{{ .Values.config.rollupName }}.{{ .Values.ingress.hostname }}
+        - faucet.{{tpl .Values.config.rollupName . }}.{{ .Values.ingress.hostname }}
       path: /
       pathType: Prefix
       service:
-        name: "{{ .Values.config.rollupName }}-evm-faucet-service"
+        name: "{{tpl .Values.config.rollupName . }}-evm-faucet-service"
         port:
           name: evm-faucet-svc
 

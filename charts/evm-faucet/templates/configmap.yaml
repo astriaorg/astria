@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ .Values.config.rollupName }}-evm-faucet-env
+  name: {{tpl .Values.config.rollupName . }}-evm-faucet-env
   namespace: {{ include "evmFaucet.namespace" .  }}
 data:
   ETH_FAUCET_PROXYCOUNT: "{{ .Values.config.proxyCount }}"

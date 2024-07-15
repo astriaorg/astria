@@ -5,11 +5,16 @@ Namepsace to deploy elements into.
 {{- default .Release.Namespace .Values.global.namespaceOverride | trunc 63 | trimSuffix "-" -}}
 {{- end }}
 
+{{/*  The name of the rollup */}}
+{{- define "rollup.name" -}}
+{{- tpl .Values.genesis.rollupName . }}
+{{- end }}
+
 {{/*
 Expand the name of the chart.
 */}}
-{{- define "rollup.name" -}}
-{{- default .Values.genesis.rollupName | trunc 63 | trimSuffix "-" }}-astria-dev-cluster
+{{- define "rollup.appName" -}}
+{{- default (include "rollup.name" .) | trunc 63 | trimSuffix "-" }}-astria-dev-cluster
 {{- end }}
 
 {{/*
@@ -23,7 +28,7 @@ Common labels
 Selector labels
 */}}
 {{- define "rollup.selectorLabels" -}}
-app: {{ include "rollup.name" . }}
+app: {{ include "rollup.appName" . }}
 {{- end }}
 
 {{/*
@@ -96,5 +101,5 @@ Return the appropriate apiVersion for ingress.
 {{- end }}
 
 {{- define "rollup.gethDataDir" -}}
-{{ include "rollup.gethHomeDir" . }}/{{ .Values.genesis.rollupName }}
+{{ include "rollup.gethHomeDir" . }}/{{ include "rollup.name" . }}
 {{- end }}

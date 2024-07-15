@@ -13,7 +13,7 @@
 apiVersion: {{ include "evmFaucet.ingress.apiVersion" $ }}
 kind: Ingress
 metadata:
-  name: {{ $.Values.config.rollupName }}-evm-faucet-{{ $service }}-ingress
+  name: {{tpl $.Values.config.rollupName $ }}-evm-faucet-{{ $service }}-ingress
   namespace: {{ include "evmFaucet.namespace" $  }}
   labels:
     {{- with $ingress.labels }}

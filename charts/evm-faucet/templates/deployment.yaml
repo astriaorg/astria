@@ -1,20 +1,20 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Values.config.rollupName }}-evm-faucet
+  name: {{tpl .Values.config.rollupName . }}-evm-faucet
   labels:
-    app: {{ .Values.config.rollupName }}-evm-faucet
+    app: {{tpl .Values.config.rollupName . }}-evm-faucet
   namespace: {{ include "evmFaucet.namespace" . }}
 spec:
   replicas : {{ .Values.global.replicaCount }}
   selector:
     matchLabels:
-      app: {{ .Values.config.rollupName }}-evm-faucet
+      app: {{tpl .Values.config.rollupName . }}-evm-faucet
   template:
     metadata:
-      name: {{ .Values.config.rollupName }}-evm-faucet
+      name: {{tpl .Values.config.rollupName . }}-evm-faucet
       labels:
-        app: {{ .Values.config.rollupName }}-evm-faucet
+        app: {{tpl .Values.config.rollupName . }}-evm-faucet
     spec:
       containers:
         - name: faucet
@@ -28,7 +28,7 @@ spec:
           image: {{ .Values.images.faucet.repo }}:{{ .Values.images.faucet.tag }}
           envFrom:
             - configMapRef:
-                name: {{ .Values.config.rollupName }}-evm-faucet-env
+                name: {{tpl .Values.config.rollupName . }}-evm-faucet-env
           {{- if .Values.secretProvider.enabled }}
           env:
             - name: ETH_FAUCET_EVM_PRIVATE_KEY
@@ -39,8 +39,8 @@ spec:
           {{- end }}
           volumeMounts:
             - mountPath: /home/faucet
-              name: {{ .Values.config.rollupName }}-evm-faucet-home-vol
-              subPath: {{ .Values.config.rollupName }}/faucet
+              name: {{tpl .Values.config.rollupName . }}-evm-faucet-home-vol
+              subPath: {{tpl .Values.config.rollupName . }}/faucet
             {{- if .Values.secretProvider.enabled }}
             - mountPath: /var/secrets
               name: faucet-private-key
@@ -50,7 +50,7 @@ spec:
               name: faucet
       volumes:
         - emptyDir: {}
-          name: {{ .Values.config.rollupName }}-evm-faucet-home-vol
+          name: {{tpl .Values.config.rollupName . }}-evm-faucet-home-vol
         {{- if .Values.secretProvider.enabled }}
         - name: evm-faucet-private-key
           csi:

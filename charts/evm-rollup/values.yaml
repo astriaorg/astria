@@ -112,7 +112,7 @@ config:
       - name: datadir
         value: '{{ include "rollup.gethDataDir" . }}'
       - name: networkid
-        value: "{{ .Values.genesis.chainId }}"
+        value: "{{ tpl .Values.genesis.chainId . }}"
       - name: http
       - name: http.addr
         value: 0.0.0.0
@@ -210,7 +210,7 @@ metrics:
 
 otel:
   enabled: false
-  serviceNamePrefix: "{{ .Values.genesis.rollupName }}"
+  serviceNamePrefix: '{{ include "rollup.name" . }}'
   endpoint:
   tracesEndpoint:
   tracesCompression: gzip
@@ -256,11 +256,11 @@ ingress:
     rpc:
       enabled: true
       hosts:
-        - executor.{{ .Values.genesis.rollupName }}.{{ .Values.ingress.hostname }}
+        - 'executor.{{ include "rollup.name" . }}.{{ .Values.ingress.hostname }}'
       path: /
       pathType: Prefix
       service:
-        name: "{{ .Values.genesis.rollupName }}-evm-service"
+        name: '{{ include "rollup.name" . }}-evm-service'
         port:
           name: json-rpc-svc
       annotations: {}
@@ -274,11 +274,11 @@ ingress:
     ws:
       enabled: true
       hosts:
-        - ws-executor.{{ .Values.genesis.rollupName }}.{{ .Values.ingress.hostname }}
+        - ws-executor.{{ include "rollup.name" . }}.{{ .Values.ingress.hostname }}
       path: /
       pathType: Prefix
       service:
-        name: "{{ .Values.genesis.rollupName }}-evm-service"
+        name: '{{ include "rollup.name" . }}-evm-service'
         port:
           name: ws-rpc-svc
       annotations: {}

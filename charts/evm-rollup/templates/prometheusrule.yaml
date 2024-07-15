@@ -2,7 +2,7 @@
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
-  name: {{ template "rollup.name" . }}
+  name: {{ template "rollup.appName" . }}
 {{- if .Values.alerting.prometheusRule.namespace }}
   namespace: {{ .Values.alerting.prometheusRule.namespace | quote }}
 {{- end }}

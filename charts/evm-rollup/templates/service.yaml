@@ -1,11 +1,11 @@
 kind: Service
 apiVersion: v1
 metadata:
-  name: {{ .Values.genesis.rollupName }}-evm-service
+  name: {{ include "rollup.name" . }}-evm-service
   namespace: {{ include "rollup.namespace" . }}
 spec:
   selector:
-    app: {{ .Values.genesis.rollupName }}-astria-dev-cluster
+    app: {{ include "rollup.appName" . }}
   ports:
     - name: json-rpc-svc
       port: {{ .Values.ports.jsonRPC }}
@@ -18,13 +18,13 @@ spec:
 kind: Service
 apiVersion: v1
 metadata:
-  name: {{ .Values.genesis.rollupName }}-metrics
+  name: {{ include "rollup.name" . }}-metrics
   namespace: {{ include "rollup.namespace" . }}
   labels:
-    app: {{ .Values.genesis.rollupName }}-astria-dev-cluster
+    app: {{ include "rollup.appName" . }}
 spec:
   selector:
-    app: {{ .Values.genesis.rollupName }}-astria-dev-cluster
+    app: {{ include "rollup.appName" . }}
   ports:
     - name: geth-metr
       port: {{ .Values.ports.metrics }}

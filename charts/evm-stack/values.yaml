@@ -8,24 +8,52 @@ global:
   # Best to be false in production environments, true for clean logs on local dev.
   useTTY: true
   dev: false
+  sequencerRpc: ""
+  sequencerGrpc: ""
+  rollupName: ""
+  evmChainId: ""
+  sequencerChainId: ""
 
 evm-rollup:
   enabled: true
+  genesis:
+    rollupName: "{{ .Values.global.rollupName }}"
+    chainId: "{{ .Values.global.evmChainId }}"
+  config:
+    conductor:
+      sequencerChainId: "{{ .Values.global.sequencerChainId }}"
+      sequencerRpc: "{{ .Values.global.sequencerRpc }}"
+      sequencerGrpc: "{{ .Values.global.sequencerGrpc }}"
 
 composer:
   enabled: false
+  config:
+    sequencerChainId: "{{ .Values.global.sequencerChainId }}"
+    sequencerRpc: "{{ .Values.global.sequencerRpc }}"
+    sequencerGrpc: "{{ .Values.global.sequencerGrpc }}"
+    rollups:
+      - name: "{{ .Values.global.rollupName }}"
+        wsRpc: "ws://{{ .Values.global.rollupName }}-evm-service.{{ default .Release.Namespace .Values.global.namespaceOverride  }}.svc.cluster.local:8546"
 
 evm-faucet:
   enabled: false
+  config:
+    rollupName: "{{ .Values.global.rollupName }}"
+    providerUrl: "http://{{ .Values.global.rollupName }}-evm-service.{{ default .Release.Namespace .Values.global.namespaceOverride  }}.svc.cluster.local:8545"
 
 bridge-withdrawer:
   enabled: false
+  config:
+    sequencerChainId: "{{ .Values.global.sequencerChainId }}"
+    sequencerCometbftEndpoint: "{{ .Values.global.sequencerRpc }}"
+    evmRpcEndpoint: "ws://{{ .Values.global.rollupName }}-evm-service.{{ default .Release.Namespace .Values.global.namespaceOverride  }}.svc.cluster.local:8546"
 
 blockscout-stack:
   frontend:
     image:
       tag: v1.32.0
   enabled: false
+
 
 postgresql:
   enabled: false
