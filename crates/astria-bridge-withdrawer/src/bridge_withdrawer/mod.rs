@@ -407,16 +407,3 @@ pub(crate) fn flatten_result<T>(res: Result<eyre::Result<T>, JoinError>) -> eyre
         Err(err) => Err(err).wrap_err("task panicked"),
     }
 }
-
-#[cfg(test)]
-/// Constructs an [`Address`] prefixed by `"astria"`.
-#[cfg(test)]
-pub(crate) fn astria_address(
-    array: [u8; astria_core::primitive::v1::ADDRESS_LEN],
-) -> astria_core::primitive::v1::Address {
-    astria_core::primitive::v1::Address::builder()
-        .array(array)
-        .prefix("astria")
-        .try_build()
-        .unwrap()
-}
