@@ -19,7 +19,7 @@ pub struct Config {
     // The fee asset denomination to use for the bridge account's transactions.
     pub fee_asset_denomination: asset::Denom,
     // The asset denomination being withdrawn from the rollup.
-    pub rollup_asset_denomination: String,
+    pub rollup_asset_denomination: asset::denom::TracePrefixed,
     // The bridge address corresponding to the bridged rollup asset on the sequencer.
     pub sequencer_bridge_address: String,
     // The address of the AstriaWithdrawer contract on the evm rollup.

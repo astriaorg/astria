@@ -8,10 +8,7 @@ use std::{
 
 use astria_core::{
     primitive::v1::{
-        asset::{
-            self,
-            TracePrefixed,
-        },
+        asset,
         Address,
         AddressError,
     },
@@ -111,7 +108,7 @@ pub struct GetWithdrawalActionsBuilder<TProvider = NoProvider> {
     bridge_address: Option<Address>,
     fee_asset: Option<asset::Denom>,
     sequencer_asset_to_withdraw: Option<asset::Denom>,
-    ics20_asset_to_withdraw: Option<asset::Denom>,
+    ics20_asset_to_withdraw: Option<asset::TracePrefixed>,
 }
 
 impl Default for GetWithdrawalActionsBuilder {
@@ -188,13 +185,13 @@ impl<P> GetWithdrawalActionsBuilder<P> {
         }
     }
 
-    pub fn ics20_asset_to_withdraw(self, ics20_asset_to_withdraw: asset::Denom) -> Self {
+    pub fn ics20_asset_to_withdraw(self, ics20_asset_to_withdraw: asset::TracePrefixed) -> Self {
         self.set_ics20_asset_to_withdraw(Some(ics20_asset_to_withdraw))
     }
 
     pub fn set_ics20_asset_to_withdraw(
         self,
-        ics20_asset_to_withdraw: Option<asset::Denom>,
+        ics20_asset_to_withdraw: Option<asset::TracePrefixed>,
     ) -> Self {
         Self {
             ics20_asset_to_withdraw,
@@ -236,8 +233,7 @@ where
         if let Some(ics20_asset_to_withdraw) = &ics20_asset_to_withdraw {
             ics20_source_channel.replace(
                 ics20_asset_to_withdraw
-                    .as_trace_prefixed()
-                    .and_then(TracePrefixed::last_channel)
+                    .last_channel()
                     .ok_or(BuildError::ics20_asset_without_channel())?
                     .parse()
                     .map_err(BuildError::parse_ics20_asset_source_channel)?,
@@ -279,7 +275,7 @@ pub struct GetWithdrawalActions<P> {
     bridge_address: Address,
     fee_asset: asset::Denom,
     sequencer_asset_to_withdraw: Option<asset::Denom>,
-    ics20_asset_to_withdraw: Option<asset::Denom>,
+    ics20_asset_to_withdraw: Option<asset::TracePrefixed>,
     ics20_source_channel: Option<ibc_types::core::channel::ChannelId>,
 }
 
@@ -356,7 +352,8 @@ where
         let (denom, source_channel) = (
             self.ics20_asset_to_withdraw
                 .clone()
-                .expect("must be set if this method is entered"),
+                .expect("must be set if this method is entered")
+                .into(),
             self.ics20_source_channel
                 .clone()
                 .expect("must be set if this method is entered"),

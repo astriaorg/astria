@@ -53,7 +53,7 @@ pub(crate) struct Builder {
     pub(crate) ethereum_contract_address: String,
     pub(crate) ethereum_rpc_endpoint: String,
     pub(crate) state: Arc<State>,
-    pub(crate) rollup_asset_denom: asset::Denom,
+    pub(crate) rollup_asset_denom: asset::TracePrefixed,
     pub(crate) bridge_address: Address,
     pub(crate) submitter_handle: submitter::Handle,
 }
@@ -94,7 +94,7 @@ pub(crate) struct Watcher {
     submitter_handle: submitter::Handle,
     contract_address: ethers::types::Address,
     ethereum_rpc_endpoint: String,
-    rollup_asset_denom: asset::Denom,
+    rollup_asset_denom: asset::TracePrefixed,
     bridge_address: Address,
     state: Arc<State>,
 }
@@ -190,12 +190,26 @@ impl Watcher {
         .wrap_err("failed connecting to rollup after several retries; giving up")?;
 
         let provider = Arc::new(provider);
+        let ics20_asset_to_withdraw = if self.rollup_asset_denom.last_channel().is_some() {
+            info!(
+                rollup_asset_denom = %self.rollup_asset_denom,
+                "configured rollup asset contains an ics20 channel; ics20 withdrawals will be emitted"
+            );
+            Some(self.rollup_asset_denom.clone())
+        } else {
+            info!(
+                rollup_asset_denom = %self.rollup_asset_denom,
+                "configured rollup asset does not contain an ics20 channel; ics20 withdrawals will not be emitted"
+            );
+            None
+        };
         let action_fetcher = GetWithdrawalActionsBuilder::new()
             .provider(provider.clone())
             .fee_asset(fee_asset)
             .contract_address(self.contract_address)
             .bridge_address(self.bridge_address)
-            .sequencer_asset_to_withdraw(self.rollup_asset_denom.clone())
+            .sequencer_asset_to_withdraw(self.rollup_asset_denom.clone().into())
+            .set_ics20_asset_to_withdraw(ics20_asset_to_withdraw)
             .try_build()
             .await
             .wrap_err("failed to construct contract event to sequencer action fetcher")?;

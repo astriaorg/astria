@@ -7,7 +7,6 @@ use std::{
     time::Duration,
 };
 
-use astria_core::primitive::v1::asset::Denom;
 use astria_eyre::eyre::{
     self,
     WrapErr as _,
@@ -119,9 +118,7 @@ impl BridgeWithdrawer {
             startup_handle,
             shutdown_token: shutdown_handle.token(),
             state: state.clone(),
-            rollup_asset_denom: rollup_asset_denomination
-                .parse::<Denom>()
-                .wrap_err("failed to parse ROLLUP_ASSET_DENOMINATION as Denom")?,
+            rollup_asset_denom: rollup_asset_denomination,
             bridge_address: sequencer_bridge_address,
             submitter_handle,
         }
