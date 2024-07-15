@@ -335,26 +335,20 @@ impl Startup {
     }
 }
 
-async fn check_for_empty_mempool(
+async fn ensure_mempool_empty(
     cometbft_client: sequencer_client::HttpClient,
     sequencer_client: sequencer_service_client::SequencerServiceClient<Channel>,
     address: Address,
     state: Arc<State>,
 ) -> eyre::Result<()> {
-    // get pending nonce from sequencer mempool
     let pending = get_pending_nonce(sequencer_client, state.clone(), address)
         .await
         .wrap_err("failed to get pending nonce")?;
-    // get next nonce from cometbft mempool
     let latest = get_latest_nonce(cometbft_client, state, address)
         .await
         .wrap_err("failed to get latest nonce")?;
-    // if not equal, wait for a bit and try again
-    if pending == latest {
-        Ok(())
-    } else {
-        Err(eyre::eyre!("mempool is not empty"))
-    }
+    ensure!(pending == latest, "mempool is not yet emoty");
+    Ok(())
 }
 
 /// Waits for the mempool to be empty of transactions by the given address (i.e. the bridge
@@ -413,8 +407,7 @@ async fn wait_for_empty_mempool(
         let sequencer_client = sequencer_client.clone();
         let cometbft_client = cometbft_client.clone();
         let state = state.clone();
-
-        check_for_empty_mempool(cometbft_client, sequencer_client, address, state)
+        ensure_mempool_empty(cometbft_client, sequencer_client, address, state)
     })
     .with_config(retry_config)
     .await
