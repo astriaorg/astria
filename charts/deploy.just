@@ -164,9 +164,9 @@ deploy-smoke-test tag=defaultTag:
   @just wait-for-sequencer > /dev/null
   @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart ./charts/evm-stack -f dev/values/rollup/dev.yaml \
     {{ if tag != '' { replace('--set evm-rollup.images.conductor.devTag=# --set composer.images.composer.devTag=# --set evm-bridge-withdrawer.images.evmBridgeWithdrawer.devTag=#', '#', tag) } else { '' } }} \
-    --set blockscout-stack.enabled=true \
-    --set postgresql.enabled=true \
-    --set evm-faucet.enabled=true > /dev/null
+    --set blockscout-stack.enabled=false \
+    --set postgresql.enabled=false \
+    --set evm-faucet.enabled=false > /dev/null
   @just wait-for-rollup > /dev/null
 
 

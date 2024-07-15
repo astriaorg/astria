@@ -13,6 +13,13 @@ global:
   rollupName: ""
   evmChainId: ""
   sequencerChainId: ""
+  otel:
+    endpoint: ""
+    tracesEndpoint: ""
+    tracesCompression: gzip
+    tracesTimeout: 10
+    otlpHeaders: ""
+    traceHeaders: ""
 
 evm-rollup:
   enabled: true
@@ -24,6 +31,13 @@ evm-rollup:
       sequencerChainId: "{{ .Values.global.sequencerChainId }}"
       sequencerRpc: "{{ .Values.global.sequencerRpc }}"
       sequencerGrpc: "{{ .Values.global.sequencerGrpc }}"
+  otel:
+    endpoint: "{{ .Values.global.otel.endpoint }}"
+    tracesEndpoint: "{{ .Values.global.otel.tracesEndpoint }}"
+    tracesCompression: "{{ .Values.global.otel.tracesCompression }}"
+    tracesTimeout: "{{ .Values.global.otel.tracesTimeout }}"
+    otlpHeaders: "{{ .Values.global.otel.otlpHeaders }}"
+    traceHeaders: "{{ .Values.global.otel.traceHeaders }}"
 
 composer:
   enabled: false
@@ -34,6 +48,13 @@ composer:
     rollups:
       - name: "{{ .Values.global.rollupName }}"
         wsRpc: "ws://{{ .Values.global.rollupName }}-evm-service.{{ default .Release.Namespace .Values.global.namespaceOverride  }}.svc.cluster.local:8546"
+  otel:
+    endpoint: "{{ .Values.global.otel.endpoint }}"
+    tracesEndpoint: "{{ .Values.global.otel.tracesEndpoint }}"
+    tracesCompression: "{{ .Values.global.otel.tracesCompression }}"
+    tracesTimeout: "{{ .Values.global.otel.tracesTimeout }}"
+    otlpHeaders: "{{ .Values.global.otel.otlpHeaders }}"
+    traceHeaders: "{{ .Values.global.otel.traceHeaders }}"
 
 evm-faucet:
   enabled: false
@@ -47,6 +68,13 @@ bridge-withdrawer:
     sequencerChainId: "{{ .Values.global.sequencerChainId }}"
     sequencerCometbftEndpoint: "{{ .Values.global.sequencerRpc }}"
     evmRpcEndpoint: "ws://{{ .Values.global.rollupName }}-evm-service.{{ default .Release.Namespace .Values.global.namespaceOverride  }}.svc.cluster.local:8546"
+  otel:
+    endpoint: "{{ .Values.global.otel.endpoint }}"
+    tracesEndpoint: "{{ .Values.global.otel.tracesEndpoint }}"
+    tracesCompression: "{{ .Values.global.otel.tracesCompression }}"
+    tracesTimeout: "{{ .Values.global.otel.tracesTimeout }}"
+    otlpHeaders: "{{ .Values.global.otel.otlpHeaders }}"
+    traceHeaders: "{{ .Values.global.otel.traceHeaders }}"
 
 blockscout-stack:
   frontend:
