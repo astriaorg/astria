@@ -241,8 +241,8 @@ macro_rules! mount_executed_block {
         $test_env.mount_execute_block(
             $mock_name.into(),
             ::serde_json::json!({
-                "prev_block_hash": BASE64_STANDARD.encode($parent),
-                "transactions": [{"sequenced_data": BASE64_STANDARD.encode($crate::helpers::data())}],
+                "prevBlockHash": BASE64_STANDARD.encode($parent),
+                "transactions": [{"sequencedData": BASE64_STANDARD.encode($crate::helpers::data())}],
             }),
             $crate::block!(
                 number: $number,

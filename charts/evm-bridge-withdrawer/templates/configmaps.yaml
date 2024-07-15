@@ -13,7 +13,6 @@ data:
   ASTRIA_BRIDGE_WITHDRAWER_SEQUENCER_BRIDGE_ADDRESS: "{{ .Values.config.sequencerBridgeAddress }}"
   ASTRIA_BRIDGE_WITHDRAWER_FEE_ASSET_DENOMINATION: "{{ .Values.config.feeAssetDenom }}"
   ASTRIA_BRIDGE_WITHDRAWER_ROLLUP_ASSET_DENOMINATION: "{{ .Values.config.rollupAssetDenom }}"
-  ASTRIA_BRIDGE_WITHDRAWER_MIN_EXPECTED_FEE_ASSET_BALANCE: "{{ .Values.config.minExpectedFeeAssetBalance }}"
   ASTRIA_BRIDGE_WITHDRAWER_ETHEREUM_CONTRACT_ADDRESS: "{{ .Values.config.evmContractAddress }}"
   ASTRIA_BRIDGE_WITHDRAWER_ETHEREUM_RPC_ENDPOINT: "{{ .Values.config.evmRpcEndpoint }}"
   ASTRIA_BRIDGE_WITHDRAWER_NO_METRICS: "{{ not .Values.metrics.enabled }}"
@@ -30,6 +29,7 @@ data:
   OTEL_EXPORTER_OTLP_TRACE_HEADERS: "{{ .Values.otel.traceHeaders }}"
   OTEL_SERVICE_NAME: "{{ tpl .Values.otel.serviceName . }}"
   {{- if not .Values.global.dev }}
+  ASTRIA_BRIDGE_WITHDRAWER_MIN_EXPECTED_FEE_ASSET_BALANCE: "{{ .Values.config.minExpectedFeeAssetBalance }}"
   {{- else }}
   {{- end }}
 ---

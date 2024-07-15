@@ -37,6 +37,7 @@ mod mock_grpc;
 use astria_eyre;
 pub use mock_grpc::MockGrpc;
 use serde_json::json;
+use tracing::debug;
 
 pub const CELESTIA_BEARER_TOKEN: &str = "ABCDEFGH";
 
@@ -113,10 +114,22 @@ pub struct TestConductor {
 impl Drop for TestConductor {
     fn drop(&mut self) {
         futures::executor::block_on(async {
-            tokio::time::timeout(Duration::from_secs(2), self.conductor.shutdown())
-                .await
-                .expect("timed out waiting for conductor to shut down")
-                .expect("conductor shut down with an error");
+            let err_msg =
+                match tokio::time::timeout(Duration::from_secs(2), self.conductor.shutdown()).await
+                {
+                    Ok(Ok(())) => None,
+                    Ok(Err(conductor_err)) => Some(format!(
+                        "conductor shut down with an error:\n{conductor_err:?}"
+                    )),
+                    Err(_timeout) => Some("timed out waiting for conductor to shut down".into()),
+                };
+            if let Some(err_msg) = err_msg {
+                if std::thread::panicking() {
+                    debug!("{err_msg}");
+                } else {
+                    panic!("{err_msg}");
+                }
+            }
         });
     }
 }

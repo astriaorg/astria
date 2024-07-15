@@ -50,6 +50,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{
     debug,
     info,
+    trace,
     warn,
 };
 
@@ -60,20 +61,20 @@ use crate::bridge_withdrawer::{
         EventWithMetadata,
         WithdrawalEvent,
     },
+    startup,
     state::State,
     submitter,
-    SequencerStartupInfo,
 };
 
 pub(crate) struct Builder {
+    pub(crate) shutdown_token: CancellationToken,
+    pub(crate) startup_handle: startup::InfoHandle,
     pub(crate) ethereum_contract_address: String,
     pub(crate) ethereum_rpc_endpoint: String,
-    pub(crate) submitter_handle: submitter::Handle,
-    pub(crate) shutdown_token: CancellationToken,
     pub(crate) state: Arc<State>,
     pub(crate) rollup_asset_denom: Denom,
     pub(crate) bridge_address: Address,
-    pub(crate) sequencer_address_prefix: String,
+    pub(crate) submitter_handle: submitter::Handle,
 }
 
 impl Builder {
@@ -81,12 +82,12 @@ impl Builder {
         let Builder {
             ethereum_contract_address,
             ethereum_rpc_endpoint,
-            submitter_handle,
             shutdown_token,
+            startup_handle,
             state,
             rollup_asset_denom,
             bridge_address,
-            sequencer_address_prefix,
+            submitter_handle,
         } = self;
 
         let contract_address = address_from_string(&ethereum_contract_address)
@@ -105,26 +106,26 @@ impl Builder {
         Ok(Watcher {
             contract_address,
             ethereum_rpc_endpoint: ethereum_rpc_endpoint.to_string(),
-            submitter_handle,
             rollup_asset_denom,
             bridge_address,
             state,
             shutdown_token: shutdown_token.clone(),
-            sequencer_address_prefix,
+            startup_handle,
+            submitter_handle,
         })
     }
 }
 
 /// Watches for withdrawal events emitted by the `AstriaWithdrawer` contract.
 pub(crate) struct Watcher {
+    shutdown_token: CancellationToken,
+    startup_handle: startup::InfoHandle,
+    submitter_handle: submitter::Handle,
     contract_address: ethers::types::Address,
     ethereum_rpc_endpoint: String,
-    submitter_handle: submitter::Handle,
     rollup_asset_denom: Denom,
     bridge_address: Address,
     state: Arc<State>,
-    shutdown_token: CancellationToken,
-    sequencer_address_prefix: String,
 }
 
 impl Watcher {
@@ -135,14 +136,12 @@ impl Watcher {
                 .wrap_err("watcher failed to start up")?;
 
         let Self {
-            contract_address: _contract_address,
-            ethereum_rpc_endpoint: _ethereum_rps_endpoint,
-            submitter_handle,
             rollup_asset_denom,
             bridge_address,
             state,
             shutdown_token,
-            sequencer_address_prefix,
+            submitter_handle,
+            ..
         } = self;
 
         let converter = EventToActionConvertConfig {
@@ -150,7 +149,6 @@ impl Watcher {
             rollup_asset_denom,
             bridge_address,
             asset_withdrawal_divisor,
-            sequencer_address_prefix,
         };
 
         state.set_watcher_ready();
@@ -192,15 +190,19 @@ impl Watcher {
         u128,
         u64,
     )> {
-        // wait for submitter to be ready
-        let SequencerStartupInfo {
+        let startup::Info {
             fee_asset,
-            next_batch_rollup_height,
-        } = self
-            .submitter_handle
-            .recv_startup_info()
-            .await
-            .wrap_err("failed to get sequencer startup info")?;
+            starting_rollup_height,
+            ..
+        } = select! {
+            () = self.shutdown_token.cancelled() => {
+                return Err(eyre!("watcher received shutdown signal while waiting for startup"));
+            }
+
+            startup_info = self.startup_handle.get_info() => {
+                startup_info.wrap_err("failed to receive startup info")?
+            }
+        };
 
         // connect to eth node
         let retry_config = tryhard::RetryFutureConfig::new(1024)
@@ -255,7 +257,7 @@ impl Watcher {
             contract,
             fee_asset,
             asset_withdrawal_divisor,
-            next_batch_rollup_height,
+            starting_rollup_height,
         ))
     }
 }
@@ -405,7 +407,7 @@ async fn get_and_send_events_at_block(
     }
 
     if batch.actions.is_empty() {
-        debug!("no actions to send at block {block_number}");
+        trace!("no actions to send at block {block_number}");
     } else {
         let actions_len = batch.actions.len();
         submitter_handle
@@ -489,7 +491,6 @@ struct EventToActionConvertConfig {
     rollup_asset_denom: Denom,
     bridge_address: Address,
     asset_withdrawal_divisor: u128,
-    sequencer_address_prefix: String,
 }
 
 impl EventToActionConvertConfig {
@@ -500,7 +501,6 @@ impl EventToActionConvertConfig {
             self.rollup_asset_denom.clone(),
             self.asset_withdrawal_divisor,
             self.bridge_address,
-            &self.sequencer_address_prefix,
         )
     }
 }
@@ -546,10 +546,9 @@ mod tests {
         },
         utils::hex,
     };
-    use tokio::sync::{
-        mpsc,
-        mpsc::error::TryRecvError::Empty,
-        oneshot,
+    use tokio::sync::mpsc::{
+        self,
+        error::TryRecvError,
     };
 
     use super::*;
@@ -641,35 +640,33 @@ mod tests {
 
         let value = 1_000_000_000.into();
         let recipient = crate::astria_address([1u8; 20]);
-
         let bridge_address = crate::astria_address([1u8; 20]);
-        let denom = default_native_asset();
+        let denom = "nria".parse::<Denom>().unwrap();
 
+        let state = Arc::new(State::new());
+        let startup_handle = startup::InfoHandle::new(state.subscribe());
+        state.set_startup_info(startup::Info {
+            starting_rollup_height: 1,
+            fee_asset: denom.clone(),
+            chain_id: "astria".to_string(),
+        });
         let (batch_tx, mut batch_rx) = mpsc::channel(100);
-        let (startup_tx, startup_rx) = oneshot::channel();
-        let submitter_handle = submitter::Handle::new(startup_rx, batch_tx);
-        startup_tx
-            .send(SequencerStartupInfo {
-                fee_asset: "nria".parse().unwrap(),
-                next_batch_rollup_height: 1,
-            })
-            .unwrap();
+        let submitter_handle = submitter::Handle::new(batch_tx);
 
         let watcher = Builder {
             ethereum_contract_address: hex::encode(contract_address),
             ethereum_rpc_endpoint: anvil.ws_endpoint(),
+            startup_handle,
             submitter_handle,
             shutdown_token: CancellationToken::new(),
             state: Arc::new(State::new()),
             rollup_asset_denom: denom.clone(),
             bridge_address,
-            sequencer_address_prefix: crate::ASTRIA_ADDRESS_PREFIX.into(),
         }
         .build()
         .unwrap();
 
         tokio::task::spawn(watcher.run());
-
         let receipt = send_sequencer_withdraw_transaction(&contract, value, recipient).await;
         let expected_event = EventWithMetadata {
             event: WithdrawalEvent::Sequencer(SequencerWithdrawalFilter {
@@ -680,15 +677,8 @@ mod tests {
             block_number: receipt.block_number.unwrap(),
             transaction_hash: receipt.transaction_hash,
         };
-        let expected_action = event_to_action(
-            expected_event,
-            denom.clone(),
-            denom,
-            1,
-            bridge_address,
-            crate::ASTRIA_ADDRESS_PREFIX,
-        )
-        .unwrap();
+        let expected_action =
+            event_to_action(expected_event, denom.clone(), denom, 1, bridge_address).unwrap();
         let Action::BridgeUnlock(expected_action) = expected_action else {
             panic!("expected action to be BridgeUnlock, got {expected_action:?}");
         };
@@ -702,7 +692,7 @@ mod tests {
             );
         };
         assert_eq!(action, &expected_action);
-        assert_eq!(batch_rx.try_recv().unwrap_err(), Empty);
+        assert_eq!(batch_rx.try_recv().unwrap_err(), TryRecvError::Empty);
     }
 
     #[tokio::test]
@@ -737,32 +727,30 @@ mod tests {
             denom.clone(),
             1,
             bridge_address,
-            crate::ASTRIA_ADDRESS_PREFIX,
         )
         .unwrap();
         let Action::BridgeUnlock(expected_action) = expected_action else {
             panic!("expected action to be BridgeUnlock, got {expected_action:?}");
         };
 
+        let state = Arc::new(State::new());
+        let startup_handle = startup::InfoHandle::new(state.subscribe());
+        state.set_startup_info(startup::Info {
+            starting_rollup_height: 1,
+            fee_asset: denom.clone(),
+            chain_id: "astria".to_string(),
+        });
         let (batch_tx, mut batch_rx) = mpsc::channel(100);
-        let (startup_tx, startup_rx) = oneshot::channel();
-        let submitter_handle = submitter::Handle::new(startup_rx, batch_tx);
-        startup_tx
-            .send(SequencerStartupInfo {
-                fee_asset: denom.clone(),
-                next_batch_rollup_height: 1,
-            })
-            .unwrap();
 
         let watcher = Builder {
             ethereum_contract_address: hex::encode(contract_address),
             ethereum_rpc_endpoint: anvil.ws_endpoint(),
-            submitter_handle,
+            startup_handle,
             shutdown_token: CancellationToken::new(),
             state: Arc::new(State::new()),
             rollup_asset_denom: denom.clone(),
             bridge_address,
-            sequencer_address_prefix: crate::ASTRIA_ADDRESS_PREFIX.into(),
+            submitter_handle: submitter::Handle::new(batch_tx),
         }
         .build()
         .unwrap();
@@ -821,28 +809,28 @@ mod tests {
 
         let value = 1_000_000_000.into();
         let recipient = "somebech32address".to_string();
+
         let bridge_address = crate::astria_address([1u8; 20]);
         let denom = "transfer/channel-0/utia".parse::<Denom>().unwrap();
 
+        let state = Arc::new(State::new());
+        let startup_handle = startup::InfoHandle::new(state.subscribe());
+        state.set_startup_info(startup::Info {
+            starting_rollup_height: 1,
+            fee_asset: denom.clone(),
+            chain_id: "astria".to_string(),
+        });
         let (batch_tx, mut batch_rx) = mpsc::channel(100);
-        let (startup_tx, startup_rx) = oneshot::channel();
-        let submitter_handle = submitter::Handle::new(startup_rx, batch_tx);
-        startup_tx
-            .send(SequencerStartupInfo {
-                fee_asset: denom.clone(),
-                next_batch_rollup_height: 1,
-            })
-            .unwrap();
 
         let watcher = Builder {
             ethereum_contract_address: hex::encode(contract_address),
             ethereum_rpc_endpoint: anvil.ws_endpoint(),
-            submitter_handle,
+            startup_handle,
             shutdown_token: CancellationToken::new(),
             state: Arc::new(State::new()),
             rollup_asset_denom: denom.clone(),
             bridge_address,
-            sequencer_address_prefix: crate::ASTRIA_ADDRESS_PREFIX.into(),
+            submitter_handle: submitter::Handle::new(batch_tx),
         }
         .build()
         .unwrap();
@@ -860,13 +848,13 @@ mod tests {
             block_number: receipt.block_number.unwrap(),
             transaction_hash: receipt.transaction_hash,
         };
+
         let Action::Ics20Withdrawal(mut expected_action) = event_to_action(
             expected_event,
             denom.clone(),
             denom.clone(),
             1,
             bridge_address,
-            crate::ASTRIA_ADDRESS_PREFIX,
         )
         .unwrap() else {
             panic!("expected action to be Ics20Withdrawal");
@@ -883,7 +871,7 @@ mod tests {
         };
         action.timeout_time = 0; // zero this for testing
         assert_eq!(action, &expected_action);
-        assert_eq!(batch_rx.try_recv().unwrap_err(), Empty);
+        assert_eq!(batch_rx.try_recv().unwrap_err(), TryRecvError::Empty);
     }
 
     async fn mint_tokens<M: Middleware>(
@@ -947,28 +935,27 @@ mod tests {
 
         let value = 1_000_000_000.into();
         let recipient = crate::astria_address([1u8; 20]);
-        let denom = default_native_asset();
         let bridge_address = crate::astria_address([1u8; 20]);
+        let denom = default_native_asset();
 
+        let state = Arc::new(State::new());
+        let startup_handle = startup::InfoHandle::new(state.subscribe());
+        state.set_startup_info(startup::Info {
+            starting_rollup_height: 1,
+            fee_asset: denom.clone(),
+            chain_id: "astria".to_string(),
+        });
         let (batch_tx, mut batch_rx) = mpsc::channel(100);
-        let (startup_tx, startup_rx) = oneshot::channel();
-        let submitter_handle = submitter::Handle::new(startup_rx, batch_tx);
-        startup_tx
-            .send(SequencerStartupInfo {
-                fee_asset: "nria".parse().unwrap(),
-                next_batch_rollup_height: 1,
-            })
-            .unwrap();
 
         let watcher = Builder {
             ethereum_contract_address: hex::encode(contract_address),
             ethereum_rpc_endpoint: anvil.ws_endpoint(),
-            submitter_handle,
+            startup_handle,
             shutdown_token: CancellationToken::new(),
             state: Arc::new(State::new()),
             rollup_asset_denom: denom.clone(),
             bridge_address,
-            sequencer_address_prefix: crate::ASTRIA_ADDRESS_PREFIX.into(),
+            submitter_handle: submitter::Handle::new(batch_tx),
         }
         .build()
         .unwrap();
@@ -991,7 +978,6 @@ mod tests {
             denom.clone(),
             1,
             bridge_address,
-            crate::ASTRIA_ADDRESS_PREFIX,
         )
         .unwrap();
         let Action::BridgeUnlock(expected_action) = expected_action else {
@@ -1007,7 +993,7 @@ mod tests {
             );
         };
         assert_eq!(action, &expected_action);
-        assert_eq!(batch_rx.try_recv().unwrap_err(), Empty);
+        assert_eq!(batch_rx.try_recv().unwrap_err(), TryRecvError::Empty);
     }
 
     async fn send_ics20_withdraw_transaction_astria_bridgeable_erc20<M: Middleware>(
@@ -1049,28 +1035,27 @@ mod tests {
 
         let value = 1_000_000_000.into();
         let recipient = "somebech32address".to_string();
-        let denom = "transfer/channel-0/utia".parse::<Denom>().unwrap();
         let bridge_address = crate::astria_address([1u8; 20]);
+        let denom = "transfer/channel-0/utia".parse::<Denom>().unwrap();
 
+        let state = Arc::new(State::new());
+        let startup_handle = startup::InfoHandle::new(state.subscribe());
+        state.set_startup_info(startup::Info {
+            starting_rollup_height: 1,
+            fee_asset: denom.clone(),
+            chain_id: "astria".to_string(),
+        });
         let (batch_tx, mut batch_rx) = mpsc::channel(100);
-        let (startup_tx, startup_rx) = oneshot::channel();
-        let submitter_handle = submitter::Handle::new(startup_rx, batch_tx);
-        startup_tx
-            .send(SequencerStartupInfo {
-                fee_asset: "transfer/channel-0/utia".parse().unwrap(),
-                next_batch_rollup_height: 1,
-            })
-            .unwrap();
 
         let watcher = Builder {
             ethereum_contract_address: hex::encode(contract_address),
             ethereum_rpc_endpoint: anvil.ws_endpoint(),
-            submitter_handle,
+            startup_handle,
             shutdown_token: CancellationToken::new(),
             state: Arc::new(State::new()),
             rollup_asset_denom: denom.clone(),
             bridge_address,
-            sequencer_address_prefix: crate::ASTRIA_ADDRESS_PREFIX.into(),
+            submitter_handle: submitter::Handle::new(batch_tx),
         }
         .build()
         .unwrap();
@@ -1099,7 +1084,6 @@ mod tests {
             denom.clone(),
             1,
             bridge_address,
-            crate::ASTRIA_ADDRESS_PREFIX,
         )
         .unwrap() else {
             panic!("expected action to be Ics20Withdrawal");
@@ -1116,6 +1100,6 @@ mod tests {
         };
         action.timeout_time = 0; // zero this for testing
         assert_eq!(action, &expected_action);
-        assert_eq!(batch_rx.try_recv().unwrap_err(), Empty);
+        assert_eq!(batch_rx.try_recv().unwrap_err(), TryRecvError::Empty);
     }
 }

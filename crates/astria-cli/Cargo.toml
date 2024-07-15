@@ -14,17 +14,26 @@ name = "astria-cli"
 [dependencies]
 color-eyre = "0.6"
 
-astria-core = { path = "../astria-core" }
+astria-bridge-contracts = { path = "../astria-bridge-contracts" }
+astria-core = { path = "../astria-core", features = ["serde"] }
 
 clap = { workspace = true, features = ["derive", "env"] }
+ethers = { workspace = true, features = ["ws"] }
 hex = { workspace = true }
+ibc-types = { workspace = true }
 rand = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_yaml = "0.9.25"
 sha2 = { workspace = true }
-tokio = { workspace = true, features = ["rt", "macros"] }
+tendermint = { workspace = true }
+tokio = { workspace = true, features = ["rt", "macros", "signal"] }
 tracing = { workspace = true }
 which = { workspace = true }
+humantime.workspace = true
+tryhard.workspace = true
+serde_json.workspace = true
+futures.workspace = true
+tracing-subscriber = "0.3.18"
 
 [dependencies.astria-sequencer-client]
 package = "astria-sequencer-client"

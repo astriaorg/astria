@@ -539,17 +539,26 @@ dependencies = [
 name = "astria-cli"
 version = "0.3.1"
 dependencies = [
+ "astria-bridge-contracts",
  "astria-core",
  "astria-sequencer-client",
  "clap",
  "color-eyre",
+ "ethers",
+ "futures",
  "hex",
+ "humantime",
+ "ibc-types",
  "rand 0.8.5",
  "serde",
+ "serde_json",
  "serde_yaml",
  "sha2 0.10.8",
+ "tendermint",
  "tokio",
  "tracing",
+ "tracing-subscriber 0.3.18",
+ "tryhard",
  "which",
 ]
 
@@ -784,6 +793,7 @@ dependencies = [
  "priority-queue",
  "prost",
  "rand 0.8.5",
+ "rand_chacha 0.3.1",
  "regex",
  "serde",
  "serde_json",
@@ -1898,9 +1908,12 @@ checksum = "acbf1af155f9b9ef647e42cdc158db4b64a1b61f743629225fde6f3e0be2a7c7"
 
 [[package]]
 name = "colour"
-version = "2.0.0"
+version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "692e39ee1f14432931eb080a5e8e8930a7eff3d19e638cd04091534ebc40b928"
+checksum = "b536eebcabe54980476d120a182f7da2268fe02d22575cca99cee5fdda178280"
+dependencies = [
+ "winapi",
+]
 
 [[package]]
 name = "compiletest_rs"

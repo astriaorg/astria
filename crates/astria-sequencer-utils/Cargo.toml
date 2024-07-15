@@ -16,7 +16,7 @@ clap = { workspace = true, features = [
   "derive",
   "wrap_help",
 ] }
-colour = "2.0.0"
+colour = "2.1.0"
 ethers-core = "2.0.14"
 hex = { workspace = true }
 indenter = "0.3.3"

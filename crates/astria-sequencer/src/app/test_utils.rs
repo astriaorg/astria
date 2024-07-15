@@ -6,7 +6,10 @@ use astria_core::{
         ADDRESS_LEN,
     },
     protocol::transaction::v1alpha1::{
-        action::SequenceAction,
+        action::{
+            SequenceAction,
+            ValidatorUpdate,
+        },
         SignedTransaction,
         TransactionParams,
         UnsignedTransaction,
@@ -116,7 +119,7 @@ pub(crate) fn genesis_state() -> GenesisState {
 
 pub(crate) async fn initialize_app_with_storage(
     genesis_state: Option<GenesisState>,
-    genesis_validators: Vec<tendermint::validator::Update>,
+    genesis_validators: Vec<ValidatorUpdate>,
 ) -> (App, Storage) {
     let storage = cnidarium::TempStorage::new()
         .await
@@ -143,7 +146,7 @@ pub(crate) async fn initialize_app_with_storage(
 
 pub(crate) async fn initialize_app(
     genesis_state: Option<GenesisState>,
-    genesis_validators: Vec<tendermint::validator::Update>,
+    genesis_validators: Vec<ValidatorUpdate>,
 ) -> App {
     let (app, _storage) = initialize_app_with_storage(genesis_state, genesis_validators).await;
     app

@@ -389,7 +389,7 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
         .parse()
         .context("failed to parse packet data amount to u128")?;
     let recipient = if is_refund {
-        packet_data.sender
+        packet_data.sender.clone()
     } else {
         packet_data.receiver
     };
@@ -412,13 +412,15 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
     //
     // in this case, we lock the tokens back in the bridge account and
     // emit a `Deposit` event to send the tokens back to the rollup.
-    let maybe_memo = serde_json::from_slice(packet_data.memo.as_bytes());
-    if is_refund && maybe_memo.is_ok() {
-        let memo: Ics20WithdrawalFromRollupMemo =
-            maybe_memo.expect("memo is valid as it was checked by is_ok()");
+    if is_refund && serde_json::from_str::<Ics20WithdrawalFromRollupMemo>(&packet_data.memo).is_ok()
+    {
+        let bridge_account = packet_data.sender.parse().context(
+            "sender not an Astria Address: for refunds of ics20 withdrawals that came from a \
+             rollup, the sender must be a valid Astria Address (usually the bridge account)",
+        )?;
         execute_rollup_withdrawal_refund(
             state,
-            &memo.bridge_address,
+            bridge_account,
             &denom_trace,
             packet_amount,
             recipient,
@@ -448,7 +450,7 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
     // execute relevant state changes if it is
     execute_ics20_transfer_bridge_lock(
         state,
-        &recipient,
+        recipient,
         &trace_with_dest,
         packet_amount,
         packet_data.memo.clone(),
@@ -525,7 +527,7 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
 /// and locks the tokens back in the specified bridge account.
 async fn execute_rollup_withdrawal_refund<S: StateWriteExt>(
     state: &mut S,
-    bridge_address: &Address,
+    bridge_address: Address,
     denom: &denom::TracePrefixed,
     amount: u128,
     destination_address: String,
@@ -533,7 +535,7 @@ async fn execute_rollup_withdrawal_refund<S: StateWriteExt>(
     execute_deposit(state, bridge_address, denom, amount, destination_address).await?;
 
     state
-        .increase_balance(*bridge_address, denom, amount)
+        .increase_balance(bridge_address, denom, amount)
         .await
         .context(
             "failed to update bridge account account balance in execute_rollup_withdrawal_refund",
@@ -548,7 +550,7 @@ async fn execute_rollup_withdrawal_refund<S: StateWriteExt>(
 /// this function is a no-op.
 async fn execute_ics20_transfer_bridge_lock<S: StateWriteExt>(
     state: &mut S,
-    recipient: &Address,
+    recipient: Address,
     denom: &denom::TracePrefixed,
     amount: u128,
     memo: String,
@@ -557,7 +559,7 @@ async fn execute_ics20_transfer_bridge_lock<S: StateWriteExt>(
     // check if the recipient is a bridge account; if so,
     // ensure that the packet memo field (`destination_address`) is set.
     let is_bridge_lock = state
-        .get_bridge_account_rollup_id(recipient)
+        .get_bridge_account_rollup_id(&recipient)
         .await
         .context("failed to get bridge account rollup ID from state")?
         .is_some();
@@ -597,7 +599,7 @@ async fn execute_ics20_transfer_bridge_lock<S: StateWriteExt>(
 
 async fn execute_deposit<S: StateWriteExt>(
     state: &mut S,
-    bridge_address: &Address,
+    bridge_address: Address,
     denom: &denom::TracePrefixed,
     amount: u128,
     destination_address: String,
@@ -606,7 +608,7 @@ async fn execute_deposit<S: StateWriteExt>(
     // ensure that the asset ID being transferred
     // to it is allowed.
     let Some(rollup_id) = state
-        .get_bridge_account_rollup_id(bridge_address)
+        .get_bridge_account_rollup_id(&bridge_address)
         .await
         .context("failed to get bridge account rollup ID from state")?
     else {
@@ -614,7 +616,7 @@ async fn execute_deposit<S: StateWriteExt>(
     };
 
     let allowed_asset = state
-        .get_bridge_account_ibc_asset(bridge_address)
+        .get_bridge_account_ibc_asset(&bridge_address)
         .await
         .context("failed to get bridge account asset ID")?;
     ensure!(
@@ -623,7 +625,7 @@ async fn execute_deposit<S: StateWriteExt>(
     );
 
     let deposit = Deposit::new(
-        *bridge_address,
+        bridge_address,
         rollup_id,
         amount,
         denom.into(),
@@ -1003,7 +1005,7 @@ mod test {
         let destination_address = "destinationaddress".to_string();
         execute_rollup_withdrawal_refund(
             &mut state_tx,
-            &bridge_address,
+            bridge_address,
             &denom,
             amount,
             destination_address,
@@ -1030,8 +1032,8 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot.clone());
 
-        let destination_chain_address = "destinationchainaddress".to_string();
         let bridge_address = crate::address::base_prefixed([99u8; 20]);
+        let destination_chain_address = bridge_address.to_string();
         let denom = "nootasset".parse::<Denom>().unwrap();
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
 
@@ -1042,13 +1044,13 @@ mod test {
 
         let packet = FungibleTokenPacketData {
             denom: denom.to_string(),
-            sender: destination_chain_address.clone(),
+            sender: bridge_address.to_string(),
             amount: "100".to_string(),
             receiver: "other-chain-address".to_string(),
             memo: serde_json::to_string(&Ics20WithdrawalFromRollupMemo {
-                bridge_address,
                 memo: String::new(),
                 block_number: 1,
+                rollup_return_address: "rollup-defined".to_string(),
                 transaction_hash: [1u8; 32],
             })
             .unwrap(),

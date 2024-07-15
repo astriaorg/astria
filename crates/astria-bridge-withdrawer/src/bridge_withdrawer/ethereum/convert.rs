@@ -5,7 +5,10 @@ use astria_bridge_contracts::i_astria_withdrawer::{
     SequencerWithdrawalFilter,
 };
 use astria_core::{
-    bridge::Ics20WithdrawalFromRollupMemo,
+    bridge::{
+        self,
+        Ics20WithdrawalFromRollupMemo,
+    },
     primitive::v1::{
         asset::{
             self,
@@ -31,10 +34,6 @@ use ethers::types::{
     U64,
 };
 use ibc_types::core::client::Height as IbcHeight;
-use serde::{
-    Deserialize,
-    Serialize,
-};
 
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum WithdrawalEvent {
@@ -57,7 +56,6 @@ pub(crate) fn event_to_action(
     rollup_asset_denom: asset::Denom,
     asset_withdrawal_divisor: u128,
     bridge_address: Address,
-    sequencer_address_prefix: &str,
 ) -> eyre::Result<Action> {
     let action = match event_with_metadata.event {
         WithdrawalEvent::Sequencer(event) => event_to_bridge_unlock(
@@ -66,6 +64,7 @@ pub(crate) fn event_to_action(
             event_with_metadata.transaction_hash,
             fee_asset,
             asset_withdrawal_divisor,
+            bridge_address,
         )
         .wrap_err("failed to convert sequencer withdrawal event to action")?,
         WithdrawalEvent::Ics20(event) => event_to_ics20_withdrawal(
@@ -76,17 +75,10 @@ pub(crate) fn event_to_action(
             rollup_asset_denom,
             asset_withdrawal_divisor,
             bridge_address,
-            sequencer_address_prefix,
         )
         .wrap_err("failed to convert ics20 withdrawal event to action")?,
     };
     Ok(action)
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct BridgeUnlockMemo {
-    pub(crate) block_number: U64,
-    pub(crate) transaction_hash: TxHash,
 }
 
 fn event_to_bridge_unlock(
@@ -95,10 +87,14 @@ fn event_to_bridge_unlock(
     transaction_hash: TxHash,
     fee_asset: asset::Denom,
     asset_withdrawal_divisor: u128,
+    bridge_address: Address,
 ) -> eyre::Result<Action> {
-    let memo = BridgeUnlockMemo {
-        block_number,
-        transaction_hash,
+    let memo = bridge::UnlockMemo {
+        // XXX: The documentation mentions that the ethers U64 type will panic if it cannot be
+        // converted to u64. However, this is part of a catch-all documentation that does not apply
+        // to U64.
+        block_number: block_number.as_u64(),
+        transaction_hash: transaction_hash.into(),
     };
     let action = BridgeUnlockAction {
         to: event
@@ -112,9 +108,9 @@ fn event_to_bridge_unlock(
             .ok_or(eyre::eyre!(
                 "failed to divide amount by asset withdrawal multiplier"
             ))?,
-        memo: serde_json::to_vec(&memo).wrap_err("failed to serialize memo to json")?,
+        memo: serde_json::to_string(&memo).wrap_err("failed to serialize memo to json")?,
         fee_asset,
-        bridge_address: None,
+        bridge_address: Some(bridge_address),
     };
 
     Ok(Action::BridgeUnlock(action))
@@ -130,12 +126,10 @@ fn event_to_ics20_withdrawal(
     rollup_asset_denom: asset::Denom,
     asset_withdrawal_divisor: u128,
     bridge_address: Address,
-    sequencer_address_prefix: &str,
 ) -> eyre::Result<Action> {
     // TODO: make this configurable
     const ICS20_WITHDRAWAL_TIMEOUT: Duration = Duration::from_secs(300);
 
-    let sender = event.sender.to_fixed_bytes();
     let denom = rollup_asset_denom.clone();
 
     let channel = denom
@@ -145,23 +139,15 @@ fn event_to_ics20_withdrawal(
 
     let memo = Ics20WithdrawalFromRollupMemo {
         memo: event.memo,
-        bridge_address,
         block_number: block_number.as_u64(),
+        rollup_return_address: event.sender.to_string(),
         transaction_hash: transaction_hash.into(),
     };
 
     let action = Ics20Withdrawal {
         denom: rollup_asset_denom,
         destination_chain_address: event.destination_chain_address,
-        // note: this is actually a rollup address; we expect failed ics20 withdrawals to be
-        // returned to the rollup.
-        // this is only ok for now because addresses on the sequencer and the rollup are both 20
-        // bytes, but this won't work otherwise.
-        return_address: Address::builder()
-            .array(sender)
-            .prefix(sequencer_address_prefix)
-            .try_build()
-            .wrap_err("failed to construct return address")?,
+        return_address: bridge_address,
         amount: event
             .amount
             .as_u128()
@@ -180,7 +166,7 @@ fn event_to_ics20_withdrawal(
         source_channel: channel
             .parse()
             .wrap_err("failed to parse channel from denom")?,
-        bridge_address: None,
+        bridge_address: Some(bridge_address),
     };
     Ok(Action::Ics20Withdrawal(action))
 }
@@ -216,13 +202,13 @@ mod tests {
             block_number: 1.into(),
             transaction_hash: [2u8; 32].into(),
         };
+        let bridge_address = crate::astria_address([99u8; 20]);
         let action = event_to_action(
             event_with_meta,
             denom.clone(),
             denom.clone(),
             1,
-            crate::astria_address([99u8; 20]),
-            crate::ASTRIA_ADDRESS_PREFIX,
+            bridge_address,
         )
         .unwrap();
         let Action::BridgeUnlock(action) = action else {
@@ -232,13 +218,13 @@ mod tests {
         let expected_action = BridgeUnlockAction {
             to: crate::astria_address([1u8; 20]),
             amount: 99,
-            memo: serde_json::to_vec(&BridgeUnlockMemo {
-                block_number: 1.into(),
-                transaction_hash: [2u8; 32].into(),
+            memo: serde_json::to_string(&bridge::UnlockMemo {
+                block_number: 1,
+                transaction_hash: [2u8; 32],
             })
             .unwrap(),
             fee_asset: denom,
-            bridge_address: None,
+            bridge_address: Some(bridge_address),
         };
 
         assert_eq!(action, expected_action);
@@ -257,13 +243,13 @@ mod tests {
             transaction_hash: [2u8; 32].into(),
         };
         let divisor = 10;
+        let bridge_address = crate::astria_address([99u8; 20]);
         let action = event_to_action(
             event_with_meta,
             denom.clone(),
             denom.clone(),
             divisor,
-            crate::astria_address([99u8; 20]),
-            crate::ASTRIA_ADDRESS_PREFIX,
+            bridge_address,
         )
         .unwrap();
         let Action::BridgeUnlock(action) = action else {
@@ -273,13 +259,13 @@ mod tests {
         let expected_action = BridgeUnlockAction {
             to: crate::astria_address([1u8; 20]),
             amount: 99,
-            memo: serde_json::to_vec(&BridgeUnlockMemo {
-                block_number: 1.into(),
-                transaction_hash: [2u8; 32].into(),
+            memo: serde_json::to_string(&bridge::UnlockMemo {
+                block_number: 1,
+                transaction_hash: [2u8; 32],
             })
             .unwrap(),
             fee_asset: denom,
-            bridge_address: None,
+            bridge_address: Some(bridge_address),
         };
 
         assert_eq!(action, expected_action);
@@ -307,7 +293,6 @@ mod tests {
             denom.clone(),
             1,
             bridge_address,
-            crate::ASTRIA_ADDRESS_PREFIX,
         )
         .unwrap();
         let Action::Ics20Withdrawal(mut action) = action else {
@@ -321,12 +306,12 @@ mod tests {
         let expected_action = Ics20Withdrawal {
             denom: denom.clone(),
             destination_chain_address,
-            return_address: crate::astria_address([0u8; 20]),
+            return_address: bridge_address,
             amount: 99,
             memo: serde_json::to_string(&Ics20WithdrawalFromRollupMemo {
                 memo: "hello".to_string(),
-                bridge_address,
                 block_number: 1u64,
+                rollup_return_address: ethers::types::Address::from([0u8; 20]).to_string(),
                 transaction_hash: [2u8; 32],
             })
             .unwrap(),
@@ -334,7 +319,7 @@ mod tests {
             timeout_height: IbcHeight::new(u64::MAX, u64::MAX).unwrap(),
             timeout_time: 0, // zero this for testing
             source_channel: "channel-0".parse().unwrap(),
-            bridge_address: None,
+            bridge_address: Some(bridge_address),
         };
         assert_eq!(action, expected_action);
     }
