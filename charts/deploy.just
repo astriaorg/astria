@@ -381,7 +381,6 @@ run-smoke-cli:
 
   CURRENT_BLOCK_HEX=$(just evm-get-block-by-number latest | jq -r '.number')
   CURRENT_BLOCK=$(just hex-to-dec $CURRENT_BLOCK_HEX)
-  echo {{sequencer_bridge_pkey}} > test_se
 
   withdrawals_dst="$(mktemp)"
   # uncomment this line if you want to inspect `withdrawals_dst`
