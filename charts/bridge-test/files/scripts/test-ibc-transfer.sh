@@ -28,11 +28,11 @@ performIBCTransfer() {
     channel-0 \
     "$bridge_account_address_bech32" \
     53000utia \
-    --memo="$evm_to_address" \
+    --memo="{\"rollupAddress\":\"$evm_to_address\"}" \
     --chain-id="$celestia_chain_id" \
     --node="$celestia_node_url" \
     --from="$celestia_dev_account_address" \
-    --fees=420utia \
+    --fees=26000utia \
     --yes \
     --log_level=debug \
     --home "$home_dir" \
