@@ -274,6 +274,7 @@ async fn submit_tx(
     res
 }
 
+// TODO(https://github.com/astriaorg/astria/issues/1274): deduplicate here and in crate::bridge_withdrawer::startup
 async fn get_pending_nonce(
     client: sequencer_service_client::SequencerServiceClient<Channel>,
     address: Address,

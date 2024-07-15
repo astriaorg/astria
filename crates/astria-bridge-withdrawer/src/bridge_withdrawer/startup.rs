@@ -583,6 +583,7 @@ async fn get_latest_nonce(
     res
 }
 
+// TODO(https://github.com/astriaorg/astria/issues/1274): deduplicate here and in crate::bridge_withdrawer::submitter
 #[instrument(skip_all)]
 async fn get_pending_nonce(
     client: sequencer_service_client::SequencerServiceClient<Channel>,
