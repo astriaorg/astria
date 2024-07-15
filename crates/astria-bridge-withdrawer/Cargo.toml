@@ -38,23 +38,23 @@ tonic = { workspace = true }
 astria-bridge-contracts = { path = "../astria-bridge-contracts" }
 astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
 astria-core = { path = "../astria-core", features = [
-    "serde",
-    "server",
-    "client",
+  "serde",
+  "server",
+  "client",
 ] }
 astria-eyre = { path = "../astria-eyre" }
 config = { package = "astria-config", path = "../astria-config" }
 sequencer-client = { package = "astria-sequencer-client", path = "../astria-sequencer-client", features = [
-    "http",
+  "http",
 ] }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry", features = [
-    "display",
+  "display",
 ] }
 
 [dev-dependencies]
 astria-core = { path = "../astria-core", features = ["server", "test-utils"] }
 config = { package = "astria-config", path = "../astria-config", features = [
-    "tests",
+  "tests",
 ] }
 tempfile = { workspace = true }
 tendermint-rpc = { workspace = true }
