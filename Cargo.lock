@@ -784,6 +784,7 @@ dependencies = [
  "bytes",
  "cnidarium",
  "cnidarium-component",
+ "divan",
  "futures",
  "hex",
  "ibc-proto",
