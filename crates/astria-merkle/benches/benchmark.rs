@@ -1,5 +1,3 @@
-#![allow(clippy::wildcard_imports)]
-
 use astria_merkle::Tree;
 use ct_merkle::CtMerkleTree;
 use divan::{
