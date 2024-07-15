@@ -840,9 +840,9 @@ impl App {
                             AbciErrorCode::INTERNAL_ERROR
                         };
                         tx_results.push(ExecTxResult {
-                            code: code.into(),
+                            code: code.value(),
                             info: code.to_string(),
-                            log: format!("{e:?}"),
+                            log: format!("{e:#}"),
                             ..Default::default()
                         });
                     }

@@ -567,6 +567,7 @@ impl Future for SubmitFut {
 
     #[allow(clippy::too_many_lines)]
     fn poll(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+        const INVALID_NONCE: tendermint::abci::Code = AbciErrorCode::INVALID_NONCE.value();
         loop {
             let this = self.as_mut().project();
 
@@ -595,8 +596,8 @@ impl Future for SubmitFut {
                 SubmitStateProj::WaitingForSend {
                     fut,
                 } => match ready!(fut.poll(cx)) {
-                    Ok(rsp) => {
-                        let tendermint::abci::Code::Err(code) = rsp.code else {
+                    Ok(rsp) => match rsp.code {
+                        tendermint::abci::Code::Ok => {
                             info!("sequencer responded with ok; submission successful");
 
                             this.metrics
@@ -609,35 +610,33 @@ impl Future for SubmitFut {
                                 .nonce
                                 .checked_add(1)
                                 .expect("nonce should not overflow")));
-                        };
-                        match AbciErrorCode::from(code) {
-                            AbciErrorCode::INVALID_NONCE => {
-                                info!(
-                                    "sequencer rejected transaction due to invalid nonce; \
-                                     fetching new nonce"
-                                );
-                                SubmitState::WaitingForNonce {
-                                    fut: get_latest_nonce(
-                                        this.client.clone(),
-                                        *this.address,
-                                        self.metrics,
-                                    )
-                                    .boxed(),
-                                }
-                            }
-                            _other => {
-                                warn!(
-                                    abci.code = rsp.code.value(),
-                                    abci.log = rsp.log,
-                                    "sequencer rejected the transaction; the bundle is likely lost",
-                                );
-
-                                this.metrics.increment_sequencer_submission_failure_count();
-
-                                return Poll::Ready(Ok(*this.nonce));
+                        }
+                        INVALID_NONCE => {
+                            info!(
+                                "sequencer rejected transaction due to invalid nonce; fetching \
+                                 new nonce"
+                            );
+                            SubmitState::WaitingForNonce {
+                                fut: get_latest_nonce(
+                                    this.client.clone(),
+                                    *this.address,
+                                    self.metrics,
+                                )
+                                .boxed(),
                             }
                         }
-                    }
+                        tendermint::abci::Code::Err(_) => {
+                            warn!(
+                                abci.code = rsp.code.value(),
+                                abci.log = rsp.log,
+                                "sequencer rejected the transaction; the bundle is likely lost",
+                            );
+
+                            this.metrics.increment_sequencer_submission_failure_count();
+
+                            return Poll::Ready(Ok(*this.nonce));
+                        }
+                    },
                     Err(error) => {
                         error!(%error, "failed sending transaction to sequencer");
 

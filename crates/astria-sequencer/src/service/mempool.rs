@@ -123,7 +123,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
         mempool.remove(tx_hash).await;
         metrics.increment_check_tx_removed_too_large();
         return response::CheckTx {
-            code: AbciErrorCode::TRANSACTION_TOO_LARGE.into(),
+            code: AbciErrorCode::TRANSACTION_TOO_LARGE.value(),
             log: format!(
                 "transaction size too large; allowed: {MAX_TX_SIZE} bytes, got {}",
                 tx.len()
@@ -138,7 +138,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
         Err(e) => {
             mempool.remove(tx_hash).await;
             return response::CheckTx {
-                code: AbciErrorCode::INVALID_PARAMETER.into(),
+                code: AbciErrorCode::INVALID_PARAMETER.value(),
                 log: e.to_string(),
                 info: "failed decoding bytes as a protobuf SignedTransaction".into(),
                 ..response::CheckTx::default()
@@ -150,7 +150,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
         Err(e) => {
             mempool.remove(tx_hash).await;
             return response::CheckTx {
-                code: AbciErrorCode::INVALID_PARAMETER.into(),
+                code: AbciErrorCode::INVALID_PARAMETER.value(),
                 info: "the provided bytes was not a valid protobuf-encoded SignedTransaction, or \
                        the signature was invalid"
                     .into(),
@@ -169,7 +169,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
         mempool.remove(tx_hash).await;
         metrics.increment_check_tx_removed_failed_stateless();
         return response::CheckTx {
-            code: AbciErrorCode::INVALID_PARAMETER.into(),
+            code: AbciErrorCode::INVALID_PARAMETER.value(),
             info: "transaction failed stateless check".into(),
             log: e.to_string(),
             ..response::CheckTx::default()
@@ -185,7 +185,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
         mempool.remove(tx_hash).await;
         metrics.increment_check_tx_removed_stale_nonce();
         return response::CheckTx {
-            code: AbciErrorCode::INVALID_NONCE.into(),
+            code: AbciErrorCode::INVALID_NONCE.value(),
             info: "failed verifying transaction nonce".into(),
             log: e.to_string(),
             ..response::CheckTx::default()
@@ -200,7 +200,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
     if let Err(e) = transaction::check_chain_id_mempool(&signed_tx, &state).await {
         mempool.remove(tx_hash).await;
         return response::CheckTx {
-            code: AbciErrorCode::INVALID_CHAIN_ID.into(),
+            code: AbciErrorCode::INVALID_CHAIN_ID.value(),
             info: "failed verifying chain id".into(),
             log: e.to_string(),
             ..response::CheckTx::default()
@@ -216,7 +216,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
         mempool.remove(tx_hash).await;
         metrics.increment_check_tx_removed_account_balance();
         return response::CheckTx {
-            code: AbciErrorCode::INSUFFICIENT_FUNDS.into(),
+            code: AbciErrorCode::INSUFFICIENT_FUNDS.value(),
             info: "failed verifying account balance".into(),
             log: e.to_string(),
             ..response::CheckTx::default()
@@ -235,7 +235,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
             RemovalReason::Expired => {
                 metrics.increment_check_tx_removed_expired();
                 return response::CheckTx {
-                    code: AbciErrorCode::TRANSACTION_EXPIRED.into(),
+                    code: AbciErrorCode::TRANSACTION_EXPIRED.value(),
                     info: "transaction expired in app's mempool".into(),
                     log: "Transaction expired in the app's mempool".into(),
                     ..response::CheckTx::default()
@@ -244,7 +244,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
             RemovalReason::FailedPrepareProposal(err) => {
                 metrics.increment_check_tx_removed_failed_execution();
                 return response::CheckTx {
-                    code: AbciErrorCode::TRANSACTION_FAILED.into(),
+                    code: AbciErrorCode::TRANSACTION_FAILED.value(),
                     info: "transaction failed execution in prepare_proposal()".into(),
                     log: format!("transaction failed execution because: {err}"),
                     ..response::CheckTx::default()
