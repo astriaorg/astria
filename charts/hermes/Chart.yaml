@@ -26,5 +26,7 @@ appVersion: "1.8.2"
 maintainers:
   - name: wafflesvonmaple
     url: astria.org
+  - name: steezeburger
+    url: astria.org
   - name: joroshiba
     url: astria.org
