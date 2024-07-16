@@ -10,6 +10,8 @@ use serde::{
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 /// The single config for creating an astria-bridge service.
 pub struct Config {
+    // The sequencer service grpc endpoint used to fetch pending nonce.
+    pub sequencer_grpc_endpoint: String,
     // The cometbft rpc endpoint for submitting transactions to the sequencer.
     pub sequencer_cometbft_endpoint: String,
     // The chain id of the sequencer chain.
@@ -19,7 +21,7 @@ pub struct Config {
     // The fee asset denomination to use for the bridge account's transactions.
     pub fee_asset_denomination: asset::Denom,
     // The asset denomination being withdrawn from the rollup.
-    pub rollup_asset_denomination: String,
+    pub rollup_asset_denomination: asset::denom::TracePrefixed,
     // The bridge address corresponding to the bridged rollup asset on the sequencer.
     pub sequencer_bridge_address: String,
     // The address of the AstriaWithdrawer contract on the evm rollup.

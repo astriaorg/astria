@@ -1,3 +1,5 @@
+mod benchmarks;
+
 use std::{
     cmp::{
         self,
@@ -139,7 +141,7 @@ pub(crate) enum RemovalReason {
     FailedPrepareProposal(String),
 }
 
-const TX_TTL: Duration = Duration::from_secs(600); // 10 minutes 
+const TX_TTL: Duration = Duration::from_secs(600); // 10 minutes
 const REMOVAL_CACHE_SIZE: usize = 4096;
 
 /// `RemovalCache` is used to signal to `CometBFT` that a
@@ -310,10 +312,7 @@ impl Mempool {
 
     /// checks if a transaction was flagged to be removed from the `CometBFT` mempool
     /// and removes entry
-    pub(crate) async fn check_removed_comet_bft(
-        &mut self,
-        tx_hash: [u8; 32],
-    ) -> Option<RemovalReason> {
+    pub(crate) async fn check_removed_comet_bft(&self, tx_hash: [u8; 32]) -> Option<RemovalReason> {
         self.comet_bft_removal_cache.write().await.remove(tx_hash)
     }
 

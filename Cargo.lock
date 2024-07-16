@@ -488,7 +488,13 @@ dependencies = [
 name = "astria-bridge-contracts"
 version = "0.1.0"
 dependencies = [
+ "astria-core",
  "ethers",
+ "futures",
+ "ibc-types",
+ "serde_json",
+ "tendermint",
+ "thiserror",
 ]
 
 [[package]]
@@ -522,6 +528,7 @@ dependencies = [
  "tendermint-rpc",
  "tokio",
  "tokio-util 0.7.10",
+ "tonic 0.10.2",
  "tracing",
  "tryhard",
  "wiremock",
@@ -780,6 +787,7 @@ dependencies = [
  "bytes",
  "cnidarium",
  "cnidarium-component",
+ "divan",
  "futures",
  "hex",
  "ibc-proto",

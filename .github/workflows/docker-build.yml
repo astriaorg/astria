@@ -135,7 +135,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Setup Smoke Test Environment
-        timeout-minutes: 5
+        timeout-minutes: 10
         run: |
           TAG=sha-$(git rev-parse --short HEAD)
           just deploy cluster
