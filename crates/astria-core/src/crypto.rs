@@ -214,7 +214,7 @@ impl TryFrom<&[u8]> for VerificationKey {
     type Error = Error;
 
     fn try_from(slice: &[u8]) -> Result<Self, Error> {
-        let key = Ed25519VerificationKey::try_from(slice)?;
+        let key = Ed25519VerificationKey::try_from(slice).map_err(Error)?;
         Ok(Self {
             key,
         })
@@ -225,7 +225,7 @@ impl TryFrom<[u8; 32]> for VerificationKey {
     type Error = Error;
 
     fn try_from(bytes: [u8; 32]) -> Result<Self, Self::Error> {
-        let key = Ed25519VerificationKey::try_from(bytes)?;
+        let key = Ed25519VerificationKey::try_from(bytes).map_err(Error)?;
         Ok(Self {
             key,
         })
@@ -266,7 +266,7 @@ impl TryFrom<&[u8]> for Signature {
     type Error = Error;
 
     fn try_from(slice: &[u8]) -> Result<Self, Error> {
-        let signature = Ed25519Signature::try_from(slice)?;
+        let signature = Ed25519Signature::try_from(slice).map_err(Error)?;
         Ok(Self(signature))
     }
 }
@@ -274,7 +274,7 @@ impl TryFrom<&[u8]> for Signature {
 /// An error related to Ed25519 signing.
 #[derive(Copy, Clone, Eq, PartialEq, thiserror::Error, Debug)]
 #[error(transparent)]
-pub struct Error(#[from] Ed25519Error);
+pub struct Error(Ed25519Error);
 
 #[cfg(test)]
 mod tests {
