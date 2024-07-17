@@ -37,6 +37,7 @@ use crate::{
     state_ext::StateReadExt as _,
 };
 
+#[instrument(skip_all)]
 pub(crate) async fn check_stateless(tx: &SignedTransaction) -> anyhow::Result<()> {
     tx.unsigned_transaction()
         .check_stateless()
@@ -44,6 +45,7 @@ pub(crate) async fn check_stateless(tx: &SignedTransaction) -> anyhow::Result<()
         .context("stateless check failed")
 }
 
+#[instrument(skip_all)]
 pub(crate) async fn check_stateful<S: StateReadExt + 'static>(
     tx: &SignedTransaction,
     state: &S,
@@ -268,13 +270,7 @@ impl ActionHandler for UnsignedTransaction {
         Ok(())
     }
 
-    #[instrument(
-        skip_all,
-        fields(
-            nonce = self.nonce(),
-            from = %from,
-        )
-    )]
+    #[instrument(skip_all)]
     async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> anyhow::Result<()> {
         let from_nonce = state
             .get_account_nonce(from)
