@@ -31,6 +31,7 @@ data:
   {{- if not .Values.global.dev }}
   ASTRIA_BRIDGE_WITHDRAWER_MIN_EXPECTED_FEE_ASSET_BALANCE: "{{ .Values.config.minExpectedFeeAssetBalance }}"
   {{- else }}
+  ASTRIA_BRIDGE_WITHDRAWER_SEQUENCER_GRPC_ENDPOINT: "{{ .Values.config.sequencerGrpcEndpoint }}"
   {{- end }}
 ---
 {{- if not .Values.secretProvider.enabled }}

@@ -24,10 +24,15 @@ use crate::{
 };
 
 #[derive(Clone, Debug)]
+#[cfg_attr(
+    feature = "serde",
+    derive(::serde::Deserialize, ::serde::Serialize),
+    serde(into = "raw::Action", try_from = "raw::Action")
+)]
 pub enum Action {
     Sequence(SequenceAction),
     Transfer(TransferAction),
-    ValidatorUpdate(tendermint::validator::Update),
+    ValidatorUpdate(ValidatorUpdate),
     SudoAddressChange(SudoAddressChangeAction),
     Ibc(IbcRelay),
     Ics20Withdrawal(Ics20Withdrawal),
@@ -47,7 +52,7 @@ impl Action {
         let kind = match self {
             Action::Sequence(act) => Value::SequenceAction(act.into_raw()),
             Action::Transfer(act) => Value::TransferAction(act.into_raw()),
-            Action::ValidatorUpdate(act) => Value::ValidatorUpdateAction(act.into()),
+            Action::ValidatorUpdate(act) => Value::ValidatorUpdateAction(act.into_raw()),
             Action::SudoAddressChange(act) => Value::SudoAddressChangeAction(act.into_raw()),
             Action::Ibc(act) => Value::IbcAction(act.into()),
             Action::Ics20Withdrawal(act) => Value::Ics20Withdrawal(act.into_raw()),
@@ -70,7 +75,7 @@ impl Action {
         let kind = match self {
             Action::Sequence(act) => Value::SequenceAction(act.to_raw()),
             Action::Transfer(act) => Value::TransferAction(act.to_raw()),
-            Action::ValidatorUpdate(act) => Value::ValidatorUpdateAction(act.clone().into()),
+            Action::ValidatorUpdate(act) => Value::ValidatorUpdateAction(act.to_raw()),
             Action::SudoAddressChange(act) => {
                 Value::SudoAddressChangeAction(act.clone().into_raw())
             }
@@ -110,9 +115,9 @@ impl Action {
             Value::TransferAction(act) => {
                 Self::Transfer(TransferAction::try_from_raw(act).map_err(ActionError::transfer)?)
             }
-            Value::ValidatorUpdateAction(act) => {
-                Self::ValidatorUpdate(act.try_into().map_err(ActionError::validator_update)?)
-            }
+            Value::ValidatorUpdateAction(act) => Self::ValidatorUpdate(
+                ValidatorUpdate::try_from_raw(act).map_err(ActionError::validator_update)?,
+            ),
             Value::SudoAddressChangeAction(act) => Self::SudoAddressChange(
                 SudoAddressChangeAction::try_from_raw(act)
                     .map_err(ActionError::sudo_address_change)?,
@@ -240,6 +245,20 @@ impl From<FeeChangeAction> for Action {
     }
 }
 
+impl From<Action> for raw::Action {
+    fn from(value: Action) -> Self {
+        value.into_raw()
+    }
+}
+
+impl TryFrom<raw::Action> for Action {
+    type Error = ActionError;
+
+    fn try_from(value: raw::Action) -> Result<Self, Self::Error> {
+        Self::try_from_raw(value)
+    }
+}
+
 #[allow(clippy::module_name_repetitions)]
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
@@ -258,7 +277,7 @@ impl ActionError {
         Self(ActionErrorKind::Transfer(inner))
     }
 
-    fn validator_update(inner: tendermint::error::Error) -> Self {
+    fn validator_update(inner: ValidatorUpdateError) -> Self {
         Self(ActionErrorKind::ValidatorUpdate(inner))
     }
 
@@ -312,7 +331,7 @@ enum ActionErrorKind {
     #[error("transfer action was not valid")]
     Transfer(#[source] TransferActionError),
     #[error("validator update action was not valid")]
-    ValidatorUpdate(#[source] tendermint::error::Error),
+    ValidatorUpdate(#[source] ValidatorUpdateError),
     #[error("sudo address change action was not valid")]
     SudoAddressChange(#[source] SudoAddressChangeActionError),
     #[error("ibc action was not valid")]
@@ -531,6 +550,148 @@ enum TransferActionErrorKind {
     Asset(#[source] asset::ParseDenomError),
     #[error("`fee_asset` field did not contain a valid asset ID")]
     FeeAsset(#[source] asset::ParseDenomError),
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct ValidatorUpdateError(ValidatorUpdateErrorKind);
+
+impl ValidatorUpdateError {
+    fn negative_power(power: i64) -> Self {
+        Self(ValidatorUpdateErrorKind::NegativePower {
+            power,
+        })
+    }
+
+    fn public_key_not_set() -> Self {
+        Self(ValidatorUpdateErrorKind::PublicKeyNotSet)
+    }
+
+    fn secp256k1_not_supported() -> Self {
+        Self(ValidatorUpdateErrorKind::Secp256k1NotSupported)
+    }
+
+    fn verification_key(source: crate::crypto::Error) -> Self {
+        Self(ValidatorUpdateErrorKind::VerificationKey {
+            source,
+        })
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum ValidatorUpdateErrorKind {
+    #[error("field .power had negative value `{power}`, which is not permitted")]
+    NegativePower { power: i64 },
+    #[error(".pub_key field was not set")]
+    PublicKeyNotSet,
+    #[error(".pub_key field was set to secp256k1, but only ed25519 keys are supported")]
+    Secp256k1NotSupported,
+    #[error("bytes stored in the .pub_key field could not be read as an ed25519 verification key")]
+    VerificationKey { source: crate::crypto::Error },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(::serde::Deserialize, ::serde::Serialize),
+    serde(
+        into = "crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate",
+        try_from = "crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate",
+    )
+)]
+pub struct ValidatorUpdate {
+    pub power: u32,
+    pub verification_key: crate::crypto::VerificationKey,
+}
+
+impl ValidatorUpdate {
+    /// Create a validator update by verifying a raw protobuf-decoded
+    /// [`crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate`].
+    ///
+    /// # Errors
+    /// Returns an error if the `.power` field is negative, if `.pub_key`
+    /// is not set, or if `.pub_key` contains a non-ed25519 variant, or
+    /// if the ed25519 has invalid bytes (that is, bytes from which an
+    /// ed25519 public key cannot be constructed).
+    pub fn try_from_raw(
+        value: crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate,
+    ) -> Result<Self, ValidatorUpdateError> {
+        use crate::generated::astria_vendored::tendermint::crypto::{
+            public_key,
+            PublicKey,
+        };
+        let crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate {
+            pub_key,
+            power,
+        } = value;
+        let power = power
+            .try_into()
+            .map_err(|_| ValidatorUpdateError::negative_power(power))?;
+        let verification_key = match pub_key {
+            None
+            | Some(PublicKey {
+                sum: None,
+            }) => Err(ValidatorUpdateError::public_key_not_set()),
+            Some(PublicKey {
+                sum: Some(public_key::Sum::Secp256k1(..)),
+            }) => Err(ValidatorUpdateError::secp256k1_not_supported()),
+
+            Some(PublicKey {
+                sum: Some(public_key::Sum::Ed25519(bytes)),
+            }) => crate::crypto::VerificationKey::try_from(&*bytes)
+                .map_err(ValidatorUpdateError::verification_key),
+        }?;
+        Ok(Self {
+            power,
+            verification_key,
+        })
+    }
+
+    #[must_use]
+    pub fn into_raw(self) -> crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate {
+        self.to_raw()
+    }
+
+    #[must_use]
+    pub fn to_raw(&self) -> crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate {
+        use crate::generated::astria_vendored::tendermint::crypto::{
+            public_key,
+            PublicKey,
+        };
+        let Self {
+            power,
+            verification_key,
+        } = self;
+
+        crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate {
+            power: (*power).into(),
+            pub_key: Some(PublicKey {
+                sum: Some(public_key::Sum::Ed25519(
+                    verification_key.to_bytes().to_vec(),
+                )),
+            }),
+        }
+    }
+}
+
+impl From<ValidatorUpdate>
+    for crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate
+{
+    fn from(value: ValidatorUpdate) -> Self {
+        value.into_raw()
+    }
+}
+
+impl TryFrom<crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate>
+    for ValidatorUpdate
+{
+    type Error = ValidatorUpdateError;
+
+    fn try_from(
+        value: crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate,
+    ) -> Result<Self, Self::Error> {
+        Self::try_from_raw(value)
+    }
 }
 
 #[derive(Clone, Debug)]

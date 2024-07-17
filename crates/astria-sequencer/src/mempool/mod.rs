@@ -1,3 +1,5 @@
+mod benchmarks;
+
 use std::{
     cmp::{
         self,
@@ -320,10 +322,7 @@ impl Mempool {
     /// checks if a transaction was flagged to be removed from the `CometBFT` mempool
     /// and removes entry
     #[instrument(skip_all)]
-    pub(crate) async fn check_removed_comet_bft(
-        &mut self,
-        tx_hash: [u8; 32],
-    ) -> Option<RemovalReason> {
+    pub(crate) async fn check_removed_comet_bft(&self, tx_hash: [u8; 32]) -> Option<RemovalReason> {
         self.comet_bft_removal_cache.write().await.remove(tx_hash)
     }
 
