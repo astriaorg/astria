@@ -148,7 +148,7 @@ to `local`. You can now deploy the chart with your local image.
 
 ### Dev vs Prod
 
-All of our charts should run against both the lastest code in monorepo AND
+All of our charts should run against both the latest code in monorepo AND
 against the latest release. Sometimes, there are configuration changes between
 releases though. To manage this in various templates you will see the following
 pattern (especially in config maps and genesis files):
@@ -183,8 +183,8 @@ To deploy and run this:
 ## Examining Deployments
 
 [k9s](https://k9scli.io/) is a useful utility for inspecting deployed
-containers, logs and services. Additionally you may interact directly with the
-kubernetes API some helpful commands below.
+containers, logs and services. Additionally, you may interact directly with the
+kubernetes API using some helpful commands below.
 
 ### Helpful commands
 

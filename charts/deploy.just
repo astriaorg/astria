@@ -82,7 +82,7 @@ deploy-sequencers: (deploy-sequencer "node0") (deploy-sequencer "node1") (deploy
 deploy-hermes-local:
   helm install hermes-local-chart ./charts/hermes \
     -n astria-dev-cluster \
-    -f dev/values/hermes/local.yml
+    -f dev/values/hermes/local.yaml
 delete-hermes-local:
   @just delete chart hermes-local
 
