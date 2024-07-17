@@ -49,7 +49,7 @@ delete-bridge-tester namespace=defaultNamespace:
 default_target_platform := 'linux/amd64'
 
 # build bridge tester utility image, load into cluster
-build-and-load-bridge-tester-image tag=defaultTag target_platform=default_target_platform:
+build-and-load-bridge-tester-image tag='local' target_platform=default_target_platform:
   docker buildx build \
     --load \
     --platform {{target_platform}} \
