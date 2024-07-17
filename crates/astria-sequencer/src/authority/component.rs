@@ -34,7 +34,7 @@ pub(crate) struct AuthorityComponentAppState {
 impl Component for AuthorityComponent {
     type AppState = AuthorityComponentAppState;
 
-    #[instrument(name = "AuthorityComponent::init_chain", skip(state))]
+    #[instrument(name = "AuthorityComponent::init_chain", skip_all)]
     async fn init_chain<S: StateWriteExt>(mut state: S, app_state: &Self::AppState) -> Result<()> {
         // set sudo key and initial validator set
         state
@@ -47,7 +47,7 @@ impl Component for AuthorityComponent {
         Ok(())
     }
 
-    #[instrument(name = "AuthorityComponent::begin_block", skip(state))]
+    #[instrument(name = "AuthorityComponent::begin_block", skip_all)]
     async fn begin_block<S: StateWriteExt + 'static>(
         state: &mut Arc<S>,
         begin_block: &BeginBlock,
@@ -69,7 +69,7 @@ impl Component for AuthorityComponent {
         Ok(())
     }
 
-    #[instrument(name = "AuthorityComponent::end_block", skip(state))]
+    #[instrument(name = "AuthorityComponent::end_block", skip_all)]
     async fn end_block<S: StateWriteExt + StateReadExt + 'static>(
         state: &mut Arc<S>,
         _end_block: &EndBlock,

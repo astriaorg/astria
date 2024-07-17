@@ -17,7 +17,7 @@ pub(crate) struct BridgeComponent;
 impl Component for BridgeComponent {
     type AppState = astria_core::sequencer::GenesisState;
 
-    #[instrument(name = "BridgeComponent::init_chain", skip(state))]
+    #[instrument(name = "BridgeComponent::init_chain", skip_all)]
     async fn init_chain<S: StateWriteExt>(mut state: S, app_state: &Self::AppState) -> Result<()> {
         state.put_init_bridge_account_base_fee(app_state.fees().init_bridge_account_base_fee);
         state.put_bridge_lock_byte_cost_multiplier(
@@ -27,7 +27,7 @@ impl Component for BridgeComponent {
         Ok(())
     }
 
-    #[instrument(name = "BridgeComponent::begin_block", skip(_state))]
+    #[instrument(name = "BridgeComponent::begin_block", skip_all)]
     async fn begin_block<S: StateWriteExt + 'static>(
         _state: &mut Arc<S>,
         _begin_block: &BeginBlock,
@@ -35,7 +35,7 @@ impl Component for BridgeComponent {
         Ok(())
     }
 
-    #[instrument(name = "BridgeComponent::end_block", skip(_state))]
+    #[instrument(name = "BridgeComponent::end_block", skip_all)]
     async fn end_block<S: StateWriteExt + 'static>(
         _state: &mut Arc<S>,
         _end_block: &EndBlock,
