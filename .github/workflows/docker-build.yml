@@ -26,7 +26,7 @@ on:
       - "**-v[0-9]+.[0-9]+.[0-9]+-alpha.[0-9]+"
       - "**-v[0-9]+.[0-9]+.[0-9]+-beta.[0-9]+"
       - "**-v[0-9]+.[0-9]+.[0-9]+-rc[0-9]+"
-    
+
   pull_request:
     types:
       - opened
@@ -179,6 +179,52 @@ jobs:
         timeout-minutes: 3
         run: just run-smoke-cli
 
+  ibc-bridge-test:
+    needs: [ run_checker, composer, conductor, sequencer, sequencer-relayer ]
+    if: (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == 'astriaorg/astria') && (github.event_name == 'merge_group' || needs.run_checker.outputs.run_docker == 'true')
+    runs-on: buildjet-8vcpu-ubuntu-2204
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install just
+        uses: taiki-e/install-action@just
+      - name: Install kind
+        uses: helm/kind-action@v1
+        with:
+          install_only: true
+      - name: Log in to GHCR
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Setup IBC Bridge Test Environment
+        timeout-minutes: 5
+        run: |
+          TAG=sha-$(git rev-parse --short HEAD)
+          just deploy cluster
+          kubectl create secret generic regcred --from-file=.dockerconfigjson=$HOME/.docker/config.json --type=kubernetes.io/dockerconfigjson
+          echo -e "\n\nDeploying with astria images tagged $TAG"
+          just deploy ibc-test-infra $TAG
+          just build-and-load-bridge-tester-image $TAG
+      - name: Run IBC Bridge Tester
+        timeout-minutes: 2
+        run: |
+          TAG=sha-$(git rev-parse --short HEAD)
+          printlogs() {
+            echo "IBC Transfer Test failed, printing logs..."
+            kubectl describe job bridge-tester-chart -n astria-dev-cluster
+            kubectl logs job/bridge-tester-chart --all-containers -n astria-dev-cluster
+            exit 1
+          }
+          just deploy bridge-tester $TAG
+          # timeout before the gh job times out so we can print logs
+          kubectl wait --for=condition=complete --timeout=90s job/bridge-tester-chart -n astria-dev-cluster || printlogs
+          JOB_STATUS=$(kubectl get job bridge-tester-chart -n astria-dev-cluster -o jsonpath='{.status.succeeded}')
+          if [ "$JOB_STATUS" != "1" ]; then
+            printlogs
+          else
+            echo "IBC Transfer Test passed"
+          fi
 
   docker:
     if: ${{ always() && !cancelled() }}
