@@ -31,7 +31,7 @@ fn error_query_response(
     };
     response::Query {
         code: Code::Err(code.value()),
-        info: code.to_string(),
+        info: code.info(),
         log,
         ..response::Query::default()
     }
@@ -252,7 +252,7 @@ fn preprocess_request(params: &[(String, String)]) -> anyhow::Result<Address, re
         .context("failed to parse argument as address")
         .map_err(|err| response::Query {
             code: Code::Err(AbciErrorCode::INVALID_PARAMETER.value()),
-            info: AbciErrorCode::INVALID_PARAMETER.to_string(),
+            info: AbciErrorCode::INVALID_PARAMETER.info(),
             log: format!("address could not be constructed from provided parameter: {err:#}"),
             ..response::Query::default()
         })?;

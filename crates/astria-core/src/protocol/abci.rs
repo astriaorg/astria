@@ -25,23 +25,33 @@ impl AbciErrorCode {
     pub const fn value(self) -> NonZeroU32 {
         self.0
     }
+
+    /// Returns brief information on the meaning of the error.
+    #[must_use]
+    pub fn info(self) -> String {
+        match self {
+            Self::UNKNOWN_PATH => "provided path is unknown".into(),
+            Self::INVALID_PARAMETER => "one or more path parameters were invalid".into(),
+            Self::INTERNAL_ERROR => "an internal server error occurred".into(),
+            Self::INVALID_NONCE => "the provided nonce was invalid".into(),
+            Self::TRANSACTION_TOO_LARGE => "the provided transaction was too large".into(),
+            Self::INSUFFICIENT_FUNDS => "insufficient funds".into(),
+            Self::INVALID_CHAIN_ID => "the provided chain id was invalid".into(),
+            Self::VALUE_NOT_FOUND => "the requested value was not found".into(),
+            Self::TRANSACTION_EXPIRED => "the transaction expired in the app's mempool".into(),
+            Self::TRANSACTION_FAILED => {
+                "the transaction failed to execute in prepare_proposal()".into()
+            }
+            Self::BAD_REQUEST => "the request payload was malformed".into(),
+            Self(other) => {
+                format!("invalid error code {other}: should be unreachable (this is a bug)")
+            }
+        }
+    }
 }
 
 impl std::fmt::Display for AbciErrorCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match *self {
-            Self::UNKNOWN_PATH => "provided path is unknown",
-            Self::INVALID_PARAMETER => "one or more path parameters were invalid",
-            Self::INTERNAL_ERROR => "an internal server error occurred",
-            Self::INVALID_NONCE => "the provided nonce was invalid",
-            Self::TRANSACTION_TOO_LARGE => "the provided transaction was too large",
-            Self::INSUFFICIENT_FUNDS => "insufficient funds",
-            Self::INVALID_CHAIN_ID => "the provided chain id was invalid",
-            Self::VALUE_NOT_FOUND => "the requested value was not found",
-            Self::TRANSACTION_EXPIRED => "the transaction expired in the app's mempool",
-            Self::TRANSACTION_FAILED => "the transaction failed to execute in prepare_proposal()",
-            Self::BAD_REQUEST => "the request payload was malformed",
-            _ => "invalid error code: should be unreachable (this is a bug)",
-        })
+        write!(f, "{}: {}", self.0, self.info())
     }
 }

@@ -43,7 +43,7 @@ pub(crate) async fn denom_request(
         Err(err) => {
             return response::Query {
                 code: Code::Err(AbciErrorCode::INTERNAL_ERROR.value()),
-                info: AbciErrorCode::INTERNAL_ERROR.to_string(),
+                info: AbciErrorCode::INTERNAL_ERROR.info(),
                 log: format!("failed getting block height: {err:#}"),
                 ..response::Query::default()
             };
@@ -55,7 +55,7 @@ pub(crate) async fn denom_request(
         Err(err) => {
             return response::Query {
                 code: Code::Err(AbciErrorCode::INTERNAL_ERROR.value()),
-                info: AbciErrorCode::INTERNAL_ERROR.to_string(),
+                info: AbciErrorCode::INTERNAL_ERROR.info(),
                 log: format!("failed to retrieve denomination `{asset}`: {err:#}"),
                 ..response::Query::default()
             };
@@ -65,7 +65,7 @@ pub(crate) async fn denom_request(
     let Some(denom) = maybe_denom else {
         return response::Query {
             code: Code::Err(AbciErrorCode::VALUE_NOT_FOUND.value()),
-            info: AbciErrorCode::VALUE_NOT_FOUND.to_string(),
+            info: AbciErrorCode::VALUE_NOT_FOUND.info(),
             log: format!("failed to retrieve value for denomination ID`{asset}`"),
             ..response::Query::default()
         };
@@ -95,7 +95,7 @@ fn preprocess_request(
     let Some(asset_id) = params.iter().find_map(|(k, v)| (k == "id").then_some(v)) else {
         return Err(response::Query {
             code: Code::Err(AbciErrorCode::INVALID_PARAMETER.value()),
-            info: AbciErrorCode::INVALID_PARAMETER.to_string(),
+            info: AbciErrorCode::INVALID_PARAMETER.info(),
             log: "path did not contain asset ID parameter".into(),
             ..response::Query::default()
         });
@@ -105,7 +105,7 @@ fn preprocess_request(
         .map(asset::IbcPrefixed::new)
         .map_err(|err| response::Query {
             code: Code::Err(AbciErrorCode::INVALID_PARAMETER.value()),
-            info: AbciErrorCode::INVALID_PARAMETER.to_string(),
+            info: AbciErrorCode::INVALID_PARAMETER.info(),
             log: format!("asset ID could not be constructed from provided parameter: {err:#}"),
             ..response::Query::default()
         })?;
@@ -126,7 +126,7 @@ pub(crate) async fn allowed_fee_assets_request(
         Err(err) => {
             return response::Query {
                 code: Code::Err(AbciErrorCode::INTERNAL_ERROR.value()),
-                info: AbciErrorCode::INTERNAL_ERROR.to_string(),
+                info: AbciErrorCode::INTERNAL_ERROR.info(),
                 log: format!("failed getting block height: {err:#}"),
                 ..response::Query::default()
             };
@@ -139,7 +139,7 @@ pub(crate) async fn allowed_fee_assets_request(
         Err(err) => {
             return response::Query {
                 code: Code::Err(AbciErrorCode::INTERNAL_ERROR.value()),
-                info: AbciErrorCode::INTERNAL_ERROR.to_string(),
+                info: AbciErrorCode::INTERNAL_ERROR.info(),
                 log: format!("failed to retrieve allowed fee assets: {err:#}"),
                 ..response::Query::default()
             };

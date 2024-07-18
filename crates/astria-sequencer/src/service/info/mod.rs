@@ -129,7 +129,7 @@ impl Info {
             Err(err) => {
                 return response::Query {
                     code: tendermint::abci::Code::Err(AbciErrorCode::UNKNOWN_PATH.value()),
-                    info: AbciErrorCode::UNKNOWN_PATH.to_string(),
+                    info: AbciErrorCode::UNKNOWN_PATH.info(),
                     log: format!("provided path `{}` is unknown: {err:#}", request.path),
                     ..response::Query::default()
                 };

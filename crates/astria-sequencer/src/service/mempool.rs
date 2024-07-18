@@ -131,7 +131,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
                 "transaction size too large; allowed: {MAX_TX_SIZE} bytes, got {}",
                 tx.len()
             ),
-            info: AbciErrorCode::TRANSACTION_TOO_LARGE.to_string(),
+            info: AbciErrorCode::TRANSACTION_TOO_LARGE.info(),
             ..response::CheckTx::default()
         };
     }

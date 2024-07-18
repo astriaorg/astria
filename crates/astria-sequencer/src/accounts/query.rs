@@ -38,7 +38,7 @@ pub(crate) async fn balance_request(
         Err(err) => {
             return response::Query {
                 code: Code::Err(AbciErrorCode::INTERNAL_ERROR.value()),
-                info: AbciErrorCode::INTERNAL_ERROR.to_string(),
+                info: AbciErrorCode::INTERNAL_ERROR.info(),
                 log: format!("failed getting balance for provided address: {err:#}"),
                 height,
                 ..response::Query::default()
@@ -136,7 +136,7 @@ async fn preprocess_request(
     else {
         return Err(response::Query {
             code: Code::Err(AbciErrorCode::INVALID_PARAMETER.value()),
-            info: AbciErrorCode::INVALID_PARAMETER.to_string(),
+            info: AbciErrorCode::INVALID_PARAMETER.info(),
             log: "path did not contain path parameter".into(),
             ..response::Query::default()
         });
@@ -146,7 +146,7 @@ async fn preprocess_request(
         .context("failed to parse argument as address")
         .map_err(|err| response::Query {
             code: Code::Err(AbciErrorCode::INVALID_PARAMETER.value()),
-            info: AbciErrorCode::INVALID_PARAMETER.to_string(),
+            info: AbciErrorCode::INVALID_PARAMETER.info(),
             log: format!("address could not be constructed from provided parameter: {err:#}"),
             ..response::Query::default()
         })?;
@@ -155,7 +155,7 @@ async fn preprocess_request(
         Err(err) => {
             return Err(response::Query {
                 code: Code::Err(AbciErrorCode::INTERNAL_ERROR.value()),
-                info: AbciErrorCode::INTERNAL_ERROR.to_string(),
+                info: AbciErrorCode::INTERNAL_ERROR.info(),
                 log: format!("failed to query internal storage for snapshot and height: {err:#}"),
                 ..response::Query::default()
             });

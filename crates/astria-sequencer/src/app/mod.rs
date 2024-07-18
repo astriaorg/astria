@@ -842,7 +842,7 @@ impl App {
                         };
                         tx_results.push(ExecTxResult {
                             code: Code::Err(code.value()),
-                            info: code.to_string(),
+                            info: code.info(),
                             log: format!("{e:#}"),
                             ..Default::default()
                         });
