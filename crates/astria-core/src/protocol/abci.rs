@@ -1,30 +1,28 @@
 use std::num::NonZeroU32;
 
-use tendermint::abci::Code;
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[allow(clippy::module_name_repetitions)]
-pub struct AbciErrorCode(Code);
+pub struct AbciErrorCode(NonZeroU32);
 
 #[rustfmt::skip]
 impl AbciErrorCode {
-    pub const UNKNOWN_PATH: Self = Self(Code::Err(unsafe { NonZeroU32::new_unchecked(1) }));
-    pub const INVALID_PARAMETER: Self = Self(Code::Err(unsafe { NonZeroU32::new_unchecked(2) }));
-    pub const INTERNAL_ERROR: Self = Self(Code::Err(unsafe { NonZeroU32::new_unchecked(3) }));
-    pub const INVALID_NONCE: Self = Self(Code::Err(unsafe { NonZeroU32::new_unchecked(4) }));
-    pub const TRANSACTION_TOO_LARGE: Self = Self(Code::Err(unsafe { NonZeroU32::new_unchecked(5) }));
-    pub const INSUFFICIENT_FUNDS: Self = Self(Code::Err(unsafe { NonZeroU32::new_unchecked(6) }));
-    pub const INVALID_CHAIN_ID: Self = Self(Code::Err(unsafe { NonZeroU32::new_unchecked(7) }));
-    pub const VALUE_NOT_FOUND: Self = Self(Code::Err(unsafe { NonZeroU32::new_unchecked(8) }));
-    pub const TRANSACTION_EXPIRED: Self = Self(Code::Err(unsafe { NonZeroU32::new_unchecked(9) }));
-    pub const TRANSACTION_FAILED: Self = Self(Code::Err(unsafe { NonZeroU32::new_unchecked(10) }));
-    pub const BAD_REQUEST: Self = Self(Code::Err(unsafe { NonZeroU32::new_unchecked(11) }));
+    pub const UNKNOWN_PATH: Self = Self(unsafe { NonZeroU32::new_unchecked(1) });
+    pub const INVALID_PARAMETER: Self = Self(unsafe { NonZeroU32::new_unchecked(2) });
+    pub const INTERNAL_ERROR: Self = Self(unsafe { NonZeroU32::new_unchecked(3) });
+    pub const INVALID_NONCE: Self = Self(unsafe { NonZeroU32::new_unchecked(4) });
+    pub const TRANSACTION_TOO_LARGE: Self = Self(unsafe { NonZeroU32::new_unchecked(5) });
+    pub const INSUFFICIENT_FUNDS: Self = Self(unsafe { NonZeroU32::new_unchecked(6) });
+    pub const INVALID_CHAIN_ID: Self = Self(unsafe { NonZeroU32::new_unchecked(7) });
+    pub const VALUE_NOT_FOUND: Self = Self(unsafe { NonZeroU32::new_unchecked(8) });
+    pub const TRANSACTION_EXPIRED: Self = Self(unsafe { NonZeroU32::new_unchecked(9) });
+    pub const TRANSACTION_FAILED: Self = Self(unsafe { NonZeroU32::new_unchecked(10) });
+    pub const BAD_REQUEST: Self = Self(unsafe { NonZeroU32::new_unchecked(11) });
 }
 
 impl AbciErrorCode {
-    /// Returns the wrapped [`Code`].
+    /// Returns the wrapped `NonZeroU32`.
     #[must_use]
-    pub const fn value(self) -> Code {
+    pub const fn value(self) -> NonZeroU32 {
         self.0
     }
 }

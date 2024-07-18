@@ -48,6 +48,7 @@ use tendermint::{
     abci::{
         self,
         types::ExecTxResult,
+        Code,
         Event,
     },
     account,
@@ -840,7 +841,7 @@ impl App {
                             AbciErrorCode::INTERNAL_ERROR
                         };
                         tx_results.push(ExecTxResult {
-                            code: code.value(),
+                            code: Code::Err(code.value()),
                             info: code.to_string(),
                             log: format!("{e:#}"),
                             ..Default::default()

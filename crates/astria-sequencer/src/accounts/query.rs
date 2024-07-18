@@ -12,6 +12,7 @@ use tendermint::{
     abci::{
         request,
         response,
+        Code,
     },
     block::Height,
 };
@@ -36,7 +37,7 @@ pub(crate) async fn balance_request(
         Ok(balance) => balance,
         Err(err) => {
             return response::Query {
-                code: AbciErrorCode::INTERNAL_ERROR.value(),
+                code: Code::Err(AbciErrorCode::INTERNAL_ERROR.value()),
                 info: AbciErrorCode::INTERNAL_ERROR.to_string(),
                 log: format!("failed getting balance for provided address: {err:#}"),
                 height,
@@ -134,7 +135,7 @@ async fn preprocess_request(
         .find_map(|(k, v)| (k == "account").then_some(v))
     else {
         return Err(response::Query {
-            code: AbciErrorCode::INVALID_PARAMETER.value(),
+            code: Code::Err(AbciErrorCode::INVALID_PARAMETER.value()),
             info: AbciErrorCode::INVALID_PARAMETER.to_string(),
             log: "path did not contain path parameter".into(),
             ..response::Query::default()
@@ -144,7 +145,7 @@ async fn preprocess_request(
         .parse()
         .context("failed to parse argument as address")
         .map_err(|err| response::Query {
-            code: AbciErrorCode::INVALID_PARAMETER.value(),
+            code: Code::Err(AbciErrorCode::INVALID_PARAMETER.value()),
             info: AbciErrorCode::INVALID_PARAMETER.to_string(),
             log: format!("address could not be constructed from provided parameter: {err:#}"),
             ..response::Query::default()
@@ -153,7 +154,7 @@ async fn preprocess_request(
         Ok(tup) => tup,
         Err(err) => {
             return Err(response::Query {
-                code: AbciErrorCode::INTERNAL_ERROR.value(),
+                code: Code::Err(AbciErrorCode::INTERNAL_ERROR.value()),
                 info: AbciErrorCode::INTERNAL_ERROR.to_string(),
                 log: format!("failed to query internal storage for snapshot and height: {err:#}"),
                 ..response::Query::default()

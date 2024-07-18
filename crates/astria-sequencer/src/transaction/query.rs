@@ -10,6 +10,7 @@ use prost::Message as _;
 use tendermint::abci::{
     request,
     response,
+    Code,
 };
 
 use crate::{
@@ -36,7 +37,7 @@ pub(crate) async fn transaction_fee_request(
         Ok(height) => height,
         Err(err) => {
             return response::Query {
-                code: AbciErrorCode::INTERNAL_ERROR.value(),
+                code: Code::Err(AbciErrorCode::INTERNAL_ERROR.value()),
                 info: AbciErrorCode::INTERNAL_ERROR.to_string(),
                 log: format!("failed getting block height: {err:#}"),
                 ..response::Query::default()
@@ -48,7 +49,7 @@ pub(crate) async fn transaction_fee_request(
         Ok(fees) => fees,
         Err(err) => {
             return response::Query {
-                code: AbciErrorCode::INTERNAL_ERROR.value(),
+                code: Code::Err(AbciErrorCode::INTERNAL_ERROR.value()),
                 info: AbciErrorCode::INTERNAL_ERROR.to_string(),
                 log: format!("failed calculating fees for provided transaction: {err:#}"),
                 ..response::Query::default()
@@ -62,7 +63,7 @@ pub(crate) async fn transaction_fee_request(
             Ok(Some(trace_denom)) => trace_denom,
             Ok(None) => {
                 return response::Query {
-                    code: AbciErrorCode::INTERNAL_ERROR.value(),
+                    code: Code::Err(AbciErrorCode::INTERNAL_ERROR.value()),
                     info: AbciErrorCode::INTERNAL_ERROR.to_string(),
                     log: format!(
                         "failed mapping ibc denom to trace denom: {ibc_denom}; asset does not \
@@ -73,7 +74,7 @@ pub(crate) async fn transaction_fee_request(
             }
             Err(err) => {
                 return response::Query {
-                    code: AbciErrorCode::INTERNAL_ERROR.value(),
+                    code: Code::Err(AbciErrorCode::INTERNAL_ERROR.value()),
                     info: AbciErrorCode::INTERNAL_ERROR.to_string(),
                     log: format!("failed mapping ibc denom to trace denom: {err:#}"),
                     ..response::Query::default()
@@ -105,7 +106,7 @@ fn preprocess_request(request: &request::Query) -> Result<UnsignedTransaction, r
         Ok(tx) => tx,
         Err(err) => {
             return Err(response::Query {
-                code: AbciErrorCode::BAD_REQUEST.value(),
+                code: Code::Err(AbciErrorCode::BAD_REQUEST.value()),
                 info: AbciErrorCode::BAD_REQUEST.to_string(),
                 log: format!("failed to decode request data to unsigned transaction: {err:#}"),
                 ..response::Query::default()
@@ -117,7 +118,7 @@ fn preprocess_request(request: &request::Query) -> Result<UnsignedTransaction, r
         Ok(tx) => tx,
         Err(err) => {
             return Err(response::Query {
-                code: AbciErrorCode::BAD_REQUEST.value(),
+                code: Code::Err(AbciErrorCode::BAD_REQUEST.value()),
                 info: AbciErrorCode::BAD_REQUEST.to_string(),
                 log: format!(
                     "failed to convert raw proto unsigned transaction to native unsigned \

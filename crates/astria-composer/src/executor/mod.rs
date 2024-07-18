@@ -44,7 +44,10 @@ use sequencer_client::{
     Address,
     SequencerClientExt as _,
 };
-use tendermint::crypto::Sha256;
+use tendermint::{
+    abci::Code,
+    crypto::Sha256,
+};
 use tokio::{
     select,
     sync::{
@@ -567,7 +570,7 @@ impl Future for SubmitFut {
 
     #[allow(clippy::too_many_lines)]
     fn poll(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
-        const INVALID_NONCE: tendermint::abci::Code = AbciErrorCode::INVALID_NONCE.value();
+        const INVALID_NONCE: Code = Code::Err(AbciErrorCode::INVALID_NONCE.value());
         loop {
             let this = self.as_mut().project();
 
