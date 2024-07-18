@@ -29,7 +29,7 @@ pub(crate) struct IbcComponent;
 impl Component for IbcComponent {
     type AppState = astria_core::sequencer::GenesisState;
 
-    #[instrument(name = "IbcComponent::init_chain", skip(state))]
+    #[instrument(name = "IbcComponent::init_chain", skip_all)]
     async fn init_chain<S: StateWriteExt>(mut state: S, app_state: &Self::AppState) -> Result<()> {
         Ibc::init_chain(
             &mut state,
@@ -53,7 +53,7 @@ impl Component for IbcComponent {
         Ok(())
     }
 
-    #[instrument(name = "IbcComponent::begin_block", skip(state))]
+    #[instrument(name = "IbcComponent::begin_block", skip_all)]
     async fn begin_block<S: StateWriteExt + 'static>(
         state: &mut Arc<S>,
         begin_block: &BeginBlock,
@@ -62,7 +62,7 @@ impl Component for IbcComponent {
         Ok(())
     }
 
-    #[instrument(name = "IbcComponent::end_block", skip(state))]
+    #[instrument(name = "IbcComponent::end_block", skip_all)]
     async fn end_block<S: StateWriteExt + 'static>(
         state: &mut Arc<S>,
         end_block: &EndBlock,

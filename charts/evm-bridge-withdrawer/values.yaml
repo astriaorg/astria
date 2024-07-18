@@ -15,6 +15,7 @@ images:
     devTag: latest
 
 config:
+  sequencerGrpcEndpoint: ""
   sequencerCometbftEndpoint: ""
   sequencerChainId: ""
   sequencerAddressPrefix: "astria"

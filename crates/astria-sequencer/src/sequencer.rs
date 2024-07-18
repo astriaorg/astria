@@ -49,6 +49,9 @@ impl Sequencer {
     pub async fn run_until_stopped(config: Config) -> Result<()> {
         static METRICS: OnceLock<Metrics> = OnceLock::new();
         let metrics = METRICS.get_or_init(Metrics::new);
+        cnidarium::register_metrics();
+        metrics::histogram!("cnidarium_get_raw_duration_seconds");
+        metrics::histogram!("cnidarium_nonverifiable_get_raw_duration_seconds");
 
         if config
             .db_filepath

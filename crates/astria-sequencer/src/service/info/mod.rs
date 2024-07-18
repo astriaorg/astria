@@ -88,7 +88,7 @@ impl Info {
         })
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn handle_info_request(self, request: InfoRequest) -> Result<InfoResponse, BoxError> {
         match request {
             InfoRequest::Info(_) => {

@@ -14,6 +14,7 @@ use std::{
 
 use anyhow::{
     anyhow,
+    bail,
     ensure,
     Context,
 };
@@ -23,6 +24,7 @@ use astria_core::{
     protocol::{
         abci::AbciErrorCode,
         transaction::v1alpha1::{
+            action::ValidatorUpdate,
             Action,
             SignedTransaction,
         },
@@ -57,6 +59,7 @@ use tracing::{
     debug,
     info,
     instrument,
+    Instrument as _,
 };
 
 use crate::{
@@ -69,6 +72,7 @@ use crate::{
     },
     address::StateWriteExt as _,
     api_state_ext::StateWriteExt as _,
+    asset::state_ext::StateWriteExt as _,
     authority::{
         component::{
             AuthorityComponent,
@@ -207,7 +211,7 @@ impl App {
         &mut self,
         storage: Storage,
         genesis_state: astria_core::sequencer::GenesisState,
-        genesis_validators: Vec<tendermint::validator::Update>,
+        genesis_validators: Vec<ValidatorUpdate>,
         chain_id: String,
     ) -> anyhow::Result<AppHash> {
         let mut state_tx = self
@@ -220,6 +224,15 @@ impl App {
         state_tx.put_base_prefix(&genesis_state.address_prefixes().base);
 
         crate::asset::initialize_native_asset(genesis_state.native_asset_base_denomination());
+        let native_asset = crate::asset::get_native_asset();
+        if let Some(trace_native_asset) = native_asset.as_trace_prefixed() {
+            state_tx
+                .put_ibc_asset(trace_native_asset)
+                .context("failed to put native asset")?;
+        } else {
+            bail!("native asset must not be in ibc/<ID> form")
+        }
+
         state_tx.put_native_asset_denom(genesis_state.native_asset_base_denomination());
         state_tx.put_chain_id_and_revision_number(chain_id.try_into().context("invalid chain ID")?);
         state_tx.put_block_height(0);
@@ -516,6 +529,8 @@ impl App {
                 .fold(0usize, |acc, seq| acc.saturating_add(seq.data.len()));
 
             if !block_size_constraints.sequencer_has_space(tx_sequence_data_bytes) {
+                self.metrics
+                    .increment_prepare_proposal_excluded_transactions_sequencer_space();
                 debug!(
                     transaction_hash = %tx_hash_base64,
                     block_size_constraints = %json(&block_size_constraints),
@@ -545,13 +560,13 @@ impl App {
                     included_signed_txs.push((*tx).clone());
                 }
                 Err(e) => {
-                    self.metrics.increment_check_tx_removed_failed_execution();
+                    self.metrics
+                        .increment_prepare_proposal_excluded_transactions_failed_execution();
                     debug!(
                         transaction_hash = %tx_hash_base64,
                         error = AsRef::<dyn std::error::Error>::as_ref(&e),
                         "failed to execute transaction, not including in block"
                     );
-                    failed_tx_count = failed_tx_count.saturating_add(1);
 
                     if e.downcast_ref::<InvalidNonce>().is_some() {
                         // we re-insert the tx into the mempool if it failed to execute
@@ -560,6 +575,8 @@ impl App {
                         // removed from the mempool in `update_mempool_after_finalization`.
                         txs_to_readd_to_mempool.push((enqueued_tx, priority));
                     } else {
+                        failed_tx_count = failed_tx_count.saturating_add(1);
+
                         // the transaction should be removed from the cometbft mempool
                         self.mempool
                             .track_removal_comet_bft(
@@ -579,10 +596,16 @@ impl App {
                 "excluded transactions from block due to execution failure"
             );
         }
+        self.metrics.set_prepare_proposal_excluded_transactions(
+            txs_to_readd_to_mempool
+                .len()
+                .saturating_add(failed_tx_count),
+        );
 
         self.mempool.insert_all(txs_to_readd_to_mempool).await;
         let mempool_len = self.mempool.len().await;
         debug!(mempool_len, "finished executing transactions from mempool");
+        self.metrics.set_transactions_in_mempool_total(mempool_len);
 
         self.execution_results = Some(execution_results);
         Ok((validated_txs, included_signed_txs))
@@ -626,8 +649,6 @@ impl App {
                 .fold(0usize, |acc, seq| acc.saturating_add(seq.data.len()));
 
             if !block_size_constraints.sequencer_has_space(tx_sequence_data_bytes) {
-                self.metrics
-                    .increment_prepare_proposal_excluded_transactions_sequencer_space();
                 debug!(
                     transaction_hash = %telemetry::display::base64(&tx_hash),
                     block_size_constraints = %json(&block_size_constraints),
@@ -653,8 +674,6 @@ impl App {
                         .context("error growing cometBFT block size")?;
                 }
                 Err(e) => {
-                    self.metrics
-                        .increment_prepare_proposal_excluded_transactions_failed_execution();
                     debug!(
                         transaction_hash = %telemetry::display::base64(&tx_hash),
                         error = AsRef::<dyn std::error::Error>::as_ref(&e),
@@ -666,8 +685,6 @@ impl App {
         }
 
         if excluded_tx_count > 0.0 {
-            self.metrics
-                .set_prepare_proposal_excluded_transactions(excluded_tx_count);
             info!(
                 excluded_tx_count = excluded_tx_count,
                 included_tx_count = execution_results.len(),
@@ -968,21 +985,21 @@ impl App {
     }
 
     /// Executes a signed transaction.
-    #[instrument(name = "App::execute_transaction", skip_all, fields(
-        signed_transaction_hash = %telemetry::display::base64(&signed_tx.sha256_of_proto_encoding()),
-        sender_address_bytes = %telemetry::display::base64(&signed_tx.address_bytes()),
-    ))]
+    #[instrument(name = "App::execute_transaction", skip_all)]
     pub(crate) async fn execute_transaction(
         &mut self,
         signed_tx: Arc<SignedTransaction>,
     ) -> anyhow::Result<Vec<Event>> {
         let signed_tx_2 = signed_tx.clone();
-        let stateless =
-            tokio::spawn(async move { transaction::check_stateless(&signed_tx_2).await });
+        let stateless = tokio::spawn(
+            async move { transaction::check_stateless(&signed_tx_2).await }.in_current_span(),
+        );
         let signed_tx_2 = signed_tx.clone();
         let state2 = self.state.clone();
-        let stateful =
-            tokio::spawn(async move { transaction::check_stateful(&signed_tx_2, &state2).await });
+        let stateful = tokio::spawn(
+            async move { transaction::check_stateful(&signed_tx_2, &state2).await }
+                .in_current_span(),
+        );
 
         stateless
             .await
@@ -1072,7 +1089,9 @@ impl App {
 
         let events = self.apply(state_tx);
         Ok(abci::response::EndBlock {
-            validator_updates: validator_updates.into_tendermint_validator_updates(),
+            validator_updates: validator_updates
+                .try_into_cometbft()
+                .context("failed converting astria validators to cometbft compatible type")?,
             events,
             ..Default::default()
         })

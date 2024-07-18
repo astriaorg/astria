@@ -26,8 +26,6 @@ impl Resources {
     /// Reads the contents of the files in the `tests/resources/parse_blob/<test_case>` folder to
     /// the respective fields of `Self`.
     fn new(test_case: &str) -> Result<Self> {
-        // Disable colored output to make the snapshots more legible.
-        colour::force_no_colour().unwrap();
         let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("tests")
             .join("resources")
@@ -103,7 +101,8 @@ impl Resources {
 
 fn new_command() -> Result<Command> {
     let mut cmd = Command::cargo_bin(env!("CARGO_PKG_NAME"))?;
-    cmd.arg("parse-blob");
+    // Disable colored output to make the snapshots more legible.
+    cmd.arg("parse-blob").env("NO_COLOR", "1");
     Ok(cmd)
 }
 
