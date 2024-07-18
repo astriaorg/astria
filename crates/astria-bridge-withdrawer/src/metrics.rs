@@ -15,9 +15,6 @@ use metrics::{
 use telemetry::metric_names;
 
 pub(crate) struct Metrics {
-    nonce_fetch_count: Counter,
-    nonce_fetch_failure_count: Counter,
-    nonce_fetch_latency: Histogram,
     current_nonce: Gauge,
     sequencer_submission_failure_count: Counter,
     sequencer_submission_latency: Histogram,
@@ -26,27 +23,6 @@ pub(crate) struct Metrics {
 impl Metrics {
     #[must_use]
     pub(crate) fn new() -> Self {
-        describe_counter!(
-            NONCE_FETCH_COUNT,
-            Unit::Count,
-            "The number of times we have attempted to fetch the nonce"
-        );
-        let nonce_fetch_count = counter!(NONCE_FETCH_COUNT);
-
-        describe_counter!(
-            NONCE_FETCH_FAILURE_COUNT,
-            Unit::Count,
-            "The number of times we have failed to fetch the nonce"
-        );
-        let nonce_fetch_failure_count = counter!(NONCE_FETCH_FAILURE_COUNT);
-
-        describe_histogram!(
-            NONCE_FETCH_LATENCY,
-            Unit::Seconds,
-            "The latency of nonce fetch"
-        );
-        let nonce_fetch_latency = histogram!(NONCE_FETCH_LATENCY);
-
         describe_gauge!(CURRENT_NONCE, Unit::Count, "The current nonce");
         let current_nonce = gauge!(CURRENT_NONCE);
 
@@ -65,25 +41,10 @@ impl Metrics {
         let sequencer_submission_latency = histogram!(SEQUENCER_SUBMISSION_LATENCY);
 
         Self {
-            nonce_fetch_count,
-            nonce_fetch_failure_count,
-            nonce_fetch_latency,
             current_nonce,
             sequencer_submission_failure_count,
             sequencer_submission_latency,
         }
-    }
-
-    pub(crate) fn increment_nonce_fetch_count(&self) {
-        self.nonce_fetch_count.increment(1);
-    }
-
-    pub(crate) fn increment_nonce_fetch_failure_count(&self) {
-        self.nonce_fetch_failure_count.increment(1);
-    }
-
-    pub(crate) fn record_nonce_fetch_latency(&self, latency: Duration) {
-        self.nonce_fetch_latency.record(latency);
     }
 
     pub(crate) fn set_current_nonce(&self, nonce: u32) {

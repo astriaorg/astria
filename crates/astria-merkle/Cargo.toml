@@ -13,7 +13,7 @@ sha2 = { workspace = true }
 
 [dev-dependencies]
 ct-merkle = "0.1.0"
-divan = "0.1.14"
+divan = { workspace = true }
 hex-literal = { workspace = true }
 
 [features]

@@ -59,6 +59,7 @@ use tracing::{
     debug,
     info,
     instrument,
+    Instrument as _,
 };
 
 use crate::{
@@ -984,21 +985,21 @@ impl App {
     }
 
     /// Executes a signed transaction.
-    #[instrument(name = "App::execute_transaction", skip_all, fields(
-        signed_transaction_hash = %telemetry::display::base64(&signed_tx.sha256_of_proto_encoding()),
-        sender_address_bytes = %telemetry::display::base64(&signed_tx.address_bytes()),
-    ))]
+    #[instrument(name = "App::execute_transaction", skip_all)]
     pub(crate) async fn execute_transaction(
         &mut self,
         signed_tx: Arc<SignedTransaction>,
     ) -> anyhow::Result<Vec<Event>> {
         let signed_tx_2 = signed_tx.clone();
-        let stateless =
-            tokio::spawn(async move { transaction::check_stateless(&signed_tx_2).await });
+        let stateless = tokio::spawn(
+            async move { transaction::check_stateless(&signed_tx_2).await }.in_current_span(),
+        );
         let signed_tx_2 = signed_tx.clone();
         let state2 = self.state.clone();
-        let stateful =
-            tokio::spawn(async move { transaction::check_stateful(&signed_tx_2, &state2).await });
+        let stateful = tokio::spawn(
+            async move { transaction::check_stateful(&signed_tx_2, &state2).await }
+                .in_current_span(),
+        );
 
         stateless
             .await

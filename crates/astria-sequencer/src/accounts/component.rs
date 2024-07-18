@@ -23,7 +23,7 @@ pub(crate) struct AccountsComponent;
 impl Component for AccountsComponent {
     type AppState = astria_core::sequencer::GenesisState;
 
-    #[instrument(name = "AccountsComponent::init_chain", skip(state))]
+    #[instrument(name = "AccountsComponent::init_chain", skip_all)]
     async fn init_chain<S: StateWriteExt>(mut state: S, app_state: &Self::AppState) -> Result<()> {
         let native_asset = get_native_asset();
         for account in app_state.accounts() {
@@ -38,7 +38,7 @@ impl Component for AccountsComponent {
         Ok(())
     }
 
-    #[instrument(name = "AccountsComponent::begin_block", skip(_state))]
+    #[instrument(name = "AccountsComponent::begin_block", skip_all)]
     async fn begin_block<S: StateWriteExt + 'static>(
         _state: &mut Arc<S>,
         _begin_block: &BeginBlock,
@@ -46,7 +46,7 @@ impl Component for AccountsComponent {
         Ok(())
     }
 
-    #[instrument(name = "AccountsComponent::end_block", skip(_state))]
+    #[instrument(name = "AccountsComponent::end_block", skip_all)]
     async fn end_block<S: StateWriteExt + 'static>(
         _state: &mut Arc<S>,
         _end_block: &EndBlock,

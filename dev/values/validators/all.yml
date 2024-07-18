@@ -33,6 +33,9 @@ genesis:
     # This account is used for bridge in smoke test.
     - address: astria13ahqz4pjqfmynk9ylrqv4fwe4957x2p0h5782u
       balance: "48"
+    # address of the bridge account. needs funds to sign bridge init tx
+    - address: astria1d7zjjljc0dsmxa545xkpwxym86g8uvvwhtezcr
+      balance: "69000000"
 
 resources:
   cometbft:

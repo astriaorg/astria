@@ -33,6 +33,7 @@ use tendermint::v0_38::abci::{
 use tower::Service;
 use tower_abci::BoxError;
 use tracing::{
+    instrument,
     warn,
     Instrument as _,
 };
@@ -119,6 +120,7 @@ impl Service<MempoolRequest> for Mempool {
 /// as well as stateful checks (nonce and balance checks).
 ///
 /// If the tx passes all checks, status code 0 is returned.
+#[instrument(skip_all)]
 async fn handle_check_tx<S: StateReadExt + 'static>(
     request::CheckTx {
         tx,

@@ -115,11 +115,7 @@ impl Consensus {
         })
     }
 
-    #[instrument(skip_all, fields(
-        chain_id = init_chain.chain_id,
-        time = %init_chain.time,
-        init_height = %init_chain.initial_height
-    ))]
+    #[instrument(skip_all)]
     async fn init_chain(
         &mut self,
         init_chain: request::InitChain,
@@ -159,11 +155,7 @@ impl Consensus {
         })
     }
 
-    #[instrument(skip_all, fields(
-        height = %prepare_proposal.height,
-        tx_count = prepare_proposal.txs.len(),
-        time = %prepare_proposal.time
-    ))]
+    #[instrument(skip_all)]
     async fn handle_prepare_proposal(
         &mut self,
         prepare_proposal: request::PrepareProposal,
@@ -173,14 +165,7 @@ impl Consensus {
             .await
     }
 
-    #[instrument(skip_all, fields(
-        height = %process_proposal.height,
-        time = %process_proposal.time,
-        tx_count = process_proposal.txs.len(),
-        proposer = %process_proposal.proposer_address,
-        hash = %telemetry::display::base64(&process_proposal.hash),
-        next_validators_hash = %telemetry::display::base64(&process_proposal.next_validators_hash),
-    ))]
+    #[instrument(skip_all)]
     async fn handle_process_proposal(
         &mut self,
         process_proposal: request::ProcessProposal,
@@ -192,12 +177,7 @@ impl Consensus {
         Ok(())
     }
 
-    #[instrument(skip_all, fields(
-        hash = %finalize_block.hash,
-        height = %finalize_block.height,
-        time = %finalize_block.time,
-        proposer = %finalize_block.proposer_address
-    ))]
+    #[instrument(skip_all)]
     async fn finalize_block(
         &mut self,
         finalize_block: request::FinalizeBlock,

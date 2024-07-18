@@ -98,7 +98,7 @@ async fn ics20_withdrawal_check_stateful_bridge_account<S: StateReadExt + 'stati
 
 #[async_trait::async_trait]
 impl ActionHandler for action::Ics20Withdrawal {
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn check_stateless(&self) -> Result<()> {
         ensure!(self.timeout_time() != 0, "timeout time must be non-zero",);
 
@@ -116,7 +116,7 @@ impl ActionHandler for action::Ics20Withdrawal {
         Ok(())
     }
 
-    #[instrument(skip(self, state))]
+    #[instrument(skip_all)]
     async fn check_stateful<S: StateReadExt + 'static>(
         &self,
         state: &S,
@@ -175,7 +175,7 @@ impl ActionHandler for action::Ics20Withdrawal {
         Ok(())
     }
 
-    #[instrument(skip(self, state))]
+    #[instrument(skip_all)]
     async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> Result<()> {
         let fee = state
             .get_ics20_withdrawal_base_fee()

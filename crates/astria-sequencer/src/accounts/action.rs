@@ -105,13 +105,7 @@ impl ActionHandler for TransferAction {
             .context("stateful transfer check failed")
     }
 
-    #[instrument(
-        skip_all,
-        fields(
-            to = self.to.to_string(),
-            amount = self.amount,
-        )
-    )]
+    #[instrument(skip_all)]
     async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> Result<()> {
         let fee = state
             .get_transfer_base_fee()
