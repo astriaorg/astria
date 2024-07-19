@@ -33,7 +33,7 @@ use ethers::providers::{
     ProviderError,
     Ws,
 };
-use metrics::Counter;
+use telemetry::metrics::Counter;
 use tokio::{
     select,
     sync::{

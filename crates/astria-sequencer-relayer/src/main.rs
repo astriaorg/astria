@@ -29,23 +29,22 @@ async fn main() -> ExitCode {
         .set_no_otel(cfg.no_otel)
         .set_force_stdout(cfg.force_stdout)
         .set_pretty_print(cfg.pretty_print)
-        .filter_directives(&cfg.log);
+        .set_filter_directives(&cfg.log);
 
     if !cfg.no_metrics {
-        telemetry_conf = telemetry_conf
-            .metrics_addr(&cfg.metrics_http_listener_addr)
-            .service_name(env!("CARGO_PKG_NAME"));
+        telemetry_conf =
+            telemetry_conf.set_metrics(&cfg.metrics_http_listener_addr, env!("CARGO_PKG_NAME"));
     }
 
-    let _telemetry_guard = match telemetry_conf
-        .try_init()
+    let (metrics, _telemetry_guard) = match telemetry_conf
+        .try_init(&())
         .wrap_err("failed to setup telemetry")
     {
         Err(e) => {
             eprintln!("initializing sequencer-relayer failed:\n{e:?}");
             return ExitCode::FAILURE;
         }
-        Ok(guard) => guard,
+        Ok(metrics_and_guard) => metrics_and_guard,
     };
 
     info!(
@@ -56,7 +55,7 @@ async fn main() -> ExitCode {
     let mut sigterm = signal(SignalKind::terminate())
         .expect("setting a SIGTERM listener should always work on Unix");
     let (sequencer_relayer, shutdown_handle) =
-        SequencerRelayer::new(cfg).expect("could not initialize sequencer relayer");
+        SequencerRelayer::new(cfg, metrics).expect("could not initialize sequencer relayer");
     let sequencer_relayer_handle = tokio::spawn(sequencer_relayer.run());
 
     tokio::select!(

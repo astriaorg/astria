@@ -14,8 +14,10 @@ homepage = "https://astria.org"
 base64 = { workspace = true, optional = true }
 base64-serde = { workspace = true, optional = true }
 const_format = { workspace = true }
+itertools = { workspace = true }
 
-metrics-exporter-prometheus = { version = "0.13.1", default-features = false, features = [
+metrics = "0.23.0"
+metrics-exporter-prometheus = { version = "0.15.0", default-features = false, features = [
   "http-listener",
 ] }
 # When updating ensure that `opentelemetry-semantic-conventions` matches
@@ -29,6 +31,7 @@ serde = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
 serde_with = { version = "3.7.0", optional = true }
 thiserror = { workspace = true }
+tokio = { workspace = true }
 tracing-opentelemetry = "0.23.0"
 tracing-subscriber = { version = "0.3.17", features = [
   "fmt",

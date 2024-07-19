@@ -1,6 +1,5 @@
 use std::{
     net::SocketAddr,
-    sync::OnceLock,
     time::Duration,
 };
 
@@ -48,10 +47,7 @@ impl SequencerRelayer {
     /// # Errors
     ///
     /// Returns an error if constructing the inner relayer type failed.
-    pub fn new(cfg: Config) -> eyre::Result<(Self, ShutdownHandle)> {
-        static METRICS: OnceLock<Metrics> = OnceLock::new();
-        let metrics = METRICS.get_or_init(Metrics::new);
-
+    pub fn new(cfg: Config, metrics: &'static Metrics) -> eyre::Result<(Self, ShutdownHandle)> {
         let shutdown_handle = ShutdownHandle::new();
         let rollup_filter = cfg.only_include_rollups()?;
         let Config {

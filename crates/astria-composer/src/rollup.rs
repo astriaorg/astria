@@ -12,7 +12,7 @@ pub(super) struct Rollup {
 }
 
 #[derive(Debug)]
-pub(super) struct ParseError {}
+pub struct ParseError {}
 
 impl ParseError {
     fn new() -> Self {
