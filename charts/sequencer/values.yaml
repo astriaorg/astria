@@ -16,9 +16,9 @@ images:
     tag: v0.38.8
     devTag: v0.38.8
   sequencer:
-    repo: astria-sequencer
+    repo: ghcr.io/astriaorg/sequencer
     tag: "0.14.0"
-    devTag: local
+    devTag: latest
 
 moniker: ""
 genesis:
