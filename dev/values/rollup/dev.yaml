@@ -158,7 +158,7 @@ evm-faucet:
       devContent: "8b3a7999072c9c9314c084044fe705db11714c6c4ed7cddb64da18ea270dd203"
 
 postgresql:
-  enabled: false
+  enabled: true
   nameOverride: blockscout-postegres
   primary:
     persistence:
@@ -175,7 +175,7 @@ postgresql:
     logConnections: true
     logDisconnections: true
 blockscout-stack:
-  enabled: false
+  enabled: true
   config:
     id: 1337
     name: Astria

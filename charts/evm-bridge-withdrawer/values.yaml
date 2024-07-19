@@ -40,12 +40,12 @@ metrics:
 otel:
   enabled: false
   serviceName: "astria-evm-withdrawer"
-  endpoint:
-  tracesEndpoint:
+  endpoint: ""
+  tracesEndpoint: ""
   tracesCompression: gzip
-  tracesTimeout: 10
-  otlpHeaders:
-  traceHeaders:
+  tracesTimeout: "10"
+  otlpHeaders: ""
+  traceHeaders: ""
 
 serviceMonitor:
   enabled: false
