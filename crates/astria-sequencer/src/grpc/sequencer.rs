@@ -47,7 +47,7 @@ impl SequencerServer {
 #[async_trait::async_trait]
 impl SequencerService for SequencerServer {
     /// Given a block height, returns the sequencer block at that height.
-    #[instrument(skip_all, fields(height = request.get_ref().height))]
+    #[instrument(skip_all)]
     async fn get_sequencer_block(
         self: Arc<Self>,
         request: Request<GetSequencerBlockRequest>,
@@ -77,7 +77,7 @@ impl SequencerService for SequencerServer {
 
     /// Given a block height and set of rollup ids, returns a SequencerBlock which
     /// is filtered to contain only the transactions that are relevant to the given rollup.
-    #[instrument(skip_all, fields(height = request.get_ref().height))]
+    #[instrument(skip_all)]
     async fn get_filtered_sequencer_block(
         self: Arc<Self>,
         request: Request<GetFilteredSequencerBlockRequest>,

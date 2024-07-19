@@ -35,7 +35,10 @@ use tokio::{
         Instant,
     },
 };
-use tracing::debug;
+use tracing::{
+    debug,
+    instrument,
+};
 
 type MempoolQueue = PriorityQueue<EnqueuedTransaction, TransactionPriority>;
 
@@ -223,6 +226,7 @@ impl Mempool {
 
     /// returns the number of transactions in the mempool
     #[must_use]
+    #[instrument(skip_all)]
     pub(crate) async fn len(&self) -> usize {
         self.queue.read().await.len()
     }
@@ -230,6 +234,7 @@ impl Mempool {
     /// inserts a transaction into the mempool
     ///
     /// note: the oldest timestamp from found priorities is maintained.
+    #[instrument(skip_all)]
     pub(crate) async fn insert(
         &self,
         tx: SignedTransaction,
@@ -245,6 +250,7 @@ impl Mempool {
     /// inserts all the given transactions into the mempool
     ///
     /// note: the oldest timestamp from found priorities for an `EnqueuedTransaction` is maintained.
+    #[instrument(skip_all)]
     pub(crate) async fn insert_all(&self, txs: Vec<(EnqueuedTransaction, TransactionPriority)>) {
         let mut queue = self.queue.write().await;
 
@@ -287,11 +293,13 @@ impl Mempool {
 
     /// pops the transaction with the highest priority from the mempool
     #[must_use]
+    #[instrument(skip_all)]
     pub(crate) async fn pop(&self) -> Option<(EnqueuedTransaction, TransactionPriority)> {
         self.queue.write().await.pop()
     }
 
     /// removes a transaction from the mempool
+    #[instrument(skip_all)]
     pub(crate) async fn remove(&self, tx_hash: [u8; 32]) {
         let (signed_tx, address) = dummy_signed_tx();
         let enqueued_tx = EnqueuedTransaction {
@@ -303,6 +311,7 @@ impl Mempool {
     }
 
     /// signal that the transaction should be removed from the `CometBFT` mempool
+    #[instrument(skip_all)]
     pub(crate) async fn track_removal_comet_bft(&self, tx_hash: [u8; 32], reason: RemovalReason) {
         self.comet_bft_removal_cache
             .write()
@@ -312,6 +321,7 @@ impl Mempool {
 
     /// checks if a transaction was flagged to be removed from the `CometBFT` mempool
     /// and removes entry
+    #[instrument(skip_all)]
     pub(crate) async fn check_removed_comet_bft(&self, tx_hash: [u8; 32]) -> Option<RemovalReason> {
         self.comet_bft_removal_cache.write().await.remove(tx_hash)
     }
@@ -321,6 +331,7 @@ impl Mempool {
     ///
     /// *NOTE*: this function locks the mempool until every tx has been checked. This could
     /// potentially stall consensus from moving to the next round if the mempool is large.
+    #[instrument(skip_all)]
     pub(crate) async fn run_maintenance<F, O>(
         &self,
         current_account_nonce_getter: F,
@@ -378,6 +389,7 @@ impl Mempool {
 
     /// returns the pending nonce for the given address,
     /// if it exists in the mempool.
+    #[instrument(skip_all)]
     pub(crate) async fn pending_nonce(&self, address: &Address) -> Option<u32> {
         let inner = self.queue.read().await;
         let mut nonce = None;

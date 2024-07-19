@@ -54,8 +54,13 @@ async fn main() -> ExitCode {
 
     let mut sigterm = signal(SignalKind::terminate())
         .expect("setting a SIGTERM listener should always work on Unix");
-    let (withdrawer, shutdown_handle) =
-        BridgeWithdrawer::new(cfg, metrics).expect("could not initialize withdrawer");
+    let (withdrawer, shutdown_handle) = match BridgeWithdrawer::new(cfg, metrics) {
+        Err(error) => {
+            error!(%error, "failed initializing bridge withdrawer");
+            return ExitCode::FAILURE;
+        }
+        Ok(handles) => handles,
+    };
     let withdrawer_handle = tokio::spawn(withdrawer.run());
 
     let shutdown_token = shutdown_handle.token();

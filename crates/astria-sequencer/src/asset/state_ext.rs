@@ -27,7 +27,7 @@ fn asset_storage_key<TAsset: Into<asset::IbcPrefixed>>(asset: TAsset) -> String 
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
-    #[instrument(skip(self, asset), fields(%asset))]
+    #[instrument(skip_all)]
     async fn has_ibc_asset<TAsset>(&self, asset: TAsset) -> Result<bool>
     where
         TAsset: Into<asset::IbcPrefixed> + std::fmt::Display + Send,
@@ -39,7 +39,7 @@ pub(crate) trait StateReadExt: StateRead {
             .is_some())
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn map_ibc_to_trace_prefixed_asset(
         &self,
         asset: asset::IbcPrefixed,
@@ -65,7 +65,7 @@ impl<T: ?Sized + StateRead> StateReadExt for T {}
 
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     fn put_ibc_asset(&mut self, asset: &denom::TracePrefixed) -> Result<()> {
         let bytes = borsh::to_vec(&DenominationTrace(asset.to_string()))
             .context("failed to serialize asset")?;
