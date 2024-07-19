@@ -34,8 +34,8 @@ otel:
   serviceName: "composer"
   endpoint: ""
   tracesEndpoint: ""
-  tracesCompression: gzip
-  tracesTimeout: 10
+  tracesCompression: "gzip"
+  tracesTimeout: "10"
   otlpHeaders: ""
   traceHeaders: ""
 
