@@ -68,6 +68,7 @@ bridge-withdrawer:
     sequencerChainId: "{{ .Values.global.sequencerChainId }}"
     sequencerCometbftEndpoint: "{{ .Values.global.sequencerRpc }}"
     evmRpcEndpoint: "ws://{{ .Values.global.rollupName }}-evm-service.{{ default .Release.Namespace .Values.global.namespaceOverride  }}.svc.cluster.local:8546"
+    sequencerGrpcEndpoint: "{{ .Values.global.sequencerGrpc }}"
   otel:
     endpoint: "{{ .Values.global.otel.endpoint }}"
     tracesEndpoint: "{{ .Values.global.otel.tracesEndpoint }}"
