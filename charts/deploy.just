@@ -213,14 +213,14 @@ init-rollup-bridge rollupName=defaultRollupName evmDestinationAddress=evm_destin
 
   astria-cli sequencer init-bridge-account \
     --rollup-name {{rollupName}} \
-    --private-key {{sequencer_bridge_pkey}} \
+    --signing-key <(printf "%s" "{{sequencer_bridge_pkey}}") \
     --sequencer.chain-id {{sequencer_chain_id}} \
     --sequencer-url {{sequencer_rpc_url}} \
     --fee-asset=$FEE_ASSET --asset=$ASSET || exit 1
   astria-cli sequencer bridge-lock {{sequencer_bridge_address}} \
     --amount $TRANSFER_AMOUNT \
     --destination-chain-address {{evmDestinationAddress}} \
-    --private-key $SEQUENCER_FUNDS_PKEY \
+    --signing-key <(printf "%s" "SEQUENCER_FUNDS_PKEY") \
     --sequencer.chain-id {{sequencer_chain_id}} \
     --sequencer-url {{sequencer_rpc_url}} \
     --fee-asset=$FEE_ASSET --asset=$ASSET || exit 1

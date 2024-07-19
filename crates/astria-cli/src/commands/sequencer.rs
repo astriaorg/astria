@@ -1,9 +1,7 @@
+use std::path::Path;
+
 use astria_core::{
     crypto::SigningKey,
-    primitive::v1::{
-        Address,
-        ADDRESS_LEN,
-    },
     protocol::transaction::v1alpha1::{
         action::{
             Action,
@@ -29,17 +27,22 @@ use color_eyre::{
     eyre,
     eyre::{
         ensure,
-        eyre,
         Context,
     },
 };
 use rand::rngs::OsRng;
+use tracing::{
+    debug,
+    info,
+    instrument,
+};
 
 use crate::cli::sequencer::{
     BasicAccountArgs,
     Bech32mAddressArgs,
     BlockHeightGetArgs,
     BridgeLockArgs,
+    CreateAccount,
     FeeAssetChangeArgs,
     IbcRelayerChangeArgs,
     InitBridgeAccountArgs,
@@ -48,42 +51,29 @@ use crate::cli::sequencer::{
     ValidatorUpdateArgs,
 };
 
-/// Generate a new signing key (this is also called a secret key by other implementations)
-fn get_new_signing_key() -> SigningKey {
-    SigningKey::new(OsRng)
-}
-
-/// Get the public key from the signing key
-fn get_public_key_pretty(signing_key: &SigningKey) -> String {
-    let verifying_key_bytes = signing_key.verification_key().to_bytes();
-    hex::encode(verifying_key_bytes)
-}
-
-/// Get the private key from the signing key
-fn get_private_key_pretty(signing_key: &SigningKey) -> String {
-    let secret_key_bytes = signing_key.to_bytes();
-    hex::encode(secret_key_bytes)
-}
-
-/// Get the address from the signing key
-fn get_address_pretty(signing_key: &SigningKey) -> String {
-    hex::encode(signing_key.verification_key().address_bytes())
-}
-
 /// Generates a new ED25519 keypair and prints the public key, private key, and address
-pub(crate) fn create_account() {
-    let signing_key = get_new_signing_key();
-    let public_key_pretty = get_public_key_pretty(&signing_key);
-    let private_key_pretty = get_private_key_pretty(&signing_key);
-    let address_pretty = get_address_pretty(&signing_key);
+#[instrument(skip_all, fields(output = %args.output.display()))]
+pub(crate) fn create_account(args: CreateAccount) -> eyre::Result<()> {
+    use std::io::Write as _;
+    let output_file = crate::utils::create_file_with_permissions_0o600(&args.output)?;
+    info!("created file to write signing key");
+    debug!("created file to write signing key");
+    let signing_key = SigningKey::new(OsRng);
+    (&output_file)
+        .write_all(hex::encode(signing_key.as_bytes()).as_bytes())
+        .wrap_err_with(|| {
+            format!(
+                "failed to write signing key to `{}`",
+                &args.output.display()
+            )
+        })?;
 
-    println!("Create Sequencer Account");
-    println!();
-    // TODO: don't print private keys to CLI, prefer writing to file:
-    // https://github.com/astriaorg/astria/issues/594
-    println!("Private Key: {private_key_pretty:?}");
-    println!("Public Key:  {public_key_pretty:?}");
-    println!("Address:     {address_pretty:?}");
+    let verification_key = signing_key.verification_key();
+    let address = crate::utils::make_address(&args.prefix, &verification_key.address_bytes())
+        .wrap_err("failed to construct an address from the generated signing key")?;
+
+    debug!(%verification_key, %address, "wrote signing key");
+    Ok(())
 }
 
 /// Gets the balance of a Sequencer account
@@ -164,16 +154,10 @@ pub(crate) async fn get_block_height(args: &BlockHeightGetArgs) -> eyre::Result<
 
 /// Returns a bech32m sequencer address given a prefix and hex-encoded byte slice
 pub(crate) fn make_bech32m(args: &Bech32mAddressArgs) -> eyre::Result<()> {
-    use hex::FromHex as _;
-    let bytes = <[u8; ADDRESS_LEN]>::from_hex(&args.bytes)
-        .wrap_err("failed decoding provided hex bytes")?;
-    let address = Address::builder()
-        .array(bytes)
-        .prefix(&args.prefix)
-        .try_build()
-        .wrap_err(
-            "failed constructing a valid bech32m address from the provided hex bytes and prefix",
-        )?;
+    let bytes = hex::decode(&args.bytes).wrap_err("failed decoding provided hex bytes")?;
+    let address = crate::utils::make_address(&args.prefix, &bytes).wrap_err(
+        "failed constructing a valid bech32m address from the provided hex bytes and prefix",
+    )?;
     println!("{address}");
     Ok(())
 }
@@ -193,7 +177,7 @@ pub(crate) async fn send_transfer(args: &TransferArgs) -> eyre::Result<()> {
         args.sequencer_url.as_str(),
         args.sequencer_chain_id.clone(),
         &args.prefix,
-        args.private_key.as_str(),
+        &args.signing_key,
         Action::Transfer(TransferAction {
             to: args.to_address,
             amount: args.amount,
@@ -224,7 +208,7 @@ pub(crate) async fn ibc_relayer_add(args: &IbcRelayerChangeArgs) -> eyre::Result
         args.sequencer_url.as_str(),
         args.sequencer_chain_id.clone(),
         &args.prefix,
-        args.private_key.as_str(),
+        &args.signing_key,
         Action::IbcRelayerChange(IbcRelayerChangeAction::Addition(args.address)),
     )
     .await
@@ -250,7 +234,7 @@ pub(crate) async fn ibc_relayer_remove(args: &IbcRelayerChangeArgs) -> eyre::Res
         args.sequencer_url.as_str(),
         args.sequencer_chain_id.clone(),
         &args.prefix,
-        args.private_key.as_str(),
+        &args.signing_key,
         Action::IbcRelayerChange(IbcRelayerChangeAction::Removal(args.address)),
     )
     .await
@@ -279,7 +263,7 @@ pub(crate) async fn init_bridge_account(args: &InitBridgeAccountArgs) -> eyre::R
         args.sequencer_url.as_str(),
         args.sequencer_chain_id.clone(),
         &args.prefix,
-        args.private_key.as_str(),
+        &args.signing_key,
         Action::InitBridgeAccount(InitBridgeAccountAction {
             rollup_id,
             asset: args.asset.clone(),
@@ -313,7 +297,7 @@ pub(crate) async fn bridge_lock(args: &BridgeLockArgs) -> eyre::Result<()> {
         args.sequencer_url.as_str(),
         args.sequencer_chain_id.clone(),
         &args.prefix,
-        args.private_key.as_str(),
+        &args.signing_key,
         Action::BridgeLock(BridgeLockAction {
             to: args.to_address,
             asset: args.asset.clone(),
@@ -345,7 +329,7 @@ pub(crate) async fn fee_asset_add(args: &FeeAssetChangeArgs) -> eyre::Result<()>
         args.sequencer_url.as_str(),
         args.sequencer_chain_id.clone(),
         &args.prefix,
-        args.private_key.as_str(),
+        &args.signing_key,
         Action::FeeAssetChange(FeeAssetChangeAction::Addition(args.asset.clone())),
     )
     .await
@@ -371,7 +355,7 @@ pub(crate) async fn fee_asset_remove(args: &FeeAssetChangeArgs) -> eyre::Result<
         args.sequencer_url.as_str(),
         args.sequencer_chain_id.clone(),
         &args.prefix,
-        args.private_key.as_str(),
+        &args.signing_key,
         Action::FeeAssetChange(FeeAssetChangeAction::Removal(args.asset.clone())),
     )
     .await
@@ -397,7 +381,7 @@ pub(crate) async fn sudo_address_change(args: &SudoAddressChangeArgs) -> eyre::R
         args.sequencer_url.as_str(),
         args.sequencer_chain_id.clone(),
         &args.prefix,
-        args.private_key.as_str(),
+        &args.signing_key,
         Action::SudoAddressChange(SudoAddressChangeAction {
             new_address: args.address,
         }),
@@ -435,7 +419,7 @@ pub(crate) async fn validator_update(args: &ValidatorUpdateArgs) -> eyre::Result
         args.sequencer_url.as_str(),
         args.sequencer_chain_id.clone(),
         &args.prefix,
-        args.private_key.as_str(),
+        &args.signing_key,
         Action::ValidatorUpdate(validator_update),
     )
     .await
@@ -446,27 +430,21 @@ pub(crate) async fn validator_update(args: &ValidatorUpdateArgs) -> eyre::Result
     Ok(())
 }
 
-async fn submit_transaction(
+async fn submit_transaction<P: AsRef<Path>>(
     sequencer_url: &str,
     chain_id: String,
     prefix: &str,
-    private_key: &str,
+    signing_key: P,
     action: Action,
 ) -> eyre::Result<endpoint::broadcast::tx_commit::Response> {
     let sequencer_client =
         HttpClient::new(sequencer_url).wrap_err("failed constructing http sequencer client")?;
 
-    let private_key_bytes: [u8; 32] = hex::decode(private_key)
-        .wrap_err("failed to decode private key bytes from hex string")?
-        .try_into()
-        .map_err(|_| eyre!("invalid private key length; must be 32 bytes"))?;
-    let sequencer_key = SigningKey::from(private_key_bytes);
+    let sequencer_key = crate::utils::read_signing_key(signing_key)?;
 
-    let from_address = Address::builder()
-        .array(sequencer_key.verification_key().address_bytes())
-        .prefix(prefix)
-        .try_build()
-        .wrap_err("failed constructing a valid from address from the provided prefix")?;
+    let from_address =
+        crate::utils::make_address(prefix, &sequencer_key.verification_key().address_bytes())
+            .wrap_err("failed constructing a valid source address from the provided prefix")?;
     println!("sending tx from address: {from_address}");
 
     let nonce_res = sequencer_client

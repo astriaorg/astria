@@ -24,7 +24,7 @@ cargo build --release
 # examples:
 
 # create account on Sequencer
-./target/release/astria-cli sequencer account create
+./target/release/astria-cli sequencer account create -o signing_key.json
 
 # get balance of account on Sequencer
 ./target/release/astria-cli sequencer balance get <ADDRESS> \

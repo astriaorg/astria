@@ -39,3 +39,6 @@ tracing-subscriber = "0.3.18"
 package = "astria-sequencer-client"
 path = "../astria-sequencer-client"
 features = ["http"]
+
+[dev-dependencies]
+tempfile.workspace = true
