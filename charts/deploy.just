@@ -176,7 +176,7 @@ deploy-smoke-cli tag=defaultTag:
   @just wait-for-ingress-controller > /dev/null
   @echo "Deploying local celestia instance..." && just deploy celestia-local > /dev/null
   @helm dependency update charts/sequencer > /dev/null
-  @helm dependency update charts/evm-rollup > /dev/null
+  @helm dependency update charts/evm-stack > /dev/null
   @echo "Setting up single astria sequencer..." && helm install \
     -n astria-validator-single single-sequencer-chart ./charts/sequencer \
     -f dev/values/validators/all.yml \
@@ -188,9 +188,8 @@ deploy-smoke-cli tag=defaultTag:
       {{ if tag != '' { replace('--set evm-rollup.images.conductor.devTag=# --set composer.images.composer.devTag=# --set evm-bridge-withdrawer.images.evmBridgeWithdrawer.devTag=#', '#', tag) } else { '' } }} \
       --set blockscout-stack.enabled=false \
       --set postgresql.enabled=false \
-      --set evm-faucet.enabled=false \
-      --set bridge-withdrawer.enabled=false > /dev/null
-  @just wait-for-dev-rollup > /dev/null
+      --set evm-faucet.enabled=false > /dev/null
+  @just wait-for-rollup > /dev/null
 
 
 evm_destination_address := "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
