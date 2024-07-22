@@ -63,6 +63,11 @@ jobs:
         with:
           list-files: json
           filters: |
+            charts: &charts
+              - 'charts/**'
+            smoke_tests: &smoke_tests
+              - 'dev/**'
+              - *charts
             release_workflow:
               - '.github/workflows/release.yml'
               - '.github/workflows/reusable-cargo-version.yml'
@@ -96,10 +101,5 @@ jobs:
               - '**/*.md'
             rustfmt:
               - 'rustfmt.toml'
-            charts: &charts
-              - 'charts/**'
-            smoke_tests: &smoke_tests
-              - 'dev/**'
-              - *charts
             lockfile:
               - 'Cargo.lock'
