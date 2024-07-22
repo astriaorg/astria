@@ -74,6 +74,7 @@ jobs:
               - 'containerfiles/**'
               - '.dockerignore'
               - 'Cargo.lock'
+              - *smoke_tests
             lint_workflow:
               - '.github/workflows/lint.yml'
             crates:
@@ -95,7 +96,10 @@ jobs:
               - '**/*.md'
             rustfmt:
               - 'rustfmt.toml'
-            charts:
+            charts: &charts
               - 'charts/**'
+            smoke_tests: &smoke_tests
+              - 'dev/**'
+              - *charts
             lockfile:
               - 'Cargo.lock'

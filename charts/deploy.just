@@ -188,9 +188,8 @@ deploy-smoke-cli tag=defaultTag:
       {{ if tag != '' { replace('--set evm-rollup.images.conductor.devTag=# --set composer.images.composer.devTag=# --set evm-bridge-withdrawer.images.evmBridgeWithdrawer.devTag=#', '#', tag) } else { '' } }} \
       --set blockscout-stack.enabled=false \
       --set postgresql.enabled=false \
-      --set evm-faucet.enabled=false \
-      --set bridge-withdrawer.enabled=false > /dev/null
-  @just wait-for-dev-rollup > /dev/null
+      --set evm-faucet.enabled=false > /dev/null
+  @just wait-for-rollup > /dev/null
 
 
 evm_destination_address := "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
