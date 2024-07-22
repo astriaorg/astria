@@ -1,3 +1,3 @@
-[submodule "crates/astria-bridge-withdrawer/astria-bridge-contracts"]
-	path = crates/astria-bridge-withdrawer/astria-bridge-contracts
-	url = https://github.com/astriaorg/astria-bridge-contracts.git
+[submodule "crates/astria-bridge-contracts/astria-bridge-contracts"]
+	path = crates/astria-bridge-contracts/astria-bridge-contracts
+	url = https://github.com/astriaorg/astria-bridge-contracts

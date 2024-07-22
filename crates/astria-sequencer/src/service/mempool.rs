@@ -4,6 +4,7 @@ use std::{
         Context,
         Poll,
     },
+    time::Instant,
 };
 
 use astria_core::{
@@ -27,7 +28,10 @@ use tendermint::v0_38::abci::{
 };
 use tower::Service;
 use tower_abci::BoxError;
-use tracing::Instrument as _;
+use tracing::{
+    instrument,
+    Instrument as _,
+};
 
 use crate::{
     accounts::state_ext::StateReadExt,
@@ -97,6 +101,7 @@ impl Service<MempoolRequest> for Mempool {
 ///
 /// If the tx passes all checks, status code 0 is returned.
 #[allow(clippy::too_many_lines)]
+#[instrument(skip_all)]
 async fn handle_check_tx<S: StateReadExt + 'static>(
     req: request::CheckTx,
     state: S,
@@ -105,12 +110,16 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
 ) -> response::CheckTx {
     use sha2::Digest as _;
 
-    let tx_hash = sha2::Sha256::digest(&req.tx).into();
+    let start_parsing = Instant::now();
 
     let request::CheckTx {
         tx, ..
     } = req;
-    if tx.len() > MAX_TX_SIZE {
+
+    let tx_hash = sha2::Sha256::digest(&tx).into();
+    let tx_len = tx.len();
+
+    if tx_len > MAX_TX_SIZE {
         mempool.remove(tx_hash).await;
         metrics.increment_check_tx_removed_too_large();
         return response::CheckTx {
@@ -151,6 +160,11 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
         }
     };
 
+    let finished_parsing = Instant::now();
+    metrics.record_check_tx_duration_seconds_parse_tx(
+        finished_parsing.saturating_duration_since(start_parsing),
+    );
+
     if let Err(e) = transaction::check_stateless(&signed_tx).await {
         mempool.remove(tx_hash).await;
         metrics.increment_check_tx_removed_failed_stateless();
@@ -161,6 +175,11 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
             ..response::CheckTx::default()
         };
     };
+
+    let finished_check_stateless = Instant::now();
+    metrics.record_check_tx_duration_seconds_check_stateless(
+        finished_check_stateless.saturating_duration_since(finished_parsing),
+    );
 
     if let Err(e) = transaction::check_nonce_mempool(&signed_tx, &state).await {
         mempool.remove(tx_hash).await;
@@ -173,6 +192,11 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
         };
     };
 
+    let finished_check_nonce = Instant::now();
+    metrics.record_check_tx_duration_seconds_check_nonce(
+        finished_check_nonce.saturating_duration_since(finished_check_stateless),
+    );
+
     if let Err(e) = transaction::check_chain_id_mempool(&signed_tx, &state).await {
         mempool.remove(tx_hash).await;
         return response::CheckTx {
@@ -182,6 +206,11 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
             ..response::CheckTx::default()
         };
     }
+
+    let finished_check_chain_id = Instant::now();
+    metrics.record_check_tx_duration_seconds_check_chain_id(
+        finished_check_chain_id.saturating_duration_since(finished_check_nonce),
+    );
 
     if let Err(e) = transaction::check_balance_mempool(&signed_tx, &state).await {
         mempool.remove(tx_hash).await;
@@ -193,6 +222,11 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
             ..response::CheckTx::default()
         };
     };
+
+    let finished_check_balance = Instant::now();
+    metrics.record_check_tx_duration_seconds_check_balance(
+        finished_check_balance.saturating_duration_since(finished_check_chain_id),
+    );
 
     if let Some(removal_reason) = mempool.check_removed_comet_bft(tx_hash).await {
         mempool.remove(tx_hash).await;
@@ -219,6 +253,11 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
         }
     };
 
+    let finished_check_removed = Instant::now();
+    metrics.record_check_tx_duration_seconds_check_removed(
+        finished_check_removed.saturating_duration_since(finished_check_balance),
+    );
+
     // tx is valid, push to mempool
     let current_account_nonce = state
         .get_account_nonce(crate::address::base_prefixed(
@@ -227,6 +266,8 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
         .await
         .expect("can fetch account nonce");
 
+    let actions_count = signed_tx.actions().len();
+
     mempool
         .insert(signed_tx, current_account_nonce)
         .await
@@ -234,5 +275,13 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
             "tx nonce is greater than or equal to current account nonce; this was checked in \
              check_nonce_mempool",
         );
+    let mempool_len = mempool.len().await;
+
+    metrics
+        .record_check_tx_duration_seconds_insert_to_app_mempool(finished_check_removed.elapsed());
+    metrics.record_actions_per_transaction_in_mempool(actions_count);
+    metrics.record_transaction_in_mempool_size_bytes(tx_len);
+    metrics.set_transactions_in_mempool_total(mempool_len);
+
     response::CheckTx::default()
 }

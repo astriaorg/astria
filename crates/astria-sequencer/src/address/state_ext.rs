@@ -16,7 +16,7 @@ fn base_prefix_key() -> &'static str {
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_base_prefix(&self) -> Result<String> {
         let Some(bytes) = self
             .get_raw(base_prefix_key())
@@ -33,7 +33,7 @@ impl<T: ?Sized + StateRead> StateReadExt for T {}
 
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     fn put_base_prefix(&mut self, prefix: &str) {
         self.put_raw(base_prefix_key().into(), prefix.into());
     }

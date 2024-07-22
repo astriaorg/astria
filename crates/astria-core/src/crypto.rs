@@ -114,7 +114,7 @@ impl From<[u8; 32]> for SigningKey {
 }
 
 /// An Ed25519 verification key.
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct VerificationKey {
     key: Ed25519VerificationKey,
 }

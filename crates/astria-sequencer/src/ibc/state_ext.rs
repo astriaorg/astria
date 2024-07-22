@@ -67,7 +67,7 @@ fn ibc_relayer_key(address: &Address) -> String {
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
-    #[instrument(skip(self, asset), fields(%asset))]
+    #[instrument(skip_all)]
     async fn get_ibc_channel_balance<TAsset>(
         &self,
         channel: &ChannelId,
@@ -88,7 +88,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(balance)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_ibc_sudo_address(&self) -> Result<Address> {
         let Some(bytes) = self
             .get_raw(IBC_SUDO_STORAGE_KEY)
@@ -103,7 +103,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(crate::address::base_prefixed(address_bytes))
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn is_ibc_relayer(&self, address: &Address) -> Result<bool> {
         Ok(self
             .get_raw(&ibc_relayer_key(address))
@@ -112,7 +112,7 @@ pub(crate) trait StateReadExt: StateRead {
             .is_some())
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_ics20_withdrawal_base_fee(&self) -> Result<u128> {
         let Some(bytes) = self
             .get_raw(ICS20_WITHDRAWAL_BASE_FEE_STORAGE_KEY)
@@ -130,7 +130,7 @@ impl<T: StateRead> StateReadExt for T {}
 
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
-    #[instrument(skip(self, asset), fields(%asset))]
+    #[instrument(skip_all)]
     fn put_ibc_channel_balance<TAsset>(
         &mut self,
         channel: &ChannelId,
@@ -145,7 +145,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     fn put_ibc_sudo_address(&mut self, address: Address) -> Result<()> {
         self.put_raw(
             IBC_SUDO_STORAGE_KEY.to_string(),
@@ -155,17 +155,17 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     fn put_ibc_relayer_address(&mut self, address: &Address) {
         self.put_raw(ibc_relayer_key(address), vec![]);
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     fn delete_ibc_relayer_address(&mut self, address: &Address) {
         self.delete(ibc_relayer_key(address));
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     fn put_ics20_withdrawal_base_fee(&mut self, fee: u128) -> Result<()> {
         self.put_raw(
             ICS20_WITHDRAWAL_BASE_FEE_STORAGE_KEY.to_string(),

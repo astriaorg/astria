@@ -140,7 +140,7 @@ fn last_transaction_hash_for_bridge_account_storage_key(address: &Address) -> Ve
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_bridge_account_rollup_id(&self, address: &Address) -> Result<Option<RollupId>> {
         let Some(rollup_id_bytes) = self
             .get_raw(&rollup_id_storage_key(address))
@@ -156,7 +156,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(Some(rollup_id))
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_bridge_account_ibc_asset(&self, address: &Address) -> Result<asset::IbcPrefixed> {
         let bytes = self
             .get_raw(&asset_id_storage_key(address))
@@ -168,7 +168,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(asset::IbcPrefixed::new(id.0))
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_bridge_account_sudo_address(
         &self,
         bridge_address: &Address,
@@ -187,7 +187,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(Some(sudo_address))
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_bridge_account_withdrawer_address(
         &self,
         bridge_address: &Address,
@@ -208,7 +208,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(Some(withdrawer_address))
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_deposit_nonce(&self, rollup_id: &RollupId) -> Result<u32> {
         let bytes = self
             .nonverifiable_get_raw(&deposit_nonce_storage_key(rollup_id))
@@ -226,7 +226,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(nonce)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_deposit_rollup_ids(&self) -> Result<HashSet<RollupId>> {
         let mut stream = std::pin::pin!(self.nonverifiable_prefix_raw(DEPOSIT_PREFIX.as_bytes()));
         let mut rollup_ids = HashSet::new();
@@ -247,7 +247,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(rollup_ids)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_deposit_events(&self, rollup_id: &RollupId) -> Result<Vec<Deposit>> {
         let mut stream = std::pin::pin!(
             self.nonverifiable_prefix_raw(deposit_storage_key_prefix(rollup_id).as_bytes())
@@ -261,7 +261,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(deposits)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_block_deposits(&self) -> Result<HashMap<RollupId, Vec<Deposit>>> {
         let deposit_rollup_ids = self
             .get_deposit_rollup_ids()
@@ -278,7 +278,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(deposit_events)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_init_bridge_account_base_fee(&self) -> Result<u128> {
         let bytes = self
             .get_raw(INIT_BRIDGE_ACCOUNT_BASE_FEE_STORAGE_KEY)
@@ -289,7 +289,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(fee)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_bridge_lock_byte_cost_multiplier(&self) -> Result<u128> {
         let bytes = self
             .get_raw(BRIDGE_LOCK_BYTE_COST_MULTIPLIER_STORAGE_KEY)
@@ -300,7 +300,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(fee)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_bridge_sudo_change_base_fee(&self) -> Result<u128> {
         let bytes = self
             .get_raw(BRIDGE_SUDO_CHANGE_FEE_STORAGE_KEY)
@@ -311,7 +311,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(fee)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_last_transaction_hash_for_bridge_account(
         &self,
         address: &Address,
@@ -337,12 +337,12 @@ impl<T: StateRead + ?Sized> StateReadExt for T {}
 
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     fn put_bridge_account_rollup_id(&mut self, address: &Address, rollup_id: &RollupId) {
         self.put_raw(rollup_id_storage_key(address), rollup_id.to_vec());
     }
 
-    #[instrument(skip(self, asset), fields(%asset))]
+    #[instrument(skip_all)]
     fn put_bridge_account_ibc_asset<TAsset>(
         &mut self,
         address: &Address,
@@ -359,7 +359,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     fn put_bridge_account_sudo_address(
         &mut self,
         bridge_address: &Address,
@@ -371,7 +371,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         );
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     fn put_bridge_account_withdrawer_address(
         &mut self,
         bridge_address: &Address,
@@ -386,7 +386,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     // the deposit "nonce" for a given rollup ID during a given block.
     // this is only used to generate storage keys for each of the deposits within a block,
     // and is reset to 0 at the beginning of each block.
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     fn put_deposit_nonce(&mut self, rollup_id: &RollupId, nonce: u32) {
         self.nonverifiable_put_raw(
             deposit_nonce_storage_key(rollup_id),
@@ -394,7 +394,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         );
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn put_deposit_event(&mut self, deposit: Deposit) -> Result<()> {
         let nonce = self.get_deposit_nonce(deposit.rollup_id()).await?;
         self.put_deposit_nonce(
@@ -408,7 +408,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     }
 
     // clears the deposit nonce and all deposits for for a given rollup ID.
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn clear_deposit_info(&mut self, rollup_id: &RollupId) {
         self.nonverifiable_delete(deposit_nonce_storage_key(rollup_id));
         let mut stream = std::pin::pin!(
@@ -419,7 +419,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         }
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn clear_block_deposits(&mut self) -> Result<()> {
         let deposit_rollup_ids = self
             .get_deposit_rollup_ids()
@@ -431,7 +431,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     fn put_init_bridge_account_base_fee(&mut self, fee: u128) {
         self.put_raw(
             INIT_BRIDGE_ACCOUNT_BASE_FEE_STORAGE_KEY.to_string(),
@@ -439,7 +439,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         );
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     fn put_bridge_lock_byte_cost_multiplier(&mut self, fee: u128) {
         self.put_raw(
             BRIDGE_LOCK_BYTE_COST_MULTIPLIER_STORAGE_KEY.to_string(),
@@ -447,7 +447,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         );
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     fn put_bridge_sudo_change_base_fee(&mut self, fee: u128) {
         self.put_raw(
             BRIDGE_SUDO_CHANGE_FEE_STORAGE_KEY.to_string(),
@@ -455,7 +455,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         );
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     fn put_last_transaction_hash_for_bridge_account(
         &mut self,
         address: &Address,

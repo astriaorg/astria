@@ -4,13 +4,13 @@ use anyhow::{
     Context,
     Result,
 };
-use astria_core::primitive::v1::Address;
-use tendermint::{
-    abci::request::{
-        BeginBlock,
-        EndBlock,
-    },
-    validator,
+use astria_core::{
+    primitive::v1::Address,
+    protocol::transaction::v1alpha1::action::ValidatorUpdate,
+};
+use tendermint::abci::request::{
+    BeginBlock,
+    EndBlock,
 };
 use tracing::instrument;
 
@@ -27,28 +27,27 @@ pub(crate) struct AuthorityComponent;
 #[derive(Debug)]
 pub(crate) struct AuthorityComponentAppState {
     pub(crate) authority_sudo_address: Address,
-    pub(crate) genesis_validators: Vec<validator::Update>,
+    pub(crate) genesis_validators: Vec<ValidatorUpdate>,
 }
 
 #[async_trait::async_trait]
 impl Component for AuthorityComponent {
     type AppState = AuthorityComponentAppState;
 
-    #[instrument(name = "AuthorityComponent::init_chain", skip(state))]
+    #[instrument(name = "AuthorityComponent::init_chain", skip_all)]
     async fn init_chain<S: StateWriteExt>(mut state: S, app_state: &Self::AppState) -> Result<()> {
         // set sudo key and initial validator set
         state
             .put_sudo_address(app_state.authority_sudo_address)
             .context("failed to set sudo key")?;
+        let genesis_validators = app_state.genesis_validators.clone();
         state
-            .put_validator_set(ValidatorSet::new_from_updates(
-                app_state.genesis_validators.clone(),
-            ))
+            .put_validator_set(ValidatorSet::new_from_updates(genesis_validators))
             .context("failed to set validator set")?;
         Ok(())
     }
 
-    #[instrument(name = "AuthorityComponent::begin_block", skip(state))]
+    #[instrument(name = "AuthorityComponent::begin_block", skip_all)]
     async fn begin_block<S: StateWriteExt + 'static>(
         state: &mut Arc<S>,
         begin_block: &BeginBlock,
@@ -59,8 +58,7 @@ impl Component for AuthorityComponent {
             .context("failed getting validator set")?;
 
         for misbehaviour in &begin_block.byzantine_validators {
-            let address = tendermint::account::Id::new(misbehaviour.validator.address);
-            current_set.remove(&address);
+            current_set.remove(misbehaviour.validator.address);
         }
 
         let state = Arc::get_mut(state)
@@ -71,7 +69,7 @@ impl Component for AuthorityComponent {
         Ok(())
     }
 
-    #[instrument(name = "AuthorityComponent::end_block", skip(state))]
+    #[instrument(name = "AuthorityComponent::end_block", skip_all)]
     async fn end_block<S: StateWriteExt + StateReadExt + 'static>(
         state: &mut Arc<S>,
         _end_block: &EndBlock,
