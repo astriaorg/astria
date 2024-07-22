@@ -6,7 +6,6 @@ compile_error!(
 #[rustfmt::skip]
 pub mod generated;
 
-pub mod bridge;
 pub mod crypto;
 pub mod execution;
 pub mod primitive;
