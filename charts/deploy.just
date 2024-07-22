@@ -176,7 +176,7 @@ deploy-smoke-cli tag=defaultTag:
   @just wait-for-ingress-controller > /dev/null
   @echo "Deploying local celestia instance..." && just deploy celestia-local > /dev/null
   @helm dependency update charts/sequencer > /dev/null
-  @helm dependency update charts/evm-rollup > /dev/null
+  @helm dependency update charts/evm-stack > /dev/null
   @echo "Setting up single astria sequencer..." && helm install \
     -n astria-validator-single single-sequencer-chart ./charts/sequencer \
     -f dev/values/validators/all.yml \
