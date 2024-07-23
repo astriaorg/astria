@@ -2,30 +2,21 @@
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: {{include "rollup.name" . }}-geth-metrics
+  name: composer-metrics
   labels:
-    {{- include "rollup.labels" . | nindent 4 }}
     {{- with .Values.serviceMonitor.additionalLabels }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
 spec:
-  jobLabel: geth-metrics
+  jobLabel: composer-metrics
   namespaceSelector:
     matchNames:
-      - {{ include "rollup.namespace" . }}
+      - {{ include "composer.namespace" . }}
   selector:
     matchLabels:
-      app: {{ include "rollup.appName" . }}
+      app: composer
   endpoints:
-    - port: geth-metr
-      path: /debug/metrics/prometheus
-      {{- with .Values.serviceMonitor.interval }}
-      interval: {{ . }}
-      {{- end }}
-      {{- with .Values.serviceMonitor.scrapeTimeout  }}
-      scrapeTimeout: {{ . }}
-      {{- end }}
-    - port: conductor-metr
+    - port: metrics
       path: /
       {{- with .Values.serviceMonitor.interval }}
       interval: {{ . }}

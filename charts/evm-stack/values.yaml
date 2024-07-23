@@ -1,0 +1,88 @@
+# Default values for sequencer.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+global:
+  namespaceOverride: ""
+  replicaCount: 1
+  # Whether to use tty readable logging for astria services, when false use json.
+  # Best to be false in production environments, true for clean logs on local dev.
+  useTTY: true
+  dev: false
+  sequencerRpc: ""
+  sequencerGrpc: ""
+  rollupName: ""
+  evmChainId: ""
+  sequencerChainId: ""
+  otel:
+    endpoint: ""
+    tracesEndpoint: ""
+    tracesCompression: gzip
+    tracesTimeout: 10
+    otlpHeaders: ""
+    traceHeaders: ""
+
+evm-rollup:
+  enabled: true
+  genesis:
+    rollupName: "{{ .Values.global.rollupName }}"
+    chainId: "{{ .Values.global.evmChainId }}"
+  config:
+    conductor:
+      sequencerChainId: "{{ .Values.global.sequencerChainId }}"
+      sequencerRpc: "{{ .Values.global.sequencerRpc }}"
+      sequencerGrpc: "{{ .Values.global.sequencerGrpc }}"
+  otel:
+    endpoint: "{{ .Values.global.otel.endpoint }}"
+    tracesEndpoint: "{{ .Values.global.otel.tracesEndpoint }}"
+    tracesCompression: "{{ .Values.global.otel.tracesCompression }}"
+    tracesTimeout: "{{ .Values.global.otel.tracesTimeout }}"
+    otlpHeaders: "{{ .Values.global.otel.otlpHeaders }}"
+    traceHeaders: "{{ .Values.global.otel.traceHeaders }}"
+
+composer:
+  enabled: false
+  config:
+    sequencerChainId: "{{ .Values.global.sequencerChainId }}"
+    sequencerRpc: "{{ .Values.global.sequencerRpc }}"
+    sequencerGrpc: "{{ .Values.global.sequencerGrpc }}"
+    rollups:
+      - name: "{{ .Values.global.rollupName }}"
+        wsRpc: "ws://{{ .Values.global.rollupName }}-evm-service.{{ default .Release.Namespace .Values.global.namespaceOverride  }}.svc.cluster.local:8546"
+  otel:
+    endpoint: "{{ .Values.global.otel.endpoint }}"
+    tracesEndpoint: "{{ .Values.global.otel.tracesEndpoint }}"
+    tracesCompression: "{{ .Values.global.otel.tracesCompression }}"
+    tracesTimeout: "{{ .Values.global.otel.tracesTimeout }}"
+    otlpHeaders: "{{ .Values.global.otel.otlpHeaders }}"
+    traceHeaders: "{{ .Values.global.otel.traceHeaders }}"
+
+evm-faucet:
+  enabled: false
+  config:
+    rollupName: "{{ .Values.global.rollupName }}"
+    providerUrl: "http://{{ .Values.global.rollupName }}-evm-service.{{ default .Release.Namespace .Values.global.namespaceOverride  }}.svc.cluster.local:8545"
+
+bridge-withdrawer:
+  enabled: false
+  config:
+    sequencerChainId: "{{ .Values.global.sequencerChainId }}"
+    sequencerCometbftEndpoint: "{{ .Values.global.sequencerRpc }}"
+    evmRpcEndpoint: "ws://{{ .Values.global.rollupName }}-evm-service.{{ default .Release.Namespace .Values.global.namespaceOverride  }}.svc.cluster.local:8546"
+    sequencerGrpcEndpoint: "{{ .Values.global.sequencerGrpc }}"
+  otel:
+    endpoint: "{{ .Values.global.otel.endpoint }}"
+    tracesEndpoint: "{{ .Values.global.otel.tracesEndpoint }}"
+    tracesCompression: "{{ .Values.global.otel.tracesCompression }}"
+    tracesTimeout: "{{ .Values.global.otel.tracesTimeout }}"
+    otlpHeaders: "{{ .Values.global.otel.otlpHeaders }}"
+    traceHeaders: "{{ .Values.global.otel.traceHeaders }}"
+
+blockscout-stack:
+  frontend:
+    image:
+      tag: v1.32.0
+  enabled: false
+
+
+postgresql:
+  enabled: false

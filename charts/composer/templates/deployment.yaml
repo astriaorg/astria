@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: composer
+  namespace: {{ include "composer.namespace" . }}
+  labels:
+    app: composer
+spec:
+  replicas: {{ .Values.global.replicaCount }}
+  selector:
+    matchLabels:
+      app: composer
+  template:
+    metadata:
+      labels:
+        app: composer
+    spec:
+      containers:
+        - name: composer
+          image: {{ include "composer.image" . }}
+          command: ["/usr/local/bin/astria-composer"]
+          stdin: {{ .Values.global.useTTY }}
+          tty: {{ .Values.global.useTTY }}
+          envFrom:
+            - configMapRef:
+                name: composer-env
+          volumeMounts:
+            - mountPath: "/var/secrets"
+              name: sequencer-private-key
+          startupProbe:
+            httpGet:
+              path: /readyz
+              port: {{ .Values.ports.healthApi }}
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: {{ .Values.ports.healthApi }}
+          ports:
+            {{- if .Values.metrics.enabled }}
+            - containerPort: {{ .Values.ports.metrics }}
+              name: metrics
+            {{- end }}
+            - containerPort: {{ .Values.ports.healthApi }}
+              name: health-api
+            - containerPort: {{ .Values.ports.grpc }}
+              name: grpc
+          resources:
+            {{- toYaml .Values.resources | trim | nindent 12 }}
+      volumes:
+        - name: sequencer-private-key
+          {{- if .Values.secretProvider.enabled }}
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: sequencer-private-key
+          {{- else }}
+          configMap:
+            name: sequencer-private-key
+              {{- end }}

@@ -16,7 +16,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /home
 
 ARG CELESTIA_VERSION=v1.9.0
-ARG ASTRIA_VERSION=nightly-2024-07-10
+ARG ASTRIA_VERSION=v0.12.0
 
 # download architecture-specific binaries
 ARG TARGETPLATFORM
