@@ -10,9 +10,9 @@ use astria_core::{
         FeeChange,
         FeeChangeAction,
         SudoAddressChangeAction,
+        ValidatorUpdate,
     },
 };
-use tendermint::account;
 use tracing::instrument;
 
 use crate::{
@@ -24,7 +24,7 @@ use crate::{
 };
 
 #[async_trait::async_trait]
-impl ActionHandler for tendermint::validator::Update {
+impl ActionHandler for ValidatorUpdate {
     async fn check_stateful<S: StateReadExt + 'static>(
         &self,
         state: &S,
@@ -39,14 +39,14 @@ impl ActionHandler for tendermint::validator::Update {
 
         // ensure that we're not removing the last validator or a validator
         // that doesn't exist, these both cause issues in cometBFT
-        if self.power.is_zero() {
+        if self.power == 0 {
             let validator_set = state
                 .get_validator_set()
                 .await
                 .context("failed to get validator set from state")?;
             // check that validator exists
             if validator_set
-                .get(&account::Id::from(self.pub_key))
+                .get(self.verification_key.address_bytes())
                 .is_none()
             {
                 bail!("cannot remove a non-existing validator");

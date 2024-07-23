@@ -34,7 +34,7 @@ impl Handle {
         self.batches_tx
             .send(batch)
             .await
-            .wrap_err("failed to send batch")
+            .wrap_err("failed send batch")
     }
 }
 

@@ -23,10 +23,10 @@ impl serde::Serialize for Deposit {
         }
         let mut struct_ser = serializer.serialize_struct("astria.sequencerblock.v1alpha1.Deposit", len)?;
         if let Some(v) = self.bridge_address.as_ref() {
-            struct_ser.serialize_field("bridge_address", v)?;
+            struct_ser.serialize_field("bridgeAddress", v)?;
         }
         if let Some(v) = self.rollup_id.as_ref() {
-            struct_ser.serialize_field("rollup_id", v)?;
+            struct_ser.serialize_field("rollupId", v)?;
         }
         if let Some(v) = self.amount.as_ref() {
             struct_ser.serialize_field("amount", v)?;
@@ -35,7 +35,7 @@ impl serde::Serialize for Deposit {
             struct_ser.serialize_field("asset", &self.asset)?;
         }
         if !self.destination_chain_address.is_empty() {
-            struct_ser.serialize_field("destination_chain_address", &self.destination_chain_address)?;
+            struct_ser.serialize_field("destinationChainAddress", &self.destination_chain_address)?;
         }
         struct_ser.end()
     }
@@ -189,22 +189,22 @@ impl serde::Serialize for FilteredSequencerBlock {
         let mut struct_ser = serializer.serialize_struct("astria.sequencerblock.v1alpha1.FilteredSequencerBlock", len)?;
         if !self.block_hash.is_empty() {
             #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("block_hash", pbjson::private::base64::encode(&self.block_hash).as_str())?;
+            struct_ser.serialize_field("blockHash", pbjson::private::base64::encode(&self.block_hash).as_str())?;
         }
         if let Some(v) = self.header.as_ref() {
             struct_ser.serialize_field("header", v)?;
         }
         if !self.rollup_transactions.is_empty() {
-            struct_ser.serialize_field("rollup_transactions", &self.rollup_transactions)?;
+            struct_ser.serialize_field("rollupTransactions", &self.rollup_transactions)?;
         }
         if let Some(v) = self.rollup_transactions_proof.as_ref() {
-            struct_ser.serialize_field("rollup_transactions_proof", v)?;
+            struct_ser.serialize_field("rollupTransactionsProof", v)?;
         }
         if !self.all_rollup_ids.is_empty() {
-            struct_ser.serialize_field("all_rollup_ids", &self.all_rollup_ids.iter().map(pbjson::private::base64::encode).collect::<Vec<_>>())?;
+            struct_ser.serialize_field("allRollupIds", &self.all_rollup_ids.iter().map(pbjson::private::base64::encode).collect::<Vec<_>>())?;
         }
         if let Some(v) = self.rollup_ids_proof.as_ref() {
-            struct_ser.serialize_field("rollup_ids_proof", v)?;
+            struct_ser.serialize_field("rollupIdsProof", v)?;
         }
         struct_ser.end()
     }
@@ -367,7 +367,7 @@ impl serde::Serialize for GetFilteredSequencerBlockRequest {
             struct_ser.serialize_field("height", ToString::to_string(&self.height).as_str())?;
         }
         if !self.rollup_ids.is_empty() {
-            struct_ser.serialize_field("rollup_ids", &self.rollup_ids)?;
+            struct_ser.serialize_field("rollupIds", &self.rollup_ids)?;
         }
         struct_ser.end()
     }
@@ -753,7 +753,7 @@ impl serde::Serialize for RollupData {
             match v {
                 rollup_data::Value::SequencedData(v) => {
                     #[allow(clippy::needless_borrow)]
-                    struct_ser.serialize_field("sequenced_data", pbjson::private::base64::encode(&v).as_str())?;
+                    struct_ser.serialize_field("sequencedData", pbjson::private::base64::encode(&v).as_str())?;
                 }
                 rollup_data::Value::Deposit(v) => {
                     struct_ser.serialize_field("deposit", v)?;
@@ -866,7 +866,7 @@ impl serde::Serialize for RollupTransactions {
         }
         let mut struct_ser = serializer.serialize_struct("astria.sequencerblock.v1alpha1.RollupTransactions", len)?;
         if let Some(v) = self.rollup_id.as_ref() {
-            struct_ser.serialize_field("rollup_id", v)?;
+            struct_ser.serialize_field("rollupId", v)?;
         }
         if !self.transactions.is_empty() {
             struct_ser.serialize_field("transactions", &self.transactions.iter().map(pbjson::private::base64::encode).collect::<Vec<_>>())?;
@@ -1004,17 +1004,17 @@ impl serde::Serialize for SequencerBlock {
             struct_ser.serialize_field("header", v)?;
         }
         if !self.rollup_transactions.is_empty() {
-            struct_ser.serialize_field("rollup_transactions", &self.rollup_transactions)?;
+            struct_ser.serialize_field("rollupTransactions", &self.rollup_transactions)?;
         }
         if let Some(v) = self.rollup_transactions_proof.as_ref() {
-            struct_ser.serialize_field("rollup_transactions_proof", v)?;
+            struct_ser.serialize_field("rollupTransactionsProof", v)?;
         }
         if let Some(v) = self.rollup_ids_proof.as_ref() {
-            struct_ser.serialize_field("rollup_ids_proof", v)?;
+            struct_ser.serialize_field("rollupIdsProof", v)?;
         }
         if !self.block_hash.is_empty() {
             #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("block_hash", pbjson::private::base64::encode(&self.block_hash).as_str())?;
+            struct_ser.serialize_field("blockHash", pbjson::private::base64::encode(&self.block_hash).as_str())?;
         }
         struct_ser.end()
     }
@@ -1170,7 +1170,7 @@ impl serde::Serialize for SequencerBlockHeader {
         }
         let mut struct_ser = serializer.serialize_struct("astria.sequencerblock.v1alpha1.SequencerBlockHeader", len)?;
         if !self.chain_id.is_empty() {
-            struct_ser.serialize_field("chain_id", &self.chain_id)?;
+            struct_ser.serialize_field("chainId", &self.chain_id)?;
         }
         if self.height != 0 {
             #[allow(clippy::needless_borrow)]
@@ -1181,15 +1181,15 @@ impl serde::Serialize for SequencerBlockHeader {
         }
         if !self.data_hash.is_empty() {
             #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("data_hash", pbjson::private::base64::encode(&self.data_hash).as_str())?;
+            struct_ser.serialize_field("dataHash", pbjson::private::base64::encode(&self.data_hash).as_str())?;
         }
         if !self.proposer_address.is_empty() {
             #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("proposer_address", pbjson::private::base64::encode(&self.proposer_address).as_str())?;
+            struct_ser.serialize_field("proposerAddress", pbjson::private::base64::encode(&self.proposer_address).as_str())?;
         }
         if !self.rollup_transactions_root.is_empty() {
             #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("rollup_transactions_root", pbjson::private::base64::encode(&self.rollup_transactions_root).as_str())?;
+            struct_ser.serialize_field("rollupTransactionsRoot", pbjson::private::base64::encode(&self.rollup_transactions_root).as_str())?;
         }
         struct_ser.end()
     }
@@ -1360,19 +1360,19 @@ impl serde::Serialize for SubmittedMetadata {
         let mut struct_ser = serializer.serialize_struct("astria.sequencerblock.v1alpha1.SubmittedMetadata", len)?;
         if !self.block_hash.is_empty() {
             #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("block_hash", pbjson::private::base64::encode(&self.block_hash).as_str())?;
+            struct_ser.serialize_field("blockHash", pbjson::private::base64::encode(&self.block_hash).as_str())?;
         }
         if let Some(v) = self.header.as_ref() {
             struct_ser.serialize_field("header", v)?;
         }
         if !self.rollup_ids.is_empty() {
-            struct_ser.serialize_field("rollup_ids", &self.rollup_ids)?;
+            struct_ser.serialize_field("rollupIds", &self.rollup_ids)?;
         }
         if let Some(v) = self.rollup_transactions_proof.as_ref() {
-            struct_ser.serialize_field("rollup_transactions_proof", v)?;
+            struct_ser.serialize_field("rollupTransactionsProof", v)?;
         }
         if let Some(v) = self.rollup_ids_proof.as_ref() {
-            struct_ser.serialize_field("rollup_ids_proof", v)?;
+            struct_ser.serialize_field("rollupIdsProof", v)?;
         }
         struct_ser.end()
     }
@@ -1614,10 +1614,10 @@ impl serde::Serialize for SubmittedRollupData {
         let mut struct_ser = serializer.serialize_struct("astria.sequencerblock.v1alpha1.SubmittedRollupData", len)?;
         if !self.sequencer_block_hash.is_empty() {
             #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("sequencer_block_hash", pbjson::private::base64::encode(&self.sequencer_block_hash).as_str())?;
+            struct_ser.serialize_field("sequencerBlockHash", pbjson::private::base64::encode(&self.sequencer_block_hash).as_str())?;
         }
         if let Some(v) = self.rollup_id.as_ref() {
-            struct_ser.serialize_field("rollup_id", v)?;
+            struct_ser.serialize_field("rollupId", v)?;
         }
         if !self.transactions.is_empty() {
             struct_ser.serialize_field("transactions", &self.transactions.iter().map(pbjson::private::base64::encode).collect::<Vec<_>>())?;

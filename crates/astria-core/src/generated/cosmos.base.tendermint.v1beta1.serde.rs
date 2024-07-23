@@ -85,10 +85,10 @@ impl serde::Serialize for GetNodeInfoResponse {
         }
         let mut struct_ser = serializer.serialize_struct("cosmos.base.tendermint.v1beta1.GetNodeInfoResponse", len)?;
         if let Some(v) = self.default_node_info.as_ref() {
-            struct_ser.serialize_field("default_node_info", v)?;
+            struct_ser.serialize_field("defaultNodeInfo", v)?;
         }
         if let Some(v) = self.application_version.as_ref() {
-            struct_ser.serialize_field("application_version", v)?;
+            struct_ser.serialize_field("applicationVersion", v)?;
         }
         struct_ser.end()
     }
@@ -341,25 +341,25 @@ impl serde::Serialize for VersionInfo {
             struct_ser.serialize_field("name", &self.name)?;
         }
         if !self.app_name.is_empty() {
-            struct_ser.serialize_field("app_name", &self.app_name)?;
+            struct_ser.serialize_field("appName", &self.app_name)?;
         }
         if !self.version.is_empty() {
             struct_ser.serialize_field("version", &self.version)?;
         }
         if !self.git_commit.is_empty() {
-            struct_ser.serialize_field("git_commit", &self.git_commit)?;
+            struct_ser.serialize_field("gitCommit", &self.git_commit)?;
         }
         if !self.build_tags.is_empty() {
-            struct_ser.serialize_field("build_tags", &self.build_tags)?;
+            struct_ser.serialize_field("buildTags", &self.build_tags)?;
         }
         if !self.go_version.is_empty() {
-            struct_ser.serialize_field("go_version", &self.go_version)?;
+            struct_ser.serialize_field("goVersion", &self.go_version)?;
         }
         if !self.build_deps.is_empty() {
-            struct_ser.serialize_field("build_deps", &self.build_deps)?;
+            struct_ser.serialize_field("buildDeps", &self.build_deps)?;
         }
         if !self.cosmos_sdk_version.is_empty() {
-            struct_ser.serialize_field("cosmos_sdk_version", &self.cosmos_sdk_version)?;
+            struct_ser.serialize_field("cosmosSdkVersion", &self.cosmos_sdk_version)?;
         }
         struct_ser.end()
     }

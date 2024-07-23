@@ -1,0 +1,41 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "bridge-test.fullname" . }}
+  labels:
+    app: astria-dev-cluster
+  namespace: {{ include "bridge-test.namespace" . }}
+spec:
+  template:
+    metadata:
+      name: {{ include "bridge-test.fullname" . }}
+      labels:
+        app: astria-dev-cluster
+    spec:
+      initContainers:
+        - name: init-bridge-account
+          image: {{ .Values.bridgeTesterUtilityImage }}
+          command: [ "astria-go", "sequencer", "bridge", "init", {{ .Values.evmRollupName }} ]
+          args:
+            - --privkey={{ .Values.bridgeAccount.privkey }}
+            - --sequencer-chain-id={{ .Values.sequencerChainId }}
+            - --sequencer-url={{ .Values.sequencerURL }}
+            - --asset={{ .Values.asset }}
+            - --fee-asset={{ .Values.feeAsset }}
+            - --log-level=debug
+      containers:
+        - name: test-ibc-transfer
+          image: {{ .Values.bridgeTesterUtilityImage }}
+          command: [ "/scripts/test-ibc-transfer.sh" ]
+          volumeMounts:
+            - mountPath: /scripts/
+              name: bridge-test-scripts-volume
+          envFrom:
+            - configMapRef:
+                name: bridge-test-env
+      volumes:
+        - name: bridge-test-scripts-volume
+          configMap:
+            name: bridge-test-scripts
+            defaultMode: 0777
+      restartPolicy: Never

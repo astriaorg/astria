@@ -91,7 +91,9 @@ pub mod action {
         #[prost(message, tag = "50")]
         SudoAddressChangeAction(super::SudoAddressChangeAction),
         #[prost(message, tag = "51")]
-        ValidatorUpdateAction(::tendermint_proto::abci::ValidatorUpdate),
+        ValidatorUpdateAction(
+            crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate,
+        ),
         #[prost(message, tag = "52")]
         IbcRelayerChangeAction(super::IbcRelayerChangeAction),
         #[prost(message, tag = "53")]
@@ -385,8 +387,8 @@ pub struct BridgeUnlockAction {
     #[prost(string, tag = "3")]
     pub fee_asset: ::prost::alloc::string::String,
     /// memo for double spend prevention
-    #[prost(bytes = "vec", tag = "4")]
-    pub memo: ::prost::alloc::vec::Vec<u8>,
+    #[prost(string, tag = "4")]
+    pub memo: ::prost::alloc::string::String,
     /// the address of the bridge account to transfer from,
     /// if the bridge account's withdrawer address is not the same as the bridge address.
     /// if unset, the signer of the transaction is used.

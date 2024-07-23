@@ -488,7 +488,13 @@ dependencies = [
 name = "astria-bridge-contracts"
 version = "0.1.0"
 dependencies = [
+ "astria-core",
  "ethers",
+ "futures",
+ "ibc-types",
+ "serde_json",
+ "tendermint",
+ "thiserror",
 ]
 
 [[package]]
@@ -543,17 +549,26 @@ dependencies = [
 name = "astria-cli"
 version = "0.3.1"
 dependencies = [
+ "astria-bridge-contracts",
  "astria-core",
  "astria-sequencer-client",
  "clap",
  "color-eyre",
+ "ethers",
+ "futures",
  "hex",
+ "humantime",
+ "ibc-types",
  "rand 0.8.5",
  "serde",
+ "serde_json",
  "serde_yaml",
  "sha2 0.10.8",
+ "tendermint",
  "tokio",
  "tracing",
+ "tracing-subscriber 0.3.18",
+ "tryhard",
  "which",
 ]
 
@@ -776,6 +791,7 @@ dependencies = [
  "bytes",
  "cnidarium",
  "cnidarium-component",
+ "divan",
  "futures",
  "hex",
  "ibc-proto",
@@ -789,6 +805,7 @@ dependencies = [
  "priority-queue",
  "prost",
  "rand 0.8.5",
+ "rand_chacha 0.3.1",
  "regex",
  "serde",
  "serde_json",
@@ -1434,9 +1451,9 @@ checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
 
 [[package]]
 name = "bytes"
-version = "1.6.0"
+version = "1.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "514de17de45fdb8dc022b1a7975556c53c86f9f0aa5f534b98977b171857c2c9"
+checksum = "a12916984aab3fa6e39d655a33e09c0071eb36d6ab3aea5c2d78551f1df6d952"
 dependencies = [
  "serde",
 ]
@@ -1903,9 +1920,12 @@ checksum = "acbf1af155f9b9ef647e42cdc158db4b64a1b61f743629225fde6f3e0be2a7c7"
 
 [[package]]
 name = "colour"
-version = "2.0.0"
+version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "692e39ee1f14432931eb080a5e8e8930a7eff3d19e638cd04091534ebc40b928"
+checksum = "b536eebcabe54980476d120a182f7da2268fe02d22575cca99cee5fdda178280"
+dependencies = [
+ "winapi",
+]
 
 [[package]]
 name = "compiletest_rs"
@@ -3970,9 +3990,9 @@ dependencies = [
 
 [[package]]
 name = "ics23"
-version = "0.11.1"
+version = "0.11.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc3b8be84e7285c73b88effdc3294b552277d6b0ec728ee016c861b7b9a2c19c"
+checksum = "18798160736c1e368938ba6967dbcb3c7afb3256b442a5506ba5222eebb68a5a"
 dependencies = [
  "anyhow",
  "blake2",
@@ -5951,7 +5971,7 @@ checksum = "80b776a1b2dc779f5ee0641f8ade0125bc1298dd41a9a0c16d8bd57b42d222b1"
 dependencies = [
  "bytes",
  "heck 0.5.0",
- "itertools 0.12.1",
+ "itertools 0.10.5",
  "log",
  "multimap",
  "once_cell",
@@ -5971,7 +5991,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "19de2de2a00075bf566bee3bd4db014b11587e84184d3f7a791bc17f1a8e9e48"
 dependencies = [
  "anyhow",
- "itertools 0.12.1",
+ "itertools 0.10.5",
  "proc-macro2 1.0.79",
  "quote",
  "syn 2.0.58",

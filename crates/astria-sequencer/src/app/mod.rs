@@ -24,6 +24,7 @@ use astria_core::{
     protocol::{
         abci::AbciErrorCode,
         transaction::v1alpha1::{
+            action::ValidatorUpdate,
             Action,
             SignedTransaction,
         },
@@ -58,6 +59,7 @@ use tracing::{
     debug,
     info,
     instrument,
+    Instrument as _,
 };
 
 use crate::{
@@ -209,7 +211,7 @@ impl App {
         &mut self,
         storage: Storage,
         genesis_state: astria_core::sequencer::GenesisState,
-        genesis_validators: Vec<tendermint::validator::Update>,
+        genesis_validators: Vec<ValidatorUpdate>,
         chain_id: String,
     ) -> anyhow::Result<AppHash> {
         let mut state_tx = self
@@ -603,6 +605,7 @@ impl App {
         self.mempool.insert_all(txs_to_readd_to_mempool).await;
         let mempool_len = self.mempool.len().await;
         debug!(mempool_len, "finished executing transactions from mempool");
+        self.metrics.set_transactions_in_mempool_total(mempool_len);
 
         self.execution_results = Some(execution_results);
         Ok((validated_txs, included_signed_txs))
@@ -982,21 +985,21 @@ impl App {
     }
 
     /// Executes a signed transaction.
-    #[instrument(name = "App::execute_transaction", skip_all, fields(
-        signed_transaction_hash = %telemetry::display::base64(&signed_tx.sha256_of_proto_encoding()),
-        sender_address_bytes = %telemetry::display::base64(&signed_tx.address_bytes()),
-    ))]
+    #[instrument(name = "App::execute_transaction", skip_all)]
     pub(crate) async fn execute_transaction(
         &mut self,
         signed_tx: Arc<SignedTransaction>,
     ) -> anyhow::Result<Vec<Event>> {
         let signed_tx_2 = signed_tx.clone();
-        let stateless =
-            tokio::spawn(async move { transaction::check_stateless(&signed_tx_2).await });
+        let stateless = tokio::spawn(
+            async move { transaction::check_stateless(&signed_tx_2).await }.in_current_span(),
+        );
         let signed_tx_2 = signed_tx.clone();
         let state2 = self.state.clone();
-        let stateful =
-            tokio::spawn(async move { transaction::check_stateful(&signed_tx_2, &state2).await });
+        let stateful = tokio::spawn(
+            async move { transaction::check_stateful(&signed_tx_2, &state2).await }
+                .in_current_span(),
+        );
 
         stateless
             .await
@@ -1086,7 +1089,9 @@ impl App {
 
         let events = self.apply(state_tx);
         Ok(abci::response::EndBlock {
-            validator_updates: validator_updates.into_tendermint_validator_updates(),
+            validator_updates: validator_updates
+                .try_into_cometbft()
+                .context("failed converting astria validators to cometbft compatible type")?,
             events,
             ..Default::default()
         })

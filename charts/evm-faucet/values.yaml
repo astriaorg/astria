@@ -1,0 +1,59 @@
+global:
+  namespaceOverride: ""
+  replicaCount: 1
+  # Whether to use tty readable logging for astria services, when false use json.
+  # Best to be false in production environments, true for clean logs on local dev.
+  useTTY: false
+  dev: false
+
+images:
+  faucet:
+    repo: "ghcr.io/astriaorg/ria-faucet"
+    tag: "0.0.1"
+
+config:
+  rollupName: ''
+  proxyCount: 1
+  # The account from which the faucet disburses funds, likely want to have
+  # the corresponding account given a balance in genesis accounts.
+  # Note: When secretProvider.enabled is true the secret provided by
+  #       `evmPrivateKey` is used instead of this value.
+  privateKey:
+    devContent: ""
+    secret:
+      filename: "key.hex"
+      resourceName: "projects/$PROJECT_ID/secrets/sequencerPrivateKey/versions/latest"
+      key: token
+  # The amount of token to give per request
+  amount: 1
+  providerUrl: http://{{ .Values.config.rollupName }}-evm-service.{{ include "evmFaucet.namespace" . }}.svc.cluster.local:8545
+
+ingress:
+  enabled: false
+  labels: {}
+  hostname: localdev.me
+  className: nginx
+  services:
+    faucet:
+      hosts:
+        - faucet.{{tpl .Values.config.rollupName . }}.{{ .Values.ingress.hostname }}
+      path: /
+      pathType: Prefix
+      service:
+        name: "{{tpl .Values.config.rollupName . }}-evm-faucet-service"
+        port:
+          name: evm-faucet-svc
+
+# When deploying in a production environment should use a secret provider
+# This is configured for use with GCP, need to set own resource names
+# and keys
+secretProvider:
+  enabled: false
+  provider: gcp
+  parametersTemplate: |-
+    secrets: |
+      - resourceName: {{ .key.resourceName }}
+        fileName: "{{ .key.filename }}"
+
+ports:
+  faucet: 8080

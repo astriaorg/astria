@@ -7,12 +7,6 @@ use std::{
     time::Duration,
 };
 
-pub use astria_bridge_contracts::{
-    astria_bridgeable_erc20,
-    astria_withdrawer,
-    i_astria_withdrawer,
-};
-use astria_core::primitive::v1::asset::Denom;
 use astria_eyre::eyre::{
     self,
     WrapErr as _,
@@ -127,12 +121,9 @@ impl BridgeWithdrawer {
             startup_handle,
             shutdown_token: shutdown_handle.token(),
             state: state.clone(),
-            rollup_asset_denom: rollup_asset_denomination
-                .parse::<Denom>()
-                .wrap_err("failed to parse ROLLUP_ASSET_DENOMINATION as Denom")?,
+            rollup_asset_denom: rollup_asset_denomination,
             bridge_address: sequencer_bridge_address,
             submitter_handle,
-            sequencer_address_prefix: sequencer_address_prefix.clone(),
         }
         .build()
         .wrap_err("failed to build ethereum watcher")?;
@@ -419,19 +410,4 @@ pub(crate) fn flatten_result<T>(res: Result<eyre::Result<T>, JoinError>) -> eyre
         Ok(Err(err)) => Err(err).wrap_err("task returned with error"),
         Err(err) => Err(err).wrap_err("task panicked"),
     }
-}
-
-#[cfg(test)]
-pub(crate) const ASTRIA_ADDRESS_PREFIX: &str = "astria";
-
-/// Constructs an [`Address`] prefixed by `"astria"`.
-#[cfg(test)]
-pub(crate) fn astria_address(
-    array: [u8; astria_core::primitive::v1::ADDRESS_LEN],
-) -> astria_core::primitive::v1::Address {
-    astria_core::primitive::v1::Address::builder()
-        .array(array)
-        .prefix(ASTRIA_ADDRESS_PREFIX)
-        .try_build()
-        .unwrap()
 }

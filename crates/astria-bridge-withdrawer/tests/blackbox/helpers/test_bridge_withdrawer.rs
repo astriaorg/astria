@@ -6,9 +6,9 @@ use std::{
 };
 
 use astria_bridge_withdrawer::{
+    bridge_withdrawer::ShutdownHandle,
     BridgeWithdrawer,
     Config,
-    ShutdownHandle,
 };
 use astria_core::{
     bridge::{
@@ -50,6 +50,7 @@ use tracing::{
 };
 
 use super::{
+    default_rollup_address,
     ethereum::AstriaBridgeableERC20DeployerConfig,
     make_tx_commit_success_response,
     mock_cometbft::{
@@ -136,7 +137,7 @@ impl Drop for TestBridgeWithdrawer {
 impl TestBridgeWithdrawer {
     #[must_use]
     pub fn asset_denom(&self) -> Denom {
-        self.config.rollup_asset_denomination.parse().unwrap()
+        Denom::from(self.config.rollup_asset_denomination.clone())
     }
 
     #[must_use]
@@ -276,7 +277,7 @@ impl TestBridgeWithdrawerConfig {
             sequencer_chain_id: SEQUENCER_CHAIN_ID.into(),
             sequencer_key_path,
             fee_asset_denomination: asset_denom.clone(),
-            rollup_asset_denomination: asset_denom.to_string(),
+            rollup_asset_denomination: asset_denom.as_trace_prefixed().unwrap().clone(),
             sequencer_bridge_address: default_bridge_address().to_string(),
             ethereum_contract_address: ethereum.contract_address(),
             ethereum_rpc_endpoint: ethereum.ws_endpoint(),
@@ -361,7 +362,7 @@ impl Default for TestBridgeWithdrawerConfig {
 }
 
 #[track_caller]
-pub fn assert_actions_eq(expected: Action, actual: Action) {
+pub fn assert_actions_eq(expected: &Action, actual: &Action) {
     match (expected.clone(), actual.clone()) {
         (Action::BridgeUnlock(expected), Action::BridgeUnlock(actual)) => {
             assert_eq!(expected, actual, "BridgeUnlock actions do not match");
@@ -429,7 +430,7 @@ pub fn make_bridge_unlock_action(receipt: &TransactionReceipt) -> Action {
     let inner = BridgeUnlockAction {
         to: default_sequencer_address(),
         amount: 1_000_000u128,
-        memo: serde_json::to_vec(&UnlockMemo {
+        memo: serde_json::to_string(&UnlockMemo {
             block_number: receipt.block_number.unwrap().as_u64(),
             transaction_hash: receipt.transaction_hash.0,
         })
@@ -452,7 +453,7 @@ pub fn make_ics20_withdrawal_action(receipt: &TransactionReceipt) -> Action {
         amount: 1_000_000u128,
         memo: serde_json::to_string(&Ics20WithdrawalFromRollupMemo {
             memo: "nootwashere".to_string(),
-            bridge_address: default_bridge_address(),
+            rollup_return_address: default_rollup_address().to_string(),
             block_number: receipt.block_number.unwrap().as_u64(),
             transaction_hash: receipt.transaction_hash.0,
         })

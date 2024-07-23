@@ -13,7 +13,7 @@ nameOverride: ""
 # the destination chain assets
 createChannel:
   enabled: false
-  chainA: ''  # For local test is equencer-test-chain-0
+  chainA: ''  # For local test is sequencer-test-chain-0
   portA: ''   # likely "transfer"
   chainB: ''  # For default local test celestia-local-0
   portB: ''   # likely "transfer"
@@ -96,7 +96,7 @@ chains:
   #     secret:
   #       resourceName: projects/$PROJECT_ID/secrets/celestia-ibc-relay-key/versions/latest
   #   gasPrice: 0.12
-  #   denom: 'utia'
+  #   gasDenom: 'utia'
   #   gasMultiplier: 1.1
   #   clockDrift: 20s
   #   maxBlockTime: 10s

@@ -55,12 +55,7 @@ impl ActionHandler for SequenceAction {
         Ok(())
     }
 
-    #[instrument(
-        skip_all,
-        fields(
-            from = from.to_string(),
-        )
-    )]
+    #[instrument(skip_all)]
     async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> Result<()> {
         let fee = calculate_fee_from_state(&self.data, state)
             .await

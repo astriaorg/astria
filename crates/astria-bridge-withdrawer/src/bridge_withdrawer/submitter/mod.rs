@@ -5,7 +5,9 @@ use std::{
 
 use astria_core::{
     generated::sequencerblock::v1alpha1::{
-        sequencer_service_client,
+        sequencer_service_client::{
+            self,
+        },
         GetPendingNonceRequest,
     },
     protocol::transaction::v1alpha1::{
@@ -86,6 +88,7 @@ impl Submitter {
                 (chain_id, sequencer_grpc_client)
             }
         };
+        self.state.set_submitter_ready();
 
         debug!(
             sequencer.chain_id = sequencer_chain_id,
@@ -145,6 +148,8 @@ impl Submitter {
     }
 }
 
+// TODO(https://github.com/astriaorg/astria/issues/1273):
+// refactor this allow
 #[allow(clippy::too_many_arguments)]
 async fn process_batch(
     sequencer_cometbft_client: sequencer_client::HttpClient,
@@ -284,6 +289,7 @@ async fn submit_tx(
     res
 }
 
+// TODO(https://github.com/astriaorg/astria/issues/1274): deduplicate here and in crate::bridge_withdrawer::startup
 async fn get_pending_nonce(
     client: sequencer_service_client::SequencerServiceClient<Channel>,
     address: Address,
@@ -291,14 +297,14 @@ async fn get_pending_nonce(
     // metrics: &'static Metrics,
 ) -> eyre::Result<u32> {
     debug!("fetching pending nonce from sequencing");
-    // TODO: add metric and start time
+    // TODO(https://github.com/astriaorg/astria/issues/1272): add metric and start time
     let span = Span::current();
     let retry_config = tryhard::RetryFutureConfig::new(1024)
         .exponential_backoff(Duration::from_millis(200))
         .max_delay(Duration::from_secs(60))
         .on_retry(
             |attempt, next_delay: Option<Duration>, err: &tonic::Status| {
-                // TODO: update metrics here
+                // TODO(https://github.com/astriaorg/astria/issues/1272): update metrics here
                 let state = Arc::clone(&state);
                 state.set_sequencer_connected(false);
 
@@ -334,7 +340,7 @@ async fn get_pending_nonce(
 
     state.set_sequencer_connected(res.is_ok());
 
-    // TODO: record latency metric
+    // TODO(https://github.com/astriaorg/astria/issues/1272): record latency metric
 
     res
 }

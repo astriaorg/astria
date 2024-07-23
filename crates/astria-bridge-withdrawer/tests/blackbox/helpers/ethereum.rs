@@ -10,11 +10,11 @@ use astria_bridge_contracts::{
         ASTRIABRIDGEABLEERC20_BYTECODE,
     },
     astria_withdrawer::{
+        AstriaWithdrawer,
         ASTRIAWITHDRAWER_ABI,
         ASTRIAWITHDRAWER_BYTECODE,
     },
 };
-use astria_bridge_withdrawer::bridge_withdrawer::astria_withdrawer::AstriaWithdrawer;
 use astria_core::primitive::v1::Address as AstriaAddress;
 use ethers::{
     abi::Tokenizable,

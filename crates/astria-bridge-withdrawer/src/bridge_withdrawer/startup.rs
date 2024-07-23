@@ -9,7 +9,10 @@ use astria_core::{
         Ics20WithdrawalFromRollupMemo,
     },
     generated::sequencerblock::v1alpha1::{
-        sequencer_service_client,
+        sequencer_service_client::{
+            self,
+            SequencerServiceClient,
+        },
         GetPendingNonceRequest,
     },
     primitive::v1::asset,
@@ -150,15 +153,9 @@ impl Startup {
                 .await
                 .wrap_err("failed to confirm sequencer config")?;
 
-            let sequencer_grpc_client = sequencer_service_client::SequencerServiceClient::connect(
-                format!("http://{}", self.sequencer_grpc_endpoint),
-            )
-            .await
-            .wrap_err("sequencer grpc failed to connect client")?;
-
             wait_for_empty_mempool(
                 self.sequencer_cometbft_client.clone(),
-                sequencer_grpc_client,
+                self.sequencer_grpc_endpoint.clone(),
                 self.sequencer_bridge_address,
                 self.state.clone(),
             )
@@ -347,21 +344,19 @@ impl Startup {
     }
 }
 
-async fn check_for_empty_mempool(
+async fn ensure_mempool_empty(
     cometbft_client: sequencer_client::HttpClient,
     sequencer_client: sequencer_service_client::SequencerServiceClient<Channel>,
     address: Address,
     state: Arc<State>,
 ) -> eyre::Result<()> {
-    // get pending nonce from sequencer mempool
     let pending = get_pending_nonce(sequencer_client, state.clone(), address)
         .await
         .wrap_err("failed to get pending nonce")?;
-    // get next nonce from cometbft mempool
     let latest = get_latest_nonce(cometbft_client, state, address)
         .await
         .wrap_err("failed to get latest nonce")?;
-    // if not equal, wait for a bit and try again
+
     ensure!(
         pending == latest,
         "mempool is not empty, nonces did not match. pending nonce: {pending}, latest nonce: \
@@ -394,7 +389,7 @@ async fn check_for_empty_mempool(
 ///    cometBFT's mempool after the exponential backoff times out.
 async fn wait_for_empty_mempool(
     cometbft_client: sequencer_client::HttpClient,
-    sequencer_client: sequencer_service_client::SequencerServiceClient<Channel>,
+    sequencer_grpc_endpoint: String,
     address: Address,
     state: Arc<State>,
 ) -> eyre::Result<()> {
@@ -407,23 +402,26 @@ async fn wait_for_empty_mempool(
                     .map(humantime::format_duration)
                     .map(tracing::field::display);
                 warn!(
-                    %error,
+                    error = error.as_ref() as &dyn std::error::Error,
                     attempt,
                     wait_duration,
                     "failed getting pending nonce from sequencing; retrying after backoff",
                 );
 
-                // TODO: update metrics here?
+                // TODO(https://github.com/astriaorg/astria/issues/1272): update metrics here?
                 futures::future::ready(())
             },
         );
-
+    let sequencer_client = SequencerServiceClient::connect(sequencer_grpc_endpoint.clone())
+        .await
+        .wrap_err_with(|| {
+            format!("failed to connect to sequencer at `{sequencer_grpc_endpoint}`")
+        })?;
     tryhard::retry_fn(|| {
         let sequencer_client = sequencer_client.clone();
         let cometbft_client = cometbft_client.clone();
         let state = state.clone();
-
-        check_for_empty_mempool(cometbft_client, sequencer_client, address, state)
+        ensure_mempool_empty(cometbft_client, sequencer_client, address, state)
     })
     .with_config(retry_config)
     .await
@@ -458,7 +456,7 @@ fn rollup_height_from_signed_transaction(
 
     let last_batch_rollup_height = match withdrawal_action {
         Action::BridgeUnlock(action) => {
-            let memo: bridge::UnlockMemo = serde_json::from_slice(&action.memo)
+            let memo: bridge::UnlockMemo = serde_json::from_str(&action.memo)
                 .wrap_err("failed to parse memo from last transaction by the bridge account")?;
             Some(memo.block_number)
         }
@@ -599,6 +597,7 @@ async fn get_latest_nonce(
     res
 }
 
+// TODO(https://github.com/astriaorg/astria/issues/1274): deduplicate here and in crate::bridge_withdrawer::submitter
 #[instrument(skip_all)]
 async fn get_pending_nonce(
     client: sequencer_service_client::SequencerServiceClient<Channel>,
