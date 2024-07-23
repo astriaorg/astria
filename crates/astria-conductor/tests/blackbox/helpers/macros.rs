@@ -96,7 +96,7 @@ macro_rules! genesis_info {
         $variance:expr $(,)?
     ) => {
         ::astria_core::generated::execution::v1alpha2::GenesisInfo {
-            rollup_id: ::bytes::Bytes::from($crate::ROLLUP_ID.to_vec()),
+            rollup_id: Some(::astria_core::generated::primitive::v1::RollupId{inner: ::bytes::Bytes::from($crate::ROLLUP_ID.to_vec())}),
             sequencer_genesis_block_height: $sequencer_height,
             celestia_block_variance: $variance,
         }

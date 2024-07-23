@@ -86,7 +86,7 @@ pub struct RollupId {
         feature = "serde",
         serde(serialize_with = "crate::serde::base64_serialize")
     )]
-    inner: [u8; 32],
+    pub inner: [u8; 32],
 }
 
 impl RollupId {

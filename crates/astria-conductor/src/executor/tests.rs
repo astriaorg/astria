@@ -5,7 +5,10 @@ use astria_core::{
         CommitmentState,
         GenesisInfo,
     },
-    generated::execution::v1alpha2 as raw,
+    generated::{
+        execution::v1alpha2 as raw,
+        primitive::v1::RollupId as RawRollupId,
+    },
     Protobuf as _,
 };
 use bytes::Bytes;
@@ -46,7 +49,9 @@ fn make_state(
     }: MakeState,
 ) -> (StateSender, StateReceiver) {
     let genesis_info = GenesisInfo::try_from_raw(raw::GenesisInfo {
-        rollup_id: Bytes::copy_from_slice(ROLLUP_ID.as_ref()),
+        rollup_id: Some(RawRollupId {
+            inner: Bytes::copy_from_slice(ROLLUP_ID.as_ref()),
+        }),
         sequencer_genesis_block_height: 1,
         celestia_block_variance: 1,
     })
