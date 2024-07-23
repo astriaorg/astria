@@ -1,21 +1,20 @@
-{{- if .Values.config.faucet.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Values.config.rollup.name }}-faucet
+  name: {{tpl .Values.config.rollupName . }}-evm-faucet
   labels:
-    app: {{ .Values.config.rollup.name }}-astria-dev-cluster
-  namespace: {{ include "rollup.namespace" . }}
+    app: {{tpl .Values.config.rollupName . }}-evm-faucet
+  namespace: {{ include "evmFaucet.namespace" . }}
 spec:
   replicas : {{ .Values.global.replicaCount }}
   selector:
     matchLabels:
-      app: {{ .Values.config.rollup.name }}-astria-dev-cluster
+      app: {{tpl .Values.config.rollupName . }}-evm-faucet
   template:
     metadata:
-      name: {{ .Values.config.rollup.name }}-faucet
+      name: {{tpl .Values.config.rollupName . }}-evm-faucet
       labels:
-        app: {{ .Values.config.rollup.name }}-astria-dev-cluster
+        app: {{tpl .Values.config.rollupName . }}-evm-faucet
     spec:
       containers:
         - name: faucet
@@ -26,22 +25,22 @@ spec:
             - -wallet.privkey=$(ETH_FAUCET_EVM_PRIVATE_KEY)
             - -faucet.amount=$(ETH_FAUCET_AMOUNT)
             - -proxycount=$(ETH_FAUCET_PROXYCOUNT)
-          image: {{ .Values.images.faucet }}
+          image: {{ .Values.images.faucet.repo }}:{{ .Values.images.faucet.tag }}
           envFrom:
             - configMapRef:
-                name: {{ .Values.config.rollup.name }}-faucet-env
+                name: {{tpl .Values.config.rollupName . }}-evm-faucet-env
           {{- if .Values.secretProvider.enabled }}
           env:
             - name: ETH_FAUCET_EVM_PRIVATE_KEY
               valueFrom:
                 secretKeyRef:
-                  name: faucet-private-key
-                  key: {{ .Values.config.faucet.privateKey.secret.key }}
+                  name: evm-faucet-private-key
+                  key: {{ .Values.privateKey.secret.key }}
           {{- end }}
           volumeMounts:
             - mountPath: /home/faucet
-              name: {{ .Values.config.rollup.name }}-faucet-home-vol
-              subPath: {{ .Values.config.rollup.name }}/faucet
+              name: {{tpl .Values.config.rollupName . }}-evm-faucet-home-vol
+              subPath: {{tpl .Values.config.rollupName . }}/faucet
             {{- if .Values.secretProvider.enabled }}
             - mountPath: /var/secrets
               name: faucet-private-key
@@ -51,14 +50,13 @@ spec:
               name: faucet
       volumes:
         - emptyDir: {}
-          name: {{ .Values.config.rollup.name }}-faucet-home-vol
+          name: {{tpl .Values.config.rollupName . }}-evm-faucet-home-vol
         {{- if .Values.secretProvider.enabled }}
-        - name: faucet-private-key
+        - name: evm-faucet-private-key
           csi:
             driver: secrets-store.csi.k8s.io
             readOnly: true
             volumeAttributes:
-              secretProviderClass: faucet-private-key
+              secretProviderClass: evm-faucet-private-key
         {{- end }}
 ---
-{{- end }}

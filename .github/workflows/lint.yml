@@ -99,6 +99,10 @@ jobs:
         with:
           python-version: '3.9'
           check-latest: true
+      - name: Setup helm repos
+        run: |
+          helm repo add bitnami https://charts.bitnami.com/bitnami
+          helm repo add blockscout https://blockscout.github.io/helm-charts
       - name: Set up chart-testing
         uses: helm/chart-testing-action@v2.6.1
       - name: Run chart-testing (list-changed)

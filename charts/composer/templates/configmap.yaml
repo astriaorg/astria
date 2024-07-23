@@ -1,0 +1,46 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: composer-env
+  namespace: {{ include "composer.namespace" . }}
+data:
+  ASTRIA_COMPOSER_LOG: "astria_composer={{ .Values.config.logLevel }}"
+  ASTRIA_COMPOSER_API_LISTEN_ADDR: "0.0.0.0:{{ .Values.ports.healthApi }}"
+  ASTRIA_COMPOSER_GRPC_ADDR: "0.0.0.0:{{ .Values.ports.grpc }}"
+  ASTRIA_COMPOSER_SEQUENCER_CHAIN_ID: "{{ tpl .Values.config.sequencerChainId . }}"
+  ASTRIA_COMPOSER_SEQUENCER_URL: "{{ tpl .Values.config.sequencerRpc . }}"
+  ASTRIA_COMPOSER_ROLLUPS: "{{ include "composer.rollups" . }}"
+  ASTRIA_COMPOSER_PRIVATE_KEY_FILE: "/var/secrets/{{ .Values.config.privateKey.secret.filename }}"
+  ASTRIA_COMPOSER_MAX_BYTES_PER_BUNDLE: "{{ .Values.config.maxBytesPerBundle }}"
+  ASTRIA_COMPOSER_BUNDLE_QUEUE_CAPACITY: "{{ .Values.config.bundleQueueCapacity }}"
+  ASTRIA_COMPOSER_MAX_SUBMIT_INTERVAL_MS: "{{ .Values.config.maxSubmitInterval }}"
+  ASTRIA_COMPOSER_SEQUENCER_ADDRESS_PREFIX: "{{ .Values.config.sequencerAddressPrefix}}"
+  ASTRIA_COMPOSER_FEE_ASSET: "{{ .Values.config.sequencerNativeAssetBaseDenomination }}"
+  ASTRIA_COMPOSER_NO_METRICS: "{{ not .Values.metrics.enabled }}"
+  ASTRIA_COMPOSER_METRICS_HTTP_LISTENER_ADDR: "0.0.0.0:{{ .Values.ports.metrics }}"
+  ASTRIA_COMPOSER_FORCE_STDOUT: "{{ .Values.global.useTTY }}"
+  ASTRIA_COMPOSER_PRETTY_PRINT: "{{ .Values.global.useTTY }}"
+  NO_COLOR: "{{ .Values.global.useTTY }}"
+  ASTRIA_COMPOSER_NO_OTEL: "{{ not .Values.otel.enabled }}"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "{{ tpl .Values.otel.endpoint . }}"
+  OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "{{ tpl .Values.otel.tracesEndpoint . }}"
+  OTEL_EXPORTER_OTLP_TRACES_TIMEOUT: "{{ tpl .Values.otel.tracesTimeout . }}"
+  OTEL_EXPORTER_OTLP_TRACES_COMPRESSION: "{{ tpl .Values.otel.tracesCompression . }}"
+  OTEL_EXPORTER_OTLP_HEADERS: "{{ tpl .Values.otel.otlpHeaders . }}"
+  OTEL_EXPORTER_OTLP_TRACE_HEADERS: "{{ tpl .Values.otel.traceHeaders . }}"
+  OTEL_SERVICE_NAME: "{{ tpl .Values.otel.serviceName . }}"
+  {{- if not .Values.global.dev }}
+  {{- else }}
+  {{- end }}
+---
+{{- if not .Values.secretProvider.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: {{ include "composer.namespace" .  }}
+  name: sequencer-private-key
+data:
+  {{ .Values.config.privateKey.secret.filename }}: |
+    {{ .Values.config.privateKey.devContent }}
+---
+{{- end }}

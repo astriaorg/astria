@@ -20,193 +20,171 @@ images:
     tag: "0.8.0"
     devTag: latest
 
-  # Rollup faucet
-  faucet: "ghcr.io/astriaorg/ria-faucet:0.0.1"
 
-  # Pertaining to deploying blockscout block explorer
-  blockscout:
-    core: "docker.io/blockscout/blockscout:5.1.0"
-    postgres: "docker.io/library/postgres:14"
-    redis: "docker.io/library/redis:alpine"
-    sigProvider: "ghcr.io/blockscout/sig-provider@sha256:ae371ce8d0a20993bf61ca81b3394416f4778c9edd398250fd4d81a8d6820950"
-    smartContractVerifier: "ghcr.io/blockscout/smart-contract-verifier@sha256:f07b2d874c28d45f5ba81f297c868a746a03771e8b6d9b8e96f0eba0beeb1016"
-    visualizer: "ghcr.io/blockscout/visualizer@sha256:99479da126248e0aba5c32b1e32625f8c527b72924f55cb510b50e5f854b2d15"
+genesis:
+  ## These values are used to configure the genesis block of the rollup chain
+  ## no defaults as they are unique to each chain
+
+  # The name of the rollup chain, used to generate the Rollup ID
+  rollupName: ""
+  # Block height to start syncing rollup from, lowest possible is 2
+  sequencerInitialHeight: ""
+  # The first Celestia height to utilize when looking for rollup data
+  celestiaInitialHeight: ""
+  # The variance in Celestia height to allow before halting the chain
+  celestiaHeightVariance: ""
+  # Will fill the extra data in each block, can be left empty
+  # can also fill with something unique for your chain.
+  extraDataOverride: ""
+
+  ## These are general configuration values with some recommended defaults
+
+  # Configure the gas Limit
+  gasLimit: "50000000"
+  # If set to true the genesis block will contain extra data
+  overrideGenesisExtraData: true
+  # The hrp for bech32m addresses, unlikely to be changed
+  sequencerAddressPrefix: "astria"
+
+  ## These values are used to configure astria native bridging
+  ## Many of the fields have commented out example fields
+
+  # When using an erc20 canonical bridge, the address from which tokens will
+  # be sent via the bridge contract
+  bridgeSenderAddress: "0x0000000000000000000000000000000000000000"
+  # Configure the sequencer bridge addresses and allowed assets if using
+  # the astria canonical bridge. Recommend removing alloc values if so.
+  bridgeAddresses: []
+    # - address: "684ae50c49a434199199c9c698115391152d7b3f"
+    #   startHeight: 1
+    #   assetDenom: "nria"
+    #   assetPrecision: 9
+
+
+  ## Fee configuration
+
+  # Configure the fee collector for the evm tx fees, activated at block heights.
+  # If not configured, all tx fees will be burned.
+  feeCollectors: {}
+  # 1: "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
+  # Configure EIP-1559 params, activated at block heights
+  eip1559Params: {}
+    # 1:
+    #   minBaseFee: 0
+    #   elasticityMultiplier: 2
+    #   baseFeeChangeDenominator: 8
+
+  ## Standard Eth Genesis config values
+  # An EVM chain number id, different from the astria rollup name
+  chainId: ""
+  # Configuration of Eth forks, setting to 0 will enable from height,
+  # left as is these forks will not activate.
+  cancunTime: ""
+  pragueTime: ""
+  verkleTime: ""
+  # Can configure the genesis allocs for the chain
+  alloc:
+    # Deploying the deterministic deploy proxy contract in genesis
+    # Forge and other tools use this for their CREATE2 usage, but
+    # can only be included through the genesis block after EIP-155
+    # https://github.com/Arachnid/deterministic-deployment-proxy
+    - address: "0x4e59b44847b379578588920cA78FbF26c0B4956C"
+      value:
+        balance: "0"
+        code: "0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf3"
+    # Example of simple genesis account funding
+    # - address: "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
+    #   value:
+    #   # The balance must be a string due to size
+    #   balance: "1000000000000000000000000000"
 
 config:
   # The level at which core astria components will log out
   # Options are: error, warn, info, and debug
   logLevel: "debug"
 
-  rollup:
-    # string name for the rollup chain, used to generate Rollup ID
-    name: ""
-    # EVM network ID used by the chain
-    networkId: ""
-    # Can be set to 'pebble' or 'leveldb'
-    dbEngine: pebble
+  geth:
     # Set to true to keep history of all blocks
     archiveNode: false
     # Set to true to clear the mempool on startup/restart
     purgeMempool: false
+    flags:
+      - name: datadir
+        value: '{{ include "rollup.gethDataDir" . }}'
+      - name: networkid
+        value: "{{ tpl .Values.genesis.chainId . }}"
+      - name: http
+      - name: http.addr
+        value: 0.0.0.0
+      - name: http.port
+        value: "{{ .Values.ports.jsonRPC }}"
+      - name: http.corsdomain
+        value: "*"
+      - name: http.vhosts
+        value: "*"
+      - name: http.api
+        value: eth,net,web3,debug,txpool
+      - name: ws
+      - name: ws.addr
+        value: 0.0.0.0
+      - name: ws.port
+        value: "{{ .Values.ports.wsRPC }}"
+      - name: ws.origins
+        value: "*"
+      - name: grpc
+      - name: grpc.addr
+        value: 0.0.0.0
+      - name: grpc.port
+        value: "{{ .Values.ports.executionGRPC }}"
+      - name: db.engine
+        value: pebble  # Can be set to 'pebble' or 'leveldb'
+      - name: maxpeers
+        value: "0"
+      - name: rpc.gascap
+        value: "{{ .Values.genesis.gasLimit }}"
+      - name: rpc.txfeecap
+        value: "0"
+      - name: gcmode
+        value: "{{- if .Values.config.geth.archiveNode -}} archive {{- else -}} full {{- end }}"
+      - name: state.scheme
+        value: "{{- if .Values.config.geth.archiveNode -}} hash {{- else -}} path {{- end }}"
+      - name: history.transactions
+        value: "{{- if .Values.config.geth.archiveNode -}} 0 {{- else -}} 2350000 {{- end }}"
+      - name: history.state
+        value: "{{- if .Values.config.geth.archiveNode -}} 0 {{- else -}} 540000 {{- end }}"
+      - name: metrics
+        condition: .Values.metrics.enabled
+      - name: metrics.addr
+        value: 0.0.0.0
+        condition: .Values.metrics.enabled
+      - name: metrics.port
+        value: "{{ .Values.ports.metrics }}"
+        condition: .Values.metrics.enabled
+
+
+  conductor:
     # Determines what will drive block execution, options are:
     # - "SoftOnly" -> blocks are only pulled from the sequencer
     # - "FirmOnly" -> blocks are only pulled from DA
     # - "SoftAndFirm" -> blocks are pulled from both the sequencer and DA
     executionCommitLevel: 'SoftAndFirm'
-    # Max bytes to encode into a single sequencer `SignedTransaction`, not including signature,
-    # public key, nonce. This is the sum of the sizes of all the `SequenceAction`s. Should be
-    # set below the sequencer's max block size to allow space for encoding, signature, public
-    # key and nonce bytes
-    maxBytesPerBundle: 200000
-    # Max amount of bundles that can be in the submission queue.
-    # ASTRIA_COMPOSER_BUNDLE_QUEUE_CAPACITY * ASTRIA_COMPOSER_MAX_BYTES_PER_BUNDLE (e.g.
-    # 40000 * 200KB = 8GB) is the limit on how much memory the finished bundle queue can consume.
-    # This should be lower than the resource limit enforced by Kubernetes on the pod, defined below
-    bundleQueueCapacity: 40000
-    maxSubmitInterval: 2000
-    # Configuration specific to EVM rollup genesis
-    genesis:
-      # Configuration of Eth forks, setting to 0 will enable from height,
-      # left as is these forks will not activate.
-      shanghaiTime: ""
-      cancunTime: ""
-      pragueTime: ""
-      verkleTime: ""
-      # Configure the gas Limit
-      gasLimit: "8000000"
-      # Set to a hex set of bytes if your rollup has manually configured extra data
-      extraDataOverride: ""
-      # If set to true the genesis block will contain extra data
-      overrideGenesisExtraData: true
-      # When using an erc20 canonical bridge, the address from which tokens will
-      # be sent via the bridge contract
-      bridgeSenderAddress: "0x0000000000000000000000000000000000000000"
-      # Configure the sequencer bridge addresses and allowed assets if using
-      # the astria canonical bridge. Recommend removing alloc values if so.
-      bridgeAddresses: []
-        # - address: "684ae50c49a434199199c9c698115391152d7b3f"
-        #   startHeight: 1
-        #   assetDenom: "nria"
-        #   assetPrecision: 9
-      # Configure the fee collector for the evm tx fees, activated at block heights.
-      # If not configured, all tx fees will be burned.
-      feeCollectors:
-        1: "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
-      # Configure EIP-1559 params, activated at block heights
-      eip1559Params: {}
-        # 1:
-        #   minBaseFee: 0
-        #   elasticityMultiplier: 2
-        #   baseFeeChangeDenominator: 8
-      # Can configure the genesis allocs for the chain
-      alloc:
-        # Deploying the deterministic deploy proxy contract in genesis
-        # Forge and other tools use this for their CREATE2 usage, but
-        # can only be included through the genesis block after EIP-155
-        # https://github.com/Arachnid/deterministic-deployment-proxy
-        - address: "0x4e59b44847b379578588920cA78FbF26c0B4956C"
-          value:
-            balance: "0"
-            code: "0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf3"
-        # Example of simple genesis account funding
-        # - address: "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
-        #   value:
-        #   # The balance must be a string due to size
-        #   balance: "1000000000000000000000000000"
-    metrics:
-      # set to enable prometheus metrics
-      enabled: false
-    otel:
-      enabled: false
-      serviceNamePrefix: "{{ .Values.config.rollup.name }}"
-      endpoint:
-      tracesEndpoint:
-      tracesCompression: gzip
-      tracesTimeout: 10
-      otlpHeaders:
-      traceHeaders:
-    serviceMonitor:
-      # set to enable port svc and service monitor
-      enabled: false
-      port: 6060
-      additionalLabels:
-        release: kube-prometheus-stack
-    alerting:
-      enabled: false
-      interval: ""
-      additionalLabels:
-        release: kube-prometheus-stack
-      annotations: {}
-      # scrapeTimeout: 10s
-      # path: /metrics
-      prometheusRule:
-        enabled: true
-        additionalLabels:
-          release: kube-prometheus-stack
-        namespace: monitoring
-        rules:
-        - alert: Geth_Slow_Finalized
-          expr: increase(chain_head_finalized{namespace="astria-dusk3-cluster"}[5m]) < 20  # Insert your query Expression
-          for: 5m  # Rough number but should be enough to init warn
-          labels:
-            severity: critical
-          annotations:
-            summary: Slow Chain Head Finalized (instance {{ $labels.instance }})
-            description: "Chain Head Finalized on {{ $labels.namespace }} is increasing at a rate slower then 20 blocks per 5 minute\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-
-  faucet:
-    enabled: false
-    proxyCount: 1
-    # The account from which the faucet disburses funds, likely want to have
-    # the corresponding account given a balance in genesis accounts.
-    # Note: When secretProvider.enabled is true the secret provided by
-    #       `evmPrivateKey` is used instead of this value.
-    privateKey:
-      devContent: ""
-      secret:
-        filename: "key.hex"
-        resourceName: "projects/$PROJECT_ID/secrets/sequencerPrivateKey/versions/latest"
-        key: token
-    # The amount of token to give per request
-    amount: 1
-
-  # Configuration related to sequencer connection for rollup
-  sequencer:
-    addressPrefixes:
-      base: "astria"
-    nativeAssetBaseDenomination: nria
-    chainId: ""
-    # Block height to start syncing rollup from
-    initialBlockHeight: "2"
-    # Fastest block time possible in MS
-    blockTimeMs: 2000
+    # The chain id of the Astria sequencer chain conductor communicates with
+    sequencerChainId: ""
+    # The expected fastest block time possible from sequencer, determines polling
+    # rate.
+    sequencerBlockTimeMs: 2000
     # URL path for the sequencer
-    rpc: ""
+    sequencerRpc: ""
     # gRPC path for the sequencer
-    grpc: ""
-    # Private key which is used for wrapping txs for sequencer submission
-    # Note: When secretProvider.enabled is true the secret provided by
-    #       `sequencerPrivateKey` is used instead of this value.
-    privateKey:
-      devContent: ""
-      secret:
-        filename: "key.hex"
-        resourceName: "projects/$PROJECT_ID/secrets/sequencerPrivateKey/versions/latest"
+    sequencerGrpc: ""
+    # The maximum number of requests to make to the sequencer per second
+    sequencerRequestsPerSecond: 500
 
   celestia:
     # if config.rollup.executionLevel is NOT 'SoftOnly' AND celestia-node is not enabled
     # the rpc, ws, and token fields must be set to access celestia network.
     rpc: ""
     token: ""
-    # The first block height to look at for a rollup block
-    initialBlockHeight: ""
-    # The number of blocks to celestia blocks to allow before finding the next rollup data
-    # The chain will halt in FirmOnly when this limit is hit. In SoftAndOnly mode, the chain
-    # will execute up to 6x this of soft blocks ahead of firm commitment and then halt.
-    heightVariance: ""
-
-  blockscout:
-    enabled: false
 
 celestia-node:
   # Strongly recommend leaving enabled when not doing `SoftOnly` execution
@@ -226,16 +204,48 @@ celestia-node:
     # # The custom info below must be grabbed from the custom network bridge on startup
     # customInfo: "<GENESIS_HASH>:<BRIDGE_MULTIADDRESS>"
 
-# When deploying in a production environment should use a secret provider
-# This is configured for use with GCP, need to set own resource names
-# and keys
-secretProvider:
+metrics:
+  # set to enable prometheus metrics
   enabled: false
-  provider: gcp
-  parametersTemplate: |-
-    secrets: |
-      - resourceName: {{ .key.resourceName }}
-        fileName: "{{ .key.filename }}"
+
+otel:
+  enabled: false
+  serviceNamePrefix: '{{ include "rollup.name" . }}'
+  endpoint:
+  tracesEndpoint:
+  tracesCompression: gzip
+  tracesTimeout: 10
+  otlpHeaders:
+  traceHeaders:
+
+serviceMonitor:
+  # set to enable port svc and service monitor
+  enabled: false
+  port: 6060
+  additionalLabels:
+    release: kube-prometheus-stack
+alerting:
+  enabled: false
+  interval: ""
+  additionalLabels:
+    release: kube-prometheus-stack
+  annotations: {}
+  # scrapeTimeout: 10s
+  # path: /metrics
+  prometheusRule:
+    enabled: true
+    additionalLabels:
+      release: kube-prometheus-stack
+    namespace: monitoring
+    rules:
+    - alert: Geth_Slow_Finalized
+      expr: increase(chain_head_finalized{namespace="astria-dusk3-cluster"}[5m]) < 20  # Insert your query Expression
+      for: 5m  # Rough number but should be enough to init warn
+      labels:
+        severity: critical
+      annotations:
+        summary: Slow Chain Head Finalized (instance {{ $labels.instance }})
+        description: "Chain Head Finalized on {{ $labels.namespace }} is increasing at a rate slower then 20 blocks per 5 minute\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
 
 ingress:
   enabled: false
@@ -246,11 +256,11 @@ ingress:
     rpc:
       enabled: true
       hosts:
-        - executor.{{ .Values.config.rollup.name }}.{{ .Values.ingress.hostname }}
+        - 'executor.{{ include "rollup.name" . }}.{{ .Values.ingress.hostname }}'
       path: /
       pathType: Prefix
       service:
-        name: "{{ .Values.config.rollup.name }}-evm-service"
+        name: '{{ include "rollup.name" . }}-evm-service'
         port:
           name: json-rpc-svc
       annotations: {}
@@ -264,49 +274,13 @@ ingress:
     ws:
       enabled: true
       hosts:
-        - ws-executor.{{ .Values.config.rollup.name }}.{{ .Values.ingress.hostname }}
+        - ws-executor.{{ include "rollup.name" . }}.{{ .Values.ingress.hostname }}
       path: /
       pathType: Prefix
       service:
-        name: "{{ .Values.config.rollup.name }}-evm-service"
+        name: '{{ include "rollup.name" . }}-evm-service'
         port:
           name: ws-rpc-svc
-      annotations: {}
-        # kubernetes.io/ingress.class: nginx
-        # kubernetes.io/tls-acme: "true"
-      labels: {}
-      tls: {}
-      #  - secretName: chart-example-tls
-      #    hosts:
-      #      - chart-example.local
-    faucet:
-      enabled: false
-      hosts:
-        - faucet.{{ .Values.config.rollup.name }}.{{ .Values.ingress.hostname }}
-      path: /
-      pathType: Prefix
-      service:
-        name: "{{ .Values.config.rollup.name }}-faucet-service"
-        port:
-          name: faucet-svc
-      annotations: {}
-        # kubernetes.io/ingress.class: nginx
-        # kubernetes.io/tls-acme: "true"
-      labels: {}
-      tls: {}
-      #  - secretName: chart-example-tls
-      #    hosts:
-      #      - chart-example.local
-    explorer:
-      enabled: false
-      hosts:
-        - blockscout.{{ .Values.config.rollup.name }}.{{ .Values.ingress.hostname }}
-      path: /
-      pathType: Prefix
-      service:
-        name: "{{ .Values.config.rollup.name }}-blockscout-svc"
-        port:
-          name: blockscout-svc
       annotations: {}
         # kubernetes.io/ingress.class: nginx
         # kubernetes.io/tls-acme: "true"
@@ -322,21 +296,14 @@ ingress:
 resources:
   conductor:
     requests:
-      cpu: 0.1
+      cpu: 100m
       memory: 200Mi
     limits:
-      cpu: 1
+      cpu: 1000m
       memory: 2Gi
-  composer:
-    requests:
-      cpu: 0.1
-      memory: 100Mi
-    limits:
-      cpu: 1
-      memory: 1Gi
   geth:
     requests:
-      cpu: 16
+      cpu: 16000m
       memory: 32Gi
 
 storage:
@@ -353,10 +320,5 @@ ports:
   jsonRPC: 8545
   wsRPC: 8546
   executionGRPC: 50051
-  composerGRPC: 50052
-  composerHealthAPI: 2450
-  faucet: 8080
-  blockscout: 4000
   metrics: 6060
   conductorMetrics: 9000
-  composerMetrics: 9001

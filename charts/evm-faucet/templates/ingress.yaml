@@ -1,29 +1,26 @@
 {{- if .Values.ingress.enabled -}}
-{{- $ingressApiIsStable := eq (include "rollup.ingress.isStable" .) "true" -}}
-{{- $ingressSupportsIngressClassName := eq (include "rollup.ingress.supportsIngressClassName" .) "true" -}}
-{{- $ingressSupportsPathType := eq (include "rollup.ingress.supportsPathType" .) "true" -}}
+{{- $ingressApiIsStable := eq (include "evmFaucet.ingress.isStable" .) "true" -}}
+{{- $ingressSupportsIngressClassName := eq (include "evmFaucet.ingress.supportsIngressClassName" .) "true" -}}
+{{- $ingressSupportsPathType := eq (include "evmFaucet.ingress.supportsPathType" .) "true" -}}
 
 {{- range $service, $ingress := .Values.ingress.services }}
-{{- if $ingress.enabled -}}
 {{- $servicePort := $ingress.service.port -}}
-{{- $serviceName := tpl $ingress.service.name $ -}}
+{{- $serviceName := $ingress.service.name -}}
 {{- $ingressPath := $ingress.path -}}
 {{- $ingressPathType := $ingress.pathType -}}
 {{- $extraPaths := $ingress.extraPaths }}
 ---
-apiVersion: {{ include "rollup.ingress.apiVersion" $ }}
+apiVersion: {{ include "evmFaucet.ingress.apiVersion" $ }}
 kind: Ingress
 metadata:
-  name: {{ include "rollup.name" $ }}-{{ $service }}-ingress
-  namespace: {{ include "rollup.namespace" $ }}
+  name: {{tpl $.Values.config.rollupName $ }}-evm-faucet-{{ $service }}-ingress
+  namespace: {{ include "evmFaucet.namespace" $  }}
   labels:
     {{- with $ingress.labels }}
       {{- toYaml . | nindent 4 }}
     {{- end }}
   annotations:
-    {{- if not $ingressSupportsIngressClassName }}
     kubernetes.io/ingress.class: {{ $.Values.ingress.className }}
-    {{- end }}
   {{- if $ingressApiIsStable }}
   {{- range $key, $value := $ingress.annotations }}
     {{ $key }}: {{ tpl $value $ | quote }}
@@ -65,6 +62,5 @@ spec:
   tls:
     {{- tpl (toYaml $ingress.tls) $ | nindent 4 }}
   {{- end }}
-{{- end }}
 {{- end }}
 {{- end }}
