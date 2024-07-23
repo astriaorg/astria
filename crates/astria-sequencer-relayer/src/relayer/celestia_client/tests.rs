@@ -513,3 +513,11 @@ fn extract_required_fee_from_log_should_fail() {
     let bad_value = "insufficient fees; got: 1utia required: 2mutia: insufficient fee".to_string();
     assert!(extract_required_fee_from_log(&bad_value).is_none());
 }
+
+#[test]
+fn blob_tx_hash_should_round_trip_json() {
+    let blob_tx_hash = BlobTxHash::from_raw([1; 32]);
+    let json_encoded = serde_json::to_string(&blob_tx_hash).unwrap();
+    let decoded = serde_json::from_str(&json_encoded).unwrap();
+    assert_eq!(blob_tx_hash, decoded);
+}

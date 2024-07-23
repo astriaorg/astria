@@ -56,6 +56,7 @@ use tracing::{
 
 use super::{
     celestia_client::CelestiaClient,
+    BlobTxHash,
     BuilderError,
     CelestiaClientBuilder,
     PreparedSubmission,
@@ -181,7 +182,11 @@ impl BlobSubmitter {
                     self.state.clone(),
                     self.metrics,
                 )
-                .await?
+                .await
+                .wrap_err(
+                    "failed to confirm the unfinished submission state of the previously loaded \
+                     session",
+                )?
             }
         };
 
@@ -241,9 +246,7 @@ impl BlobSubmitter {
                             sequencer_height = %block.height(),
                             "skipping sequencer block as already included in previous submission"
                         );
-                        continue;
-                    }
-                    if let Err(error) = self.add_sequencer_block_to_next_submission(block) {
+                    } else if let Err(error) = self.add_sequencer_block_to_next_submission(block) {
                         break Err(error).wrap_err(
                             "critically failed adding Sequencer block to next submission"
                         );
@@ -303,7 +306,7 @@ impl BlobSubmitter {
 /// know whether that final submission attempt succeeded or not.
 ///
 /// Internally, this polls `GetTx` for up to one minute.  The returned `SubmissionState` is
-/// guaranteed to be in `Finished` state, either holding the heights of the previously prepared
+/// guaranteed to be in `Started` state, either holding the heights of the previously prepared
 /// submission if confirmed by Celestia, or holding the heights of the last known confirmed
 /// submission in the case of timing out.
 #[instrument(skip_all)]
@@ -317,17 +320,25 @@ async fn try_confirm_submission_from_last_session(
     info!(%blob_tx_hash, "confirming submission of last `BlobTx` from previous session");
 
     let timeout = prepared_submission.confirmation_timeout();
-    let new_state =
-        if let Some(celestia_height) = client.try_confirm_submission(blob_tx_hash, timeout).await {
-            info!(%celestia_height, "confirmed previous session submitted blobs to Celestia");
-            prepared_submission.into_started(celestia_height).await?
-        } else {
-            info!(
-                "previous session's last submission was not completed; continuing from last \
-                 confirmed submission"
-            );
-            prepared_submission.revert().await?
-        };
+    let new_state = if let Some(celestia_height) = client
+        .confirm_submission_with_timeout(blob_tx_hash, timeout)
+        .await
+    {
+        info!(%celestia_height, "confirmed previous session submitted blobs to Celestia");
+        prepared_submission
+            .into_started(celestia_height)
+            .await
+            .wrap_err("failed to convert previous session's state into `started`")?
+    } else {
+        info!(
+            "previous session's last submission was not completed; continuing from last confirmed \
+             submission"
+        );
+        prepared_submission
+            .revert()
+            .await
+            .wrap_err("failed to revert previous session's state into `started`")?
+    };
 
     metrics.absolute_set_sequencer_submission_height(
         new_state.last_submission_sequencer_height().value(),
@@ -339,7 +350,7 @@ async fn try_confirm_submission_from_last_session(
 }
 
 /// Submits new blobs Celestia.
-#[instrument(skip_all)]
+#[instrument(skip_all, err)]
 async fn submit_blobs(
     client: CelestiaClient,
     data: conversion::Submission,
@@ -375,11 +386,7 @@ async fn submit_blobs(
         metrics,
     )
     .await
-    .map_err(|error| {
-        let message = "failed submitting blobs to Celestia";
-        error!(%error, message);
-        error.wrap_err(message)
-    })?;
+    .wrap_err("failed submitting blobs to Celestia")?;
 
     let celestia_height = new_state.last_submission_celestia_height();
     metrics.absolute_set_sequencer_submission_height(largest_sequencer_height.value());
@@ -547,7 +554,8 @@ async fn try_submit(
         None => None,
     };
 
-    let (blob_tx_hash, blob_tx) = client.try_prepare(blobs, maybe_try_submit_error).await?;
+    let blob_tx = client.try_prepare(blobs, maybe_try_submit_error).await?;
+    let blob_tx_hash = BlobTxHash::compute(&blob_tx);
 
     let prepared_submission = started_submission
         .into_prepared(largest_sequencer_height, blob_tx_hash)
@@ -580,7 +588,7 @@ async fn try_confirm_submission_from_failed_attempt(
     info!(%blob_tx_hash, "confirming submission of last `BlobTx` from previous attempt");
 
     if let Some(celestia_height) = client
-        .try_confirm_submission(blob_tx_hash, prepared_submission.confirmation_timeout())
+        .confirm_submission_with_timeout(blob_tx_hash, prepared_submission.confirmation_timeout())
         .await
     {
         info!(%celestia_height, "confirmed previous attempt submitted blobs to Celestia");

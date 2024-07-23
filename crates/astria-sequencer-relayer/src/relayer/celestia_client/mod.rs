@@ -6,6 +6,7 @@ mod error;
 mod tests;
 
 use std::{
+    borrow::Cow,
     convert::TryInto,
     fmt::{
         self,
@@ -83,6 +84,10 @@ pub(super) use error::{
     ProtobufDecodeError,
     TrySubmitError,
 };
+use hex::{
+    FromHex,
+    FromHexError,
+};
 use prost::{
     bytes::Bytes,
     Message as _,
@@ -98,6 +103,7 @@ use sha2::{
     Digest as _,
     Sha256,
 };
+use telemetry::display::hex;
 use thiserror::Error;
 use tonic::{
     transport::Channel,
@@ -108,6 +114,7 @@ use tracing::{
     debug,
     error,
     info,
+    instrument,
     trace,
     warn,
 };
@@ -145,7 +152,7 @@ impl CelestiaClient {
         &mut self,
         blobs: Arc<Vec<Blob>>,
         maybe_last_error: Option<TrySubmitError>,
-    ) -> Result<(BlobTxHash, BlobTx), TrySubmitError> {
+    ) -> Result<BlobTx, TrySubmitError> {
         info!("fetching cost params and account info from celestia app");
         let (blob_params, auth_params, min_gas_price, base_account) = tokio::try_join!(
             self.fetch_blob_params(),
@@ -201,7 +208,7 @@ impl CelestiaClient {
             // This is not a critical error. Worst case, we restart the process now and try for a
             // short while to `GetTx` for this tx using the wrong hash, resulting in a likely
             // duplicate submission of this set of blobs.
-            error!(
+            warn!(
                 "tx hash `{hex_encoded_tx_hash}` returned from celestia app is not the same as \
                  the locally calculated one `{blob_tx_hash}`; submission file has invalid data"
             );
@@ -217,7 +224,7 @@ impl CelestiaClient {
     ///
     /// Returns the height of the Celestia block in which the blobs were submitted, or `None` if
     /// timed out.
-    pub(super) async fn try_confirm_submission(
+    pub(super) async fn confirm_submission_with_timeout(
         &mut self,
         blob_tx_hash: &BlobTxHash,
         timeout: Duration,
@@ -323,6 +330,7 @@ impl CelestiaClient {
 
     /// Repeatedly sends `GetTx` until a successful response is received.  Returns the height of the
     /// Celestia block in which the blobs were submitted.
+    #[instrument(skip_all, fields(hex_encoded_tx_hash))]
     async fn confirm_submission(&mut self, hex_encoded_tx_hash: String) -> u64 {
         // The min seconds to sleep after receiving a GetTx response and sending the next request.
         const MIN_POLL_INTERVAL_SECS: u64 = 1;
@@ -758,7 +766,7 @@ fn new_signed_tx(
     }
 }
 
-fn new_blob_tx<'a>(signed_tx: &Tx, blobs: impl Iterator<Item = &'a Blob>) -> (BlobTxHash, BlobTx) {
+fn new_blob_tx<'a>(signed_tx: &Tx, blobs: impl Iterator<Item = &'a Blob>) -> BlobTx {
     // From https://github.com/celestiaorg/celestia-core/blob/v1.29.0-tm-v0.34.29/pkg/consts/consts.go#L19
     const BLOB_TX_TYPE_ID: &str = "BLOB";
 
@@ -770,13 +778,11 @@ fn new_blob_tx<'a>(signed_tx: &Tx, blobs: impl Iterator<Item = &'a Blob>) -> (Bl
             share_version: u32::from(blob.share_version),
         })
         .collect();
-    let blob_tx = BlobTx {
+    BlobTx {
         tx: Bytes::from(signed_tx.encode_to_vec()),
         blobs,
         type_id: BLOB_TX_TYPE_ID.to_string(),
-    };
-    let tx_hash = BlobTxHash::compute(&blob_tx);
-    (tx_hash, blob_tx)
+    }
 }
 
 /// A Bech32-encoded account ID.
@@ -810,7 +816,7 @@ impl BlobTxHash {
 
 impl Display for BlobTxHash {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-        write!(formatter, "{}", self.to_hex())
+        write!(formatter, "{}", hex(&self.0))
     }
 }
 
@@ -818,36 +824,24 @@ impl Debug for BlobTxHash {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         formatter
             .debug_tuple("BlobTxHash")
-            .field(&format_args!("{}", self.to_hex()))
+            .field(&format_args!("{}", hex(&self.0)))
             .finish()
     }
 }
 
 impl Serialize for BlobTxHash {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        if serializer.is_human_readable() {
-            return self.to_hex().serialize(serializer);
-        }
-        self.0.serialize(serializer)
+        serializer.collect_str(self)
     }
 }
 
 impl<'de> Deserialize<'de> for BlobTxHash {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        if deserializer.is_human_readable() {
-            let hex = String::deserialize(deserializer)?;
-            let bytes = hex::decode(hex).map_err(|error| {
-                serde::de::Error::custom(DeserializeBlobTxHashError::Hex(error.to_string()))
-            })?;
-            let raw_hash = <[u8; 32]>::try_from(bytes.as_slice()).map_err(|_| {
-                serde::de::Error::custom(DeserializeBlobTxHashError::InvalidLength {
-                    expected: 32,
-                    actual: bytes.len(),
-                })
-            })?;
-            return Ok(BlobTxHash(raw_hash));
-        }
-        Ok(BlobTxHash(<[u8; 32]>::deserialize(deserializer)?))
+        let hex = Cow::<'_, str>::deserialize(deserializer)?;
+        let raw_hash = <[u8; 32]>::from_hex(hex.as_bytes()).map_err(|error: FromHexError| {
+            serde::de::Error::custom(DeserializeBlobTxHashError::Hex(error.to_string()))
+        })?;
+        Ok(BlobTxHash(raw_hash))
     }
 }
 
@@ -856,6 +850,4 @@ impl<'de> Deserialize<'de> for BlobTxHash {
 pub(in crate::relayer) enum DeserializeBlobTxHashError {
     #[error("failed to decode as hex for blob tx hash: {0}")]
     Hex(String),
-    #[error("wrong number of bytes for blob tx hash: expected: {expected}, actual: {actual}")]
-    InvalidLength { expected: usize, actual: usize },
 }

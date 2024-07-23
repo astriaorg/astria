@@ -152,7 +152,7 @@ impl State {
             .await
             .wrap_err_with(|| {
                 format!(
-                    "failed renaming `{}` to `{}`",
+                    "failed moving `{}` to `{}`",
                     temp_file.0.display(),
                     destination.0.display()
                 )
@@ -252,9 +252,9 @@ impl Display for StartedSubmission {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         write!(
             formatter,
-            "{}, file: {}",
-            State::new_started(self.last_submission),
-            self.state_file_path.0.display()
+            "file: {}, {}",
+            self.state_file_path.0.display(),
+            State::new_started(self.last_submission)
         )
     }
 }
@@ -350,14 +350,14 @@ impl Display for PreparedSubmission {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         write!(
             formatter,
-            "{}, file: {}",
+            "file: {}, {}",
+            self.state_file_path.0.display(),
             State::new_prepared(
                 self.sequencer_height,
                 self.last_submission,
                 self.blob_tx_hash,
                 self.created_at
-            ),
-            self.state_file_path.0.display()
+            )
         )
     }
 }
