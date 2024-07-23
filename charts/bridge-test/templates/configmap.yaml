@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bridge-test-env
+  namespace: {{ include "bridge-test.namespace" . }}
+data:
+  home_dir: "/home/celestia"
+  keyring_backend: "test"
+  bridge_account_address: "{{ .Values.bridgeAccount.address }}"
+  bridge_account_address_bech32: "{{ .Values.bridgeAccount.bech32 }}"
+  evm_to_address: "{{ .Values.evmToAddress }}"
+  evm_url: "{{ .Values.evmURL }}"
+  celestia_chain_id: "{{ .Values.celestiaChainID }}"
+  celestia_node_url: "{{ .Values.celestiaNodeURL }}"
+  celestia_dev_account_address: "{{ .Values.celestiaDevAccount.address }}"
+  celestia_dev_account_mnemonic: "{{ .Values.celestiaDevAccount.mnemonic }}"
+  celestia_dev_account_key_name: "{{ .Values.celestiaDevAccount.name }}"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bridge-test-scripts
+  namespace: {{ include "bridge-test.namespace" . }}
+data:
+  test-ibc-transfer.sh: |
+    {{- .Files.Get "files/scripts/test-ibc-transfer.sh" | nindent 4 }}

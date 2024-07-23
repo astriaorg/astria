@@ -65,7 +65,7 @@ fn nonce_storage_key(address: Address) -> String {
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
-    #[instrument(skip_all, fields(address=%address))]
+    #[instrument(skip_all)]
     async fn get_account_balances(&self, address: Address) -> Result<Vec<AssetBalance>> {
         use crate::asset::state_ext::StateReadExt as _;
 
@@ -117,7 +117,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(balances)
     }
 
-    #[instrument(skip_all, fields(address=%address, %asset))]
+    #[instrument(skip_all)]
     async fn get_account_balance<'a, TAsset>(&self, address: Address, asset: TAsset) -> Result<u128>
     where
         TAsset: Into<asset::IbcPrefixed> + std::fmt::Display + Send,
@@ -133,7 +133,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(balance)
     }
 
-    #[instrument(skip_all, fields(address=%address))]
+    #[instrument(skip_all)]
     async fn get_account_nonce(&self, address: Address) -> Result<u32> {
         let bytes = self
             .get_raw(&nonce_storage_key(address))
@@ -167,7 +167,7 @@ impl<T: StateRead + ?Sized> StateReadExt for T {}
 
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
-    #[instrument(skip(self, asset), fields(%asset))]
+    #[instrument(skip_all)]
     fn put_account_balance<TAsset>(
         &mut self,
         address: Address,
@@ -182,14 +182,14 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     fn put_account_nonce(&mut self, address: Address, nonce: u32) -> Result<()> {
         let bytes = borsh::to_vec(&Nonce(nonce)).context("failed to serialize nonce")?;
         self.put_raw(nonce_storage_key(address), bytes);
         Ok(())
     }
 
-    #[instrument(skip(self, asset), fields(%asset))]
+    #[instrument(skip_all)]
     async fn increase_balance<TAsset>(
         &mut self,
         address: Address,
@@ -215,7 +215,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip(self, asset), fields(%asset))]
+    #[instrument(skip_all)]
     async fn decrease_balance<TAsset>(
         &mut self,
         address: Address,
@@ -241,7 +241,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     fn put_transfer_base_fee(&mut self, fee: u128) -> Result<()> {
         let bytes = borsh::to_vec(&Fee(fee)).context("failed to serialize fee")?;
         self.put_raw(TRANSFER_BASE_FEE_STORAGE_KEY.to_string(), bytes);

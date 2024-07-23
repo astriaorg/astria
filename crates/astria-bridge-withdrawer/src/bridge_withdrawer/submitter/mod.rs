@@ -3,10 +3,19 @@ use std::{
     time::Duration,
 };
 
-use astria_core::protocol::transaction::v1alpha1::{
-    Action,
-    TransactionParams,
-    UnsignedTransaction,
+use astria_core::{
+    generated::sequencerblock::v1alpha1::{
+        sequencer_service_client::{
+            self,
+            SequencerServiceClient,
+        },
+        GetPendingNonceRequest,
+    },
+    protocol::transaction::v1alpha1::{
+        Action,
+        TransactionParams,
+        UnsignedTransaction,
+    },
 };
 use astria_eyre::eyre::{
     self,
@@ -26,9 +35,9 @@ use state::State;
 use tokio::{
     select,
     sync::mpsc,
-    time::Instant,
 };
 use tokio_util::sync::CancellationToken;
+use tonic::transport::Channel;
 use tracing::{
     debug,
     error,
@@ -49,8 +58,6 @@ use crate::metrics::Metrics;
 
 mod builder;
 pub(crate) mod signer;
-#[cfg(test)]
-mod tests;
 
 pub(super) struct Submitter {
     shutdown_token: CancellationToken,
@@ -58,6 +65,7 @@ pub(super) struct Submitter {
     state: Arc<State>,
     batches_rx: mpsc::Receiver<Batch>,
     sequencer_cometbft_client: sequencer_client::HttpClient,
+    sequencer_grpc_client: SequencerServiceClient<Channel>,
     signer: SequencerKey,
     metrics: &'static Metrics,
 }
@@ -72,10 +80,10 @@ impl Submitter {
 
             startup_info = self.startup_handle.get_info() => {
                 let startup::Info { chain_id, .. } = startup_info.wrap_err("submitter failed to get startup info")?;
-                self.state.set_submitter_ready();
                 chain_id
             }
         };
+        self.state.set_submitter_ready();
 
         let reason = loop {
             select!(
@@ -94,6 +102,7 @@ impl Submitter {
                     // if batch submission fails, halt the submitter
                     if let Err(e) = process_batch(
                         self.sequencer_cometbft_client.clone(),
+                        self.sequencer_grpc_client.clone(),
                         &self.signer,
                         self.state.clone(),
                         &sequencer_chain_id,
@@ -124,8 +133,12 @@ impl Submitter {
     }
 }
 
+// TODO(https://github.com/astriaorg/astria/issues/1273):
+// refactor this allow
+#[allow(clippy::too_many_arguments)]
 async fn process_batch(
     sequencer_cometbft_client: sequencer_client::HttpClient,
+    sequencer_grpc_client: sequencer_service_client::SequencerServiceClient<Channel>,
     sequencer_key: &SequencerKey,
     state: Arc<State>,
     sequencer_chain_id: &str,
@@ -134,11 +147,10 @@ async fn process_batch(
     metrics: &'static Metrics,
 ) -> eyre::Result<()> {
     // get nonce and make unsigned transaction
-    let nonce = get_latest_nonce(
-        sequencer_cometbft_client.clone(),
+    let nonce = get_pending_nonce(
+        sequencer_grpc_client.clone(),
         *sequencer_key.address(),
         state.clone(),
-        metrics,
     )
     .await
     .wrap_err("failed to get nonce from sequencer")?;
@@ -200,57 +212,6 @@ async fn process_batch(
     }
 }
 
-async fn get_latest_nonce(
-    client: sequencer_client::HttpClient,
-    address: Address,
-    state: Arc<State>,
-    metrics: &'static Metrics,
-) -> eyre::Result<u32> {
-    debug!("fetching latest nonce from sequencer");
-    metrics.increment_nonce_fetch_count();
-    let span = Span::current();
-    let start = Instant::now();
-    let retry_config = tryhard::RetryFutureConfig::new(1024)
-        .exponential_backoff(Duration::from_millis(200))
-        .max_delay(Duration::from_secs(60))
-        .on_retry(
-            |attempt,
-             next_delay: Option<Duration>,
-             err: &sequencer_client::extension_trait::Error| {
-                metrics.increment_nonce_fetch_failure_count();
-
-                let state = Arc::clone(&state);
-                state.set_sequencer_connected(false);
-
-                let wait_duration = next_delay
-                    .map(humantime::format_duration)
-                    .map(tracing::field::display);
-                warn!(
-                    parent: span.clone(),
-                    error = err as &dyn std::error::Error,
-                    attempt,
-                    wait_duration,
-                    "failed getting latest nonce from sequencer; retrying after backoff",
-                );
-                async move {}
-            },
-        );
-    let res = tryhard::retry_fn(|| {
-        let client = client.clone();
-        let span = info_span!(parent: span.clone(), "attempt get nonce");
-        async move { client.get_latest_nonce(address).await.map(|rsp| rsp.nonce) }.instrument(span)
-    })
-    .with_config(retry_config)
-    .await
-    .wrap_err("failed getting latest nonce from sequencer after 1024 attempts");
-
-    state.set_sequencer_connected(res.is_ok());
-
-    metrics.record_nonce_fetch_latency(start.elapsed());
-
-    res
-}
-
 /// Submits a `SignedTransaction` to the sequencer with an exponential backoff
 #[instrument(
     name = "submit_tx",
@@ -309,6 +270,62 @@ async fn submit_tx(
     state.set_sequencer_connected(res.is_ok());
 
     metrics.record_sequencer_submission_latency(start.elapsed());
+
+    res
+}
+
+// TODO(https://github.com/astriaorg/astria/issues/1274): deduplicate here and in crate::bridge_withdrawer::startup
+async fn get_pending_nonce(
+    client: sequencer_service_client::SequencerServiceClient<Channel>,
+    address: Address,
+    state: Arc<State>,
+    // metrics: &'static Metrics,
+) -> eyre::Result<u32> {
+    debug!("fetching pending nonce from sequencing");
+    // TODO(https://github.com/astriaorg/astria/issues/1272): add metric and start time
+    let span = Span::current();
+    let retry_config = tryhard::RetryFutureConfig::new(1024)
+        .exponential_backoff(Duration::from_millis(200))
+        .max_delay(Duration::from_secs(60))
+        .on_retry(
+            |attempt, next_delay: Option<Duration>, err: &tonic::Status| {
+                // TODO(https://github.com/astriaorg/astria/issues/1272): update metrics here
+                let state = Arc::clone(&state);
+                state.set_sequencer_connected(false);
+
+                let wait_duration = next_delay
+                    .map(humantime::format_duration)
+                    .map(tracing::field::display);
+                warn!(
+                    error = err as &dyn std::error::Error,
+                    attempt,
+                    wait_duration,
+                    "failed getting pending nonce from sequencing; retrying after backoff",
+                );
+                futures::future::ready(())
+            },
+        );
+
+    let res = tryhard::retry_fn(|| {
+        let mut client = client.clone();
+        let span = info_span!(parent: span.clone(), "attempt get pending nonce");
+        async move {
+            client
+                .get_pending_nonce(GetPendingNonceRequest {
+                    address: Some(address.into_raw()),
+                })
+                .await
+                .map(|rsp| rsp.into_inner().inner)
+        }
+        .instrument(span)
+    })
+    .with_config(retry_config)
+    .await
+    .wrap_err("failed getting pending nonce from sequencing after 1024 attempts");
+
+    state.set_sequencer_connected(res.is_ok());
+
+    // TODO(https://github.com/astriaorg/astria/issues/1272): record latency metric
 
     res
 }

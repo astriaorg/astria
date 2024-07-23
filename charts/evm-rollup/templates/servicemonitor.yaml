@@ -1,11 +1,11 @@
-{{- if .Values.config.rollup.serviceMonitor.enabled }}
+{{- if .Values.serviceMonitor.enabled }}
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: {{ .Values.config.rollup.name }}-geth-metrics
+  name: {{include "rollup.name" . }}-geth-metrics
   labels:
     {{- include "rollup.labels" . | nindent 4 }}
-    {{- with .Values.config.rollup.serviceMonitor.additionalLabels }}
+    {{- with .Values.serviceMonitor.additionalLabels }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
 spec:
@@ -15,30 +15,22 @@ spec:
       - {{ include "rollup.namespace" . }}
   selector:
     matchLabels:
-      app: {{ .Values.config.rollup.name }}-astria-dev-cluster
+      app: {{ include "rollup.appName" . }}
   endpoints:
     - port: geth-metr
       path: /debug/metrics/prometheus
-      {{- with .Values.config.rollup.serviceMonitor.interval }}
+      {{- with .Values.serviceMonitor.interval }}
       interval: {{ . }}
       {{- end }}
-      {{- with .Values.config.rollup.serviceMonitor.scrapeTimeout  }}
-      scrapeTimeout: {{ . }}
-      {{- end }}
-    - port: composer-metr
-      path: /
-      {{- with .Values.config.rollup.serviceMonitor.interval }}
-      interval: {{ . }}
-      {{- end }}
-      {{- with .Values.config.rollup.serviceMonitor.scrapeTimeout  }}
+      {{- with .Values.serviceMonitor.scrapeTimeout  }}
       scrapeTimeout: {{ . }}
       {{- end }}
     - port: conductor-metr
       path: /
-      {{- with .Values.config.rollup.serviceMonitor.interval }}
+      {{- with .Values.serviceMonitor.interval }}
       interval: {{ . }}
       {{- end }}
-      {{- with .Values.config.rollup.serviceMonitor.scrapeTimeout  }}
+      {{- with .Values.serviceMonitor.scrapeTimeout  }}
       scrapeTimeout: {{ . }}
       {{- end }}
 {{- end }}

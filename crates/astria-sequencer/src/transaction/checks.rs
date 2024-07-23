@@ -19,6 +19,7 @@ use astria_core::{
         UnsignedTransaction,
     },
 };
+use tracing::instrument;
 
 use crate::{
     accounts::state_ext::StateReadExt,
@@ -27,6 +28,7 @@ use crate::{
     state_ext::StateReadExt as _,
 };
 
+#[instrument(skip_all)]
 pub(crate) async fn check_nonce_mempool<S: StateReadExt + 'static>(
     tx: &SignedTransaction,
     state: &S,
@@ -40,6 +42,7 @@ pub(crate) async fn check_nonce_mempool<S: StateReadExt + 'static>(
     Ok(())
 }
 
+#[instrument(skip_all)]
 pub(crate) async fn check_chain_id_mempool<S: StateReadExt + 'static>(
     tx: &SignedTransaction,
     state: &S,
@@ -52,6 +55,7 @@ pub(crate) async fn check_chain_id_mempool<S: StateReadExt + 'static>(
     Ok(())
 }
 
+#[instrument(skip_all)]
 pub(crate) async fn check_balance_mempool<S: StateReadExt + 'static>(
     tx: &SignedTransaction,
     state: &S,
@@ -63,6 +67,7 @@ pub(crate) async fn check_balance_mempool<S: StateReadExt + 'static>(
     Ok(())
 }
 
+#[instrument(skip_all)]
 pub(crate) async fn get_fees_for_transaction<S: StateReadExt + 'static>(
     tx: &UnsignedTransaction,
     state: &S,
@@ -138,6 +143,7 @@ pub(crate) async fn get_fees_for_transaction<S: StateReadExt + 'static>(
 
 // Checks that the account has enough balance to cover the total fees and transferred values
 // for all actions in the transaction.
+#[instrument(skip_all)]
 pub(crate) async fn check_balance_for_total_fees_and_transfers<S: StateReadExt + 'static>(
     tx: &UnsignedTransaction,
     from: Address,
