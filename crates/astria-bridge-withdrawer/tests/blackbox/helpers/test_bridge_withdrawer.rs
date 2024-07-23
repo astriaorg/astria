@@ -50,7 +50,6 @@ use tracing::{
 };
 
 use super::{
-    default_rollup_address,
     ethereum::AstriaBridgeableERC20DeployerConfig,
     make_tx_commit_success_response,
     mock_cometbft::{
@@ -436,7 +435,7 @@ pub fn make_bridge_unlock_action(receipt: &TransactionReceipt) -> Action {
         })
         .unwrap(),
         fee_asset: denom,
-        bridge_address: None,
+        bridge_address: Some(default_bridge_address()),
     };
     Action::BridgeUnlock(inner)
 }
@@ -449,11 +448,11 @@ pub fn make_ics20_withdrawal_action(receipt: &TransactionReceipt) -> Action {
     let inner = Ics20Withdrawal {
         denom: denom.clone(),
         destination_chain_address: default_sequencer_address().to_string(),
-        return_address: astria_address(receipt.from.0),
+        return_address: default_bridge_address(),
         amount: 1_000_000u128,
         memo: serde_json::to_string(&Ics20WithdrawalFromRollupMemo {
             memo: "nootwashere".to_string(),
-            rollup_return_address: default_rollup_address().to_string(),
+            rollup_return_address: receipt.from.to_string(),
             block_number: receipt.block_number.unwrap().as_u64(),
             transaction_hash: receipt.transaction_hash.0,
         })
@@ -462,7 +461,7 @@ pub fn make_ics20_withdrawal_action(receipt: &TransactionReceipt) -> Action {
         timeout_height,
         timeout_time,
         source_channel: "channel-0".parse().unwrap(),
-        bridge_address: None,
+        bridge_address: Some(default_bridge_address()),
     };
 
     Action::Ics20Withdrawal(inner)

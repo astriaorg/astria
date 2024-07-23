@@ -76,7 +76,7 @@ impl TestEthereum {
             .expect("failed to await pending transaction")
             .expect("no receipt found");
 
-        debug!(transaction.hash = %receipt.transaction_hash, "sent sequencer withdraw tranasaction");
+        debug!(transaction.hash = %receipt.transaction_hash, "sequencer withdraw tranasaction successfully submitted");
 
         assert!(
             receipt.status == Some(ethers::types::U64::from(1)),
