@@ -1,3 +1,4 @@
+#[cfg(features = "divan")]
 mod benchmarks;
 
 use std::{

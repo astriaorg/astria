@@ -206,5 +206,5 @@ fn main() {
         return;
     }
     // Run registered benchmarks.
-    divan::main();
+    //divan::main();
 }

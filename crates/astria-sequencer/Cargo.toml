@@ -13,6 +13,7 @@ name = "astria-sequencer"
 
 [features]
 default = []
+divan = ["dep:divan"]
 
 [dependencies]
 astria-core = { path = "../astria-core", features = ["server", "serde"] }
@@ -39,7 +40,7 @@ tower-http = { version = "0.4", features = ["cors"] }
 
 async-trait = { workspace = true }
 bytes = { workspace = true }
-divan = { workspace = true }
+divan = { workspace = true, optional = true}
 futures = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 ibc-types = { workspace = true, features = ["with_serde"] }
@@ -77,5 +78,6 @@ tokio = { workspace = true, features = ["test-util"] }
 astria-build-info = { path = "../astria-build-info", features = ["build"] }
 
 [[bench]]
-name = "benchmark"
+name = "divan"
 harness = false
+required-features = ["divan"]

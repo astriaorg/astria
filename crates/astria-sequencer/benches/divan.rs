@@ -1,5 +1,5 @@
 // Required to force the benchmark target to actually register the divan benchmark cases.
-use astria_sequencer as _;
+extern crate astria_sequencer;
 
 fn main() {
     // Handle `nextest` querying the benchmark binary for tests.  Currently `divan` is incompatible
@@ -12,6 +12,7 @@ fn main() {
     {
         return;
     }
+    let _ = astria_sequencer::BUILD_INFO;
     // Run registered benchmarks.
     divan::main();
 }
