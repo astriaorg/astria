@@ -1,6 +1,6 @@
 apiVersion: v2
-name: sequencer
-description: A Helm chart for deploying a k8s node of Astria Sequencer
+name: evm-stack
+description: Configure and
 
 # A chart can be either an 'application' or a 'library' chart.
 #
@@ -15,23 +15,42 @@ type: application
 # This is the chart version. This version number should be incremented each time you make changes
 # to the chart and its templates, including the app version.
 # Versions are expected to follow Semantic Versioning (https://semver.org/)
-version: 0.19.0
+version: 0.1.0
+
+dependencies:
+  - name: evm-rollup
+    version: 0.24.0
+    repository: "file://../evm-rollup"
+  - name: composer
+    version: 0.1.0
+    repository: "file://../composer"
+    condition: composer.enabled
+  - name: evm-faucet
+    version: 0.1.0
+    repository: "file://../evm-faucet"
+    condition: evm-faucet.enabled
+  - name: bridge-withdrawer
+    version: 0.1.0
+    repository: "file://../evm-bridge-withdrawer"
+    condition: bridge-withdrawer.enabled
+  - name: postgresql
+    version: "15.2.4"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: postgresql.enabled
+  - name: blockscout-stack
+    repository: "https://blockscout.github.io/helm-charts"
+    version: "1.6.2"
+    condition: blockscout-stack.enabled
+
+
 # This is the version number of the application being deployed. This version number should be
 # incremented each time you make changes to the application. Versions are not expected to
 # follow Semantic Versioning. They should reflect the version the application is using.
 # It is recommended to use it with quotes.
-appVersion: "0.14.0"
-
-dependencies:
-  - name: sequencer-relayer
-    version: "0.11.0"
-    repository: "file://../sequencer-relayer"
-    condition: sequencer-relayer.enabled
+appVersion: "0.1.0"
 
 maintainers:
   - name: wafflesvonmaple
-    url: astria.org
-  - name: quasystaty1
     url: astria.org
   - name: joroshiba
     url: astria.org

@@ -1,6 +1,6 @@
 {
     "config": {
-        "chainId": {{ toString .Values.config.rollup.networkId | replace "\"" "" }},
+        "chainId": {{ toString ( tpl .Values.genesis.chainId . ) | replace "\"" "" }},
         "homesteadBlock": 0,
         "eip150Block": 0,
         "eip155Block": 0,
@@ -11,45 +11,43 @@
         "istanbulBlock": 0,
         "berlinBlock": 0,
         "londonBlock": 0,
-        {{- if .Values.config.rollup.genesis.shanghaiTime}}
-        "shanghaiTime": {{ toString .Values.config.rollup.genesis.shanghaiTime | replace "\"" "" }},
+        "shanghaiTime": 0,
+        {{- if .Values.genesis.cancunTime }}
+        "cancunTime": {{ toString .Values.genesis.cancunTime | replace "\"" "" }},
         {{- end }}
-        {{- if .Values.config.rollup.genesis.cancunTime }}
-        "cancunTime": {{ toString .Values.config.rollup.genesis.cancunTime | replace "\"" "" }},
+        {{- if .Values.genesis.cancunTime }}
+        "pragueTime": {{ toString .Values.genesis.pragueTime | replace "\"" "" }},
         {{- end }}
-        {{- if .Values.config.rollup.genesis.cancunTime }}
-        "pragueTime": {{ toString .Values.config.rollup.genesis.pragueTime | replace "\"" "" }},
-        {{- end }}
-        {{- if .Values.config.rollup.genesis.cancunTime }}
-        "verkleTime": {{ toString .Values.config.rollup.genesis.verkleTime | replace "\"" "" }},
+        {{- if .Values.genesis.cancunTime }}
+        "verkleTime": {{ toString .Values.genesis.verkleTime | replace "\"" "" }},
         {{- end }}
         "terminalTotalDifficulty": 0,
         "terminalTotalDifficultyPassed": true,
         "ethash": {},
-        {{- range $key, $value := .Values.config.rollup.genesis.extra }}
+        {{- range $key, $value := .Values.genesis.extra }}
         "{{ $key }}": {{ toPrettyJson $value | indent 8 | trim }},
         {{- end }}
-        {{- if .Values.config.rollup.genesis.extraDataOverride }}
-        "astriaExtraDataOverride": "{{ .Values.config.rollup.genesis.extraDataOverride }}",
+        {{- if .Values.genesis.extraDataOverride }}
+        "astriaExtraDataOverride": "{{ .Values.genesis.extraDataOverride }}",
         {{- end }}
-        "astriaOverrideGenesisExtraData": {{ .Values.config.rollup.genesis.overrideGenesisExtraData }},
-        "astriaSequencerInitialHeight": {{ toString .Values.config.sequencer.initialBlockHeight | replace "\"" "" }},
-        "astriaRollupName": "{{ .Values.config.rollup.name }}",
-        "astriaCelestiaInitialHeight": {{ toString .Values.config.celestia.initialBlockHeight | replace "\"" "" }},
-        "astriaCelestiaHeightVariance": {{ toString .Values.config.celestia.heightVariance | replace "\"" "" }},
-        "astriaBridgeAddresses": {{ toPrettyJson .Values.config.rollup.genesis.bridgeAddresses | indent 8 | trim }},
-        "astriaFeeCollectors": {{ toPrettyJson .Values.config.rollup.genesis.feeCollectors | indent 8 | trim }},
-        "astriaEIP1559Params": {{ toPrettyJson .Values.config.rollup.genesis.eip1559Params | indent 8 | trim }},
-        "astriaBridgeSenderAddress": "{{ .Values.config.rollup.genesis.bridgeSenderAddress }}",
-        "astriaSequencerAddressPrefix": "{{ .Values.config.sequencer.addressPrefixes.base }}"
+        "astriaOverrideGenesisExtraData": {{ .Values.genesis.overrideGenesisExtraData }},
+        "astriaSequencerInitialHeight": {{ toString .Values.genesis.sequencerInitialHeight | replace "\"" "" }},
+        "astriaRollupName": "{{ tpl .Values.genesis.rollupName . }}",
+        "astriaCelestiaInitialHeight": {{ toString .Values.genesis.celestiaInitialHeight | replace "\"" "" }},
+        "astriaCelestiaHeightVariance": {{ toString .Values.genesis.celestiaHeightVariance | replace "\"" "" }},
+        "astriaBridgeAddresses": {{ toPrettyJson .Values.genesis.bridgeAddresses | indent 8 | trim }},
+        "astriaFeeCollectors": {{ toPrettyJson .Values.genesis.feeCollectors | indent 8 | trim }},
+        "astriaEIP1559Params": {{ toPrettyJson .Values.genesis.eip1559Params | indent 8 | trim }},
+        "astriaBridgeSenderAddress": "{{ .Values.genesis.bridgeSenderAddress }}",
+        "astriaSequencerAddressPrefix": "{{ .Values.genesis.sequencerAddressPrefix }}"
         {{- if not .Values.global.dev }}
         {{- else }}
         {{- end }}
     },
     "difficulty": "0",
-    "gasLimit": "{{ toString .Values.config.rollup.genesis.gasLimit | replace "\"" "" }}",
+    "gasLimit": "{{ toString .Values.genesis.gasLimit | replace "\"" "" }}",
     "alloc": {
-    {{- range $index, $value := .Values.config.rollup.genesis.alloc }}
+    {{- range $index, $value := .Values.genesis.alloc }}
         {{- if $index }},{{- end }}
         "{{ $value.address }}": {{ toPrettyJson $value.value | indent 8 | trim }}
     {{- end }}
