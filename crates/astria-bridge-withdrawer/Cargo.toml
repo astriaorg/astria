@@ -38,9 +38,9 @@ tonic = { workspace = true }
 astria-bridge-contracts = { path = "../astria-bridge-contracts" }
 astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
 astria-core = { path = "../astria-core", features = [
-  "serde",
-  "server",
-  "client",
+    "serde",
+    "server",
+    "client",
 ] }
 astria-eyre = { path = "../astria-eyre" }
 config = { package = "astria-config", path = "../astria-config" }
