@@ -203,6 +203,7 @@ fn insert<T: MempoolSize>(bencher: divan::Bencher) {
 /// Benchmarks `Mempool::pop` on a mempool with the given number of existing entries.
 #[divan::bench(
     max_time = MAX_TIME,
+    crate = divan,
     types = [
         mempool_with_100_txs,
         mempool_with_1000_txs,
@@ -211,6 +212,7 @@ fn insert<T: MempoolSize>(bencher: divan::Bencher) {
     ]
 )]
 fn pop<T: MempoolSize>(bencher: divan::Bencher) {
+    eprintln!("test main");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -236,6 +238,7 @@ fn pop<T: MempoolSize>(bencher: divan::Bencher) {
     ]
 )]
 fn remove<T: MempoolSize>(bencher: divan::Bencher) {
+    eprintln!("test main");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()

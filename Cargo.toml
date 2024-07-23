@@ -21,6 +21,7 @@ members = [
   "crates/astria-sequencer-utils",
   "crates/astria-telemetry",
   "crates/astria-test-utils",
+  "crates/mempool-benchmark",
   "lint/*",
 ]
 # Specify default members so that cargo invocations in github actions will
@@ -44,6 +45,7 @@ default-members = [
   "crates/astria-sequencer-utils",
   "crates/astria-telemetry",
   "crates/astria-test-utils",
+  "crates/mempool-benchmark",
 ]
 resolver = "2"
 

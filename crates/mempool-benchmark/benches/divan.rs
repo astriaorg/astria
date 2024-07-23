@@ -12,9 +12,9 @@ fn main() {
     {
         return;
     }
-    eprintln!("Benchmark main");
+    eprintln!("Benchmark side");
     let _ = astria_sequencer::BUILD_INFO;
     // Run registered benchmarks.
     divan::main();
-    eprintln!("Benchmark main");
+    eprintln!("Benchmark side");
 }

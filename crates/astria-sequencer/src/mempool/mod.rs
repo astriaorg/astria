@@ -1,5 +1,5 @@
-#[cfg(features = "divan")]
-mod benchmarks;
+#[cfg(feature = "divan")]
+mod benches;
 
 use std::{
     cmp::{
