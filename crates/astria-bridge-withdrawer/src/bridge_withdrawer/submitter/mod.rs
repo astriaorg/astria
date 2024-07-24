@@ -21,6 +21,7 @@ use astria_eyre::eyre::{
     self,
     eyre,
     Context,
+    Error,
 };
 pub(crate) use builder::Builder;
 pub(super) use builder::Handle;
@@ -100,15 +101,10 @@ impl Submitter {
                         break Err(eyre!("batch channel closed"));
                     };
                     // if batch submission fails, halt the submitter
-                    if let Err(e) = process_batch(
-                        self.sequencer_cometbft_client.clone(),
-                        self.sequencer_grpc_client.clone(),
-                        &self.signer,
-                        self.state.clone(),
+                    if let Err(e) = self.process_batch(
                         &sequencer_chain_id,
                         actions,
                         rollup_height,
-                        self.metrics,
                     ).await {
                         break Err(e);
                     }
@@ -131,84 +127,86 @@ impl Submitter {
 
         Ok(())
     }
-}
 
-// TODO(https://github.com/astriaorg/astria/issues/1273):
-// refactor this allow
-#[allow(clippy::too_many_arguments)]
-async fn process_batch(
-    sequencer_cometbft_client: sequencer_client::HttpClient,
-    sequencer_grpc_client: sequencer_service_client::SequencerServiceClient<Channel>,
-    sequencer_key: &SequencerKey,
-    state: Arc<State>,
-    sequencer_chain_id: &str,
-    actions: Vec<Action>,
-    rollup_height: u64,
-    metrics: &'static Metrics,
-) -> eyre::Result<()> {
-    // get nonce and make unsigned transaction
-    let nonce = get_pending_nonce(
-        sequencer_grpc_client.clone(),
-        *sequencer_key.address(),
-        state.clone(),
-    )
-    .await
-    .wrap_err("failed to get nonce from sequencer")?;
-    debug!(nonce, "fetched latest nonce");
+    async fn process_batch(
+        &self,
+        sequencer_chain_id: &String,
+        actions: Vec<Action>,
+        rollup_height: u64,
+    ) -> eyre::Result<()> {
+        let Self {
+            sequencer_cometbft_client,
+            sequencer_grpc_client,
+            signer,
+            state,
+            metrics,
+            ..
+        } = self;
+        // get nonce and make unsigned transaction
+        let nonce = get_pending_nonce(
+            sequencer_grpc_client.clone(),
+            *signer.address(),
+            state.clone(),
+            Some(metrics),
+        )
+        .await
+        .wrap_err("failed to get nonce from sequencer")?;
+        debug!(nonce, "fetched latest nonce");
 
-    let unsigned = UnsignedTransaction {
-        actions,
-        params: TransactionParams::builder()
-            .nonce(nonce)
-            .chain_id(sequencer_chain_id)
-            .build(),
-    };
+        let unsigned = UnsignedTransaction {
+            actions,
+            params: TransactionParams::builder()
+                .nonce(nonce)
+                .chain_id(sequencer_chain_id)
+                .build(),
+        };
 
-    // sign transaction
-    let signed = unsigned.into_signed(sequencer_key.signing_key());
-    debug!(tx_hash = %telemetry::display::hex(&signed.sha256_of_proto_encoding()), "signed transaction");
+        // sign transaction
+        let signed = unsigned.into_signed(signer.signing_key());
+        debug!(tx_hash = %telemetry::display::hex(&signed.sha256_of_proto_encoding()), "signed transaction");
 
-    // submit transaction and handle response
-    let rsp = submit_tx(
-        sequencer_cometbft_client.clone(),
-        signed,
-        state.clone(),
-        metrics,
-    )
-    .await
-    .context("failed to submit transaction to to cometbft")?;
-    if let tendermint::abci::Code::Err(check_tx_code) = rsp.check_tx.code {
-        error!(
-            abci.code = check_tx_code,
-            abci.log = rsp.check_tx.log,
-            rollup.height = rollup_height,
-            "transaction failed to be included in the mempool, aborting."
-        );
-        Err(eyre!(
-            "check_tx failure upon submitting transaction to sequencer"
-        ))
-    } else if let tendermint::abci::Code::Err(deliver_tx_code) = rsp.tx_result.code {
-        error!(
-            abci.code = deliver_tx_code,
-            abci.log = rsp.tx_result.log,
-            rollup.height = rollup_height,
-            "transaction failed to be executed in a block, aborting."
-        );
-        Err(eyre!(
-            "deliver_tx failure upon submitting transaction to sequencer"
-        ))
-    } else {
-        // update state after successful submission
-        info!(
-            sequencer.block = rsp.height.value(),
-            sequencer.tx_hash = %rsp.hash,
-            rollup.height = rollup_height,
-            "withdraw batch successfully executed."
-        );
-        state.set_last_rollup_height_submitted(rollup_height);
-        state.set_last_sequencer_height(rsp.height.value());
-        state.set_last_sequencer_tx_hash(rsp.hash);
-        Ok(())
+        // submit transaction and handle response
+        let rsp = submit_tx(
+            sequencer_cometbft_client.clone(),
+            signed,
+            state.clone(),
+            metrics,
+        )
+        .await
+        .context("failed to submit transaction to to cometbft")?;
+        if let tendermint::abci::Code::Err(check_tx_code) = rsp.check_tx.code {
+            error!(
+                abci.code = check_tx_code,
+                abci.log = rsp.check_tx.log,
+                rollup.height = rollup_height,
+                "transaction failed to be included in the mempool, aborting."
+            );
+            Err(eyre!(
+                "check_tx failure upon submitting transaction to sequencer"
+            ))
+        } else if let tendermint::abci::Code::Err(deliver_tx_code) = rsp.tx_result.code {
+            error!(
+                abci.code = deliver_tx_code,
+                abci.log = rsp.tx_result.log,
+                rollup.height = rollup_height,
+                "transaction failed to be executed in a block, aborting."
+            );
+            Err(eyre!(
+                "deliver_tx failure upon submitting transaction to sequencer"
+            ))
+        } else {
+            // update state after successful submission
+            info!(
+                sequencer.block = rsp.height.value(),
+                sequencer.tx_hash = %rsp.hash,
+                rollup.height = rollup_height,
+                "withdraw batch successfully executed."
+            );
+            state.set_last_rollup_height_submitted(rollup_height);
+            state.set_last_sequencer_height(rsp.height.value());
+            state.set_last_sequencer_tx_hash(rsp.hash);
+            Ok(())
+        }
     }
 }
 
@@ -274,22 +272,31 @@ async fn submit_tx(
     res
 }
 
-// TODO(https://github.com/astriaorg/astria/issues/1274): deduplicate here and in crate::bridge_withdrawer::startup
-async fn get_pending_nonce(
+pub(crate) async fn get_pending_nonce(
     client: sequencer_service_client::SequencerServiceClient<Channel>,
     address: Address,
     state: Arc<State>,
-    // metrics: &'static Metrics,
+    metrics: Option<&'static Metrics>,
 ) -> eyre::Result<u32> {
     debug!("fetching pending nonce from sequencing");
-    // TODO(https://github.com/astriaorg/astria/issues/1272): add metric and start time
+
+    // Logic to determine if metrics are being used, since function may be called in contexts where
+    // metrics are not available
+    let using_metrics = metrics.is_some();
+
+    if using_metrics {
+        metrics.try_unwrap()?.increment_nonce_fetch_count();
+    }
+    let start = std::time::Instant::now();
     let span = Span::current();
     let retry_config = tryhard::RetryFutureConfig::new(1024)
         .exponential_backoff(Duration::from_millis(200))
         .max_delay(Duration::from_secs(60))
         .on_retry(
             |attempt, next_delay: Option<Duration>, err: &tonic::Status| {
-                // TODO(https://github.com/astriaorg/astria/issues/1272): update metrics here
+                if using_metrics {
+                    metrics.unwrap().increment_nonce_fetch_failure_count();
+                };
                 let state = Arc::clone(&state);
                 state.set_sequencer_connected(false);
 
@@ -325,7 +332,24 @@ async fn get_pending_nonce(
 
     state.set_sequencer_connected(res.is_ok());
 
-    // TODO(https://github.com/astriaorg/astria/issues/1272): record latency metric
+    if using_metrics {
+        metrics
+            .try_unwrap()?
+            .record_nonce_fetch_latency(start.elapsed());
+    }
 
     res
+}
+
+trait TryUnwrap {
+    fn try_unwrap(&self) -> Result<&Metrics, Error>;
+}
+
+impl TryUnwrap for Option<&Metrics> {
+    fn try_unwrap(&self) -> Result<&Metrics, Error> {
+        match self {
+            Some(metrics) => Ok(*metrics),
+            None => Err(eyre!("metrics not provided")),
+        }
+    }
 }

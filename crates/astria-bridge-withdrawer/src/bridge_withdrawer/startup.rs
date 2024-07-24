@@ -8,12 +8,9 @@ use astria_core::{
         self,
         Ics20WithdrawalFromRollupMemo,
     },
-    generated::sequencerblock::v1alpha1::{
-        sequencer_service_client::{
-            self,
-            SequencerServiceClient,
-        },
-        GetPendingNonceRequest,
+    generated::sequencerblock::v1alpha1::sequencer_service_client::{
+        self,
+        SequencerServiceClient,
     },
     primitive::v1::asset,
     protocol::{
@@ -57,9 +54,12 @@ use tracing::{
 };
 use tryhard::backoff_strategies::ExponentialBackoff;
 
-use super::state::{
-    self,
-    State,
+use super::{
+    state::{
+        self,
+        State,
+    },
+    submitter::get_pending_nonce,
 };
 
 pub(super) struct Builder {
@@ -341,7 +341,7 @@ async fn ensure_mempool_empty(
     address: Address,
     state: Arc<State>,
 ) -> eyre::Result<()> {
-    let pending = get_pending_nonce(sequencer_client, state.clone(), address)
+    let pending = get_pending_nonce(sequencer_client, address, state.clone(), None)
         .await
         .wrap_err("failed to get pending nonce")?;
     let latest = get_latest_nonce(cometbft_client, state, address)
@@ -583,38 +583,6 @@ async fn get_latest_nonce(
     res
 }
 
-// TODO(https://github.com/astriaorg/astria/issues/1274): deduplicate here and in crate::bridge_withdrawer::submitter
-#[instrument(skip_all)]
-async fn get_pending_nonce(
-    client: sequencer_service_client::SequencerServiceClient<Channel>,
-    state: Arc<State>,
-    address: Address,
-) -> eyre::Result<u32> {
-    let span = Span::current();
-    let res = tryhard::retry_fn(|| {
-        let mut client = client.clone();
-        let span = info_span!(parent: span.clone(), "attempt get pending nonce");
-        async move {
-            client
-                .get_pending_nonce(GetPendingNonceRequest {
-                    address: Some(address.into_raw()),
-                })
-                .await
-                .map(|rsp| rsp.into_inner().inner)
-        }
-        .instrument(span)
-    })
-    .with_config(make_sequencer_grpc_retry_config(
-        "attempt to get pending nonce from sequencer; retrying after backoff",
-    ))
-    .await
-    .wrap_err("failed getting pending nonce from sequencing after 1024 attempts");
-
-    state.set_sequencer_connected(res.is_ok());
-
-    res
-}
-
 fn make_cometbft_retry_config(
     retry_message: &'static str,
 ) -> tryhard::RetryFutureConfig<
@@ -657,31 +625,6 @@ fn make_cometbft_ext_retry_config(
             move |attempt: u32,
                   next_delay: Option<Duration>,
                   error: &sequencer_client::extension_trait::Error| {
-                let wait_duration = next_delay
-                    .map(humantime::format_duration)
-                    .map(tracing::field::display);
-                warn!(
-                    attempt,
-                    wait_duration,
-                    error = error as &dyn std::error::Error,
-                    retry_message,
-                );
-                futures::future::ready(())
-            },
-        )
-}
-
-fn make_sequencer_grpc_retry_config(
-    retry_message: &'static str,
-) -> tryhard::RetryFutureConfig<
-    ExponentialBackoff,
-    impl Fn(u32, Option<Duration>, &tonic::Status) -> futures::future::Ready<()>,
-> {
-    tryhard::RetryFutureConfig::new(u32::MAX)
-        .exponential_backoff(Duration::from_millis(100))
-        .max_delay(Duration::from_secs(20))
-        .on_retry(
-            move |attempt: u32, next_delay: Option<Duration>, error: &tonic::Status| {
                 let wait_duration = next_delay
                     .map(humantime::format_duration)
                     .map(tracing::field::display);
