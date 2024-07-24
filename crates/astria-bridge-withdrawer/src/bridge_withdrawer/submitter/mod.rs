@@ -21,7 +21,6 @@ use astria_eyre::eyre::{
     self,
     eyre,
     Context,
-    Error,
 };
 pub(crate) use builder::Builder;
 pub(super) use builder::Handle;
@@ -279,14 +278,7 @@ pub(crate) async fn get_pending_nonce(
     metrics: Option<&'static Metrics>,
 ) -> eyre::Result<u32> {
     debug!("fetching pending nonce from sequencing");
-
-    // Logic to determine if metrics are being used, since function may be called in contexts where
-    // metrics are not available
-    let using_metrics = metrics.is_some();
-
-    if using_metrics {
-        metrics.try_unwrap()?.increment_nonce_fetch_count();
-    }
+    increment_nonce_fetch_count(metrics);
     let start = std::time::Instant::now();
     let span = Span::current();
     let retry_config = tryhard::RetryFutureConfig::new(1024)
@@ -294,9 +286,7 @@ pub(crate) async fn get_pending_nonce(
         .max_delay(Duration::from_secs(60))
         .on_retry(
             |attempt, next_delay: Option<Duration>, err: &tonic::Status| {
-                if using_metrics {
-                    metrics.unwrap().increment_nonce_fetch_failure_count();
-                };
+                increment_nonce_fetch_failure_count(metrics);
                 let state = Arc::clone(&state);
                 state.set_sequencer_connected(false);
 
@@ -332,24 +322,25 @@ pub(crate) async fn get_pending_nonce(
 
     state.set_sequencer_connected(res.is_ok());
 
-    if using_metrics {
-        metrics
-            .try_unwrap()?
-            .record_nonce_fetch_latency(start.elapsed());
-    }
+    record_nonce_fetch_latency(metrics, start.elapsed());
 
     res
 }
 
-trait TryUnwrap {
-    fn try_unwrap(&self) -> Result<&Metrics, Error>;
+fn increment_nonce_fetch_count(metrics: Option<&'static Metrics>) {
+    if let Some(metrics) = metrics {
+        metrics.increment_nonce_fetch_count();
+    }
 }
 
-impl TryUnwrap for Option<&Metrics> {
-    fn try_unwrap(&self) -> Result<&Metrics, Error> {
-        match self {
-            Some(metrics) => Ok(*metrics),
-            None => Err(eyre!("metrics not provided")),
-        }
+fn increment_nonce_fetch_failure_count(metrics: Option<&'static Metrics>) {
+    if let Some(metrics) = metrics {
+        metrics.increment_nonce_fetch_failure_count();
+    }
+}
+
+fn record_nonce_fetch_latency(metrics: Option<&'static Metrics>, duration: Duration) {
+    if let Some(metrics) = metrics {
+        metrics.record_nonce_fetch_latency(duration);
     }
 }
