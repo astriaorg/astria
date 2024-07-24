@@ -125,6 +125,7 @@ impl Relayer {
     /// failed catastrophically (after `u32::MAX` retries).
     #[instrument(skip_all)]
     pub(crate) async fn run(self) -> eyre::Result<()> {
+        // No need to add `wrap_err` as `new_from_path` already reports the path on error.
         let submission_state_at_startup =
             SubmissionStateAtStartup::new_from_path(&self.submission_state_path).await?;
 

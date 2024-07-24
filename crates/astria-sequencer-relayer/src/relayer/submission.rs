@@ -61,10 +61,17 @@ struct TempFilePath(PathBuf);
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case", tag = "state")]
 enum State {
+    /// Indicates the first run of the sequencer, i.e. no previous session occurred.
     Fresh,
+    /// Indicates that we have started to prepare a new submission. Preparation involves fetching
+    /// information from the Celestia app (nonce, prices, etc.), and using that to create a signed
+    /// blob transaction.
     Started {
         last_submission: CompletedSubmission,
     },
+    /// Indicates that preparation of a signed blob transaction has happened, and we are now in the
+    /// process of submitting the transaction (sending a `broadcast_tx` gRPC) and confirming its
+    /// submission (polling via `get_tx` gRPCs).
     Prepared {
         #[serde(with = "as_number")]
         sequencer_height: SequencerHeight,
