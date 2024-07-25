@@ -44,6 +44,8 @@ pub struct Ics20WithdrawalFromRollup {
     /// format of the rollup when targeting plain text encoding.
     #[prost(string, tag = "3")]
     pub rollup_return_address: ::prost::alloc::string::String,
+    /// A field that can be populated by the rollup. It is assumed that this field
+    /// will be consumed by the downstream chain.
     #[prost(string, tag = "4")]
     pub memo: ::prost::alloc::string::String,
 }

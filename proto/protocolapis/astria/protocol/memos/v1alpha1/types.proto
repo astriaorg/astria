@@ -1,6 +1,9 @@
 // Memo types that are intended to only be serialized as plaintext JSON and encoded
 // as binary/protobuf. The intent is to follow the IBC convention of keeping memos as
-// JSON. The specific JSON formatting follows the pbjson mapping.
+// JSON. The specific JSON formatting should follows the pbjson mapping.
+//
+// XXX: Different from protobuf any changes in the field names is protocol breaking,
+//      because these messages are serialized as plaintext JSON.
 
 syntax = "proto3";
 
@@ -37,6 +40,8 @@ message Ics20WithdrawalFromRollup {
   // This field is of type `string` so that it can be formatted in the preferred
   // format of the rollup when targeting plain text encoding.
   string rollup_return_address = 3;
+  // A field that can be populated by the rollup. It is assumed that this field
+  // will be consumed by the downstream chain.
   string memo = 4;
 }
 
