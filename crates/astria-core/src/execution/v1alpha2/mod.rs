@@ -2,10 +2,7 @@ use bytes::Bytes;
 use pbjson_types::Timestamp;
 
 use crate::{
-    generated::{
-        execution::v1alpha2 as raw,
-        primitive::v1::RollupId as RawRollupId,
-    },
+    generated::execution::v1alpha2 as raw,
     primitive::v1::{
         IncorrectRollupIdLength,
         RollupId,
@@ -93,8 +90,8 @@ impl Protobuf for GenesisInfo {
         let Some(rollup_id) = rollup_id else {
             return Err(Self::Error::no_rollup_id());
         };
-        let rollup_id = RollupId::try_from_raw(&rollup_id)
-            .map_err(Self::Error::incorrect_rollup_id_length)?;
+        let rollup_id =
+            RollupId::try_from_raw(rollup_id).map_err(Self::Error::incorrect_rollup_id_length)?;
 
         Ok(Self {
             rollup_id,

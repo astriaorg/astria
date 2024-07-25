@@ -341,10 +341,7 @@ pub(super) fn map_sequencer_height_to_rollup_height(
 #[cfg(test)]
 mod tests {
     use astria_core::{
-        generated::{
-            execution::v1alpha2 as raw,
-            primitive::v1::RollupId as RawRollupId,
-        },
+        generated::execution::v1alpha2 as raw,
         Protobuf as _,
     };
     use pbjson_types::Timestamp;
@@ -382,7 +379,7 @@ mod tests {
 
     fn make_genesis_info() -> GenesisInfo {
         GenesisInfo::try_from_raw(raw::GenesisInfo {
-            rollup_id: Some(RollupId::new(vec![24; 32]).to_raw()),
+            rollup_id: Some(RollupId::new([24; 32]).to_raw()),
             sequencer_genesis_block_height: 10,
             celestia_block_variance: 0,
         })
