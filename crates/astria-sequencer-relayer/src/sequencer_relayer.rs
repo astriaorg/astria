@@ -63,8 +63,7 @@ impl SequencerRelayer {
             celestia_app_key_file,
             block_time,
             api_addr,
-            pre_submit_path,
-            post_submit_path,
+            submission_state_path,
             ..
         } = cfg;
 
@@ -78,8 +77,7 @@ impl SequencerRelayer {
             sequencer_poll_period: Duration::from_millis(block_time),
             sequencer_grpc_endpoint,
             rollup_filter,
-            pre_submit_path,
-            post_submit_path,
+            submission_state_path,
             metrics,
         }
         .build()
