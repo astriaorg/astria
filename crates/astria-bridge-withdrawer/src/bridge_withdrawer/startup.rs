@@ -4,10 +4,6 @@ use std::{
 };
 
 use astria_core::{
-    bridge::{
-        self,
-        Ics20WithdrawalFromRollupMemo,
-    },
     generated::sequencerblock::v1alpha1::{
         sequencer_service_client::{
             self,
@@ -19,6 +15,7 @@ use astria_core::{
     protocol::{
         asset::v1alpha1::AllowedFeeAssetsResponse,
         bridge::v1alpha1::BridgeAccountLastTxHashResponse,
+        memos,
         transaction::v1alpha1::Action,
     },
 };
@@ -442,14 +439,15 @@ fn rollup_height_from_signed_transaction(
 
     let last_batch_rollup_height = match withdrawal_action {
         Action::BridgeUnlock(action) => {
-            let memo: bridge::UnlockMemo = serde_json::from_str(&action.memo)
+            let memo: memos::v1alpha1::BridgeUnlock = serde_json::from_str(&action.memo)
                 .wrap_err("failed to parse memo from last transaction by the bridge account")?;
-            Some(memo.block_number)
+            Some(memo.rollup_block_number)
         }
         Action::Ics20Withdrawal(action) => {
-            let memo: Ics20WithdrawalFromRollupMemo = serde_json::from_str(&action.memo)
-                .wrap_err("failed to parse memo from last transaction by the bridge account")?;
-            Some(memo.block_number)
+            let memo: memos::v1alpha1::Ics20WithdrawalFromRollup =
+                serde_json::from_str(&action.memo)
+                    .wrap_err("failed to parse memo from last transaction by the bridge account")?;
+            Some(memo.rollup_block_number)
         }
         _ => None,
     }

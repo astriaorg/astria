@@ -18,10 +18,6 @@ use anyhow::{
     Result,
 };
 use astria_core::{
-    bridge::{
-        Ics20TransferDepositMemo,
-        Ics20WithdrawalFromRollupMemo,
-    },
     primitive::v1::{
         asset::{
             denom,
@@ -29,6 +25,7 @@ use astria_core::{
         },
         Address,
     },
+    protocol::memos,
     sequencerblock::v1alpha1::block::Deposit,
 };
 use cnidarium::{
@@ -412,7 +409,9 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
     //
     // in this case, we lock the tokens back in the bridge account and
     // emit a `Deposit` event to send the tokens back to the rollup.
-    if is_refund && serde_json::from_str::<Ics20WithdrawalFromRollupMemo>(&packet_data.memo).is_ok()
+    if is_refund
+        && serde_json::from_str::<memos::v1alpha1::Ics20WithdrawalFromRollup>(&packet_data.memo)
+            .is_ok()
     {
         let bridge_account = packet_data.sender.parse().context(
             "sender not an Astria Address: for refunds of ics20 withdrawals that came from a \
@@ -581,20 +580,27 @@ async fn execute_ics20_transfer_bridge_lock<S: StateWriteExt>(
     }
 
     // assert memo is valid
-    let deposit_memo: Ics20TransferDepositMemo =
+    let deposit_memo: memos::v1alpha1::Ics20TransferDeposit =
         serde_json::from_str(&memo).context("failed to parse memo as Ics20TransferDepositMemo")?;
 
     ensure!(
-        !deposit_memo.rollup_address.is_empty(),
-        "packet memo field must be set for bridge account recipient",
+        !deposit_memo.rollup_deposit_address.is_empty(),
+        "rollup deposit address must be set to bridge funds from sequencer to rollup",
     );
 
     ensure!(
-        deposit_memo.rollup_address.len() <= MAX_ROLLUP_ADDRESS_BYTE_LENGTH,
+        deposit_memo.rollup_deposit_address.len() <= MAX_ROLLUP_ADDRESS_BYTE_LENGTH,
         "rollup address is too long: exceeds MAX_ROLLUP_ADDRESS_BYTE_LENGTH",
     );
 
-    execute_deposit(state, recipient, denom, amount, deposit_memo.rollup_address).await
+    execute_deposit(
+        state,
+        recipient,
+        denom,
+        amount,
+        deposit_memo.rollup_deposit_address,
+    )
+    .await
 }
 
 async fn execute_deposit<S: StateWriteExt>(
@@ -766,8 +772,8 @@ mod test {
             .put_bridge_account_ibc_asset(&bridge_address, &denom)
             .unwrap();
 
-        let memo = Ics20TransferDepositMemo {
-            rollup_address: "rollupaddress".to_string(),
+        let memo = memos::v1alpha1::Ics20TransferDeposit {
+            rollup_deposit_address: "rollupaddress".to_string(),
         };
 
         let packet = FungibleTokenPacketData {
@@ -1047,11 +1053,11 @@ mod test {
             sender: bridge_address.to_string(),
             amount: "100".to_string(),
             receiver: "other-chain-address".to_string(),
-            memo: serde_json::to_string(&Ics20WithdrawalFromRollupMemo {
+            memo: serde_json::to_string(&memos::v1alpha1::Ics20WithdrawalFromRollup {
                 memo: String::new(),
-                block_number: 1,
+                rollup_block_number: 1,
                 rollup_return_address: "rollup-defined".to_string(),
-                transaction_hash: [1u8; 32],
+                rollup_transaction_hash: hex::encode([1u8; 32]),
             })
             .unwrap(),
         };

@@ -11,6 +11,8 @@ astria-core = { path = "../astria-core", features = ["serde"] }
 ethers = { workspace = true }
 futures = { workspace = true }
 ibc-types = { workspace = true }
+prost = { workspace = true }
+serde = { workspace = true }
 serde_json = { workspace = true }
 tendermint = { workspace = true }
 thiserror = { workspace = true }

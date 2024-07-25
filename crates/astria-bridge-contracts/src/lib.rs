@@ -12,9 +12,12 @@ use astria_core::{
         Address,
         AddressError,
     },
-    protocol::transaction::v1alpha1::{
-        action::Ics20Withdrawal,
-        Action,
+    protocol::{
+        memos,
+        transaction::v1alpha1::{
+            action::Ics20Withdrawal,
+            Action,
+        },
     },
 };
 use astria_withdrawer::{
@@ -370,15 +373,15 @@ where
         &self,
         log: Log,
     ) -> Result<Action, GetWithdrawalActionsError> {
-        let block_number = log
+        let rollup_block_number = log
             .block_number
             .ok_or_else(|| GetWithdrawalActionsError::log_without_block_number(&log))?
             .as_u64();
 
-        let transaction_hash = log
+        let rollup_transaction_hash = log
             .transaction_hash
             .ok_or_else(|| GetWithdrawalActionsError::log_without_transaction_hash(&log))?
-            .into();
+            .to_string();
 
         let event = decode_log::<Ics20WithdrawalFilter>(log)
             .map_err(GetWithdrawalActionsError::decode_log)?;
@@ -393,15 +396,13 @@ where
                 .expect("must be set if this method is entered"),
         );
 
-        let memo = serde_json::to_string(&astria_core::bridge::Ics20WithdrawalFromRollupMemo {
+        let memo = memo_to_json(&memos::v1alpha1::Ics20WithdrawalFromRollup {
             memo: event.memo.clone(),
-            block_number,
+            rollup_block_number,
             rollup_return_address: event.sender.to_string(),
-            transaction_hash,
+            rollup_transaction_hash,
         })
-        .map_err(|source| {
-            GetWithdrawalActionsError::encode_memo("Ics20WithdrawalFromRollupMemo", source)
-        })?;
+        .map_err(GetWithdrawalActionsError::encode_memo)?;
 
         let amount = calculate_amount(&event, self.asset_withdrawal_divisor)
             .map_err(GetWithdrawalActionsError::calculate_withdrawal_amount)?;
@@ -427,24 +428,24 @@ where
         &self,
         log: Log,
     ) -> Result<Action, GetWithdrawalActionsError> {
-        let block_number = log
+        let rollup_block_number = log
             .block_number
             .ok_or_else(|| GetWithdrawalActionsError::log_without_block_number(&log))?
             .as_u64();
 
-        let transaction_hash = log
+        let rollup_transaction_hash = log
             .transaction_hash
             .ok_or_else(|| GetWithdrawalActionsError::log_without_transaction_hash(&log))?
-            .into();
+            .to_string();
 
         let event = decode_log::<SequencerWithdrawalFilter>(log)
             .map_err(GetWithdrawalActionsError::decode_log)?;
 
-        let memo = serde_json::to_string(&astria_core::bridge::UnlockMemo {
-            block_number,
-            transaction_hash,
+        let memo = memo_to_json(&memos::v1alpha1::BridgeUnlock {
+            rollup_block_number,
+            rollup_transaction_hash,
         })
-        .map_err(|err| GetWithdrawalActionsError::encode_memo("bridge::UnlockMemo", err))?;
+        .map_err(GetWithdrawalActionsError::encode_memo)?;
 
         let amount = calculate_amount(&event, self.asset_withdrawal_divisor)
             .map_err(GetWithdrawalActionsError::calculate_withdrawal_amount)?;
@@ -485,11 +486,8 @@ impl GetWithdrawalActionsError {
         ))
     }
 
-    fn encode_memo(which: &'static str, source: serde_json::Error) -> Self {
-        Self(GetWithdrawalActionsErrorKind::EncodeMemo {
-            which,
-            source,
-        })
+    fn encode_memo(source: EncodeMemoError) -> Self {
+        Self(GetWithdrawalActionsErrorKind::EncodeMemo(source))
     }
 
     fn get_logs(source: GetLogsError) -> Self {
@@ -513,11 +511,8 @@ enum GetWithdrawalActionsErrorKind {
     DecodeLog(DecodeLogError),
     #[error(transparent)]
     DestinationChainAsAddress(DestinationChainAsAddressError),
-    #[error("failed encoding memo `{which}`")]
-    EncodeMemo {
-        which: &'static str,
-        source: serde_json::Error,
-    },
+    #[error(transparent)]
+    EncodeMemo(EncodeMemoError),
     #[error(transparent)]
     GetLogs(GetLogsError),
     #[error("log did not contain a block number")]
@@ -626,6 +621,20 @@ fn max_timeout_height() -> ibc_types::core::client::Height {
 struct DestinationChainAsAddressError {
     #[from]
     source: AddressError,
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("failed encoding memo `{proto_message}` as JSON")]
+struct EncodeMemoError {
+    proto_message: String,
+    source: serde_json::Error,
+}
+
+fn memo_to_json<T: prost::Name + serde::Serialize>(memo: &T) -> Result<String, EncodeMemoError> {
+    serde_json::to_string(memo).map_err(|source| EncodeMemoError {
+        proto_message: T::full_name(),
+        source,
+    })
 }
 
 fn parse_destination_chain_as_address(
