@@ -93,7 +93,7 @@ impl Protobuf for GenesisInfo {
         let Some(rollup_id) = rollup_id else {
             return Err(Self::Error::no_rollup_id());
         };
-        let rollup_id = RollupId::try_from_slice(&rollup_id.inner)
+        let rollup_id = RollupId::try_from_raw(&rollup_id)
             .map_err(Self::Error::incorrect_rollup_id_length)?;
 
         Ok(Self {
@@ -116,9 +116,7 @@ impl Protobuf for GenesisInfo {
                  under the hood",
             );
         Self::Raw {
-            rollup_id: Some(RawRollupId {
-                inner: Bytes::copy_from_slice(&rollup_id.inner),
-            }),
+            rollup_id: Some(rollup_id.to_raw()),
             sequencer_genesis_block_height,
             celestia_block_variance: *celestia_block_variance,
         }

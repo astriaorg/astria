@@ -382,9 +382,7 @@ mod tests {
 
     fn make_genesis_info() -> GenesisInfo {
         GenesisInfo::try_from_raw(raw::GenesisInfo {
-            rollup_id: Some(RawRollupId {
-                inner: vec![24; 32].into(),
-            }),
+            rollup_id: Some(RollupId::new(vec![24; 32]).to_raw()),
             sequencer_genesis_block_height: 10,
             celestia_block_variance: 0,
         })
