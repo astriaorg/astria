@@ -46,7 +46,7 @@ run celestiaHome pathToCelestiaAppd=default_celestia_appd :
   # Execute the transfer from Celestia to the Rollup
   just ibc-test _do-ibc-transfer "{{ celestiaHome}}" "{{ pathToCelestiaAppd }}"
 
-  # Multiplication factor is 10^-6 (utia to tia) * 10^18 (rollup factor) = 10^2
+  # Multiplication factor is 10^-6 (utia to tia) * 10^18 (rollup factor) = 10^12
   let expected_balance="$initial_balance + {{ transfer_amount }} * 10**12"
 
   for i in {1..50}
