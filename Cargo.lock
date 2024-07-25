@@ -492,6 +492,8 @@ dependencies = [
  "ethers",
  "futures",
  "ibc-types",
+ "prost",
+ "serde",
  "serde_json",
  "tendermint",
  "thiserror",
