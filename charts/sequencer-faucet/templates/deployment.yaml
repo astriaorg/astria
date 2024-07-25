@@ -26,6 +26,7 @@ spec:
             - -wallet.privkey=$(SEQUENCER_FAUCET_PRIVATE_KEY)
             - -faucet.amount=$(SEQUENCER_FAUCET_AMOUNT)
             - -faucet.minutes=$(SEQUENCER_FAUCET_MINUTE)
+            - -faucet.asset=$(SEQUENCER_NATIVE_DENOM)
             - -proxycount=$(SEQUENCER_FAUCET_PROXYCOUNT)
             - -sequencer.chainId=$(SEQUENCER_CHAIN_ID)
             - -bech32.prefix=$(SEQUENCER_ADDRESS_PREFIX)

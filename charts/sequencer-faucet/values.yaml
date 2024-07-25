@@ -21,6 +21,7 @@ config:
   amount: 1800
   minutesBetweenRequests: 1440
   addressPrefix: "astria"
+  sequencerNativeDenom: "nria"
 
 images:
   sequencerFaucet: "ghcr.io/astriaorg/seq-faucet:sha-5c9d64c"
