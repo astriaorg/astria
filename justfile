@@ -1,5 +1,4 @@
 import 'charts/deploy.just'
-import 'dev/bridgetester.just'
 
 default:
   @just --list
@@ -13,6 +12,22 @@ docker-build crate tag=default_docker_tag:
 # Installs the astria rust cli from local codebase
 install-cli:
   cargo install --path ./crates/astria-cli --locked
+
+# version is a celestia-app release. Example: v1.9.0
+# operatingSystem is Linux or Darwin
+# machineHardwareName is arm64 or x86_64
+celestia_default_appd_dst := "."
+get-celestia-appd version operatingSystem machineHardwareName dst=celestia_default_appd_dst:
+  #!/usr/bin/env bash
+  src="celestia-app_{{operatingSystem}}_{{machineHardwareName}}.tar.gz"
+  curl -LOsS -q --output-dir "{{dst}}" \
+    https://github.com/celestiaorg/celestia-app/releases/download/{{version}}/"$src"
+  curl -LOsS -q --output-dir "{{dst}}" \
+    https://github.com/celestiaorg/celestia-app/releases/download/{{version}}/checksums.txt
+  cd "{{dst}}"
+  sha256sum --ignore-missing -c checksums.txt
+  cd -
+  tar --directory "{{dst}}" -xvzf "{{dst}}"/"$src" celestia-appd
 
 # Compiles the generated rust code from protos which are used in crates.
 compile-protos:
