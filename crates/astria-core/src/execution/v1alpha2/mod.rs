@@ -29,7 +29,7 @@ impl GenesisInfoError {
 enum GenesisInfoErrorKind {
     #[error("`rollup_id` field contained an invalid rollup ID")]
     IncorrectRollupIdLength(IncorrectRollupIdLength),
-    #[error("no `rollup_id` provided")]
+    #[error("`rollup_id` was not set")]
     NoRollupId,
 }
 
