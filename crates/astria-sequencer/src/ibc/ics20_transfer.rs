@@ -585,7 +585,7 @@ async fn execute_ics20_transfer_bridge_lock<S: StateWriteExt>(
 
     ensure!(
         !deposit_memo.rollup_deposit_address.is_empty(),
-        "packet memo field must be set for bridge account recipient",
+        "rollup deposit address must be set to bridge funds from sequencer to rollup",
     );
 
     ensure!(
