@@ -1,3 +1,5 @@
+mod ibc-test
+
 ##############################################
 ## Deploying and Running using Helm and K8s ##
 ##############################################
@@ -223,6 +225,16 @@ init-rollup-bridge rollupName=defaultRollupName evmDestinationAddress=evm_destin
     --sequencer.chain-id {{sequencer_chain_id}} \
     --sequencer-url {{sequencer_rpc_url}} \
     --fee-asset=$FEE_ASSET --asset=$ASSET || exit 1
+
+
+init-ibc-bridge privateKey asset feeAsset rollupName=defaultRollupName:
+  astria-cli sequencer init-bridge-account \
+    --rollup-name {{ rollupName }} \
+    --private-key {{ privateKey }} \
+    --sequencer.chain-id {{ sequencer_chain_id }} \
+    --sequencer-url {{ sequencer_rpc_url }} \
+    --fee-asset {{ feeAsset }} \
+    --asset {{ asset }}
 
 
 eth_rpc_url := "http://executor.astria.localdev.me/"
