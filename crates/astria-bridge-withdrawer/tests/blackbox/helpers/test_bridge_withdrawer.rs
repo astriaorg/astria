@@ -11,16 +11,16 @@ use astria_bridge_withdrawer::{
     Config,
 };
 use astria_core::{
-    bridge::{
-        Ics20WithdrawalFromRollupMemo,
-        UnlockMemo,
-    },
     primitive::v1::asset::{
         self,
         Denom,
     },
     protocol::{
         bridge::v1alpha1::BridgeAccountLastTxHashResponse,
+        memos::v1alpha1::{
+            BridgeUnlock,
+            Ics20WithdrawalFromRollup,
+        },
         transaction::v1alpha1::{
             action::{
                 BridgeUnlockAction,
@@ -429,9 +429,9 @@ pub fn make_bridge_unlock_action(receipt: &TransactionReceipt) -> Action {
     let inner = BridgeUnlockAction {
         to: default_sequencer_address(),
         amount: 1_000_000u128,
-        memo: serde_json::to_string(&UnlockMemo {
-            block_number: receipt.block_number.unwrap().as_u64(),
-            transaction_hash: receipt.transaction_hash.0,
+        memo: serde_json::to_string(&BridgeUnlock {
+            rollup_block_number: receipt.block_number.unwrap().as_u64(),
+            rollup_transaction_hash: receipt.transaction_hash.to_string(),
         })
         .unwrap(),
         fee_asset: denom,
@@ -450,11 +450,11 @@ pub fn make_ics20_withdrawal_action(receipt: &TransactionReceipt) -> Action {
         destination_chain_address: default_sequencer_address().to_string(),
         return_address: default_bridge_address(),
         amount: 1_000_000u128,
-        memo: serde_json::to_string(&Ics20WithdrawalFromRollupMemo {
+        memo: serde_json::to_string(&Ics20WithdrawalFromRollup {
             memo: "nootwashere".to_string(),
             rollup_return_address: receipt.from.to_string(),
-            block_number: receipt.block_number.unwrap().as_u64(),
-            transaction_hash: receipt.transaction_hash.0,
+            rollup_block_number: receipt.block_number.unwrap().as_u64(),
+            rollup_transaction_hash: receipt.transaction_hash.to_string(),
         })
         .unwrap(),
         fee_asset: denom,
