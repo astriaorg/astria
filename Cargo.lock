@@ -695,7 +695,6 @@ dependencies = [
  "celestia-tendermint",
  "celestia-types",
  "ed25519-consensus",
- "ethers",
  "hex",
  "ibc-types",
  "indexmap 2.2.6",

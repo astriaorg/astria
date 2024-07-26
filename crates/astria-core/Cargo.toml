@@ -28,7 +28,6 @@ celestia-tendermint = { workspace = true }
 ed25519-consensus = { version = "2.1.0", default-features = false, features = [
   "std",
 ] }
-ethers = { workspace = true }
 hex = { workspace = true }
 ibc-types = { workspace = true }
 indexmap = { workspace = true }
