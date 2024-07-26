@@ -25,12 +25,10 @@ use ethers::{
 };
 use tracing::debug;
 
-use super::{
+use super::test_bridge_withdrawer::{
+    astria_address,
+    default_bridge_address,
     default_native_asset,
-    test_bridge_withdrawer::{
-        astria_address,
-        default_bridge_address,
-    },
 };
 
 // allow: want the name to reflect this is a test config.

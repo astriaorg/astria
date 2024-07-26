@@ -12,13 +12,9 @@ pub use self::{
     mock_sequencer::MockSequencerServer,
     test_bridge_withdrawer::{
         assert_actions_eq,
-        astria_address,
-        default_ibc_asset,
-        default_native_asset,
         default_sequencer_address,
         make_bridge_unlock_action,
         make_ics20_withdrawal_action,
-        TestBridgeWithdrawer,
         TestBridgeWithdrawerConfig,
     },
 };

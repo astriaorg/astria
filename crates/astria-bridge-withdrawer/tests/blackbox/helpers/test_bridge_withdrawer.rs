@@ -481,12 +481,12 @@ fn make_ibc_timeout_time() -> u64 {
 }
 
 #[must_use]
-pub fn default_native_asset() -> asset::Denom {
+pub(crate) fn default_native_asset() -> asset::Denom {
     "nria".parse().unwrap()
 }
 
 #[must_use]
-pub fn default_ibc_asset() -> asset::Denom {
+fn default_ibc_asset() -> asset::Denom {
     DEFAULT_IBC_DENOM.parse::<Denom>().unwrap()
 }
 
@@ -502,7 +502,7 @@ pub fn default_sequencer_address() -> Address {
 
 /// Constructs an [`Address`] prefixed by `"astria"`.
 #[must_use]
-pub fn astria_address(
+pub(crate) fn astria_address(
     array: [u8; astria_core::primitive::v1::ADDRESS_LEN],
 ) -> astria_core::primitive::v1::Address {
     astria_core::primitive::v1::Address::builder()
