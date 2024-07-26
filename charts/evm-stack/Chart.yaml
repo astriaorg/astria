@@ -19,10 +19,10 @@ version: 0.2.1
 
 dependencies:
   - name: evm-rollup
-    version: 0.25.1
+    version: 0.26.0
     repository: "file://../evm-rollup"
   - name: composer
-    version: 0.1.0
+    version: 0.2.0
     repository: "file://../composer"
     condition: composer.enabled
   - name: evm-faucet
@@ -30,7 +30,7 @@ dependencies:
     repository: "file://../evm-faucet"
     condition: evm-faucet.enabled
   - name: bridge-withdrawer
-    version: 0.1.0
+    version: 0.2.0
     repository: "file://../evm-bridge-withdrawer"
     condition: bridge-withdrawer.enabled
   - name: postgresql

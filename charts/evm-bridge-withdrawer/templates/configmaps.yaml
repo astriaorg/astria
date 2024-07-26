@@ -7,6 +7,7 @@ data:
   ASTRIA_BRIDGE_WITHDRAWER_LOG: "astria_bridge_withdrawer=debug"
   ASTRIA_BRIDGE_WITHDRAWER_API_ADDR: "0.0.0.0:{{ .Values.ports.healthAPI }}"
   ASTRIA_BRIDGE_WITHDRAWER_SEQUENCER_COMETBFT_ENDPOINT: "{{ tpl .Values.config.sequencerCometbftEndpoint . }}"
+  ASTRIA_BRIDGE_WITHDRAWER_SEQUENCER_GRPC_ENDPOINT: "{{ tpl .Values.config.sequencerGrpcEndpoint . }}"
   ASTRIA_BRIDGE_WITHDRAWER_SEQUENCER_CHAIN_ID: "{{ tpl .Values.config.sequencerChainId . }}"
   ASTRIA_BRIDGE_WITHDRAWER_SEQUENCER_KEY_PATH: "/secret/sequencerPrivateKey/{{ .Values.config.sequencerPrivateKey.secret.filename }}"
   ASTRIA_BRIDGE_WITHDRAWER_SEQUENCER_ADDRESS_PREFIX: "{{ .Values.config.sequencerAddressPrefix }}"
@@ -29,9 +30,7 @@ data:
   OTEL_EXPORTER_OTLP_TRACE_HEADERS: "{{ tpl .Values.otel.traceHeaders . }}"
   OTEL_SERVICE_NAME: "{{ tpl .Values.otel.serviceName . }}"
   {{- if not .Values.global.dev }}
-  ASTRIA_BRIDGE_WITHDRAWER_MIN_EXPECTED_FEE_ASSET_BALANCE: "{{ .Values.config.minExpectedFeeAssetBalance }}"
   {{- else }}
-  ASTRIA_BRIDGE_WITHDRAWER_SEQUENCER_GRPC_ENDPOINT: "{{ tpl .Values.config.sequencerGrpcEndpoint . }}"
   {{- end }}
 ---
 {{- if not .Values.secretProvider.enabled }}
