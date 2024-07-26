@@ -7,10 +7,11 @@ use helpers::{
     TestBridgeWithdrawerConfig,
 };
 
-#[allow(clippy::missing_panics_doc)]
 pub mod helpers;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[ignore = "needs anvil to be present in $PATH; see github.com/foundry-rs/foundry for how to \
+            install"]
 async fn native_sequencer_withdraw_success() {
     let bridge_withdrawer = TestBridgeWithdrawerConfig::default().spawn().await;
 
@@ -54,6 +55,8 @@ async fn native_sequencer_withdraw_success() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[ignore = "needs anvil to be present in $PATH; see github.com/foundry-rs/foundry for how to \
+            install"]
 async fn native_ics20_withdraw_success() {
     let bridge_withdrawer = TestBridgeWithdrawerConfig::native_ics20_config()
         .spawn()
@@ -99,6 +102,8 @@ async fn native_ics20_withdraw_success() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[ignore = "needs anvil to be present in $PATH; see github.com/foundry-rs/foundry for how to \
+            install"]
 async fn erc20_sequencer_withdraw_success() {
     let bridge_withdrawer = TestBridgeWithdrawerConfig::erc20_sequencer_withdraw_config()
         .spawn()
@@ -150,6 +155,8 @@ async fn erc20_sequencer_withdraw_success() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[ignore = "needs anvil to be present in $PATH; see github.com/foundry-rs/foundry for how to \
+            install"]
 async fn erc20_ics20_withdraw_success() {
     let bridge_withdrawer = TestBridgeWithdrawerConfig::erc20_ics20_config()
         .spawn()
