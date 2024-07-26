@@ -61,7 +61,7 @@ impl ActionHandler for SequenceAction {
             .await
             .context("failed to calculate fee")?;
         state
-            .get_and_increase_block_fees(&self.fee_asset, fee)
+            .get_and_increase_block_fees(&self.fee_asset, fee, self.get_action_type())
             .await
             .context("failed to add to block fees")?;
 

@@ -10,7 +10,13 @@ use cnidarium::{
     StateWrite,
 };
 use futures::StreamExt as _;
-use tendermint::Time;
+use tendermint::{
+    abci::{
+        Event,
+        EventAttribute,
+    },
+    Time,
+};
 use tracing::instrument;
 
 const NATIVE_ASSET_KEY: &[u8] = b"nativeasset";
@@ -36,6 +42,38 @@ fn fee_asset_key<TAsset: Into<asset::IbcPrefixed>>(asset: TAsset) -> String {
     )
 }
 
+/// Creates `abci::Event` of kind `tx.fees` for sequencer fee reporting
+pub(crate) fn construct_tx_fee_event<TAsset>(
+    asset: &TAsset,
+    fee_amount: u128,
+    action_type: &str,
+) -> Event
+where
+    TAsset: Into<asset::IbcPrefixed> + std::fmt::Display + Send,
+{
+    let mut tx_fee_event_attributes: Vec<EventAttribute> = vec![];
+
+    let event_key_attribute = EventAttribute {
+        key: "asset".into(),
+        value: asset.to_string(),
+        index: true,
+    };
+    let event_value_attribute = EventAttribute {
+        key: "feeAmount".into(),
+        value: fee_amount.to_string(),
+        index: true,
+    };
+    let event_action_attribute = EventAttribute {
+        key: "actionType".into(),
+        value: action_type.into(),
+        index: true,
+    };
+    tx_fee_event_attributes.push(event_key_attribute);
+    tx_fee_event_attributes.push(event_value_attribute);
+    tx_fee_event_attributes.push(event_action_attribute);
+
+    Event::new("tx.fees", tx_fee_event_attributes)
+}
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
@@ -243,12 +281,13 @@ pub(crate) trait StateWriteExt: StateWrite {
     async fn get_and_increase_block_fees<TAsset>(
         &mut self,
         asset: TAsset,
-        amount: u128,
+        fee_amount: u128,
+        action_type: &str,
     ) -> Result<()>
     where
-        TAsset: Into<asset::IbcPrefixed> + std::fmt::Display + Send,
+        TAsset: Into<asset::IbcPrefixed> + std::fmt::Display + Send + Clone,
     {
-        let block_fees_key = block_fees_key(asset);
+        let block_fees_key = block_fees_key(asset.clone());
         let current_amount = self
             .nonverifiable_get_raw(block_fees_key.as_bytes())
             .await
@@ -264,10 +303,14 @@ pub(crate) trait StateWriteExt: StateWrite {
             .unwrap_or_default();
 
         let new_amount = current_amount
-            .checked_add(amount)
+            .checked_add(fee_amount)
             .context("block fees overflowed u128")?;
-
         self.nonverifiable_put_raw(block_fees_key.into(), new_amount.to_be_bytes().to_vec());
+
+        // record the fee event to the state cache
+        let tx_fee_event = construct_tx_fee_event(&asset, fee_amount, action_type);
+        self.record(tx_fee_event);
+
         Ok(())
     }
 
@@ -624,7 +667,7 @@ mod test {
         let asset = asset_0();
         let amount = 100u128;
         state
-            .get_and_increase_block_fees(&asset, amount)
+            .get_and_increase_block_fees(&asset, amount, "test")
             .await
             .unwrap();
 
@@ -650,11 +693,11 @@ mod test {
         let amount_second = 200u128;
 
         state
-            .get_and_increase_block_fees(&asset_first, amount_first)
+            .get_and_increase_block_fees(&asset_first, amount_first, "test")
             .await
             .unwrap();
         state
-            .get_and_increase_block_fees(&asset_second, amount_second)
+            .get_and_increase_block_fees(&asset_second, amount_second, "test")
             .await
             .unwrap();
         // holds expected

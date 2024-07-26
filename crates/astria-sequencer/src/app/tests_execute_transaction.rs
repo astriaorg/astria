@@ -31,7 +31,7 @@ use cnidarium::StateDelta;
 use penumbra_ibc::params::IBCParameters;
 
 use crate::{
-    accounts::state_ext::StateReadExt as _,
+    accounts::state_ext::StateReadExt,
     app::test_utils::*,
     asset::get_native_asset,
     authority::state_ext::StateReadExt as _,
@@ -1041,4 +1041,39 @@ async fn app_execute_transaction_bridge_lock_unlock_action_ok() {
         0,
         "bridge should've transferred out whole balance"
     );
+}
+
+#[tokio::test]
+async fn transaction_execution_records_fee_event() {
+    let mut app = initialize_app(None, vec![]).await;
+
+    // transfer funds from Alice to Bob
+    let (alice_signing_key, _) = get_alice_signing_key_and_address();
+    let bob_address = address_from_hex_string(BOB_ADDRESS);
+    let value = 333_333;
+    let tx = UnsignedTransaction {
+        params: TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .build(),
+        actions: vec![
+            TransferAction {
+                to: bob_address,
+                amount: value,
+                asset: get_native_asset().clone(),
+                fee_asset: get_native_asset().clone(),
+            }
+            .into(),
+        ],
+    };
+
+    let signed_tx = Arc::new(tx.into_signed(&alice_signing_key));
+
+    let native_asset = get_native_asset();
+
+    let events = app.execute_transaction(signed_tx).await.unwrap();
+    let transfer_fee = app.state.get_transfer_base_fee().await.unwrap();
+    let fee_event =
+        crate::state_ext::construct_tx_fee_event(native_asset, transfer_fee, "Transfer");
+    assert_eq!(events[0], fee_event);
 }

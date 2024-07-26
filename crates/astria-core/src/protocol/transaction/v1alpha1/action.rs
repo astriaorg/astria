@@ -442,6 +442,12 @@ impl SequenceAction {
             fee_asset,
         })
     }
+
+    /// Returns action type as `&str` for fee event logging
+    #[must_use]
+    pub fn get_action_type(&self) -> &str {
+        "Sequence"
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -449,7 +455,7 @@ impl SequenceAction {
 pub struct TransferAction {
     pub to: Address,
     pub amount: u128,
-    // asset to be transferred.
+    /// asset to be transferred.
     pub asset: asset::Denom,
     /// asset to use for fee payment.
     pub fee_asset: asset::Denom,
@@ -515,6 +521,12 @@ impl TransferAction {
             asset,
             fee_asset,
         })
+    }
+
+    /// Returns action type as `&str` for fee event logging
+    #[must_use]
+    pub fn get_action_type(&self) -> &str {
+        "Transfer"
     }
 }
 
