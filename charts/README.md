@@ -45,7 +45,7 @@ just wait-for-ingress-controller
 just deploy astria-local
 
 # Deploys a geth rollup chain + faucet + blockscout + ingress
-# w/ defaults running against local network, along with a bridge withdawer.
+# w/ defaults running against local network, along with a bridge withdrawer.
 # NOTE - default values can be found in `helm/rollup/values.yaml`
 just deploy rollup
 
