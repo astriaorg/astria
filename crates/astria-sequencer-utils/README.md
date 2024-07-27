@@ -15,7 +15,7 @@ There are three functions provided by the tool, further described below:
 ### `generate-genesis-state`: create an example sequencer genesis state
 
 This subcommand creates an example genesis state file that can be
-fed into the `copy-genesis-state` command. It should be editted to
+fed into the `copy-genesis-state` command. It should be edited to
 have the desired options.
 
 #### Usage for `generate-genesis-state`
