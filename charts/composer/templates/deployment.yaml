@@ -47,13 +47,13 @@ spec:
           resources:
             {{- toYaml .Values.resources | trim | nindent 12 }}
       volumes:
-        - name: sequencer-private-key
+        - name: composer-private-key
           {{- if .Values.secretProvider.enabled }}
           csi:
             driver: secrets-store.csi.k8s.io
             readOnly: true
             volumeAttributes:
-              secretProviderClass: sequencer-private-key
+              secretProviderClass: composer-private-key
           {{- else }}
           configMap:
             name: sequencer-private-key
