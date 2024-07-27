@@ -6,8 +6,8 @@ metadata:
 data:
   ASTRIA_CONDUCTOR_LOG: "astria_conductor={{ .Values.config.logLevel }}"
   {{- if (index .Values "celestia-node").enabled }}
-  TOKEN_SERVER_URL: "{{ include "celestiaNode.service.addresses.token" . }}"
-  ASTRIA_CONDUCTOR_CELESTIA_NODE_HTTP_URL: "{{ include "celestiaNode.service.addresses.rpc" . }}"
+  TOKEN_SERVER_URL: "{{ include "celestiaNode.service.addresses.token" (dict "Values" .Values "Release" .Release "Chart" .Chart) }}"
+  ASTRIA_CONDUCTOR_CELESTIA_NODE_HTTP_URL: "{{ include "celestiaNode.service.addresses.rpc" (dict "Values" .Values "Release" .Release "Chart" .Chart) }}"
   {{- else }}
   TOKEN_SERVER_URL: "{{ .Values.config.celestia.token }}"
   ASTRIA_CONDUCTOR_CELESTIA_NODE_HTTP_URL: "{{ .Values.config.celestia.rpc }}"
