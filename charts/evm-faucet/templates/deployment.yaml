@@ -34,7 +34,7 @@ spec:
             - name: ETH_FAUCET_EVM_PRIVATE_KEY
               valueFrom:
                 secretKeyRef:
-                  name: evm-faucet-private-key
+                  name: faucet-private-key
                   key: {{ .Values.config.privateKey.secret.key }}
           {{- end }}
           volumeMounts:
@@ -43,7 +43,7 @@ spec:
               subPath: {{tpl .Values.config.rollupName . }}/faucet
             {{- if .Values.secretProvider.enabled }}
             - mountPath: /var/secrets
-              name: evm-faucet-private-key
+              name: faucet-private-key
             {{- end }}
           ports:
             - containerPort: {{ .Values.ports.faucet }}
@@ -52,11 +52,11 @@ spec:
         - emptyDir: {}
           name: {{tpl .Values.config.rollupName . }}-evm-faucet-home-vol
         {{- if .Values.secretProvider.enabled }}
-        - name: evm-faucet-private-key
+        - name: faucet-private-key
           csi:
             driver: secrets-store.csi.k8s.io
             readOnly: true
             volumeAttributes:
-              secretProviderClass: evm-faucet-private-key
+              secretProviderClass: faucet-private-key
         {{- end }}
 ---
