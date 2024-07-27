@@ -35,7 +35,7 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: evm-faucet-private-key
-                  key: {{ .Values.privateKey.secret.key }}
+                  key: {{ .Values.config.privateKey.secret.key }}
           {{- end }}
           volumeMounts:
             - mountPath: /home/faucet
