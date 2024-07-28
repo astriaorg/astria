@@ -20,3 +20,7 @@ Namepsace to deploy elements into.
 {{- define "sequencer-relayer.storage.postSubmitPath" -}}
 {{ include "sequencer-relayer.storage.mountPath" . }}/postsubmit.json
 {{- end }}
+
+{{- define "sequencer-relayer.storage.submissionStatePath" -}}
+{{ include "sequencer-relayer.storage.mountPath" . }}/submission-state.json
+{{- end }}

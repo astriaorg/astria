@@ -267,14 +267,14 @@ fn tx_hash_from_good_response_should_succeed() {
         tx_response: Some(tx_response),
     });
 
-    let extracted_tx_hash = tx_hash_from_response(Ok(response)).unwrap();
-    assert_eq!(tx_hash, extracted_tx_hash.0);
+    let extracted_tx_hash = lowercase_hex_encoded_tx_hash_from_response(Ok(response)).unwrap();
+    assert_eq!(tx_hash, extracted_tx_hash);
 }
 
 #[test]
 fn tx_hash_from_bad_response_should_fail() {
     // Should return `FailedToBroadcastTx` if outer response is an error.
-    let error = tx_hash_from_response(Err(Status::internal(""))).unwrap_err();
+    let error = lowercase_hex_encoded_tx_hash_from_response(Err(Status::internal(""))).unwrap_err();
     // allow: `assert!(matches!(..))` provides poor feedback on failure.
     #[allow(clippy::manual_assert)]
     if !matches!(error, TrySubmitError::FailedToBroadcastTx(_)) {
@@ -285,7 +285,7 @@ fn tx_hash_from_bad_response_should_fail() {
     let response = Ok(Response::new(BroadcastTxResponse {
         tx_response: None,
     }));
-    let error = tx_hash_from_response(response).unwrap_err();
+    let error = lowercase_hex_encoded_tx_hash_from_response(response).unwrap_err();
     // allow: `assert!(matches!(..))` provides poor feedback on failure.
     #[allow(clippy::manual_assert)]
     if !matches!(error, TrySubmitError::EmptyBroadcastTxResponse) {
@@ -307,7 +307,7 @@ fn tx_hash_from_bad_response_should_fail() {
     let response = Ok(Response::new(BroadcastTxResponse {
         tx_response: Some(tx_response),
     }));
-    let error = tx_hash_from_response(response).unwrap_err();
+    let error = lowercase_hex_encoded_tx_hash_from_response(response).unwrap_err();
     match error {
         TrySubmitError::BroadcastTxResponseErrorCode {
             tx_hash: received_tx_hash,
@@ -512,4 +512,12 @@ fn extract_required_fee_from_log_should_fail() {
     // We need the value between "required: " and "utia: ..." to parse as a `u64`.
     let bad_value = "insufficient fees; got: 1utia required: 2mutia: insufficient fee".to_string();
     assert!(extract_required_fee_from_log(&bad_value).is_none());
+}
+
+#[test]
+fn blob_tx_hash_should_round_trip_json() {
+    let blob_tx_hash = BlobTxHash::from_raw([1; 32]);
+    let json_encoded = serde_json::to_string(&blob_tx_hash).unwrap();
+    let decoded = serde_json::from_str(&json_encoded).unwrap();
+    assert_eq!(blob_tx_hash, decoded);
 }

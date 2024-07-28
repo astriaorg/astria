@@ -7,6 +7,7 @@ pub mod abci;
 pub mod account;
 pub mod asset;
 pub mod bridge;
+pub mod memos;
 pub mod transaction;
 
 #[cfg(any(feature = "test-utils", test))]

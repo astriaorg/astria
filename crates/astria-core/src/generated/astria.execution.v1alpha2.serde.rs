@@ -707,7 +707,7 @@ impl serde::Serialize for GenesisInfo {
     {
         use serde::ser::SerializeStruct;
         let mut len = 0;
-        if !self.rollup_id.is_empty() {
+        if self.rollup_id.is_some() {
             len += 1;
         }
         if self.sequencer_genesis_block_height != 0 {
@@ -717,9 +717,8 @@ impl serde::Serialize for GenesisInfo {
             len += 1;
         }
         let mut struct_ser = serializer.serialize_struct("astria.execution.v1alpha2.GenesisInfo", len)?;
-        if !self.rollup_id.is_empty() {
-            #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("rollupId", pbjson::private::base64::encode(&self.rollup_id).as_str())?;
+        if let Some(v) = self.rollup_id.as_ref() {
+            struct_ser.serialize_field("rollupId", v)?;
         }
         if self.sequencer_genesis_block_height != 0 {
             struct_ser.serialize_field("sequencerGenesisBlockHeight", &self.sequencer_genesis_block_height)?;
@@ -803,9 +802,7 @@ impl<'de> serde::Deserialize<'de> for GenesisInfo {
                             if rollup_id__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("rollupId"));
                             }
-                            rollup_id__ = 
-                                Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
-                            ;
+                            rollup_id__ = map_.next_value()?;
                         }
                         GeneratedField::SequencerGenesisBlockHeight => {
                             if sequencer_genesis_block_height__.is_some() {
@@ -826,7 +823,7 @@ impl<'de> serde::Deserialize<'de> for GenesisInfo {
                     }
                 }
                 Ok(GenesisInfo {
-                    rollup_id: rollup_id__.unwrap_or_default(),
+                    rollup_id: rollup_id__,
                     sequencer_genesis_block_height: sequencer_genesis_block_height__.unwrap_or_default(),
                     celestia_block_variance: celestia_block_variance__.unwrap_or_default(),
                 })
