@@ -101,38 +101,25 @@ pub(crate) struct Watcher {
     state: Arc<State>,
 }
 
+struct FullyInitialized {
+    shutdown_token: CancellationToken,
+    submitter_handle: submitter::Handle,
+    state: Arc<State>,
+    provider: Arc<Provider<Ws>>,
+    action_fetcher: GetWithdrawalActions<Provider<Ws>>,
+    starting_rollup_height: u64,
+}
+
 impl Watcher {
-    pub(crate) async fn run(mut self) -> Result<()> {
-        let (provider, action_fetcher, next_rollup_block_height) = self
+    pub(crate) async fn run(self) -> Result<()> {
+        let fully_init = self
             .startup()
             .await
             .wrap_err("watcher failed to start up")?;
 
-        let Self {
-            state,
-            shutdown_token,
-            submitter_handle,
-            ..
-        } = self;
+        fully_init.state.set_watcher_ready();
 
-        state.set_watcher_ready();
-
-        tokio::select! {
-            res = watch_for_blocks(
-                provider,
-                action_fetcher,
-                next_rollup_block_height,
-                submitter_handle,
-                shutdown_token.clone(),
-            ) => {
-                info!("block handler exited");
-                res.context("block handler exited")
-            }
-           () = shutdown_token.cancelled() => {
-                info!("watcher shutting down");
-                Ok(())
-            }
-        }
+        fully_init.run().await
     }
 
     /// Gets the startup data from the submitter and connects to the Ethereum node.
@@ -145,19 +132,28 @@ impl Watcher {
     /// - If the Ethereum node cannot be connected to after several retries.
     /// - If the asset withdrawal decimals cannot be fetched.
     #[instrument(skip_all, err)]
-    async fn startup(
-        &mut self,
-    ) -> eyre::Result<(Arc<Provider<Ws>>, GetWithdrawalActions<Provider<Ws>>, u64)> {
+    async fn startup(self) -> eyre::Result<FullyInitialized> {
+        let Self {
+            shutdown_token,
+            mut startup_handle,
+            submitter_handle,
+            contract_address,
+            ethereum_rpc_endpoint,
+            rollup_asset_denom,
+            bridge_address,
+            state,
+        } = self;
+
         let startup::Info {
             fee_asset,
             starting_rollup_height,
             ..
         } = select! {
-            () = self.shutdown_token.cancelled() => {
+            () = shutdown_token.cancelled() => {
                 return Err(eyre!("watcher received shutdown signal while waiting for startup"));
             }
 
-            startup_info = self.startup_handle.get_info() => {
+            startup_info = startup_handle.get_info() => {
                 startup_info.wrap_err("failed to receive startup info")?
             }
         };
@@ -188,7 +184,7 @@ impl Watcher {
             );
 
         let provider = tryhard::retry_fn(|| {
-            let url = self.ethereum_rpc_endpoint.clone();
+            let url = ethereum_rpc_endpoint.clone();
             async move {
                 let websocket_client = Ws::connect_with_reconnects(url, 0).await?;
                 Ok(Provider::new(websocket_client))
@@ -199,15 +195,15 @@ impl Watcher {
         .wrap_err("failed connecting to rollup after several retries; giving up")?;
 
         let provider = Arc::new(provider);
-        let ics20_asset_to_withdraw = if self.rollup_asset_denom.last_channel().is_some() {
+        let ics20_asset_to_withdraw = if rollup_asset_denom.last_channel().is_some() {
             info!(
-                rollup_asset_denom = %self.rollup_asset_denom,
+                %rollup_asset_denom,
                 "configured rollup asset contains an ics20 channel; ics20 withdrawals will be emitted"
             );
-            Some(self.rollup_asset_denom.clone())
+            Some(rollup_asset_denom.clone())
         } else {
             info!(
-                rollup_asset_denom = %self.rollup_asset_denom,
+                %rollup_asset_denom,
                 "configured rollup asset does not contain an ics20 channel; ics20 withdrawals will not be emitted"
             );
             None
@@ -215,17 +211,41 @@ impl Watcher {
         let action_fetcher = GetWithdrawalActionsBuilder::new()
             .provider(provider.clone())
             .fee_asset(fee_asset)
-            .contract_address(self.contract_address)
-            .bridge_address(self.bridge_address)
-            .sequencer_asset_to_withdraw(self.rollup_asset_denom.clone().into())
+            .contract_address(contract_address)
+            .bridge_address(bridge_address)
+            .sequencer_asset_to_withdraw(rollup_asset_denom.clone().into())
             .set_ics20_asset_to_withdraw(ics20_asset_to_withdraw)
             .try_build()
             .await
             .wrap_err("failed to construct contract event to sequencer action fetcher")?;
 
-        self.state.set_watcher_ready();
+        Ok(FullyInitialized {
+            shutdown_token,
+            submitter_handle,
+            state,
+            provider,
+            action_fetcher,
+            starting_rollup_height,
+        })
+    }
+}
 
-        Ok((provider.clone(), action_fetcher, starting_rollup_height))
+impl FullyInitialized {
+    async fn run(self) -> eyre::Result<()> {
+        tokio::select! {
+            res = watch_for_blocks(
+                self.provider,
+                self.action_fetcher,
+                self.starting_rollup_height,
+                self.submitter_handle,
+                self.shutdown_token.clone(),
+            ) => {
+                res.context("block handler exited")
+            }
+           () = self.shutdown_token.cancelled() => {
+                Ok(())
+            }
+        }
     }
 }
 
