@@ -40,8 +40,8 @@ async fn native_sequencer_withdraw_success() {
         .await;
 
     assert_contract_receipt_action_matches_broadcast_action::<BridgeUnlock>(
-        broadcast_guard.received_requests().await,
-        receipt,
+        &broadcast_guard.received_requests().await,
+        &receipt,
     );
 }
 
@@ -77,13 +77,13 @@ async fn native_ics20_withdraw_success() {
         .await;
 
     assert_contract_receipt_action_matches_broadcast_action::<Ics20>(
-        broadcast_guard.received_requests().await,
-        receipt,
+        &broadcast_guard.received_requests().await,
+        &receipt,
     );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[ignore = "needs anvil to be present in $PATH; see github.com/foundry-rs/foundry for how to \
+#[ignore = "needs anvil to be present in $PATH; see gith&ub.com/foundry-rs/foundry for how to \
             install"]
 async fn erc20_sequencer_withdraw_success() {
     let test_env = TestBridgeWithdrawerConfig::erc20_sequencer_withdraw_config()
@@ -120,8 +120,8 @@ async fn erc20_sequencer_withdraw_success() {
         .await;
 
     assert_contract_receipt_action_matches_broadcast_action::<BridgeUnlock>(
-        broadcast_guard.received_requests().await,
-        receipt,
+        &broadcast_guard.received_requests().await,
+        &receipt,
     );
 }
 
@@ -163,8 +163,8 @@ async fn erc20_ics20_withdraw_success() {
         .await;
 
     assert_contract_receipt_action_matches_broadcast_action::<Ics20>(
-        broadcast_guard.received_requests().await,
-        receipt,
+        &broadcast_guard.received_requests().await,
+        &receipt,
     );
 }
 
@@ -190,8 +190,8 @@ impl ActionFromReceipt for Ics20 {
 
 #[track_caller]
 fn assert_contract_receipt_action_matches_broadcast_action<T: ActionFromReceipt>(
-    received_broadcasts: Vec<wiremock::Request>,
-    receipt: ethers::types::TransactionReceipt,
+    received_broadcasts: &[wiremock::Request],
+    receipt: &ethers::types::TransactionReceipt,
 ) {
     let tx = signed_tx_from_request(received_broadcasts.first().expect(
         "at least one request should have been received if the broadcast guard is satisfied",
@@ -201,6 +201,6 @@ fn assert_contract_receipt_action_matches_broadcast_action<T: ActionFromReceipt>
         .first()
         .expect("the signed transaction should contain at least one action");
 
-    let expected = T::action_from_receipt(&receipt);
+    let expected = T::action_from_receipt(receipt);
     assert_actions_eq(&expected, actual);
 }
