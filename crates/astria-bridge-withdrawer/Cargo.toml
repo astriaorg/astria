@@ -53,11 +53,14 @@ telemetry = { package = "astria-telemetry", path = "../astria-telemetry", featur
 
 [dev-dependencies]
 astria-core = { path = "../astria-core", features = ["server", "test-utils"] }
+astria-grpc-mock = { path = "../astria-grpc-mock" }
 config = { package = "astria-config", path = "../astria-config", features = [
   "tests",
 ] }
+reqwest = { workspace = true, features = ["json"] }
 tempfile = { workspace = true }
 tendermint-rpc = { workspace = true }
+tokio-stream = { workspace = true, features = ["net"] }
 wiremock = { workspace = true }
 
 [build-dependencies]
