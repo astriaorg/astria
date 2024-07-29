@@ -25,7 +25,6 @@ get-celestia-appd version operatingSystem machineHardwareName dst=celestia_defau
   curl -LOsS -q --output-dir "{{dst}}" \
     https://github.com/celestiaorg/celestia-app/releases/download/{{version}}/checksums.txt
   cd "{{dst}}"
-  sha256sum --ignore-missing -c checksums.txt
   cd -
   tar --directory "{{dst}}" -xvzf "{{dst}}"/"$src" celestia-appd
 

@@ -64,6 +64,27 @@ run celestiaHome pathToCelestiaAppd=default_celestia_appd :
     echo "expected balance was not found; IBC transfer from Celestia to the Rollup failed"
     exit 1
   fi
+
+  just evm-send-raw-transaction {{ evm_withdraw_tx_raw }}
+  expected_evm_balance="$current_balance - 1000000000"
+  for i in {1..50}
+  do
+    tx_receipt=$(just evm-get-transaction-receipt {{ evm_withdraw_tx_hash }})
+    current_balance=$(just evm-get-balance {{evm_destination_address}})
+    if [[ $tx_receipt != "null" ]]; then
+      echo "Transaction receipt found: $tx_receipt"
+      if (( expected_evm_balance == $current_balance )); then
+        echo "EVM balance updated correctly"
+        break
+      else
+        echo "EVM balance not updated correctly"
+        exit 1
+      fi
+      break
+    else
+      sleep 1
+    fi
+  done
     
 
 bridge_address := "astria1d7zjjljc0dsmxa545xkpwxym86g8uvvwhtezcr"
@@ -74,6 +95,7 @@ celestia_chain_id := "celestia-local-0"
 celestia_node_url := "http://rpc.app.celestia.localdev.me:80"
 sequencer_tia_bridge_pkey := "6015fbe1c365d3c5ef92dc891db8c5bb26ad454bec2db4762b96e9f8b2430285"
 keyring_backend := "test"
+celestia_desitnation_address := "0x4a58639fb5458e65e4fa917ff951c390292c24a1"
 
 # This is the same address as used in deploy.just
 evm_destination_address := "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
@@ -109,3 +131,6 @@ _do-ibc-transfer celestiaHome pathToCelestiaAppd=default_celestia_appd:
     --log_level=debug \
     --home "{{celestiaHome}}" \
     --keyring-backend="{{ keyring_backend }}"
+
+evm_withdraw_tx_hash := "0x3f52d86dab0f0a574e23c033dfa2169dae667e4c0e80f0f430d8a29ffed81b8c"
+evm_withdraw_tx_raw := "0xf9012f80843b9aca07828fe294a58639fb5458e65e4fa917ff951c390292c24a1585e8d4a51000b8c4a996e020000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000002f63656c657374696131786b3676686d72706a71306d6a746a64667333656d66347979796b38366d7535796e656b666a00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000820a95a0dc05b5021f66c2a77605e39671687960bc3c0871302426453e0f2736ded33680a059b90c77d82f759e200a6c4e9df81dea9f8b9ab288a84f2a70938e4c2dde8b5d"
