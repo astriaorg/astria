@@ -91,26 +91,6 @@ impl MockSequencerServer {
         .mount(&self.mock_server)
         .await;
     }
-
-    pub(crate) async fn mount_pending_nonce_response_as_scoped(
-        &self,
-        nonce_to_mount: u32,
-        debug_name: impl Into<String>,
-    ) -> MockGuard {
-        let nonce_req = GetPendingNonceResponse {
-            inner: nonce_to_mount,
-        };
-        Mock::for_rpc_given(
-            GET_PENDING_NONCE_GRPC_NAME,
-            message_type::<GetPendingNonceRequest>(),
-        )
-        .respond_with(constant_response(nonce_req))
-        .up_to_n_times(1)
-        .expect(1)
-        .with_name(debug_name)
-        .mount_as_scoped(&self.mock_server)
-        .await
-    }
 }
 
 struct SequencerServiceImpl(MockServer);

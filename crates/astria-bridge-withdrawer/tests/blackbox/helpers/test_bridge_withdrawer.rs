@@ -217,14 +217,10 @@ impl TestBridgeWithdrawer {
         }
     }
 
-    pub async fn mount_pending_nonce_response_as_scoped(
-        &self,
-        nonce: u32,
-        debug_name: &str,
-    ) -> astria_grpc_mock::MockGuard {
+    pub async fn mount_pending_nonce_response(&self, nonce: u32, debug_name: &str) {
         self.sequencer_mock
-            .mount_pending_nonce_response_as_scoped(nonce, debug_name)
-            .await
+            .mount_pending_nonce_response(nonce, debug_name)
+            .await;
     }
 
     pub async fn mount_broadcast_tx_commit_success_response_as_scoped(
