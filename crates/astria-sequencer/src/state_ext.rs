@@ -51,29 +51,16 @@ pub(crate) fn construct_tx_fee_event<TAsset>(
 where
     TAsset: Into<asset::IbcPrefixed> + std::fmt::Display + Send,
 {
-    let mut tx_fee_event_attributes: Vec<EventAttribute> = vec![];
-
-    let event_key_attribute = EventAttribute {
-        key: "asset".into(),
-        value: asset.to_string(),
-        index: true,
-    };
-    let event_value_attribute = EventAttribute {
-        key: "feeAmount".into(),
-        value: fee_amount.to_string(),
-        index: true,
-    };
-    let event_action_attribute = EventAttribute {
-        key: "actionType".into(),
-        value: action_type.into(),
-        index: true,
-    };
-    tx_fee_event_attributes.push(event_key_attribute);
-    tx_fee_event_attributes.push(event_value_attribute);
-    tx_fee_event_attributes.push(event_action_attribute);
-
-    Event::new("tx.fees", tx_fee_event_attributes)
+    Event::new(
+        "tx.fees",
+        [
+            ("asset", asset.to_string()).index(),
+            ("feeAmount", fee_amount.to_string()).index(),
+            ("actionType", action_type.into()).index(),
+        ],
+    )
 }
+
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]

@@ -443,7 +443,7 @@ impl SequenceAction {
         })
     }
 
-    /// Returns action type as `&str` for fee event logging
+    /// Returns the action type.
     #[must_use]
     pub fn get_action_type(&self) -> &str {
         "Sequence"
