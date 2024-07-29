@@ -7,6 +7,7 @@ use astria_core::{
     generated::sequencerblock::v1alpha1::{
         sequencer_service_client::{
             self,
+            SequencerServiceClient,
         },
         GetPendingNonceRequest,
     },
@@ -105,11 +106,8 @@ impl Submitter {
                     };
 
                     // if batch submission fails, halt the submitter
-                    if let Err(e) = process_batch(
-                        self.sequencer_cometbft_client.clone(),
-                        self.sequencer_grpc_client.clone(),
-                        &self.signer,
-                        self.state.clone(),
+                    if let Err(e) = self.process_batch(
+                        sequencer_grpc_client.clone(),
                         &sequencer_chain_id,
                         actions,
                         rollup_height,
@@ -139,6 +137,7 @@ impl Submitter {
     #[instrument(skip_all)]
     async fn process_batch(
         &self,
+        sequencer_grpc_client: SequencerServiceClient<Channel>,
         sequencer_chain_id: &String,
         actions: Vec<Action>,
         rollup_height: u64,
