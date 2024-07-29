@@ -61,6 +61,7 @@ use super::{
     },
     submitter::get_pending_nonce,
 };
+use crate::metrics::Metrics;
 
 pub(super) struct Builder {
     pub(super) shutdown_token: CancellationToken,
@@ -70,6 +71,7 @@ pub(super) struct Builder {
     pub(super) sequencer_grpc_endpoint: String,
     pub(super) sequencer_bridge_address: Address,
     pub(super) expected_fee_asset: asset::Denom,
+    pub(super) metrics: &'static Metrics,
 }
 
 impl Builder {
@@ -82,6 +84,7 @@ impl Builder {
             sequencer_bridge_address,
             sequencer_grpc_endpoint,
             expected_fee_asset,
+            metrics,
         } = self;
 
         let sequencer_cometbft_client =
@@ -96,6 +99,7 @@ impl Builder {
             sequencer_grpc_endpoint,
             sequencer_bridge_address,
             expected_fee_asset,
+            metrics,
         })
     }
 }
@@ -141,6 +145,7 @@ pub(super) struct Startup {
     sequencer_grpc_endpoint: String,
     sequencer_bridge_address: Address,
     expected_fee_asset: asset::Denom,
+    metrics: &'static Metrics,
 }
 
 impl Startup {
@@ -158,6 +163,7 @@ impl Startup {
                 self.sequencer_grpc_endpoint.clone(),
                 self.sequencer_bridge_address,
                 self.state.clone(),
+                self.metrics,
             )
             .await
             .wrap_err("failed to wait for mempool to be empty")?;
@@ -340,8 +346,9 @@ async fn ensure_mempool_empty(
     sequencer_client: sequencer_service_client::SequencerServiceClient<Channel>,
     address: Address,
     state: Arc<State>,
+    metrics: &'static Metrics,
 ) -> eyre::Result<()> {
-    let pending = get_pending_nonce(sequencer_client, address, state.clone(), None)
+    let pending = get_pending_nonce(sequencer_client, address, state.clone(), metrics)
         .await
         .wrap_err("failed to get pending nonce")?;
     let latest = get_latest_nonce(cometbft_client, state, address)
@@ -378,6 +385,7 @@ async fn wait_for_empty_mempool(
     sequencer_grpc_endpoint: String,
     address: Address,
     state: Arc<State>,
+    metrics: &'static Metrics,
 ) -> eyre::Result<()> {
     let retry_config = tryhard::RetryFutureConfig::new(u32::MAX)
         .exponential_backoff(Duration::from_secs(1))
@@ -407,7 +415,7 @@ async fn wait_for_empty_mempool(
         let sequencer_client = sequencer_client.clone();
         let cometbft_client = cometbft_client.clone();
         let state = state.clone();
-        ensure_mempool_empty(cometbft_client, sequencer_client, address, state)
+        ensure_mempool_empty(cometbft_client, sequencer_client, address, state, metrics)
     })
     .with_config(retry_config)
     .await

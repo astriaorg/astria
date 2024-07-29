@@ -127,6 +127,7 @@ impl Submitter {
         Ok(())
     }
 
+    #[instrument(skip_all)]
     async fn process_batch(
         &self,
         sequencer_chain_id: &String,
@@ -146,7 +147,7 @@ impl Submitter {
             sequencer_grpc_client.clone(),
             *signer.address(),
             state.clone(),
-            Some(metrics),
+            metrics,
         )
         .await
         .wrap_err("failed to get nonce from sequencer")?;
@@ -275,10 +276,9 @@ pub(crate) async fn get_pending_nonce(
     client: sequencer_service_client::SequencerServiceClient<Channel>,
     address: Address,
     state: Arc<State>,
-    metrics: Option<&'static Metrics>,
+    metrics: &'static Metrics,
 ) -> eyre::Result<u32> {
     debug!("fetching pending nonce from sequencing");
-    increment_nonce_fetch_count(metrics);
     let start = std::time::Instant::now();
     let span = Span::current();
     let retry_config = tryhard::RetryFutureConfig::new(1024)
@@ -286,7 +286,7 @@ pub(crate) async fn get_pending_nonce(
         .max_delay(Duration::from_secs(60))
         .on_retry(
             |attempt, next_delay: Option<Duration>, err: &tonic::Status| {
-                increment_nonce_fetch_failure_count(metrics);
+                metrics.increment_nonce_fetch_failure_count();
                 let state = Arc::clone(&state);
                 state.set_sequencer_connected(false);
 
@@ -321,26 +321,9 @@ pub(crate) async fn get_pending_nonce(
     .wrap_err("failed getting pending nonce from sequencing after 1024 attempts");
 
     state.set_sequencer_connected(res.is_ok());
+    metrics.increment_nonce_fetch_count();
 
-    record_nonce_fetch_latency(metrics, start.elapsed());
+    metrics.record_nonce_fetch_latency(start.elapsed());
 
     res
-}
-
-fn increment_nonce_fetch_count(metrics: Option<&'static Metrics>) {
-    if let Some(metrics) = metrics {
-        metrics.increment_nonce_fetch_count();
-    }
-}
-
-fn increment_nonce_fetch_failure_count(metrics: Option<&'static Metrics>) {
-    if let Some(metrics) = metrics {
-        metrics.increment_nonce_fetch_failure_count();
-    }
-}
-
-fn record_nonce_fetch_latency(metrics: Option<&'static Metrics>, duration: Duration) {
-    if let Some(metrics) = metrics {
-        metrics.record_nonce_fetch_latency(duration);
-    }
 }

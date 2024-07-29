@@ -32,7 +32,7 @@ impl Metrics {
         describe_counter!(
             NONCE_FETCH_COUNT,
             Unit::Count,
-            "The number of times a fetch nonce request to sequencer was made"
+            "The number of times a nonce was fetched from the sequencer"
         );
         let nonce_fetch_count = counter!(NONCE_FETCH_COUNT);
 
