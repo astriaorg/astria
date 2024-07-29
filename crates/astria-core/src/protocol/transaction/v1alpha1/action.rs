@@ -444,7 +444,7 @@ impl SequenceAction {
         })
     }
 
-    /// Returns the full name for the action type.
+    /// Returns full name of action.
     #[must_use]
     pub fn full_name() -> String {
         raw::SequenceAction::full_name()
@@ -524,7 +524,7 @@ impl TransferAction {
         })
     }
 
-    /// Returns the full name for the action type.
+    /// Returns full name of action.
     #[must_use]
     pub fn full_name() -> String {
         raw::TransferAction::full_name()

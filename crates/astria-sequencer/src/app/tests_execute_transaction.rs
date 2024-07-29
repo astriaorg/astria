@@ -1084,6 +1084,11 @@ async fn transaction_execution_records_fee_event() {
     );
     assert_eq!(
         event.attributes[2],
-        ("actionType", "astria.protocol.transactions.v1alpha1.TransferAction").index().into()
+        (
+            "actionType",
+            "astria.protocol.transactions.v1alpha1.TransferAction"
+        )
+            .index()
+            .into()
     );
 }
