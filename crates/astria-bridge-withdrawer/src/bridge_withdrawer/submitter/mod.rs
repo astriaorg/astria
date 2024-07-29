@@ -172,7 +172,7 @@ impl Submitter {
             metrics,
         )
         .await
-        .context("failed to submit transaction to to cometbft")?;
+        .context("failed to submit transaction to cometbft")?;
         if let tendermint::abci::Code::Err(check_tx_code) = rsp.check_tx.code {
             error!(
                 abci.code = check_tx_code,
