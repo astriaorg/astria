@@ -396,20 +396,6 @@ impl Protobuf for SequenceAction {
     type Raw = raw::SequenceAction;
 
     #[must_use]
-    fn into_raw(self) -> raw::SequenceAction {
-        let Self {
-            rollup_id,
-            data,
-            fee_asset,
-        } = self;
-        raw::SequenceAction {
-            rollup_id: Some(rollup_id.to_raw()),
-            data,
-            fee_asset: fee_asset.to_string(),
-        }
-    }
-
-    #[must_use]
     fn to_raw(&self) -> raw::SequenceAction {
         let Self {
             rollup_id,
@@ -462,22 +448,6 @@ pub struct TransferAction {
 impl Protobuf for TransferAction {
     type Error = TransferActionError;
     type Raw = raw::TransferAction;
-
-    #[must_use]
-    fn into_raw(self) -> raw::TransferAction {
-        let Self {
-            to,
-            amount,
-            asset,
-            fee_asset,
-        } = self;
-        raw::TransferAction {
-            to: Some(to.to_raw()),
-            amount: Some(amount.into()),
-            asset: asset.to_string(),
-            fee_asset: fee_asset.to_string(),
-        }
-    }
 
     #[must_use]
     fn to_raw(&self) -> raw::TransferAction {
