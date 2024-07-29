@@ -274,7 +274,7 @@ pub async fn mount_broadcast_tx_sync_invalid_nonce_mock(
     let jsonrpc_rsp = response::Wrapper::new_with_id(
         Id::Num(1),
         Some(tx_sync::Response {
-            code: AbciErrorCode::INVALID_NONCE.into(),
+            code: tendermint::abci::Code::Err(AbciErrorCode::INVALID_NONCE.value()),
             data: vec![].into(),
             log: String::new(),
             hash: tendermint::Hash::Sha256([0; 32]),
