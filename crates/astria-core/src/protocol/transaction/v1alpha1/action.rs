@@ -426,7 +426,7 @@ impl Protobuf for SequenceAction {
     /// Convert from a reference to the raw protobuf type.
     ///
     /// # Errors
-    /// Returns `SequenceActionError`.
+    /// Returns `SequenceActionError` if the `proto.rollup_id` field was not 32 bytes.
     fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
         let raw::SequenceAction {
             rollup_id,
@@ -498,7 +498,8 @@ impl Protobuf for TransferAction {
     /// Convert from a reference to the raw protobuf type.
     ///
     /// # Errors
-    /// Returns `TransferActionError`.
+    /// Returns `TransferActionError` if the raw action's `to` address did not have the expected
+    /// length.
     fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
         let raw::TransferAction {
             to,
