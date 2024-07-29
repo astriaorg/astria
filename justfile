@@ -1,5 +1,8 @@
 import 'charts/deploy.just'
 
+# commands to simplify Kubetail usage
+mod kubetail 'dev/kubetail.just'
+
 default:
   @just --list
 

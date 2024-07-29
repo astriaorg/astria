@@ -1,6 +1,4 @@
 mod ibc-test
-# TODO - cleanup and remove duplicated ibc testing modules
-mod bridgetester
 
 ##############################################
 ## Deploying and Running using Helm and K8s ##

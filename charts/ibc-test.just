@@ -32,7 +32,7 @@ delete:
   kubectl wait -n astria-dev-cluster deployment hermes-local-chart --for=condition=Available=True --timeout=300s
 
 [no-cd]
-run celestiaHome pathToCelestiaAppd=default_celestia_appd :
+run celestiaHome pathToCelestiaAppd=default_celestia_appd:
   #!/usr/bin/env bash
 
   initial_balance=$(just evm-get-balance {{evm_destination_address}})
@@ -64,7 +64,6 @@ run celestiaHome pathToCelestiaAppd=default_celestia_appd :
     echo "expected balance was not found; IBC transfer from Celestia to the Rollup failed"
     exit 1
   fi
-    
 
 bridge_address := "astria1d7zjjljc0dsmxa545xkpwxym86g8uvvwhtezcr"
 celestia_dev_account_address := "celestia1m0ksdjl2p5nzhqy3p47fksv52at3ln885xvl96"
@@ -109,3 +108,12 @@ _do-ibc-transfer celestiaHome pathToCelestiaAppd=default_celestia_appd:
     --log_level=debug \
     --home "{{celestiaHome}}" \
     --keyring-backend="{{ keyring_backend }}"
+
+[no-cd]
+[macos]
+run-local:
+  #!/usr/bin/env bash
+  if [ ! -f "./testing/tmp/celestia-appd" ]; then
+    just get-celestia-appd v1.9.0 Darwin arm64 ./testing/tmp
+  fi
+  just ibc-test run ./testing/tmp/celestia-ibc-test ./testing/tmp/celestia-appd
