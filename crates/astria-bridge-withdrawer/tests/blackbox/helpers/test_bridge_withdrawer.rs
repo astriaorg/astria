@@ -264,7 +264,7 @@ impl TestBridgeWithdrawerConfig {
         let cometbft_mock = wiremock::MockServer::start().await;
 
         let sequencer_mock = MockSequencerServer::spawn().await;
-        let sequencer_grpc_endpoint = sequencer_mock.local_addr.to_string();
+        let sequencer_grpc_endpoint = format!("http://{}", sequencer_mock.local_addr.to_string());
 
         let config = Config {
             sequencer_cometbft_endpoint: cometbft_mock.uri(),
