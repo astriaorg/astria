@@ -24,6 +24,15 @@
   just deploy hermes-local > /dev/null
   kubectl wait -n astria-dev-cluster deployment hermes-local-chart --for=condition=Available=True --timeout=300s
 
+qqdeploy-dev-infra:
+  echo "Deploying ingress controller..." && just deploy-ingress-controller > /dev/null
+  just wait-for-ingress-controller > /dev/null
+  echo "Deploying local celestia instance..." && just deploy celestia-local > /dev/null
+  helm dependency update ./charts/sequencer > /dev/null
+  helm dependency update ./charts/evm-stack > /dev/null
+  just deploy-astria-local
+  just deploy-dev-rollup
+
 # delete infra used for the ibc bridge test
 delete-ibc-test-infra:
   -just delete celestia-local
@@ -31,6 +40,9 @@ delete-ibc-test-infra:
   -just delete rollup
   -just delete hermes-local
   -just delete bridge-tester
+
+defaultNamespace := "astria-dev-cluster"
+defaultTag := ""
 
 # deploy a bridge tester chart that runs a job to test the ibc bridge
 deploy-bridge-tester tag='local' namespace=defaultNamespace:
@@ -69,3 +81,15 @@ load-images:
   #just load-image ghcr.io/astriaorg/astria-go:local
   just load-image ghcr.io/astriaorg/bridge-tester-utility:local
   just load-image ghcr.io/astriaorg/astria-geth:local
+
+###################
+# logging helpers #
+###################
+
+# install the kubetail chart
+kubetail-install:
+  helm install kubetail kubetail/kubetail --namespace kubetail --create-namespace
+
+# port forward the kubetail service so we can connect on our local machine
+kubetail-pf:
+  kubectl port-forward -n kubetail svc/kubetail 4000:80
