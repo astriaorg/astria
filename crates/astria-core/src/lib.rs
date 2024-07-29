@@ -1,3 +1,5 @@
+use prost::Name;
+
 #[cfg(not(target_pointer_width = "64"))]
 compile_error!(
     "library is only guaranteed to run on 64 bit machines due to casts from/to u64 and usize"
@@ -27,7 +29,7 @@ pub trait Protobuf: Sized {
     /// Errors that can occur when transforming from a raw type.
     type Error;
     /// The raw deserialized protobuf type.
-    type Raw;
+    type Raw: prost::Name;
 
     /// Convert from a reference to the raw protobuf type.
     ///
@@ -55,5 +57,10 @@ pub trait Protobuf: Sized {
     /// [`Self::to_raw`].
     fn into_raw(self) -> Self::Raw {
         Self::to_raw(&self)
+    }
+
+    #[must_use]
+    fn full_name() -> String {
+        Self::Raw::full_name()
     }
 }

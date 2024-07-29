@@ -7,7 +7,6 @@ use ibc_types::{
 };
 use penumbra_ibc::IbcRelay;
 use penumbra_proto::penumbra::core::component::ibc::v1::FungibleTokenPacketData;
-use prost::Name as _;
 
 use super::raw;
 use crate::{
@@ -392,9 +391,12 @@ pub struct SequenceAction {
     pub fee_asset: asset::Denom,
 }
 
-impl SequenceAction {
+impl Protobuf for SequenceAction {
+    type Error = SequenceActionError;
+    type Raw = raw::SequenceAction;
+
     #[must_use]
-    pub fn into_raw(self) -> raw::SequenceAction {
+    fn into_raw(self) -> raw::SequenceAction {
         let Self {
             rollup_id,
             data,
@@ -408,7 +410,7 @@ impl SequenceAction {
     }
 
     #[must_use]
-    pub fn to_raw(&self) -> raw::SequenceAction {
+    fn to_raw(&self) -> raw::SequenceAction {
         let Self {
             rollup_id,
             data,
@@ -421,33 +423,28 @@ impl SequenceAction {
         }
     }
 
-    /// Convert from a raw, unchecked protobuf [`raw::SequenceAction`].
+    /// Convert from a reference to the raw protobuf type.
     ///
     /// # Errors
-    /// Returns an error if the `proto.rollup_id` field was not 32 bytes.
-    pub fn try_from_raw(proto: raw::SequenceAction) -> Result<Self, SequenceActionError> {
+    /// Returns `SequenceActionError`.
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
         let raw::SequenceAction {
             rollup_id,
             data,
             fee_asset,
-        } = proto;
+        } = raw;
         let Some(rollup_id) = rollup_id else {
             return Err(SequenceActionError::field_not_set("rollup_id"));
         };
         let rollup_id =
-            RollupId::try_from_raw(&rollup_id).map_err(SequenceActionError::rollup_id_length)?;
+            RollupId::try_from_raw(rollup_id).map_err(SequenceActionError::rollup_id_length)?;
         let fee_asset = fee_asset.parse().map_err(SequenceActionError::fee_asset)?;
+        let data = data.clone();
         Ok(Self {
             rollup_id,
             data,
             fee_asset,
         })
-    }
-
-    /// Returns full name of action.
-    #[must_use]
-    pub fn full_name() -> String {
-        raw::SequenceAction::full_name()
     }
 }
 
@@ -462,9 +459,12 @@ pub struct TransferAction {
     pub fee_asset: asset::Denom,
 }
 
-impl TransferAction {
+impl Protobuf for TransferAction {
+    type Error = TransferActionError;
+    type Raw = raw::TransferAction;
+
     #[must_use]
-    pub fn into_raw(self) -> raw::TransferAction {
+    fn into_raw(self) -> raw::TransferAction {
         let Self {
             to,
             amount,
@@ -480,7 +480,7 @@ impl TransferAction {
     }
 
     #[must_use]
-    pub fn to_raw(&self) -> raw::TransferAction {
+    fn to_raw(&self) -> raw::TransferAction {
         let Self {
             to,
             amount,
@@ -495,23 +495,21 @@ impl TransferAction {
         }
     }
 
-    /// Convert from a raw, unchecked protobuf [`raw::TransferAction`].
+    /// Convert from a reference to the raw protobuf type.
     ///
     /// # Errors
-    ///
-    /// Returns an error if the raw action's `to` address did not have the expected
-    /// length.
-    pub fn try_from_raw(proto: raw::TransferAction) -> Result<Self, TransferActionError> {
+    /// Returns `TransferActionError`.
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
         let raw::TransferAction {
             to,
             amount,
             asset,
             fee_asset,
-        } = proto;
+        } = raw;
         let Some(to) = to else {
             return Err(TransferActionError::field_not_set("to"));
         };
-        let to = Address::try_from_raw(&to).map_err(TransferActionError::address)?;
+        let to = Address::try_from_raw(to).map_err(TransferActionError::address)?;
         let amount = amount.map_or(0, Into::into);
         let asset = asset.parse().map_err(TransferActionError::asset)?;
         let fee_asset = fee_asset.parse().map_err(TransferActionError::fee_asset)?;
@@ -522,12 +520,6 @@ impl TransferAction {
             asset,
             fee_asset,
         })
-    }
-
-    /// Returns full name of action.
-    #[must_use]
-    pub fn full_name() -> String {
-        raw::TransferAction::full_name()
     }
 }
 
