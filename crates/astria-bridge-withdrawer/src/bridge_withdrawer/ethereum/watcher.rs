@@ -16,7 +16,7 @@ use astria_eyre::{
         self,
         bail,
         eyre,
-        OptionExt as _,
+        OptionExt,
         WrapErr as _,
     },
     Result,
@@ -38,6 +38,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{
     debug,
     info,
+    instrument,
     warn,
 };
 
@@ -107,12 +108,6 @@ impl Watcher {
             .await
             .wrap_err("watcher failed to start up")?;
 
-        info!(
-            contract.address = %self.contract_address,
-            starting_block = next_rollup_block_height,
-            "watcher startup complete"
-        );
-
         let Self {
             state,
             shutdown_token,
@@ -149,6 +144,7 @@ impl Watcher {
     /// - If the fee asset ID provided in the config is not a valid fee asset on the sequencer.
     /// - If the Ethereum node cannot be connected to after several retries.
     /// - If the asset withdrawal decimals cannot be fetched.
+    #[instrument(skip_all, err)]
     async fn startup(
         &mut self,
     ) -> eyre::Result<(Arc<Provider<Ws>>, GetWithdrawalActions<Provider<Ws>>, u64)> {
@@ -169,7 +165,7 @@ impl Watcher {
         debug!(
             fee_asset = %fee_asset,
             starting_rollup_height = starting_rollup_height,
-            "watcher received startup info"
+            "received startup info"
         );
 
         // connect to eth node
@@ -233,39 +229,25 @@ impl Watcher {
     }
 }
 
-async fn sync_from_next_rollup_block_height(
+#[instrument(skip_all, fields(from_rollup_height, to_rollup_height), err)]
+async fn sync_unprocessed_rollup_heights(
     provider: Arc<Provider<Ws>>,
     action_fetcher: &GetWithdrawalActions<Provider<Ws>>,
     submitter_handle: &submitter::Handle,
-    next_rollup_block_height_to_check: u64,
-    current_rollup_block_height: u64,
+    from_rollup_height: u64,
+    to_rollup_height: u64,
 ) -> Result<()> {
-    info!(
-        block.from_height = next_rollup_block_height_to_check,
-        block.to_height = current_rollup_block_height,
-        "syncing unproccessed rollup blocks"
-    );
-
-    if current_rollup_block_height < next_rollup_block_height_to_check {
-        info!("no new blocks to sync");
-        return Ok(());
-    }
-
-    for i in next_rollup_block_height_to_check..=current_rollup_block_height {
-        let Some(block) = provider
+    for i in from_rollup_height..=to_rollup_height {
+        let block = provider
             .get_block(i)
             .await
-            .wrap_err("failed to get block")?
-        else {
-            bail!("block with number {i} missing");
-        };
-
-        get_and_send_events_at_block(action_fetcher, block, submitter_handle)
+            .map_err(eyre::Report::new)
+            .and_then(|block| block.ok_or_eyre("block is missing"))
+            .wrap_err_with(|| format!("failed to get block at rollup height `{i}`"))?;
+        get_and_forward_block_events(action_fetcher, block, submitter_handle)
             .await
             .wrap_err("failed to get and send events at block")?;
     }
-
-    info!("synced from {next_rollup_block_height_to_check} to {current_rollup_block_height}");
     Ok(())
 }
 
@@ -291,14 +273,15 @@ async fn watch_for_blocks(
         bail!("current rollup block missing block number")
     };
 
-    debug!(
-        current_rollup_block_height = current_rollup_block_height.as_u64(),
-        "got current rollup block height"
+    info!(
+        block.height = current_rollup_block_height.as_u64(),
+        block.hash = current_rollup_block.hash.map(tracing::field::display),
+        "got current block"
     );
 
     // sync any blocks missing between `next_rollup_block_height` and the current latest
     // (inclusive).
-    sync_from_next_rollup_block_height(
+    sync_unprocessed_rollup_heights(
         provider.clone(),
         &action_fetcher,
         &submitter_handle,
@@ -316,7 +299,7 @@ async fn watch_for_blocks(
             }
             block = block_rx.next() => {
                 if let Some(block) = block {
-                    get_and_send_events_at_block(
+                    get_and_forward_block_events(
                         &action_fetcher,
                         block,
                         &submitter_handle,
@@ -331,7 +314,11 @@ async fn watch_for_blocks(
     }
 }
 
-async fn get_and_send_events_at_block(
+#[instrument(skip_all, fields(
+    block.hash = block.hash.map(tracing::field::display),
+    block.number = block.number.map(tracing::field::display),
+), err)]
+async fn get_and_forward_block_events(
     actions_fetcher: &GetWithdrawalActions<Provider<Ws>>,
     block: Block<H256>,
     submitter_handle: &submitter::Handle,
@@ -344,12 +331,7 @@ async fn get_and_send_events_at_block(
     let actions = actions_fetcher
         .get_for_block_hash(block_hash)
         .await
-        .wrap_err_with(|| {
-            format!(
-                "failed getting actions for block; block hash: `{block_hash}`, block height: \
-                 `{rollup_height}`"
-            )
-        })?;
+        .wrap_err("failed getting actions for block")?;
 
     if actions.is_empty() {
         info!(

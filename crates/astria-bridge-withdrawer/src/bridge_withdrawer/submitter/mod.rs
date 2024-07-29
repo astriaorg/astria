@@ -90,11 +90,6 @@ impl Submitter {
         };
         self.state.set_submitter_ready();
 
-        debug!(
-            sequencer.chain_id = sequencer_chain_id,
-            "submitter startup complete"
-        );
-
         let reason = loop {
             select!(
                 biased;
@@ -106,13 +101,8 @@ impl Submitter {
 
                 batch = self.batches_rx.recv() => {
                     let Some(Batch { actions, rollup_height }) = batch else {
-                        info!("received None from batch channel, shutting down");
                         break Err(eyre!("batch channel closed"));
                     };
-
-                    if rollup_height % 100 == 0 {
-                        info!(batch.rollup_height = rollup_height, batch.count = actions.len(), "processing batch of withdrawals");
-                    }
 
                     // if batch submission fails, halt the submitter
                     if let Err(e) = process_batch(

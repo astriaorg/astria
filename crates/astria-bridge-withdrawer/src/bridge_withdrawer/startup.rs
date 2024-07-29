@@ -255,11 +255,6 @@ impl Startup {
         .wrap_err("failed to fetch last transaction hash by the bridge account")?;
 
         let Some(tx_hash) = last_transaction_hash_resp.tx_hash else {
-            info!(
-                bridge_account_address = %self.sequencer_bridge_address,
-                "no last transaction by the bridge account found. will process withdrawals from \
-                 the first rollup block."
-            );
             return Ok(None);
         };
 
@@ -335,6 +330,11 @@ impl Startup {
                 .checked_add(1)
                 .ok_or_eyre("failed to increment rollup height by 1")?
         } else {
+            info!(
+                bridge_account_address = %self.sequencer_bridge_address,
+                "no last transaction by the bridge account found. will process withdrawals from \
+                 the first rollup block."
+            );
             1
         };
         Ok(starting_rollup_height)
