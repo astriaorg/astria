@@ -26,7 +26,6 @@ use astria_grpc_mock::{
     matcher::message_type,
     response::constant_response,
     Mock,
-    MockGuard,
     MockServer,
 };
 use tokio::task::JoinHandle;
