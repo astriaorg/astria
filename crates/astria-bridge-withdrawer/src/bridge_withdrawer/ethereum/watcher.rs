@@ -16,7 +16,7 @@ use astria_eyre::{
         self,
         bail,
         eyre,
-        OptionExt,
+        OptionExt as _,
         WrapErr as _,
     },
     Result,
