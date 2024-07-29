@@ -29,9 +29,10 @@ use astria_core::{
 };
 use cnidarium::StateDelta;
 use penumbra_ibc::params::IBCParameters;
+use tendermint::abci::EventAttributeIndexExt as _;
 
 use crate::{
-    accounts::state_ext::StateReadExt,
+    accounts::state_ext::StateReadExt as _,
     app::test_utils::*,
     asset::get_native_asset,
     authority::state_ext::StateReadExt as _,
@@ -1069,11 +1070,20 @@ async fn transaction_execution_records_fee_event() {
 
     let signed_tx = Arc::new(tx.into_signed(&alice_signing_key));
 
-    let native_asset = get_native_asset();
-
     let events = app.execute_transaction(signed_tx).await.unwrap();
     let transfer_fee = app.state.get_transfer_base_fee().await.unwrap();
-    let fee_event =
-        crate::state_ext::construct_tx_fee_event(native_asset, transfer_fee, "Transfer");
-    assert_eq!(events[0], fee_event);
+    let event = events.first().unwrap();
+    assert_eq!(event.kind, "tx.fees");
+    assert_eq!(
+        event.attributes[0],
+        ("asset", get_native_asset().to_string()).index().into()
+    );
+    assert_eq!(
+        event.attributes[1],
+        ("feeAmount", transfer_fee.to_string()).index().into()
+    );
+    assert_eq!(
+        event.attributes[2],
+        ("actionType", "astria.protocol.transactions.v1alpha1.TransferAction").index().into()
+    );
 }

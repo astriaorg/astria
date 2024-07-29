@@ -7,6 +7,7 @@ use ibc_types::{
 };
 use penumbra_ibc::IbcRelay;
 use penumbra_proto::penumbra::core::component::ibc::v1::FungibleTokenPacketData;
+use prost::Name as _;
 
 use super::raw;
 use crate::{
@@ -443,10 +444,10 @@ impl SequenceAction {
         })
     }
 
-    /// Returns the action type.
+    /// Returns the full name for the action type.
     #[must_use]
-    pub fn get_action_type(&self) -> &str {
-        "Sequence"
+    pub fn full_name() -> String {
+        raw::SequenceAction::full_name()
     }
 }
 
@@ -523,10 +524,10 @@ impl TransferAction {
         })
     }
 
-    /// Returns action type as `&str` for fee event logging
+    /// Returns the full name for the action type.
     #[must_use]
-    pub fn get_action_type(&self) -> &str {
-        "Transfer"
+    pub fn full_name() -> String {
+        raw::TransferAction::full_name()
     }
 }
 

@@ -13,7 +13,7 @@ use futures::StreamExt as _;
 use tendermint::{
     abci::{
         Event,
-        EventAttribute,
+        EventAttributeIndexExt as _,
     },
     Time,
 };
@@ -43,11 +43,7 @@ fn fee_asset_key<TAsset: Into<asset::IbcPrefixed>>(asset: TAsset) -> String {
 }
 
 /// Creates `abci::Event` of kind `tx.fees` for sequencer fee reporting
-pub(crate) fn construct_tx_fee_event<TAsset>(
-    asset: &TAsset,
-    fee_amount: u128,
-    action_type: &str,
-) -> Event
+fn construct_tx_fee_event<TAsset>(asset: &TAsset, fee_amount: u128, action_type: String) -> Event
 where
     TAsset: Into<asset::IbcPrefixed> + std::fmt::Display + Send,
 {
@@ -56,7 +52,7 @@ where
         [
             ("asset", asset.to_string()).index(),
             ("feeAmount", fee_amount.to_string()).index(),
-            ("actionType", action_type.into()).index(),
+            ("actionType", action_type).index(),
         ],
     )
 }
@@ -269,7 +265,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         &mut self,
         asset: TAsset,
         fee_amount: u128,
-        action_type: &str,
+        action_type: String,
     ) -> Result<()>
     where
         TAsset: Into<asset::IbcPrefixed> + std::fmt::Display + Send + Clone,
@@ -654,7 +650,7 @@ mod test {
         let asset = asset_0();
         let amount = 100u128;
         state
-            .get_and_increase_block_fees(&asset, amount, "test")
+            .get_and_increase_block_fees(&asset, amount, "test".into())
             .await
             .unwrap();
 
@@ -680,11 +676,11 @@ mod test {
         let amount_second = 200u128;
 
         state
-            .get_and_increase_block_fees(&asset_first, amount_first, "test")
+            .get_and_increase_block_fees(&asset_first, amount_first, "test".into())
             .await
             .unwrap();
         state
-            .get_and_increase_block_fees(&asset_second, amount_second, "test")
+            .get_and_increase_block_fees(&asset_second, amount_second, "test".into())
             .await
             .unwrap();
         // holds expected
