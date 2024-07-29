@@ -48,10 +48,8 @@ pub struct Config {
     pub metrics_http_listener_addr: String,
     /// Writes a human readable format to stdout instead of JSON formatted OTEL trace data.
     pub pretty_print: bool,
-    /// The path to which relayer will write its state prior to submitting to Celestia.
-    pub pre_submit_path: PathBuf,
-    /// The path to which relayer will write its state after submitting to Celestia.
-    pub post_submit_path: PathBuf,
+    /// The path to which relayer will write its state while submitting to Celestia.
+    pub submission_state_path: PathBuf,
 }
 
 impl Config {

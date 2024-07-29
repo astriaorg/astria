@@ -11,8 +11,6 @@ data:
   ASTRIA_SEQUENCER_RELAYER_CELESTIA_APP_GRPC_ENDPOINT: "{{ .Values.config.relayer.celestiaAppGrpc }}"
   ASTRIA_SEQUENCER_RELAYER_CELESTIA_APP_KEY_FILE: "/celestia-key/{{ .Values.config.celestiaAppPrivateKey.secret.filename }}"
   ASTRIA_SEQUENCER_RELAYER_API_ADDR: "0.0.0.0:{{ .Values.ports.healthAPI }}"
-  ASTRIA_SEQUENCER_RELAYER_PRE_SUBMIT_PATH: "{{ include "sequencer-relayer.storage.preSubmitPath" . }}"
-  ASTRIA_SEQUENCER_RELAYER_POST_SUBMIT_PATH: "{{ include "sequencer-relayer.storage.postSubmitPath" . }}"
   ASTRIA_SEQUENCER_RELAYER_NO_METRICS: "{{ not .Values.config.relayer.metrics.enabled }}"
   ASTRIA_SEQUENCER_RELAYER_METRICS_HTTP_LISTENER_ADDR: "0.0.0.0:{{ .Values.ports.metrics }}"
   ASTRIA_SEQUENCER_RELAYER_FORCE_STDOUT: "{{ .Values.global.useTTY }}"
@@ -30,7 +28,10 @@ data:
   ASTRIA_SEQUENCER_RELAYER_SEQUENCER_CHAIN_ID: "{{ .Values.config.relayer.sequencerChainId }}"
   ASTRIA_SEQUENCER_RELAYER_CELESTIA_CHAIN_ID: "{{ .Values.config.relayer.celestiaChainId }}"
   {{- if not .Values.global.dev }}
+  ASTRIA_SEQUENCER_RELAYER_PRE_SUBMIT_PATH: "{{ include "sequencer-relayer.storage.preSubmitPath" . }}"
+  ASTRIA_SEQUENCER_RELAYER_POST_SUBMIT_PATH: "{{ include "sequencer-relayer.storage.postSubmitPath" . }}"
   {{- else }}
+  ASTRIA_SEQUENCER_RELAYER_SUBMISSION_STATE_PATH: "{{ include "sequencer-relayer.storage.submissionStatePath" . }}"
   {{- end }}
 ---
 apiVersion: v1

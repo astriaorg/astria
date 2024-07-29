@@ -4,10 +4,6 @@ use std::{
 };
 
 use astria_core::{
-    bridge::{
-        self,
-        Ics20WithdrawalFromRollupMemo,
-    },
     generated::sequencerblock::v1alpha1::sequencer_service_client::{
         self,
         SequencerServiceClient,
@@ -16,6 +12,7 @@ use astria_core::{
     protocol::{
         asset::v1alpha1::AllowedFeeAssetsResponse,
         bridge::v1alpha1::BridgeAccountLastTxHashResponse,
+        memos,
         transaction::v1alpha1::Action,
     },
 };
@@ -173,13 +170,12 @@ impl Startup {
                 .await
                 .wrap_err("failed to get next rollup block height")?;
 
-            // send the startup info to the submitter
+            // update the startup info in the global state for submitter and watcher to use
             let info = Info {
                 chain_id: self.sequencer_chain_id.clone(),
                 fee_asset: self.expected_fee_asset,
                 starting_rollup_height,
             };
-
             state.set_startup_info(info);
 
             Ok(())
@@ -198,13 +194,13 @@ impl Startup {
     /// Confirms configuration values against the sequencer node. Values checked:
     ///
     /// - `self.sequencer_chain_id` matches the value returned from the sequencer node's genesis
-    /// - `self.fee_asset_id` is a valid fee asset on the sequencer node
-    /// - `self.sequencer_bridge_address` has a sufficient balance of `self.fee_asset_id`
+    /// - `self.fee_asset` is a valid fee asset on the sequencer node
+    /// - `self.sequencer_bridge_address` has a sufficient balance of `self.fee_asset`
     ///
     /// # Errors
     ///
     /// - `self.chain_id` does not match the value returned from the sequencer node
-    /// - `self.fee_asset_id` is not a valid fee asset on the sequencer node
+    /// - `self.fee_asset` is not a valid fee asset on the sequencer node
     /// - `self.sequencer_bridge_address` does not have a sufficient balance of `self.fee_asset`.
     async fn confirm_sequencer_config(&self) -> eyre::Result<()> {
         // confirm the sequencer chain id
@@ -216,19 +212,24 @@ impl Startup {
             self.sequencer_chain_id == actual_chain_id.to_string(),
             "sequencer_chain_id provided in config does not match chain_id returned from sequencer"
         );
+        info!(chain_id=%actual_chain_id, "confirmed chain id returned from sequencer matches config");
 
         // confirm that the fee asset ID is valid
-        let allowed_fee_asset_ids_resp =
-            get_allowed_fee_asset_ids(self.sequencer_cometbft_client.clone(), self.state.clone())
+        let allowed_fee_assets_resp =
+            get_allowed_fee_assets(self.sequencer_cometbft_client.clone(), self.state.clone())
                 .await
                 .wrap_err("failed to get allowed fee asset ids from sequencer")?;
         let expected_fee_asset_ibc = self.expected_fee_asset.to_ibc_prefixed();
         ensure!(
-            allowed_fee_asset_ids_resp
+            allowed_fee_assets_resp
                 .fee_assets
                 .iter()
                 .any(|asset| asset.to_ibc_prefixed() == expected_fee_asset_ibc),
             "fee_asset provided in config is not a valid fee asset on the sequencer"
+        );
+        info!(
+            fee_asset = %self.expected_fee_asset,
+            "confirmed fee asset is valid on sequencer"
         );
 
         Ok(())
@@ -335,6 +336,11 @@ impl Startup {
                 .checked_add(1)
                 .ok_or_eyre("failed to increment rollup height by 1")?
         } else {
+            info!(
+                bridge_account_address = %self.sequencer_bridge_address,
+                "no last transaction by the bridge account found. will process withdrawals from \
+                 the first rollup block."
+            );
             1
         };
         Ok(starting_rollup_height)
@@ -354,7 +360,12 @@ async fn ensure_mempool_empty(
     let latest = get_latest_nonce(cometbft_client, state, address)
         .await
         .wrap_err("failed to get latest nonce")?;
-    ensure!(pending == latest, "mempool is not yet emoty");
+
+    ensure!(
+        pending == latest,
+        "mempool is not empty, nonces did not match. pending nonce: {pending}, latest nonce: \
+         {latest}"
+    );
     Ok(())
 }
 
@@ -406,11 +417,13 @@ async fn wait_for_empty_mempool(
                 futures::future::ready(())
             },
         );
-    let sequencer_client = SequencerServiceClient::connect(sequencer_grpc_endpoint.clone())
-        .await
-        .wrap_err_with(|| {
-            format!("failed to connect to sequencer at `{sequencer_grpc_endpoint}`")
-        })?;
+    let sequencer_client =
+        SequencerServiceClient::connect(format!("http://{}", sequencer_grpc_endpoint.clone()))
+            .await
+            .wrap_err_with(|| {
+                format!("failed to connect to sequencer at `{sequencer_grpc_endpoint}`")
+            })?;
+
     tryhard::retry_fn(|| {
         let sequencer_client = sequencer_client.clone();
         let cometbft_client = cometbft_client.clone();
@@ -450,14 +463,15 @@ fn rollup_height_from_signed_transaction(
 
     let last_batch_rollup_height = match withdrawal_action {
         Action::BridgeUnlock(action) => {
-            let memo: bridge::UnlockMemo = serde_json::from_str(&action.memo)
+            let memo: memos::v1alpha1::BridgeUnlock = serde_json::from_str(&action.memo)
                 .wrap_err("failed to parse memo from last transaction by the bridge account")?;
-            Some(memo.block_number)
+            Some(memo.rollup_block_number)
         }
         Action::Ics20Withdrawal(action) => {
-            let memo: Ics20WithdrawalFromRollupMemo = serde_json::from_str(&action.memo)
-                .wrap_err("failed to parse memo from last transaction by the bridge account")?;
-            Some(memo.block_number)
+            let memo: memos::v1alpha1::Ics20WithdrawalFromRollup =
+                serde_json::from_str(&action.memo)
+                    .wrap_err("failed to parse memo from last transaction by the bridge account")?;
+            Some(memo.rollup_block_number)
         }
         _ => None,
     }
@@ -530,7 +544,7 @@ async fn get_sequencer_chain_id(
 }
 
 #[instrument(skip_all)]
-async fn get_allowed_fee_asset_ids(
+async fn get_allowed_fee_assets(
     client: sequencer_client::HttpClient,
     state: Arc<State>,
 ) -> eyre::Result<AllowedFeeAssetsResponse> {

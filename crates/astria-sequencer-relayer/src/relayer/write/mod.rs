@@ -15,6 +15,8 @@ use std::{
 
 use astria_eyre::eyre::{
     self,
+    bail,
+    Report,
     WrapErr as _,
 };
 use celestia_types::Blob;
@@ -26,6 +28,8 @@ use futures::{
     FutureExt as _,
 };
 use sequencer_client::SequencerBlock;
+use tendermint::block::Height as SequencerHeight;
+use thiserror::Error;
 use tokio::{
     select,
     sync::{
@@ -52,9 +56,12 @@ use tracing::{
 
 use super::{
     celestia_client::CelestiaClient,
+    BlobTxHash,
     BuilderError,
     CelestiaClientBuilder,
-    SubmissionState,
+    PreparedSubmission,
+    StartedSubmission,
+    SubmissionStateAtStartup,
     TrySubmitError,
 };
 use crate::{
@@ -109,9 +116,8 @@ pub(super) struct BlobSubmitter {
     /// The state of the relayer.
     state: Arc<super::State>,
 
-    /// Tracks the submission state and writes it to disk before and after each Celestia
-    /// submission.
-    submission_state: SubmissionState,
+    /// Provides the initial submission state.
+    submission_state_at_startup: Option<SubmissionStateAtStartup>,
 
     /// The shutdown token to signal that blob submitter should finish its current submission and
     /// exit.
@@ -129,7 +135,7 @@ impl BlobSubmitter {
         client_builder: CelestiaClientBuilder,
         rollup_filter: IncludeRollup,
         state: Arc<super::State>,
-        submission_state: SubmissionState,
+        submission_state_at_startup: SubmissionStateAtStartup,
         submitter_shutdown_token: CancellationToken,
         metrics: &'static Metrics,
     ) -> (Self, BlobSubmitterHandle) {
@@ -141,7 +147,7 @@ impl BlobSubmitter {
             blocks: rx,
             next_submission: NextSubmission::new(rollup_filter, metrics),
             state,
-            submission_state,
+            submission_state_at_startup: Some(submission_state_at_startup),
             submitter_shutdown_token,
             pending_block: None,
             metrics,
@@ -163,6 +169,27 @@ impl BlobSubmitter {
             error.wrap_err(message)
         })?;
 
+        let Some(submission_state_at_startup) = self.submission_state_at_startup.take() else {
+            bail!("submission state must be provided at startup");
+        };
+        let mut started_submission = match submission_state_at_startup {
+            SubmissionStateAtStartup::Fresh(fresh) => fresh.into_started(),
+            SubmissionStateAtStartup::Started(started) => started,
+            SubmissionStateAtStartup::Prepared(prepared) => {
+                try_confirm_submission_from_last_session(
+                    client.clone(),
+                    prepared,
+                    self.state.clone(),
+                    self.metrics,
+                )
+                .await
+                .wrap_err(
+                    "failed to confirm the unfinished submission state of the previously loaded \
+                     session",
+                )?
+            }
+        };
+
         // A submission to Celestia that is currently in-flight.
         let mut ongoing_submission = Fuse::terminated();
 
@@ -182,12 +209,11 @@ impl BlobSubmitter {
                 {
                     // XXX: Breaks the select-loop and returns. With the current retry-logic in
                     // `submit_blobs` this happens after u32::MAX retries which is effectively never.
-                    // self.submission_state = match submission_result.wrap_err("failed submitting blocks to Celestia")
-                    self.submission_state = match submission_result {
+                    started_submission = match submission_result {
                         Ok(state) => state,
                         Err(err) => {
-                            // Use `wrap_err` on the return break value. Using it on the match-value causes
-                            // type inference to fail.
+                            // Use `wrap_err` on the return break value. Using it on the match-value
+                            // causes type inference to fail.
                             break Err(err).wrap_err("failed submitting blocks to Celestia");
                         }
                     };
@@ -201,7 +227,7 @@ impl BlobSubmitter {
                         client.clone(),
                         submission,
                         self.state.clone(),
-                        self.submission_state.clone(),
+                        started_submission.clone(),
                         self.metrics,
                     ).boxed().fuse();
                     if let Some(block) = self.pending_block.take() {
@@ -215,7 +241,12 @@ impl BlobSubmitter {
 
                 // add new blocks to the next submission if there is space.
                 Some(block) = self.blocks.recv(), if self.has_capacity() => {
-                    if let Err(error) = self.add_sequencer_block_to_next_submission(block) {
+                    if block.height() <= started_submission.last_submission_sequencer_height() {
+                        info!(
+                            sequencer_height = %block.height(),
+                            "skipping sequencer block as already included in previous submission"
+                        );
+                    } else if let Err(error) = self.add_sequencer_block_to_next_submission(block) {
                         break Err(error).wrap_err(
                             "critically failed adding Sequencer block to next submission"
                         );
@@ -269,15 +300,64 @@ impl BlobSubmitter {
     }
 }
 
-/// Submits new blobs Celestia.
+/// Tries to confirm the last attempted submission of the previous session.
+///
+/// This should only be called where submission state on startup is `Prepared`, meaning we don't yet
+/// know whether that final submission attempt succeeded or not.
+///
+/// Internally, this polls `GetTx` for up to one minute.  The returned `SubmissionState` is
+/// guaranteed to be in `Started` state, either holding the heights of the previously prepared
+/// submission if confirmed by Celestia, or holding the heights of the last known confirmed
+/// submission in the case of timing out.
 #[instrument(skip_all)]
+async fn try_confirm_submission_from_last_session(
+    mut client: CelestiaClient,
+    prepared_submission: PreparedSubmission,
+    state: Arc<super::State>,
+    metrics: &'static Metrics,
+) -> eyre::Result<StartedSubmission> {
+    let blob_tx_hash = prepared_submission.blob_tx_hash();
+    info!(%blob_tx_hash, "confirming submission of last `BlobTx` from previous session");
+
+    let timeout = prepared_submission.confirmation_timeout();
+    let new_state = if let Some(celestia_height) = client
+        .confirm_submission_with_timeout(blob_tx_hash, timeout)
+        .await
+    {
+        info!(%celestia_height, "confirmed previous session submitted blobs to Celestia");
+        prepared_submission
+            .into_started(celestia_height)
+            .await
+            .wrap_err("failed to convert previous session's state into `started`")?
+    } else {
+        info!(
+            "previous session's last submission was not completed; continuing from last confirmed \
+             submission"
+        );
+        prepared_submission
+            .revert()
+            .await
+            .wrap_err("failed to revert previous session's state into `started`")?
+    };
+
+    metrics.absolute_set_sequencer_submission_height(
+        new_state.last_submission_sequencer_height().value(),
+    );
+    metrics.absolute_set_celestia_submission_height(new_state.last_submission_celestia_height());
+    state.set_latest_confirmed_celestia_height(new_state.last_submission_celestia_height());
+
+    Ok(new_state)
+}
+
+/// Submits new blobs Celestia.
+#[instrument(skip_all, err)]
 async fn submit_blobs(
     client: CelestiaClient,
     data: conversion::Submission,
     state: Arc<super::State>,
-    submission_state: SubmissionState,
+    started_submission: StartedSubmission,
     metrics: &'static Metrics,
-) -> eyre::Result<SubmissionState> {
+) -> eyre::Result<StartedSubmission> {
     info!(
         blocks = %telemetry::display::json(&data.input_metadata()),
         total_data_uncompressed_size = data.uncompressed_size(),
@@ -297,26 +377,18 @@ async fn submit_blobs(
     let largest_sequencer_height = data.greatest_sequencer_height();
     let blobs = data.into_blobs();
 
-    let submission_started = match crate::utils::flatten(
-        tokio::task::spawn_blocking(move || submission_state.initialize(largest_sequencer_height))
-            .in_current_span()
-            .await,
-    ) {
-        Err(error) => {
-            error!(%error, "failed to initialize submission; abandoning");
-            return Err(error);
-        }
-        Ok(state) => state,
-    };
+    let new_state = submit_with_retry(
+        client,
+        blobs,
+        state.clone(),
+        started_submission,
+        largest_sequencer_height,
+        metrics,
+    )
+    .await
+    .wrap_err("failed submitting blobs to Celestia")?;
 
-    let celestia_height = match submit_with_retry(client, blobs, state.clone(), metrics).await {
-        Err(error) => {
-            let message = "failed submitting blobs to Celestia";
-            error!(%error, message);
-            return Err(error.wrap_err(message));
-        }
-        Ok(height) => height,
-    };
+    let celestia_height = new_state.last_submission_celestia_height();
     metrics.absolute_set_sequencer_submission_height(largest_sequencer_height.value());
     metrics.absolute_set_celestia_submission_height(celestia_height);
     metrics.record_celestia_submission_latency(start.elapsed());
@@ -326,18 +398,7 @@ async fn submit_blobs(
     state.set_celestia_connected(true);
     state.set_latest_confirmed_celestia_height(celestia_height);
 
-    let final_state = match crate::utils::flatten(
-        tokio::task::spawn_blocking(move || submission_started.finalize(celestia_height))
-            .in_current_span()
-            .await,
-    ) {
-        Err(error) => {
-            error!(%error, "failed to finalize submission; abandoning");
-            return Err(error);
-        }
-        Ok(state) => state,
-    };
-    Ok(final_state)
+    Ok(new_state)
 }
 
 #[instrument(skip_all)]
@@ -383,12 +444,25 @@ async fn init_with_retry(client_builder: CelestiaClientBuilder) -> eyre::Result<
     Ok(celestia_client)
 }
 
+#[derive(Error, Clone, Debug)]
+enum SubmissionError {
+    #[error(transparent)]
+    TrySubmit(#[from] TrySubmitError),
+    #[error("unrecoverable submission error")]
+    Unrecoverable(#[source] Arc<Report>),
+    #[error("broadcast tx timed out")]
+    BroadcastTxTimedOut(PreparedSubmission),
+}
+
+#[instrument(skip_all)]
 async fn submit_with_retry(
     client: CelestiaClient,
     blobs: Vec<Blob>,
     state: Arc<super::State>,
+    started_submission: StartedSubmission,
+    largest_sequencer_height: SequencerHeight,
     metrics: &'static Metrics,
-) -> eyre::Result<u64> {
+) -> eyre::Result<StartedSubmission> {
     // Moving the span into `on_retry`, because tryhard spawns these in a tokio
     // task, losing the span.
     let span = Span::current();
@@ -397,12 +471,22 @@ async fn submit_with_retry(
     // `TrySubmitError` to the next attempt of the `retry_fn`.
     let (last_error_sender, last_error_receiver) = watch::channel(None);
 
+    let initial_retry_delay = Duration::from_millis(100);
     let retry_config = tryhard::RetryFutureConfig::new(u32::MAX)
-        .exponential_backoff(Duration::from_millis(100))
-        // 12 seconds is the Celestia block time
+        // 12 seconds is the Celestia block time.
         .max_delay(Duration::from_secs(12))
+        .custom_backoff(|attempt: u32, error: &SubmissionError| {
+            if matches!(error, SubmissionError::Unrecoverable(_)) {
+                return tryhard::RetryPolicy::Break;
+            }
+            // This is equivalent to the `exponential_backoff` policy.  Note that `max_delay`
+            // above is still respected regardless of what we return here.
+            let delay =
+                initial_retry_delay.saturating_mul(2_u32.saturating_pow(attempt.saturating_sub(1)));
+            tryhard::RetryPolicy::Delay(delay)
+        })
         .on_retry(
-            |attempt: u32, next_delay: Option<Duration>, error: &TrySubmitError| {
+            |attempt: u32, next_delay: Option<Duration>, error: &SubmissionError| {
                 metrics.increment_celestia_submission_failure_count();
 
                 let state = Arc::clone(&state);
@@ -426,14 +510,95 @@ async fn submit_with_retry(
 
     let blobs = Arc::new(blobs);
 
-    let height = tryhard::retry_fn(move || {
-        client
-            .clone()
-            .try_submit(blobs.clone(), last_error_receiver.clone())
+    let final_state = tryhard::retry_fn(move || {
+        try_submit(
+            client.clone(),
+            blobs.clone(),
+            started_submission.clone(),
+            largest_sequencer_height,
+            last_error_receiver.clone(),
+        )
     })
     .with_config(retry_config)
     .in_current_span()
     .await
-    .wrap_err("retry attempts exhausted; bailing")?;
-    Ok(height)
+    .wrap_err("finished trying to submit")?;
+    Ok(final_state)
+}
+
+#[instrument(skip_all)]
+async fn try_submit(
+    mut client: CelestiaClient,
+    blobs: Arc<Vec<Blob>>,
+    started_submission: StartedSubmission,
+    largest_sequencer_height: SequencerHeight,
+    last_error_receiver: watch::Receiver<Option<SubmissionError>>,
+) -> Result<StartedSubmission, SubmissionError> {
+    // Get the error from the last attempt to `try_submit`.
+    let maybe_last_error = last_error_receiver.borrow().clone();
+    let maybe_try_submit_error = match maybe_last_error {
+        // If error is broadcast timeout, try to confirm submission from last attempt.
+        Some(SubmissionError::BroadcastTxTimedOut(prepared_submission)) => {
+            if let Some(new_state) =
+                try_confirm_submission_from_failed_attempt(client.clone(), prepared_submission)
+                    .await?
+            {
+                return Ok(new_state);
+            }
+            None
+        }
+        Some(SubmissionError::TrySubmit(error)) => Some(error),
+        Some(SubmissionError::Unrecoverable(error)) => {
+            unreachable!("this error should not make it past `custom_backoff`: {error:#}");
+        }
+        None => None,
+    };
+
+    let blob_tx = client.try_prepare(blobs, maybe_try_submit_error).await?;
+    let blob_tx_hash = BlobTxHash::compute(&blob_tx);
+
+    let prepared_submission = started_submission
+        .into_prepared(largest_sequencer_height, blob_tx_hash)
+        .await
+        .map_err(|error| SubmissionError::Unrecoverable(Arc::new(error)))?;
+
+    match client.try_submit(blob_tx_hash, blob_tx).await {
+        Ok(celestia_height) => prepared_submission
+            .into_started(celestia_height)
+            .await
+            .map_err(|error| SubmissionError::Unrecoverable(Arc::new(error))),
+        Err(TrySubmitError::FailedToBroadcastTx(error)) if error.is_timeout() => {
+            Err(SubmissionError::BroadcastTxTimedOut(prepared_submission))
+        }
+        Err(error) => Err(SubmissionError::TrySubmit(error)),
+    }
+}
+
+/// Tries to confirm the submission from a failed previous attempt.  Returns `Some` if the
+/// submission is confirmed, or `None` if not.
+///
+/// This should only be called where submission state is `Prepared`, meaning we don't yet
+/// know whether that previous submission attempt succeeded or not.
+#[instrument(skip_all)]
+async fn try_confirm_submission_from_failed_attempt(
+    mut client: CelestiaClient,
+    prepared_submission: PreparedSubmission,
+) -> Result<Option<StartedSubmission>, SubmissionError> {
+    let blob_tx_hash = prepared_submission.blob_tx_hash();
+    info!(%blob_tx_hash, "confirming submission of last `BlobTx` from previous attempt");
+
+    if let Some(celestia_height) = client
+        .confirm_submission_with_timeout(blob_tx_hash, prepared_submission.confirmation_timeout())
+        .await
+    {
+        info!(%celestia_height, "confirmed previous attempt submitted blobs to Celestia");
+        let new_state = prepared_submission
+            .into_started(celestia_height)
+            .await
+            .map_err(|error| SubmissionError::Unrecoverable(Arc::new(error)))?;
+        return Ok(Some(new_state));
+    }
+
+    info!("previous attempt's last submission was not completed; starting resubmission");
+    Ok(None)
 }
