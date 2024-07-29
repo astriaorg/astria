@@ -13,14 +13,6 @@ Namepsace to deploy elements into.
 /astria-sequencer-relayer
 {{- end }}
 
-{{- define "sequencer-relayer.storage.preSubmitPath" -}}
-{{ include "sequencer-relayer.storage.mountPath" . }}/presubmit.json
-{{- end }}
-
-{{- define "sequencer-relayer.storage.postSubmitPath" -}}
-{{ include "sequencer-relayer.storage.mountPath" . }}/postsubmit.json
-{{- end }}
-
 {{- define "sequencer-relayer.storage.submissionStatePath" -}}
 {{ include "sequencer-relayer.storage.mountPath" . }}/submission-state.json
 {{- end }}
