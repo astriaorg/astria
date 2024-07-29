@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use astria_core::primitive::v1::asset;
 use astria_sequencer_client::Address;
 use clap::{
@@ -45,7 +47,7 @@ pub(crate) enum Command {
 #[derive(Debug, Subcommand)]
 pub(crate) enum AccountCommand {
     /// Create a new Sequencer account
-    Create,
+    Create(CreateAccount),
     Balance(BasicAccountArgs),
     Nonce(BasicAccountArgs),
 }
@@ -116,6 +118,18 @@ pub(crate) struct Bech32mAddressArgs {
 }
 
 #[derive(Args, Debug)]
+pub(crate) struct CreateAccount {
+    /// The destination path to write the account's signing key (private key) to.
+    #[arg(long, short)]
+    pub(crate) output: PathBuf,
+
+    /// The prefix to use for generating the account's address. Note that
+    /// the prefix has no influence on the generated signing key.
+    #[arg(long, default_value = "astria")]
+    pub(crate) prefix: String,
+}
+
+#[derive(Args, Debug)]
 pub(crate) struct TransferArgs {
     // The address of the Sequencer account to send amount to
     pub(crate) to_address: Address,
@@ -126,12 +140,8 @@ pub(crate) struct TransferArgs {
     #[arg(long, default_value = "astria")]
     pub(crate) prefix: String,
     /// The private key of account being sent from
-    #[arg(long, env = "SEQUENCER_PRIVATE_KEY")]
-    // TODO: https://github.com/astriaorg/astria/issues/594
-    // Don't use a plain text private, prefer wrapper like from
-    // the secrecy crate with specialized `Debug` and `Drop` implementations
-    // that overwrite the key on drop and don't reveal it when printing.
-    pub(crate) private_key: String,
+    #[arg(long)]
+    pub(crate) signing_key: PathBuf,
     /// The url of the Sequencer node
     #[arg(
         long,
@@ -159,12 +169,8 @@ pub(crate) struct FeeAssetChangeArgs {
     /// The bech32m prefix that will be used for constructing addresses using the private key
     #[arg(long, default_value = "astria")]
     pub(crate) prefix: String,
-    // TODO: https://github.com/astriaorg/astria/issues/594
-    // Don't use a plain text private, prefer wrapper like from
-    // the secrecy crate with specialized `Debug` and `Drop` implementations
-    // that overwrite the key on drop and don't reveal it when printing.
-    #[arg(long, env = "SEQUENCER_PRIVATE_KEY")]
-    pub(crate) private_key: String,
+    #[arg(long)]
+    pub(crate) signing_key: PathBuf,
     /// The url of the Sequencer node
     #[arg(
         long,
@@ -189,12 +195,8 @@ pub(crate) struct IbcRelayerChangeArgs {
     /// The prefix to construct a bech32m address given the private key.
     #[arg(long, default_value = "astria")]
     pub(crate) prefix: String,
-    // TODO: https://github.com/astriaorg/astria/issues/594
-    // Don't use a plain text private, prefer wrapper like from
-    // the secrecy crate with specialized `Debug` and `Drop` implementations
-    // that overwrite the key on drop and don't reveal it when printing.
-    #[arg(long, env = "SEQUENCER_PRIVATE_KEY")]
-    pub(crate) private_key: String,
+    #[arg(long)]
+    pub(crate) signing_key: PathBuf,
     /// The url of the Sequencer node
     #[arg(
         long,
@@ -219,12 +221,8 @@ pub(crate) struct InitBridgeAccountArgs {
     /// The bech32m prefix that will be used for constructing addresses using the private key
     #[arg(long, default_value = "astria")]
     pub(crate) prefix: String,
-    // TODO: https://github.com/astriaorg/astria/issues/594
-    // Don't use a plain text private, prefer wrapper like from
-    // the secrecy crate with specialized `Debug` and `Drop` implementations
-    // that overwrite the key on drop and don't reveal it when printing.
-    #[arg(long, env = "SEQUENCER_PRIVATE_KEY")]
-    pub(crate) private_key: String,
+    #[arg(long)]
+    pub(crate) signing_key: PathBuf,
     /// The url of the Sequencer node
     #[arg(
         long,
@@ -263,12 +261,8 @@ pub(crate) struct BridgeLockArgs {
     /// The prefix to construct a bech32m address given the private key.
     #[arg(long, default_value = "astria")]
     pub(crate) prefix: String,
-    // TODO: https://github.com/astriaorg/astria/issues/594
-    // Don't use a plain text private, prefer wrapper like from
-    // the secrecy crate with specialized `Debug` and `Drop` implementations
-    // that overwrite the key on drop and don't reveal it when printing.
-    #[arg(long, env = "SEQUENCER_PRIVATE_KEY")]
-    pub(crate) private_key: String,
+    #[arg(long)]
+    pub(crate) signing_key: PathBuf,
     /// The url of the Sequencer node
     #[arg(
         long,
@@ -320,12 +314,8 @@ pub(crate) struct SudoAddressChangeArgs {
     /// The bech32m prefix that will be used for constructing addresses using the private key
     #[arg(long, default_value = "astria")]
     pub(crate) prefix: String,
-    // TODO: https://github.com/astriaorg/astria/issues/594
-    // Don't use a plain text private, prefer wrapper like from
-    // the secrecy crate with specialized `Debug` and `Drop` implementations
-    // that overwrite the key on drop and don't reveal it when printing.
-    #[arg(long, env = "SEQUENCER_PRIVATE_KEY")]
-    pub(crate) private_key: String,
+    #[arg(long)]
+    pub(crate) signing_key: PathBuf,
     /// The url of the Sequencer node
     #[arg(
         long,
@@ -365,12 +355,8 @@ pub(crate) struct ValidatorUpdateArgs {
     #[arg(long, default_value = "astria")]
     pub(crate) prefix: String,
     /// The private key of the sudo account authorizing change
-    #[arg(long, env = "SEQUENCER_PRIVATE_KEY")]
-    // TODO: https://github.com/astriaorg/astria/issues/594
-    // Don't use a plain text private, prefer wrapper like from
-    // the secrecy crate with specialized `Debug` and `Drop` implementations
-    // that overwrite the key on drop and don't reveal it when printing.
-    pub(crate) private_key: String,
+    #[arg(long)]
+    pub(crate) signing_key: PathBuf,
     /// The address of the Validator being updated
     #[arg(long)]
     pub(crate) validator_public_key: String,

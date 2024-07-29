@@ -13,7 +13,6 @@ use astria_core::{
 };
 use astria_sequencer_client::{
     tendermint_rpc::endpoint,
-    Address,
     HttpClient,
     SequencerClientExt as _,
 };
@@ -29,6 +28,8 @@ use tracing::{
     instrument,
     warn,
 };
+
+use crate::utils::read_signing_key;
 
 #[derive(Args, Debug)]
 pub(crate) struct WithdrawalEvents {
@@ -103,13 +104,6 @@ fn read_actions<P: AsRef<Path>>(path: P) -> eyre::Result<super::collect::Actions
         .wrap_err("failed deserializing file contents height-to-sequencer-actions serde object")
 }
 
-fn read_signing_key<P: AsRef<Path>>(path: P) -> eyre::Result<SigningKey> {
-    let hex =
-        std::fs::read_to_string(&path).wrap_err("failed to read file contents into buffer")?;
-    let bytes = hex::decode(hex.trim()).wrap_err("failed to decode file contents as hex")?;
-    SigningKey::try_from(&*bytes).wrap_err("failed to construct signing key hex-decoded bytes")
-}
-
 #[instrument(skip_all, fields(actions = actions.len()), err)]
 async fn submit_transaction(
     client: HttpClient,
@@ -118,11 +112,9 @@ async fn submit_transaction(
     signing_key: &SigningKey,
     actions: Vec<Action>,
 ) -> eyre::Result<endpoint::broadcast::tx_commit::Response> {
-    let from_address = Address::builder()
-        .array(signing_key.verification_key().address_bytes())
-        .prefix(prefix)
-        .try_build()
-        .wrap_err("failed constructing a valid from address from the provided prefix")?;
+    let from_address =
+        crate::utils::make_address(prefix, &signing_key.verification_key().address_bytes())
+            .wrap_err("failed constructing a valid from address from the provided prefix")?;
 
     let nonce_res = client
         .get_latest_nonce(from_address)
