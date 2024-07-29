@@ -1,3 +1,4 @@
+use astria_core::protocol::transaction::v1alpha1::Action;
 use helpers::{
     assert_actions_eq,
     default_sequencer_address,
@@ -38,17 +39,10 @@ async fn native_sequencer_withdraw_success() {
         )
         .await;
 
-    // check the submitted transaction
-    let requests = broadcast_guard.received_requests().await;
-    assert_eq!(requests.len(), 1);
-
-    let tx = signed_tx_from_request(&requests[0]);
-    let actions = tx.actions();
-    assert_eq!(actions.len(), 1);
-
-    let expected_action = make_bridge_unlock_action(&receipt);
-    let actual_action = actions[0].clone();
-    assert_actions_eq(&expected_action, &actual_action);
+    assert_contract_receipt_action_matches_broadcast_action::<BridgeUnlock>(
+        broadcast_guard.received_requests().await,
+        receipt,
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -82,17 +76,10 @@ async fn native_ics20_withdraw_success() {
         )
         .await;
 
-    // check the submitted transaction
-    let requests = broadcast_guard.received_requests().await;
-    assert_eq!(requests.len(), 1);
-
-    let tx = signed_tx_from_request(&requests[0]);
-    let actions = tx.actions();
-    assert_eq!(actions.len(), 1);
-
-    let expected_action = make_ics20_withdrawal_action(&receipt);
-    let actual_action = actions[0].clone();
-    assert_actions_eq(&expected_action, &actual_action);
+    assert_contract_receipt_action_matches_broadcast_action::<Ics20>(
+        broadcast_guard.received_requests().await,
+        receipt,
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -132,17 +119,10 @@ async fn erc20_sequencer_withdraw_success() {
         )
         .await;
 
-    // check the submitted transaction
-    let requests = broadcast_guard.received_requests().await;
-    assert_eq!(requests.len(), 1);
-
-    let tx = signed_tx_from_request(&requests[0]);
-    let actions = tx.actions();
-    assert_eq!(actions.len(), 1);
-
-    let expected_action = make_bridge_unlock_action(&receipt);
-    let actual_action = actions[0].clone();
-    assert_actions_eq(&expected_action, &actual_action);
+    assert_contract_receipt_action_matches_broadcast_action::<BridgeUnlock>(
+        broadcast_guard.received_requests().await,
+        receipt,
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -182,15 +162,45 @@ async fn erc20_ics20_withdraw_success() {
         )
         .await;
 
-    // check the submitted transaction
-    let requests = broadcast_guard.received_requests().await;
-    assert_eq!(requests.len(), 1);
+    assert_contract_receipt_action_matches_broadcast_action::<Ics20>(
+        broadcast_guard.received_requests().await,
+        receipt,
+    );
+}
 
-    let tx = signed_tx_from_request(&requests[0]);
-    let actions = tx.actions();
-    assert_eq!(actions.len(), 1);
+trait ActionFromReceipt {
+    fn action_from_receipt(receipt: &ethers::types::TransactionReceipt) -> Action;
+}
 
-    let expected_action = make_ics20_withdrawal_action(&receipt);
-    let actual_action = actions[0].clone();
-    assert_actions_eq(&expected_action, &actual_action);
+struct BridgeUnlock;
+impl ActionFromReceipt for BridgeUnlock {
+    #[track_caller]
+    fn action_from_receipt(receipt: &ethers::types::TransactionReceipt) -> Action {
+        make_bridge_unlock_action(receipt)
+    }
+}
+
+struct Ics20;
+impl ActionFromReceipt for Ics20 {
+    #[track_caller]
+    fn action_from_receipt(receipt: &ethers::types::TransactionReceipt) -> Action {
+        make_ics20_withdrawal_action(receipt)
+    }
+}
+
+#[track_caller]
+fn assert_contract_receipt_action_matches_broadcast_action<T: ActionFromReceipt>(
+    received_broadcasts: Vec<wiremock::Request>,
+    receipt: ethers::types::TransactionReceipt,
+) {
+    let tx = signed_tx_from_request(received_broadcasts.first().expect(
+        "at least one request should have been received if the broadcast guard is satisfied",
+    ));
+    let actual = tx
+        .actions()
+        .first()
+        .expect("the signed transaction should contain at least one action");
+
+    let expected = T::action_from_receipt(&receipt);
+    assert_actions_eq(&expected, actual);
 }
