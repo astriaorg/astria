@@ -410,7 +410,7 @@ async fn wait_for_empty_mempool(
             },
         );
     let sequencer_client =
-        SequencerServiceClient::connect(format!("http://{}", sequencer_grpc_endpoint.clone()))
+        SequencerServiceClient::connect(sequencer_grpc_endpoint.clone())
             .await
             .wrap_err_with(|| {
                 format!("failed to connect to sequencer at `{sequencer_grpc_endpoint}`")
