@@ -63,32 +63,29 @@ use tracing::{
 };
 
 use crate::{
+    accounts,
     accounts::{
         component::AccountsComponent,
-        state_ext::{
-            StateReadExt,
-            StateWriteExt as _,
-        },
+        StateWriteExt as _,
     },
     address::StateWriteExt as _,
     api_state_ext::StateWriteExt as _,
-    asset::state_ext::StateWriteExt as _,
+    assets::{
+        StateReadExt as _,
+        StateWriteExt as _,
+    },
     authority::{
         component::{
             AuthorityComponent,
             AuthorityComponentAppState,
         },
-        state_ext::{
-            StateReadExt as _,
-            StateWriteExt as _,
-        },
+        StateReadExt as _,
+        StateWriteExt as _,
     },
     bridge::{
         component::BridgeComponent,
-        state_ext::{
-            StateReadExt as _,
-            StateWriteExt,
-        },
+        StateReadExt as _,
+        StateWriteExt as _,
     },
     component::Component as _,
     ibc::component::IbcComponent,
@@ -223,17 +220,18 @@ impl App {
             .context("failed setting global base prefix")?;
         state_tx.put_base_prefix(&genesis_state.address_prefixes().base);
 
-        crate::asset::initialize_native_asset(genesis_state.native_asset_base_denomination());
-        let native_asset = crate::asset::get_native_asset();
-        if let Some(trace_native_asset) = native_asset.as_trace_prefixed() {
-            state_tx
-                .put_ibc_asset(trace_native_asset)
-                .context("failed to put native asset")?;
-        } else {
-            bail!("native asset must not be in ibc/<ID> form")
-        }
+        crate::assets::initialize_native_asset(genesis_state.native_asset_base_denomination());
+        let Some(native_asset) = crate::assets::get_native_asset()
+            .as_trace_prefixed()
+            .cloned()
+        else {
+            bail!("native asset must be trace-prefixed, not of form `ibc/<ID>`")
+        };
+        state_tx
+            .put_ibc_asset(&native_asset)
+            .context("failed to put native asset")?;
 
-        state_tx.put_native_asset_denom(genesis_state.native_asset_base_denomination());
+        state_tx.put_native_asset(&native_asset);
         state_tx.put_chain_id_and_revision_number(chain_id.try_into().context("invalid chain ID")?);
         state_tx.put_block_height(0);
 
@@ -1147,7 +1145,7 @@ impl App {
 // NOTE: this function locks the mempool until every tx has been checked.
 // this could potentially stall consensus from moving to the next round if
 // the mempool is large.
-async fn update_mempool_after_finalization<S: StateReadExt>(
+async fn update_mempool_after_finalization<S: accounts::StateReadExt>(
     mempool: &mut Mempool,
     state: S,
 ) -> anyhow::Result<()> {

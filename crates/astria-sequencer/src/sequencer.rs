@@ -33,13 +33,13 @@ use tracing::{
 use crate::{
     address::StateReadExt as _,
     app::App,
+    assets::StateReadExt as _,
     config::Config,
     grpc::sequencer::SequencerServer,
     ibc::host_interface::AstriaHost,
     mempool::Mempool,
     metrics::Metrics,
     service,
-    state_ext::StateReadExt as _,
 };
 
 pub struct Sequencer;
@@ -91,10 +91,10 @@ impl Sequencer {
         if storage.latest_version() != u64::MAX {
             // native asset should be stored, fetch it
             let native_asset = snapshot
-                .get_native_asset_denom()
+                .get_native_asset()
                 .await
                 .context("failed to get native asset from storage")?;
-            crate::asset::initialize_native_asset(&native_asset);
+            crate::assets::initialize_native_asset(&native_asset.to_string());
             let base_prefix = snapshot
                 .get_base_prefix()
                 .await

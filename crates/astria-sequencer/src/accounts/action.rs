@@ -11,23 +11,21 @@ use astria_core::{
 use tracing::instrument;
 
 use crate::{
-    accounts::state_ext::{
-        StateReadExt,
-        StateWriteExt,
-    },
-    bridge::state_ext::StateReadExt as _,
-    state_ext::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    },
+    accounts,
+    accounts::StateReadExt as _,
+    assets,
+    bridge::StateReadExt as _,
     transaction::action_handler::ActionHandler,
 };
 
-pub(crate) async fn transfer_check_stateful<S: StateReadExt + 'static>(
+pub(crate) async fn transfer_check_stateful<S>(
     action: &TransferAction,
     state: &S,
     from: Address,
-) -> Result<()> {
+) -> Result<()>
+where
+    S: accounts::StateReadExt + assets::StateReadExt + 'static,
+{
     ensure!(
         state
             .is_allowed_fee_asset(&action.fee_asset)
@@ -87,7 +85,7 @@ impl ActionHandler for TransferAction {
         Ok(())
     }
 
-    async fn check_stateful<S: StateReadExt + 'static>(
+    async fn check_stateful<S: accounts::StateReadExt + 'static>(
         &self,
         state: &S,
         from: Address,
@@ -107,7 +105,10 @@ impl ActionHandler for TransferAction {
     }
 
     #[instrument(skip_all)]
-    async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> Result<()> {
+    async fn execute<S>(&self, state: &mut S, from: Address) -> Result<()>
+    where
+        S: accounts::StateWriteExt + assets::StateWriteExt,
+    {
         let fee = state
             .get_transfer_base_fee()
             .await

@@ -26,13 +26,13 @@ pub(crate) use checks::{
 use tracing::instrument;
 
 use crate::{
-    accounts::state_ext::{
+    accounts::{
         StateReadExt,
         StateWriteExt,
     },
     ibc::{
         host_interface::AstriaHost,
-        state_ext::StateReadExt as _,
+        StateReadExt as _,
     },
     state_ext::StateReadExt as _,
 };
@@ -60,7 +60,7 @@ pub(crate) async fn execute<S: StateWriteExt>(
     tx: &SignedTransaction,
     state: &mut S,
 ) -> anyhow::Result<()> {
-    use crate::bridge::state_ext::{
+    use crate::bridge::{
         StateReadExt as _,
         StateWriteExt as _,
     };

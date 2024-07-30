@@ -12,7 +12,7 @@ use tracing::instrument;
 
 use super::state_ext::StateWriteExt;
 use crate::{
-    asset::get_native_asset,
+    assets::get_native_asset,
     component::Component,
 };
 

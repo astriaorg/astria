@@ -60,8 +60,8 @@ use crate::{
         BOB_ADDRESS,
         CAROL_ADDRESS,
     },
-    asset::get_native_asset,
-    bridge::state_ext::StateWriteExt as _,
+    assets::get_native_asset,
+    bridge::StateWriteExt as _,
     proposal::commitment::generate_rollup_datas_commitment,
 };
 
