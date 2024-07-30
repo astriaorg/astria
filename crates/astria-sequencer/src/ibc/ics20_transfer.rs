@@ -59,19 +59,17 @@ use penumbra_ibc::component::app_handler::{
 use penumbra_proto::penumbra::core::component::ibc::v1::FungibleTokenPacketData;
 
 use crate::{
-    accounts::state_ext::StateWriteExt as _,
-    asset::state_ext::{
+    accounts::StateWriteExt as _,
+    assets::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    bridge::state_ext::{
+    bridge::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    ibc::state_ext::{
-        StateReadExt,
-        StateWriteExt,
-    },
+    ibc,
+    ibc::StateReadExt as _,
 };
 
 /// The maximum length of the encoded Ics20 `FungibleTokenPacketData` in bytes.
@@ -329,7 +327,7 @@ impl AppHandlerExecute for Ics20Transfer {
 #[async_trait::async_trait]
 impl AppHandler for Ics20Transfer {}
 
-async fn convert_denomination_if_ibc_prefixed<S: StateReadExt>(
+async fn convert_denomination_if_ibc_prefixed<S: ibc::StateReadExt>(
     state: &mut S,
     packet_denom: Denom,
 ) -> Result<denom::TracePrefixed> {
@@ -370,7 +368,7 @@ fn prepend_denom_if_not_refund<'a>(
 
 // FIXME: temporarily allowed, but this must be fixed
 #[allow(clippy::too_many_lines)]
-async fn execute_ics20_transfer<S: StateWriteExt>(
+async fn execute_ics20_transfer<S: ibc::StateWriteExt>(
     state: &mut S,
     data: &[u8],
     source_port: &PortId,
@@ -524,7 +522,7 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
 ///
 /// this functions sends the tokens back to the rollup via a `Deposit` event,
 /// and locks the tokens back in the specified bridge account.
-async fn execute_rollup_withdrawal_refund<S: StateWriteExt>(
+async fn execute_rollup_withdrawal_refund<S: ibc::StateWriteExt>(
     state: &mut S,
     bridge_address: Address,
     denom: &denom::TracePrefixed,
@@ -547,7 +545,7 @@ async fn execute_rollup_withdrawal_refund<S: StateWriteExt>(
 ///
 /// if the recipient is not a bridge account, or the incoming packet is a refund,
 /// this function is a no-op.
-async fn execute_ics20_transfer_bridge_lock<S: StateWriteExt>(
+async fn execute_ics20_transfer_bridge_lock<S: ibc::StateWriteExt>(
     state: &mut S,
     recipient: Address,
     denom: &denom::TracePrefixed,
@@ -603,7 +601,7 @@ async fn execute_ics20_transfer_bridge_lock<S: StateWriteExt>(
     .await
 }
 
-async fn execute_deposit<S: StateWriteExt>(
+async fn execute_deposit<S: ibc::StateWriteExt>(
     state: &mut S,
     bridge_address: Address,
     denom: &denom::TracePrefixed,
@@ -653,9 +651,8 @@ mod test {
 
     use super::*;
     use crate::{
-        accounts::state_ext::StateReadExt as _,
-        bridge::state_ext::StateWriteExt,
-        ibc::state_ext::StateWriteExt as _,
+        accounts::StateReadExt as _,
+        ibc::StateWriteExt as _,
     };
 
     #[tokio::test]

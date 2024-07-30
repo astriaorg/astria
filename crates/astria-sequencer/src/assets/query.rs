@@ -15,7 +15,7 @@ use tendermint::abci::{
 };
 
 use crate::{
-    asset::state_ext::StateReadExt as _,
+    assets::StateReadExt as _,
     state_ext::StateReadExt as _,
 };
 

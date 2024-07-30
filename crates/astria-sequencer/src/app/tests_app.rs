@@ -1,7 +1,10 @@
 use std::collections::HashMap;
 
 use astria_core::{
-    primitive::v1::RollupId,
+    primitive::v1::{
+        asset::TracePrefixed,
+        RollupId,
+    },
     protocol::transaction::v1alpha1::{
         action::{
             BridgeLockAction,
@@ -36,17 +39,17 @@ use tendermint::{
 
 use super::*;
 use crate::{
-    accounts::state_ext::StateReadExt as _,
+    accounts::StateReadExt as _,
     app::test_utils::*,
-    asset::get_native_asset,
-    authority::state_ext::{
+    assets::get_native_asset,
+    authority::{
         StateReadExt as _,
         StateWriteExt as _,
         ValidatorSet,
     },
-    bridge::state_ext::{
+    bridge::{
         StateReadExt as _,
-        StateWriteExt,
+        StateWriteExt as _,
     },
     proposal::commitment::generate_rollup_datas_commitment,
     state_ext::StateReadExt as _,
@@ -94,7 +97,10 @@ async fn app_genesis_and_init_chain() {
         );
     }
 
-    assert_eq!(app.state.get_native_asset_denom().await.unwrap(), "nria");
+    assert_eq!(
+        app.state.get_native_asset().await.unwrap(),
+        "nria".parse::<TracePrefixed>().unwrap()
+    );
 }
 
 #[tokio::test]

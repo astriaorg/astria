@@ -25,12 +25,12 @@ use penumbra_ibc::component::packet::{
 use tracing::instrument;
 
 use crate::{
-    accounts::state_ext::{
+    accounts::{
         StateReadExt,
         StateWriteExt,
     },
-    bridge::state_ext::StateReadExt as _,
-    ibc::state_ext::{
+    bridge::StateReadExt as _,
+    ibc::{
         StateReadExt as _,
         StateWriteExt as _,
     },
@@ -236,7 +236,7 @@ mod tests {
     use ibc_types::core::client::Height;
 
     use super::*;
-    use crate::bridge::state_ext::StateWriteExt as _;
+    use crate::bridge::StateWriteExt as _;
 
     #[tokio::test]
     async fn ics20_withdrawal_check_stateful_bridge_account_not_bridge() {

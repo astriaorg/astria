@@ -1,5 +1,5 @@
 pub(crate) mod query;
-pub(crate) mod state_ext;
+mod state_ext;
 
 use std::sync::OnceLock;
 
@@ -8,6 +8,10 @@ use astria_core::primitive::v1::asset::Denom;
 pub(crate) use intests::*;
 #[cfg(not(test))]
 pub(crate) use regular::*;
+pub(crate) use state_ext::{
+    StateReadExt,
+    StateWriteExt,
+};
 
 pub(crate) static NATIVE_ASSET: OnceLock<Denom> = OnceLock::new();
 

@@ -16,12 +16,10 @@ use tracing::instrument;
 use crate::{
     accounts::{
         action::transfer_check_stateful,
-        state_ext::{
-            StateReadExt as _,
-            StateWriteExt as _,
-        },
+        StateReadExt as _,
+        StateWriteExt as _,
     },
-    bridge::state_ext::{
+    bridge::{
         StateReadExt as _,
         StateWriteExt as _,
     },
@@ -163,10 +161,7 @@ mod tests {
     use cnidarium::StateDelta;
 
     use super::*;
-    use crate::{
-        bridge::state_ext::StateWriteExt,
-        state_ext::StateWriteExt as _,
-    };
+    use crate::assets::StateWriteExt as _;
 
     fn test_asset() -> asset::Denom {
         "test".parse().unwrap()

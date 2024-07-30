@@ -56,12 +56,12 @@ impl Info {
             )
             .context("invalid path: `accounts/nonce/:account`")?;
         query_router
-            .insert("asset/denom/:id", crate::asset::query::denom_request)
+            .insert("asset/denom/:id", crate::assets::query::denom_request)
             .context("invalid path: `asset/denom/:id`")?;
         query_router
             .insert(
                 "asset/allowed_fee_assets",
-                crate::asset::query::allowed_fee_assets_request,
+                crate::assets::query::allowed_fee_assets_request,
             )
             .context("invalid path: `asset/allowed_fee_asset_ids`")?;
         query_router
@@ -189,16 +189,14 @@ mod test {
 
     use super::Info;
     use crate::{
-        accounts::state_ext::StateWriteExt as _,
-        asset::{
+        accounts::StateWriteExt as _,
+        assets::{
             get_native_asset,
             initialize_native_asset,
-            state_ext::StateWriteExt,
-        },
-        state_ext::{
-            StateReadExt,
+            StateReadExt as _,
             StateWriteExt as _,
         },
+        state_ext::StateWriteExt as _,
     };
 
     #[tokio::test]

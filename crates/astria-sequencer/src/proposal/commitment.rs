@@ -104,7 +104,7 @@ mod test {
     use rand::rngs::OsRng;
 
     use super::*;
-    use crate::asset::get_native_asset;
+    use crate::assets::get_native_asset;
 
     #[test]
     fn generate_rollup_datas_commitment_should_ignore_transfers() {

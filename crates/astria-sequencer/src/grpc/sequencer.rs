@@ -169,7 +169,7 @@ impl SequencerService for SequencerServer {
     ) -> Result<Response<GetPendingNonceResponse>, Status> {
         use astria_core::primitive::v1::Address;
 
-        use crate::accounts::state_ext::StateReadExt as _;
+        use crate::accounts::StateReadExt as _;
 
         let request = request.into_inner();
         let Some(address) = request.address else {
@@ -277,7 +277,7 @@ mod test {
 
     #[tokio::test]
     async fn get_pending_nonce_in_storage() {
-        use crate::accounts::state_ext::StateWriteExt as _;
+        use crate::accounts::StateWriteExt as _;
 
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let mempool = Mempool::new();
