@@ -62,7 +62,7 @@ evm-faucet:
     rollupName: "{{ .Values.global.rollupName }}"
     providerUrl: "http://{{ .Values.global.rollupName }}-evm-service.{{ default .Release.Namespace .Values.global.namespaceOverride  }}.svc.cluster.local:8545"
 
-bridge-withdrawer:
+evm-bridge-withdrawer:
   enabled: false
   config:
     sequencerChainId: "{{ .Values.global.sequencerChainId }}"

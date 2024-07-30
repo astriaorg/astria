@@ -409,12 +409,11 @@ async fn wait_for_empty_mempool(
                 futures::future::ready(())
             },
         );
-    let sequencer_client =
-        SequencerServiceClient::connect(format!("http://{}", sequencer_grpc_endpoint.clone()))
-            .await
-            .wrap_err_with(|| {
-                format!("failed to connect to sequencer at `{sequencer_grpc_endpoint}`")
-            })?;
+    let sequencer_client = SequencerServiceClient::connect(sequencer_grpc_endpoint.clone())
+        .await
+        .wrap_err_with(|| {
+            format!("failed to connect to sequencer at `{sequencer_grpc_endpoint}`")
+        })?;
 
     tryhard::retry_fn(|| {
         let sequencer_client = sequencer_client.clone();
