@@ -202,6 +202,7 @@ mod test {
     use std::{
         collections::HashMap,
         str::FromStr,
+        sync::Arc,
     };
 
     use astria_core::{
@@ -291,7 +292,10 @@ mod test {
         let signed_tx = tx.into_signed(&signing_key);
         let tx_bytes = signed_tx.clone().into_raw().encode_to_vec();
         let txs = vec![tx_bytes.into()];
-        mempool.insert(signed_tx.clone(), 0).await.unwrap();
+        mempool
+            .insert(Arc::new(signed_tx.clone()), 0)
+            .await
+            .unwrap();
 
         let res = generate_rollup_datas_commitment(&vec![signed_tx], HashMap::new());
 
@@ -510,7 +514,7 @@ mod test {
             .await
             .unwrap();
 
-        mempool.insert(signed_tx, 0).await.unwrap();
+        mempool.insert(Arc::new(signed_tx), 0).await.unwrap();
         let finalize_block = request::FinalizeBlock {
             hash: Hash::try_from([0u8; 32].to_vec()).unwrap(),
             height: 1u32.into(),

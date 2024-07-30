@@ -82,11 +82,11 @@ pub(crate) struct EnqueuedTransaction {
 }
 
 impl EnqueuedTransaction {
-    fn new(signed_tx: SignedTransaction) -> Self {
+    fn new(signed_tx: Arc<SignedTransaction>) -> Self {
         let address = crate::address::base_prefixed(signed_tx.verification_key().address_bytes());
         Self {
             tx_hash: signed_tx.sha256_of_proto_encoding(),
-            signed_tx: Arc::new(signed_tx),
+            signed_tx,
             address,
         }
     }
@@ -237,7 +237,7 @@ impl Mempool {
     #[instrument(skip_all)]
     pub(crate) async fn insert(
         &self,
-        tx: SignedTransaction,
+        tx: Arc<SignedTransaction>,
         current_account_nonce: u32,
     ) -> anyhow::Result<()> {
         let enqueued_tx = EnqueuedTransaction::new(tx);
@@ -508,21 +508,21 @@ mod test {
         // Check enqueued txs compare equal if and only if their tx hashes are equal.
         let tx0 = EnqueuedTransaction {
             tx_hash: [0; 32],
-            signed_tx: Arc::new(get_mock_tx(0)),
+            signed_tx: get_mock_tx(0),
             address: crate::address::base_prefixed(
                 get_mock_tx(0).verification_key().address_bytes(),
             ),
         };
         let other_tx0 = EnqueuedTransaction {
             tx_hash: [0; 32],
-            signed_tx: Arc::new(get_mock_tx(1)),
+            signed_tx: get_mock_tx(1),
             address: crate::address::base_prefixed(
                 get_mock_tx(1).verification_key().address_bytes(),
             ),
         };
         let tx1 = EnqueuedTransaction {
             tx_hash: [1; 32],
-            signed_tx: Arc::new(get_mock_tx(0)),
+            signed_tx: get_mock_tx(0),
             address: crate::address::base_prefixed(
                 get_mock_tx(0).verification_key().address_bytes(),
             ),
@@ -621,16 +621,17 @@ mod test {
 
         // Insert txs from a different signer with nonces 100 and 102.
         let other_signing_key = SigningKey::from([1; 32]);
-        let other_mock_tx = |nonce: u32| -> SignedTransaction {
+        let other_mock_tx = |nonce: u32| -> Arc<SignedTransaction> {
             let actions = get_mock_tx(0).actions().to_vec();
-            UnsignedTransaction {
+            let tx = UnsignedTransaction {
                 params: TransactionParams::builder()
                     .nonce(nonce)
                     .chain_id("test")
                     .build(),
                 actions,
             }
-            .into_signed(&other_signing_key)
+            .into_signed(&other_signing_key);
+            Arc::new(tx)
         };
         mempool.insert(other_mock_tx(100), 0).await.unwrap();
         mempool.insert(other_mock_tx(102), 0).await.unwrap();
@@ -759,16 +760,17 @@ mod test {
 
         // Insert txs from a different signer with nonces 100 and 101.
         let other_signing_key = SigningKey::from([1; 32]);
-        let other_mock_tx = |nonce: u32| -> SignedTransaction {
+        let other_mock_tx = |nonce: u32| -> Arc<SignedTransaction> {
             let actions = get_mock_tx(0).actions().to_vec();
-            UnsignedTransaction {
+            let tx = UnsignedTransaction {
                 params: TransactionParams::builder()
                     .nonce(nonce)
                     .chain_id("test")
                     .build(),
                 actions,
             }
-            .into_signed(&other_signing_key)
+            .into_signed(&other_signing_key);
+            Arc::new(tx)
         };
         mempool.insert(other_mock_tx(100), 0).await.unwrap();
         mempool.insert(other_mock_tx(101), 0).await.unwrap();

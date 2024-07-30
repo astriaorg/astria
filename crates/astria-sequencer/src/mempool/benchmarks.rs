@@ -2,7 +2,10 @@
 
 use std::{
     collections::HashMap,
-    sync::OnceLock,
+    sync::{
+        Arc,
+        OnceLock,
+    },
     time::Duration,
 };
 
@@ -57,8 +60,8 @@ fn signing_keys() -> impl Iterator<Item = &'static SigningKey> {
 }
 
 /// Returns a static ref to a collection of `MAX_INITIAL_TXS + 1` transactions.
-fn transactions() -> &'static Vec<SignedTransaction> {
-    static TXS: OnceLock<Vec<SignedTransaction>> = OnceLock::new();
+fn transactions() -> &'static Vec<Arc<SignedTransaction>> {
+    static TXS: OnceLock<Vec<Arc<SignedTransaction>>> = OnceLock::new();
     TXS.get_or_init(|| {
         crate::address::initialize_base_prefix("benchmarks").unwrap();
         let mut nonces_and_chain_ids = HashMap::new();
@@ -80,11 +83,12 @@ fn transactions() -> &'static Vec<SignedTransaction> {
                     data: vec![2; 1000],
                     fee_asset: Denom::IbcPrefixed(IbcPrefixed::new([3; 32])),
                 };
-                UnsignedTransaction {
+                let tx = UnsignedTransaction {
                     actions: vec![Action::Sequence(sequence_action)],
                     params,
                 }
-                .into_signed(signing_key)
+                .into_signed(signing_key);
+                Arc::new(tx)
             })
             .take(MAX_INITIAL_TXS + 1)
             .collect()
@@ -171,7 +175,7 @@ fn init_mempool<T: MempoolSize>() -> Mempool {
 
 /// Returns the first transaction from the static `transactions()` not included in the initialized
 /// mempool, i.e. the one at index `T::size()`.
-fn get_unused_tx<T: MempoolSize>() -> SignedTransaction {
+fn get_unused_tx<T: MempoolSize>() -> Arc<SignedTransaction> {
     transactions().get(T::checked_size()).unwrap().clone()
 }
 

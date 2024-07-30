@@ -37,6 +37,8 @@ pub(crate) struct Metrics {
     check_tx_duration_seconds_check_balance: Histogram,
     check_tx_duration_seconds_check_removed: Histogram,
     check_tx_duration_seconds_insert_to_app_mempool: Histogram,
+    check_tx_cache_hit: Counter,
+    check_tx_cache_miss: Counter,
     actions_per_transaction_in_mempool: Histogram,
     transaction_in_mempool_size_bytes: Histogram,
     transactions_in_mempool_total: Gauge,
@@ -184,6 +186,20 @@ impl Metrics {
             CHECK_TX_STAGE => "insert to app mempool"
         );
 
+        describe_counter!(
+            CHECK_TX_CACHE_HIT,
+            Unit::Count,
+            "The number of `check_tx` attempts which have been retrieved from the cached results"
+        );
+        let check_tx_cache_hit = counter!(CHECK_TX_CACHE_HIT);
+
+        describe_counter!(
+            CHECK_TX_CACHE_MISS,
+            Unit::Count,
+            "The number of `check_tx` rechecks which have not been found in the cached results"
+        );
+        let check_tx_cache_miss = counter!(CHECK_TX_CACHE_MISS);
+
         describe_histogram!(
             ACTIONS_PER_TRANSACTION_IN_MEMPOOL,
             Unit::Count,
@@ -226,6 +242,8 @@ impl Metrics {
             check_tx_duration_seconds_check_balance,
             check_tx_duration_seconds_check_removed,
             check_tx_duration_seconds_insert_to_app_mempool,
+            check_tx_cache_hit,
+            check_tx_cache_miss,
             actions_per_transaction_in_mempool,
             transaction_in_mempool_size_bytes,
             transactions_in_mempool_total,
@@ -329,6 +347,14 @@ impl Metrics {
             .record(duration);
     }
 
+    pub(crate) fn increment_check_tx_cache_hit(&self) {
+        self.check_tx_cache_hit.increment(1);
+    }
+
+    pub(crate) fn increment_check_tx_cache_miss(&self) {
+        self.check_tx_cache_miss.increment(1);
+    }
+
     pub(crate) fn record_actions_per_transaction_in_mempool(&self, count: usize) {
         // allow: precision loss is unlikely (values too small) but also unimportant in histograms.
         #[allow(clippy::cast_precision_loss)]
@@ -362,6 +388,8 @@ metric_names!(pub const METRICS_NAMES:
     CHECK_TX_REMOVED_STALE_NONCE,
     CHECK_TX_REMOVED_ACCOUNT_BALANCE,
     CHECK_TX_DURATION_SECONDS,
+    CHECK_TX_CACHE_HIT,
+    CHECK_TX_CACHE_MISS,
     ACTIONS_PER_TRANSACTION_IN_MEMPOOL,
     TRANSACTION_IN_MEMPOOL_SIZE_BYTES,
     TRANSACTIONS_IN_MEMPOOL_TOTAL
@@ -371,6 +399,8 @@ metric_names!(pub const METRICS_NAMES:
 mod tests {
     use super::{
         ACTIONS_PER_TRANSACTION_IN_MEMPOOL,
+        CHECK_TX_CACHE_HIT,
+        CHECK_TX_CACHE_MISS,
         CHECK_TX_DURATION_SECONDS,
         CHECK_TX_REMOVED_ACCOUNT_BALANCE,
         CHECK_TX_REMOVED_EXPIRED,
@@ -437,6 +467,8 @@ mod tests {
             "check_tx_removed_account_balance",
         );
         assert_const(CHECK_TX_DURATION_SECONDS, "check_tx_duration_seconds");
+        assert_const(CHECK_TX_CACHE_HIT, "check_tx_cache_hit");
+        assert_const(CHECK_TX_CACHE_MISS, "check_tx_cache_miss");
         assert_const(
             ACTIONS_PER_TRANSACTION_IN_MEMPOOL,
             "actions_per_transaction_in_mempool",

@@ -32,6 +32,7 @@ cnidarium-component = { git = "https://github.com/penumbra-zone/penumbra.git", t
 ibc-proto = { version = "0.41.0", features = ["server"] }
 matchit = "0.7.2"
 priority-queue = "2.0.2"
+quick_cache = "0.6.0"
 tower = "0.4"
 tower-abci = "0.12.0"
 tower-actor = "0.1.0"
