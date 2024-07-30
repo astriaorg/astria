@@ -81,7 +81,7 @@ impl Submitter {
                 let startup::Info { chain_id, .. } = startup_info.wrap_err("submitter failed to get startup info")?;
 
                 let sequencer_grpc_client = sequencer_service_client::SequencerServiceClient::connect(
-                    format!("http://{}", self.sequencer_grpc_endpoint),
+                    self.sequencer_grpc_endpoint.clone(),
                 ).await.wrap_err("failed to connect to sequencer gRPC endpoint")?;
 
                 self.state.set_submitter_ready();
