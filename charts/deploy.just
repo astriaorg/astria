@@ -192,7 +192,7 @@ deploy-smoke-cli tag=defaultTag:
       --set postgresql.enabled=false \
       --set evm-bridge-withdrawer.enabled=false \
       --set evm-faucet.enabled=false > /dev/null
-  @just wait-for-rollup > /dev/null
+  @just wait-for-dev-rollup > /dev/null
 
 
 evm_destination_address := "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
