@@ -95,6 +95,7 @@ impl BridgeWithdrawer {
             sequencer_bridge_address,
             sequencer_grpc_endpoint: sequencer_grpc_endpoint.clone(),
             expected_fee_asset: fee_asset_denomination,
+            metrics,
         }
         .build()
         .wrap_err("failed to initialize startup")?;
