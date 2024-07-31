@@ -25,10 +25,8 @@ use penumbra_ibc::component::packet::{
 use tracing::instrument;
 
 use crate::{
-    accounts::{
-        StateReadExt,
-        StateWriteExt,
-    },
+    accounts,
+    address,
     bridge::StateReadExt as _,
     ibc::{
         StateReadExt as _,
@@ -53,7 +51,7 @@ fn withdrawal_to_unchecked_ibc_packet(
     )
 }
 
-async fn ics20_withdrawal_check_stateful_bridge_account<S: StateReadExt + 'static>(
+async fn ics20_withdrawal_check_stateful_bridge_account<S: accounts::StateReadExt + 'static>(
     action: &action::Ics20Withdrawal,
     state: &S,
     from: Address,
@@ -102,14 +100,6 @@ impl ActionHandler for action::Ics20Withdrawal {
     async fn check_stateless(&self) -> Result<()> {
         ensure!(self.timeout_time() != 0, "timeout time must be non-zero",);
 
-        crate::address::ensure_base_prefix(&self.return_address)
-            .context("return address has an unsupported prefix")?;
-        self.bridge_address
-            .as_ref()
-            .map(crate::address::ensure_base_prefix)
-            .transpose()
-            .context("bridge address has an unsupported prefix")?;
-
         // NOTE (from penumbra): we could validate the destination chain address as bech32 to
         // prevent mistyped addresses, but this would preclude sending to chains that don't
         // use bech32 addresses.
@@ -117,11 +107,22 @@ impl ActionHandler for action::Ics20Withdrawal {
     }
 
     #[instrument(skip_all)]
-    async fn check_stateful<S: StateReadExt + 'static>(
+    async fn check_stateful<S: accounts::StateReadExt + address::StateReadExt + 'static>(
         &self,
         state: &S,
         from: Address,
     ) -> Result<()> {
+        state
+            .ensure_base_prefix(&self.return_address)
+            .await
+            .context("failed to verify that return address address has permitted base prefix")?;
+
+        if let Some(bridge_address) = &self.bridge_address {
+            state.ensure_base_prefix(bridge_address).await.context(
+                "failed to verify that bridge address address has permitted base prefix",
+            )?;
+        }
+
         ics20_withdrawal_check_stateful_bridge_account(self, state, from).await?;
 
         let fee = state
@@ -176,7 +177,11 @@ impl ActionHandler for action::Ics20Withdrawal {
     }
 
     #[instrument(skip_all)]
-    async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> Result<()> {
+    async fn execute<S: accounts::StateWriteExt>(
+        &self,
+        state: &mut S,
+        from: Address,
+    ) -> Result<()> {
         let fee = state
             .get_ics20_withdrawal_base_fee()
             .await
@@ -231,21 +236,28 @@ fn is_source(source_port: &PortId, source_channel: &ChannelId, asset: &Denom) ->
 
 #[cfg(test)]
 mod tests {
+    use address::StateWriteExt;
     use astria_core::primitive::v1::RollupId;
     use cnidarium::StateDelta;
     use ibc_types::core::client::Height;
 
     use super::*;
-    use crate::bridge::StateWriteExt as _;
+    use crate::{
+        bridge::StateWriteExt as _,
+        test_utils::{
+            astria_address,
+            ASTRIA_PREFIX,
+        },
+    };
 
     #[tokio::test]
-    async fn ics20_withdrawal_check_stateful_bridge_account_not_bridge() {
+    async fn check_stateful_bridge_account_not_bridge() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let state = StateDelta::new(snapshot);
 
         let denom = "test".parse::<Denom>().unwrap();
-        let from = crate::address::base_prefixed([1u8; 20]);
+        let from = astria_address(&[1u8; 20]);
         let action = action::Ics20Withdrawal {
             amount: 1,
             denom: denom.clone(),
@@ -265,14 +277,15 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn ics20_withdrawal_check_stateful_bridge_account_sender_is_bridge_bridge_address_none_ok()
-     {
+    async fn check_stateful_bridge_account_sender_is_bridge_bridge_address_none_ok() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
+        state.put_base_prefix(ASTRIA_PREFIX).unwrap();
+
         // sender is a bridge address, which is also the withdrawer, so it's ok
-        let bridge_address = crate::address::base_prefixed([1u8; 20]);
+        let bridge_address = astria_address(&[1u8; 20]);
         state.put_bridge_account_rollup_id(
             &bridge_address,
             &RollupId::from_unhashed_bytes("testrollupid"),
@@ -299,22 +312,20 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn ics20_withdrawal_check_stateful_bridge_account_sender_is_bridge_bridge_address_none_invalid()
-     {
+    async fn check_stateful_bridge_account_sender_is_bridge_bridge_address_none_invalid() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
+        state.put_base_prefix(ASTRIA_PREFIX).unwrap();
+
         // withdraw is *not* the bridge address, Ics20Withdrawal must be sent by the withdrawer
-        let bridge_address = crate::address::base_prefixed([1u8; 20]);
+        let bridge_address = astria_address(&[1u8; 20]);
         state.put_bridge_account_rollup_id(
             &bridge_address,
             &RollupId::from_unhashed_bytes("testrollupid"),
         );
-        state.put_bridge_account_withdrawer_address(
-            &bridge_address,
-            &crate::address::base_prefixed([2u8; 20]),
-        );
+        state.put_bridge_account_withdrawer_address(&bridge_address, &astria_address(&[2u8; 20]));
 
         let denom = "test".parse::<Denom>().unwrap();
         let action = action::Ics20Withdrawal {
@@ -340,14 +351,16 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn ics20_withdrawal_check_stateful_bridge_account_bridge_address_some_ok() {
+    async fn check_stateful_bridge_account_bridge_address_some_ok() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
+        state.put_base_prefix(ASTRIA_PREFIX).unwrap();
+
         // sender the withdrawer address, so it's ok
-        let bridge_address = crate::address::base_prefixed([1u8; 20]);
-        let withdrawer_address = crate::address::base_prefixed([2u8; 20]);
+        let bridge_address = astria_address(&[1u8; 20]);
+        let withdrawer_address = astria_address(&[2u8; 20]);
         state.put_bridge_account_rollup_id(
             &bridge_address,
             &RollupId::from_unhashed_bytes("testrollupid"),
@@ -374,14 +387,16 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn ics20_withdrawal_check_stateful_bridge_account_bridge_address_some_invalid_sender() {
+    async fn check_stateful_bridge_account_bridge_address_some_invalid_sender() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
+        state.put_base_prefix(ASTRIA_PREFIX).unwrap();
+
         // sender is not the withdrawer address, so must fail
-        let bridge_address = crate::address::base_prefixed([1u8; 20]);
-        let withdrawer_address = crate::address::base_prefixed([2u8; 20]);
+        let bridge_address = astria_address(&[1u8; 20]);
+        let withdrawer_address = astria_address(&[2u8; 20]);
         state.put_bridge_account_rollup_id(
             &bridge_address,
             &RollupId::from_unhashed_bytes("testrollupid"),
@@ -419,7 +434,7 @@ mod tests {
         let state = StateDelta::new(snapshot);
 
         // sender is not the withdrawer address, so must fail
-        let not_bridge_address = crate::address::base_prefixed([1u8; 20]);
+        let not_bridge_address = astria_address(&[1u8; 20]);
 
         let denom = "test".parse::<Denom>().unwrap();
         let action = action::Ics20Withdrawal {

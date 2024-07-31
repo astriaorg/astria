@@ -11,6 +11,7 @@ use tracing::instrument;
 
 use crate::{
     accounts::StateWriteExt as _,
+    address,
     assets::StateReadExt as _,
     bridge::state_ext::{
         StateReadExt as _,
@@ -26,26 +27,31 @@ use crate::{
 #[async_trait::async_trait]
 impl ActionHandler for BridgeSudoChangeAction {
     async fn check_stateless(&self) -> Result<()> {
-        crate::address::ensure_base_prefix(&self.bridge_address)
-            .context("bridge address has an unsupported prefix")?;
-        self.new_sudo_address
-            .as_ref()
-            .map(crate::address::ensure_base_prefix)
-            .transpose()
-            .context("new sudo address has an unsupported prefix")?;
-        self.new_withdrawer_address
-            .as_ref()
-            .map(crate::address::ensure_base_prefix)
-            .transpose()
-            .context("new withdrawer address has an unsupported prefix")?;
         Ok(())
     }
 
-    async fn check_stateful<S: StateReadExt + 'static>(
+    async fn check_stateful<S: StateReadExt + address::StateReadExt + 'static>(
         &self,
         state: &S,
         from: Address,
     ) -> Result<()> {
+        state
+            .ensure_base_prefix(&self.bridge_address)
+            .await
+            .context("failed check for base prefix of bridge address")?;
+        if let Some(new_sudo_address) = &self.new_sudo_address {
+            state
+                .ensure_base_prefix(new_sudo_address)
+                .await
+                .context("failed check for base prefix of new sudo address")?;
+        }
+        if let Some(new_withdrawer_address) = &self.new_withdrawer_address {
+            state
+                .ensure_base_prefix(new_withdrawer_address)
+                .await
+                .context("failed check for base prefix of new withdrawer address")?;
+        }
+
         ensure!(
             state
                 .is_allowed_fee_asset(&self.fee_asset)
@@ -98,27 +104,36 @@ impl ActionHandler for BridgeSudoChangeAction {
 
 #[cfg(test)]
 mod tests {
+    use address::StateWriteExt;
     use astria_core::primitive::v1::asset;
     use cnidarium::StateDelta;
 
     use super::*;
-    use crate::assets::StateWriteExt as _;
+    use crate::{
+        assets::StateWriteExt as _,
+        test_utils::{
+            astria_address,
+            ASTRIA_PREFIX,
+        },
+    };
 
     fn test_asset() -> asset::Denom {
         "test".parse().unwrap()
     }
 
     #[tokio::test]
-    async fn bridge_sudo_change_check_stateless_ok() {
+    async fn check_stateless_ok() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
+        state.put_base_prefix(ASTRIA_PREFIX).unwrap();
+
         let asset = test_asset();
         state.put_allowed_fee_asset(&asset);
 
-        let bridge_address = crate::address::base_prefixed([99; 20]);
-        let sudo_address = crate::address::base_prefixed([98; 20]);
+        let bridge_address = astria_address(&[99; 20]);
+        let sudo_address = astria_address(&[98; 20]);
         state.put_bridge_account_sudo_address(&bridge_address, &sudo_address);
 
         let action = BridgeSudoChangeAction {
@@ -132,16 +147,18 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn bridge_sudo_change_check_stateless_unauthorized() {
+    async fn check_stateless_unauthorized() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
+        state.put_base_prefix(ASTRIA_PREFIX).unwrap();
+
         let asset = test_asset();
         state.put_allowed_fee_asset(&asset);
 
-        let bridge_address = crate::address::base_prefixed([99; 20]);
-        let sudo_address = crate::address::base_prefixed([98; 20]);
+        let bridge_address = astria_address(&[99; 20]);
+        let sudo_address = astria_address(&[98; 20]);
         state.put_bridge_account_sudo_address(&bridge_address, &sudo_address);
 
         let action = BridgeSudoChangeAction {
@@ -162,16 +179,18 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn bridge_sudo_change_execute_ok() {
+    async fn execute_ok() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
+
+        state.put_base_prefix(ASTRIA_PREFIX).unwrap();
         state.put_bridge_sudo_change_base_fee(10);
 
         let fee_asset = test_asset();
-        let bridge_address = crate::address::base_prefixed([99; 20]);
-        let new_sudo_address = crate::address::base_prefixed([98; 20]);
-        let new_withdrawer_address = crate::address::base_prefixed([97; 20]);
+        let bridge_address = astria_address(&[99; 20]);
+        let new_sudo_address = astria_address(&[98; 20]);
+        let new_withdrawer_address = astria_address(&[97; 20]);
         state
             .put_account_balance(bridge_address, &fee_asset, 10)
             .unwrap();

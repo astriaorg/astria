@@ -8,33 +8,32 @@ use astria_core::{
     protocol::transaction::v1alpha1::action::IbcRelayerChangeAction,
 };
 use async_trait::async_trait;
-use cnidarium::{
-    StateRead,
-    StateWrite,
-};
 
 use crate::{
-    ibc::state_ext::{
-        StateReadExt,
-        StateWriteExt,
-    },
+    address,
+    ibc,
     transaction::action_handler::ActionHandler,
 };
 
 #[async_trait]
 impl ActionHandler for IbcRelayerChangeAction {
     async fn check_stateless(&self) -> Result<()> {
-        match self {
-            IbcRelayerChangeAction::Addition(addr) | IbcRelayerChangeAction::Removal(addr) => {
-                crate::address::ensure_base_prefix(addr)
-                    .context("provided address to be added or removed has an unsupported prefix")?;
-            }
-        }
-
         Ok(())
     }
 
-    async fn check_stateful<S: StateRead + 'static>(&self, state: &S, from: Address) -> Result<()> {
+    async fn check_stateful<S: ibc::StateReadExt + address::StateReadExt + 'static>(
+        &self,
+        state: &S,
+        from: Address,
+    ) -> Result<()> {
+        match self {
+            IbcRelayerChangeAction::Addition(addr) | IbcRelayerChangeAction::Removal(addr) => {
+                state.ensure_base_prefix(addr).await.context(
+                    "failed check for base prefix of provided address to be added/removed",
+                )?;
+            }
+        }
+
         let ibc_sudo_address = state
             .get_ibc_sudo_address()
             .await
@@ -46,7 +45,7 @@ impl ActionHandler for IbcRelayerChangeAction {
         Ok(())
     }
 
-    async fn execute<S: StateWrite>(&self, state: &mut S, _from: Address) -> Result<()> {
+    async fn execute<S: ibc::StateWriteExt>(&self, state: &mut S, _from: Address) -> Result<()> {
         match self {
             IbcRelayerChangeAction::Addition(address) => {
                 state.put_ibc_relayer_address(address);

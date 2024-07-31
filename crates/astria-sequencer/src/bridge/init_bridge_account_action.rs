@@ -15,6 +15,7 @@ use crate::{
         StateReadExt as _,
         StateWriteExt as _,
     },
+    address,
     assets::StateReadExt as _,
     bridge::state_ext::{
         StateReadExt as _,
@@ -30,26 +31,27 @@ use crate::{
 #[async_trait::async_trait]
 impl ActionHandler for InitBridgeAccountAction {
     async fn check_stateless(&self) -> Result<()> {
-        self.withdrawer_address
-            .as_ref()
-            .map(crate::address::ensure_base_prefix)
-            .transpose()
-            .context("the withdrawer address has an unsupported prefix")?;
-
-        self.sudo_address
-            .as_ref()
-            .map(crate::address::ensure_base_prefix)
-            .transpose()
-            .context("the sudo address has an unsupported")?;
-
         Ok(())
     }
 
-    async fn check_stateful<S: StateReadExt + 'static>(
+    async fn check_stateful<S: StateReadExt + address::StateReadExt + 'static>(
         &self,
         state: &S,
         from: Address,
     ) -> Result<()> {
+        if let Some(withdrawer_address) = &self.withdrawer_address {
+            state
+                .ensure_base_prefix(withdrawer_address)
+                .await
+                .context("failed check for base prefix of withdrawer address")?;
+        }
+        if let Some(sudo_address) = &self.sudo_address {
+            state
+                .ensure_base_prefix(sudo_address)
+                .await
+                .context("failed check for base prefix of sudo address")?;
+        }
+
         ensure!(
             state.is_allowed_fee_asset(&self.fee_asset).await?,
             "invalid fee asset",

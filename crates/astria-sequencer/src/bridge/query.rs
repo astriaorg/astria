@@ -269,9 +269,14 @@ mod test {
 
     use super::*;
     use crate::{
-        assets::StateWriteExt,
+        address::StateWriteExt as _,
+        assets::StateWriteExt as _,
         bridge::StateWriteExt as _,
         state_ext::StateWriteExt as _,
+        test_utils::{
+            astria_address,
+            ASTRIA_PREFIX,
+        },
     };
 
     #[tokio::test]
@@ -280,11 +285,13 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
+        state.put_base_prefix(ASTRIA_PREFIX).unwrap();
+
         let asset: astria_core::primitive::v1::asset::Denom = "test".parse().unwrap();
         let rollup_id = RollupId::from_unhashed_bytes("test");
-        let bridge_address = crate::address::base_prefixed([0u8; 20]);
-        let sudo_address = crate::address::base_prefixed([1u8; 20]);
-        let withdrawer_address = crate::address::base_prefixed([2u8; 20]);
+        let bridge_address = astria_address(&[0u8; 20]);
+        let sudo_address = astria_address(&[1u8; 20]);
+        let withdrawer_address = astria_address(&[2u8; 20]);
         state.put_block_height(1);
         state.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
         state

@@ -14,7 +14,6 @@ use std::{
 
 use anyhow::{
     anyhow,
-    bail,
     ensure,
     Context,
 };
@@ -216,22 +215,16 @@ impl App {
             .try_begin_transaction()
             .expect("state Arc should not be referenced elsewhere");
 
-        crate::address::initialize_base_prefix(&genesis_state.address_prefixes().base)
-            .context("failed setting global base prefix")?;
-        state_tx.put_base_prefix(&genesis_state.address_prefixes().base);
-
-        crate::assets::initialize_native_asset(genesis_state.native_asset_base_denomination());
-        let Some(native_asset) = crate::assets::get_native_asset()
-            .as_trace_prefixed()
-            .cloned()
-        else {
-            bail!("native asset must be trace-prefixed, not of form `ibc/<ID>`")
-        };
         state_tx
-            .put_ibc_asset(&native_asset)
-            .context("failed to put native asset")?;
+            .put_base_prefix(&genesis_state.address_prefixes().base)
+            .context("failed to write base prefix to state")?;
 
-        state_tx.put_native_asset(&native_asset);
+        let native_asset = genesis_state.native_asset_base_denomination();
+        state_tx.put_native_asset(native_asset);
+        state_tx
+            .put_ibc_asset(native_asset)
+            .context("failed to commit native asset as ibc asset to state")?;
+
         state_tx.put_chain_id_and_revision_number(chain_id.try_into().context("invalid chain ID")?);
         state_tx.put_block_height(0);
 
@@ -1149,7 +1142,7 @@ async fn update_mempool_after_finalization<S: accounts::StateReadExt>(
     mempool: &mut Mempool,
     state: S,
 ) -> anyhow::Result<()> {
-    let current_account_nonce_getter = |address: Address| state.get_account_nonce(address);
+    let current_account_nonce_getter = |address: [u8; 20]| state.get_account_nonce(address);
     mempool.run_maintenance(current_account_nonce_getter).await
 }
 

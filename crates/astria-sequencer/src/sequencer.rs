@@ -89,18 +89,14 @@ impl Sequencer {
         // denomination, and it is set in storage during init_chain.
         // on subsequent startups, we load the native asset from storage.
         if storage.latest_version() != u64::MAX {
-            // native asset should be stored, fetch it
-            let native_asset = snapshot
+            let _ = snapshot
                 .get_native_asset()
                 .await
-                .context("failed to get native asset from storage")?;
-            crate::assets::initialize_native_asset(&native_asset.to_string());
-            let base_prefix = snapshot
+                .context("failed to query state for native asset")?;
+            let _ = snapshot
                 .get_base_prefix()
                 .await
-                .context("failed to get address base prefix from storage")?;
-            crate::address::initialize_base_prefix(&base_prefix)
-                .context("failed to initialize global address base prefix")?;
+                .context("failed to query state for base prefix")?;
         }
 
         let mempool = Mempool::new();

@@ -50,36 +50,41 @@ use tendermint::{
 
 use crate::{
     app::test_utils::{
-        address_from_hex_string,
         default_fees,
         default_genesis_accounts,
-        get_alice_signing_key_and_address,
-        get_bridge_signing_key_and_address,
+        get_alice_signing_key,
+        get_bridge_signing_key,
         initialize_app,
         initialize_app_with_storage,
         BOB_ADDRESS,
         CAROL_ADDRESS,
     },
-    assets::get_native_asset,
     bridge::StateWriteExt as _,
     proposal::commitment::generate_rollup_datas_commitment,
+    test_utils::{
+        astria_address,
+        astria_address_from_hex_string,
+        nria,
+        ASTRIA_PREFIX,
+    },
 };
 
 /// XXX: This should be expressed in terms of `crate::app::test_utils::unchecked_genesis_state` to
 /// be consistent everywhere. `get_alice_signing_key` already is, why not this?
 fn unchecked_genesis_state() -> UncheckedGenesisState {
-    let (_, alice_address) = get_alice_signing_key_and_address();
+    let alice = get_alice_signing_key();
+    let alice_address = astria_address(&alice.address_bytes());
     UncheckedGenesisState {
         accounts: vec![],
         address_prefixes: AddressPrefixes {
-            base: crate::address::get_base_prefix().to_string(),
+            base: ASTRIA_PREFIX.into(),
         },
         authority_sudo_address: alice_address,
         ibc_sudo_address: alice_address,
         ibc_relayer_addresses: vec![],
-        native_asset_base_denomination: "nria".to_string(),
+        native_asset_base_denomination: nria(),
         ibc_params: IBCParameters::default(),
-        allowed_fee_assets: vec!["nria".parse().unwrap()],
+        allowed_fee_assets: vec![nria().into()],
         fees: default_fees(),
     }
 }
@@ -92,17 +97,16 @@ async fn app_genesis_snapshot() {
 
 #[tokio::test]
 async fn app_finalize_block_snapshot() {
-    let (alice_signing_key, _) = get_alice_signing_key_and_address();
+    let alice = get_alice_signing_key();
     let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
 
-    let bridge_address = crate::address::base_prefixed([99; 20]);
+    let bridge_address = astria_address(&[99; 20]);
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
-    let asset = get_native_asset().clone();
 
     let mut state_tx = StateDelta::new(app.state.clone());
     state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
     state_tx
-        .put_bridge_account_ibc_asset(&bridge_address, &asset)
+        .put_bridge_account_ibc_asset(&bridge_address, nria())
         .unwrap();
     app.apply(state_tx);
 
@@ -115,14 +119,14 @@ async fn app_finalize_block_snapshot() {
     let lock_action = BridgeLockAction {
         to: bridge_address,
         amount,
-        asset: asset.clone(),
-        fee_asset: asset.clone(),
+        asset: nria().into(),
+        fee_asset: nria().into(),
         destination_chain_address: "nootwashere".to_string(),
     };
     let sequence_action = SequenceAction {
         rollup_id,
         data: b"hello world".to_vec(),
-        fee_asset: asset.clone(),
+        fee_asset: nria().into(),
     };
     let tx = UnsignedTransaction {
         params: TransactionParams::builder()
@@ -132,13 +136,13 @@ async fn app_finalize_block_snapshot() {
         actions: vec![lock_action.into(), sequence_action.into()],
     };
 
-    let signed_tx = tx.into_signed(&alice_signing_key);
+    let signed_tx = tx.into_signed(&alice);
 
     let expected_deposit = Deposit::new(
         bridge_address,
         rollup_id,
         amount,
-        asset,
+        nria().into(),
         "nootwashere".to_string(),
     );
     let deposits = HashMap::from_iter(vec![(rollup_id, vec![expected_deposit.clone()])]);
@@ -180,10 +184,11 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         SudoAddressChangeAction,
     };
 
-    let (alice_signing_key, _) = get_alice_signing_key_and_address();
-    let (bridge_signing_key, bridge_address) = get_bridge_signing_key_and_address();
-    let bob_address = address_from_hex_string(BOB_ADDRESS);
-    let carol_address = address_from_hex_string(CAROL_ADDRESS);
+    let alice = get_alice_signing_key();
+    let bridge = get_bridge_signing_key();
+    let bridge_address = astria_address(&bridge.address_bytes());
+    let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
+    let carol_address = astria_address_from_hex_string(CAROL_ADDRESS);
     let mut accounts = default_genesis_accounts();
     accounts.push(Account {
         address: bridge_address,
@@ -205,7 +210,6 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     };
 
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
-    let asset = get_native_asset().clone();
 
     let tx = UnsignedTransaction {
         params: TransactionParams::builder()
@@ -216,14 +220,14 @@ async fn app_execute_transaction_with_every_action_snapshot() {
             TransferAction {
                 to: bob_address,
                 amount: 333_333,
-                asset: asset.clone(),
-                fee_asset: asset.clone(),
+                asset: nria().into(),
+                fee_asset: nria().into(),
             }
             .into(),
             SequenceAction {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                 data: b"hello world".to_vec(),
-                fee_asset: asset.clone(),
+                fee_asset: nria().into(),
             }
             .into(),
             Action::ValidatorUpdate(update.clone()),
@@ -241,7 +245,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         ],
     };
 
-    let signed_tx = Arc::new(tx.into_signed(&alice_signing_key));
+    let signed_tx = Arc::new(tx.into_signed(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
 
     let tx = UnsignedTransaction {
@@ -252,15 +256,15 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         actions: vec![
             InitBridgeAccountAction {
                 rollup_id,
-                asset: asset.clone(),
-                fee_asset: asset.clone(),
+                asset: nria().into(),
+                fee_asset: nria().into(),
                 sudo_address: None,
                 withdrawer_address: None,
             }
             .into(),
         ],
     };
-    let signed_tx = Arc::new(tx.into_signed(&bridge_signing_key));
+    let signed_tx = Arc::new(tx.into_signed(&bridge));
     app.execute_transaction(signed_tx).await.unwrap();
 
     let tx = UnsignedTransaction {
@@ -272,15 +276,15 @@ async fn app_execute_transaction_with_every_action_snapshot() {
             BridgeLockAction {
                 to: bridge_address,
                 amount: 100,
-                asset: asset.clone(),
-                fee_asset: asset.clone(),
+                asset: nria().into(),
+                fee_asset: nria().into(),
                 destination_chain_address: "nootwashere".to_string(),
             }
             .into(),
             BridgeUnlockAction {
                 to: bob_address,
                 amount: 10,
-                fee_asset: asset.clone(),
+                fee_asset: nria().into(),
                 memo: "{}".into(),
                 bridge_address: None,
             }
@@ -289,13 +293,13 @@ async fn app_execute_transaction_with_every_action_snapshot() {
                 bridge_address,
                 new_sudo_address: Some(bob_address),
                 new_withdrawer_address: Some(bob_address),
-                fee_asset: asset.clone(),
+                fee_asset: nria().into(),
             }
             .into(),
         ],
     };
 
-    let signed_tx = Arc::new(tx.into_signed(&bridge_signing_key));
+    let signed_tx = Arc::new(tx.into_signed(&bridge));
     app.execute_transaction(signed_tx).await.unwrap();
 
     app.prepare_commit(storage.clone()).await.unwrap();

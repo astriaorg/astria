@@ -233,7 +233,6 @@ mod test {
     use super::*;
     use crate::{
         app::test_utils::default_fees,
-        assets::get_native_asset,
         mempool::Mempool,
         metrics::Metrics,
         proposal::commitment::generate_rollup_datas_commitment,
@@ -249,7 +248,7 @@ mod test {
                 SequenceAction {
                     rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                     data: b"helloworld".to_vec(),
-                    fee_asset: get_native_asset().clone(),
+                    fee_asset: crate::test_utils::nria().into(),
                 }
                 .into(),
             ],
@@ -448,7 +447,7 @@ mod test {
     async fn new_consensus_service(funded_key: Option<VerificationKey>) -> (Consensus, Mempool) {
         let accounts = if funded_key.is_some() {
             vec![Account {
-                address: crate::address::base_prefixed(funded_key.unwrap().address_bytes()),
+                address: crate::test_utils::astria_address(&funded_key.unwrap().address_bytes()),
                 balance: 10u128.pow(19),
             }]
         } else {
@@ -457,12 +456,12 @@ mod test {
         let genesis_state = UncheckedGenesisState {
             accounts,
             address_prefixes: AddressPrefixes {
-                base: crate::address::get_base_prefix().to_string(),
+                base: crate::test_utils::ASTRIA_PREFIX.into(),
             },
-            authority_sudo_address: crate::address::base_prefixed([0; 20]),
-            ibc_sudo_address: crate::address::base_prefixed([0; 20]),
+            authority_sudo_address: crate::test_utils::astria_address(&[0; 20]),
+            ibc_sudo_address: crate::test_utils::astria_address(&[0; 20]),
             ibc_relayer_addresses: vec![],
-            native_asset_base_denomination: "nria".to_string(),
+            native_asset_base_denomination: crate::test_utils::nria(),
             ibc_params: penumbra_ibc::params::IBCParameters::default(),
             allowed_fee_assets: vec!["nria".parse().unwrap()],
             fees: default_fees(),
