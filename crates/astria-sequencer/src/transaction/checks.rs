@@ -304,6 +304,7 @@ mod tests {
             TransactionParams,
         },
     };
+    use bytes::Bytes;
     use cnidarium::StateDelta;
 
     use super::*;
@@ -334,7 +335,7 @@ mod tests {
 
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
         let amount = 100;
-        let data = [0; 32].to_vec();
+        let data = Bytes::from_static(&[0; 32]);
         let transfer_fee = state_tx.get_transfer_base_fee().await.unwrap();
         state_tx
             .increase_balance(
@@ -400,7 +401,7 @@ mod tests {
 
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
         let amount = 100;
-        let data = [0; 32].to_vec();
+        let data = Bytes::from_static(&[0; 32]);
         let transfer_fee = state_tx.get_transfer_base_fee().await.unwrap();
         state_tx
             .increase_balance(

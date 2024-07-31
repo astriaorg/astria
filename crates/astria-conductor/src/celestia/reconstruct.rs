@@ -7,6 +7,7 @@ use astria_core::{
         SubmittedRollupData,
     },
 };
+use bytes::Bytes;
 use telemetry::display::base64;
 use tracing::{
     info,
@@ -56,7 +57,12 @@ pub(super) fn reconstruct_blocks_from_verified_blobs(
                 celestia_height,
                 block_hash: header_blob.block_hash(),
                 header: header_blob.into_unchecked().header,
-                transactions: rollup.into_unchecked().transactions,
+                transactions: rollup
+                    .into_unchecked()
+                    .transactions
+                    .into_iter()
+                    .map(Bytes::into)
+                    .collect(),
             });
         } else {
             let reason = if header_blobs.contains_key(&rollup.sequencer_block_hash()) {

@@ -26,6 +26,7 @@ use astria_core::{
         UnsignedTransaction,
     },
 };
+use bytes::Bytes;
 use sha2::{
     Digest as _,
     Sha256,
@@ -77,7 +78,7 @@ fn transactions() -> &'static Vec<SignedTransaction> {
                     .build();
                 let sequence_action = SequenceAction {
                     rollup_id: RollupId::new([1; 32]),
-                    data: vec![2; 1000],
+                    data: Bytes::from_static(&[2; 1000]),
                     fee_asset: Denom::IbcPrefixed(IbcPrefixed::new([3; 32])),
                 };
                 UnsignedTransaction {

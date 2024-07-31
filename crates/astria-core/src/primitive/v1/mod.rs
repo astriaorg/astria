@@ -7,6 +7,7 @@ use base64::{
     display::Base64Display,
     prelude::BASE64_STANDARD,
 };
+use bytes::Bytes;
 use sha2::{
     Digest as _,
     Sha256,
@@ -176,9 +177,11 @@ impl RollupId {
     /// # Errors
     ///
     /// Returns an error if the byte slice was not 32 bytes long.
-    pub fn try_from_vec(bytes: Vec<u8>) -> Result<Self, IncorrectRollupIdLength> {
-        let inner =
-            <[u8; ROLLUP_ID_LEN]>::try_from(bytes).map_err(|bytes| IncorrectRollupIdLength {
+    pub fn try_from_bytes(bytes: &Bytes) -> Result<Self, IncorrectRollupIdLength> {
+        let inner = bytes
+            .as_ref()
+            .try_into()
+            .map_err(|_| IncorrectRollupIdLength {
                 received: bytes.len(),
             })?;
         Ok(Self::new(inner))

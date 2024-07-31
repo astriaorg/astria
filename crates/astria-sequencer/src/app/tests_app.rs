@@ -15,7 +15,10 @@ use astria_core::{
     sequencerblock::v1alpha1::block::Deposit,
 };
 use cnidarium::StateDelta;
-use prost::Message as _;
+use prost::{
+    bytes::Bytes,
+    Message as _,
+};
 use tendermint::{
     abci::{
         self,
@@ -305,7 +308,7 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
     };
     let sequence_action = SequenceAction {
         rollup_id,
-        data: b"hello world".to_vec(),
+        data: Bytes::from_static(b"hello world"),
         fee_asset: asset.clone(),
     };
     let tx = UnsignedTransaction {
@@ -395,7 +398,7 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
     };
     let sequence_action = SequenceAction {
         rollup_id,
-        data: b"hello world".to_vec(),
+        data: Bytes::from_static(b"hello world"),
         fee_asset: asset.clone(),
     };
     let tx = UnsignedTransaction {
@@ -530,7 +533,7 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
         actions: vec![
             SequenceAction {
                 rollup_id: RollupId::from([1u8; 32]),
-                data: vec![1u8; 100_000],
+                data: Bytes::copy_from_slice(&[1u8; 100_000]),
                 fee_asset: get_native_asset().clone(),
             }
             .into(),
@@ -545,7 +548,7 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
         actions: vec![
             SequenceAction {
                 rollup_id: RollupId::from([1u8; 32]),
-                data: vec![1u8; 100_000],
+                data: Bytes::copy_from_slice(&[1u8; 100_000]),
                 fee_asset: get_native_asset().clone(),
             }
             .into(),
@@ -603,7 +606,7 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
         actions: vec![
             SequenceAction {
                 rollup_id: RollupId::from([1u8; 32]),
-                data: vec![1u8; 200_000],
+                data: Bytes::copy_from_slice(&[1u8; 200_000]),
                 fee_asset: get_native_asset().clone(),
             }
             .into(),
@@ -618,7 +621,7 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
         actions: vec![
             SequenceAction {
                 rollup_id: RollupId::from([1u8; 32]),
-                data: vec![1u8; 100_000],
+                data: Bytes::copy_from_slice(&[1u8; 100_000]),
                 fee_asset: get_native_asset().clone(),
             }
             .into(),

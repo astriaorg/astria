@@ -1,5 +1,9 @@
 use std::collections::HashMap;
 
+use bytes::{
+    Buf as _,
+    Bytes,
+};
 use indexmap::IndexMap;
 use sha2::Sha256;
 use tendermint::{
@@ -112,6 +116,7 @@ impl RollupTransactions {
             transactions,
             proof,
         } = self;
+        let transactions = transactions.into_iter().map(Into::into).collect();
         raw::RollupTransactions {
             rollup_id: Some(rollup_id.into_raw()),
             transactions,
@@ -140,6 +145,7 @@ impl RollupTransactions {
             };
             merkle::Proof::try_from_raw(proof).map_err(RollupTransactionsError::proof_invalid)
         }?;
+        let transactions = transactions.into_iter().map(Into::into).collect();
         Ok(Self {
             rollup_id,
             transactions,
@@ -408,9 +414,9 @@ impl SequencerBlockHeader {
                 seconds: time.seconds,
                 nanos: time.nanos,
             }),
-            rollup_transactions_root: self.rollup_transactions_root.to_vec(),
-            data_hash: self.data_hash.to_vec(),
-            proposer_address: self.proposer_address.as_bytes().to_vec(),
+            rollup_transactions_root: Bytes::copy_from_slice(&self.rollup_transactions_root),
+            data_hash: Bytes::copy_from_slice(&self.data_hash),
+            proposer_address: Bytes::copy_from_slice(self.proposer_address.as_bytes()),
         }
     }
 
@@ -448,12 +454,14 @@ impl SequencerBlockHeader {
         .map_err(SequencerBlockHeaderError::time)?;
 
         let rollup_transactions_root =
-            rollup_transactions_root.try_into().map_err(|e: Vec<_>| {
-                SequencerBlockHeaderError::incorrect_rollup_transactions_root_length(e.len())
+            rollup_transactions_root.chunk().try_into().map_err(|_| {
+                SequencerBlockHeaderError::incorrect_rollup_transactions_root_length(
+                    rollup_transactions_root.len(),
+                )
             })?;
 
-        let data_hash = data_hash.try_into().map_err(|e: Vec<_>| {
-            SequencerBlockHeaderError::incorrect_rollup_transactions_root_length(e.len())
+        let data_hash = data_hash.chunk().try_into().map_err(|_| {
+            SequencerBlockHeaderError::incorrect_rollup_transactions_root_length(data_hash.len())
         })?;
 
         let proposer_address = account::Id::try_from(proposer_address)
@@ -621,7 +629,7 @@ impl SequencerBlock {
             rollup_ids_proof,
         } = self;
         raw::SequencerBlock {
-            block_hash: block_hash.to_vec(),
+            block_hash: Bytes::copy_from_slice(&block_hash),
             header: Some(header.into_raw()),
             rollup_transactions: rollup_transactions
                 .into_values()
@@ -745,7 +753,9 @@ impl SequencerBlock {
                 }) = action
                 {
                     let elem = rollup_datas.entry(rollup_id).or_insert(vec![]);
-                    let data = RollupData::SequencedData(data).into_raw().encode_to_vec();
+                    let data = RollupData::SequencedData(data.to_vec())
+                        .into_raw()
+                        .encode_to_vec();
                     elem.push(data);
                 }
             }
@@ -844,8 +854,9 @@ impl SequencerBlock {
         } = raw;
 
         let block_hash = block_hash
+            .chunk()
             .try_into()
-            .map_err(|e: Vec<_>| SequencerBlockError::invalid_block_hash(e.len()))?;
+            .map_err(|_| SequencerBlockError::invalid_block_hash(block_hash.len()))?;
 
         let rollup_transactions_proof = 'proof: {
             let Some(rollup_transactions_proof) = rollup_transactions_proof else {
@@ -1009,14 +1020,18 @@ impl FilteredSequencerBlock {
             ..
         } = self;
         raw::FilteredSequencerBlock {
-            block_hash: block_hash.to_vec(),
+            block_hash: Bytes::copy_from_slice(&block_hash),
             header: Some(header.into_raw()),
             rollup_transactions: rollup_transactions
                 .into_values()
                 .map(RollupTransactions::into_raw)
                 .collect(),
             rollup_transactions_proof: Some(rollup_transactions_proof.into_raw()),
-            all_rollup_ids: self.all_rollup_ids.iter().map(|id| id.to_vec()).collect(),
+            all_rollup_ids: self
+                .all_rollup_ids
+                .iter()
+                .map(|id| Bytes::copy_from_slice(id.as_ref()))
+                .collect(),
             rollup_ids_proof: Some(rollup_ids_proof.into_raw()),
         }
     }
@@ -1061,8 +1076,9 @@ impl FilteredSequencerBlock {
         } = raw;
 
         let block_hash = block_hash
+            .chunk()
             .try_into()
-            .map_err(|e: Vec<_>| FilteredSequencerBlockError::invalid_block_hash(e.len()))?;
+            .map_err(|_| FilteredSequencerBlockError::invalid_block_hash(block_hash.len()))?;
 
         let rollup_transactions_proof = {
             let Some(rollup_transactions_proof) = rollup_transactions_proof else {
@@ -1100,7 +1116,7 @@ impl FilteredSequencerBlock {
 
         let all_rollup_ids: Vec<RollupId> = all_rollup_ids
             .into_iter()
-            .map(RollupId::try_from_vec)
+            .map(|bytes| RollupId::try_from_bytes(&bytes))
             .collect::<Result<_, _>>()
             .map_err(FilteredSequencerBlockError::invalid_rollup_id)?;
 
@@ -1432,7 +1448,7 @@ impl RollupData {
     pub fn into_raw(self) -> raw::RollupData {
         match self {
             Self::SequencedData(data) => raw::RollupData {
-                value: Some(raw::rollup_data::Value::SequencedData(data)),
+                value: Some(raw::rollup_data::Value::SequencedData(data.into())),
             },
             Self::Deposit(deposit) => raw::RollupData {
                 value: Some(raw::rollup_data::Value::Deposit(deposit.into_raw())),
@@ -1451,7 +1467,9 @@ impl RollupData {
             value,
         } = raw;
         match value {
-            Some(raw::rollup_data::Value::SequencedData(data)) => Ok(Self::SequencedData(data)),
+            Some(raw::rollup_data::Value::SequencedData(data)) => {
+                Ok(Self::SequencedData(data.to_vec()))
+            }
             Some(raw::rollup_data::Value::Deposit(deposit)) => Deposit::try_from_raw(deposit)
                 .map(Box::new)
                 .map(Self::Deposit)

@@ -10,6 +10,7 @@ use astria_core::{
     },
 };
 use hex_literal::hex;
+use prost::bytes::Bytes;
 use serde_json::json;
 use tendermint::{
     block::Height,
@@ -295,7 +296,7 @@ async fn get_bridge_account_last_transaction_hash() {
 
     let expected_response = BridgeAccountLastTxHashResponse {
         height: 10,
-        tx_hash: Some([0; 32].to_vec()),
+        tx_hash: Some(Bytes::from_static(&[0; 32])),
     };
 
     let _guard = register_abci_query_response(

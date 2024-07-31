@@ -1,3 +1,8 @@
+use bytes::{
+    Buf as _,
+    Bytes,
+};
+
 use super::raw;
 use crate::primitive::v1::{
     asset,
@@ -28,10 +33,14 @@ impl BridgeAccountLastTxHashResponse {
             height: raw.height,
             tx_hash: raw
                 .tx_hash
-                .map(TryInto::<[u8; 32]>::try_into)
+                .clone()
+                .map(|bytes| bytes.chunk().try_into())
                 .transpose()
-                .map_err(|bytes: Vec<u8>| {
-                    BridgeAccountLastTxHashResponseError::invalid_tx_hash(bytes.len())
+                .map_err(|_| {
+                    let Some(tx_hash) = raw.tx_hash else {
+                        return BridgeAccountLastTxHashResponseError::missing_tx_hash();
+                    };
+                    BridgeAccountLastTxHashResponseError::invalid_tx_hash(tx_hash.len())
                 })?,
         })
     }
@@ -40,7 +49,7 @@ impl BridgeAccountLastTxHashResponse {
     pub fn into_raw(self) -> raw::BridgeAccountLastTxHashResponse {
         raw::BridgeAccountLastTxHashResponse {
             height: self.height,
-            tx_hash: self.tx_hash.map(Into::into),
+            tx_hash: self.tx_hash.map(|tx_hash| Bytes::copy_from_slice(&tx_hash)),
         }
     }
 }
@@ -77,12 +86,19 @@ impl BridgeAccountLastTxHashResponseError {
             bytes,
         ))
     }
+
+    #[must_use]
+    pub fn missing_tx_hash() -> Self {
+        Self(BridgeAccountLastTxHashResponseErrorKind::MissingTxHash())
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
 enum BridgeAccountLastTxHashResponseErrorKind {
     #[error("invalid tx hash; must be 32 bytes, got {0} bytes")]
     InvalidTxHash(usize),
+    #[error("tx hash was not set")]
+    MissingTxHash(),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

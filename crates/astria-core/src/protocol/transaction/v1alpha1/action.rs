@@ -1,3 +1,4 @@
+use bytes::Bytes;
 use ibc_types::{
     core::{
         channel::ChannelId,
@@ -386,7 +387,7 @@ enum SequenceActionErrorKind {
 #[allow(clippy::module_name_repetitions)]
 pub struct SequenceAction {
     pub rollup_id: RollupId,
-    pub data: Vec<u8>,
+    pub data: Bytes,
     /// asset to use for fee payment.
     pub fee_asset: asset::Denom,
 }

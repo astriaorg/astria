@@ -110,7 +110,7 @@ mod test {
     fn generate_rollup_datas_commitment_should_ignore_transfers() {
         let sequence_action = SequenceAction {
             rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-            data: b"helloworld".to_vec(),
+            data: Bytes::from_static(b"hello world"),
             fee_asset: get_native_asset().clone(),
         };
         let transfer_action = TransferAction {
@@ -164,7 +164,7 @@ mod test {
 
         let sequence_action = SequenceAction {
             rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-            data: b"helloworld".to_vec(),
+            data: b"helloworld".to_vec().into(),
             fee_asset: get_native_asset().clone(),
         };
         let transfer_action = TransferAction {

@@ -39,7 +39,10 @@ use astria_core::{
 };
 use cnidarium::StateDelta;
 use penumbra_ibc::params::IBCParameters;
-use prost::Message as _;
+use prost::{
+    bytes::Bytes,
+    Message as _,
+};
 use tendermint::{
     abci,
     abci::types::CommitInfo,
@@ -121,7 +124,7 @@ async fn app_finalize_block_snapshot() {
     };
     let sequence_action = SequenceAction {
         rollup_id,
-        data: b"hello world".to_vec(),
+        data: Bytes::from_static(b"hello world"),
         fee_asset: asset.clone(),
     };
     let tx = UnsignedTransaction {
@@ -222,7 +225,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
             .into(),
             SequenceAction {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-                data: b"hello world".to_vec(),
+                data: Bytes::from_static(b"hello world"),
                 fee_asset: asset.clone(),
             }
             .into(),

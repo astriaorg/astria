@@ -648,7 +648,7 @@ impl VerboseRollupData {
         let transactions_and_deposits: Vec<_> = rollup_data
             .transactions
             .iter()
-            .map(RollupDataDetails::from)
+            .map(|bytes| RollupDataDetails::from(&bytes.to_vec()))
             .collect();
         let item_count = transactions_and_deposits.len();
         VerboseRollupData {

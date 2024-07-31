@@ -94,7 +94,7 @@ impl ConfigureSequencerBlock {
             .map(|(rollup_id, data)| {
                 SequenceAction {
                     rollup_id,
-                    data,
+                    data: data.into(),
                     fee_asset: "nria".parse().unwrap(),
                 }
                 .into()
