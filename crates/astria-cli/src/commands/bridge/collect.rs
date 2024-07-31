@@ -178,6 +178,7 @@ impl WithdrawalEvents {
     }
 }
 
+#[instrument(skip_all, err)]
 async fn block_to_actions(
     block: Block<H256>,
     actions_by_rollup_height: &mut ActionsByRollupHeight,

@@ -34,6 +34,7 @@ use color_eyre::{
     },
 };
 use rand::rngs::OsRng;
+use tracing::instrument;
 
 use crate::cli::sequencer::{
     BasicAccountArgs,
@@ -96,6 +97,7 @@ pub(crate) fn create_account() {
 ///
 /// * If the http client cannot be created
 /// * If the balance cannot be retrieved
+#[instrument(skip_all, err)]
 pub(crate) async fn get_balance(args: &BasicAccountArgs) -> eyre::Result<()> {
     let sequencer_client = HttpClient::new(args.sequencer_url.as_str())
         .wrap_err("failed constructing http sequencer client")?;
@@ -122,6 +124,7 @@ pub(crate) async fn get_balance(args: &BasicAccountArgs) -> eyre::Result<()> {
 ///
 /// * If the http client cannot be created
 /// * If the balance cannot be retrieved
+#[instrument(skip_all, err)]
 pub(crate) async fn get_nonce(args: &BasicAccountArgs) -> eyre::Result<()> {
     let sequencer_client = HttpClient::new(args.sequencer_url.as_str())
         .wrap_err("failed constructing http sequencer client")?;
@@ -147,6 +150,7 @@ pub(crate) async fn get_nonce(args: &BasicAccountArgs) -> eyre::Result<()> {
 ///
 /// * If the http client cannot be created
 /// * If the latest block height cannot be retrieved
+#[instrument(skip_all, err)]
 pub(crate) async fn get_block_height(args: &BlockHeightGetArgs) -> eyre::Result<()> {
     let sequencer_client = HttpClient::new(args.sequencer_url.as_str())
         .wrap_err("failed constructing http sequencer client")?;
@@ -188,6 +192,7 @@ pub(crate) fn make_bech32m(args: &Bech32mAddressArgs) -> eyre::Result<()> {
 ///
 /// * If the http client cannot be created
 /// * If the latest block height cannot be retrieved
+#[instrument(skip_all, err)]
 pub(crate) async fn send_transfer(args: &TransferArgs) -> eyre::Result<()> {
     let res = submit_transaction(
         args.sequencer_url.as_str(),
@@ -219,6 +224,7 @@ pub(crate) async fn send_transfer(args: &TransferArgs) -> eyre::Result<()> {
 ///
 /// * If the http client cannot be created
 /// * If the transaction failed to be included
+#[instrument(skip_all, err)]
 pub(crate) async fn ibc_relayer_add(args: &IbcRelayerChangeArgs) -> eyre::Result<()> {
     let res = submit_transaction(
         args.sequencer_url.as_str(),
@@ -245,6 +251,7 @@ pub(crate) async fn ibc_relayer_add(args: &IbcRelayerChangeArgs) -> eyre::Result
 ///
 /// * If the http client cannot be created
 /// * If the transaction failed to be included
+#[instrument(skip_all, err)]
 pub(crate) async fn ibc_relayer_remove(args: &IbcRelayerChangeArgs) -> eyre::Result<()> {
     let res = submit_transaction(
         args.sequencer_url.as_str(),
@@ -271,6 +278,7 @@ pub(crate) async fn ibc_relayer_remove(args: &IbcRelayerChangeArgs) -> eyre::Res
 ///
 /// * If the http client cannot be created
 /// * If the transaction failed to be included
+#[instrument(skip_all, err)]
 pub(crate) async fn init_bridge_account(args: &InitBridgeAccountArgs) -> eyre::Result<()> {
     use astria_core::primitive::v1::RollupId;
 
@@ -308,6 +316,7 @@ pub(crate) async fn init_bridge_account(args: &InitBridgeAccountArgs) -> eyre::R
 ///
 /// * If the http client cannot be created
 /// * If the transaction failed to be included
+#[instrument(skip_all, err)]
 pub(crate) async fn bridge_lock(args: &BridgeLockArgs) -> eyre::Result<()> {
     let res = submit_transaction(
         args.sequencer_url.as_str(),
@@ -340,6 +349,7 @@ pub(crate) async fn bridge_lock(args: &BridgeLockArgs) -> eyre::Result<()> {
 ///
 /// * If the http client cannot be created
 /// * If the transaction failed to be included
+#[instrument(skip_all, err)]
 pub(crate) async fn fee_asset_add(args: &FeeAssetChangeArgs) -> eyre::Result<()> {
     let res = submit_transaction(
         args.sequencer_url.as_str(),
@@ -366,6 +376,7 @@ pub(crate) async fn fee_asset_add(args: &FeeAssetChangeArgs) -> eyre::Result<()>
 ///
 /// * If the http client cannot be created
 /// * If the transaction failed to be included
+#[instrument(skip_all, err)]
 pub(crate) async fn fee_asset_remove(args: &FeeAssetChangeArgs) -> eyre::Result<()> {
     let res = submit_transaction(
         args.sequencer_url.as_str(),
@@ -392,6 +403,7 @@ pub(crate) async fn fee_asset_remove(args: &FeeAssetChangeArgs) -> eyre::Result<
 ///
 /// * If the http client cannot be created
 /// * If the sudo address was not changed
+#[instrument(skip_all, err)]
 pub(crate) async fn sudo_address_change(args: &SudoAddressChangeArgs) -> eyre::Result<()> {
     let res = submit_transaction(
         args.sequencer_url.as_str(),
@@ -420,6 +432,7 @@ pub(crate) async fn sudo_address_change(args: &SudoAddressChangeArgs) -> eyre::R
 ///
 /// * If the http client cannot be created
 /// * If the transaction failed to be submitted
+#[instrument(skip_all, err)]
 pub(crate) async fn validator_update(args: &ValidatorUpdateArgs) -> eyre::Result<()> {
     let verification_key = astria_core::crypto::VerificationKey::try_from(
         &*hex::decode(&args.validator_public_key)
@@ -446,6 +459,7 @@ pub(crate) async fn validator_update(args: &ValidatorUpdateArgs) -> eyre::Result
     Ok(())
 }
 
+#[instrument(skip_all, err)]
 async fn submit_transaction(
     sequencer_url: &str,
     chain_id: String,
