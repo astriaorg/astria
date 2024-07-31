@@ -134,14 +134,13 @@ async fn app_execute_transaction_transfer_not_native_token() {
     let mut app = initialize_app(None, vec![]).await;
 
     // create some asset to be transferred and update Alice's balance of it
-    let asset = test_asset();
     let value = 333_333;
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
 
     let mut state_tx = StateDelta::new(app.state.clone());
     state_tx
-        .put_account_balance(alice_address, &asset, value)
+        .put_account_balance(alice_address, &test_asset(), value)
         .unwrap();
     app.apply(state_tx);
 
@@ -156,7 +155,7 @@ async fn app_execute_transaction_transfer_not_native_token() {
             TransferAction {
                 to: bob_address,
                 amount: value,
-                asset: asset.clone().into(),
+                asset: test_asset(),
                 fee_asset: nria().into(),
             }
             .into(),
@@ -175,7 +174,7 @@ async fn app_execute_transaction_transfer_not_native_token() {
     );
     assert_eq!(
         app.state
-            .get_account_balance(bob_address, &asset)
+            .get_account_balance(bob_address, test_asset())
             .await
             .unwrap(),
         value, // transferred amount
@@ -191,7 +190,7 @@ async fn app_execute_transaction_transfer_not_native_token() {
     );
     assert_eq!(
         app.state
-            .get_account_balance(alice_address, &asset)
+            .get_account_balance(alice_address, test_asset())
             .await
             .unwrap(),
         0, // 0 since all funds of `asset` were transferred
@@ -288,8 +287,6 @@ async fn app_execute_transaction_invalid_fee_asset() {
     let alice = get_alice_signing_key();
     let data = b"hello world".to_vec();
 
-    let fee_asset = test_asset();
-
     let tx = UnsignedTransaction {
         params: TransactionParams::builder()
             .nonce(0)
@@ -299,7 +296,7 @@ async fn app_execute_transaction_invalid_fee_asset() {
             SequenceAction {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                 data,
-                fee_asset,
+                fee_asset: test_asset(),
             }
             .into(),
         ],
@@ -485,15 +482,13 @@ async fn app_execute_transaction_fee_asset_change_addition() {
 
     let mut app = initialize_app(Some(genesis_state()), vec![]).await;
 
-    let new_asset = test_asset();
-
     let tx = UnsignedTransaction {
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
             .build(),
         actions: vec![Action::FeeAssetChange(FeeAssetChangeAction::Addition(
-            new_asset.clone(),
+            test_asset(),
         ))],
     };
 
@@ -501,7 +496,7 @@ async fn app_execute_transaction_fee_asset_change_addition() {
     app.execute_transaction(signed_tx).await.unwrap();
     assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
 
-    assert!(app.state.is_allowed_fee_asset(&new_asset).await.unwrap());
+    assert!(app.state.is_allowed_fee_asset(&test_asset()).await.unwrap());
 }
 
 #[tokio::test]
@@ -510,10 +505,9 @@ async fn app_execute_transaction_fee_asset_change_removal() {
 
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
-    let test_asset = test_asset();
 
     let genesis_state = UncheckedGenesisState {
-        allowed_fee_assets: vec![nria().into(), test_asset.clone()],
+        allowed_fee_assets: vec![nria().into(), test_asset()],
         ..unchecked_genesis_state()
     }
     .try_into()
@@ -526,7 +520,7 @@ async fn app_execute_transaction_fee_asset_change_removal() {
             .chain_id("test")
             .build(),
         actions: vec![Action::FeeAssetChange(FeeAssetChangeAction::Removal(
-            test_asset.clone(),
+            test_asset(),
         ))],
     };
 
@@ -534,7 +528,7 @@ async fn app_execute_transaction_fee_asset_change_removal() {
     app.execute_transaction(signed_tx).await.unwrap();
     assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
 
-    assert!(!app.state.is_allowed_fee_asset(&test_asset).await.unwrap());
+    assert!(!app.state.is_allowed_fee_asset(test_asset()).await.unwrap());
 }
 
 #[tokio::test]
