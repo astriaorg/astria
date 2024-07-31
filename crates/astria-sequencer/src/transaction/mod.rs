@@ -61,12 +61,10 @@ where
         .await
 }
 
-pub(crate) async fn execute<S: accounts::StateWriteExt>(
-    tx: &SignedTransaction,
-    state: &mut S,
-) -> anyhow::Result<()>
+pub(crate) async fn execute<S>(tx: &SignedTransaction, state: &mut S) -> anyhow::Result<()>
 where
     S: accounts::StateReadExt
+        + accounts::StateWriteExt
         + address::StateReadExt
         + bridge::StateReadExt
         + bridge::StateWriteExt,
