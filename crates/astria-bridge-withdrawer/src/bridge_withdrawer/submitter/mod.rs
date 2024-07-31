@@ -134,7 +134,7 @@ impl Submitter {
         Ok(())
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     async fn process_batch(
         &self,
         sequencer_grpc_client: SequencerServiceClient<Channel>,
@@ -224,7 +224,8 @@ impl Submitter {
     fields(
         nonce = tx.nonce(),
         transaction.hash = %telemetry::display::hex(&tx.sha256_of_proto_encoding()),
-    )
+    ),
+    err
 )]
 async fn submit_tx(
     client: sequencer_client::HttpClient,
@@ -279,6 +280,7 @@ async fn submit_tx(
     res
 }
 
+#[instrument(skip_all, err)]
 pub(crate) async fn get_pending_nonce(
     client: sequencer_service_client::SequencerServiceClient<Channel>,
     address: Address,
