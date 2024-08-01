@@ -961,8 +961,8 @@ impl Protobuf for Ics20Withdrawal {
         } = proto;
         let amount = amount.ok_or(Ics20WithdrawalError::field_not_set("amount"))?;
         let return_address = Address::try_from_raw(
-            &return_address
-                .clone()
+            return_address
+                .as_ref()
                 .ok_or(Ics20WithdrawalError::field_not_set("return_address"))?,
         )
         .map_err(Ics20WithdrawalError::return_address)?;
