@@ -67,7 +67,7 @@ fn nonce_storage_key(address: Address) -> String {
 pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
     async fn get_account_balances(&self, address: Address) -> Result<Vec<AssetBalance>> {
-        use crate::asset::state_ext::StateReadExt as _;
+        use crate::assets::StateReadExt as _;
 
         let prefix = format!("{}/balance/", StorageKey(&address));
         let mut balances: Vec<AssetBalance> = Vec::new();
@@ -94,7 +94,7 @@ pub(crate) trait StateReadExt: StateRead {
             let Balance(balance) =
                 Balance::try_from_slice(&value).context("invalid balance bytes")?;
 
-            let native_asset = crate::asset::get_native_asset();
+            let native_asset = crate::assets::get_native_asset();
             if asset == native_asset.to_ibc_prefixed() {
                 balances.push(AssetBalance {
                     denom: native_asset.clone(),
@@ -264,12 +264,9 @@ mod tests {
         StateReadExt as _,
         StateWriteExt as _,
     };
-    use crate::{
-        accounts::state_ext::{
-            balance_storage_key,
-            nonce_storage_key,
-        },
-        asset,
+    use crate::accounts::state_ext::{
+        balance_storage_key,
+        nonce_storage_key,
     };
 
     fn asset_0() -> astria_core::primitive::v1::asset::Denom {
@@ -565,33 +562,28 @@ mod tests {
 
     #[tokio::test]
     async fn get_account_balances() {
+        use crate::assets::StateWriteExt as _;
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
         // need to set native asset in order to use `get_account_balances()`
-        crate::asset::initialize_native_asset("nria");
+        crate::assets::initialize_native_asset("nria");
 
-        let asset_0 = crate::asset::get_native_asset();
+        let asset_0 = crate::assets::get_native_asset();
         let asset_1 = asset_1();
         let asset_2 = asset_2();
 
         // also need to add assets to the ibc state
-        asset::state_ext::StateWriteExt::put_ibc_asset(
-            &mut state,
-            &asset_0.clone().unwrap_trace_prefixed(),
-        )
-        .expect("should be able to call other trait method on state object");
-        asset::state_ext::StateWriteExt::put_ibc_asset(
-            &mut state,
-            &asset_1.clone().unwrap_trace_prefixed(),
-        )
-        .expect("should be able to call other trait method on state object");
-        asset::state_ext::StateWriteExt::put_ibc_asset(
-            &mut state,
-            &asset_2.clone().unwrap_trace_prefixed(),
-        )
-        .expect("should be able to call other trait method on state object");
+        state
+            .put_ibc_asset(&asset_0.clone().unwrap_trace_prefixed())
+            .expect("should be able to call other trait method on state object");
+        state
+            .put_ibc_asset(&asset_1.clone().unwrap_trace_prefixed())
+            .expect("should be able to call other trait method on state object");
+        state
+            .put_ibc_asset(&asset_2.clone().unwrap_trace_prefixed())
+            .expect("should be able to call other trait method on state object");
 
         // create needed variables
         let address = crate::address::base_prefixed([42u8; 20]);

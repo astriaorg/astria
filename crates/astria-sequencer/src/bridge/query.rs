@@ -14,8 +14,8 @@ use tendermint::abci::{
 };
 
 use crate::{
-    asset::state_ext::StateReadExt as _,
-    bridge::state_ext::StateReadExt as _,
+    assets::StateReadExt as _,
+    bridge::StateReadExt as _,
     state_ext::StateReadExt as _,
 };
 
@@ -269,8 +269,8 @@ mod test {
 
     use super::*;
     use crate::{
-        asset::state_ext::StateWriteExt,
-        bridge::state_ext::StateWriteExt as _,
+        assets::StateWriteExt,
+        bridge::StateWriteExt as _,
         state_ext::StateWriteExt as _,
     };
 

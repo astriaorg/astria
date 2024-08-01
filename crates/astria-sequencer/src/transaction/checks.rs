@@ -22,9 +22,9 @@ use astria_core::{
 use tracing::instrument;
 
 use crate::{
-    accounts::state_ext::StateReadExt,
-    bridge::state_ext::StateReadExt as _,
-    ibc::state_ext::StateReadExt as _,
+    accounts::StateReadExt,
+    bridge::StateReadExt as _,
+    ibc::StateReadExt as _,
     state_ext::StateReadExt as _,
 };
 
@@ -308,11 +308,11 @@ mod tests {
 
     use super::*;
     use crate::{
-        accounts::state_ext::StateWriteExt as _,
+        accounts::StateWriteExt as _,
         app::test_utils::*,
-        bridge::state_ext::StateWriteExt,
-        ibc::state_ext::StateWriteExt as _,
-        sequence::state_ext::StateWriteExt as _,
+        bridge::StateWriteExt,
+        ibc::StateWriteExt as _,
+        sequence::StateWriteExt as _,
     };
 
     #[tokio::test]
@@ -329,7 +329,7 @@ mod tests {
         state_tx.put_bridge_lock_byte_cost_multiplier(1);
         state_tx.put_bridge_sudo_change_base_fee(24);
 
-        let native_asset = crate::asset::get_native_asset();
+        let native_asset = crate::assets::get_native_asset();
         let other_asset = "other".parse::<Denom>().unwrap();
 
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
@@ -395,7 +395,7 @@ mod tests {
         state_tx.put_bridge_lock_byte_cost_multiplier(1);
         state_tx.put_bridge_sudo_change_base_fee(24);
 
-        let native_asset = crate::asset::get_native_asset();
+        let native_asset = crate::assets::get_native_asset();
         let other_asset = "other".parse::<Denom>().unwrap();
 
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();

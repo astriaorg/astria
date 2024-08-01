@@ -11,10 +11,11 @@ use astria_core::{
 use tracing::instrument;
 
 use crate::{
-    accounts::state_ext::{
+    accounts::{
         StateReadExt as _,
         StateWriteExt as _,
     },
+    assets::StateReadExt as _,
     bridge::state_ext::{
         StateReadExt as _,
         StateWriteExt as _,

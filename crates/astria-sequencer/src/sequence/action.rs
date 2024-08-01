@@ -11,15 +11,13 @@ use astria_core::{
 use tracing::instrument;
 
 use crate::{
-    accounts::state_ext::{
+    accounts,
+    accounts::{
         StateReadExt,
         StateWriteExt,
     },
-    sequence::state_ext::StateReadExt as SequenceStateReadExt,
-    state_ext::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    },
+    assets,
+    sequence,
     transaction::action_handler::ActionHandler,
 };
 
@@ -29,7 +27,10 @@ impl ActionHandler for SequenceAction {
         &self,
         state: &S,
         from: Address,
-    ) -> Result<()> {
+    ) -> Result<()>
+    where
+        S: accounts::StateReadExt + assets::StateReadExt + 'static,
+    {
         ensure!(
             state.is_allowed_fee_asset(&self.fee_asset).await?,
             "invalid fee asset",
@@ -57,15 +58,18 @@ impl ActionHandler for SequenceAction {
     }
 
     #[instrument(skip_all)]
-    async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> Result<()> {
+    async fn execute<S>(&self, state: &mut S, from: Address) -> Result<()>
+    where
+        S: assets::StateWriteExt,
+    {
         let fee = calculate_fee_from_state(&self.data, state)
             .await
             .context("failed to calculate fee")?;
+
         state
             .get_and_increase_block_fees(&self.fee_asset, fee, Self::full_name())
             .await
             .context("failed to add to block fees")?;
-
         state
             .decrease_balance(from, &self.fee_asset, fee)
             .await
@@ -75,7 +79,7 @@ impl ActionHandler for SequenceAction {
 }
 
 /// Calculates the fee for a sequence `Action` based on the length of the `data`.
-pub(crate) async fn calculate_fee_from_state<S: SequenceStateReadExt>(
+pub(crate) async fn calculate_fee_from_state<S: sequence::StateReadExt>(
     data: &[u8],
     state: &S,
 ) -> Result<u128> {

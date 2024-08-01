@@ -15,7 +15,7 @@ use tracing::instrument;
 
 use crate::{
     accounts::action::transfer_check_stateful,
-    bridge::state_ext::StateReadExt as _,
+    bridge::StateReadExt as _,
     state_ext::{
         StateReadExt,
         StateWriteExt,
@@ -112,9 +112,9 @@ mod test {
 
     use super::*;
     use crate::{
-        accounts::state_ext::StateWriteExt as _,
-        bridge::state_ext::StateWriteExt,
-        state_ext::StateWriteExt as _,
+        accounts::StateWriteExt as _,
+        assets::StateWriteExt as _,
+        bridge::StateWriteExt,
     };
 
     fn test_asset() -> asset::Denom {

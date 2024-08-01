@@ -34,7 +34,7 @@ use tracing::{
 };
 
 use crate::{
-    accounts::state_ext::StateReadExt,
+    accounts::StateReadExt,
     mempool::{
         Mempool as AppMempool,
         RemovalReason,

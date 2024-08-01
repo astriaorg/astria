@@ -16,7 +16,7 @@ use astria_core::{
 use tracing::instrument;
 
 use crate::{
-    authority::state_ext::{
+    authority::{
         StateReadExt,
         StateWriteExt,
     },
@@ -126,10 +126,10 @@ impl ActionHandler for FeeChangeAction {
     #[instrument(skip_all)]
     async fn execute<S: StateWriteExt>(&self, state: &mut S, _: Address) -> Result<()> {
         use crate::{
-            accounts::state_ext::StateWriteExt as _,
-            bridge::state_ext::StateWriteExt as _,
-            ibc::state_ext::StateWriteExt as _,
-            sequence::state_ext::StateWriteExt as _,
+            accounts::StateWriteExt as _,
+            bridge::StateWriteExt as _,
+            ibc::StateWriteExt as _,
+            sequence::StateWriteExt as _,
         };
 
         match self.fee_change {
@@ -168,19 +168,19 @@ mod test {
 
     use super::*;
     use crate::{
-        accounts::state_ext::{
+        accounts::{
             StateReadExt as _,
             StateWriteExt as _,
         },
-        bridge::state_ext::{
+        bridge::{
             StateReadExt as _,
             StateWriteExt as _,
         },
-        ibc::state_ext::{
+        ibc::{
             StateReadExt as _,
             StateWriteExt as _,
         },
-        sequence::state_ext::{
+        sequence::{
             StateReadExt as _,
             StateWriteExt as _,
         },

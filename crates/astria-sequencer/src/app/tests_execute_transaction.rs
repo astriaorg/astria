@@ -32,17 +32,19 @@ use penumbra_ibc::params::IBCParameters;
 use tendermint::abci::EventAttributeIndexExt as _;
 
 use crate::{
-    accounts::state_ext::StateReadExt as _,
+    accounts::StateReadExt as _,
     app::test_utils::*,
-    asset::get_native_asset,
-    authority::state_ext::StateReadExt as _,
-    bridge::state_ext::{
+    assets::{
+        get_native_asset,
         StateReadExt as _,
-        StateWriteExt,
     },
-    ibc::state_ext::StateReadExt as _,
+    authority::StateReadExt as _,
+    bridge::{
+        StateReadExt as _,
+        StateWriteExt as _,
+    },
+    ibc::StateReadExt as _,
     sequence::calculate_fee_from_state,
-    state_ext::StateReadExt as _,
     transaction::{
         InvalidChainId,
         InvalidNonce,
@@ -130,7 +132,7 @@ async fn app_execute_transaction_transfer() {
 
 #[tokio::test]
 async fn app_execute_transaction_transfer_not_native_token() {
-    use crate::accounts::state_ext::StateWriteExt as _;
+    use crate::accounts::StateWriteExt as _;
 
     let mut app = initialize_app(None, vec![]).await;
 
@@ -240,7 +242,7 @@ async fn app_execute_transaction_transfer_balance_too_low_for_fee() {
 
 #[tokio::test]
 async fn app_execute_transaction_sequence() {
-    use crate::sequence::state_ext::StateWriteExt as _;
+    use crate::sequence::StateWriteExt as _;
 
     let mut app = initialize_app(None, vec![]).await;
     let mut state_tx = StateDelta::new(app.state.clone());
@@ -967,7 +969,7 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
 
 #[tokio::test]
 async fn app_execute_transaction_bridge_lock_unlock_action_ok() {
-    use crate::accounts::state_ext::StateWriteExt as _;
+    use crate::accounts::StateWriteExt as _;
 
     let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
     let mut app = initialize_app(None, vec![]).await;

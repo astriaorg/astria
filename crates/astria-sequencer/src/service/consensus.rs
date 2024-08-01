@@ -233,7 +233,7 @@ mod test {
     use super::*;
     use crate::{
         app::test_utils::default_fees,
-        asset::get_native_asset,
+        assets::get_native_asset,
         mempool::Mempool,
         metrics::Metrics,
         proposal::commitment::generate_rollup_datas_commitment,

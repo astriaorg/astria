@@ -13,7 +13,7 @@ use tendermint::abci::{
 };
 
 use crate::{
-    asset::state_ext::StateReadExt as _,
+    assets::StateReadExt as _,
     state_ext::StateReadExt as _,
     transaction::checks::get_fees_for_transaction,
 };

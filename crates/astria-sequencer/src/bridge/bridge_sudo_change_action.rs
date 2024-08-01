@@ -10,7 +10,8 @@ use astria_core::{
 use tracing::instrument;
 
 use crate::{
-    accounts::state_ext::StateWriteExt as _,
+    accounts::StateWriteExt as _,
+    assets::StateReadExt as _,
     bridge::state_ext::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -101,6 +102,7 @@ mod tests {
     use cnidarium::StateDelta;
 
     use super::*;
+    use crate::assets::StateWriteExt as _;
 
     fn test_asset() -> asset::Denom {
         "test".parse().unwrap()
