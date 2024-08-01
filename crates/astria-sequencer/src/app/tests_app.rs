@@ -470,6 +470,13 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
     assert_eq!(prepare_proposal_result.txs, finalize_block.txs);
     assert_eq!(app.executed_proposal_hash, Hash::default());
     assert_eq!(app.validator_address.unwrap(), proposer_address);
+    // run maintence to clear out transactions
+    let current_account_nonce_getter = |address: [u8; 20]| app.state.get_account_nonce(address);
+    app.mempool
+        .run_maintenance(current_account_nonce_getter)
+        .await
+        .unwrap();
+
     assert_eq!(app.mempool.len().await, 0);
 
     // call process_proposal - should not re-execute anything.
@@ -578,6 +585,13 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
         .await
         .expect("too large transactions should not cause prepare proposal to fail");
 
+    // run maintence to clear out transactions
+    let current_account_nonce_getter = |address: [u8; 20]| app.state.get_account_nonce(address);
+    app.mempool
+        .run_maintenance(current_account_nonce_getter)
+        .await
+        .unwrap();
+
     // see only first tx made it in
     assert_eq!(
         result.txs.len(),
@@ -650,6 +664,13 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
         .prepare_proposal(prepare_args, storage)
         .await
         .expect("too large transactions should not cause prepare proposal to fail");
+
+    // run maintence to clear out transactions
+    let current_account_nonce_getter = |address: [u8; 20]| app.state.get_account_nonce(address);
+    app.mempool
+        .run_maintenance(current_account_nonce_getter)
+        .await
+        .unwrap();
 
     // see only first tx made it in
     assert_eq!(

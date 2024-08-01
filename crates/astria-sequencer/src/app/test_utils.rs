@@ -155,3 +155,26 @@ pub(crate) fn get_mock_tx(nonce: u32) -> SignedTransaction {
 
     tx.into_signed(&get_alice_signing_key())
 }
+
+pub(crate) fn get_mock_tx_parameterized(
+    nonce: u32,
+    signer: &SigningKey,
+    data_bytes: [u8; 32],
+) -> SignedTransaction {
+    let tx = UnsignedTransaction {
+        params: TransactionParams::builder()
+            .nonce(nonce)
+            .chain_id("test")
+            .build(),
+        actions: vec![
+            SequenceAction {
+                rollup_id: RollupId::from_unhashed_bytes(data_bytes),
+                data: vec![0x99],
+                fee_asset: "astria".parse().unwrap(),
+            }
+            .into(),
+        ],
+    };
+
+    tx.into_signed(signer)
+}
