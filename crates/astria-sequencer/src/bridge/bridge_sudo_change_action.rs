@@ -3,38 +3,34 @@ use anyhow::{
     Context as _,
     Result,
 };
-use astria_core::{
-    primitive::v1::Address,
-    protocol::transaction::v1alpha1::action::BridgeSudoChangeAction,
-};
-use tracing::instrument;
+use astria_core::protocol::transaction::v1alpha1::action::BridgeSudoChangeAction;
+use cnidarium::StateWrite;
 
 use crate::{
     accounts::StateWriteExt as _,
-    address,
+    address::StateReadExt as _,
+    app::ActionHandler,
     assets::StateReadExt as _,
     bridge::state_ext::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    state_ext::{
-        StateReadExt,
-        StateWriteExt,
-    },
-    transaction::action_handler::ActionHandler,
+    transaction::StateReadExt as _,
 };
 
 #[async_trait::async_trait]
 impl ActionHandler for BridgeSudoChangeAction {
-    async fn check_stateless(&self) -> Result<()> {
+    type CheckStatelessContext = ();
+
+    async fn check_stateless(&self, _context: Self::CheckStatelessContext) -> Result<()> {
         Ok(())
     }
 
-    async fn check_stateful<S: StateReadExt + address::StateReadExt + 'static>(
-        &self,
-        state: &S,
-        from: Address,
-    ) -> Result<()> {
+    async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
+        let from = state
+            .get_current_source()
+            .expect("transaction source must be present in state when executing an action")
+            .address_bytes();
         state
             .ensure_base_prefix(&self.bridge_address)
             .await
@@ -76,11 +72,6 @@ impl ActionHandler for BridgeSudoChangeAction {
             "unauthorized for bridge sudo change action",
         );
 
-        Ok(())
-    }
-
-    #[instrument(skip_all)]
-    async fn execute<S: StateWriteExt>(&self, state: &mut S, _: Address) -> Result<()> {
         let fee = state
             .get_bridge_sudo_change_base_fee()
             .await

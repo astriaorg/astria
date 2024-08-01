@@ -21,7 +21,6 @@ use cnidarium::{
 use tracing::instrument;
 
 use super::ValidatorSet;
-use crate::address;
 
 /// Newtype wrapper to read and write an address from rocksdb.
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
@@ -32,9 +31,9 @@ const VALIDATOR_SET_STORAGE_KEY: &str = "valset";
 const VALIDATOR_UPDATES_KEY: &[u8] = b"valupdates";
 
 #[async_trait]
-pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
+pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
-    async fn get_sudo_address(&self) -> Result<Address> {
+    async fn get_sudo_address(&self) -> Result<[u8; ADDRESS_LEN]> {
         let Some(bytes) = self
             .get_raw(SUDO_STORAGE_KEY)
             .await
@@ -45,9 +44,7 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
         };
         let SudoAddress(address_bytes) =
             SudoAddress::try_from_slice(&bytes).context("invalid sudo key bytes")?;
-        self.try_base_prefixed(&address_bytes)
-            .await
-            .context("failed constructing address from prefixed stored in state")
+        Ok(address_bytes)
     }
 
     #[instrument(skip_all)]

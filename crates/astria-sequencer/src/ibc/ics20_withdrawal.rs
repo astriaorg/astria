@@ -6,11 +6,12 @@ use anyhow::{
     Result,
 };
 use astria_core::{
-    primitive::v1::{
-        asset::Denom,
-        Address,
-    },
+    primitive::v1::asset::Denom,
     protocol::transaction::v1alpha1::action,
+};
+use cnidarium::{
+    StateRead,
+    StateWrite,
 };
 use ibc_types::core::channel::{
     ChannelId,
@@ -22,17 +23,21 @@ use penumbra_ibc::component::packet::{
     SendPacketWrite as _,
     Unchecked,
 };
-use tracing::instrument;
 
 use crate::{
-    accounts,
-    address,
+    accounts::{
+        GetAddressBytes,
+        StateReadExt as _,
+        StateWriteExt as _,
+    },
+    address::StateReadExt as _,
+    app::ActionHandler,
     bridge::StateReadExt as _,
     ibc::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    transaction::action_handler::ActionHandler,
+    transaction::StateReadExt as _,
 };
 
 fn withdrawal_to_unchecked_ibc_packet(
@@ -51,10 +56,10 @@ fn withdrawal_to_unchecked_ibc_packet(
     )
 }
 
-async fn ics20_withdrawal_check_stateful_bridge_account<S: accounts::StateReadExt + 'static>(
+async fn ics20_withdrawal_check_stateful_bridge_account<S: StateRead>(
     action: &action::Ics20Withdrawal,
     state: &S,
-    from: Address,
+    from: [u8; 20],
 ) -> Result<()> {
     // bridge address checks:
     // - if the sender of this transaction is not a bridge account, and the tx `bridge_address`
@@ -76,7 +81,7 @@ async fn ics20_withdrawal_check_stateful_bridge_account<S: accounts::StateReadEx
 
     // if `action.bridge_address` is Some, but it's not a valid bridge account,
     // the `get_bridge_account_withdrawer_address` step will fail.
-    let bridge_address = action.bridge_address.unwrap_or(from);
+    let bridge_address = action.bridge_address.map_or(from, |addr| addr.bytes());
 
     let Some(withdrawer) = state
         .get_bridge_account_withdrawer_address(&bridge_address)
@@ -87,7 +92,7 @@ async fn ics20_withdrawal_check_stateful_bridge_account<S: accounts::StateReadEx
     };
 
     ensure!(
-        withdrawer == from,
+        withdrawer == from.get_address_bytes(),
         "sender does not match bridge withdrawer address; unauthorized"
     );
 
@@ -96,8 +101,9 @@ async fn ics20_withdrawal_check_stateful_bridge_account<S: accounts::StateReadEx
 
 #[async_trait::async_trait]
 impl ActionHandler for action::Ics20Withdrawal {
-    #[instrument(skip_all)]
-    async fn check_stateless(&self) -> Result<()> {
+    type CheckStatelessContext = ();
+
+    async fn check_stateless(&self, _context: Self::CheckStatelessContext) -> Result<()> {
         ensure!(self.timeout_time() != 0, "timeout time must be non-zero",);
 
         // NOTE (from penumbra): we could validate the destination chain address as bech32 to
@@ -106,12 +112,12 @@ impl ActionHandler for action::Ics20Withdrawal {
         Ok(())
     }
 
-    #[instrument(skip_all)]
-    async fn check_stateful<S: accounts::StateReadExt + address::StateReadExt + 'static>(
-        &self,
-        state: &S,
-        from: Address,
-    ) -> Result<()> {
+    async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
+        let from = state
+            .get_current_source()
+            .expect("transaction source must be present in state when executing an action")
+            .address_bytes();
+
         state
             .ensure_base_prefix(&self.return_address)
             .await
@@ -123,18 +129,20 @@ impl ActionHandler for action::Ics20Withdrawal {
             )?;
         }
 
-        ics20_withdrawal_check_stateful_bridge_account(self, state, from).await?;
+        ics20_withdrawal_check_stateful_bridge_account(self, &state, from).await?;
 
         let fee = state
             .get_ics20_withdrawal_base_fee()
             .await
             .context("failed to get ics20 withdrawal base fee")?;
 
-        let packet: IBCPacket<Unchecked> = withdrawal_to_unchecked_ibc_packet(self);
-        state
-            .send_packet_check(packet)
-            .await
-            .context("packet failed send check")?;
+        let packet = {
+            let packet = withdrawal_to_unchecked_ibc_packet(self);
+            state
+                .send_packet_check(packet)
+                .await
+                .context("packet failed send check")?
+        };
 
         let transfer_asset = self.denom();
 
@@ -173,21 +181,6 @@ impl ActionHandler for action::Ics20Withdrawal {
             );
         }
 
-        Ok(())
-    }
-
-    #[instrument(skip_all)]
-    async fn execute<S: accounts::StateWriteExt>(
-        &self,
-        state: &mut S,
-        from: Address,
-    ) -> Result<()> {
-        let fee = state
-            .get_ics20_withdrawal_base_fee()
-            .await
-            .context("failed to get ics20 withdrawal base fee")?;
-        let checked_packet = withdrawal_to_unchecked_ibc_packet(self).assume_checked();
-
         state
             .decrease_balance(from, self.denom(), self.amount())
             .await
@@ -200,11 +193,7 @@ impl ActionHandler for action::Ics20Withdrawal {
 
         // if we're the source, move tokens to the escrow account,
         // otherwise the tokens are just burned
-        if is_source(
-            checked_packet.source_port(),
-            checked_packet.source_channel(),
-            self.denom(),
-        ) {
+        if is_source(packet.source_port(), packet.source_channel(), self.denom()) {
             let channel_balance = state
                 .get_ibc_channel_balance(self.source_channel(), self.denom())
                 .await
@@ -221,7 +210,7 @@ impl ActionHandler for action::Ics20Withdrawal {
                 .context("failed to update channel balance")?;
         }
 
-        state.send_packet_execute(checked_packet).await;
+        state.send_packet_execute(packet).await;
         Ok(())
     }
 }

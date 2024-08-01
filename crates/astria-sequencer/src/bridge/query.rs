@@ -14,6 +14,7 @@ use tendermint::abci::{
 };
 
 use crate::{
+    address::StateReadExt,
     assets::StateReadExt as _,
     bridge::StateReadExt as _,
     state_ext::StateReadExt as _,
@@ -83,8 +84,8 @@ async fn get_bridge_account_info(
         }
     };
 
-    let sudo_address = match snapshot.get_bridge_account_sudo_address(&address).await {
-        Ok(Some(sudo_address)) => sudo_address,
+    let sudo_address_bytes = match snapshot.get_bridge_account_sudo_address(&address).await {
+        Ok(Some(bytes)) => bytes,
         Ok(None) => {
             return Err(error_query_response(
                 None,
@@ -101,7 +102,19 @@ async fn get_bridge_account_info(
         }
     };
 
-    let withdrawer_address = match snapshot
+    let sudo_address = match snapshot.try_base_prefixed(&sudo_address_bytes).await {
+        Err(err) => {
+            return Err(error_query_response(
+                Some(err),
+                AbciErrorCode::INTERNAL_ERROR,
+                "failed to construct bech32m address from address prefix and account bytes read \
+                 from state",
+            ));
+        }
+        Ok(address) => address,
+    };
+
+    let withdrawer_address_bytes = match snapshot
         .get_bridge_account_withdrawer_address(&address)
         .await
     {
@@ -120,6 +133,18 @@ async fn get_bridge_account_info(
                 "failed to get withdrawer address",
             ));
         }
+    };
+
+    let withdrawer_address = match snapshot.try_base_prefixed(&withdrawer_address_bytes).await {
+        Err(err) => {
+            return Err(error_query_response(
+                Some(err),
+                AbciErrorCode::INTERNAL_ERROR,
+                "failed to construct bech32m address from address prefix and account bytes read \
+                 from state",
+            ));
+        }
+        Ok(address) => address,
     };
 
     Ok(Some(BridgeAccountInfo {

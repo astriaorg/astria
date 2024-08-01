@@ -4,37 +4,32 @@ use anyhow::{
     Context as _,
     Result,
 };
-use astria_core::{
-    primitive::v1::Address,
-    protocol::transaction::v1alpha1::action::{
-        BridgeUnlockAction,
-        TransferAction,
-    },
+use astria_core::protocol::transaction::v1alpha1::action::{
+    BridgeUnlockAction,
+    TransferAction,
 };
-use tracing::instrument;
+use cnidarium::StateWrite;
 
 use crate::{
-    accounts::action::transfer_check_stateful,
-    address,
+    address::StateReadExt as _,
+    app::ActionHandler,
     bridge::StateReadExt as _,
-    state_ext::{
-        StateReadExt,
-        StateWriteExt,
-    },
-    transaction::action_handler::ActionHandler,
+    transaction::StateReadExt as _,
 };
 
 #[async_trait::async_trait]
 impl ActionHandler for BridgeUnlockAction {
-    async fn check_stateless(&self) -> Result<()> {
+    type CheckStatelessContext = ();
+
+    async fn check_stateless(&self, _context: Self::CheckStatelessContext) -> Result<()> {
         Ok(())
     }
 
-    async fn check_stateful<S: StateReadExt + address::StateReadExt + 'static>(
-        &self,
-        state: &S,
-        from: Address,
-    ) -> Result<()> {
+    async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
+        let from = state
+            .get_current_source()
+            .expect("transaction source must be present in state when executing an action")
+            .address_bytes();
         state
             .ensure_base_prefix(&self.to)
             .await
@@ -48,7 +43,7 @@ impl ActionHandler for BridgeUnlockAction {
 
         // the bridge address to withdraw funds from
         // if unset, use the tx sender's address
-        let bridge_address = self.bridge_address.unwrap_or(from);
+        let bridge_address = self.bridge_address.map_or(from, |addr| addr.bytes());
 
         // grab the bridge account's asset
         let asset = state
@@ -77,31 +72,13 @@ impl ActionHandler for BridgeUnlockAction {
             fee_asset: self.fee_asset.clone(),
         };
 
-        // this performs the same checks as a normal `TransferAction`
-        transfer_check_stateful(&transfer_action, state, bridge_address).await
-    }
-
-    #[instrument(skip_all)]
-    async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> Result<()> {
-        // the bridge address to withdraw funds from
-        let bridge_address = self.bridge_address.unwrap_or(from);
-
-        let asset = state
-            .get_bridge_account_ibc_asset(&bridge_address)
-            .await
-            .context("failed to get bridge's asset id, must be a bridge account")?;
-
-        let transfer_action = TransferAction {
-            to: self.to,
-            asset: asset.into(),
-            amount: self.amount,
-            fee_asset: self.fee_asset.clone(),
-        };
-
-        transfer_action
-            .execute(state, bridge_address)
-            .await
-            .context("failed to execute bridge unlock action as transfer action")?;
+        crate::accounts::action::check_and_execute_transfer(
+            &transfer_action,
+            bridge_address,
+            &mut state,
+        )
+        .await
+        .context("failed to execute bridge lock action as transfer action")?;
 
         Ok(())
     }

@@ -23,7 +23,7 @@ use tracing::{
     instrument,
 };
 
-use crate::address;
+use crate::accounts::GetAddressBytes;
 
 /// Newtype wrapper to read and write a u128 from rocksdb.
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
@@ -40,13 +40,13 @@ struct Fee(u128);
 const IBC_SUDO_STORAGE_KEY: &str = "ibcsudo";
 const ICS20_WITHDRAWAL_BASE_FEE_STORAGE_KEY: &str = "ics20withdrawalfee";
 
-struct IbcRelayerKey<'a>(&'a Address);
+struct IbcRelayerKey<'a, T>(&'a T);
 
-impl<'a> std::fmt::Display for IbcRelayerKey<'a> {
+impl<'a, T: GetAddressBytes> std::fmt::Display for IbcRelayerKey<'a, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("ibc-relayer")?;
         f.write_str("/")?;
-        for byte in self.0.bytes() {
+        for byte in self.0.get_address_bytes() {
             f.write_fmt(format_args!("{byte:02x}"))?;
         }
         Ok(())
@@ -63,12 +63,12 @@ fn channel_balance_storage_key<TAsset: Into<asset::IbcPrefixed>>(
     )
 }
 
-fn ibc_relayer_key(address: &Address) -> String {
+fn ibc_relayer_key<T: GetAddressBytes>(address: &T) -> String {
     IbcRelayerKey(address).to_string()
 }
 
 #[async_trait]
-pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
+pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
     async fn get_ibc_channel_balance<TAsset>(
         &self,
@@ -91,7 +91,7 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
     }
 
     #[instrument(skip_all)]
-    async fn get_ibc_sudo_address(&self) -> Result<Address> {
+    async fn get_ibc_sudo_address(&self) -> Result<[u8; ADDRESS_LEN]> {
         let Some(bytes) = self
             .get_raw(IBC_SUDO_STORAGE_KEY)
             .await
@@ -102,16 +102,13 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
         };
         let SudoAddress(address_bytes) =
             SudoAddress::try_from_slice(&bytes).context("invalid ibc sudo key bytes")?;
-        Ok(self.try_base_prefixed(&address_bytes).await.context(
-            "failed constructing ibc sudo address from address bytes and address prefix stored in \
-             state",
-        )?)
+        Ok(address_bytes)
     }
 
     #[instrument(skip_all)]
-    async fn is_ibc_relayer(&self, address: &Address) -> Result<bool> {
+    async fn is_ibc_relayer<T: GetAddressBytes>(&self, address: T) -> Result<bool> {
         Ok(self
-            .get_raw(&ibc_relayer_key(address))
+            .get_raw(&ibc_relayer_key(&address))
             .await
             .context("failed to read ibc relayer key from state")?
             .is_some())

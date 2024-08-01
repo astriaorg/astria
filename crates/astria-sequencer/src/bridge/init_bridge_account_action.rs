@@ -4,41 +4,37 @@ use anyhow::{
     Context as _,
     Result,
 };
-use astria_core::{
-    primitive::v1::Address,
-    protocol::transaction::v1alpha1::action::InitBridgeAccountAction,
-};
-use tracing::instrument;
+use astria_core::protocol::transaction::v1alpha1::action::InitBridgeAccountAction;
+use cnidarium::StateWrite;
 
 use crate::{
     accounts::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    address,
+    address::StateReadExt as _,
+    app::ActionHandler,
     assets::StateReadExt as _,
     bridge::state_ext::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    state_ext::{
-        StateReadExt,
-        StateWriteExt,
-    },
-    transaction::action_handler::ActionHandler,
+    transaction::StateReadExt as _,
 };
 
 #[async_trait::async_trait]
 impl ActionHandler for InitBridgeAccountAction {
-    async fn check_stateless(&self) -> Result<()> {
+    type CheckStatelessContext = ();
+
+    async fn check_stateless(&self, _context: Self::CheckStatelessContext) -> Result<()> {
         Ok(())
     }
 
-    async fn check_stateful<S: StateReadExt + address::StateReadExt + 'static>(
-        &self,
-        state: &S,
-        from: Address,
-    ) -> Result<()> {
+    async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
+        let from = state
+            .get_current_source()
+            .expect("transaction source must be present in state when executing an action")
+            .address_bytes();
         if let Some(withdrawer_address) = &self.withdrawer_address {
             state
                 .ensure_base_prefix(withdrawer_address)
@@ -87,23 +83,18 @@ impl ActionHandler for InitBridgeAccountAction {
             "insufficient funds for bridge account initialization",
         );
 
-        Ok(())
-    }
-
-    #[instrument(skip_all)]
-    async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> Result<()> {
-        let fee = state
-            .get_init_bridge_account_base_fee()
-            .await
-            .context("failed to get base fee for initializing bridge account")?;
-
         state.put_bridge_account_rollup_id(&from, &self.rollup_id);
         state
             .put_bridge_account_ibc_asset(&from, &self.asset)
             .context("failed to put asset ID")?;
-        state.put_bridge_account_sudo_address(&from, &self.sudo_address.unwrap_or(from));
-        state
-            .put_bridge_account_withdrawer_address(&from, &self.withdrawer_address.unwrap_or(from));
+        state.put_bridge_account_sudo_address(
+            &from,
+            &self.sudo_address.map_or(from, |addr| addr.bytes()),
+        );
+        state.put_bridge_account_withdrawer_address(
+            &from,
+            &self.withdrawer_address.map_or(from, |addr| addr.bytes()),
+        );
 
         state
             .decrease_balance(from, &self.fee_asset, fee)

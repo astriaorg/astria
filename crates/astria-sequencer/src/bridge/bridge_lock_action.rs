@@ -4,64 +4,54 @@ use anyhow::{
     Result,
 };
 use astria_core::{
-    primitive::v1::Address,
     protocol::transaction::v1alpha1::action::{
         BridgeLockAction,
         TransferAction,
     },
     sequencerblock::v1alpha1::block::Deposit,
 };
-use tracing::instrument;
+use cnidarium::StateWrite;
 
 use crate::{
     accounts::{
-        action::transfer_check_stateful,
         StateReadExt as _,
         StateWriteExt as _,
     },
-    address,
+    address::StateReadExt as _,
+    app::ActionHandler,
     bridge::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    state_ext::{
-        StateReadExt,
-        StateWriteExt,
-    },
-    transaction::action_handler::ActionHandler,
+    transaction::StateReadExt as _,
 };
 
 #[async_trait::async_trait]
 impl ActionHandler for BridgeLockAction {
-    async fn check_stateless(&self) -> Result<()> {
+    type CheckStatelessContext = ();
+
+    async fn check_stateless(&self, _context: Self::CheckStatelessContext) -> Result<()> {
         Ok(())
     }
 
-    async fn check_stateful<S: StateReadExt + address::StateReadExt + 'static>(
-        &self,
-        state: &S,
-        from: Address,
-    ) -> Result<()> {
+    async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
+        let from = state
+            .get_current_source()
+            .expect("transaction source must be present in state when executing an action")
+            .address_bytes();
         state
             .ensure_base_prefix(&self.to)
             .await
             .context("failed check for base prefix of destination address")?;
-        let transfer_action = TransferAction {
-            to: self.to,
-            asset: self.asset.clone(),
-            amount: self.amount,
-            fee_asset: self.fee_asset.clone(),
-        };
-
         // ensure the recipient is a bridge account.
         let rollup_id = state
-            .get_bridge_account_rollup_id(&self.to)
+            .get_bridge_account_rollup_id(self.to)
             .await
             .context("failed to get bridge account rollup id")?
             .ok_or_else(|| anyhow::anyhow!("bridge lock must be sent to a bridge account"))?;
 
         let allowed_asset = state
-            .get_bridge_account_ibc_asset(&self.to)
+            .get_bridge_account_ibc_asset(self.to)
             .await
             .context("failed to get bridge account asset ID")?;
         ensure!(
@@ -95,12 +85,6 @@ impl ActionHandler for BridgeLockAction {
             .saturating_add(transfer_fee);
         ensure!(from_balance >= fee, "insufficient funds for fee payment");
 
-        // this performs the same checks as a normal `TransferAction`
-        transfer_check_stateful(&transfer_action, state, from).await
-    }
-
-    #[instrument(skip_all)]
-    async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> Result<()> {
         let transfer_action = TransferAction {
             to: self.to,
             asset: self.asset.clone(),
@@ -108,13 +92,12 @@ impl ActionHandler for BridgeLockAction {
             fee_asset: self.fee_asset.clone(),
         };
 
-        transfer_action
-            .execute(state, from)
+        crate::accounts::action::check_and_execute_transfer(&transfer_action, from, &mut state)
             .await
             .context("failed to execute bridge lock action as transfer action")?;
 
         let rollup_id = state
-            .get_bridge_account_rollup_id(&self.to)
+            .get_bridge_account_rollup_id(self.to)
             .await
             .context("failed to get bridge account rollup id")?
             .expect("recipient must be a bridge account; this is a bug in check_stateful");
