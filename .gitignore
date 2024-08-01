@@ -13,5 +13,3 @@ target/
 
 # We don't want to commit the dependency directory of charts
 charts/*/charts
-
-crates/astria-bridge-withdrawer/src/withdrawer/ethereum/generated/

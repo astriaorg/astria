@@ -95,6 +95,7 @@ impl BridgeWithdrawer {
             sequencer_bridge_address,
             sequencer_grpc_endpoint: sequencer_grpc_endpoint.clone(),
             expected_fee_asset: fee_asset_denomination,
+            metrics,
         }
         .build()
         .wrap_err("failed to initialize startup")?;
@@ -145,6 +146,10 @@ impl BridgeWithdrawer {
         };
 
         Ok((service, shutdown_handle))
+    }
+
+    pub fn local_addr(&self) -> SocketAddr {
+        self.api_server.local_addr()
     }
 
     // Panic won't happen because `startup_task` is unwraped lazily after checking if it's `Some`.
@@ -346,12 +351,12 @@ impl Shutdown {
                 .await
                 .map(flatten_result)
             {
-                Ok(Ok(())) => info!("withdrawer exited gracefully"),
-                Ok(Err(error)) => error!(%error, "withdrawer exited with an error"),
+                Ok(Ok(())) => info!("submitter exited gracefully"),
+                Ok(Err(error)) => error!(%error, "submitter exited with an error"),
                 Err(_) => {
                     error!(
                         timeout_secs = limit.as_secs(),
-                        "watcher did not shut down within timeout; killing it"
+                        "submitter did not shut down within timeout; killing it"
                     );
                     submitter_task.abort();
                 }

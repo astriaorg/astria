@@ -6,6 +6,7 @@ use anyhow::{
 use astria_core::{
     primitive::v1::Address,
     protocol::transaction::v1alpha1::action::SequenceAction,
+    Protobuf,
 };
 use tracing::instrument;
 
@@ -61,7 +62,7 @@ impl ActionHandler for SequenceAction {
             .await
             .context("failed to calculate fee")?;
         state
-            .get_and_increase_block_fees(&self.fee_asset, fee)
+            .get_and_increase_block_fees(&self.fee_asset, fee, Self::full_name())
             .await
             .context("failed to add to block fees")?;
 
