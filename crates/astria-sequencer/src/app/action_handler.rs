@@ -1,9 +1,6 @@
 use std::sync::Arc;
 
-use cnidarium::{
-    StateRead,
-    StateWrite,
-};
+use cnidarium::StateWrite;
 
 /// This trait is a verbatim copy of [`cnidarium_component::ActionHandler`].
 ///
@@ -15,8 +12,13 @@ pub(crate) trait ActionHandler {
     type CheckStatelessContext: Clone + Send + Sync + 'static;
     async fn check_stateless(&self, context: Self::CheckStatelessContext) -> anyhow::Result<()>;
 
-    async fn check_historical<S: StateRead + 'static>(&self, _state: Arc<S>) -> anyhow::Result<()> {
-        Ok(())
-    }
+    // Commenting out for the time being as CI flags this as not being used. Leaving this in
+    // for reference as this is copied from cnidarium_component.
+    // ```
+    // async fn check_historical<S: StateRead + 'static>(&self, _state: Arc<S>) -> anyhow::Result<()> {
+    //     Ok(())
+    // }
+    // ```
+
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> anyhow::Result<()>;
 }
