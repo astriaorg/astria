@@ -1054,8 +1054,8 @@ async fn transaction_execution_records_fee_event() {
     let mut app = initialize_app(None, vec![]).await;
 
     // transfer funds from Alice to Bob
-    let (alice_signing_key, _) = get_alice_signing_key_and_address();
-    let bob_address = address_from_hex_string(BOB_ADDRESS);
+    let alice = get_alice_signing_key();
+    let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
     let value = 333_333;
     let tx = UnsignedTransaction {
         params: TransactionParams::builder()
@@ -1066,14 +1066,14 @@ async fn transaction_execution_records_fee_event() {
             TransferAction {
                 to: bob_address,
                 amount: value,
-                asset: get_native_asset().clone(),
-                fee_asset: get_native_asset().clone(),
+                asset: nria().into(),
+                fee_asset: nria().into(),
             }
             .into(),
         ],
     };
 
-    let signed_tx = Arc::new(tx.into_signed(&alice_signing_key));
+    let signed_tx = Arc::new(tx.into_signed(&alice));
 
     let events = app.execute_transaction(signed_tx).await.unwrap();
     let transfer_fee = app.state.get_transfer_base_fee().await.unwrap();
@@ -1081,7 +1081,7 @@ async fn transaction_execution_records_fee_event() {
     assert_eq!(event.kind, "tx.fees");
     assert_eq!(
         event.attributes[0],
-        ("asset", get_native_asset().to_string()).index().into()
+        ("asset", nria().to_string()).index().into()
     );
     assert_eq!(
         event.attributes[1],
