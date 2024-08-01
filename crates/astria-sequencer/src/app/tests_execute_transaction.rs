@@ -33,7 +33,10 @@ use tendermint::abci::EventAttributeIndexExt as _;
 
 use crate::{
     accounts::StateReadExt as _,
-    app::test_utils::*,
+    app::{
+        test_utils::*,
+        ActionHandler as _,
+    },
     assets::StateReadExt as _,
     authority::StateReadExt as _,
     bridge::{
@@ -435,7 +438,7 @@ async fn app_execute_transaction_sudo_address_change() {
     assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
 
     let sudo_address = app.state.get_sudo_address().await.unwrap();
-    assert_eq!(sudo_address, new_address);
+    assert_eq!(sudo_address, new_address.bytes());
 }
 
 #[tokio::test]
@@ -878,8 +881,6 @@ async fn app_execute_transaction_invalid_chain_id() {
 async fn app_stateful_check_fails_insufficient_total_balance() {
     use rand::rngs::OsRng;
 
-    use crate::transaction;
-
     let mut app = initialize_app(None, vec![]).await;
 
     let alice = get_alice_signing_key();
@@ -939,7 +940,8 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
     .into_signed(&keypair);
 
     // try double, see fails stateful check
-    let res = transaction::check_stateful(&signed_tx_fail, &app.state)
+    let res = signed_tx_fail
+        .check_and_execute(Arc::get_mut(&mut app.state).unwrap())
         .await
         .unwrap_err()
         .root_cause()
@@ -963,7 +965,8 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
     }
     .into_signed(&keypair);
 
-    transaction::check_stateful(&signed_tx_pass, &app.state)
+    signed_tx_pass
+        .check_and_execute(Arc::get_mut(&mut app.state).unwrap())
         .await
         .expect("stateful check should pass since we transferred enough to cover fee");
 }

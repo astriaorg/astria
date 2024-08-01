@@ -5,7 +5,6 @@ use anyhow::{
 };
 use astria_core::primitive::v1::{
     asset,
-    Address,
     ADDRESS_LEN,
 };
 use async_trait::async_trait;
@@ -148,23 +147,23 @@ pub(crate) trait StateWriteExt: StateWrite {
     }
 
     #[instrument(skip_all)]
-    fn put_ibc_sudo_address(&mut self, address: Address) -> Result<()> {
+    fn put_ibc_sudo_address<T: GetAddressBytes>(&mut self, address: T) -> Result<()> {
         self.put_raw(
             IBC_SUDO_STORAGE_KEY.to_string(),
-            borsh::to_vec(&SudoAddress(address.bytes()))
+            borsh::to_vec(&SudoAddress(address.get_address_bytes()))
                 .context("failed to convert sudo address to vec")?,
         );
         Ok(())
     }
 
     #[instrument(skip_all)]
-    fn put_ibc_relayer_address(&mut self, address: &Address) {
-        self.put_raw(ibc_relayer_key(address), vec![]);
+    fn put_ibc_relayer_address<T: GetAddressBytes>(&mut self, address: T) {
+        self.put_raw(ibc_relayer_key(&address), vec![]);
     }
 
     #[instrument(skip_all)]
-    fn delete_ibc_relayer_address(&mut self, address: &Address) {
-        self.delete(ibc_relayer_key(address));
+    fn delete_ibc_relayer_address<T: GetAddressBytes>(&mut self, address: T) {
+        self.delete(ibc_relayer_key(&address));
     }
 
     #[instrument(skip_all)]
@@ -231,7 +230,7 @@ mod tests {
         state.put_base_prefix(ASTRIA_PREFIX).unwrap();
 
         // can write new
-        let mut address = astria_address(&[42u8; 20]);
+        let mut address = [42u8; 20];
         state
             .put_ibc_sudo_address(address)
             .expect("writing sudo address should not fail");
@@ -245,7 +244,7 @@ mod tests {
         );
 
         // can rewrite with new value
-        address = astria_address(&[41u8; 20]);
+        address = [41u8; 20];
         state
             .put_ibc_sudo_address(address)
             .expect("writing sudo address should not fail");
@@ -271,7 +270,7 @@ mod tests {
         let address = astria_address(&[42u8; 20]);
         assert!(
             !state
-                .is_ibc_relayer(&address)
+                .is_ibc_relayer(address)
                 .await
                 .expect("calls to properly formatted addresses should not fail"),
             "inputted address should've returned false"
@@ -288,20 +287,20 @@ mod tests {
 
         // can write
         let address = astria_address(&[42u8; 20]);
-        state.put_ibc_relayer_address(&address);
+        state.put_ibc_relayer_address(address);
         assert!(
             state
-                .is_ibc_relayer(&address)
+                .is_ibc_relayer(address)
                 .await
                 .expect("a relayer address was written and must exist inside the database"),
             "stored relayer address could not be verified"
         );
 
         // can delete
-        state.delete_ibc_relayer_address(&address);
+        state.delete_ibc_relayer_address(address);
         assert!(
             !state
-                .is_ibc_relayer(&address)
+                .is_ibc_relayer(address)
                 .await
                 .expect("calls on unset addresses should not fail"),
             "relayer address was not deleted as was intended"

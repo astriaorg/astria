@@ -295,10 +295,6 @@ fn bridge_unlock_update_fees(
 
 #[cfg(test)]
 mod tests {
-    use address::{
-        StateReadExt,
-        StateWriteExt,
-    };
     use astria_core::{
         primitive::v1::{
             asset::Denom,
@@ -317,8 +313,9 @@ mod tests {
 
     use super::*;
     use crate::{
-        accounts::{
-            StateReadExt as _,
+        accounts::StateWriteExt as _,
+        address::{
+            StateReadExt,
             StateWriteExt as _,
         },
         app::test_utils::*,

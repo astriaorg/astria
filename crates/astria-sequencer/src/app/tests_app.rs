@@ -679,7 +679,7 @@ async fn app_end_block_validator_updates() {
     ];
 
     let mut app = initialize_app(None, initial_validator_set).await;
-    let proposer_address = astria_address(&[0u8; 20]);
+    let proposer_address = [0u8; 20];
 
     let validator_updates = vec![
         ValidatorUpdate {

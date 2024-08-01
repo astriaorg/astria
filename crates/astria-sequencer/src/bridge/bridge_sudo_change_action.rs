@@ -17,7 +17,6 @@ use crate::{
     },
     transaction::StateReadExt as _,
 };
-
 #[async_trait::async_trait]
 impl ActionHandler for BridgeSudoChangeAction {
     type CheckStatelessContext = ();
@@ -58,7 +57,7 @@ impl ActionHandler for BridgeSudoChangeAction {
 
         // check that the sender of this tx is the authorized sudo address for the bridge account
         let Some(sudo_address) = state
-            .get_bridge_account_sudo_address(&self.bridge_address)
+            .get_bridge_account_sudo_address(self.bridge_address)
             .await
             .context("failed to get bridge account sudo address")?
         else {
@@ -82,11 +81,11 @@ impl ActionHandler for BridgeSudoChangeAction {
             .context("failed to decrease balance for bridge sudo change fee")?;
 
         if let Some(sudo_address) = self.new_sudo_address {
-            state.put_bridge_account_sudo_address(&self.bridge_address, &sudo_address);
+            state.put_bridge_account_sudo_address(self.bridge_address, sudo_address);
         }
 
         if let Some(withdrawer_address) = self.new_withdrawer_address {
-            state.put_bridge_account_withdrawer_address(&self.bridge_address, &withdrawer_address);
+            state.put_bridge_account_withdrawer_address(self.bridge_address, withdrawer_address);
         }
 
         Ok(())
@@ -95,12 +94,12 @@ impl ActionHandler for BridgeSudoChangeAction {
 
 #[cfg(test)]
 mod tests {
-    use address::StateWriteExt;
     use astria_core::primitive::v1::asset;
     use cnidarium::StateDelta;
 
     use super::*;
     use crate::{
+        address::StateWriteExt as _,
         assets::StateWriteExt as _,
         test_utils::{
             astria_address,
@@ -134,7 +133,7 @@ mod tests {
             fee_asset: asset.clone(),
         };
 
-        action.check_stateful(&state, sudo_address).await.unwrap();
+        action.check_and_execute(state).await.unwrap();
     }
 
     #[tokio::test]
@@ -161,7 +160,7 @@ mod tests {
 
         assert!(
             action
-                .check_stateful(&state, bridge_address)
+                .check_and_execute(state)
                 .await
                 .unwrap_err()
                 .to_string()
@@ -193,21 +192,21 @@ mod tests {
             fee_asset,
         };
 
-        action.execute(&mut state, bridge_address).await.unwrap();
+        action.check_and_execute(&mut state).await.unwrap();
 
         assert_eq!(
             state
                 .get_bridge_account_sudo_address(&bridge_address)
                 .await
                 .unwrap(),
-            Some(new_sudo_address),
+            Some(new_sudo_address.bytes()),
         );
         assert_eq!(
             state
                 .get_bridge_account_withdrawer_address(&bridge_address)
                 .await
                 .unwrap(),
-            Some(new_withdrawer_address),
+            Some(new_withdrawer_address.bytes()),
         );
     }
 }

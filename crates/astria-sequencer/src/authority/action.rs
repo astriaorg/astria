@@ -167,23 +167,10 @@ mod test {
 
     use super::*;
     use crate::{
-        accounts::{
-            StateReadExt as _,
-            StateWriteExt as _,
-        },
-        bridge::{
-            StateReadExt as _,
-            StateWriteExt as _,
-        },
-        ibc::{
-            StateReadExt as _,
-            StateWriteExt as _,
-        },
-        sequence::{
-            StateReadExt as _,
-            StateWriteExt as _,
-        },
-        test_utils::astria_address,
+        accounts::StateReadExt as _,
+        bridge::StateReadExt as _,
+        ibc::StateReadExt as _,
+        sequence::StateReadExt as _,
     };
 
     #[tokio::test]
@@ -199,10 +186,7 @@ mod test {
             new_value: 10,
         };
 
-        fee_change
-            .execute(&mut state, astria_address(&[1; 20]))
-            .await
-            .unwrap();
+        fee_change.check_and_execute(&mut state).await.unwrap();
         assert_eq!(state.get_transfer_base_fee().await.unwrap(), 10);
 
         let sequence_base_fee = 5;
@@ -213,10 +197,7 @@ mod test {
             new_value: 3,
         };
 
-        fee_change
-            .execute(&mut state, astria_address(&[1; 20]))
-            .await
-            .unwrap();
+        fee_change.check_and_execute(&mut state).await.unwrap();
         assert_eq!(state.get_sequence_action_base_fee().await.unwrap(), 3);
 
         let sequence_byte_cost_multiplier = 2;
@@ -227,10 +208,7 @@ mod test {
             new_value: 4,
         };
 
-        fee_change
-            .execute(&mut state, astria_address(&[1; 20]))
-            .await
-            .unwrap();
+        fee_change.check_and_execute(&mut state).await.unwrap();
         assert_eq!(
             state
                 .get_sequence_action_byte_cost_multiplier()
@@ -247,10 +225,7 @@ mod test {
             new_value: 2,
         };
 
-        fee_change
-            .execute(&mut state, astria_address(&[1; 20]))
-            .await
-            .unwrap();
+        fee_change.check_and_execute(&mut state).await.unwrap();
         assert_eq!(state.get_init_bridge_account_base_fee().await.unwrap(), 2);
 
         let bridge_lock_byte_cost_multiplier = 1;
@@ -261,10 +236,7 @@ mod test {
             new_value: 2,
         };
 
-        fee_change
-            .execute(&mut state, astria_address(&[1; 20]))
-            .await
-            .unwrap();
+        fee_change.check_and_execute(&mut state).await.unwrap();
         assert_eq!(
             state.get_bridge_lock_byte_cost_multiplier().await.unwrap(),
             2
@@ -280,10 +252,7 @@ mod test {
             new_value: 2,
         };
 
-        fee_change
-            .execute(&mut state, astria_address(&[1; 20]))
-            .await
-            .unwrap();
+        fee_change.check_and_execute(&mut state).await.unwrap();
         assert_eq!(state.get_ics20_withdrawal_base_fee().await.unwrap(), 2);
     }
 }

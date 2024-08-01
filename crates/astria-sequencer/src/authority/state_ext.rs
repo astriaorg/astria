@@ -5,10 +5,7 @@ use anyhow::{
     Context,
     Result,
 };
-use astria_core::primitive::v1::{
-    Address,
-    ADDRESS_LEN,
-};
+use astria_core::primitive::v1::ADDRESS_LEN;
 use async_trait::async_trait;
 use borsh::{
     BorshDeserialize,
@@ -21,6 +18,7 @@ use cnidarium::{
 use tracing::instrument;
 
 use super::ValidatorSet;
+use crate::accounts::GetAddressBytes;
 
 /// Newtype wrapper to read and write an address from rocksdb.
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
@@ -85,10 +83,10 @@ impl<T: StateRead> StateReadExt for T {}
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip_all)]
-    fn put_sudo_address(&mut self, address: Address) -> Result<()> {
+    fn put_sudo_address<T: GetAddressBytes>(&mut self, address: T) -> Result<()> {
         self.put_raw(
             SUDO_STORAGE_KEY.to_string(),
-            borsh::to_vec(&SudoAddress(address.bytes()))
+            borsh::to_vec(&SudoAddress(address.get_address_bytes()))
                 .context("failed to convert sudo address to vec")?,
         );
         Ok(())
@@ -123,7 +121,10 @@ impl<T: StateWrite> StateWriteExt for T {}
 
 #[cfg(test)]
 mod tests {
-    use astria_core::protocol::transaction::v1alpha1::action::ValidatorUpdate;
+    use astria_core::{
+        primitive::v1::ADDRESS_LEN,
+        protocol::transaction::v1alpha1::action::ValidatorUpdate,
+    };
     use cnidarium::StateDelta;
 
     use super::{
@@ -134,7 +135,6 @@ mod tests {
         address::StateWriteExt as _,
         authority::ValidatorSet,
         test_utils::{
-            astria_address,
             verification_key,
             ASTRIA_PREFIX,
         },
@@ -159,7 +159,7 @@ mod tests {
             .expect_err("no sudo address should exist at first");
 
         // can write new
-        let mut address_expected = astria_address(&[42u8; 20]);
+        let mut address_expected = [42u8; ADDRESS_LEN];
         state
             .put_sudo_address(address_expected)
             .expect("writing sudo address should not fail");
@@ -173,7 +173,7 @@ mod tests {
         );
 
         // can rewrite with new value
-        address_expected = astria_address(&[41u8; 20]);
+        address_expected = [41u8; ADDRESS_LEN];
         state
             .put_sudo_address(address_expected)
             .expect("writing sudo address should not fail");

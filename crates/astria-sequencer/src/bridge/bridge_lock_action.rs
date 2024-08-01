@@ -140,7 +140,6 @@ pub(crate) fn get_deposit_byte_len(deposit: &Deposit) -> u128 {
 
 #[cfg(test)]
 mod tests {
-    use address::StateWriteExt;
     use astria_core::primitive::v1::{
         asset,
         RollupId,
@@ -149,6 +148,7 @@ mod tests {
 
     use super::*;
     use crate::{
+        address::StateWriteExt,
         assets::StateWriteExt as _,
         test_utils::{
             astria_address,
@@ -197,7 +197,7 @@ mod tests {
 
         assert!(
             bridge_lock
-                .check_stateful(&state, from_address)
+                .check_and_execute(&mut state)
                 .await
                 .unwrap_err()
                 .to_string()
@@ -216,10 +216,7 @@ mod tests {
         state
             .put_account_balance(from_address, &asset, 100 + expected_deposit_fee)
             .unwrap();
-        bridge_lock
-            .check_stateful(&state, from_address)
-            .await
-            .unwrap();
+        bridge_lock.check_and_execute(&mut state).await.unwrap();
     }
 
     #[tokio::test]
@@ -256,7 +253,7 @@ mod tests {
             .unwrap();
         assert!(
             bridge_lock
-                .execute(&mut state, from_address)
+                .check_and_execute(&mut state)
                 .await
                 .unwrap_err()
                 .to_string()
@@ -275,6 +272,6 @@ mod tests {
         state
             .put_account_balance(from_address, &asset, 100 + expected_deposit_fee)
             .unwrap();
-        bridge_lock.execute(&mut state, from_address).await.unwrap();
+        bridge_lock.check_and_execute(&mut state).await.unwrap();
     }
 }

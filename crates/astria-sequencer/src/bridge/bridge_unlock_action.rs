@@ -119,7 +119,6 @@ mod test {
         let asset = test_asset();
         let transfer_amount = 100;
 
-        let address = astria_address(&[1; 20]);
         let to_address = astria_address(&[2; 20]);
 
         let bridge_unlock = BridgeUnlockAction {
@@ -133,7 +132,7 @@ mod test {
         // not a bridge account, should fail
         assert!(
             bridge_unlock
-                .check_stateful(&state, address)
+                .check_and_execute(state)
                 .await
                 .unwrap_err()
                 .to_string()
@@ -152,14 +151,13 @@ mod test {
         let asset = test_asset();
         let transfer_amount = 100;
 
-        let sender_address = astria_address(&[1; 20]);
         let to_address = astria_address(&[2; 20]);
 
         let bridge_address = astria_address(&[3; 20]);
         state
-            .put_bridge_account_ibc_asset(&bridge_address, &asset)
+            .put_bridge_account_ibc_asset(bridge_address, &asset)
             .unwrap();
-        state.put_bridge_account_withdrawer_address(&bridge_address, &bridge_address);
+        state.put_bridge_account_withdrawer_address(bridge_address, bridge_address);
 
         let bridge_unlock = BridgeUnlockAction {
             to: to_address,
@@ -172,7 +170,7 @@ mod test {
         // invalid sender, doesn't match action's `from`, should fail
         assert!(
             bridge_unlock
-                .check_stateful(&state, sender_address)
+                .check_and_execute(state)
                 .await
                 .unwrap_err()
                 .to_string()
@@ -191,7 +189,6 @@ mod test {
         let asset = test_asset();
         let transfer_amount = 100;
 
-        let sender_address = astria_address(&[1; 20]);
         let to_address = astria_address(&[2; 20]);
 
         let bridge_address = astria_address(&[3; 20]);
@@ -212,124 +209,12 @@ mod test {
         // invalid sender, doesn't match action's bridge account's withdrawer, should fail
         assert!(
             bridge_unlock
-                .check_stateful(&state, sender_address)
+                .check_and_execute(state)
                 .await
                 .unwrap_err()
                 .to_string()
                 .contains("unauthorized to unlock bridge account")
         );
-    }
-
-    #[tokio::test]
-    async fn fee_check_stateful_from_none() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        state.put_base_prefix(ASTRIA_PREFIX).unwrap();
-
-        let asset = test_asset();
-        let transfer_fee = 10;
-        let transfer_amount = 100;
-        state.put_transfer_base_fee(transfer_fee).unwrap();
-
-        let bridge_address = astria_address(&[1; 20]);
-        let to_address = astria_address(&[2; 20]);
-        let rollup_id = RollupId::from_unhashed_bytes(b"test_rollup_id");
-
-        state.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
-        state
-            .put_bridge_account_ibc_asset(&bridge_address, &asset)
-            .unwrap();
-        state.put_allowed_fee_asset(&asset);
-        state.put_bridge_account_withdrawer_address(&bridge_address, &bridge_address);
-
-        let bridge_unlock = BridgeUnlockAction {
-            to: to_address,
-            amount: transfer_amount,
-            fee_asset: asset.clone(),
-            memo: "{}".into(),
-            bridge_address: None,
-        };
-
-        // not enough balance to transfer asset; should fail
-        state
-            .put_account_balance(bridge_address, &asset, transfer_amount)
-            .unwrap();
-        assert!(
-            bridge_unlock
-                .check_stateful(&state, bridge_address)
-                .await
-                .unwrap_err()
-                .to_string()
-                .contains("insufficient funds for transfer and fee payment")
-        );
-
-        // enough balance; should pass
-        state
-            .put_account_balance(bridge_address, &asset, transfer_amount + transfer_fee)
-            .unwrap();
-        bridge_unlock
-            .check_stateful(&state, bridge_address)
-            .await
-            .unwrap();
-    }
-
-    #[tokio::test]
-    async fn fee_check_stateful_from_some() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        state.put_base_prefix(ASTRIA_PREFIX).unwrap();
-
-        let asset = test_asset();
-        let transfer_fee = 10;
-        let transfer_amount = 100;
-        state.put_transfer_base_fee(transfer_fee).unwrap();
-
-        let bridge_address = astria_address(&[1; 20]);
-        let to_address = astria_address(&[2; 20]);
-        let rollup_id = RollupId::from_unhashed_bytes(b"test_rollup_id");
-
-        state.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
-        state
-            .put_bridge_account_ibc_asset(&bridge_address, &asset)
-            .unwrap();
-        state.put_allowed_fee_asset(&asset);
-
-        let withdrawer_address = astria_address(&[3; 20]);
-        state.put_bridge_account_withdrawer_address(&bridge_address, &withdrawer_address);
-
-        let bridge_unlock = BridgeUnlockAction {
-            to: to_address,
-            amount: transfer_amount,
-            fee_asset: asset.clone(),
-            memo: "{}".into(),
-            bridge_address: Some(bridge_address),
-        };
-
-        // not enough balance to transfer asset; should fail
-        state
-            .put_account_balance(bridge_address, &asset, transfer_amount)
-            .unwrap();
-        assert!(
-            bridge_unlock
-                .check_stateful(&state, withdrawer_address)
-                .await
-                .unwrap_err()
-                .to_string()
-                .contains("insufficient funds for transfer and fee payment")
-        );
-
-        // enough balance; should pass
-        state
-            .put_account_balance(bridge_address, &asset, transfer_amount + transfer_fee)
-            .unwrap();
-        bridge_unlock
-            .check_stateful(&state, withdrawer_address)
-            .await
-            .unwrap();
     }
 
     #[tokio::test]
@@ -367,7 +252,7 @@ mod test {
             .unwrap();
         assert!(
             bridge_unlock
-                .execute(&mut state, bridge_address)
+                .check_and_execute(&mut state)
                 .await
                 .unwrap_err()
                 .to_string()
@@ -378,10 +263,7 @@ mod test {
         state
             .put_account_balance(bridge_address, &asset, transfer_amount + transfer_fee)
             .unwrap();
-        bridge_unlock
-            .execute(&mut state, bridge_address)
-            .await
-            .unwrap();
+        bridge_unlock.check_and_execute(&mut state).await.unwrap();
     }
 
     #[tokio::test]
@@ -419,7 +301,7 @@ mod test {
             .unwrap();
         assert!(
             bridge_unlock
-                .execute(&mut state, bridge_address)
+                .check_and_execute(&mut state)
                 .await
                 .unwrap_err()
                 .to_string()
@@ -430,9 +312,6 @@ mod test {
         state
             .put_account_balance(bridge_address, &asset, transfer_amount + transfer_fee)
             .unwrap();
-        bridge_unlock
-            .execute(&mut state, bridge_address)
-            .await
-            .unwrap();
+        bridge_unlock.check_and_execute(&mut state).await.unwrap();
     }
 }
