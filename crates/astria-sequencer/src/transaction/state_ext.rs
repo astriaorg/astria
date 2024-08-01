@@ -13,7 +13,7 @@ fn current_source() -> &'static str {
 
 #[derive(Clone)]
 pub(crate) struct TransactionContext {
-    address_bytes: [u8; ADDRESS_LEN],
+    pub(crate) address_bytes: [u8; ADDRESS_LEN],
 }
 
 impl TransactionContext {
@@ -31,7 +31,7 @@ impl From<&SignedTransaction> for TransactionContext {
 }
 
 pub(crate) trait StateWriteExt: StateWrite {
-    fn put_current_source(&mut self, transaction: &SignedTransaction) {
+    fn put_current_source(&mut self, transaction: impl Into<TransactionContext>) {
         let context: TransactionContext = transaction.into();
         self.object_put(current_source(), context);
     }

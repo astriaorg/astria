@@ -171,14 +171,24 @@ mod test {
         bridge::StateReadExt as _,
         ibc::StateReadExt as _,
         sequence::StateReadExt as _,
+        transaction::{
+            StateWriteExt as _,
+            TransactionContext,
+        },
     };
 
     #[tokio::test]
-    async fn fee_change_action_execute() {
+    async fn fee_change_action_executes() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
         let transfer_fee = 12;
+
+        state.put_current_source(TransactionContext {
+            address_bytes: [1; 20],
+        });
+        state.put_sudo_address([1; 20]).unwrap();
+
         state.put_transfer_base_fee(transfer_fee).unwrap();
 
         let fee_change = FeeChangeAction {

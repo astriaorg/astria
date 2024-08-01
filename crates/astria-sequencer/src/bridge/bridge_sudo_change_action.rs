@@ -105,6 +105,10 @@ mod tests {
             astria_address,
             ASTRIA_PREFIX,
         },
+        transaction::{
+            StateWriteExt as _,
+            TransactionContext,
+        },
     };
 
     fn test_asset() -> asset::Denom {
@@ -112,11 +116,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn check_stateless_ok() {
+    async fn fails_with_unauthorized_if_signer_is_not_sudo_address() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
+        state.put_current_source(TransactionContext {
+            address_bytes: [1; 20],
+        });
         state.put_base_prefix(ASTRIA_PREFIX).unwrap();
 
         let asset = test_asset();
@@ -124,32 +131,7 @@ mod tests {
 
         let bridge_address = astria_address(&[99; 20]);
         let sudo_address = astria_address(&[98; 20]);
-        state.put_bridge_account_sudo_address(&bridge_address, &sudo_address);
-
-        let action = BridgeSudoChangeAction {
-            bridge_address,
-            new_sudo_address: None,
-            new_withdrawer_address: None,
-            fee_asset: asset.clone(),
-        };
-
-        action.check_and_execute(state).await.unwrap();
-    }
-
-    #[tokio::test]
-    async fn check_stateless_unauthorized() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        state.put_base_prefix(ASTRIA_PREFIX).unwrap();
-
-        let asset = test_asset();
-        state.put_allowed_fee_asset(&asset);
-
-        let bridge_address = astria_address(&[99; 20]);
-        let sudo_address = astria_address(&[98; 20]);
-        state.put_bridge_account_sudo_address(&bridge_address, &sudo_address);
+        state.put_bridge_account_sudo_address(bridge_address, sudo_address);
 
         let action = BridgeSudoChangeAction {
             bridge_address,
@@ -169,16 +151,25 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn execute_ok() {
+    async fn executes() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
+        let sudo_address = astria_address(&[98; 20]);
+        state.put_current_source(TransactionContext {
+            address_bytes: sudo_address.bytes(),
+        });
         state.put_base_prefix(ASTRIA_PREFIX).unwrap();
         state.put_bridge_sudo_change_base_fee(10);
 
         let fee_asset = test_asset();
+        state.put_allowed_fee_asset(&fee_asset);
+
         let bridge_address = astria_address(&[99; 20]);
+
+        state.put_bridge_account_sudo_address(bridge_address, sudo_address);
+
         let new_sudo_address = astria_address(&[98; 20]);
         let new_withdrawer_address = astria_address(&[97; 20]);
         state
@@ -196,14 +187,14 @@ mod tests {
 
         assert_eq!(
             state
-                .get_bridge_account_sudo_address(&bridge_address)
+                .get_bridge_account_sudo_address(bridge_address)
                 .await
                 .unwrap(),
             Some(new_sudo_address.bytes()),
         );
         assert_eq!(
             state
-                .get_bridge_account_withdrawer_address(&bridge_address)
+                .get_bridge_account_withdrawer_address(bridge_address)
                 .await
                 .unwrap(),
             Some(new_withdrawer_address.bytes()),

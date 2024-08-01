@@ -14,6 +14,10 @@ use cnidarium::StateWrite;
 
 use crate::{
     accounts::{
+        action::{
+            check_transfer,
+            execute_transfer,
+        },
         StateReadExt as _,
         StateWriteExt as _,
     },
@@ -92,9 +96,8 @@ impl ActionHandler for BridgeLockAction {
             fee_asset: self.fee_asset.clone(),
         };
 
-        crate::accounts::action::check_and_execute_transfer(&transfer_action, from, &mut state)
-            .await
-            .context("failed to execute bridge lock action as transfer action")?;
+        check_transfer(&transfer_action, from, &state).await?;
+        execute_transfer(&transfer_action, from, &mut state).await?;
 
         let rollup_id = state
             .get_bridge_account_rollup_id(self.to)
@@ -151,8 +154,13 @@ mod tests {
         address::StateWriteExt,
         assets::StateWriteExt as _,
         test_utils::{
+            assert_anyhow_error,
             astria_address,
             ASTRIA_PREFIX,
+        },
+        transaction::{
+            StateWriteExt as _,
+            TransactionContext,
         },
     };
 
@@ -161,13 +169,18 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn bridge_lock_check_stateful_fee_calc() {
+    async fn execute_fee_calc() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
         let transfer_fee = 12;
 
+        let from_address = astria_address(&[2; 20]);
+        state.put_current_source(TransactionContext {
+            address_bytes: from_address.bytes(),
+        });
         state.put_base_prefix(ASTRIA_PREFIX).unwrap();
+
         state.put_transfer_base_fee(transfer_fee).unwrap();
         state.put_bridge_lock_byte_cost_multiplier(2);
 
@@ -182,82 +195,19 @@ mod tests {
         };
 
         let rollup_id = RollupId::from_unhashed_bytes(b"test_rollup_id");
-        state.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
+        state.put_bridge_account_rollup_id(bridge_address, &rollup_id);
         state
-            .put_bridge_account_ibc_asset(&bridge_address, &asset)
+            .put_bridge_account_ibc_asset(bridge_address, &asset)
             .unwrap();
         state.put_allowed_fee_asset(&asset);
-
-        let from_address = astria_address(&[2; 20]);
-
-        // not enough balance; should fail
-        state
-            .put_account_balance(from_address, &asset, 100)
-            .unwrap();
-
-        assert!(
-            bridge_lock
-                .check_and_execute(&mut state)
-                .await
-                .unwrap_err()
-                .to_string()
-                .contains("insufficient funds for fee payment")
-        );
-
-        // enough balance; should pass
-        let expected_deposit_fee = transfer_fee
-            + get_deposit_byte_len(&Deposit::new(
-                bridge_address,
-                rollup_id,
-                100,
-                asset.clone(),
-                "someaddress".to_string(),
-            )) * 2;
-        state
-            .put_account_balance(from_address, &asset, 100 + expected_deposit_fee)
-            .unwrap();
-        bridge_lock.check_and_execute(&mut state).await.unwrap();
-    }
-
-    #[tokio::test]
-    async fn bridge_lock_execute_fee_calc() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-        let transfer_fee = 12;
-        state.put_transfer_base_fee(transfer_fee).unwrap();
-        state.put_bridge_lock_byte_cost_multiplier(2);
-
-        let bridge_address = astria_address(&[1; 20]);
-        let asset = test_asset();
-        let bridge_lock = BridgeLockAction {
-            to: bridge_address,
-            asset: asset.clone(),
-            amount: 100,
-            fee_asset: asset.clone(),
-            destination_chain_address: "someaddress".to_string(),
-        };
-
-        let rollup_id = RollupId::from_unhashed_bytes(b"test_rollup_id");
-        state.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
-        state
-            .put_bridge_account_ibc_asset(&bridge_address, &asset)
-            .unwrap();
-        state.put_allowed_fee_asset(&asset);
-
-        let from_address = astria_address(&[2; 20]);
 
         // not enough balance; should fail
         state
             .put_account_balance(from_address, &asset, 100 + transfer_fee)
             .unwrap();
-        assert!(
-            bridge_lock
-                .check_and_execute(&mut state)
-                .await
-                .unwrap_err()
-                .to_string()
-                .eq("failed to deduct fee from account balance")
+        assert_anyhow_error(
+            bridge_lock.check_and_execute(&mut state).await.unwrap_err(),
+            "insufficient funds for fee payment",
         );
 
         // enough balance; should pass

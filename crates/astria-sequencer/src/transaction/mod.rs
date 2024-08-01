@@ -19,6 +19,10 @@ pub(crate) use checks::{
     check_nonce_mempool,
 };
 use cnidarium::StateWrite;
+// Conditional to quiet warnings. This object is used throughout the codebase,
+// but is never explicitly named - hence Rust warns about it being unused.
+#[cfg(test)]
+pub(crate) use state_ext::TransactionContext;
 pub(crate) use state_ext::{
     StateReadExt,
     StateWriteExt,
