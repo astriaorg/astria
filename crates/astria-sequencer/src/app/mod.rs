@@ -1,4 +1,6 @@
-#[cfg(test)]
+#[cfg(feature = "benchmark")]
+mod benchmarks;
+#[cfg(any(test, feature = "benchmark"))]
 pub(crate) mod test_utils;
 #[cfg(test)]
 mod tests_app;
@@ -940,7 +942,7 @@ impl App {
     }
 
     #[instrument(name = "App::begin_block", skip_all)]
-    pub(crate) async fn begin_block(
+    async fn begin_block(
         &mut self,
         begin_block: &abci::request::BeginBlock,
     ) -> anyhow::Result<Vec<abci::Event>> {
@@ -977,7 +979,7 @@ impl App {
 
     /// Executes a signed transaction.
     #[instrument(name = "App::execute_transaction", skip_all)]
-    pub(crate) async fn execute_transaction(
+    async fn execute_transaction(
         &mut self,
         signed_tx: Arc<SignedTransaction>,
     ) -> anyhow::Result<Vec<Event>> {
@@ -1017,7 +1019,7 @@ impl App {
     }
 
     #[instrument(name = "App::end_block", skip_all)]
-    pub(crate) async fn end_block(
+    async fn end_block(
         &mut self,
         height: u64,
         fee_recipient: Address,
