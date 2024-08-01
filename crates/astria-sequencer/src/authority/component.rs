@@ -14,7 +14,7 @@ use tendermint::abci::request::{
 };
 use tracing::instrument;
 
-use super::state_ext::{
+use super::{
     StateReadExt,
     StateWriteExt,
     ValidatorSet,

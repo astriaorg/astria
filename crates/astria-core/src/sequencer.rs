@@ -2,7 +2,10 @@
 pub use penumbra_ibc::params::IBCParameters;
 
 use crate::primitive::v1::{
-    asset,
+    asset::{
+        self,
+        TracePrefixed,
+    },
     Address,
 };
 
@@ -26,7 +29,7 @@ pub struct GenesisState {
     authority_sudo_address: Address,
     ibc_sudo_address: Address,
     ibc_relayer_addresses: Vec<Address>,
-    native_asset_base_denomination: String,
+    native_asset_base_denomination: TracePrefixed,
     ibc_params: IBCParameters,
     allowed_fee_assets: Vec<asset::Denom>,
     fees: Fees,
@@ -59,7 +62,7 @@ impl GenesisState {
     }
 
     #[must_use]
-    pub fn native_asset_base_denomination(&self) -> &str {
+    pub fn native_asset_base_denomination(&self) -> &TracePrefixed {
         &self.native_asset_base_denomination
     }
 
@@ -140,7 +143,7 @@ pub struct UncheckedGenesisState {
     pub authority_sudo_address: Address,
     pub ibc_sudo_address: Address,
     pub ibc_relayer_addresses: Vec<Address>,
-    pub native_asset_base_denomination: String,
+    pub native_asset_base_denomination: TracePrefixed,
     pub ibc_params: IBCParameters,
     pub allowed_fee_assets: Vec<asset::Denom>,
     pub fees: Fees,
@@ -295,7 +298,7 @@ mod tests {
             authority_sudo_address: alice(),
             ibc_sudo_address: alice(),
             ibc_relayer_addresses: vec![alice(), bob()],
-            native_asset_base_denomination: "nria".to_string(),
+            native_asset_base_denomination: "nria".parse().unwrap(),
             ibc_params: IBCParameters {
                 ibc_enabled: true,
                 inbound_ics20_transfers_enabled: true,
