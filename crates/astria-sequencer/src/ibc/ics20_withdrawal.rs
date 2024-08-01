@@ -26,7 +26,7 @@ use penumbra_ibc::component::packet::{
 
 use crate::{
     accounts::{
-        GetAddressBytes,
+        AddressBytes,
         StateReadExt as _,
         StateWriteExt as _,
     },
@@ -92,7 +92,7 @@ async fn ics20_withdrawal_check_stateful_bridge_account<S: StateRead>(
     };
 
     ensure!(
-        withdrawer == from.get_address_bytes(),
+        withdrawer == from.address_bytes(),
         "sender does not match bridge withdrawer address; unauthorized"
     );
 

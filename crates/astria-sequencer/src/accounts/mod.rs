@@ -19,45 +19,45 @@ pub(crate) use state_ext::{
     StateWriteExt,
 };
 
-pub(crate) trait GetAddressBytes: Send + Sync {
-    fn get_address_bytes(&self) -> [u8; ADDRESS_LEN];
+pub(crate) trait AddressBytes: Send + Sync {
+    fn address_bytes(&self) -> [u8; ADDRESS_LEN];
 }
 
-impl GetAddressBytes for Address {
-    fn get_address_bytes(&self) -> [u8; ADDRESS_LEN] {
+impl AddressBytes for Address {
+    fn address_bytes(&self) -> [u8; ADDRESS_LEN] {
         self.bytes()
     }
 }
 
-impl GetAddressBytes for [u8; ADDRESS_LEN] {
-    fn get_address_bytes(&self) -> [u8; ADDRESS_LEN] {
+impl AddressBytes for [u8; ADDRESS_LEN] {
+    fn address_bytes(&self) -> [u8; ADDRESS_LEN] {
         *self
     }
 }
 
-impl GetAddressBytes for SignedTransaction {
-    fn get_address_bytes(&self) -> [u8; ADDRESS_LEN] {
+impl AddressBytes for SignedTransaction {
+    fn address_bytes(&self) -> [u8; ADDRESS_LEN] {
         self.address_bytes()
     }
 }
 
-impl GetAddressBytes for SigningKey {
-    fn get_address_bytes(&self) -> [u8; ADDRESS_LEN] {
+impl AddressBytes for SigningKey {
+    fn address_bytes(&self) -> [u8; ADDRESS_LEN] {
         self.address_bytes()
     }
 }
 
-impl GetAddressBytes for VerificationKey {
-    fn get_address_bytes(&self) -> [u8; ADDRESS_LEN] {
+impl AddressBytes for VerificationKey {
+    fn address_bytes(&self) -> [u8; ADDRESS_LEN] {
         self.address_bytes()
     }
 }
 
-impl<'a, T> GetAddressBytes for &'a T
+impl<'a, T> AddressBytes for &'a T
 where
-    T: GetAddressBytes,
+    T: AddressBytes,
 {
-    fn get_address_bytes(&self) -> [u8; ADDRESS_LEN] {
-        (*self).get_address_bytes()
+    fn address_bytes(&self) -> [u8; ADDRESS_LEN] {
+        (*self).address_bytes()
     }
 }

@@ -18,7 +18,7 @@ use cnidarium::{
 use tracing::instrument;
 
 use super::ValidatorSet;
-use crate::accounts::GetAddressBytes;
+use crate::accounts::AddressBytes;
 
 /// Newtype wrapper to read and write an address from rocksdb.
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
@@ -83,10 +83,10 @@ impl<T: StateRead> StateReadExt for T {}
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip_all)]
-    fn put_sudo_address<T: GetAddressBytes>(&mut self, address: T) -> Result<()> {
+    fn put_sudo_address<T: AddressBytes>(&mut self, address: T) -> Result<()> {
         self.put_raw(
             SUDO_STORAGE_KEY.to_string(),
-            borsh::to_vec(&SudoAddress(address.get_address_bytes()))
+            borsh::to_vec(&SudoAddress(address.address_bytes()))
                 .context("failed to convert sudo address to vec")?,
         );
         Ok(())

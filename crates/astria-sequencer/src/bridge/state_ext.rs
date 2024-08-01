@@ -36,7 +36,7 @@ use tracing::{
 };
 
 use crate::{
-    accounts::GetAddressBytes,
+    accounts::AddressBytes,
     address,
 };
 
@@ -71,19 +71,19 @@ struct BridgeAccountKey<'a, T> {
 
 impl<'a, T> std::fmt::Display for BridgeAccountKey<'a, T>
 where
-    T: GetAddressBytes,
+    T: AddressBytes,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(self.prefix)?;
         f.write_str("/")?;
-        for byte in self.address.get_address_bytes() {
+        for byte in self.address.address_bytes() {
             f.write_fmt(format_args!("{byte:02x}"))?;
         }
         Ok(())
     }
 }
 
-fn rollup_id_storage_key<T: GetAddressBytes>(address: &T) -> String {
+fn rollup_id_storage_key<T: AddressBytes>(address: &T) -> String {
     format!(
         "{}/rollupid",
         BridgeAccountKey {
@@ -93,7 +93,7 @@ fn rollup_id_storage_key<T: GetAddressBytes>(address: &T) -> String {
     )
 }
 
-fn asset_id_storage_key<T: GetAddressBytes>(address: &T) -> String {
+fn asset_id_storage_key<T: AddressBytes>(address: &T) -> String {
     format!(
         "{}/assetid",
         BridgeAccountKey {
@@ -115,7 +115,7 @@ fn deposit_nonce_storage_key(rollup_id: &RollupId) -> Vec<u8> {
     format!("depositnonce/{}", rollup_id.encode_hex::<String>()).into()
 }
 
-fn bridge_account_sudo_address_storage_key<T: GetAddressBytes>(address: &T) -> String {
+fn bridge_account_sudo_address_storage_key<T: AddressBytes>(address: &T) -> String {
     format!(
         "{}",
         BridgeAccountKey {
@@ -125,7 +125,7 @@ fn bridge_account_sudo_address_storage_key<T: GetAddressBytes>(address: &T) -> S
     )
 }
 
-fn bridge_account_withdrawer_address_storage_key<T: GetAddressBytes>(address: &T) -> String {
+fn bridge_account_withdrawer_address_storage_key<T: AddressBytes>(address: &T) -> String {
     format!(
         "{}",
         BridgeAccountKey {
@@ -135,9 +135,7 @@ fn bridge_account_withdrawer_address_storage_key<T: GetAddressBytes>(address: &T
     )
 }
 
-fn last_transaction_hash_for_bridge_account_storage_key<T: GetAddressBytes>(
-    address: &T,
-) -> Vec<u8> {
+fn last_transaction_hash_for_bridge_account_storage_key<T: AddressBytes>(address: &T) -> Vec<u8> {
     format!(
         "{}/lasttx",
         BridgeAccountKey {
@@ -152,7 +150,7 @@ fn last_transaction_hash_for_bridge_account_storage_key<T: GetAddressBytes>(
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
     #[instrument(skip_all)]
-    async fn get_bridge_account_rollup_id<T: GetAddressBytes>(
+    async fn get_bridge_account_rollup_id<T: AddressBytes>(
         &self,
         address: T,
     ) -> Result<Option<RollupId>> {
@@ -171,7 +169,7 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
     }
 
     #[instrument(skip_all)]
-    async fn get_bridge_account_ibc_asset<T: GetAddressBytes>(
+    async fn get_bridge_account_ibc_asset<T: AddressBytes>(
         &self,
         address: T,
     ) -> Result<asset::IbcPrefixed> {
@@ -186,7 +184,7 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
     }
 
     #[instrument(skip_all)]
-    async fn get_bridge_account_sudo_address<T: GetAddressBytes>(
+    async fn get_bridge_account_sudo_address<T: AddressBytes>(
         &self,
         bridge_address: T,
     ) -> Result<Option<[u8; ADDRESS_LEN]>> {
@@ -208,7 +206,7 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
     }
 
     #[instrument(skip_all)]
-    async fn get_bridge_account_withdrawer_address<T: GetAddressBytes>(
+    async fn get_bridge_account_withdrawer_address<T: AddressBytes>(
         &self,
         bridge_address: T,
     ) -> Result<Option<[u8; ADDRESS_LEN]>> {
@@ -363,11 +361,7 @@ impl<T: StateRead + ?Sized> StateReadExt for T {}
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip_all)]
-    fn put_bridge_account_rollup_id<T: GetAddressBytes>(
-        &mut self,
-        address: T,
-        rollup_id: &RollupId,
-    ) {
+    fn put_bridge_account_rollup_id<T: AddressBytes>(&mut self, address: T, rollup_id: &RollupId) {
         self.put_raw(rollup_id_storage_key(&address), rollup_id.to_vec());
     }
 
@@ -378,7 +372,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         asset: TAsset,
     ) -> Result<()>
     where
-        TAddress: GetAddressBytes,
+        TAddress: AddressBytes,
         TAsset: Into<asset::IbcPrefixed> + std::fmt::Display,
     {
         let ibc = asset.into();
@@ -395,12 +389,12 @@ pub(crate) trait StateWriteExt: StateWrite {
         bridge_address: TBridgeAddress,
         sudo_address: TSudoAddress,
     ) where
-        TBridgeAddress: GetAddressBytes,
-        TSudoAddress: GetAddressBytes,
+        TBridgeAddress: AddressBytes,
+        TSudoAddress: AddressBytes,
     {
         self.put_raw(
             bridge_account_sudo_address_storage_key(&bridge_address),
-            sudo_address.get_address_bytes().to_vec(),
+            sudo_address.address_bytes().to_vec(),
         );
     }
 
@@ -410,12 +404,12 @@ pub(crate) trait StateWriteExt: StateWrite {
         bridge_address: TBridgeAddress,
         withdrawer_address: TWithdrawerAddress,
     ) where
-        TBridgeAddress: GetAddressBytes,
-        TWithdrawerAddress: GetAddressBytes,
+        TBridgeAddress: AddressBytes,
+        TWithdrawerAddress: AddressBytes,
     {
         self.put_raw(
             bridge_account_withdrawer_address_storage_key(&bridge_address),
-            withdrawer_address.get_address_bytes().to_vec(),
+            withdrawer_address.address_bytes().to_vec(),
         );
     }
 
@@ -492,7 +486,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     }
 
     #[instrument(skip_all)]
-    fn put_last_transaction_hash_for_bridge_account<T: GetAddressBytes>(
+    fn put_last_transaction_hash_for_bridge_account<T: AddressBytes>(
         &mut self,
         address: T,
         tx_hash: &[u8; 32],

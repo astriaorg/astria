@@ -21,7 +21,7 @@ use cnidarium::{
 use futures::StreamExt;
 use tracing::instrument;
 
-use super::GetAddressBytes;
+use super::AddressBytes;
 
 /// Newtype wrapper to read and write a u32 from rocksdb.
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
@@ -39,18 +39,18 @@ const ACCOUNTS_PREFIX: &str = "accounts";
 const TRANSFER_BASE_FEE_STORAGE_KEY: &str = "transferfee";
 
 struct StorageKey<'a, T>(&'a T);
-impl<'a, T: GetAddressBytes> std::fmt::Display for StorageKey<'a, T> {
+impl<'a, T: AddressBytes> std::fmt::Display for StorageKey<'a, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(ACCOUNTS_PREFIX)?;
         f.write_str("/")?;
-        for byte in self.0.get_address_bytes() {
+        for byte in self.0.address_bytes() {
             f.write_fmt(format_args!("{byte:02x}"))?;
         }
         Ok(())
     }
 }
 
-fn balance_storage_key<TAddress: GetAddressBytes, TAsset: Into<asset::IbcPrefixed>>(
+fn balance_storage_key<TAddress: AddressBytes, TAsset: Into<asset::IbcPrefixed>>(
     address: TAddress,
     asset: TAsset,
 ) -> String {
@@ -61,7 +61,7 @@ fn balance_storage_key<TAddress: GetAddressBytes, TAsset: Into<asset::IbcPrefixe
     )
 }
 
-fn nonce_storage_key<T: GetAddressBytes>(address: T) -> String {
+fn nonce_storage_key<T: AddressBytes>(address: T) -> String {
     format!("{}/nonce", StorageKey(&address))
 }
 
@@ -127,7 +127,7 @@ pub(crate) trait StateReadExt: StateRead + crate::assets::StateReadExt {
         asset: TAsset,
     ) -> Result<u128>
     where
-        TAddress: GetAddressBytes,
+        TAddress: AddressBytes,
         TAsset: Into<asset::IbcPrefixed> + std::fmt::Display + Send,
     {
         let Some(bytes) = self
@@ -142,7 +142,7 @@ pub(crate) trait StateReadExt: StateRead + crate::assets::StateReadExt {
     }
 
     #[instrument(skip_all)]
-    async fn get_account_nonce<T: GetAddressBytes>(&self, address: T) -> Result<u32> {
+    async fn get_account_nonce<T: AddressBytes>(&self, address: T) -> Result<u32> {
         let bytes = self
             .get_raw(&nonce_storage_key(address))
             .await
@@ -183,7 +183,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         balance: u128,
     ) -> Result<()>
     where
-        TAddress: GetAddressBytes,
+        TAddress: AddressBytes,
         TAsset: Into<asset::IbcPrefixed> + std::fmt::Display + Send,
     {
         let bytes = borsh::to_vec(&Balance(balance)).context("failed to serialize balance")?;
@@ -192,7 +192,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     }
 
     #[instrument(skip_all)]
-    fn put_account_nonce<T: GetAddressBytes>(&mut self, address: T, nonce: u32) -> Result<()> {
+    fn put_account_nonce<T: AddressBytes>(&mut self, address: T, nonce: u32) -> Result<()> {
         let bytes = borsh::to_vec(&Nonce(nonce)).context("failed to serialize nonce")?;
         self.put_raw(nonce_storage_key(address), bytes);
         Ok(())
@@ -206,7 +206,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         amount: u128,
     ) -> Result<()>
     where
-        TAddress: GetAddressBytes,
+        TAddress: AddressBytes,
         TAsset: Into<asset::IbcPrefixed> + std::fmt::Display + Send,
     {
         let asset = asset.into();
@@ -233,7 +233,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         amount: u128,
     ) -> Result<()>
     where
-        TAddress: GetAddressBytes,
+        TAddress: AddressBytes,
         TAsset: Into<asset::IbcPrefixed> + std::fmt::Display + Send,
     {
         let asset = asset.into();

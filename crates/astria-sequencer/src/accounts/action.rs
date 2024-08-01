@@ -13,7 +13,7 @@ use cnidarium::{
     StateWrite,
 };
 
-use super::GetAddressBytes;
+use super::AddressBytes;
 use crate::{
     accounts::{
         StateReadExt as _,
@@ -118,7 +118,7 @@ pub(crate) async fn check_transfer<S, TAddress>(
 ) -> Result<()>
 where
     S: StateRead,
-    TAddress: GetAddressBytes,
+    TAddress: AddressBytes,
 {
     state.ensure_base_prefix(&action.to).await.context(
         "failed ensuring that the destination address matches the permitted base prefix",

@@ -22,7 +22,7 @@ use tracing::{
     instrument,
 };
 
-use crate::accounts::GetAddressBytes;
+use crate::accounts::AddressBytes;
 
 /// Newtype wrapper to read and write a u128 from rocksdb.
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
@@ -41,11 +41,11 @@ const ICS20_WITHDRAWAL_BASE_FEE_STORAGE_KEY: &str = "ics20withdrawalfee";
 
 struct IbcRelayerKey<'a, T>(&'a T);
 
-impl<'a, T: GetAddressBytes> std::fmt::Display for IbcRelayerKey<'a, T> {
+impl<'a, T: AddressBytes> std::fmt::Display for IbcRelayerKey<'a, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("ibc-relayer")?;
         f.write_str("/")?;
-        for byte in self.0.get_address_bytes() {
+        for byte in self.0.address_bytes() {
             f.write_fmt(format_args!("{byte:02x}"))?;
         }
         Ok(())
@@ -62,7 +62,7 @@ fn channel_balance_storage_key<TAsset: Into<asset::IbcPrefixed>>(
     )
 }
 
-fn ibc_relayer_key<T: GetAddressBytes>(address: &T) -> String {
+fn ibc_relayer_key<T: AddressBytes>(address: &T) -> String {
     IbcRelayerKey(address).to_string()
 }
 
@@ -105,7 +105,7 @@ pub(crate) trait StateReadExt: StateRead {
     }
 
     #[instrument(skip_all)]
-    async fn is_ibc_relayer<T: GetAddressBytes>(&self, address: T) -> Result<bool> {
+    async fn is_ibc_relayer<T: AddressBytes>(&self, address: T) -> Result<bool> {
         Ok(self
             .get_raw(&ibc_relayer_key(&address))
             .await
@@ -147,22 +147,22 @@ pub(crate) trait StateWriteExt: StateWrite {
     }
 
     #[instrument(skip_all)]
-    fn put_ibc_sudo_address<T: GetAddressBytes>(&mut self, address: T) -> Result<()> {
+    fn put_ibc_sudo_address<T: AddressBytes>(&mut self, address: T) -> Result<()> {
         self.put_raw(
             IBC_SUDO_STORAGE_KEY.to_string(),
-            borsh::to_vec(&SudoAddress(address.get_address_bytes()))
+            borsh::to_vec(&SudoAddress(address.address_bytes()))
                 .context("failed to convert sudo address to vec")?,
         );
         Ok(())
     }
 
     #[instrument(skip_all)]
-    fn put_ibc_relayer_address<T: GetAddressBytes>(&mut self, address: T) {
+    fn put_ibc_relayer_address<T: AddressBytes>(&mut self, address: T) {
         self.put_raw(ibc_relayer_key(&address), vec![]);
     }
 
     #[instrument(skip_all)]
-    fn delete_ibc_relayer_address<T: GetAddressBytes>(&mut self, address: T) {
+    fn delete_ibc_relayer_address<T: AddressBytes>(&mut self, address: T) {
         self.delete(ibc_relayer_key(&address));
     }
 
