@@ -116,7 +116,6 @@ pub(crate) trait StateReadExt: StateRead {
 
     #[instrument(skip_all)]
     async fn get_block_fees(&self) -> Result<Vec<(asset::IbcPrefixed, u128)>> {
-        // let mut fees: Vec<(asset::Id, u128)> = Vec::new();
         let mut fees = Vec::new();
 
         let mut stream =
