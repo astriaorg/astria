@@ -21,6 +21,7 @@ use cnidarium::{
 use tracing::instrument;
 
 use super::ValidatorSet;
+use crate::address;
 
 /// Newtype wrapper to read and write an address from rocksdb.
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
@@ -31,7 +32,7 @@ const VALIDATOR_SET_STORAGE_KEY: &str = "valset";
 const VALIDATOR_UPDATES_KEY: &[u8] = b"valupdates";
 
 #[async_trait]
-pub(crate) trait StateReadExt: StateRead {
+pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
     #[instrument(skip_all)]
     async fn get_sudo_address(&self) -> Result<Address> {
         let Some(bytes) = self
@@ -44,7 +45,9 @@ pub(crate) trait StateReadExt: StateRead {
         };
         let SudoAddress(address_bytes) =
             SudoAddress::try_from_slice(&bytes).context("invalid sudo key bytes")?;
-        Ok(crate::address::base_prefixed(address_bytes))
+        self.try_base_prefixed(&address_bytes)
+            .await
+            .context("failed constructing address from prefixed stored in state")
     }
 
     #[instrument(skip_all)]
@@ -122,7 +125,7 @@ pub(crate) trait StateWriteExt: StateWrite {
 impl<T: StateWrite> StateWriteExt for T {}
 
 #[cfg(test)]
-mod test {
+mod tests {
     use astria_core::protocol::transaction::v1alpha1::action::ValidatorUpdate;
     use cnidarium::StateDelta;
 
@@ -131,8 +134,13 @@ mod test {
         StateWriteExt as _,
     };
     use crate::{
+        address::StateWriteExt as _,
         authority::ValidatorSet,
-        test_utils::verification_key,
+        test_utils::{
+            astria_address,
+            verification_key,
+            ASTRIA_PREFIX,
+        },
     };
 
     fn empty_validator_set() -> ValidatorSet {
@@ -145,6 +153,8 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
+        state.put_base_prefix(ASTRIA_PREFIX).unwrap();
+
         // doesn't exist at first
         state
             .get_sudo_address()
@@ -152,7 +162,7 @@ mod test {
             .expect_err("no sudo address should exist at first");
 
         // can write new
-        let mut address_expected = crate::address::base_prefixed([42u8; 20]);
+        let mut address_expected = astria_address(&[42u8; 20]);
         state
             .put_sudo_address(address_expected)
             .expect("writing sudo address should not fail");
@@ -166,7 +176,7 @@ mod test {
         );
 
         // can rewrite with new value
-        address_expected = crate::address::base_prefixed([41u8; 20]);
+        address_expected = astria_address(&[41u8; 20]);
         state
             .put_sudo_address(address_expected)
             .expect("writing sudo address should not fail");

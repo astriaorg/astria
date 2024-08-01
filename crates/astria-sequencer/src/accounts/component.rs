@@ -10,9 +10,9 @@ use tendermint::abci::request::{
 };
 use tracing::instrument;
 
-use super::state_ext::StateWriteExt;
 use crate::{
-    assets::get_native_asset,
+    accounts,
+    assets,
     component::Component,
 };
 
@@ -24,11 +24,17 @@ impl Component for AccountsComponent {
     type AppState = astria_core::sequencer::GenesisState;
 
     #[instrument(name = "AccountsComponent::init_chain", skip_all)]
-    async fn init_chain<S: StateWriteExt>(mut state: S, app_state: &Self::AppState) -> Result<()> {
-        let native_asset = get_native_asset();
+    async fn init_chain<S>(mut state: S, app_state: &Self::AppState) -> Result<()>
+    where
+        S: accounts::StateWriteExt + assets::StateReadExt,
+    {
+        let native_asset = state
+            .get_native_asset()
+            .await
+            .context("failed to read native asset from state")?;
         for account in app_state.accounts() {
             state
-                .put_account_balance(account.address, native_asset, account.balance)
+                .put_account_balance(account.address, &native_asset, account.balance)
                 .context("failed writing account balance to state")?;
         }
 
@@ -39,7 +45,7 @@ impl Component for AccountsComponent {
     }
 
     #[instrument(name = "AccountsComponent::begin_block", skip_all)]
-    async fn begin_block<S: StateWriteExt + 'static>(
+    async fn begin_block<S: accounts::StateWriteExt + 'static>(
         _state: &mut Arc<S>,
         _begin_block: &BeginBlock,
     ) -> Result<()> {
@@ -47,7 +53,7 @@ impl Component for AccountsComponent {
     }
 
     #[instrument(name = "AccountsComponent::end_block", skip_all)]
-    async fn end_block<S: StateWriteExt + 'static>(
+    async fn end_block<S: accounts::StateWriteExt + 'static>(
         _state: &mut Arc<S>,
         _end_block: &EndBlock,
     ) -> Result<()> {

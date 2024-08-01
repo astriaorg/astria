@@ -20,7 +20,7 @@ use std::{
 use anyhow::Context;
 use astria_core::{
     crypto::SigningKey,
-    primitive::v1::Address,
+    primitive::v1::ADDRESS_LEN,
     protocol::transaction::v1alpha1::{
         SignedTransaction,
         TransactionParams,
@@ -78,16 +78,16 @@ impl PartialOrd for TransactionPriority {
 pub(crate) struct EnqueuedTransaction {
     tx_hash: [u8; 32],
     signed_tx: Arc<SignedTransaction>,
-    address: Address,
+    address_bytes: [u8; ADDRESS_LEN],
 }
 
 impl EnqueuedTransaction {
     fn new(signed_tx: SignedTransaction) -> Self {
-        let address = crate::address::base_prefixed(signed_tx.verification_key().address_bytes());
+        let address_bytes = signed_tx.verification_key().address_bytes();
         Self {
             tx_hash: signed_tx.sha256_of_proto_encoding(),
             signed_tx: Arc::new(signed_tx),
-            address,
+            address_bytes,
         }
     }
 
@@ -117,8 +117,8 @@ impl EnqueuedTransaction {
         self.signed_tx.clone()
     }
 
-    pub(crate) fn address(&self) -> &Address {
-        &self.address
+    pub(crate) fn address_bytes(&self) -> [u8; 20] {
+        self.address_bytes
     }
 }
 
@@ -301,11 +301,11 @@ impl Mempool {
     /// removes a transaction from the mempool
     #[instrument(skip_all)]
     pub(crate) async fn remove(&self, tx_hash: [u8; 32]) {
-        let (signed_tx, address) = dummy_signed_tx();
+        let (signed_tx, address_bytes) = dummy_signed_tx();
         let enqueued_tx = EnqueuedTransaction {
             tx_hash,
             signed_tx,
-            address,
+            address_bytes,
         };
         self.queue.write().await.remove(&enqueued_tx);
     }
@@ -337,7 +337,7 @@ impl Mempool {
         current_account_nonce_getter: F,
     ) -> anyhow::Result<()>
     where
-        F: Fn(Address) -> O,
+        F: Fn([u8; ADDRESS_LEN]) -> O,
         O: Future<Output = anyhow::Result<u32>>,
     {
         let mut txs_to_remove = Vec::new();
@@ -346,7 +346,7 @@ impl Mempool {
         let mut queue = self.queue.write().await;
         let mut removal_cache = self.comet_bft_removal_cache.write().await;
         for (enqueued_tx, priority) in queue.iter_mut() {
-            let address = enqueued_tx.address();
+            let address_bytes = enqueued_tx.address_bytes();
 
             // check if the transactions has expired
             if priority.time_first_seen.elapsed() > self.tx_ttl {
@@ -357,14 +357,16 @@ impl Mempool {
             }
 
             // Try to get the current account nonce from the ones already retrieved.
-            let current_account_nonce = if let Some(nonce) = current_account_nonces.get(&address) {
+            let current_account_nonce = if let Some(nonce) =
+                current_account_nonces.get(&address_bytes)
+            {
                 *nonce
             } else {
                 // Fall back to getting via the getter and adding it to the local temp collection.
-                let nonce = current_account_nonce_getter(*enqueued_tx.address())
+                let nonce = current_account_nonce_getter(enqueued_tx.address_bytes())
                     .await
                     .context("failed to fetch account nonce")?;
-                current_account_nonces.insert(address, nonce);
+                current_account_nonces.insert(address_bytes, nonce);
                 nonce
             };
             match enqueued_tx.priority(current_account_nonce, Some(priority.time_first_seen)) {
@@ -390,11 +392,11 @@ impl Mempool {
     /// returns the pending nonce for the given address,
     /// if it exists in the mempool.
     #[instrument(skip_all)]
-    pub(crate) async fn pending_nonce(&self, address: &Address) -> Option<u32> {
+    pub(crate) async fn pending_nonce(&self, address: [u8; ADDRESS_LEN]) -> Option<u32> {
         let inner = self.queue.read().await;
         let mut nonce = None;
         for (tx, _priority) in inner.iter() {
-            if tx.address() == address {
+            if tx.address_bytes() == address {
                 nonce = Some(cmp::max(nonce.unwrap_or_default(), tx.signed_tx.nonce()));
             }
         }
@@ -409,23 +411,26 @@ impl Mempool {
 /// this `signed_tx` field is ignored in the `PartialEq` and `Hash` impls of `EnqueuedTransaction` -
 /// only the tx hash is considered.  So we create an `EnqueuedTransaction` on the fly with the
 /// correct tx hash and this dummy signed tx when removing from the queue.
-fn dummy_signed_tx() -> (Arc<SignedTransaction>, Address) {
-    static TX: OnceLock<(Arc<SignedTransaction>, Address)> = OnceLock::new();
-    let (signed_tx, address) = TX.get_or_init(|| {
+fn dummy_signed_tx() -> (Arc<SignedTransaction>, [u8; ADDRESS_LEN]) {
+    static TX: OnceLock<(Arc<SignedTransaction>, [u8; ADDRESS_LEN])> = OnceLock::new();
+    let (signed_tx, address_bytes) = TX.get_or_init(|| {
         let actions = vec![];
         let params = TransactionParams::builder()
             .nonce(0)
             .chain_id("dummy")
             .build();
         let signing_key = SigningKey::from([0; 32]);
-        let address = crate::address::base_prefixed(signing_key.verification_key().address_bytes());
+        let address_bytes = signing_key.verification_key().address_bytes();
         let unsigned_tx = UnsignedTransaction {
             actions,
             params,
         };
-        (Arc::new(unsigned_tx.into_signed(&signing_key)), address)
+        (
+            Arc::new(unsigned_tx.into_signed(&signing_key)),
+            address_bytes,
+        )
     });
-    (signed_tx.clone(), *address)
+    (signed_tx.clone(), *address_bytes)
 }
 
 #[cfg(test)]
@@ -509,23 +514,17 @@ mod test {
         let tx0 = EnqueuedTransaction {
             tx_hash: [0; 32],
             signed_tx: Arc::new(get_mock_tx(0)),
-            address: crate::address::base_prefixed(
-                get_mock_tx(0).verification_key().address_bytes(),
-            ),
+            address_bytes: get_mock_tx(0).address_bytes(),
         };
         let other_tx0 = EnqueuedTransaction {
             tx_hash: [0; 32],
             signed_tx: Arc::new(get_mock_tx(1)),
-            address: crate::address::base_prefixed(
-                get_mock_tx(1).verification_key().address_bytes(),
-            ),
+            address_bytes: get_mock_tx(1).address_bytes(),
         };
         let tx1 = EnqueuedTransaction {
             tx_hash: [1; 32],
             signed_tx: Arc::new(get_mock_tx(0)),
-            address: crate::address::base_prefixed(
-                get_mock_tx(0).verification_key().address_bytes(),
-            ),
+            address_bytes: get_mock_tx(0).address_bytes(),
         };
         assert!(tx0 == other_tx0);
         assert!(tx0 != tx1);
@@ -620,7 +619,7 @@ mod test {
         mempool.insert(get_mock_tx(1), 0).await.unwrap();
 
         // Insert txs from a different signer with nonces 100 and 102.
-        let other_signing_key = SigningKey::from([1; 32]);
+        let other = SigningKey::from([1; 32]);
         let other_mock_tx = |nonce: u32| -> SignedTransaction {
             let actions = get_mock_tx(0).actions().to_vec();
             UnsignedTransaction {
@@ -630,28 +629,29 @@ mod test {
                     .build(),
                 actions,
             }
-            .into_signed(&other_signing_key)
+            .into_signed(&other)
         };
         mempool.insert(other_mock_tx(100), 0).await.unwrap();
         mempool.insert(other_mock_tx(102), 0).await.unwrap();
 
         assert_eq!(mempool.len().await, 4);
 
-        let (alice_signing_key, alice_address) =
-            crate::app::test_utils::get_alice_signing_key_and_address();
-        let other_address =
-            crate::address::base_prefixed(other_signing_key.verification_key().address_bytes());
+        let alice = crate::app::test_utils::get_alice_signing_key();
 
         // Create a getter fn which will returns 1 for alice's current account nonce, and 101 for
         // the other signer's.
-        let current_account_nonce_getter = |address: Address| async move {
-            if address == alice_address {
-                return Ok(1);
+        let current_account_nonce_getter = |address: [u8; ADDRESS_LEN]| {
+            let alice = alice.clone();
+            let other = other.clone();
+            async move {
+                if address == alice.address_bytes() {
+                    return Ok(1);
+                }
+                if address == other.address_bytes() {
+                    return Ok(101);
+                }
+                Err(anyhow::anyhow!("invalid address"))
             }
-            if address == other_address {
-                return Ok(101);
-            }
-            Err(anyhow::anyhow!("invalid address"))
         };
 
         // Update the priorities.  Alice's first tx (with nonce 0) and other's first (with nonce
@@ -666,19 +666,13 @@ mod test {
         // Alice's remaining tx should be the highest priority (nonce diff of 1 - 1 == 0).
         let (tx, priority) = mempool.pop().await.unwrap();
         assert_eq!(tx.signed_tx.nonce(), 1);
-        assert_eq!(
-            *tx.signed_tx.verification_key(),
-            alice_signing_key.verification_key()
-        );
+        assert_eq!(*tx.signed_tx.verification_key(), alice.verification_key());
         assert_eq!(priority.nonce_diff, 0);
 
         // Other's remaining tx should be the highest priority (nonce diff of 102 - 101 == 1).
         let (tx, priority) = mempool.pop().await.unwrap();
         assert_eq!(tx.signed_tx.nonce(), 102);
-        assert_eq!(
-            *tx.signed_tx.verification_key(),
-            other_signing_key.verification_key()
-        );
+        assert_eq!(*tx.signed_tx.verification_key(), other.verification_key());
         assert_eq!(priority.nonce_diff, 1);
     }
 
@@ -758,7 +752,7 @@ mod test {
         mempool.insert(get_mock_tx(1), 0).await.unwrap();
 
         // Insert txs from a different signer with nonces 100 and 101.
-        let other_signing_key = SigningKey::from([1; 32]);
+        let other = SigningKey::from([1; 32]);
         let other_mock_tx = |nonce: u32| -> SignedTransaction {
             let actions = get_mock_tx(0).actions().to_vec();
             UnsignedTransaction {
@@ -768,7 +762,7 @@ mod test {
                     .build(),
                 actions,
             }
-            .into_signed(&other_signing_key)
+            .into_signed(&other)
         };
         mempool.insert(other_mock_tx(100), 0).await.unwrap();
         mempool.insert(other_mock_tx(101), 0).await.unwrap();
@@ -776,19 +770,18 @@ mod test {
         assert_eq!(mempool.len().await, 4);
 
         // Check the pending nonce for alice is 1 and for the other signer is 101.
-        let alice_address = crate::app::test_utils::get_alice_signing_key_and_address().1;
-        assert_eq!(mempool.pending_nonce(&alice_address).await.unwrap(), 1);
-        let other_address =
-            crate::address::base_prefixed(other_signing_key.verification_key().address_bytes());
-        assert_eq!(mempool.pending_nonce(&other_address).await.unwrap(), 101);
+        let alice = crate::app::test_utils::get_alice_signing_key();
+        assert_eq!(
+            mempool.pending_nonce(alice.address_bytes()).await.unwrap(),
+            1
+        );
+        assert_eq!(
+            mempool.pending_nonce(other.address_bytes()).await.unwrap(),
+            101
+        );
 
         // Check the pending nonce for an address with no enqueued txs is `None`.
-        assert!(
-            mempool
-                .pending_nonce(&crate::address::base_prefixed([1; 20]))
-                .await
-                .is_none()
-        );
+        assert!(mempool.pending_nonce([1; 20]).await.is_none());
     }
 
     #[tokio::test]

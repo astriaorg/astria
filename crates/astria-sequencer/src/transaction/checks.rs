@@ -22,18 +22,25 @@ use astria_core::{
 use tracing::instrument;
 
 use crate::{
-    accounts::StateReadExt,
+    accounts,
+    address,
     bridge::StateReadExt as _,
     ibc::StateReadExt as _,
     state_ext::StateReadExt as _,
 };
 
 #[instrument(skip_all)]
-pub(crate) async fn check_nonce_mempool<S: StateReadExt + 'static>(
-    tx: &SignedTransaction,
-    state: &S,
-) -> anyhow::Result<()> {
-    let signer_address = crate::address::base_prefixed(tx.verification_key().address_bytes());
+pub(crate) async fn check_nonce_mempool<S>(tx: &SignedTransaction, state: &S) -> anyhow::Result<()>
+where
+    S: accounts::StateReadExt + address::StateReadExt + 'static,
+{
+    let signer_address = state
+        .try_base_prefixed(&tx.verification_key().address_bytes())
+        .await
+        .context(
+            "failed constructing the signer address from signed transaction verification and \
+             prefix provided by app state",
+        )?;
     let curr_nonce = state
         .get_account_nonce(signer_address)
         .await
@@ -43,10 +50,13 @@ pub(crate) async fn check_nonce_mempool<S: StateReadExt + 'static>(
 }
 
 #[instrument(skip_all)]
-pub(crate) async fn check_chain_id_mempool<S: StateReadExt + 'static>(
+pub(crate) async fn check_chain_id_mempool<S>(
     tx: &SignedTransaction,
     state: &S,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<()>
+where
+    S: accounts::StateReadExt + 'static,
+{
     let chain_id = state
         .get_chain_id()
         .await
@@ -56,11 +66,20 @@ pub(crate) async fn check_chain_id_mempool<S: StateReadExt + 'static>(
 }
 
 #[instrument(skip_all)]
-pub(crate) async fn check_balance_mempool<S: StateReadExt + 'static>(
+pub(crate) async fn check_balance_mempool<S>(
     tx: &SignedTransaction,
     state: &S,
-) -> anyhow::Result<()> {
-    let signer_address = crate::address::base_prefixed(tx.verification_key().address_bytes());
+) -> anyhow::Result<()>
+where
+    S: accounts::StateReadExt + address::StateReadExt + 'static,
+{
+    let signer_address = state
+        .try_base_prefixed(&tx.verification_key().address_bytes())
+        .await
+        .context(
+            "failed constructing the signer address from signed transaction verification and \
+             prefix provided by app state",
+        )?;
     check_balance_for_total_fees_and_transfers(tx.unsigned_transaction(), signer_address, state)
         .await
         .context("failed to check balance for total fees and transfers")?;
@@ -68,7 +87,7 @@ pub(crate) async fn check_balance_mempool<S: StateReadExt + 'static>(
 }
 
 #[instrument(skip_all)]
-pub(crate) async fn get_fees_for_transaction<S: StateReadExt + 'static>(
+pub(crate) async fn get_fees_for_transaction<S: accounts::StateReadExt + 'static>(
     tx: &UnsignedTransaction,
     state: &S,
 ) -> anyhow::Result<HashMap<asset::IbcPrefixed, u128>> {
@@ -144,11 +163,14 @@ pub(crate) async fn get_fees_for_transaction<S: StateReadExt + 'static>(
 // Checks that the account has enough balance to cover the total fees and transferred values
 // for all actions in the transaction.
 #[instrument(skip_all)]
-pub(crate) async fn check_balance_for_total_fees_and_transfers<S: StateReadExt + 'static>(
+pub(crate) async fn check_balance_for_total_fees_and_transfers<S>(
     tx: &UnsignedTransaction,
     from: Address,
     state: &S,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<()>
+where
+    S: accounts::StateReadExt + 'static,
+{
     let mut cost_by_asset = get_fees_for_transaction(tx, state)
         .await
         .context("failed to get fees for transaction")?;
@@ -224,12 +246,15 @@ fn transfer_update_fees(
         .or_insert(transfer_fee);
 }
 
-async fn sequence_update_fees<S: StateReadExt>(
+async fn sequence_update_fees<S>(
     state: &S,
     fee_asset: &asset::Denom,
     fees_by_asset: &mut HashMap<asset::IbcPrefixed, u128>,
     data: &[u8],
-) -> anyhow::Result<()> {
+) -> anyhow::Result<()>
+where
+    S: accounts::StateReadExt,
+{
     let fee = crate::sequence::calculate_fee_from_state(data, state)
         .await
         .context("fee for sequence action overflowed; data too large")?;
@@ -290,6 +315,10 @@ fn bridge_unlock_update_fees(
 
 #[cfg(test)]
 mod tests {
+    use address::{
+        StateReadExt,
+        StateWriteExt,
+    };
     use astria_core::{
         primitive::v1::{
             asset::Denom,
@@ -308,9 +337,13 @@ mod tests {
 
     use super::*;
     use crate::{
-        accounts::StateWriteExt as _,
+        accounts::{
+            StateReadExt as _,
+            StateWriteExt as _,
+        },
         app::test_utils::*,
-        bridge::StateWriteExt,
+        assets::StateWriteExt as _,
+        bridge::StateWriteExt as _,
         ibc::StateWriteExt as _,
         sequence::StateWriteExt as _,
     };
@@ -321,6 +354,8 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot);
 
+        state_tx.put_base_prefix("astria").unwrap();
+        state_tx.put_native_asset(&crate::test_utils::nria());
         state_tx.put_transfer_base_fee(12).unwrap();
         state_tx.put_sequence_action_base_fee(0);
         state_tx.put_sequence_action_byte_cost_multiplier(1);
@@ -329,17 +364,19 @@ mod tests {
         state_tx.put_bridge_lock_byte_cost_multiplier(1);
         state_tx.put_bridge_sudo_change_base_fee(24);
 
-        let native_asset = crate::assets::get_native_asset();
         let other_asset = "other".parse::<Denom>().unwrap();
 
-        let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
+        let alice = get_alice_signing_key();
         let amount = 100;
         let data = [0; 32].to_vec();
         let transfer_fee = state_tx.get_transfer_base_fee().await.unwrap();
         state_tx
             .increase_balance(
-                alice_address,
-                native_asset,
+                state_tx
+                    .try_base_prefixed(&alice.address_bytes())
+                    .await
+                    .unwrap(),
+                crate::test_utils::nria(),
                 transfer_fee
                     + crate::sequence::calculate_fee_from_state(&data, &state_tx)
                         .await
@@ -348,7 +385,14 @@ mod tests {
             .await
             .unwrap();
         state_tx
-            .increase_balance(alice_address, &other_asset, amount)
+            .increase_balance(
+                state_tx
+                    .try_base_prefixed(&alice.address_bytes())
+                    .await
+                    .unwrap(),
+                &other_asset,
+                amount,
+            )
             .await
             .unwrap();
 
@@ -356,13 +400,13 @@ mod tests {
             Action::Transfer(TransferAction {
                 asset: other_asset.clone(),
                 amount,
-                fee_asset: native_asset.clone(),
-                to: crate::address::base_prefixed([0; ADDRESS_LEN]),
+                fee_asset: crate::test_utils::nria().into(),
+                to: state_tx.try_base_prefixed(&[0; ADDRESS_LEN]).await.unwrap(),
             }),
             Action::Sequence(SequenceAction {
                 rollup_id: RollupId::from_unhashed_bytes([0; 32]),
                 data,
-                fee_asset: native_asset.clone(),
+                fee_asset: crate::test_utils::nria().into(),
             }),
         ];
 
@@ -375,7 +419,7 @@ mod tests {
             params,
         };
 
-        let signed_tx = tx.into_signed(&alice_signing_key);
+        let signed_tx = tx.into_signed(&alice);
         check_balance_mempool(&signed_tx, &state_tx)
             .await
             .expect("sufficient balance for all actions");
@@ -387,6 +431,8 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot);
 
+        state_tx.put_base_prefix("nria").unwrap();
+        state_tx.put_native_asset(&crate::test_utils::nria());
         state_tx.put_transfer_base_fee(12).unwrap();
         state_tx.put_sequence_action_base_fee(0);
         state_tx.put_sequence_action_byte_cost_multiplier(1);
@@ -395,17 +441,19 @@ mod tests {
         state_tx.put_bridge_lock_byte_cost_multiplier(1);
         state_tx.put_bridge_sudo_change_base_fee(24);
 
-        let native_asset = crate::assets::get_native_asset();
         let other_asset = "other".parse::<Denom>().unwrap();
 
-        let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
+        let alice = get_alice_signing_key();
         let amount = 100;
         let data = [0; 32].to_vec();
         let transfer_fee = state_tx.get_transfer_base_fee().await.unwrap();
         state_tx
             .increase_balance(
-                alice_address,
-                native_asset,
+                state_tx
+                    .try_base_prefixed(&alice.address_bytes())
+                    .await
+                    .unwrap(),
+                crate::test_utils::nria(),
                 transfer_fee
                     + crate::sequence::calculate_fee_from_state(&data, &state_tx)
                         .await
@@ -418,13 +466,13 @@ mod tests {
             Action::Transfer(TransferAction {
                 asset: other_asset.clone(),
                 amount,
-                fee_asset: native_asset.clone(),
-                to: crate::address::base_prefixed([0; ADDRESS_LEN]),
+                fee_asset: crate::test_utils::nria().into(),
+                to: state_tx.try_base_prefixed(&[0; ADDRESS_LEN]).await.unwrap(),
             }),
             Action::Sequence(SequenceAction {
                 rollup_id: RollupId::from_unhashed_bytes([0; 32]),
                 data,
-                fee_asset: native_asset.clone(),
+                fee_asset: crate::test_utils::nria().into(),
             }),
         ];
 
@@ -437,7 +485,7 @@ mod tests {
             params,
         };
 
-        let signed_tx = tx.into_signed(&alice_signing_key);
+        let signed_tx = tx.into_signed(&alice);
         let err = check_balance_mempool(&signed_tx, &state_tx)
             .await
             .err()

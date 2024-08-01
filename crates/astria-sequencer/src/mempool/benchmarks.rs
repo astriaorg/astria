@@ -13,7 +13,6 @@ use astria_core::{
             Denom,
             IbcPrefixed,
         },
-        Address,
         RollupId,
     },
     protocol::transaction::v1alpha1::{
@@ -60,7 +59,6 @@ fn signing_keys() -> impl Iterator<Item = &'static SigningKey> {
 fn transactions() -> &'static Vec<SignedTransaction> {
     static TXS: OnceLock<Vec<SignedTransaction>> = OnceLock::new();
     TXS.get_or_init(|| {
-        crate::address::initialize_base_prefix("benchmarks").unwrap();
         let mut nonces_and_chain_ids = HashMap::new();
         signing_keys()
             .map(move |signing_key| {
@@ -321,7 +319,7 @@ fn run_maintenance<T: MempoolSize>(bencher: divan::Bencher) {
     // Although in production this getter will be hitting the state store and will be slower than
     // this test one, it's probably insignificant as the getter is only called once per address,
     // and we don't expect a high number of discrete addresses in the mempool entries.
-    let current_account_nonce_getter = |_: Address| async { Ok(new_nonce) };
+    let current_account_nonce_getter = |_: [u8; 20]| async { Ok(new_nonce) };
     bencher
         .with_inputs(|| init_mempool::<T>())
         .bench_values(move |mempool| {
@@ -351,18 +349,16 @@ fn pending_nonce<T: MempoolSize>(bencher: divan::Bencher) {
         .unwrap();
     bencher
         .with_inputs(|| {
-            let address = crate::address::base_prefixed(
-                transactions()
-                    .first()
-                    .unwrap()
-                    .verification_key()
-                    .address_bytes(),
-            );
+            let address = transactions()
+                .first()
+                .unwrap()
+                .verification_key()
+                .address_bytes();
             (init_mempool::<T>(), address)
         })
         .bench_values(move |(mempool, address)| {
             runtime.block_on(async {
-                mempool.pending_nonce(&address).await.unwrap();
+                mempool.pending_nonce(address).await.unwrap();
             });
         });
 }

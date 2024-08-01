@@ -11,8 +11,11 @@ use astria_core::{
 use tracing::instrument;
 
 use crate::{
-    accounts,
-    accounts::StateReadExt as _,
+    accounts::{
+        self,
+        StateReadExt as _,
+    },
+    address,
     assets,
     bridge::StateReadExt as _,
     transaction::action_handler::ActionHandler,
@@ -81,15 +84,16 @@ where
 #[async_trait::async_trait]
 impl ActionHandler for TransferAction {
     async fn check_stateless(&self) -> Result<()> {
-        crate::address::ensure_base_prefix(&self.to).context("destination address is invalid")?;
         Ok(())
     }
 
-    async fn check_stateful<S: accounts::StateReadExt + 'static>(
-        &self,
-        state: &S,
-        from: Address,
-    ) -> Result<()> {
+    async fn check_stateful<S>(&self, state: &S, from: Address) -> Result<()>
+    where
+        S: accounts::StateReadExt + address::StateReadExt + 'static,
+    {
+        state.ensure_base_prefix(&self.to).await.context(
+            "failed ensuring that the destination address matches the permitted base prefix",
+        )?;
         ensure!(
             state
                 .get_bridge_account_rollup_id(&from)

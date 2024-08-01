@@ -15,6 +15,7 @@ use tracing::instrument;
 
 use crate::{
     accounts::action::transfer_check_stateful,
+    address,
     bridge::StateReadExt as _,
     state_ext::{
         StateReadExt,
@@ -26,21 +27,25 @@ use crate::{
 #[async_trait::async_trait]
 impl ActionHandler for BridgeUnlockAction {
     async fn check_stateless(&self) -> Result<()> {
-        crate::address::ensure_base_prefix(&self.to)
-            .context("destination address has an unsupported prefix")?;
-        self.bridge_address
-            .as_ref()
-            .map(crate::address::ensure_base_prefix)
-            .transpose()
-            .context("bridge address has an unsupported prefix")?;
         Ok(())
     }
 
-    async fn check_stateful<S: StateReadExt + 'static>(
+    async fn check_stateful<S: StateReadExt + address::StateReadExt + 'static>(
         &self,
         state: &S,
         from: Address,
     ) -> Result<()> {
+        state
+            .ensure_base_prefix(&self.to)
+            .await
+            .context("failed check for base prefix of destination address")?;
+        if let Some(bridge_address) = &self.bridge_address {
+            state
+                .ensure_base_prefix(bridge_address)
+                .await
+                .context("failed check for base prefix of bridge address")?;
+        }
+
         // the bridge address to withdraw funds from
         // if unset, use the tx sender's address
         let bridge_address = self.bridge_address.unwrap_or(from);
@@ -113,8 +118,13 @@ mod test {
     use super::*;
     use crate::{
         accounts::StateWriteExt as _,
+        address::StateWriteExt as _,
         assets::StateWriteExt as _,
-        bridge::StateWriteExt,
+        bridge::StateWriteExt as _,
+        test_utils::{
+            astria_address,
+            ASTRIA_PREFIX,
+        },
     };
 
     fn test_asset() -> asset::Denom {
@@ -122,16 +132,18 @@ mod test {
     }
 
     #[tokio::test]
-    async fn bridge_unlock_fail_non_bridge_accounts() {
+    async fn fail_non_bridge_accounts() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
-        let state = StateDelta::new(snapshot);
+        let mut state = StateDelta::new(snapshot);
+
+        state.put_base_prefix(ASTRIA_PREFIX).unwrap();
 
         let asset = test_asset();
         let transfer_amount = 100;
 
-        let address = crate::address::base_prefixed([1; 20]);
-        let to_address = crate::address::base_prefixed([2; 20]);
+        let address = astria_address(&[1; 20]);
+        let to_address = astria_address(&[2; 20]);
 
         let bridge_unlock = BridgeUnlockAction {
             to: to_address,
@@ -153,18 +165,20 @@ mod test {
     }
 
     #[tokio::test]
-    async fn bridge_unlock_fail_withdrawer_unset_invalid_withdrawer() {
+    async fn fail_withdrawer_unset_invalid_withdrawer() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
+        state.put_base_prefix(ASTRIA_PREFIX).unwrap();
+
         let asset = test_asset();
         let transfer_amount = 100;
 
-        let sender_address = crate::address::base_prefixed([1; 20]);
-        let to_address = crate::address::base_prefixed([2; 20]);
+        let sender_address = astria_address(&[1; 20]);
+        let to_address = astria_address(&[2; 20]);
 
-        let bridge_address = crate::address::base_prefixed([3; 20]);
+        let bridge_address = astria_address(&[3; 20]);
         state
             .put_bridge_account_ibc_asset(&bridge_address, &asset)
             .unwrap();
@@ -190,19 +204,21 @@ mod test {
     }
 
     #[tokio::test]
-    async fn bridge_unlock_fail_withdrawer_set_invalid_withdrawer() {
+    async fn fail_withdrawer_set_invalid_withdrawer() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
+        state.put_base_prefix(ASTRIA_PREFIX).unwrap();
+
         let asset = test_asset();
         let transfer_amount = 100;
 
-        let sender_address = crate::address::base_prefixed([1; 20]);
-        let to_address = crate::address::base_prefixed([2; 20]);
+        let sender_address = astria_address(&[1; 20]);
+        let to_address = astria_address(&[2; 20]);
 
-        let bridge_address = crate::address::base_prefixed([3; 20]);
-        let withdrawer_address = crate::address::base_prefixed([4; 20]);
+        let bridge_address = astria_address(&[3; 20]);
+        let withdrawer_address = astria_address(&[4; 20]);
         state.put_bridge_account_withdrawer_address(&bridge_address, &withdrawer_address);
         state
             .put_bridge_account_ibc_asset(&bridge_address, &asset)
@@ -228,18 +244,20 @@ mod test {
     }
 
     #[tokio::test]
-    async fn bridge_unlock_fee_check_stateful_from_none() {
+    async fn fee_check_stateful_from_none() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
+
+        state.put_base_prefix(ASTRIA_PREFIX).unwrap();
 
         let asset = test_asset();
         let transfer_fee = 10;
         let transfer_amount = 100;
         state.put_transfer_base_fee(transfer_fee).unwrap();
 
-        let bridge_address = crate::address::base_prefixed([1; 20]);
-        let to_address = crate::address::base_prefixed([2; 20]);
+        let bridge_address = astria_address(&[1; 20]);
+        let to_address = astria_address(&[2; 20]);
         let rollup_id = RollupId::from_unhashed_bytes(b"test_rollup_id");
 
         state.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
@@ -281,18 +299,20 @@ mod test {
     }
 
     #[tokio::test]
-    async fn bridge_unlock_fee_check_stateful_from_some() {
+    async fn fee_check_stateful_from_some() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
+
+        state.put_base_prefix(ASTRIA_PREFIX).unwrap();
 
         let asset = test_asset();
         let transfer_fee = 10;
         let transfer_amount = 100;
         state.put_transfer_base_fee(transfer_fee).unwrap();
 
-        let bridge_address = crate::address::base_prefixed([1; 20]);
-        let to_address = crate::address::base_prefixed([2; 20]);
+        let bridge_address = astria_address(&[1; 20]);
+        let to_address = astria_address(&[2; 20]);
         let rollup_id = RollupId::from_unhashed_bytes(b"test_rollup_id");
 
         state.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
@@ -301,7 +321,7 @@ mod test {
             .unwrap();
         state.put_allowed_fee_asset(&asset);
 
-        let withdrawer_address = crate::address::base_prefixed([3; 20]);
+        let withdrawer_address = astria_address(&[3; 20]);
         state.put_bridge_account_withdrawer_address(&bridge_address, &withdrawer_address);
 
         let bridge_unlock = BridgeUnlockAction {
@@ -336,7 +356,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn bridge_unlock_execute_from_none() {
+    async fn execute_from_none() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
@@ -346,8 +366,8 @@ mod test {
         let transfer_amount = 100;
         state.put_transfer_base_fee(transfer_fee).unwrap();
 
-        let bridge_address = crate::address::base_prefixed([1; 20]);
-        let to_address = crate::address::base_prefixed([2; 20]);
+        let bridge_address = astria_address(&[1; 20]);
+        let to_address = astria_address(&[2; 20]);
         let rollup_id = RollupId::from_unhashed_bytes(b"test_rollup_id");
 
         state.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
@@ -388,7 +408,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn bridge_unlock_execute_from_some() {
+    async fn execute_from_some() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
@@ -398,8 +418,8 @@ mod test {
         let transfer_amount = 100;
         state.put_transfer_base_fee(transfer_fee).unwrap();
 
-        let bridge_address = crate::address::base_prefixed([1; 20]);
-        let to_address = crate::address::base_prefixed([2; 20]);
+        let bridge_address = astria_address(&[1; 20]);
+        let to_address = astria_address(&[2; 20]);
         let rollup_id = RollupId::from_unhashed_bytes(b"test_rollup_id");
 
         state.put_bridge_account_rollup_id(&bridge_address, &rollup_id);

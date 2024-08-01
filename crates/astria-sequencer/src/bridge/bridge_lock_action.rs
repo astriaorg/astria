@@ -19,6 +19,7 @@ use crate::{
         StateReadExt as _,
         StateWriteExt as _,
     },
+    address,
     bridge::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -33,16 +34,18 @@ use crate::{
 #[async_trait::async_trait]
 impl ActionHandler for BridgeLockAction {
     async fn check_stateless(&self) -> Result<()> {
-        crate::address::ensure_base_prefix(&self.to)
-            .context("destination address has an unsupported prefix")?;
         Ok(())
     }
 
-    async fn check_stateful<S: StateReadExt + 'static>(
+    async fn check_stateful<S: StateReadExt + address::StateReadExt + 'static>(
         &self,
         state: &S,
         from: Address,
     ) -> Result<()> {
+        state
+            .ensure_base_prefix(&self.to)
+            .await
+            .context("failed check for base prefix of destination address")?;
         let transfer_action = TransferAction {
             to: self.to,
             asset: self.asset.clone(),
@@ -154,6 +157,7 @@ pub(crate) fn get_deposit_byte_len(deposit: &Deposit) -> u128 {
 
 #[cfg(test)]
 mod tests {
+    use address::StateWriteExt;
     use astria_core::primitive::v1::{
         asset,
         RollupId,
@@ -161,7 +165,13 @@ mod tests {
     use cnidarium::StateDelta;
 
     use super::*;
-    use crate::assets::StateWriteExt as _;
+    use crate::{
+        assets::StateWriteExt as _,
+        test_utils::{
+            astria_address,
+            ASTRIA_PREFIX,
+        },
+    };
 
     fn test_asset() -> asset::Denom {
         "test".parse().unwrap()
@@ -173,10 +183,12 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
         let transfer_fee = 12;
+
+        state.put_base_prefix(ASTRIA_PREFIX).unwrap();
         state.put_transfer_base_fee(transfer_fee).unwrap();
         state.put_bridge_lock_byte_cost_multiplier(2);
 
-        let bridge_address = crate::address::base_prefixed([1; 20]);
+        let bridge_address = astria_address(&[1; 20]);
         let asset = test_asset();
         let bridge_lock = BridgeLockAction {
             to: bridge_address,
@@ -193,12 +205,13 @@ mod tests {
             .unwrap();
         state.put_allowed_fee_asset(&asset);
 
-        let from_address = crate::address::base_prefixed([2; 20]);
+        let from_address = astria_address(&[2; 20]);
 
         // not enough balance; should fail
         state
             .put_account_balance(from_address, &asset, 100)
             .unwrap();
+
         assert!(
             bridge_lock
                 .check_stateful(&state, from_address)
@@ -235,7 +248,7 @@ mod tests {
         state.put_transfer_base_fee(transfer_fee).unwrap();
         state.put_bridge_lock_byte_cost_multiplier(2);
 
-        let bridge_address = crate::address::base_prefixed([1; 20]);
+        let bridge_address = astria_address(&[1; 20]);
         let asset = test_asset();
         let bridge_lock = BridgeLockAction {
             to: bridge_address,
@@ -252,7 +265,7 @@ mod tests {
             .unwrap();
         state.put_allowed_fee_asset(&asset);
 
-        let from_address = crate::address::base_prefixed([2; 20]);
+        let from_address = astria_address(&[2; 20]);
 
         // not enough balance; should fail
         state

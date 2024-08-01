@@ -26,10 +26,9 @@ pub(crate) use checks::{
 use tracing::instrument;
 
 use crate::{
-    accounts::{
-        StateReadExt,
-        StateWriteExt,
-    },
+    accounts,
+    address,
+    bridge,
     ibc::{
         host_interface::AstriaHost,
         StateReadExt as _,
@@ -46,26 +45,37 @@ pub(crate) async fn check_stateless(tx: &SignedTransaction) -> anyhow::Result<()
 }
 
 #[instrument(skip_all)]
-pub(crate) async fn check_stateful<S: StateReadExt + 'static>(
-    tx: &SignedTransaction,
-    state: &S,
-) -> anyhow::Result<()> {
-    let signer_address = crate::address::base_prefixed(tx.verification_key().address_bytes());
+pub(crate) async fn check_stateful<S>(tx: &SignedTransaction, state: &S) -> anyhow::Result<()>
+where
+    S: accounts::StateReadExt + address::StateReadExt + 'static,
+{
+    let signer_address = state
+        .try_base_prefixed(&tx.verification_key().address_bytes())
+        .await
+        .context(
+            "failed constructing signed address from state and verification key contained in \
+             signed transaction",
+        )?;
     tx.unsigned_transaction()
         .check_stateful(state, signer_address)
         .await
 }
 
-pub(crate) async fn execute<S: StateWriteExt>(
-    tx: &SignedTransaction,
-    state: &mut S,
-) -> anyhow::Result<()> {
-    use crate::bridge::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    };
-
-    let signer_address = crate::address::base_prefixed(tx.verification_key().address_bytes());
+pub(crate) async fn execute<S>(tx: &SignedTransaction, state: &mut S) -> anyhow::Result<()>
+where
+    S: accounts::StateReadExt
+        + accounts::StateWriteExt
+        + address::StateReadExt
+        + bridge::StateReadExt
+        + bridge::StateWriteExt,
+{
+    let signer_address = state
+        .try_base_prefixed(&tx.verification_key().address_bytes())
+        .await
+        .context(
+            "failed constructing signed address from state and verification key contained in \
+             signed transaction",
+        )?;
 
     if state
         .get_bridge_account_rollup_id(&signer_address)
@@ -183,11 +193,10 @@ impl ActionHandler for UnsignedTransaction {
         Ok(())
     }
 
-    async fn check_stateful<S: StateReadExt + 'static>(
-        &self,
-        state: &S,
-        from: Address,
-    ) -> anyhow::Result<()> {
+    async fn check_stateful<S>(&self, state: &S, from: Address) -> anyhow::Result<()>
+    where
+        S: accounts::StateReadExt + 'static,
+    {
         // Transactions must match the chain id of the node.
         let chain_id = state.get_chain_id().await?;
         ensure!(
@@ -271,7 +280,10 @@ impl ActionHandler for UnsignedTransaction {
     }
 
     #[instrument(skip_all)]
-    async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> anyhow::Result<()> {
+    async fn execute<S>(&self, state: &mut S, from: Address) -> anyhow::Result<()>
+    where
+        S: accounts::StateReadExt + accounts::StateWriteExt,
+    {
         let from_nonce = state
             .get_account_nonce(from)
             .await

@@ -68,7 +68,7 @@ fn genesis_state() -> GenesisState {
         authority_sudo_address: alice(),
         ibc_sudo_address: alice(),
         ibc_relayer_addresses: vec![alice(), bob()],
-        native_asset_base_denomination: "nria".to_string(),
+        native_asset_base_denomination: "nria".parse().unwrap(),
         ibc_params: IBCParameters {
             ibc_enabled: true,
             inbound_ics20_transfers_enabled: true,

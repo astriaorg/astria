@@ -653,6 +653,10 @@ mod test {
     use crate::{
         accounts::StateReadExt as _,
         ibc::StateWriteExt as _,
+        test_utils::{
+            astria_address,
+            astria_address_from_hex_string,
+        },
     };
 
     #[tokio::test]
@@ -721,10 +725,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot.clone());
 
-        let recipient = crate::address::try_base_prefixed(
-            &hex::decode("1c0c490f1b5528d8173c5de46d131160e4b2c0c3").unwrap(),
-        )
-        .unwrap();
+        let recipient = astria_address_from_hex_string("1c0c490f1b5528d8173c5de46d131160e4b2c0c3");
         let packet = FungibleTokenPacketData {
             denom: "nootasset".to_string(),
             sender: String::new(),
@@ -760,7 +761,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot.clone());
 
-        let bridge_address = crate::address::base_prefixed([99; 20]);
+        let bridge_address = astria_address(&[99; 20]);
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
         let denom = "dest_port/dest_channel/nootasset".parse::<Denom>().unwrap();
 
@@ -817,7 +818,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot.clone());
 
-        let bridge_address = crate::address::base_prefixed([99; 20]);
+        let bridge_address = astria_address(&[99; 20]);
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
         let denom = "dest_port/dest_channel/nootasset".parse::<Denom>().unwrap();
 
@@ -855,7 +856,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot.clone());
 
-        let bridge_address = crate::address::base_prefixed([99; 20]);
+        let bridge_address = astria_address(&[99; 20]);
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
         let denom = "dest_port/dest_channel/nootasset".parse::<Denom>().unwrap();
 
@@ -893,7 +894,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot.clone());
 
-        let recipient_address = crate::address::base_prefixed([1; 20]);
+        let recipient_address = astria_address(&[1; 20]);
         let amount = 100;
         let base_denom = "nootasset".parse::<Denom>().unwrap();
         state_tx
@@ -943,7 +944,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot.clone());
 
-        let recipient_address = crate::address::base_prefixed([1; 20]);
+        let recipient_address = astria_address(&[1; 20]);
         let amount = 100;
         let base_denom = "nootasset".parse::<Denom>().unwrap();
         state_tx
@@ -993,7 +994,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot.clone());
 
-        let bridge_address = crate::address::base_prefixed([99u8; 20]);
+        let bridge_address = astria_address(&[99u8; 20]);
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
         let denom = "dest_port/dest_channel/nootasset"
             .parse::<TracePrefixed>()
@@ -1035,7 +1036,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot.clone());
 
-        let bridge_address = crate::address::base_prefixed([99u8; 20]);
+        let bridge_address = astria_address(&[99u8; 20]);
         let destination_chain_address = bridge_address.to_string();
         let denom = "nootasset".parse::<Denom>().unwrap();
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");

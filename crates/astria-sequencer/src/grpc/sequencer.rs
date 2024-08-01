@@ -186,7 +186,7 @@ impl SequencerService for SequencerServer {
             );
             Status::invalid_argument(format!("invalid address: {e}"))
         })?;
-        let nonce = self.mempool.pending_nonce(&address).await;
+        let nonce = self.mempool.pending_nonce(address.bytes()).await;
 
         if let Some(nonce) = nonce {
             return Ok(Response::new(GetPendingNonceResponse {
@@ -221,7 +221,9 @@ mod test {
     use super::*;
     use crate::{
         api_state_ext::StateWriteExt as _,
+        app::test_utils::get_alice_signing_key,
         state_ext::StateWriteExt,
+        test_utils::astria_address,
     };
 
     fn make_test_sequencer_block(height: u32) -> SequencerBlock {
@@ -256,7 +258,8 @@ mod test {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let mempool = Mempool::new();
 
-        let (_, address) = crate::app::test_utils::get_alice_signing_key_and_address();
+        let alice = get_alice_signing_key();
+        let alice_address = astria_address(&alice.address_bytes());
         let nonce = 99;
         let tx = crate::app::test_utils::get_mock_tx(nonce);
         mempool.insert(tx, 0).await.unwrap();
@@ -268,7 +271,7 @@ mod test {
 
         let server = Arc::new(SequencerServer::new(storage.clone(), mempool));
         let request = GetPendingNonceRequest {
-            address: Some(address.into_raw()),
+            address: Some(alice_address.into_raw()),
         };
         let request = Request::new(request);
         let response = server.get_pending_nonce(request).await.unwrap();
@@ -282,13 +285,14 @@ mod test {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let mempool = Mempool::new();
         let mut state_tx = StateDelta::new(storage.latest_snapshot());
-        let (_, address) = crate::app::test_utils::get_alice_signing_key_and_address();
-        state_tx.put_account_nonce(address, 99).unwrap();
+        let alice = get_alice_signing_key();
+        let alice_address = astria_address(&alice.address_bytes());
+        state_tx.put_account_nonce(alice_address, 99).unwrap();
         storage.commit(state_tx).await.unwrap();
 
         let server = Arc::new(SequencerServer::new(storage.clone(), mempool));
         let request = GetPendingNonceRequest {
-            address: Some(address.into_raw()),
+            address: Some(alice_address.into_raw()),
         };
         let request = Request::new(request);
         let response = server.get_pending_nonce(request).await.unwrap();

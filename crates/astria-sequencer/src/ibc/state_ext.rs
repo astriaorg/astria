@@ -23,6 +23,8 @@ use tracing::{
     instrument,
 };
 
+use crate::address;
+
 /// Newtype wrapper to read and write a u128 from rocksdb.
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
 struct Balance(u128);
@@ -66,7 +68,7 @@ fn ibc_relayer_key(address: &Address) -> String {
 }
 
 #[async_trait]
-pub(crate) trait StateReadExt: StateRead {
+pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
     #[instrument(skip_all)]
     async fn get_ibc_channel_balance<TAsset>(
         &self,
@@ -100,7 +102,10 @@ pub(crate) trait StateReadExt: StateRead {
         };
         let SudoAddress(address_bytes) =
             SudoAddress::try_from_slice(&bytes).context("invalid ibc sudo key bytes")?;
-        Ok(crate::address::base_prefixed(address_bytes))
+        Ok(self.try_base_prefixed(&address_bytes).await.context(
+            "failed constructing ibc sudo address from address bytes and address prefix stored in \
+             state",
+        )?)
     }
 
     #[instrument(skip_all)]
@@ -191,7 +196,14 @@ mod tests {
         StateReadExt as _,
         StateWriteExt as _,
     };
-    use crate::ibc::state_ext::channel_balance_storage_key;
+    use crate::{
+        address::StateWriteExt,
+        ibc::state_ext::channel_balance_storage_key,
+        test_utils::{
+            astria_address,
+            ASTRIA_PREFIX,
+        },
+    };
 
     fn asset_0() -> asset::Denom {
         "asset_0".parse().unwrap()
@@ -219,8 +231,10 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
+        state.put_base_prefix(ASTRIA_PREFIX).unwrap();
+
         // can write new
-        let mut address = crate::address::base_prefixed([42u8; 20]);
+        let mut address = astria_address(&[42u8; 20]);
         state
             .put_ibc_sudo_address(address)
             .expect("writing sudo address should not fail");
@@ -234,7 +248,7 @@ mod tests {
         );
 
         // can rewrite with new value
-        address = crate::address::base_prefixed([41u8; 20]);
+        address = astria_address(&[41u8; 20]);
         state
             .put_ibc_sudo_address(address)
             .expect("writing sudo address should not fail");
@@ -252,10 +266,12 @@ mod tests {
     async fn is_ibc_relayer_ok_if_not_set() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
-        let state = StateDelta::new(snapshot);
+        let mut state = StateDelta::new(snapshot);
+
+        state.put_base_prefix(ASTRIA_PREFIX).unwrap();
 
         // unset address returns false
-        let address = crate::address::base_prefixed([42u8; 20]);
+        let address = astria_address(&[42u8; 20]);
         assert!(
             !state
                 .is_ibc_relayer(&address)
@@ -271,8 +287,10 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
+        state.put_base_prefix(ASTRIA_PREFIX).unwrap();
+
         // can write
-        let address = crate::address::base_prefixed([42u8; 20]);
+        let address = astria_address(&[42u8; 20]);
         state.put_ibc_relayer_address(&address);
         assert!(
             state
@@ -299,8 +317,10 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
+        state.put_base_prefix(ASTRIA_PREFIX).unwrap();
+
         // can write
-        let address = crate::address::base_prefixed([42u8; 20]);
+        let address = astria_address(&[42u8; 20]);
         state.put_ibc_relayer_address(&address);
         assert!(
             state
@@ -311,7 +331,7 @@ mod tests {
         );
 
         // can write multiple
-        let address_1 = crate::address::base_prefixed([41u8; 20]);
+        let address_1 = astria_address(&[41u8; 20]);
         state.put_ibc_relayer_address(&address_1);
         assert!(
             state

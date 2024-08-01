@@ -104,20 +104,19 @@ mod test {
     use rand::rngs::OsRng;
 
     use super::*;
-    use crate::assets::get_native_asset;
 
     #[test]
     fn generate_rollup_datas_commitment_should_ignore_transfers() {
         let sequence_action = SequenceAction {
             rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
             data: b"helloworld".to_vec(),
-            fee_asset: get_native_asset().clone(),
+            fee_asset: crate::test_utils::nria().into(),
         };
         let transfer_action = TransferAction {
-            to: crate::address::base_prefixed([0u8; 20]),
+            to: crate::test_utils::astria_address(&[0u8; 20]),
             amount: 1,
-            asset: get_native_asset().clone(),
-            fee_asset: get_native_asset().clone(),
+            asset: crate::test_utils::nria().into(),
+            fee_asset: crate::test_utils::nria().into(),
         };
 
         let signing_key = SigningKey::new(OsRng);
@@ -165,13 +164,13 @@ mod test {
         let sequence_action = SequenceAction {
             rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
             data: b"helloworld".to_vec(),
-            fee_asset: get_native_asset().clone(),
+            fee_asset: crate::test_utils::nria().into(),
         };
         let transfer_action = TransferAction {
-            to: crate::address::base_prefixed([0u8; 20]),
+            to: crate::test_utils::astria_address(&[0u8; 20]),
             amount: 1,
-            asset: get_native_asset().clone(),
-            fee_asset: get_native_asset().clone(),
+            asset: crate::test_utils::nria().into(),
+            fee_asset: crate::test_utils::nria().into(),
         };
 
         let signing_key = SigningKey::new(OsRng);
