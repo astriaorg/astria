@@ -146,6 +146,9 @@ impl ActionHandler for SignedTransaction {
         Ok(())
     }
 
+    // allowed because most lines come from delegating (and error wrapping) to the individual
+    // actions.
+    #[allow(clippy::too_many_lines)]
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> anyhow::Result<()> {
         // Add the current signed transaction into the ephemeral state in case
         // downstream actions require access to it.
@@ -187,7 +190,7 @@ impl ActionHandler for SignedTransaction {
         let from_nonce = state
             .get_account_nonce(self)
             .await
-            .context("failed getting `from` nonce")?;
+            .context("failed getting nonce of transaction signer")?;
         let next_nonce = from_nonce
             .checked_add(1)
             .context("overflow occurred incrementing stored nonce")?;
@@ -200,26 +203,28 @@ impl ActionHandler for SignedTransaction {
                 Action::Transfer(act) => act
                     .check_and_execute(&mut state)
                     .await
-                    .context("stateful check failed for TransferAction")?,
+                    .context("executing transfer action failed")?,
                 Action::Sequence(act) => act
                     .check_and_execute(&mut state)
                     .await
-                    .context("stateful check failed for SequenceAction")?,
+                    .context("executing sequence action failed")?,
                 Action::ValidatorUpdate(act) => act
                     .check_and_execute(&mut state)
                     .await
-                    .context("stateful check failed for ValidatorUpdateAction")?,
+                    .context("executing validor update")?,
                 Action::SudoAddressChange(act) => act
                     .check_and_execute(&mut state)
                     .await
-                    .context("stateful check failed for SudoAddressChangeAction")?,
+                    .context("executing sudo address change failed")?,
                 Action::FeeChange(act) => act
                     .check_and_execute(&mut state)
                     .await
-                    .context("stateful check failed for FeeChangeAction")?,
+                    .context("executing fee change failed")?,
                 Action::Ibc(act) => {
-                    // FIXME: this check could should be moved to check_and_execute, as it now has
-                    // access to the state.
+                    // FIXME: this check should be moved to check_and_execute, as it now has
+                    // access to the the signer through state. However, what's the correct
+                    // ibc AppHandler call to do it? Can we just update one of the trait methods
+                    // of crate::ibc::ics20_transfer::Ics20Transfer?
                     ensure!(
                         state
                             .is_ibc_relayer(self)
@@ -233,40 +238,41 @@ impl ActionHandler for SignedTransaction {
                     action
                         .check_and_execute(&mut state)
                         .await
-                        .context("execution failed for IbcAction")?;
+                        .context("failed executing ibc action")?;
                 }
                 Action::Ics20Withdrawal(act) => act
                     .check_and_execute(&mut state)
                     .await
-                    .context("stateful check failed for Ics20WithdrawalAction")?,
+                    .context("failed executing ics20 withdrawal")?,
                 Action::IbcRelayerChange(act) => act
                     .check_and_execute(&mut state)
                     .await
-                    .context("stateful check failed for IbcRelayerChangeAction")?,
+                    .context("failed executing ibc relayer change")?,
                 Action::FeeAssetChange(act) => act
                     .check_and_execute(&mut state)
                     .await
-                    .context("stateful check failed for FeeAssetChangeAction")?,
+                    .context("failed executing fee asseet change")?,
                 Action::InitBridgeAccount(act) => act
                     .check_and_execute(&mut state)
                     .await
-                    .context("stateful check failed for InitBridgeAccountAction")?,
+                    .context("failed executing init bridge account")?,
                 Action::BridgeLock(act) => act
                     .check_and_execute(&mut state)
                     .await
-                    .context("stateful check failed for BridgeLockAction")?,
+                    .context("failed executing bridge lock")?,
                 Action::BridgeUnlock(act) => act
                     .check_and_execute(&mut state)
                     .await
-                    .context("stateful check failed for BridgeUnlockAction")?,
+                    .context("failed executing bridge unlock")?,
                 Action::BridgeSudoChange(act) => act
                     .check_and_execute(&mut state)
                     .await
-                    .context("stateful check failed for BridgeSudoChangeAction")?,
+                    .context("failed executing bridge sudo change")?,
             }
         }
 
-        state.delete_current_source().await;
+        // XXX: Delete the current transaction data from the ephemeral state.
+        state.delete_current_source();
         Ok(())
     }
 }

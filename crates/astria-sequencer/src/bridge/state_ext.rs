@@ -541,7 +541,7 @@ mod test {
 
         // uninitialized ok
         assert_eq!(
-            state.get_bridge_account_rollup_id(&address).await.expect(
+            state.get_bridge_account_rollup_id(address).await.expect(
                 "call to get bridge account rollup id should not fail for uninitialized addresses"
             ),
             Option::None,
@@ -559,10 +559,10 @@ mod test {
         let address = astria_address(&[42u8; 20]);
 
         // can write new
-        state.put_bridge_account_rollup_id(&address, &rollup_id);
+        state.put_bridge_account_rollup_id(address, &rollup_id);
         assert_eq!(
             state
-                .get_bridge_account_rollup_id(&address)
+                .get_bridge_account_rollup_id(address)
                 .await
                 .expect("a rollup ID was written and must exist inside the database")
                 .expect("expecting return value"),
@@ -572,10 +572,10 @@ mod test {
 
         // can rewrite with new value
         rollup_id = RollupId::new([2u8; 32]);
-        state.put_bridge_account_rollup_id(&address, &rollup_id);
+        state.put_bridge_account_rollup_id(address, &rollup_id);
         assert_eq!(
             state
-                .get_bridge_account_rollup_id(&address)
+                .get_bridge_account_rollup_id(address)
                 .await
                 .expect("a rollup ID was written and must exist inside the database")
                 .expect("expecting return value"),
@@ -586,10 +586,10 @@ mod test {
         // can write additional account and both valid
         let rollup_id_1 = RollupId::new([2u8; 32]);
         let address_1 = astria_address(&[41u8; 20]);
-        state.put_bridge_account_rollup_id(&address_1, &rollup_id_1);
+        state.put_bridge_account_rollup_id(address_1, &rollup_id_1);
         assert_eq!(
             state
-                .get_bridge_account_rollup_id(&address_1)
+                .get_bridge_account_rollup_id(address_1)
                 .await
                 .expect("a rollup ID was written and must exist inside the database")
                 .expect("expecting return value"),
@@ -599,7 +599,7 @@ mod test {
 
         assert_eq!(
             state
-                .get_bridge_account_rollup_id(&address)
+                .get_bridge_account_rollup_id(address)
                 .await
                 .expect("a rollup ID was written and must exist inside the database")
                 .expect("expecting return value"),
@@ -616,7 +616,7 @@ mod test {
 
         let address = astria_address(&[42u8; 20]);
         state
-            .get_bridge_account_ibc_asset(&address)
+            .get_bridge_account_ibc_asset(address)
             .await
             .expect_err("call to get bridge account asset ids should fail if no assets");
     }
@@ -632,10 +632,10 @@ mod test {
 
         // can write
         state
-            .put_bridge_account_ibc_asset(&address, &asset)
+            .put_bridge_account_ibc_asset(address, &asset)
             .expect("storing bridge account asset should not fail");
         let mut result = state
-            .get_bridge_account_ibc_asset(&address)
+            .get_bridge_account_ibc_asset(address)
             .await
             .expect("bridge asset id was written and must exist inside the database");
         assert_eq!(
@@ -647,10 +647,10 @@ mod test {
         // can update
         asset = "asset_2".parse::<asset::Denom>().unwrap();
         state
-            .put_bridge_account_ibc_asset(&address, &asset)
+            .put_bridge_account_ibc_asset(address, &asset)
             .expect("storing bridge account assets should not fail");
         result = state
-            .get_bridge_account_ibc_asset(&address)
+            .get_bridge_account_ibc_asset(address)
             .await
             .expect("bridge asset id was written and must exist inside the database");
         assert_eq!(
@@ -663,18 +663,18 @@ mod test {
         let address_1 = astria_address(&[41u8; 20]);
         let asset_1 = asset_1();
         state
-            .put_bridge_account_ibc_asset(&address_1, &asset_1)
+            .put_bridge_account_ibc_asset(address_1, &asset_1)
             .expect("storing bridge account assets should not fail");
         assert_eq!(
             state
-                .get_bridge_account_ibc_asset(&address_1)
+                .get_bridge_account_ibc_asset(address_1)
                 .await
                 .expect("bridge asset id was written and must exist inside the database"),
             asset_1.into(),
             "second bridge account asset not what was expected"
         );
         result = state
-            .get_bridge_account_ibc_asset(&address)
+            .get_bridge_account_ibc_asset(address)
             .await
             .expect("original bridge asset id was written and must exist inside the database");
         assert_eq!(

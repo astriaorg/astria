@@ -4,9 +4,12 @@ use anyhow::{
     Context as _,
     Result,
 };
-use astria_core::protocol::transaction::v1alpha1::action::{
-    BridgeUnlockAction,
-    TransferAction,
+use astria_core::{
+    primitive::v1::Address,
+    protocol::transaction::v1alpha1::action::{
+        BridgeUnlockAction,
+        TransferAction,
+    },
 };
 use cnidarium::StateWrite;
 
@@ -47,7 +50,7 @@ impl ActionHandler for BridgeUnlockAction {
 
         // the bridge address to withdraw funds from
         // if unset, use the tx sender's address
-        let bridge_address = self.bridge_address.map_or(from, |addr| addr.bytes());
+        let bridge_address = self.bridge_address.map_or(from, Address::bytes);
 
         let asset = state
             .get_bridge_account_ibc_asset(bridge_address)
@@ -180,7 +183,7 @@ mod test {
 
         // invalid sender, doesn't match action's `from`, should fail
         assert_anyhow_error(
-            bridge_unlock.check_and_execute(state).await.unwrap_err(),
+            &bridge_unlock.check_and_execute(state).await.unwrap_err(),
             "bridge account does not have an associated withdrawer address",
         );
     }
@@ -217,7 +220,7 @@ mod test {
 
         // invalid sender, doesn't match action's bridge account's withdrawer, should fail
         assert_anyhow_error(
-            bridge_unlock.check_and_execute(state).await.unwrap_err(),
+            &bridge_unlock.check_and_execute(state).await.unwrap_err(),
             "unauthorized to unlock bridge account",
         );
     }
@@ -262,7 +265,7 @@ mod test {
             .put_account_balance(bridge_address, &asset, transfer_amount)
             .unwrap();
         assert_anyhow_error(
-            bridge_unlock
+            &bridge_unlock
                 .check_and_execute(&mut state)
                 .await
                 .unwrap_err(),
@@ -316,7 +319,7 @@ mod test {
             .put_account_balance(bridge_address, &asset, transfer_amount)
             .unwrap();
         assert_anyhow_error(
-            bridge_unlock
+            &bridge_unlock
                 .check_and_execute(&mut state)
                 .await
                 .unwrap_err(),

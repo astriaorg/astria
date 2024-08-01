@@ -6,7 +6,10 @@ use anyhow::{
     Result,
 };
 use astria_core::{
-    primitive::v1::asset::Denom,
+    primitive::v1::{
+        asset::Denom,
+        Address,
+    },
     protocol::transaction::v1alpha1::action,
 };
 use cnidarium::{
@@ -81,7 +84,7 @@ async fn ics20_withdrawal_check_stateful_bridge_account<S: StateRead>(
 
     // if `action.bridge_address` is Some, but it's not a valid bridge account,
     // the `get_bridge_account_withdrawer_address` step will fail.
-    let bridge_address = action.bridge_address.map_or(from, |addr| addr.bytes());
+    let bridge_address = action.bridge_address.map_or(from, Address::bytes);
 
     let Some(withdrawer) = state
         .get_bridge_account_withdrawer_address(bridge_address)
@@ -276,10 +279,10 @@ mod tests {
         // sender is a bridge address, which is also the withdrawer, so it's ok
         let bridge_address = [1u8; 20];
         state.put_bridge_account_rollup_id(
-            &bridge_address,
+            bridge_address,
             &RollupId::from_unhashed_bytes("testrollupid"),
         );
-        state.put_bridge_account_withdrawer_address(&bridge_address, &bridge_address);
+        state.put_bridge_account_withdrawer_address(bridge_address, bridge_address);
 
         let denom = "test".parse::<Denom>().unwrap();
         let action = action::Ics20Withdrawal {
@@ -311,10 +314,10 @@ mod tests {
         // withdraw is *not* the bridge address, Ics20Withdrawal must be sent by the withdrawer
         let bridge_address = [1u8; 20];
         state.put_bridge_account_rollup_id(
-            &bridge_address,
+            bridge_address,
             &RollupId::from_unhashed_bytes("testrollupid"),
         );
-        state.put_bridge_account_withdrawer_address(&bridge_address, &astria_address(&[2u8; 20]));
+        state.put_bridge_account_withdrawer_address(bridge_address, astria_address(&[2u8; 20]));
 
         let denom = "test".parse::<Denom>().unwrap();
         let action = action::Ics20Withdrawal {
@@ -351,10 +354,10 @@ mod tests {
         let bridge_address = [1u8; 20];
         let withdrawer_address = [2u8; 20];
         state.put_bridge_account_rollup_id(
-            &bridge_address,
+            bridge_address,
             &RollupId::from_unhashed_bytes("testrollupid"),
         );
-        state.put_bridge_account_withdrawer_address(&bridge_address, &withdrawer_address);
+        state.put_bridge_account_withdrawer_address(bridge_address, withdrawer_address);
 
         let denom = "test".parse::<Denom>().unwrap();
         let action = action::Ics20Withdrawal {
@@ -387,10 +390,10 @@ mod tests {
         let bridge_address = [1u8; 20];
         let withdrawer_address = astria_address(&[2u8; 20]);
         state.put_bridge_account_rollup_id(
-            &bridge_address,
+            bridge_address,
             &RollupId::from_unhashed_bytes("testrollupid"),
         );
-        state.put_bridge_account_withdrawer_address(&bridge_address, &withdrawer_address);
+        state.put_bridge_account_withdrawer_address(bridge_address, withdrawer_address);
 
         let denom = "test".parse::<Denom>().unwrap();
         let action = action::Ics20Withdrawal {

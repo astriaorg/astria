@@ -4,7 +4,10 @@ use anyhow::{
     Context as _,
     Result,
 };
-use astria_core::protocol::transaction::v1alpha1::action::InitBridgeAccountAction;
+use astria_core::{
+    primitive::v1::Address,
+    protocol::transaction::v1alpha1::action::InitBridgeAccountAction,
+};
 use cnidarium::StateWrite;
 
 use crate::{
@@ -69,7 +72,12 @@ impl ActionHandler for InitBridgeAccountAction {
         //
         // after the account becomes a bridge account, it can no longer receive funds
         // via `TransferAction`, only via `BridgeLockAction`.
-        if state.get_bridge_account_rollup_id(&from).await?.is_some() {
+        if state
+            .get_bridge_account_rollup_id(from)
+            .await
+            .context("failed getting rollup ID of bridge account")?
+            .is_some()
+        {
             bail!("bridge account already exists");
         }
 
@@ -83,17 +91,14 @@ impl ActionHandler for InitBridgeAccountAction {
             "insufficient funds for bridge account initialization",
         );
 
-        state.put_bridge_account_rollup_id(&from, &self.rollup_id);
+        state.put_bridge_account_rollup_id(from, &self.rollup_id);
         state
-            .put_bridge_account_ibc_asset(&from, &self.asset)
+            .put_bridge_account_ibc_asset(from, &self.asset)
             .context("failed to put asset ID")?;
-        state.put_bridge_account_sudo_address(
-            &from,
-            &self.sudo_address.map_or(from, |addr| addr.bytes()),
-        );
+        state.put_bridge_account_sudo_address(from, self.sudo_address.map_or(from, Address::bytes));
         state.put_bridge_account_withdrawer_address(
-            &from,
-            &self.withdrawer_address.map_or(from, |addr| addr.bytes()),
+            from,
+            self.withdrawer_address.map_or(from, Address::bytes),
         );
 
         state

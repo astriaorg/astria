@@ -317,10 +317,10 @@ mod tests {
 
         // can write
         let address = astria_address(&[42u8; 20]);
-        state.put_ibc_relayer_address(&address);
+        state.put_ibc_relayer_address(address);
         assert!(
             state
-                .is_ibc_relayer(&address)
+                .is_ibc_relayer(address)
                 .await
                 .expect("a relayer address was written and must exist inside the database"),
             "stored relayer address could not be verified"
@@ -328,17 +328,17 @@ mod tests {
 
         // can write multiple
         let address_1 = astria_address(&[41u8; 20]);
-        state.put_ibc_relayer_address(&address_1);
+        state.put_ibc_relayer_address(address_1);
         assert!(
             state
-                .is_ibc_relayer(&address_1)
+                .is_ibc_relayer(address_1)
                 .await
                 .expect("a relayer address was written and must exist inside the database"),
             "additional stored relayer address could not be verified"
         );
         assert!(
             state
-                .is_ibc_relayer(&address)
+                .is_ibc_relayer(address)
                 .await
                 .expect("a relayer address was written and must exist inside the database"),
             "original stored relayer address could not be verified"

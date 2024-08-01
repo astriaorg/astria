@@ -181,7 +181,7 @@ pub(crate) async fn check_balance_for_total_fees_and_transfers<S: StateRead>(
             }
             Action::BridgeUnlock(act) => {
                 let asset = state
-                    .get_bridge_account_ibc_asset(&tx)
+                    .get_bridge_account_ibc_asset(tx)
                     .await
                     .context("failed to get bridge account asset id")?;
                 cost_by_asset

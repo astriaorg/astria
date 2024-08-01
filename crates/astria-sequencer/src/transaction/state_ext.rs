@@ -36,7 +36,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         self.object_put(current_source(), context);
     }
 
-    async fn delete_current_source(&mut self) {
+    fn delete_current_source(&mut self) {
         self.object_delete(current_source());
     }
 }

@@ -359,7 +359,7 @@ async fn app_execute_transaction_ibc_relayer_change_addition() {
     let signed_tx = Arc::new(tx.into_signed(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
     assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
-    assert!(app.state.is_ibc_relayer(&alice_address).await.unwrap());
+    assert!(app.state.is_ibc_relayer(alice_address).await.unwrap());
 }
 
 #[tokio::test]
@@ -386,7 +386,7 @@ async fn app_execute_transaction_ibc_relayer_change_deletion() {
     let signed_tx = Arc::new(tx.into_signed(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
     assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
-    assert!(!app.state.is_ibc_relayer(&alice_address).await.unwrap());
+    assert!(!app.state.is_ibc_relayer(alice_address).await.unwrap());
 }
 
 #[tokio::test]
@@ -602,7 +602,7 @@ async fn app_execute_transaction_init_bridge_account_ok() {
     assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
     assert_eq!(
         app.state
-            .get_bridge_account_rollup_id(&alice_address)
+            .get_bridge_account_rollup_id(alice_address)
             .await
             .unwrap()
             .unwrap(),
@@ -610,7 +610,7 @@ async fn app_execute_transaction_init_bridge_account_ok() {
     );
     assert_eq!(
         app.state
-            .get_bridge_account_ibc_asset(&alice_address)
+            .get_bridge_account_ibc_asset(alice_address)
             .await
             .unwrap(),
         nria().to_ibc_prefixed(),
@@ -680,9 +680,9 @@ async fn app_execute_transaction_bridge_lock_action_ok() {
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
 
     let mut state_tx = StateDelta::new(app.state.clone());
-    state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
+    state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
     state_tx
-        .put_bridge_account_ibc_asset(&bridge_address, nria())
+        .put_bridge_account_ibc_asset(bridge_address, nria())
         .unwrap();
     app.apply(state_tx);
 
@@ -993,11 +993,11 @@ async fn app_execute_transaction_bridge_lock_unlock_action_ok() {
         .unwrap();
 
     // create bridge account
-    state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
+    state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
     state_tx
-        .put_bridge_account_ibc_asset(&bridge_address, nria())
+        .put_bridge_account_ibc_asset(bridge_address, nria())
         .unwrap();
-    state_tx.put_bridge_account_withdrawer_address(&bridge_address, &bridge_address);
+    state_tx.put_bridge_account_withdrawer_address(bridge_address, bridge_address);
     app.apply(state_tx);
 
     let amount = 100;

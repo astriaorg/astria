@@ -40,9 +40,10 @@ pub(crate) fn verification_key(seed: u64) -> VerificationKey {
 }
 
 #[track_caller]
-pub(crate) fn assert_anyhow_error(error: anyhow::Error, expected: &'static str) {
+pub(crate) fn assert_anyhow_error(error: &anyhow::Error, expected: &'static str) {
     let msg = error.to_string();
-    if !msg.contains(expected) {
-        panic!("error contained different message\n\texpected: {expected}\n\tfull_error: {msg}");
-    };
+    assert!(
+        msg.contains(expected),
+        "error contained different message\n\texpected: {expected}\n\tfull_error: {msg}",
+    );
 }

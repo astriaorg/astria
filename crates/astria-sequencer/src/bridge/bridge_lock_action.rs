@@ -206,7 +206,7 @@ mod tests {
             .put_account_balance(from_address, &asset, 100 + transfer_fee)
             .unwrap();
         assert_anyhow_error(
-            bridge_lock.check_and_execute(&mut state).await.unwrap_err(),
+            &bridge_lock.check_and_execute(&mut state).await.unwrap_err(),
             "insufficient funds for fee payment",
         );
 
