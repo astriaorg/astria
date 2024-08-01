@@ -30,6 +30,7 @@ use tracing::{
     debug,
     error,
     info,
+    instrument,
     trace,
     warn,
 };
@@ -95,6 +96,7 @@ impl Reader {
             .await
     }
 
+    #[instrument(skip_all, err)]
     async fn initialize(&mut self) -> eyre::Result<executor::Handle<StateIsInit>> {
         self.executor
             .wait_for_init()

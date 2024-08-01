@@ -23,7 +23,6 @@ use tokio_util::{
 use tracing::{
     error,
     info,
-    instrument,
     warn,
 };
 
@@ -167,7 +166,6 @@ impl Conductor {
     ///
     /// # Panics
     /// Panics if it could not install a signal handler.
-    #[instrument(skip_all)]
     async fn run_until_stopped(mut self) {
         info!("conductor is running");
 

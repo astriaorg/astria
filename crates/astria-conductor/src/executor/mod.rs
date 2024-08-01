@@ -142,6 +142,7 @@ impl<T: Clone> Handle<T> {
 }
 
 impl Handle<StateIsInit> {
+    #[instrument(skip_all, err)]
     pub(crate) async fn send_firm_block(
         self,
         block: ReconstructedBlock,
@@ -162,6 +163,7 @@ impl Handle<StateIsInit> {
         Ok(())
     }
 
+    #[instrument(skip_all, err)]
     pub(crate) async fn send_soft_block_owned(
         self,
         block: FilteredSequencerBlock,
@@ -252,7 +254,6 @@ pub(crate) struct Executor {
 }
 
 impl Executor {
-    #[instrument(skip_all, err)]
     pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
         select!(
             () = self.shutdown.clone().cancelled_owned() => {
@@ -325,6 +326,7 @@ impl Executor {
     }
 
     /// Runs the init logic that needs to happen before [`Executor`] can enter its main loop.
+    #[instrument(skip_all, err)]
     async fn init(&mut self) -> eyre::Result<()> {
         self.set_initial_node_state()
             .await
@@ -400,6 +402,7 @@ impl Executor {
     #[instrument(skip_all, fields(
         block.hash = %telemetry::display::base64(&block.block_hash()),
         block.height = block.height().value(),
+        err,
     ))]
     async fn execute_soft(&mut self, block: FilteredSequencerBlock) -> eyre::Result<()> {
         // TODO(https://github.com/astriaorg/astria/issues/624): add retry logic before failing hard.
@@ -463,6 +466,7 @@ impl Executor {
     #[instrument(skip_all, fields(
         block.hash = %telemetry::display::base64(&block.block_hash),
         block.height = block.sequencer_height().value(),
+        err,
     ))]
     async fn execute_firm(&mut self, block: ReconstructedBlock) -> eyre::Result<()> {
         let celestia_height = block.celestia_height;
@@ -576,7 +580,7 @@ impl Executor {
         Ok(executed_block)
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     async fn set_initial_node_state(&mut self) -> eyre::Result<()> {
         let genesis_info = {
             async {
@@ -613,7 +617,7 @@ impl Executor {
         Ok(())
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     async fn update_commitment_state(&mut self, update: Update) -> eyre::Result<()> {
         use Update::{
             OnlyFirm,

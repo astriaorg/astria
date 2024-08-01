@@ -52,6 +52,7 @@ impl RawBlobs {
     celestia_height,
     sequencer_namespace = %base64(sequencer_namespace.as_ref()),
     rollup_namespace = %base64(rollup_namespace.as_ref()),
+    err,
 ))]
 pub(super) async fn fetch_new_blobs(
     client: CelestiaClient,
@@ -85,6 +86,7 @@ pub(super) async fn fetch_new_blobs(
     })
 }
 
+#[instrument(skip_all, err)]
 async fn fetch_blobs_with_retry(
     client: CelestiaClient,
     height: u64,

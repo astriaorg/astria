@@ -20,6 +20,7 @@ use tokio::sync::{
     Semaphore,
     TryAcquireError,
 };
+use tracing::instrument;
 
 /// Creates an mpsc channel for sending soft blocks between asynchronous task.
 ///
@@ -92,6 +93,7 @@ impl<T> Sender<T> {
     /// Sends a block, waiting until the channel has permits.
     ///
     /// Returns an error if the channel is closed.
+    #[instrument(skip_all, err)]
     pub(super) async fn send(&self, block: T) -> Result<(), SendError> {
         let sem = self.sem.upgrade().ok_or(SendError)?;
         let permit = sem.acquire().await?;
@@ -151,6 +153,7 @@ impl<T> Receiver<T> {
     }
 
     /// Receives a block over the channel.
+    #[instrument(skip_all)]
     pub(super) async fn recv(&mut self) -> Option<T> {
         self.chan.recv().await
     }
