@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use cnidarium::StateWrite;
 
 /// This trait is a verbatim copy of [`cnidarium_component::ActionHandler`].
