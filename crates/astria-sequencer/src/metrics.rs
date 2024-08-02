@@ -366,7 +366,7 @@ mod tests {
         assert_const(CHECK_TX_REMOVED_EXPIRED, "check_tx_removed_expired");
         assert_const(
             CHECK_TX_REMOVED_FAILED_DELIVER_TX,
-            "check_tx_removed_failed_execution",
+            "check_tx_removed_failed_deliver_tx",
         );
         assert_const(
             CHECK_TX_REMOVED_FAILED_STATELESS,
