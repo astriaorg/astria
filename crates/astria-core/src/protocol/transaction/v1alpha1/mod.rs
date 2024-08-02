@@ -16,6 +16,7 @@ use crate::{
         asset,
         ADDRESS_LEN,
     },
+    Protobuf as _,
 };
 
 pub mod action;
