@@ -4,6 +4,7 @@ use astria_core::{
     execution::v1alpha2::{
         Block,
         CommitmentState,
+        ExecuteBlockResponse,
         GenesisInfo,
     },
     generated::{
@@ -119,7 +120,7 @@ impl Client {
         prev_block_hash: Bytes,
         transactions: Vec<Vec<u8>>,
         timestamp: Timestamp,
-    ) -> eyre::Result<Block> {
+    ) -> eyre::Result<ExecuteBlockResponse> {
         use prost::Message;
 
         let transactions = transactions
@@ -132,6 +133,7 @@ impl Client {
             prev_block_hash,
             transactions,
             timestamp: Some(timestamp),
+            simulate_only: false,
         };
         let response = tryhard::retry_fn(|| {
             let mut client = self.inner.clone();
@@ -146,9 +148,12 @@ impl Client {
              code or because number of retries were exhausted",
         )?
         .into_inner();
-        let block = Block::try_from_raw(response)
-            .wrap_err("failed converting raw response to validated block")?;
-        Ok(block)
+        let execute_block_response = ExecuteBlockResponse::try_from_raw(response)
+            .wrap_err("failed converting raw response to validated execute block response")?;
+
+        // let block = Block::try_from_raw(response)
+        //     .wrap_err("failed converting raw response to validated block")?;
+        Ok(execute_block_response)
     }
 
     /// Calls remote procedure `astria.execution.v1alpha2.GetCommitmentState`
