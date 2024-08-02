@@ -45,32 +45,12 @@ pub enum Action {
     FeeChange(FeeChangeAction),
 }
 
-impl Action {
-    #[must_use]
-    pub fn into_raw(self) -> raw::Action {
-        use raw::action::Value;
-        let kind = match self {
-            Action::Sequence(act) => Value::SequenceAction(act.into_raw()),
-            Action::Transfer(act) => Value::TransferAction(act.into_raw()),
-            Action::ValidatorUpdate(act) => Value::ValidatorUpdateAction(act.into_raw()),
-            Action::SudoAddressChange(act) => Value::SudoAddressChangeAction(act.into_raw()),
-            Action::Ibc(act) => Value::IbcAction(act.into()),
-            Action::Ics20Withdrawal(act) => Value::Ics20Withdrawal(act.into_raw()),
-            Action::IbcRelayerChange(act) => Value::IbcRelayerChangeAction(act.into_raw()),
-            Action::FeeAssetChange(act) => Value::FeeAssetChangeAction(act.into_raw()),
-            Action::InitBridgeAccount(act) => Value::InitBridgeAccountAction(act.into_raw()),
-            Action::BridgeLock(act) => Value::BridgeLockAction(act.into_raw()),
-            Action::BridgeUnlock(act) => Value::BridgeUnlockAction(act.into_raw()),
-            Action::BridgeSudoChange(act) => Value::BridgeSudoChangeAction(act.into_raw()),
-            Action::FeeChange(act) => Value::FeeChangeAction(act.into_raw()),
-        };
-        raw::Action {
-            value: Some(kind),
-        }
-    }
+impl Protobuf for Action {
+    type Error = ActionError;
+    type Raw = raw::Action;
 
     #[must_use]
-    pub fn to_raw(&self) -> raw::Action {
+    fn to_raw(&self) -> Self::Raw {
         use raw::action::Value;
         let kind = match self {
             Action::Sequence(act) => Value::SequenceAction(act.to_raw()),
@@ -94,13 +74,23 @@ impl Action {
         }
     }
 
+    /// Attempt to convert from a reference to raw, unchecked protobuf [`raw::Action`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if conversion of one of the inner raw action variants
+    /// to a native action ([`SequenceAction`] or [`TransferAction`]) fails.
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, ActionError> {
+        Self::try_from_raw(raw.clone())
+    }
+
     /// Attempt to convert from a raw, unchecked protobuf [`raw::Action`].
     ///
     /// # Errors
     ///
     /// Returns an error if conversion of one of the inner raw action variants
     /// to a native action ([`SequenceAction`] or [`TransferAction`]) fails.
-    pub fn try_from_raw(proto: raw::Action) -> Result<Self, ActionError> {
+    fn try_from_raw(proto: raw::Action) -> Result<Self, ActionError> {
         use raw::action::Value;
         let raw::Action {
             value,
@@ -129,11 +119,12 @@ impl Action {
                 Ics20Withdrawal::try_from_raw(act).map_err(ActionError::ics20_withdrawal)?,
             ),
             Value::IbcRelayerChangeAction(act) => Self::IbcRelayerChange(
-                IbcRelayerChangeAction::try_from_raw(&act)
+                IbcRelayerChangeAction::try_from_raw_ref(&act)
                     .map_err(ActionError::ibc_relayer_change)?,
             ),
             Value::FeeAssetChangeAction(act) => Self::FeeAssetChange(
-                FeeAssetChangeAction::try_from_raw(&act).map_err(ActionError::fee_asset_change)?,
+                FeeAssetChangeAction::try_from_raw_ref(&act)
+                    .map_err(ActionError::fee_asset_change)?,
             ),
             Value::InitBridgeAccountAction(act) => Self::InitBridgeAccount(
                 InitBridgeAccountAction::try_from_raw(act)
@@ -150,12 +141,14 @@ impl Action {
                     .map_err(ActionError::bridge_sudo_change)?,
             ),
             Value::FeeChangeAction(act) => Self::FeeChange(
-                FeeChangeAction::try_from_raw(&act).map_err(ActionError::fee_change)?,
+                FeeChangeAction::try_from_raw_ref(&act).map_err(ActionError::fee_change)?,
             ),
         };
         Ok(action)
     }
+}
 
+impl Action {
     #[must_use]
     pub fn as_sequence(&self) -> Option<&SequenceAction> {
         let Self::Sequence(sequence_action) = self else {
@@ -580,7 +573,10 @@ pub struct ValidatorUpdate {
     pub verification_key: crate::crypto::VerificationKey,
 }
 
-impl ValidatorUpdate {
+impl Protobuf for ValidatorUpdate {
+    type Error = ValidatorUpdateError;
+    type Raw = crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate;
+
     /// Create a validator update by verifying a raw protobuf-decoded
     /// [`crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate`].
     ///
@@ -589,7 +585,7 @@ impl ValidatorUpdate {
     /// is not set, or if `.pub_key` contains a non-ed25519 variant, or
     /// if the ed25519 has invalid bytes (that is, bytes from which an
     /// ed25519 public key cannot be constructed).
-    pub fn try_from_raw(
+    fn try_from_raw(
         value: crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate,
     ) -> Result<Self, ValidatorUpdateError> {
         use crate::generated::astria_vendored::tendermint::crypto::{
@@ -623,13 +619,20 @@ impl ValidatorUpdate {
         })
     }
 
-    #[must_use]
-    pub fn into_raw(self) -> crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate {
-        self.to_raw()
+    /// Create a validator update by verifying a reference to raw protobuf-decoded
+    /// [`crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate`].
+    ///
+    /// # Errors
+    /// Returns an error if the `.power` field is negative, if `.pub_key`
+    /// is not set, or if `.pub_key` contains a non-ed25519 variant, or
+    /// if the ed25519 has invalid bytes (that is, bytes from which an
+    /// ed25519 public key cannot be constructed).
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, ValidatorUpdateError> {
+        Self::try_from_raw(raw.clone())
     }
 
     #[must_use]
-    pub fn to_raw(&self) -> crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate {
+    fn to_raw(&self) -> crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate {
         use crate::generated::astria_vendored::tendermint::crypto::{
             public_key,
             PublicKey,
@@ -676,9 +679,11 @@ pub struct SudoAddressChangeAction {
     pub new_address: Address,
 }
 
-impl SudoAddressChangeAction {
-    #[must_use]
-    pub fn into_raw(self) -> raw::SudoAddressChangeAction {
+impl Protobuf for SudoAddressChangeAction {
+    type Error = SudoAddressChangeActionError;
+    type Raw = raw::SudoAddressChangeAction;
+
+    fn into_raw(self) -> raw::SudoAddressChangeAction {
         let Self {
             new_address,
         } = self;
@@ -688,7 +693,7 @@ impl SudoAddressChangeAction {
     }
 
     #[must_use]
-    pub fn to_raw(&self) -> raw::SudoAddressChangeAction {
+    fn to_raw(&self) -> raw::SudoAddressChangeAction {
         let Self {
             new_address,
         } = self;
@@ -697,15 +702,13 @@ impl SudoAddressChangeAction {
         }
     }
 
-    /// Convert from a raw, unchecked protobuf [`raw::SudoAddressChangeAction`].
+    /// Convert from a reference to a raw, unchecked protobuf [`raw::SudoAddressChangeAction`].
     ///
     /// # Errors
     ///
     /// Returns an error if the raw action's `new_address` did not have the expected
     /// length.
-    pub fn try_from_raw(
-        proto: raw::SudoAddressChangeAction,
-    ) -> Result<Self, SudoAddressChangeActionError> {
+    fn try_from_raw_ref(proto: &Self::Raw) -> Result<Self, SudoAddressChangeActionError> {
         let raw::SudoAddressChangeAction {
             new_address,
         } = proto;
@@ -713,7 +716,7 @@ impl SudoAddressChangeAction {
             return Err(SudoAddressChangeActionError::field_not_set("new_address"));
         };
         let new_address =
-            Address::try_from_raw(&new_address).map_err(SudoAddressChangeActionError::address)?;
+            Address::try_from_raw(new_address).map_err(SudoAddressChangeActionError::address)?;
         Ok(Self {
             new_address,
         })
@@ -841,9 +844,14 @@ impl Ics20Withdrawal {
             memo: self.memo.clone(),
         }
     }
+}
+
+impl Protobuf for Ics20Withdrawal {
+    type Error = Ics20WithdrawalError;
+    type Raw = raw::Ics20Withdrawal;
 
     #[must_use]
-    pub fn to_raw(&self) -> raw::Ics20Withdrawal {
+    fn to_raw(&self) -> raw::Ics20Withdrawal {
         raw::Ics20Withdrawal {
             amount: Some(self.amount.into()),
             denom: self.denom.to_string(),
@@ -859,7 +867,7 @@ impl Ics20Withdrawal {
     }
 
     #[must_use]
-    pub fn into_raw(self) -> raw::Ics20Withdrawal {
+    fn into_raw(self) -> raw::Ics20Withdrawal {
         raw::Ics20Withdrawal {
             amount: Some(self.amount.into()),
             denom: self.denom.to_string(),
@@ -883,7 +891,7 @@ impl Ics20Withdrawal {
     /// - if the `return_address` field is invalid or missing
     /// - if the `timeout_height` field is missing
     /// - if the `source_channel` field is invalid
-    pub fn try_from_raw(proto: raw::Ics20Withdrawal) -> Result<Self, Ics20WithdrawalError> {
+    fn try_from_raw(proto: raw::Ics20Withdrawal) -> Result<Self, Ics20WithdrawalError> {
         let raw::Ics20Withdrawal {
             amount,
             denom,
@@ -925,6 +933,64 @@ impl Ics20Withdrawal {
                 .parse()
                 .map_err(Ics20WithdrawalError::invalid_fee_asset)?,
             memo,
+            bridge_address,
+        })
+    }
+
+    /// Convert from a reference to raw, unchecked protobuf [`raw::Ics20Withdrawal`].
+    ///
+    /// # Errors
+    ///
+    /// - if the `amount` field is missing
+    /// - if the `denom` field is invalid
+    /// - if the `return_address` field is invalid or missing
+    /// - if the `timeout_height` field is missing
+    /// - if the `source_channel` field is invalid
+    fn try_from_raw_ref(proto: &raw::Ics20Withdrawal) -> Result<Self, Ics20WithdrawalError> {
+        let raw::Ics20Withdrawal {
+            amount,
+            denom,
+            destination_chain_address,
+            return_address,
+            timeout_height,
+            timeout_time,
+            source_channel,
+            fee_asset,
+            memo,
+            bridge_address,
+        } = proto;
+        let amount = amount.ok_or(Ics20WithdrawalError::field_not_set("amount"))?;
+        let return_address = Address::try_from_raw(
+            return_address
+                .as_ref()
+                .ok_or(Ics20WithdrawalError::field_not_set("return_address"))?,
+        )
+        .map_err(Ics20WithdrawalError::return_address)?;
+
+        let timeout_height = timeout_height
+            .clone()
+            .ok_or(Ics20WithdrawalError::field_not_set("timeout_height"))?
+            .into();
+        let bridge_address = bridge_address
+            .as_ref()
+            .map(Address::try_from_raw)
+            .transpose()
+            .map_err(Ics20WithdrawalError::invalid_bridge_address)?;
+
+        Ok(Self {
+            amount: amount.into(),
+            denom: denom.parse().map_err(Ics20WithdrawalError::invalid_denom)?,
+            destination_chain_address: destination_chain_address.clone(),
+            return_address,
+            timeout_height,
+            timeout_time: *timeout_time,
+            source_channel: source_channel
+                .parse()
+                .map_err(Ics20WithdrawalError::invalid_source_channel)?,
+            fee_asset: fee_asset
+                .parse()
+                .map_err(Ics20WithdrawalError::invalid_fee_asset)?,
+            memo: memo.clone(),
             bridge_address,
         })
     }
@@ -1022,25 +1088,12 @@ pub enum IbcRelayerChangeAction {
     Removal(Address),
 }
 
-impl IbcRelayerChangeAction {
-    #[must_use]
-    pub fn into_raw(self) -> raw::IbcRelayerChangeAction {
-        match self {
-            IbcRelayerChangeAction::Addition(address) => raw::IbcRelayerChangeAction {
-                value: Some(raw::ibc_relayer_change_action::Value::Addition(
-                    address.to_raw(),
-                )),
-            },
-            IbcRelayerChangeAction::Removal(address) => raw::IbcRelayerChangeAction {
-                value: Some(raw::ibc_relayer_change_action::Value::Removal(
-                    address.to_raw(),
-                )),
-            },
-        }
-    }
+impl Protobuf for IbcRelayerChangeAction {
+    type Error = IbcRelayerChangeActionError;
+    type Raw = raw::IbcRelayerChangeAction;
 
     #[must_use]
-    pub fn to_raw(&self) -> raw::IbcRelayerChangeAction {
+    fn to_raw(&self) -> raw::IbcRelayerChangeAction {
         match self {
             IbcRelayerChangeAction::Addition(address) => raw::IbcRelayerChangeAction {
                 value: Some(raw::ibc_relayer_change_action::Value::Addition(
@@ -1060,7 +1113,7 @@ impl IbcRelayerChangeAction {
     /// # Errors
     ///
     /// - if the `address` field is invalid
-    pub fn try_from_raw(
+    fn try_from_raw_ref(
         raw: &raw::IbcRelayerChangeAction,
     ) -> Result<Self, IbcRelayerChangeActionError> {
         match raw {
@@ -1116,9 +1169,12 @@ pub enum FeeAssetChangeAction {
     Removal(asset::Denom),
 }
 
-impl FeeAssetChangeAction {
+impl Protobuf for FeeAssetChangeAction {
+    type Error = FeeAssetChangeActionError;
+    type Raw = raw::FeeAssetChangeAction;
+
     #[must_use]
-    pub fn into_raw(self) -> raw::FeeAssetChangeAction {
+    fn to_raw(&self) -> raw::FeeAssetChangeAction {
         match self {
             FeeAssetChangeAction::Addition(asset) => raw::FeeAssetChangeAction {
                 value: Some(raw::fee_asset_change_action::Value::Addition(
@@ -1133,28 +1189,12 @@ impl FeeAssetChangeAction {
         }
     }
 
-    #[must_use]
-    pub fn to_raw(&self) -> raw::FeeAssetChangeAction {
-        match self {
-            FeeAssetChangeAction::Addition(asset) => raw::FeeAssetChangeAction {
-                value: Some(raw::fee_asset_change_action::Value::Addition(
-                    asset.to_string(),
-                )),
-            },
-            FeeAssetChangeAction::Removal(asset) => raw::FeeAssetChangeAction {
-                value: Some(raw::fee_asset_change_action::Value::Removal(
-                    asset.to_string(),
-                )),
-            },
-        }
-    }
-
-    /// Convert from a raw, unchecked protobuf [`raw::FeeAssetChangeAction`].
+    /// Convert from a reference to a raw, unchecked protobuf [`raw::FeeAssetChangeAction`].
     ///
     /// # Errors
     ///
     /// - if the `asset` field is invalid
-    pub fn try_from_raw(
+    fn try_from_raw_ref(
         raw: &raw::FeeAssetChangeAction,
     ) -> Result<Self, FeeAssetChangeActionError> {
         match raw {
@@ -1221,9 +1261,12 @@ pub struct InitBridgeAccountAction {
     pub withdrawer_address: Option<Address>,
 }
 
-impl InitBridgeAccountAction {
+impl Protobuf for InitBridgeAccountAction {
+    type Error = InitBridgeAccountActionError;
+    type Raw = raw::InitBridgeAccountAction;
+
     #[must_use]
-    pub fn into_raw(self) -> raw::InitBridgeAccountAction {
+    fn into_raw(self) -> raw::InitBridgeAccountAction {
         raw::InitBridgeAccountAction {
             rollup_id: Some(self.rollup_id.to_raw()),
             asset: self.asset.to_string(),
@@ -1234,7 +1277,7 @@ impl InitBridgeAccountAction {
     }
 
     #[must_use]
-    pub fn to_raw(&self) -> raw::InitBridgeAccountAction {
+    fn to_raw(&self) -> raw::InitBridgeAccountAction {
         raw::InitBridgeAccountAction {
             rollup_id: Some(self.rollup_id.to_raw()),
             asset: self.asset.to_string(),
@@ -1252,7 +1295,7 @@ impl InitBridgeAccountAction {
     /// - if the `rollup_id` field is invalid
     /// - if the `sudo_address` field is invalid
     /// - if the `withdrawer_address` field is invalid
-    pub fn try_from_raw(
+    fn try_from_raw(
         proto: raw::InitBridgeAccountAction,
     ) -> Result<Self, InitBridgeAccountActionError> {
         let Some(rollup_id) = proto.rollup_id else {
@@ -1288,6 +1331,18 @@ impl InitBridgeAccountAction {
             sudo_address,
             withdrawer_address,
         })
+    }
+
+    /// Convert from a reference to a raw, unchecked protobuf [`raw::InitBridgeAccountAction`].
+    ///
+    /// # Errors
+    ///
+    /// - if the `rollup_id` field is not set
+    /// - if the `rollup_id` field is invalid
+    /// - if the `sudo_address` field is invalid
+    /// - if the `withdrawer_address` field is invalid
+    fn try_from_raw_ref(proto: &Self::Raw) -> Result<Self, InitBridgeAccountActionError> {
+        Self::try_from_raw(proto.clone())
     }
 }
 
@@ -1362,9 +1417,12 @@ pub struct BridgeLockAction {
     pub destination_chain_address: String,
 }
 
-impl BridgeLockAction {
+impl Protobuf for BridgeLockAction {
+    type Error = BridgeLockActionError;
+    type Raw = raw::BridgeLockAction;
+
     #[must_use]
-    pub fn into_raw(self) -> raw::BridgeLockAction {
+    fn into_raw(self) -> raw::BridgeLockAction {
         raw::BridgeLockAction {
             to: Some(self.to.to_raw()),
             amount: Some(self.amount.into()),
@@ -1375,7 +1433,7 @@ impl BridgeLockAction {
     }
 
     #[must_use]
-    pub fn to_raw(&self) -> raw::BridgeLockAction {
+    fn to_raw(&self) -> raw::BridgeLockAction {
         raw::BridgeLockAction {
             to: Some(self.to.to_raw()),
             amount: Some(self.amount.into()),
@@ -1393,7 +1451,7 @@ impl BridgeLockAction {
     /// - if the `to` field is invalid
     /// - if the `asset` field is invalid
     /// - if the `fee_asset` field is invalid
-    pub fn try_from_raw(proto: raw::BridgeLockAction) -> Result<Self, BridgeLockActionError> {
+    fn try_from_raw(proto: raw::BridgeLockAction) -> Result<Self, BridgeLockActionError> {
         let Some(to) = proto.to else {
             return Err(BridgeLockActionError::field_not_set("to"));
         };
@@ -1416,6 +1474,18 @@ impl BridgeLockAction {
             fee_asset,
             destination_chain_address: proto.destination_chain_address,
         })
+    }
+
+    /// Convert from a reference to a raw, unchecked protobuf [`raw::BridgeLockAction`].
+    ///
+    /// # Errors
+    ///
+    /// - if the `to` field is not set
+    /// - if the `to` field is invalid
+    /// - if the `asset` field is invalid
+    /// - if the `fee_asset` field is invalid
+    fn try_from_raw_ref(proto: &raw::BridgeLockAction) -> Result<Self, BridgeLockActionError> {
+        Self::try_from_raw(proto.clone())
     }
 }
 
@@ -1481,9 +1551,12 @@ pub struct BridgeUnlockAction {
     pub bridge_address: Option<Address>,
 }
 
-impl BridgeUnlockAction {
+impl Protobuf for BridgeUnlockAction {
+    type Error = BridgeUnlockActionError;
+    type Raw = raw::BridgeUnlockAction;
+
     #[must_use]
-    pub fn into_raw(self) -> raw::BridgeUnlockAction {
+    fn into_raw(self) -> raw::BridgeUnlockAction {
         raw::BridgeUnlockAction {
             to: Some(self.to.to_raw()),
             amount: Some(self.amount.into()),
@@ -1494,7 +1567,7 @@ impl BridgeUnlockAction {
     }
 
     #[must_use]
-    pub fn to_raw(&self) -> raw::BridgeUnlockAction {
+    fn to_raw(&self) -> raw::BridgeUnlockAction {
         raw::BridgeUnlockAction {
             to: Some(self.to.to_raw()),
             amount: Some(self.amount.into()),
@@ -1513,7 +1586,7 @@ impl BridgeUnlockAction {
     /// - if the `amount` field is invalid
     /// - if the `fee_asset` field is invalid
     /// - if the `from` field is invalid
-    pub fn try_from_raw(proto: raw::BridgeUnlockAction) -> Result<Self, BridgeUnlockActionError> {
+    fn try_from_raw(proto: raw::BridgeUnlockAction) -> Result<Self, BridgeUnlockActionError> {
         let Some(to) = proto.to else {
             return Err(BridgeUnlockActionError::field_not_set("to"));
         };
@@ -1538,6 +1611,19 @@ impl BridgeUnlockAction {
             memo: proto.memo,
             bridge_address,
         })
+    }
+
+    /// Convert from a reference to a raw, unchecked protobuf [`raw::BridgeUnlockAction`].
+    ///
+    /// # Errors
+    ///
+    /// - if the `to` field is not set
+    /// - if the `to` field is invalid
+    /// - if the `amount` field is invalid
+    /// - if the `fee_asset` field is invalid
+    /// - if the `from` field is invalid
+    fn try_from_raw_ref(proto: &raw::BridgeUnlockAction) -> Result<Self, BridgeUnlockActionError> {
+        Self::try_from_raw(proto.clone())
     }
 }
 
@@ -1597,9 +1683,12 @@ pub struct BridgeSudoChangeAction {
     pub fee_asset: asset::Denom,
 }
 
-impl BridgeSudoChangeAction {
+impl Protobuf for BridgeSudoChangeAction {
+    type Error = BridgeSudoChangeActionError;
+    type Raw = raw::BridgeSudoChangeAction;
+
     #[must_use]
-    pub fn into_raw(self) -> raw::BridgeSudoChangeAction {
+    fn into_raw(self) -> raw::BridgeSudoChangeAction {
         raw::BridgeSudoChangeAction {
             bridge_address: Some(self.bridge_address.to_raw()),
             new_sudo_address: self.new_sudo_address.map(Address::into_raw),
@@ -1609,7 +1698,7 @@ impl BridgeSudoChangeAction {
     }
 
     #[must_use]
-    pub fn to_raw(&self) -> raw::BridgeSudoChangeAction {
+    fn to_raw(&self) -> raw::BridgeSudoChangeAction {
         raw::BridgeSudoChangeAction {
             bridge_address: Some(self.bridge_address.to_raw()),
             new_sudo_address: self.new_sudo_address.as_ref().map(Address::to_raw),
@@ -1627,7 +1716,7 @@ impl BridgeSudoChangeAction {
     /// - if the `new_sudo_address` field is invalid
     /// - if the `new_withdrawer_address` field is invalid
     /// - if the `fee_asset` field is invalid
-    pub fn try_from_raw(
+    fn try_from_raw(
         proto: raw::BridgeSudoChangeAction,
     ) -> Result<Self, BridgeSudoChangeActionError> {
         let Some(bridge_address) = proto.bridge_address else {
@@ -1658,6 +1747,21 @@ impl BridgeSudoChangeAction {
             new_withdrawer_address,
             fee_asset,
         })
+    }
+
+    /// Convert from a reference to a raw, unchecked protobuf [`raw::BridgeSudoChangeAction`].
+    ///
+    /// # Errors
+    ///
+    /// - if the `bridge_address` field is not set
+    /// - if the `bridge_address` field is invalid
+    /// - if the `new_sudo_address` field is invalid
+    /// - if the `new_withdrawer_address` field is invalid
+    /// - if the `fee_asset` field is invalid
+    fn try_from_raw_ref(
+        proto: &raw::BridgeSudoChangeAction,
+    ) -> Result<Self, BridgeSudoChangeActionError> {
+        Self::try_from_raw(proto.clone())
     }
 }
 
@@ -1724,14 +1828,12 @@ pub struct FeeChangeAction {
     pub new_value: u128,
 }
 
-impl FeeChangeAction {
-    #[must_use]
-    pub fn into_raw(self) -> raw::FeeChangeAction {
-        self.to_raw()
-    }
+impl Protobuf for FeeChangeAction {
+    type Error = FeeChangeActionError;
+    type Raw = raw::FeeChangeAction;
 
     #[must_use]
-    pub fn to_raw(&self) -> raw::FeeChangeAction {
+    fn to_raw(&self) -> raw::FeeChangeAction {
         raw::FeeChangeAction {
             value: Some(match self.fee_change {
                 FeeChange::TransferBaseFee => {
@@ -1761,13 +1863,13 @@ impl FeeChangeAction {
         }
     }
 
-    /// Convert from a raw, unchecked protobuf [`raw::FeeChangeAction`].
+    /// Convert from a reference to a raw, unchecked protobuf [`raw::FeeChangeAction`].
     ///
     /// # Errors
     ///
     /// - if the fee change `value` field is missing
     /// - if the `new_value` field is missing
-    pub fn try_from_raw(proto: &raw::FeeChangeAction) -> Result<Self, FeeChangeActionError> {
+    fn try_from_raw_ref(proto: &raw::FeeChangeAction) -> Result<Self, FeeChangeActionError> {
         let (fee_change, new_value) = match proto.value {
             Some(raw::fee_change_action::Value::TransferBaseFee(new_value)) => {
                 (FeeChange::TransferBaseFee, new_value)

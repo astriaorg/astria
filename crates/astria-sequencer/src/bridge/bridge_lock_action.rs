@@ -9,6 +9,7 @@ use astria_core::{
         TransferAction,
     },
     sequencerblock::v1alpha1::block::Deposit,
+    Protobuf,
 };
 use cnidarium::StateWrite;
 
@@ -23,6 +24,7 @@ use crate::{
     },
     address::StateReadExt as _,
     app::ActionHandler,
+    assets::StateWriteExt as _,
     bridge::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -120,7 +122,10 @@ impl ActionHandler for BridgeLockAction {
             .await
             .context("failed to get byte cost multiplier")?;
         let fee = byte_cost_multiplier.saturating_mul(get_deposit_byte_len(&deposit));
-
+        state
+            .get_and_increase_block_fees(&self.fee_asset, fee, Self::full_name())
+            .await
+            .context("failed to add to block fees")?;
         state
             .decrease_balance(from, &self.fee_asset, fee)
             .await
@@ -152,7 +157,6 @@ mod tests {
     use super::*;
     use crate::{
         address::StateWriteExt,
-        assets::StateWriteExt as _,
         test_utils::{
             assert_anyhow_error,
             astria_address,
