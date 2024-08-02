@@ -1,3 +1,6 @@
+default:
+  @just --list ibc-test
+
 defaultTag := ""
 
 delete:
@@ -179,9 +182,9 @@ _forge-ibc-withdraw:
     --broadcast \
     --sig "withdrawToIbcChain()" -vvvv
 
+# run the ibc-test locally. build celestia-appd if not found.
 [no-cd]
 [macos]
-# run the ibc-test locally. build celestia-appd if not found.
 run-local:
   #!/usr/bin/env bash
   if [ ! -f "./testing/tmp/celestia-appd" ]; then
