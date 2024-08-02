@@ -34,6 +34,8 @@ use tracing::{
     instrument,
 };
 
+use crate::address;
+
 /// Newtype wrapper to read and write a u128 from rocksdb.
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
 struct Balance(u128);
@@ -139,7 +141,7 @@ fn last_transaction_hash_for_bridge_account_storage_key(address: &Address) -> Ve
 }
 
 #[async_trait]
-pub(crate) trait StateReadExt: StateRead {
+pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
     #[instrument(skip_all)]
     async fn get_bridge_account_rollup_id(&self, address: &Address) -> Result<Option<RollupId>> {
         let Some(rollup_id_bytes) = self
@@ -182,8 +184,10 @@ pub(crate) trait StateReadExt: StateRead {
             return Ok(None);
         };
 
-        let sudo_address = crate::address::try_base_prefixed(&sudo_address_bytes)
-            .context("invalid sudo address bytes")?;
+        let sudo_address = self.try_base_prefixed(&sudo_address_bytes).await.context(
+            "failed check for constructing sudo address from address bytes and prefix stored \
+             retrieved from state",
+        )?;
         Ok(Some(sudo_address))
     }
 
@@ -203,8 +207,13 @@ pub(crate) trait StateReadExt: StateRead {
             return Ok(None);
         };
 
-        let withdrawer_address = crate::address::try_base_prefixed(&withdrawer_address_bytes)
-            .context("invalid withdrawer address bytes")?;
+        let withdrawer_address = self
+            .try_base_prefixed(&withdrawer_address_bytes)
+            .await
+            .context(
+                "failed check for constructing withdrawer address from address bytes and prefix \
+                 stored retrieved from state",
+            )?;
         Ok(Some(withdrawer_address))
     }
 
@@ -491,6 +500,7 @@ mod test {
         StateReadExt as _,
         StateWriteExt as _,
     };
+    use crate::test_utils::astria_address;
 
     fn asset_0() -> asset::Denom {
         "asset_0".parse().unwrap()
@@ -506,7 +516,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let state = StateDelta::new(snapshot);
 
-        let address = crate::address::base_prefixed([42u8; 20]);
+        let address = astria_address(&[42u8; 20]);
 
         // uninitialized ok
         assert_eq!(
@@ -525,7 +535,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         let mut rollup_id = RollupId::new([1u8; 32]);
-        let address = crate::address::base_prefixed([42u8; 20]);
+        let address = astria_address(&[42u8; 20]);
 
         // can write new
         state.put_bridge_account_rollup_id(&address, &rollup_id);
@@ -554,7 +564,7 @@ mod test {
 
         // can write additional account and both valid
         let rollup_id_1 = RollupId::new([2u8; 32]);
-        let address_1 = crate::address::base_prefixed([41u8; 20]);
+        let address_1 = astria_address(&[41u8; 20]);
         state.put_bridge_account_rollup_id(&address_1, &rollup_id_1);
         assert_eq!(
             state
@@ -583,7 +593,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let state = StateDelta::new(snapshot);
 
-        let address = crate::address::base_prefixed([42u8; 20]);
+        let address = astria_address(&[42u8; 20]);
         state
             .get_bridge_account_ibc_asset(&address)
             .await
@@ -596,7 +606,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        let address = crate::address::base_prefixed([42u8; 20]);
+        let address = astria_address(&[42u8; 20]);
         let mut asset = asset_0();
 
         // can write
@@ -629,7 +639,7 @@ mod test {
         );
 
         // writing to other account also ok
-        let address_1 = crate::address::base_prefixed([41u8; 20]);
+        let address_1 = astria_address(&[41u8; 20]);
         let asset_1 = asset_1();
         state
             .put_bridge_account_ibc_asset(&address_1, &asset_1)
@@ -753,7 +763,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         let rollup_id = RollupId::new([1u8; 32]);
-        let bridge_address = crate::address::base_prefixed([42u8; 20]);
+        let bridge_address = astria_address(&[42u8; 20]);
         let mut amount = 10u128;
         let asset = asset_0();
         let destination_chain_address = "0xdeadbeef";
@@ -865,7 +875,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         let rollup_id_0 = RollupId::new([1u8; 32]);
-        let bridge_address = crate::address::base_prefixed([42u8; 20]);
+        let bridge_address = astria_address(&[42u8; 20]);
         let amount = 10u128;
         let asset = asset_0();
         let destination_chain_address = "0xdeadbeef";
@@ -936,7 +946,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         let rollup_id = RollupId::new([1u8; 32]);
-        let bridge_address = crate::address::base_prefixed([42u8; 20]);
+        let bridge_address = astria_address(&[42u8; 20]);
         let amount = 10u128;
         let asset = asset_0();
         let destination_chain_address = "0xdeadbeef";
@@ -991,7 +1001,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         let rollup_id = RollupId::new([1u8; 32]);
-        let bridge_address = crate::address::base_prefixed([42u8; 20]);
+        let bridge_address = astria_address(&[42u8; 20]);
         let amount = 10u128;
         let asset = asset_0();
         let destination_chain_address = "0xdeadbeef";
@@ -1083,7 +1093,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         let rollup_id = RollupId::new([1u8; 32]);
-        let bridge_address = crate::address::base_prefixed([42u8; 20]);
+        let bridge_address = astria_address(&[42u8; 20]);
         let amount = 10u128;
         let asset = asset_0();
         let destination_chain_address = "0xdeadbeef";

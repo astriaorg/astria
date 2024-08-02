@@ -5,6 +5,7 @@ use astria_core::{
         ROLLUP_ID_LEN,
     },
     protocol::transaction::v1alpha1::action::SequenceAction,
+    Protobuf as _,
 };
 
 fn encoded_len(action: &SequenceAction) -> usize {

@@ -2,6 +2,7 @@ use anyhow::Context as _;
 use astria_core::{
     generated::astria_vendored::tendermint::abci as raw,
     protocol::transaction::v1alpha1::action::ValidatorUpdate,
+    Protobuf as _,
 };
 
 pub(crate) struct Hex<'a>(pub(crate) &'a [u8]);
