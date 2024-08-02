@@ -63,7 +63,7 @@ impl<'a> From<&'a RemovalReason> for response::CheckTx {
 }
 
 fn dynamic_error_to_abci_response(
-    err: anyhow::Error,
+    err: &anyhow::Error,
     metrics: &'static Metrics,
 ) -> response::CheckTx {
     if let Some(err) = err.downcast_ref::<crate::app::TransactionTooLarge>() {
@@ -173,7 +173,7 @@ async fn handle_check_tx(
         .unwrap();
 
     let (the_tx, _) = match app.deliver_tx_bytes(&bytes).await {
-        Err(err) => return dynamic_error_to_abci_response(err, metrics),
+        Err(err) => return dynamic_error_to_abci_response(&err, metrics),
         Ok(ret) => ret,
     };
 
@@ -183,7 +183,7 @@ async fn handle_check_tx(
 
     if let Some(removal_reason) = mempool.check_removed_comet_bft(tx_hash).await {
         mempool.remove(tx_hash).await;
-        return dynamic_error_to_abci_response(anyhow::Error::new(removal_reason), metrics);
+        return dynamic_error_to_abci_response(&anyhow::Error::new(removal_reason), metrics);
     };
 
     let finished_check_removed = Instant::now();
