@@ -180,6 +180,23 @@ To deploy and run this:
 # Clean up deployed test
 ```
 
+## Running an IBC Smoke Test
+
+You can run a smoke test which ensures that full IBC bridge functionality is
+working both up and down the stack.
+
+1. Bridges from Celestia to Astria to EVM
+2. Withdraws from EVM to Astria to Celestia
+
+```sh
+> just deploy cluster
+> just ibc-test deploy
+# you may need to build celestia-appd, e.g. for v1.9.0 for macos silicon:
+> just get-celestia-appd v1.9.0 Darwin arm64 ./path/to/celestia-appd
+> just ibc-test run ./path/for/celestia-home ./path/to/celestia-appd
+> just ibc-test delete
+```
+
 ## Examining Deployments
 
 [k9s](https://k9scli.io/) is a useful utility for inspecting deployed
