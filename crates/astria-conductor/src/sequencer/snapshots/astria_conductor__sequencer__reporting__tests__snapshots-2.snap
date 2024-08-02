@@ -5,7 +5,7 @@ expression: ReportFilteredSequencerBlock(&block)
 {
   "sequencer_height": 100,
   "rollups": {
-    "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=": 2,
-    "RUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUU=": 1
+    "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=": 3,
+    "RUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUU=": 2
   }
 }
