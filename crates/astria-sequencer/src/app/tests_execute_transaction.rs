@@ -45,9 +45,17 @@ use crate::{
     assets::StateReadExt as _,
     authority::StateReadExt as _,
     bridge::{
+    },
+    app::test_utils::*,
+    assets::StateReadExt as _,
+    authority::StateReadExt as _,
+    bridge::{
         get_deposit_byte_len,
         StateReadExt as _,
         StateWriteExt as _,
+    },
+    ibc::StateReadExt as _,
+    sequence::{
     },
     ibc::StateReadExt as _,
     sequence::{
@@ -55,13 +63,18 @@ use crate::{
         StateWriteExt as _,
     },
     test_utils::{
+    },
+    test_utils::{
         astria_address,
         astria_address_from_hex_string,
         nria,
     },
     transaction::{
+    },
+    transaction::{
         InvalidChainId,
         InvalidNonce,
+    },
     },
 };
 
