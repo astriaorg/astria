@@ -493,7 +493,7 @@ impl std::fmt::Display for Address {
 pub fn derive_merkle_tree_from_rollup_txs<'a, T, U>(rollup_ids_to_txs: T) -> merkle::Tree
 where
     T: IntoIterator<Item = (&'a RollupId, &'a U)>,
-    U: AsRef<[Vec<u8>]> + 'a + ?Sized,
+    U: AsRef<[Bytes]> + 'a + ?Sized,
 {
     let mut tree = merkle::Tree::new();
     for (rollup_id, txs) in rollup_ids_to_txs {

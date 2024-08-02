@@ -71,6 +71,7 @@ pub(crate) fn generate_rollup_datas_commitment(
                 RollupData::Deposit(Box::new(deposit))
                     .into_raw()
                     .encode_to_vec()
+                    .into()
             }));
     }
 

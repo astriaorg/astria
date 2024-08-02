@@ -1,9 +1,6 @@
 use std::collections::HashMap;
 
-use bytes::{
-    Buf as _,
-    Bytes,
-};
+use bytes::Bytes;
 use indexmap::IndexMap;
 use sha2::Sha256;
 use tendermint::{
@@ -72,7 +69,7 @@ enum RollupTransactionsErrorKind {
 #[derive(Clone, Debug, PartialEq)]
 pub struct RollupTransactionsParts {
     pub rollup_id: RollupId,
-    pub transactions: Vec<Vec<u8>>,
+    pub transactions: Vec<Bytes>,
     pub proof: merkle::Proof,
 }
 
@@ -82,7 +79,7 @@ pub struct RollupTransactions {
     /// The 32 bytes identifying a rollup. Usually the sha256 hash of a plain rollup name.
     rollup_id: RollupId,
     /// The block data for this rollup in the form of encoded [`RollupData`].
-    transactions: Vec<Vec<u8>>,
+    transactions: Vec<Bytes>,
     /// Proof that this set of transactions belongs in the rollup datas merkle tree
     proof: merkle::Proof,
 }
@@ -96,7 +93,7 @@ impl RollupTransactions {
 
     /// Returns the block data for this rollup.
     #[must_use]
-    pub fn transactions(&self) -> &[Vec<u8>] {
+    pub fn transactions(&self) -> &[Bytes] {
         &self.transactions
     }
 
@@ -202,7 +199,7 @@ impl SequencerBlockError {
         Self(SequencerBlockErrorKind::NoRollupTransactionsRoot)
     }
 
-    fn incorrect_rollup_transactions_root_length(len: usize) -> Self {
+    fn incorrect_rollup_tx_root_length(len: usize) -> Self {
         Self(SequencerBlockErrorKind::IncorrectRollupTransactionsRootLength(len))
     }
 
@@ -454,13 +451,13 @@ impl SequencerBlockHeader {
         .map_err(SequencerBlockHeaderError::time)?;
 
         let rollup_transactions_root =
-            rollup_transactions_root.chunk().try_into().map_err(|_| {
+            rollup_transactions_root.as_ref().try_into().map_err(|_| {
                 SequencerBlockHeaderError::incorrect_rollup_transactions_root_length(
                     rollup_transactions_root.len(),
                 )
             })?;
 
-        let data_hash = data_hash.chunk().try_into().map_err(|_| {
+        let data_hash = data_hash.as_ref().try_into().map_err(|_| {
             SequencerBlockHeaderError::incorrect_rollup_transactions_root_length(data_hash.len())
         })?;
 
@@ -712,7 +709,7 @@ impl SequencerBlock {
         height: tendermint::block::Height,
         time: Time,
         proposer_address: account::Id,
-        data: Vec<Vec<u8>>,
+        data: Vec<Bytes>,
         deposits: HashMap<RollupId, Vec<Deposit>>,
     ) -> Result<Self, SequencerBlockError> {
         use prost::Message as _;
@@ -724,16 +721,16 @@ impl SequencerBlock {
         let rollup_transactions_root: [u8; 32] = data_list
             .next()
             .ok_or(SequencerBlockError::no_rollup_transactions_root())?
+            .as_ref()
             .try_into()
-            .map_err(|e: Vec<_>| {
-                SequencerBlockError::incorrect_rollup_transactions_root_length(e.len())
-            })?;
+            .map_err(|_| SequencerBlockError::incorrect_rollup_tx_root_length(data_list.len()))?;
 
         let rollup_ids_root: [u8; 32] = data_list
             .next()
             .ok_or(SequencerBlockError::no_rollup_ids_root())?
+            .as_ref()
             .try_into()
-            .map_err(|e: Vec<_>| SequencerBlockError::incorrect_rollup_ids_root_length(e.len()))?;
+            .map_err(|_| SequencerBlockError::incorrect_rollup_ids_root_length(data_list.len()))?;
 
         let mut rollup_datas = IndexMap::new();
         for elem in data_list {
@@ -752,10 +749,11 @@ impl SequencerBlock {
                     fee_asset: _,
                 }) = action
                 {
-                    let elem = rollup_datas.entry(rollup_id).or_insert(vec![]);
-                    let data = RollupData::SequencedData(data.to_vec())
+                    let elem = rollup_datas.entry(rollup_id).or_insert(vec![Bytes::new()]);
+                    let data = RollupData::SequencedData(data)
                         .into_raw()
-                        .encode_to_vec();
+                        .encode_to_vec()
+                        .into();
                     elem.push(data);
                 }
             }
@@ -768,6 +766,7 @@ impl SequencerBlock {
                     RollupData::Deposit(Box::new(deposit))
                         .into_raw()
                         .encode_to_vec()
+                        .into()
                 }));
         }
 
@@ -854,7 +853,7 @@ impl SequencerBlock {
         } = raw;
 
         let block_hash = block_hash
-            .chunk()
+            .as_ref()
             .try_into()
             .map_err(|_| SequencerBlockError::invalid_block_hash(block_hash.len()))?;
 
@@ -1076,7 +1075,7 @@ impl FilteredSequencerBlock {
         } = raw;
 
         let block_hash = block_hash
-            .chunk()
+            .as_ref()
             .try_into()
             .map_err(|_| FilteredSequencerBlockError::invalid_block_hash(block_hash.len()))?;
 
@@ -1439,7 +1438,7 @@ enum DepositErrorKind {
 /// and must decode it accordingly.
 #[derive(Debug, Clone, PartialEq)]
 pub enum RollupData {
-    SequencedData(Vec<u8>),
+    SequencedData(Bytes),
     Deposit(Box<Deposit>),
 }
 
@@ -1448,7 +1447,7 @@ impl RollupData {
     pub fn into_raw(self) -> raw::RollupData {
         match self {
             Self::SequencedData(data) => raw::RollupData {
-                value: Some(raw::rollup_data::Value::SequencedData(data.into())),
+                value: Some(raw::rollup_data::Value::SequencedData(data)),
             },
             Self::Deposit(deposit) => raw::RollupData {
                 value: Some(raw::rollup_data::Value::Deposit(deposit.into_raw())),
@@ -1467,9 +1466,7 @@ impl RollupData {
             value,
         } = raw;
         match value {
-            Some(raw::rollup_data::Value::SequencedData(data)) => {
-                Ok(Self::SequencedData(data.to_vec()))
-            }
+            Some(raw::rollup_data::Value::SequencedData(data)) => Ok(Self::SequencedData(data)),
             Some(raw::rollup_data::Value::Deposit(deposit)) => Deposit::try_from_raw(deposit)
                 .map(Box::new)
                 .map(Self::Deposit)

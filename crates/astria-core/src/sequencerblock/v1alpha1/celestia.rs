@@ -466,7 +466,7 @@ impl UncheckedSubmittedMetadata {
         }?;
 
         let block_hash = block_hash
-            .chunk()
+            .as_ref()
             .try_into()
             .map_err(|_| SubmittedMetadataError::block_hash(block_hash.len()))?;
 

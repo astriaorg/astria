@@ -1,7 +1,4 @@
-use bytes::{
-    Buf as _,
-    Bytes,
-};
+use bytes::Bytes;
 
 use super::raw;
 use crate::primitive::v1::{
@@ -27,21 +24,19 @@ impl BridgeAccountLastTxHashResponse {
     ///
     /// - if the transaction hash is not 32 bytes
     pub fn try_from_raw(
-        raw: raw::BridgeAccountLastTxHashResponse,
+        raw: &raw::BridgeAccountLastTxHashResponse,
     ) -> Result<Self, BridgeAccountLastTxHashResponseError> {
         Ok(Self {
             height: raw.height,
             tx_hash: raw
                 .tx_hash
                 .clone()
-                .map(|bytes| bytes.chunk().try_into())
-                .transpose()
-                .map_err(|_| {
-                    let Some(tx_hash) = raw.tx_hash else {
-                        return BridgeAccountLastTxHashResponseError::missing_tx_hash();
-                    };
-                    BridgeAccountLastTxHashResponseError::invalid_tx_hash(tx_hash.len())
-                })?,
+                .map(|bytes| {
+                    <[u8; 32]>::try_from(bytes.as_ref()).map_err(|_| {
+                        BridgeAccountLastTxHashResponseError::invalid_tx_hash(bytes.len())
+                    })
+                })
+                .transpose()?,
         })
     }
 
@@ -64,7 +59,7 @@ impl raw::BridgeAccountLastTxHashResponse {
     pub fn try_into_native(
         self,
     ) -> Result<BridgeAccountLastTxHashResponse, BridgeAccountLastTxHashResponseError> {
-        BridgeAccountLastTxHashResponse::try_from_raw(self)
+        BridgeAccountLastTxHashResponse::try_from_raw(&self)
     }
 
     #[must_use]
@@ -86,19 +81,12 @@ impl BridgeAccountLastTxHashResponseError {
             bytes,
         ))
     }
-
-    #[must_use]
-    pub fn missing_tx_hash() -> Self {
-        Self(BridgeAccountLastTxHashResponseErrorKind::MissingTxHash())
-    }
 }
 
 #[derive(Debug, thiserror::Error)]
 enum BridgeAccountLastTxHashResponseErrorKind {
     #[error("invalid tx hash; must be 32 bytes, got {0} bytes")]
     InvalidTxHash(usize),
-    #[error("tx hash was not set")]
-    MissingTxHash(),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

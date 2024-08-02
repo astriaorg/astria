@@ -358,7 +358,7 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
     for (_, rollup_data) in block.rollup_transactions() {
         for tx in rollup_data.transactions() {
             let rollup_data =
-                RollupData::try_from_raw(RawRollupData::decode(tx.as_slice()).unwrap()).unwrap();
+                RollupData::try_from_raw(RawRollupData::decode(tx.as_ref()).unwrap()).unwrap();
             if let RollupData::Deposit(deposit) = rollup_data {
                 deposits.push(deposit);
             }
