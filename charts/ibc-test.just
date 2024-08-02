@@ -65,6 +65,37 @@ run celestiaHome pathToCelestiaAppd=default_celestia_appd:
     exit 1
   fi
 
+  initial_balance=$(just evm-get-balance {{evm_destination_address}})
+  let expected_evm_balance="$initial_balance - 1000000000000"
+
+  # Submit tx that calls withdraw contract on the evm, for ibc withdrawal from evm to celestia
+  echo "Performing IBC withdrawal from the EVM to Celestia..."
+  just evm-send-raw-transaction {{ evm_withdraw_tx_raw }}
+
+  for i in {1..50}
+  do
+    tx_receipt=$(just evm-get-transaction-receipt {{ evm_withdraw_tx_hash }})
+    if [[ $tx_receipt != "null" ]]; then
+      echo "Transaction receipt found: $tx_receipt"
+      tx_receipt_found="1"
+      current_balance=$(just evm-get-balance {{evm_destination_address}})
+      if (( $expected_evm_balance == $current_balance )); then
+        echo "EVM balance updated correctly - expected: $expected_evm_balance, actual: $current_balance"
+        break
+      else
+        echo "EVM balance not updated correctly - expected: $expected_evm_balance, actual: $current_balance"
+        exit 1
+      fi
+      break
+    else
+      sleep 1
+    fi
+  done
+  if [[ -z $tx_receipt_found ]]; then
+    echo "Transaction receipt not found; IBC transfer from the Rollup to Celestia failed"
+    exit 1
+  fi
+
 bridge_address := "astria1d7zjjljc0dsmxa545xkpwxym86g8uvvwhtezcr"
 celestia_dev_account_address := "celestia1m0ksdjl2p5nzhqy3p47fksv52at3ln885xvl96"
 celestia_dev_account_key_name := "dev"
@@ -73,9 +104,17 @@ celestia_chain_id := "celestia-local-0"
 celestia_node_url := "http://rpc.app.celestia.localdev.me:80"
 sequencer_tia_bridge_pkey := "6015fbe1c365d3c5ef92dc891db8c5bb26ad454bec2db4762b96e9f8b2430285"
 keyring_backend := "test"
+celestia_desitnation_address := "0x4a58639fb5458e65e4fa917ff951c390292c24a1"
 
 # This is the same address as used in deploy.just
 evm_destination_address := "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
+evm_rpc_url := "http://executor.astria.localdev.me"
+evm_withdraw_tx_hash := "0x3f1a45c167fd147e92c8c9e0570eff7c4fbe7dc5ca7ce2a52a734f91cd6f72c3"
+# evm_withdraw_tx_raw is the tx to withdraw smart contract on the evm.
+# ORIGIN_DESTINATION_CHAIN_ADDRESS=celestia1m0ksdjl2p5nzhqy3p47fksv52at3ln885xvl96
+# Uses private key for 0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30 to sign tx.
+# was created via `forge script script/AstriaWithdrawer.s.sol:AstriaWithdrawerScript ... --sig "withdrawToIbcChain()"`
+evm_withdraw_tx_raw := "0xf9012f80843b9aca07828fd794a58639fb5458e65e4fa917ff951c390292c24a1585e8d4a51000b8c4a996e020000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000002f63656c6573746961316d306b73646a6c3270356e7a68717933703437666b737635326174336c6e38383578766c393600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000820a95a04bc5ecc41a817099c62646713c907a302f0a81c879484f0d92fbc13d0d90d3c5a00da984f38e670402326f840dea26c5171557862aa16cfb5078d75627f6aea742"
 
 # all in units of utia
 transfer_amount := "53000"
@@ -93,7 +132,7 @@ _load-celestia-key celestiaHome pathToCelestiaAppd=default_celestia_appd:
 
 [no-cd]
 _do-ibc-transfer celestiaHome pathToCelestiaAppd=default_celestia_appd:
-  echo "Performing IBC transfer..."
+  @echo "Performing IBC transfer from Celestia to the EVM..."
   "{{pathToCelestiaAppd}}" tx ibc-transfer transfer \
     transfer \
     channel-0 \
@@ -108,6 +147,31 @@ _do-ibc-transfer celestiaHome pathToCelestiaAppd=default_celestia_appd:
     --log_level=debug \
     --home "{{celestiaHome}}" \
     --keyring-backend="{{ keyring_backend }}"
+
+[no-cd]
+_celestia-get-balance celestiaHome='./testing/tmp/celestia-ibc-test' pathToCelestiaAppd='./testing/tmp/celestia-appd':
+  {{pathToCelestiaAppd}} query bank balances {{celestia_dev_account_address}} \
+    --home "{{celestiaHome}}" \
+    --node "{{celestia_node_url}}"
+
+# helper command to call withdraw smart contract, in aid of getting its raw bytes for the tests.
+_forge-ibc-withdraw:
+  #!/usr/bin/env bash
+  # This is a helper script to call the withdraw contract on the evm, b/c we want its raw bytes.
+  #  Using the tx's raw bytes allows us to avoid the dependency on forge in ci/cd.
+  #
+  # NOTE - There is a .env in ../crates/astria-bridge-contracts/astria-bridge-contracts that needs to be populated correctly.
+  # This script called from `/charts, so cd'ing to contract directory
+  cd ../crates/astria-bridge-contracts/astria-bridge-contracts
+  pwd
+  echo "Calling withdraw contract using forge"
+  # NOTE - to get raw bytes, copy the success hash from the output, then:
+  #  e.g. `just evm-get-raw-transaction 0x3f1a45c167fd147e92c8c9e0570eff7c4fbe7dc5ca7ce2a52a734f91cd6f72c3`
+  forge script script/AstriaWithdrawer.s.sol:AstriaWithdrawerScript \
+    --rpc-url {{evm_rpc_url}} \
+    --legacy \
+    --broadcast \
+    --sig "withdrawToIbcChain()" -vvvv
 
 [no-cd]
 [macos]
