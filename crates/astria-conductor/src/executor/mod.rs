@@ -443,7 +443,7 @@ impl Executor {
             .await
             .wrap_err("failed to execute block")?;
 
-        self.does_block_response_fulfill_contract(ExecutionKind::Soft, &executed_block.block())
+        self.does_block_response_fulfill_contract(ExecutionKind::Soft, executed_block.block())
             .wrap_err("execution API server violated contract")?;
 
         self.update_commitment_state(Update::OnlySoft(executed_block.block().clone()))
@@ -493,7 +493,7 @@ impl Executor {
                 .execute_block(parent_hash, executable_block)
                 .await
                 .wrap_err("failed to execute block")?;
-            self.does_block_response_fulfill_contract(ExecutionKind::Firm, &executed_block.block())
+            self.does_block_response_fulfill_contract(ExecutionKind::Firm, executed_block.block())
                 .wrap_err("execution API server violated contract")?;
             Update::ToSame(executed_block.block().clone(), celestia_height)
         } else if let Some(block) = self.blocks_pending_finalization.remove(&block_number) {
