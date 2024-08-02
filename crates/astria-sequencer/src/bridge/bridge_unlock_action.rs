@@ -4,12 +4,9 @@ use anyhow::{
     Context as _,
     Result,
 };
-use astria_core::{
-    primitive::v1::Address,
-    protocol::transaction::v1alpha1::action::{
-        BridgeUnlockAction,
-        TransferAction,
-    },
+use astria_core::protocol::transaction::v1alpha1::action::{
+    BridgeUnlockAction,
+    TransferAction,
 };
 use cnidarium::StateWrite;
 
@@ -39,25 +36,19 @@ impl ActionHandler for BridgeUnlockAction {
             .ensure_base_prefix(&self.to)
             .await
             .context("failed check for base prefix of destination address")?;
-        if let Some(bridge_address) = &self.bridge_address {
-            state
-                .ensure_base_prefix(bridge_address)
-                .await
-                .context("failed check for base prefix of bridge address")?;
-        }
-
-        // the bridge address to withdraw funds from
-        // if unset, use the tx sender's address
-        let bridge_address = self.bridge_address.map_or(from, Address::bytes);
+        state
+            .ensure_base_prefix(&self.bridge_address)
+            .await
+            .context("failed check for base prefix of bridge address")?;
 
         let asset = state
-            .get_bridge_account_ibc_asset(bridge_address)
+            .get_bridge_account_ibc_asset(self.bridge_address)
             .await
             .context("failed to get bridge's asset id, must be a bridge account")?;
 
         // check that the sender of this tx is the authorized withdrawer for the bridge account
         let Some(withdrawer_address) = state
-            .get_bridge_account_withdrawer_address(bridge_address)
+            .get_bridge_account_withdrawer_address(self.bridge_address)
             .await
             .context("failed to get bridge account withdrawer address")?
         else {
@@ -76,8 +67,8 @@ impl ActionHandler for BridgeUnlockAction {
             fee_asset: self.fee_asset.clone(),
         };
 
-        check_transfer(&transfer_action, bridge_address, &state).await?;
-        execute_transfer(&transfer_action, bridge_address, state).await?;
+        check_transfer(&transfer_action, self.bridge_address, &state).await?;
+        execute_transfer(&transfer_action, self.bridge_address, state).await?;
 
         Ok(())
     }
@@ -136,7 +127,7 @@ mod test {
             amount: transfer_amount,
             fee_asset: asset,
             memo: "{}".into(),
-            bridge_address: None,
+            bridge_address: astria_address(&[1; 20]),
         };
 
         // not a bridge account, should fail
@@ -176,7 +167,7 @@ mod test {
             amount: transfer_amount,
             fee_asset: asset.clone(),
             memo: "{}".into(),
-            bridge_address: Some(bridge_address),
+            bridge_address,
         };
 
         // invalid sender, doesn't match action's `from`, should fail
@@ -213,7 +204,7 @@ mod test {
             amount: transfer_amount,
             fee_asset: asset,
             memo: "{}".into(),
-            bridge_address: Some(bridge_address),
+            bridge_address,
         };
 
         // invalid sender, doesn't match action's bridge account's withdrawer, should fail
@@ -255,7 +246,7 @@ mod test {
             amount: transfer_amount,
             fee_asset: asset.clone(),
             memo: "{}".into(),
-            bridge_address: None,
+            bridge_address,
         };
 
         // not enough balance; should fail
@@ -309,7 +300,7 @@ mod test {
             amount: transfer_amount,
             fee_asset: asset.clone(),
             memo: "{}".into(),
-            bridge_address: Some(bridge_address),
+            bridge_address,
         };
 
         // not enough balance; should fail
