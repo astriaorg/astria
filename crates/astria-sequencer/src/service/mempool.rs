@@ -43,7 +43,7 @@ const MAX_TX_SIZE: usize = 256_000; // 256 KB
 #[derive(Clone)]
 pub(crate) struct Mempool {
     storage: Storage,
-    mempool: crate::mempool::Mempool,
+    inner: crate::mempool::Mempool,
     metrics: &'static Metrics,
 }
 
@@ -55,7 +55,7 @@ impl Mempool {
     ) -> Self {
         Self {
             storage,
-            mempool,
+            inner: mempool,
             metrics,
         }
     }
@@ -74,13 +74,13 @@ impl Service<MempoolRequest> for Mempool {
         use penumbra_tower_trace::v038::RequestExt as _;
         let span = req.create_span();
         let storage = self.storage.clone();
-        let mempool = self.mempool.clone();
+        let app_mempool = self.inner.clone();
         let metrics = self.metrics;
         async move {
             let rsp = match req {
-                MempoolRequest::CheckTx(req) => {
-                    MempoolResponse::CheckTx(handle_check_tx(req, storage, mempool, metrics).await)
-                }
+                MempoolRequest::CheckTx(req) => MempoolResponse::CheckTx(
+                    handle_check_tx(req, storage, app_mempool, metrics).await,
+                ),
             };
             Ok(rsp)
         }
