@@ -150,6 +150,12 @@ fn last_transaction_hash_for_bridge_account_storage_key<T: AddressBytes>(address
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
     #[instrument(skip_all)]
+    async fn is_a_bridge_account<T: AddressBytes>(&self, address: T) -> anyhow::Result<bool> {
+        let maybe_id = self.get_bridge_account_rollup_id(address).await?;
+        Ok(maybe_id.is_some())
+    }
+
+    #[instrument(skip_all)]
     async fn get_bridge_account_rollup_id<T: AddressBytes>(
         &self,
         address: T,
