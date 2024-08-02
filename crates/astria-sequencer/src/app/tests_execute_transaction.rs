@@ -824,9 +824,11 @@ async fn app_execute_transaction_invalid_nonce() {
         response
             .unwrap_err()
             .downcast_ref::<InvalidNonce>()
-            .map(|nonce_err| nonce_err.0)
             .unwrap(),
-        1
+        &InvalidNonce {
+            current: 0,
+            in_transaction: 1
+        },
     );
 }
 

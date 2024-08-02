@@ -1,5 +1,6 @@
 use std::{
     pin::Pin,
+    sync::Arc,
     task::{
         Context,
         Poll,
@@ -8,12 +9,19 @@ use std::{
 };
 
 use anyhow::Context as _;
-use astria_core::protocol::abci::AbciErrorCode;
+use astria_core::{
+    generated::protocol::transaction::v1alpha1 as raw,
+    protocol::{
+        abci::AbciErrorCode,
+        transaction::v1alpha1::SignedTransaction,
+    },
+};
 use cnidarium::Storage;
 use futures::{
     Future,
     FutureExt as _,
 };
+use prost::Message as _;
 use tendermint::v0_38::abci::{
     request,
     response,
@@ -32,6 +40,7 @@ use crate::{
     app::App,
     mempool::RemovalReason,
     metrics::Metrics,
+    transaction::InvalidNonce,
 };
 
 impl<'a> From<&'a crate::app::TransactionTooLarge> for response::CheckTx {
@@ -173,7 +182,24 @@ async fn handle_check_tx(
         .unwrap();
 
     let (the_tx, _) = match app.deliver_tx_bytes(&bytes).await {
-        Err(err) => return dynamic_error_to_abci_response(&err, metrics),
+        Err(mut err) => {
+            if let Some(current_nonce) = find_invalid_nonce_error(&err)
+                .and_then(|invalid_nonce| invalid_nonce.is_ahead().then_some(invalid_nonce.current))
+            {
+                let signed_tx = transaction_from_bytes_unchecked(&bytes);
+                if let Err(mempool_error) = mempool
+                    .insert(Arc::new(signed_tx), current_nonce)
+                    .await
+                    .context("mempool rejected transaction with future nonce")
+                {
+                    // override the outer arror and fall down to the general handler
+                    err = mempool_error;
+                } else {
+                    return response::CheckTx::default();
+                }
+            }
+            return dynamic_error_to_abci_response(&err, metrics);
+        }
         Ok(ret) => ret,
     };
 
@@ -229,4 +255,26 @@ async fn handle_check_tx(
     metrics.set_transactions_in_mempool_total(mempool_len);
 
     response::CheckTx::default()
+}
+
+fn find_invalid_nonce_error(error: &anyhow::Error) -> Option<&InvalidNonce> {
+    for cause in error.chain() {
+        if let Some(invalid_nonce) = cause.downcast_ref::<InvalidNonce>() {
+            return Some(invalid_nonce);
+        }
+    }
+    None
+}
+
+/// Constructs a signed transaction from bytes, panicking if decoding
+/// the protobuf bytes failed or if the transaction was malformed.
+fn transaction_from_bytes_unchecked(bytes: &[u8]) -> SignedTransaction {
+    let proto = raw::SignedTransaction::decode(bytes).expect(
+        "an invalid nonce was established which only makes sense if the transaction was \
+         successfully decoded",
+    );
+    SignedTransaction::try_from_raw(proto).expect(
+        "an invalid nonce was established which only makes sense if the transaction was well \
+         formed",
+    )
 }

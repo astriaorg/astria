@@ -990,13 +990,12 @@ impl App {
         &mut self,
         bytes: &[u8],
     ) -> anyhow::Result<(Arc<SignedTransaction>, Vec<Event>)> {
-        if bytes.len() > MAX_TX_SIZE {
-            // Using Error::new instead of anyhow! or ensure! so that
-            // downcasting to the concrete type keeps working.
-            return Err(anyhow::Error::new(TransactionTooLarge {
+        ensure!(
+            bytes.len() <= MAX_TX_SIZE,
+            TransactionTooLarge {
                 actual: bytes.len(),
-            }));
-        }
+            }
+        );
 
         let tx = raw::SignedTransaction::decode(bytes)
             .with_context(|| {
