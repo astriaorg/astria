@@ -1132,11 +1132,10 @@ async fn ensure_correct_block_fees_transfer() {
 
     let alice = get_alice_signing_key();
     let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
-    let value = 333_333;
     let actions = vec![
         TransferAction {
             to: bob_address,
-            amount: value,
+            amount: 1000,
             asset: nria().into(),
             fee_asset: nria().into(),
         }
@@ -1173,12 +1172,11 @@ async fn ensure_correct_block_fees_sequence() {
     app.apply(state_tx);
 
     let alice = get_alice_signing_key();
-    let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
     let data = b"hello world".to_vec();
 
     let actions = vec![
         SequenceAction {
-            rollup_id,
+            rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
             data: data.clone(),
             fee_asset: nria().into(),
         }
@@ -1215,11 +1213,10 @@ async fn ensure_correct_block_fees_init_bridge_acct() {
     app.apply(state_tx);
 
     let alice = get_alice_signing_key();
-    let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
 
     let actions = vec![
         InitBridgeAccountAction {
-            rollup_id,
+            rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
             asset: nria().into(),
             fee_asset: nria().into(),
             sudo_address: None,
