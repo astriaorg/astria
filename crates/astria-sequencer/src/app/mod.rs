@@ -40,7 +40,7 @@ use cnidarium::{
 };
 use prost::{
     Message as _,
-    Name,
+    Name as _,
 };
 use sha2::{
     Digest as _,
@@ -114,6 +114,15 @@ use crate::{
 
 /// The inter-block state being written to by the application.
 type InterBlockState = Arc<StateDelta<Snapshot>>;
+
+/// The maximum permitted size of an encoded [`raw::SignedTransaction`].
+const MAX_TX_SIZE: usize = 256_000; // 256 KB
+
+#[derive(Debug, thiserror::Error)]
+#[error("transaction size too large; allowed {MAX_TX_SIZE} bytes, got {actual}")]
+pub(crate) struct TransactionTooLarge {
+    actual: usize,
+}
 
 /// The Sequencer application, written as a bundle of [`Component`]s.
 ///
@@ -551,16 +560,16 @@ impl App {
                     validated_txs.push(bytes.into());
                     included_signed_txs.push((*tx).clone());
                 }
-                Err(e) => {
+                Err(err) => {
                     self.metrics
                         .increment_prepare_proposal_excluded_transactions_failed_execution();
                     debug!(
                         transaction_hash = %tx_hash_base64,
-                        error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                        error = AsRef::<dyn std::error::Error>::as_ref(&err),
                         "failed to execute transaction, not including in block"
                     );
 
-                    if e.downcast_ref::<InvalidNonce>().is_some() {
+                    if err.downcast_ref::<InvalidNonce>().is_some() {
                         // we re-insert the tx into the mempool if it failed to execute
                         // due to an invalid nonce, as it may be valid in the future.
                         // if it's invalid due to the nonce being too low, it'll be
@@ -573,7 +582,9 @@ impl App {
                         self.mempool
                             .track_removal_comet_bft(
                                 enqueued_tx.tx_hash(),
-                                RemovalReason::FailedPrepareProposal(e.to_string()),
+                                RemovalReason::FailedPrepareProposal {
+                                    source: err,
+                                },
                             )
                             .await;
                     }
@@ -974,10 +985,19 @@ impl App {
     }
 
     /// Wrapper around [`Self::execute_transaction`] to deserialize from bytes.
+    #[instrument(name = "App::execute_transaction", skip_all)]
     pub(crate) async fn execute_transaction_bytes(
         &mut self,
         bytes: &[u8],
     ) -> anyhow::Result<(Arc<SignedTransaction>, Vec<Event>)> {
+        if bytes.len() > MAX_TX_SIZE {
+            // Using Error::new instead of anyhow! or ensure! so that
+            // downcasting to the concrete type keeps working.
+            return Err(anyhow::Error::new(TransactionTooLarge {
+                actual: bytes.len(),
+            }));
+        }
+
         let tx = raw::SignedTransaction::decode(bytes)
             .with_context(|| {
                 format!(
@@ -996,8 +1016,7 @@ impl App {
     }
 
     /// Executes a signed transaction.
-    #[instrument(name = "App::execute_transaction", skip_all)]
-    pub(crate) async fn execute_transaction(
+    async fn execute_transaction(
         &mut self,
         signed_tx: Arc<SignedTransaction>,
     ) -> anyhow::Result<Vec<Event>> {

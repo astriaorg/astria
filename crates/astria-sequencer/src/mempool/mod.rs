@@ -135,10 +135,12 @@ impl std::hash::Hash for EnqueuedTransaction {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, thiserror::Error)]
 pub(crate) enum RemovalReason {
+    #[error("transaction expired in the app's mempool")]
     Expired,
-    FailedPrepareProposal(String),
+    #[error("transaction failed execution because")]
+    FailedPrepareProposal { source: anyhow::Error },
 }
 
 const TX_TTL: Duration = Duration::from_secs(600); // 10 minutes
@@ -149,7 +151,6 @@ const REMOVAL_CACHE_SIZE: usize = 4096;
 ///
 /// This is useful for when a transaction fails execution or when a transaction
 /// has expired in the app's mempool.
-#[derive(Clone)]
 pub(crate) struct RemovalCache {
     cache: HashMap<[u8; 32], RemovalReason>,
     remove_queue: VecDeque<[u8; 32]>,

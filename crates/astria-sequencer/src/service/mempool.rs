@@ -34,7 +34,61 @@ use crate::{
     metrics::Metrics,
 };
 
-const MAX_TX_SIZE: usize = 256_000; // 256 KB
+impl<'a> From<&'a crate::app::TransactionTooLarge> for response::CheckTx {
+    fn from(value: &'a crate::app::TransactionTooLarge) -> Self {
+        response::CheckTx {
+            code: AbciErrorCode::TRANSACTION_TOO_LARGE.into(),
+            info: AbciErrorCode::TRANSACTION_TOO_LARGE.to_string(),
+            log: format!("transaction failed execution because: {value:#?}"),
+            ..response::CheckTx::default()
+        }
+    }
+}
+
+impl<'a> From<&'a RemovalReason> for response::CheckTx {
+    fn from(value: &'a RemovalReason) -> Self {
+        let code = match value {
+            RemovalReason::Expired => AbciErrorCode::TRANSACTION_EXPIRED,
+            RemovalReason::FailedPrepareProposal {
+                ..
+            } => AbciErrorCode::TRANSACTION_FAILED,
+        };
+        response::CheckTx {
+            code: code.into(),
+            info: code.to_string(),
+            log: format!("transaction failed execution because: {value:#?}"),
+            ..response::CheckTx::default()
+        }
+    }
+}
+
+fn dynamic_error_to_abci_response(
+    err: anyhow::Error,
+    metrics: &'static Metrics,
+) -> response::CheckTx {
+    if let Some(err) = err.downcast_ref::<crate::app::TransactionTooLarge>() {
+        metrics.increment_check_tx_removed_too_large();
+        return err.into();
+    }
+    if let Some(err) = err.downcast_ref::<RemovalReason>() {
+        match &err {
+            RemovalReason::Expired => metrics.increment_check_tx_removed_expired(),
+            RemovalReason::FailedPrepareProposal {
+                ..
+            } => metrics.increment_check_tx_removed_failed_execution(),
+        }
+        return err.into();
+    }
+    // FIXME: this is used as a catch-all right now, even though "internal error"
+    //        might be misleading or wrong. Need to figure out how to map the
+    //        currently opaque tx.check_and_execute to specific abci error codes.
+    response::CheckTx {
+        code: AbciErrorCode::INTERNAL_ERROR.into(),
+        info: AbciErrorCode::INTERNAL_ERROR.to_string(),
+        log: format!("transaction failed execution because: {err:#?}"),
+        ..response::CheckTx::default()
+    }
+}
 
 /// Mempool handles [`request::CheckTx`] abci requests.
 //
@@ -111,55 +165,23 @@ async fn handle_check_tx(
 
     let tx_hash = sha2::Sha256::digest(&bytes).into();
 
-    // FIXME: this might be a good candidate to move to `App::execute_transaction_bytes`.
-    if bytes.len() > MAX_TX_SIZE {
-        mempool.remove(tx_hash).await;
-        metrics.increment_check_tx_removed_too_large();
-        return response::CheckTx {
-            code: AbciErrorCode::TRANSACTION_TOO_LARGE.into(),
-            log: format!(
-                "transaction size too large; allowed: {MAX_TX_SIZE} bytes, got {}",
-                bytes.len()
-            ),
-            info: AbciErrorCode::TRANSACTION_TOO_LARGE.to_string(),
-            ..response::CheckTx::default()
-        };
-    }
-
     let finished_check_and_execute = Instant::now();
     let snapshot = storage.latest_snapshot();
     let mut app = App::new(snapshot.clone(), mempool.clone(), metrics)
         .await
         .unwrap();
 
-    let (the_tx, _) = app.execute_transaction_bytes(&bytes).await.unwrap();
+    let (the_tx, _) = match app.execute_transaction_bytes(&bytes).await {
+        Err(err) => return dynamic_error_to_abci_response(err, metrics),
+        Ok(ret) => ret,
+    };
 
     metrics
         .record_check_tx_duration_seconds_check_and_execute(finished_check_and_execute.elapsed());
 
     if let Some(removal_reason) = mempool.check_removed_comet_bft(tx_hash).await {
         mempool.remove(tx_hash).await;
-
-        match removal_reason {
-            RemovalReason::Expired => {
-                metrics.increment_check_tx_removed_expired();
-                return response::CheckTx {
-                    code: AbciErrorCode::TRANSACTION_EXPIRED.into(),
-                    info: "transaction expired in app's mempool".into(),
-                    log: "Transaction expired in the app's mempool".into(),
-                    ..response::CheckTx::default()
-                };
-            }
-            RemovalReason::FailedPrepareProposal(err) => {
-                metrics.increment_check_tx_removed_failed_execution();
-                return response::CheckTx {
-                    code: AbciErrorCode::TRANSACTION_FAILED.into(),
-                    info: "transaction failed execution in prepare_proposal()".into(),
-                    log: format!("transaction failed execution because: {err}"),
-                    ..response::CheckTx::default()
-                };
-            }
-        }
+        return dynamic_error_to_abci_response(anyhow::Error::new(removal_reason), metrics);
     };
 
     let finished_check_removed = Instant::now();
@@ -184,13 +206,18 @@ async fn handle_check_tx(
         Ok(nonce) => nonce,
     };
 
-    mempool
+    if let Err(err) = mempool
         .insert(the_tx.clone(), current_account_nonce)
         .await
-        .expect(
-            "tx nonce is greater than or equal to current account nonce; this was checked in \
-             check_nonce_mempool",
-        );
+        .context("mempool rejected validated transaction")
+    {
+        return response::CheckTx {
+            code: AbciErrorCode::INTERNAL_ERROR.into(),
+            info: AbciErrorCode::INTERNAL_ERROR.to_string(),
+            log: format!("transaction failed execution because: {err:#?}"),
+            ..response::CheckTx::default()
+        };
+    }
     let mempool_len = mempool.len().await;
 
     metrics
