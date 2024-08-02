@@ -19,6 +19,7 @@ pub mod sequencerblock;
 pub mod brotli;
 #[cfg(feature = "celestia")]
 pub mod celestia;
+mod composer;
 #[cfg(feature = "serde")]
 pub(crate) mod serde;
 
