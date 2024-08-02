@@ -9,8 +9,10 @@ use astria_core::{
     protocol::transaction::v1alpha1::{
         action::{
             BridgeLockAction,
+            BridgeSudoChangeAction,
             BridgeUnlockAction,
             IbcRelayerChangeAction,
+            InitBridgeAccountAction,
             SequenceAction,
             SudoAddressChangeAction,
             TransferAction,
@@ -32,7 +34,10 @@ use penumbra_ibc::params::IBCParameters;
 use tendermint::abci::EventAttributeIndexExt as _;
 
 use crate::{
-    accounts::StateReadExt as _,
+    accounts::{
+        StateReadExt as _,
+        StateWriteExt,
+    },
     app::{
         test_utils::*,
         ActionHandler as _,
@@ -40,11 +45,15 @@ use crate::{
     assets::StateReadExt as _,
     authority::StateReadExt as _,
     bridge::{
+        get_deposit_byte_len,
         StateReadExt as _,
         StateWriteExt as _,
     },
     ibc::StateReadExt as _,
-    sequence::calculate_fee_from_state,
+    sequence::{
+        calculate_fee_from_state,
+        StateWriteExt as _,
+    },
     test_utils::{
         astria_address,
         astria_address_from_hex_string,
@@ -1100,3 +1109,237 @@ async fn transaction_execution_records_fee_event() {
             .into()
     );
 }
+
+#[tokio::test]
+async fn ensure_correct_block_fees_transfer() {
+    let mut app = initialize_app(None, vec![]).await;
+    let mut state_tx = StateDelta::new(app.state.clone());
+    state_tx.put_transfer_base_fee(1).unwrap();
+    app.apply(state_tx);
+
+    let alice = get_alice_signing_key();
+    let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
+    let value = 333_333;
+    let actions = vec![
+        TransferAction {
+            to: bob_address,
+            amount: value,
+            asset: nria().into(),
+            fee_asset: nria().into(),
+        }
+        .into(),
+    ];
+
+    let tx = UnsignedTransaction {
+        params: TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .build(),
+        actions,
+    };
+    let signed_tx = Arc::new(tx.into_signed(&alice));
+    app.execute_transaction(signed_tx).await.unwrap();
+
+    let total_block_fees: u128 = app
+        .state
+        .get_block_fees()
+        .await
+        .expect("failed to get block fees")
+        .into_iter()
+        .map(|(_, fee)| fee)
+        .sum();
+    assert_eq!(total_block_fees, 1);
+}
+
+#[tokio::test]
+async fn ensure_correct_block_fees_sequence() {
+    let mut app = initialize_app(None, vec![]).await;
+    let mut state_tx = StateDelta::new(app.state.clone());
+    state_tx.put_sequence_action_base_fee(1);
+    state_tx.put_sequence_action_byte_cost_multiplier(1);
+    app.apply(state_tx);
+
+    let alice = get_alice_signing_key();
+    let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
+    let data = b"hello world".to_vec();
+
+    let actions = vec![
+        SequenceAction {
+            rollup_id,
+            data: data.clone(),
+            fee_asset: nria().into(),
+        }
+        .into(),
+    ];
+
+    let tx = UnsignedTransaction {
+        params: TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .build(),
+        actions,
+    };
+    let signed_tx = Arc::new(tx.into_signed(&alice));
+    app.execute_transaction(signed_tx).await.unwrap();
+
+    let total_block_fees: u128 = app
+        .state
+        .get_block_fees()
+        .await
+        .expect("failed to get block fees")
+        .into_iter()
+        .map(|(_, fee)| fee)
+        .sum();
+    let expected_fees = calculate_fee_from_state(&data, &app.state).await.unwrap();
+    assert_eq!(total_block_fees, expected_fees);
+}
+
+#[tokio::test]
+async fn ensure_correct_block_fees_init_bridge_acct() {
+    let mut app = initialize_app(None, vec![]).await;
+    let mut state_tx = StateDelta::new(app.state.clone());
+    state_tx.put_init_bridge_account_base_fee(1);
+    app.apply(state_tx);
+
+    let alice = get_alice_signing_key();
+    let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
+
+    let actions = vec![
+        InitBridgeAccountAction {
+            rollup_id,
+            asset: nria().into(),
+            fee_asset: nria().into(),
+            sudo_address: None,
+            withdrawer_address: None,
+        }
+        .into(),
+    ];
+
+    let tx = UnsignedTransaction {
+        params: TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .build(),
+        actions,
+    };
+    let signed_tx = Arc::new(tx.into_signed(&alice));
+    app.execute_transaction(signed_tx).await.unwrap();
+
+    let total_block_fees: u128 = app
+        .state
+        .get_block_fees()
+        .await
+        .expect("failed to get block fees")
+        .into_iter()
+        .map(|(_, fee)| fee)
+        .sum();
+    assert_eq!(total_block_fees, 1);
+}
+
+#[tokio::test]
+async fn ensure_correct_block_fees_bridge_lock() {
+    let alice = get_alice_signing_key();
+    let bridge = get_bridge_signing_key();
+    let bridge_address = astria_address(&bridge.address_bytes());
+    let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
+
+    let mut app = initialize_app(None, vec![]).await;
+    let mut state_tx = StateDelta::new(app.state.clone());
+    state_tx.put_transfer_base_fee(1).unwrap();
+    state_tx.put_bridge_lock_byte_cost_multiplier(1);
+    state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
+    state_tx
+        .put_bridge_account_ibc_asset(bridge_address, nria())
+        .unwrap();
+    app.apply(state_tx);
+
+    let actions = vec![
+        BridgeLockAction {
+            to: bridge_address,
+            amount: 1,
+            asset: nria().into(),
+            fee_asset: nria().into(),
+            destination_chain_address: rollup_id.to_string(),
+        }
+        .into(),
+    ];
+
+    let tx = UnsignedTransaction {
+        params: TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .build(),
+        actions,
+    };
+    let signed_tx = Arc::new(tx.into_signed(&alice));
+    app.execute_transaction(signed_tx).await.unwrap();
+
+    let test_deposit = Deposit::new(
+        bridge_address,
+        rollup_id,
+        1,
+        nria().into(),
+        rollup_id.to_string(),
+    );
+
+    let total_block_fees: u128 = app
+        .state
+        .get_block_fees()
+        .await
+        .expect("failed to get block fees")
+        .into_iter()
+        .map(|(_, fee)| fee)
+        .sum();
+    let expected_fees = 1 + get_deposit_byte_len(&test_deposit);
+    assert_eq!(total_block_fees, expected_fees);
+}
+
+#[tokio::test]
+async fn ensure_correct_block_fees_bridge_sudo_change() {
+    let alice = get_alice_signing_key();
+    let alice_address = astria_address(&alice.address_bytes());
+    let bridge = get_bridge_signing_key();
+    let bridge_address = astria_address(&bridge.address_bytes());
+
+    let mut app = initialize_app(None, vec![]).await;
+    let mut state_tx = StateDelta::new(app.state.clone());
+    state_tx.put_bridge_sudo_change_base_fee(1);
+    state_tx.put_bridge_account_sudo_address(bridge_address, alice_address);
+    state_tx
+        .increase_balance(bridge_address, nria(), 1)
+        .await
+        .unwrap();
+    app.apply(state_tx);
+
+    let actions = vec![
+        BridgeSudoChangeAction {
+            bridge_address,
+            new_sudo_address: None,
+            new_withdrawer_address: None,
+            fee_asset: nria().into(),
+        }
+        .into(),
+    ];
+
+    let tx = UnsignedTransaction {
+        params: TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .build(),
+        actions,
+    };
+    let signed_tx = Arc::new(tx.into_signed(&alice));
+    app.execute_transaction(signed_tx).await.unwrap();
+
+    let total_block_fees: u128 = app
+        .state
+        .get_block_fees()
+        .await
+        .expect("failed to get block fees")
+        .into_iter()
+        .map(|(_, fee)| fee)
+        .sum();
+    assert_eq!(total_block_fees, 1);
+}
+
+// TODO: Add test to ensure correct block fees for ICS20 withdrawal
