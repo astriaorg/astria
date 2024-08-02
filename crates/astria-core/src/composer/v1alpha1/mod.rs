@@ -13,10 +13,6 @@ use crate::{
 pub struct BuilderBundleError(BuilderBundleErrorKind);
 
 impl BuilderBundleError {
-    fn field_not_set(field: &'static str) -> Self {
-        Self(BuilderBundleErrorKind::FieldNotSet(field))
-    }
-
     fn invalid_rollup_data(error: RollupDataError) -> Self {
         Self(BuilderBundleErrorKind::InvalidRollupData(error))
     }
@@ -24,8 +20,6 @@ impl BuilderBundleError {
 
 #[derive(Debug, thiserror::Error)]
 enum BuilderBundleErrorKind {
-    #[error("{0} field not set")]
-    FieldNotSet(&'static str),
     #[error("{0} invalid rollup data")]
     InvalidRollupData(#[source] RollupDataError),
 }
@@ -69,7 +63,7 @@ impl Protobuf for BuilderBundle {
 
         let mut rollup_data_transactions = vec![];
         for transaction in transactions {
-            let rollup_data = RollupData::try_from_raw_ref(&transaction)
+            let rollup_data = RollupData::try_from_raw_ref(transaction)
                 .map_err(BuilderBundleError::invalid_rollup_data)?;
             rollup_data_transactions.push(rollup_data);
         }
@@ -85,7 +79,7 @@ impl Protobuf for BuilderBundle {
             transactions: self
                 .transactions
                 .iter()
-                .map(|transaction| transaction.to_raw())
+                .map(Protobuf::to_raw)
                 .collect(),
             parent_hash: self.parent_hash.clone().to_vec(),
         }
@@ -112,7 +106,6 @@ impl BuilderBundlePacketError {
     fn invalid_bundle(error: BuilderBundleError) -> Self {
         Self(BuilderBundlePacketErrorKind::InvalidBundle(error))
     }
-
 }
 
 #[derive(Clone, Debug)]
@@ -161,7 +154,6 @@ impl Protobuf for BuilderBundlePacket {
                 .map_err(BuilderBundlePacketError::invalid_bundle)?
         };
 
-
         Ok(BuilderBundlePacket {
             bundle,
             signature: Bytes::from(signature.clone()),
@@ -174,5 +166,4 @@ impl Protobuf for BuilderBundlePacket {
             signature: self.signature.clone().to_vec(),
         }
     }
-
 }
