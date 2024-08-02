@@ -24,10 +24,11 @@ pub(crate) struct Metrics {
     proposal_deposits: Histogram,
     proposal_transactions: Histogram,
     process_proposal_skipped_proposal: Counter,
+    check_tx_removed_failed_speculative_deliver_tx: Counter,
     check_tx_removed_too_large: Counter,
     check_tx_removed_expired: Counter,
-    check_tx_removed_failed_execution: Counter,
-    check_tx_duration_seconds_check_and_execute: Histogram,
+    check_tx_removed_failed_deliver_tx: Counter,
+    check_tx_duration_seconds_speculative_deliver_tx: Histogram,
     check_tx_duration_seconds_check_removed: Histogram,
     check_tx_duration_seconds_insert_to_app_mempool: Histogram,
     actions_per_transaction_in_mempool: Histogram,
@@ -103,12 +104,21 @@ impl Metrics {
         let check_tx_removed_too_large = counter!(CHECK_TX_REMOVED_TOO_LARGE);
 
         describe_counter!(
-            CHECK_TX_REMOVED_FAILED_EXECUTION,
+            CHECK_TX_REMOVED_FAILED_SPECULATIVE_DELIVER_TX,
+            Unit::Count,
+            "The number of transactions that have been removed from the mempool due to failing
+            a speculative deliver_tx"
+        );
+        let check_tx_removed_failed_speculative_deliver_tx =
+            counter!(CHECK_TX_REMOVED_FAILED_SPECULATIVE_DELIVER_TX);
+
+        describe_counter!(
+            CHECK_TX_REMOVED_FAILED_DELIVER_TX,
             Unit::Count,
             "The number of transactions that have been removed from the mempool due to failing \
-             execution in prepare_proposal()"
+             deliver_tx in prepare_proposal()"
         );
-        let check_tx_removed_failed_execution = counter!(CHECK_TX_REMOVED_FAILED_EXECUTION);
+        let check_tx_removed_failed_execution = counter!(CHECK_TX_REMOVED_FAILED_DELIVER_TX);
 
         describe_counter!(
             CHECK_TX_REMOVED_EXPIRED,
@@ -124,9 +134,9 @@ impl Metrics {
             "The amount of time taken in seconds to successfully complete the various stages of \
              check_tx"
         );
-        let check_tx_duration_seconds_check_and_execute = histogram!(
+        let check_tx_duration_seconds_speculative_deliver_tx = histogram!(
             CHECK_TX_DURATION_SECONDS,
-            CHECK_TX_STAGE => "check and execute"
+            CHECK_TX_STAGE => "speculative deliver tx to the app"
         );
         let check_tx_duration_seconds_check_removed = histogram!(
             CHECK_TX_DURATION_SECONDS,
@@ -166,10 +176,11 @@ impl Metrics {
             proposal_deposits,
             proposal_transactions,
             process_proposal_skipped_proposal,
+            check_tx_removed_failed_speculative_deliver_tx,
             check_tx_removed_too_large,
             check_tx_removed_expired,
-            check_tx_removed_failed_execution,
-            check_tx_duration_seconds_check_and_execute,
+            check_tx_removed_failed_deliver_tx: check_tx_removed_failed_execution,
+            check_tx_duration_seconds_speculative_deliver_tx,
             check_tx_duration_seconds_check_removed,
             check_tx_duration_seconds_insert_to_app_mempool,
             actions_per_transaction_in_mempool,
@@ -215,6 +226,11 @@ impl Metrics {
         self.process_proposal_skipped_proposal.increment(1);
     }
 
+    pub(crate) fn increment_check_tx_removed_failed_speculative_deliver_tx(&self) {
+        self.check_tx_removed_failed_speculative_deliver_tx
+            .increment(1);
+    }
+
     pub(crate) fn increment_check_tx_removed_too_large(&self) {
         self.check_tx_removed_too_large.increment(1);
     }
@@ -224,11 +240,14 @@ impl Metrics {
     }
 
     pub(crate) fn increment_check_tx_removed_failed_execution(&self) {
-        self.check_tx_removed_failed_execution.increment(1);
+        self.check_tx_removed_failed_deliver_tx.increment(1);
     }
 
-    pub(crate) fn record_check_tx_duration_seconds_check_and_execute(&self, duration: Duration) {
-        self.check_tx_duration_seconds_check_and_execute
+    pub(crate) fn record_check_tx_duration_seconds_speculative_deliver_tx(
+        &self,
+        duration: Duration,
+    ) {
+        self.check_tx_duration_seconds_speculative_deliver_tx
             .record(duration);
     }
 
@@ -273,7 +292,8 @@ metric_names!(pub const METRICS_NAMES:
     PROCESS_PROPOSAL_SKIPPED_PROPOSAL,
     CHECK_TX_REMOVED_TOO_LARGE,
     CHECK_TX_REMOVED_EXPIRED,
-    CHECK_TX_REMOVED_FAILED_EXECUTION,
+    CHECK_TX_REMOVED_FAILED_SPECULATIVE_DELIVER_TX,
+    CHECK_TX_REMOVED_FAILED_DELIVER_TX,
     CHECK_TX_REMOVED_FAILED_STATELESS,
     CHECK_TX_REMOVED_STALE_NONCE,
     CHECK_TX_REMOVED_ACCOUNT_BALANCE,
@@ -290,7 +310,8 @@ mod tests {
         CHECK_TX_DURATION_SECONDS,
         CHECK_TX_REMOVED_ACCOUNT_BALANCE,
         CHECK_TX_REMOVED_EXPIRED,
-        CHECK_TX_REMOVED_FAILED_EXECUTION,
+        CHECK_TX_REMOVED_FAILED_DELIVER_TX,
+        CHECK_TX_REMOVED_FAILED_SPECULATIVE_DELIVER_TX,
         CHECK_TX_REMOVED_FAILED_STATELESS,
         CHECK_TX_REMOVED_STALE_NONCE,
         CHECK_TX_REMOVED_TOO_LARGE,
@@ -337,10 +358,14 @@ mod tests {
             PROCESS_PROPOSAL_SKIPPED_PROPOSAL,
             "process_proposal_skipped_proposal",
         );
+        assert_const(
+            CHECK_TX_REMOVED_FAILED_SPECULATIVE_DELIVER_TX,
+            "check_tx_removed_failed_speculative_deliver_tx",
+        );
         assert_const(CHECK_TX_REMOVED_TOO_LARGE, "check_tx_removed_too_large");
         assert_const(CHECK_TX_REMOVED_EXPIRED, "check_tx_removed_expired");
         assert_const(
-            CHECK_TX_REMOVED_FAILED_EXECUTION,
+            CHECK_TX_REMOVED_FAILED_DELIVER_TX,
             "check_tx_removed_failed_execution",
         );
         assert_const(

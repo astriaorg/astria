@@ -109,7 +109,7 @@ async fn app_execute_transaction_transfer() {
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
-    app.execute_transaction(signed_tx).await.unwrap();
+    app.deliver_tx(signed_tx).await.unwrap();
 
     assert_eq!(
         app.state
@@ -166,7 +166,7 @@ async fn app_execute_transaction_transfer_not_native_token() {
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
-    app.execute_transaction(signed_tx).await.unwrap();
+    app.deliver_tx(signed_tx).await.unwrap();
 
     assert_eq!(
         app.state
@@ -232,7 +232,7 @@ async fn app_execute_transaction_transfer_balance_too_low_for_fee() {
 
     let signed_tx = Arc::new(tx.into_signed(&keypair));
     let res = app
-        .execute_transaction(signed_tx)
+        .deliver_tx(signed_tx)
         .await
         .unwrap_err()
         .root_cause()
@@ -271,7 +271,7 @@ async fn app_execute_transaction_sequence() {
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
-    app.execute_transaction(signed_tx).await.unwrap();
+    app.deliver_tx(signed_tx).await.unwrap();
     assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
 
     assert_eq!(
@@ -306,7 +306,7 @@ async fn app_execute_transaction_invalid_fee_asset() {
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
-    assert!(app.execute_transaction(signed_tx).await.is_err());
+    assert!(app.deliver_tx(signed_tx).await.is_err());
 }
 
 #[tokio::test]
@@ -330,7 +330,7 @@ async fn app_execute_transaction_validator_update() {
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
-    app.execute_transaction(signed_tx).await.unwrap();
+    app.deliver_tx(signed_tx).await.unwrap();
     assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
 
     let validator_updates = app.state.get_validator_updates().await.unwrap();
@@ -357,7 +357,7 @@ async fn app_execute_transaction_ibc_relayer_change_addition() {
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
-    app.execute_transaction(signed_tx).await.unwrap();
+    app.deliver_tx(signed_tx).await.unwrap();
     assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
     assert!(app.state.is_ibc_relayer(alice_address).await.unwrap());
 }
@@ -384,7 +384,7 @@ async fn app_execute_transaction_ibc_relayer_change_deletion() {
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
-    app.execute_transaction(signed_tx).await.unwrap();
+    app.deliver_tx(signed_tx).await.unwrap();
     assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
     assert!(!app.state.is_ibc_relayer(alice_address).await.unwrap());
 }
@@ -411,7 +411,7 @@ async fn app_execute_transaction_ibc_relayer_change_invalid() {
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
-    assert!(app.execute_transaction(signed_tx).await.is_err());
+    assert!(app.deliver_tx(signed_tx).await.is_err());
 }
 
 #[tokio::test]
@@ -434,7 +434,7 @@ async fn app_execute_transaction_sudo_address_change() {
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
-    app.execute_transaction(signed_tx).await.unwrap();
+    app.deliver_tx(signed_tx).await.unwrap();
     assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
 
     let sudo_address = app.state.get_sudo_address().await.unwrap();
@@ -468,7 +468,7 @@ async fn app_execute_transaction_sudo_address_change_error() {
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
     let res = app
-        .execute_transaction(signed_tx)
+        .deliver_tx(signed_tx)
         .await
         .unwrap_err()
         .root_cause()
@@ -496,7 +496,7 @@ async fn app_execute_transaction_fee_asset_change_addition() {
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
-    app.execute_transaction(signed_tx).await.unwrap();
+    app.deliver_tx(signed_tx).await.unwrap();
     assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
 
     assert!(app.state.is_allowed_fee_asset(&test_asset()).await.unwrap());
@@ -528,7 +528,7 @@ async fn app_execute_transaction_fee_asset_change_removal() {
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
-    app.execute_transaction(signed_tx).await.unwrap();
+    app.deliver_tx(signed_tx).await.unwrap();
     assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
 
     assert!(!app.state.is_allowed_fee_asset(test_asset()).await.unwrap());
@@ -554,7 +554,7 @@ async fn app_execute_transaction_fee_asset_change_invalid() {
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
     let res = app
-        .execute_transaction(signed_tx)
+        .deliver_tx(signed_tx)
         .await
         .unwrap_err()
         .root_cause()
@@ -598,7 +598,7 @@ async fn app_execute_transaction_init_bridge_account_ok() {
         .get_account_balance(alice_address, nria())
         .await
         .unwrap();
-    app.execute_transaction(signed_tx).await.unwrap();
+    app.deliver_tx(signed_tx).await.unwrap();
     assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
     assert_eq!(
         app.state
@@ -649,7 +649,7 @@ async fn app_execute_transaction_init_bridge_account_account_already_registered(
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
-    app.execute_transaction(signed_tx).await.unwrap();
+    app.deliver_tx(signed_tx).await.unwrap();
 
     let action = InitBridgeAccountAction {
         rollup_id,
@@ -667,7 +667,7 @@ async fn app_execute_transaction_init_bridge_account_account_already_registered(
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
-    assert!(app.execute_transaction(signed_tx).await.is_err());
+    assert!(app.deliver_tx(signed_tx).await.is_err());
 }
 
 #[tokio::test]
@@ -715,7 +715,7 @@ async fn app_execute_transaction_bridge_lock_action_ok() {
         .await
         .unwrap();
 
-    app.execute_transaction(signed_tx).await.unwrap();
+    app.deliver_tx(signed_tx).await.unwrap();
     assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
     let transfer_fee = app.state.get_transfer_base_fee().await.unwrap();
     let expected_deposit = Deposit::new(
@@ -780,7 +780,7 @@ async fn app_execute_transaction_bridge_lock_action_invalid_for_eoa() {
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
-    assert!(app.execute_transaction(signed_tx).await.is_err());
+    assert!(app.deliver_tx(signed_tx).await.is_err());
 }
 
 #[tokio::test]
@@ -808,7 +808,7 @@ async fn app_execute_transaction_invalid_nonce() {
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
-    let response = app.execute_transaction(signed_tx).await;
+    let response = app.deliver_tx(signed_tx).await;
 
     // check that tx was not executed by checking nonce and balance are unchanged
     assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 0);
@@ -855,7 +855,7 @@ async fn app_execute_transaction_invalid_chain_id() {
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
-    let response = app.execute_transaction(signed_tx).await;
+    let response = app.deliver_tx(signed_tx).await;
 
     // check that tx was not executed by checking nonce and balance are unchanged
     assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 0);
@@ -914,7 +914,7 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
     .into_signed(&alice);
 
     // make transfer
-    app.execute_transaction(Arc::new(signed_tx)).await.unwrap();
+    app.deliver_tx(Arc::new(signed_tx)).await.unwrap();
 
     // build double transfer exceeding balance
     let signed_tx_fail = UnsignedTransaction {
@@ -1018,7 +1018,7 @@ async fn app_execute_transaction_bridge_lock_unlock_action_ok() {
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
 
-    app.execute_transaction(signed_tx).await.unwrap();
+    app.deliver_tx(signed_tx).await.unwrap();
     assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
 
     // see can unlock through bridge unlock
@@ -1039,7 +1039,7 @@ async fn app_execute_transaction_bridge_lock_unlock_action_ok() {
     };
 
     let signed_tx = Arc::new(tx.into_signed(&bridge));
-    app.execute_transaction(signed_tx)
+    app.deliver_tx(signed_tx)
         .await
         .expect("executing bridge unlock action should succeed");
     assert_eq!(
@@ -1078,7 +1078,7 @@ async fn transaction_execution_records_fee_event() {
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
 
-    let events = app.execute_transaction(signed_tx).await.unwrap();
+    let events = app.deliver_tx(signed_tx).await.unwrap();
     let transfer_fee = app.state.get_transfer_base_fee().await.unwrap();
     let event = events.first().unwrap();
     assert_eq!(event.kind, "tx.fees");

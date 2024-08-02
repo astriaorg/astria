@@ -545,7 +545,7 @@ impl App {
             }
 
             // execute tx and store in `execution_results` list on success
-            match self.execute_transaction(tx.clone()).await {
+            match self.deliver_tx(tx.clone()).await {
                 Ok(events) => {
                     execution_results.push(ExecTxResult {
                         events,
@@ -663,7 +663,7 @@ impl App {
             }
 
             // execute tx and store in `execution_results` list on success
-            match self.execute_transaction(Arc::new(tx.clone())).await {
+            match self.deliver_tx(Arc::new(tx.clone())).await {
                 Ok(events) => {
                     execution_results.push(ExecTxResult {
                         events,
@@ -823,7 +823,7 @@ impl App {
                 let tx_hash = Sha256::digest(bytes).into();
                 self.mempool.remove(tx_hash).await;
 
-                match self.execute_transaction_bytes(bytes).await {
+                match self.deliver_tx_bytes(bytes).await {
                     Ok((_, events)) => tx_results.push(ExecTxResult {
                         events,
                         ..Default::default()
@@ -985,8 +985,8 @@ impl App {
     }
 
     /// Wrapper around [`Self::execute_transaction`] to deserialize from bytes.
-    #[instrument(name = "App::execute_transaction", skip_all)]
-    pub(crate) async fn execute_transaction_bytes(
+    #[instrument(name = "App::deliver_tx", skip_all)]
+    pub(crate) async fn deliver_tx_bytes(
         &mut self,
         bytes: &[u8],
     ) -> anyhow::Result<(Arc<SignedTransaction>, Vec<Event>)> {
@@ -1011,12 +1011,12 @@ impl App {
         let tx = Arc::new(tx);
         // Not providing context because this is inside a wrapper and the errors should be returned
         // transparently.
-        let events = self.execute_transaction(tx.clone()).await?;
+        let events = self.deliver_tx(tx.clone()).await?;
         Ok((tx, events))
     }
 
     /// Executes a signed transaction.
-    async fn execute_transaction(
+    async fn deliver_tx(
         &mut self,
         signed_tx: Arc<SignedTransaction>,
     ) -> anyhow::Result<Vec<Event>> {

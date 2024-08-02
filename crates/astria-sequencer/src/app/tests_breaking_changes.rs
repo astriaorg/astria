@@ -246,7 +246,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
-    app.execute_transaction(signed_tx).await.unwrap();
+    app.deliver_tx(signed_tx).await.unwrap();
 
     let tx = UnsignedTransaction {
         params: TransactionParams::builder()
@@ -265,7 +265,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         ],
     };
     let signed_tx = Arc::new(tx.into_signed(&bridge));
-    app.execute_transaction(signed_tx).await.unwrap();
+    app.deliver_tx(signed_tx).await.unwrap();
 
     let tx = UnsignedTransaction {
         params: TransactionParams::builder()
@@ -300,7 +300,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     };
 
     let signed_tx = Arc::new(tx.into_signed(&bridge));
-    app.execute_transaction(signed_tx).await.unwrap();
+    app.deliver_tx(signed_tx).await.unwrap();
 
     app.prepare_commit(storage.clone()).await.unwrap();
     app.commit(storage.clone()).await;

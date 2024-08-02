@@ -82,6 +82,7 @@ fn dynamic_error_to_abci_response(
     // FIXME: this is used as a catch-all right now, even though "internal error"
     //        might be misleading or wrong. Need to figure out how to map the
     //        currently opaque tx.check_and_execute to specific abci error codes.
+    metrics.increment_check_tx_removed_failed_speculative_deliver_tx();
     response::CheckTx {
         code: AbciErrorCode::INTERNAL_ERROR.into(),
         info: AbciErrorCode::INTERNAL_ERROR.to_string(),
@@ -165,19 +166,20 @@ async fn handle_check_tx(
 
     let tx_hash = sha2::Sha256::digest(&bytes).into();
 
-    let finished_check_and_execute = Instant::now();
+    let finished_speculative_deliver_tx = Instant::now();
     let snapshot = storage.latest_snapshot();
     let mut app = App::new(snapshot.clone(), mempool.clone(), metrics)
         .await
         .unwrap();
 
-    let (the_tx, _) = match app.execute_transaction_bytes(&bytes).await {
+    let (the_tx, _) = match app.deliver_tx_bytes(&bytes).await {
         Err(err) => return dynamic_error_to_abci_response(err, metrics),
         Ok(ret) => ret,
     };
 
-    metrics
-        .record_check_tx_duration_seconds_check_and_execute(finished_check_and_execute.elapsed());
+    metrics.record_check_tx_duration_seconds_speculative_deliver_tx(
+        finished_speculative_deliver_tx.elapsed(),
+    );
 
     if let Some(removal_reason) = mempool.check_removed_comet_bft(tx_hash).await {
         mempool.remove(tx_hash).await;
@@ -186,7 +188,7 @@ async fn handle_check_tx(
 
     let finished_check_removed = Instant::now();
     metrics.record_check_tx_duration_seconds_check_removed(
-        finished_check_removed.saturating_duration_since(finished_check_and_execute),
+        finished_check_removed.saturating_duration_since(finished_speculative_deliver_tx),
     );
 
     // tx is valid, push to mempool
