@@ -429,7 +429,7 @@ pub fn make_bridge_unlock_action(receipt: &TransactionReceipt) -> Action {
         })
         .unwrap(),
         fee_asset: denom,
-        bridge_address: Some(default_bridge_address()),
+        bridge_address: default_bridge_address(),
     };
     Action::BridgeUnlock(inner)
 }

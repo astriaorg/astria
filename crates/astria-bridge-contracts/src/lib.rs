@@ -458,7 +458,7 @@ where
             amount,
             memo,
             fee_asset: self.fee_asset.clone(),
-            bridge_address: Some(self.bridge_address),
+            bridge_address: self.bridge_address,
         };
 
         Ok(Action::BridgeUnlock(action))

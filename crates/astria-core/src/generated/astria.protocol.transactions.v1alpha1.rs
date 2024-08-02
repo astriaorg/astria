@@ -389,9 +389,7 @@ pub struct BridgeUnlockAction {
     /// memo for double spend prevention
     #[prost(string, tag = "4")]
     pub memo: ::prost::alloc::string::String,
-    /// the address of the bridge account to transfer from,
-    /// if the bridge account's withdrawer address is not the same as the bridge address.
-    /// if unset, the signer of the transaction is used.
+    /// the address of the bridge account to transfer from
     #[prost(message, optional, tag = "5")]
     pub bridge_address: ::core::option::Option<
         super::super::super::primitive::v1::Address,
