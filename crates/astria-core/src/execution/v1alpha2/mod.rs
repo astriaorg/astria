@@ -7,6 +7,10 @@ use crate::{
         IncorrectRollupIdLength,
         RollupId,
     },
+    sequencerblock::v1alpha1::block::{
+        Deposit,
+        DepositError,
+    },
     Protobuf,
 };
 
@@ -229,6 +233,205 @@ impl Protobuf for Block {
             // Cloning timestamp is effectively a copy because timestamp is just a (i32, i64)
             // tuple
             timestamp: Some(timestamp.clone()),
+        }
+    }
+}
+
+// TODO - move RollupData protobuf impl to its own file
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct RollupDataError(RollupDataErrorKind);
+
+impl RollupDataError {
+    fn field_not_set(field: &'static str) -> Self {
+        Self(RollupDataErrorKind::FieldNotSet(field))
+    }
+
+    fn invalid_deposit(source: DepositError) -> Self {
+        Self(RollupDataErrorKind::InvalidDeposit(source))
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum RollupDataErrorKind {
+    #[error("{0} field not set")]
+    FieldNotSet(&'static str),
+    #[error("{0} invalid deposit")]
+    InvalidDeposit(#[source] DepositError),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+#[cfg_attr(
+    feature = "serde",
+    serde(into = "crate::generated::sequencerblock::v1alpha1::RollupData")
+)]
+pub struct RollupData {
+    rollup_data_value: RollupDataValue,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum RollupDataValue {
+    SequenceData(Vec<u8>),
+    Deposit(Deposit),
+}
+
+impl RollupData {
+    pub fn rollup_data_value(&self) -> &RollupDataValue {
+        &self.rollup_data_value
+    }
+}
+
+impl From<RollupData> for crate::generated::sequencerblock::v1alpha1::RollupData {
+    fn from(value: RollupData) -> Self {
+        value.to_raw()
+    }
+}
+
+impl Protobuf for RollupData {
+    type Error = RollupDataError;
+    type Raw = crate::generated::sequencerblock::v1alpha1::RollupData;
+
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
+        let crate::generated::sequencerblock::v1alpha1::RollupData {
+            value,
+        } = raw;
+        let value = value.clone().ok_or(Self::Error::field_not_set(".value"))?;
+
+        let rollup_data_value = match value {
+            crate::generated::sequencerblock::v1alpha1::rollup_data::Value::SequencedData(
+                sequence_data,
+            ) => RollupDataValue::SequenceData(sequence_data),
+            crate::generated::sequencerblock::v1alpha1::rollup_data::Value::Deposit(deposit) => {
+                RollupDataValue::Deposit(
+                    Deposit::try_from_raw(deposit).map_err(RollupDataError::invalid_deposit)?,
+                )
+            }
+        };
+
+        Ok(RollupData {
+            rollup_data_value,
+        })
+    }
+
+    fn to_raw(&self) -> Self::Raw {
+        let value = match &self.rollup_data_value {
+            RollupDataValue::SequenceData(sequence_data) => {
+                crate::generated::sequencerblock::v1alpha1::rollup_data::Value::SequencedData(
+                    sequence_data.clone(),
+                )
+            }
+            RollupDataValue::Deposit(deposit) => {
+                crate::generated::sequencerblock::v1alpha1::rollup_data::Value::Deposit(
+                    deposit.clone().into_raw(),
+                )
+            }
+        };
+
+        crate::generated::sequencerblock::v1alpha1::RollupData {
+            value: Some(value),
+        }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct ExecuteBlockResponseError(ExecuteBlockResponseErrorKind);
+
+impl ExecuteBlockResponseError {
+    fn field_not_set(field: &'static str) -> Self {
+        Self(ExecuteBlockResponseErrorKind::FieldNotSet(field))
+    }
+
+    fn invalid_rollup_data(source: RollupDataError) -> Self {
+        Self(ExecuteBlockResponseErrorKind::InvalidRollupData(source))
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum ExecuteBlockResponseErrorKind {
+    #[error("{0} field not set")]
+    FieldNotSet(&'static str),
+    #[error("{0} invalid rollup data")]
+    InvalidRollupData(#[source] RollupDataError),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+#[cfg_attr(
+    feature = "serde",
+    serde(into = "crate::generated::execution::v1alpha2::ExecuteBlockResponse")
+)]
+pub struct ExecuteBlockResponse {
+    block: Block,
+    included_transactions: Vec<RollupData>,
+}
+
+impl ExecuteBlockResponse {
+    #[must_use]
+    pub fn block(&self) -> &Block {
+        &self.block
+    }
+
+    #[must_use]
+    pub fn included_transactions(&self) -> &[RollupData] {
+        &self.included_transactions
+    }
+}
+
+impl From<ExecuteBlockResponse> for raw::ExecuteBlockResponse {
+    fn from(value: ExecuteBlockResponse) -> Self {
+        value.to_raw()
+    }
+}
+
+impl Protobuf for ExecuteBlockResponse {
+    type Error = ExecuteBlockResponseError;
+    type Raw = raw::ExecuteBlockResponse;
+
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
+        let raw::ExecuteBlockResponse {
+            block,
+            included_transactions,
+        } = raw;
+        let block = {
+            let Some(block) = block else {
+                return Err(Self::Error::field_not_set(".block"));
+            };
+            if let Ok(parsed_block) = Block::try_from_raw_ref(block) {
+                Ok(parsed_block)
+            } else {
+                return Err(Self::Error::field_not_set(".block"));
+            }
+        }?;
+
+        let included_transactions = included_transactions
+            .iter()
+            .map(|rollup_data| RollupData::try_from_raw_ref(rollup_data))
+            .collect::<Result<Vec<RollupData>, _>>()
+            .map_err(Self::Error::invalid_rollup_data)?;
+
+        Ok(Self {
+            block,
+            included_transactions,
+        })
+    }
+
+    fn to_raw(&self) -> Self::Raw {
+        let Self {
+            block,
+            included_transactions,
+        } = self;
+        let block = block.to_raw();
+
+        let included_transactions = included_transactions
+            .iter()
+            .map(|rollup_data| rollup_data.to_raw())
+            .collect();
+
+        Self::Raw {
+            block: Some(block),
+            included_transactions,
         }
     }
 }
