@@ -38,7 +38,10 @@ use cnidarium::{
     StateDelta,
     Storage,
 };
-use prost::Message as _;
+use prost::{
+    Message as _,
+    Name,
+};
 use sha2::{
     Digest as _,
     Sha256,
@@ -804,16 +807,13 @@ impl App {
                 .context("failed to execute block")?;
 
             // skip the first two transactions, as they are the rollup data commitments
-            for tx in finalize_block.txs.iter().skip(2) {
+            for bytes in finalize_block.txs.iter().skip(2) {
                 // remove any included txs from the mempool
-                let tx_hash = Sha256::digest(tx).into();
+                let tx_hash = Sha256::digest(bytes).into();
                 self.mempool.remove(tx_hash).await;
 
-                let signed_tx = signed_transaction_from_bytes(tx)
-                    .context("protocol error; only valid txs should be finalized")?;
-
-                match self.execute_transaction(Arc::new(signed_tx)).await {
-                    Ok(events) => tx_results.push(ExecTxResult {
+                match self.execute_transaction_bytes(bytes).await {
+                    Ok((_, events)) => tx_results.push(ExecTxResult {
                         events,
                         ..Default::default()
                     }),
@@ -971,6 +971,28 @@ impl App {
             .expect("components should not retain copies of shared state");
 
         Ok(self.apply(state_tx))
+    }
+
+    /// Wrapper around [`Self::execute_transaction`] to deserialize from bytes.
+    pub(crate) async fn execute_transaction_bytes(
+        &mut self,
+        bytes: &[u8],
+    ) -> anyhow::Result<(Arc<SignedTransaction>, Vec<Event>)> {
+        let tx = raw::SignedTransaction::decode(bytes)
+            .with_context(|| {
+                format!(
+                    "failed decoding bytes as `{}`",
+                    raw::SignedTransaction::full_name()
+                )
+            })
+            .and_then(|proto| {
+                SignedTransaction::try_from_raw(proto).context("transaction contains invalid data")
+            })?;
+        let tx = Arc::new(tx);
+        // Not providing context because this is inside a wrapper and the errors should be returned
+        // transparently.
+        let events = self.execute_transaction(tx.clone()).await?;
+        Ok((tx, events))
     }
 
     /// Executes a signed transaction.

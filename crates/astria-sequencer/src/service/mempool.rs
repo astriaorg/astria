@@ -8,20 +8,12 @@ use std::{
 };
 
 use anyhow::Context as _;
-use astria_core::{
-    generated::protocol::transaction::v1alpha1 as raw,
-    protocol::{
-        abci::AbciErrorCode,
-        transaction::v1alpha1::SignedTransaction,
-    },
-};
+use astria_core::protocol::abci::AbciErrorCode;
 use cnidarium::Storage;
 use futures::{
     Future,
-    FutureExt,
-    TryFutureExt as _,
+    FutureExt as _,
 };
-use prost::Message as _;
 use tendermint::v0_38::abci::{
     request,
     response,
@@ -36,15 +28,10 @@ use tracing::{
 };
 
 use crate::{
-    accounts,
-    address,
-    app::ActionHandler as _,
-    mempool::{
-        Mempool as AppMempool,
-        RemovalReason,
-    },
+    accounts::StateReadExt as _,
+    app::App,
+    mempool::RemovalReason,
     metrics::Metrics,
-    transaction,
 };
 
 const MAX_TX_SIZE: usize = 256_000; // 256 KB
@@ -56,15 +43,19 @@ const MAX_TX_SIZE: usize = 256_000; // 256 KB
 #[derive(Clone)]
 pub(crate) struct Mempool {
     storage: Storage,
-    inner: AppMempool,
+    mempool: crate::mempool::Mempool,
     metrics: &'static Metrics,
 }
 
 impl Mempool {
-    pub(crate) fn new(storage: Storage, mempool: AppMempool, metrics: &'static Metrics) -> Self {
+    pub(crate) fn new(
+        storage: Storage,
+        mempool: crate::mempool::Mempool,
+        metrics: &'static Metrics,
+    ) -> Self {
         Self {
             storage,
-            inner: mempool,
+            mempool,
             metrics,
         }
     }
@@ -83,13 +74,13 @@ impl Service<MempoolRequest> for Mempool {
         use penumbra_tower_trace::v038::RequestExt as _;
         let span = req.create_span();
         let storage = self.storage.clone();
-        let mut mempool = self.inner.clone();
+        let mempool = self.mempool.clone();
         let metrics = self.metrics;
         async move {
             let rsp = match req {
-                MempoolRequest::CheckTx(req) => MempoolResponse::CheckTx(
-                    handle_check_tx(req, storage.latest_snapshot(), &mut mempool, metrics).await,
-                ),
+                MempoolRequest::CheckTx(req) => {
+                    MempoolResponse::CheckTx(handle_check_tx(req, storage, mempool, metrics).await)
+                }
             };
             Ok(rsp)
         }
@@ -106,131 +97,41 @@ impl Service<MempoolRequest> for Mempool {
 /// If the tx passes all checks, status code 0 is returned.
 #[allow(clippy::too_many_lines)]
 #[instrument(skip_all)]
-async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'static>(
+async fn handle_check_tx(
     req: request::CheckTx,
-    state: S,
-    mempool: &mut AppMempool,
+    storage: Storage,
+    mempool: crate::mempool::Mempool,
     metrics: &'static Metrics,
 ) -> response::CheckTx {
     use sha2::Digest as _;
 
-    let start_parsing = Instant::now();
-
     let request::CheckTx {
-        tx, ..
+        tx: bytes, ..
     } = req;
 
-    let tx_hash = sha2::Sha256::digest(&tx).into();
-    let tx_len = tx.len();
+    let tx_hash = sha2::Sha256::digest(&bytes).into();
 
-    if tx_len > MAX_TX_SIZE {
+    // FIXME: this might be a good candidate to move to `App::execute_transaction_bytes`.
+    if bytes.len() > MAX_TX_SIZE {
         mempool.remove(tx_hash).await;
         metrics.increment_check_tx_removed_too_large();
         return response::CheckTx {
             code: AbciErrorCode::TRANSACTION_TOO_LARGE.into(),
             log: format!(
                 "transaction size too large; allowed: {MAX_TX_SIZE} bytes, got {}",
-                tx.len()
+                bytes.len()
             ),
             info: AbciErrorCode::TRANSACTION_TOO_LARGE.to_string(),
             ..response::CheckTx::default()
         };
     }
 
-    let raw_signed_tx = match raw::SignedTransaction::decode(tx) {
-        Ok(tx) => tx,
-        Err(e) => {
-            mempool.remove(tx_hash).await;
-            return response::CheckTx {
-                code: AbciErrorCode::INVALID_PARAMETER.into(),
-                log: e.to_string(),
-                info: "failed decoding bytes as a protobuf SignedTransaction".into(),
-                ..response::CheckTx::default()
-            };
-        }
-    };
-    let signed_tx = match SignedTransaction::try_from_raw(raw_signed_tx) {
-        Ok(tx) => tx,
-        Err(e) => {
-            mempool.remove(tx_hash).await;
-            return response::CheckTx {
-                code: AbciErrorCode::INVALID_PARAMETER.into(),
-                info: "the provided bytes was not a valid protobuf-encoded SignedTransaction, or \
-                       the signature was invalid"
-                    .into(),
-                log: e.to_string(),
-                ..response::CheckTx::default()
-            };
-        }
-    };
+    let snapshot = storage.latest_snapshot();
+    let mut app = App::new(snapshot.clone(), mempool.clone(), metrics)
+        .await
+        .unwrap();
 
-    let finished_parsing = Instant::now();
-    metrics.record_check_tx_duration_seconds_parse_tx(
-        finished_parsing.saturating_duration_since(start_parsing),
-    );
-
-    if let Err(e) = signed_tx.check_stateless(()).await {
-        mempool.remove(tx_hash).await;
-        metrics.increment_check_tx_removed_failed_stateless();
-        return response::CheckTx {
-            code: AbciErrorCode::INVALID_PARAMETER.into(),
-            info: "transaction failed stateless check".into(),
-            log: e.to_string(),
-            ..response::CheckTx::default()
-        };
-    };
-
-    let finished_check_stateless = Instant::now();
-    metrics.record_check_tx_duration_seconds_check_stateless(
-        finished_check_stateless.saturating_duration_since(finished_parsing),
-    );
-
-    if let Err(e) = transaction::check_nonce_mempool(&signed_tx, &state).await {
-        mempool.remove(tx_hash).await;
-        metrics.increment_check_tx_removed_stale_nonce();
-        return response::CheckTx {
-            code: AbciErrorCode::INVALID_NONCE.into(),
-            info: "failed verifying transaction nonce".into(),
-            log: e.to_string(),
-            ..response::CheckTx::default()
-        };
-    };
-
-    let finished_check_nonce = Instant::now();
-    metrics.record_check_tx_duration_seconds_check_nonce(
-        finished_check_nonce.saturating_duration_since(finished_check_stateless),
-    );
-
-    if let Err(e) = transaction::check_chain_id_mempool(&signed_tx, &state).await {
-        mempool.remove(tx_hash).await;
-        return response::CheckTx {
-            code: AbciErrorCode::INVALID_CHAIN_ID.into(),
-            info: "failed verifying chain id".into(),
-            log: e.to_string(),
-            ..response::CheckTx::default()
-        };
-    }
-
-    let finished_check_chain_id = Instant::now();
-    metrics.record_check_tx_duration_seconds_check_chain_id(
-        finished_check_chain_id.saturating_duration_since(finished_check_nonce),
-    );
-
-    if let Err(e) = transaction::check_balance_mempool(&signed_tx, &state).await {
-        mempool.remove(tx_hash).await;
-        metrics.increment_check_tx_removed_account_balance();
-        return response::CheckTx {
-            code: AbciErrorCode::INSUFFICIENT_FUNDS.into(),
-            info: "failed verifying account balance".into(),
-            log: e.to_string(),
-            ..response::CheckTx::default()
-        };
-    };
-
-    let finished_check_balance = Instant::now();
-    metrics.record_check_tx_duration_seconds_check_balance(
-        finished_check_balance.saturating_duration_since(finished_check_chain_id),
-    );
+    let (the_tx, _) = app.execute_transaction_bytes(&bytes).await.unwrap();
 
     if let Some(removal_reason) = mempool.check_removed_comet_bft(tx_hash).await {
         mempool.remove(tx_hash).await;
@@ -258,16 +159,12 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
     };
 
     let finished_check_removed = Instant::now();
-    metrics.record_check_tx_duration_seconds_check_removed(
-        finished_check_removed.saturating_duration_since(finished_check_balance),
-    );
 
     // tx is valid, push to mempool
-    let current_account_nonce = match state
-        .try_base_prefixed(&signed_tx.verification_key().address_bytes())
-        .and_then(|address| state.get_account_nonce(address))
+    let current_account_nonce = match snapshot
+        .get_account_nonce(the_tx.address_bytes())
         .await
-        .context("failed fetching nonce for account")
+        .context("failed fetching nonce for transaction signer")
     {
         Err(err) => {
             return response::CheckTx {
@@ -280,10 +177,8 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
         Ok(nonce) => nonce,
     };
 
-    let actions_count = signed_tx.actions().len();
-
     mempool
-        .insert(signed_tx, current_account_nonce)
+        .insert(the_tx.clone(), current_account_nonce)
         .await
         .expect(
             "tx nonce is greater than or equal to current account nonce; this was checked in \
@@ -293,8 +188,8 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
 
     metrics
         .record_check_tx_duration_seconds_insert_to_app_mempool(finished_check_removed.elapsed());
-    metrics.record_actions_per_transaction_in_mempool(actions_count);
-    metrics.record_transaction_in_mempool_size_bytes(tx_len);
+    metrics.record_actions_per_transaction_in_mempool(the_tx.actions().len());
+    metrics.record_transaction_in_mempool_size_bytes(bytes.len());
     metrics.set_transactions_in_mempool_total(mempool_len);
 
     response::CheckTx::default()

@@ -2,7 +2,10 @@
 
 use std::{
     collections::HashMap,
-    sync::OnceLock,
+    sync::{
+        Arc,
+        OnceLock,
+    },
     time::Duration,
 };
 
@@ -155,7 +158,7 @@ fn init_mempool<T: MempoolSize>() -> Mempool {
     let mempool = Mempool::new();
     runtime.block_on(async {
         for tx in transactions().iter().take(T::checked_size()) {
-            mempool.insert(tx.clone(), 0).await.unwrap();
+            mempool.insert(Arc::new(tx.clone()), 0).await.unwrap();
         }
         for i in 0..super::REMOVAL_CACHE_SIZE {
             let hash = Sha256::digest(i.to_le_bytes()).into();
@@ -193,7 +196,7 @@ fn insert<T: MempoolSize>(bencher: divan::Bencher) {
         .with_inputs(|| (init_mempool::<T>(), get_unused_tx::<T>()))
         .bench_values(move |(mempool, tx)| {
             runtime.block_on(async {
-                mempool.insert(tx, 0).await.unwrap();
+                mempool.insert(Arc::new(tx), 0).await.unwrap();
             });
         });
 }
