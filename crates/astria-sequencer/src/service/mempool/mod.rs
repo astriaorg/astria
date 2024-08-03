@@ -43,6 +43,9 @@ use crate::{
     transaction::InvalidNonce,
 };
 
+#[cfg(test)]
+mod tests;
+
 impl<'a> From<&'a crate::app::TransactionTooLarge> for response::CheckTx {
     fn from(value: &'a crate::app::TransactionTooLarge) -> Self {
         response::CheckTx {
