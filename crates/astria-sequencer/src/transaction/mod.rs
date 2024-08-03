@@ -12,13 +12,12 @@ use astria_core::protocol::transaction::v1alpha1::{
     action::Action,
     SignedTransaction,
 };
-pub(crate) use checks::{
-    check_balance_for_total_fees_and_transfers,
-    check_balance_mempool,
-    check_chain_id_mempool,
-    check_nonce_mempool,
-};
+pub(crate) use checks::check_balance_for_total_fees_and_transfers;
 use cnidarium::StateWrite;
+
+#[cfg(test)]
+mod tests;
+
 // Conditional to quiet warnings. This object is used throughout the codebase,
 // but is never explicitly named - hence Rust warns about it being unused.
 #[cfg(test)]
@@ -60,20 +59,18 @@ impl fmt::Display for InvalidChainId {
 
 impl std::error::Error for InvalidChainId {}
 
-#[derive(Debug)]
-pub(crate) struct InvalidNonce(pub(crate) u32);
-
-impl fmt::Display for InvalidNonce {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "provided nonce {} does not match expected next nonce",
-            self.0,
-        )
-    }
+#[derive(Debug, thiserror::Error, PartialEq)]
+#[error("expected current nonce `{current}`, but transaction contained `{in_transaction}`")]
+pub(crate) struct InvalidNonce {
+    pub(crate) current: u32,
+    pub(crate) in_transaction: u32,
 }
 
-impl std::error::Error for InvalidNonce {}
+impl InvalidNonce {
+    pub(crate) fn is_ahead(&self) -> bool {
+        self.in_transaction > self.current
+    }
+}
 
 #[async_trait::async_trait]
 impl ActionHandler for SignedTransaction {
@@ -163,13 +160,17 @@ impl ActionHandler for SignedTransaction {
             InvalidChainId(self.chain_id().to_string())
         );
 
-        // Nonce should be equal to the number of executed transactions before this tx.
-        // First tx has nonce 0.
-        let curr_nonce = state
+        let current_account_nonce = state
             .get_account_nonce(self.address_bytes())
             .await
             .context("failed to get nonce for transaction signer")?;
-        ensure!(curr_nonce == self.nonce(), InvalidNonce(self.nonce()));
+        ensure!(
+            current_account_nonce == self.nonce(),
+            InvalidNonce {
+                current: current_account_nonce,
+                in_transaction: self.nonce(),
+            }
+        );
 
         // Should have enough balance to cover all actions.
         check_balance_for_total_fees_and_transfers(self, &state)
