@@ -14,6 +14,10 @@ use astria_core::protocol::transaction::v1alpha1::{
 };
 pub(crate) use checks::check_balance_for_total_fees_and_transfers;
 use cnidarium::StateWrite;
+
+#[cfg(test)]
+mod tests;
+
 // Conditional to quiet warnings. This object is used throughout the codebase,
 // but is never explicitly named - hence Rust warns about it being unused.
 #[cfg(test)]
