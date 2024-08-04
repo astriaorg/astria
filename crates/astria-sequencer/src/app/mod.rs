@@ -492,15 +492,16 @@ impl App {
         // get copy of transactions to execute from mempool
         let current_account_nonce_getter =
             |address: [u8; 20]| self.state.get_account_nonce(address);
-        let mut pending_txs = self
+        let pending_txs = self
             .mempool
             .builder_queue(current_account_nonce_getter)
             .await
             .expect("failed to fetch pending transactions");
 
-        while let Some((timemarked_tx, _)) = pending_txs.pop() {
-            let tx_hash_base64 = telemetry::display::base64(&timemarked_tx.tx_hash()).to_string();
-            let tx = timemarked_tx.signed_tx();
+        let mut unused_count = pending_txs.len();
+        for (tx_hash, tx) in pending_txs {
+            unused_count = unused_count.saturating_sub(1);
+            let tx_hash_base64 = telemetry::display::base64(&tx_hash).to_string();
             let bytes = tx.to_raw().encode_to_vec();
             let tx_len = bytes.len();
             info!(transaction_hash = %tx_hash_base64, "executing transaction");
@@ -545,7 +546,7 @@ impl App {
             }
 
             // execute tx and store in `execution_results` list on success
-            match self.execute_transaction(Arc::new(tx.clone())).await {
+            match self.execute_transaction(tx.clone()).await {
                 Ok(events) => {
                     execution_results.push(ExecTxResult {
                         events,
@@ -605,7 +606,7 @@ impl App {
             excluded_txs.saturating_add(failed_tx_count),
         );
 
-        debug!("{} {}", pending_txs.len(), "leftover pending transactions");
+        debug!("{unused_count} leftover pending transactions");
         self.metrics
             .set_transactions_in_mempool_total(self.mempool.len().await);
 
@@ -891,9 +892,7 @@ impl App {
             .context("failed to write sequencer block to state")?;
 
         // update the priority of any txs in the mempool based on the updated app state
-        update_mempool_after_finalization(&mut self.mempool, &state_tx)
-            .await
-            .context("failed to update mempool after finalization")?;
+        update_mempool_after_finalization(&mut self.mempool, &state_tx).await;
 
         // events that occur after end_block are ignored here;
         // there should be none anyways.
@@ -1149,9 +1148,9 @@ impl App {
 async fn update_mempool_after_finalization<S: accounts::StateReadExt>(
     mempool: &mut Mempool,
     state: &S,
-) -> anyhow::Result<()> {
+) {
     let current_account_nonce_getter = |address: [u8; 20]| state.get_account_nonce(address);
-    mempool.run_maintenance(current_account_nonce_getter).await
+    mempool.run_maintenance(current_account_nonce_getter).await;
 }
 
 /// relevant data of a block being executed.

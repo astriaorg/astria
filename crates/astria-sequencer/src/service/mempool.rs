@@ -1,5 +1,6 @@
 use std::{
     pin::Pin,
+    sync::Arc,
     task::{
         Context,
         Poll,
@@ -167,7 +168,10 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
 
     if let Err(e) = transaction::check_stateless(&signed_tx).await {
         mempool
-            .remove_tx_invalid(&signed_tx, RemovalReason::FailedCheckTx(e.to_string()))
+            .remove_tx_invalid(
+                Arc::new(signed_tx),
+                RemovalReason::FailedCheckTx(e.to_string()),
+            )
             .await;
         metrics.increment_check_tx_removed_failed_stateless();
         return response::CheckTx {
@@ -200,7 +204,10 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
 
     if let Err(e) = transaction::check_chain_id_mempool(&signed_tx, &state).await {
         mempool
-            .remove_tx_invalid(&signed_tx, RemovalReason::FailedCheckTx(e.to_string()))
+            .remove_tx_invalid(
+                Arc::new(signed_tx),
+                RemovalReason::FailedCheckTx(e.to_string()),
+            )
             .await;
         return response::CheckTx {
             code: AbciErrorCode::INVALID_CHAIN_ID.into(),
@@ -217,7 +224,10 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
 
     if let Err(e) = transaction::check_balance_mempool(&signed_tx, &state).await {
         mempool
-            .remove_tx_invalid(&signed_tx, RemovalReason::FailedCheckTx(e.to_string()))
+            .remove_tx_invalid(
+                Arc::new(signed_tx),
+                RemovalReason::FailedCheckTx(e.to_string()),
+            )
             .await;
         metrics.increment_check_tx_removed_account_balance();
         return response::CheckTx {
@@ -300,7 +310,7 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
             return response::CheckTx {
                 code: AbciErrorCode::INTERNAL_ERROR.into(),
                 info: AbciErrorCode::INTERNAL_ERROR.to_string(),
-                log: format!("transaction failed execution because: {err:#?}"),
+                log: format!("transaction failed execution because: {err:#}"),
                 ..response::CheckTx::default()
             };
         }
@@ -309,11 +319,14 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
 
     let actions_count = signed_tx.actions().len();
 
-    if let Err(err) = mempool.insert(signed_tx, current_account_nonce).await {
+    if let Err(err) = mempool
+        .insert(Arc::new(signed_tx), current_account_nonce)
+        .await
+    {
         return response::CheckTx {
             code: AbciErrorCode::TRANSACTION_INSERTION_FAILED.into(),
             info: "transaction insertion failed".into(),
-            log: format!("Transaction insertion failed because: {err}"),
+            log: format!("transaction insertion failed because: {err}"),
             ..response::CheckTx::default()
         };
     }
