@@ -4,7 +4,6 @@ mod transactions_container;
 use std::{
     collections::{
         HashMap,
-        HashSet,
         VecDeque,
     },
     future::Future,
@@ -14,18 +13,22 @@ use std::{
 
 use astria_core::protocol::transaction::v1alpha1::SignedTransaction;
 use tokio::{
+    join,
     sync::RwLock,
     time::Duration,
 };
-use tracing::instrument;
+use tracing::{
+    error,
+    instrument,
+};
+pub(crate) use transactions_container::InsertionError;
 use transactions_container::{
-    BuilderQueue,
-    InsertionError,
+    ParkedTransactions,
+    PendingTransactions,
     TimemarkedTransaction,
-    TransactionContainer,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub(crate) enum RemovalReason {
     Expired,
     NonceStale,
@@ -34,10 +37,13 @@ pub(crate) enum RemovalReason {
     FailedCheckTx(String),
 }
 
-const TX_TTL: Duration = Duration::from_secs(240); // How long transactions are considered valid in the mempool.
-const PARKED_SIZE_LIMIT: usize = 15; // Max number of parked transactions allowed per account.
-const PENDING_SIZE_LIMIT: usize = 0; // Placeholder, is not enforced.
-const REMOVAL_CACHE_SIZE: usize = 4096; // Max number of transactions to keep in the removal cache. Should be larger than the max number of transactions allowed in the cometBFT mempool.
+/// How long transactions are considered valid in the mempool.
+const TX_TTL: Duration = Duration::from_secs(240);
+/// Max number of parked transactions allowed per account.
+const MAX_PARKED_TXS_PER_ACCOUNT: usize = 15;
+/// Max number of transactions to keep in the removal cache. Should be larger than the max number of
+/// transactions allowed in the cometBFT mempool.
+const REMOVAL_CACHE_SIZE: usize = 4096;
 
 /// `RemovalCache` is used to signal to `CometBFT` that a
 /// transaction can be removed from the `CometBFT` mempool.
@@ -87,39 +93,34 @@ impl RemovalCache {
     }
 }
 
-/// [`Mempool`] is an account-based structure for maintaining transactions
-/// for execution.
+/// [`Mempool`] is an account-based structure for maintaining transactions for execution.
 ///
-/// The transactions are split between pending and parked, where pending
-/// transactions are ready for execution and parked transactions could be
-/// executable in the future.
+/// The transactions are split between pending and parked, where pending transactions are ready for
+/// execution and parked transactions could be executable in the future.
 ///
-/// The mempool exposes the pending transactions through `builder_queue()`,
-/// which returns all pending transactions sorted by the difference between the
-/// transaction nonce and the current account nonce, and then by time first
-/// seen. These transactions are returned as a copy.
+/// The mempool exposes the pending transactions through `builder_queue()`, which returns a copy of
+/// all pending transactions sorted in the order in which they should be executed. The sort order
+/// is firstly by the difference between the transaction nonce and the account's current nonce
+/// (ascending), and then by time first seen (ascending).
 ///
 /// The mempool implements the following policies:
 /// 1. Nonce replacement is not allowed.
-/// 2. Accounts cannot have more than `PARKED_SIZE_LIMIT` transactions in their parked queues.
+/// 2. Accounts cannot have more than `MAX_PARKED_TXS_PER_ACCOUNT` transactions in their parked
+///    queues.
 /// 3. There is no account limit on pending transactions.
 /// 4. Transactions will expire and can be removed after `TX_TTL` time.
 /// 5. If an account has a transaction removed for being invalid or expired, all transactions for
-///    that account with a higher nonce can be removed as well. This is due to the fact that we do
+///    that account with a higher nonce will be removed as well. This is due to the fact that we do
 ///    not execute failing transactions, so a transaction 'failing' will mean that further account
 ///    nonces will not be able to execute either.
 ///
 /// Future extensions to this mempool can include:
 /// - maximum mempool size
 /// - account balance aware pending queue
-///
-/// Note: when grabbing locks to hold, grab them in order of: all, pending, parked. This
-/// is just a convention to prevent deadlocks.
 #[derive(Clone)]
 pub(crate) struct Mempool {
-    all: Arc<RwLock<HashSet<[u8; 32]>>>,
-    pending: Arc<RwLock<TransactionContainer>>,
-    parked: Arc<RwLock<TransactionContainer>>,
+    pending: Arc<RwLock<PendingTransactions>>,
+    parked: Arc<RwLock<ParkedTransactions<MAX_PARKED_TXS_PER_ACCOUNT>>>,
     comet_bft_removal_cache: Arc<RwLock<RemovalCache>>,
 }
 
@@ -127,17 +128,8 @@ impl Mempool {
     #[must_use]
     pub(crate) fn new() -> Self {
         Self {
-            all: Arc::new(RwLock::new(HashSet::<[u8; 32]>::new())),
-            pending: Arc::new(RwLock::new(TransactionContainer::new(
-                true,
-                PENDING_SIZE_LIMIT,
-                TX_TTL,
-            ))),
-            parked: Arc::new(RwLock::new(TransactionContainer::new(
-                false,
-                PARKED_SIZE_LIMIT,
-                TX_TTL,
-            ))),
+            pending: Arc::new(RwLock::new(PendingTransactions::new(TX_TTL))),
+            parked: Arc::new(RwLock::new(ParkedTransactions::new(TX_TTL))),
             comet_bft_removal_cache: Arc::new(RwLock::new(RemovalCache::new(
                 NonZeroUsize::try_from(REMOVAL_CACHE_SIZE)
                     .expect("Removal cache cannot be zero sized"),
@@ -149,7 +141,12 @@ impl Mempool {
     #[must_use]
     #[instrument(skip_all)]
     pub(crate) async fn len(&self) -> usize {
-        self.all.read().await.len()
+        #[rustfmt::skip]
+        let (pending_len, parked_len) = join!(
+            async { self.pending.read().await.len() },
+            async { self.parked.read().await.len() }
+        );
+        pending_len.saturating_add(parked_len)
     }
 
     /// Inserts a transaction into the mempool and does not allow for transaction replacement.
@@ -157,72 +154,58 @@ impl Mempool {
     #[instrument(skip_all)]
     pub(crate) async fn insert(
         &self,
-        tx: SignedTransaction,
+        tx: Arc<SignedTransaction>,
         current_account_nonce: u32,
     ) -> anyhow::Result<(), InsertionError> {
-        let timemarked_tx = Arc::new(TimemarkedTransaction::new(tx));
+        let timemarked_tx = TimemarkedTransaction::new(tx);
 
-        // check if already tracked
-        if self.all.read().await.contains(&timemarked_tx.tx_hash()) {
-            return Err(InsertionError::AlreadyPresent);
-        }
-
-        // grab needed locks in normal order
-        let mut all = self.all.write().await;
-        let mut pending = self.pending.write().await;
-        let mut parked = self.parked.write().await;
+        let (mut pending, mut parked) = join!(self.pending.write(), self.parked.write());
 
         // try insert into pending (will fail if nonce is gapped or already present)
-        let mut success = pending.add(timemarked_tx.clone(), current_account_nonce);
-
-        match success {
+        match pending.add(timemarked_tx.clone(), current_account_nonce) {
             Err(InsertionError::NonceGap) => {
+                // Release the lock asap.
+                drop(pending);
                 // try to add to parked queue
-                success = parked.add(timemarked_tx.clone(), current_account_nonce);
+                parked.add(timemarked_tx, current_account_nonce)
             }
-            Err(
+            error @ Err(
                 InsertionError::AlreadyPresent
                 | InsertionError::NonceTooLow
                 | InsertionError::NonceTaken
                 | InsertionError::AccountSizeLimit,
-            ) => {
-                // noop
-            }
+            ) => error,
             Ok(()) => {
                 // check parked for txs able to be promoted
                 let to_promote = parked.pop_front_account(
                     timemarked_tx.address(),
                     timemarked_tx
-                        .signed_tx()
                         .nonce()
                         .checked_add(1)
                         .expect("failed to increment nonce in promotion"),
                 );
-                for tx in to_promote {
-                    assert!(
-                        pending.add(tx, current_account_nonce).is_ok(),
-                        "promotion should work"
-                    );
+                // Release the lock asap.
+                drop(parked);
+                for ttx in to_promote {
+                    if let Err(error) = pending.add(ttx, current_account_nonce) {
+                        error!(
+                            current_account_nonce,
+                            "failed to promote transaction during insertion: {error:#}"
+                        );
+                    }
                 }
+                Ok(())
             }
         }
-
-        if success.is_ok() {
-            // track in all list if successfully added
-            all.insert(timemarked_tx.tx_hash());
-        }
-
-        success
     }
 
-    /// Returns a copy of all transactions ready for execution, sorted
-    /// first by the difference between a transaction and the account's
-    /// nonce and then by the time that the transaction was first
-    /// seen by the appside mempool.
+    /// Returns a copy of all transactions and their hashes ready for execution, sorted first by the
+    /// difference between a transaction and the account's current nonce and then by the time that
+    /// the transaction was first seen by the appside mempool.
     pub(crate) async fn builder_queue<F, O>(
         &self,
         current_account_nonce_getter: F,
-    ) -> anyhow::Result<BuilderQueue>
+    ) -> anyhow::Result<Vec<([u8; 32], Arc<SignedTransaction>)>>
     where
         F: Fn([u8; 20]) -> O,
         O: Future<Output = anyhow::Result<u32>>,
@@ -234,52 +217,43 @@ impl Mempool {
             .await
     }
 
-    /// Removes the target transaction and all transactions for associated account
-    /// with higher nonces.
+    /// Removes the target transaction and all transactions for associated account with higher
+    /// nonces.
     ///
-    /// This function should only be used to remove invalid/failing transactions and
-    /// not executed transactions. Executed transactions will be removed in the `run_maintenance()`
-    /// function.
+    /// This function should only be used to remove invalid/failing transactions and not executed
+    /// transactions. Executed transactions will be removed in the `run_maintenance()` function.
     pub(crate) async fn remove_tx_invalid(
         &self,
-        signed_tx: &SignedTransaction,
+        signed_tx: Arc<SignedTransaction>,
         reason: RemovalReason,
-    ) -> Vec<Arc<TimemarkedTransaction>> {
-        let ttx: Arc<TimemarkedTransaction> =
-            Arc::new(TimemarkedTransaction::new(signed_tx.clone()));
-        let mut removed_txs = Vec::<Arc<TimemarkedTransaction>>::new();
+    ) {
+        let tx_hash = signed_tx.sha256_of_proto_encoding();
+        let address = signed_tx.verification_key().address_bytes();
 
-        if !self.all.read().await.contains(&ttx.tx_hash()) {
-            return removed_txs;
-        }
+        // Try to remove from pending.
+        let removed_txs = match self.pending.write().await.remove(signed_tx) {
+            Ok(mut removed_txs) => {
+                // Remove all of parked.
+                removed_txs.append(&mut self.parked.write().await.clear_account(&address));
+                removed_txs
+            }
+            Err(signed_tx) => {
+                // Not found in pending, try to remove from parked and if not found, just return.
+                match self.parked.write().await.remove(signed_tx) {
+                    Ok(removed_txs) => removed_txs,
+                    Err(_) => return,
+                }
+            }
+        };
 
-        // grab needed main locks in normal order
-        let mut all = self.all.write().await;
-        let mut pending = self.pending.write().await;
-        let mut parked = self.parked.write().await;
+        // Add all removed to removal cache for cometbft.
         let mut removal_cache = self.comet_bft_removal_cache.write().await;
-
-        // mark as invalid in removal cache
-        removal_cache.add(ttx.tx_hash(), reason);
-
-        // try remove from pending
-        removed_txs.append(&mut pending.remove(&ttx, true));
-        if removed_txs.is_empty() {
-            // try remove transaction from parked
-            removed_txs.append(&mut parked.remove(&ttx, true));
-        } else {
-            // remove all of parked
-            removed_txs.append(&mut parked.clear_account(ttx.address()));
+        // Add the original tx first, since it will also be listed in `removed_txs`.  The second
+        // attempt to add it inside the loop below will be a no-op.
+        removal_cache.add(tx_hash, reason);
+        for removed_tx in removed_txs {
+            removal_cache.add(removed_tx, RemovalReason::LowerNonceInvalidated);
         }
-        assert!(!removed_txs.is_empty(), "error in remove_tx_invalid logic"); // TODO: is it ok to keep these in?
-
-        // remove all from tracked and add to removal cache for cometbft
-        for tx in &removed_txs {
-            all.remove(&tx.tx_hash());
-            removal_cache.add(tx.tx_hash(), RemovalReason::LowerNonceInvalidated);
-        }
-
-        removed_txs
     }
 
     /// Checks if a transaction was flagged to be removed from the `CometBFT` mempool. Will
@@ -295,54 +269,35 @@ impl Mempool {
     /// All removed transactions are added to the CometBFT removal cache to aid with CometBFT
     /// mempool maintenance.
     #[instrument(skip_all)]
-    pub(crate) async fn run_maintenance<F, O>(
-        &self,
-        current_account_nonce_getter: F,
-    ) -> anyhow::Result<()>
+    pub(crate) async fn run_maintenance<F, O>(&self, current_account_nonce_getter: F)
     where
         F: Fn([u8; 20]) -> O,
         O: Future<Output = anyhow::Result<u32>>,
     {
-        // grab needed main locks in normal order
-        let mut all = self.all.write().await;
-        let mut pending = self.pending.write().await;
-        let mut parked = self.parked.write().await;
+        let (mut pending, mut parked) = join!(self.pending.write(), self.parked.write());
 
-        // clean accounts of stale and expired tranasctions
-        let mut removed_txs = pending
-            .clean_accounts(&current_account_nonce_getter)
-            .await
-            .expect("failed to clean pending");
-        removed_txs.append(
-            &mut parked
-                .clean_accounts(&current_account_nonce_getter)
-                .await
-                .expect("failed to clean pending"),
-        );
+        // clean accounts of stale and expired transactions
+        let mut removed_txs = pending.clean_accounts(&current_account_nonce_getter).await;
+        removed_txs.append(&mut parked.clean_accounts(&current_account_nonce_getter).await);
 
         // run promotion logic in case transactions not in this mempool advanced account state
-        let promotable_txs = parked
-            .find_promotables(&current_account_nonce_getter)
-            .await
-            .expect("should work?");
-        for ttx in promotable_txs {
-            let current_account_nonce = current_account_nonce_getter(*ttx.address())
-                .await
-                .expect("failed to get account nonce for promotions");
-            assert!(
-                pending.add(ttx, current_account_nonce).is_ok(),
-                "promotions should work"
-            );
+        let to_promote = parked.find_promotables(&current_account_nonce_getter).await;
+        // Release the lock asap.
+        drop(parked);
+        for (ttx, current_account_nonce) in to_promote {
+            if let Err(error) = pending.add(ttx, current_account_nonce) {
+                error!(
+                    current_account_nonce,
+                    "failed to promote transaction during maintenance: {error:#}"
+                );
+            }
         }
 
-        // remove from tracked and add to removal cache for cometbft
+        // add to removal cache for cometbft
         let mut removal_cache = self.comet_bft_removal_cache.write().await;
-        for (tx, reason) in removed_txs {
-            all.remove(&tx.tx_hash());
-            removal_cache.add(tx.tx_hash(), reason);
+        for (tx_hash, reason) in removed_txs {
+            removal_cache.add(tx_hash, reason);
         }
-
-        Ok(())
     }
 
     /// Returns the highest pending nonce for the given address if it exists in the mempool. Note:
@@ -360,7 +315,7 @@ mod test {
     use astria_core::crypto::SigningKey;
 
     use super::*;
-    use crate::app::test_utils::get_mock_tx_parameterized;
+    use crate::app::test_utils::mock_tx;
 
     #[tokio::test]
     async fn insert() {
@@ -368,38 +323,35 @@ mod test {
         let signing_key = SigningKey::from([1; 32]);
 
         // sign and insert nonce 1
-        let tx1 = get_mock_tx_parameterized(1, &signing_key, [0; 32]);
+        let tx1 = mock_tx(1, &signing_key, "test");
         assert!(
             mempool.insert(tx1.clone(), 0).await.is_ok(),
             "should be able to insert nonce 1 transaction into mempool"
         );
 
         // try to insert again
-        assert!(
-            matches!(
-                mempool.insert(tx1.clone(), 0).await,
-                Err(InsertionError::AlreadyPresent)
-            ),
+        assert_eq!(
+            mempool.insert(tx1.clone(), 0).await.unwrap_err(),
+            InsertionError::AlreadyPresent,
             "already present"
         );
 
         // try to replace nonce
-        let tx1_replacement = get_mock_tx_parameterized(1, &signing_key, [1; 32]);
-        assert!(
-            matches!(
-                mempool.insert(tx1_replacement.clone(), 0).await,
-                Err(InsertionError::NonceTaken)
-            ),
+        let tx1_replacement = mock_tx(1, &signing_key, "test");
+        assert_eq!(
+            mempool
+                .insert(tx1_replacement.clone(), 0)
+                .await
+                .unwrap_err(),
+            InsertionError::AlreadyPresent,
             "nonce replace not allowed"
         );
 
         // add too low nonce
-        let tx0 = get_mock_tx_parameterized(0, &signing_key, [1; 32]);
-        assert!(
-            matches!(
-                mempool.insert(tx0.clone(), 1).await,
-                Err(InsertionError::NonceTooLow)
-            ),
+        let tx0 = mock_tx(0, &signing_key, "test");
+        assert_eq!(
+            mempool.insert(tx0.clone(), 1).await.unwrap_err(),
+            InsertionError::NonceTooLow,
             "nonce too low"
         );
     }
@@ -418,28 +370,28 @@ mod test {
 
         // add nonces in odd order to trigger insertion promotion logic
         // sign and insert nonce 1
-        let tx1 = get_mock_tx_parameterized(1, &signing_key, [0; 32]);
+        let tx1 = mock_tx(1, &signing_key, "test");
         assert!(
             mempool.insert(tx1.clone(), 0).await.is_ok(),
             "should be able to insert nonce 1 transaction into mempool"
         );
 
         // sign and insert nonce 2
-        let tx2 = get_mock_tx_parameterized(2, &signing_key, [0; 32]);
+        let tx2 = mock_tx(2, &signing_key, "test");
         assert!(
             mempool.insert(tx2.clone(), 0).await.is_ok(),
             "should be able to insert nonce 2 transaction into mempool"
         );
 
         // sign and insert nonce 0
-        let tx0 = get_mock_tx_parameterized(0, &signing_key, [0; 32]);
+        let tx0 = mock_tx(0, &signing_key, "test");
         assert!(
             mempool.insert(tx0.clone(), 0).await.is_ok(),
             "should be able to insert nonce 0 transaction into mempool"
         );
 
         // sign and insert nonce 4
-        let tx4 = get_mock_tx_parameterized(4, &signing_key, [0; 32]);
+        let tx4 = mock_tx(4, &signing_key, "test");
         assert!(
             mempool.insert(tx4.clone(), 0).await.is_ok(),
             "should be able to insert nonce 4 transaction into mempool"
@@ -458,21 +410,14 @@ mod test {
 
         // grab building queue, should return transactions [1,2] since [0] was below and [4] is
         // gapped
-        let mut builder_queue = mempool
+        let builder_queue = mempool
             .builder_queue(current_account_nonce_getter)
             .await
             .expect("failed to get builder queue");
 
         // see contains first two transactions that should be pending
-        let (returned_tx, _) = builder_queue
-            .pop()
-            .expect("should return lowest nonced transaction");
-        assert_eq!(returned_tx.signed_tx().nonce(), 1, "nonce should be one");
-
-        let (returned_tx, _) = builder_queue
-            .pop()
-            .expect("should return other transaction");
-        assert_eq!(returned_tx.signed_tx().nonce(), 2, "nonce should be two");
+        assert_eq!(builder_queue[0].1.nonce(), 1, "nonce should be one");
+        assert_eq!(builder_queue[1].1.nonce(), 2, "nonce should be two");
 
         // see mempool's transactions just cloned, not consumed
         assert_eq!(mempool.len().await, 4);
@@ -485,10 +430,7 @@ mod test {
             }
             Err(anyhow::anyhow!("invalid address"))
         };
-        mempool
-            .run_maintenance(current_account_nonce_getter)
-            .await
-            .expect("failed to run maintenance");
+        mempool.run_maintenance(current_account_nonce_getter).await;
 
         // assert mempool at 1
         assert_eq!(mempool.len().await, 1);
@@ -498,39 +440,37 @@ mod test {
             .builder_queue(current_account_nonce_getter)
             .await
             .expect("failed to get builder queue");
-        let (returned_tx, _) = builder_queue.pop().expect("should return last transaction");
-        assert_eq!(returned_tx.signed_tx().nonce(), 4, "nonce should be four");
+        let (_, returned_tx) = builder_queue.pop().expect("should return last transaction");
+        assert_eq!(returned_tx.nonce(), 4, "nonce should be four");
     }
 
     #[tokio::test]
-    #[allow(unused_variables)] // for matches! macro
-    #[allow(clippy::too_many_lines)]
     async fn remove_invalid() {
         let mempool = Mempool::new();
         let signing_key = SigningKey::from([1; 32]);
 
         // sign and insert nonces 0,1 and 3,4,5
-        let tx0 = get_mock_tx_parameterized(0, &signing_key, [0; 32]);
+        let tx0 = mock_tx(0, &signing_key, "test");
         assert!(
             mempool.insert(tx0.clone(), 0).await.is_ok(),
             "should be able to insert nonce 0 transaction into mempool"
         );
-        let tx1 = get_mock_tx_parameterized(1, &signing_key, [0; 32]);
+        let tx1 = mock_tx(1, &signing_key, "test");
         assert!(
             mempool.insert(tx1.clone(), 0).await.is_ok(),
             "should be able to insert nonce 1 transaction into mempool"
         );
-        let tx3 = get_mock_tx_parameterized(3, &signing_key, [0; 32]);
+        let tx3 = mock_tx(3, &signing_key, "test");
         assert!(
             mempool.insert(tx3.clone(), 0).await.is_ok(),
             "should be able to insert nonce 3 transaction into mempool"
         );
-        let tx4 = get_mock_tx_parameterized(4, &signing_key, [0; 32]);
+        let tx4 = mock_tx(4, &signing_key, "test");
         assert!(
             mempool.insert(tx4.clone(), 0).await.is_ok(),
             "should be able to insert nonce 4 transaction into mempool"
         );
-        let tx5 = get_mock_tx_parameterized(5, &signing_key, [0; 32]);
+        let tx5 = mock_tx(5, &signing_key, "test");
         assert!(
             mempool.insert(tx5.clone(), 0).await.is_ok(),
             "should be able to insert nonce 5 transaction into mempool"
@@ -540,73 +480,30 @@ mod test {
         let removal_reason = RemovalReason::FailedPrepareProposal("reason".to_string());
 
         // remove 4, should remove 4 and 5
-        let mut removed_txs = mempool
-            .remove_tx_invalid(&tx4, removal_reason.clone())
+        mempool
+            .remove_tx_invalid(tx4.clone(), removal_reason.clone())
             .await;
-
-        assert_eq!(
-            removed_txs
-                .pop()
-                .expect("should return transaction")
-                .signed_tx()
-                .nonce(),
-            4
-        );
-        assert_eq!(
-            removed_txs
-                .pop()
-                .expect("should return transaction")
-                .signed_tx()
-                .nonce(),
-            5
-        );
         assert_eq!(mempool.len().await, 3);
 
         // remove 4 again is also ok
-        let removed_txs = mempool
+        mempool
             .remove_tx_invalid(
-                &tx4,
+                tx4.clone(),
                 RemovalReason::NonceStale, // shouldn't be inserted into removal cache
             )
             .await;
-        assert_eq!(removed_txs.len(), 0);
         assert_eq!(mempool.len().await, 3);
 
         // remove 1, should remove 1 and 3
-        let mut removed_txs = mempool
-            .remove_tx_invalid(&tx1, removal_reason.clone())
+        mempool
+            .remove_tx_invalid(tx1.clone(), removal_reason.clone())
             .await;
-
-        assert_eq!(
-            removed_txs
-                .pop()
-                .expect("should return transaction")
-                .signed_tx()
-                .nonce(),
-            3
-        );
-        assert_eq!(
-            removed_txs
-                .pop()
-                .expect("should return transaction")
-                .signed_tx()
-                .nonce(),
-            1
-        );
         assert_eq!(mempool.len().await, 1);
 
         // remove 0
-        let mut removed_txs = mempool
-            .remove_tx_invalid(&tx0, removal_reason.clone())
+        mempool
+            .remove_tx_invalid(tx0.clone(), removal_reason.clone())
             .await;
-        assert_eq!(
-            removed_txs
-                .pop()
-                .expect("should return transaction")
-                .signed_tx()
-                .nonce(),
-            0
-        );
         assert_eq!(mempool.len().await, 0);
 
         // assert that all were added to the cometbft removal cache
@@ -615,13 +512,13 @@ mod test {
             mempool
                 .check_removed_comet_bft(tx0.sha256_of_proto_encoding())
                 .await,
-            removal_reason
+            Some(RemovalReason::FailedPrepareProposal(_))
         ));
         assert!(matches!(
             mempool
                 .check_removed_comet_bft(tx1.sha256_of_proto_encoding())
                 .await,
-            removal_reason
+            Some(RemovalReason::FailedPrepareProposal(_))
         ));
         assert!(matches!(
             mempool
@@ -633,7 +530,7 @@ mod test {
             mempool
                 .check_removed_comet_bft(tx4.sha256_of_proto_encoding())
                 .await,
-            removal_reason
+            Some(RemovalReason::FailedPrepareProposal(_))
         ));
         assert!(matches!(
             mempool
@@ -654,24 +551,24 @@ mod test {
         let signing_address_2 = signing_key_2.verification_key().address_bytes();
 
         // sign and insert nonces 0,1
-        let tx0 = get_mock_tx_parameterized(0, &signing_key_0, [0; 32]);
+        let tx0 = mock_tx(0, &signing_key_0, "test");
         assert!(
             mempool.insert(tx0.clone(), 0).await.is_ok(),
             "should be able to insert nonce 0 transaction into mempool"
         );
-        let tx1 = get_mock_tx_parameterized(1, &signing_key_0, [0; 32]);
+        let tx1 = mock_tx(1, &signing_key_0, "test");
         assert!(
             mempool.insert(tx1.clone(), 0).await.is_ok(),
             "should be able to insert nonce 1 transaction into mempool"
         );
 
         // sign and insert nonces 100, 101
-        let tx100 = get_mock_tx_parameterized(100, &signing_key_1, [0; 32]);
+        let tx100 = mock_tx(100, &signing_key_1, "test");
         assert!(
             mempool.insert(tx100.clone(), 100).await.is_ok(),
             "should be able to insert nonce 100 transaction into mempool"
         );
-        let tx101 = get_mock_tx_parameterized(101, &signing_key_1, [0; 32]);
+        let tx101 = mock_tx(101, &signing_key_1, "test");
         assert!(
             mempool.insert(tx101.clone(), 100).await.is_ok(),
             "should be able to insert nonce 101 transaction into mempool"
