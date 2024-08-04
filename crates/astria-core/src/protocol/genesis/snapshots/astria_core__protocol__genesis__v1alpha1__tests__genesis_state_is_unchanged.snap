@@ -1,6 +1,5 @@
 ---
 source: crates/astria-core/src/protocol/genesis/v1alpha1.rs
-assertion_line: 765
 expression: genesis_state()
 ---
 {
