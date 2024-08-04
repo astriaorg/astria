@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package astria.protocol.genesis.v1alpha1;
+
+import "astria/primitive/v1/types.proto";
+
+message GenesisAppState {
+  AddressPrefixes address_prefixes = 1;
+  repeated Account accounts = 2;
+  astria.primitive.v1.Address authority_sudo_address = 3;
+  astria.primitive.v1.Address ibc_sudo_address = 4;
+  repeated astria.primitive.v1.Address ibc_relayer_addresses = 5;
+  string native_asset_base_denomination = 6;
+  IbcParameters ibc_parameters = 7;
+  repeated string allowed_fee_assets = 8;
+}
+
+message Account {
+  astria.primitive.v1.Address address = 1;
+  astria.primitive.v1.Uint128 balance = 2;
+}
+
+message AddressPrefixes {
+  string base = 1;
+}
+
+// IBC configuration data.
+message IbcParameters {
+  // Whether IBC (forming connections, processing IBC packets) is enabled.
+  bool ibc_enabled = 1;
+  // Whether inbound ICS-20 transfers are enabled
+  bool inbound_ics20_transfers_enabled = 2;
+  // Whether outbound ICS-20 transfers are enabled
+  bool outbound_ics20_transfers_enabled = 3;
+}
