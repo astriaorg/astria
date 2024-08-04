@@ -26,7 +26,7 @@ use tracing::trace;
 mod tests;
 
 #[derive(Debug, thiserror::Error)]
-enum SizedBundleError {
+pub(super) enum SizedBundleError {
     #[error("bundle does not have enough space left for the given sequence action")]
     NotEnoughSpace(SequenceAction),
     #[error("sequence action is larger than the max bundle size")]
@@ -65,7 +65,7 @@ pub(super) struct SizedBundle {
 
 impl SizedBundle {
     /// Create a new empty bundle with the given max size.
-    fn new(max_size: usize) -> Self {
+    pub(super) fn new(max_size: usize) -> Self {
         Self {
             buffer: vec![],
             curr_size: 0,
@@ -78,7 +78,7 @@ impl SizedBundle {
     /// # Errors
     /// - `seq_action` is beyond the max size allowed for the entire bundle
     /// - `seq_action` does not fit in the remaining space in the bundle
-    fn try_push(&mut self, seq_action: SequenceAction) -> Result<(), SizedBundleError> {
+    pub(super) fn try_push(&mut self, seq_action: SequenceAction) -> Result<(), SizedBundleError> {
         let seq_action_size = encoded_len(&seq_action);
 
         if seq_action_size > self.max_size {
@@ -102,7 +102,7 @@ impl SizedBundle {
     }
 
     /// Replace self with a new empty bundle, returning the old bundle.
-    fn flush(&mut self) -> SizedBundle {
+    pub(super) fn flush(&mut self) -> SizedBundle {
         mem::replace(self, Self::new(self.max_size))
     }
 
