@@ -36,11 +36,11 @@ message IbcParameters {
 }
 
 message Fees {
-    astria.primitive.v1.Uint128 transfer_base_fee = 1;
-    astria.primitive.v1.Uint128 sequence_base_fee = 2;
-    astria.primitive.v1.Uint128 sequence_byte_cost_multiplier = 3;
-    astria.primitive.v1.Uint128 init_bridge_account_base_fee = 4;
-    astria.primitive.v1.Uint128 bridge_lock_byte_cost_multiplier = 5;
-    astria.primitive.v1.Uint128 bridge_sudo_change_fee = 6;
-    astria.primitive.v1.Uint128 ics20_withdrawal_base_fee = 7;
+  astria.primitive.v1.Uint128 transfer_base_fee = 1;
+  astria.primitive.v1.Uint128 sequence_base_fee = 2;
+  astria.primitive.v1.Uint128 sequence_byte_cost_multiplier = 3;
+  astria.primitive.v1.Uint128 init_bridge_account_base_fee = 4;
+  astria.primitive.v1.Uint128 bridge_lock_byte_cost_multiplier = 5;
+  astria.primitive.v1.Uint128 bridge_sudo_change_fee = 6;
+  astria.primitive.v1.Uint128 ics20_withdrawal_base_fee = 7;
 }
