@@ -30,7 +30,7 @@
       {{- if $index }},{{- end }}
       {
         "address": {{ include "sequencer.address" $value.address }},
-        "balance": {{ toString $value.balance | replace "\"" "" }}
+        "balance": {{ include "sequencer.fee" ( toString $value.balance | replace "\"" "" ) }} 
       }
       {{- end }}
     ],
