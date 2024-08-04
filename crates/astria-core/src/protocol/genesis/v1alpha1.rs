@@ -463,16 +463,7 @@ impl Protobuf for IBCParameters {
     type Raw = raw::IbcParameters;
 
     fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
-        let Self::Raw {
-            ibc_enabled,
-            inbound_ics20_transfers_enabled,
-            outbound_ics20_transfers_enabled,
-        } = *raw;
-        Ok(Self {
-            ibc_enabled,
-            inbound_ics20_transfers_enabled,
-            outbound_ics20_transfers_enabled,
-        })
+        Ok((*raw).into())
     }
 
     fn to_raw(&self) -> Self::Raw {
@@ -482,7 +473,16 @@ impl Protobuf for IBCParameters {
 
 impl From<IBCParameters> for raw::IbcParameters {
     fn from(value: IBCParameters) -> Self {
-        value.into()
+        let IBCParameters {
+            ibc_enabled,
+            inbound_ics20_transfers_enabled,
+            outbound_ics20_transfers_enabled,
+        } = value;
+        Self {
+            ibc_enabled,
+            inbound_ics20_transfers_enabled,
+            outbound_ics20_transfers_enabled,
+        }
     }
 }
 
@@ -606,4 +606,162 @@ fn try_construct_dummy_address_from_prefix(prefix: &str) -> Result<(), AddressEr
         .prefix(prefix)
         .try_build()
         .map(|_| ())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::primitive::v1::Address;
+
+    const ASTRIA_ADDRESS_PREFIX: &str = "astria";
+
+    fn alice() -> Address {
+        Address::builder()
+            .prefix(ASTRIA_ADDRESS_PREFIX)
+            .slice(hex::decode("1c0c490f1b5528d8173c5de46d131160e4b2c0c3").unwrap())
+            .try_build()
+            .unwrap()
+    }
+
+    fn bob() -> Address {
+        Address::builder()
+            .prefix(ASTRIA_ADDRESS_PREFIX)
+            .slice(hex::decode("34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a").unwrap())
+            .try_build()
+            .unwrap()
+    }
+
+    fn charlie() -> Address {
+        Address::builder()
+            .prefix(ASTRIA_ADDRESS_PREFIX)
+            .slice(hex::decode("60709e2d391864b732b4f0f51e387abb76743871").unwrap())
+            .try_build()
+            .unwrap()
+    }
+
+    fn mallory() -> Address {
+        Address::builder()
+            .prefix("other")
+            .slice(hex::decode("60709e2d391864b732b4f0f51e387abb76743871").unwrap())
+            .try_build()
+            .unwrap()
+    }
+
+    fn proto_genesis_state() -> raw::GenesisAppState {
+        raw::GenesisAppState {
+            accounts: vec![
+                raw::Account {
+                    address: Some(alice().to_raw()),
+                    balance: Some(1_000_000_000_000_000_000.into()),
+                },
+                raw::Account {
+                    address: Some(bob().to_raw()),
+                    balance: Some(1_000_000_000_000_000_000.into()),
+                },
+                raw::Account {
+                    address: Some(charlie().to_raw()),
+                    balance: Some(1_000_000_000_000_000_000.into()),
+                },
+            ],
+            address_prefixes: Some(raw::AddressPrefixes {
+                base: "astria".into(),
+            }),
+            authority_sudo_address: Some(alice().to_raw()),
+            ibc_sudo_address: Some(alice().to_raw()),
+            ibc_relayer_addresses: vec![alice().to_raw(), bob().to_raw()],
+            native_asset_base_denomination: "nria".to_string(),
+            ibc_parameters: Some(raw::IbcParameters {
+                ibc_enabled: true,
+                inbound_ics20_transfers_enabled: true,
+                outbound_ics20_transfers_enabled: true,
+            }),
+            allowed_fee_assets: vec!["nria".into()],
+            fees: Some(raw::Fees {
+                transfer_base_fee: Some(12.into()),
+                sequence_base_fee: Some(32.into()),
+                sequence_byte_cost_multiplier: Some(1.into()),
+                init_bridge_account_base_fee: Some(48.into()),
+                bridge_lock_byte_cost_multiplier: Some(1.into()),
+                bridge_sudo_change_fee: Some(24.into()),
+                ics20_withdrawal_base_fee: Some(24.into()),
+            }),
+        }
+    }
+
+    fn genesis_state() -> GenesisAppState {
+        proto_genesis_state().try_into().unwrap()
+    }
+
+    #[test]
+    fn mismatched_addresses_are_caught() {
+        #[track_caller]
+        fn assert_bad_prefix(unchecked: raw::GenesisAppState, bad_field: &'static str) {
+            match GenesisAppState::try_from(unchecked)
+                .expect_err(
+                    "converting to genesis state should have produced an error, but a valid state \
+                     was returned",
+                )
+                .0
+            {
+                GenesisAppStateErrorKind::AddressDoesNotMatchBase {
+                    source,
+                } => {
+                    let AddressDoesNotMatchBase {
+                        base_prefix,
+                        address,
+                        field,
+                    } = *source;
+                    assert_eq!(base_prefix, ASTRIA_ADDRESS_PREFIX);
+                    assert_eq!(address, mallory());
+                    assert_eq!(field, bad_field);
+                }
+                other => panic!(
+                    "expected: `GenesisAppStateErrorKind::AddressDoesNotMatchBase\ngot: {other:?}`"
+                ),
+            };
+        }
+        assert_bad_prefix(
+            raw::GenesisAppState {
+                authority_sudo_address: Some(mallory().to_raw()),
+                ..proto_genesis_state()
+            },
+            ".authority_sudo_address",
+        );
+        assert_bad_prefix(
+            raw::GenesisAppState {
+                ibc_sudo_address: Some(mallory().to_raw()),
+                ..proto_genesis_state()
+            },
+            ".ibc_sudo_address",
+        );
+        assert_bad_prefix(
+            raw::GenesisAppState {
+                ibc_relayer_addresses: vec![alice().to_raw(), mallory().to_raw()],
+                ..proto_genesis_state()
+            },
+            ".ibc_relayer_addresses[1]",
+        );
+        assert_bad_prefix(
+            raw::GenesisAppState {
+                accounts: vec![
+                    raw::Account {
+                        address: Some(alice().to_raw()),
+                        balance: Some(10.into()),
+                    },
+                    raw::Account {
+                        address: Some(mallory().to_raw()),
+                        balance: Some(10.into()),
+                    },
+                ],
+                ..proto_genesis_state()
+            },
+            ".accounts[1].address",
+        );
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn genesis_state_is_unchanged() {
+        insta::assert_json_snapshot!(genesis_state());
+    }
 }
