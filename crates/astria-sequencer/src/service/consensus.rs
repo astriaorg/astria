@@ -2,6 +2,7 @@ use anyhow::{
     bail,
     Context,
 };
+use astria_core::protocol::genesis::v1alpha1::GenesisAppState;
 use cnidarium::Storage;
 use tendermint::v0_38::abci::{
     request,
@@ -125,9 +126,8 @@ impl Consensus {
             bail!("database already initialized");
         }
 
-        let genesis_state: astria_core::sequencer::GenesisState =
-            serde_json::from_slice(&init_chain.app_state_bytes)
-                .context("failed to parse app_state in genesis file")?;
+        let genesis_state: GenesisAppState = serde_json::from_slice(&init_chain.app_state_bytes)
+            .context("failed to parse genesis app state from init chain request")?;
         let app_hash = self
             .app
             .init_chain(

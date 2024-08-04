@@ -23,6 +23,8 @@ pub struct GenesisAppState {
     pub ibc_parameters: ::core::option::Option<IbcParameters>,
     #[prost(string, repeated, tag = "8")]
     pub allowed_fee_assets: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    #[prost(message, optional, tag = "9")]
+    pub fees: ::core::option::Option<Fees>,
 }
 impl ::prost::Name for GenesisAppState {
     const NAME: &'static str = "GenesisAppState";
@@ -75,6 +77,45 @@ pub struct IbcParameters {
 }
 impl ::prost::Name for IbcParameters {
     const NAME: &'static str = "IbcParameters";
+    const PACKAGE: &'static str = "astria.protocol.genesis.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.genesis.v1alpha1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Fees {
+    #[prost(message, optional, tag = "1")]
+    pub transfer_base_fee: ::core::option::Option<
+        super::super::super::primitive::v1::Uint128,
+    >,
+    #[prost(message, optional, tag = "2")]
+    pub sequence_base_fee: ::core::option::Option<
+        super::super::super::primitive::v1::Uint128,
+    >,
+    #[prost(message, optional, tag = "3")]
+    pub sequence_byte_cost_multiplier: ::core::option::Option<
+        super::super::super::primitive::v1::Uint128,
+    >,
+    #[prost(message, optional, tag = "4")]
+    pub init_bridge_account_base_fee: ::core::option::Option<
+        super::super::super::primitive::v1::Uint128,
+    >,
+    #[prost(message, optional, tag = "5")]
+    pub bridge_lock_byte_cost_multiplier: ::core::option::Option<
+        super::super::super::primitive::v1::Uint128,
+    >,
+    #[prost(message, optional, tag = "6")]
+    pub bridge_sudo_change_fee: ::core::option::Option<
+        super::super::super::primitive::v1::Uint128,
+    >,
+    #[prost(message, optional, tag = "7")]
+    pub ics20_withdrawal_base_fee: ::core::option::Option<
+        super::super::super::primitive::v1::Uint128,
+    >,
+}
+impl ::prost::Name for Fees {
+    const NAME: &'static str = "Fees";
     const PACKAGE: &'static str = "astria.protocol.genesis.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.genesis.v1alpha1.{}", Self::NAME)

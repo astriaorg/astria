@@ -36,9 +36,55 @@ pub struct GenesisAppState {
     native_asset_base_denomination: asset::TracePrefixed,
     ibc_parameters: IBCParameters,
     allowed_fee_assets: Vec<asset::Denom>,
+    fees: Fees,
 }
 
 impl GenesisAppState {
+    #[must_use]
+    pub fn address_prefixes(&self) -> &AddressPrefixes {
+        &self.address_prefixes
+    }
+
+    #[must_use]
+    pub fn accounts(&self) -> &[Account] {
+        &self.accounts
+    }
+
+    #[must_use]
+    pub fn authority_sudo_address(&self) -> &Address {
+        &self.authority_sudo_address
+    }
+
+    #[must_use]
+    pub fn ibc_sudo_address(&self) -> &Address {
+        &self.ibc_sudo_address
+    }
+
+    #[must_use]
+    pub fn ibc_relayer_addresses(&self) -> &[Address] {
+        &self.ibc_relayer_addresses
+    }
+
+    #[must_use]
+    pub fn native_asset_base_denomination(&self) -> &asset::TracePrefixed {
+        &self.native_asset_base_denomination
+    }
+
+    #[must_use]
+    pub fn ibc_parameters(&self) -> &IBCParameters {
+        &self.ibc_parameters
+    }
+
+    #[must_use]
+    pub fn allowed_fee_assets(&self) -> &[asset::Denom] {
+        &self.allowed_fee_assets
+    }
+
+    #[must_use]
+    pub fn fees(&self) -> &Fees {
+        &self.fees
+    }
+
     fn ensure_address_has_base_prefix(
         &self,
         address: &Address,
@@ -87,6 +133,7 @@ impl Protobuf for GenesisAppState {
             native_asset_base_denomination,
             ibc_parameters,
             allowed_fee_assets,
+            fees,
         } = raw;
         let address_prefixes = address_prefixes
             .as_ref()
@@ -134,6 +181,11 @@ impl Protobuf for GenesisAppState {
             .collect::<Result<_, _>>()
             .map_err(Self::Error::allowed_fee_assets)?;
 
+        let fees = fees
+            .as_ref()
+            .ok_or_else(|| Self::Error::field_not_set("fees"))
+            .and_then(|fees| Fees::try_from_raw_ref(fees).map_err(Self::Error::fees))?;
+
         let this = Self {
             address_prefixes,
             accounts,
@@ -143,6 +195,7 @@ impl Protobuf for GenesisAppState {
             native_asset_base_denomination,
             ibc_parameters,
             allowed_fee_assets,
+            fees,
         };
         this.ensure_all_addresses_have_base_prefix()
             .map_err(Self::Error::address_does_not_match_base)?;
@@ -159,6 +212,7 @@ impl Protobuf for GenesisAppState {
             native_asset_base_denomination,
             ibc_parameters,
             allowed_fee_assets,
+            fees,
         } = self;
         Self::Raw {
             address_prefixes: Some(address_prefixes.to_raw()),
@@ -169,6 +223,7 @@ impl Protobuf for GenesisAppState {
             native_asset_base_denomination: native_asset_base_denomination.to_string(),
             ibc_parameters: Some(ibc_parameters.to_raw()),
             allowed_fee_assets: allowed_fee_assets.iter().map(ToString::to_string).collect(),
+            fees: Some(fees.to_raw()),
         }
     }
 }
@@ -222,6 +277,12 @@ impl GenesisAppStateError {
         })
     }
 
+    fn fees(source: FeesError) -> Self {
+        Self(GenesisAppStateErrorKind::Fees {
+            source,
+        })
+    }
+
     fn field_not_set(name: &'static str) -> Self {
         Self(GenesisAppStateErrorKind::FieldNotSet {
             name,
@@ -262,6 +323,8 @@ enum GenesisAppStateErrorKind {
     AllowedFeeAssets { source: ParseDenomError },
     #[error("`authority_sudo_address` field was invalid")]
     AuthoritySudoAddress { source: AddressError },
+    #[error("`fees` field was invalid")]
+    Fees { source: FeesError },
     #[error("`ibc_sudo_address` field was invalid")]
     IbcSudoAddress { source: AddressError },
     #[error("`ibc_relayer_addresses` field was invalid")]
@@ -282,8 +345,8 @@ struct AddressDoesNotMatchBase {
 
 #[derive(Clone, Debug)]
 pub struct Account {
-    address: Address,
-    balance: u128,
+    pub address: Address,
+    pub balance: u128,
 }
 
 impl Protobuf for Account {
@@ -349,7 +412,7 @@ enum AccountErrorKind {
 
 #[derive(Clone, Debug)]
 pub struct AddressPrefixes {
-    base: String,
+    pub base: String,
 }
 
 impl Protobuf for AddressPrefixes {
@@ -424,6 +487,87 @@ impl Protobuf for IBCParameters {
             outbound_ics20_transfers_enabled: *outbound_ics20_transfers_enabled,
         }
     }
+}
+
+#[derive(Clone, Debug)]
+pub struct Fees {
+    pub transfer_base_fee: u128,
+    pub sequence_base_fee: u128,
+    pub sequence_byte_cost_multiplier: u128,
+    pub init_bridge_account_base_fee: u128,
+    pub bridge_lock_byte_cost_multiplier: u128,
+    pub bridge_sudo_change_fee: u128,
+    pub ics20_withdrawal_base_fee: u128,
+}
+
+impl Protobuf for Fees {
+    type Error = FeesError;
+    type Raw = raw::Fees;
+
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
+        let Self::Raw {
+            transfer_base_fee,
+            sequence_base_fee,
+            sequence_byte_cost_multiplier,
+            init_bridge_account_base_fee,
+            bridge_lock_byte_cost_multiplier,
+            bridge_sudo_change_fee,
+            ics20_withdrawal_base_fee,
+        } = raw;
+        let transfer_base_fee = transfer_base_fee
+            .ok_or_else(|| Self::Error::field_not_set("transfer_base_fee"))?
+            .into();
+        let sequence_base_fee = sequence_base_fee
+            .ok_or_else(|| Self::Error::field_not_set("sequence_base_fee"))?
+            .into();
+        let sequence_byte_cost_multiplier = sequence_byte_cost_multiplier
+            .ok_or_else(|| Self::Error::field_not_set("sequence_byte_cost_multiplier"))?
+            .into();
+        let init_bridge_account_base_fee = init_bridge_account_base_fee
+            .ok_or_else(|| Self::Error::field_not_set("init_bridge_account_base_fee"))?
+            .into();
+        let bridge_lock_byte_cost_multiplier = bridge_lock_byte_cost_multiplier
+            .ok_or_else(|| Self::Error::field_not_set("bridge_lock_byte_cost_multiplier"))?
+            .into();
+        let bridge_sudo_change_fee = bridge_sudo_change_fee
+            .ok_or_else(|| Self::Error::field_not_set("bridge_sudo_change_fee"))?
+            .into();
+        let ics20_withdrawal_base_fee = ics20_withdrawal_base_fee
+            .ok_or_else(|| Self::Error::field_not_set("ics20_withdrawal_base_fee"))?
+            .into();
+        Ok(Self {
+            transfer_base_fee,
+            sequence_base_fee,
+            sequence_byte_cost_multiplier,
+            init_bridge_account_base_fee,
+            bridge_lock_byte_cost_multiplier,
+            bridge_sudo_change_fee,
+            ics20_withdrawal_base_fee,
+        })
+    }
+
+    fn to_raw(&self) -> Self::Raw {
+        todo!()
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct FeesError(FeesErrorKind);
+
+impl FeesError {
+    fn field_not_set(name: &'static str) -> Self {
+        Self(FeesErrorKind::FieldNotSet {
+            name,
+        })
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("failed ensuring invariants of {}", Fees::full_name())]
+enum FeesErrorKind {
+    #[error("field was not set: `{name}`")]
+    FieldNotSet { name: &'static str },
 }
 
 /// Constructs a dummy address from a given `prefix`, otherwise fail.
