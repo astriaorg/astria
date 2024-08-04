@@ -16,29 +16,27 @@ use std::{
 
 use astria_core::{
     primitive::v1::RollupId,
-    protocol::transaction::v1alpha1::{
-        action::{
-            BridgeLockAction,
-            BridgeSudoChangeAction,
-            BridgeUnlockAction,
-            IbcRelayerChangeAction,
-            SequenceAction,
-            TransferAction,
-            ValidatorUpdate,
+    protocol::{
+        genesis::v1alpha1::Account,
+        transaction::v1alpha1::{
+            action::{
+                BridgeLockAction,
+                BridgeSudoChangeAction,
+                BridgeUnlockAction,
+                IbcRelayerChangeAction,
+                SequenceAction,
+                TransferAction,
+                ValidatorUpdate,
+            },
+            Action,
+            TransactionParams,
+            UnsignedTransaction,
         },
-        Action,
-        TransactionParams,
-        UnsignedTransaction,
-    },
-    sequencer::{
-        Account,
-        AddressPrefixes,
-        UncheckedGenesisState,
     },
     sequencerblock::v1alpha1::block::Deposit,
+    Protobuf,
 };
 use cnidarium::StateDelta;
-use penumbra_ibc::params::IBCParameters;
 use prost::{
     bytes::Bytes,
     Message as _,
@@ -53,12 +51,12 @@ use tendermint::{
 
 use crate::{
     app::test_utils::{
-        default_fees,
         default_genesis_accounts,
         get_alice_signing_key,
         get_bridge_signing_key,
         initialize_app,
         initialize_app_with_storage,
+        proto_genesis_state,
         BOB_ADDRESS,
         CAROL_ADDRESS,
     },
@@ -71,26 +69,6 @@ use crate::{
         ASTRIA_PREFIX,
     },
 };
-
-/// XXX: This should be expressed in terms of `crate::app::test_utils::unchecked_genesis_state` to
-/// be consistent everywhere. `get_alice_signing_key` already is, why not this?
-fn unchecked_genesis_state() -> UncheckedGenesisState {
-    let alice = get_alice_signing_key();
-    let alice_address = astria_address(&alice.address_bytes());
-    UncheckedGenesisState {
-        accounts: vec![],
-        address_prefixes: AddressPrefixes {
-            base: ASTRIA_PREFIX.into(),
-        },
-        authority_sudo_address: alice_address,
-        ibc_sudo_address: alice_address,
-        ibc_relayer_addresses: vec![],
-        native_asset_base_denomination: nria(),
-        ibc_params: IBCParameters::default(),
-        allowed_fee_assets: vec![nria().into()],
-        fees: default_fees(),
-    }
-}
 
 #[tokio::test]
 async fn app_genesis_snapshot() {
@@ -192,15 +170,20 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     let bridge_address = astria_address(&bridge.address_bytes());
     let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
     let carol_address = astria_address_from_hex_string(CAROL_ADDRESS);
-    let mut accounts = default_genesis_accounts();
-    accounts.push(Account {
-        address: bridge_address,
-        balance: 1_000_000_000,
-    });
 
-    let genesis_state = UncheckedGenesisState {
+    let accounts = {
+        let mut acc = default_genesis_accounts();
+        acc.push(Account {
+            address: bridge_address,
+            balance: 1_000_000_000,
+        });
+        acc.into_iter().map(Protobuf::into_raw).collect()
+    };
+    let genesis_state = astria_core::generated::protocol::genesis::v1alpha1::GenesisAppState {
         accounts,
-        ..unchecked_genesis_state()
+        authority_sudo_address: Some(alice.try_address(ASTRIA_PREFIX).unwrap().to_raw()),
+        ibc_sudo_address: Some(alice.try_address(ASTRIA_PREFIX).unwrap().to_raw()),
+        ..proto_genesis_state()
     }
     .try_into()
     .unwrap();
