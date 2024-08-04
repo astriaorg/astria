@@ -101,6 +101,7 @@ pub(crate) fn proto_genesis_state()
             .map(Protobuf::into_raw)
             .collect(),
         authority_sudo_address: Some(astria_address_from_hex_string(JUDY_ADDRESS).to_raw()),
+        chain_id: "test-1".to_string(),
         ibc_sudo_address: Some(astria_address_from_hex_string(TED_ADDRESS).to_raw()),
         ibc_relayer_addresses: vec![],
         native_asset_base_denomination: crate::test_utils::nria().to_string(),

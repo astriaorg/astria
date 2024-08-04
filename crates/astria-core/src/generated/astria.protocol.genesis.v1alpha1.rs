@@ -1,29 +1,31 @@
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GenesisAppState {
-    #[prost(message, optional, tag = "1")]
+    #[prost(string, tag = "1")]
+    pub chain_id: ::prost::alloc::string::String,
+    #[prost(message, optional, tag = "2")]
     pub address_prefixes: ::core::option::Option<AddressPrefixes>,
-    #[prost(message, repeated, tag = "2")]
+    #[prost(message, repeated, tag = "3")]
     pub accounts: ::prost::alloc::vec::Vec<Account>,
-    #[prost(message, optional, tag = "3")]
+    #[prost(message, optional, tag = "4")]
     pub authority_sudo_address: ::core::option::Option<
         super::super::super::primitive::v1::Address,
     >,
-    #[prost(message, optional, tag = "4")]
+    #[prost(message, optional, tag = "5")]
     pub ibc_sudo_address: ::core::option::Option<
         super::super::super::primitive::v1::Address,
     >,
-    #[prost(message, repeated, tag = "5")]
+    #[prost(message, repeated, tag = "6")]
     pub ibc_relayer_addresses: ::prost::alloc::vec::Vec<
         super::super::super::primitive::v1::Address,
     >,
-    #[prost(string, tag = "6")]
+    #[prost(string, tag = "7")]
     pub native_asset_base_denomination: ::prost::alloc::string::String,
-    #[prost(message, optional, tag = "7")]
+    #[prost(message, optional, tag = "8")]
     pub ibc_parameters: ::core::option::Option<IbcParameters>,
-    #[prost(string, repeated, tag = "8")]
+    #[prost(string, repeated, tag = "9")]
     pub allowed_fee_assets: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
-    #[prost(message, optional, tag = "9")]
+    #[prost(message, optional, tag = "10")]
     pub fees: ::core::option::Option<Fees>,
 }
 impl ::prost::Name for GenesisAppState {

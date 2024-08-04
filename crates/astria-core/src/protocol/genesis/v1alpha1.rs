@@ -28,6 +28,7 @@ use crate::{
     serde(try_from = "raw::GenesisAppState", into = "raw::GenesisAppState")
 )]
 pub struct GenesisAppState {
+    chain_id: String,
     address_prefixes: AddressPrefixes,
     accounts: Vec<Account>,
     authority_sudo_address: crate::primitive::v1::Address,
@@ -53,6 +54,11 @@ impl GenesisAppState {
     #[must_use]
     pub fn authority_sudo_address(&self) -> &Address {
         &self.authority_sudo_address
+    }
+
+    #[must_use]
+    pub fn chain_id(&self) -> &str {
+        &self.chain_id
     }
 
     #[must_use]
@@ -128,6 +134,7 @@ impl Protobuf for GenesisAppState {
             address_prefixes,
             accounts,
             authority_sudo_address,
+            chain_id,
             ibc_sudo_address,
             ibc_relayer_addresses,
             native_asset_base_denomination,
@@ -190,6 +197,7 @@ impl Protobuf for GenesisAppState {
             address_prefixes,
             accounts,
             authority_sudo_address,
+            chain_id: chain_id.clone(),
             ibc_sudo_address,
             ibc_relayer_addresses,
             native_asset_base_denomination,
@@ -207,6 +215,7 @@ impl Protobuf for GenesisAppState {
             address_prefixes,
             accounts,
             authority_sudo_address,
+            chain_id,
             ibc_sudo_address,
             ibc_relayer_addresses,
             native_asset_base_denomination,
@@ -218,6 +227,7 @@ impl Protobuf for GenesisAppState {
             address_prefixes: Some(address_prefixes.to_raw()),
             accounts: accounts.iter().map(Account::to_raw).collect(),
             authority_sudo_address: Some(authority_sudo_address.to_raw()),
+            chain_id: chain_id.clone(),
             ibc_sudo_address: Some(ibc_sudo_address.to_raw()),
             ibc_relayer_addresses: ibc_relayer_addresses.iter().map(Address::to_raw).collect(),
             native_asset_base_denomination: native_asset_base_denomination.to_string(),
@@ -667,6 +677,7 @@ mod tests {
                 base: "astria".into(),
             }),
             authority_sudo_address: Some(alice().to_raw()),
+            chain_id: "astria-1".to_string(),
             ibc_sudo_address: Some(alice().to_raw()),
             ibc_relayer_addresses: vec![alice().to_raw(), bob().to_raw()],
             native_asset_base_denomination: "nria".to_string(),

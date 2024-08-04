@@ -3,6 +3,7 @@ source: crates/astria-core/src/protocol/genesis/v1alpha1.rs
 expression: genesis_state()
 ---
 {
+  "chainId": "astria-1",
   "addressPrefixes": {
     "base": "astria"
   },

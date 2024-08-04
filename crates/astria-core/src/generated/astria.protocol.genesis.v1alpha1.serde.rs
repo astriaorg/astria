@@ -405,6 +405,9 @@ impl serde::Serialize for GenesisAppState {
     {
         use serde::ser::SerializeStruct;
         let mut len = 0;
+        if !self.chain_id.is_empty() {
+            len += 1;
+        }
         if self.address_prefixes.is_some() {
             len += 1;
         }
@@ -433,6 +436,9 @@ impl serde::Serialize for GenesisAppState {
             len += 1;
         }
         let mut struct_ser = serializer.serialize_struct("astria.protocol.genesis.v1alpha1.GenesisAppState", len)?;
+        if !self.chain_id.is_empty() {
+            struct_ser.serialize_field("chainId", &self.chain_id)?;
+        }
         if let Some(v) = self.address_prefixes.as_ref() {
             struct_ser.serialize_field("addressPrefixes", v)?;
         }
@@ -470,6 +476,8 @@ impl<'de> serde::Deserialize<'de> for GenesisAppState {
         D: serde::Deserializer<'de>,
     {
         const FIELDS: &[&str] = &[
+            "chain_id",
+            "chainId",
             "address_prefixes",
             "addressPrefixes",
             "accounts",
@@ -490,6 +498,7 @@ impl<'de> serde::Deserialize<'de> for GenesisAppState {
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
+            ChainId,
             AddressPrefixes,
             Accounts,
             AuthoritySudoAddress,
@@ -520,6 +529,7 @@ impl<'de> serde::Deserialize<'de> for GenesisAppState {
                         E: serde::de::Error,
                     {
                         match value {
+                            "chainId" | "chain_id" => Ok(GeneratedField::ChainId),
                             "addressPrefixes" | "address_prefixes" => Ok(GeneratedField::AddressPrefixes),
                             "accounts" => Ok(GeneratedField::Accounts),
                             "authoritySudoAddress" | "authority_sudo_address" => Ok(GeneratedField::AuthoritySudoAddress),
@@ -548,6 +558,7 @@ impl<'de> serde::Deserialize<'de> for GenesisAppState {
                 where
                     V: serde::de::MapAccess<'de>,
             {
+                let mut chain_id__ = None;
                 let mut address_prefixes__ = None;
                 let mut accounts__ = None;
                 let mut authority_sudo_address__ = None;
@@ -559,6 +570,12 @@ impl<'de> serde::Deserialize<'de> for GenesisAppState {
                 let mut fees__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
+                        GeneratedField::ChainId => {
+                            if chain_id__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("chainId"));
+                            }
+                            chain_id__ = Some(map_.next_value()?);
+                        }
                         GeneratedField::AddressPrefixes => {
                             if address_prefixes__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("addressPrefixes"));
@@ -616,6 +633,7 @@ impl<'de> serde::Deserialize<'de> for GenesisAppState {
                     }
                 }
                 Ok(GenesisAppState {
+                    chain_id: chain_id__.unwrap_or_default(),
                     address_prefixes: address_prefixes__,
                     accounts: accounts__.unwrap_or_default(),
                     authority_sudo_address: authority_sudo_address__,

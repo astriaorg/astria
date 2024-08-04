@@ -74,6 +74,7 @@ fn proto_genesis_state() -> astria_core::generated::protocol::genesis::v1alpha1:
         accounts: accounts().into_iter().map(Protobuf::into_raw).collect(),
         address_prefixes: Some(address_prefixes().into_raw()),
         authority_sudo_address: Some(alice().to_raw()),
+        chain_id: "test-1".into(),
         ibc_sudo_address: Some(alice().to_raw()),
         ibc_relayer_addresses: vec![alice().to_raw(), bob().to_raw()],
         native_asset_base_denomination: "nria".parse().unwrap(),
