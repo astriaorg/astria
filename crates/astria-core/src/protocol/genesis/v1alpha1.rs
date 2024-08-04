@@ -476,15 +476,27 @@ impl Protobuf for IBCParameters {
     }
 
     fn to_raw(&self) -> Self::Raw {
-        let Self {
+        self.clone().into()
+    }
+}
+
+impl From<IBCParameters> for raw::IbcParameters {
+    fn from(value: IBCParameters) -> Self {
+        value.into()
+    }
+}
+
+impl From<raw::IbcParameters> for IBCParameters {
+    fn from(value: raw::IbcParameters) -> Self {
+        let raw::IbcParameters {
             ibc_enabled,
             inbound_ics20_transfers_enabled,
             outbound_ics20_transfers_enabled,
-        } = self;
-        Self::Raw {
-            ibc_enabled: *ibc_enabled,
-            inbound_ics20_transfers_enabled: *inbound_ics20_transfers_enabled,
-            outbound_ics20_transfers_enabled: *outbound_ics20_transfers_enabled,
+        } = value;
+        Self {
+            ibc_enabled,
+            inbound_ics20_transfers_enabled,
+            outbound_ics20_transfers_enabled,
         }
     }
 }
@@ -547,7 +559,24 @@ impl Protobuf for Fees {
     }
 
     fn to_raw(&self) -> Self::Raw {
-        todo!()
+        let Self {
+            transfer_base_fee,
+            sequence_base_fee,
+            sequence_byte_cost_multiplier,
+            init_bridge_account_base_fee,
+            bridge_lock_byte_cost_multiplier,
+            bridge_sudo_change_fee,
+            ics20_withdrawal_base_fee,
+        } = self;
+        Self::Raw {
+            transfer_base_fee: Some(transfer_base_fee.into()),
+            sequence_base_fee: Some(sequence_base_fee.into()),
+            sequence_byte_cost_multiplier: Some(sequence_byte_cost_multiplier.into()),
+            init_bridge_account_base_fee: Some(init_bridge_account_base_fee.into()),
+            bridge_lock_byte_cost_multiplier: Some(bridge_lock_byte_cost_multiplier.into()),
+            bridge_sudo_change_fee: Some(bridge_sudo_change_fee.into()),
+            ics20_withdrawal_base_fee: Some(ics20_withdrawal_base_fee.into()),
+        }
     }
 }
 

@@ -36,7 +36,11 @@ use zeroize::{
     ZeroizeOnDrop,
 };
 
-use crate::primitive::v1::ADDRESS_LEN;
+use crate::primitive::v1::{
+    Address,
+    AddressError,
+    ADDRESS_LEN,
+};
 
 /// An Ed25519 signing key.
 // *Implementation note*: this is currently a refinement type around
@@ -81,6 +85,14 @@ impl SigningKey {
     #[must_use]
     pub fn address_bytes(&self) -> [u8; ADDRESS_LEN] {
         self.verification_key().address_bytes()
+    }
+
+    /// Attempts to create an `[Address]` with the given prefix.
+    pub fn try_address(&self, prefix: &str) -> Result<Address, AddressError> {
+        Address::builder()
+            .prefix(prefix)
+            .array(self.address_bytes())
+            .try_build()
     }
 }
 

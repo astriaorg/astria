@@ -40,6 +40,12 @@ impl From<Uint128> for u128 {
     }
 }
 
+impl<'a> From<&'a u128> for Uint128 {
+    fn from(primitive: &'a u128) -> Self {
+        (*primitive).into()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::generated::primitive::v1::Uint128;

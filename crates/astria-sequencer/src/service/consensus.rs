@@ -215,11 +215,6 @@ mod test {
             TransactionParams,
             UnsignedTransaction,
         },
-        sequencer::{
-            Account,
-            AddressPrefixes,
-            UncheckedGenesisState,
-        },
     };
     use bytes::Bytes;
     use prost::Message as _;
@@ -232,7 +227,6 @@ mod test {
 
     use super::*;
     use crate::{
-        app::test_utils::default_fees,
         mempool::Mempool,
         metrics::Metrics,
         proposal::commitment::generate_rollup_datas_commitment,
@@ -445,26 +439,22 @@ mod test {
     }
 
     async fn new_consensus_service(funded_key: Option<VerificationKey>) -> (Consensus, Mempool) {
-        let accounts = if funded_key.is_some() {
-            vec![Account {
-                address: crate::test_utils::astria_address(&funded_key.unwrap().address_bytes()),
-                balance: 10u128.pow(19),
-            }]
+        let accounts = if let Some(funded_key) = funded_key {
+            vec![
+                astria_core::generated::protocol::genesis::v1alpha1::Account {
+                    address: Some(
+                        crate::test_utils::astria_address(&funded_key.address_bytes()).to_raw(),
+                    ),
+                    balance: Some(10u128.pow(19).into()),
+                },
+            ]
         } else {
             vec![]
         };
-        let genesis_state = UncheckedGenesisState {
-            accounts,
-            address_prefixes: AddressPrefixes {
-                base: crate::test_utils::ASTRIA_PREFIX.into(),
-            },
-            authority_sudo_address: crate::test_utils::astria_address(&[0; 20]),
-            ibc_sudo_address: crate::test_utils::astria_address(&[0; 20]),
-            ibc_relayer_addresses: vec![],
-            native_asset_base_denomination: crate::test_utils::nria(),
-            ibc_params: penumbra_ibc::params::IBCParameters::default(),
-            allowed_fee_assets: vec!["nria".parse().unwrap()],
-            fees: default_fees(),
+        let genesis_state = {
+            let mut state = crate::app::test_utils::proto_genesis_state();
+            state.accounts = accounts;
+            state
         }
         .try_into()
         .unwrap();
