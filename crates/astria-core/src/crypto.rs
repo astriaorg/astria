@@ -87,7 +87,12 @@ impl SigningKey {
         self.verification_key().address_bytes()
     }
 
-    /// Attempts to create an `[Address]` with the given prefix.
+    /// Attempts to create an Astria bech32m `[Address]` with the given prefix.
+    ///
+    /// # Errors
+    /// Returns an [`AddressError`] if an address could not be constructed
+    /// with the given prefix. Usually if the prefix was too long or contained
+    /// characters not allowed by bech32m.
     pub fn try_address(&self, prefix: &str) -> Result<Address, AddressError> {
         Address::builder()
             .prefix(prefix)
