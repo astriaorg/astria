@@ -76,11 +76,7 @@ impl Protobuf for BuilderBundle {
 
     fn to_raw(&self) -> Self::Raw {
         crate::generated::composer::v1alpha1::BuilderBundle {
-            transactions: self
-                .transactions
-                .iter()
-                .map(Protobuf::to_raw)
-                .collect(),
+            transactions: self.transactions.iter().map(Protobuf::to_raw).collect(),
             parent_hash: self.parent_hash.clone().to_vec(),
         }
     }
