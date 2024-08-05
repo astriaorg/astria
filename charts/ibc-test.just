@@ -32,7 +32,7 @@ delete:
   kubectl wait -n astria-dev-cluster deployment hermes-local-chart --for=condition=Available=True --timeout=300s
 
 [no-cd]
-run celestiaHome pathToCelestiaAppd=default_celestia_appd :
+run:
   #!/usr/bin/env bash
 
   initial_balance=$(just evm-get-balance {{evm_destination_address}})
@@ -40,11 +40,8 @@ run celestiaHome pathToCelestiaAppd=default_celestia_appd :
   # Create a bridge account on the sequencer
   just init-ibc-bridge {{ sequencer_tia_bridge_pkey }} transfer/channel-0/utia nria
 
-  # Load the private key of the Celestia dev account to issue transfers
-  just ibc-test _load-celestia-key "{{ celestiaHome}}" "{{ pathToCelestiaAppd }}"
-
   # Execute the transfer from Celestia to the Rollup
-  just ibc-test _do-ibc-transfer "{{ celestiaHome}}" "{{ pathToCelestiaAppd }}"
+  just ibc-test _do-ibc-transfer
 
   # Multiplication factor is 10^-6 (utia to tia) * 10^18 (rollup factor) = 10^12
   let expected_balance="$initial_balance + {{ transfer_amount }} * 10**12"
@@ -68,8 +65,6 @@ run celestiaHome pathToCelestiaAppd=default_celestia_appd :
 
 bridge_address := "astria1d7zjjljc0dsmxa545xkpwxym86g8uvvwhtezcr"
 celestia_dev_account_address := "celestia1m0ksdjl2p5nzhqy3p47fksv52at3ln885xvl96"
-celestia_dev_account_key_name := "dev"
-celestia_dev_account_mnemonic := "enrich avocado local net will avoid dizzy truth column excuse ready lesson"
 celestia_chain_id := "celestia-local-0"
 celestia_node_url := "http://rpc.app.celestia.localdev.me:80"
 sequencer_tia_bridge_pkey := "6015fbe1c365d3c5ef92dc891db8c5bb26ad454bec2db4762b96e9f8b2430285"
@@ -82,30 +77,22 @@ evm_destination_address := "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
 transfer_amount := "53000"
 transfer_fees := "26000"
 
-default_celestia_appd := "celestia-appd"
+# TODO: move this to deploy.just so that defaultNamespace need not be redefined
+defaultNamespace := "astria-dev-cluster"
 [no-cd]
-_load-celestia-key celestiaHome pathToCelestiaAppd=default_celestia_appd:
-  #!/usr/bin/env bash
-  pwd
-  "{{pathToCelestiaAppd}}" keys add {{ celestia_dev_account_key_name }} \
-    --home "{{celestiaHome}}" \
-    --keyring-backend="{{ keyring_backend }}" \
-    --recover <<< "{{ celestia_dev_account_mnemonic }}"
-
-[no-cd]
-_do-ibc-transfer celestiaHome pathToCelestiaAppd=default_celestia_appd:
+_do-ibc-transfer namespace=defaultNamespace:
   echo "Performing IBC transfer..."
-  "{{pathToCelestiaAppd}}" tx ibc-transfer transfer \
+  kubectl exec -n {{ namespace }} pods/celestia-local-0 celestia-app -- /bin/bash -c \
+  'celestia-appd tx ibc-transfer transfer \
     transfer \
     channel-0 \
     {{ bridge_address }} \
     "{{ transfer_amount }}utia" \
     --memo="{\"rollupDepositAddress\":\"{{ evm_destination_address }}\"}" \
     --chain-id="{{ celestia_chain_id }}" \
-    --node="{{ celestia_node_url }}" \
     --from="{{ celestia_dev_account_address }}" \
     --fees="{{ transfer_fees }}utia" \
     --yes \
     --log_level=debug \
-    --home "{{celestiaHome}}" \
-    --keyring-backend="{{ keyring_backend }}"
+    --home /home/celestia \
+    --keyring-backend="{{ keyring_backend }}"'
