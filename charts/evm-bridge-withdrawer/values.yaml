@@ -12,7 +12,7 @@ images:
   evmBridgeWithdrawer:
     repo: ghcr.io/astriaorg/evm-bridge-withdrawer
     tag: "0.1.0"
-    devTag: sha-c19812d
+    devTag: latest
 
 config:
   sequencerGrpcEndpoint: ""
