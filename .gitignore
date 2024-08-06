@@ -13,6 +13,3 @@ target/
 
 # We don't want to commit the dependency directory of charts
 charts/*/charts
-
-# directory used for testing. holds binaries, logs, etc.
-testing/tmp

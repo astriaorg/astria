@@ -191,9 +191,7 @@ working both up and down the stack.
 ```sh
 > just deploy cluster
 > just ibc-test deploy
-# you may need to build celestia-appd, e.g. for v1.9.0 for macos silicon:
-> just get-celestia-appd v1.9.0 Darwin arm64 ./path/to/celestia-appd
-> just ibc-test run ./path/for/celestia-home ./path/to/celestia-appd
+> just ibc-test run
 > just ibc-test delete
 ```
 
