@@ -1,7 +1,7 @@
 use bytes::Bytes;
 
 use crate::{
-    execution::v1alpha2::{
+    sequencerblock::v1alpha1::block::{
         RollupData,
         RollupDataError,
     },

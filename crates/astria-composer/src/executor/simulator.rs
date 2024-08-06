@@ -1,6 +1,6 @@
-use astria_core::execution::v1alpha2::{
-    RollupData,
-    RollupDataValue,
+use astria_core::{
+    sequencerblock::v1alpha1::block::RollupData,
+    Protobuf,
 };
 use astria_eyre::{
     eyre,
@@ -8,6 +8,7 @@ use astria_eyre::{
 };
 use bytes::Bytes;
 use pbjson_types::Timestamp;
+use prost::Message;
 use tracing::instrument;
 
 use crate::executor::{
@@ -56,29 +57,35 @@ impl BundleSimulator {
         bundle: SizedBundle,
     ) -> eyre::Result<BundleSimulationResult> {
         // call GetCommitmentState to get the soft block
+        println!("IN MAIN CODE: CALLING GET COMMITMENT STATE");
         let commitment_state = self
             .execution_service_client
             .get_commitment_state_with_retry()
             .await
             .wrap_err("failed to get commitment state")?;
 
+        println!("IN MAIN CODE: CALLED GET COMMITMENT STATE!");
         let soft_block = commitment_state.soft();
-
         // convert the sized bundle actions to a list of list of u8s
         // TODO - bharath - revisit this and make the code better. The else stmt is a bit weird
-        let actions = bundle
+        let actions: Vec<Vec<u8>> = bundle
             .into_actions()
             .iter()
             .map(|action| {
+                // TODO - should we support sequencer transfers and actions outside sequence
+                // actions too?
                 return if let Some(seq_action) = action.as_sequence() {
-                    seq_action.clone().data
+                    RollupData::SequencedData(seq_action.clone().data)
+                        .to_raw()
+                        .encode_to_vec()
                 } else {
                     vec![]
                 };
             })
             .filter(|data| !data.is_empty())
-            .collect::<Vec<Vec<u8>>>();
+            .collect();
 
+        println!("IN MAIN CODE: CALLING EXECUTE_BLOCK");
         // call execute block with the bundle to get back the included transactions
         let execute_block_response = self
             .execution_service_client
@@ -91,9 +98,10 @@ impl BundleSimulator {
             .await
             .wrap_err("failed to execute block")?;
 
+        println!("IN MAIN CODE: CALLED EXECUTE BLOCK!!");
         Ok(BundleSimulationResult::new(
             execute_block_response.included_transactions().to_vec(),
-            soft_block.hash().clone(),
+            execute_block_response.block().parent_block_hash().clone(),
         ))
     }
 }
