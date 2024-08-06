@@ -41,13 +41,13 @@ run:
   initial_balance=$(just evm-get-balance {{evm_destination_address}})
 
   # Create a bridge account on the sequencer
-  just init-ibc-bridge {{ sequencer_tia_bridge_pkey }} transfer/channel-0/utia nria
+  just init-ibc-bridge {{sequencer_tia_bridge_pkey}} transfer/channel-0/utia nria
 
   # Execute the transfer from Celestia to the Rollup
   just ibc-test _do-ibc-transfer
 
   # Multiplication factor is 10^-6 (utia to tia) * 10^18 (rollup factor) = 10^12
-  let expected_balance="$initial_balance + {{ transfer_amount }} * 10**12"
+  let expected_balance="$initial_balance + {{transfer_amount}} * 10**12"
 
   for i in {1..50}
   do
@@ -128,20 +128,20 @@ defaultNamespace := "astria-dev-cluster"
 [no-cd]
 _do-ibc-transfer namespace=defaultNamespace:
   echo "Performing IBC transfer..."
-  kubectl exec -n {{ namespace }} pods/celestia-local-0 celestia-app -- /bin/bash -c \
+  kubectl exec -n {{namespace}} pods/celestia-local-0 celestia-app -- /bin/bash -c \
   'celestia-appd tx ibc-transfer transfer \
     transfer \
     channel-0 \
-    {{ bridge_address }} \
-    "{{ transfer_amount }}utia" \
-    --memo="{\"rollupDepositAddress\":\"{{ evm_destination_address }}\"}" \
-    --chain-id="{{ celestia_chain_id }}" \
-    --from="{{ celestia_dev_account_address }}" \
-    --fees="{{ transfer_fees }}utia" \
+    {{bridge_address}} \
+    "{{transfer_amount}}utia" \
+    --memo="{\"rollupDepositAddress\":\"{{evm_destination_address}}\"}" \
+    --chain-id="{{celestia_chain_id}}" \
+    --from="{{celestia_dev_account_address}}" \
+    --fees="{{transfer_fees}}utia" \
     --yes \
     --log_level=debug \
     --home /home/celestia \
-    --keyring-backend="{{ keyring_backend }}"'
+    --keyring-backend="{{keyring_backend}}"'
 
 # helper command to call withdraw smart contract, in aid of getting its raw bytes for the tests.
 _forge-ibc-withdraw:
