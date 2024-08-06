@@ -1,5 +1,8 @@
 # commands to simplify Kubetail usage
 
+_default:
+  @just --list kubetail
+
 # add the kubetail chart repository
 add-repo:
   helm repo add kubetail https://kubetail-org.github.io/helm-charts/
