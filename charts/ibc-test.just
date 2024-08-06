@@ -143,12 +143,6 @@ _do-ibc-transfer namespace=defaultNamespace:
     --home /home/celestia \
     --keyring-backend="{{ keyring_backend }}"'
 
-[no-cd]
-_celestia-get-balance celestiaHome='./testing/tmp/celestia-ibc-test' pathToCelestiaAppd='./testing/tmp/celestia-appd':
-  {{pathToCelestiaAppd}} query bank balances {{celestia_dev_account_address}} \
-    --home "{{celestiaHome}}" \
-    --node "{{celestia_node_url}}"
-
 # helper command to call withdraw smart contract, in aid of getting its raw bytes for the tests.
 _forge-ibc-withdraw:
   #!/usr/bin/env bash
@@ -168,13 +162,3 @@ _forge-ibc-withdraw:
     --legacy \
     --broadcast \
     --sig "withdrawToIbcChain()" -vvvv
-
-# run the ibc-test locally. build celestia-appd if not found.
-[no-cd]
-[macos]
-run-local:
-  #!/usr/bin/env bash
-  if [ ! -f "./testing/tmp/celestia-appd" ]; then
-    just get-celestia-appd v1.9.0 Darwin arm64 ./testing/tmp
-  fi
-  just ibc-test run ./testing/tmp/celestia-ibc-test ./testing/tmp/celestia-appd
