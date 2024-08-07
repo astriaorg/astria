@@ -28,7 +28,8 @@ evm-rollup:
     chainId: "{{ .Values.global.evmChainId }}"
   config:
     celestiaNode:
-      token: "{{ include "celestiaNode.service.addresses.token" (index .Subcharts "celestia-node") }}"
+      tokenService: "http://celestia-node-light-mocha-4-token-service.{{ default .Release.Namespace .Values.global.namespaceOverride  }}.svc.cluster.local:5353"
+      rpcService: "http://celestia-node-light-mocha-4-service.{{ default .Release.Namespace .Values.global.namespaceOverride  }}.svc.cluster.local:26658"
     conductor:
       sequencerChainId: "{{ .Values.global.sequencerChainId }}"
       sequencerRpc: "{{ .Values.global.sequencerRpc }}"
