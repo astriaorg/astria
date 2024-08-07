@@ -791,7 +791,6 @@ dependencies = [
  "borsh",
  "bytes",
  "cnidarium",
- "cnidarium-component",
  "divan",
  "futures",
  "hex",

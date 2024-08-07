@@ -7,7 +7,6 @@ use anyhow::{
 use astria_core::{
     primitive::v1::{
         asset,
-        Address,
         RollupId,
     },
     protocol::transaction::v1alpha1::{
@@ -19,21 +18,22 @@ use astria_core::{
         UnsignedTransaction,
     },
 };
+use cnidarium::StateRead;
 use tracing::instrument;
 
 use crate::{
-    accounts,
-    address,
+    accounts::StateReadExt as _,
+    address::StateReadExt as _,
     bridge::StateReadExt as _,
     ibc::StateReadExt as _,
     state_ext::StateReadExt as _,
 };
 
 #[instrument(skip_all)]
-pub(crate) async fn check_nonce_mempool<S>(tx: &SignedTransaction, state: &S) -> anyhow::Result<()>
-where
-    S: accounts::StateReadExt + address::StateReadExt + 'static,
-{
+pub(crate) async fn check_nonce_mempool<S: StateRead>(
+    tx: &SignedTransaction,
+    state: &S,
+) -> anyhow::Result<()> {
     let signer_address = state
         .try_base_prefixed(&tx.verification_key().address_bytes())
         .await
@@ -50,13 +50,10 @@ where
 }
 
 #[instrument(skip_all)]
-pub(crate) async fn check_chain_id_mempool<S>(
+pub(crate) async fn check_chain_id_mempool<S: StateRead>(
     tx: &SignedTransaction,
     state: &S,
-) -> anyhow::Result<()>
-where
-    S: accounts::StateReadExt + 'static,
-{
+) -> anyhow::Result<()> {
     let chain_id = state
         .get_chain_id()
         .await
@@ -66,28 +63,18 @@ where
 }
 
 #[instrument(skip_all)]
-pub(crate) async fn check_balance_mempool<S>(
+pub(crate) async fn check_balance_mempool<S: StateRead>(
     tx: &SignedTransaction,
     state: &S,
-) -> anyhow::Result<()>
-where
-    S: accounts::StateReadExt + address::StateReadExt + 'static,
-{
-    let signer_address = state
-        .try_base_prefixed(&tx.verification_key().address_bytes())
-        .await
-        .context(
-            "failed constructing the signer address from signed transaction verification and \
-             prefix provided by app state",
-        )?;
-    check_balance_for_total_fees_and_transfers(tx.unsigned_transaction(), signer_address, state)
+) -> anyhow::Result<()> {
+    check_balance_for_total_fees_and_transfers(tx, state)
         .await
         .context("failed to check balance for total fees and transfers")?;
     Ok(())
 }
 
 #[instrument(skip_all)]
-pub(crate) async fn get_fees_for_transaction<S: accounts::StateReadExt + 'static>(
+pub(crate) async fn get_fees_for_transaction<S: StateRead>(
     tx: &UnsignedTransaction,
     state: &S,
 ) -> anyhow::Result<HashMap<asset::IbcPrefixed, u128>> {
@@ -163,20 +150,16 @@ pub(crate) async fn get_fees_for_transaction<S: accounts::StateReadExt + 'static
 // Checks that the account has enough balance to cover the total fees and transferred values
 // for all actions in the transaction.
 #[instrument(skip_all)]
-pub(crate) async fn check_balance_for_total_fees_and_transfers<S>(
-    tx: &UnsignedTransaction,
-    from: Address,
+pub(crate) async fn check_balance_for_total_fees_and_transfers<S: StateRead>(
+    tx: &SignedTransaction,
     state: &S,
-) -> anyhow::Result<()>
-where
-    S: accounts::StateReadExt + 'static,
-{
-    let mut cost_by_asset = get_fees_for_transaction(tx, state)
+) -> anyhow::Result<()> {
+    let mut cost_by_asset = get_fees_for_transaction(tx.unsigned_transaction(), state)
         .await
         .context("failed to get fees for transaction")?;
 
     // add values transferred within the tx to the cost
-    for action in &tx.actions {
+    for action in tx.actions() {
         match action {
             Action::Transfer(act) => {
                 cost_by_asset
@@ -198,7 +181,7 @@ where
             }
             Action::BridgeUnlock(act) => {
                 let asset = state
-                    .get_bridge_account_ibc_asset(&from)
+                    .get_bridge_account_ibc_asset(tx)
                     .await
                     .context("failed to get bridge account asset id")?;
                 cost_by_asset
@@ -222,7 +205,7 @@ where
 
     for (asset, total_fee) in cost_by_asset {
         let balance = state
-            .get_account_balance(from, asset)
+            .get_account_balance(tx, asset)
             .await
             .context("failed to get account balance")?;
         ensure!(
@@ -246,15 +229,12 @@ fn transfer_update_fees(
         .or_insert(transfer_fee);
 }
 
-async fn sequence_update_fees<S>(
+async fn sequence_update_fees<S: StateRead>(
     state: &S,
     fee_asset: &asset::Denom,
     fees_by_asset: &mut HashMap<asset::IbcPrefixed, u128>,
     data: &[u8],
-) -> anyhow::Result<()>
-where
-    S: accounts::StateReadExt,
-{
+) -> anyhow::Result<()> {
     let fee = crate::sequence::calculate_fee_from_state(data, state)
         .await
         .context("fee for sequence action overflowed; data too large")?;
@@ -315,10 +295,6 @@ fn bridge_unlock_update_fees(
 
 #[cfg(test)]
 mod tests {
-    use address::{
-        StateReadExt,
-        StateWriteExt,
-    };
     use astria_core::{
         primitive::v1::{
             asset::Denom,
@@ -337,8 +313,9 @@ mod tests {
 
     use super::*;
     use crate::{
-        accounts::{
-            StateReadExt as _,
+        accounts::StateWriteExt as _,
+        address::{
+            StateReadExt,
             StateWriteExt as _,
         },
         app::test_utils::*,

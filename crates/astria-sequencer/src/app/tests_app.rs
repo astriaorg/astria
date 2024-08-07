@@ -292,9 +292,9 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
 
     let mut state_tx = StateDelta::new(app.state.clone());
-    state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
+    state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
     state_tx
-        .put_bridge_account_ibc_asset(&bridge_address, nria())
+        .put_bridge_account_ibc_asset(bridge_address, nria())
         .unwrap();
     app.apply(state_tx);
     app.prepare_commit(storage.clone()).await.unwrap();
@@ -382,9 +382,9 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
     let asset = nria().clone();
 
     let mut state_tx = StateDelta::new(app.state.clone());
-    state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
+    state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
     state_tx
-        .put_bridge_account_ibc_asset(&bridge_address, &asset)
+        .put_bridge_account_ibc_asset(bridge_address, &asset)
         .unwrap();
     app.apply(state_tx);
     app.prepare_commit(storage.clone()).await.unwrap();
@@ -679,7 +679,7 @@ async fn app_end_block_validator_updates() {
     ];
 
     let mut app = initialize_app(None, initial_validator_set).await;
-    let proposer_address = astria_address(&[0u8; 20]);
+    let proposer_address = [0u8; 20];
 
     let validator_updates = vec![
         ValidatorUpdate {

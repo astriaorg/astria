@@ -556,7 +556,7 @@ async fn execute_ics20_transfer_bridge_lock<S: ibc::StateWriteExt>(
     // check if the recipient is a bridge account; if so,
     // ensure that the packet memo field (`destination_address`) is set.
     let is_bridge_lock = state
-        .get_bridge_account_rollup_id(&recipient)
+        .get_bridge_account_rollup_id(recipient)
         .await
         .context("failed to get bridge account rollup ID from state")?
         .is_some();
@@ -612,7 +612,7 @@ async fn execute_deposit<S: ibc::StateWriteExt>(
     // ensure that the asset ID being transferred
     // to it is allowed.
     let Some(rollup_id) = state
-        .get_bridge_account_rollup_id(&bridge_address)
+        .get_bridge_account_rollup_id(bridge_address)
         .await
         .context("failed to get bridge account rollup ID from state")?
     else {
@@ -620,7 +620,7 @@ async fn execute_deposit<S: ibc::StateWriteExt>(
     };
 
     let allowed_asset = state
-        .get_bridge_account_ibc_asset(&bridge_address)
+        .get_bridge_account_ibc_asset(bridge_address)
         .await
         .context("failed to get bridge account asset ID")?;
     ensure!(
@@ -765,9 +765,9 @@ mod test {
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
         let denom = "dest_port/dest_channel/nootasset".parse::<Denom>().unwrap();
 
-        state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
+        state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
         state_tx
-            .put_bridge_account_ibc_asset(&bridge_address, &denom)
+            .put_bridge_account_ibc_asset(bridge_address, &denom)
             .unwrap();
 
         let memo = memos::v1alpha1::Ics20TransferDeposit {
@@ -822,9 +822,9 @@ mod test {
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
         let denom = "dest_port/dest_channel/nootasset".parse::<Denom>().unwrap();
 
-        state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
+        state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
         state_tx
-            .put_bridge_account_ibc_asset(&bridge_address, &denom)
+            .put_bridge_account_ibc_asset(bridge_address, &denom)
             .unwrap();
 
         // use invalid memo, which should fail
@@ -860,9 +860,9 @@ mod test {
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
         let denom = "dest_port/dest_channel/nootasset".parse::<Denom>().unwrap();
 
-        state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
+        state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
         state_tx
-            .put_bridge_account_ibc_asset(&bridge_address, &denom)
+            .put_bridge_account_ibc_asset(bridge_address, &denom)
             .unwrap();
 
         // use invalid asset, which should fail
@@ -1000,9 +1000,9 @@ mod test {
             .parse::<TracePrefixed>()
             .unwrap();
 
-        state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
+        state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
         state_tx
-            .put_bridge_account_ibc_asset(&bridge_address, &denom)
+            .put_bridge_account_ibc_asset(bridge_address, &denom)
             .unwrap();
 
         let amount = 100;
@@ -1041,9 +1041,9 @@ mod test {
         let denom = "nootasset".parse::<Denom>().unwrap();
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
 
-        state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
+        state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
         state_tx
-            .put_bridge_account_ibc_asset(&bridge_address, &denom)
+            .put_bridge_account_ibc_asset(bridge_address, &denom)
             .unwrap();
 
         let packet = FungibleTokenPacketData {

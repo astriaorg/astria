@@ -3,29 +3,33 @@ use anyhow::{
     Context as _,
     Result,
 };
-use astria_core::{
-    primitive::v1::Address,
-    protocol::transaction::v1alpha1::action::IbcRelayerChangeAction,
-};
+use astria_core::protocol::transaction::v1alpha1::action::IbcRelayerChangeAction;
 use async_trait::async_trait;
+use cnidarium::StateWrite;
 
 use crate::{
-    address,
-    ibc,
-    transaction::action_handler::ActionHandler,
+    address::StateReadExt as _,
+    app::ActionHandler,
+    ibc::{
+        StateReadExt as _,
+        StateWriteExt as _,
+    },
+    transaction::StateReadExt as _,
 };
 
 #[async_trait]
 impl ActionHandler for IbcRelayerChangeAction {
-    async fn check_stateless(&self) -> Result<()> {
+    type CheckStatelessContext = ();
+
+    async fn check_stateless(&self, _context: Self::CheckStatelessContext) -> Result<()> {
         Ok(())
     }
 
-    async fn check_stateful<S: ibc::StateReadExt + address::StateReadExt + 'static>(
-        &self,
-        state: &S,
-        from: Address,
-    ) -> Result<()> {
+    async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
+        let from = state
+            .get_current_source()
+            .expect("transaction source must be present in state when executing an action")
+            .address_bytes();
         match self {
             IbcRelayerChangeAction::Addition(addr) | IbcRelayerChangeAction::Removal(addr) => {
                 state.ensure_base_prefix(addr).await.context(
@@ -42,10 +46,7 @@ impl ActionHandler for IbcRelayerChangeAction {
             ibc_sudo_address == from,
             "unauthorized address for IBC relayer change"
         );
-        Ok(())
-    }
 
-    async fn execute<S: ibc::StateWriteExt>(&self, state: &mut S, _from: Address) -> Result<()> {
         match self {
             IbcRelayerChangeAction::Addition(address) => {
                 state.put_ibc_relayer_address(address);

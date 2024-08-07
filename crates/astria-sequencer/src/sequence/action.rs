@@ -4,50 +4,30 @@ use anyhow::{
     Result,
 };
 use astria_core::{
-    primitive::v1::Address,
     protocol::transaction::v1alpha1::action::SequenceAction,
-    Protobuf,
+    Protobuf as _,
 };
-use tracing::instrument;
+use cnidarium::StateWrite;
 
 use crate::{
-    accounts,
     accounts::{
+        StateReadExt as _,
+        StateWriteExt as _,
+    },
+    app::ActionHandler,
+    assets::{
         StateReadExt,
         StateWriteExt,
     },
-    assets,
     sequence,
-    transaction::action_handler::ActionHandler,
+    transaction::StateReadExt as _,
 };
 
 #[async_trait::async_trait]
 impl ActionHandler for SequenceAction {
-    async fn check_stateful<S: StateReadExt + 'static>(
-        &self,
-        state: &S,
-        from: Address,
-    ) -> Result<()>
-    where
-        S: accounts::StateReadExt + assets::StateReadExt + 'static,
-    {
-        ensure!(
-            state.is_allowed_fee_asset(&self.fee_asset).await?,
-            "invalid fee asset",
-        );
+    type CheckStatelessContext = ();
 
-        let curr_balance = state
-            .get_account_balance(from, &self.fee_asset)
-            .await
-            .context("failed getting `from` account balance for fee payment")?;
-        let fee = calculate_fee_from_state(&self.data, state)
-            .await
-            .context("calculated fee overflows u128")?;
-        ensure!(curr_balance >= fee, "insufficient funds");
-        Ok(())
-    }
-
-    async fn check_stateless(&self) -> Result<()> {
+    async fn check_stateless(&self, _context: Self::CheckStatelessContext) -> Result<()> {
         // TODO: do we want to place a maximum on the size of the data?
         // https://github.com/astriaorg/astria/issues/222
         ensure!(
@@ -57,14 +37,28 @@ impl ActionHandler for SequenceAction {
         Ok(())
     }
 
-    #[instrument(skip_all)]
-    async fn execute<S>(&self, state: &mut S, from: Address) -> Result<()>
-    where
-        S: assets::StateWriteExt,
-    {
-        let fee = calculate_fee_from_state(&self.data, state)
+    async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
+        let from = state
+            .get_current_source()
+            .expect("transaction source must be present in state when executing an action")
+            .address_bytes();
+
+        ensure!(
+            state
+                .is_allowed_fee_asset(&self.fee_asset)
+                .await
+                .context("failed accessing state to check if fee is allowed")?,
+            "invalid fee asset",
+        );
+
+        let curr_balance = state
+            .get_account_balance(from, &self.fee_asset)
             .await
-            .context("failed to calculate fee")?;
+            .context("failed getting `from` account balance for fee payment")?;
+        let fee = calculate_fee_from_state(&self.data, &state)
+            .await
+            .context("calculated fee overflows u128")?;
+        ensure!(curr_balance >= fee, "insufficient funds");
 
         state
             .get_and_increase_block_fees(&self.fee_asset, fee, Self::full_name())

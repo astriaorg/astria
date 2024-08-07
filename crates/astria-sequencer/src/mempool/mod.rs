@@ -78,16 +78,13 @@ impl PartialOrd for TransactionPriority {
 pub(crate) struct EnqueuedTransaction {
     tx_hash: [u8; 32],
     signed_tx: Arc<SignedTransaction>,
-    address_bytes: [u8; ADDRESS_LEN],
 }
 
 impl EnqueuedTransaction {
     fn new(signed_tx: SignedTransaction) -> Self {
-        let address_bytes = signed_tx.verification_key().address_bytes();
         Self {
             tx_hash: signed_tx.sha256_of_proto_encoding(),
             signed_tx: Arc::new(signed_tx),
-            address_bytes,
         }
     }
 
@@ -118,7 +115,7 @@ impl EnqueuedTransaction {
     }
 
     pub(crate) fn address_bytes(&self) -> [u8; 20] {
-        self.address_bytes
+        self.signed_tx.address_bytes()
     }
 }
 
@@ -301,11 +298,10 @@ impl Mempool {
     /// removes a transaction from the mempool
     #[instrument(skip_all)]
     pub(crate) async fn remove(&self, tx_hash: [u8; 32]) {
-        let (signed_tx, address_bytes) = dummy_signed_tx();
+        let signed_tx = dummy_signed_tx();
         let enqueued_tx = EnqueuedTransaction {
             tx_hash,
             signed_tx,
-            address_bytes,
         };
         self.queue.write().await.remove(&enqueued_tx);
     }
@@ -411,26 +407,22 @@ impl Mempool {
 /// this `signed_tx` field is ignored in the `PartialEq` and `Hash` impls of `EnqueuedTransaction` -
 /// only the tx hash is considered.  So we create an `EnqueuedTransaction` on the fly with the
 /// correct tx hash and this dummy signed tx when removing from the queue.
-fn dummy_signed_tx() -> (Arc<SignedTransaction>, [u8; ADDRESS_LEN]) {
-    static TX: OnceLock<(Arc<SignedTransaction>, [u8; ADDRESS_LEN])> = OnceLock::new();
-    let (signed_tx, address_bytes) = TX.get_or_init(|| {
+fn dummy_signed_tx() -> Arc<SignedTransaction> {
+    static TX: OnceLock<Arc<SignedTransaction>> = OnceLock::new();
+    let signed_tx = TX.get_or_init(|| {
         let actions = vec![];
         let params = TransactionParams::builder()
             .nonce(0)
             .chain_id("dummy")
             .build();
         let signing_key = SigningKey::from([0; 32]);
-        let address_bytes = signing_key.verification_key().address_bytes();
         let unsigned_tx = UnsignedTransaction {
             actions,
             params,
         };
-        (
-            Arc::new(unsigned_tx.into_signed(&signing_key)),
-            address_bytes,
-        )
+        Arc::new(unsigned_tx.into_signed(&signing_key))
     });
-    (signed_tx.clone(), *address_bytes)
+    signed_tx.clone()
 }
 
 #[cfg(test)]
@@ -514,17 +506,14 @@ mod test {
         let tx0 = EnqueuedTransaction {
             tx_hash: [0; 32],
             signed_tx: Arc::new(get_mock_tx(0)),
-            address_bytes: get_mock_tx(0).address_bytes(),
         };
         let other_tx0 = EnqueuedTransaction {
             tx_hash: [0; 32],
             signed_tx: Arc::new(get_mock_tx(1)),
-            address_bytes: get_mock_tx(1).address_bytes(),
         };
         let tx1 = EnqueuedTransaction {
             tx_hash: [1; 32],
             signed_tx: Arc::new(get_mock_tx(0)),
-            address_bytes: get_mock_tx(0).address_bytes(),
         };
         assert!(tx0 == other_tx0);
         assert!(tx0 != tx1);

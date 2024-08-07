@@ -4,30 +4,41 @@ use anyhow::{
     Context as _,
     Result,
 };
-use astria_core::{
-    primitive::v1::Address,
-    protocol::transaction::v1alpha1::action::{
-        FeeChange,
-        FeeChangeAction,
-        SudoAddressChangeAction,
-        ValidatorUpdate,
-    },
+use astria_core::protocol::transaction::v1alpha1::action::{
+    FeeChange,
+    FeeChangeAction,
+    SudoAddressChangeAction,
+    ValidatorUpdate,
 };
-use tracing::instrument;
+use cnidarium::StateWrite;
 
 use crate::{
-    address,
-    authority,
-    transaction::action_handler::ActionHandler,
+    accounts::StateWriteExt as _,
+    address::StateReadExt as _,
+    app::ActionHandler,
+    authority::{
+        StateReadExt as _,
+        StateWriteExt as _,
+    },
+    bridge::StateWriteExt as _,
+    ibc::StateWriteExt as _,
+    sequence::StateWriteExt as _,
+    transaction::StateReadExt as _,
 };
 
 #[async_trait::async_trait]
 impl ActionHandler for ValidatorUpdate {
-    async fn check_stateful<S: authority::StateReadExt + 'static>(
-        &self,
-        state: &S,
-        from: Address,
-    ) -> Result<()> {
+    type CheckStatelessContext = ();
+
+    async fn check_stateless(&self, _context: Self::CheckStatelessContext) -> Result<()> {
+        Ok(())
+    }
+
+    async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
+        let from = state
+            .get_current_source()
+            .expect("transaction source must be present in state when executing an action")
+            .address_bytes();
         // ensure signer is the valid `sudo` key in state
         let sudo_address = state
             .get_sudo_address()
@@ -52,15 +63,7 @@ impl ActionHandler for ValidatorUpdate {
             // check that this is not the only validator, cannot remove the last one
             ensure!(validator_set.len() != 1, "cannot remove the last validator");
         }
-        Ok(())
-    }
 
-    #[instrument(skip_all)]
-    async fn execute<S: authority::StateReadExt + authority::StateWriteExt>(
-        &self,
-        state: &mut S,
-        _: Address,
-    ) -> Result<()> {
         // add validator update in non-consensus state to be used in end_block
         let mut validator_updates = state
             .get_validator_updates()
@@ -76,17 +79,19 @@ impl ActionHandler for ValidatorUpdate {
 
 #[async_trait::async_trait]
 impl ActionHandler for SudoAddressChangeAction {
-    async fn check_stateless(&self) -> Result<()> {
+    type CheckStatelessContext = ();
+
+    async fn check_stateless(&self, _context: Self::CheckStatelessContext) -> Result<()> {
         Ok(())
     }
 
     /// check that the signer of the transaction is the current sudo address,
     /// as only that address can change the sudo address
-    async fn check_stateful<S: address::StateReadExt + authority::StateReadExt + 'static>(
-        &self,
-        state: &S,
-        from: Address,
-    ) -> Result<()> {
+    async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
+        let from = state
+            .get_current_source()
+            .expect("transaction source must be present in state when executing an action")
+            .address_bytes();
         state
             .ensure_base_prefix(&self.new_address)
             .await
@@ -97,11 +102,6 @@ impl ActionHandler for SudoAddressChangeAction {
             .await
             .context("failed to get sudo address from state")?;
         ensure!(sudo_address == from, "signer is not the sudo key");
-        Ok(())
-    }
-
-    #[instrument(skip_all)]
-    async fn execute<S: authority::StateWriteExt>(&self, state: &mut S, _: Address) -> Result<()> {
         state
             .put_sudo_address(self.new_address)
             .context("failed to put sudo address in state")?;
@@ -111,30 +111,25 @@ impl ActionHandler for SudoAddressChangeAction {
 
 #[async_trait::async_trait]
 impl ActionHandler for FeeChangeAction {
+    type CheckStatelessContext = ();
+
+    async fn check_stateless(&self, _context: Self::CheckStatelessContext) -> Result<()> {
+        Ok(())
+    }
+
     /// check that the signer of the transaction is the current sudo address,
     /// as only that address can change the fee
-    async fn check_stateful<S: authority::StateReadExt + 'static>(
-        &self,
-        state: &S,
-        from: Address,
-    ) -> Result<()> {
+    async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
+        let from = state
+            .get_current_source()
+            .expect("transaction source must be present in state when executing an action")
+            .address_bytes();
         // ensure signer is the valid `sudo` key in state
         let sudo_address = state
             .get_sudo_address()
             .await
             .context("failed to get sudo address from state")?;
         ensure!(sudo_address == from, "signer is not the sudo key");
-        Ok(())
-    }
-
-    #[instrument(skip_all)]
-    async fn execute<S: authority::StateWriteExt>(&self, state: &mut S, _: Address) -> Result<()> {
-        use crate::{
-            accounts::StateWriteExt as _,
-            bridge::StateWriteExt as _,
-            ibc::StateWriteExt as _,
-            sequence::StateWriteExt as _,
-        };
 
         match self.fee_change {
             FeeChange::TransferBaseFee => {
@@ -172,31 +167,28 @@ mod test {
 
     use super::*;
     use crate::{
-        accounts::{
-            StateReadExt as _,
+        accounts::StateReadExt as _,
+        bridge::StateReadExt as _,
+        ibc::StateReadExt as _,
+        sequence::StateReadExt as _,
+        transaction::{
             StateWriteExt as _,
+            TransactionContext,
         },
-        bridge::{
-            StateReadExt as _,
-            StateWriteExt as _,
-        },
-        ibc::{
-            StateReadExt as _,
-            StateWriteExt as _,
-        },
-        sequence::{
-            StateReadExt as _,
-            StateWriteExt as _,
-        },
-        test_utils::astria_address,
     };
 
     #[tokio::test]
-    async fn fee_change_action_execute() {
+    async fn fee_change_action_executes() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
         let transfer_fee = 12;
+
+        state.put_current_source(TransactionContext {
+            address_bytes: [1; 20],
+        });
+        state.put_sudo_address([1; 20]).unwrap();
+
         state.put_transfer_base_fee(transfer_fee).unwrap();
 
         let fee_change = FeeChangeAction {
@@ -204,10 +196,7 @@ mod test {
             new_value: 10,
         };
 
-        fee_change
-            .execute(&mut state, astria_address(&[1; 20]))
-            .await
-            .unwrap();
+        fee_change.check_and_execute(&mut state).await.unwrap();
         assert_eq!(state.get_transfer_base_fee().await.unwrap(), 10);
 
         let sequence_base_fee = 5;
@@ -218,10 +207,7 @@ mod test {
             new_value: 3,
         };
 
-        fee_change
-            .execute(&mut state, astria_address(&[1; 20]))
-            .await
-            .unwrap();
+        fee_change.check_and_execute(&mut state).await.unwrap();
         assert_eq!(state.get_sequence_action_base_fee().await.unwrap(), 3);
 
         let sequence_byte_cost_multiplier = 2;
@@ -232,10 +218,7 @@ mod test {
             new_value: 4,
         };
 
-        fee_change
-            .execute(&mut state, astria_address(&[1; 20]))
-            .await
-            .unwrap();
+        fee_change.check_and_execute(&mut state).await.unwrap();
         assert_eq!(
             state
                 .get_sequence_action_byte_cost_multiplier()
@@ -252,10 +235,7 @@ mod test {
             new_value: 2,
         };
 
-        fee_change
-            .execute(&mut state, astria_address(&[1; 20]))
-            .await
-            .unwrap();
+        fee_change.check_and_execute(&mut state).await.unwrap();
         assert_eq!(state.get_init_bridge_account_base_fee().await.unwrap(), 2);
 
         let bridge_lock_byte_cost_multiplier = 1;
@@ -266,10 +246,7 @@ mod test {
             new_value: 2,
         };
 
-        fee_change
-            .execute(&mut state, astria_address(&[1; 20]))
-            .await
-            .unwrap();
+        fee_change.check_and_execute(&mut state).await.unwrap();
         assert_eq!(
             state.get_bridge_lock_byte_cost_multiplier().await.unwrap(),
             2
@@ -285,10 +262,7 @@ mod test {
             new_value: 2,
         };
 
-        fee_change
-            .execute(&mut state, astria_address(&[1; 20]))
-            .await
-            .unwrap();
+        fee_change.check_and_execute(&mut state).await.unwrap();
         assert_eq!(state.get_ics20_withdrawal_base_fee().await.unwrap(), 2);
     }
 }

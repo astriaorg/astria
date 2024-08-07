@@ -31,9 +31,7 @@ use tracing::{
 };
 
 use crate::{
-    address::StateReadExt as _,
     app::App,
-    assets::StateReadExt as _,
     config::Config,
     grpc::sequencer::SequencerServer,
     ibc::host_interface::AstriaHost,
@@ -83,21 +81,6 @@ impl Sequencer {
         .await
         .context("failed to load storage backing chain state")?;
         let snapshot = storage.latest_snapshot();
-
-        // the native asset should be configurable only at genesis.
-        // the genesis state must include the native asset's base
-        // denomination, and it is set in storage during init_chain.
-        // on subsequent startups, we load the native asset from storage.
-        if storage.latest_version() != u64::MAX {
-            let _ = snapshot
-                .get_native_asset()
-                .await
-                .context("failed to query state for native asset")?;
-            let _ = snapshot
-                .get_base_prefix()
-                .await
-                .context("failed to query state for base prefix")?;
-        }
 
         let mempool = Mempool::new();
         let app = App::new(snapshot, mempool.clone(), metrics)

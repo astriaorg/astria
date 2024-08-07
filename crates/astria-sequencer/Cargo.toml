@@ -28,7 +28,6 @@ borsh = { version = "1", features = ["derive"] }
 cnidarium = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.78.0", features = [
   "metrics",
 ] }
-cnidarium-component = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.78.0" }
 ibc-proto = { version = "0.41.0", features = ["server"] }
 matchit = "0.7.2"
 priority-queue = "2.0.2"

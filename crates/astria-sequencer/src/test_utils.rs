@@ -38,3 +38,12 @@ pub(crate) fn verification_key(seed: u64) -> VerificationKey {
     let signing_key = SigningKey::new(rng);
     signing_key.verification_key()
 }
+
+#[track_caller]
+pub(crate) fn assert_anyhow_error(error: &anyhow::Error, expected: &'static str) {
+    let msg = error.to_string();
+    assert!(
+        msg.contains(expected),
+        "error contained different message\n\texpected: {expected}\n\tfull_error: {msg}",
+    );
+}
