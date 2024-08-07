@@ -187,7 +187,7 @@ config:
     token: ""
 
   celestiaNode:
-    enabled: true
+    enabled: false
     # Strongly recommend leaving enabled when not doing `SoftOnly` execution
     tokenService: ""
     rpcService: ""
