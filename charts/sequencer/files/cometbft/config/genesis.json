@@ -1,28 +1,28 @@
 {
   "app_hash": "",
   "app_state": {
-    "native_asset_base_denomination": "{{ .Values.genesis.nativeAssetBaseDenomination }}",
+    "nativeAssetBaseDenomination": "{{ .Values.genesis.nativeAssetBaseDenomination }}",
     "fees": {
-      "transfer_base_fee": {{ .Values.genesis.fees.transferBaseFee }},
-      "sequence_base_fee": {{ .Values.genesis.fees.sequenceBaseFee }},
-      "sequence_byte_cost_multiplier": {{ .Values.genesis.fees.sequenceByteCostMultiplier }},
-      "init_bridge_account_base_fee": {{ .Values.genesis.fees.initBridgeAccountBaseFee }},
-      "bridge_lock_byte_cost_multiplier": {{ .Values.genesis.fees.bridgeLockByteCostMultiplier }},
-      "bridge_sudo_change_fee": {{ .Values.genesis.fees.bridgeSudoChangeFee }},
-      "ics20_withdrawal_base_fee": {{ .Values.genesis.fees.ics20WithdrawalBaseFee }}
+      "transferBaseFee": {{ include "sequencer.fee" .Values.genesis.fees.transferBaseFee }},
+      "sequenceBaseFee": {{ include "sequencer.fee" .Values.genesis.fees.sequenceBaseFee }},
+      "sequenceByteCostMultiplier": {{ include "sequencer.fee" .Values.genesis.fees.sequenceByteCostMultiplier }},
+      "initBridgeAccountBaseFee": {{ include "sequencer.fee" .Values.genesis.fees.initBridgeAccountBaseFee }},
+      "bridgeLockByteCostMultiplier": {{ include "sequencer.fee" .Values.genesis.fees.bridgeLockByteCostMultiplier }},
+      "bridgeSudoChangeFee": {{ include "sequencer.fee" .Values.genesis.fees.bridgeSudoChangeFee }},
+      "ics20WithdrawalBaseFee": {{ include "sequencer.fee" .Values.genesis.fees.ics20WithdrawalBaseFee }}
     },
-    "allowed_fee_assets": [
+    "allowedFeeAssets": [
       {{- range $index, $value := .Values.genesis.allowedFeeAssets }}
       {{- if $index }},{{- end }}
       "{{ $value }}"
       {{- end }}
     ],
-    "ibc_params": {
-      "ibc_enabled": {{ .Values.genesis.ibc.enabled }},
-      "inbound_ics20_transfers_enabled": {{ .Values.genesis.ibc.inboundEnabled }},
-      "outbound_ics20_transfers_enabled": {{ .Values.genesis.ibc.outboundEnabled }}
+    "ibcParameters": {
+      "ibcEnabled": {{ .Values.genesis.ibc.enabled }},
+      "inboundIcs20TransfersEnabled": {{ .Values.genesis.ibc.inboundEnabled }},
+      "outboundIcs20TransfersEnabled": {{ .Values.genesis.ibc.outboundEnabled }}
     },
-    "address_prefixes": {
+    "addressPrefixes": {
       "base": "{{ .Values.genesis.addressPrefixes.base }}"
     },
     "accounts": [
@@ -30,13 +30,13 @@
       {{- if $index }},{{- end }}
       {
         "address": {{ include "sequencer.address" $value.address }},
-        "balance": {{ toString $value.balance | replace "\"" "" }}
+        "balance": {{ include "sequencer.fee" ( toString $value.balance | replace "\"" "" ) }} 
       }
       {{- end }}
     ],
-    "authority_sudo_address": {{ include "sequencer.address" .Values.genesis.authoritySudoAddress }},
-    "ibc_sudo_address": {{ include "sequencer.address" .Values.genesis.ibc.sudoAddress }},
-    "ibc_relayer_addresses": [
+    "authoritySudoAddress": {{ include "sequencer.address" .Values.genesis.authoritySudoAddress }},
+    "ibcSudoAddress": {{ include "sequencer.address" .Values.genesis.ibc.sudoAddress }},
+    "ibcRelayerAddresses": [
       {{- range $index, $value := .Values.genesis.ibc.relayerAddresses }}
       {{- if $index }},{{- end }}
       {{ include "sequencer.address" $value }}

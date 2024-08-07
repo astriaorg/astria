@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::Result;
+use astria_core::protocol::genesis::v1alpha1::GenesisAppState;
 use tendermint::abci::request::{
     BeginBlock,
     EndBlock,
@@ -15,7 +16,7 @@ pub(crate) struct BridgeComponent;
 
 #[async_trait::async_trait]
 impl Component for BridgeComponent {
-    type AppState = astria_core::sequencer::GenesisState;
+    type AppState = GenesisAppState;
 
     #[instrument(name = "BridgeComponent::init_chain", skip_all)]
     async fn init_chain<S: StateWriteExt>(mut state: S, app_state: &Self::AppState) -> Result<()> {

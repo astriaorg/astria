@@ -4,6 +4,7 @@ use anyhow::{
     Context,
     Result,
 };
+use astria_core::protocol::genesis::v1alpha1::GenesisAppState;
 use penumbra_ibc::{
     component::Ibc,
     genesis::Content,
@@ -27,14 +28,14 @@ pub(crate) struct IbcComponent;
 
 #[async_trait::async_trait]
 impl Component for IbcComponent {
-    type AppState = astria_core::sequencer::GenesisState;
+    type AppState = GenesisAppState;
 
     #[instrument(name = "IbcComponent::init_chain", skip_all)]
     async fn init_chain<S: StateWriteExt>(mut state: S, app_state: &Self::AppState) -> Result<()> {
         Ibc::init_chain(
             &mut state,
             Some(&Content {
-                ibc_params: app_state.ibc_params().clone(),
+                ibc_params: app_state.ibc_parameters().clone(),
             }),
         )
         .await;

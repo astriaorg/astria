@@ -22,6 +22,7 @@ use astria_core::{
     primitive::v1::Address,
     protocol::{
         abci::AbciErrorCode,
+        genesis::v1alpha1::GenesisAppState,
         transaction::v1alpha1::{
             action::ValidatorUpdate,
             Action,
@@ -206,7 +207,7 @@ impl App {
     pub(crate) async fn init_chain(
         &mut self,
         storage: Storage,
-        genesis_state: astria_core::sequencer::GenesisState,
+        genesis_state: GenesisAppState,
         genesis_validators: Vec<ValidatorUpdate>,
         chain_id: String,
     ) -> anyhow::Result<AppHash> {

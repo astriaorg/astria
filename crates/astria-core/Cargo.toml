@@ -57,7 +57,7 @@ base64-serde = ["dep:base64-serde"]
 brotli = ["dep:brotli"]
 
 [dev-dependencies]
+astria-core = { path = ".", features = ["serde"] }
 insta = { workspace = true, features = ["json"] }
 rand = { workspace = true }
 tempfile = { workspace = true }
-astria-core = { path = ".", features = ["serde"] }
