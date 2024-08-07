@@ -180,20 +180,10 @@ config:
     # The maximum number of requests to make to the sequencer per second
     sequencerRequestsPerSecond: 500
 
-  celestia:
-    # if config.rollup.executionLevel is NOT 'SoftOnly' AND celestia-node is not enabled
-    # the rpc, ws, and token fields must be set to access celestia network.
-    rpc: ""
-    token: ""
-
   celestiaNode:
-    enabled: false
     # Strongly recommend leaving enabled when not doing `SoftOnly` execution
     tokenService: ""
     rpcService: ""
-
-celestia-node:
-  enabled: true
 
 metrics:
   # set to enable prometheus metrics
