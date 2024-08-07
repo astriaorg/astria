@@ -5,7 +5,7 @@ metadata:
   namespace: {{ include "rollup.namespace" . }}
 data:
   ASTRIA_CONDUCTOR_LOG: "astria_conductor={{ .Values.config.logLevel }}"
-  TOKEN_SERVER_URL: "{{ .Values.config.celestiaNode.tokenService}}
+  TOKEN_SERVER_URL: "{{ .Values.config.celestiaNode.tokenService }}
   ASTRIA_CONDUCTOR_CELESTIA_NODE_HTTP_URL: "{{ .Values.config.celestiaNode.rpcService }}"
   ASTRIA_CONDUCTOR_CELESTIA_BLOCK_TIME_MS: "12000"
   ASTRIA_CONDUCTOR_EXECUTION_RPC_URL: "http://127.0.0.1:{{ .Values.ports.executionGRPC }}"
