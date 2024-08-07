@@ -179,7 +179,8 @@ config:
     sequencerGrpc: ""
     # The maximum number of requests to make to the sequencer per second
     sequencerRequestsPerSecond: 500
-
+  celestia:
+    token: ""
   celestiaNode:
     # Strongly recommend leaving enabled when not doing `SoftOnly` execution
     tokenService: ""
