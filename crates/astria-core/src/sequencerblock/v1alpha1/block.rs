@@ -749,7 +749,7 @@ impl SequencerBlock {
                     fee_asset: _,
                 }) = action
                 {
-                    let elem = rollup_datas.entry(rollup_id).or_insert(vec![Bytes::new()]);
+                    let elem = rollup_datas.entry(rollup_id).or_insert(vec![]);
                     let data = RollupData::SequencedData(data)
                         .into_raw()
                         .encode_to_vec()

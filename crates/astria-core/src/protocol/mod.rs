@@ -32,7 +32,7 @@ pub fn group_sequence_actions_in_signed_transaction_transactions_by_rollup_id(
     {
         if let Some(action) = action.as_sequence() {
             let txs_for_rollup: &mut Vec<Bytes> =
-                map.entry(action.rollup_id).or_insert(vec![Bytes::new()]);
+                map.entry(action.rollup_id).or_insert(vec![]);
             let rollup_data = RollupData::SequencedData(action.data.clone());
             txs_for_rollup.push(rollup_data.into_raw().encode_to_vec().into());
         }
