@@ -186,14 +186,11 @@ config:
     rpc: ""
     token: ""
 
-  celestiaNode:
-    enabled: true
-    # Strongly recommend leaving enabled when not doing `SoftOnly` execution
-    tokenService: ""
-    rpcService: ""
-
 celestia-node:
   enabled: true
+  # Strongly recommend leaving enabled when not doing `SoftOnly` execution
+  tokenService: ""
+  rpcService: ""
 
 metrics:
   # set to enable prometheus metrics
