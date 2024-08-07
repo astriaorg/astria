@@ -192,6 +192,9 @@ config:
     tokenService: ""
     rpcService: ""
 
+celestia-node:
+  enabled: true
+
 metrics:
   # set to enable prometheus metrics
   enabled: false

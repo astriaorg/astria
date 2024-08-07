@@ -5,7 +5,7 @@ metadata:
   namespace: {{ include "rollup.namespace" . }}
 data:
   ASTRIA_CONDUCTOR_LOG: "astria_conductor={{ .Values.config.logLevel }}"
-  {{- if .Values.config.celestiaNode.enabled }}
+  {{- if (index .Values "celestia-node").enabled }}
   TOKEN_SERVER_URL: "{{ .Values.config.celestiaNode.tokenService}}
   ASTRIA_CONDUCTOR_CELESTIA_NODE_HTTP_URL: "{{ .Values.config.celestiaNode.rpcService }}"
   {{- else }}
