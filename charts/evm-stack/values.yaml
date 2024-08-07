@@ -27,7 +27,7 @@ evm-rollup:
     rollupName: "{{ .Values.global.rollupName }}"
     chainId: "{{ .Values.global.evmChainId }}"
   config:
-    celestia-node:
+    celestiaNode:
       token: "{{ include "celestiaNode.service.addresses.token" (index .Subcharts "celestia-node") }}"
     conductor:
       sequencerChainId: "{{ .Values.global.sequencerChainId }}"
