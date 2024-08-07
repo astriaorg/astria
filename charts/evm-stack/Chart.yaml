@@ -18,6 +18,9 @@ type: application
 version: 0.3.0
 
 dependencies:
+  - name: celestia-node
+    version: 0.3.2
+    repository: "file://../celestia-node"
   - name: evm-rollup
     version: 0.25.1
     repository: "file://../evm-rollup"
