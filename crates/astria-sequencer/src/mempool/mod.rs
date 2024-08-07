@@ -1,3 +1,4 @@
+#[cfg(feature = "benchmark")]
 mod benchmarks;
 
 use std::{
