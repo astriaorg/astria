@@ -1,7 +1,10 @@
 use indexmap::IndexMap;
 use transaction::v1alpha1::SignedTransaction;
 
-use crate::primitive::v1::RollupId;
+use crate::{
+    primitive::v1::RollupId,
+    Protobuf,
+};
 
 pub mod abci;
 pub mod account;
@@ -32,7 +35,7 @@ pub fn group_sequence_actions_in_signed_transaction_transactions_by_rollup_id(
         if let Some(action) = action.as_sequence() {
             let txs_for_rollup: &mut Vec<Vec<u8>> = map.entry(action.rollup_id).or_insert(vec![]);
             let rollup_data = RollupData::SequencedData(action.data.clone());
-            txs_for_rollup.push(rollup_data.into_raw().encode_to_vec());
+            txs_for_rollup.push(rollup_data.to_raw().encode_to_vec());
         }
     }
     map.sort_unstable_keys();

@@ -144,9 +144,33 @@ pub struct ExecuteBlockRequest {
     /// Timestamp to be used for new block.
     #[prost(message, optional, tag = "3")]
     pub timestamp: ::core::option::Option<::pbjson_types::Timestamp>,
+    /// If true, the block will be created but not persisted.
+    #[prost(bool, tag = "4")]
+    pub simulate_only: bool,
 }
 impl ::prost::Name for ExecuteBlockRequest {
     const NAME: &'static str = "ExecuteBlockRequest";
+    const PACKAGE: &'static str = "astria.execution.v1alpha2";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.execution.v1alpha2.{}", Self::NAME)
+    }
+}
+/// ExecuteBlockResponse contains the new block and the transactions that were
+/// included in the block.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ExecuteBlockResponse {
+    /// The new block that was created.
+    #[prost(message, optional, tag = "1")]
+    pub block: ::core::option::Option<Block>,
+    /// The transactions that were included in the block.
+    #[prost(message, repeated, tag = "2")]
+    pub included_transactions: ::prost::alloc::vec::Vec<
+        super::super::sequencerblock::v1alpha1::RollupData,
+    >,
+}
+impl ::prost::Name for ExecuteBlockResponse {
+    const NAME: &'static str = "ExecuteBlockResponse";
     const PACKAGE: &'static str = "astria.execution.v1alpha2";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.execution.v1alpha2.{}", Self::NAME)
@@ -389,7 +413,10 @@ pub mod execution_service_client {
         pub async fn execute_block(
             &mut self,
             request: impl tonic::IntoRequest<super::ExecuteBlockRequest>,
-        ) -> std::result::Result<tonic::Response<super::Block>, tonic::Status> {
+        ) -> std::result::Result<
+            tonic::Response<super::ExecuteBlockResponse>,
+            tonic::Status,
+        > {
             self.inner
                 .ready()
                 .await
@@ -510,7 +537,10 @@ pub mod execution_service_server {
         async fn execute_block(
             self: std::sync::Arc<Self>,
             request: tonic::Request<super::ExecuteBlockRequest>,
-        ) -> std::result::Result<tonic::Response<super::Block>, tonic::Status>;
+        ) -> std::result::Result<
+            tonic::Response<super::ExecuteBlockResponse>,
+            tonic::Status,
+        >;
         /// GetCommitmentState fetches the current CommitmentState of the chain.
         async fn get_commitment_state(
             self: std::sync::Arc<Self>,
@@ -754,7 +784,7 @@ pub mod execution_service_server {
                         T: ExecutionService,
                     > tonic::server::UnaryService<super::ExecuteBlockRequest>
                     for ExecuteBlockSvc<T> {
-                        type Response = super::Block;
+                        type Response = super::ExecuteBlockResponse;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,

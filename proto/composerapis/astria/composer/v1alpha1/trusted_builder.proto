@@ -1,0 +1,15 @@
+syntax = 'proto3';
+
+package astria.composer.v1alpha1;
+
+import "astria/sequencerblock/v1alpha1/block.proto";
+
+message BuilderBundle {
+  repeated astria.sequencerblock.v1alpha1.RollupData transactions = 1;
+  bytes parent_hash = 2;
+}
+
+message BuilderBundlePacket {
+  BuilderBundle bundle = 1;
+  bytes signature = 2;
+}
