@@ -1,6 +1,9 @@
 use std::time::Duration;
 
-use astria_conductor::config::CommitLevel;
+use astria_conductor::{
+    conductor::InitializationError,
+    config::CommitLevel,
+};
 use futures::future::{
     join,
     join4,
@@ -19,6 +22,9 @@ use crate::{
     mount_sequencer_validator_set,
     mount_update_commitment_state,
 };
+
+pub const SEQUENCER_CHAIN_ID: &str = "test_sequencer-1000";
+pub const CELESTIA_CHAIN_ID: &str = "test_celestia-1000";
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn simple() {
@@ -45,11 +51,12 @@ async fn simple() {
         base_celestia_height: 1,
     );
 
-    mount_sequencer_genesis!(test_conductor);
+    mount_sequencer_genesis!(test_conductor, chain_id: SEQUENCER_CHAIN_ID);
 
     mount_celestia_header_network_head!(
         test_conductor,
         height: 1u32,
+        chain_id: CELESTIA_CHAIN_ID,
     );
 
     mount_celestia_blobs!(
@@ -88,7 +95,7 @@ async fn simple() {
     );
 
     timeout(
-        Duration::from_millis(2000),
+        Duration::from_millis(1000),
         join(
             execute_block.wait_until_satisfied(),
             update_commitment_state.wait_until_satisfied(),
@@ -126,11 +133,12 @@ async fn submits_two_heights_in_succession() {
         base_celestia_height: 1,
     );
 
-    mount_sequencer_genesis!(test_conductor);
+    mount_sequencer_genesis!(test_conductor, chain_id: SEQUENCER_CHAIN_ID);
 
     mount_celestia_header_network_head!(
         test_conductor,
         height: 2u32,
+        chain_id: CELESTIA_CHAIN_ID,
     );
 
     mount_celestia_blobs!(
@@ -208,7 +216,7 @@ async fn submits_two_heights_in_succession() {
     )
     .await
     .expect(
-        "conductor should have executed the soft block and updated the soft commitment state \
+        "conductor should have executed the firm block and updated the firm commitment state \
          within 2000ms",
     );
 }
@@ -237,11 +245,12 @@ async fn skips_already_executed_heights() {
         ),
         base_celestia_height: 1,
     );
-    mount_sequencer_genesis!(test_conductor);
+    mount_sequencer_genesis!(test_conductor, chain_id: SEQUENCER_CHAIN_ID);
 
     mount_celestia_header_network_head!(
         test_conductor,
         height: 2u32,
+        chain_id: CELESTIA_CHAIN_ID,
     );
 
     // The blob contains sequencer heights 6 and 7, but no commits or validator sets are mounted.
@@ -292,7 +301,7 @@ async fn skips_already_executed_heights() {
     )
     .await
     .expect(
-        "conductor should have executed the soft block and updated the soft commitment state \
+        "conductor should have executed the firm block and updated the firm commitment state \
          within 1000ms",
     );
 }
@@ -322,11 +331,12 @@ async fn fetch_from_later_celestia_height() {
         base_celestia_height: 4,
     );
 
-    mount_sequencer_genesis!(test_conductor);
+    mount_sequencer_genesis!(test_conductor, chain_id: SEQUENCER_CHAIN_ID);
 
     mount_celestia_header_network_head!(
         test_conductor,
         height: 5u32,
+        chain_id: CELESTIA_CHAIN_ID,
     );
 
     mount_celestia_blobs!(
@@ -376,4 +386,37 @@ async fn fetch_from_later_celestia_height() {
         "conductor should have executed the firm block and updated the firm commitment state \
          within 1000ms",
     );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn exits_on_celestia_chain_id_mismatch() {
+    let mut test_conductor = spawn_conductor(CommitLevel::FirmOnly).await;
+
+    mount_celestia_header_network_head!(
+        test_conductor,
+        height: 5u32,
+        chain_id: "bad_chain_id",
+    );
+
+    if let Some(task_handle) = test_conductor.conductor.task.take() {
+        match task_handle.await {
+            Ok(Ok(())) => panic!("conductor should have exited with an error, no error received"),
+            Ok(Err(e)) => match e.downcast_ref::<InitializationError>() {
+                Some(InitializationError::WrongCelestiaChainID {
+                    expected,
+                    actual,
+                }) => {
+                    assert_eq!(expected, CELESTIA_CHAIN_ID);
+                    assert_eq!(actual, "bad_chain_id");
+                }
+                _ => panic!(
+                    "conductor should have exited with a WrongCelestiaChainID error, received \
+                     error {e}"
+                ),
+            },
+            Err(e) => panic!("conductor handle resulted in an error: {e}"),
+        };
+    } else {
+        panic!("no handle found for conductor tasks");
+    }
 }

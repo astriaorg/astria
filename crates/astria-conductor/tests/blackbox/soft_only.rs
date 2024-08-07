@@ -1,6 +1,9 @@
 use std::time::Duration;
 
-use astria_conductor::config::CommitLevel;
+use astria_conductor::{
+    conductor::InitializationError,
+    config::CommitLevel,
+};
 use futures::future::{
     join,
     join4,
@@ -14,12 +17,20 @@ use crate::{
     mount_get_commitment_state,
     mount_get_filtered_sequencer_block,
     mount_get_genesis_info,
+    mount_sequencer_genesis,
     mount_update_commitment_state,
 };
+
+pub const SEQUENCER_CHAIN_ID: &str = "test_sequencer-1000";
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn simple() {
     let test_conductor = spawn_conductor(CommitLevel::SoftOnly).await;
+
+    mount_sequencer_genesis!(
+        test_conductor,
+        chain_id: SEQUENCER_CHAIN_ID,
+    );
 
     mount_get_genesis_info!(
         test_conductor,
@@ -91,6 +102,11 @@ async fn simple() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn submits_two_heights_in_succession() {
     let test_conductor = spawn_conductor(CommitLevel::SoftOnly).await;
+
+    mount_sequencer_genesis!(
+        test_conductor,
+        chain_id: SEQUENCER_CHAIN_ID,
+    );
 
     mount_get_genesis_info!(
         test_conductor,
@@ -196,6 +212,11 @@ async fn submits_two_heights_in_succession() {
 async fn skips_already_executed_heights() {
     let test_conductor = spawn_conductor(CommitLevel::SoftOnly).await;
 
+    mount_sequencer_genesis!(
+        test_conductor,
+        chain_id: SEQUENCER_CHAIN_ID,
+    );
+
     mount_get_genesis_info!(
         test_conductor,
         sequencer_genesis_block_height: 1,
@@ -267,6 +288,11 @@ async fn skips_already_executed_heights() {
 async fn requests_from_later_genesis_height() {
     let test_conductor = spawn_conductor(CommitLevel::SoftOnly).await;
 
+    mount_sequencer_genesis!(
+        test_conductor,
+        chain_id: SEQUENCER_CHAIN_ID,
+    );
+
     mount_get_genesis_info!(
         test_conductor,
         sequencer_genesis_block_height: 10,
@@ -332,4 +358,36 @@ async fn requests_from_later_genesis_height() {
         "conductor should have executed the soft block and updated the soft commitment state \
          within 1000ms",
     );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn exits_on_sequencer_chain_id_mismatch() {
+    let mut test_conductor = spawn_conductor(CommitLevel::SoftOnly).await;
+
+    mount_sequencer_genesis!(
+        test_conductor,
+        chain_id: "bad_chain_id",
+    );
+
+    if let Some(task_handle) = test_conductor.conductor.task.take() {
+        match task_handle.await {
+            Ok(Ok(())) => panic!("conductor should have exited with an error, no error received"),
+            Ok(Err(e)) => match e.downcast_ref::<InitializationError>() {
+                Some(InitializationError::WrongSequencerChainID {
+                    expected,
+                    actual,
+                }) => {
+                    assert_eq!(expected, SEQUENCER_CHAIN_ID);
+                    assert_eq!(actual, "bad_chain_id");
+                }
+                _ => panic!(
+                    "conductor should have exited with a WrongSequencerChainID error, received \
+                     error {e}"
+                ),
+            },
+            Err(e) => panic!("conductor handle resulted in an error: {e}"),
+        };
+    } else {
+        panic!("no handle found for conductor tasks");
+    }
 }

@@ -65,7 +65,7 @@ use crate::{
 };
 
 mod block_verifier;
-mod builder;
+pub(crate) mod builder;
 mod convert;
 mod fetch;
 mod latest_height_stream;
@@ -125,7 +125,7 @@ pub(crate) struct Reader {
     celestia_block_time: Duration,
 
     /// Client to fetch heights and blocks from Celestia.
-    celestia_client: CelestiaClient,
+    pub(crate) celestia_client: CelestiaClient,
 
     /// The channel used to send messages to the executor task.
     executor: executor::Handle,
