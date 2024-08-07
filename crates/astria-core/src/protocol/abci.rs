@@ -20,7 +20,9 @@ impl AbciErrorCode {
     pub const VALUE_NOT_FOUND: Self = Self(8);
     pub const TRANSACTION_EXPIRED: Self = Self(9);
     pub const TRANSACTION_FAILED: Self = Self(10);
-    pub const BAD_REQUEST: Self = Self(11);
+    pub const TRANSACTION_INSERTION_FAILED: Self = Self(11);
+    pub const LOWER_NONCE_INVALIDATED: Self = Self(12);
+    pub const BAD_REQUEST: Self = Self(13);
 }
 
 impl AbciErrorCode {
@@ -38,7 +40,9 @@ impl AbciErrorCode {
             8 => "the requested value was not found".into(),
             9 => "the transaction expired in the app's mempool".into(),
             10 => "the transaction failed to execute in prepare_proposal()".into(),
-            11 => "the request payload was malformed".into(),
+            11 => "the transaction failed insertion into the mempool".into(),
+            12 => "lower nonce was invalidated in mempool".into(),
+            13 => "the request payload was malformed".into(),
             other => format!("unknown non-zero abci error code: {other}").into(),
         }
     }
@@ -69,7 +73,9 @@ impl From<NonZeroU32> for AbciErrorCode {
             8 => Self::VALUE_NOT_FOUND,
             9 => Self::TRANSACTION_EXPIRED,
             10 => Self::TRANSACTION_FAILED,
-            11 => Self::BAD_REQUEST,
+            11 => Self::TRANSACTION_INSERTION_FAILED,
+            12 => Self::LOWER_NONCE_INVALIDATED,
+            13 => Self::BAD_REQUEST,
             other => Self(other),
         }
     }

@@ -264,9 +264,9 @@ mod test {
         let tx = crate::app::test_utils::get_mock_tx(nonce);
         mempool.insert(tx, 0).await.unwrap();
 
-        // insert a tx with lower nonce also, but we should get the highest nonce
-        let lower_nonce = 98;
-        let tx = crate::app::test_utils::get_mock_tx(lower_nonce);
+        // insert tx into pending
+        let nonce = 0;
+        let tx = crate::app::test_utils::get_mock_tx(nonce);
         mempool.insert(tx, 0).await.unwrap();
 
         let server = Arc::new(SequencerServer::new(storage.clone(), mempool));

@@ -123,7 +123,6 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
     let tx_len = tx.len();
 
     if tx_len > MAX_TX_SIZE {
-        mempool.remove(tx_hash).await;
         metrics.increment_check_tx_removed_too_large();
         return response::CheckTx {
             code: AbciErrorCode::TRANSACTION_TOO_LARGE.into(),
@@ -139,7 +138,6 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
     let raw_signed_tx = match raw::SignedTransaction::decode(tx) {
         Ok(tx) => tx,
         Err(e) => {
-            mempool.remove(tx_hash).await;
             return response::CheckTx {
                 code: AbciErrorCode::INVALID_PARAMETER.into(),
                 log: e.to_string(),
@@ -151,7 +149,6 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
     let signed_tx = match SignedTransaction::try_from_raw(raw_signed_tx) {
         Ok(tx) => tx,
         Err(e) => {
-            mempool.remove(tx_hash).await;
             return response::CheckTx {
                 code: AbciErrorCode::INVALID_PARAMETER.into(),
                 info: "the provided bytes was not a valid protobuf-encoded SignedTransaction, or \
@@ -169,7 +166,9 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
     );
 
     if let Err(e) = transaction::check_stateless(&signed_tx).await {
-        mempool.remove(tx_hash).await;
+        mempool
+            .remove_tx_invalid(&signed_tx, RemovalReason::FailedCheckTx(e.to_string()))
+            .await;
         metrics.increment_check_tx_removed_failed_stateless();
         return response::CheckTx {
             code: AbciErrorCode::INVALID_PARAMETER.into(),
@@ -185,7 +184,6 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
     );
 
     if let Err(e) = transaction::check_nonce_mempool(&signed_tx, &state).await {
-        mempool.remove(tx_hash).await;
         metrics.increment_check_tx_removed_stale_nonce();
         return response::CheckTx {
             code: AbciErrorCode::INVALID_NONCE.into(),
@@ -201,7 +199,9 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
     );
 
     if let Err(e) = transaction::check_chain_id_mempool(&signed_tx, &state).await {
-        mempool.remove(tx_hash).await;
+        mempool
+            .remove_tx_invalid(&signed_tx, RemovalReason::FailedCheckTx(e.to_string()))
+            .await;
         return response::CheckTx {
             code: AbciErrorCode::INVALID_CHAIN_ID.into(),
             info: "failed verifying chain id".into(),
@@ -216,7 +216,9 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
     );
 
     if let Err(e) = transaction::check_balance_mempool(&signed_tx, &state).await {
-        mempool.remove(tx_hash).await;
+        mempool
+            .remove_tx_invalid(&signed_tx, RemovalReason::FailedCheckTx(e.to_string()))
+            .await;
         metrics.increment_check_tx_removed_account_balance();
         return response::CheckTx {
             code: AbciErrorCode::INSUFFICIENT_FUNDS.into(),
@@ -232,8 +234,6 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
     );
 
     if let Some(removal_reason) = mempool.check_removed_comet_bft(tx_hash).await {
-        mempool.remove(tx_hash).await;
-
         match removal_reason {
             RemovalReason::Expired => {
                 metrics.increment_check_tx_removed_expired();
@@ -250,6 +250,34 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
                     code: AbciErrorCode::TRANSACTION_FAILED.into(),
                     info: "transaction failed execution in prepare_proposal()".into(),
                     log: format!("transaction failed execution because: {err}"),
+                    ..response::CheckTx::default()
+                };
+            }
+            RemovalReason::NonceStale => {
+                return response::CheckTx {
+                    code: AbciErrorCode::INVALID_NONCE.into(),
+                    info: "transaction removed from app mempool due to stale nonce".into(),
+                    log: "Transaction from app mempool due to stale nonce".into(),
+                    ..response::CheckTx::default()
+                };
+            }
+            RemovalReason::LowerNonceInvalidated => {
+                return response::CheckTx {
+                    code: AbciErrorCode::LOWER_NONCE_INVALIDATED.into(),
+                    info: "transaction removed from app mempool due to lower nonce being \
+                           invalidated"
+                        .into(),
+                    log: "Transaction removed from app mempool due to lower nonce being \
+                          invalidated"
+                        .into(),
+                    ..response::CheckTx::default()
+                };
+            }
+            RemovalReason::FailedCheckTx(err) => {
+                return response::CheckTx {
+                    code: AbciErrorCode::TRANSACTION_FAILED.into(),
+                    info: "transaction failed check tx".into(),
+                    log: format!("transaction failed check tx because: {err}"),
                     ..response::CheckTx::default()
                 };
             }
@@ -281,13 +309,15 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
 
     let actions_count = signed_tx.actions().len();
 
-    mempool
-        .insert(signed_tx, current_account_nonce)
-        .await
-        .expect(
-            "tx nonce is greater than or equal to current account nonce; this was checked in \
-             check_nonce_mempool",
-        );
+    if let Err(err) = mempool.insert(signed_tx, current_account_nonce).await {
+        return response::CheckTx {
+            code: AbciErrorCode::TRANSACTION_INSERTION_FAILED.into(),
+            info: "transaction insertion failed".into(),
+            log: format!("Transaction insertion failed because: {err}"),
+            ..response::CheckTx::default()
+        };
+    }
+
     let mempool_len = mempool.len().await;
 
     metrics
