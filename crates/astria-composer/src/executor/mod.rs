@@ -9,6 +9,8 @@ use std::{
     task::Poll,
     time::Duration,
 };
+use ethers::prelude::{Provider, ProviderError, Ws};
+use ethers::providers::{Middleware, StreamExt};
 
 use astria_core::{
     crypto::SigningKey,
@@ -156,6 +158,7 @@ pub(super) struct Executor {
     bundle_simulator: BundleSimulator,
     rollup_id: RollupId,
     fee_asset: asset::Denom,
+    websocket_url: String,
     metrics: &'static Metrics,
 }
 
@@ -212,7 +215,6 @@ impl Executor {
         bundle: SizedBundle,
         metrics: &'static Metrics,
     ) -> eyre::Result<Fuse<Instrumented<SubmitFut>>> {
-        println!("IN MAIN CODE: STARTING SIMULATION");
         let bundle_simulator = self.bundle_simulator.clone();
 
         // simulate the bundle
@@ -221,7 +223,6 @@ impl Executor {
             .await
             .wrap_err("failed to simulate bundle")?;
 
-        println!("IN MAIN CODE: DONE WITH SIMULATION");
         let rollup_data_items: Vec<RollupData> = bundle_simulation_result
             .included_actions()
             .iter()
@@ -251,7 +252,6 @@ impl Executor {
             return Err(eyre!(e.to_string()));
         }
 
-        println!("IN MAIN CODE: DONE SIMULATION!");
         Ok(SubmitFut {
             client: self.sequencer_client.clone(),
             address: self.address,
@@ -312,8 +312,6 @@ impl Executor {
 
         self.metrics.set_current_nonce(nonce);
 
-        self.status.send_modify(|status| status.is_connected = true);
-
         let block_timer = time::sleep(self.block_time);
         tokio::pin!(block_timer);
         let mut bundle_factory =
@@ -324,6 +322,43 @@ impl Executor {
                 .checked_add(self.block_time)
                 .expect("block_time should not be large enough to cause an overflow")
         };
+
+        // establish a websocket connection with the geth node to subscribe for latest blocks
+        let retry_config = tryhard::RetryFutureConfig::new(1024)
+            .exponential_backoff(Duration::from_millis(500))
+            .max_delay(Duration::from_secs(60))
+            .on_retry(
+                |attempt, next_delay: Option<Duration>, error: &ProviderError| {
+                    let wait_duration = next_delay
+                        .map(humantime::format_duration)
+                        .map(tracing::field::display);
+                    warn!(
+                        attempt,
+                        wait_duration,
+                        error = error as &StdError,
+                        "attempt to connect to geth node failed; retrying after backoff",
+                    );
+                    futures::future::ready(())
+                },
+            );
+
+        let client = tryhard::retry_fn(|| {
+            let url = self.websocket_url.clone();
+            async move {
+                let websocket_client = Ws::connect_with_reconnects(url, 0).await?;
+                Ok(Provider::new(websocket_client))
+            }
+        })
+            .with_config(retry_config)
+            .await
+            .wrap_err("failed connecting to geth after several retries; giving up")?;
+
+        let mut block_stream = client
+            .subscribe_blocks()
+            .await
+            .wrap_err("failed to subscribe eth client to full pending transactions")?;
+
+        self.status.send_modify(|status| status.is_connected = true);
 
         let reason = loop {
             select! {
@@ -344,12 +379,12 @@ impl Executor {
                     block_timer.as_mut().reset(reset_time());
                 }
 
-                Some(next_bundle) = future::ready(bundle_factory.next_finished()), if submission_fut.is_terminated() => {
-                    let bundle = next_bundle.pop();
-                    if !bundle.is_empty() {
-                        submission_fut = self.simulate_and_submit_bundle(nonce, bundle, self.metrics).await.wrap_err("failed to simulate and submit bundle")?;
-                    }
-                }
+                // Some(next_bundle) = future::ready(bundle_factory.next_finished()), if submission_fut.is_terminated() => {
+                //     let bundle = next_bundle.pop();
+                //     if !bundle.is_empty() {
+                //         submission_fut = self.simulate_and_submit_bundle(nonce, bundle, self.metrics).await.wrap_err("failed to simulate and submit bundle")?;
+                //     }
+                // }
 
                 // receive new seq_action and bundle it. will not pull from the channel if `bundle_factory` is full
                 Some(seq_action) = self.serialized_rollup_transactions.recv(), if !bundle_factory.is_full() => {
@@ -365,19 +400,35 @@ impl Executor {
                     }
                 }
 
-                // try to preempt current bundle if the timer has ticked without submitting the next bundle
-                () = &mut block_timer, if submission_fut.is_terminated() => {
-                    let bundle = bundle_factory.pop_now();
-                    if bundle.is_empty() {
-                        debug!("block timer ticked, but no bundle to submit to sequencer");
-                        block_timer.as_mut().reset(reset_time());
-                    } else {
-                        debug!(
-                            "forcing bundle submission to sequencer due to block timer"
-                        );
-                        submission_fut = self.simulate_and_submit_bundle(nonce, bundle, self.metrics).await.wrap_err("failed to simulate and submit bundle")?;
+                block_res = block_stream.next(), if submission_fut.is_terminated() => {
+                    if let Some(block) = block_res {
+                        let bundle = bundle_factory.pop_now();
+                        if bundle.is_empty() {
+                            debug!("block timer ticked, but no bundle to submit to sequencer");
+                            block_timer.as_mut().reset(reset_time());
+                        } else {
+                            info!("block {:?} just created", block.hash);
+                            debug!(
+                                "forcing bundle submission to sequencer due to block timer"
+                            );
+                            submission_fut = self.simulate_and_submit_bundle(nonce, bundle, self.metrics).await.wrap_err("failed to simulate and submit bundle")?;
+                        }
                     }
                 }
+
+                // try to preempt current bundle if the timer has ticked without submitting the next bundle
+                // () = &mut block_timer, if submission_fut.is_terminated() => {
+                //     let bundle = bundle_factory.pop_now();
+                //     if bundle.is_empty() {
+                //         debug!("block timer ticked, but no bundle to submit to sequencer");
+                //         block_timer.as_mut().reset(reset_time());
+                //     } else {
+                //         debug!(
+                //             "forcing bundle submission to sequencer due to block timer"
+                //         );
+                //         submission_fut = self.simulate_and_submit_bundle(nonce, bundle, self.metrics).await.wrap_err("failed to simulate and submit bundle")?;
+                //     }
+                // }
             }
         };
 
