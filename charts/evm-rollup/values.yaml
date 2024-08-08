@@ -268,10 +268,10 @@ ingress:
       #  - secretName: chart-example-tls
       #    hosts:
       #      - chart-example.local
-    grpc:
+    exec-api:
       enabled: true
       hosts:
-        - execution-executor.{{ include "rollup.name" . }}.{{ .Values.ingress.hostname }}
+        - exec-executor.{{ include "rollup.name" . }}.{{ .Values.ingress.hostname }}
       path: /
       pathType: Prefix
       service:

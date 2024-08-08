@@ -15,7 +15,7 @@ spec:
       targetPort: ws-rpc
     - name: exec-grpc-svc
       port: {{ .Values.ports.executionGRPC }}
-      targetPort: exec-grpc
+      targetPort: execution-grpc
 ---
 {{- if .Values.metrics.enabled }}
 kind: Service
