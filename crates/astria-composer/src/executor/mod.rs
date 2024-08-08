@@ -151,6 +151,7 @@ impl Handle {
         }
     }
 
+    #[instrument(skip_all, err)]
     pub(super) async fn send_timeout(
         &self,
         sequence_action: SequenceAction,
@@ -211,7 +212,7 @@ impl Executor {
     ///
     /// # Errors
     /// An error is returned if connecting to the sequencer fails.
-    #[instrument(skip_all, fields(address = %self.address))]
+    #[allow(clippy::too_many_lines)]
     pub(super) async fn run_until_stopped(mut self) -> eyre::Result<()> {
         select!(
             biased;
@@ -444,12 +445,14 @@ impl Executor {
     }
 
     /// Performs initialization checks prior to running the executor
+    #[instrument(skip_all, err)]
     async fn pre_run_checks(&self) -> eyre::Result<()> {
         self.ensure_chain_id_is_correct().await?;
         Ok(())
     }
 
     /// Performs check to ensure the configured chain ID matches the remote chain ID
+    #[instrument(skip_all, err)]
     pub(crate) async fn ensure_chain_id_is_correct(&self) -> Result<(), EnsureChainIdError> {
         let remote_chain_id = self
             .get_sequencer_chain_id()
@@ -465,6 +468,7 @@ impl Executor {
     }
 
     /// Fetch chain id from the sequencer client
+    #[instrument(skip_all, err)]
     async fn get_sequencer_chain_id(
         &self,
     ) -> Result<tendermint::chain::Id, sequencer_client::tendermint_rpc::Error> {
@@ -496,7 +500,7 @@ impl Executor {
 }
 
 /// Queries the sequencer for the latest nonce with an exponential backoff
-#[instrument(name = "get latest nonce", skip_all, fields(%address))]
+#[instrument(name = "get latest nonce", skip_all, fields(%address), err)]
 async fn get_latest_nonce(
     client: sequencer_client::HttpClient,
     address: Address,
@@ -550,6 +554,7 @@ async fn get_latest_nonce(
         transaction.hash = hex::encode(sha256(&tx.to_raw().encode_to_vec())),
     )
 )]
+#[instrument(skip_all, err)]
 async fn submit_tx(
     client: sequencer_client::HttpClient,
     tx: SignedTransaction,

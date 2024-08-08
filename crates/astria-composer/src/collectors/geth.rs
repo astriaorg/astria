@@ -46,7 +46,6 @@ use tracing::{
     debug,
     error,
     info,
-    instrument,
     warn,
 };
 
@@ -148,10 +147,8 @@ impl Geth {
 
     /// Starts the collector instance and runs until failure or until
     /// explicitly closed
-    #[instrument(skip_all, fields(chain_name = self.chain_name, rollup_id = %self.rollup_id))]
+    #[allow(clippy::too_many_lines)]
     pub(crate) async fn run_until_stopped(self) -> eyre::Result<()> {
-        use std::time::Duration;
-
         use ethers::providers::Middleware as _;
         use futures::stream::StreamExt as _;
 
