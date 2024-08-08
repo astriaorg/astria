@@ -12,10 +12,10 @@ images:
     devTag: latest
 
 config:
-  logLevel: "debug"
+  logLevel: "info"
   maxBytesPerBundle: 200000
   bundleQueueCapacity: 40000
-  maxSubmitInterval: 2000
+  maxSubmitInterval: 1800
   sequencerAddressPrefix: astria
   sequencerNativeAssetBaseDenomination: "nria"
   sequencerRpc: ""
