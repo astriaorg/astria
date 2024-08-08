@@ -440,7 +440,7 @@ async fn full_bundle() {
 
     assert_eq!(
         builder_bundle_packet.bundle().parent_hash(),
-        soft_parent_hash.to_vec()
+        soft_block_hash.to_vec()
     );
 
     let bundle_txs = builder_bundle_packet.bundle().transactions();
@@ -580,7 +580,7 @@ async fn bundle_triggered_by_block_timer() {
 
     assert_eq!(
         builder_bundle_packet.bundle().parent_hash().to_vec(),
-        soft_parent_hash.to_vec()
+        soft_block_hash.to_vec()
     );
 
     // ensure that the seq_action of the BuilderBundlePacket and the expected sequence actions have the same
@@ -742,7 +742,7 @@ async fn two_seq_actions_single_bundle() {
     assert_eq!(builder_bundle_packet.bundle().transactions().len(), 2);
     assert_eq!(
         builder_bundle_packet.bundle().parent_hash().to_vec(),
-        soft_parent_hash.to_vec()
+        soft_block_hash.to_vec()
     );
 
     for (action, expected_action) in expected_seq_actions.iter().zip(actions) {

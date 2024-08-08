@@ -229,6 +229,8 @@ impl Executor {
             .map(|action| action.to_raw())
             .collect();
 
+        info!("ALERT: simulated bundle: {:?}", bundle_simulation_result.parent_hash().clone());
+
         // create a top of block bundle
         // TODO - we need to sign the builder bundle packet
         let builder_bundle_packet = BuilderBundlePacket {
@@ -416,7 +418,7 @@ impl Executor {
                     }
                 }
 
-                // try to preempt current bundle if the timer has ticked without submitting the next bundle
+                // // try to preempt current bundle if the timer has ticked without submitting the next bundle
                 // () = &mut block_timer, if submission_fut.is_terminated() => {
                 //     let bundle = bundle_factory.pop_now();
                 //     if bundle.is_empty() {
