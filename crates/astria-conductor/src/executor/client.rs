@@ -86,7 +86,7 @@ impl Client {
     }
 
     /// Calls remote procedure `astria.execution.v1alpha2.GetGenesisInfo`
-    #[instrument(skip_all, fields(uri = %self.uri))]
+    #[instrument(skip_all, fields(uri = %self.uri), err)]
     pub(crate) async fn get_genesis_info_with_retry(&mut self) -> eyre::Result<GenesisInfo> {
         let response = tryhard::retry_fn(|| {
             let mut client = self.inner.clone();
@@ -182,7 +182,7 @@ impl Client {
     ///
     /// * `firm` - The firm block
     /// * `soft` - The soft block
-    #[instrument(skip_all, fields(uri = %self.uri))]
+    #[instrument(skip_all, fields(uri = %self.uri), err)]
     pub(super) async fn update_commitment_state_with_retry(
         &mut self,
         commitment_state: CommitmentState,

@@ -162,6 +162,7 @@ impl Reader {
             .await
     }
 
+    #[instrument(skip_all, err)]
     async fn initialize(
         &mut self,
     ) -> eyre::Result<(executor::Handle<StateIsInit>, tendermint::chain::Id)> {
@@ -302,7 +303,6 @@ impl RunningReader {
         })
     }
 
-    #[instrument(skip(self))]
     async fn run_until_stopped(mut self) -> eyre::Result<()> {
         info!(
             initial_celestia_height = self.celestia_next_height,
@@ -506,6 +506,7 @@ impl FetchConvertVerifyAndReconstruct {
         celestia_height = self.celestia_height,
         rollup_namespace = %base64(self.rollup_namespace.as_bytes()),
         sequencer_namespace = %base64(self.sequencer_namespace.as_bytes()),
+        err,
     ))]
     async fn execute(self) -> eyre::Result<ReconstructedBlocks> {
         let Self {
@@ -591,6 +592,7 @@ impl FetchConvertVerifyAndReconstruct {
     }
 }
 
+#[instrument(skip_all, err)]
 async fn enqueue_block(
     executor: executor::Handle<StateIsInit>,
     block: ReconstructedBlock,
@@ -600,6 +602,7 @@ async fn enqueue_block(
     Ok(celestia_height)
 }
 
+#[instrument(skip_all, err)]
 async fn get_sequencer_chain_id(client: SequencerClient) -> eyre::Result<tendermint::chain::Id> {
     use sequencer_client::Client as _;
 
