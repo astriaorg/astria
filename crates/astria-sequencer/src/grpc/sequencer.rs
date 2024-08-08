@@ -12,6 +12,7 @@ use astria_core::{
     },
     primitive::v1::RollupId,
 };
+use bytes::Bytes;
 use cnidarium::Storage;
 use tonic::{
     Request,
@@ -148,10 +149,13 @@ impl SequencerService for SequencerServer {
             rollup_transactions.push(rollup_data.into_raw());
         }
 
-        let all_rollup_ids = all_rollup_ids.into_iter().map(RollupId::to_vec).collect();
+        let all_rollup_ids = all_rollup_ids
+            .into_iter()
+            .map(|rollup_id| Bytes::copy_from_slice(rollup_id.as_ref()))
+            .collect();
 
         let block = RawFilteredSequencerBlock {
-            block_hash: block_hash.to_vec(),
+            block_hash: Bytes::copy_from_slice(&block_hash),
             header: Some(header.into_raw()),
             rollup_transactions,
             rollup_transactions_proof: rollup_transactions_proof.into(),

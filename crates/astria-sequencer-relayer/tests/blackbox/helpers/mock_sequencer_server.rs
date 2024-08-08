@@ -160,7 +160,9 @@ fn prepare_sequencer_block_response(
     let mut block = block.into_raw();
     if should_corrupt {
         let header = block.header.as_mut().unwrap();
-        header.data_hash[0] = header.data_hash[0].wrapping_add(1);
+        let mut data_hash = header.data_hash.to_vec();
+        data_hash[0] = data_hash[0].wrapping_add(1);
+        header.data_hash = data_hash.into();
     }
 
     Mock::for_rpc_given(

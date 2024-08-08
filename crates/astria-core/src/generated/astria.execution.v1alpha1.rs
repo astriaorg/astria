@@ -1,10 +1,10 @@
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DoBlockRequest {
-    #[prost(bytes = "vec", tag = "1")]
-    pub prev_block_hash: ::prost::alloc::vec::Vec<u8>,
-    #[prost(bytes = "vec", repeated, tag = "2")]
-    pub transactions: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+    #[prost(bytes = "bytes", tag = "1")]
+    pub prev_block_hash: ::prost::bytes::Bytes,
+    #[prost(bytes = "bytes", repeated, tag = "2")]
+    pub transactions: ::prost::alloc::vec::Vec<::prost::bytes::Bytes>,
     #[prost(message, optional, tag = "3")]
     pub timestamp: ::core::option::Option<::pbjson_types::Timestamp>,
 }
@@ -18,8 +18,8 @@ impl ::prost::Name for DoBlockRequest {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DoBlockResponse {
-    #[prost(bytes = "vec", tag = "1")]
-    pub block_hash: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "bytes", tag = "1")]
+    pub block_hash: ::prost::bytes::Bytes,
 }
 impl ::prost::Name for DoBlockResponse {
     const NAME: &'static str = "DoBlockResponse";
@@ -31,8 +31,8 @@ impl ::prost::Name for DoBlockResponse {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FinalizeBlockRequest {
-    #[prost(bytes = "vec", tag = "1")]
-    pub block_hash: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "bytes", tag = "1")]
+    pub block_hash: ::prost::bytes::Bytes,
 }
 impl ::prost::Name for FinalizeBlockRequest {
     const NAME: &'static str = "FinalizeBlockRequest";
@@ -64,8 +64,8 @@ impl ::prost::Name for InitStateRequest {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct InitStateResponse {
-    #[prost(bytes = "vec", tag = "1")]
-    pub block_hash: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "bytes", tag = "1")]
+    pub block_hash: ::prost::bytes::Bytes,
 }
 impl ::prost::Name for InitStateResponse {
     const NAME: &'static str = "InitStateResponse";

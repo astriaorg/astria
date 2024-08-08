@@ -247,7 +247,7 @@ mod test {
             actions: vec![
                 SequenceAction {
                     rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-                    data: b"helloworld".to_vec(),
+                    data: Bytes::from_static(b"hello world"),
                     fee_asset: crate::test_utils::nria().into(),
                 }
                 .into(),

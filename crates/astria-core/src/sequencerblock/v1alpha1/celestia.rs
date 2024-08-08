@@ -1,3 +1,4 @@
+use bytes::Bytes;
 use sha2::{
     Digest as _,
     Sha256,
@@ -51,6 +52,7 @@ impl PreparedBlock {
                 proof,
                 ..
             } = rollup_txs.into_parts();
+            let transactions = transactions.into_iter().map(Bytes::into).collect();
             tail.push(SubmittedRollupData {
                 sequencer_block_hash: block_hash,
                 rollup_id,
@@ -138,7 +140,7 @@ pub struct UncheckedSubmittedRollupData {
     /// `astria.sequencerblock.v1alpha1.RollupTransactions.rollup_id`
     pub rollup_id: RollupId,
     /// A list of opaque bytes that are serialized rollup transactions.
-    pub transactions: Vec<Vec<u8>>,
+    pub transactions: Vec<Bytes>,
     /// The proof that these rollup transactions are included in sequencer block.
     pub proof: merkle::Proof,
 }
@@ -159,7 +161,7 @@ pub struct SubmittedRollupData {
     /// `astria.sequencerblock.v1alpha1.RollupTransactions.rollup_id`
     rollup_id: RollupId,
     /// A list of opaque bytes that are serialized rollup transactions.
-    transactions: Vec<Vec<u8>>,
+    transactions: Vec<Bytes>,
     /// The proof that these rollup transactions are included in sequencer block.
     proof: merkle::Proof,
 }
@@ -171,7 +173,7 @@ impl SubmittedRollupData {
     }
 
     #[must_use]
-    pub fn transactions(&self) -> &[Vec<u8>] {
+    pub fn transactions(&self) -> &[Bytes] {
         &self.transactions
     }
 
@@ -235,7 +237,7 @@ impl SubmittedRollupData {
             proof,
         } = self;
         raw::SubmittedRollupData {
-            sequencer_block_hash: sequencer_block_hash.to_vec(),
+            sequencer_block_hash: Bytes::copy_from_slice(&sequencer_block_hash),
             rollup_id: Some(rollup_id.to_raw()),
             transactions,
             proof: Some(proof.into_raw()),
@@ -258,8 +260,8 @@ impl SubmittedRollupData {
         };
         let rollup_id =
             RollupId::try_from_raw(&rollup_id).map_err(SubmittedRollupDataError::rollup_id)?;
-        let sequencer_block_hash = sequencer_block_hash.try_into().map_err(|bytes: Vec<u8>| {
-            SubmittedRollupDataError::sequencer_block_hash(bytes.len())
+        let sequencer_block_hash = sequencer_block_hash.as_ref().try_into().map_err(|_| {
+            SubmittedRollupDataError::sequencer_block_hash(sequencer_block_hash.len())
         })?;
         let proof = 'proof: {
             let Some(proof) = proof else {
@@ -458,8 +460,9 @@ impl UncheckedSubmittedMetadata {
         }?;
 
         let block_hash = block_hash
+            .as_ref()
             .try_into()
-            .map_err(|bytes: Vec<_>| SubmittedMetadataError::block_hash(bytes.len()))?;
+            .map_err(|_| SubmittedMetadataError::block_hash(block_hash.len()))?;
 
         Ok(Self {
             block_hash,
@@ -618,7 +621,7 @@ impl SubmittedMetadata {
             ..
         } = self;
         raw::SubmittedMetadata {
-            block_hash: block_hash.to_vec(),
+            block_hash: Bytes::copy_from_slice(&block_hash),
             header: Some(header.into_raw()),
             rollup_ids: rollup_ids.into_iter().map(RollupId::into_raw).collect(),
             rollup_transactions_proof: Some(rollup_transactions_proof.into_raw()),

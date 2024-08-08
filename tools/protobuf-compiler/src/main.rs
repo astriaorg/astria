@@ -64,12 +64,10 @@ fn main() {
         .build_server(true)
         .emit_rerun_if_changed(false)
         .bytes([
-            ".astria.execution.v1alpha2",
-            ".astria.primitive.v1",
+            ".astria",
             ".celestia",
             ".cosmos",
             ".tendermint",
-            ".astria.protocol.asset.v1alpha1.AllowedFeeAssetIdsResponse",
         ])
         .client_mod_attribute(".", "#[cfg(feature=\"client\")]")
         .server_mod_attribute(".", "#[cfg(feature=\"server\")]")

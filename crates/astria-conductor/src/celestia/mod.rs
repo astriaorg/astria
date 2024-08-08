@@ -13,6 +13,7 @@ use astria_eyre::eyre::{
     bail,
     WrapErr as _,
 };
+use bytes::Bytes;
 use celestia_types::nmt::Namespace;
 use futures::{
     future::{
@@ -101,7 +102,7 @@ pub(crate) struct ReconstructedBlock {
     pub(crate) celestia_height: u64,
     pub(crate) block_hash: [u8; 32],
     pub(crate) header: SequencerBlockHeader,
-    pub(crate) transactions: Vec<Vec<u8>>,
+    pub(crate) transactions: Vec<Bytes>,
 }
 
 impl ReconstructedBlock {

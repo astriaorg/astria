@@ -5,10 +5,10 @@
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SignedTransaction {
-    #[prost(bytes = "vec", tag = "1")]
-    pub signature: ::prost::alloc::vec::Vec<u8>,
-    #[prost(bytes = "vec", tag = "2")]
-    pub public_key: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "bytes", tag = "1")]
+    pub signature: ::prost::bytes::Bytes,
+    #[prost(bytes = "bytes", tag = "2")]
+    pub public_key: ::prost::bytes::Bytes,
     #[prost(message, optional, tag = "3")]
     pub transaction: ::core::option::Option<::pbjson_types::Any>,
 }
@@ -144,8 +144,8 @@ impl ::prost::Name for TransferAction {
 pub struct SequenceAction {
     #[prost(message, optional, tag = "1")]
     pub rollup_id: ::core::option::Option<super::super::super::primitive::v1::RollupId>,
-    #[prost(bytes = "vec", tag = "2")]
-    pub data: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "bytes", tag = "2")]
+    pub data: ::prost::bytes::Bytes,
     /// the asset used to pay the transaction fee
     #[prost(string, tag = "3")]
     pub fee_asset: ::prost::alloc::string::String,

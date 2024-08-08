@@ -228,6 +228,7 @@ mod test {
             celestia::UncheckedSubmittedMetadata,
         },
     };
+    use bytes::Bytes;
     use prost::Message as _;
     use sequencer_client::{
         tendermint::{
@@ -337,9 +338,9 @@ mod test {
                 seconds: 1,
                 nanos: 0,
             }),
-            data_hash: data_hash.to_vec(),
-            rollup_transactions_root: rollup_transactions_root.to_vec(),
-            proposer_address: proposer_address.as_bytes().to_vec(),
+            data_hash: Bytes::copy_from_slice(&data_hash),
+            rollup_transactions_root: Bytes::copy_from_slice(&rollup_transactions_root),
+            proposer_address: Bytes::copy_from_slice(proposer_address.as_bytes()),
         };
         let header = SequencerBlockHeader::try_from_raw(header).unwrap();
 
@@ -359,7 +360,7 @@ mod test {
 
     #[tokio::test]
     async fn validate_sequencer_blob_with_chain_ids() {
-        let test_tx = b"test-tx".to_vec();
+        let test_tx = Bytes::from_static(b"test-tx");
         let rollup_id = RollupId::from_unhashed_bytes(b"test-chain");
         let grouped_txs = BTreeMap::from([(rollup_id, vec![test_tx.clone()])]);
         let rollup_transactions_tree =
@@ -382,9 +383,9 @@ mod test {
                 seconds: 1,
                 nanos: 0,
             }),
-            data_hash: data_hash.to_vec(),
-            rollup_transactions_root: rollup_transactions_root.to_vec(),
-            proposer_address: proposer_address.as_bytes().to_vec(),
+            data_hash: Bytes::copy_from_slice(&data_hash),
+            rollup_transactions_root: Bytes::copy_from_slice(&rollup_transactions_root),
+            proposer_address: Bytes::copy_from_slice(proposer_address.as_bytes()),
         };
         let header = SequencerBlockHeader::try_from_raw(header).unwrap();
 

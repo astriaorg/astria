@@ -1,3 +1,4 @@
+use bytes::Bytes;
 use indexmap::IndexMap;
 use transaction::v1alpha1::SignedTransaction;
 
@@ -19,7 +20,7 @@ pub mod test_utils;
 /// TODO: This can all be done in-place once <https://github.com/rust-lang/rust/issues/80552> is stabilized.
 pub fn group_sequence_actions_in_signed_transaction_transactions_by_rollup_id(
     signed_transactions: &[SignedTransaction],
-) -> IndexMap<RollupId, Vec<Vec<u8>>> {
+) -> IndexMap<RollupId, Vec<Bytes>> {
     use prost::Message as _;
 
     use crate::sequencerblock::v1alpha1::block::RollupData;
@@ -30,9 +31,9 @@ pub fn group_sequence_actions_in_signed_transaction_transactions_by_rollup_id(
         .flat_map(SignedTransaction::actions)
     {
         if let Some(action) = action.as_sequence() {
-            let txs_for_rollup: &mut Vec<Vec<u8>> = map.entry(action.rollup_id).or_insert(vec![]);
+            let txs_for_rollup: &mut Vec<Bytes> = map.entry(action.rollup_id).or_insert(vec![]);
             let rollup_data = RollupData::SequencedData(action.data.clone());
-            txs_for_rollup.push(rollup_data.into_raw().encode_to_vec());
+            txs_for_rollup.push(rollup_data.into_raw().encode_to_vec().into());
         }
     }
     map.sort_unstable_keys();
