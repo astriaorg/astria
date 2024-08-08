@@ -21,6 +21,7 @@ use tokio::{
     net::TcpListener,
 };
 use tokio_util::sync::CancellationToken;
+use tracing::instrument;
 
 use crate::{
     collectors,
@@ -47,6 +48,7 @@ pub(crate) struct Builder {
 }
 
 impl Builder {
+    #[instrument(skip_all, err)]
     pub(crate) async fn build(self) -> eyre::Result<GrpcServer> {
         let Self {
             grpc_addr,

@@ -18,7 +18,10 @@ use axum::{
 use hyper::server::conn::AddrIncoming;
 use serde::Serialize;
 use tokio::sync::watch;
-use tracing::debug;
+use tracing::{
+    debug,
+    instrument,
+};
 
 use crate::composer;
 
@@ -74,6 +77,7 @@ impl IntoResponse for Readyz {
 // axum does not allow non-async handlers. This attribute can be removed
 // once this method contains `await` statements.
 #[allow(clippy::unused_async)]
+#[instrument(skip_all)]
 async fn readyz(State(composer_status): State<ComposerStatus>) -> Readyz {
     debug!("received readyz request");
     if composer_status.borrow().is_ready() {
