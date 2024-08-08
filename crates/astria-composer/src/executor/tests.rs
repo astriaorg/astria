@@ -337,6 +337,7 @@ async fn full_bundle() {
         execution_api_url: cfg.execution_api_url,
         chain_name: cfg.rollup.clone(),
         fee_asset: cfg.fee_asset,
+        websocket_url: cfg.rollup_websocket_url.clone(),
         metrics,
     }
     .build()
@@ -485,6 +486,7 @@ async fn bundle_triggered_by_block_timer() {
         execution_api_url: cfg.execution_api_url,
         chain_name: cfg.rollup.clone(),
         fee_asset: cfg.fee_asset.clone(),
+        websocket_url: cfg.rollup_websocket_url.clone(),
         metrics,
     }
     .build()
@@ -637,6 +639,7 @@ async fn two_seq_actions_single_bundle() {
         execution_api_url: cfg.execution_api_url,
         chain_name: cfg.rollup.clone(),
         fee_asset: cfg.fee_asset.clone(),
+        websocket_url: cfg.rollup_websocket_url.clone(),
         metrics,
     }
     .build()
@@ -794,6 +797,7 @@ async fn chain_id_mismatch_returns_error() {
         execution_api_url: cfg.execution_api_url,
         chain_name: rollup_name.to_string(),
         fee_asset: cfg.fee_asset,
+        websocket_url: cfg.rollup_websocket_url.clone(),
         metrics,
     }
     .build()
