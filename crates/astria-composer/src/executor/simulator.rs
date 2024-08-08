@@ -10,7 +10,7 @@ use astria_eyre::{
 use bytes::Bytes;
 use pbjson_types::Timestamp;
 use prost::Message;
-use tracing::instrument;
+use tracing::{info, instrument};
 
 use crate::executor::{
     bundle_factory::SizedBundle,
@@ -101,9 +101,10 @@ impl BundleSimulator {
             .await
             .wrap_err("failed to execute block")?;
 
+        info!("Using block hash instead of parent hash lmaoooo!");
         Ok(BundleSimulationResult::new(
             execute_block_response.included_transactions().to_vec(),
-            execute_block_response.block().hash().clone(),
+            soft_block.hash().clone(),
         ))
     }
 }
