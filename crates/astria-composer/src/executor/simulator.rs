@@ -103,7 +103,7 @@ impl BundleSimulator {
 
         Ok(BundleSimulationResult::new(
             execute_block_response.included_transactions().to_vec(),
-            execute_block_response.block().parent_block_hash().clone(),
+            execute_block_response.block().hash().clone(),
         ))
     }
 }
