@@ -150,10 +150,7 @@ impl ConfigureSequencerBlock {
             rollup_ids_root.to_vec(),
         ];
         data.extend(txs.into_iter().map(|tx| tx.into_raw().encode_to_vec()));
-        let data = data
-            .into_iter()
-            .map(|data| Bytes::copy_from_slice(&data))
-            .collect();
+        let data = data.into_iter().map(Bytes::from).collect();
         SequencerBlock::try_from_block_info_and_data(
             block_hash,
             chain_id.try_into().unwrap(),

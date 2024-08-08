@@ -24,13 +24,12 @@ impl BridgeAccountLastTxHashResponse {
     ///
     /// - if the transaction hash is not 32 bytes
     pub fn try_from_raw(
-        raw: &raw::BridgeAccountLastTxHashResponse,
+        raw: raw::BridgeAccountLastTxHashResponse,
     ) -> Result<Self, BridgeAccountLastTxHashResponseError> {
         Ok(Self {
             height: raw.height,
             tx_hash: raw
                 .tx_hash
-                .clone()
                 .map(|bytes| {
                     <[u8; 32]>::try_from(bytes.as_ref()).map_err(|_| {
                         BridgeAccountLastTxHashResponseError::invalid_tx_hash(bytes.len())
@@ -59,7 +58,7 @@ impl raw::BridgeAccountLastTxHashResponse {
     pub fn try_into_native(
         self,
     ) -> Result<BridgeAccountLastTxHashResponse, BridgeAccountLastTxHashResponseError> {
-        BridgeAccountLastTxHashResponse::try_from_raw(&self)
+        BridgeAccountLastTxHashResponse::try_from_raw(self)
     }
 
     #[must_use]

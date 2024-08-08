@@ -124,7 +124,7 @@ impl Client {
 
         let transactions = transactions
             .into_iter()
-            .map(|tx| RollupData::decode(tx.as_ref()))
+            .map(RollupData::decode)
             .collect::<Result<_, _>>()
             .wrap_err("failed to decode tx bytes as RollupData")?;
 

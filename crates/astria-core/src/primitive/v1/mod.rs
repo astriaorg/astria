@@ -172,21 +172,6 @@ impl RollupId {
         Ok(Self::new(inner))
     }
 
-    /// Converts a byte vector to a rollup ID.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the byte slice was not 32 bytes long.
-    pub fn try_from_bytes(bytes: &Bytes) -> Result<Self, IncorrectRollupIdLength> {
-        let inner = bytes
-            .as_ref()
-            .try_into()
-            .map_err(|_| IncorrectRollupIdLength {
-                received: bytes.len(),
-            })?;
-        Ok(Self::new(inner))
-    }
-
     #[must_use]
     pub fn to_raw(&self) -> raw::RollupId {
         raw::RollupId {

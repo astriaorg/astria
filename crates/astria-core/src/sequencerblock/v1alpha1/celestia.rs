@@ -1,7 +1,4 @@
-use bytes::{
-    Buf,
-    Bytes,
-};
+use bytes::Bytes;
 use sha2::{
     Digest as _,
     Sha256,
@@ -55,10 +52,7 @@ impl PreparedBlock {
                 proof,
                 ..
             } = rollup_txs.into_parts();
-            let transactions = transactions
-                .into_iter()
-                .map(|tx| Bytes::copy_from_slice(&tx))
-                .collect();
+            let transactions = transactions.into_iter().map(Bytes::into).collect();
             tail.push(SubmittedRollupData {
                 sequencer_block_hash: block_hash,
                 rollup_id,
@@ -266,7 +260,7 @@ impl SubmittedRollupData {
         };
         let rollup_id =
             RollupId::try_from_raw(&rollup_id).map_err(SubmittedRollupDataError::rollup_id)?;
-        let sequencer_block_hash = sequencer_block_hash.chunk().try_into().map_err(|_| {
+        let sequencer_block_hash = sequencer_block_hash.as_ref().try_into().map_err(|_| {
             SubmittedRollupDataError::sequencer_block_hash(sequencer_block_hash.len())
         })?;
         let proof = 'proof: {

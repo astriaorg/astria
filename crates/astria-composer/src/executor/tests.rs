@@ -15,7 +15,7 @@ use astria_eyre::eyre;
 use once_cell::sync::Lazy;
 use prost::{
     bytes::Bytes,
-    Message,
+    Message as _,
 };
 use sequencer_client::SignedTransaction;
 use serde_json::json;

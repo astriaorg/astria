@@ -199,7 +199,7 @@ impl SequencerBlockError {
         Self(SequencerBlockErrorKind::NoRollupTransactionsRoot)
     }
 
-    fn incorrect_rollup_tx_root_length(len: usize) -> Self {
+    fn incorrect_rollup_transactions_root_length(len: usize) -> Self {
         Self(SequencerBlockErrorKind::IncorrectRollupTransactionsRootLength(len))
     }
 
@@ -703,6 +703,7 @@ impl SequencerBlock {
     /// # Panics
     ///
     /// - if a rollup data merkle proof cannot be constructed.
+    #[allow(clippy::too_many_lines)] // Temporary fix, should refactor: TODO(https://github.com/astriaorg/astria/issues/1357)
     pub fn try_from_block_info_and_data(
         block_hash: [u8; 32],
         chain_id: tendermint::chain::Id,
@@ -723,7 +724,9 @@ impl SequencerBlock {
             .ok_or(SequencerBlockError::no_rollup_transactions_root())?
             .as_ref()
             .try_into()
-            .map_err(|_| SequencerBlockError::incorrect_rollup_tx_root_length(data_list.len()))?;
+            .map_err(|_| {
+                SequencerBlockError::incorrect_rollup_transactions_root_length(data_list.len())
+            })?;
 
         let rollup_ids_root: [u8; 32] = data_list
             .next()
@@ -1115,7 +1118,7 @@ impl FilteredSequencerBlock {
 
         let all_rollup_ids: Vec<RollupId> = all_rollup_ids
             .into_iter()
-            .map(|bytes| RollupId::try_from_bytes(&bytes))
+            .map(|bytes| RollupId::try_from_slice(&bytes))
             .collect::<Result<_, _>>()
             .map_err(FilteredSequencerBlockError::invalid_rollup_id)?;
 
