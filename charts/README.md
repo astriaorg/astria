@@ -180,6 +180,21 @@ To deploy and run this:
 # Clean up deployed test
 ```
 
+## Running an IBC Smoke Test
+
+You can run a smoke test which ensures that full IBC bridge functionality is
+working both up and down the stack.
+
+1. Bridges from Celestia to Astria to EVM
+2. Withdraws from EVM to Astria to Celestia
+
+```sh
+> just deploy cluster
+> just ibc-test deploy
+> just ibc-test run
+> just ibc-test delete
+```
+
 ## Examining Deployments
 
 [k9s](https://k9scli.io/) is a useful utility for inspecting deployed
