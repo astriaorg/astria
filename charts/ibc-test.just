@@ -39,6 +39,7 @@ run:
   #!/usr/bin/env bash
 
   initial_balance=$(just evm-get-balance {{evm_destination_address}})
+  initial_celestia_balance=$(just ibc-test get-celestia-balance)
 
   # Create a bridge account on the sequencer
   just init-ibc-bridge {{sequencer_tia_bridge_pkey}} transfer/channel-0/utia nria
@@ -48,7 +49,10 @@ run:
 
   # Multiplication factor is 10^-6 (utia to tia) * 10^18 (rollup factor) = 10^12
   let expected_balance="$initial_balance + {{transfer_amount}} * 10**12"
+  # `bc` because very large number
+  expected_celestia_balance=$(echo "$initial_celestia_balance - {{transfer_amount}} - {{transfer_fees}}" | bc)
 
+  # check that evm balance updated correctly
   for i in {1..50}
   do
     current_balance=$(just evm-get-balance {{evm_destination_address}})
@@ -65,13 +69,36 @@ run:
     exit 1
   fi
 
+  # check that celestia balance updated correctly
+  for i in {1..50}
+  do
+    current_celestia_balance=$(just ibc-test get-celestia-balance)
+    echo "check $i, balance: $current_celestia_balance, expected: $expected_celestia_balance"
+    if (( $expected_celestia_balance == $current_celestia_balance )); then
+      expected_celestia_balance_found="1"
+      break
+    else
+      sleep 1
+    fi
+  done
+  if [[ -z $expected_celestia_balance_found ]]; then
+    echo "expected celestia balance was not found after withdraw; IBC transfer from Celestia to the Rollup failed"
+    exit 1
+  fi
+
+  # test IBC withdrawal from the EVM to Celestia
   initial_balance=$(just evm-get-balance {{evm_destination_address}})
   let expected_evm_balance="$initial_balance - 1000000000000"
 
-  # Submit tx that calls withdraw contract on the evm, for ibc withdrawal from evm to celestia
+  initial_celestia_balance=$(just ibc-test get-celestia-balance)
+  # `bc` because very large number
+  expected_celestia_balance=$(echo "$initial_celestia_balance + 1000" | bc)
+  echo "Initial Celestia balance $initial_celestia_balance"
+
   echo "Performing IBC withdrawal from the EVM to Celestia..."
   just evm-send-raw-transaction {{evm_withdraw_tx_raw}}
 
+  # check that evm balance updated correctly
   for i in {1..50}
   do
     tx_receipt=$(just evm-get-transaction-receipt {{evm_withdraw_tx_hash}})
@@ -93,6 +120,23 @@ run:
   done
   if [[ -z $tx_receipt_found ]]; then
     echo "Transaction receipt not found; IBC transfer from the Rollup to Celestia failed"
+    exit 1
+  fi
+
+  # check that celestia balance updated correctly
+  for i in {1..50}
+  do
+    current_celestia_balance=$(just ibc-test get-celestia-balance)
+    echo "check $i, balance: $current_celestia_balance, expected: $expected_celestia_balance"
+    if (( $expected_celestia_balance == $current_celestia_balance )); then
+      expected_celestia_balance_after_wd="1"
+      break
+    else
+      sleep 1
+    fi
+  done
+  if [[ -z $expected_celestia_balance_after_wd ]]; then
+    echo "expected celestia balance was not found after withdraw; IBC transfer from the Rollup to Celestia failed"
     exit 1
   fi
 
@@ -143,6 +187,14 @@ _do-ibc-transfer namespace=defaultNamespace:
     --home /home/celestia \
     --keyring-backend="{{keyring_backend}}"'
 
+get-celestia-balance address=celestia_dev_account_address namespace=defaultNamespace:
+  #!/usr/bin/env bash
+  balance=$(kubectl exec -n {{namespace}} pods/celestia-local-0 celestia-app -- /bin/bash -c \
+  'celestia-appd query bank balances --denom utia --output json {{address}}' | jq '.amount')
+  # remove quotes
+  balance=${balance//\"/}
+  echo $balance
+
 # helper command to call withdraw smart contract, in aid of getting its raw bytes for the tests.
 _forge-ibc-withdraw:
   #!/usr/bin/env bash
@@ -162,3 +214,12 @@ _forge-ibc-withdraw:
     --legacy \
     --broadcast \
     --sig "withdrawToIbcChain()" -vvvv
+
+# FIXME - delete after development
+cb address=celestia_dev_account_address namespace=defaultNamespace:
+  kubectl exec -n {{namespace}} pods/celestia-local-0 celestia-app -- /bin/bash -c \
+  'celestia-appd query bank balances {{address}}'
+
+# init sequencer bridge account
+init-bridge-acct:
+  just init-ibc-bridge {{sequencer_tia_bridge_pkey}} transfer/channel-0/utia nria
