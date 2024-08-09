@@ -147,6 +147,8 @@ impl Geth {
 
     /// Starts the collector instance and runs until failure or until
     /// explicitly closed
+    // Allow: Refactored in <insert GH here>. Current logging events will show as errors in otel,
+    // refactor addresses this as well.
     #[allow(clippy::too_many_lines)]
     pub(crate) async fn run_until_stopped(self) -> eyre::Result<()> {
         use ethers::providers::Middleware as _;
@@ -167,10 +169,10 @@ impl Geth {
             .geth_txs_received(&chain_name)
             .cloned()
             .unwrap_or_else(|| {
-                error!(
-                    rollup_chain_name = %chain_name,
-                    "failed to get geth transactions_received counter"
-                );
+                // error!(
+                //     rollup_chain_name = %chain_name,
+                //     "failed to get geth transactions_received counter"
+                // );
                 Counter::noop()
             });
         let txs_dropped_counter = metrics
