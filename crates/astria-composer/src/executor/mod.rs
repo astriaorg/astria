@@ -554,9 +554,9 @@ async fn get_latest_nonce(
     fields(
         nonce = tx.nonce(),
         transaction.hash = hex::encode(sha256(&tx.to_raw().encode_to_vec())),
-    )
+    ),
+    err,
 )]
-#[instrument(skip_all, err)]
 async fn submit_tx(
     client: sequencer_client::HttpClient,
     tx: SignedTransaction,
