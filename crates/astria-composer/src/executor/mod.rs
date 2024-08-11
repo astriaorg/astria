@@ -10,6 +10,7 @@ use std::{
     task::Poll,
     time::Duration,
 };
+use ethers::abi::AbiEncode;
 
 use astria_core::{
     crypto::SigningKey,
@@ -41,6 +42,7 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use ethers::signers::Signer;
+use ethers::utils::hash_message;
 use futures::{
     future::{
         self,
@@ -238,6 +240,7 @@ impl Executor {
         let private_key = "";
         let wallet = ethers::signers::Wallet::from_str(private_key)
             .wrap_err("failed to parse private key")?;
+        let msg_hash = hash_message(encoded_builder_bundle.clone());
         let signature = wallet
             .sign_message(encoded_builder_bundle.clone())
             .await
@@ -247,6 +250,7 @@ impl Executor {
         let mut builder_bundle_packet = BuilderBundlePacket {
             bundle: Some(builder_bundle),
             signature: signature.to_string(),
+            message_hash: msg_hash.encode()
         };
         let encoded_builder_bundle_packet = builder_bundle_packet.encode_to_vec();
 
