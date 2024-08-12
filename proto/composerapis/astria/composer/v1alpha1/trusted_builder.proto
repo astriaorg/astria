@@ -11,6 +11,6 @@ message BuilderBundle {
 
 message BuilderBundlePacket {
   BuilderBundle bundle = 1;
-  bytes message_hash = 2;
+  string message_hash = 2;
   string signature = 3;
 }
