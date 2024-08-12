@@ -23,12 +23,6 @@ version: 0.25.1
 # It is recommended to use it with quotes.
 appVersion: "0.14.0"
 
-dependencies:
-  - name: celestia-node
-    version: "0.3.2"
-    repository: "file://../celestia-node"
-    condition: celestia-node.enabled
-
 maintainers:
   - name: wafflesvonmaple
     url: astria.org
