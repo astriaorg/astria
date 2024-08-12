@@ -237,7 +237,7 @@ impl Executor {
         };
 
         let encoded_builder_bundle = builder_bundle.encode_to_vec();
-        let private_key = "";
+        let private_key = "0xd7c8dffd7a3898d1be53b5eccd6b1630fa8fe04fd30c5ecf700f1752c3e7e489";
         let wallet = ethers::signers::Wallet::from_str(private_key)
             .wrap_err("failed to parse private key")?;
         let msg_hash = hash_message(encoded_builder_bundle.clone());
@@ -250,7 +250,7 @@ impl Executor {
         let mut builder_bundle_packet = BuilderBundlePacket {
             bundle: Some(builder_bundle),
             signature: signature.to_string(),
-            message_hash: msg_hash.encode()
+            message_hash: msg_hash.to_string()
         };
         let encoded_builder_bundle_packet = builder_bundle_packet.encode_to_vec();
 
