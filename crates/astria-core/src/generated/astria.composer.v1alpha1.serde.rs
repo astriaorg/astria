@@ -121,19 +121,12 @@ impl serde::Serialize for BuilderBundlePacket {
         if self.bundle.is_some() {
             len += 1;
         }
-        if !self.message_hash.is_empty() {
-            len += 1;
-        }
         if !self.signature.is_empty() {
             len += 1;
         }
         let mut struct_ser = serializer.serialize_struct("astria.composer.v1alpha1.BuilderBundlePacket", len)?;
         if let Some(v) = self.bundle.as_ref() {
             struct_ser.serialize_field("bundle", v)?;
-        }
-        if !self.message_hash.is_empty() {
-            #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("messageHash", pbjson::private::base64::encode(&self.message_hash).as_str())?;
         }
         if !self.signature.is_empty() {
             #[allow(clippy::needless_borrow)]
@@ -150,15 +143,12 @@ impl<'de> serde::Deserialize<'de> for BuilderBundlePacket {
     {
         const FIELDS: &[&str] = &[
             "bundle",
-            "message_hash",
-            "messageHash",
             "signature",
         ];
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
             Bundle,
-            MessageHash,
             Signature,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
@@ -182,7 +172,6 @@ impl<'de> serde::Deserialize<'de> for BuilderBundlePacket {
                     {
                         match value {
                             "bundle" => Ok(GeneratedField::Bundle),
-                            "messageHash" | "message_hash" => Ok(GeneratedField::MessageHash),
                             "signature" => Ok(GeneratedField::Signature),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
@@ -204,7 +193,6 @@ impl<'de> serde::Deserialize<'de> for BuilderBundlePacket {
                     V: serde::de::MapAccess<'de>,
             {
                 let mut bundle__ = None;
-                let mut message_hash__ = None;
                 let mut signature__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
@@ -213,14 +201,6 @@ impl<'de> serde::Deserialize<'de> for BuilderBundlePacket {
                                 return Err(serde::de::Error::duplicate_field("bundle"));
                             }
                             bundle__ = map_.next_value()?;
-                        }
-                        GeneratedField::MessageHash => {
-                            if message_hash__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("messageHash"));
-                            }
-                            message_hash__ = 
-                                Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
-                            ;
                         }
                         GeneratedField::Signature => {
                             if signature__.is_some() {
@@ -234,7 +214,6 @@ impl<'de> serde::Deserialize<'de> for BuilderBundlePacket {
                 }
                 Ok(BuilderBundlePacket {
                     bundle: bundle__,
-                    message_hash: message_hash__.unwrap_or_default(),
                     signature: signature__.unwrap_or_default(),
                 })
             }
