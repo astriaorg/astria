@@ -212,7 +212,7 @@ impl Executor {
     ///
     /// # Errors
     /// An error is returned if connecting to the sequencer fails.
-    // Allow: Refactored in <insert GH here>. Current logging events will show as errors in otel,
+    // Allow: Refactored in https://github.com/astriaorg/astria/pull/1361. Current logging events will show as errors in otel,
     // refactor addresses this as well.
     #[allow(clippy::too_many_lines)]
     pub(super) async fn run_until_stopped(mut self) -> eyre::Result<()> {

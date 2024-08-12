@@ -147,7 +147,7 @@ impl Geth {
 
     /// Starts the collector instance and runs until failure or until
     /// explicitly closed
-    // Allow: Refactored in <insert GH here>. Current logging events will show as errors in otel,
+    // Allow: Refactored in https://github.com/astriaorg/astria/pull/1361. Current logging events will show as errors in otel,
     // refactor addresses this as well.
     #[allow(clippy::too_many_lines)]
     pub(crate) async fn run_until_stopped(self) -> eyre::Result<()> {
