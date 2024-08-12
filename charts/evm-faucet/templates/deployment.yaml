@@ -35,7 +35,7 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: evm-faucet-private-key
-                  key: {{ .Values.privateKey.secret.key }}
+                  key: {{ .Values.config.privateKey.secret.key }}
           {{- end }}
           volumeMounts:
             - mountPath: /home/faucet
@@ -43,7 +43,7 @@ spec:
               subPath: {{tpl .Values.config.rollupName . }}/faucet
             {{- if .Values.secretProvider.enabled }}
             - mountPath: /var/secrets
-              name: faucet-private-key
+              name: evm-faucet-private-key
             {{- end }}
           ports:
             - containerPort: {{ .Values.ports.faucet }}

@@ -211,12 +211,12 @@ metrics:
 otel:
   enabled: false
   serviceNamePrefix: '{{ include "rollup.name" . }}'
-  endpoint:
-  tracesEndpoint:
-  tracesCompression: gzip
-  tracesTimeout: 10
-  otlpHeaders:
-  traceHeaders:
+  endpoint: ""
+  tracesEndpoint: ""
+  tracesCompression: "gzip"
+  tracesTimeout: "10"
+  otlpHeaders: ""
+  traceHeaders: ""
 
 serviceMonitor:
   # set to enable port svc and service monitor
