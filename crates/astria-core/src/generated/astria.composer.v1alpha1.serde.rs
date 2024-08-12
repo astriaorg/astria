@@ -132,8 +132,7 @@ impl serde::Serialize for BuilderBundlePacket {
             struct_ser.serialize_field("bundle", v)?;
         }
         if !self.message_hash.is_empty() {
-            #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("messageHash", pbjson::private::base64::encode(&self.message_hash).as_str())?;
+            struct_ser.serialize_field("messageHash", &self.message_hash)?;
         }
         if !self.signature.is_empty() {
             struct_ser.serialize_field("signature", &self.signature)?;
@@ -217,9 +216,7 @@ impl<'de> serde::Deserialize<'de> for BuilderBundlePacket {
                             if message_hash__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("messageHash"));
                             }
-                            message_hash__ = 
-                                Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
-                            ;
+                            message_hash__ = Some(map_.next_value()?);
                         }
                         GeneratedField::Signature => {
                             if signature__.is_some() {
