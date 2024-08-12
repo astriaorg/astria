@@ -310,7 +310,7 @@ impl Protobuf for ExecuteBlockResponse {
 
         let included_transactions = included_transactions
             .iter()
-            .map(|rollup_data| RollupData::try_from_raw_ref(rollup_data))
+            .map(RollupData::try_from_raw_ref)
             .collect::<Result<Vec<RollupData>, _>>()
             .map_err(Self::Error::invalid_rollup_data)?;
 

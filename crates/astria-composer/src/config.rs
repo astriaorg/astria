@@ -68,18 +68,10 @@ pub struct Config {
 
     /// The URL of the execution API server
     pub execution_api_url: String,
-}
 
-// impl Config {
-//     pub(crate) fn parse_rollups(&self) -> astria_eyre::eyre::Result<HashMap<String, String>> {
-//         self.rollups
-//             .split(',')
-//             .filter(|s| !s.is_empty())
-//             .map(|s| Rollup::parse(s).map(Rollup::into_parts))
-//             .collect::<Result<HashMap<_, _>, _>>()
-//             .wrap_err("failed parsing provided <rollup_name>::<url> pairs as rollups")
-//     }
-// }
+    /// The maximum possible size of a bundle
+    pub max_bundle_size: usize,
+}
 
 impl config::Config for Config {
     const PREFIX: &'static str = "ASTRIA_COMPOSER_";

@@ -137,6 +137,7 @@ impl Composer {
             execution_api_url: cfg.execution_api_url.clone(),
             fee_asset: cfg.fee_asset.clone(),
             chain_name: cfg.rollup.clone(),
+            max_bundle_size: cfg.max_bundle_size,
             shutdown_token: shutdown_token.clone(),
             metrics,
         }
