@@ -38,7 +38,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   namespace: {{ include "composer.namespace" .  }}
-  name: sequencer-private-key
+  name: composer-private-key
 data:
   {{ .Values.config.privateKey.secret.filename }}: |
     {{ .Values.config.privateKey.devContent }}
