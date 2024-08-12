@@ -114,7 +114,6 @@ impl BuilderBundlePacketError {
 pub struct BuilderBundlePacket {
     bundle: BuilderBundle,
     signature: Bytes,
-    message_hash: Bytes,
 }
 
 impl BuilderBundlePacket {
@@ -124,10 +123,6 @@ impl BuilderBundlePacket {
 
     pub fn signature(&self) -> Bytes {
         self.signature.clone()
-    }
-    
-    pub fn message_hash(&self) -> Bytes {
-        self.message_hash.clone()
     }
 }
 
@@ -145,7 +140,6 @@ impl Protobuf for BuilderBundlePacket {
         let crate::generated::composer::v1alpha1::BuilderBundlePacket {
             bundle,
             signature,
-            message_hash,
         } = raw;
 
         let bundle = {
@@ -160,14 +154,12 @@ impl Protobuf for BuilderBundlePacket {
         Ok(BuilderBundlePacket {
             bundle,
             signature: Bytes::from(signature.clone()),
-            message_hash: Bytes::from(message_hash.clone())
         })
     }
 
     fn to_raw(&self) -> Self::Raw {
         crate::generated::composer::v1alpha1::BuilderBundlePacket {
             bundle: Some(self.bundle.to_raw()),
-            message_hash: self.message_hash.to_vec(),
             signature: self.signature.to_vec(),
         }
     }
