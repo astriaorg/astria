@@ -27,6 +27,7 @@ use astria_core::{
     },
     sequencerblock::v1alpha1::block::Deposit,
 };
+use bytes::Bytes;
 use cnidarium::StateDelta;
 use penumbra_ibc::params::IBCParameters;
 use tendermint::abci::EventAttributeIndexExt as _;
@@ -249,7 +250,7 @@ async fn app_execute_transaction_sequence() {
 
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
-    let data = b"hello world".to_vec();
+    let data = Bytes::from_static(b"hello world");
     let fee = calculate_fee_from_state(&data, &app.state).await.unwrap();
 
     let tx = UnsignedTransaction {
@@ -285,7 +286,7 @@ async fn app_execute_transaction_invalid_fee_asset() {
     let mut app = initialize_app(None, vec![]).await;
 
     let alice = get_alice_signing_key();
-    let data = b"hello world".to_vec();
+    let data = Bytes::from_static(b"hello world");
 
     let tx = UnsignedTransaction {
         params: TransactionParams::builder()
@@ -788,7 +789,7 @@ async fn app_execute_transaction_invalid_nonce() {
     let alice_address = astria_address(&alice.address_bytes());
 
     // create tx with invalid nonce 1
-    let data = b"hello world".to_vec();
+    let data = Bytes::from_static(b"hello world");
     let tx = UnsignedTransaction {
         params: TransactionParams::builder()
             .nonce(1)
@@ -835,7 +836,7 @@ async fn app_execute_transaction_invalid_chain_id() {
     let alice_address = astria_address(&alice.address_bytes());
 
     // create tx with invalid nonce 1
-    let data = b"hello world".to_vec();
+    let data = Bytes::from_static(b"hello world");
     let tx = UnsignedTransaction {
         params: TransactionParams::builder()
             .nonce(0)
@@ -889,7 +890,7 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
     let keypair_address = astria_address(&keypair.verification_key().address_bytes());
 
     // figure out needed fee for a single transfer
-    let data = b"hello world".to_vec();
+    let data = Bytes::from_static(b"hello world");
     let fee = calculate_fee_from_state(&data, &app.state.clone())
         .await
         .unwrap();

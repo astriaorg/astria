@@ -13,7 +13,10 @@ use astria_core::{
 };
 use astria_eyre::eyre;
 use once_cell::sync::Lazy;
-use prost::Message;
+use prost::{
+    bytes::Bytes,
+    Message as _,
+};
 use sequencer_client::SignedTransaction;
 use serde_json::json;
 use tempfile::NamedTempFile;
@@ -81,7 +84,7 @@ static TELEMETRY: Lazy<()> = Lazy::new(|| {
 fn sequence_action() -> SequenceAction {
     SequenceAction {
         rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
-        data: vec![],
+        data: Bytes::new(),
         fee_asset: "nria".parse().unwrap(),
     }
 }
@@ -411,7 +414,7 @@ async fn bundle_triggered_by_block_timer() {
     // send two sequence actions to the executor, both small enough to fit in a single bundle
     // without filling it
     let seq0 = SequenceAction {
-        data: vec![0u8; cfg.max_bytes_per_bundle / 4],
+        data: vec![0u8; cfg.max_bytes_per_bundle / 4].into(),
         ..sequence_action()
     };
 
@@ -498,13 +501,13 @@ async fn two_seq_actions_single_bundle() {
     // send two sequence actions to the executor, both small enough to fit in a single bundle
     // without filling it
     let seq0 = SequenceAction {
-        data: vec![0u8; cfg.max_bytes_per_bundle / 4],
+        data: vec![0u8; cfg.max_bytes_per_bundle / 4].into(),
         ..sequence_action()
     };
 
     let seq1 = SequenceAction {
         rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
-        data: vec![1u8; cfg.max_bytes_per_bundle / 4],
+        data: vec![1u8; cfg.max_bytes_per_bundle / 4].into(),
         ..sequence_action()
     };
 
