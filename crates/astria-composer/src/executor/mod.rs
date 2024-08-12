@@ -249,8 +249,8 @@ impl Executor {
         // create a top of block bundle
         let mut builder_bundle_packet = BuilderBundlePacket {
             bundle: Some(builder_bundle),
-            signature: signature.to_string(),
-            message_hash: msg_hash.to_string()
+            signature: signature.to_vec(),
+            message_hash: msg_hash.encode()
         };
         let encoded_builder_bundle_packet = builder_bundle_packet.encode_to_vec();
 

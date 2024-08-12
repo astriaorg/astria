@@ -132,10 +132,12 @@ impl serde::Serialize for BuilderBundlePacket {
             struct_ser.serialize_field("bundle", v)?;
         }
         if !self.message_hash.is_empty() {
-            struct_ser.serialize_field("messageHash", &self.message_hash)?;
+            #[allow(clippy::needless_borrow)]
+            struct_ser.serialize_field("messageHash", pbjson::private::base64::encode(&self.message_hash).as_str())?;
         }
         if !self.signature.is_empty() {
-            struct_ser.serialize_field("signature", &self.signature)?;
+            #[allow(clippy::needless_borrow)]
+            struct_ser.serialize_field("signature", pbjson::private::base64::encode(&self.signature).as_str())?;
         }
         struct_ser.end()
     }
@@ -216,13 +218,17 @@ impl<'de> serde::Deserialize<'de> for BuilderBundlePacket {
                             if message_hash__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("messageHash"));
                             }
-                            message_hash__ = Some(map_.next_value()?);
+                            message_hash__ = 
+                                Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
+                            ;
                         }
                         GeneratedField::Signature => {
                             if signature__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("signature"));
                             }
-                            signature__ = Some(map_.next_value()?);
+                            signature__ = 
+                                Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
+                            ;
                         }
                     }
                 }
