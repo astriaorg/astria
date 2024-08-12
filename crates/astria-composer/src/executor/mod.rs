@@ -236,21 +236,10 @@ impl Executor {
             parent_hash: bundle_simulation_result.parent_hash().to_vec(),
         };
 
-        let encoded_builder_bundle = builder_bundle.encode_to_vec();
-        let private_key = "0xd7c8dffd7a3898d1be53b5eccd6b1630fa8fe04fd30c5ecf700f1752c3e7e489";
-        let wallet = ethers::signers::Wallet::from_str(private_key)
-            .wrap_err("failed to parse private key")?;
-        let msg_hash = hash_message(encoded_builder_bundle.clone());
-        let signature = wallet
-            .sign_message(encoded_builder_bundle.clone())
-            .await
-            .wrap_err("failed to sign builder bundle packet")?;
-
         // create a top of block bundle
         let mut builder_bundle_packet = BuilderBundlePacket {
             bundle: Some(builder_bundle),
-            signature: signature.to_vec(),
-            message_hash: msg_hash.encode()
+            signature: vec![],
         };
         let encoded_builder_bundle_packet = builder_bundle_packet.encode_to_vec();
 
