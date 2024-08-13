@@ -37,6 +37,7 @@ use cnidarium::{
     StateDelta,
     Storage,
 };
+use penumbra_sct::component::clock::EpochManager;
 use prost::Message as _;
 use sha2::{
     Digest as _,
@@ -103,7 +104,7 @@ use crate::{
     sequence::component::SequenceComponent,
     state_ext::{
         StateReadExt as _,
-        StateWriteExt as _,
+        StateWriteExt,
     },
     transaction::{
         self,
@@ -226,7 +227,7 @@ impl App {
             .context("failed to commit native asset as ibc asset to state")?;
 
         state_tx.put_chain_id_and_revision_number(chain_id.try_into().context("invalid chain ID")?);
-        state_tx.put_block_height(0);
+        StateWriteExt::put_block_height(&mut state_tx, 0);
 
         for fee_asset in genesis_state.allowed_fee_assets() {
             state_tx.put_allowed_fee_asset(fee_asset);
@@ -307,6 +308,10 @@ impl App {
             next_validators_hash: prepare_proposal.next_validators_hash,
             proposer_address: prepare_proposal.proposer_address,
         };
+
+        debug!("Putting block timestamp");
+        let mut state_tx = StateDelta::new(self.state.clone());
+        EpochManager::put_block_timestamp(&mut state_tx, block_data.height.into(), block_data.time);
 
         self.pre_execute_transactions(block_data)
             .await
@@ -947,9 +952,9 @@ impl App {
         let mut state_tx = StateDelta::new(self.state.clone());
 
         // store the block height
-        state_tx.put_block_height(begin_block.header.height.into());
+        StateWriteExt::put_block_height(&mut state_tx, begin_block.header.height.into());
         // store the block time
-        state_tx.put_block_timestamp(begin_block.header.time);
+        StateWriteExt::put_block_timestamp(&mut state_tx, begin_block.header.time);
 
         // call begin_block on all components
         let mut arc_state_tx = Arc::new(state_tx);

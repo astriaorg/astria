@@ -12,6 +12,11 @@ default_docker_tag := 'local'
 docker-build crate tag=default_docker_tag:
   docker buildx build --load --build-arg TARGETBINARY={{crate}} -f containerfiles/Dockerfile -t {{crate}}:{{tag}} .
 
+db-nocache crate tag=default_docker_tag:
+  docker buildx build --no-cache --load --build-arg TARGETBINARY={{crate}} \
+    -f containerfiles/Dockerfile \
+    -t {{crate}}:{{tag}} .
+
 # Installs the astria rust cli from local codebase
 install-cli:
   cargo install --path ./crates/astria-cli --locked

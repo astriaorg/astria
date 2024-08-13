@@ -802,6 +802,7 @@ dependencies = [
  "metrics",
  "penumbra-ibc",
  "penumbra-proto",
+ "penumbra-sct",
  "penumbra-tower-trace",
  "priority-queue",
  "prost",
