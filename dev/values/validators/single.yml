@@ -5,7 +5,7 @@ images:
   sequencer:
     repo: astria-sequencer
     tag: "0.14.0"
-    devTag: bugbug13
+    devTag: bugbug14
 
 
 moniker: node0

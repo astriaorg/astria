@@ -309,10 +309,6 @@ impl App {
             proposer_address: prepare_proposal.proposer_address,
         };
 
-        debug!("Putting block timestamp");
-        let mut state_tx = StateDelta::new(self.state.clone());
-        EpochManager::put_block_timestamp(&mut state_tx, block_data.height.into(), block_data.time);
-
         self.pre_execute_transactions(block_data)
             .await
             .context("failed to prepare for executing block")?;
@@ -955,6 +951,8 @@ impl App {
         StateWriteExt::put_block_height(&mut state_tx, begin_block.header.height.into());
         // store the block time
         StateWriteExt::put_block_timestamp(&mut state_tx, begin_block.header.time);
+        // FIXME - this is a hack to get past testing. needs a more thoughtful fix.
+        EpochManager::put_block_timestamp(&mut state_tx, begin_block.header.height.into(), begin_block.header.time);
 
         // call begin_block on all components
         let mut arc_state_tx = Arc::new(state_tx);
