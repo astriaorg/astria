@@ -10,6 +10,8 @@ function set_token() {
 
   mkdir -p /celestia/token
   echo "$TOKEN" > /celestia/token/token.key
+  mkdir -p /celestia/token-server
+  echo "$TOKEN" > /celestia/token-server/index.html
 }
 
 if [ ! -f /celestia/token/token.key ]; then

@@ -19,6 +19,7 @@ config:
 
 images:
   pullPolicy: IfNotPresent
+  tokenServer: "busybox:1.35.0-musl"
   node: ghcr.io/celestiaorg/celestia-node:v0.13.6
 
 ports:
