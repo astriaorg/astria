@@ -92,7 +92,8 @@ run:
 
   initial_celestia_balance=$(just ibc-test get-celestia-balance)
   # `bc` because very large number
-  expected_celestia_balance=$(echo "$initial_celestia_balance + 1000" | bc)
+  # WITHDRAW_AMOUNT / 10^(18-6) = 1
+  expected_celestia_balance=$(echo "$initial_celestia_balance + 1" | bc)
   echo "Initial Celestia balance $initial_celestia_balance"
 
   echo "Performing IBC withdrawal from the EVM to Celestia..."
