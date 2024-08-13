@@ -39,7 +39,7 @@ async fn tx_from_one_rollup_is_received_by_sequencer() {
 
     let tx = Transaction::default();
     let data = tx.rlp().to_vec();
-    let rollup_data = vec![RollupData::SequencedData(data).to_raw()];
+    let rollup_data = vec![RollupData::SequencedData(data.into()).to_raw()];
 
     let soft_parent_hash = [1; 64];
     let soft_block_number = 1;
@@ -117,7 +117,7 @@ async fn collector_restarts_after_exit() {
 
     let tx = Transaction::default();
     let data = tx.rlp().to_vec();
-    let rollup_data = vec![RollupData::SequencedData(data).to_raw()];
+    let rollup_data = vec![RollupData::SequencedData(data.into()).to_raw()];
 
     let _execute_block = mount_executed_block!(test_executor,
         mock_name: "execute_block",
@@ -192,7 +192,7 @@ async fn invalid_nonce_causes_resubmission_under_different_nonce() {
 
     let tx = Transaction::default();
     let data = tx.rlp().to_vec();
-    let rollup_data = vec![RollupData::SequencedData(data).to_raw()];
+    let rollup_data = vec![RollupData::SequencedData(data.into()).to_raw()];
 
     let _execute_block = mount_executed_block!(test_executor,
         mock_name: "execute_block",
@@ -259,7 +259,7 @@ async fn single_rollup_tx_payload_integrity() {
     );
 
     let data = tx.rlp().to_vec();
-    let rollup_data = vec![RollupData::SequencedData(data).to_raw()];
+    let rollup_data = vec![RollupData::SequencedData(data.into()).to_raw()];
 
     let execute_block = mount_executed_block!(test_executor,
         mock_name: "execute_block",
