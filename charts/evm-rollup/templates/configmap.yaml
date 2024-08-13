@@ -38,7 +38,7 @@ data:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ .Values.config.rollup.name }}-conductor-scripts
+  name: {{ include "rollup.namespace" .  }}-conductor-scripts
   namespace: {{ include "rollup.namespace" .  }}
 data:
   start-conductor.sh: |

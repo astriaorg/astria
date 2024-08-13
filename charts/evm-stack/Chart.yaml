@@ -21,6 +21,7 @@ dependencies:
   - name: celestia-node
     version: 0.3.2
     repository: "file://../celestia-node"
+    condition: celestia-node.enabled
   - name: evm-rollup
     version: 0.25.1
     repository: "file://../evm-rollup"
