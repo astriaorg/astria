@@ -1,5 +1,4 @@
 use std::time::Duration;
-use bytes::Bytes;
 
 use astria_composer::{
     mount_executed_block,
@@ -17,6 +16,7 @@ use astria_core::{
     sequencerblock::v1alpha1::block::RollupData,
     Protobuf,
 };
+use bytes::Bytes;
 use ethers::prelude::Transaction;
 
 use crate::helper::{
