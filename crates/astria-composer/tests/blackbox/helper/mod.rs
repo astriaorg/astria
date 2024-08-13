@@ -257,8 +257,7 @@ pub async fn mount_matcher_verifying_tx_integrity(
             .unwrap();
         let seq_action_data = sequence_action.clone().data;
         // unmarshall to BuilderBundlePacket
-        let builder_bundle_packet =
-            BuilderBundlePacket::decode(seq_action_data).unwrap();
+        let builder_bundle_packet = BuilderBundlePacket::decode(seq_action_data).unwrap();
         let builder_bundle =
             BuilderBundle::try_from_raw(builder_bundle_packet.bundle.unwrap()).unwrap();
         let transaction = builder_bundle.transactions().first().unwrap();
