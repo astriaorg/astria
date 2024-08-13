@@ -14,7 +14,10 @@ use std::{
 use astria_core::protocol::transaction::v1alpha1::SignedTransaction;
 use tokio::{
     join,
-    sync::RwLock,
+    sync::{
+        RwLock,
+        RwLockWriteGuard,
+    },
     time::Duration,
 };
 use tracing::{
@@ -159,7 +162,7 @@ impl Mempool {
     ) -> anyhow::Result<(), InsertionError> {
         let timemarked_tx = TimemarkedTransaction::new(tx);
 
-        let (mut pending, mut parked) = join!(self.pending.write(), self.parked.write());
+        let (mut pending, mut parked) = self.acquire_both_locks().await;
 
         // try insert into pending (will fail if nonce is gapped or already present)
         match pending.add(timemarked_tx.clone(), current_account_nonce) {
@@ -274,7 +277,7 @@ impl Mempool {
         F: Fn([u8; 20]) -> O,
         O: Future<Output = anyhow::Result<u32>>,
     {
-        let (mut pending, mut parked) = join!(self.pending.write(), self.parked.write());
+        let (mut pending, mut parked) = self.acquire_both_locks().await;
 
         // clean accounts of stale and expired transactions
         let mut removed_txs = pending.clean_accounts(&current_account_nonce_getter).await;
@@ -308,6 +311,17 @@ impl Mempool {
     pub(crate) async fn pending_nonce(&self, address: [u8; 20]) -> Option<u32> {
         self.pending.read().await.pending_nonce(address)
     }
+
+    async fn acquire_both_locks(
+        &self,
+    ) -> (
+        RwLockWriteGuard<PendingTransactions>,
+        RwLockWriteGuard<ParkedTransactions<MAX_PARKED_TXS_PER_ACCOUNT>>,
+    ) {
+        let pending = self.pending.write().await;
+        let parked = self.parked.write().await;
+        (pending, parked)
+    }
 }
 
 #[cfg(test)]
@@ -337,13 +351,13 @@ mod test {
         );
 
         // try to replace nonce
-        let tx1_replacement = mock_tx(1, &signing_key, "test");
+        let tx1_replacement = mock_tx(1, &signing_key, "test_0");
         assert_eq!(
             mempool
                 .insert(tx1_replacement.clone(), 0)
                 .await
                 .unwrap_err(),
-            InsertionError::AlreadyPresent,
+            InsertionError::NonceTaken,
             "nonce replace not allowed"
         );
 
