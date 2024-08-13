@@ -1,12 +1,21 @@
 use std::time::Duration;
 
-use astria_core::{generated::protocol::account::v1alpha1::NonceResponse, primitive::v1::RollupId, Protobuf};
+use astria_composer::{
+    mount_executed_block,
+    mount_get_commitment_state,
+};
+use astria_core::{
+    generated::protocol::account::v1alpha1::NonceResponse,
+    primitive::v1::RollupId,
+    protocol::transaction::v1alpha1::action::SequenceAction,
+    sequencerblock::v1alpha1::block::RollupData,
+    Protobuf,
+};
 use ethers::types::Transaction;
-use futures::future::join;
-use futures::join;
-use astria_composer::{mount_executed_block, mount_get_commitment_state};
-use astria_core::protocol::transaction::v1alpha1::action::SequenceAction;
-use astria_core::sequencerblock::v1alpha1::block::RollupData;
+use futures::{
+    future::join,
+    join,
+};
 
 use crate::helper::{
     mount_broadcast_tx_sync_invalid_nonce_mock,
@@ -57,17 +66,15 @@ async fn tx_from_one_rollup_is_received_by_sequencer() {
         parent: soft_parent_hash.to_vec(),
     );
 
-    test_composer.rollup_nodes["test1"]
-        .push_tx(tx)
-        .unwrap();
+    test_composer.rollup_nodes["test1"].push_tx(tx).unwrap();
 
     // wait for 1 sequencer block time to make sure the bundle is preempted
     tokio::time::timeout(
         Duration::from_millis(test_composer.cfg.block_time_ms),
         join(
             mock_guard.wait_until_satisfied(),
-            execute_block.wait_until_satisfied()
-        )
+            execute_block.wait_until_satisfied(),
+        ),
     )
     .await
     .expect("mocked sequencer should have received a broadcast message from composer");
@@ -124,9 +131,7 @@ async fn collector_restarts_after_exit() {
         parent: soft_parent_hash.to_vec(),
     );
 
-    test_composer.rollup_nodes["test1"]
-        .push_tx(tx)
-        .unwrap();
+    test_composer.rollup_nodes["test1"].push_tx(tx).unwrap();
 
     // wait for 1 sequencer block time to make sure the bundle is preempted
     // we added an extra 1000ms to the block time to make sure the collector has restarted
@@ -203,9 +208,7 @@ async fn invalid_nonce_causes_resubmission_under_different_nonce() {
 
     // Push a tx to the rollup node so that it is picked up by the composer and submitted with the
     // stored nonce of 0, triggering the nonce refetch process
-    test_composer.rollup_nodes["test1"]
-        .push_tx(tx)
-        .unwrap();
+    test_composer.rollup_nodes["test1"].push_tx(tx).unwrap();
 
     // wait for 1 sequencer block time to make sure the bundle is preempted
     tokio::time::timeout(
@@ -277,8 +280,8 @@ async fn single_rollup_tx_payload_integrity() {
         Duration::from_millis(test_composer.cfg.block_time_ms),
         join(
             mock_guard.wait_until_satisfied(),
-            execute_block.wait_until_satisfied()
-        )
+            execute_block.wait_until_satisfied(),
+        ),
     )
     .await
     .expect("mocked sequencer should have received a broadcast message from composer");

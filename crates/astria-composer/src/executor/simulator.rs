@@ -1,4 +1,3 @@
-use std::time::{SystemTime, UNIX_EPOCH};
 use astria_core::{
     sequencerblock::v1alpha1::block::RollupData,
     Protobuf,
@@ -10,7 +9,10 @@ use astria_eyre::{
 use bytes::Bytes;
 use pbjson_types::Timestamp;
 use prost::Message;
-use tracing::{info, instrument};
+use tracing::{
+    info,
+    instrument,
+};
 
 use crate::executor::{
     bundle_factory::SizedBundle,
@@ -65,30 +67,27 @@ impl BundleSimulator {
             .wrap_err("failed to get commitment state")?;
 
         let soft_block = commitment_state.soft();
-        // convert the sized bundle actions to a list of list of u8s
-        // TODO - bharath - revisit this and make the code better. The else stmt is a bit weird
+        // convert the sized bundle actions to a list of Vec<u8>
         let actions: Vec<Vec<u8>> = bundle
             .into_actions()
             .iter()
-            .map(|action| {
-                // TODO - should we support sequencer transfers and actions outside sequence
-                // actions too?
-                return if let Some(seq_action) = action.as_sequence() {
-                    RollupData::SequencedData(seq_action.clone().data)
-                        .to_raw()
-                        .encode_to_vec()
-                } else {
-                    vec![]
-                };
+            .map(|action| match action.as_sequence() {
+                Some(seq_action) => RollupData::SequencedData(seq_action.clone().data)
+                    .to_raw()
+                    .encode_to_vec(),
+                None => vec![],
             })
             .filter(|data| !data.is_empty())
             .collect();
 
-        // call execute block with the bundle to get back the included transactions
+        // as long as the timestamp > parent block timestamp, the block will be successfully
+        // created. It doesn't matter what timestamp we use anyway since we are not going to
+        // commit the block to the chain.
         let timestamp = Timestamp {
             seconds: soft_block.timestamp().seconds + 3,
-            nanos: 0
+            nanos: 0,
         };
+        // call execute block with the bundle to get back the included transactions
         let execute_block_response = self
             .execution_service_client
             .execute_block_with_retry(

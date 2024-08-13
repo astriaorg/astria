@@ -46,7 +46,7 @@ pub mod config;
 mod executor;
 mod grpc;
 pub(crate) mod metrics;
-mod rollup;
+mod mock_grpc;
 #[cfg(test)]
 pub(crate) mod test_utils;
 

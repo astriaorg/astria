@@ -95,6 +95,7 @@ impl Client {
             let request = request.clone();
             async move {
                 let res = client.execute_block(request).await;
+                println!("{:?}", res);
                 res
             }
         })
@@ -119,8 +120,7 @@ impl Client {
             let mut client = self.inner.clone();
             async move {
                 let request = raw::GetCommitmentStateRequest {};
-                let res = client.get_commitment_state(request).await;
-                res
+                client.get_commitment_state(request).await
             }
         })
         .with_config(retry_config())

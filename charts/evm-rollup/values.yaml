@@ -18,7 +18,7 @@ images:
   composer:
     repo: ghcr.io/astriaorg/composer
     tag: "0.8.0"
-    devTag: latest
+    devTag: tb
 
 
 genesis:

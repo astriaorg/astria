@@ -36,10 +36,14 @@ use wiremock::{
     Request,
     ResponseTemplate,
 };
-use crate::helper::mock_grpc::{MockGrpc, TestExecutor};
 
-pub mod mock_sequencer;
+use crate::helper::mock_grpc::{
+    MockGrpc,
+    TestExecutor,
+};
+
 pub mod mock_grpc;
+pub mod mock_sequencer;
 
 static TELEMETRY: Lazy<()> = Lazy::new(|| {
     if std::env::var_os("TEST_LOG").is_some() {
@@ -66,7 +70,7 @@ pub struct TestComposer {
     pub sequencer: wiremock::MockServer,
     pub setup_guard: MockGuard,
     pub grpc_collector_addr: SocketAddr,
-    pub test_executor: TestExecutor
+    pub test_executor: TestExecutor,
 }
 
 /// Spawns composer in a test environment.
@@ -129,8 +133,8 @@ pub async fn spawn_composer(rollup_name: &str) -> TestComposer {
         setup_guard: sequencer_setup_guard,
         grpc_collector_addr,
         test_executor: TestExecutor {
-            mock_grpc: mock_execution_api_server
-        }
+            mock_grpc: mock_execution_api_server,
+        },
     }
 }
 
