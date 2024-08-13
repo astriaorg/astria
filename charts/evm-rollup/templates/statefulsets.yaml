@@ -78,7 +78,7 @@ spec:
           tty: {{ .Values.global.useTTY }}
           volumeMounts:
             - mountPath: /scripts/
-              name: {{ include "rollup.namespace" .  }}-conductor-scripts-volume
+              name: {{ include "rollup.name" .  }}-conductor-scripts-volume
               readOnly: true
           envFrom:
             - configMapRef:
@@ -95,9 +95,9 @@ spec:
           configMap:
             name: {{ include "rollup.name" . }}-executor-scripts
             defaultMode: 0500
-        - name: {{ include "rollup.namespace" .  }}-conductor-scripts-volume
+        - name: {{ include "rollup.name" .  }}-conductor-scripts-volume
           configMap:
-            name: {{ include "rollup.namespace" .  }}-conductor-scripts
+            name: {{ include "rollup.name" .  }}-conductor-scripts
             defaultMode: 0500
         - name: {{ include "rollup.name" $ }}-rollup-shared-storage-vol
           {{- if .Values.storage.enabled }}
