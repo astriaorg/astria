@@ -4,12 +4,20 @@ package astria.composer.v1alpha1;
 
 import "astria/sequencerblock/v1alpha1/block.proto";
 
+// BuilderBundle contains a bundle of RollupData transactions which are created by a trusted builder
+// It contains the transactions and the parent hash on top of which the bundles were simulated.
 message BuilderBundle {
+  // transactions in the bundle
   repeated astria.sequencerblock.v1alpha1.RollupData transactions = 1;
+  // parent hash of the bundle
   bytes parent_hash = 2;
 }
 
+// BuilderBundlePacket is a message that represents a bundle of RollupData transactions and the signature
+// of the BuilderBundle by the trusted builder.
 message BuilderBundlePacket {
+  // the bundle of transactions
   BuilderBundle bundle = 1;
+  // the signature of the bundle signed by the trusted builder
   bytes signature = 3;
 }

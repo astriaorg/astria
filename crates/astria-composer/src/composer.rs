@@ -121,7 +121,7 @@ impl Composer {
     pub async fn from_config(cfg: &Config) -> eyre::Result<Self> {
         static METRICS: OnceLock<Metrics> = OnceLock::new();
 
-        let metrics = METRICS.get_or_init(|| Metrics::new(cfg.rollup.clone()));
+        let metrics = METRICS.get_or_init(|| Metrics::new(cfg.rollup.as_str()));
 
         let (composer_status_sender, _) = watch::channel(Status::default());
         let shutdown_token = CancellationToken::new();
