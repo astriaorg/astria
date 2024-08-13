@@ -1,6 +1,6 @@
 use cnidarium::StateWrite;
 
-/// This trait is a verbatim copy of [`cnidarium_component::ActionHandler`].
+/// This trait is a verbatim copy of `cnidarium_component::ActionHandler`.
 ///
 /// It's duplicated here because all actions are foreign types, forbidding
 /// the the implementation of [`cnidarium_component::ActionHandler`] for these
