@@ -428,7 +428,7 @@ async fn full_bundle() {
     assert_eq!(actions.len(), 1);
 
     // decode the sequence action to its BuilderBundlePacket
-    let mut seq_action = actions.iter().next().unwrap().as_sequence().unwrap();
+    let seq_action = actions.iter().next().unwrap().as_sequence().unwrap();
     let proto_builder_bundle_packet =
         BuilderBundlePacket::decode(&mut seq_action.data.clone()).unwrap();
     let builder_bundle_packet = astria_core::composer::v1alpha1::BuilderBundlePacket::try_from_raw(
@@ -565,7 +565,7 @@ async fn bundle_triggered_by_block_timer() {
 
     assert_eq!(actions.len(), 1);
 
-    let mut seq_action = actions.iter().next().unwrap().as_sequence().unwrap();
+    let seq_action = actions.iter().next().unwrap().as_sequence().unwrap();
     let proto_builder_bundle_packet =
         BuilderBundlePacket::decode(&mut seq_action.data.clone()).unwrap();
     let builder_bundle_packet = astria_core::composer::v1alpha1::BuilderBundlePacket::try_from_raw(
