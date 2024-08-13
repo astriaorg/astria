@@ -261,12 +261,12 @@ mod test {
         let alice = get_alice_signing_key();
         let alice_address = astria_address(&alice.address_bytes());
         let nonce = 99;
-        let tx = crate::app::test_utils::get_mock_tx(nonce);
+        let tx = Arc::new(crate::app::test_utils::get_mock_tx(nonce));
         mempool.insert(tx, 0).await.unwrap();
 
         // insert a tx with lower nonce also, but we should get the highest nonce
         let lower_nonce = 98;
-        let tx = crate::app::test_utils::get_mock_tx(lower_nonce);
+        let tx = Arc::new(crate::app::test_utils::get_mock_tx(lower_nonce));
         mempool.insert(tx, 0).await.unwrap();
 
         let server = Arc::new(SequencerServer::new(storage.clone(), mempool));

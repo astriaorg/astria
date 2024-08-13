@@ -202,6 +202,7 @@ mod test {
     use std::{
         collections::HashMap,
         str::FromStr,
+        sync::Arc,
     };
 
     use astria_core::{
@@ -287,12 +288,12 @@ mod test {
         let (mut consensus_service, mempool) =
             new_consensus_service(Some(signing_key.verification_key())).await;
         let tx = make_unsigned_tx();
-        let signed_tx = tx.into_signed(&signing_key);
-        let tx_bytes = signed_tx.clone().into_raw().encode_to_vec();
+        let signed_tx = Arc::new(tx.into_signed(&signing_key));
+        let tx_bytes = signed_tx.clone().to_raw().encode_to_vec();
         let txs = vec![tx_bytes.into()];
         mempool.insert(signed_tx.clone(), 0).await.unwrap();
 
-        let res = generate_rollup_datas_commitment(&vec![signed_tx], HashMap::new());
+        let res = generate_rollup_datas_commitment(&vec![(*signed_tx).clone()], HashMap::new());
 
         let prepare_proposal = new_prepare_proposal_request();
         let prepare_proposal_response = consensus_service
@@ -492,10 +493,10 @@ mod test {
             new_consensus_service(Some(signing_key.verification_key())).await;
 
         let tx = make_unsigned_tx();
-        let signed_tx = tx.into_signed(&signing_key);
-        let tx_bytes = signed_tx.clone().into_raw().encode_to_vec();
+        let signed_tx = Arc::new(tx.into_signed(&signing_key));
+        let tx_bytes = signed_tx.to_raw().encode_to_vec();
         let txs = vec![tx_bytes.clone().into()];
-        let res = generate_rollup_datas_commitment(&vec![signed_tx.clone()], HashMap::new());
+        let res = generate_rollup_datas_commitment(&vec![(*signed_tx).clone()], HashMap::new());
 
         let block_data = res.into_transactions(txs.clone());
         let data_hash =

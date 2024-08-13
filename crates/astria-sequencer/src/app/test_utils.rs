@@ -25,7 +25,10 @@ use crate::{
     app::App,
     mempool::Mempool,
     metrics::Metrics,
-    test_utils::astria_address_from_hex_string,
+    test_utils::{
+        astria_address_from_hex_string,
+        nria,
+    },
 };
 
 pub(crate) const ALICE_ADDRESS: &str = "1c0c490f1b5528d8173c5de46d131160e4b2c0c3";
@@ -147,7 +150,7 @@ pub(crate) fn get_mock_tx(nonce: u32) -> SignedTransaction {
             SequenceAction {
                 rollup_id: RollupId::from_unhashed_bytes([0; 32]),
                 data: vec![0x99],
-                fee_asset: "astria".parse().unwrap(),
+                fee_asset: nria().into(),
             }
             .into(),
         ],
