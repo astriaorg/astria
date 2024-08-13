@@ -57,6 +57,7 @@ use penumbra_ibc::component::app_handler::{
     AppHandlerExecute,
 };
 use penumbra_proto::penumbra::core::component::ibc::v1::FungibleTokenPacketData;
+use tracing::instrument;
 
 use crate::{
     accounts::StateWriteExt as _,
@@ -366,8 +367,7 @@ fn prepend_denom_if_not_refund<'a>(
     }
 }
 
-// FIXME: temporarily allowed, but this must be fixed
-#[allow(clippy::too_many_lines)]
+#[instrument(skip_all, err)]
 async fn execute_ics20_transfer<S: ibc::StateWriteExt>(
     state: &mut S,
     data: &[u8],
@@ -386,20 +386,12 @@ async fn execute_ics20_transfer<S: ibc::StateWriteExt>(
     let recipient = if is_refund {
         packet_data.sender.clone()
     } else {
-        packet_data.receiver
+        packet_data.receiver.clone()
     };
 
-    let mut denom_trace = {
-        let denom = packet_data
-            .denom
-            .parse::<Denom>()
-            .context("failed parsing denom in packet data as Denom")?;
-        // convert denomination if it's prefixed with `ibc/`
-        // note: this denomination might have a prefix, but it wasn't prefixed by us right now.
-        convert_denomination_if_ibc_prefixed(state, denom)
-            .await
-            .context("failed to convert denomination if ibc/ prefixed")?
-    };
+    let mut denom_trace = denom_trace(packet_data.clone(), state)
+        .await
+        .context("failed to retrieve denomination")?;
 
     // if the memo deserializes into an `Ics20WithdrawalFromRollupMemo`,
     // we can assume this is a refund from an attempted withdrawal from
@@ -431,13 +423,11 @@ async fn execute_ics20_transfer<S: ibc::StateWriteExt>(
     let recipient = recipient.parse().context("invalid recipient address")?;
 
     let is_prefixed = denom_trace.starts_with_str(&format!("{source_port}/{source_channel}"));
-    let is_source = if is_refund {
-        // we are the source if the denom is not prefixed by source_port/source_channel
-        !is_prefixed
-    } else {
-        // we are the source if the denom is prefixed by source_port/source_channel
-        is_prefixed
-    };
+
+    // Logic: We are the source if the denom is not prefixed by source_port/source_channel and it is
+    // a refund. We are also the source if the denom is prefixed by source_port/source_channel
+    // and it is not a refund
+    let is_source = is_refund != is_prefixed;
 
     // prefix the denomination with the destination port and channel if not a refund
     let trace_with_dest =
@@ -641,6 +631,22 @@ async fn execute_deposit<S: ibc::StateWriteExt>(
         .context("failed to put deposit event into state")?;
 
     Ok(())
+}
+
+#[instrument(skip_all, err)]
+async fn denom_trace<S: ibc::StateWriteExt>(
+    packet_data: FungibleTokenPacketData,
+    state: &mut S,
+) -> Result<denom::TracePrefixed> {
+    let denom = packet_data
+        .denom
+        .parse::<Denom>()
+        .context("failed parsing denom in packet data as Denom")?;
+    // convert denomination if it's prefixed with `ibc/`
+    // note: this denomination might have a prefix, but it wasn't prefixed by us right now.
+    convert_denomination_if_ibc_prefixed(state, denom)
+        .await
+        .context("failed to convert denomination if ibc/ prefixed")
 }
 
 #[cfg(test)]
