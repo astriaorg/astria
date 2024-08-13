@@ -323,7 +323,7 @@ async fn full_bundle() {
     // set up the executor, channel for writing seq actions, and the sequencer mock
     let (sequencer, cfg, _keyfile, test_executor) = setup().await;
     let shutdown_token = CancellationToken::new();
-    let metrics = Box::leak(Box::new(Metrics::new(cfg.rollup.clone())));
+    let metrics = Box::leak(Box::new(Metrics::new(cfg.rollup.as_str())));
     mount_genesis(&sequencer, &cfg.sequencer_chain_id).await;
     let (executor, executor_handle) = executor::Builder {
         sequencer_url: cfg.sequencer_url.clone(),
@@ -470,7 +470,7 @@ async fn bundle_triggered_by_block_timer() {
     // set up the executor, channel for writing seq actions, and the sequencer mock
     let (sequencer, cfg, _keyfile, test_executor) = setup().await;
     let shutdown_token = CancellationToken::new();
-    let metrics = Box::leak(Box::new(Metrics::new(cfg.rollup.clone())));
+    let metrics = Box::leak(Box::new(Metrics::new(cfg.rollup.as_str())));
     mount_genesis(&sequencer, &cfg.sequencer_chain_id).await;
     let (executor, executor_handle) = executor::Builder {
         sequencer_url: cfg.sequencer_url.clone(),
@@ -621,7 +621,7 @@ async fn two_seq_actions_single_bundle() {
     // set up the executor, channel for writing seq actions, and the sequencer mock
     let (sequencer, cfg, _keyfile, test_executor) = setup().await;
     let shutdown_token = CancellationToken::new();
-    let metrics = Box::leak(Box::new(Metrics::new(cfg.rollup.clone())));
+    let metrics = Box::leak(Box::new(Metrics::new(cfg.rollup.as_str())));
     mount_genesis(&sequencer, &cfg.sequencer_chain_id).await;
     let (executor, executor_handle) = executor::Builder {
         sequencer_url: cfg.sequencer_url.clone(),
@@ -773,7 +773,7 @@ async fn chain_id_mismatch_returns_error() {
     // set up sequencer mock
     let (sequencer, cfg, _keyfile, _test_executor) = setup().await;
     let shutdown_token = CancellationToken::new();
-    let metrics = Box::leak(Box::new(Metrics::new(cfg.rollup.clone())));
+    let metrics = Box::leak(Box::new(Metrics::new(cfg.rollup.as_str())));
     let rollup_name = RollupId::new([0; ROLLUP_ID_LEN]);
 
     // mount a status response with an incorrect chain_id
