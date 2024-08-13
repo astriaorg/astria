@@ -14,6 +14,20 @@ macro_rules! block {
 }
 
 #[macro_export]
+macro_rules! execute_block_response {
+    (number: $number:expr,hash: $hash:expr,parent: $parent:expr $(,)?, included_transactions:expr $(,)?) => {
+        ::astria_core::generated::execution::v1alpha2::ExecuteBlockResponse {
+            block: Some($crate::block!(
+                number: $number,
+                hash: $hash,
+                parent: $parent,
+            )),
+            included_transactions: vec![],
+        }
+    };
+}
+
+#[macro_export]
 macro_rules! celestia_network_head {
     (height: $height:expr) => {
         ::celestia_types::ExtendedHeader {
@@ -244,7 +258,7 @@ macro_rules! mount_executed_block {
                 "prevBlockHash": BASE64_STANDARD.encode($parent),
                 "transactions": [{"sequencedData": BASE64_STANDARD.encode($crate::helpers::data())}],
             }),
-            $crate::block!(
+            $crate::execute_block_response!(
                 number: $number,
                 hash: $hash,
                 parent: $parent,

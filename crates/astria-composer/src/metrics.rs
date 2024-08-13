@@ -41,11 +41,12 @@ pub(crate) struct Metrics {
 
 impl Metrics {
     #[must_use]
-    pub(crate) fn new<'a>(rollup_chain_names: impl Iterator<Item = &'a String> + Clone) -> Self {
+    pub(crate) fn new<'a>(rollup_name: String) -> Self {
         let (geth_txs_received, grpc_txs_received) =
-            register_txs_received(rollup_chain_names.clone());
-        let (geth_txs_dropped, grpc_txs_dropped) = register_txs_dropped(rollup_chain_names.clone());
-        let txs_dropped_too_large = register_txs_dropped_too_large(rollup_chain_names);
+            register_txs_received(vec![rollup_name.clone()].iter());
+        // TODO - change the function signatures of the metrics
+        let (geth_txs_dropped, grpc_txs_dropped) = register_txs_dropped(vec![rollup_name.clone()].iter());
+        let txs_dropped_too_large = register_txs_dropped_too_large(vec![rollup_name.clone()].iter());
 
         describe_counter!(
             NONCE_FETCH_COUNT,

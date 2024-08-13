@@ -10,6 +10,7 @@ use astria_core::{
         Deposit,
         RollupData,
     },
+    Protobuf,
 };
 use bytes::Bytes;
 
@@ -69,7 +70,7 @@ pub(crate) fn generate_rollup_datas_commitment(
             .or_default()
             .extend(deposit.into_iter().map(|deposit| {
                 RollupData::Deposit(Box::new(deposit))
-                    .into_raw()
+                    .to_raw()
                     .encode_to_vec()
                     .into()
             }));

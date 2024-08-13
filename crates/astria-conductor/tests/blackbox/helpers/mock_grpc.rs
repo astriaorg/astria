@@ -14,6 +14,7 @@ use astria_core::generated::{
         Block,
         CommitmentState,
         ExecuteBlockRequest,
+        ExecuteBlockResponse,
         GenesisInfo,
         GetBlockRequest,
         GetCommitmentStateRequest,
@@ -148,7 +149,7 @@ define_and_impl_service!(impl ExecutionService for ExecutionServiceImpl {
     (get_block: GetBlockRequest => Block)
     (get_genesis_info: GetGenesisInfoRequest => GenesisInfo)
     (batch_get_blocks: BatchGetBlocksRequest => BatchGetBlocksResponse)
-    (execute_block: ExecuteBlockRequest => Block)
+    (execute_block: ExecuteBlockRequest => ExecuteBlockResponse)
     (get_commitment_state: GetCommitmentStateRequest => CommitmentState)
     (update_commitment_state: UpdateCommitmentStateRequest => CommitmentState)
 });

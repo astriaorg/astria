@@ -121,11 +121,7 @@ impl Composer {
     pub async fn from_config(cfg: &Config) -> eyre::Result<Self> {
         static METRICS: OnceLock<Metrics> = OnceLock::new();
 
-        let rollups = cfg.parse_rollups()?;
-        let metrics = METRICS.get_or_init(|| Metrics::new(rollups.keys()));
-
-        // return the only key in rollups map
-        let (rollup_name, _) = rollups.iter().next().unwrap();
+        let metrics = METRICS.get_or_init(|| Metrics::new(cfg.rollup.clone()));
 
         let (composer_status_sender, _) = watch::channel(Status::default());
         let shutdown_token = CancellationToken::new();
@@ -140,7 +136,7 @@ impl Composer {
             bundle_queue_capacity: cfg.bundle_queue_capacity,
             execution_api_url: cfg.execution_api_url.clone(),
             fee_asset: cfg.fee_asset.clone(),
-            chain_name: rollup_name.clone(),
+            chain_name: cfg.rollup.clone(),
             shutdown_token: shutdown_token.clone(),
             metrics,
         }
@@ -170,6 +166,11 @@ impl Composer {
             "API server listening"
         );
 
+        // TODO - we don't need a map here, we can just use a single collector. This is done to
+        // get things working for now. we need to clean up later
+        let mut rollups = HashMap::new();
+        rollups.insert(cfg.rollup.clone(), cfg.rollup_websocket_url.clone());
+
         let geth_collectors = rollups
             .iter()
             .map(|(rollup_name, url)| {
@@ -185,6 +186,7 @@ impl Composer {
                 (rollup_name.clone(), collector)
             })
             .collect::<HashMap<_, _>>();
+
         let geth_collector_statuses: HashMap<String, watch::Receiver<geth::Status>> =
             geth_collectors
                 .iter()
