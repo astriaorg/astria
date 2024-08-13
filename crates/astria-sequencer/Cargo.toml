@@ -1,6 +1,6 @@
 [package]
 name = "astria-sequencer"
-version = "0.15.0"
+version = "0.15.1"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 rust-version = "1.76"
@@ -20,13 +20,13 @@ astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
 config = { package = "astria-config", path = "../astria-config" }
 merkle = { package = "astria-merkle", path = "../astria-merkle" }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry", features = [
-    "display",
+  "display",
 ] }
 
 anyhow = "1"
 borsh = { version = "1", features = ["derive"] }
 cnidarium = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.78.0", features = [
-    "metrics",
+  "metrics",
 ] }
 cnidarium-component = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.78.0" }
 ibc-proto = { version = "0.41.0", features = ["server"] }
@@ -63,12 +63,12 @@ tracing = { workspace = true }
 
 [dev-dependencies]
 astria-core = { path = "../astria-core", features = [
-    "server",
-    "serde",
-    "test-utils",
+  "server",
+  "serde",
+  "test-utils",
 ] }
 config = { package = "astria-config", path = "../astria-config", features = [
-    "tests",
+  "tests",
 ] }
 insta = { workspace = true, features = ["json"] }
 rand_chacha = "0.3.1"
