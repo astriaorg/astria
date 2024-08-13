@@ -73,9 +73,13 @@ spec:
             {{- toYaml .Values.resources.geth | trim | nindent 12 }}
         - name: conductor
           image: {{ include "conductor.image" . }}
-          command: [ "/usr/local/bin/astria-conductor" ]
+          command: [ "/scripts/start-conductor.sh" ]
           stdin: {{ .Values.global.useTTY }}
           tty: {{ .Values.global.useTTY }}
+          volumeMounts:
+            - mountPath: /scripts/
+              name: {{ .Values.config.rollup.name }}-conductor-scripts-volume
+              readOnly: true
           envFrom:
             - configMapRef:
                 name: {{ include "rollup.name" . }}-conductor-env
@@ -90,6 +94,10 @@ spec:
         - name: {{ include "rollup.name" . }}-executor-scripts-volume
           configMap:
             name: {{ include "rollup.name" . }}-executor-scripts
+            defaultMode: 0500
+        - name: {{ .Values.config.rollup.name }}-conductor-scripts-volume
+          configMap:
+            name: {{ .Values.config.rollup.name }}-conductor-scripts
             defaultMode: 0500
         - name: {{ include "rollup.name" $ }}-rollup-shared-storage-vol
           {{- if .Values.storage.enabled }}
