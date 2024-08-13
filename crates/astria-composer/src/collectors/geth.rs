@@ -236,7 +236,7 @@ impl Geth {
                         let data = tx.rlp().to_vec();
                         let seq_action = SequenceAction {
                             rollup_id,
-                            data,
+                            data: data.into(),
                             fee_asset: fee_asset.clone(),
                         };
 

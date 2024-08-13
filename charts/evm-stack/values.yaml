@@ -47,8 +47,8 @@ celestia-node:
     coreIp: "full.consensus.mocha-4.celestia-mocha.com"
     type: light
     tokenAuthLevel: read  # can set to nil or false to disable rpc auth
-    startHeight: "2469374"
-    trustedHash: "672FE0EC073C31CE7302837EE11AFECB798CE11D031042DE1ADF0734E7F8DC0D"
+    startHeight: ""
+    trustedHash: ""
     # You can deploy on top of a custom celestia network, uncomment below and
     # update fields with notes
     # network: custom
