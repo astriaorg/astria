@@ -5,7 +5,11 @@ metadata:
   namespace: {{ include "rollup.namespace" . }}
 data:
   ASTRIA_CONDUCTOR_LOG: "astria_conductor={{ .Values.config.logLevel }}"
+  {{- if .Values.config.celestia.node.enabled }}
   TOKEN_SERVER_URL: "{{ .Values.config.celestia.token }}"
+  {{- else }}
+  ASTRIA_CONDUCTOR_CELESTIA_BEARER_TOKEN: "{{ .Values.config.celestia.token }}"
+  {{- end }}
   ASTRIA_CONDUCTOR_CELESTIA_NODE_HTTP_URL: "{{ .Values.config.celestia.rpc }}"
   ASTRIA_CONDUCTOR_CELESTIA_BLOCK_TIME_MS: "12000"
   ASTRIA_CONDUCTOR_EXECUTION_RPC_URL: "http://127.0.0.1:{{ .Values.ports.executionGRPC }}"
@@ -20,7 +24,6 @@ data:
   ASTRIA_CONDUCTOR_PRETTY_PRINT: "{{ .Values.global.useTTY }}"
   NO_COLOR: "{{ .Values.global.useTTY }}"
   ASTRIA_CONDUCTOR_NO_OTEL: "{{ not .Values.otel.enabled }}"
-  ASTRIA_CONDUCTOR_CELESTIA_BEARER_TOKEN: "{{ .Values.config.celestia.token }}"
   OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.otel.endpoint }}"
   OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "{{ .Values.otel.tracesEndpoint }}"
   OTEL_EXPORTER_OTLP_TRACES_TIMEOUT: "{{ .Values.otel.tracesTimeout }}"

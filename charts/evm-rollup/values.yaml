@@ -181,6 +181,8 @@ config:
     sequencerRequestsPerSecond: 500
 
   celestia:
+    node:
+      enabled: true
     # if config.rollup.executionLevel is NOT 'SoftOnly' AND celestia-node is not enabled
     # the rpc, ws, and token fields must be set to access celestia network.
     rpc: ""
