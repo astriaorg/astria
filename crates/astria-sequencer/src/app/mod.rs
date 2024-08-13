@@ -952,7 +952,11 @@ impl App {
         // store the block time
         StateWriteExt::put_block_timestamp(&mut state_tx, begin_block.header.time);
         // FIXME - this is a hack to get past testing. needs a more thoughtful fix.
-        EpochManager::put_block_timestamp(&mut state_tx, begin_block.header.height.into(), begin_block.header.time);
+        EpochManager::put_block_timestamp(
+            &mut state_tx,
+            begin_block.header.height.into(),
+            begin_block.header.time,
+        );
 
         // call begin_block on all components
         let mut arc_state_tx = Arc::new(state_tx);

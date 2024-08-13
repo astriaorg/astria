@@ -7,7 +7,6 @@ images:
     tag: "0.14.0"
     devTag: bugbug14
 
-
 moniker: node0
 genesis:
   validators:
