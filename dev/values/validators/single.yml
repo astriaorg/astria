@@ -3,9 +3,9 @@ global:
 
 images:
   sequencer:
-    repo: astria-sequencer
+    repo: ghcr.io/astriaorg/sequencer
     tag: "0.14.0"
-    devTag: bugbug14
+    devTag: sha-b4c5d1c
 
 moniker: node0
 genesis:
