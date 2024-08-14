@@ -315,9 +315,9 @@ impl Executor {
             &mut bundles_drained,
         );
 
-        bundle_drain_timout_handler(shutdown_logic).await;
+        bundle_drain_timeout_handler(shutdown_logic).await;
 
-        check_if_bundles_drained(&mut bundles_to_drain, &mut bundles_drained);
+        report_if_bundles_drained(&mut bundles_to_drain, &mut bundles_drained);
 
         reason.map(|_| ())
     }
@@ -565,10 +565,7 @@ fn report_exit(reason: &eyre::Result<&str>) -> eyre::Result<()> {
             info!(reason, "shutting down");
             Ok(())
         }
-        Err(reason) => {
-            error!(%reason, "shutting down");
-            Err(eyre!(reason.to_string()))
-        }
+        Err(reason) => Err(eyre!(reason.to_string())),
     }
 }
 
@@ -578,7 +575,7 @@ async fn bundle_drain_timeout_handler(shutdown_logic: impl Future<Output = eyre:
     match tokio::time::timeout(BUNDLE_DRAINING_DURATION, shutdown_logic).await {
         Ok(Ok(())) => info!("executor shutdown tasks completed successfully"),
         Ok(Err(error)) => error!(%error, "executor shutdown tasks failed"),
-        Err(error) => error!("executor shutdown tasks failed to complete in time"),
+        Err(_) => error!("executor shutdown tasks failed to complete in time"),
     }
 }
 
@@ -598,7 +595,7 @@ fn process_result_update_nonce(nonce: &mut u32, rsp: eyre::Result<u32>) -> eyre:
 
 /// Checks if all bundles have been drained, warning if not
 #[instrument(skip_all)]
-fn check_if_bundles_drained(
+fn report_if_bundles_drained(
     bundles_to_drain: &mut VecDeque<SizedBundle>,
     bundles_drained: &mut Option<u64>,
 ) {
