@@ -120,6 +120,7 @@ async fn fetch_blobs_with_retry(
             match client.blob_get_all(height, &[namespace]).await {
                 Ok(blobs) => Ok(blobs),
                 Err(err) if is_blob_not_found(&err) => Ok(vec![]),
+                Err(err) if is_null_blobs(&err) => Ok(vec![]),
                 Err(err) => Err(err),
             }
         }
@@ -162,9 +163,18 @@ fn should_retry(error: &jsonrpsee::core::Error) -> bool {
     )
 }
 
+// For celestia-node v0.14.1 and below
 fn is_blob_not_found(error: &jsonrpsee::core::Error) -> bool {
     let jsonrpsee::core::Error::Call(error) = error else {
         return false;
     };
     error.code() == 1 && error.message().contains("blob: not found")
+}
+
+// For celestia-node v0.15.0 and newer
+fn is_null_blobs(error: &jsonrpsee::core::Error) -> bool {
+    let jsonrpsee::core::Error::ParseError(error) = error else {
+        return false;
+    };
+    error.to_string().contains("invalid type: null")
 }
