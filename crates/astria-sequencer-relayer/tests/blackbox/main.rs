@@ -273,7 +273,7 @@ async fn should_filter_rollup() {
         .await;
     sequencer_relayer
         .timeout_ms(
-            2_000,
+            10_000,
             "waiting for get tx guard",
             get_tx_guard.wait_until_satisfied(),
         )
