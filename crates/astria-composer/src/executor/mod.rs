@@ -395,18 +395,14 @@ impl Executor {
             info!("waiting for the last bundle of transactions to be submitted to the sequencer");
             match submission_fut.await {
                 Ok(new_nonce) => {
-                    debug!(
-                        new_nonce = new_nonce,
-                        "successfully submitted bundle of transactions"
-                    );
+                    debug!(new_nonce, "successfully submitted bundle of transactions");
 
                     nonce = new_nonce;
                 }
                 Err(error) => {
-                    error!(%error, "failed submitting bundle to sequencer during shutdown; \
-                            aborting shutdown");
-
-                    return Err(error);
+                    return Err(error.wrap_err(
+                        "failed submitting bundle to sequencer during shutdown; aborting shutdown",
+                    ));
                 }
             }
         }
@@ -418,27 +414,21 @@ impl Executor {
                 Ok(new_nonce) => {
                     debug!(
                         bundle = %telemetry::display::json(&SizedBundleReport(&bundle)),
-                        new_nonce = new_nonce,
+                        new_nonce,
                         "successfully submitted transaction bundle"
                     );
 
                     nonce = new_nonce;
-                    if let Some(value) = bundles_drained {
-                        let value = *value;
-                        bundles_drained.replace(value.checked_add(1).unwrap());
-                    }
+                    *bundles_drained = bundles_drained.and_then(|value| value.checked_add(1));
                 }
                 Err(error) => {
-                    error!(
-                        bundle = %telemetry::display::json(&SizedBundleReport(&bundle)),
-                        %error,
-                        "failed submitting bundle to sequencer during shutdown; \
-                            aborting shutdown"
-                    );
                     // if we can't submit a bundle after multiple retries, we can abort
                     // the shutdown process
-
-                    return Err(error);
+                    return Err(error.wrap_err(format!(
+                        "failed submitting bundle to sequencer during shutdown; aborting \
+                         shutdown. bundle = {}",
+                        telemetry::display::json(&SizedBundleReport(&bundle))
+                    )));
                 }
             }
         }
@@ -584,11 +574,11 @@ fn report_exit(reason: &eyre::Result<&str>) -> eyre::Result<()> {
 
 /// Handles timeout of shutdown process
 #[instrument(skip_all)]
-async fn bundle_drain_timout_handler(shutdown_logic: impl Future<Output = eyre::Result<()>>) {
+async fn bundle_drain_timeout_handler(shutdown_logic: impl Future<Output = eyre::Result<()>>) {
     match tokio::time::timeout(BUNDLE_DRAINING_DURATION, shutdown_logic).await {
         Ok(Ok(())) => info!("executor shutdown tasks completed successfully"),
         Ok(Err(error)) => error!(%error, "executor shutdown tasks failed"),
-        Err(error) => error!(%error, "executor shutdown tasks failed to complete in time"),
+        Err(error) => error!("executor shutdown tasks failed to complete in time"),
     }
 }
 
@@ -601,8 +591,7 @@ fn process_result_update_nonce(nonce: &mut u32, rsp: eyre::Result<u32>) -> eyre:
             Ok(())
         }
         Err(error) => {
-            error!(%error, "failed submitting bundle to sequencer; aborting executor");
-            Err(error).wrap_err("failed submitting bundle to sequencer")
+            Err(error).wrap_err("failed submitting bundle to sequencer; aborting executor")
         }
     }
 }

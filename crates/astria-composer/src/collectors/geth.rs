@@ -285,8 +285,8 @@ async fn unsubscribe_wss_stream_handler(tx_stream: &SubscriptionStream<'_, Ws, T
         Ok(Err(err)) => {
             error!(error = %Report::new(err), "failed unsubscribing from the geth tx stream");
         }
-        Err(err) => {
-            error!(error = %Report::new(err), "timed out while unsubscribing from the geth tx stream");
+        Err(_) => {
+            error!("timed out while unsubscribing from the geth tx stream");
         }
     }
 }
