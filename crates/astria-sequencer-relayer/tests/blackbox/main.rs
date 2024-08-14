@@ -12,7 +12,7 @@ use helpers::{
     SequencerBlockToMount,
     TestSequencerRelayerConfig,
 };
-use reqwest::StatusCode;
+use http::StatusCode;
 use tendermint::account::Id as AccountId;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
