@@ -72,6 +72,7 @@ jobs:
     uses: ./.github/workflows/reusable-release-cargo.yml
     with:
       package-name: 'conductor'
+      target-binary: 'astria-conductor'
       display-name: 'Conductor'
 
   composer:
@@ -80,6 +81,7 @@ jobs:
     uses: ./.github/workflows/reusable-release-cargo.yml
     with:
       package-name: 'composer'
+      target-binary: 'astria-composer'
       display-name: 'Composer'
 
   sequencer:
