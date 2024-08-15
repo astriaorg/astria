@@ -209,6 +209,7 @@ impl Submitter {
     }
 }
 
+#[instrument(skip_all)]
 fn report_exit(reason: eyre::Result<&str>) {
     match reason {
         Ok(reason) => info!(%reason, "submitter shutting down"),
