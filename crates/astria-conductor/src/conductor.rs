@@ -23,6 +23,7 @@ use tokio_util::{
 use tracing::{
     error,
     info,
+    info_span,
     instrument,
     warn,
 };
@@ -52,6 +53,7 @@ impl Handle {
     ///
     /// # Panics
     /// Panics if called twice.
+    #[instrument(skip_all, err)]
     pub async fn shutdown(&mut self) -> Result<(), tokio::task::JoinError> {
         self.shutdown_token.cancel();
         let task = self.task.take().expect("shutdown must not be called twice");
@@ -167,9 +169,8 @@ impl Conductor {
     ///
     /// # Panics
     /// Panics if it could not install a signal handler.
-    #[instrument(skip_all)]
     async fn run_until_stopped(mut self) {
-        info!("conductor is running");
+        info_span!("Conductor::run_until_stopped").in_scope(|| info!("conductor is running"));
 
         let exit_reason = select! {
             biased;
@@ -187,10 +188,7 @@ impl Conductor {
         };
 
         let message = "initiating shutdown";
-        match exit_reason {
-            Ok(reason) => info!(reason, message),
-            Err(reason) => error!(%reason, message),
-        }
+        report_exit(exit_reason, message);
         self.shutdown().await;
     }
 
@@ -214,6 +212,7 @@ impl Conductor {
     /// Waits 25 seconds for all tasks to shut down before aborting them. 25 seconds
     /// because kubernetes issues SIGKILL 30 seconds after SIGTERM, giving 5 seconds
     /// to abort the remaining tasks.
+    #[instrument(skip_all)]
     async fn shutdown(mut self) {
         self.shutdown.cancel();
 
@@ -243,5 +242,13 @@ impl Conductor {
             info!("all tasks shut down regularly");
         }
         info!("shutting down");
+    }
+}
+
+#[instrument(skip_all)]
+fn report_exit(exit_reason: eyre::Result<&str>, message: &str) {
+    match exit_reason {
+        Ok(reason) => info!(reason, message),
+        Err(reason) => error!(%reason, message),
     }
 }
