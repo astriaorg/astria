@@ -722,7 +722,7 @@ impl SequencerBlock {
 
         let mut data_list = data.into_iter();
         let (rollup_transactions_root, rollup_ids_root) =
-            rollup_transactions_and_ids_root(&mut data_list)?;
+            rollup_transactions_and_ids_root_from_data(&mut data_list)?;
 
         let mut rollup_datas = IndexMap::new();
         for elem in data_list {
@@ -912,7 +912,7 @@ impl SequencerBlock {
     }
 }
 
-fn rollup_transactions_and_ids_root(
+fn rollup_transactions_and_ids_root_from_data(
     data_list: &mut IntoIter<Bytes>,
 ) -> Result<([u8; 32], [u8; 32]), SequencerBlockError> {
     let rollup_transactions_root: [u8; 32] = data_list
