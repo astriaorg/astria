@@ -149,7 +149,7 @@ impl Reader {
     pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
         let (executor, sequencer_chain_id) = select!(
             () = self.shutdown.clone().cancelled_owned() => {
-                info_span!("celestia::Reader::run_until_stopped").in_scope(||
+                info_span!("conductor::celestia::Reader::run_until_stopped").in_scope(||
                     info!("received shutdown signal while waiting for Celestia reader task to initialize")
                 );
                 return Ok(());
