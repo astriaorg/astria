@@ -308,7 +308,7 @@ impl RunningReader {
     }
 
     async fn run_until_stopped(mut self) -> eyre::Result<()> {
-        info_span!("celestia::RunningReader::run_until_stopped").in_scope(|| {
+        info_span!("conductor::celestia::RunningReader::run_until_stopped").in_scope(|| {
             info!(
                 initial_celestia_height = self.celestia_next_height,
                 initial_max_celestia_height = self.max_permitted_celestia_height(),
@@ -334,7 +334,7 @@ impl RunningReader {
                 res = &mut self.enqueued_block, if self.waiting_for_executor_capacity() => {
                     match res {
                         Ok(celestia_height_of_forwarded_block) => {
-                            trace_span!("celestia::RunningReader::run_until_stopped")
+                            trace_span!("conductor::celestia::RunningReader::run_until_stopped")
                                 .in_scope(||
                             trace!("submitted enqueued block to executor, resuming normal operation"));
                             self.advance_reference_celestia_height(celestia_height_of_forwarded_block);
@@ -387,6 +387,7 @@ impl RunningReader {
         }
     }
 
+    #[instrument(skip_all)]
     fn cache_reconstructed_blocks(&mut self, reconstructed: ReconstructedBlocks) {
         for block in reconstructed.blocks {
             let block_hash = block.block_hash;
@@ -416,6 +417,7 @@ impl RunningReader {
         is_next_below_head && is_next_in_window && is_capacity_in_task_set
     }
 
+    #[instrument(skip_all)]
     fn schedule_new_blobs(&mut self) {
         let mut scheduled = vec![];
         while self.can_schedule_blobs() {
@@ -447,6 +449,7 @@ impl RunningReader {
         *reference_height = max(*reference_height, candidate);
     }
 
+    #[instrument(skip_all)]
     fn forward_block_to_executor(&mut self, block: ReconstructedBlock) -> eyre::Result<()> {
         let celestia_height = block.celestia_height;
         match self.executor.try_send_firm_block(block) {
