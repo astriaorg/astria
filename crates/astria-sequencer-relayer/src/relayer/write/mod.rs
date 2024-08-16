@@ -600,6 +600,7 @@ async fn try_confirm_submission_from_failed_attempt(
 
 type OngoingSubmission =
     Fuse<Pin<Box<dyn Future<Output = Result<StartedSubmission, Report>> + Send>>>;
+
 #[instrument(skip_all)]
 async fn ongoing_submission_termination(ongoing_submission: OngoingSubmission) {
     if ongoing_submission.is_terminated() {
