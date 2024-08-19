@@ -1,4 +1,7 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    vec::IntoIter,
+};
 
 use bytes::Bytes;
 use indexmap::IndexMap;
@@ -703,7 +706,6 @@ impl SequencerBlock {
     /// # Panics
     ///
     /// - if a rollup data merkle proof cannot be constructed.
-    #[allow(clippy::too_many_lines)] // Temporary fix, should refactor: TODO(https://github.com/astriaorg/astria/issues/1357)
     pub fn try_from_block_info_and_data(
         block_hash: [u8; 32],
         chain_id: tendermint::chain::Id,
@@ -719,21 +721,8 @@ impl SequencerBlock {
         let data_hash = tree.root();
 
         let mut data_list = data.into_iter();
-        let rollup_transactions_root: [u8; 32] = data_list
-            .next()
-            .ok_or(SequencerBlockError::no_rollup_transactions_root())?
-            .as_ref()
-            .try_into()
-            .map_err(|_| {
-                SequencerBlockError::incorrect_rollup_transactions_root_length(data_list.len())
-            })?;
-
-        let rollup_ids_root: [u8; 32] = data_list
-            .next()
-            .ok_or(SequencerBlockError::no_rollup_ids_root())?
-            .as_ref()
-            .try_into()
-            .map_err(|_| SequencerBlockError::incorrect_rollup_ids_root_length(data_list.len()))?;
+        let (rollup_transactions_root, rollup_ids_root) =
+            rollup_transactions_and_ids_root_from_data(&mut data_list)?;
 
         let mut rollup_datas = IndexMap::new();
         for elem in data_list {
@@ -921,6 +910,26 @@ impl SequencerBlock {
             rollup_ids_proof,
         })
     }
+}
+
+fn rollup_transactions_and_ids_root_from_data(
+    data_list: &mut IntoIter<Bytes>,
+) -> Result<([u8; 32], [u8; 32]), SequencerBlockError> {
+    let rollup_transactions_root: [u8; 32] = data_list
+        .next()
+        .ok_or(SequencerBlockError::no_rollup_transactions_root())?
+        .as_ref()
+        .try_into()
+        .map_err(|_| {
+            SequencerBlockError::incorrect_rollup_transactions_root_length(data_list.len())
+        })?;
+    let rollup_ids_root: [u8; 32] = data_list
+        .next()
+        .ok_or(SequencerBlockError::no_rollup_ids_root())?
+        .as_ref()
+        .try_into()
+        .map_err(|_| SequencerBlockError::incorrect_rollup_ids_root_length(data_list.len()))?;
+    Ok((rollup_transactions_root, rollup_ids_root))
 }
 
 /// Constructs a `[merkle::Tree]` from an iterator yielding byte slices.
