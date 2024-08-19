@@ -45,7 +45,10 @@ use crate::{
     assets::StateReadExt as _,
     authority::StateReadExt as _,
     bridge::{
-        get_deposit_byte_len, init_bridge_account_action, StateReadExt as _, StateWriteExt as _
+        get_deposit_byte_len,
+        init_bridge_account_action,
+        StateReadExt as _,
+        StateWriteExt as _,
     },
     ibc::StateReadExt as _,
     sequence::{
@@ -1291,7 +1294,8 @@ async fn ensure_correct_block_fees_bridge_lock() {
         .into_iter()
         .map(|(_, fee)| fee)
         .sum();
-    let expected_fees = transfer_base_fee + (get_deposit_byte_len(&test_deposit) * bridge_lock_byte_cost_multiplier);
+    let expected_fees = transfer_base_fee
+        + (get_deposit_byte_len(&test_deposit) * bridge_lock_byte_cost_multiplier);
     assert_eq!(total_block_fees, expected_fees);
 }
 
