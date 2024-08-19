@@ -34,6 +34,8 @@ use tracing::{
     instrument,
 };
 
+use crate::address;
+
 /// Newtype wrapper to read and write a u128 from rocksdb.
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
 struct Balance(u128);
@@ -139,8 +141,8 @@ fn last_transaction_hash_for_bridge_account_storage_key(address: &Address) -> Ve
 }
 
 #[async_trait]
-pub(crate) trait StateReadExt: StateRead {
-    #[instrument(skip(self))]
+pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
+    #[instrument(skip_all)]
     async fn get_bridge_account_rollup_id(&self, address: &Address) -> Result<Option<RollupId>> {
         let Some(rollup_id_bytes) = self
             .get_raw(&rollup_id_storage_key(address))
@@ -156,7 +158,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(Some(rollup_id))
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_bridge_account_ibc_asset(&self, address: &Address) -> Result<asset::IbcPrefixed> {
         let bytes = self
             .get_raw(&asset_id_storage_key(address))
@@ -168,7 +170,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(asset::IbcPrefixed::new(id.0))
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_bridge_account_sudo_address(
         &self,
         bridge_address: &Address,
@@ -182,12 +184,14 @@ pub(crate) trait StateReadExt: StateRead {
             return Ok(None);
         };
 
-        let sudo_address = crate::address::try_base_prefixed(&sudo_address_bytes)
-            .context("invalid sudo address bytes")?;
+        let sudo_address = self.try_base_prefixed(&sudo_address_bytes).await.context(
+            "failed check for constructing sudo address from address bytes and prefix stored \
+             retrieved from state",
+        )?;
         Ok(Some(sudo_address))
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_bridge_account_withdrawer_address(
         &self,
         bridge_address: &Address,
@@ -203,12 +207,17 @@ pub(crate) trait StateReadExt: StateRead {
             return Ok(None);
         };
 
-        let withdrawer_address = crate::address::try_base_prefixed(&withdrawer_address_bytes)
-            .context("invalid withdrawer address bytes")?;
+        let withdrawer_address = self
+            .try_base_prefixed(&withdrawer_address_bytes)
+            .await
+            .context(
+                "failed check for constructing withdrawer address from address bytes and prefix \
+                 stored retrieved from state",
+            )?;
         Ok(Some(withdrawer_address))
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_deposit_nonce(&self, rollup_id: &RollupId) -> Result<u32> {
         let bytes = self
             .nonverifiable_get_raw(&deposit_nonce_storage_key(rollup_id))
@@ -226,7 +235,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(nonce)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_deposit_rollup_ids(&self) -> Result<HashSet<RollupId>> {
         let mut stream = std::pin::pin!(self.nonverifiable_prefix_raw(DEPOSIT_PREFIX.as_bytes()));
         let mut rollup_ids = HashSet::new();
@@ -247,7 +256,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(rollup_ids)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_deposit_events(&self, rollup_id: &RollupId) -> Result<Vec<Deposit>> {
         let mut stream = std::pin::pin!(
             self.nonverifiable_prefix_raw(deposit_storage_key_prefix(rollup_id).as_bytes())
@@ -261,7 +270,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(deposits)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_block_deposits(&self) -> Result<HashMap<RollupId, Vec<Deposit>>> {
         let deposit_rollup_ids = self
             .get_deposit_rollup_ids()
@@ -278,7 +287,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(deposit_events)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_init_bridge_account_base_fee(&self) -> Result<u128> {
         let bytes = self
             .get_raw(INIT_BRIDGE_ACCOUNT_BASE_FEE_STORAGE_KEY)
@@ -289,7 +298,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(fee)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_bridge_lock_byte_cost_multiplier(&self) -> Result<u128> {
         let bytes = self
             .get_raw(BRIDGE_LOCK_BYTE_COST_MULTIPLIER_STORAGE_KEY)
@@ -300,7 +309,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(fee)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_bridge_sudo_change_base_fee(&self) -> Result<u128> {
         let bytes = self
             .get_raw(BRIDGE_SUDO_CHANGE_FEE_STORAGE_KEY)
@@ -311,7 +320,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(fee)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_last_transaction_hash_for_bridge_account(
         &self,
         address: &Address,
@@ -337,12 +346,12 @@ impl<T: StateRead + ?Sized> StateReadExt for T {}
 
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     fn put_bridge_account_rollup_id(&mut self, address: &Address, rollup_id: &RollupId) {
         self.put_raw(rollup_id_storage_key(address), rollup_id.to_vec());
     }
 
-    #[instrument(skip(self, asset), fields(%asset))]
+    #[instrument(skip_all)]
     fn put_bridge_account_ibc_asset<TAsset>(
         &mut self,
         address: &Address,
@@ -359,7 +368,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     fn put_bridge_account_sudo_address(
         &mut self,
         bridge_address: &Address,
@@ -371,7 +380,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         );
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     fn put_bridge_account_withdrawer_address(
         &mut self,
         bridge_address: &Address,
@@ -386,7 +395,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     // the deposit "nonce" for a given rollup ID during a given block.
     // this is only used to generate storage keys for each of the deposits within a block,
     // and is reset to 0 at the beginning of each block.
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     fn put_deposit_nonce(&mut self, rollup_id: &RollupId, nonce: u32) {
         self.nonverifiable_put_raw(
             deposit_nonce_storage_key(rollup_id),
@@ -394,7 +403,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         );
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn put_deposit_event(&mut self, deposit: Deposit) -> Result<()> {
         let nonce = self.get_deposit_nonce(deposit.rollup_id()).await?;
         self.put_deposit_nonce(
@@ -408,7 +417,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     }
 
     // clears the deposit nonce and all deposits for for a given rollup ID.
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn clear_deposit_info(&mut self, rollup_id: &RollupId) {
         self.nonverifiable_delete(deposit_nonce_storage_key(rollup_id));
         let mut stream = std::pin::pin!(
@@ -419,7 +428,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         }
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn clear_block_deposits(&mut self) -> Result<()> {
         let deposit_rollup_ids = self
             .get_deposit_rollup_ids()
@@ -431,7 +440,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     fn put_init_bridge_account_base_fee(&mut self, fee: u128) {
         self.put_raw(
             INIT_BRIDGE_ACCOUNT_BASE_FEE_STORAGE_KEY.to_string(),
@@ -439,7 +448,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         );
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     fn put_bridge_lock_byte_cost_multiplier(&mut self, fee: u128) {
         self.put_raw(
             BRIDGE_LOCK_BYTE_COST_MULTIPLIER_STORAGE_KEY.to_string(),
@@ -447,7 +456,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         );
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     fn put_bridge_sudo_change_base_fee(&mut self, fee: u128) {
         self.put_raw(
             BRIDGE_SUDO_CHANGE_FEE_STORAGE_KEY.to_string(),
@@ -455,7 +464,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         );
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     fn put_last_transaction_hash_for_bridge_account(
         &mut self,
         address: &Address,
@@ -491,6 +500,7 @@ mod test {
         StateReadExt as _,
         StateWriteExt as _,
     };
+    use crate::test_utils::astria_address;
 
     fn asset_0() -> asset::Denom {
         "asset_0".parse().unwrap()
@@ -506,7 +516,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let state = StateDelta::new(snapshot);
 
-        let address = crate::address::base_prefixed([42u8; 20]);
+        let address = astria_address(&[42u8; 20]);
 
         // uninitialized ok
         assert_eq!(
@@ -525,7 +535,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         let mut rollup_id = RollupId::new([1u8; 32]);
-        let address = crate::address::base_prefixed([42u8; 20]);
+        let address = astria_address(&[42u8; 20]);
 
         // can write new
         state.put_bridge_account_rollup_id(&address, &rollup_id);
@@ -554,7 +564,7 @@ mod test {
 
         // can write additional account and both valid
         let rollup_id_1 = RollupId::new([2u8; 32]);
-        let address_1 = crate::address::base_prefixed([41u8; 20]);
+        let address_1 = astria_address(&[41u8; 20]);
         state.put_bridge_account_rollup_id(&address_1, &rollup_id_1);
         assert_eq!(
             state
@@ -583,7 +593,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let state = StateDelta::new(snapshot);
 
-        let address = crate::address::base_prefixed([42u8; 20]);
+        let address = astria_address(&[42u8; 20]);
         state
             .get_bridge_account_ibc_asset(&address)
             .await
@@ -596,7 +606,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        let address = crate::address::base_prefixed([42u8; 20]);
+        let address = astria_address(&[42u8; 20]);
         let mut asset = asset_0();
 
         // can write
@@ -629,7 +639,7 @@ mod test {
         );
 
         // writing to other account also ok
-        let address_1 = crate::address::base_prefixed([41u8; 20]);
+        let address_1 = astria_address(&[41u8; 20]);
         let asset_1 = asset_1();
         state
             .put_bridge_account_ibc_asset(&address_1, &asset_1)
@@ -753,7 +763,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         let rollup_id = RollupId::new([1u8; 32]);
-        let bridge_address = crate::address::base_prefixed([42u8; 20]);
+        let bridge_address = astria_address(&[42u8; 20]);
         let mut amount = 10u128;
         let asset = asset_0();
         let destination_chain_address = "0xdeadbeef";
@@ -865,7 +875,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         let rollup_id_0 = RollupId::new([1u8; 32]);
-        let bridge_address = crate::address::base_prefixed([42u8; 20]);
+        let bridge_address = astria_address(&[42u8; 20]);
         let amount = 10u128;
         let asset = asset_0();
         let destination_chain_address = "0xdeadbeef";
@@ -936,7 +946,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         let rollup_id = RollupId::new([1u8; 32]);
-        let bridge_address = crate::address::base_prefixed([42u8; 20]);
+        let bridge_address = astria_address(&[42u8; 20]);
         let amount = 10u128;
         let asset = asset_0();
         let destination_chain_address = "0xdeadbeef";
@@ -991,7 +1001,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         let rollup_id = RollupId::new([1u8; 32]);
-        let bridge_address = crate::address::base_prefixed([42u8; 20]);
+        let bridge_address = astria_address(&[42u8; 20]);
         let amount = 10u128;
         let asset = asset_0();
         let destination_chain_address = "0xdeadbeef";
@@ -1083,7 +1093,7 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         let rollup_id = RollupId::new([1u8; 32]);
-        let bridge_address = crate::address::base_prefixed([42u8; 20]);
+        let bridge_address = astria_address(&[42u8; 20]);
         let amount = 10u128;
         let asset = asset_0();
         let destination_chain_address = "0xdeadbeef";

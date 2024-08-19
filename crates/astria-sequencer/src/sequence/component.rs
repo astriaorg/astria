@@ -17,7 +17,7 @@ pub(crate) struct SequenceComponent;
 impl Component for SequenceComponent {
     type AppState = astria_core::sequencer::GenesisState;
 
-    #[instrument(name = "SequenceComponent::init_chain", skip(state))]
+    #[instrument(name = "SequenceComponent::init_chain", skip_all)]
     async fn init_chain<S: StateWriteExt>(mut state: S, app_state: &Self::AppState) -> Result<()> {
         state.put_sequence_action_base_fee(app_state.fees().sequence_base_fee);
         state.put_sequence_action_byte_cost_multiplier(
@@ -26,7 +26,7 @@ impl Component for SequenceComponent {
         Ok(())
     }
 
-    #[instrument(name = "SequenceComponent::begin_block", skip(_state))]
+    #[instrument(name = "SequenceComponent::begin_block", skip_all)]
     async fn begin_block<S: StateWriteExt + 'static>(
         _state: &mut Arc<S>,
         _begin_block: &BeginBlock,
@@ -34,7 +34,7 @@ impl Component for SequenceComponent {
         Ok(())
     }
 
-    #[instrument(name = "SequenceComponent::end_block", skip(_state))]
+    #[instrument(name = "SequenceComponent::end_block", skip_all)]
     async fn end_block<S: StateWriteExt + 'static>(
         _state: &mut Arc<S>,
         _end_block: &EndBlock,

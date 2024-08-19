@@ -103,6 +103,12 @@ pub(in crate::relayer) enum TrySubmitError {
 #[derive(Clone, Debug)]
 pub(in crate::relayer) struct GrpcResponseError(Status);
 
+impl GrpcResponseError {
+    pub(in crate::relayer) fn is_timeout(&self) -> bool {
+        self.0.code() == tonic::Code::Cancelled
+    }
+}
+
 impl Display for GrpcResponseError {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         write!(

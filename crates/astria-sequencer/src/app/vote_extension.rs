@@ -39,7 +39,8 @@ use tracing::{
 };
 
 use crate::{
-    authority::state_ext::StateReadExt as _,
+    address::StateReadExt as _,
+    authority::StateReadExt as _,
     slinky::oracle::{
         currency_pair_strategy::DefaultCurrencyPairStrategy,
         state_ext::StateWriteExt,
@@ -208,9 +209,13 @@ impl ProposalHandler {
             let oracle_vote_extension =
                 RawOracleVoteExtension::decode(vote.vote_extension.clone())?.into();
             if let Err(e) = verify_vote_extension(state, oracle_vote_extension, true).await {
+                let address = state
+                    .try_base_prefixed(vote.validator.address.as_slice())
+                    .await
+                    .context("failed to construct validator address with base prefix")?;
                 debug!(
                     error = AsRef::<dyn std::error::Error>::as_ref(&e),
-                    validator = crate::address::base_prefixed(vote.validator.address).to_string(),
+                    validator = address.to_string(),
                     "failed to verify vote extension; pruning from proposal"
                 );
                 vote.sig_info = Flag(tendermint::block::BlockIdFlag::Absent);
@@ -272,33 +277,29 @@ async fn validate_vote_extensions<S: StateReadExt>(
         .context("failed to get validator set")?;
 
     for vote in &extended_commit_info.votes {
+        let address = state
+            .try_base_prefixed(vote.validator.address.as_slice())
+            .await
+            .context("failed to construct validator address with base prefix")?;
+
         total_voting_power = total_voting_power.saturating_add(vote.validator.power.value());
 
         if vote.sig_info == Flag(tendermint::block::BlockIdFlag::Commit)
             && vote.extension_signature.is_none()
         {
-            anyhow::bail!(
-                "vote extension signature is missing for validator {}",
-                crate::address::base_prefixed(vote.validator.address)
-            );
+            anyhow::bail!("vote extension signature is missing for validator {address}",);
         }
 
         if vote.sig_info != Flag(tendermint::block::BlockIdFlag::Commit)
             && !vote.vote_extension.is_empty()
         {
-            anyhow::bail!(
-                "non-commit vote extension present for validator {}",
-                crate::address::base_prefixed(vote.validator.address)
-            );
+            anyhow::bail!("non-commit vote extension present for validator {address}",);
         }
 
         if vote.sig_info != Flag(tendermint::block::BlockIdFlag::Commit)
             && vote.extension_signature.is_some()
         {
-            anyhow::bail!(
-                "non-commit extension signature present for validator {}",
-                crate::address::base_prefixed(vote.validator.address)
-            );
+            anyhow::bail!("non-commit extension signature present for validator {address}",);
         }
 
         if vote.sig_info != Flag(tendermint::block::BlockIdFlag::Commit) {

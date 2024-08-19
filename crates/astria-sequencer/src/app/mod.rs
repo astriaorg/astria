@@ -16,7 +16,6 @@ use std::{
 
 use anyhow::{
     anyhow,
-    bail,
     ensure,
     Context,
 };
@@ -63,36 +62,34 @@ use tracing::{
     info,
     instrument,
     warn,
+    Instrument as _,
 };
 
 use crate::{
+    accounts,
     accounts::{
         component::AccountsComponent,
-        state_ext::{
-            StateReadExt,
-            StateWriteExt as _,
-        },
+        StateWriteExt as _,
     },
     address::StateWriteExt as _,
     api_state_ext::StateWriteExt as _,
     app::vote_extension::ProposalHandler,
-    asset::state_ext::StateWriteExt as _,
+    assets::{
+        StateReadExt as _,
+        StateWriteExt as _,
+    },
     authority::{
         component::{
             AuthorityComponent,
             AuthorityComponentAppState,
         },
-        state_ext::{
-            StateReadExt as _,
-            StateWriteExt as _,
-        },
+        StateReadExt as _,
+        StateWriteExt as _,
     },
     bridge::{
         component::BridgeComponent,
-        state_ext::{
-            StateReadExt as _,
-            StateWriteExt,
-        },
+        StateReadExt as _,
+        StateWriteExt as _,
     },
     component::Component as _,
     ibc::component::IbcComponent,
@@ -232,21 +229,16 @@ impl App {
             .try_begin_transaction()
             .expect("state Arc should not be referenced elsewhere");
 
-        crate::address::initialize_base_prefix(&genesis_state.address_prefixes().base)
-            .context("failed setting global base prefix")?;
-        state_tx.put_base_prefix(&genesis_state.address_prefixes().base);
+        state_tx
+            .put_base_prefix(&genesis_state.address_prefixes().base)
+            .context("failed to write base prefix to state")?;
 
-        crate::asset::initialize_native_asset(genesis_state.native_asset_base_denomination());
-        let native_asset = crate::asset::get_native_asset();
-        if let Some(trace_native_asset) = native_asset.as_trace_prefixed() {
-            state_tx
-                .put_ibc_asset(trace_native_asset)
-                .context("failed to put native asset")?;
-        } else {
-            bail!("native asset must not be in ibc/<ID> form")
-        }
+        let native_asset = genesis_state.native_asset_base_denomination();
+        state_tx.put_native_asset(native_asset);
+        state_tx
+            .put_ibc_asset(native_asset)
+            .context("failed to commit native asset as ibc asset to state")?;
 
-        state_tx.put_native_asset_denom(genesis_state.native_asset_base_denomination());
         state_tx.put_chain_id_and_revision_number(chain_id.try_into().context("invalid chain ID")?);
         state_tx.put_block_height(0);
 
@@ -1120,21 +1112,21 @@ impl App {
     }
 
     /// Executes a signed transaction.
-    #[instrument(name = "App::execute_transaction", skip_all, fields(
-        signed_transaction_hash = %telemetry::display::base64(&signed_tx.sha256_of_proto_encoding()),
-        sender_address_bytes = %telemetry::display::base64(&signed_tx.address_bytes()),
-    ))]
+    #[instrument(name = "App::execute_transaction", skip_all)]
     pub(crate) async fn execute_transaction(
         &mut self,
         signed_tx: Arc<SignedTransaction>,
     ) -> anyhow::Result<Vec<Event>> {
         let signed_tx_2 = signed_tx.clone();
-        let stateless =
-            tokio::spawn(async move { transaction::check_stateless(&signed_tx_2).await });
+        let stateless = tokio::spawn(
+            async move { transaction::check_stateless(&signed_tx_2).await }.in_current_span(),
+        );
         let signed_tx_2 = signed_tx.clone();
         let state2 = self.state.clone();
-        let stateful =
-            tokio::spawn(async move { transaction::check_stateful(&signed_tx_2, &state2).await });
+        let stateful = tokio::spawn(
+            async move { transaction::check_stateful(&signed_tx_2, &state2).await }
+                .in_current_span(),
+        );
 
         stateless
             .await
@@ -1288,11 +1280,11 @@ impl App {
 // NOTE: this function locks the mempool until every tx has been checked.
 // this could potentially stall consensus from moving to the next round if
 // the mempool is large.
-async fn update_mempool_after_finalization<S: StateReadExt>(
+async fn update_mempool_after_finalization<S: accounts::StateReadExt>(
     mempool: &mut Mempool,
     state: S,
 ) -> anyhow::Result<()> {
-    let current_account_nonce_getter = |address: Address| state.get_account_nonce(address);
+    let current_account_nonce_getter = |address: [u8; 20]| state.get_account_nonce(address);
     mempool.run_maintenance(current_account_nonce_getter).await
 }
 

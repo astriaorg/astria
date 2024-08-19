@@ -1,8 +1,5 @@
 use std::{
-    path::{
-        Path,
-        PathBuf,
-    },
+    path::PathBuf,
     sync::Arc,
     time::Duration,
 };
@@ -62,6 +59,7 @@ mod write;
 
 pub(crate) use builder::Builder;
 use celestia_client::{
+    BlobTxHash,
     BuilderError,
     CelestiaClientBuilder,
     CelestiaKeys,
@@ -69,7 +67,11 @@ use celestia_client::{
 };
 use state::State;
 pub(crate) use state::StateSnapshot;
-use submission::SubmissionState;
+use submission::{
+    PreparedSubmission,
+    StartedSubmission,
+    SubmissionStateAtStartup,
+};
 
 use crate::{
     metrics::Metrics,
@@ -106,8 +108,7 @@ pub(crate) struct Relayer {
     /// A watch channel to track the state of the relayer. Used by the API service.
     state: Arc<State>,
 
-    pre_submit_path: PathBuf,
-    post_submit_path: PathBuf,
+    submission_state_path: PathBuf,
     metrics: &'static Metrics,
 }
 
@@ -124,9 +125,9 @@ impl Relayer {
     /// failed catastrophically (after `u32::MAX` retries).
     #[instrument(skip_all)]
     pub(crate) async fn run(self) -> eyre::Result<()> {
-        let submission_state = read_submission_state(&self.pre_submit_path, &self.post_submit_path)
-            .await
-            .wrap_err("failed reading submission state from files")?;
+        // No need to add `wrap_err` as `new_from_path` already reports the path on error.
+        let submission_state_at_startup =
+            SubmissionStateAtStartup::new_from_path(&self.submission_state_path).await?;
 
         select!(
             () = self.relayer_shutdown_token.cancelled() => return Ok(()),
@@ -136,7 +137,8 @@ impl Relayer {
             ) => init_result,
         )?;
 
-        let last_submitted_sequencer_height = submission_state.last_submitted_height();
+        let last_completed_sequencer_height =
+            submission_state_at_startup.last_completed_sequencer_height();
 
         let mut latest_height_stream = {
             use sequencer_client::StreamLatestHeight as _;
@@ -148,7 +150,7 @@ impl Relayer {
             self.celestia_client_builder.clone(),
             self.rollup_filter.clone(),
             self.state.clone(),
-            submission_state,
+            submission_state_at_startup,
             self.submitter_shutdown_token.clone(),
             self.metrics,
         );
@@ -156,7 +158,7 @@ impl Relayer {
         let mut block_stream = read::BlockStream::builder(self.metrics)
             .block_time(self.sequencer_poll_period)
             .client(self.sequencer_grpc_client.clone())
-            .set_last_fetched_height(last_submitted_sequencer_height)
+            .set_last_fetched_height(last_completed_sequencer_height)
             .state(self.state.clone())
             .build();
 
@@ -348,30 +350,11 @@ async fn fetch_sequencer_chain_id(
     response.map(|status_response| status_response.node_info.network.to_string())
 }
 
-async fn read_submission_state<P1: AsRef<Path>, P2: AsRef<Path>>(
-    pre: P1,
-    post: P2,
-) -> eyre::Result<SubmissionState> {
-    const LENIENT_CONSISTENCY_CHECK: bool = true;
-    let pre = pre.as_ref().to_path_buf();
-    let post = post.as_ref().to_path_buf();
-    crate::utils::flatten(
-        tokio::task::spawn_blocking(move || {
-            SubmissionState::from_paths::<LENIENT_CONSISTENCY_CHECK, _, _>(pre, post)
-        })
-        .await,
-    )
-    .wrap_err(
-        "failed reading submission state from the configured pre- and post-submit files. Refer to \
-         the values documented in `local.env.example` of the astria-sequencer-relayer service",
-    )
-}
-
 fn spawn_submitter(
     client_builder: CelestiaClientBuilder,
     rollup_filter: IncludeRollup,
     state: Arc<State>,
-    submission_state: SubmissionState,
+    submission_state_at_startup: SubmissionStateAtStartup,
     submitter_shutdown_token: CancellationToken,
     metrics: &'static Metrics,
 ) -> (
@@ -382,7 +365,7 @@ fn spawn_submitter(
         client_builder,
         rollup_filter,
         state,
-        submission_state,
+        submission_state_at_startup,
         submitter_shutdown_token,
         metrics,
     );

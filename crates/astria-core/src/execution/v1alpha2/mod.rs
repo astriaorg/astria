@@ -19,12 +19,18 @@ impl GenesisInfoError {
     fn incorrect_rollup_id_length(inner: IncorrectRollupIdLength) -> Self {
         Self(GenesisInfoErrorKind::IncorrectRollupIdLength(inner))
     }
+
+    fn no_rollup_id() -> Self {
+        Self(GenesisInfoErrorKind::NoRollupId)
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
 enum GenesisInfoErrorKind {
-    #[error("`rollup_id` field did not contain a valid rollup ID")]
+    #[error("`rollup_id` field contained an invalid rollup ID")]
     IncorrectRollupIdLength(IncorrectRollupIdLength),
+    #[error("`rollup_id` was not set")]
+    NoRollupId,
 }
 
 /// Genesis Info required from a rollup to start an execution client.
@@ -81,8 +87,11 @@ impl Protobuf for GenesisInfo {
             sequencer_genesis_block_height,
             celestia_block_variance,
         } = raw;
+        let Some(rollup_id) = rollup_id else {
+            return Err(Self::Error::no_rollup_id());
+        };
         let rollup_id =
-            RollupId::try_from_slice(rollup_id).map_err(Self::Error::incorrect_rollup_id_length)?;
+            RollupId::try_from_raw(rollup_id).map_err(Self::Error::incorrect_rollup_id_length)?;
 
         Ok(Self {
             rollup_id,
@@ -104,7 +113,7 @@ impl Protobuf for GenesisInfo {
                  under the hood",
             );
         Self::Raw {
-            rollup_id: Bytes::copy_from_slice(rollup_id.as_ref()),
+            rollup_id: Some(rollup_id.to_raw()),
             sequencer_genesis_block_height,
             celestia_block_variance: *celestia_block_variance,
         }

@@ -5,13 +5,9 @@ use anyhow::{
     Context,
     Result,
 };
-use astria_core::{
-    crypto::VerificationKey,
-    primitive::v1::{
-        Address,
-        ADDRESS_LEN,
-    },
-    protocol::transaction::v1alpha1::action::ValidatorUpdate,
+use astria_core::primitive::v1::{
+    Address,
+    ADDRESS_LEN,
 };
 use async_trait::async_trait;
 use borsh::{
@@ -22,92 +18,22 @@ use cnidarium::{
     StateRead,
     StateWrite,
 };
-use serde::{
-    Deserialize,
-    Serialize,
-};
 use tracing::instrument;
+
+use super::ValidatorSet;
+use crate::address;
 
 /// Newtype wrapper to read and write an address from rocksdb.
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
 struct SudoAddress([u8; ADDRESS_LEN]);
-
-/// Newtype wrapper to read and write a validator set or set of updates from rocksdb.
-///
-/// Contains a map of hex-encoded public keys to validator updates.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub(crate) struct ValidatorSet(BTreeMap<ValidatorSetKey, ValidatorUpdate>);
-
-#[derive(Copy, Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Ord, PartialOrd)]
-pub(crate) struct ValidatorSetKey(#[serde(with = "::hex::serde")] [u8; ADDRESS_LEN]);
-
-impl From<[u8; ADDRESS_LEN]> for ValidatorSetKey {
-    fn from(value: [u8; ADDRESS_LEN]) -> Self {
-        Self(value)
-    }
-}
-
-impl From<VerificationKey> for ValidatorSetKey {
-    fn from(value: VerificationKey) -> Self {
-        Self(value.address_bytes())
-    }
-}
-
-impl ValidatorSet {
-    pub(crate) fn new_from_updates(updates: Vec<ValidatorUpdate>) -> Self {
-        Self(
-            updates
-                .into_iter()
-                .map(|update| (update.verification_key.into(), update))
-                .collect::<BTreeMap<_, _>>(),
-        )
-    }
-
-    pub(crate) fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    pub(crate) fn get<T: Into<ValidatorSetKey>>(&self, address: T) -> Option<&ValidatorUpdate> {
-        self.0.get(&address.into())
-    }
-
-    pub(crate) fn push_update(&mut self, update: ValidatorUpdate) {
-        self.0.insert(update.verification_key.into(), update);
-    }
-
-    pub(crate) fn remove<T: Into<ValidatorSetKey>>(&mut self, address: T) {
-        self.0.remove(&address.into());
-    }
-
-    /// Apply updates to the validator set.
-    ///
-    /// If the power of a validator is set to 0, remove it from the set.
-    /// Otherwise, update the validator's power.
-    pub(crate) fn apply_updates(&mut self, validator_updates: ValidatorSet) {
-        for (address, update) in validator_updates.0 {
-            match update.power {
-                0 => self.0.remove(&address),
-                _ => self.0.insert(address, update),
-            };
-        }
-    }
-
-    pub(crate) fn try_into_cometbft(self) -> anyhow::Result<Vec<tendermint::validator::Update>> {
-        self.0
-            .into_values()
-            .map(crate::utils::sequencer_to_cometbft_validator)
-            .collect::<Result<Vec<_>, _>>()
-            .context("failed to map one or more astria validators to cometbft validators")
-    }
-}
 
 const SUDO_STORAGE_KEY: &str = "sudo";
 const VALIDATOR_SET_STORAGE_KEY: &str = "valset";
 const VALIDATOR_UPDATES_KEY: &[u8] = b"valupdates";
 
 #[async_trait]
-pub(crate) trait StateReadExt: StateRead {
-    #[instrument(skip(self))]
+pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
+    #[instrument(skip_all)]
     async fn get_sudo_address(&self) -> Result<Address> {
         let Some(bytes) = self
             .get_raw(SUDO_STORAGE_KEY)
@@ -119,10 +45,12 @@ pub(crate) trait StateReadExt: StateRead {
         };
         let SudoAddress(address_bytes) =
             SudoAddress::try_from_slice(&bytes).context("invalid sudo key bytes")?;
-        Ok(crate::address::base_prefixed(address_bytes))
+        self.try_base_prefixed(&address_bytes)
+            .await
+            .context("failed constructing address from prefixed stored in state")
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_validator_set(&self) -> Result<ValidatorSet> {
         let Some(bytes) = self
             .get_raw(VALIDATOR_SET_STORAGE_KEY)
@@ -138,7 +66,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(ValidatorSet(validator_set))
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_validator_updates(&self) -> Result<ValidatorSet> {
         let Some(bytes) = self
             .nonverifiable_get_raw(VALIDATOR_UPDATES_KEY)
@@ -159,7 +87,7 @@ impl<T: StateRead> StateReadExt for T {}
 
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     fn put_sudo_address(&mut self, address: Address) -> Result<()> {
         self.put_raw(
             SUDO_STORAGE_KEY.to_string(),
@@ -169,7 +97,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     fn put_validator_set(&mut self, validator_set: ValidatorSet) -> Result<()> {
         self.put_raw(
             VALIDATOR_SET_STORAGE_KEY.to_string(),
@@ -178,7 +106,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     fn put_validator_updates(&mut self, validator_updates: ValidatorSet) -> Result<()> {
         self.nonverifiable_put_raw(
             VALIDATOR_UPDATES_KEY.to_vec(),
@@ -188,7 +116,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     fn clear_validator_updates(&mut self) {
         self.nonverifiable_delete(VALIDATOR_UPDATES_KEY.to_vec());
     }
@@ -197,16 +125,23 @@ pub(crate) trait StateWriteExt: StateWrite {
 impl<T: StateWrite> StateWriteExt for T {}
 
 #[cfg(test)]
-mod test {
+mod tests {
     use astria_core::protocol::transaction::v1alpha1::action::ValidatorUpdate;
     use cnidarium::StateDelta;
 
     use super::{
         StateReadExt as _,
         StateWriteExt as _,
-        ValidatorSet,
     };
-    use crate::test_utils::verification_key;
+    use crate::{
+        address::StateWriteExt as _,
+        authority::ValidatorSet,
+        test_utils::{
+            astria_address,
+            verification_key,
+            ASTRIA_PREFIX,
+        },
+    };
 
     fn empty_validator_set() -> ValidatorSet {
         ValidatorSet::new_from_updates(vec![])
@@ -218,6 +153,8 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
+        state.put_base_prefix(ASTRIA_PREFIX).unwrap();
+
         // doesn't exist at first
         state
             .get_sudo_address()
@@ -225,7 +162,7 @@ mod test {
             .expect_err("no sudo address should exist at first");
 
         // can write new
-        let mut address_expected = crate::address::base_prefixed([42u8; 20]);
+        let mut address_expected = astria_address(&[42u8; 20]);
         state
             .put_sudo_address(address_expected)
             .expect("writing sudo address should not fail");
@@ -239,7 +176,7 @@ mod test {
         );
 
         // can rewrite with new value
-        address_expected = crate::address::base_prefixed([41u8; 20]);
+        address_expected = astria_address(&[41u8; 20]);
         state
             .put_sudo_address(address_expected)
             .expect("writing sudo address should not fail");

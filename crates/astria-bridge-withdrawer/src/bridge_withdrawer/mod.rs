@@ -7,7 +7,6 @@ use std::{
     time::Duration,
 };
 
-use astria_core::primitive::v1::asset::Denom;
 use astria_eyre::eyre::{
     self,
     WrapErr as _,
@@ -77,6 +76,7 @@ impl BridgeWithdrawer {
             ethereum_rpc_endpoint,
             rollup_asset_denomination,
             sequencer_bridge_address,
+            sequencer_grpc_endpoint,
             ..
         } = cfg;
 
@@ -93,7 +93,9 @@ impl BridgeWithdrawer {
             sequencer_chain_id,
             sequencer_cometbft_endpoint: sequencer_cometbft_endpoint.clone(),
             sequencer_bridge_address,
+            sequencer_grpc_endpoint: sequencer_grpc_endpoint.clone(),
             expected_fee_asset: fee_asset_denomination,
+            metrics,
         }
         .build()
         .wrap_err("failed to initialize startup")?;
@@ -105,6 +107,7 @@ impl BridgeWithdrawer {
             shutdown_token: shutdown_handle.token(),
             startup_handle: startup_handle.clone(),
             sequencer_cometbft_endpoint,
+            sequencer_grpc_endpoint,
             sequencer_key_path,
             sequencer_address_prefix: sequencer_address_prefix.clone(),
             state: state.clone(),
@@ -119,12 +122,9 @@ impl BridgeWithdrawer {
             startup_handle,
             shutdown_token: shutdown_handle.token(),
             state: state.clone(),
-            rollup_asset_denom: rollup_asset_denomination
-                .parse::<Denom>()
-                .wrap_err("failed to parse ROLLUP_ASSET_DENOMINATION as Denom")?,
+            rollup_asset_denom: rollup_asset_denomination,
             bridge_address: sequencer_bridge_address,
             submitter_handle,
-            sequencer_address_prefix: sequencer_address_prefix.clone(),
         }
         .build()
         .wrap_err("failed to build ethereum watcher")?;
@@ -146,6 +146,10 @@ impl BridgeWithdrawer {
         };
 
         Ok((service, shutdown_handle))
+    }
+
+    pub fn local_addr(&self) -> SocketAddr {
+        self.api_server.local_addr()
     }
 
     // Panic won't happen because `startup_task` is unwraped lazily after checking if it's `Some`.
@@ -347,12 +351,12 @@ impl Shutdown {
                 .await
                 .map(flatten_result)
             {
-                Ok(Ok(())) => info!("withdrawer exited gracefully"),
-                Ok(Err(error)) => error!(%error, "withdrawer exited with an error"),
+                Ok(Ok(())) => info!("submitter exited gracefully"),
+                Ok(Err(error)) => error!(%error, "submitter exited with an error"),
                 Err(_) => {
                     error!(
                         timeout_secs = limit.as_secs(),
-                        "watcher did not shut down within timeout; killing it"
+                        "submitter did not shut down within timeout; killing it"
                     );
                     submitter_task.abort();
                 }
@@ -407,19 +411,4 @@ pub(crate) fn flatten_result<T>(res: Result<eyre::Result<T>, JoinError>) -> eyre
         Ok(Err(err)) => Err(err).wrap_err("task returned with error"),
         Err(err) => Err(err).wrap_err("task panicked"),
     }
-}
-
-#[cfg(test)]
-pub(crate) const ASTRIA_ADDRESS_PREFIX: &str = "astria";
-
-/// Constructs an [`Address`] prefixed by `"astria"`.
-#[cfg(test)]
-pub(crate) fn astria_address(
-    array: [u8; astria_core::primitive::v1::ADDRESS_LEN],
-) -> astria_core::primitive::v1::Address {
-    astria_core::primitive::v1::Address::builder()
-        .array(array)
-        .prefix(ASTRIA_ADDRESS_PREFIX)
-        .try_build()
-        .unwrap()
 }

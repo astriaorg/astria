@@ -35,8 +35,7 @@ pub(crate) struct Builder {
     pub(crate) sequencer_poll_period: Duration,
     pub(crate) sequencer_grpc_endpoint: String,
     pub(crate) rollup_filter: IncludeRollup,
-    pub(crate) pre_submit_path: PathBuf,
-    pub(crate) post_submit_path: PathBuf,
+    pub(crate) submission_state_path: PathBuf,
     pub(crate) metrics: &'static Metrics,
 }
 
@@ -53,8 +52,7 @@ impl Builder {
             sequencer_poll_period,
             sequencer_grpc_endpoint,
             rollup_filter,
-            pre_submit_path,
-            post_submit_path,
+            submission_state_path,
             metrics,
         } = self;
 
@@ -93,8 +91,7 @@ impl Builder {
             celestia_client_builder,
             rollup_filter,
             state,
-            pre_submit_path,
-            post_submit_path,
+            submission_state_path,
             metrics,
         })
     }

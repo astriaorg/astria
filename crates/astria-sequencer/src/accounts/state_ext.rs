@@ -3,9 +3,14 @@ use anyhow::{
     Result,
 };
 use astria_core::{
+    crypto::{
+        SigningKey,
+        VerificationKey,
+    },
     primitive::v1::{
         asset,
         Address,
+        ADDRESS_LEN,
     },
     protocol::account::v1alpha1::AssetBalance,
 };
@@ -36,12 +41,49 @@ struct Fee(u128);
 const ACCOUNTS_PREFIX: &str = "accounts";
 const TRANSFER_BASE_FEE_STORAGE_KEY: &str = "transferfee";
 
-struct StorageKey<'a>(&'a Address);
-impl<'a> std::fmt::Display for StorageKey<'a> {
+trait GetAddressBytes: Send + Sync {
+    fn get_address_bytes(&self) -> [u8; ADDRESS_LEN];
+}
+
+impl GetAddressBytes for Address {
+    fn get_address_bytes(&self) -> [u8; ADDRESS_LEN] {
+        self.bytes()
+    }
+}
+
+impl GetAddressBytes for [u8; ADDRESS_LEN] {
+    fn get_address_bytes(&self) -> [u8; ADDRESS_LEN] {
+        *self
+    }
+}
+
+impl GetAddressBytes for SigningKey {
+    fn get_address_bytes(&self) -> [u8; ADDRESS_LEN] {
+        self.verification_key().get_address_bytes()
+    }
+}
+
+impl GetAddressBytes for VerificationKey {
+    fn get_address_bytes(&self) -> [u8; ADDRESS_LEN] {
+        self.address_bytes()
+    }
+}
+
+impl<'a, T> GetAddressBytes for &'a T
+where
+    T: GetAddressBytes,
+{
+    fn get_address_bytes(&self) -> [u8; ADDRESS_LEN] {
+        (*self).get_address_bytes()
+    }
+}
+
+struct StorageKey<'a, T>(&'a T);
+impl<'a, T: GetAddressBytes> std::fmt::Display for StorageKey<'a, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(ACCOUNTS_PREFIX)?;
         f.write_str("/")?;
-        for byte in self.0.bytes() {
+        for byte in self.0.get_address_bytes() {
             f.write_fmt(format_args!("{byte:02x}"))?;
         }
         Ok(())
@@ -59,16 +101,14 @@ fn balance_storage_key<TAsset: Into<asset::IbcPrefixed>>(
     )
 }
 
-fn nonce_storage_key(address: Address) -> String {
+fn nonce_storage_key<T: GetAddressBytes>(address: T) -> String {
     format!("{}/nonce", StorageKey(&address))
 }
 
 #[async_trait]
-pub(crate) trait StateReadExt: StateRead {
-    #[instrument(skip_all, fields(address=%address))]
+pub(crate) trait StateReadExt: StateRead + crate::assets::StateReadExt {
+    #[instrument(skip_all)]
     async fn get_account_balances(&self, address: Address) -> Result<Vec<AssetBalance>> {
-        use crate::asset::state_ext::StateReadExt as _;
-
         let prefix = format!("{}/balance/", StorageKey(&address));
         let mut balances: Vec<AssetBalance> = Vec::new();
 
@@ -94,10 +134,13 @@ pub(crate) trait StateReadExt: StateRead {
             let Balance(balance) =
                 Balance::try_from_slice(&value).context("invalid balance bytes")?;
 
-            let native_asset = crate::asset::get_native_asset();
+            let native_asset = self
+                .get_native_asset()
+                .await
+                .context("failed to read native asset from state")?;
             if asset == native_asset.to_ibc_prefixed() {
                 balances.push(AssetBalance {
-                    denom: native_asset.clone(),
+                    denom: native_asset.into(),
                     balance,
                 });
                 continue;
@@ -117,7 +160,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(balances)
     }
 
-    #[instrument(skip_all, fields(address=%address, %asset))]
+    #[instrument(skip_all)]
     async fn get_account_balance<'a, TAsset>(&self, address: Address, asset: TAsset) -> Result<u128>
     where
         TAsset: Into<asset::IbcPrefixed> + std::fmt::Display + Send,
@@ -133,8 +176,8 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(balance)
     }
 
-    #[instrument(skip_all, fields(address=%address))]
-    async fn get_account_nonce(&self, address: Address) -> Result<u32> {
+    #[instrument(skip_all)]
+    async fn get_account_nonce<T: GetAddressBytes>(&self, address: T) -> Result<u32> {
         let bytes = self
             .get_raw(&nonce_storage_key(address))
             .await
@@ -167,7 +210,7 @@ impl<T: StateRead + ?Sized> StateReadExt for T {}
 
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
-    #[instrument(skip(self, asset), fields(%asset))]
+    #[instrument(skip_all)]
     fn put_account_balance<TAsset>(
         &mut self,
         address: Address,
@@ -182,14 +225,14 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     fn put_account_nonce(&mut self, address: Address, nonce: u32) -> Result<()> {
         let bytes = borsh::to_vec(&Nonce(nonce)).context("failed to serialize nonce")?;
         self.put_raw(nonce_storage_key(address), bytes);
         Ok(())
     }
 
-    #[instrument(skip(self, asset), fields(%asset))]
+    #[instrument(skip_all)]
     async fn increase_balance<TAsset>(
         &mut self,
         address: Address,
@@ -215,7 +258,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip(self, asset), fields(%asset))]
+    #[instrument(skip_all)]
     async fn decrease_balance<TAsset>(
         &mut self,
         address: Address,
@@ -241,7 +284,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     fn put_transfer_base_fee(&mut self, fee: u128) -> Result<()> {
         let bytes = borsh::to_vec(&Fee(fee)).context("failed to serialize fee")?;
         self.put_raw(TRANSFER_BASE_FEE_STORAGE_KEY.to_string(), bytes);
@@ -269,7 +312,14 @@ mod tests {
             balance_storage_key,
             nonce_storage_key,
         },
-        asset,
+        assets::{
+            StateReadExt as _,
+            StateWriteExt as _,
+        },
+        test_utils::{
+            astria_address,
+            nria,
+        },
     };
 
     fn asset_0() -> astria_core::primitive::v1::asset::Denom {
@@ -290,7 +340,7 @@ mod tests {
         let state = StateDelta::new(snapshot);
 
         // create needed variables
-        let address = crate::address::base_prefixed([42u8; 20]);
+        let address = astria_address(&[42u8; 20]);
         let nonce_expected = 0u32;
 
         // uninitialized accounts return zero
@@ -311,7 +361,7 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         // create needed variables
-        let address = crate::address::base_prefixed([42u8; 20]);
+        let address = astria_address(&[42u8; 20]);
         let nonce_expected = 0u32;
 
         // can write new
@@ -349,7 +399,7 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         // create needed variables
-        let address = crate::address::base_prefixed([42u8; 20]);
+        let address = astria_address(&[42u8; 20]);
         let nonce_expected = 2u32;
 
         // can write new
@@ -366,7 +416,7 @@ mod tests {
         );
 
         // writing additional account preserves first account's values
-        let address_1 = crate::address::base_prefixed([41u8; 20]);
+        let address_1 = astria_address(&[41u8; 20]);
         let nonce_expected_1 = 3u32;
 
         state
@@ -397,7 +447,7 @@ mod tests {
         let state = StateDelta::new(snapshot);
 
         // create needed variables
-        let address = crate::address::base_prefixed([42u8; 20]);
+        let address = astria_address(&[42u8; 20]);
         let asset = asset_0();
         let amount_expected = 0u128;
 
@@ -419,7 +469,7 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         // create needed variables
-        let address = crate::address::base_prefixed([42u8; 20]);
+        let address = astria_address(&[42u8; 20]);
         let asset = asset_0();
         let mut amount_expected = 1u128;
 
@@ -461,7 +511,7 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         // create needed variables
-        let address = crate::address::base_prefixed([42u8; 20]);
+        let address = astria_address(&[42u8; 20]);
         let asset = asset_0();
         let amount_expected = 1u128;
 
@@ -481,7 +531,7 @@ mod tests {
 
         // writing to other accounts does not affect original account
         // create needed variables
-        let address_1 = crate::address::base_prefixed([41u8; 20]);
+        let address_1 = astria_address(&[41u8; 20]);
         let amount_expected_1 = 2u128;
 
         state
@@ -514,7 +564,7 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         // create needed variables
-        let address = crate::address::base_prefixed([42u8; 20]);
+        let address = astria_address(&[42u8; 20]);
         let asset_0 = asset_0();
         let asset_1 = asset_1();
         let amount_expected_0 = 1u128;
@@ -553,7 +603,7 @@ mod tests {
         let state = StateDelta::new(snapshot);
 
         // create needed variables
-        let address = crate::address::base_prefixed([42u8; 20]);
+        let address = astria_address(&[42u8; 20]);
 
         // see that call was ok
         let balances = state
@@ -570,42 +620,32 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         // need to set native asset in order to use `get_account_balances()`
-        crate::asset::initialize_native_asset("nria");
+        state.put_native_asset(&nria());
 
-        let asset_0 = crate::asset::get_native_asset();
+        let asset_0 = state.get_native_asset().await.unwrap();
         let asset_1 = asset_1();
         let asset_2 = asset_2();
 
         // also need to add assets to the ibc state
-        asset::state_ext::StateWriteExt::put_ibc_asset(
-            &mut state,
-            &asset_0.clone().unwrap_trace_prefixed(),
-        )
-        .expect("should be able to call other trait method on state object");
-        asset::state_ext::StateWriteExt::put_ibc_asset(
-            &mut state,
-            &asset_1.clone().unwrap_trace_prefixed(),
-        )
-        .expect("should be able to call other trait method on state object");
-        asset::state_ext::StateWriteExt::put_ibc_asset(
-            &mut state,
-            &asset_2.clone().unwrap_trace_prefixed(),
-        )
-        .expect("should be able to call other trait method on state object");
+        state
+            .put_ibc_asset(&asset_0.clone())
+            .expect("should be able to call other trait method on state object");
+        state
+            .put_ibc_asset(&asset_1.clone().unwrap_trace_prefixed())
+            .expect("should be able to call other trait method on state object");
+        state
+            .put_ibc_asset(&asset_2.clone().unwrap_trace_prefixed())
+            .expect("should be able to call other trait method on state object");
 
         // create needed variables
-        let address = crate::address::base_prefixed([42u8; 20]);
+        let address = astria_address(&[42u8; 20]);
         let amount_expected_0 = 1u128;
         let amount_expected_1 = 2u128;
         let amount_expected_2 = 3u128;
 
         // add balances to the account
         state
-            .put_account_balance(
-                address,
-                asset_0.clone().unwrap_trace_prefixed(),
-                amount_expected_0,
-            )
+            .put_account_balance(address, asset_0.clone(), amount_expected_0)
             .expect("putting an account balance should not fail");
         state
             .put_account_balance(address, &asset_1, amount_expected_1)
@@ -623,7 +663,7 @@ mod tests {
             balances,
             vec![
                 AssetBalance {
-                    denom: asset_0.clone(),
+                    denom: asset_0.into(),
                     balance: amount_expected_0,
                 },
                 AssetBalance {
@@ -645,7 +685,7 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         // create needed variables
-        let address = crate::address::base_prefixed([42u8; 20]);
+        let address = astria_address(&[42u8; 20]);
         let asset = asset_0();
         let amount_increase = 2u128;
 
@@ -686,7 +726,7 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         // create needed variables
-        let address = crate::address::base_prefixed([42u8; 20]);
+        let address = astria_address(&[42u8; 20]);
         let asset = asset_0();
         let amount_increase = 2u128;
 
@@ -728,7 +768,7 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         // create needed variables
-        let address = crate::address::base_prefixed([42u8; 20]);
+        let address = astria_address(&[42u8; 20]);
         let asset = asset_0();
         let amount_increase = 2u128;
 

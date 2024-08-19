@@ -5,6 +5,7 @@ use std::{
         Display,
         Formatter,
     },
+    fs,
     future::Future,
     io::Write,
     mem,
@@ -23,13 +24,10 @@ use astria_sequencer_relayer::{
     SequencerRelayer,
     ShutdownHandle,
 };
-use futures::TryFutureExt;
+use http::StatusCode;
+use isahc::AsyncReadResponseExt;
 use itertools::Itertools;
 use once_cell::sync::Lazy;
-use reqwest::{
-    Response,
-    StatusCode,
-};
 use serde::Deserialize;
 use serde_json::json;
 use tempfile::NamedTempFile;
@@ -170,8 +168,7 @@ pub struct TestSequencerRelayer {
 
     pub signing_key: SigningKey,
 
-    pub pre_submit_file: NamedTempFile,
-    pub post_submit_file: NamedTempFile,
+    pub submission_state_file: NamedTempFile,
     /// The sequencer chain ID which will be returned by the mock `cometbft` instance, and set via
     /// `TestSequencerRelayerConfig`.
     pub actual_sequencer_chain_id: String,
@@ -539,13 +536,13 @@ impl TestSequencerRelayer {
     ) -> (serde_json::Value, StatusCode) {
         let url = format!("http://{}/{api_endpoint}", self.api_address);
         let getter = async {
-            reqwest::get(&url)
+            isahc::get_async(&url)
                 .await
                 .unwrap_or_else(|error| panic!("should get response from `{url}`: {error}"))
         };
 
         let new_context = format!("{context}: get from `{url}`");
-        let response = self.timeout_ms(100, &new_context, getter).await;
+        let mut response = self.timeout_ms(100, &new_context, getter).await;
 
         let status_code = response.status();
         let value = response
@@ -585,8 +582,10 @@ impl TestSequencerRelayer {
             value
         } else {
             let state = tokio::time::timeout(Duration::from_millis(100), async {
-                reqwest::get(format!("http://{}/status", self.api_address))
-                    .and_then(Response::json)
+                isahc::get_async(format!("http://{}/status", self.api_address))
+                    .await
+                    .ok()?
+                    .json()
                     .await
                     .ok()
             })
@@ -598,8 +597,10 @@ impl TestSequencerRelayer {
             .map_or("unknown".to_string(), |state| format!("{state:?}"));
 
             let healthz = tokio::time::timeout(Duration::from_millis(100), async {
-                reqwest::get(format!("http://{}/healthz", self.api_address))
-                    .and_then(Response::json)
+                isahc::get_async(format!("http://{}/healthz", self.api_address))
+                    .await
+                    .ok()?
+                    .json()
                     .await
                     .ok()
             })
@@ -614,29 +615,18 @@ impl TestSequencerRelayer {
     }
 
     #[track_caller]
-    pub fn assert_state_files_are_as_expected(
-        &self,
-        pre_sequencer_height: u32,
-        post_sequencer_height: u32,
-    ) {
-        let pre_submit_state: serde_json::Value =
-            serde_json::from_str(&std::fs::read_to_string(&self.config.pre_submit_path).unwrap())
+    pub fn check_state_file(&self, last_sequencer_height: u32, current_sequencer_height: u32) {
+        let submission_state: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&self.config.submission_state_path).unwrap())
                 .unwrap();
         assert_json_include!(
-            actual: pre_submit_state,
-            expected: json!({
-                "sequencer_height": pre_sequencer_height
-            }),
+            actual: submission_state,
+            expected: json!({ "sequencer_height": last_sequencer_height }),
         );
 
-        let post_submit_state: serde_json::Value =
-            serde_json::from_str(&std::fs::read_to_string(&self.config.post_submit_path).unwrap())
-                .unwrap();
         assert_json_include!(
-            actual: post_submit_state,
-            expected: json!({
-                "sequencer_height": post_sequencer_height,
-            }),
+            actual: submission_state,
+            expected: json!({ "sequencer_height": current_sequencer_height }),
         );
     }
 
@@ -662,7 +652,7 @@ impl TestSequencerRelayer {
 // allow: want the name to reflect this is a test config.
 #[allow(clippy::module_name_repetitions)]
 pub struct TestSequencerRelayerConfig {
-    /// Sets the start height of relayer and configures the on-disk pre- and post-submit files to
+    /// Sets the start height of relayer and configures the on-disk submission-state file to
     /// look accordingly.
     pub last_written_sequencer_height: Option<u64>,
     /// The rollup ID filter, to be stringified and provided as `Config::only_include_rollups`
@@ -707,11 +697,11 @@ impl TestSequencerRelayerConfig {
         let sequencer = MockSequencerServer::spawn().await;
         let sequencer_grpc_endpoint = format!("http://{}", sequencer.local_addr);
 
-        let (pre_submit_file, post_submit_file) =
+        let submission_state_file =
             if let Some(last_written_sequencer_height) = self.last_written_sequencer_height {
-                create_files_for_start_at_height(last_written_sequencer_height)
+                create_file_for_start_at_height(last_written_sequencer_height)
             } else {
-                create_files_for_fresh_start()
+                create_file_for_fresh_start()
             };
 
         let only_include_rollups = self.only_include_rollups.iter().join(",").to_string();
@@ -732,8 +722,7 @@ impl TestSequencerRelayerConfig {
             no_metrics: false,
             metrics_http_listener_addr: String::new(),
             pretty_print: true,
-            pre_submit_path: pre_submit_file.path().to_owned(),
-            post_submit_path: post_submit_file.path().to_owned(),
+            submission_state_path: submission_state_file.path().to_owned(),
         };
 
         info!(config = serde_json::to_string(&config).unwrap());
@@ -751,8 +740,7 @@ impl TestSequencerRelayerConfig {
             relayer_shutdown_handle: Some(relayer_shutdown_handle),
             sequencer_relayer,
             signing_key,
-            pre_submit_file,
-            post_submit_file,
+            submission_state_file,
             actual_sequencer_chain_id: self.sequencer_chain_id,
             actual_celestia_chain_id: self.celestia_chain_id,
         };
@@ -816,49 +804,28 @@ async fn write_file(data: &'static [u8]) -> NamedTempFile {
     .unwrap()
 }
 
-fn create_files_for_fresh_start() -> (NamedTempFile, NamedTempFile) {
-    let pre = NamedTempFile::new()
-        .expect("must be able to create an empty pre submit state file to run tests");
-    let post = NamedTempFile::new()
-        .expect("must be able to create an empty post submit state file to run tests");
-    serde_json::to_writer(
-        &pre,
-        &json!({
-            "state": "ignore"
-        }),
-    )
-    .expect("must be able to write pre-submit state to run tests");
-    serde_json::to_writer(
-        &post,
-        &json!({
-            "state": "fresh"
-        }),
-    )
-    .expect("must be able to write post-submit state to run tests");
-    (pre, post)
+fn create_file_for_fresh_start() -> NamedTempFile {
+    let temp_file = NamedTempFile::new()
+        .expect("must be able to create an empty submission state file to run tests");
+    serde_json::to_writer(&temp_file, &json!({ "state": "fresh" }))
+        .expect("must be able to write submission state to run tests");
+    temp_file
 }
 
-fn create_files_for_start_at_height(height: u64) -> (NamedTempFile, NamedTempFile) {
-    let pre = NamedTempFile::new()
-        .expect("must be able to create an empty pre submit state file to run tests");
-    let post = NamedTempFile::new()
-        .expect("must be able to create an empty post submit state file to run tests");
-
-    serde_json::to_writer(
-        &pre,
-        &json!({
-            "state": "ignore",
-        }),
-    )
-    .expect("must be able to write pre state to file to run tests");
+fn create_file_for_start_at_height(height: u64) -> NamedTempFile {
+    let temp_file = NamedTempFile::new()
+        .expect("must be able to create an empty submission state file to run tests");
     serde_json::to_writer_pretty(
-        &post,
+        &temp_file,
         &json!({
-            "state": "submitted",
-            "celestia_height": 5,
-            "sequencer_height": height
+            "state": "started",
+            "sequencer_height": height.saturating_add(10),
+            "last_submission": {
+                "celestia_height": 5,
+                "sequencer_height": height
+            }
         }),
     )
-    .expect("must be able to write post state to file to run tests");
-    (pre, post)
+    .expect("must be able to write submission state to run tests");
+    temp_file
 }

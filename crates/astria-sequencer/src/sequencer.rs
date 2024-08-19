@@ -49,13 +49,13 @@ use tracing::{
 use crate::{
     address::StateReadExt as _,
     app::App,
+    assets::StateReadExt as _,
     config::Config,
     grpc::sequencer::SequencerServer,
     ibc::host_interface::AstriaHost,
     mempool::Mempool,
     metrics::Metrics,
     service,
-    state_ext::StateReadExt as _,
 };
 
 pub struct Sequencer;
@@ -105,18 +105,14 @@ impl Sequencer {
         // denomination, and it is set in storage during init_chain.
         // on subsequent startups, we load the native asset from storage.
         if storage.latest_version() != u64::MAX {
-            // native asset should be stored, fetch it
-            let native_asset = snapshot
-                .get_native_asset_denom()
+            let _ = snapshot
+                .get_native_asset()
                 .await
-                .context("failed to get native asset from storage")?;
-            crate::asset::initialize_native_asset(&native_asset);
-            let base_prefix = snapshot
+                .context("failed to query state for native asset")?;
+            let _ = snapshot
                 .get_base_prefix()
                 .await
-                .context("failed to get address base prefix from storage")?;
-            crate::address::initialize_base_prefix(&base_prefix)
-                .context("failed to initialize global address base prefix")?;
+                .context("failed to query state for base prefix")?;
         }
 
         let oracle_client = if config.oracle_enabled {

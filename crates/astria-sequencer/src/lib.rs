@@ -2,7 +2,7 @@ pub(crate) mod accounts;
 pub(crate) mod address;
 mod api_state_ext;
 pub(crate) mod app;
-pub(crate) mod asset;
+pub(crate) mod assets;
 pub(crate) mod authority;
 pub(crate) mod bridge;
 mod build_info;

@@ -7,7 +7,7 @@ use clap::{
 
 /// Interact with a Sequencer node
 #[derive(Debug, Subcommand)]
-pub enum Command {
+pub(crate) enum Command {
     /// Commands for interacting with Sequencer accounts
     Account {
         #[command(subcommand)]
@@ -43,7 +43,7 @@ pub enum Command {
 }
 
 #[derive(Debug, Subcommand)]
-pub enum AccountCommand {
+pub(crate) enum AccountCommand {
     /// Create a new Sequencer account
     Create,
     Balance(BasicAccountArgs),
@@ -51,19 +51,19 @@ pub enum AccountCommand {
 }
 
 #[derive(Debug, Subcommand)]
-pub enum AddressCommand {
+pub(crate) enum AddressCommand {
     /// Construct a bech32m Sequencer address given a public key
     Bech32m(Bech32mAddressArgs),
 }
 
 #[derive(Debug, Subcommand)]
-pub enum BalanceCommand {
+pub(crate) enum BalanceCommand {
     /// Get the balance of a Sequencer account
     Get(BasicAccountArgs),
 }
 
 #[derive(Debug, Subcommand)]
-pub enum SudoCommand {
+pub(crate) enum SudoCommand {
     IbcRelayer {
         #[command(subcommand)]
         command: IbcRelayerChangeCommand,
@@ -77,7 +77,7 @@ pub enum SudoCommand {
 }
 
 #[derive(Debug, Subcommand)]
-pub enum IbcRelayerChangeCommand {
+pub(crate) enum IbcRelayerChangeCommand {
     /// Add IBC Relayer
     Add(IbcRelayerChangeArgs),
     /// Remove IBC Relayer
@@ -85,7 +85,7 @@ pub enum IbcRelayerChangeCommand {
 }
 
 #[derive(Debug, Subcommand)]
-pub enum FeeAssetChangeCommand {
+pub(crate) enum FeeAssetChangeCommand {
     /// Add Fee Asset
     Add(FeeAssetChangeArgs),
     /// Remove Fee Asset
@@ -93,7 +93,7 @@ pub enum FeeAssetChangeCommand {
 }
 
 #[derive(Args, Debug)]
-pub struct BasicAccountArgs {
+pub(crate) struct BasicAccountArgs {
     /// The url of the Sequencer node
     #[arg(
         long,
@@ -106,7 +106,7 @@ pub struct BasicAccountArgs {
 }
 
 #[derive(Args, Debug)]
-pub struct Bech32mAddressArgs {
+pub(crate) struct Bech32mAddressArgs {
     /// The hex formatted byte part of the bech32m address
     #[arg(long)]
     pub(crate) bytes: String,
@@ -116,7 +116,7 @@ pub struct Bech32mAddressArgs {
 }
 
 #[derive(Args, Debug)]
-pub struct TransferArgs {
+pub(crate) struct TransferArgs {
     // The address of the Sequencer account to send amount to
     pub(crate) to_address: Address,
     // The amount being sent
@@ -145,17 +145,17 @@ pub struct TransferArgs {
         env = "ROLLUP_SEQUENCER_CHAIN_ID",
         default_value = crate::cli::DEFAULT_SEQUENCER_CHAIN_ID
     )]
-    pub sequencer_chain_id: String,
+    pub(crate) sequencer_chain_id: String,
     /// The asset to transer.
     #[arg(long, default_value = "nria")]
-    pub asset: asset::Denom,
+    pub(crate) asset: asset::Denom,
     /// The asset to pay the transfer fees with.
     #[arg(long, default_value = "nria")]
-    pub fee_asset: asset::Denom,
+    pub(crate) fee_asset: asset::Denom,
 }
 
 #[derive(Args, Debug)]
-pub struct FeeAssetChangeArgs {
+pub(crate) struct FeeAssetChangeArgs {
     /// The bech32m prefix that will be used for constructing addresses using the private key
     #[arg(long, default_value = "astria")]
     pub(crate) prefix: String,
@@ -178,14 +178,14 @@ pub struct FeeAssetChangeArgs {
         env = "ROLLUP_SEQUENCER_CHAIN_ID",
         default_value = crate::cli::DEFAULT_SEQUENCER_CHAIN_ID
     )]
-    pub sequencer_chain_id: String,
+    pub(crate) sequencer_chain_id: String,
     /// Asset's denomination string
     #[arg(long)]
     pub(crate) asset: asset::Denom,
 }
 
 #[derive(Args, Debug)]
-pub struct IbcRelayerChangeArgs {
+pub(crate) struct IbcRelayerChangeArgs {
     /// The prefix to construct a bech32m address given the private key.
     #[arg(long, default_value = "astria")]
     pub(crate) prefix: String,
@@ -208,14 +208,14 @@ pub struct IbcRelayerChangeArgs {
         env = "ROLLUP_SEQUENCER_CHAIN_ID",
         default_value = crate::cli::DEFAULT_SEQUENCER_CHAIN_ID
     )]
-    pub sequencer_chain_id: String,
+    pub(crate) sequencer_chain_id: String,
     /// The address to add or remove as an IBC relayer
     #[arg(long)]
     pub(crate) address: Address,
 }
 
 #[derive(Args, Debug)]
-pub struct InitBridgeAccountArgs {
+pub(crate) struct InitBridgeAccountArgs {
     /// The bech32m prefix that will be used for constructing addresses using the private key
     #[arg(long, default_value = "astria")]
     pub(crate) prefix: String,
@@ -238,21 +238,21 @@ pub struct InitBridgeAccountArgs {
         env = "ROLLUP_SEQUENCER_CHAIN_ID",
         default_value = crate::cli::DEFAULT_SEQUENCER_CHAIN_ID
     )]
-    pub sequencer_chain_id: String,
+    pub(crate) sequencer_chain_id: String,
     /// Plaintext rollup name (to be hashed into a rollup ID)
     /// to initialize the bridge account with.
     #[arg(long)]
     pub(crate) rollup_name: String,
     /// The asset to transer.
     #[arg(long, default_value = "nria")]
-    pub asset: asset::Denom,
+    pub(crate) asset: asset::Denom,
     /// The asset to pay the transfer fees with.
     #[arg(long, default_value = "nria")]
-    pub fee_asset: asset::Denom,
+    pub(crate) fee_asset: asset::Denom,
 }
 
 #[derive(Args, Debug)]
-pub struct BridgeLockArgs {
+pub(crate) struct BridgeLockArgs {
     /// The address of the Sequencer account to lock amount to
     pub(crate) to_address: Address,
     /// The amount being locked
@@ -282,23 +282,23 @@ pub struct BridgeLockArgs {
         env = "ROLLUP_SEQUENCER_CHAIN_ID",
         default_value = crate::cli::DEFAULT_SEQUENCER_CHAIN_ID
     )]
-    pub sequencer_chain_id: String,
+    pub(crate) sequencer_chain_id: String,
     /// The asset to lock.
     #[arg(long, default_value = "nria")]
-    pub asset: asset::Denom,
+    pub(crate) asset: asset::Denom,
     /// The asset to pay the transfer fees with.
     #[arg(long, default_value = "nria")]
-    pub fee_asset: asset::Denom,
+    pub(crate) fee_asset: asset::Denom,
 }
 
 #[derive(Debug, Subcommand)]
-pub enum BlockHeightCommand {
+pub(crate) enum BlockHeightCommand {
     /// Get the current block height of the Sequencer node
     Get(BlockHeightGetArgs),
 }
 
 #[derive(Args, Debug)]
-pub struct BlockHeightGetArgs {
+pub(crate) struct BlockHeightGetArgs {
     /// The url of the Sequencer node
     #[arg(
         long,
@@ -312,11 +312,11 @@ pub struct BlockHeightGetArgs {
         env = "ROLLUP_SEQUENCER_CHAIN_ID",
         default_value = crate::cli::DEFAULT_SEQUENCER_CHAIN_ID
     )]
-    pub sequencer_chain_id: String,
+    pub(crate) sequencer_chain_id: String,
 }
 
 #[derive(Args, Debug)]
-pub struct SudoAddressChangeArgs {
+pub(crate) struct SudoAddressChangeArgs {
     /// The bech32m prefix that will be used for constructing addresses using the private key
     #[arg(long, default_value = "astria")]
     pub(crate) prefix: String,
@@ -339,14 +339,14 @@ pub struct SudoAddressChangeArgs {
         env = "ROLLUP_SEQUENCER_CHAIN_ID",
         default_value = crate::cli::DEFAULT_SEQUENCER_CHAIN_ID
     )]
-    pub sequencer_chain_id: String,
+    pub(crate) sequencer_chain_id: String,
     /// The new address to take over sudo privileges
     #[arg(long)]
     pub(crate) address: Address,
 }
 
 #[derive(Args, Debug)]
-pub struct ValidatorUpdateArgs {
+pub(crate) struct ValidatorUpdateArgs {
     /// The url of the Sequencer node
     #[arg(
         long,
@@ -360,7 +360,7 @@ pub struct ValidatorUpdateArgs {
         env = "ROLLUP_SEQUENCER_CHAIN_ID",
         default_value = crate::cli::DEFAULT_SEQUENCER_CHAIN_ID
     )]
-    pub sequencer_chain_id: String,
+    pub(crate) sequencer_chain_id: String,
     /// The bech32m prefix that will be used for constructing addresses using the private key
     #[arg(long, default_value = "astria")]
     pub(crate) prefix: String,

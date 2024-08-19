@@ -5,6 +5,7 @@ use astria_core::{
         ROLLUP_ID_LEN,
     },
     protocol::transaction::v1alpha1::action::SequenceAction,
+    Protobuf as _,
 };
 
 fn encoded_len(action: &SequenceAction) -> usize {
@@ -15,7 +16,7 @@ fn encoded_len(action: &SequenceAction) -> usize {
 pub(crate) fn sequence_action_with_n_bytes(n: usize) -> SequenceAction {
     SequenceAction {
         rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
-        data: vec![0; n],
+        data: vec![0; n].into(),
         fee_asset: "nria"
             .parse::<asset::Denom>()
             .unwrap()

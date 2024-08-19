@@ -126,11 +126,7 @@ impl Consensus {
         })
     }
 
-    #[instrument(skip_all, fields(
-        chain_id = init_chain.chain_id,
-        time = %init_chain.time,
-        init_height = %init_chain.initial_height
-    ))]
+    #[instrument(skip_all)]
     async fn init_chain(
         &mut self,
         init_chain: request::InitChain,
@@ -170,11 +166,7 @@ impl Consensus {
         })
     }
 
-    #[instrument(skip_all, fields(
-        height = %prepare_proposal.height,
-        tx_count = prepare_proposal.txs.len(),
-        time = %prepare_proposal.time
-    ))]
+    #[instrument(skip_all)]
     async fn handle_prepare_proposal(
         &mut self,
         prepare_proposal: request::PrepareProposal,
@@ -184,14 +176,7 @@ impl Consensus {
             .await
     }
 
-    #[instrument(skip_all, fields(
-        height = %process_proposal.height,
-        time = %process_proposal.time,
-        tx_count = process_proposal.txs.len(),
-        proposer = %process_proposal.proposer_address,
-        hash = %telemetry::display::base64(&process_proposal.hash),
-        next_validators_hash = %telemetry::display::base64(&process_proposal.next_validators_hash),
-    ))]
+    #[instrument(skip_all)]
     async fn handle_process_proposal(
         &mut self,
         process_proposal: request::ProcessProposal,
@@ -289,7 +274,6 @@ mod test {
     use super::*;
     use crate::{
         app::test_utils::default_fees,
-        asset::get_native_asset,
         mempool::Mempool,
         metrics::Metrics,
         proposal::commitment::generate_rollup_datas_commitment,
@@ -304,8 +288,8 @@ mod test {
             actions: vec![
                 SequenceAction {
                     rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-                    data: b"helloworld".to_vec(),
-                    fee_asset: get_native_asset().clone(),
+                    data: Bytes::from_static(b"hello world"),
+                    fee_asset: crate::test_utils::nria().into(),
                 }
                 .into(),
             ],
@@ -527,7 +511,7 @@ mod test {
 
         let accounts = if funded_key.is_some() {
             vec![Account {
-                address: crate::address::base_prefixed(funded_key.unwrap().address_bytes()),
+                address: crate::test_utils::astria_address(&funded_key.unwrap().address_bytes()),
                 balance: 10u128.pow(19),
             }]
         } else {
@@ -536,12 +520,12 @@ mod test {
         let genesis_state = UncheckedGenesisState {
             accounts,
             address_prefixes: AddressPrefixes {
-                base: crate::address::get_base_prefix().to_string(),
+                base: crate::test_utils::ASTRIA_PREFIX.into(),
             },
-            authority_sudo_address: crate::address::base_prefixed([0; 20]),
-            ibc_sudo_address: crate::address::base_prefixed([0; 20]),
+            authority_sudo_address: crate::test_utils::astria_address(&[0; 20]),
+            ibc_sudo_address: crate::test_utils::astria_address(&[0; 20]),
             ibc_relayer_addresses: vec![],
-            native_asset_base_denomination: "nria".to_string(),
+            native_asset_base_denomination: crate::test_utils::nria(),
             ibc_params: penumbra_ibc::params::IBCParameters::default(),
             allowed_fee_assets: vec!["nria".parse().unwrap()],
             fees: default_fees(),
@@ -552,7 +536,7 @@ mod test {
                 last_updated: 0,
                 params: Params {
                     market_authorities: vec![],
-                    admin: crate::address::base_prefixed([0; 20]),
+                    admin: crate::test_utils::astria_address(&[0; 20]),
                 },
             },
             oracle: OracleGenesisState {
