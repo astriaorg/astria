@@ -96,7 +96,7 @@ pub mod protocol {
         }
     }
     #[path = ""]
-    pub mod transaction {
+    pub mod transactions {
         pub mod v1alpha1 {
             include!("astria.protocol.transactions.v1alpha1.rs");
 

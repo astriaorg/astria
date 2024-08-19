@@ -317,7 +317,7 @@ async fn get_bridge_account_last_transaction_hash() {
 
 #[tokio::test]
 async fn get_transaction_fee() {
-    use astria_core::generated::protocol::transaction::v1alpha1::{
+    use astria_core::generated::protocol::transactions::v1alpha1::{
         TransactionFee,
         TransactionFeeResponse,
     };

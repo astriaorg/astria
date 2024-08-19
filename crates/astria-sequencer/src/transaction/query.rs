@@ -1,5 +1,5 @@
 use astria_core::{
-    generated::protocol::transaction::v1alpha1::UnsignedTransaction as RawUnsignedTransaction,
+    generated::protocol::transactions::v1alpha1::UnsignedTransaction as RawUnsignedTransaction,
     protocol::{
         abci::AbciErrorCode,
         transaction::v1alpha1::UnsignedTransaction,
