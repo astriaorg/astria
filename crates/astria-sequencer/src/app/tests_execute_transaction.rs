@@ -46,7 +46,6 @@ use crate::{
     authority::StateReadExt as _,
     bridge::{
         get_deposit_byte_len,
-        init_bridge_account_action,
         StateReadExt as _,
         StateWriteExt as _,
     },
