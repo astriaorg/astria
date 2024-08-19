@@ -4,7 +4,7 @@ use astria_core::{
         Address,
         ADDRESS_LEN,
     },
-    protocol::transaction::v1alpha1::{
+    protocol::transactions::v1alpha1::{
         action::{
             Action,
             BridgeLockAction,

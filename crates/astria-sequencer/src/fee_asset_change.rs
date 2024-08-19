@@ -6,7 +6,7 @@ use anyhow::{
 };
 use astria_core::{
     primitive::v1::Address,
-    protocol::transaction::v1alpha1::action::FeeAssetChangeAction,
+    protocol::transactions::v1alpha1::action::FeeAssetChangeAction,
 };
 use async_trait::async_trait;
 

@@ -11,7 +11,7 @@ use anyhow::{
 };
 use astria_core::{
     primitive::v1::Address,
-    protocol::transaction::v1alpha1::{
+    protocol::transactions::v1alpha1::{
         action::Action,
         SignedTransaction,
         UnsignedTransaction,

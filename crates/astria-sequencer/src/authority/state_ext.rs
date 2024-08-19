@@ -126,7 +126,7 @@ impl<T: StateWrite> StateWriteExt for T {}
 
 #[cfg(test)]
 mod tests {
-    use astria_core::protocol::transaction::v1alpha1::action::ValidatorUpdate;
+    use astria_core::protocol::transactions::v1alpha1::action::ValidatorUpdate;
     use cnidarium::StateDelta;
 
     use super::{

@@ -30,7 +30,7 @@ use crate::{
         IncorrectRollupIdLength,
         RollupId,
     },
-    protocol::transaction::v1alpha1::{
+    protocol::transactions::v1alpha1::{
         action,
         SignedTransaction,
         SignedTransactionError,

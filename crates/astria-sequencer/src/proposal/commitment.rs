@@ -4,7 +4,7 @@ use astria_core::{
     primitive::v1::RollupId,
     protocol::{
         group_sequence_actions_in_signed_transaction_transactions_by_rollup_id,
-        transaction::v1alpha1::SignedTransaction,
+        transactions::v1alpha1::SignedTransaction,
     },
     sequencerblock::v1alpha1::block::{
         Deposit,
@@ -93,7 +93,7 @@ pub(crate) fn generate_rollup_datas_commitment(
 mod test {
     use astria_core::{
         crypto::SigningKey,
-        protocol::transaction::v1alpha1::{
+        protocol::transactions::v1alpha1::{
             action::{
                 SequenceAction,
                 TransferAction,

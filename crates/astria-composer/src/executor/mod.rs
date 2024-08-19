@@ -14,7 +14,7 @@ use astria_core::{
     crypto::SigningKey,
     protocol::{
         abci::AbciErrorCode,
-        transaction::v1alpha1::{
+        transactions::v1alpha1::{
             action::SequenceAction,
             SignedTransaction,
             TransactionParams,

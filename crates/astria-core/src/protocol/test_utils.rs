@@ -7,7 +7,7 @@ use prost::Message as _;
 
 use super::{
     group_sequence_actions_in_signed_transaction_transactions_by_rollup_id,
-    transaction::v1alpha1::{
+    transactions::v1alpha1::{
         action::SequenceAction,
         TransactionParams,
         UnsignedTransaction,
@@ -64,7 +64,7 @@ impl ConfigureSequencerBlock {
         use tendermint::Time;
 
         use crate::{
-            protocol::transaction::v1alpha1::Action,
+            protocol::transactions::v1alpha1::Action,
             sequencerblock::v1alpha1::block::RollupData,
         };
 

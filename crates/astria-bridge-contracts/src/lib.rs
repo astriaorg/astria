@@ -14,7 +14,7 @@ use astria_core::{
     },
     protocol::{
         memos,
-        transaction::v1alpha1::{
+        transactions::v1alpha1::{
             action::Ics20Withdrawal,
             Action,
         },
@@ -453,7 +453,7 @@ where
         let to = parse_destination_chain_as_address(&event)
             .map_err(GetWithdrawalActionsError::destination_chain_as_address)?;
 
-        let action = astria_core::protocol::transaction::v1alpha1::action::BridgeUnlockAction {
+        let action = astria_core::protocol::transactions::v1alpha1::action::BridgeUnlockAction {
             to,
             amount,
             memo,

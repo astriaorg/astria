@@ -19,7 +19,7 @@ use astria_core::{
         },
         Address,
     },
-    protocol::transaction::v1alpha1::Action,
+    protocol::transactions::v1alpha1::Action,
 };
 use clap::Args;
 use color_eyre::eyre::{

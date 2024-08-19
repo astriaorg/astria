@@ -8,7 +8,7 @@ use anyhow::Context as _;
 use astria_core::{
     crypto::VerificationKey,
     primitive::v1::ADDRESS_LEN,
-    protocol::transaction::v1alpha1::action::ValidatorUpdate,
+    protocol::transactions::v1alpha1::action::ValidatorUpdate,
 };
 use serde::{
     Deserialize,

@@ -5,7 +5,7 @@ use anyhow::{
 };
 use astria_core::{
     primitive::v1::Address,
-    protocol::transaction::v1alpha1::action::BridgeSudoChangeAction,
+    protocol::transactions::v1alpha1::action::BridgeSudoChangeAction,
 };
 use tracing::instrument;
 

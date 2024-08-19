@@ -9,7 +9,7 @@ use astria_core::{
         RollupId,
         ROLLUP_ID_LEN,
     },
-    protocol::transaction::v1alpha1::action::SequenceAction,
+    protocol::transactions::v1alpha1::action::SequenceAction,
 };
 use astria_eyre::eyre;
 use once_cell::sync::Lazy;

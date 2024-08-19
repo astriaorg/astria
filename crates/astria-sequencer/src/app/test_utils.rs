@@ -1,7 +1,7 @@
 use astria_core::{
     crypto::SigningKey,
     primitive::v1::RollupId,
-    protocol::transaction::v1alpha1::{
+    protocol::transactions::v1alpha1::{
         action::{
             SequenceAction,
             ValidatorUpdate,

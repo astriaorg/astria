@@ -6,7 +6,7 @@ use anyhow::{
 };
 use astria_core::{
     primitive::v1::Address,
-    protocol::transaction::v1alpha1::action::InitBridgeAccountAction,
+    protocol::transactions::v1alpha1::action::InitBridgeAccountAction,
 };
 use tracing::instrument;
 

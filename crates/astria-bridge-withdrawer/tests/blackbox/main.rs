@@ -1,4 +1,4 @@
-use astria_core::protocol::transaction::v1alpha1::Action;
+use astria_core::protocol::transactions::v1alpha1::Action;
 use helpers::{
     assert_actions_eq,
     default_sequencer_address,

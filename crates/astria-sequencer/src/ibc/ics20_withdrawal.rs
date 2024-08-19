@@ -10,7 +10,7 @@ use astria_core::{
         asset::Denom,
         Address,
     },
-    protocol::transaction::v1alpha1::action,
+    protocol::transactions::v1alpha1::action,
 };
 use ibc_types::core::channel::{
     ChannelId,

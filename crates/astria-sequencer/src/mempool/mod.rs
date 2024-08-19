@@ -21,7 +21,7 @@ use anyhow::Context;
 use astria_core::{
     crypto::SigningKey,
     primitive::v1::ADDRESS_LEN,
-    protocol::transaction::v1alpha1::{
+    protocol::transactions::v1alpha1::{
         SignedTransaction,
         TransactionParams,
         UnsignedTransaction,

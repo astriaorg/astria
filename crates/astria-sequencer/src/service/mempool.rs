@@ -12,7 +12,7 @@ use astria_core::{
     generated::protocol::transactions::v1alpha1 as raw,
     protocol::{
         abci::AbciErrorCode,
-        transaction::v1alpha1::SignedTransaction,
+        transactions::v1alpha1::SignedTransaction,
     },
 };
 use cnidarium::Storage;

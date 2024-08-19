@@ -22,7 +22,7 @@ use astria_core::{
     primitive::v1::Address,
     protocol::{
         abci::AbciErrorCode,
-        transaction::v1alpha1::{
+        transactions::v1alpha1::{
             action::ValidatorUpdate,
             Action,
             SignedTransaction,

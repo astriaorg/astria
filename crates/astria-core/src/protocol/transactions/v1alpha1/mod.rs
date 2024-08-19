@@ -560,7 +560,7 @@ mod test {
             asset,
             Address,
         },
-        protocol::transaction::v1alpha1::action::TransferAction,
+        protocol::transactions::v1alpha1::action::TransferAction,
     };
     const ASTRIA_ADDRESS_PREFIX: &str = "astria";
 

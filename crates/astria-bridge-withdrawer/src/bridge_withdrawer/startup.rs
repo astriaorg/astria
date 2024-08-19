@@ -13,7 +13,7 @@ use astria_core::{
         asset::v1alpha1::AllowedFeeAssetsResponse,
         bridge::v1alpha1::BridgeAccountLastTxHashResponse,
         memos,
-        transaction::v1alpha1::Action,
+        transactions::v1alpha1::Action,
     },
 };
 use astria_eyre::eyre::{

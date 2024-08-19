@@ -21,7 +21,7 @@ use astria_core::{
             BridgeUnlock,
             Ics20WithdrawalFromRollup,
         },
-        transaction::v1alpha1::{
+        transactions::v1alpha1::{
             action::{
                 BridgeUnlockAction,
                 Ics20Withdrawal,
