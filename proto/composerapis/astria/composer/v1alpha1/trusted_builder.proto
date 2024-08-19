@@ -3,6 +3,7 @@ syntax = 'proto3';
 package astria.composer.v1alpha1;
 
 import "astria/sequencerblock/v1alpha1/block.proto";
+import "astria/protocol/transactions/v1alpha1/types.proto";
 
 message BuilderBundle {
   repeated astria.sequencerblock.v1alpha1.RollupData transactions = 1;
@@ -12,4 +13,18 @@ message BuilderBundle {
 message BuilderBundlePacket {
   BuilderBundle bundle = 1;
   bytes signature = 2;
+}
+
+message ToBBundleRequest {
+    // the sequencer height of the block for which to get a bundle
+    uint64 height = 1;
+}
+
+message ToBBundleResponse {
+    // the bundle for the requested block
+    astria.protocol.transactions.v1alpha1.SignedTransaction bundle = 1;
+}
+
+service BuilderBundleRelayService {
+    rpc GetBundle(ToBBundleRequest) returns (ToBBundleResponse);
 }
