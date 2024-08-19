@@ -1142,7 +1142,7 @@ async fn ensure_correct_block_fees_transfer() {
         .state
         .get_block_fees()
         .await
-        .expect("can get block fees")
+        .expect("get block fees should succeed")
         .into_iter()
         .map(|(_, fee)| fee)
         .sum();
@@ -1183,7 +1183,7 @@ async fn ensure_correct_block_fees_sequence() {
         .state
         .get_block_fees()
         .await
-        .expect("failed to get block fees")
+        .expect("get block fees should succeed")
         .into_iter()
         .map(|(_, fee)| fee)
         .sum();
@@ -1226,7 +1226,7 @@ async fn ensure_correct_block_fees_init_bridge_acct() {
         .state
         .get_block_fees()
         .await
-        .expect("failed to get block fees")
+        .expect("get block fees should succeed")
         .into_iter()
         .map(|(_, fee)| fee)
         .sum();
@@ -1287,7 +1287,7 @@ async fn ensure_correct_block_fees_bridge_lock() {
         .state
         .get_block_fees()
         .await
-        .expect("failed to get block fees")
+        .expect("get block fees should succeed")
         .into_iter()
         .map(|(_, fee)| fee)
         .sum();
@@ -1338,7 +1338,7 @@ async fn ensure_correct_block_fees_bridge_sudo_change() {
         .state
         .get_block_fees()
         .await
-        .expect("failed to get block fees")
+        .expect("get block fees should succeed")
         .into_iter()
         .map(|(_, fee)| fee)
         .sum();
