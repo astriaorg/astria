@@ -45,9 +45,7 @@ use crate::{
     assets::StateReadExt as _,
     authority::StateReadExt as _,
     bridge::{
-        get_deposit_byte_len,
-        StateReadExt as _,
-        StateWriteExt as _,
+        get_deposit_byte_len, init_bridge_account_action, StateReadExt as _, StateWriteExt as _
     },
     ibc::StateReadExt as _,
     sequence::{
@@ -1114,7 +1112,8 @@ async fn transaction_execution_records_fee_event() {
 async fn ensure_correct_block_fees_transfer() {
     let mut app = initialize_app(None, vec![]).await;
     let mut state_tx = StateDelta::new(app.state.clone());
-    state_tx.put_transfer_base_fee(1).unwrap();
+    let transfer_base_fee = 1;
+    state_tx.put_transfer_base_fee(transfer_base_fee).unwrap();
     app.apply(state_tx);
 
     let alice = get_alice_signing_key();
@@ -1147,7 +1146,7 @@ async fn ensure_correct_block_fees_transfer() {
         .into_iter()
         .map(|(_, fee)| fee)
         .sum();
-    assert_eq!(total_block_fees, 1);
+    assert_eq!(total_block_fees, transfer_base_fee);
 }
 
 #[tokio::test]
@@ -1196,7 +1195,8 @@ async fn ensure_correct_block_fees_sequence() {
 async fn ensure_correct_block_fees_init_bridge_acct() {
     let mut app = initialize_app(None, vec![]).await;
     let mut state_tx = StateDelta::new(app.state.clone());
-    state_tx.put_init_bridge_account_base_fee(1);
+    let init_bridge_account_base_fee = 1;
+    state_tx.put_init_bridge_account_base_fee(init_bridge_account_base_fee);
     app.apply(state_tx);
 
     let alice = get_alice_signing_key();
@@ -1230,7 +1230,7 @@ async fn ensure_correct_block_fees_init_bridge_acct() {
         .into_iter()
         .map(|(_, fee)| fee)
         .sum();
-    assert_eq!(total_block_fees, 1);
+    assert_eq!(total_block_fees, init_bridge_account_base_fee);
 }
 
 #[tokio::test]
@@ -1242,9 +1242,12 @@ async fn ensure_correct_block_fees_bridge_lock() {
 
     let mut app = initialize_app(None, vec![]).await;
     let mut state_tx = StateDelta::new(app.state.clone());
+
     let transfer_base_fee = 1;
+    let bridge_lock_byte_cost_multiplier = 1;
+
     state_tx.put_transfer_base_fee(transfer_base_fee).unwrap();
-    state_tx.put_bridge_lock_byte_cost_multiplier(1);
+    state_tx.put_bridge_lock_byte_cost_multiplier(bridge_lock_byte_cost_multiplier);
     state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
     state_tx
         .put_bridge_account_ibc_asset(bridge_address, nria())
@@ -1288,7 +1291,7 @@ async fn ensure_correct_block_fees_bridge_lock() {
         .into_iter()
         .map(|(_, fee)| fee)
         .sum();
-    let expected_fees = transfer_base_fee + get_deposit_byte_len(&test_deposit);
+    let expected_fees = transfer_base_fee + (get_deposit_byte_len(&test_deposit) * bridge_lock_byte_cost_multiplier);
     assert_eq!(total_block_fees, expected_fees);
 }
 
@@ -1301,7 +1304,9 @@ async fn ensure_correct_block_fees_bridge_sudo_change() {
 
     let mut app = initialize_app(None, vec![]).await;
     let mut state_tx = StateDelta::new(app.state.clone());
-    state_tx.put_bridge_sudo_change_base_fee(1);
+
+    let sudo_change_base_fee = 1;
+    state_tx.put_bridge_sudo_change_base_fee(sudo_change_base_fee);
     state_tx.put_bridge_account_sudo_address(bridge_address, alice_address);
     state_tx
         .increase_balance(bridge_address, nria(), 1)
@@ -1337,7 +1342,7 @@ async fn ensure_correct_block_fees_bridge_sudo_change() {
         .into_iter()
         .map(|(_, fee)| fee)
         .sum();
-    assert_eq!(total_block_fees, 1);
+    assert_eq!(total_block_fees, sudo_change_base_fee);
 }
 
 // TODO: Add test to ensure correct block fees for ICS20 withdrawal
