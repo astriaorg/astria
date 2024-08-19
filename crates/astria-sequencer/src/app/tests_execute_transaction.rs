@@ -1143,7 +1143,7 @@ async fn ensure_correct_block_fees_transfer() {
         .state
         .get_block_fees()
         .await
-        .expect("failed to get block fees")
+        .expect("can get block fees")
         .into_iter()
         .map(|(_, fee)| fee)
         .sum();
@@ -1242,7 +1242,8 @@ async fn ensure_correct_block_fees_bridge_lock() {
 
     let mut app = initialize_app(None, vec![]).await;
     let mut state_tx = StateDelta::new(app.state.clone());
-    state_tx.put_transfer_base_fee(1).unwrap();
+    let transfer_base_fee = 1;
+    state_tx.put_transfer_base_fee(transfer_base_fee).unwrap();
     state_tx.put_bridge_lock_byte_cost_multiplier(1);
     state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
     state_tx
@@ -1287,7 +1288,7 @@ async fn ensure_correct_block_fees_bridge_lock() {
         .into_iter()
         .map(|(_, fee)| fee)
         .sum();
-    let expected_fees = 1 + get_deposit_byte_len(&test_deposit);
+    let expected_fees = transfer_base_fee + get_deposit_byte_len(&test_deposit);
     assert_eq!(total_block_fees, expected_fees);
 }
 
