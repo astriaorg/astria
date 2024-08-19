@@ -727,7 +727,7 @@ impl SequencerBlock {
         let mut rollup_datas = IndexMap::new();
         for elem in data_list {
             let raw_tx =
-                crate::generated::protocol::transaction::v1alpha1::SignedTransaction::decode(
+                crate::generated::protocol::transactions::v1alpha1::SignedTransaction::decode(
                     &*elem,
                 )
                 .map_err(SequencerBlockError::signed_transaction_protobuf_decode)?;
