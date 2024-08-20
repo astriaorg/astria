@@ -1546,10 +1546,8 @@ pub struct BridgeUnlockAction {
     pub fee_asset: asset::Denom,
     // memo for double spend protection.
     pub memo: String,
-    // the address of the bridge account to transfer from,
-    // if the bridge account's withdrawer address is not the same as the bridge address.
-    // if unset, the signer of the transaction is used.
-    pub bridge_address: Option<Address>,
+    // the address of the bridge account to transfer from.
+    pub bridge_address: Address,
 }
 
 impl Protobuf for BridgeUnlockAction {
@@ -1559,11 +1557,11 @@ impl Protobuf for BridgeUnlockAction {
     #[must_use]
     fn into_raw(self) -> raw::BridgeUnlockAction {
         raw::BridgeUnlockAction {
-            to: Some(self.to.to_raw()),
+            to: Some(self.to.into_raw()),
             amount: Some(self.amount.into()),
             fee_asset: self.fee_asset.to_string(),
             memo: self.memo,
-            bridge_address: self.bridge_address.map(Address::into_raw),
+            bridge_address: Some(self.bridge_address.into_raw()),
         }
     }
 
@@ -1574,7 +1572,7 @@ impl Protobuf for BridgeUnlockAction {
             amount: Some(self.amount.into()),
             fee_asset: self.fee_asset.to_string(),
             memo: self.memo.clone(),
-            bridge_address: self.bridge_address.as_ref().map(Address::to_raw),
+            bridge_address: Some(self.bridge_address.to_raw()),
         }
     }
 
@@ -1587,29 +1585,32 @@ impl Protobuf for BridgeUnlockAction {
     /// - if the `amount` field is invalid
     /// - if the `fee_asset` field is invalid
     /// - if the `from` field is invalid
-    fn try_from_raw(proto: raw::BridgeUnlockAction) -> Result<Self, BridgeUnlockActionError> {
-        let Some(to) = proto.to else {
-            return Err(BridgeUnlockActionError::field_not_set("to"));
-        };
-        let to = Address::try_from_raw(&to).map_err(BridgeUnlockActionError::address)?;
-        let amount = proto
-            .amount
-            .ok_or(BridgeUnlockActionError::missing_amount())?;
-        let fee_asset = proto
-            .fee_asset
+    fn try_from_raw(proto: raw::BridgeUnlockAction) -> Result<Self, Self::Error> {
+        let raw::BridgeUnlockAction {
+            to,
+            amount,
+            fee_asset,
+            memo,
+            bridge_address,
+        } = proto;
+        let to = to
+            .ok_or_else(|| BridgeUnlockActionError::field_not_set("to"))
+            .and_then(|to| Address::try_from_raw(&to).map_err(BridgeUnlockActionError::address))?;
+        let amount = amount.ok_or_else(|| BridgeUnlockActionError::field_not_set("amount"))?;
+        let fee_asset = fee_asset
             .parse()
-            .map_err(BridgeUnlockActionError::invalid_fee_asset)?;
-        let bridge_address = proto
-            .bridge_address
-            .as_ref()
-            .map(Address::try_from_raw)
-            .transpose()
-            .map_err(BridgeUnlockActionError::invalid_bridge_address)?;
+            .map_err(BridgeUnlockActionError::fee_asset)?;
+
+        let bridge_address = bridge_address
+            .ok_or_else(|| BridgeUnlockActionError::field_not_set("bridge_address"))
+            .and_then(|to| {
+                Address::try_from_raw(&to).map_err(BridgeUnlockActionError::bridge_address)
+            })?;
         Ok(Self {
             to,
             amount: amount.into(),
             fee_asset,
-            memo: proto.memo,
+            memo,
             bridge_address,
         })
     }
@@ -1646,18 +1647,17 @@ impl BridgeUnlockActionError {
     }
 
     #[must_use]
-    fn missing_amount() -> Self {
-        Self(BridgeUnlockActionErrorKind::MissingAmount)
+    fn fee_asset(source: asset::ParseDenomError) -> Self {
+        Self(BridgeUnlockActionErrorKind::FeeAsset {
+            source,
+        })
     }
 
     #[must_use]
-    fn invalid_fee_asset(err: asset::ParseDenomError) -> Self {
-        Self(BridgeUnlockActionErrorKind::InvalidFeeAsset(err))
-    }
-
-    #[must_use]
-    fn invalid_bridge_address(err: AddressError) -> Self {
-        Self(BridgeUnlockActionErrorKind::InvalidBridgeAddress(err))
+    fn bridge_address(source: AddressError) -> Self {
+        Self(BridgeUnlockActionErrorKind::BridgeAddress {
+            source,
+        })
     }
 }
 
@@ -1667,12 +1667,10 @@ enum BridgeUnlockActionErrorKind {
     FieldNotSet(&'static str),
     #[error("the `to` field was invalid")]
     Address { source: AddressError },
-    #[error("the `amount` field was not set")]
-    MissingAmount,
     #[error("the `fee_asset` field was invalid")]
-    InvalidFeeAsset(#[source] asset::ParseDenomError),
+    FeeAsset { source: asset::ParseDenomError },
     #[error("the `bridge_address` field was invalid")]
-    InvalidBridgeAddress(#[source] AddressError),
+    BridgeAddress { source: AddressError },
 }
 
 #[allow(clippy::module_name_repetitions)]

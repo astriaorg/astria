@@ -289,7 +289,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
                 amount: 10,
                 fee_asset: nria().into(),
                 memo: "{}".into(),
-                bridge_address: None,
+                bridge_address: astria_address(&bridge.address_bytes()),
             }
             .into(),
             BridgeSudoChangeAction {

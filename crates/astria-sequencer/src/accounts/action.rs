@@ -4,7 +4,6 @@ use anyhow::{
     Result,
 };
 use astria_core::{
-    primitive::v1::ADDRESS_LEN,
     protocol::transaction::v1alpha1::action::TransferAction,
     Protobuf,
 };
@@ -57,11 +56,17 @@ impl ActionHandler for TransferAction {
     }
 }
 
-pub(crate) async fn execute_transfer<S: StateWrite>(
+pub(crate) async fn execute_transfer<S, TAddress>(
     action: &TransferAction,
-    from: [u8; ADDRESS_LEN],
+    from: TAddress,
     mut state: S,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<()>
+where
+    S: StateWrite,
+    TAddress: AddressBytes,
+{
+    let from = from.address_bytes();
+
     let fee = state
         .get_transfer_base_fee()
         .await

@@ -1028,7 +1028,7 @@ async fn app_execute_transaction_bridge_lock_unlock_action_ok() {
         amount,
         fee_asset: nria().into(),
         memo: "{ \"msg\": \"lilywashere\" }".into(),
-        bridge_address: None,
+        bridge_address,
     };
 
     let tx = UnsignedTransaction {
