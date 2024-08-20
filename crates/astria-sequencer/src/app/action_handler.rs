@@ -3,8 +3,10 @@ use cnidarium::StateWrite;
 /// This trait is a verbatim copy of `cnidarium_component::ActionHandler`.
 ///
 /// It's duplicated here because all actions are foreign types, forbidding
-/// the the implementation of [`cnidarium_component::ActionHandler`] for these
-/// types due to Rust orphan rules.
+/// the implementation of [`cnidarium_component::ActionHandler`][1] for
+/// these types due to Rust orphan rules.
+///
+/// [1]: https://github.com/penumbra-zone/penumbra/blob/14959350abcb8cfbf33f9aedc7463fccfd8e3f9f/crates/cnidarium-component/src/action_handler.rs#L30
 #[async_trait::async_trait]
 pub(crate) trait ActionHandler {
     // Commenting out for the time being as this is currentl nonot being used. Leaving this in

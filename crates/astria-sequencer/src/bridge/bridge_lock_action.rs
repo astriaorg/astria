@@ -95,6 +95,10 @@ impl ActionHandler for BridgeLockAction {
         };
 
         check_transfer(&transfer_action, from, &state).await?;
+        // Executes the transfer and deducts transfer feeds.
+        // FIXME: This is a very roundabout way of paying for fees. IMO it would be
+        // better to just duplicate this entire logic here so that we don't call out
+        // to the transfer-action logic.
         execute_transfer(&transfer_action, from, &mut state).await?;
 
         let rollup_id = state
@@ -111,8 +115,11 @@ impl ActionHandler for BridgeLockAction {
             self.destination_chain_address.clone(),
         );
 
-        // the transfer fee is already deducted in `transfer_action.execute()`,
+        // the transfer fee is already deducted in `execute_transfer() above,
         // so we just deduct the bridge lock byte multiplier fee.
+        // FIXME: similar to what is mentioned there: this should be reworked so that
+        // the fee deducation logic for these actions are defined fully independently
+        // (even at the cost of duplicating code).
         let byte_cost_multiplier = state
             .get_bridge_lock_byte_cost_multiplier()
             .await

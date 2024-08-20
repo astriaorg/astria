@@ -979,17 +979,11 @@ impl App {
         &mut self,
         signed_tx: Arc<SignedTransaction>,
     ) -> anyhow::Result<Vec<Event>> {
-        let signed_tx_2 = signed_tx.clone();
-        let stateless =
-            tokio::spawn(async move { signed_tx_2.check_stateless().await }.in_current_span());
-
-        stateless
+        signed_tx
+            .check_stateless()
             .await
-            .context("stateless check task aborted while executing")?
             .context("stateless check failed")?;
 
-        // At this point, the stateful checks should have completed,
-        // leaving us with exclusive access to the Arc<State>.
         let mut state_tx = self
             .state
             .try_begin_transaction()
