@@ -264,13 +264,20 @@ mod test {
 
         let alice = get_alice_signing_key();
         let alice_address = astria_address(&alice.address_bytes());
-        let nonce = 99;
-        let tx = crate::app::test_utils::get_mock_tx(nonce);
+        // insert a transaction with a nonce gap
+        let gapped_nonce = 99;
+        let tx = crate::app::test_utils::mock_tx(gapped_nonce, &get_alice_signing_key(), "test");
         mempool.insert(tx, 0).await.unwrap();
 
-        // insert a tx with lower nonce also, but we should get the highest nonce
-        let lower_nonce = 98;
-        let tx = crate::app::test_utils::get_mock_tx(lower_nonce);
+        // insert a transaction at the current nonce
+        let account_nonce = 0;
+        let tx = crate::app::test_utils::mock_tx(account_nonce, &get_alice_signing_key(), "test");
+        mempool.insert(tx, 0).await.unwrap();
+
+        // insert a transactions one above account nonce (not gapped)
+        let sequential_nonce = 1;
+        let tx: Arc<astria_core::protocol::transaction::v1alpha1::SignedTransaction> =
+            crate::app::test_utils::mock_tx(sequential_nonce, &get_alice_signing_key(), "test");
         mempool.insert(tx, 0).await.unwrap();
 
         let server = Arc::new(SequencerServer::new(storage.clone(), mempool));
@@ -279,7 +286,7 @@ mod test {
         };
         let request = Request::new(request);
         let response = server.get_pending_nonce(request).await.unwrap();
-        assert_eq!(response.into_inner().inner, nonce);
+        assert_eq!(response.into_inner().inner, sequential_nonce);
     }
 
     #[tokio::test]

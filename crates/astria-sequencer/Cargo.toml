@@ -32,12 +32,10 @@ borsh = { version = "1", features = ["derive"] }
 cnidarium = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.78.0", features = [
   "metrics",
 ] }
-cnidarium-component = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.78.0" }
 ibc-proto = { version = "0.41.0", features = ["server"] }
 # `is_sorted_by` is available in rust 1.81.0, but we haven't updated our msrv yet
 is_sorted = "0.1.1"
 matchit = "0.7.2"
-priority-queue = "2.0.2"
 tower = "0.4"
 tower-abci = "0.12.0"
 tower-actor = "0.1.0"

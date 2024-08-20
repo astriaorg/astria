@@ -5,10 +5,7 @@ use anyhow::{
     Context,
     Result,
 };
-use astria_core::primitive::v1::{
-    Address,
-    ADDRESS_LEN,
-};
+use astria_core::primitive::v1::ADDRESS_LEN;
 use async_trait::async_trait;
 use borsh::{
     BorshDeserialize,
@@ -21,7 +18,7 @@ use cnidarium::{
 use tracing::instrument;
 
 use super::ValidatorSet;
-use crate::address;
+use crate::accounts::AddressBytes;
 
 /// Newtype wrapper to read and write an address from rocksdb.
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
@@ -32,9 +29,9 @@ const VALIDATOR_SET_STORAGE_KEY: &str = "valset";
 const VALIDATOR_UPDATES_KEY: &[u8] = b"valupdates";
 
 #[async_trait]
-pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
+pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
-    async fn get_sudo_address(&self) -> Result<Address> {
+    async fn get_sudo_address(&self) -> Result<[u8; ADDRESS_LEN]> {
         let Some(bytes) = self
             .get_raw(SUDO_STORAGE_KEY)
             .await
@@ -45,9 +42,7 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
         };
         let SudoAddress(address_bytes) =
             SudoAddress::try_from_slice(&bytes).context("invalid sudo key bytes")?;
-        self.try_base_prefixed(&address_bytes)
-            .await
-            .context("failed constructing address from prefixed stored in state")
+        Ok(address_bytes)
     }
 
     #[instrument(skip_all)]
@@ -88,10 +83,10 @@ impl<T: StateRead> StateReadExt for T {}
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip_all)]
-    fn put_sudo_address(&mut self, address: Address) -> Result<()> {
+    fn put_sudo_address<T: AddressBytes>(&mut self, address: T) -> Result<()> {
         self.put_raw(
             SUDO_STORAGE_KEY.to_string(),
-            borsh::to_vec(&SudoAddress(address.bytes()))
+            borsh::to_vec(&SudoAddress(address.address_bytes()))
                 .context("failed to convert sudo address to vec")?,
         );
         Ok(())
@@ -126,7 +121,10 @@ impl<T: StateWrite> StateWriteExt for T {}
 
 #[cfg(test)]
 mod tests {
-    use astria_core::protocol::transaction::v1alpha1::action::ValidatorUpdate;
+    use astria_core::{
+        primitive::v1::ADDRESS_LEN,
+        protocol::transaction::v1alpha1::action::ValidatorUpdate,
+    };
     use cnidarium::StateDelta;
 
     use super::{
@@ -137,7 +135,6 @@ mod tests {
         address::StateWriteExt as _,
         authority::ValidatorSet,
         test_utils::{
-            astria_address,
             verification_key,
             ASTRIA_PREFIX,
         },
@@ -162,7 +159,7 @@ mod tests {
             .expect_err("no sudo address should exist at first");
 
         // can write new
-        let mut address_expected = astria_address(&[42u8; 20]);
+        let mut address_expected = [42u8; ADDRESS_LEN];
         state
             .put_sudo_address(address_expected)
             .expect("writing sudo address should not fail");
@@ -176,7 +173,7 @@ mod tests {
         );
 
         // can rewrite with new value
-        address_expected = astria_address(&[41u8; 20]);
+        address_expected = [41u8; ADDRESS_LEN];
         state
             .put_sudo_address(address_expected)
             .expect("writing sudo address should not fail");

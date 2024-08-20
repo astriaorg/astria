@@ -129,9 +129,9 @@ async fn app_finalize_block_snapshot() {
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
 
     let mut state_tx = StateDelta::new(app.state.clone());
-    state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
+    state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
     state_tx
-        .put_bridge_account_ibc_asset(&bridge_address, nria())
+        .put_bridge_account_ibc_asset(bridge_address, nria())
         .unwrap();
     app.apply(state_tx);
 
@@ -322,7 +322,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
                 amount: 10,
                 fee_asset: nria().into(),
                 memo: "{}".into(),
-                bridge_address: None,
+                bridge_address: astria_address(&bridge.address_bytes()),
             }
             .into(),
             BridgeSudoChangeAction {
