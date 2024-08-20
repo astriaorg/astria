@@ -9,7 +9,7 @@ use astria_core::{
         TransferAction,
     },
     sequencerblock::v1alpha1::block::Deposit,
-    Protobuf,
+    Protobuf as _,
 };
 use cnidarium::StateWrite;
 

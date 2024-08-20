@@ -5,7 +5,7 @@ use anyhow::{
 };
 use astria_core::{
     protocol::transaction::v1alpha1::action::BridgeSudoChangeAction,
-    Protobuf,
+    Protobuf as _,
 };
 use cnidarium::StateWrite;
 

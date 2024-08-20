@@ -10,7 +10,7 @@ use astria_core::{
         Address,
     },
     protocol::transaction::v1alpha1::action,
-    Protobuf,
+    Protobuf as _,
 };
 use cnidarium::{
     StateRead,

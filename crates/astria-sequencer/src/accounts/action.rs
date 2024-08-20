@@ -6,7 +6,7 @@ use anyhow::{
 use astria_core::{
     primitive::v1::ADDRESS_LEN,
     protocol::transaction::v1alpha1::action::TransferAction,
-    Protobuf,
+    Protobuf as _,
 };
 use cnidarium::{
     StateRead,
