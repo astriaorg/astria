@@ -83,7 +83,7 @@ use crate::{
         SizedBundleReport,
     },
     metrics::Metrics,
-    utils::report_exit,
+    utils::log_exit,
 };
 
 mod bundle_factory;
@@ -218,12 +218,12 @@ impl Executor {
         select!(
             biased;
             () = self.shutdown_token.cancelled() => {
-                report_exit(&Ok("received shutdown signal while running initialization routines; exiting"));
+                log_exit(&Ok("received shutdown signal while running initialization routines; exiting"));
                 return Ok(())
             }
 
             res = self.pre_run_checks() => {
-                report_exit(&res);
+                log_exit(&res);
                 res.wrap_err("required pre-run checks failed")?;
             }
         );
@@ -231,7 +231,7 @@ impl Executor {
         let mut nonce = get_latest_nonce(self.sequencer_client.clone(), self.address, self.metrics)
             .await
             .map_err(|err| {
-                report_exit(&Err(eyre!(err.to_string())));
+                log_exit(&Err(eyre!(err.to_string())));
                 err
             })?;
 
@@ -293,7 +293,7 @@ impl Executor {
         // sequence actions
         self.serialized_rollup_transactions.close();
 
-        report_exit(&reason);
+        log_exit(&reason);
         if let Err(err) = reason {
             return Err(err).wrap_err("Failed to submit bundle to sequencer. Aborting");
         }

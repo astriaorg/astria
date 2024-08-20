@@ -60,7 +60,7 @@ use crate::{
         Handle,
     },
     metrics::Metrics,
-    utils::report_exit,
+    utils::log_exit,
 };
 
 type StdError = dyn std::error::Error;
@@ -218,7 +218,7 @@ impl Geth {
             }
         };
 
-        report_exit(&reason);
+        log_exit(&reason);
 
         status.send_modify(|status| status.is_connected = false);
 
