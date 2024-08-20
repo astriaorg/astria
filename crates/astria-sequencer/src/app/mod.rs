@@ -7,11 +7,13 @@ mod tests_breaking_changes;
 #[cfg(test)]
 mod tests_execute_transaction;
 
+mod action_handler;
 use std::{
     collections::VecDeque,
     sync::Arc,
 };
 
+pub(crate) use action_handler::ActionHandler;
 use anyhow::{
     anyhow,
     ensure,
@@ -19,7 +21,6 @@ use anyhow::{
 };
 use astria_core::{
     generated::protocol::transaction::v1alpha1 as raw,
-    primitive::v1::Address,
     protocol::{
         abci::AbciErrorCode,
         transaction::v1alpha1::{
@@ -47,6 +48,7 @@ use tendermint::{
     abci::{
         self,
         types::ExecTxResult,
+        Code,
         Event,
     },
     account,
@@ -58,13 +60,13 @@ use tracing::{
     debug,
     info,
     instrument,
-    Instrument as _,
 };
 
 use crate::{
-    accounts,
     accounts::{
+        self,
         component::AccountsComponent,
+        StateReadExt,
         StateWriteExt as _,
     },
     address::StateWriteExt as _,
@@ -105,10 +107,7 @@ use crate::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    transaction::{
-        self,
-        InvalidNonce,
-    },
+    transaction::InvalidNonce,
 };
 
 /// The inter-block state being written to by the application.
@@ -486,11 +485,21 @@ impl App {
         let mut included_signed_txs = Vec::new();
         let mut failed_tx_count: usize = 0;
         let mut execution_results = Vec::new();
-        let mut txs_to_readd_to_mempool = Vec::new();
+        let mut excluded_txs: usize = 0;
 
-        while let Some((enqueued_tx, priority)) = self.mempool.pop().await {
-            let tx_hash_base64 = telemetry::display::base64(&enqueued_tx.tx_hash()).to_string();
-            let tx = enqueued_tx.signed_tx();
+        // get copy of transactions to execute from mempool
+        let current_account_nonce_getter =
+            |address: [u8; 20]| self.state.get_account_nonce(address);
+        let pending_txs = self
+            .mempool
+            .builder_queue(current_account_nonce_getter)
+            .await
+            .expect("failed to fetch pending transactions");
+
+        let mut unused_count = pending_txs.len();
+        for (tx_hash, tx) in pending_txs {
+            unused_count = unused_count.saturating_sub(1);
+            let tx_hash_base64 = telemetry::display::base64(&tx_hash).to_string();
             let bytes = tx.to_raw().encode_to_vec();
             let tx_len = bytes.len();
             info!(transaction_hash = %tx_hash_base64, "executing transaction");
@@ -505,7 +514,7 @@ impl App {
                     tx_data_bytes = tx_len,
                     "excluding remaining transactions: max cometBFT data limit reached"
                 );
-                txs_to_readd_to_mempool.push((enqueued_tx, priority));
+                excluded_txs = excluded_txs.saturating_add(1);
 
                 // break from loop, as the block is full
                 break;
@@ -528,7 +537,7 @@ impl App {
                     tx_data_bytes = tx_sequence_data_bytes,
                     "excluding transaction: max block sequenced data limit reached"
                 );
-                txs_to_readd_to_mempool.push((enqueued_tx, priority));
+                excluded_txs = excluded_txs.saturating_add(1);
 
                 // continue as there might be non-sequence txs that can fit
                 continue;
@@ -560,18 +569,21 @@ impl App {
                     );
 
                     if e.downcast_ref::<InvalidNonce>().is_some() {
-                        // we re-insert the tx into the mempool if it failed to execute
+                        // we don't remove the tx from mempool if it failed to execute
                         // due to an invalid nonce, as it may be valid in the future.
                         // if it's invalid due to the nonce being too low, it'll be
                         // removed from the mempool in `update_mempool_after_finalization`.
-                        txs_to_readd_to_mempool.push((enqueued_tx, priority));
                     } else {
                         failed_tx_count = failed_tx_count.saturating_add(1);
 
-                        // the transaction should be removed from the cometbft mempool
+                        // remove the failing transaction from the mempool
+                        //
+                        // this will remove any transactions from the same sender
+                        // as well, as the dependent nonces will not be able
+                        // to execute
                         self.mempool
-                            .track_removal_comet_bft(
-                                enqueued_tx.tx_hash(),
+                            .remove_tx_invalid(
+                                tx,
                                 RemovalReason::FailedPrepareProposal(e.to_string()),
                             )
                             .await;
@@ -588,15 +600,12 @@ impl App {
             );
         }
         self.metrics.set_prepare_proposal_excluded_transactions(
-            txs_to_readd_to_mempool
-                .len()
-                .saturating_add(failed_tx_count),
+            excluded_txs.saturating_add(failed_tx_count),
         );
 
-        self.mempool.insert_all(txs_to_readd_to_mempool).await;
-        let mempool_len = self.mempool.len().await;
-        debug!(mempool_len, "finished executing transactions from mempool");
-        self.metrics.set_transactions_in_mempool_total(mempool_len);
+        debug!("{unused_count} leftover pending transactions");
+        self.metrics
+            .set_transactions_in_mempool_total(self.mempool.len().await);
 
         self.execution_results = Some(execution_results);
         Ok((validated_txs, included_signed_txs))
@@ -807,10 +816,6 @@ impl App {
 
             // skip the first two transactions, as they are the rollup data commitments
             for tx in finalize_block.txs.iter().skip(2) {
-                // remove any included txs from the mempool
-                let tx_hash = Sha256::digest(tx).into();
-                self.mempool.remove(tx_hash).await;
-
                 let signed_tx = signed_transaction_from_bytes(tx)
                     .context("protocol error; only valid txs should be finalized")?;
 
@@ -831,9 +836,9 @@ impl App {
                             AbciErrorCode::INTERNAL_ERROR
                         };
                         tx_results.push(ExecTxResult {
-                            code: code.into(),
-                            info: code.to_string(),
-                            log: format!("{e:?}"),
+                            code: Code::Err(code.value()),
+                            info: code.info(),
+                            log: format!("{e:#}"),
                             ..Default::default()
                         });
                     }
@@ -882,6 +887,10 @@ impl App {
         state_tx
             .put_sequencer_block(sequencer_block)
             .context("failed to write sequencer block to state")?;
+
+        // update the priority of any txs in the mempool based on the updated app state
+        update_mempool_after_finalization(&mut self.mempool, &state_tx).await;
+
         // events that occur after end_block are ignored here;
         // there should be none anyways.
         let _ = self.apply(state_tx);
@@ -891,11 +900,6 @@ impl App {
             .prepare_commit(storage.clone())
             .await
             .context("failed to prepare commit")?;
-
-        // update the priority of any txs in the mempool based on the updated app state
-        update_mempool_after_finalization(&mut self.mempool, self.state.clone())
-            .await
-            .context("failed to update mempool after finalization")?;
 
         Ok(abci::response::FinalizeBlock {
             events: end_block.events,
@@ -981,46 +985,29 @@ impl App {
         &mut self,
         signed_tx: Arc<SignedTransaction>,
     ) -> anyhow::Result<Vec<Event>> {
-        let signed_tx_2 = signed_tx.clone();
-        let stateless = tokio::spawn(
-            async move { transaction::check_stateless(&signed_tx_2).await }.in_current_span(),
-        );
-        let signed_tx_2 = signed_tx.clone();
-        let state2 = self.state.clone();
-        let stateful = tokio::spawn(
-            async move { transaction::check_stateful(&signed_tx_2, &state2).await }
-                .in_current_span(),
-        );
-
-        stateless
+        signed_tx
+            .check_stateless()
             .await
-            .context("stateless check task aborted while executing")?
             .context("stateless check failed")?;
-        stateful
-            .await
-            .context("stateful check task aborted while executing")?
-            .context("stateful check failed")?;
-        // At this point, the stateful checks should have completed,
-        // leaving us with exclusive access to the Arc<State>.
+
         let mut state_tx = self
             .state
             .try_begin_transaction()
             .expect("state Arc should be present and unique");
 
-        transaction::execute(&signed_tx, &mut state_tx)
+        signed_tx
+            .check_and_execute(&mut state_tx)
             .await
             .context("failed executing transaction")?;
-        let (_, events) = state_tx.apply();
 
-        info!(event_count = events.len(), "executed transaction");
-        Ok(events)
+        Ok(state_tx.apply().1)
     }
 
     #[instrument(name = "App::end_block", skip_all)]
     pub(crate) async fn end_block(
         &mut self,
         height: u64,
-        fee_recipient: Address,
+        fee_recipient: [u8; 20],
     ) -> anyhow::Result<abci::response::EndBlock> {
         let state_tx = StateDelta::new(self.state.clone());
         let mut arc_state_tx = Arc::new(state_tx);
@@ -1140,10 +1127,10 @@ impl App {
 // the mempool is large.
 async fn update_mempool_after_finalization<S: accounts::StateReadExt>(
     mempool: &mut Mempool,
-    state: S,
-) -> anyhow::Result<()> {
+    state: &S,
+) {
     let current_account_nonce_getter = |address: [u8; 20]| state.get_account_nonce(address);
-    mempool.run_maintenance(current_account_nonce_getter).await
+    mempool.run_maintenance(current_account_nonce_getter).await;
 }
 
 /// relevant data of a block being executed.

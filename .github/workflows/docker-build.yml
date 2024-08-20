@@ -49,7 +49,7 @@ jobs:
     with:
       depot-project-id: mhgvgvsjnx
       package-name: composer
-      target-binary: astria-composer
+      binary-name: composer
       tag: ${{ inputs.tag }}
     secrets: inherit
 
@@ -64,7 +64,7 @@ jobs:
     with:
       depot-project-id: zrh9t1d84s
       package-name: conductor
-      target-binary: astria-conductor
+      binary-name: conductor
       tag: ${{ inputs.tag }}
     secrets: inherit
 
@@ -79,7 +79,7 @@ jobs:
     with:
       depot-project-id: brzhxfbv9b
       package-name: sequencer
-      target-binary: astria-sequencer
+      binary-name: sequencer
       tag: ${{ inputs.tag }}
     secrets: inherit
 
@@ -94,7 +94,7 @@ jobs:
     with:
       depot-project-id: 86q4kz4wfs
       package-name: sequencer-relayer
-      target-binary: astria-sequencer-relayer
+      binary-name: sequencer-relayer
       tag: ${{ inputs.tag }}
     secrets: inherit
 
@@ -109,7 +109,7 @@ jobs:
     with:
       depot-project-id: dl81f3fc6x
       package-name: evm-bridge-withdrawer
-      target-binary: astria-bridge-withdrawer
+      binary-name: bridge-withdrawer
       tag: ${{ inputs.tag }}
     secrets: inherit
 
