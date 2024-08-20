@@ -63,9 +63,10 @@ use tracing::{
 };
 
 use crate::{
-    accounts,
     accounts::{
+        self,
         component::AccountsComponent,
+        StateReadExt,
         StateWriteExt as _,
     },
     address::StateWriteExt as _,
@@ -484,11 +485,21 @@ impl App {
         let mut included_signed_txs = Vec::new();
         let mut failed_tx_count: usize = 0;
         let mut execution_results = Vec::new();
-        let mut txs_to_readd_to_mempool = Vec::new();
+        let mut excluded_txs: usize = 0;
 
-        while let Some((enqueued_tx, priority)) = self.mempool.pop().await {
-            let tx_hash_base64 = telemetry::display::base64(&enqueued_tx.tx_hash()).to_string();
-            let tx = enqueued_tx.signed_tx();
+        // get copy of transactions to execute from mempool
+        let current_account_nonce_getter =
+            |address: [u8; 20]| self.state.get_account_nonce(address);
+        let pending_txs = self
+            .mempool
+            .builder_queue(current_account_nonce_getter)
+            .await
+            .expect("failed to fetch pending transactions");
+
+        let mut unused_count = pending_txs.len();
+        for (tx_hash, tx) in pending_txs {
+            unused_count = unused_count.saturating_sub(1);
+            let tx_hash_base64 = telemetry::display::base64(&tx_hash).to_string();
             let bytes = tx.to_raw().encode_to_vec();
             let tx_len = bytes.len();
             info!(transaction_hash = %tx_hash_base64, "executing transaction");
@@ -503,7 +514,7 @@ impl App {
                     tx_data_bytes = tx_len,
                     "excluding remaining transactions: max cometBFT data limit reached"
                 );
-                txs_to_readd_to_mempool.push((enqueued_tx, priority));
+                excluded_txs = excluded_txs.saturating_add(1);
 
                 // break from loop, as the block is full
                 break;
@@ -526,7 +537,7 @@ impl App {
                     tx_data_bytes = tx_sequence_data_bytes,
                     "excluding transaction: max block sequenced data limit reached"
                 );
-                txs_to_readd_to_mempool.push((enqueued_tx, priority));
+                excluded_txs = excluded_txs.saturating_add(1);
 
                 // continue as there might be non-sequence txs that can fit
                 continue;
@@ -558,18 +569,21 @@ impl App {
                     );
 
                     if e.downcast_ref::<InvalidNonce>().is_some() {
-                        // we re-insert the tx into the mempool if it failed to execute
+                        // we don't remove the tx from mempool if it failed to execute
                         // due to an invalid nonce, as it may be valid in the future.
                         // if it's invalid due to the nonce being too low, it'll be
                         // removed from the mempool in `update_mempool_after_finalization`.
-                        txs_to_readd_to_mempool.push((enqueued_tx, priority));
                     } else {
                         failed_tx_count = failed_tx_count.saturating_add(1);
 
-                        // the transaction should be removed from the cometbft mempool
+                        // remove the failing transaction from the mempool
+                        //
+                        // this will remove any transactions from the same sender
+                        // as well, as the dependent nonces will not be able
+                        // to execute
                         self.mempool
-                            .track_removal_comet_bft(
-                                enqueued_tx.tx_hash(),
+                            .remove_tx_invalid(
+                                tx,
                                 RemovalReason::FailedPrepareProposal(e.to_string()),
                             )
                             .await;
@@ -586,15 +600,12 @@ impl App {
             );
         }
         self.metrics.set_prepare_proposal_excluded_transactions(
-            txs_to_readd_to_mempool
-                .len()
-                .saturating_add(failed_tx_count),
+            excluded_txs.saturating_add(failed_tx_count),
         );
 
-        self.mempool.insert_all(txs_to_readd_to_mempool).await;
-        let mempool_len = self.mempool.len().await;
-        debug!(mempool_len, "finished executing transactions from mempool");
-        self.metrics.set_transactions_in_mempool_total(mempool_len);
+        debug!("{unused_count} leftover pending transactions");
+        self.metrics
+            .set_transactions_in_mempool_total(self.mempool.len().await);
 
         self.execution_results = Some(execution_results);
         Ok((validated_txs, included_signed_txs))
@@ -805,10 +816,6 @@ impl App {
 
             // skip the first two transactions, as they are the rollup data commitments
             for tx in finalize_block.txs.iter().skip(2) {
-                // remove any included txs from the mempool
-                let tx_hash = Sha256::digest(tx).into();
-                self.mempool.remove(tx_hash).await;
-
                 let signed_tx = signed_transaction_from_bytes(tx)
                     .context("protocol error; only valid txs should be finalized")?;
 
@@ -880,6 +887,10 @@ impl App {
         state_tx
             .put_sequencer_block(sequencer_block)
             .context("failed to write sequencer block to state")?;
+
+        // update the priority of any txs in the mempool based on the updated app state
+        update_mempool_after_finalization(&mut self.mempool, &state_tx).await;
+
         // events that occur after end_block are ignored here;
         // there should be none anyways.
         let _ = self.apply(state_tx);
@@ -889,11 +900,6 @@ impl App {
             .prepare_commit(storage.clone())
             .await
             .context("failed to prepare commit")?;
-
-        // update the priority of any txs in the mempool based on the updated app state
-        update_mempool_after_finalization(&mut self.mempool, self.state.clone())
-            .await
-            .context("failed to update mempool after finalization")?;
 
         Ok(abci::response::FinalizeBlock {
             events: end_block.events,
@@ -1121,10 +1127,10 @@ impl App {
 // the mempool is large.
 async fn update_mempool_after_finalization<S: accounts::StateReadExt>(
     mempool: &mut Mempool,
-    state: S,
-) -> anyhow::Result<()> {
+    state: &S,
+) {
     let current_account_nonce_getter = |address: [u8; 20]| state.get_account_nonce(address);
-    mempool.run_maintenance(current_account_nonce_getter).await
+    mempool.run_maintenance(current_account_nonce_getter).await;
 }
 
 /// relevant data of a block being executed.
