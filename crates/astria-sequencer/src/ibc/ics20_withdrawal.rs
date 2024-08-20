@@ -57,13 +57,6 @@ fn withdrawal_to_unchecked_ibc_packet(
     )
 }
 
-// bridge address checks:
-// - if the sender of this transaction is not a bridge account, and the tx `bridge_address` field is
-//   None, don't need to do any bridge related checks as it's a normal user withdrawal.
-// - if the sender of this transaction is a bridge account, and the tx `bridge_address` field is
-//   None, check that the withdrawer address is the same as the transaction sender.
-// - if the tx `bridge_address` field is Some, check that the `bridge_address` is a valid bridge,
-//   and check that the withdrawer address is the same as the transaction sender.
 /// Establishes the withdrawal target.
 ///
 /// The function returns the following addresses under the following conditions:
