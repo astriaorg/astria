@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use astria_core::{
     crypto::SigningKey,
     primitive::v1::RollupId,
@@ -138,7 +140,11 @@ pub(crate) async fn initialize_app(
     app
 }
 
-pub(crate) fn get_mock_tx(nonce: u32) -> SignedTransaction {
+pub(crate) fn mock_tx(
+    nonce: u32,
+    signer: &SigningKey,
+    rollup_name: &str,
+) -> Arc<SignedTransaction> {
     let tx = UnsignedTransaction {
         params: TransactionParams::builder()
             .nonce(nonce)
@@ -146,7 +152,7 @@ pub(crate) fn get_mock_tx(nonce: u32) -> SignedTransaction {
             .build(),
         actions: vec![
             SequenceAction {
-                rollup_id: RollupId::from_unhashed_bytes([0; 32]),
+                rollup_id: RollupId::from_unhashed_bytes(rollup_name.as_bytes()),
                 data: Bytes::from_static(&[0x99]),
                 fee_asset: "astria".parse().unwrap(),
             }
@@ -154,5 +160,5 @@ pub(crate) fn get_mock_tx(nonce: u32) -> SignedTransaction {
         ],
     };
 
-    tx.into_signed(&get_alice_signing_key())
+    Arc::new(tx.into_signed(signer))
 }

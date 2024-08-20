@@ -1,154 +1,58 @@
 mod benchmarks;
+mod transactions_container;
 
 use std::{
-    cmp::{
-        self,
-        Ordering,
-    },
     collections::{
         HashMap,
         VecDeque,
     },
     future::Future,
     num::NonZeroUsize,
-    sync::{
-        Arc,
-        OnceLock,
-    },
+    sync::Arc,
 };
 
-use anyhow::Context;
-use astria_core::{
-    crypto::SigningKey,
-    primitive::v1::ADDRESS_LEN,
-    protocol::transaction::v1alpha1::{
-        SignedTransaction,
-        TransactionParams,
-        UnsignedTransaction,
-    },
-};
-use priority_queue::PriorityQueue;
+use astria_core::protocol::transaction::v1alpha1::SignedTransaction;
 use tokio::{
-    sync::RwLock,
-    time::{
-        Duration,
-        Instant,
+    join,
+    sync::{
+        RwLock,
+        RwLockWriteGuard,
     },
+    time::Duration,
 };
 use tracing::{
-    debug,
+    error,
     instrument,
 };
+pub(crate) use transactions_container::InsertionError;
+use transactions_container::{
+    ParkedTransactions,
+    PendingTransactions,
+    TimemarkedTransaction,
+};
 
-type MempoolQueue = PriorityQueue<EnqueuedTransaction, TransactionPriority>;
-
-/// Used to prioritize transactions in the mempool.
-///
-/// The priority is calculated as the difference between the transaction nonce and the current
-/// account nonce. The lower the difference, the higher the priority.
-#[derive(Clone, Debug)]
-pub(crate) struct TransactionPriority {
-    nonce_diff: u32,
-    time_first_seen: Instant,
-}
-
-impl PartialEq for TransactionPriority {
-    fn eq(&self, other: &Self) -> bool {
-        self.nonce_diff == other.nonce_diff
-    }
-}
-
-impl Eq for TransactionPriority {}
-
-impl Ord for TransactionPriority {
-    fn cmp(&self, other: &Self) -> Ordering {
-        // we want to execute the lowest nonce first,
-        // so lower nonce difference means higher priority
-        self.nonce_diff.cmp(&other.nonce_diff).reverse()
-    }
-}
-
-impl PartialOrd for TransactionPriority {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-#[derive(Clone, Debug)]
-pub(crate) struct EnqueuedTransaction {
-    tx_hash: [u8; 32],
-    signed_tx: Arc<SignedTransaction>,
-}
-
-impl EnqueuedTransaction {
-    fn new(signed_tx: SignedTransaction) -> Self {
-        Self {
-            tx_hash: signed_tx.sha256_of_proto_encoding(),
-            signed_tx: Arc::new(signed_tx),
-        }
-    }
-
-    fn priority(
-        &self,
-        current_account_nonce: u32,
-        time_first_seen: Option<Instant>,
-    ) -> anyhow::Result<TransactionPriority> {
-        let Some(nonce_diff) = self.signed_tx.nonce().checked_sub(current_account_nonce) else {
-            return Err(anyhow::anyhow!(
-                "transaction nonce {} is less than current account nonce {current_account_nonce}",
-                self.signed_tx.nonce()
-            ));
-        };
-
-        Ok(TransactionPriority {
-            nonce_diff,
-            time_first_seen: time_first_seen.unwrap_or(Instant::now()),
-        })
-    }
-
-    pub(crate) fn tx_hash(&self) -> [u8; 32] {
-        self.tx_hash
-    }
-
-    pub(crate) fn signed_tx(&self) -> Arc<SignedTransaction> {
-        self.signed_tx.clone()
-    }
-
-    pub(crate) fn address_bytes(&self) -> [u8; 20] {
-        self.signed_tx.address_bytes()
-    }
-}
-
-/// Only consider `self.tx_hash` for equality. This is consistent with the impl for std `Hash`.
-impl PartialEq for EnqueuedTransaction {
-    fn eq(&self, other: &Self) -> bool {
-        self.tx_hash == other.tx_hash
-    }
-}
-
-impl Eq for EnqueuedTransaction {}
-
-/// Only consider `self.tx_hash` when hashing. This is consistent with the impl for equality.
-impl std::hash::Hash for EnqueuedTransaction {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.tx_hash.hash(state);
-    }
-}
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub(crate) enum RemovalReason {
     Expired,
+    NonceStale,
+    LowerNonceInvalidated,
     FailedPrepareProposal(String),
+    FailedCheckTx(String),
 }
 
-const TX_TTL: Duration = Duration::from_secs(600); // 10 minutes
+/// How long transactions are considered valid in the mempool.
+const TX_TTL: Duration = Duration::from_secs(240);
+/// Max number of parked transactions allowed per account.
+const MAX_PARKED_TXS_PER_ACCOUNT: usize = 15;
+/// Max number of transactions to keep in the removal cache. Should be larger than the max number of
+/// transactions allowed in the cometBFT mempool.
 const REMOVAL_CACHE_SIZE: usize = 4096;
 
 /// `RemovalCache` is used to signal to `CometBFT` that a
 /// transaction can be removed from the `CometBFT` mempool.
 ///
-/// This is useful for when a transaction fails execution or when a transaction
-/// has expired in the app's mempool.
+/// This is useful for when a transaction fails execution or when
+/// a transaction is invalidated due to mempool removal policies.
 #[derive(Clone)]
 pub(crate) struct RemovalCache {
     cache: HashMap<[u8; 32], RemovalReason>,
@@ -165,13 +69,14 @@ impl RemovalCache {
         }
     }
 
-    /// returns Some(RemovalReason) if transaction is cached and
-    /// removes the entry from the cache at the same time
+    /// Returns Some(RemovalReason) if the transaction is cached and
+    /// removes the entry from the cache if present.
     fn remove(&mut self, tx_hash: [u8; 32]) -> Option<RemovalReason> {
         self.cache.remove(&tx_hash)
     }
 
-    /// adds the transaction to the cache
+    /// Adds the transaction to the cache, will preserve the original
+    /// `RemovalReason` if already in the cache.
     fn add(&mut self, tx_hash: [u8; 32], reason: RemovalReason) {
         if self.cache.contains_key(&tx_hash) {
             return;
@@ -191,590 +96,510 @@ impl RemovalCache {
     }
 }
 
-/// [`Mempool`] is an internally-synchronized wrapper around a prioritized queue of transactions
-/// awaiting execution.
+/// [`Mempool`] is an account-based structure for maintaining transactions for execution.
 ///
-/// The priority is calculated as the difference between the transaction nonce and the current
-/// account nonce. The lower the difference, the higher the priority.
+/// The transactions are split between pending and parked, where pending transactions are ready for
+/// execution and parked transactions could be executable in the future.
+///
+/// The mempool exposes the pending transactions through `builder_queue()`, which returns a copy of
+/// all pending transactions sorted in the order in which they should be executed. The sort order
+/// is firstly by the difference between the transaction nonce and the account's current nonce
+/// (ascending), and then by time first seen (ascending).
+///
+/// The mempool implements the following policies:
+/// 1. Nonce replacement is not allowed.
+/// 2. Accounts cannot have more than `MAX_PARKED_TXS_PER_ACCOUNT` transactions in their parked
+///    queues.
+/// 3. There is no account limit on pending transactions.
+/// 4. Transactions will expire and can be removed after `TX_TTL` time.
+/// 5. If an account has a transaction removed for being invalid or expired, all transactions for
+///    that account with a higher nonce will be removed as well. This is due to the fact that we do
+///    not execute failing transactions, so a transaction 'failing' will mean that further account
+///    nonces will not be able to execute either.
 ///
 /// Future extensions to this mempool can include:
 /// - maximum mempool size
-/// - fee-based ordering
-/// - transaction expiration
+/// - account balance aware pending queue
 #[derive(Clone)]
 pub(crate) struct Mempool {
-    queue: Arc<RwLock<MempoolQueue>>,
+    pending: Arc<RwLock<PendingTransactions>>,
+    parked: Arc<RwLock<ParkedTransactions<MAX_PARKED_TXS_PER_ACCOUNT>>>,
     comet_bft_removal_cache: Arc<RwLock<RemovalCache>>,
-    tx_ttl: Duration,
 }
 
 impl Mempool {
     #[must_use]
     pub(crate) fn new() -> Self {
         Self {
-            queue: Arc::new(RwLock::new(MempoolQueue::new())),
+            pending: Arc::new(RwLock::new(PendingTransactions::new(TX_TTL))),
+            parked: Arc::new(RwLock::new(ParkedTransactions::new(TX_TTL))),
             comet_bft_removal_cache: Arc::new(RwLock::new(RemovalCache::new(
                 NonZeroUsize::try_from(REMOVAL_CACHE_SIZE)
                     .expect("Removal cache cannot be zero sized"),
             ))),
-            tx_ttl: TX_TTL,
         }
     }
 
-    /// returns the number of transactions in the mempool
+    /// Returns the number of transactions in the mempool.
     #[must_use]
     #[instrument(skip_all)]
     pub(crate) async fn len(&self) -> usize {
-        self.queue.read().await.len()
+        #[rustfmt::skip]
+        let (pending_len, parked_len) = join!(
+            async { self.pending.read().await.len() },
+            async { self.parked.read().await.len() }
+        );
+        pending_len.saturating_add(parked_len)
     }
 
-    /// inserts a transaction into the mempool
-    ///
-    /// note: the oldest timestamp from found priorities is maintained.
+    /// Inserts a transaction into the mempool and does not allow for transaction replacement.
+    /// Will return the reason for insertion failure if failure occurs.
     #[instrument(skip_all)]
     pub(crate) async fn insert(
         &self,
-        tx: SignedTransaction,
+        tx: Arc<SignedTransaction>,
         current_account_nonce: u32,
-    ) -> anyhow::Result<()> {
-        let enqueued_tx = EnqueuedTransaction::new(tx);
-        let fresh_priority = enqueued_tx.priority(current_account_nonce, None)?;
-        Self::update_or_insert(&mut *self.queue.write().await, enqueued_tx, &fresh_priority);
+    ) -> anyhow::Result<(), InsertionError> {
+        let timemarked_tx = TimemarkedTransaction::new(tx);
 
-        Ok(())
-    }
+        let (mut pending, mut parked) = self.acquire_both_locks().await;
 
-    /// inserts all the given transactions into the mempool
-    ///
-    /// note: the oldest timestamp from found priorities for an `EnqueuedTransaction` is maintained.
-    #[instrument(skip_all)]
-    pub(crate) async fn insert_all(&self, txs: Vec<(EnqueuedTransaction, TransactionPriority)>) {
-        let mut queue = self.queue.write().await;
-
-        for (enqueued_tx, priority) in txs {
-            Self::update_or_insert(&mut queue, enqueued_tx, &priority);
+        // try insert into pending (will fail if nonce is gapped or already present)
+        match pending.add(timemarked_tx.clone(), current_account_nonce) {
+            Err(InsertionError::NonceGap) => {
+                // Release the lock asap.
+                drop(pending);
+                // try to add to parked queue
+                parked.add(timemarked_tx, current_account_nonce)
+            }
+            error @ Err(
+                InsertionError::AlreadyPresent
+                | InsertionError::NonceTooLow
+                | InsertionError::NonceTaken
+                | InsertionError::AccountSizeLimit,
+            ) => error,
+            Ok(()) => {
+                // check parked for txs able to be promoted
+                let to_promote = parked.pop_front_account(
+                    timemarked_tx.address(),
+                    timemarked_tx
+                        .nonce()
+                        .checked_add(1)
+                        .expect("failed to increment nonce in promotion"),
+                );
+                // Release the lock asap.
+                drop(parked);
+                for ttx in to_promote {
+                    if let Err(error) = pending.add(ttx, current_account_nonce) {
+                        error!(
+                            current_account_nonce,
+                            "failed to promote transaction during insertion: {error:#}"
+                        );
+                    }
+                }
+                Ok(())
+            }
         }
     }
 
-    /// inserts or updates the transaction in a timestamp preserving manner
-    ///
-    /// note: updates the priority using the `possible_priority`'s nonce diff.
-    fn update_or_insert(
-        queue: &mut PriorityQueue<EnqueuedTransaction, TransactionPriority>,
-        enqueued_tx: EnqueuedTransaction,
-        possible_priority: &TransactionPriority,
-    ) {
-        let oldest_timestamp = queue.get_priority(&enqueued_tx).map_or(
-            possible_priority.time_first_seen,
-            |prev_priority| {
-                possible_priority
-                    .time_first_seen
-                    .min(prev_priority.time_first_seen)
-            },
-        );
-
-        let priority = TransactionPriority {
-            nonce_diff: possible_priority.nonce_diff,
-            time_first_seen: oldest_timestamp,
-        };
-
-        let tx_hash = enqueued_tx.tx_hash;
-        if queue.push(enqueued_tx, priority).is_none() {
-            // emit if didn't already exist
-            tracing::trace!(
-                tx_hash = %telemetry::display::hex(&tx_hash),
-                "inserted transaction into mempool"
-            );
-        }
-    }
-
-    /// pops the transaction with the highest priority from the mempool
-    #[must_use]
-    #[instrument(skip_all)]
-    pub(crate) async fn pop(&self) -> Option<(EnqueuedTransaction, TransactionPriority)> {
-        self.queue.write().await.pop()
-    }
-
-    /// removes a transaction from the mempool
-    #[instrument(skip_all)]
-    pub(crate) async fn remove(&self, tx_hash: [u8; 32]) {
-        let signed_tx = dummy_signed_tx();
-        let enqueued_tx = EnqueuedTransaction {
-            tx_hash,
-            signed_tx,
-        };
-        self.queue.write().await.remove(&enqueued_tx);
-    }
-
-    /// signal that the transaction should be removed from the `CometBFT` mempool
-    #[instrument(skip_all)]
-    pub(crate) async fn track_removal_comet_bft(&self, tx_hash: [u8; 32], reason: RemovalReason) {
-        self.comet_bft_removal_cache
-            .write()
+    /// Returns a copy of all transactions and their hashes ready for execution, sorted first by the
+    /// difference between a transaction and the account's current nonce and then by the time that
+    /// the transaction was first seen by the appside mempool.
+    pub(crate) async fn builder_queue<F, O>(
+        &self,
+        current_account_nonce_getter: F,
+    ) -> anyhow::Result<Vec<([u8; 32], Arc<SignedTransaction>)>>
+    where
+        F: Fn([u8; 20]) -> O,
+        O: Future<Output = anyhow::Result<u32>>,
+    {
+        self.pending
+            .read()
             .await
-            .add(tx_hash, reason);
+            .builder_queue(current_account_nonce_getter)
+            .await
     }
 
-    /// checks if a transaction was flagged to be removed from the `CometBFT` mempool
-    /// and removes entry
+    /// Removes the target transaction and all transactions for associated account with higher
+    /// nonces.
+    ///
+    /// This function should only be used to remove invalid/failing transactions and not executed
+    /// transactions. Executed transactions will be removed in the `run_maintenance()` function.
+    pub(crate) async fn remove_tx_invalid(
+        &self,
+        signed_tx: Arc<SignedTransaction>,
+        reason: RemovalReason,
+    ) {
+        let tx_hash = signed_tx.sha256_of_proto_encoding();
+        let address = signed_tx.verification_key().address_bytes();
+
+        // Try to remove from pending.
+        let removed_txs = match self.pending.write().await.remove(signed_tx) {
+            Ok(mut removed_txs) => {
+                // Remove all of parked.
+                removed_txs.append(&mut self.parked.write().await.clear_account(&address));
+                removed_txs
+            }
+            Err(signed_tx) => {
+                // Not found in pending, try to remove from parked and if not found, just return.
+                match self.parked.write().await.remove(signed_tx) {
+                    Ok(removed_txs) => removed_txs,
+                    Err(_) => return,
+                }
+            }
+        };
+
+        // Add all removed to removal cache for cometbft.
+        let mut removal_cache = self.comet_bft_removal_cache.write().await;
+        // Add the original tx first, since it will also be listed in `removed_txs`.  The second
+        // attempt to add it inside the loop below will be a no-op.
+        removal_cache.add(tx_hash, reason);
+        for removed_tx in removed_txs {
+            removal_cache.add(removed_tx, RemovalReason::LowerNonceInvalidated);
+        }
+    }
+
+    /// Checks if a transaction was flagged to be removed from the `CometBFT` mempool. Will
+    /// remove the transaction from the cache if it is present.
     #[instrument(skip_all)]
     pub(crate) async fn check_removed_comet_bft(&self, tx_hash: [u8; 32]) -> Option<RemovalReason> {
         self.comet_bft_removal_cache.write().await.remove(tx_hash)
     }
 
-    /// Updates the priority of the txs in the mempool based on the current state, and removes any
-    /// that are now invalid.
+    /// Updates stored transactions to reflect current blockchain state. Will remove transactions
+    /// that have stale nonces and will remove transaction that are expired.
     ///
-    /// *NOTE*: this function locks the mempool until every tx has been checked. This could
-    /// potentially stall consensus from moving to the next round if the mempool is large.
+    /// All removed transactions are added to the CometBFT removal cache to aid with CometBFT
+    /// mempool maintenance.
     #[instrument(skip_all)]
-    pub(crate) async fn run_maintenance<F, O>(
-        &self,
-        current_account_nonce_getter: F,
-    ) -> anyhow::Result<()>
+    pub(crate) async fn run_maintenance<F, O>(&self, current_account_nonce_getter: F)
     where
-        F: Fn([u8; ADDRESS_LEN]) -> O,
+        F: Fn([u8; 20]) -> O,
         O: Future<Output = anyhow::Result<u32>>,
     {
-        let mut txs_to_remove = Vec::new();
-        let mut current_account_nonces = HashMap::new();
+        let (mut pending, mut parked) = self.acquire_both_locks().await;
 
-        let mut queue = self.queue.write().await;
+        // clean accounts of stale and expired transactions
+        let mut removed_txs = pending.clean_accounts(&current_account_nonce_getter).await;
+        removed_txs.append(&mut parked.clean_accounts(&current_account_nonce_getter).await);
+
+        // run promotion logic in case transactions not in this mempool advanced account state
+        let to_promote = parked.find_promotables(&current_account_nonce_getter).await;
+        // Release the lock asap.
+        drop(parked);
+        for (ttx, current_account_nonce) in to_promote {
+            if let Err(error) = pending.add(ttx, current_account_nonce) {
+                error!(
+                    current_account_nonce,
+                    "failed to promote transaction during maintenance: {error:#}"
+                );
+            }
+        }
+
+        // add to removal cache for cometbft
         let mut removal_cache = self.comet_bft_removal_cache.write().await;
-        for (enqueued_tx, priority) in queue.iter_mut() {
-            let address_bytes = enqueued_tx.address_bytes();
-
-            // check if the transactions has expired
-            if priority.time_first_seen.elapsed() > self.tx_ttl {
-                // tx has expired, set to remove and add to removal cache
-                txs_to_remove.push(enqueued_tx.clone());
-                removal_cache.add(enqueued_tx.tx_hash, RemovalReason::Expired);
-                continue;
-            }
-
-            // Try to get the current account nonce from the ones already retrieved.
-            let current_account_nonce = if let Some(nonce) =
-                current_account_nonces.get(&address_bytes)
-            {
-                *nonce
-            } else {
-                // Fall back to getting via the getter and adding it to the local temp collection.
-                let nonce = current_account_nonce_getter(enqueued_tx.address_bytes())
-                    .await
-                    .context("failed to fetch account nonce")?;
-                current_account_nonces.insert(address_bytes, nonce);
-                nonce
-            };
-            match enqueued_tx.priority(current_account_nonce, Some(priority.time_first_seen)) {
-                Ok(new_priority) => *priority = new_priority,
-                Err(e) => {
-                    debug!(
-                        transaction_hash = %telemetry::display::base64(&enqueued_tx.tx_hash),
-                        error = AsRef::<dyn std::error::Error>::as_ref(&e),
-                         "account nonce is now greater than tx nonce; dropping tx from mempool",
-                    );
-                    txs_to_remove.push(enqueued_tx.clone());
-                }
-            };
+        for (tx_hash, reason) in removed_txs {
+            removal_cache.add(tx_hash, reason);
         }
-
-        for enqueued_tx in txs_to_remove {
-            queue.remove(&enqueued_tx);
-        }
-
-        Ok(())
     }
 
-    /// returns the pending nonce for the given address,
-    /// if it exists in the mempool.
+    /// Returns the highest pending nonce for the given address if it exists in the mempool. Note:
+    /// does not take into account gapped nonces in the parked queue. For example, if the
+    /// pending queue for an account has nonces [0,1] and the parked queue has [3], [1] will be
+    /// returned.
     #[instrument(skip_all)]
-    pub(crate) async fn pending_nonce(&self, address: [u8; ADDRESS_LEN]) -> Option<u32> {
-        let inner = self.queue.read().await;
-        let mut nonce = None;
-        for (tx, _priority) in inner.iter() {
-            if tx.address_bytes() == address {
-                nonce = Some(cmp::max(nonce.unwrap_or_default(), tx.signed_tx.nonce()));
-            }
-        }
-        nonce
+    pub(crate) async fn pending_nonce(&self, address: [u8; 20]) -> Option<u32> {
+        self.pending.read().await.pending_nonce(address)
     }
-}
 
-/// This exists to provide a `SignedTransaction` for the purposes of removing an entry from the
-/// queue where we only have the tx hash available.
-///
-/// The queue is indexed by `EnqueuedTransaction` which internally needs a `SignedTransaction`, but
-/// this `signed_tx` field is ignored in the `PartialEq` and `Hash` impls of `EnqueuedTransaction` -
-/// only the tx hash is considered.  So we create an `EnqueuedTransaction` on the fly with the
-/// correct tx hash and this dummy signed tx when removing from the queue.
-fn dummy_signed_tx() -> Arc<SignedTransaction> {
-    static TX: OnceLock<Arc<SignedTransaction>> = OnceLock::new();
-    let signed_tx = TX.get_or_init(|| {
-        let actions = vec![];
-        let params = TransactionParams::builder()
-            .nonce(0)
-            .chain_id("dummy")
-            .build();
-        let signing_key = SigningKey::from([0; 32]);
-        let unsigned_tx = UnsignedTransaction {
-            actions,
-            params,
-        };
-        Arc::new(unsigned_tx.into_signed(&signing_key))
-    });
-    signed_tx.clone()
+    async fn acquire_both_locks(
+        &self,
+    ) -> (
+        RwLockWriteGuard<PendingTransactions>,
+        RwLockWriteGuard<ParkedTransactions<MAX_PARKED_TXS_PER_ACCOUNT>>,
+    ) {
+        let pending = self.pending.write().await;
+        let parked = self.parked.write().await;
+        (pending, parked)
+    }
 }
 
 #[cfg(test)]
 mod test {
-    use std::{
-        hash::{
-            Hash,
-            Hasher,
-        },
-        time::Duration,
-    };
+    use astria_core::crypto::SigningKey;
 
     use super::*;
-    use crate::app::test_utils::get_mock_tx;
+    use crate::app::test_utils::mock_tx;
 
-    #[test]
-    fn transaction_priority_should_error_if_invalid() {
-        let enqueued_tx = EnqueuedTransaction::new(get_mock_tx(0));
-        let priority = enqueued_tx.priority(1, None);
+    #[tokio::test]
+    async fn insert() {
+        let mempool = Mempool::new();
+        let signing_key = SigningKey::from([1; 32]);
+
+        // sign and insert nonce 1
+        let tx1 = mock_tx(1, &signing_key, "test");
         assert!(
-            priority
-                .unwrap_err()
-                .to_string()
-                .contains("less than current account nonce")
+            mempool.insert(tx1.clone(), 0).await.is_ok(),
+            "should be able to insert nonce 1 transaction into mempool"
         );
-    }
 
-    // From https://doc.rust-lang.org/std/cmp/trait.PartialOrd.html
-    #[test]
-    // allow: we want explicit assertions here to match the documented expected behavior.
-    #[allow(clippy::nonminimal_bool)]
-    fn transaction_priority_comparisons_should_be_consistent() {
-        let high = TransactionPriority {
-            nonce_diff: 0,
-            time_first_seen: Instant::now(),
-        };
-        let low = TransactionPriority {
-            nonce_diff: 1,
-            time_first_seen: Instant::now(),
-        };
-
-        assert!(high.partial_cmp(&high) == Some(Ordering::Equal));
-        assert!(high.partial_cmp(&low) == Some(Ordering::Greater));
-        assert!(low.partial_cmp(&high) == Some(Ordering::Less));
-
-        // 1. a == b if and only if partial_cmp(a, b) == Some(Equal)
-        assert!(high == high); // Some(Equal)
-        assert!(!(high == low)); // Some(Greater)
-        assert!(!(low == high)); // Some(Less)
-
-        // 2. a < b if and only if partial_cmp(a, b) == Some(Less)
-        assert!(low < high); // Some(Less)
-        assert!(!(high < high)); // Some(Equal)
-        assert!(!(high < low)); // Some(Greater)
-
-        // 3. a > b if and only if partial_cmp(a, b) == Some(Greater)
-        assert!(high > low); // Some(Greater)
-        assert!(!(high > high)); // Some(Equal)
-        assert!(!(low > high)); // Some(Less)
-
-        // 4. a <= b if and only if a < b || a == b
-        assert!(low <= high); // a < b
-        assert!(high <= high); // a == b
-        assert!(!(high <= low)); // a > b
-
-        // 5. a >= b if and only if a > b || a == b
-        assert!(high >= low); // a > b
-        assert!(high >= high); // a == b
-        assert!(!(low >= high)); // a < b
-
-        // 6. a != b if and only if !(a == b)
-        assert!(high != low); // asserted !(high == low) above
-        assert!(low != high); // asserted !(low == high) above
-        assert!(!(high != high)); // asserted high == high above
-    }
-
-    #[test]
-    // From https://doc.rust-lang.org/std/hash/trait.Hash.html#hash-and-eq
-    fn enqueued_tx_hash_and_eq_should_be_consistent() {
-        // Check enqueued txs compare equal if and only if their tx hashes are equal.
-        let tx0 = EnqueuedTransaction {
-            tx_hash: [0; 32],
-            signed_tx: Arc::new(get_mock_tx(0)),
-        };
-        let other_tx0 = EnqueuedTransaction {
-            tx_hash: [0; 32],
-            signed_tx: Arc::new(get_mock_tx(1)),
-        };
-        let tx1 = EnqueuedTransaction {
-            tx_hash: [1; 32],
-            signed_tx: Arc::new(get_mock_tx(0)),
-        };
-        assert!(tx0 == other_tx0);
-        assert!(tx0 != tx1);
-
-        // Check enqueued txs' std hashes compare equal if and only if their tx hashes are equal.
-        let std_hash = |enqueued_tx: &EnqueuedTransaction| -> u64 {
-            let mut hasher = std::hash::DefaultHasher::new();
-            enqueued_tx.hash(&mut hasher);
-            hasher.finish()
-        };
-        assert!(std_hash(&tx0) == std_hash(&other_tx0));
-        assert!(std_hash(&tx0) != std_hash(&tx1));
-    }
-
-    #[tokio::test]
-    async fn should_insert_and_pop() {
-        let mempool = Mempool::new();
-
-        // Priority 0 (highest priority).
-        let tx0 = get_mock_tx(0);
-        mempool.insert(tx0.clone(), 0).await.unwrap();
-
-        // Priority 1.
-        let tx1 = get_mock_tx(1);
-        mempool.insert(tx1.clone(), 0).await.unwrap();
-
-        assert_eq!(mempool.len().await, 2);
-
-        // Should pop priority 0 first.
-        let (tx, priority) = mempool.pop().await.unwrap();
+        // try to insert again
         assert_eq!(
-            tx.signed_tx.sha256_of_proto_encoding(),
-            tx0.sha256_of_proto_encoding()
+            mempool.insert(tx1.clone(), 0).await.unwrap_err(),
+            InsertionError::AlreadyPresent,
+            "already present"
         );
-        assert_eq!(priority.nonce_diff, 0);
-        assert_eq!(mempool.len().await, 1);
 
-        // Should pop priority 1 second.
-        let (tx, priority) = mempool.pop().await.unwrap();
+        // try to replace nonce
+        let tx1_replacement = mock_tx(1, &signing_key, "test_0");
         assert_eq!(
-            tx.signed_tx.sha256_of_proto_encoding(),
-            tx1.sha256_of_proto_encoding()
+            mempool
+                .insert(tx1_replacement.clone(), 0)
+                .await
+                .unwrap_err(),
+            InsertionError::NonceTaken,
+            "nonce replace not allowed"
         );
-        assert_eq!(priority.nonce_diff, 1);
-        assert_eq!(mempool.len().await, 0);
+
+        // add too low nonce
+        let tx0 = mock_tx(0, &signing_key, "test");
+        assert_eq!(
+            mempool.insert(tx0.clone(), 1).await.unwrap_err(),
+            InsertionError::NonceTooLow,
+            "nonce too low"
+        );
     }
 
     #[tokio::test]
-    async fn should_remove() {
+    async fn single_account_flow_extensive() {
+        // This test tries to hit the more complex edges of the mempool with a single account.
+        // The test adds the nonces [1,2,0,4], creates a builder queue with the account
+        // nonce at 1, and then cleans the pool to nonce 4. This tests some of the
+        // odder edge cases that can be hit if a node goes offline or fails to see
+        // some transactions that other nodes include into their proposed blocks.
+
         let mempool = Mempool::new();
-        let tx_count = 5_usize;
+        let signing_key = SigningKey::from([1; 32]);
+        let signing_address = signing_key.verification_key().address_bytes();
 
-        let current_account_nonce = 0;
-        let txs: Vec<_> = (0..tx_count)
-            .map(|index| {
-                let enqueued_tx =
-                    EnqueuedTransaction::new(get_mock_tx(u32::try_from(index).unwrap()));
-                let priority = enqueued_tx.priority(current_account_nonce, None).unwrap();
-                (enqueued_tx, priority)
-            })
-            .collect();
-        mempool.insert_all(txs.clone()).await;
-        assert_eq!(mempool.len().await, tx_count);
+        // add nonces in odd order to trigger insertion promotion logic
+        // sign and insert nonce 1
+        let tx1 = mock_tx(1, &signing_key, "test");
+        assert!(
+            mempool.insert(tx1.clone(), 0).await.is_ok(),
+            "should be able to insert nonce 1 transaction into mempool"
+        );
 
-        // Remove the last tx.
-        let last_tx_hash = txs.last().unwrap().0.tx_hash;
-        mempool.remove(last_tx_hash).await;
-        let mut expected_remaining_count = tx_count.checked_sub(1).unwrap();
-        assert_eq!(mempool.len().await, expected_remaining_count);
+        // sign and insert nonce 2
+        let tx2 = mock_tx(2, &signing_key, "test");
+        assert!(
+            mempool.insert(tx2.clone(), 0).await.is_ok(),
+            "should be able to insert nonce 2 transaction into mempool"
+        );
 
-        // Removing it again should have no effect.
-        mempool.remove(last_tx_hash).await;
-        assert_eq!(mempool.len().await, expected_remaining_count);
+        // sign and insert nonce 0
+        let tx0 = mock_tx(0, &signing_key, "test");
+        assert!(
+            mempool.insert(tx0.clone(), 0).await.is_ok(),
+            "should be able to insert nonce 0 transaction into mempool"
+        );
 
-        // Remove the first tx.
-        mempool.remove(txs.first().unwrap().0.tx_hash).await;
-        expected_remaining_count = expected_remaining_count.checked_sub(1).unwrap();
-        assert_eq!(mempool.len().await, expected_remaining_count);
+        // sign and insert nonce 4
+        let tx4 = mock_tx(4, &signing_key, "test");
+        assert!(
+            mempool.insert(tx4.clone(), 0).await.is_ok(),
+            "should be able to insert nonce 4 transaction into mempool"
+        );
 
-        // Check the next tx popped is the second priority.
-        let (tx, priority) = mempool.pop().await.unwrap();
-        assert_eq!(tx.tx_hash, txs[1].0.tx_hash());
-        assert_eq!(priority.nonce_diff, 1);
-    }
-
-    #[tokio::test]
-    async fn should_update_priorities() {
-        let mempool = Mempool::new();
-
-        // Insert txs signed by alice with nonces 0 and 1.
-        mempool.insert(get_mock_tx(0), 0).await.unwrap();
-        mempool.insert(get_mock_tx(1), 0).await.unwrap();
-
-        // Insert txs from a different signer with nonces 100 and 102.
-        let other = SigningKey::from([1; 32]);
-        let other_mock_tx = |nonce: u32| -> SignedTransaction {
-            let actions = get_mock_tx(0).actions().to_vec();
-            UnsignedTransaction {
-                params: TransactionParams::builder()
-                    .nonce(nonce)
-                    .chain_id("test")
-                    .build(),
-                actions,
-            }
-            .into_signed(&other)
-        };
-        mempool.insert(other_mock_tx(100), 0).await.unwrap();
-        mempool.insert(other_mock_tx(102), 0).await.unwrap();
-
+        // assert size
         assert_eq!(mempool.len().await, 4);
 
-        let alice = crate::app::test_utils::get_alice_signing_key();
-
-        // Create a getter fn which will returns 1 for alice's current account nonce, and 101 for
-        // the other signer's.
-        let current_account_nonce_getter = |address: [u8; ADDRESS_LEN]| {
-            let alice = alice.clone();
-            let other = other.clone();
-            async move {
-                if address == alice.address_bytes() {
-                    return Ok(1);
-                }
-                if address == other.address_bytes() {
-                    return Ok(101);
-                }
-                Err(anyhow::anyhow!("invalid address"))
+        // mock nonce getter with nonce at 1
+        let current_account_nonce_getter = |address: [u8; 20]| async move {
+            if address == signing_address {
+                return Ok(1);
             }
+            Err(anyhow::anyhow!("invalid address"))
         };
 
-        // Update the priorities.  Alice's first tx (with nonce 0) and other's first (with nonce
-        // 100) should both get purged.
+        // grab building queue, should return transactions [1,2] since [0] was below and [4] is
+        // gapped
+        let builder_queue = mempool
+            .builder_queue(current_account_nonce_getter)
+            .await
+            .expect("failed to get builder queue");
+
+        // see contains first two transactions that should be pending
+        assert_eq!(builder_queue[0].1.nonce(), 1, "nonce should be one");
+        assert_eq!(builder_queue[1].1.nonce(), 2, "nonce should be two");
+
+        // see mempool's transactions just cloned, not consumed
+        assert_eq!(mempool.len().await, 4);
+
+        // run maintenance with simulated nonce to remove the nonces 0,1,2 and promote 4 from parked
+        // to pending
+        let current_account_nonce_getter = |address: [u8; 20]| async move {
+            if address == signing_address {
+                return Ok(4);
+            }
+            Err(anyhow::anyhow!("invalid address"))
+        };
+        mempool.run_maintenance(current_account_nonce_getter).await;
+
+        // assert mempool at 1
+        assert_eq!(mempool.len().await, 1);
+
+        // see transaction [4] properly promoted
+        let mut builder_queue = mempool
+            .builder_queue(current_account_nonce_getter)
+            .await
+            .expect("failed to get builder queue");
+        let (_, returned_tx) = builder_queue.pop().expect("should return last transaction");
+        assert_eq!(returned_tx.nonce(), 4, "nonce should be four");
+    }
+
+    #[tokio::test]
+    async fn remove_invalid() {
+        let mempool = Mempool::new();
+        let signing_key = SigningKey::from([1; 32]);
+
+        // sign and insert nonces 0,1 and 3,4,5
+        let tx0 = mock_tx(0, &signing_key, "test");
+        assert!(
+            mempool.insert(tx0.clone(), 0).await.is_ok(),
+            "should be able to insert nonce 0 transaction into mempool"
+        );
+        let tx1 = mock_tx(1, &signing_key, "test");
+        assert!(
+            mempool.insert(tx1.clone(), 0).await.is_ok(),
+            "should be able to insert nonce 1 transaction into mempool"
+        );
+        let tx3 = mock_tx(3, &signing_key, "test");
+        assert!(
+            mempool.insert(tx3.clone(), 0).await.is_ok(),
+            "should be able to insert nonce 3 transaction into mempool"
+        );
+        let tx4 = mock_tx(4, &signing_key, "test");
+        assert!(
+            mempool.insert(tx4.clone(), 0).await.is_ok(),
+            "should be able to insert nonce 4 transaction into mempool"
+        );
+        let tx5 = mock_tx(5, &signing_key, "test");
+        assert!(
+            mempool.insert(tx5.clone(), 0).await.is_ok(),
+            "should be able to insert nonce 5 transaction into mempool"
+        );
+        assert_eq!(mempool.len().await, 5);
+
+        let removal_reason = RemovalReason::FailedPrepareProposal("reason".to_string());
+
+        // remove 4, should remove 4 and 5
         mempool
-            .run_maintenance(current_account_nonce_getter)
-            .await
-            .unwrap();
+            .remove_tx_invalid(tx4.clone(), removal_reason.clone())
+            .await;
+        assert_eq!(mempool.len().await, 3);
 
-        assert_eq!(mempool.len().await, 2);
+        // remove 4 again is also ok
+        mempool
+            .remove_tx_invalid(
+                tx4.clone(),
+                RemovalReason::NonceStale, // shouldn't be inserted into removal cache
+            )
+            .await;
+        assert_eq!(mempool.len().await, 3);
 
-        // Alice's remaining tx should be the highest priority (nonce diff of 1 - 1 == 0).
-        let (tx, priority) = mempool.pop().await.unwrap();
-        assert_eq!(tx.signed_tx.nonce(), 1);
-        assert_eq!(*tx.signed_tx.verification_key(), alice.verification_key());
-        assert_eq!(priority.nonce_diff, 0);
+        // remove 1, should remove 1 and 3
+        mempool
+            .remove_tx_invalid(tx1.clone(), removal_reason.clone())
+            .await;
+        assert_eq!(mempool.len().await, 1);
 
-        // Other's remaining tx should be the highest priority (nonce diff of 102 - 101 == 1).
-        let (tx, priority) = mempool.pop().await.unwrap();
-        assert_eq!(tx.signed_tx.nonce(), 102);
-        assert_eq!(*tx.signed_tx.verification_key(), other.verification_key());
-        assert_eq!(priority.nonce_diff, 1);
-    }
+        // remove 0
+        mempool
+            .remove_tx_invalid(tx0.clone(), removal_reason.clone())
+            .await;
+        assert_eq!(mempool.len().await, 0);
 
-    #[tokio::test(start_paused = true)]
-    async fn transaction_timestamp_not_overwritten_insert() {
-        let mempool = Mempool::new();
-
-        let insert_time = Instant::now();
-        let tx = get_mock_tx(0);
-        mempool.insert(tx.clone(), 0).await.unwrap();
-
-        // pass time
-        tokio::time::advance(Duration::from_secs(60)).await;
-        assert_eq!(
-            insert_time.elapsed(),
-            Duration::from_secs(60),
-            "time should have advanced"
-        );
-
-        // re-insert
-        mempool.insert(tx, 0).await.unwrap();
-
-        // check that the timestamp was not overwritten in insert()
-        let (_, tx_priority) = mempool
-            .pop()
-            .await
-            .expect("transaction was added, should exist");
-        assert_eq!(
-            tx_priority.time_first_seen.duration_since(insert_time),
-            Duration::from_secs(0),
-            "Tracked time should be the same"
-        );
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn transaction_timestamp_not_overwritten_insert_all() {
-        let mempool = Mempool::new();
-
-        let insert_time = Instant::now();
-        let tx = get_mock_tx(0);
-        mempool.insert(tx.clone(), 0).await.unwrap();
-
-        // pass time
-        tokio::time::advance(Duration::from_secs(60)).await;
-        assert_eq!(
-            insert_time.elapsed(),
-            Duration::from_secs(60),
-            "time should have advanced"
-        );
-
-        // re-insert with new priority with higher timestamp
-        let enqueued_tx = EnqueuedTransaction::new(tx);
-        let new_priority = TransactionPriority {
-            nonce_diff: 0,
-            time_first_seen: Instant::now(),
-        };
-        mempool.insert_all(vec![(enqueued_tx, new_priority)]).await;
-
-        // check that the timestamp was not overwritten in insert()
-        let (_, tx_priority) = mempool
-            .pop()
-            .await
-            .expect("transaction was added, should exist");
-        assert_eq!(
-            tx_priority.time_first_seen.duration_since(insert_time),
-            Duration::from_secs(0),
-            "Tracked time should be the same"
-        );
+        // assert that all were added to the cometbft removal cache
+        // and the expected reasons were tracked
+        assert!(matches!(
+            mempool
+                .check_removed_comet_bft(tx0.sha256_of_proto_encoding())
+                .await,
+            Some(RemovalReason::FailedPrepareProposal(_))
+        ));
+        assert!(matches!(
+            mempool
+                .check_removed_comet_bft(tx1.sha256_of_proto_encoding())
+                .await,
+            Some(RemovalReason::FailedPrepareProposal(_))
+        ));
+        assert!(matches!(
+            mempool
+                .check_removed_comet_bft(tx3.sha256_of_proto_encoding())
+                .await,
+            Some(RemovalReason::LowerNonceInvalidated)
+        ));
+        assert!(matches!(
+            mempool
+                .check_removed_comet_bft(tx4.sha256_of_proto_encoding())
+                .await,
+            Some(RemovalReason::FailedPrepareProposal(_))
+        ));
+        assert!(matches!(
+            mempool
+                .check_removed_comet_bft(tx5.sha256_of_proto_encoding())
+                .await,
+            Some(RemovalReason::LowerNonceInvalidated)
+        ));
     }
 
     #[tokio::test]
     async fn should_get_pending_nonce() {
         let mempool = Mempool::new();
+        let signing_key_0 = SigningKey::from([1; 32]);
+        let signing_key_1 = SigningKey::from([2; 32]);
+        let signing_key_2 = SigningKey::from([3; 32]);
+        let signing_address_0 = signing_key_0.verification_key().address_bytes();
+        let signing_address_1 = signing_key_1.verification_key().address_bytes();
+        let signing_address_2 = signing_key_2.verification_key().address_bytes();
 
-        // Insert txs signed by alice with nonces 0 and 1.
-        mempool.insert(get_mock_tx(0), 0).await.unwrap();
-        mempool.insert(get_mock_tx(1), 0).await.unwrap();
+        // sign and insert nonces 0,1
+        let tx0 = mock_tx(0, &signing_key_0, "test");
+        assert!(
+            mempool.insert(tx0.clone(), 0).await.is_ok(),
+            "should be able to insert nonce 0 transaction into mempool"
+        );
+        let tx1 = mock_tx(1, &signing_key_0, "test");
+        assert!(
+            mempool.insert(tx1.clone(), 0).await.is_ok(),
+            "should be able to insert nonce 1 transaction into mempool"
+        );
 
-        // Insert txs from a different signer with nonces 100 and 101.
-        let other = SigningKey::from([1; 32]);
-        let other_mock_tx = |nonce: u32| -> SignedTransaction {
-            let actions = get_mock_tx(0).actions().to_vec();
-            UnsignedTransaction {
-                params: TransactionParams::builder()
-                    .nonce(nonce)
-                    .chain_id("test")
-                    .build(),
-                actions,
-            }
-            .into_signed(&other)
-        };
-        mempool.insert(other_mock_tx(100), 0).await.unwrap();
-        mempool.insert(other_mock_tx(101), 0).await.unwrap();
+        // sign and insert nonces 100, 101
+        let tx100 = mock_tx(100, &signing_key_1, "test");
+        assert!(
+            mempool.insert(tx100.clone(), 100).await.is_ok(),
+            "should be able to insert nonce 100 transaction into mempool"
+        );
+        let tx101 = mock_tx(101, &signing_key_1, "test");
+        assert!(
+            mempool.insert(tx101.clone(), 100).await.is_ok(),
+            "should be able to insert nonce 101 transaction into mempool"
+        );
 
         assert_eq!(mempool.len().await, 4);
 
-        // Check the pending nonce for alice is 1 and for the other signer is 101.
-        let alice = crate::app::test_utils::get_alice_signing_key();
-        assert_eq!(
-            mempool.pending_nonce(alice.address_bytes()).await.unwrap(),
-            1
-        );
-        assert_eq!(
-            mempool.pending_nonce(other.address_bytes()).await.unwrap(),
-            101
-        );
+        // Check the pending nonces
+        assert_eq!(mempool.pending_nonce(signing_address_0).await.unwrap(), 1);
+        assert_eq!(mempool.pending_nonce(signing_address_1).await.unwrap(), 101);
 
-        // Check the pending nonce for an address with no enqueued txs is `None`.
-        assert!(mempool.pending_nonce([1; 20]).await.is_none());
+        // Check the pending nonce for an address with no txs is `None`.
+        assert!(mempool.pending_nonce(signing_address_2).await.is_none());
     }
 
     #[tokio::test]
-    async fn tx_cache_size() {
+    async fn tx_removal_cache() {
         let mut tx_cache = RemovalCache::new(NonZeroUsize::try_from(2).unwrap());
 
         let tx_0 = [0u8; 32];
@@ -814,10 +639,18 @@ mod test {
         );
     }
 
-    #[test]
-    fn enqueued_transaction_can_be_instantiated() {
-        // This just tests that the constructor does not fail.
-        let signed_tx = crate::app::test_utils::get_mock_tx(0);
-        let _ = EnqueuedTransaction::new(signed_tx);
+    #[tokio::test]
+    async fn tx_removal_cache_preserves_first_reason() {
+        let mut tx_cache = RemovalCache::new(NonZeroUsize::try_from(2).unwrap());
+
+        let tx_0 = [0u8; 32];
+
+        tx_cache.add(tx_0, RemovalReason::Expired);
+        tx_cache.add(tx_0, RemovalReason::LowerNonceInvalidated);
+
+        assert!(
+            matches!(tx_cache.remove(tx_0), Some(RemovalReason::Expired)),
+            "first removal reason should be presenved"
+        );
     }
 }

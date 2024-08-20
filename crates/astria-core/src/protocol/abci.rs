@@ -16,7 +16,9 @@ impl AbciErrorCode {
     pub const VALUE_NOT_FOUND: Self = Self(unsafe { NonZeroU32::new_unchecked(8) });
     pub const TRANSACTION_EXPIRED: Self = Self(unsafe { NonZeroU32::new_unchecked(9) });
     pub const TRANSACTION_FAILED: Self = Self(unsafe { NonZeroU32::new_unchecked(10) });
-    pub const BAD_REQUEST: Self = Self(unsafe { NonZeroU32::new_unchecked(11) });
+    pub const TRANSACTION_INSERTION_FAILED: Self = Self(unsafe { NonZeroU32::new_unchecked(11) }); 
+    pub const LOWER_NONCE_INVALIDATED: Self = Self(unsafe { NonZeroU32::new_unchecked(12) }); 
+    pub const BAD_REQUEST: Self = Self(unsafe { NonZeroU32::new_unchecked(13) });
 }
 
 impl AbciErrorCode {
@@ -42,6 +44,10 @@ impl AbciErrorCode {
             Self::TRANSACTION_FAILED => {
                 "the transaction failed to execute in prepare_proposal()".into()
             }
+            Self::TRANSACTION_INSERTION_FAILED => {
+                "the transaction failed insertion into the mempool".into()
+            }
+            Self::LOWER_NONCE_INVALIDATED => "lower nonce was invalidated in mempool".into(),
             Self::BAD_REQUEST => "the request payload was malformed".into(),
             Self(other) => {
                 format!("invalid error code {other}: should be unreachable (this is a bug)")
