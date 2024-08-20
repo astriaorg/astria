@@ -22,11 +22,14 @@ use futures::{
     TryFutureExt as _,
 };
 use prost::Message as _;
-use tendermint::v0_38::abci::{
-    request,
-    response,
-    MempoolRequest,
-    MempoolResponse,
+use tendermint::{
+    abci::Code,
+    v0_38::abci::{
+        request,
+        response,
+        MempoolRequest,
+        MempoolResponse,
+    },
 };
 use tower::Service;
 use tower_abci::BoxError;
@@ -126,12 +129,12 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
         mempool.remove(tx_hash).await;
         metrics.increment_check_tx_removed_too_large();
         return response::CheckTx {
-            code: AbciErrorCode::TRANSACTION_TOO_LARGE.into(),
+            code: Code::Err(AbciErrorCode::TRANSACTION_TOO_LARGE.value()),
             log: format!(
                 "transaction size too large; allowed: {MAX_TX_SIZE} bytes, got {}",
                 tx.len()
             ),
-            info: AbciErrorCode::TRANSACTION_TOO_LARGE.to_string(),
+            info: AbciErrorCode::TRANSACTION_TOO_LARGE.info(),
             ..response::CheckTx::default()
         };
     }
@@ -141,7 +144,7 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
         Err(e) => {
             mempool.remove(tx_hash).await;
             return response::CheckTx {
-                code: AbciErrorCode::INVALID_PARAMETER.into(),
+                code: Code::Err(AbciErrorCode::INVALID_PARAMETER.value()),
                 log: e.to_string(),
                 info: "failed decoding bytes as a protobuf SignedTransaction".into(),
                 ..response::CheckTx::default()
@@ -153,7 +156,7 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
         Err(e) => {
             mempool.remove(tx_hash).await;
             return response::CheckTx {
-                code: AbciErrorCode::INVALID_PARAMETER.into(),
+                code: Code::Err(AbciErrorCode::INVALID_PARAMETER.value()),
                 info: "the provided bytes was not a valid protobuf-encoded SignedTransaction, or \
                        the signature was invalid"
                     .into(),
@@ -172,7 +175,7 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
         mempool.remove(tx_hash).await;
         metrics.increment_check_tx_removed_failed_stateless();
         return response::CheckTx {
-            code: AbciErrorCode::INVALID_PARAMETER.into(),
+            code: Code::Err(AbciErrorCode::INVALID_PARAMETER.value()),
             info: "transaction failed stateless check".into(),
             log: e.to_string(),
             ..response::CheckTx::default()
@@ -188,7 +191,7 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
         mempool.remove(tx_hash).await;
         metrics.increment_check_tx_removed_stale_nonce();
         return response::CheckTx {
-            code: AbciErrorCode::INVALID_NONCE.into(),
+            code: Code::Err(AbciErrorCode::INVALID_NONCE.value()),
             info: "failed verifying transaction nonce".into(),
             log: e.to_string(),
             ..response::CheckTx::default()
@@ -203,7 +206,7 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
     if let Err(e) = transaction::check_chain_id_mempool(&signed_tx, &state).await {
         mempool.remove(tx_hash).await;
         return response::CheckTx {
-            code: AbciErrorCode::INVALID_CHAIN_ID.into(),
+            code: Code::Err(AbciErrorCode::INVALID_CHAIN_ID.value()),
             info: "failed verifying chain id".into(),
             log: e.to_string(),
             ..response::CheckTx::default()
@@ -219,7 +222,7 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
         mempool.remove(tx_hash).await;
         metrics.increment_check_tx_removed_account_balance();
         return response::CheckTx {
-            code: AbciErrorCode::INSUFFICIENT_FUNDS.into(),
+            code: Code::Err(AbciErrorCode::INSUFFICIENT_FUNDS.value()),
             info: "failed verifying account balance".into(),
             log: e.to_string(),
             ..response::CheckTx::default()
@@ -238,7 +241,7 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
             RemovalReason::Expired => {
                 metrics.increment_check_tx_removed_expired();
                 return response::CheckTx {
-                    code: AbciErrorCode::TRANSACTION_EXPIRED.into(),
+                    code: Code::Err(AbciErrorCode::TRANSACTION_EXPIRED.value()),
                     info: "transaction expired in app's mempool".into(),
                     log: "Transaction expired in the app's mempool".into(),
                     ..response::CheckTx::default()
@@ -247,7 +250,7 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
             RemovalReason::FailedPrepareProposal(err) => {
                 metrics.increment_check_tx_removed_failed_execution();
                 return response::CheckTx {
-                    code: AbciErrorCode::TRANSACTION_FAILED.into(),
+                    code: Code::Err(AbciErrorCode::TRANSACTION_FAILED.value()),
                     info: "transaction failed execution in prepare_proposal()".into(),
                     log: format!("transaction failed execution because: {err}"),
                     ..response::CheckTx::default()
@@ -270,8 +273,8 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
     {
         Err(err) => {
             return response::CheckTx {
-                code: AbciErrorCode::INTERNAL_ERROR.into(),
-                info: AbciErrorCode::INTERNAL_ERROR.to_string(),
+                code: Code::Err(AbciErrorCode::INTERNAL_ERROR.value()),
+                info: AbciErrorCode::INTERNAL_ERROR.info(),
                 log: format!("transaction failed execution because: {err:#?}"),
                 ..response::CheckTx::default()
             };

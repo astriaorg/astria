@@ -11,6 +11,7 @@ use prost::Message as _;
 use tendermint::abci::{
     request,
     response,
+    Code,
 };
 
 use crate::{
@@ -25,12 +26,12 @@ fn error_query_response(
     msg: &str,
 ) -> response::Query {
     let log = match err {
-        Some(err) => format!("{msg}: {err:?}"),
+        Some(err) => format!("{msg}: {err:#}"),
         None => msg.into(),
     };
     response::Query {
-        code: code.into(),
-        info: code.to_string(),
+        code: Code::Err(code.value()),
+        info: code.info(),
         log,
         ..response::Query::default()
     }
@@ -250,8 +251,8 @@ fn preprocess_request(params: &[(String, String)]) -> anyhow::Result<Address, re
         .parse()
         .context("failed to parse argument as address")
         .map_err(|err| response::Query {
-            code: AbciErrorCode::INVALID_PARAMETER.into(),
-            info: AbciErrorCode::INVALID_PARAMETER.to_string(),
+            code: Code::Err(AbciErrorCode::INVALID_PARAMETER.value()),
+            info: AbciErrorCode::INVALID_PARAMETER.info(),
             log: format!("address could not be constructed from provided parameter: {err:#}"),
             ..response::Query::default()
         })?;
