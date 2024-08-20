@@ -9,7 +9,6 @@ use std::{
     task::Poll,
     time::Duration,
 };
-use bytes::Bytes;
 
 use astria_core::{
     crypto::SigningKey,
@@ -39,6 +38,7 @@ use astria_eyre::eyre::{
     eyre,
     WrapErr as _,
 };
+use bytes::Bytes;
 use futures::{
     future::{
         self,
@@ -250,11 +250,13 @@ impl Executor {
         // we can give the BuilderBundlePacket the highest bundle max size possible
         // since this is the only sequence action we are sending
         let mut final_bundle = SizedBundle::new(self.max_bundle_size);
-        final_bundle.try_push(SequenceAction {
-            rollup_id: self.rollup_id,
-            data: encoded_builder_bundle_packet.into(),
-            fee_asset: self.fee_asset.clone(),
-        }).wrap_err("couldn't push sequence action to bundle")?;
+        final_bundle
+            .try_push(SequenceAction {
+                rollup_id: self.rollup_id,
+                data: encoded_builder_bundle_packet.into(),
+                fee_asset: self.fee_asset.clone(),
+            })
+            .wrap_err("couldn't push sequence action to bundle")?;
 
         info!("Submitting the builder bundle packet to sequencer!");
 

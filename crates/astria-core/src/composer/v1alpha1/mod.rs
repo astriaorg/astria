@@ -70,7 +70,7 @@ impl Protobuf for BuilderBundle {
 
         Ok(BuilderBundle {
             transactions: rollup_data_transactions,
-            parent_hash: Bytes::from(parent_hash.clone()),
+            parent_hash: parent_hash.clone(),
         })
     }
 
@@ -152,7 +152,7 @@ impl Protobuf for BuilderBundlePacket {
 
         Ok(BuilderBundlePacket {
             bundle,
-            signature: Bytes::from(signature.clone()),
+            signature: signature.clone(),
         })
     }
 
