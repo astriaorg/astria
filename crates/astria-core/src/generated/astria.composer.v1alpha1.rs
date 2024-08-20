@@ -345,15 +345,19 @@ pub mod grpc_collector_service_server {
         const NAME: &'static str = "astria.composer.v1alpha1.GrpcCollectorService";
     }
 }
+/// BuilderBundle contains a bundle of RollupData transactions which are created by a trusted builder
+/// It contains the transactions and the parent hash on top of which the bundles were simulated.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct BuilderBundle {
+    /// transactions in the bundle
     #[prost(message, repeated, tag = "1")]
     pub transactions: ::prost::alloc::vec::Vec<
         super::super::sequencerblock::v1alpha1::RollupData,
     >,
-    #[prost(bytes = "vec", tag = "2")]
-    pub parent_hash: ::prost::alloc::vec::Vec<u8>,
+    /// parent hash of the bundle
+    #[prost(bytes = "bytes", tag = "2")]
+    pub parent_hash: ::prost::bytes::Bytes,
 }
 impl ::prost::Name for BuilderBundle {
     const NAME: &'static str = "BuilderBundle";
@@ -362,13 +366,17 @@ impl ::prost::Name for BuilderBundle {
         ::prost::alloc::format!("astria.composer.v1alpha1.{}", Self::NAME)
     }
 }
+/// BuilderBundlePacket is a message that represents a bundle of RollupData transactions and the signature
+/// of the BuilderBundle by the trusted builder.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct BuilderBundlePacket {
+    /// the bundle of transactions
     #[prost(message, optional, tag = "1")]
     pub bundle: ::core::option::Option<BuilderBundle>,
-    #[prost(bytes = "vec", tag = "3")]
-    pub signature: ::prost::alloc::vec::Vec<u8>,
+    /// the signature of the bundle signed by the trusted builder
+    #[prost(bytes = "bytes", tag = "3")]
+    pub signature: ::prost::bytes::Bytes,
 }
 impl ::prost::Name for BuilderBundlePacket {
     const NAME: &'static str = "BuilderBundlePacket";
