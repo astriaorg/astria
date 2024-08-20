@@ -24,7 +24,7 @@ use crate::{
     },
     address::StateReadExt as _,
     app::ActionHandler,
-    assets::StateWriteExt,
+    assets::StateWriteExt as _,
     bridge::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -161,8 +161,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        address::StateWriteExt,
-        assets::StateWriteExt as _,
+        address::StateWriteExt as _,
         test_utils::{
             assert_anyhow_error,
             astria_address,
