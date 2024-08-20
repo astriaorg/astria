@@ -104,9 +104,7 @@ async fn ics20_withdrawal_check_stateful_bridge_account<S: StateRead>(
 
 #[async_trait::async_trait]
 impl ActionHandler for action::Ics20Withdrawal {
-    type CheckStatelessContext = ();
-
-    async fn check_stateless(&self, _context: Self::CheckStatelessContext) -> Result<()> {
+    async fn check_stateless(&self) -> Result<()> {
         ensure!(self.timeout_time() != 0, "timeout time must be non-zero",);
 
         // NOTE (from penumbra): we could validate the destination chain address as bech32 to

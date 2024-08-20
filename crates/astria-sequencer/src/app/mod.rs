@@ -981,7 +981,7 @@ impl App {
     ) -> anyhow::Result<Vec<Event>> {
         let signed_tx_2 = signed_tx.clone();
         let stateless =
-            tokio::spawn(async move { signed_tx_2.check_stateless(()).await }.in_current_span());
+            tokio::spawn(async move { signed_tx_2.check_stateless().await }.in_current_span());
 
         stateless
             .await

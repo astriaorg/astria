@@ -19,9 +19,7 @@ use crate::{
 };
 #[async_trait::async_trait]
 impl ActionHandler for BridgeSudoChangeAction {
-    type CheckStatelessContext = ();
-
-    async fn check_stateless(&self, _context: Self::CheckStatelessContext) -> Result<()> {
+    async fn check_stateless(&self) -> Result<()> {
         Ok(())
     }
 
