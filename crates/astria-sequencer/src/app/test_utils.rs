@@ -4,10 +4,7 @@ use astria_core::{
     crypto::SigningKey,
     primitive::v1::RollupId,
     protocol::transaction::v1alpha1::{
-        action::{
-            SequenceAction,
-            ValidatorUpdate,
-        },
+        action::SequenceAction,
         SignedTransaction,
         TransactionParams,
         UnsignedTransaction,
@@ -98,6 +95,8 @@ pub(crate) fn unchecked_genesis_state() -> UncheckedGenesisState {
         ibc_params: IBCParameters::default(),
         allowed_fee_assets: vec![crate::test_utils::nria().into()],
         fees: default_fees(),
+        validators: vec![],
+        chain_id: "test".to_string(),
     }
 }
 
@@ -107,7 +106,6 @@ pub(crate) fn genesis_state() -> GenesisState {
 
 pub(crate) async fn initialize_app_with_storage(
     genesis_state: Option<GenesisState>,
-    genesis_validators: Vec<ValidatorUpdate>,
 ) -> (App, Storage) {
     let storage = cnidarium::TempStorage::new()
         .await
@@ -119,24 +117,16 @@ pub(crate) async fn initialize_app_with_storage(
 
     let genesis_state = genesis_state.unwrap_or_else(self::genesis_state);
 
-    app.init_chain(
-        storage.clone(),
-        genesis_state,
-        genesis_validators,
-        "test".to_string(),
-    )
-    .await
-    .unwrap();
+    app.init_chain(storage.clone(), genesis_state)
+        .await
+        .unwrap();
     app.commit(storage.clone()).await;
 
     (app, storage.clone())
 }
 
-pub(crate) async fn initialize_app(
-    genesis_state: Option<GenesisState>,
-    genesis_validators: Vec<ValidatorUpdate>,
-) -> App {
-    let (app, _storage) = initialize_app_with_storage(genesis_state, genesis_validators).await;
+pub(crate) async fn initialize_app(genesis_state: Option<GenesisState>) -> App {
+    let (app, _storage) = initialize_app_with_storage(genesis_state).await;
     app
 }
 

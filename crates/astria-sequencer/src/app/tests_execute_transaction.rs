@@ -73,6 +73,8 @@ fn unchecked_genesis_state() -> UncheckedGenesisState {
         ibc_params: IBCParameters::default(),
         allowed_fee_assets: vec![crate::test_utils::nria().into()],
         fees: default_fees(),
+        validators: vec![],
+        chain_id: "test".to_string(),
     }
 }
 
@@ -86,7 +88,7 @@ fn test_asset() -> asset::Denom {
 
 #[tokio::test]
 async fn app_execute_transaction_transfer() {
-    let mut app = initialize_app(None, vec![]).await;
+    let mut app = initialize_app(None).await;
 
     // transfer funds from Alice to Bob
     let alice = get_alice_signing_key();
@@ -135,7 +137,7 @@ async fn app_execute_transaction_transfer() {
 async fn app_execute_transaction_transfer_not_native_token() {
     use crate::accounts::StateWriteExt as _;
 
-    let mut app = initialize_app(None, vec![]).await;
+    let mut app = initialize_app(None).await;
 
     // create some asset to be transferred and update Alice's balance of it
     let value = 333_333;
@@ -208,7 +210,7 @@ async fn app_execute_transaction_transfer_not_native_token() {
 async fn app_execute_transaction_transfer_balance_too_low_for_fee() {
     use rand::rngs::OsRng;
 
-    let mut app = initialize_app(None, vec![]).await;
+    let mut app = initialize_app(None).await;
 
     // create a new key; will have 0 balance
     let keypair = SigningKey::new(OsRng);
@@ -245,7 +247,7 @@ async fn app_execute_transaction_transfer_balance_too_low_for_fee() {
 async fn app_execute_transaction_sequence() {
     use crate::sequence::StateWriteExt as _;
 
-    let mut app = initialize_app(None, vec![]).await;
+    let mut app = initialize_app(None).await;
     let mut state_tx = StateDelta::new(app.state.clone());
     state_tx.put_sequence_action_base_fee(0);
     state_tx.put_sequence_action_byte_cost_multiplier(1);
@@ -286,7 +288,7 @@ async fn app_execute_transaction_sequence() {
 
 #[tokio::test]
 async fn app_execute_transaction_invalid_fee_asset() {
-    let mut app = initialize_app(None, vec![]).await;
+    let mut app = initialize_app(None).await;
 
     let alice = get_alice_signing_key();
     let data = Bytes::from_static(b"hello world");
@@ -315,7 +317,7 @@ async fn app_execute_transaction_validator_update() {
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
 
-    let mut app = initialize_app(Some(genesis_state()), vec![]).await;
+    let mut app = initialize_app(Some(genesis_state())).await;
 
     let update = ValidatorUpdate {
         power: 100,
@@ -347,7 +349,7 @@ async fn app_execute_transaction_ibc_relayer_change_addition() {
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
 
-    let mut app = initialize_app(Some(genesis_state()), vec![]).await;
+    let mut app = initialize_app(Some(genesis_state())).await;
 
     let tx = UnsignedTransaction {
         params: TransactionParams::builder()
@@ -374,7 +376,7 @@ async fn app_execute_transaction_ibc_relayer_change_deletion() {
     }
     .try_into()
     .unwrap();
-    let mut app = initialize_app(Some(genesis_state), vec![]).await;
+    let mut app = initialize_app(Some(genesis_state)).await;
 
     let tx = UnsignedTransaction {
         params: TransactionParams::builder()
@@ -401,7 +403,7 @@ async fn app_execute_transaction_ibc_relayer_change_invalid() {
     }
     .try_into()
     .unwrap();
-    let mut app = initialize_app(Some(genesis_state), vec![]).await;
+    let mut app = initialize_app(Some(genesis_state)).await;
 
     let tx = UnsignedTransaction {
         params: TransactionParams::builder()
@@ -420,7 +422,7 @@ async fn app_execute_transaction_sudo_address_change() {
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
 
-    let mut app = initialize_app(Some(genesis_state()), vec![]).await;
+    let mut app = initialize_app(Some(genesis_state())).await;
 
     let new_address = astria_address_from_hex_string(BOB_ADDRESS);
 
@@ -455,7 +457,7 @@ async fn app_execute_transaction_sudo_address_change_error() {
     }
     .try_into()
     .unwrap();
-    let mut app = initialize_app(Some(genesis_state), vec![]).await;
+    let mut app = initialize_app(Some(genesis_state)).await;
 
     let tx = UnsignedTransaction {
         params: TransactionParams::builder()
@@ -484,7 +486,7 @@ async fn app_execute_transaction_fee_asset_change_addition() {
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
 
-    let mut app = initialize_app(Some(genesis_state()), vec![]).await;
+    let mut app = initialize_app(Some(genesis_state())).await;
 
     let tx = UnsignedTransaction {
         params: TransactionParams::builder()
@@ -516,7 +518,7 @@ async fn app_execute_transaction_fee_asset_change_removal() {
     }
     .try_into()
     .unwrap();
-    let mut app = initialize_app(Some(genesis_state), vec![]).await;
+    let mut app = initialize_app(Some(genesis_state)).await;
 
     let tx = UnsignedTransaction {
         params: TransactionParams::builder()
@@ -541,7 +543,7 @@ async fn app_execute_transaction_fee_asset_change_invalid() {
 
     let alice = get_alice_signing_key();
 
-    let mut app = initialize_app(Some(genesis_state()), vec![]).await;
+    let mut app = initialize_app(Some(genesis_state())).await;
 
     let tx = UnsignedTransaction {
         params: TransactionParams::builder()
@@ -570,7 +572,7 @@ async fn app_execute_transaction_init_bridge_account_ok() {
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
 
-    let mut app = initialize_app(None, vec![]).await;
+    let mut app = initialize_app(None).await;
     let mut state_tx = StateDelta::new(app.state.clone());
     let fee = 12; // arbitrary
     state_tx.put_init_bridge_account_base_fee(fee);
@@ -630,7 +632,7 @@ async fn app_execute_transaction_init_bridge_account_account_already_registered(
     use astria_core::protocol::transaction::v1alpha1::action::InitBridgeAccountAction;
 
     let alice = get_alice_signing_key();
-    let mut app = initialize_app(None, vec![]).await;
+    let mut app = initialize_app(None).await;
 
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
     let action = InitBridgeAccountAction {
@@ -675,7 +677,7 @@ async fn app_execute_transaction_init_bridge_account_account_already_registered(
 async fn app_execute_transaction_bridge_lock_action_ok() {
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
-    let mut app = initialize_app(None, vec![]).await;
+    let mut app = initialize_app(None).await;
 
     let bridge_address = astria_address(&[99; 20]);
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
@@ -759,7 +761,7 @@ async fn app_execute_transaction_bridge_lock_action_invalid_for_eoa() {
     use astria_core::protocol::transaction::v1alpha1::action::BridgeLockAction;
 
     let alice = get_alice_signing_key();
-    let mut app = initialize_app(None, vec![]).await;
+    let mut app = initialize_app(None).await;
 
     // don't actually register this address as a bridge address
     let bridge_address = astria_address(&[99; 20]);
@@ -786,7 +788,7 @@ async fn app_execute_transaction_bridge_lock_action_invalid_for_eoa() {
 
 #[tokio::test]
 async fn app_execute_transaction_invalid_nonce() {
-    let mut app = initialize_app(None, vec![]).await;
+    let mut app = initialize_app(None).await;
 
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
@@ -833,7 +835,7 @@ async fn app_execute_transaction_invalid_nonce() {
 
 #[tokio::test]
 async fn app_execute_transaction_invalid_chain_id() {
-    let mut app = initialize_app(None, vec![]).await;
+    let mut app = initialize_app(None).await;
 
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
@@ -882,7 +884,7 @@ async fn app_execute_transaction_invalid_chain_id() {
 async fn app_stateful_check_fails_insufficient_total_balance() {
     use rand::rngs::OsRng;
 
-    let mut app = initialize_app(None, vec![]).await;
+    let mut app = initialize_app(None).await;
 
     let alice = get_alice_signing_key();
 
@@ -979,7 +981,7 @@ async fn app_execute_transaction_bridge_lock_unlock_action_ok() {
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
 
-    let mut app = initialize_app(None, vec![]).await;
+    let mut app = initialize_app(None).await;
     let mut state_tx = StateDelta::new(app.state.clone());
 
     let bridge = get_bridge_signing_key();
@@ -1055,7 +1057,7 @@ async fn app_execute_transaction_bridge_lock_unlock_action_ok() {
 
 #[tokio::test]
 async fn transaction_execution_records_fee_event() {
-    let mut app = initialize_app(None, vec![]).await;
+    let mut app = initialize_app(None).await;
 
     // transfer funds from Alice to Bob
     let alice = get_alice_signing_key();

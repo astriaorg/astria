@@ -10,11 +10,15 @@ use astria_core::{
             BridgeLockAction,
             SequenceAction,
             TransferAction,
+            ValidatorUpdate,
         },
         TransactionParams,
         UnsignedTransaction,
     },
-    sequencer::Account,
+    sequencer::{
+        Account,
+        GenesisState,
+    },
     sequencerblock::v1alpha1::block::Deposit,
 };
 use cnidarium::StateDelta;
@@ -88,7 +92,7 @@ fn default_tendermint_header() -> Header {
 
 #[tokio::test]
 async fn app_genesis_and_init_chain() {
-    let app = initialize_app(None, vec![]).await;
+    let app = initialize_app(None).await;
     assert_eq!(app.state.get_block_height().await.unwrap(), 0);
 
     for Account {
@@ -113,7 +117,7 @@ async fn app_genesis_and_init_chain() {
 
 #[tokio::test]
 async fn app_pre_execute_transactions() {
-    let mut app = initialize_app(None, vec![]).await;
+    let mut app = initialize_app(None).await;
 
     let block_data = BlockData {
         misbehavior: vec![],
@@ -148,7 +152,11 @@ async fn app_begin_block_remove_byzantine_validators() {
         },
     ];
 
-    let mut app = initialize_app(None, initial_validator_set.clone()).await;
+    let mut unchecked_genesis_state = unchecked_genesis_state();
+    unchecked_genesis_state.validators = initial_validator_set;
+    let genesis_state = GenesisState::try_from(unchecked_genesis_state).unwrap();
+
+    let mut app = initialize_app(Some(genesis_state)).await;
 
     let misbehavior = types::Misbehavior {
         kind: types::MisbehaviorKind::Unknown,
@@ -182,7 +190,7 @@ async fn app_begin_block_remove_byzantine_validators() {
 
 #[tokio::test]
 async fn app_commit() {
-    let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
+    let (mut app, storage) = initialize_app_with_storage(None).await;
     assert_eq!(app.state.get_block_height().await.unwrap(), 0);
 
     for Account {
@@ -220,7 +228,7 @@ async fn app_commit() {
 
 #[tokio::test]
 async fn app_transfer_block_fees_to_sudo() {
-    let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
+    let (mut app, storage) = initialize_app_with_storage(None).await;
 
     let alice = get_alice_signing_key();
 
@@ -289,7 +297,7 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
     use crate::api_state_ext::StateReadExt as _;
 
     let alice = get_alice_signing_key();
-    let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
+    let (mut app, storage) = initialize_app_with_storage(None).await;
 
     let bridge_address = astria_address(&[99; 20]);
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
@@ -378,7 +386,7 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
 #[allow(clippy::too_many_lines)]
 async fn app_execution_results_match_proposal_vs_after_proposal() {
     let alice = get_alice_signing_key();
-    let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
+    let (mut app, storage) = initialize_app_with_storage(None).await;
 
     let bridge_address = astria_address(&[99; 20]);
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
@@ -530,7 +538,7 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
 
 #[tokio::test]
 async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
-    let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
+    let (mut app, storage) = initialize_app_with_storage(None).await;
     app.prepare_commit(storage.clone()).await.unwrap();
     app.commit(storage.clone()).await;
 
@@ -609,7 +617,7 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
 
 #[tokio::test]
 async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
-    let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
+    let (mut app, storage) = initialize_app_with_storage(None).await;
     app.prepare_commit(storage.clone()).await.unwrap();
     app.commit(storage.clone()).await;
 
@@ -699,7 +707,11 @@ async fn app_end_block_validator_updates() {
         },
     ];
 
-    let mut app = initialize_app(None, initial_validator_set).await;
+    let mut unchecked_genesis_state = unchecked_genesis_state();
+    unchecked_genesis_state.validators = initial_validator_set;
+    let genesis_state = GenesisState::try_from(unchecked_genesis_state).unwrap();
+
+    let mut app = initialize_app(Some(genesis_state)).await;
     let proposer_address = [0u8; 20];
 
     let validator_updates = vec![

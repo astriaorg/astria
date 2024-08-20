@@ -24,7 +24,6 @@ use astria_core::{
     protocol::{
         abci::AbciErrorCode,
         transaction::v1alpha1::{
-            action::ValidatorUpdate,
             Action,
             SignedTransaction,
         },
@@ -206,8 +205,6 @@ impl App {
         &mut self,
         storage: Storage,
         genesis_state: astria_core::sequencer::GenesisState,
-        genesis_validators: Vec<ValidatorUpdate>,
-        chain_id: String,
     ) -> anyhow::Result<AppHash> {
         let mut state_tx = self
             .state
@@ -224,7 +221,12 @@ impl App {
             .put_ibc_asset(native_asset)
             .context("failed to commit native asset as ibc asset to state")?;
 
-        state_tx.put_chain_id_and_revision_number(chain_id.try_into().context("invalid chain ID")?);
+        state_tx.put_chain_id_and_revision_number(
+            genesis_state
+                .chain_id()
+                .try_into()
+                .context("invalid chain ID")?,
+        );
         state_tx.put_block_height(0);
 
         for fee_asset in genesis_state.allowed_fee_assets() {
@@ -239,7 +241,7 @@ impl App {
             &mut state_tx,
             &AuthorityComponentAppState {
                 authority_sudo_address: *genesis_state.authority_sudo_address(),
-                genesis_validators,
+                genesis_validators: genesis_state.validators().clone(),
             },
         )
         .await

@@ -920,6 +920,8 @@ dependencies = [
  "itertools 0.12.1",
  "predicates",
  "prost",
+ "rand 0.8.5",
+ "rand_chacha 0.3.1",
  "rlp",
  "serde",
  "serde_json",

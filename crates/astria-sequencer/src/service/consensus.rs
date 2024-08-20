@@ -125,25 +125,29 @@ impl Consensus {
             bail!("database already initialized");
         }
 
-        let genesis_state: astria_core::sequencer::GenesisState =
+        let raw_genesis_state: astria_core::sequencer::GenesisState =
             serde_json::from_slice(&init_chain.app_state_bytes)
                 .context("failed to parse app_state in genesis file")?;
+
+        let mut unchecked_genesis_state =
+            astria_core::sequencer::UncheckedGenesisState::from(raw_genesis_state);
+
+        unchecked_genesis_state.chain_id = init_chain.chain_id;
+        unchecked_genesis_state.validators = init_chain
+            .validators
+            .iter()
+            .cloned()
+            .map(crate::utils::cometbft_to_sequencer_validator)
+            .collect::<Result<_, _>>()
+            .context("failed converting cometbft genesis validators to astria validators")?;
+
+        let genesis_state = unchecked_genesis_state
+            .try_into()
+            .context("failed to convert from unchecked genesis state")?;
+
         let app_hash = self
             .app
-            .init_chain(
-                self.storage.clone(),
-                genesis_state,
-                init_chain
-                    .validators
-                    .iter()
-                    .cloned()
-                    .map(crate::utils::cometbft_to_sequencer_validator)
-                    .collect::<Result<_, _>>()
-                    .context(
-                        "failed converting cometbft genesis validators to astria validators",
-                    )?,
-                init_chain.chain_id,
-            )
+            .init_chain(self.storage.clone(), genesis_state)
             .await
             .context("failed to call init_chain")?;
         self.app.commit(self.storage.clone()).await;
@@ -466,6 +470,8 @@ mod test {
             ibc_params: penumbra_ibc::params::IBCParameters::default(),
             allowed_fee_assets: vec!["nria".parse().unwrap()],
             fees: default_fees(),
+            validators: vec![],
+            chain_id: "test".to_string(),
         }
         .try_into()
         .unwrap();
@@ -475,7 +481,7 @@ mod test {
         let mempool = Mempool::new();
         let metrics = Box::leak(Box::new(Metrics::new()));
         let mut app = App::new(snapshot, mempool.clone(), metrics).await.unwrap();
-        app.init_chain(storage.clone(), genesis_state, vec![], "test".to_string())
+        app.init_chain(storage.clone(), genesis_state)
             .await
             .unwrap();
         app.commit(storage.clone()).await;

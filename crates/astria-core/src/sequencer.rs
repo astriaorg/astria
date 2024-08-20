@@ -1,12 +1,15 @@
 //! Sequencer specific types that are needed outside of it.
 pub use penumbra_ibc::params::IBCParameters;
 
-use crate::primitive::v1::{
-    asset::{
-        self,
-        TracePrefixed,
+use crate::{
+    primitive::v1::{
+        asset::{
+            self,
+            TracePrefixed,
+        },
+        Address,
     },
-    Address,
+    protocol::transaction::v1alpha1::action::ValidatorUpdate,
 };
 
 /// The genesis state of Astria's Sequencer.
@@ -33,6 +36,8 @@ pub struct GenesisState {
     ibc_params: IBCParameters,
     allowed_fee_assets: Vec<asset::Denom>,
     fees: Fees,
+    validators: Vec<ValidatorUpdate>,
+    chain_id: String,
 }
 
 impl GenesisState {
@@ -80,6 +85,16 @@ impl GenesisState {
     pub fn fees(&self) -> &Fees {
         &self.fees
     }
+
+    #[must_use]
+    pub fn validators(&self) -> &Vec<ValidatorUpdate> {
+        &self.validators
+    }
+
+    #[must_use]
+    pub fn chain_id(&self) -> &str {
+        &self.chain_id
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -118,6 +133,8 @@ impl TryFrom<UncheckedGenesisState> for GenesisState {
             ibc_params,
             allowed_fee_assets,
             fees,
+            validators,
+            chain_id,
         } = value;
 
         Ok(Self {
@@ -130,6 +147,8 @@ impl TryFrom<UncheckedGenesisState> for GenesisState {
             ibc_params,
             allowed_fee_assets,
             fees,
+            validators,
+            chain_id,
         })
     }
 }
@@ -147,6 +166,8 @@ pub struct UncheckedGenesisState {
     pub ibc_params: IBCParameters,
     pub allowed_fee_assets: Vec<asset::Denom>,
     pub fees: Fees,
+    pub validators: Vec<ValidatorUpdate>,
+    pub chain_id: String,
 }
 
 impl UncheckedGenesisState {
@@ -197,6 +218,8 @@ impl From<GenesisState> for UncheckedGenesisState {
             ibc_params,
             allowed_fee_assets,
             fees,
+            validators,
+            chain_id,
         } = value;
         Self {
             address_prefixes,
@@ -208,6 +231,8 @@ impl From<GenesisState> for UncheckedGenesisState {
             ibc_params,
             allowed_fee_assets,
             fees,
+            validators,
+            chain_id,
         }
     }
 }
@@ -314,6 +339,8 @@ mod tests {
                 bridge_sudo_change_fee: 24,
                 ics20_withdrawal_base_fee: 24,
             },
+            validators: vec![],
+            chain_id: "astria-test".into(),
         }
     }
 

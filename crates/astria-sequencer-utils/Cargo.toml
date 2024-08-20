@@ -25,6 +25,8 @@ prost = { workspace = true }
 rlp = "0.5.2"
 serde = { workspace = true }
 serde_json = { workspace = true }
+rand = { workspace = true }
+rand_chacha = "0.3.1"
 
 astria-core = { path = "../astria-core", features = ["brotli", "serde"] }
 astria-eyre = { path = "../astria-eyre" }

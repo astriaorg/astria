@@ -89,19 +89,21 @@ fn unchecked_genesis_state() -> UncheckedGenesisState {
         ibc_params: IBCParameters::default(),
         allowed_fee_assets: vec![nria().into()],
         fees: default_fees(),
+        validators: vec![],
+        chain_id: "test".to_string(),
     }
 }
 
 #[tokio::test]
 async fn app_genesis_snapshot() {
-    let app = initialize_app(None, vec![]).await;
+    let app = initialize_app(None).await;
     insta::assert_json_snapshot!(app.app_hash.as_bytes());
 }
 
 #[tokio::test]
 async fn app_finalize_block_snapshot() {
     let alice = get_alice_signing_key();
-    let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
+    let (mut app, storage) = initialize_app_with_storage(None).await;
 
     let bridge_address = astria_address(&[99; 20]);
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
@@ -204,7 +206,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     }
     .try_into()
     .unwrap();
-    let (mut app, storage) = initialize_app_with_storage(Some(genesis_state), vec![]).await;
+    let (mut app, storage) = initialize_app_with_storage(Some(genesis_state)).await;
 
     // setup for ValidatorUpdate action
     let update = ValidatorUpdate {

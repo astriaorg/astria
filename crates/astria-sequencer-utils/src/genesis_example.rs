@@ -5,7 +5,12 @@ use std::{
 };
 
 use astria_core::{
+    crypto::{
+        SigningKey,
+        VerificationKey,
+    },
     primitive::v1::Address,
+    protocol::transaction::v1alpha1::action::ValidatorUpdate,
     sequencer::{
         Account,
         AddressPrefixes,
@@ -46,6 +51,13 @@ fn charlie() -> Address {
         .unwrap()
 }
 
+fn verification_key(seed: u64) -> VerificationKey {
+    use rand::SeedableRng as _;
+    let rng = rand_chacha::ChaChaRng::seed_from_u64(seed);
+    let signing_key = SigningKey::new(rng);
+    signing_key.verification_key()
+}
+
 fn genesis_state() -> GenesisState {
     UncheckedGenesisState {
         accounts: vec![
@@ -84,6 +96,17 @@ fn genesis_state() -> GenesisState {
             bridge_sudo_change_fee: 24,
             ics20_withdrawal_base_fee: 24,
         },
+        validators: vec![
+            ValidatorUpdate {
+                power: 1u32,
+                verification_key: verification_key(0),
+            },
+            ValidatorUpdate {
+                power: 1u32,
+                verification_key: verification_key(1),
+            },
+        ],
+        chain_id: "test".to_string(),
     }
     .try_into()
     .unwrap()
