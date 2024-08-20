@@ -9,6 +9,7 @@ use std::{
     task::Poll,
     time::Duration,
 };
+use bytes::Bytes;
 
 use astria_core::{
     crypto::SigningKey,
@@ -233,7 +234,7 @@ impl Executor {
         info!("Creating BuilderBundlePacket");
         let builder_bundle = BuilderBundle {
             transactions: rollup_data_items,
-            parent_hash: bundle_simulation_result.parent_hash().to_vec(),
+            parent_hash: bundle_simulation_result.parent_hash(),
         };
 
         // TODO - bundle signing
@@ -241,7 +242,7 @@ impl Executor {
         // create a top of block bundle
         let builder_bundle_packet = BuilderBundlePacket {
             bundle: Some(builder_bundle),
-            signature: vec![],
+            signature: Bytes::from(vec![]),
         };
         let encoded_builder_bundle_packet = builder_bundle_packet.encode_to_vec();
 
