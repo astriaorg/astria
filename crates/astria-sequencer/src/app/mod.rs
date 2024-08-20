@@ -59,7 +59,6 @@ use tracing::{
     debug,
     info,
     instrument,
-    Instrument as _,
 };
 
 use crate::{
