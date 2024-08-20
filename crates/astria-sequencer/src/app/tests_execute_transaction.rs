@@ -1166,7 +1166,7 @@ async fn ensure_correct_block_fees_sequence() {
     let actions = vec![
         SequenceAction {
             rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-            data: data.clone(),
+            data: data.clone().into(),
             fee_asset: nria().into(),
         }
         .into(),

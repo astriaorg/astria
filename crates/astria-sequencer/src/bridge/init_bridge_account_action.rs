@@ -18,7 +18,10 @@ use crate::{
     },
     address::StateReadExt as _,
     app::ActionHandler,
-    assets::StateReadExt as _,
+    assets::{
+        StateReadExt as _,
+        StateWriteExt,
+    },
     bridge::state_ext::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -28,7 +31,7 @@ use crate::{
 
 #[async_trait::async_trait]
 impl ActionHandler for InitBridgeAccountAction {
-    async fn check_stateless(&self, _context: Self::CheckStatelessContext) -> Result<()> {
+    async fn check_stateless(&self) -> Result<()> {
         Ok(())
     }
 

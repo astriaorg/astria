@@ -77,7 +77,7 @@ impl ActionHandler for ValidatorUpdate {
 
 #[async_trait::async_trait]
 impl ActionHandler for SudoAddressChangeAction {
-    async fn check_stateless(&self, _context: Self::CheckStatelessContext) -> Result<()> {
+    async fn check_stateless(&self) -> Result<()> {
         Ok(())
     }
 

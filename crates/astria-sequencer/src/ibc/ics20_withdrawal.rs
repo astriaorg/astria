@@ -30,7 +30,6 @@ use penumbra_ibc::component::packet::{
 use crate::{
     accounts::{
         AddressBytes,
-        StateReadExt as _,
         StateWriteExt as _,
     },
     address::StateReadExt as _,
