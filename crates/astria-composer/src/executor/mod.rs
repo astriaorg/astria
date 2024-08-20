@@ -60,6 +60,7 @@ use tokio::{
     time::{
         self,
         Instant,
+        Sleep,
     },
 };
 use tokio_util::sync::CancellationToken;
@@ -82,6 +83,7 @@ use crate::{
         SizedBundleReport,
     },
     metrics::Metrics,
+    utils::report_exit,
 };
 
 mod bundle_factory;
@@ -216,17 +218,22 @@ impl Executor {
         select!(
             biased;
             () = self.shutdown_token.cancelled() => {
-                return report_exit(&Ok("received shutdown signal while running initialization routines; exiting"));
+                report_exit(&Ok("received shutdown signal while running initialization routines; exiting"));
+                return Ok(())
             }
 
             res = self.pre_run_checks() => {
+                report_exit(&res);
                 res.wrap_err("required pre-run checks failed")?;
             }
         );
         let mut submission_fut: Fuse<Instrumented<SubmitFut>> = Fuse::terminated();
         let mut nonce = get_latest_nonce(self.sequencer_client.clone(), self.address, self.metrics)
             .await
-            .wrap_err("failed getting initial nonce from sequencer")?;
+            .map_err(|err| {
+                report_exit(&Err(eyre!(err.to_string())));
+                err
+            })?;
 
         self.metrics.set_current_nonce(nonce);
 
@@ -252,8 +259,7 @@ impl Executor {
                 }
                 // process submission result and update nonce
                 rsp = &mut submission_fut, if !submission_fut.is_terminated() => {
-                    process_result_update_nonce(&mut nonce, rsp)?;
-                    block_timer.as_mut().reset(reset_time());
+                    if let Err(err) = process_result_update_nonce(&mut nonce, rsp, &mut block_timer, reset_time) {break Err(err).wrap_err("failed submitting bundle to sequencer");};
                 }
 
                 Some(next_bundle) = future::ready(bundle_factory.next_finished()), if submission_fut.is_terminated() => {
@@ -287,7 +293,10 @@ impl Executor {
         // sequence actions
         self.serialized_rollup_transactions.close();
 
-        report_exit(&reason)?;
+        report_exit(&reason);
+        if let Err(err) = reason {
+            return Err(err).wrap_err("Failed to submit bundle to sequencer. Aborting");
+        }
 
         let mut bundles_to_drain: VecDeque<SizedBundle> = VecDeque::new();
         let mut bundles_drained: Option<u64> = Some(0);
@@ -324,9 +333,9 @@ impl Executor {
 
     /// Performs initialization checks prior to running the executor
     #[instrument(skip_all, err)]
-    async fn pre_run_checks(&self) -> eyre::Result<()> {
+    async fn pre_run_checks(&self) -> eyre::Result<&str> {
         self.ensure_chain_id_is_correct().await?;
-        Ok(())
+        Ok("Pre-run checks successful")
     }
 
     /// Performs check to ensure the configured chain ID matches the remote chain ID
@@ -557,18 +566,6 @@ async fn submit_tx(
     res
 }
 
-/// Reports and logs exit reason
-#[instrument(skip_all, err)]
-fn report_exit(reason: &eyre::Result<&str>) -> eyre::Result<()> {
-    match &reason {
-        Ok(reason) => {
-            info!(reason, "shutting down");
-            Ok(())
-        }
-        Err(reason) => Err(eyre!(reason.to_string())),
-    }
-}
-
 /// Handles timeout of shutdown process
 #[instrument(skip_all)]
 async fn bundle_drain_timeout_handler(shutdown_logic: impl Future<Output = eyre::Result<()>>) {
@@ -581,7 +578,13 @@ async fn bundle_drain_timeout_handler(shutdown_logic: impl Future<Output = eyre:
 
 /// Processes the result of bundle submission and updates nonce
 #[instrument(skip_all, err)]
-fn process_result_update_nonce(nonce: &mut u32, rsp: eyre::Result<u32>) -> eyre::Result<()> {
+fn process_result_update_nonce(
+    nonce: &mut u32,
+    rsp: eyre::Result<u32>,
+    block_timer: &mut Pin<&mut Sleep>,
+    reset_time: impl Fn() -> Instant,
+) -> eyre::Result<()> {
+    block_timer.as_mut().reset(reset_time());
     match rsp {
         Ok(new_nonce) => {
             *nonce = new_nonce;

@@ -60,6 +60,7 @@ use crate::{
         Handle,
     },
     metrics::Metrics,
+    utils::report_exit,
 };
 
 type StdError = dyn std::error::Error;
@@ -259,18 +260,6 @@ async fn executor_send_timeout_handler(
             );
             txs_dropped_counter.increment(1);
             Err(eyre!("executor channel closed while sending transaction"))
-        }
-    }
-}
-
-#[instrument(skip_all)]
-fn report_exit(reason: &Result<&str, Report>) {
-    match &reason {
-        Ok(reason) => {
-            info!(reason, "shutting down");
-        }
-        Err(reason) => {
-            error!(%reason, "shutting down");
         }
     }
 }
