@@ -141,7 +141,7 @@ impl Conductor {
         }
 
         if cfg.execution_commit_level.is_with_firm() {
-            let celestia_token = if cfg.no_celestia_bearer_token {
+            let celestia_token = if cfg.no_celestia_auth {
                 None
             } else {
                 Some(cfg.celestia_bearer_token)
