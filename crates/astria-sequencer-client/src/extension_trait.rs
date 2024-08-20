@@ -58,6 +58,11 @@ pub use astria_core::{
         SequencerBlock,
     },
 };
+use astria_eyre::eyre::{
+    self,
+    ensure,
+    Context,
+};
 use async_trait::async_trait;
 use futures::Stream;
 use prost::{
@@ -70,13 +75,14 @@ use tendermint_rpc::HttpClient;
 #[cfg(feature = "websocket")]
 use tendermint_rpc::WebSocketClient;
 use tendermint_rpc::{
-    endpoint::broadcast::{
-        tx_commit,
-        tx_sync,
-    },
+    endpoint::broadcast::tx_sync,
     event::EventData,
     Client,
     SubscriptionClient,
+};
+use tracing::{
+    instrument,
+    warn,
 };
 
 #[cfg(feature = "http")]
@@ -664,21 +670,52 @@ pub trait SequencerClientExt: Client {
             .map_err(|e| Error::tendermint_rpc("broadcast_tx_sync", e))
     }
 
-    /// Submits the given transaction to the Sequencer node.
-    ///
-    /// This method blocks until the transaction is committed.
-    /// It returns the results of `CheckTx` and `DeliverTx`.
+    /// Probes the sequencer for a transaction of given hash with a backoff.
     ///
     /// # Errors
     ///
-    /// - If calling the tendermint RPC endpoint fails.
-    async fn submit_transaction_commit(
+    /// - If the transaction is not found.
+    /// - If the transaction execution failed.
+    /// - If the transaction proof is missing.
+    #[allow(clippy::blocks_in_conditions)] // Allow: erroneous clippy warning. Should be fixed in Rust 1.81
+    #[instrument(skip_all, err)]
+    async fn wait_for_tx_inclusion(
         &self,
-        tx: SignedTransaction,
-    ) -> Result<tx_commit::Response, Error> {
-        let tx_bytes = tx.into_raw().encode_to_vec();
-        self.broadcast_tx_commit(tx_bytes)
+        tx_hash: tendermint::hash::Hash,
+    ) -> eyre::Result<tendermint_rpc::endpoint::tx::Response> {
+        use std::time::Duration;
+
+        let retry_config = tryhard::RetryFutureConfig::new(u32::MAX)
+            .exponential_backoff(Duration::from_millis(100))
+            .max_delay(Duration::from_secs(20))
+            .on_retry(
+                |attempt: u32, next_delay: Option<Duration>, error: &tendermint_rpc::Error| {
+                    let wait_duration = next_delay
+                        .map(humantime::format_duration)
+                        .map(tracing::field::display);
+                    warn!(
+                        attempt,
+                        wait_duration,
+                        error = error as &dyn std::error::Error,
+                        "failed to get transaction from sequencer client, retrying",
+                    );
+                    futures::future::ready(())
+                },
+            );
+
+        let tx = tryhard::retry_fn(|| self.tx(tx_hash, true))
+            .with_config(retry_config)
             .await
-            .map_err(|e| Error::tendermint_rpc("broadcast_tx_commit", e))
+            .context("failed to get transaction from sequencer client")?;
+
+        ensure!(
+            tx.tx_result.code.is_ok() && tx.proof.is_some(),
+            // This should not happen. If the transaction failed, it should not have been included
+            // in the block. If the transaction was included in the block, proof should be `Some`.
+            "failed to execute tx: {}",
+            tx.tx_result.log
+        );
+
+        Ok(tx)
     }
 }

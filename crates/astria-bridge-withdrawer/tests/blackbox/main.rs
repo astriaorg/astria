@@ -20,7 +20,7 @@ async fn native_sequencer_withdraw_success() {
         .mount_pending_nonce_response(1, "process batch 1")
         .await;
     let broadcast_guard = test_env
-        .mount_broadcast_tx_commit_success_response_as_scoped()
+        .mount_broadcast_tx_sync_success_response_as_scoped()
         .await;
 
     // send a native sequencer withdrawal tx to the rollup
@@ -57,7 +57,7 @@ async fn native_ics20_withdraw_success() {
         .mount_pending_nonce_response(1, "process batch 1")
         .await;
     let broadcast_guard = test_env
-        .mount_broadcast_tx_commit_success_response_as_scoped()
+        .mount_broadcast_tx_sync_success_response_as_scoped()
         .await;
 
     // send an ics20 withdrawal tx to the rollup
@@ -94,7 +94,7 @@ async fn erc20_sequencer_withdraw_success() {
         .mount_pending_nonce_response(1, "process batch 1")
         .await;
     let broadcast_guard = test_env
-        .mount_broadcast_tx_commit_success_response_as_scoped()
+        .mount_broadcast_tx_sync_success_response_as_scoped()
         .await;
 
     // mint some erc20 tokens to the rollup wallet
@@ -137,7 +137,7 @@ async fn erc20_ics20_withdraw_success() {
         .mount_pending_nonce_response(1, "process batch 1")
         .await;
     let broadcast_guard = test_env
-        .mount_broadcast_tx_commit_success_response_as_scoped()
+        .mount_broadcast_tx_sync_success_response_as_scoped()
         .await;
 
     // mint some erc20 tokens to the rollup wallet
