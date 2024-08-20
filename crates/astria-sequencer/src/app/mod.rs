@@ -7,11 +7,13 @@ mod tests_breaking_changes;
 #[cfg(test)]
 mod tests_execute_transaction;
 
+mod action_handler;
 use std::{
     collections::VecDeque,
     sync::Arc,
 };
 
+pub(crate) use action_handler::ActionHandler;
 use anyhow::{
     anyhow,
     ensure,
@@ -19,7 +21,6 @@ use anyhow::{
 };
 use astria_core::{
     generated::protocol::transaction::v1alpha1 as raw,
-    primitive::v1::Address,
     protocol::{
         abci::AbciErrorCode,
         transaction::v1alpha1::{
@@ -59,7 +60,6 @@ use tracing::{
     debug,
     info,
     instrument,
-    Instrument as _,
 };
 
 use crate::{
@@ -106,10 +106,7 @@ use crate::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    transaction::{
-        self,
-        InvalidNonce,
-    },
+    transaction::InvalidNonce,
 };
 
 /// The inter-block state being written to by the application.
@@ -982,46 +979,29 @@ impl App {
         &mut self,
         signed_tx: Arc<SignedTransaction>,
     ) -> anyhow::Result<Vec<Event>> {
-        let signed_tx_2 = signed_tx.clone();
-        let stateless = tokio::spawn(
-            async move { transaction::check_stateless(&signed_tx_2).await }.in_current_span(),
-        );
-        let signed_tx_2 = signed_tx.clone();
-        let state2 = self.state.clone();
-        let stateful = tokio::spawn(
-            async move { transaction::check_stateful(&signed_tx_2, &state2).await }
-                .in_current_span(),
-        );
-
-        stateless
+        signed_tx
+            .check_stateless()
             .await
-            .context("stateless check task aborted while executing")?
             .context("stateless check failed")?;
-        stateful
-            .await
-            .context("stateful check task aborted while executing")?
-            .context("stateful check failed")?;
-        // At this point, the stateful checks should have completed,
-        // leaving us with exclusive access to the Arc<State>.
+
         let mut state_tx = self
             .state
             .try_begin_transaction()
             .expect("state Arc should be present and unique");
 
-        transaction::execute(&signed_tx, &mut state_tx)
+        signed_tx
+            .check_and_execute(&mut state_tx)
             .await
             .context("failed executing transaction")?;
-        let (_, events) = state_tx.apply();
 
-        info!(event_count = events.len(), "executed transaction");
-        Ok(events)
+        Ok(state_tx.apply().1)
     }
 
     #[instrument(name = "App::end_block", skip_all)]
     pub(crate) async fn end_block(
         &mut self,
         height: u64,
-        fee_recipient: Address,
+        fee_recipient: [u8; 20],
     ) -> anyhow::Result<abci::response::EndBlock> {
         let state_tx = StateDelta::new(self.state.clone());
         let mut arc_state_tx = Arc::new(state_tx);
