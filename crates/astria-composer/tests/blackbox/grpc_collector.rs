@@ -6,7 +6,7 @@ use astria_core::{
             grpc_collector_service_client::GrpcCollectorServiceClient,
             SubmitRollupTransactionRequest,
         },
-        protocol::account::v1alpha1::NonceResponse,
+        protocol::accounts::v1alpha1::NonceResponse,
     },
     primitive::v1::RollupId,
 };

@@ -69,7 +69,7 @@ pub mod primitive {
 #[path = ""]
 pub mod protocol {
     #[path = ""]
-    pub mod account {
+    pub mod accounts {
         #[path = "astria.protocol.accounts.v1alpha1.rs"]
         pub mod v1alpha1;
     }
@@ -96,7 +96,7 @@ pub mod protocol {
         }
     }
     #[path = ""]
-    pub mod transaction {
+    pub mod transactions {
         pub mod v1alpha1 {
             include!("astria.protocol.transactions.v1alpha1.rs");
 

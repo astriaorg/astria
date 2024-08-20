@@ -10,7 +10,7 @@ use std::{
 
 use anyhow::Context as _;
 use astria_core::{
-    generated::protocol::transaction::v1alpha1 as raw,
+    generated::protocol::transactions::v1alpha1 as raw,
     protocol::{
         abci::AbciErrorCode,
         transaction::v1alpha1::SignedTransaction,
