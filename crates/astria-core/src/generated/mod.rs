@@ -84,6 +84,18 @@ pub mod protocol {
         pub mod v1alpha1;
     }
     #[path = ""]
+    pub mod memos {
+        pub mod v1alpha1 {
+            include!("astria.protocol.memos.v1alpha1.rs");
+
+            #[cfg(feature = "serde")]
+            mod _serde_impls {
+                use super::*;
+                include!("astria.protocol.memos.v1alpha1.serde.rs");
+            }
+        }
+    }
+    #[path = ""]
     pub mod transaction {
         pub mod v1alpha1 {
             include!("astria.protocol.transactions.v1alpha1.rs");

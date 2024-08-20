@@ -16,16 +16,14 @@ use astria_core::{
 use tracing::instrument;
 
 use crate::{
-    authority::state_ext::{
-        StateReadExt,
-        StateWriteExt,
-    },
+    address,
+    authority,
     transaction::action_handler::ActionHandler,
 };
 
 #[async_trait::async_trait]
 impl ActionHandler for ValidatorUpdate {
-    async fn check_stateful<S: StateReadExt + 'static>(
+    async fn check_stateful<S: authority::StateReadExt + 'static>(
         &self,
         state: &S,
         from: Address,
@@ -58,7 +56,11 @@ impl ActionHandler for ValidatorUpdate {
     }
 
     #[instrument(skip_all)]
-    async fn execute<S: StateWriteExt>(&self, state: &mut S, _: Address) -> Result<()> {
+    async fn execute<S: authority::StateReadExt + authority::StateWriteExt>(
+        &self,
+        state: &mut S,
+        _: Address,
+    ) -> Result<()> {
         // add validator update in non-consensus state to be used in end_block
         let mut validator_updates = state
             .get_validator_updates()
@@ -75,18 +77,20 @@ impl ActionHandler for ValidatorUpdate {
 #[async_trait::async_trait]
 impl ActionHandler for SudoAddressChangeAction {
     async fn check_stateless(&self) -> Result<()> {
-        crate::address::ensure_base_prefix(&self.new_address)
-            .context("desired new sudo address has an unsupported prefix")?;
         Ok(())
     }
 
     /// check that the signer of the transaction is the current sudo address,
     /// as only that address can change the sudo address
-    async fn check_stateful<S: StateReadExt + 'static>(
+    async fn check_stateful<S: address::StateReadExt + authority::StateReadExt + 'static>(
         &self,
         state: &S,
         from: Address,
     ) -> Result<()> {
+        state
+            .ensure_base_prefix(&self.new_address)
+            .await
+            .context("desired new sudo address has an unsupported prefix")?;
         // ensure signer is the valid `sudo` key in state
         let sudo_address = state
             .get_sudo_address()
@@ -97,7 +101,7 @@ impl ActionHandler for SudoAddressChangeAction {
     }
 
     #[instrument(skip_all)]
-    async fn execute<S: StateWriteExt>(&self, state: &mut S, _: Address) -> Result<()> {
+    async fn execute<S: authority::StateWriteExt>(&self, state: &mut S, _: Address) -> Result<()> {
         state
             .put_sudo_address(self.new_address)
             .context("failed to put sudo address in state")?;
@@ -109,7 +113,7 @@ impl ActionHandler for SudoAddressChangeAction {
 impl ActionHandler for FeeChangeAction {
     /// check that the signer of the transaction is the current sudo address,
     /// as only that address can change the fee
-    async fn check_stateful<S: StateReadExt + 'static>(
+    async fn check_stateful<S: authority::StateReadExt + 'static>(
         &self,
         state: &S,
         from: Address,
@@ -124,12 +128,12 @@ impl ActionHandler for FeeChangeAction {
     }
 
     #[instrument(skip_all)]
-    async fn execute<S: StateWriteExt>(&self, state: &mut S, _: Address) -> Result<()> {
+    async fn execute<S: authority::StateWriteExt>(&self, state: &mut S, _: Address) -> Result<()> {
         use crate::{
-            accounts::state_ext::StateWriteExt as _,
-            bridge::state_ext::StateWriteExt as _,
-            ibc::state_ext::StateWriteExt as _,
-            sequence::state_ext::StateWriteExt as _,
+            accounts::StateWriteExt as _,
+            bridge::StateWriteExt as _,
+            ibc::StateWriteExt as _,
+            sequence::StateWriteExt as _,
         };
 
         match self.fee_change {
@@ -168,22 +172,23 @@ mod test {
 
     use super::*;
     use crate::{
-        accounts::state_ext::{
+        accounts::{
             StateReadExt as _,
             StateWriteExt as _,
         },
-        bridge::state_ext::{
+        bridge::{
             StateReadExt as _,
             StateWriteExt as _,
         },
-        ibc::state_ext::{
+        ibc::{
             StateReadExt as _,
             StateWriteExt as _,
         },
-        sequence::state_ext::{
+        sequence::{
             StateReadExt as _,
             StateWriteExt as _,
         },
+        test_utils::astria_address,
     };
 
     #[tokio::test]
@@ -200,7 +205,7 @@ mod test {
         };
 
         fee_change
-            .execute(&mut state, crate::address::base_prefixed([1; 20]))
+            .execute(&mut state, astria_address(&[1; 20]))
             .await
             .unwrap();
         assert_eq!(state.get_transfer_base_fee().await.unwrap(), 10);
@@ -214,7 +219,7 @@ mod test {
         };
 
         fee_change
-            .execute(&mut state, crate::address::base_prefixed([1; 20]))
+            .execute(&mut state, astria_address(&[1; 20]))
             .await
             .unwrap();
         assert_eq!(state.get_sequence_action_base_fee().await.unwrap(), 3);
@@ -228,7 +233,7 @@ mod test {
         };
 
         fee_change
-            .execute(&mut state, crate::address::base_prefixed([1; 20]))
+            .execute(&mut state, astria_address(&[1; 20]))
             .await
             .unwrap();
         assert_eq!(
@@ -248,7 +253,7 @@ mod test {
         };
 
         fee_change
-            .execute(&mut state, crate::address::base_prefixed([1; 20]))
+            .execute(&mut state, astria_address(&[1; 20]))
             .await
             .unwrap();
         assert_eq!(state.get_init_bridge_account_base_fee().await.unwrap(), 2);
@@ -262,7 +267,7 @@ mod test {
         };
 
         fee_change
-            .execute(&mut state, crate::address::base_prefixed([1; 20]))
+            .execute(&mut state, astria_address(&[1; 20]))
             .await
             .unwrap();
         assert_eq!(
@@ -281,7 +286,7 @@ mod test {
         };
 
         fee_change
-            .execute(&mut state, crate::address::base_prefixed([1; 20]))
+            .execute(&mut state, astria_address(&[1; 20]))
             .await
             .unwrap();
         assert_eq!(state.get_ics20_withdrawal_base_fee().await.unwrap(), 2);

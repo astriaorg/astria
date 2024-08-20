@@ -9,23 +9,21 @@ use astria_core::{
     protocol::transaction::v1alpha1::action::FeeAssetChangeAction,
 };
 use async_trait::async_trait;
-use cnidarium::{
-    StateRead,
-    StateWrite,
-};
 
 use crate::{
-    authority::state_ext::StateReadExt as _,
-    state_ext::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    },
+    assets,
+    assets::StateReadExt as _,
+    authority,
     transaction::action_handler::ActionHandler,
 };
 
 #[async_trait]
 impl ActionHandler for FeeAssetChangeAction {
-    async fn check_stateful<S: StateRead + 'static>(&self, state: &S, from: Address) -> Result<()> {
+    async fn check_stateful<S: authority::StateReadExt + 'static>(
+        &self,
+        state: &S,
+        from: Address,
+    ) -> Result<()> {
         let authority_sudo_address = state
             .get_sudo_address()
             .await
@@ -37,7 +35,7 @@ impl ActionHandler for FeeAssetChangeAction {
         Ok(())
     }
 
-    async fn execute<S: StateWrite>(&self, state: &mut S, _from: Address) -> Result<()> {
+    async fn execute<S: assets::StateWriteExt>(&self, state: &mut S, _from: Address) -> Result<()> {
         match self {
             FeeAssetChangeAction::Addition(asset) => {
                 state.put_allowed_fee_asset(asset);
@@ -45,8 +43,12 @@ impl ActionHandler for FeeAssetChangeAction {
             FeeAssetChangeAction::Removal(asset) => {
                 state.delete_allowed_fee_asset(asset);
 
-                // FIXME: context
-                if state.get_allowed_fee_assets().await?.is_empty() {
+                if state
+                    .get_allowed_fee_assets()
+                    .await
+                    .context("failed to retrieve allowed fee assets")?
+                    .is_empty()
+                {
                     bail!("cannot remove last allowed fee asset");
                 }
             }

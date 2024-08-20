@@ -1,0 +1,7 @@
+---
+source: crates/astria-core/src/protocol/memos/v1alpha1.rs
+expression: memo
+---
+{
+  "rollupDepositAddress": "an-address-on-the-rollup"
+}

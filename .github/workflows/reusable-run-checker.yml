@@ -63,6 +63,11 @@ jobs:
         with:
           list-files: json
           filters: |
+            charts: &charts
+              - 'charts/**'
+            smoke_tests: &smoke_tests
+              - 'dev/**'
+              - *charts
             release_workflow:
               - '.github/workflows/release.yml'
               - '.github/workflows/reusable-cargo-version.yml'
@@ -74,6 +79,7 @@ jobs:
               - 'containerfiles/**'
               - '.dockerignore'
               - 'Cargo.lock'
+              - *smoke_tests
             lint_workflow:
               - '.github/workflows/lint.yml'
             crates:
@@ -95,7 +101,5 @@ jobs:
               - '**/*.md'
             rustfmt:
               - 'rustfmt.toml'
-            charts:
-              - 'charts/**'
             lockfile:
               - 'Cargo.lock'

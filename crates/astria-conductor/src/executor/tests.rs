@@ -46,7 +46,7 @@ fn make_state(
     }: MakeState,
 ) -> (StateSender, StateReceiver) {
     let genesis_info = GenesisInfo::try_from_raw(raw::GenesisInfo {
-        rollup_id: Bytes::copy_from_slice(ROLLUP_ID.as_ref()),
+        rollup_id: Some(ROLLUP_ID.to_raw()),
         sequencer_genesis_block_height: 1,
         celestia_block_variance: 1,
     })

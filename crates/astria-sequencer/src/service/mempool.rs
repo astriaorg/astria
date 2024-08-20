@@ -7,6 +7,7 @@ use std::{
     time::Instant,
 };
 
+use anyhow::Context as _;
 use astria_core::{
     generated::protocol::transaction::v1alpha1 as raw,
     protocol::{
@@ -18,6 +19,7 @@ use cnidarium::Storage;
 use futures::{
     Future,
     FutureExt,
+    TryFutureExt as _,
 };
 use prost::Message as _;
 use tendermint::{
@@ -37,7 +39,8 @@ use tracing::{
 };
 
 use crate::{
-    accounts::state_ext::StateReadExt,
+    accounts,
+    address,
     mempool::{
         Mempool as AppMempool,
         RemovalReason,
@@ -105,7 +108,7 @@ impl Service<MempoolRequest> for Mempool {
 /// If the tx passes all checks, status code 0 is returned.
 #[allow(clippy::too_many_lines)]
 #[instrument(skip_all)]
-async fn handle_check_tx<S: StateReadExt + 'static>(
+async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'static>(
     req: request::CheckTx,
     state: S,
     mempool: &mut AppMempool,
@@ -262,12 +265,22 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
     );
 
     // tx is valid, push to mempool
-    let current_account_nonce = state
-        .get_account_nonce(crate::address::base_prefixed(
-            signed_tx.verification_key().address_bytes(),
-        ))
+    let current_account_nonce = match state
+        .try_base_prefixed(&signed_tx.verification_key().address_bytes())
+        .and_then(|address| state.get_account_nonce(address))
         .await
-        .expect("can fetch account nonce");
+        .context("failed fetching nonce for account")
+    {
+        Err(err) => {
+            return response::CheckTx {
+                code: Code::Err(AbciErrorCode::INTERNAL_ERROR.value()),
+                info: AbciErrorCode::INTERNAL_ERROR.info(),
+                log: format!("transaction failed execution because: {err:#?}"),
+                ..response::CheckTx::default()
+            };
+        }
+        Ok(nonce) => nonce,
+    };
 
     let actions_count = signed_tx.actions().len();
 
