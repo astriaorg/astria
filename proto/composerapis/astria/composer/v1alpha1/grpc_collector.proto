@@ -2,6 +2,8 @@ syntax = 'proto3';
 
 package astria.composer.v1alpha1;
 
+import "astria/sequencerblock/v1alpha1/block.proto";
+
 // SubmitRollupTransactionRequest contains a rollup transaction to be submitted to the Shared Sequencer Network
 // via the Composer
 message SubmitRollupTransactionRequest {
@@ -15,9 +17,22 @@ message SubmitRollupTransactionRequest {
 // It's currently an empty response which can be evolved in the future to include more information
 message SubmitRollupTransactionResponse {}
 
+message SendOptimisticBlockResponse {}
+
+message SendFinalizedHashRequest {
+  bytes block_hash = 1;
+}
+
+message SendFinalizedHashResponse {}
+
 // GrpcCollectorService is a service that defines the gRPC collector of the Composer
 service GrpcCollectorService {
   // SubmitRollupTransaction submits a rollup transactions to the Composer.
   // The transaction sent is bundled up with other transactions and submitted to the Shared Sequencer Network.
   rpc SubmitRollupTransaction(SubmitRollupTransactionRequest) returns (SubmitRollupTransactionResponse) {}
+}
+
+service SequencerHooksService {
+  rpc SendOptimisticBlock(sequencerblock.v1alpha1.FilteredSequencerBlock) returns (SendOptimisticBlockResponse) {}
+  rpc SendFinalizedHash(SendFinalizedHashRequest) returns (SendFinalizedHashResponse) {}
 }
