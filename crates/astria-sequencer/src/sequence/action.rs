@@ -25,9 +25,7 @@ use crate::{
 
 #[async_trait::async_trait]
 impl ActionHandler for SequenceAction {
-    type CheckStatelessContext = ();
-
-    async fn check_stateless(&self, _context: Self::CheckStatelessContext) -> Result<()> {
+    async fn check_stateless(&self) -> Result<()> {
         // TODO: do we want to place a maximum on the size of the data?
         // https://github.com/astriaorg/astria/issues/222
         ensure!(

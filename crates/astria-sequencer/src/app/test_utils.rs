@@ -18,6 +18,7 @@ use astria_core::{
         UncheckedGenesisState,
     },
 };
+use bytes::Bytes;
 use cnidarium::Storage;
 use penumbra_ibc::params::IBCParameters;
 
@@ -146,7 +147,7 @@ pub(crate) fn get_mock_tx(nonce: u32) -> SignedTransaction {
         actions: vec![
             SequenceAction {
                 rollup_id: RollupId::from_unhashed_bytes([0; 32]),
-                data: vec![0x99],
+                data: Bytes::from_static(&[0x99]),
                 fee_asset: "astria".parse().unwrap(),
             }
             .into(),

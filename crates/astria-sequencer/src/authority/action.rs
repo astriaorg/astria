@@ -28,9 +28,7 @@ use crate::{
 
 #[async_trait::async_trait]
 impl ActionHandler for ValidatorUpdate {
-    type CheckStatelessContext = ();
-
-    async fn check_stateless(&self, _context: Self::CheckStatelessContext) -> Result<()> {
+    async fn check_stateless(&self) -> Result<()> {
         Ok(())
     }
 
@@ -79,8 +77,6 @@ impl ActionHandler for ValidatorUpdate {
 
 #[async_trait::async_trait]
 impl ActionHandler for SudoAddressChangeAction {
-    type CheckStatelessContext = ();
-
     async fn check_stateless(&self, _context: Self::CheckStatelessContext) -> Result<()> {
         Ok(())
     }
@@ -111,9 +107,7 @@ impl ActionHandler for SudoAddressChangeAction {
 
 #[async_trait::async_trait]
 impl ActionHandler for FeeChangeAction {
-    type CheckStatelessContext = ();
-
-    async fn check_stateless(&self, _context: Self::CheckStatelessContext) -> Result<()> {
+    async fn check_stateless(&self) -> Result<()> {
         Ok(())
     }
 

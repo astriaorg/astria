@@ -25,8 +25,6 @@ use crate::{
 };
 #[async_trait::async_trait]
 impl ActionHandler for BridgeSudoChangeAction {
-    type CheckStatelessContext = ();
-
     async fn check_stateless(&self, _context: Self::CheckStatelessContext) -> Result<()> {
         Ok(())
     }
@@ -110,6 +108,7 @@ mod tests {
     use super::*;
     use crate::{
         address::StateWriteExt as _,
+        assets::StateWriteExt as _,
         test_utils::{
             astria_address,
             ASTRIA_PREFIX,

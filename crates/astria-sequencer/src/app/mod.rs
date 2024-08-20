@@ -48,6 +48,7 @@ use tendermint::{
     abci::{
         self,
         types::ExecTxResult,
+        Code,
         Event,
     },
     account,
@@ -59,7 +60,6 @@ use tracing::{
     debug,
     info,
     instrument,
-    Instrument as _,
 };
 
 use crate::{
@@ -829,9 +829,9 @@ impl App {
                             AbciErrorCode::INTERNAL_ERROR
                         };
                         tx_results.push(ExecTxResult {
-                            code: code.into(),
-                            info: code.to_string(),
-                            log: format!("{e:?}"),
+                            code: Code::Err(code.value()),
+                            info: code.info(),
+                            log: format!("{e:#}"),
                             ..Default::default()
                         });
                     }
@@ -979,17 +979,11 @@ impl App {
         &mut self,
         signed_tx: Arc<SignedTransaction>,
     ) -> anyhow::Result<Vec<Event>> {
-        let signed_tx_2 = signed_tx.clone();
-        let stateless =
-            tokio::spawn(async move { signed_tx_2.check_stateless(()).await }.in_current_span());
-
-        stateless
+        signed_tx
+            .check_stateless()
             .await
-            .context("stateless check task aborted while executing")?
             .context("stateless check failed")?;
 
-        // At this point, the stateful checks should have completed,
-        // leaving us with exclusive access to the Arc<State>.
         let mut state_tx = self
             .state
             .try_begin_transaction()

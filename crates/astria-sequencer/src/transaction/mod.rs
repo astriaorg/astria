@@ -77,31 +77,29 @@ impl std::error::Error for InvalidNonce {}
 
 #[async_trait::async_trait]
 impl ActionHandler for SignedTransaction {
-    type CheckStatelessContext = ();
-
-    async fn check_stateless(&self, _context: Self::CheckStatelessContext) -> anyhow::Result<()> {
+    async fn check_stateless(&self) -> anyhow::Result<()> {
         ensure!(!self.actions().is_empty(), "must have at least one action");
 
         for action in self.actions() {
             match action {
                 Action::Transfer(act) => act
-                    .check_stateless(())
+                    .check_stateless()
                     .await
                     .context("stateless check failed for TransferAction")?,
                 Action::Sequence(act) => act
-                    .check_stateless(())
+                    .check_stateless()
                     .await
                     .context("stateless check failed for SequenceAction")?,
                 Action::ValidatorUpdate(act) => act
-                    .check_stateless(())
+                    .check_stateless()
                     .await
                     .context("stateless check failed for ValidatorUpdateAction")?,
                 Action::SudoAddressChange(act) => act
-                    .check_stateless(())
+                    .check_stateless()
                     .await
                     .context("stateless check failed for SudoAddressChangeAction")?,
                 Action::FeeChange(act) => act
-                    .check_stateless(())
+                    .check_stateless()
                     .await
                     .context("stateless check failed for FeeChangeAction")?,
                 Action::Ibc(act) => {
@@ -114,31 +112,31 @@ impl ActionHandler for SignedTransaction {
                         .context("stateless check failed for IbcAction")?;
                 }
                 Action::Ics20Withdrawal(act) => act
-                    .check_stateless(())
+                    .check_stateless()
                     .await
                     .context("stateless check failed for Ics20WithdrawalAction")?,
                 Action::IbcRelayerChange(act) => act
-                    .check_stateless(())
+                    .check_stateless()
                     .await
                     .context("stateless check failed for IbcRelayerChangeAction")?,
                 Action::FeeAssetChange(act) => act
-                    .check_stateless(())
+                    .check_stateless()
                     .await
                     .context("stateless check failed for FeeAssetChangeAction")?,
                 Action::InitBridgeAccount(act) => act
-                    .check_stateless(())
+                    .check_stateless()
                     .await
                     .context("stateless check failed for InitBridgeAccountAction")?,
                 Action::BridgeLock(act) => act
-                    .check_stateless(())
+                    .check_stateless()
                     .await
                     .context("stateless check failed for BridgeLockAction")?,
                 Action::BridgeUnlock(act) => act
-                    .check_stateless(())
+                    .check_stateless()
                     .await
                     .context("stateless check failed for BridgeLockAction")?,
                 Action::BridgeSudoChange(act) => act
-                    .check_stateless(())
+                    .check_stateless()
                     .await
                     .context("stateless check failed for BridgeSudoChangeAction")?,
             }

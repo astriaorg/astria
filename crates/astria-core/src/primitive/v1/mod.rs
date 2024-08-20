@@ -7,6 +7,7 @@ use base64::{
     display::Base64Display,
     prelude::BASE64_STANDARD,
 };
+use bytes::Bytes;
 use sha2::{
     Digest as _,
     Sha256,
@@ -166,19 +167,6 @@ impl RollupId {
     pub fn try_from_slice(bytes: &[u8]) -> Result<Self, IncorrectRollupIdLength> {
         let inner =
             <[u8; ROLLUP_ID_LEN]>::try_from(bytes).map_err(|_| IncorrectRollupIdLength {
-                received: bytes.len(),
-            })?;
-        Ok(Self::new(inner))
-    }
-
-    /// Converts a byte vector to a rollup ID.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the byte slice was not 32 bytes long.
-    pub fn try_from_vec(bytes: Vec<u8>) -> Result<Self, IncorrectRollupIdLength> {
-        let inner =
-            <[u8; ROLLUP_ID_LEN]>::try_from(bytes).map_err(|bytes| IncorrectRollupIdLength {
                 received: bytes.len(),
             })?;
         Ok(Self::new(inner))
@@ -490,7 +478,7 @@ impl std::fmt::Display for Address {
 pub fn derive_merkle_tree_from_rollup_txs<'a, T, U>(rollup_ids_to_txs: T) -> merkle::Tree
 where
     T: IntoIterator<Item = (&'a RollupId, &'a U)>,
-    U: AsRef<[Vec<u8>]> + 'a + ?Sized,
+    U: AsRef<[Bytes]> + 'a + ?Sized,
 {
     let mut tree = merkle::Tree::new();
     for (rollup_id, txs) in rollup_ids_to_txs {

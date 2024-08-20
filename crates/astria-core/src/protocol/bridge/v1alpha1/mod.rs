@@ -1,3 +1,5 @@
+use bytes::Bytes;
+
 use super::raw;
 use crate::primitive::v1::{
     asset,
@@ -28,11 +30,12 @@ impl BridgeAccountLastTxHashResponse {
             height: raw.height,
             tx_hash: raw
                 .tx_hash
-                .map(TryInto::<[u8; 32]>::try_into)
-                .transpose()
-                .map_err(|bytes: Vec<u8>| {
-                    BridgeAccountLastTxHashResponseError::invalid_tx_hash(bytes.len())
-                })?,
+                .map(|bytes| {
+                    <[u8; 32]>::try_from(bytes.as_ref()).map_err(|_| {
+                        BridgeAccountLastTxHashResponseError::invalid_tx_hash(bytes.len())
+                    })
+                })
+                .transpose()?,
         })
     }
 
@@ -40,7 +43,7 @@ impl BridgeAccountLastTxHashResponse {
     pub fn into_raw(self) -> raw::BridgeAccountLastTxHashResponse {
         raw::BridgeAccountLastTxHashResponse {
             height: self.height,
-            tx_hash: self.tx_hash.map(Into::into),
+            tx_hash: self.tx_hash.map(|tx_hash| Bytes::copy_from_slice(&tx_hash)),
         }
     }
 }
