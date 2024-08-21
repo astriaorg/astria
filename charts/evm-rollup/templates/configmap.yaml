@@ -35,6 +35,7 @@ data:
   OTEL_SERVICE_NAME: "{{ tpl .Values.otel.serviceNamePrefix . }}-conductor"
   {{- if not .Values.global.dev }}
   {{- else }}
+  ASTRIA_CONDUCTOR_NO_CELESTIA_AUTH: "{{ not .Values.config.celestia.token }}"
   {{- end }}
 ---
 apiVersion: v1
