@@ -218,7 +218,7 @@ impl Geth {
             }
         };
 
-        report_exit_reason(reason.as_ref());
+        report_exit_reason(reason.as_deref());
 
         status.send_modify(|status| status.is_connected = false);
 

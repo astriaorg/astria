@@ -217,7 +217,7 @@ impl Executor {
         let mut nonce = select!(
             biased;
             () = self.shutdown_token.cancelled() => {
-                report_exit_reason(Ok(&"received shutdown signal while running initialization routines; exiting"));
+                report_exit_reason(Ok("received shutdown signal while running initialization routines; exiting"));
                 return Ok(())
             }
 
@@ -287,7 +287,7 @@ impl Executor {
         // sequence actions
         self.serialized_rollup_transactions.close();
 
-        report_exit_reason(reason.as_ref());
+        report_exit_reason(reason.as_deref());
         if let Err(err) = reason {
             return Err(err).wrap_err("failed to submit bundle to sequencer, aborting");
         }
