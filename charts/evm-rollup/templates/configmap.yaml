@@ -26,12 +26,12 @@ data:
   NO_COLOR: "{{ .Values.global.useTTY }}"
   ASTRIA_CONDUCTOR_NO_OTEL: "{{ not .Values.otel.enabled }}"
   ASTRIA_CONDUCTOR_CELESTIA_BEARER_TOKEN: "{{ .Values.config.celestia.token }}"
-  OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.otel.endpoint }}"
-  OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "{{ .Values.otel.tracesEndpoint }}"
-  OTEL_EXPORTER_OTLP_TRACES_TIMEOUT: "{{ .Values.otel.tracesTimeout }}"
-  OTEL_EXPORTER_OTLP_TRACES_COMPRESSION: "{{ .Values.otel.tracesCompression }}"
-  OTEL_EXPORTER_OTLP_HEADERS: "{{ .Values.otel.otlpHeaders }}"
-  OTEL_EXPORTER_OTLP_TRACE_HEADERS: "{{ .Values.otel.traceHeaders }}"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "{{ tpl .Values.otel.endpoint . }}"
+  OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "{{ tpl .Values.otel.tracesEndpoint . }}"
+  OTEL_EXPORTER_OTLP_TRACES_TIMEOUT: "{{ tpl .Values.otel.tracesTimeout . }}"
+  OTEL_EXPORTER_OTLP_TRACES_COMPRESSION: "{{ tpl .Values.otel.tracesCompression . }}"
+  OTEL_EXPORTER_OTLP_HEADERS: "{{ tpl .Values.otel.otlpHeaders . }}"
+  OTEL_EXPORTER_OTLP_TRACE_HEADERS: "{{ tpl .Values.otel.traceHeaders .}}"
   OTEL_SERVICE_NAME: "{{ tpl .Values.otel.serviceNamePrefix . }}-conductor"
   {{- if not .Values.global.dev }}
   {{- else }}

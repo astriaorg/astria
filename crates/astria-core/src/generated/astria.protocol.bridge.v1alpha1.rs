@@ -6,8 +6,8 @@
 pub struct BridgeAccountLastTxHashResponse {
     #[prost(uint64, tag = "2")]
     pub height: u64,
-    #[prost(bytes = "vec", optional, tag = "3")]
-    pub tx_hash: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
+    #[prost(bytes = "bytes", optional, tag = "3")]
+    pub tx_hash: ::core::option::Option<::prost::bytes::Bytes>,
 }
 impl ::prost::Name for BridgeAccountLastTxHashResponse {
     const NAME: &'static str = "BridgeAccountLastTxHashResponse";

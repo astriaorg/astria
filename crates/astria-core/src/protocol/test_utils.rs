@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 
+use bytes::Bytes;
 use prost::Message as _;
 
 use super::{
@@ -94,7 +95,7 @@ impl ConfigureSequencerBlock {
             .map(|(rollup_id, data)| {
                 SequenceAction {
                     rollup_id,
-                    data,
+                    data: data.into(),
                     fee_asset: "nria".parse().unwrap(),
                 }
                 .into()
@@ -132,6 +133,7 @@ impl ConfigureSequencerBlock {
                     RollupData::Deposit(Box::new(deposit))
                         .into_raw()
                         .encode_to_vec()
+                        .into()
                 }));
         }
         rollup_transactions.sort_unstable_keys();
@@ -148,7 +150,7 @@ impl ConfigureSequencerBlock {
             rollup_ids_root.to_vec(),
         ];
         data.extend(txs.into_iter().map(|tx| tx.into_raw().encode_to_vec()));
-
+        let data = data.into_iter().map(Bytes::from).collect();
         SequencerBlock::try_from_block_info_and_data(
             block_hash,
             chain_id.try_into().unwrap(),

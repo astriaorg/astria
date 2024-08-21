@@ -11,6 +11,7 @@ use astria_core::{
     primitive::v1::RollupId,
 };
 use ethers::prelude::Transaction;
+use prost::bytes::Bytes;
 
 use crate::helper::{
     mount_broadcast_tx_sync_invalid_nonce_mock,
@@ -45,8 +46,8 @@ async fn tx_from_one_rollup_is_received_by_sequencer() {
     .unwrap();
     composer_client
         .submit_rollup_transaction(SubmitRollupTransactionRequest {
-            rollup_id: rollup_id.as_ref().to_vec(),
-            data: tx.rlp().to_vec(),
+            rollup_id: Bytes::copy_from_slice(rollup_id.as_ref()),
+            data: Bytes::copy_from_slice(&tx.rlp()),
         })
         .await
         .expect("rollup transactions should have been submitted successfully to grpc collector");
@@ -107,8 +108,8 @@ async fn invalid_nonce_causes_resubmission_under_different_nonce() {
     .unwrap();
     composer_client
         .submit_rollup_transaction(SubmitRollupTransactionRequest {
-            rollup_id: rollup_id.as_ref().to_vec(),
-            data: tx.rlp().to_vec(),
+            rollup_id: Bytes::copy_from_slice(rollup_id.as_ref()),
+            data: Bytes::copy_from_slice(&tx.rlp()),
         })
         .await
         .expect("rollup transactions should have been submitted successfully to grpc collector");
@@ -162,8 +163,8 @@ async fn single_rollup_tx_payload_integrity() {
     .unwrap();
     composer_client
         .submit_rollup_transaction(SubmitRollupTransactionRequest {
-            rollup_id: rollup_id.as_ref().to_vec(),
-            data: tx.rlp().to_vec(),
+            rollup_id: Bytes::copy_from_slice(rollup_id.as_ref()),
+            data: Bytes::copy_from_slice(&tx.rlp()),
         })
         .await
         .expect("rollup transactions should have been submitted successfully to grpc collector");
