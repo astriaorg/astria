@@ -202,7 +202,7 @@ impl Geth {
 
                         txs_received_counter.increment(1);
 
-                        if let Err(err) = executor_send_timeout_handler(
+                        if let Err(err) = forward_geth_tx(
                             &executor_handle,
                             seq_action,
                             tx_hash,
