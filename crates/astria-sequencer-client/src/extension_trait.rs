@@ -61,7 +61,6 @@ pub use astria_core::{
 use astria_eyre::eyre::{
     self,
     ensure,
-    Context,
 };
 use async_trait::async_trait;
 use futures::Stream;
@@ -685,37 +684,54 @@ pub trait SequencerClientExt: Client {
     ) -> eyre::Result<tendermint_rpc::endpoint::tx::Response> {
         use std::time::Duration;
 
-        let retry_config = tryhard::RetryFutureConfig::new(u32::MAX)
-            .exponential_backoff(Duration::from_millis(100))
-            .max_delay(Duration::from_secs(20))
-            .on_retry(
-                |attempt: u32, next_delay: Option<Duration>, error: &tendermint_rpc::Error| {
-                    let wait_duration = next_delay
-                        .map(humantime::format_duration)
-                        .map(tracing::field::display);
-                    warn!(
-                        attempt,
-                        wait_duration,
-                        error = error as &dyn std::error::Error,
-                        "failed to get transaction from sequencer client, retrying",
-                    );
-                    futures::future::ready(())
-                },
+        use tokio::time::Instant;
+
+        // The min seconds to sleep after receiving a GetTx response and sending the next request.
+        const MIN_POLL_INTERVAL_MILLIS: u64 = 100;
+        // The max seconds to sleep after receiving a GetTx response and sending the next request.
+        const MAX_POLL_INTERVAL_MILLIS: u64 = 2000;
+        // How long to wait after starting `confirm_submission` before starting to log errors.
+        const START_LOGGING_DELAY: Duration = Duration::from_millis(2000);
+        // The minimum duration between logging errors.
+        const LOG_ERROR_INTERVAL: Duration = Duration::from_millis(2000);
+
+        let start = Instant::now();
+        let mut logged_at = start;
+
+        let mut log_if_due = |error: tendermint_rpc::Error| {
+            if start.elapsed() <= START_LOGGING_DELAY || logged_at.elapsed() <= LOG_ERROR_INTERVAL {
+                return;
+            }
+            warn!(
+                %error,
+                %tx_hash,
+                elapsed_seconds = start.elapsed().as_secs_f32(),
+                "waiting to confirm transaction inclusion"
             );
+            logged_at = Instant::now();
+        };
 
-        let tx = tryhard::retry_fn(|| self.tx(tx_hash, true))
-            .with_config(retry_config)
-            .await
-            .context("failed to get transaction from sequencer client")?;
-
-        ensure!(
-            tx.tx_result.code.is_ok() && tx.proof.is_some(),
-            // This should not happen. If the transaction failed, it should not have been included
-            // in the block. If the transaction was included in the block, proof should be `Some`.
-            "failed to execute tx: {}",
-            tx.tx_result.log
-        );
-
-        Ok(tx)
+        let mut sleep_millis = MIN_POLL_INTERVAL_MILLIS;
+        loop {
+            tokio::time::sleep(Duration::from_millis(sleep_millis)).await;
+            match self.tx(tx_hash, true).await {
+                Ok(tx) => {
+                    ensure!(
+                        tx.tx_result.code.is_ok() && tx.proof.is_some(),
+                        // This should not happen. If the transaction failed, it should not have
+                        // been included in the block. If the transaction
+                        // was included in the block, proof should be `Some`.
+                        "failed to execute tx: {}",
+                        tx.tx_result.log
+                    );
+                    return Ok(tx);
+                }
+                Err(error) => {
+                    sleep_millis =
+                        std::cmp::min(sleep_millis.saturating_mul(2), MAX_POLL_INTERVAL_MILLIS);
+                    log_if_due(error);
+                }
+            }
+        }
     }
 }
