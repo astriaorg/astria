@@ -3,14 +3,20 @@ use anyhow::{
     Context as _,
     Result,
 };
-use astria_core::protocol::transaction::v1alpha1::action::BridgeSudoChangeAction;
+use astria_core::{
+    protocol::transaction::v1alpha1::action::BridgeSudoChangeAction,
+    Protobuf as _,
+};
 use cnidarium::StateWrite;
 
 use crate::{
     accounts::StateWriteExt as _,
     address::StateReadExt as _,
     app::ActionHandler,
-    assets::StateReadExt as _,
+    assets::{
+        StateReadExt as _,
+        StateWriteExt as _,
+    },
     bridge::state_ext::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -74,6 +80,10 @@ impl ActionHandler for BridgeSudoChangeAction {
             .await
             .context("failed to get bridge sudo change fee")?;
         state
+            .get_and_increase_block_fees(&self.fee_asset, fee, Self::full_name())
+            .await
+            .context("failed to add to block fees")?;
+        state
             .decrease_balance(self.bridge_address, &self.fee_asset, fee)
             .await
             .context("failed to decrease balance for bridge sudo change fee")?;
@@ -98,7 +108,6 @@ mod tests {
     use super::*;
     use crate::{
         address::StateWriteExt as _,
-        assets::StateWriteExt as _,
         test_utils::{
             astria_address,
             ASTRIA_PREFIX,

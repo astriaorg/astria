@@ -10,6 +10,7 @@ use astria_core::{
         Address,
     },
     protocol::transaction::v1alpha1::action,
+    Protobuf as _,
 };
 use cnidarium::{
     StateRead,
@@ -33,6 +34,7 @@ use crate::{
     },
     address::StateReadExt as _,
     app::ActionHandler,
+    assets::StateWriteExt as _,
     bridge::StateReadExt as _,
     ibc::{
         StateReadExt as _,
@@ -143,6 +145,11 @@ impl ActionHandler for action::Ics20Withdrawal {
                 .await
                 .context("packet failed send check")?
         };
+
+        state
+            .get_and_increase_block_fees(self.fee_asset(), fee, Self::full_name())
+            .await
+            .context("failed to get and increase block fees")?;
 
         state
             .decrease_balance(withdrawal_target, self.denom(), self.amount())

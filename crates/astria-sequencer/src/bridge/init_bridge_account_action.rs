@@ -7,6 +7,7 @@ use anyhow::{
 use astria_core::{
     primitive::v1::Address,
     protocol::transaction::v1alpha1::action::InitBridgeAccountAction,
+    Protobuf as _,
 };
 use cnidarium::StateWrite;
 
@@ -17,7 +18,10 @@ use crate::{
     },
     address::StateReadExt as _,
     app::ActionHandler,
-    assets::StateReadExt as _,
+    assets::{
+        StateReadExt as _,
+        StateWriteExt as _,
+    },
     bridge::state_ext::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -98,7 +102,10 @@ impl ActionHandler for InitBridgeAccountAction {
             from,
             self.withdrawer_address.map_or(from, Address::bytes),
         );
-
+        state
+            .get_and_increase_block_fees(&self.fee_asset, fee, Self::full_name())
+            .await
+            .context("failed to get and increase block fees")?;
         state
             .decrease_balance(from, &self.fee_asset, fee)
             .await
