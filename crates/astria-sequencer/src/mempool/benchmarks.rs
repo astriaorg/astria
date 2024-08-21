@@ -1,3 +1,7 @@
+//! To run the benchmark, from the root of the monorepo, run:
+//! ```sh
+//! cargo bench --features=benchmark -qp astria-sequencer mempool
+//! ```
 #![allow(non_camel_case_types)]
 
 use std::time::Duration;

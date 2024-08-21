@@ -1,3 +1,8 @@
+//! To run the benchmark, from the root of the monorepo, run:
+//! ```sh
+//! cargo bench --features=benchmark -qp astria-sequencer app
+//! ```
+
 use std::time::Duration;
 
 use astria_core::sequencer::{
@@ -29,6 +34,11 @@ use crate::{
 
 /// The max time for any benchmark.
 const MAX_TIME: Duration = Duration::from_secs(120);
+/// The value provided to `BlockSizeConstraints::new` to constrain block sizes.
+///
+/// Taken from the actual value seen in `prepare_proposal.max_tx_bytes` when handling
+/// `prepare_proposal` during stress testing using spamoor.
+const COMETBFT_MAX_TX_BYTES: usize = 22_019_254;
 
 struct Fixture {
     app: App,
@@ -61,7 +71,7 @@ impl Fixture {
             ibc_relayer_addresses: vec![],
             native_asset_base_denomination: nria(),
             ibc_params: IBCParameters::default(),
-            allowed_fee_assets: vec!["nria".parse().unwrap()],
+            allowed_fee_assets: vec![nria().into()],
             fees: test_utils::default_fees(),
         };
         let genesis_state = GenesisState::try_from(unchecked_genesis_state).unwrap();
@@ -87,7 +97,7 @@ fn execute_transactions_prepare_proposal(bencher: divan::Bencher) {
         .unwrap();
     let mut fixture = runtime.block_on(async { Fixture::new().await });
     bencher
-        .with_inputs(|| BlockSizeConstraints::new(22_019_254).unwrap())
+        .with_inputs(|| BlockSizeConstraints::new(COMETBFT_MAX_TX_BYTES).unwrap())
         .bench_local_refs(|constraints| {
             let (_tx_bytes, included_txs) = runtime.block_on(async {
                 fixture
