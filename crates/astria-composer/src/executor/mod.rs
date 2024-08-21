@@ -24,7 +24,6 @@ use astria_core::{
 };
 use astria_eyre::eyre::{
     self,
-    eyre,
     WrapErr as _,
 };
 use futures::{
@@ -83,7 +82,7 @@ use crate::{
         SizedBundleReport,
     },
     metrics::Metrics,
-    utils::log_exit,
+    utils::report_exit_reason,
 };
 
 mod bundle_factory;
@@ -215,25 +214,18 @@ impl Executor {
     /// # Errors
     /// An error is returned if connecting to the sequencer fails.
     pub(super) async fn run_until_stopped(mut self) -> eyre::Result<()> {
-        select!(
+        let mut nonce = select!(
             biased;
             () = self.shutdown_token.cancelled() => {
-                log_exit(&Ok("received shutdown signal while running initialization routines; exiting"));
+                report_exit_reason(Ok(&"received shutdown signal while running initialization routines; exiting"));
                 return Ok(())
             }
 
-            res = self.pre_run_checks() => {
-                log_exit(&res);
-                res.wrap_err("required pre-run checks failed")?;
+            nonce = self.init() => {
+                nonce.wrap_err("initialization failed").inspect_err(|err| report_exit_reason(Err(err)))?
             }
         );
         let mut submission_fut: Fuse<Instrumented<SubmitFut>> = Fuse::terminated();
-        let mut nonce = get_latest_nonce(self.sequencer_client.clone(), self.address, self.metrics)
-            .await
-            .map_err(|err| {
-                log_exit(&Err(eyre!(err.to_string())));
-                err
-            })?;
 
         self.metrics.set_current_nonce(nonce);
 
@@ -259,7 +251,9 @@ impl Executor {
                 }
                 // process submission result and update nonce
                 rsp = &mut submission_fut, if !submission_fut.is_terminated() => {
-                    if let Err(err) = process_result_update_nonce(&mut nonce, rsp, &mut block_timer, reset_time) {break Err(err).wrap_err("failed submitting bundle to sequencer");};
+                    if let Err(err) = process_result_update_nonce(&mut nonce, rsp, &mut block_timer, reset_time) {
+                        break Err(err).wrap_err("failed submitting bundle to sequencer");
+                    };
                 }
 
                 Some(next_bundle) = future::ready(bundle_factory.next_finished()), if submission_fut.is_terminated() => {
@@ -293,9 +287,9 @@ impl Executor {
         // sequence actions
         self.serialized_rollup_transactions.close();
 
-        log_exit(&reason);
+        report_exit_reason(reason.as_ref());
         if let Err(err) = reason {
-            return Err(err).wrap_err("Failed to submit bundle to sequencer. Aborting");
+            return Err(err).wrap_err("failed to submit bundle to sequencer, aborting");
         }
 
         let mut bundles_to_drain: VecDeque<SizedBundle> = VecDeque::new();
@@ -317,7 +311,7 @@ impl Executor {
             bundles_to_drain.push_back(bundle);
         }
 
-        let shutdown_logic = self.shutdown_logic(
+        let shutdown_logic = self.run_shutdown_logic(
             submission_fut,
             nonce,
             &mut bundles_to_drain,
@@ -333,9 +327,14 @@ impl Executor {
 
     /// Performs initialization checks prior to running the executor
     #[instrument(skip_all, err)]
-    async fn pre_run_checks(&self) -> eyre::Result<&str> {
-        self.ensure_chain_id_is_correct().await?;
-        Ok("Pre-run checks successful")
+    async fn init(&self) -> eyre::Result<u32> {
+        self.ensure_chain_id_is_correct()
+            .await
+            .wrap_err("failed to validate chain id")?;
+        let nonce = get_latest_nonce(self.sequencer_client.clone(), self.address, self.metrics)
+            .await
+            .wrap_err("failed getting initial nonce from sequencer")?;
+        Ok(nonce)
     }
 
     /// Performs check to ensure the configured chain ID matches the remote chain ID

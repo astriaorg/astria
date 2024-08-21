@@ -60,7 +60,7 @@ use crate::{
         Handle,
     },
     metrics::Metrics,
-    utils::log_exit,
+    utils::report_exit_reason,
 };
 
 type StdError = dyn std::error::Error;
@@ -218,7 +218,7 @@ impl Geth {
             }
         };
 
-        log_exit(&reason);
+        report_exit_reason(reason.as_ref());
 
         status.send_modify(|status| status.is_connected = false);
 
@@ -232,7 +232,7 @@ impl Geth {
 }
 
 #[instrument(skip_all)]
-async fn executor_send_timeout_handler(
+async fn forward_geth_tx(
     executor_handle: &Handle,
     seq_action: SequenceAction,
     tx_hash: ethers::types::H256,
@@ -265,12 +265,12 @@ async fn executor_send_timeout_handler(
 }
 
 #[instrument(skip_all)]
-async fn unsubscribe_wss_stream_handler(tx_stream: &SubscriptionStream<'_, Ws, Transaction>) {
+async fn unsubscribe_from_rollup(tx_stream: &SubscriptionStream<'_, Ws, Transaction>) {
     // give 2s for the websocket connection to be unsubscribed as we want to avoid having
     // this hang for too long
     match tokio::time::timeout(WSS_UNSUBSCRIBE_TIMEOUT, tx_stream.unsubscribe()).await {
         Ok(Ok(true)) => info!("unsubscribed from geth tx stream"),
-        Ok(Ok(false)) => warn!("failed to unsubscribe from geth tx stream"),
+        Ok(Ok(false)) => warn!("geth responded to unsubscribe request but returned `false`"),
         Ok(Err(err)) => {
             error!(error = %Report::new(err), "failed unsubscribing from the geth tx stream");
         }
