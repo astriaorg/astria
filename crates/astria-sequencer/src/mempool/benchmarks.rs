@@ -1,97 +1,30 @@
+//! To run the benchmark, from the root of the monorepo, run:
+//! ```sh
+//! cargo bench --features=benchmark -qp astria-sequencer mempool
+//! ```
 #![allow(non_camel_case_types)]
 
 use std::{
-    collections::HashMap,
-    sync::{
-        Arc,
-        OnceLock,
-    },
+    sync::Arc,
     time::Duration,
 };
 
-use astria_core::{
-    crypto::SigningKey,
-    primitive::v1::{
-        asset::{
-            Denom,
-            IbcPrefixed,
-        },
-        RollupId,
-    },
-    protocol::transaction::v1alpha1::{
-        action::{
-            Action,
-            SequenceAction,
-        },
-        SignedTransaction,
-        TransactionParams,
-        UnsignedTransaction,
-    },
-};
+use astria_core::protocol::transaction::v1alpha1::SignedTransaction;
 use sha2::{
     Digest as _,
     Sha256,
 };
 
-use super::{
-    Mempool,
-    RemovalReason,
+use crate::{
+    benchmark_utils::SIGNER_COUNT,
+    mempool::{
+        Mempool,
+        RemovalReason,
+    },
 };
 
-/// The maximum number of transactions with which to initialize the mempool.
-const MAX_INITIAL_TXS: usize = 100_000;
 /// The max time for any benchmark.
 const MAX_TIME: Duration = Duration::from_secs(30);
-/// The number of different signers of transactions, and also the number of different chain IDs.
-const SIGNER_COUNT: u8 = 10;
-
-/// Returns an endlessly-repeating iterator over `SIGNER_COUNT` separate signing keys.
-fn signing_keys() -> impl Iterator<Item = &'static SigningKey> {
-    static SIGNING_KEYS: OnceLock<Vec<SigningKey>> = OnceLock::new();
-    SIGNING_KEYS
-        .get_or_init(|| {
-            (0..SIGNER_COUNT)
-                .map(|i| SigningKey::from([i; 32]))
-                .collect()
-        })
-        .iter()
-        .cycle()
-}
-
-/// Returns a static ref to a collection of `MAX_INITIAL_TXS + 1` transactions.
-fn transactions() -> &'static Vec<Arc<SignedTransaction>> {
-    static TXS: OnceLock<Vec<Arc<SignedTransaction>>> = OnceLock::new();
-    TXS.get_or_init(|| {
-        let mut nonces_and_chain_ids = HashMap::new();
-        signing_keys()
-            .map(move |signing_key| {
-                let verification_key = signing_key.verification_key();
-                let (nonce, chain_id) = nonces_and_chain_ids
-                    .entry(verification_key)
-                    .or_insert_with(|| {
-                        (0_u32, format!("chain-{}", signing_key.verification_key()))
-                    });
-                *nonce = (*nonce).wrapping_add(1);
-                let params = TransactionParams::builder()
-                    .nonce(*nonce)
-                    .chain_id(chain_id.as_str())
-                    .build();
-                let sequence_action = SequenceAction {
-                    rollup_id: RollupId::new([1; 32]),
-                    data: vec![2; 1000].into(),
-                    fee_asset: Denom::IbcPrefixed(IbcPrefixed::new([3; 32])),
-                };
-                let tx = UnsignedTransaction {
-                    actions: vec![Action::Sequence(sequence_action)],
-                    params,
-                }
-                .into_signed(signing_key);
-                Arc::new(tx)
-            })
-            .take(MAX_INITIAL_TXS + 1)
-            .collect()
-    })
-}
 
 /// This trait exists so we can get better output from `divan` by configuring the various mempool
 /// sizes as types rather than consts. With types we get output like:
@@ -112,7 +45,7 @@ trait MempoolSize {
     fn size() -> usize;
 
     fn checked_size() -> usize {
-        assert!(Self::size() <= MAX_INITIAL_TXS);
+        assert!(Self::size() <= transactions().len());
         Self::size()
     }
 }
@@ -147,6 +80,10 @@ impl MempoolSize for mempool_with_100000_txs {
     fn size() -> usize {
         100_000
     }
+}
+
+fn transactions() -> &'static Vec<Arc<SignedTransaction>> {
+    crate::benchmark_utils::transactions(crate::benchmark_utils::TxTypes::AllSequenceActions)
 }
 
 /// Returns a new `Mempool` initialized with the number of transactions specified by `T::size()`

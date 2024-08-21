@@ -12,7 +12,7 @@ homepage = "https://astria.org"
 name = "astria-sequencer"
 
 [features]
-default = []
+benchmark = ["divan"]
 
 [dependencies]
 astria-core = { path = "../astria-core", features = ["server", "serde"] }
@@ -37,7 +37,7 @@ tower-http = { version = "0.4", features = ["cors"] }
 
 async-trait = { workspace = true }
 bytes = { workspace = true }
-divan = { workspace = true }
+divan = { workspace = true, optional = true }
 futures = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 ibc-types = { workspace = true, features = ["with_serde"] }
@@ -77,3 +77,4 @@ astria-build-info = { path = "../astria-build-info", features = ["build"] }
 [[bench]]
 name = "benchmark"
 harness = false
+required-features = ["benchmark"]
