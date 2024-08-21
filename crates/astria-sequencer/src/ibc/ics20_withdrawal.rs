@@ -40,6 +40,7 @@ use crate::{
         StateReadExt as _,
         StateWriteExt as _,
     },
+    state_ext::StateReadExt as _,
     transaction::StateReadExt as _,
 };
 
@@ -138,10 +139,14 @@ impl ActionHandler for action::Ics20Withdrawal {
             .await
             .context("failed to get ics20 withdrawal base fee")?;
 
+        let current_timestamp = state
+            .get_block_timestamp()
+            .await
+            .context("failed to get block timestamp")?;
         let packet = {
             let packet = withdrawal_to_unchecked_ibc_packet(self);
             state
-                .send_packet_check(packet)
+                .send_packet_check(packet, current_timestamp)
                 .await
                 .context("packet failed send check")?
         };
