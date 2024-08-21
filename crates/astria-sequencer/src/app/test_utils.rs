@@ -37,6 +37,7 @@ pub(crate) const CAROL_ADDRESS: &str = "60709e2d391864b732b4f0f51e387abb76743871
 pub(crate) const JUDY_ADDRESS: &str = "bc5b91da07778eeaf622d0dcf4d7b4233525998d";
 pub(crate) const TED_ADDRESS: &str = "4c4f91d8a918357ab5f6f19c1e179968fc39bb44";
 
+#[cfg_attr(feature = "benchmark", allow(dead_code))]
 pub(crate) fn get_alice_signing_key() -> SigningKey {
     // this secret key corresponds to ALICE_ADDRESS
     let alice_secret_bytes: [u8; 32] =
@@ -47,6 +48,7 @@ pub(crate) fn get_alice_signing_key() -> SigningKey {
     SigningKey::from(alice_secret_bytes)
 }
 
+#[cfg_attr(feature = "benchmark", allow(dead_code))]
 pub(crate) fn get_bridge_signing_key() -> SigningKey {
     let bridge_secret_bytes: [u8; 32] =
         hex::decode("db4982e01f3eba9e74ac35422fcd49aa2b47c3c535345c7e7da5220fe3a0ce79")
@@ -56,6 +58,7 @@ pub(crate) fn get_bridge_signing_key() -> SigningKey {
     SigningKey::from(bridge_secret_bytes)
 }
 
+#[cfg_attr(feature = "benchmark", allow(dead_code))]
 pub(crate) fn default_genesis_accounts() -> Vec<Account> {
     vec![
         Account {
@@ -73,6 +76,7 @@ pub(crate) fn default_genesis_accounts() -> Vec<Account> {
     ]
 }
 
+#[cfg_attr(feature = "benchmark", allow(dead_code))]
 pub(crate) fn default_fees() -> Fees {
     Fees {
         transfer_base_fee: 12,
@@ -132,6 +136,7 @@ pub(crate) async fn initialize_app_with_storage(
     (app, storage.clone())
 }
 
+#[cfg_attr(feature = "benchmark", allow(dead_code))]
 pub(crate) async fn initialize_app(
     genesis_state: Option<GenesisState>,
     genesis_validators: Vec<ValidatorUpdate>,
@@ -140,6 +145,7 @@ pub(crate) async fn initialize_app(
     app
 }
 
+#[cfg_attr(feature = "benchmark", allow(dead_code))]
 pub(crate) fn mock_tx(
     nonce: u32,
     signer: &SigningKey,

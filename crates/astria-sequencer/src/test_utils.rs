@@ -1,12 +1,6 @@
-use astria_core::{
-    crypto::{
-        SigningKey,
-        VerificationKey,
-    },
-    primitive::v1::{
-        asset::TracePrefixed,
-        Address,
-    },
+use astria_core::primitive::v1::{
+    asset::TracePrefixed,
+    Address,
 };
 
 pub(crate) const ASTRIA_PREFIX: &str = "astria";
@@ -32,13 +26,15 @@ pub(crate) fn nria() -> TracePrefixed {
     "nria".parse().unwrap()
 }
 
-pub(crate) fn verification_key(seed: u64) -> VerificationKey {
+#[cfg(test)]
+pub(crate) fn verification_key(seed: u64) -> astria_core::crypto::VerificationKey {
     use rand::SeedableRng as _;
     let rng = rand_chacha::ChaChaRng::seed_from_u64(seed);
-    let signing_key = SigningKey::new(rng);
+    let signing_key = astria_core::crypto::SigningKey::new(rng);
     signing_key.verification_key()
 }
 
+#[cfg(test)]
 #[track_caller]
 pub(crate) fn assert_anyhow_error(error: &anyhow::Error, expected: &'static str) {
     let msg = error.to_string();

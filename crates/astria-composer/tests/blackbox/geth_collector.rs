@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use astria_core::{
-    generated::protocol::account::v1alpha1::NonceResponse,
+    generated::protocol::accounts::v1alpha1::NonceResponse,
     primitive::v1::RollupId,
 };
 use ethers::types::Transaction;

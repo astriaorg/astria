@@ -100,7 +100,7 @@ evm-rollup:
 
     celestia:
       rpc: "http://celestia-service.astria-dev-cluster.svc.cluster.local:26658"
-      token: "http://celestia-service.astria-dev-cluster.svc.cluster.local:5353"
+      token: ""
 
   resources:
     conductor:
