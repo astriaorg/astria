@@ -29,7 +29,7 @@ use crate::{
     state_ext::StateReadExt as _,
 };
 
-#[instrument(skip_all)]
+#[instrument(skip_all, err)]
 pub(crate) async fn check_nonce_mempool<S: StateRead>(
     tx: &SignedTransaction,
     state: &S,
@@ -49,7 +49,7 @@ pub(crate) async fn check_nonce_mempool<S: StateRead>(
     Ok(())
 }
 
-#[instrument(skip_all)]
+#[instrument(skip_all, err)]
 pub(crate) async fn check_chain_id_mempool<S: StateRead>(
     tx: &SignedTransaction,
     state: &S,
@@ -62,7 +62,7 @@ pub(crate) async fn check_chain_id_mempool<S: StateRead>(
     Ok(())
 }
 
-#[instrument(skip_all)]
+#[instrument(skip_all, err)]
 pub(crate) async fn check_balance_mempool<S: StateRead>(
     tx: &SignedTransaction,
     state: &S,
@@ -73,7 +73,7 @@ pub(crate) async fn check_balance_mempool<S: StateRead>(
     Ok(())
 }
 
-#[instrument(skip_all)]
+#[instrument(skip_all, err)]
 pub(crate) async fn get_fees_for_transaction<S: StateRead>(
     tx: &UnsignedTransaction,
     state: &S,
@@ -149,7 +149,7 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
 
 // Checks that the account has enough balance to cover the total fees and transferred values
 // for all actions in the transaction.
-#[instrument(skip_all)]
+#[instrument(skip_all, err)]
 pub(crate) async fn check_balance_for_total_fees_and_transfers<S: StateRead>(
     tx: &SignedTransaction,
     state: &S,
@@ -229,6 +229,7 @@ fn transfer_update_fees(
         .or_insert(transfer_fee);
 }
 
+#[instrument(skip_all, err)]
 async fn sequence_update_fees<S: StateRead>(
     state: &S,
     fee_asset: &asset::Denom,

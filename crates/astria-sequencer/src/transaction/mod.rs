@@ -27,6 +27,10 @@ pub(crate) use state_ext::{
     StateReadExt,
     StateWriteExt,
 };
+use tracing::{
+    instrument,
+    Level,
+};
 
 use crate::{
     accounts::{
@@ -77,6 +81,7 @@ impl std::error::Error for InvalidNonce {}
 
 #[async_trait::async_trait]
 impl ActionHandler for SignedTransaction {
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn check_stateless(&self) -> anyhow::Result<()> {
         ensure!(!self.actions().is_empty(), "must have at least one action");
 
@@ -148,6 +153,7 @@ impl ActionHandler for SignedTransaction {
     // individual actions. This could be tidied up by implementing `ActionHandler for Action`
     // and letting it delegate.
     #[allow(clippy::too_many_lines)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> anyhow::Result<()> {
         // Add the current signed transaction into the ephemeral state in case
         // downstream actions require access to it.

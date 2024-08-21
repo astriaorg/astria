@@ -12,6 +12,7 @@ use tendermint::abci::{
     response,
     Code,
 };
+use tracing::instrument;
 
 use crate::{
     assets::StateReadExt as _,
@@ -19,6 +20,7 @@ use crate::{
     transaction::checks::get_fees_for_transaction,
 };
 
+#[instrument(skip_all)]
 pub(crate) async fn transaction_fee_request(
     storage: Storage,
     request: request::Query,

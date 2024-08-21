@@ -26,6 +26,10 @@ use penumbra_ibc::component::packet::{
     SendPacketWrite as _,
     Unchecked,
 };
+use tracing::{
+    instrument,
+    Level,
+};
 
 use crate::{
     accounts::{
@@ -67,6 +71,7 @@ fn withdrawal_to_unchecked_ibc_packet(
 ///    stored withdrawer address.
 /// 3. `action.bridge_address` if `action.bridge_address` is set and a bridge account and `from` is
 ///    its stored withdrawer address.
+#[instrument(skip_all, err)]
 async fn establish_withdrawal_target<S: StateRead>(
     action: &action::Ics20Withdrawal,
     state: &S,
@@ -103,6 +108,7 @@ async fn establish_withdrawal_target<S: StateRead>(
 
 #[async_trait::async_trait]
 impl ActionHandler for action::Ics20Withdrawal {
+    #[instrument(skip_all, err)]
     async fn check_stateless(&self) -> Result<()> {
         ensure!(self.timeout_time() != 0, "timeout time must be non-zero",);
 
@@ -112,6 +118,7 @@ impl ActionHandler for action::Ics20Withdrawal {
         Ok(())
     }
 
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
         let from = state
             .get_current_source()

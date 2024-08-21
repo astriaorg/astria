@@ -16,12 +16,14 @@ use tendermint::{
     },
     block::Height,
 };
+use tracing::instrument;
 
 use crate::{
     accounts::state_ext::StateReadExt as _,
     state_ext::StateReadExt as _,
 };
 
+#[instrument(skip_all)]
 pub(crate) async fn balance_request(
     storage: Storage,
     request: request::Query,
@@ -61,6 +63,7 @@ pub(crate) async fn balance_request(
     }
 }
 
+#[instrument(skip_all)]
 pub(crate) async fn nonce_request(
     storage: Storage,
     request: request::Query,
@@ -99,6 +102,7 @@ pub(crate) async fn nonce_request(
     }
 }
 
+#[instrument(skip_all, err)]
 async fn get_snapshot_and_height(
     storage: &Storage,
     height: Height,
@@ -125,6 +129,7 @@ async fn get_snapshot_and_height(
     Ok((snapshot, height))
 }
 
+#[instrument(skip_all)]
 async fn preprocess_request(
     storage: &Storage,
     request: &request::Query,

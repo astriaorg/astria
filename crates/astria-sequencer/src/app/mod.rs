@@ -64,6 +64,7 @@ use tracing::{
     debug,
     info,
     instrument,
+    Level,
 };
 
 use crate::{
@@ -173,6 +174,7 @@ pub(crate) struct App {
 }
 
 impl App {
+    #[instrument(skip_all, err)]
     pub(crate) async fn new(
         snapshot: Snapshot,
         mempool: Mempool,
@@ -205,7 +207,7 @@ impl App {
         })
     }
 
-    #[instrument(name = "App:init_chain", skip_all)]
+    #[instrument(name = "App:init_chain", skip_all, err)]
     pub(crate) async fn init_chain(
         &mut self,
         storage: Storage,
@@ -288,7 +290,7 @@ impl App {
     /// It puts this special "commitment" as the first transaction in a block.
     /// When other validators receive the block, they know the first transaction is
     /// supposed to be the commitment, and verifies that is it correct.
-    #[instrument(name = "App::prepare_proposal", skip_all)]
+    #[instrument(name = "App::prepare_proposal", skip_all, err)]
     pub(crate) async fn prepare_proposal(
         &mut self,
         prepare_proposal: abci::request::PrepareProposal,
@@ -342,7 +344,7 @@ impl App {
     /// Generates a commitment to the `sequence::Actions` in the block's transactions
     /// and ensures it matches the commitment created by the proposer, which
     /// should be the first transaction in the block.
-    #[instrument(name = "App::process_proposal", skip_all)]
+    #[instrument(name = "App::process_proposal", skip_all, err(level = Level::WARN))]
     pub(crate) async fn process_proposal(
         &mut self,
         process_proposal: abci::request::ProcessProposal,
@@ -477,7 +479,7 @@ impl App {
     ///
     /// As a result, all transactions in a sequencer block are guaranteed to execute
     /// successfully.
-    #[instrument(name = "App::execute_transactions_prepare_proposal", skip_all)]
+    #[instrument(name = "App::execute_transactions_prepare_proposal", skip_all, err)]
     async fn execute_transactions_prepare_proposal(
         &mut self,
         block_size_constraints: &mut BlockSizeConstraints,
@@ -630,7 +632,7 @@ impl App {
     ///
     /// As a result, all transactions in a sequencer block are guaranteed to execute
     /// successfully.
-    #[instrument(name = "App::execute_transactions_process_proposal", skip_all)]
+    #[instrument(name = "App::execute_transactions_process_proposal", skip_all, err(level = Level::WARN))]
     async fn execute_transactions_process_proposal(
         &mut self,
         txs: Vec<SignedTransaction>,
@@ -705,7 +707,7 @@ impl App {
     ///
     /// this *must* be called anytime before a block's txs are executed, whether it's
     /// during the proposal phase, or finalize_block phase.
-    #[instrument(name = "App::pre_execute_transactions", skip_all)]
+    #[instrument(name = "App::pre_execute_transactions", skip_all, err)]
     async fn pre_execute_transactions(&mut self, block_data: BlockData) -> anyhow::Result<()> {
         let chain_id = self
             .state
@@ -759,7 +761,7 @@ impl App {
     ///
     /// This is called by cometbft after the block has already been
     /// committed by the network's consensus.
-    #[instrument(name = "App::finalize_block", skip_all)]
+    #[instrument(name = "App::finalize_block", skip_all, err)]
     pub(crate) async fn finalize_block(
         &mut self,
         finalize_block: abci::request::FinalizeBlock,
@@ -830,7 +832,7 @@ impl App {
                     }),
                     Err(e) => {
                         // this is actually a protocol error, as only valid txs should be finalized
-                        tracing::error!(
+                        tracing::warn!(
                             error = AsRef::<dyn std::error::Error>::as_ref(&e),
                             "failed to finalize transaction; ignoring it",
                         );
@@ -914,6 +916,7 @@ impl App {
         })
     }
 
+    #[instrument(skip_all, err)]
     async fn prepare_commit(&mut self, storage: Storage) -> anyhow::Result<AppHash> {
         // extract the state we've built up to so we can prepare it as a `StagedWriteBatch`.
         let dummy_state = StateDelta::new(storage.latest_snapshot());
@@ -947,8 +950,8 @@ impl App {
         Ok(app_hash)
     }
 
-    #[instrument(name = "App::begin_block", skip_all)]
-    async fn begin_block(
+    #[instrument(name = "App::begin_block", skip_all, err)]
+    pub(crate) async fn begin_block(
         &mut self,
         begin_block: &abci::request::BeginBlock,
     ) -> anyhow::Result<Vec<abci::Event>> {
@@ -1007,8 +1010,8 @@ impl App {
         Ok(state_tx.apply().1)
     }
 
-    #[instrument(name = "App::end_block", skip_all)]
-    async fn end_block(
+    #[instrument(name = "App::end_block", skip_all, err)]
+    pub(crate) async fn end_block(
         &mut self,
         height: u64,
         fee_recipient: [u8; 20],
@@ -1129,6 +1132,7 @@ impl App {
 // NOTE: this function locks the mempool until every tx has been checked.
 // this could potentially stall consensus from moving to the next round if
 // the mempool is large.
+#[instrument(skip_all)]
 async fn update_mempool_after_finalization<S: accounts::StateReadExt>(
     mempool: &mut Mempool,
     state: &S,

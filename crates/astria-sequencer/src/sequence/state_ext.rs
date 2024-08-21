@@ -23,7 +23,7 @@ struct Fee(u128);
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     async fn get_sequence_action_base_fee(&self) -> Result<u128> {
         let bytes = self
             .get_raw(SEQUENCE_ACTION_BASE_FEE_STORAGE_KEY)
@@ -34,7 +34,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(fee)
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     async fn get_sequence_action_byte_cost_multiplier(&self) -> Result<u128> {
         let bytes = self
             .get_raw(SEQUENCE_ACTION_BYTE_COST_MULTIPLIER_STORAGE_KEY)

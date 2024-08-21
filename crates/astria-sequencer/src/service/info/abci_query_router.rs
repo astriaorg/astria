@@ -48,6 +48,7 @@ use tendermint::abci::{
     request,
     response,
 };
+use tracing::instrument;
 
 /// `Router` is a wrapper around [`matchit::Router`] to route abci queries
 /// to handlers.
@@ -92,6 +93,7 @@ impl BoxedAbciQueryHandler {
         }))
     }
 
+    #[instrument(skip_all)]
     pub(super) async fn call(
         self,
         storage: Storage,

@@ -10,6 +10,10 @@ use astria_core::{
     Protobuf as _,
 };
 use cnidarium::StateWrite;
+use tracing::{
+    instrument,
+    Level,
+};
 
 use crate::{
     accounts::{
@@ -31,10 +35,12 @@ use crate::{
 
 #[async_trait::async_trait]
 impl ActionHandler for InitBridgeAccountAction {
+    #[instrument(skip_all)]
     async fn check_stateless(&self) -> Result<()> {
         Ok(())
     }
 
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
         let from = state
             .get_current_source()

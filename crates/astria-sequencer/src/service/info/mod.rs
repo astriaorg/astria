@@ -88,7 +88,7 @@ impl Info {
         })
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     async fn handle_info_request(self, request: InfoRequest) -> Result<InfoResponse, BoxError> {
         match request {
             InfoRequest::Info(_) => {
@@ -124,6 +124,7 @@ impl Info {
     }
 
     /// Handles `abci_query` RPCs.
+    #[instrument(skip_all)]
     async fn handle_abci_query(self, request: request::Query) -> response::Query {
         let (handler, params) = match self.query_router.at(&request.path) {
             Err(err) => {

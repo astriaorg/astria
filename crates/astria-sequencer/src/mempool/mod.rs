@@ -155,7 +155,7 @@ impl Mempool {
 
     /// Inserts a transaction into the mempool and does not allow for transaction replacement.
     /// Will return the reason for insertion failure if failure occurs.
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     pub(crate) async fn insert(
         &self,
         tx: Arc<SignedTransaction>,

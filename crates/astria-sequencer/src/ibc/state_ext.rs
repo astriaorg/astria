@@ -68,7 +68,7 @@ fn ibc_relayer_key<T: AddressBytes>(address: &T) -> String {
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     async fn get_ibc_channel_balance<TAsset>(
         &self,
         channel: &ChannelId,
@@ -89,7 +89,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(balance)
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     async fn get_ibc_sudo_address(&self) -> Result<[u8; ADDRESS_LEN]> {
         let Some(bytes) = self
             .get_raw(IBC_SUDO_STORAGE_KEY)
@@ -104,7 +104,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(address_bytes)
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     async fn is_ibc_relayer<T: AddressBytes>(&self, address: T) -> Result<bool> {
         Ok(self
             .get_raw(&ibc_relayer_key(&address))
@@ -113,7 +113,7 @@ pub(crate) trait StateReadExt: StateRead {
             .is_some())
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     async fn get_ics20_withdrawal_base_fee(&self) -> Result<u128> {
         let Some(bytes) = self
             .get_raw(ICS20_WITHDRAWAL_BASE_FEE_STORAGE_KEY)

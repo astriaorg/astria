@@ -132,7 +132,7 @@ impl From<RollupId> for RollupIdSer {
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     async fn get_block_hash_by_height(&self, height: u64) -> Result<[u8; 32]> {
         let key = block_hash_by_height_key(height);
         let Some(hash) = self
@@ -149,7 +149,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(hash)
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     async fn get_sequencer_block_header_by_hash(
         &self,
         hash: &[u8],
@@ -170,7 +170,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(header)
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     async fn get_rollup_ids_by_block_hash(&self, hash: &[u8]) -> Result<Vec<RollupId>> {
         let key = rollup_ids_by_hash_key(hash);
         let Some(rollup_ids_bytes) = self
@@ -186,7 +186,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(rollup_ids)
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     async fn get_sequencer_block_by_hash(&self, hash: &[u8]) -> Result<SequencerBlock> {
         let Some(header_bytes) = self
             .get_raw(&sequencer_block_header_by_hash_key(hash))
@@ -256,7 +256,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(block)
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     async fn get_sequencer_block_by_height(&self, height: u64) -> Result<SequencerBlock> {
         let hash = self
             .get_block_hash_by_height(height)
@@ -267,7 +267,7 @@ pub(crate) trait StateReadExt: StateRead {
             .context("failed to get sequencer block by hash")
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     async fn get_rollup_data(
         &self,
         hash: &[u8],
@@ -290,7 +290,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(rollup_transactions)
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     async fn get_block_proofs_by_block_hash(
         &self,
         hash: &[u8],
@@ -325,7 +325,7 @@ pub(crate) trait StateReadExt: StateRead {
 impl<T: StateRead> StateReadExt for T {}
 
 pub(crate) trait StateWriteExt: StateWrite {
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     fn put_sequencer_block(&mut self, block: SequencerBlock) -> Result<()> {
         // split up and write the sequencer block to state in the following order:
         // 1. height to block hash

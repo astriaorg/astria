@@ -18,6 +18,7 @@ fn base_prefix_key() -> &'static str {
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
+    #[instrument(skip_all, err)]
     async fn ensure_base_prefix(&self, address: &Address) -> anyhow::Result<()> {
         let prefix = self
             .get_base_prefix()
@@ -31,6 +32,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(())
     }
 
+    #[instrument(skip_all, err)]
     async fn try_base_prefixed(&self, slice: &[u8]) -> anyhow::Result<Address> {
         let prefix = self
             .get_base_prefix()
@@ -43,7 +45,7 @@ pub(crate) trait StateReadExt: StateRead {
             .context("failed to construct address from byte slice and state-provided base prefix")
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     async fn get_base_prefix(&self) -> Result<String> {
         let Some(bytes) = self
             .get_raw(base_prefix_key())
@@ -60,7 +62,7 @@ impl<T: ?Sized + StateRead> StateReadExt for T {}
 
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     fn put_base_prefix(&mut self, prefix: &str) -> anyhow::Result<()> {
         try_construct_dummy_address_from_prefix(prefix)
             .context("failed constructing a dummy address from the provided prefix")?;

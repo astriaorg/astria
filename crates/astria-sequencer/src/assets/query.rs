@@ -14,6 +14,7 @@ use tendermint::abci::{
     response,
     Code,
 };
+use tracing::instrument;
 
 use crate::{
     assets::StateReadExt as _,
@@ -24,6 +25,7 @@ use crate::{
 //
 // Example:
 // `abci-cli query --path=asset/denom/<DENOM_ID>`
+#[instrument(skip_all)]
 pub(crate) async fn denom_request(
     storage: Storage,
     request: request::Query,
@@ -112,6 +114,7 @@ fn preprocess_request(
     Ok(asset)
 }
 
+#[instrument(skip_all)]
 pub(crate) async fn allowed_fee_assets_request(
     storage: Storage,
     request: request::Query,

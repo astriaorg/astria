@@ -57,6 +57,7 @@ use penumbra_ibc::component::app_handler::{
     AppHandlerExecute,
 };
 use penumbra_proto::penumbra::core::component::ibc::v1::FungibleTokenPacketData;
+use tracing::instrument;
 
 use crate::{
     accounts::StateWriteExt as _,
@@ -87,6 +88,7 @@ pub(crate) struct Ics20Transfer;
 
 #[async_trait::async_trait]
 impl AppHandlerCheck for Ics20Transfer {
+    #[instrument(skip_all, err)]
     async fn chan_open_init_check<S: StateRead>(_: S, msg: &MsgChannelOpenInit) -> Result<()> {
         if msg.ordering != channel::Order::Unordered {
             anyhow::bail!("channel order must be unordered for Ics20 transfer");
@@ -99,6 +101,7 @@ impl AppHandlerCheck for Ics20Transfer {
         Ok(())
     }
 
+    #[instrument(skip_all, err)]
     async fn chan_open_try_check<S: StateRead>(_: S, msg: &MsgChannelOpenTry) -> Result<()> {
         if msg.ordering != channel::Order::Unordered {
             anyhow::bail!("channel order must be unordered for Ics20 transfer");
@@ -111,6 +114,7 @@ impl AppHandlerCheck for Ics20Transfer {
         Ok(())
     }
 
+    #[instrument(skip_all, err)]
     async fn chan_open_ack_check<S: StateRead>(_: S, msg: &MsgChannelOpenAck) -> Result<()> {
         if msg.version_on_b.as_str() != "ics20-1" {
             anyhow::bail!("counterparty version must be ics20-1 for Ics20 transfer");
@@ -119,16 +123,19 @@ impl AppHandlerCheck for Ics20Transfer {
         Ok(())
     }
 
+    #[instrument(skip_all)]
     async fn chan_open_confirm_check<S: StateRead>(_: S, _: &MsgChannelOpenConfirm) -> Result<()> {
         // accept channel confirmations, port has already been validated, version has already been
         // validated
         Ok(())
     }
 
+    #[instrument(skip_all)]
     async fn chan_close_init_check<S: StateRead>(_: S, _: &MsgChannelCloseInit) -> Result<()> {
         anyhow::bail!("ics20 always aborts on chan_close_init");
     }
 
+    #[instrument(skip_all)]
     async fn chan_close_confirm_check<S: StateRead>(
         _: S,
         _: &MsgChannelCloseConfirm,
@@ -137,6 +144,7 @@ impl AppHandlerCheck for Ics20Transfer {
         Ok(())
     }
 
+    #[instrument(skip_all, err)]
     async fn recv_packet_check<S: StateRead>(_: S, msg: &MsgRecvPacket) -> Result<()> {
         // most checks performed in `execute`
         // perform stateless checks here
@@ -151,6 +159,7 @@ impl AppHandlerCheck for Ics20Transfer {
         Ok(())
     }
 
+    #[instrument(skip_all, err)]
     async fn timeout_packet_check<S: StateRead>(state: S, msg: &MsgTimeout) -> Result<()> {
         refund_tokens_check(
             state,
@@ -161,6 +170,7 @@ impl AppHandlerCheck for Ics20Transfer {
         .await
     }
 
+    #[instrument(skip_all, err)]
     async fn acknowledge_packet_check<S: StateRead>(
         state: S,
         msg: &MsgAcknowledgement,
@@ -184,6 +194,7 @@ impl AppHandlerCheck for Ics20Transfer {
     }
 }
 
+#[instrument(skip_all, err)]
 async fn refund_tokens_check<S: StateRead>(
     mut state: S,
     data: &[u8],
@@ -239,6 +250,7 @@ impl AppHandlerExecute for Ics20Transfer {
 
     async fn chan_close_init_execute<S: StateWrite>(_: S, _: &MsgChannelCloseInit) {}
 
+    #[instrument(skip_all, err)]
     async fn recv_packet_execute<S: StateWrite>(
         mut state: S,
         msg: &MsgRecvPacket,
@@ -274,6 +286,7 @@ impl AppHandlerExecute for Ics20Transfer {
             .context("failed to write acknowledgement")
     }
 
+    #[instrument(skip_all, err)]
     async fn timeout_packet_execute<S: StateWrite>(
         mut state: S,
         msg: &MsgTimeout,
@@ -293,6 +306,7 @@ impl AppHandlerExecute for Ics20Transfer {
         .context("failed to refund tokens during timeout_packet_execute")
     }
 
+    #[instrument(skip_all)]
     async fn acknowledge_packet_execute<S: StateWrite>(mut state: S, msg: &MsgAcknowledgement) {
         let ack: TokenTransferAcknowledgement = serde_json::from_slice(
             msg.acknowledgement.as_slice(),
@@ -327,6 +341,7 @@ impl AppHandlerExecute for Ics20Transfer {
 #[async_trait::async_trait]
 impl AppHandler for Ics20Transfer {}
 
+#[instrument(skip_all, err)]
 async fn convert_denomination_if_ibc_prefixed<S: ibc::StateReadExt>(
     state: &mut S,
     packet_denom: Denom,
@@ -366,8 +381,7 @@ fn prepend_denom_if_not_refund<'a>(
     }
 }
 
-// FIXME: temporarily allowed, but this must be fixed
-#[allow(clippy::too_many_lines)]
+#[instrument(skip_all, err)]
 async fn execute_ics20_transfer<S: ibc::StateWriteExt>(
     state: &mut S,
     data: &[u8],
@@ -386,20 +400,12 @@ async fn execute_ics20_transfer<S: ibc::StateWriteExt>(
     let recipient = if is_refund {
         packet_data.sender.clone()
     } else {
-        packet_data.receiver
+        packet_data.receiver.clone()
     };
 
-    let mut denom_trace = {
-        let denom = packet_data
-            .denom
-            .parse::<Denom>()
-            .context("failed parsing denom in packet data as Denom")?;
-        // convert denomination if it's prefixed with `ibc/`
-        // note: this denomination might have a prefix, but it wasn't prefixed by us right now.
-        convert_denomination_if_ibc_prefixed(state, denom)
-            .await
-            .context("failed to convert denomination if ibc/ prefixed")?
-    };
+    let mut denom_trace = denom_trace(packet_data.clone(), state)
+        .await
+        .context("failed to retrieve denomination")?;
 
     // if the memo deserializes into an `Ics20WithdrawalFromRollupMemo`,
     // we can assume this is a refund from an attempted withdrawal from
@@ -431,13 +437,11 @@ async fn execute_ics20_transfer<S: ibc::StateWriteExt>(
     let recipient = recipient.parse().context("invalid recipient address")?;
 
     let is_prefixed = denom_trace.starts_with_str(&format!("{source_port}/{source_channel}"));
-    let is_source = if is_refund {
-        // we are the source if the denom is not prefixed by source_port/source_channel
-        !is_prefixed
-    } else {
-        // we are the source if the denom is prefixed by source_port/source_channel
-        is_prefixed
-    };
+
+    // Logic: We are the source if the denom is not prefixed by source_port/source_channel and it is
+    // a refund. We are also the source if the denom is prefixed by source_port/source_channel
+    // and it is not a refund
+    let is_source = is_refund != is_prefixed;
 
     // prefix the denomination with the destination port and channel if not a refund
     let trace_with_dest =
@@ -522,6 +526,7 @@ async fn execute_ics20_transfer<S: ibc::StateWriteExt>(
 ///
 /// this functions sends the tokens back to the rollup via a `Deposit` event,
 /// and locks the tokens back in the specified bridge account.
+#[instrument(skip_all, err)]
 async fn execute_rollup_withdrawal_refund<S: ibc::StateWriteExt>(
     state: &mut S,
     bridge_address: Address,
@@ -545,6 +550,7 @@ async fn execute_rollup_withdrawal_refund<S: ibc::StateWriteExt>(
 ///
 /// if the recipient is not a bridge account, or the incoming packet is a refund,
 /// this function is a no-op.
+#[instrument(skip_all, err)]
 async fn execute_ics20_transfer_bridge_lock<S: ibc::StateWriteExt>(
     state: &mut S,
     recipient: Address,
@@ -601,6 +607,7 @@ async fn execute_ics20_transfer_bridge_lock<S: ibc::StateWriteExt>(
     .await
 }
 
+#[instrument(skip_all, err)]
 async fn execute_deposit<S: ibc::StateWriteExt>(
     state: &mut S,
     bridge_address: Address,
@@ -641,6 +648,22 @@ async fn execute_deposit<S: ibc::StateWriteExt>(
         .context("failed to put deposit event into state")?;
 
     Ok(())
+}
+
+#[instrument(skip_all, err)]
+async fn denom_trace<S: ibc::StateWriteExt>(
+    packet_data: FungibleTokenPacketData,
+    state: &mut S,
+) -> Result<denom::TracePrefixed> {
+    let denom = packet_data
+        .denom
+        .parse::<Denom>()
+        .context("failed parsing denom in packet data as Denom")?;
+    // convert denomination if it's prefixed with `ibc/`
+    // note: this denomination might have a prefix, but it wasn't prefixed by us right now.
+    convert_denomination_if_ibc_prefixed(state, denom)
+        .await
+        .context("failed to convert denomination if ibc/ prefixed")
 }
 
 #[cfg(test)]
