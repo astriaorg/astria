@@ -225,7 +225,7 @@ impl Geth {
         // if the loop exits with an error, we can still proceed with unsubscribing the WSS
         // stream as we could have exited due to an error in sending messages via the executor
         // channel.
-        unsubscribe_wss_stream_handler(&tx_stream).await;
+        unsubscribe_from_rollup(&tx_stream).await;
 
         reason.map(|_| ())
     }

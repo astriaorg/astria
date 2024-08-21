@@ -6,7 +6,7 @@ use tracing::{
 };
 
 #[instrument(skip_all)]
-pub(crate) fn log_exit(reason: &Result<&str, Report>) {
+pub(crate) fn report_exit_reason(reason: &Result<&str, Report>) {
     match &reason {
         Ok(reason) => {
             info!(reason, "shutting down");

@@ -387,7 +387,7 @@ impl Executor {
 
     /// Creates shutdown logic for submitting remaining bundles to the sequencer.
     #[instrument(skip_all, err)]
-    async fn shutdown_logic(
+    async fn run_shutdown_logic(
         &self,
         submission_fut: Fuse<Instrumented<SubmitFut>>,
         mut nonce: u32,
