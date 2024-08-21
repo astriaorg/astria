@@ -54,15 +54,9 @@ pub mod v1 {
         type Err = CurrencyPairParseError;
 
         fn from_str(s: &str) -> Result<Self, Self::Err> {
-            let parts: Vec<&str> = s.split('/').collect();
-            if parts.len() != 2 {
-                return Err(CurrencyPairParseError::invalid_currency_pair_string(s));
-            }
-
-            Ok(Self {
-                base: parts[0].to_string(),
-                quote: parts[1].to_string(),
-            })
+            s.split_once('/')
+                .map(|(base, quote)| Self::new(base.to_string(), quote.to_string()))
+                .ok_or_else(|| CurrencyPairParseError::invalid_currency_pair_string(s))
         }
     }
 

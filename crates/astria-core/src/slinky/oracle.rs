@@ -65,7 +65,7 @@ pub mod v1 {
 
     #[derive(Debug, thiserror::Error)]
     enum QuotePriceErrorKind {
-        #[error(transparent)]
+        #[error("failed to parse price")]
         PriceParseError(#[from] std::num::ParseIntError),
         #[error("missing block timestamp")]
         MissingBlockTimestamp,
@@ -134,8 +134,8 @@ pub mod v1 {
     enum CurrencyPairStateErrorKind {
         #[error("missing price")]
         MissingPrice,
-        #[error(transparent)]
-        QuotePriceParseError(QuotePriceError),
+        #[error("failed to parse quote price")]
+        QuotePriceParseError(#[source] QuotePriceError),
     }
 
     #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
@@ -239,8 +239,8 @@ pub mod v1 {
         MissingCurrencyPair,
         #[error("missing currency pair price")]
         MissingCurrencyPairPrice,
-        #[error(transparent)]
-        QuotePriceParseError(QuotePriceError),
+        #[error("failed to parse quote price")]
+        QuotePriceParseError(#[source] QuotePriceError),
     }
 
     #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
@@ -296,7 +296,7 @@ pub mod v1 {
 
     #[derive(Debug, thiserror::Error)]
     enum GenesisStateErrorKind {
-        #[error(transparent)]
-        CurrencyPairGenesisParseError(CurrencyPairGenesisError),
+        #[error("failed to parse genesis currency pair")]
+        CurrencyPairGenesisParseError(#[source] CurrencyPairGenesisError),
     }
 }

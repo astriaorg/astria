@@ -811,13 +811,13 @@ impl SequencerBlock {
 
         // action tree root is always the second tx in a block
         let rollup_transactions_proof = tree.construct_proof(1).expect(
-            "the tree has at least one leaf; if this line is reached and `construct_proof` \
+            "the tree has at least two leaves; if this line is reached and `construct_proof` \
              returns None it means that the short circuiting checks above it have been removed",
         );
 
         // rollup id tree root is always the third tx in a block
         let rollup_ids_proof = tree.construct_proof(2).expect(
-            "the tree has at least two leaves; if this line is reached and `construct_proof` \
+            "the tree has at least three leaves; if this line is reached and `construct_proof` \
              returns None it means that the short circuiting checks above it have been removed",
         );
 

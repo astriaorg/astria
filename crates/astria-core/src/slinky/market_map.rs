@@ -95,11 +95,11 @@ pub mod v1 {
     enum GenesisStateErrorKind {
         #[error("missing market map")]
         MissingMarketMap,
-        #[error(transparent)]
+        #[error("failed to parse market map")]
         MarketMapParseError(#[from] MarketMapError),
         #[error("missing params")]
         MissingParams,
-        #[error(transparent)]
+        #[error("failed to parse params")]
         ParamsParseError(#[from] ParamsError),
     }
 
@@ -243,9 +243,9 @@ pub mod v1 {
     enum MarketErrorKind {
         #[error("missing ticker")]
         MissingTicker,
-        #[error(transparent)]
+        #[error("failed to parse ticker")]
         TickerParseError(#[from] TickerError),
-        #[error(transparent)]
+        #[error("failed to parse provider config")]
         ProviderConfigParseError(#[from] ProviderConfigError),
     }
 
@@ -418,6 +418,6 @@ pub mod v1 {
     #[derive(Debug, thiserror::Error)]
     enum MarketMapErrorKind {
         #[error("invalid market {0}")]
-        InvalidMarket(String, MarketError),
+        InvalidMarket(String, #[source] MarketError),
     }
 }

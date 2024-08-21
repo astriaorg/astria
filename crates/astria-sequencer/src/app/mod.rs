@@ -855,7 +855,7 @@ impl App {
         vote_extension: abci::request::VerifyVoteExtension,
     ) -> abci::response::VerifyVoteExtension {
         self.vote_extension_handler
-            .verify_vote_extension(&self.state, vote_extension, false)
+            .verify_vote_extension(&self.state, vote_extension)
             .await
     }
 

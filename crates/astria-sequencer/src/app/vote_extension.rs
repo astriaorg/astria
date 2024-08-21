@@ -80,13 +80,7 @@ impl Handler {
         let prices = match oracle_client.prices(QueryPricesRequest {}).await {
             Ok(prices) => prices.into_inner(),
             Err(e) => {
-                tracing::error!(
-                    error = %e,
-                    "failed to get prices from oracle sidecar"
-                );
-                return Ok(abci::response::ExtendVote {
-                    vote_extension: vec![].into(),
-                });
+                bail!("failed to get prices from oracle sidecar: {e}",);
             }
         };
 
@@ -108,16 +102,12 @@ impl Handler {
         &self,
         state: &S,
         vote: abci::request::VerifyVoteExtension,
-        is_proposal_phase: bool,
     ) -> abci::response::VerifyVoteExtension {
-        let oracle_vote_extension = match RawOracleVoteExtension::decode(vote.vote_extension) {
-            Ok(oracle_vote_extension) => oracle_vote_extension.into(),
-            Err(e) => {
-                tracing::error!(error = %e, "failed to decode oracle vote extension");
-                return abci::response::VerifyVoteExtension::Reject;
-            }
-        };
-        match verify_vote_extension(state, oracle_vote_extension, is_proposal_phase).await {
+        if vote.vote_extension.is_empty() {
+            return abci::response::VerifyVoteExtension::Accept;
+        }
+
+        match verify_vote_extension(state, vote.vote_extension, false).await {
             Ok(()) => abci::response::VerifyVoteExtension::Accept,
             Err(e) => {
                 tracing::error!(error = %e, "failed to verify vote extension");
@@ -128,11 +118,13 @@ impl Handler {
 }
 
 // see https://github.com/skip-mev/slinky/blob/5b07f91d6c0110e617efda3f298f147a31da0f25/abci/ve/utils.go#L24
-pub(crate) async fn verify_vote_extension<S: StateReadExt>(
+async fn verify_vote_extension<S: StateReadExt>(
     state: &S,
-    oracle_vote_extension: OracleVoteExtension,
+    oracle_vote_extension_bytes: bytes::Bytes,
     is_proposal_phase: bool,
 ) -> anyhow::Result<()> {
+    let oracle_vote_extension = RawOracleVoteExtension::decode(oracle_vote_extension_bytes)
+        .context("failed to decode oracle vote extension")?;
     let max_num_currency_pairs =
         DefaultCurrencyPairStrategy::get_max_num_currency_pairs(state, is_proposal_phase)
             .await
@@ -206,9 +198,7 @@ impl ProposalHandler {
         }
 
         for vote in &mut extended_commit_info.votes {
-            let oracle_vote_extension =
-                RawOracleVoteExtension::decode(vote.vote_extension.clone())?.into();
-            if let Err(e) = verify_vote_extension(state, oracle_vote_extension, true).await {
+            if let Err(e) = verify_vote_extension(state, vote.vote_extension.clone(), true).await {
                 let address = state
                     .try_base_prefixed(vote.validator.address.as_slice())
                     .await
@@ -220,7 +210,7 @@ impl ProposalHandler {
                 );
                 vote.sig_info = Flag(tendermint::block::BlockIdFlag::Absent);
                 vote.extension_signature = None;
-                vote.vote_extension = vec![].into();
+                vote.vote_extension.clear();
             }
         }
         validate_vote_extensions(state, height, &extended_commit_info)
@@ -324,7 +314,6 @@ async fn validate_vote_extensions<S: StateReadExt>(
             chain_id: chain_id.to_string(),
         };
 
-        // TODO: double check that it's length-delimited
         let message = vote_extension.encode_length_delimited_to_vec();
         let signature = Signature::try_from(
             vote.extension_signature
@@ -392,27 +381,30 @@ fn validate_extended_commit_against_last_commit(
         "extended commit votes are not sorted by voting power",
     );
 
-    for (i, vote) in extended_commit_info.votes.iter().enumerate() {
-        let last_commit_vote = &last_commit.votes[i];
+    for (last_commit_vote, extended_commit_info_vote) in last_commit
+        .votes
+        .iter()
+        .zip(extended_commit_info.votes.iter())
+    {
         ensure!(
-            last_commit_vote.validator.address == vote.validator.address,
+            last_commit_vote.validator.address == extended_commit_info_vote.validator.address,
             "last commit vote address does not match extended commit vote address"
         );
         ensure!(
-            last_commit_vote.validator.power == vote.validator.power,
+            last_commit_vote.validator.power == extended_commit_info_vote.validator.power,
             "last commit vote power does not match extended commit vote power"
         );
 
         // vote is absent; no need to check for the block id flag matching the last commit
-        if vote.sig_info == Flag(tendermint::block::BlockIdFlag::Absent)
-            && vote.vote_extension.is_empty()
-            && vote.extension_signature.is_none()
+        if extended_commit_info_vote.sig_info == Flag(tendermint::block::BlockIdFlag::Absent)
+            && extended_commit_info_vote.vote_extension.is_empty()
+            && extended_commit_info_vote.extension_signature.is_none()
         {
             continue;
         }
 
         ensure!(
-            vote.sig_info == last_commit_vote.sig_info,
+            extended_commit_info_vote.sig_info == last_commit_vote.sig_info,
             "last commit vote sig info does not match extended commit vote sig info"
         );
     }
@@ -530,43 +522,23 @@ async fn aggregate_oracle_votes<S: StateReadExt>(
 
 #[cfg(test)]
 mod test {
-    use tendermint::abci;
-
     use super::*;
 
     #[tokio::test]
     async fn verify_vote_extension_proposal_phase_ok() {
-        let handler = Handler::new(None);
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
-
-        let vote = abci::request::VerifyVoteExtension {
-            hash: [0u8; 32].to_vec().try_into().unwrap(),
-            vote_extension: vec![].into(),
-            validator_address: [1u8; 20].to_vec().try_into().unwrap(),
-            height: 1u32.into(),
-        };
-        assert_eq!(
-            handler.verify_vote_extension(&snapshot, vote, true).await,
-            abci::response::VerifyVoteExtension::Accept
-        );
+        verify_vote_extension(&snapshot, vec![].as_slice(), true)
+            .await
+            .unwrap();
     }
 
     #[tokio::test]
     async fn verify_vote_extension_not_proposal_phase_ok() {
-        let handler = Handler::new(None);
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
-
-        let vote = abci::request::VerifyVoteExtension {
-            hash: [0u8; 32].to_vec().try_into().unwrap(),
-            vote_extension: vec![].into(),
-            validator_address: [1u8; 20].to_vec().try_into().unwrap(),
-            height: 1u32.into(),
-        };
-        assert_eq!(
-            handler.verify_vote_extension(&snapshot, vote, false).await,
-            abci::response::VerifyVoteExtension::Accept
-        );
+        verify_vote_extension(&snapshot, vec![].as_slice(), true)
+            .await
+            .unwrap();
     }
 }
