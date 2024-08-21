@@ -18,7 +18,10 @@ use astria_core::{
     sequencerblock::v1alpha1::block::Deposit,
 };
 use cnidarium::StateDelta;
-use prost::Message as _;
+use prost::{
+    bytes::Bytes,
+    Message as _,
+};
 use tendermint::{
     abci::{
         self,
@@ -292,9 +295,9 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
 
     let mut state_tx = StateDelta::new(app.state.clone());
-    state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
+    state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
     state_tx
-        .put_bridge_account_ibc_asset(&bridge_address, nria())
+        .put_bridge_account_ibc_asset(bridge_address, nria())
         .unwrap();
     app.apply(state_tx);
     app.prepare_commit(storage.clone()).await.unwrap();
@@ -310,7 +313,7 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
     };
     let sequence_action = SequenceAction {
         rollup_id,
-        data: b"hello world".to_vec(),
+        data: Bytes::from_static(b"hello world"),
         fee_asset: nria().into(),
     };
     let tx = UnsignedTransaction {
@@ -360,7 +363,7 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
     for (_, rollup_data) in block.rollup_transactions() {
         for tx in rollup_data.transactions() {
             let rollup_data =
-                RollupData::try_from_raw(RawRollupData::decode(tx.as_slice()).unwrap()).unwrap();
+                RollupData::try_from_raw(RawRollupData::decode(tx.as_ref()).unwrap()).unwrap();
             if let RollupData::Deposit(deposit) = rollup_data {
                 deposits.push(deposit);
             }
@@ -382,9 +385,9 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
     let asset = nria().clone();
 
     let mut state_tx = StateDelta::new(app.state.clone());
-    state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
+    state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
     state_tx
-        .put_bridge_account_ibc_asset(&bridge_address, &asset)
+        .put_bridge_account_ibc_asset(bridge_address, &asset)
         .unwrap();
     app.apply(state_tx);
     app.prepare_commit(storage.clone()).await.unwrap();
@@ -400,7 +403,7 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
     };
     let sequence_action = SequenceAction {
         rollup_id,
-        data: b"hello world".to_vec(),
+        data: Bytes::from_static(b"hello world"),
         fee_asset: nria().into(),
     };
     let tx = UnsignedTransaction {
@@ -449,7 +452,7 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
     // don't commit the result, now call prepare_proposal with the same data.
     // this will reset the app state.
     // this simulates executing the same block as a validator (specifically the proposer).
-    app.mempool.insert(signed_tx, 0).await.unwrap();
+    app.mempool.insert(Arc::new(signed_tx), 0).await.unwrap();
 
     let proposer_address = [88u8; 20].to_vec().try_into().unwrap();
     let prepare_proposal = PrepareProposal {
@@ -470,6 +473,12 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
     assert_eq!(prepare_proposal_result.txs, finalize_block.txs);
     assert_eq!(app.executed_proposal_hash, Hash::default());
     assert_eq!(app.validator_address.unwrap(), proposer_address);
+    // run maintence to clear out transactions
+    let current_account_nonce_getter = |address: [u8; 20]| app.state.get_account_nonce(address);
+    app.mempool
+        .run_maintenance(current_account_nonce_getter)
+        .await;
+
     assert_eq!(app.mempool.len().await, 0);
 
     // call process_proposal - should not re-execute anything.
@@ -535,7 +544,7 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
         actions: vec![
             SequenceAction {
                 rollup_id: RollupId::from([1u8; 32]),
-                data: vec![1u8; 100_000],
+                data: Bytes::copy_from_slice(&[1u8; 100_000]),
                 fee_asset: nria().into(),
             }
             .into(),
@@ -550,7 +559,7 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
         actions: vec![
             SequenceAction {
                 rollup_id: RollupId::from([1u8; 32]),
-                data: vec![1u8; 100_000],
+                data: Bytes::copy_from_slice(&[1u8; 100_000]),
                 fee_asset: nria().into(),
             }
             .into(),
@@ -558,8 +567,8 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
     }
     .into_signed(&alice);
 
-    app.mempool.insert(tx_pass, 0).await.unwrap();
-    app.mempool.insert(tx_overflow, 0).await.unwrap();
+    app.mempool.insert(Arc::new(tx_pass), 0).await.unwrap();
+    app.mempool.insert(Arc::new(tx_overflow), 0).await.unwrap();
 
     // send to prepare_proposal
     let prepare_args = abci::request::PrepareProposal {
@@ -577,6 +586,12 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
         .prepare_proposal(prepare_args, storage)
         .await
         .expect("too large transactions should not cause prepare proposal to fail");
+
+    // run maintence to clear out transactions
+    let current_account_nonce_getter = |address: [u8; 20]| app.state.get_account_nonce(address);
+    app.mempool
+        .run_maintenance(current_account_nonce_getter)
+        .await;
 
     // see only first tx made it in
     assert_eq!(
@@ -608,7 +623,7 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
         actions: vec![
             SequenceAction {
                 rollup_id: RollupId::from([1u8; 32]),
-                data: vec![1u8; 200_000],
+                data: Bytes::copy_from_slice(&[1u8; 200_000]),
                 fee_asset: nria().into(),
             }
             .into(),
@@ -623,7 +638,7 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
         actions: vec![
             SequenceAction {
                 rollup_id: RollupId::from([1u8; 32]),
-                data: vec![1u8; 100_000],
+                data: Bytes::copy_from_slice(&[1u8; 100_000]),
                 fee_asset: nria().into(),
             }
             .into(),
@@ -631,8 +646,8 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
     }
     .into_signed(&alice);
 
-    app.mempool.insert(tx_pass, 0).await.unwrap();
-    app.mempool.insert(tx_overflow, 0).await.unwrap();
+    app.mempool.insert(Arc::new(tx_pass), 0).await.unwrap();
+    app.mempool.insert(Arc::new(tx_overflow), 0).await.unwrap();
 
     // send to prepare_proposal
     let prepare_args = abci::request::PrepareProposal {
@@ -650,6 +665,12 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
         .prepare_proposal(prepare_args, storage)
         .await
         .expect("too large transactions should not cause prepare proposal to fail");
+
+    // run maintence to clear out transactions
+    let current_account_nonce_getter = |address: [u8; 20]| app.state.get_account_nonce(address);
+    app.mempool
+        .run_maintenance(current_account_nonce_getter)
+        .await;
 
     // see only first tx made it in
     assert_eq!(
@@ -679,7 +700,7 @@ async fn app_end_block_validator_updates() {
     ];
 
     let mut app = initialize_app(None, initial_validator_set).await;
-    let proposer_address = astria_address(&[0u8; 20]);
+    let proposer_address = [0u8; 20];
 
     let validator_updates = vec![
         ValidatorUpdate {

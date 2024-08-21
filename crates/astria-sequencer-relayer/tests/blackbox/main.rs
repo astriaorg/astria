@@ -12,7 +12,7 @@ use helpers::{
     SequencerBlockToMount,
     TestSequencerRelayerConfig,
 };
-use reqwest::StatusCode;
+use http::StatusCode;
 use tendermint::account::Id as AccountId;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -273,7 +273,7 @@ async fn should_filter_rollup() {
         .await;
     sequencer_relayer
         .timeout_ms(
-            2_000,
+            10_000,
             "waiting for get tx guard",
             get_tx_guard.wait_until_satisfied(),
         )

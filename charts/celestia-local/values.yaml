@@ -16,7 +16,7 @@ storage:
       path: "/data/celestia-data"
 
 celestiaAppImage: "ghcr.io/celestiaorg/celestia-app:v1.9.0"
-celestiaNodeImage: "ghcr.io/celestiaorg/celestia-node:v0.13.4"
+celestiaNodeImage: "ghcr.io/celestiaorg/celestia-node:v0.14.1"
 
 podSecurityContext:
   runAsUser: 10001

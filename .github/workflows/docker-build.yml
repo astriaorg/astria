@@ -49,7 +49,7 @@ jobs:
     with:
       depot-project-id: mhgvgvsjnx
       package-name: composer
-      target-binary: astria-composer
+      binary-name: composer
       tag: ${{ inputs.tag }}
     secrets: inherit
 
@@ -64,7 +64,7 @@ jobs:
     with:
       depot-project-id: zrh9t1d84s
       package-name: conductor
-      target-binary: astria-conductor
+      binary-name: conductor
       tag: ${{ inputs.tag }}
     secrets: inherit
 
@@ -79,7 +79,7 @@ jobs:
     with:
       depot-project-id: brzhxfbv9b
       package-name: sequencer
-      target-binary: astria-sequencer
+      binary-name: sequencer
       tag: ${{ inputs.tag }}
     secrets: inherit
 
@@ -94,7 +94,7 @@ jobs:
     with:
       depot-project-id: 86q4kz4wfs
       package-name: sequencer-relayer
-      target-binary: astria-sequencer-relayer
+      binary-name: sequencer-relayer
       tag: ${{ inputs.tag }}
     secrets: inherit
 
@@ -109,7 +109,7 @@ jobs:
     with:
       depot-project-id: dl81f3fc6x
       package-name: evm-bridge-withdrawer
-      target-binary: astria-bridge-withdrawer
+      binary-name: bridge-withdrawer
       tag: ${{ inputs.tag }}
     secrets: inherit
 
@@ -193,8 +193,6 @@ jobs:
           install_only: true
       - name: Install astria cli (rust)
         run: just install-cli
-      - name: Fetch and install celestia-appd
-        run: just get-celestia-appd v1.9.0 Linux x86_64
       - name: Log in to GHCR
         uses: docker/login-action@v2
         with:
@@ -211,7 +209,7 @@ jobs:
           just ibc-test deploy $TAG
       - name: Run IBC ICS20 Transfer test
         timeout-minutes: 3
-        run: just ibc-test run ./celestia ./celestia-appd
+        run: just ibc-test run
 
   docker:
     if: ${{ always() && !cancelled() }}

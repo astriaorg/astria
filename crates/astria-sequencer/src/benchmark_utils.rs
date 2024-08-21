@@ -1,6 +1,9 @@
 use std::{
     collections::HashMap,
-    sync::OnceLock,
+    sync::{
+        Arc,
+        OnceLock,
+    },
 };
 
 use astria_core::{
@@ -59,8 +62,8 @@ pub(crate) fn signing_keys() -> impl Iterator<Item = &'static SigningKey> {
 }
 
 /// Returns a static ref to a collection of `MAX_INITIAL_TXS + 1` transactions.
-pub(crate) fn transactions(tx_types: TxTypes) -> &'static Vec<SignedTransaction> {
-    static TXS: OnceLock<HashMap<TxTypes, Vec<SignedTransaction>>> = OnceLock::new();
+pub(crate) fn transactions(tx_types: TxTypes) -> &'static Vec<Arc<SignedTransaction>> {
+    static TXS: OnceLock<HashMap<TxTypes, Vec<Arc<SignedTransaction>>>> = OnceLock::new();
     TXS.get_or_init(|| {
         let mut map = HashMap::new();
         map.insert(TxTypes::AllSequenceActions, sequence_actions());
@@ -71,7 +74,7 @@ pub(crate) fn transactions(tx_types: TxTypes) -> &'static Vec<SignedTransaction>
     .unwrap()
 }
 
-fn sequence_actions() -> Vec<SignedTransaction> {
+fn sequence_actions() -> Vec<Arc<SignedTransaction>> {
     let mut nonces_and_chain_ids = HashMap::new();
     signing_keys()
         .map(move |signing_key| {
@@ -86,20 +89,21 @@ fn sequence_actions() -> Vec<SignedTransaction> {
                 .build();
             let sequence_action = SequenceAction {
                 rollup_id: RollupId::new([1; 32]),
-                data: vec![2; 1000],
+                data: vec![2; 1000].into(),
                 fee_asset: Denom::IbcPrefixed(IbcPrefixed::new([3; 32])),
             };
-            UnsignedTransaction {
+            let tx = UnsignedTransaction {
                 actions: vec![Action::Sequence(sequence_action)],
                 params,
             }
-            .into_signed(signing_key)
+            .into_signed(signing_key);
+            Arc::new(tx)
         })
         .take(SEQUENCE_ACTION_TX_COUNT)
         .collect()
 }
 
-fn transfers() -> Vec<SignedTransaction> {
+fn transfers() -> Vec<Arc<SignedTransaction>> {
     let sender = signing_keys().next().unwrap();
     let receiver = signing_keys().nth(1).unwrap();
     let to = astria_address(&receiver.address_bytes());
@@ -115,13 +119,14 @@ fn transfers() -> Vec<SignedTransaction> {
                 .nonce(u32::try_from(nonce).unwrap())
                 .chain_id("test")
                 .build();
-            UnsignedTransaction {
+            let tx = UnsignedTransaction {
                 actions: std::iter::repeat(action.clone())
                     .take(TRANSFERS_PER_TX)
                     .collect(),
                 params,
             }
-            .into_signed(sender)
+            .into_signed(sender);
+            Arc::new(tx)
         })
         .collect()
 }

@@ -93,7 +93,7 @@ delete-sequencer name=validatorName:
 delete-sequencers: (delete-sequencer "node0") (delete-sequencer "node1") (delete-sequencer "node2")
 
 wait-for-sequencer:
-  kubectl wait -n astria-dev-cluster deployment celestia-local --for=condition=Available=True --timeout=600s
+  kubectl rollout status --watch statefulset/celestia-local -n astria-dev-cluster --timeout=600s
   kubectl rollout status --watch statefulset/sequencer -n astria-dev-cluster --timeout=600s
 
 deploy-rollup: deploy-dev-rollup wait-for-rollup
@@ -237,7 +237,6 @@ init-ibc-bridge privateKey asset feeAsset rollupName=defaultRollupName:
     --sequencer-url {{ sequencer_rpc_url }} \
     --fee-asset {{ feeAsset }} \
     --asset {{ asset }}
-
 
 eth_rpc_url := "http://executor.astria.localdev.me/"
 eth_ws_url := "ws://ws-executor.astria.localdev.me/"

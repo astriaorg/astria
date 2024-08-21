@@ -1,3 +1,4 @@
+use bytes::Bytes;
 use prost::{
     Message as _,
     Name as _,
@@ -110,8 +111,8 @@ impl SignedTransaction {
             ..
         } = self;
         raw::SignedTransaction {
-            signature: signature.to_bytes().to_vec(),
-            public_key: verification_key.to_bytes().to_vec(),
+            signature: Bytes::copy_from_slice(&signature.to_bytes()),
+            public_key: Bytes::copy_from_slice(&verification_key.to_bytes()),
             transaction: Some(pbjson_types::Any {
                 type_url: raw::UnsignedTransaction::type_url(),
                 value: transaction_bytes,
@@ -128,8 +129,8 @@ impl SignedTransaction {
             ..
         } = self;
         raw::SignedTransaction {
-            signature: signature.to_bytes().to_vec(),
-            public_key: verification_key.to_bytes().to_vec(),
+            signature: Bytes::copy_from_slice(&signature.to_bytes()),
+            public_key: Bytes::copy_from_slice(&verification_key.to_bytes()),
             transaction: Some(pbjson_types::Any {
                 type_url: raw::UnsignedTransaction::type_url(),
                 value: transaction_bytes.clone(),
