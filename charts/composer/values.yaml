@@ -9,7 +9,7 @@ images:
   composer:
     repo: astria-composer
     tag: "0.8.0"
-    devTag: tb
+    devTag: latest
 
 config:
   logLevel: "info"
