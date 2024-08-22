@@ -1,6 +1,8 @@
 use astria_eyre::eyre::{
+    bail,
     eyre,
-    bail, WrapErr as _, Result
+    Result,
+    WrapErr as _,
 };
 use async_trait::async_trait;
 use cnidarium::{
@@ -25,7 +27,8 @@ pub(crate) trait StateReadExt: StateRead {
         let Some(bytes) = self
             .get_raw("chain_id")
             .await
-            .map_err(anyhow_to_eyre).wrap_err("failed to read raw chain_id from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed to read raw chain_id from state")?
         else {
             bail!("chain id not found in state");
         };
@@ -41,7 +44,8 @@ pub(crate) trait StateReadExt: StateRead {
         let Some(bytes) = self
             .get_raw(REVISION_NUMBER_KEY)
             .await
-            .map_err(anyhow_to_eyre).wrap_err("failed to read raw revision number from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed to read raw revision number from state")?
         else {
             bail!("revision number not found in state");
         };
@@ -61,7 +65,8 @@ pub(crate) trait StateReadExt: StateRead {
         let Some(bytes) = self
             .get_raw("block_height")
             .await
-            .map_err(anyhow_to_eyre).wrap_err("failed to read raw block_height from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed to read raw block_height from state")?
         else {
             bail!("block height not found state");
         };
@@ -76,7 +81,8 @@ pub(crate) trait StateReadExt: StateRead {
         let Some(bytes) = self
             .get_raw("block_timestamp")
             .await
-            .map_err(anyhow_to_eyre).wrap_err("failed to read raw block_timestamp from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed to read raw block_timestamp from state")?
         else {
             bail!("block timestamp not found");
         };
