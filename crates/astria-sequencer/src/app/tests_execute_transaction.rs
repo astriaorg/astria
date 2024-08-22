@@ -6,35 +6,39 @@ use astria_core::{
         asset,
         RollupId,
     },
-    protocol::transaction::v1alpha1::{
-        action::{
-            BridgeLockAction,
-            BridgeUnlockAction,
-            IbcRelayerChangeAction,
-            SequenceAction,
-            SudoAddressChangeAction,
-            TransferAction,
-            ValidatorUpdate,
+    protocol::{
+        genesis::v1alpha1::GenesisAppState,
+        transaction::v1alpha1::{
+            action::{
+                BridgeLockAction,
+                BridgeUnlockAction,
+                IbcRelayerChangeAction,
+                SequenceAction,
+                SudoAddressChangeAction,
+                TransferAction,
+                ValidatorUpdate,
+            },
+            Action,
+            TransactionParams,
+            UnsignedTransaction,
         },
-        Action,
-        TransactionParams,
-        UnsignedTransaction,
-    },
-    sequencer::{
-        AddressPrefixes,
-        GenesisState,
-        UncheckedGenesisState,
     },
     sequencerblock::v1alpha1::block::Deposit,
+    Protobuf as _,
 };
 use bytes::Bytes;
 use cnidarium::StateDelta;
-use penumbra_ibc::params::IBCParameters;
 
+use super::test_utils::get_alice_signing_key;
 use crate::{
     accounts::StateReadExt as _,
     app::{
-        test_utils::*,
+        test_utils::{
+            get_bridge_signing_key,
+            initialize_app,
+            BOB_ADDRESS,
+            CAROL_ADDRESS,
+        },
         ActionHandler as _,
     },
     assets::StateReadExt as _,
@@ -49,6 +53,7 @@ use crate::{
         astria_address,
         astria_address_from_hex_string,
         nria,
+        ASTRIA_PREFIX,
     },
     transaction::{
         InvalidChainId,
@@ -56,27 +61,26 @@ use crate::{
     },
 };
 
-/// XXX: This should be expressed in terms of `crate::app::test_utils::unchecked_genesis_state` to
-/// be consistent everywhere. `get_alice_sining_key` already is, why not this??
-fn unchecked_genesis_state() -> UncheckedGenesisState {
-    let alice = get_alice_signing_key();
-    UncheckedGenesisState {
-        accounts: default_genesis_accounts(),
-        address_prefixes: AddressPrefixes {
-            base: crate::test_utils::ASTRIA_PREFIX.into(),
-        },
-        authority_sudo_address: crate::test_utils::astria_address(&alice.address_bytes()),
-        ibc_sudo_address: crate::test_utils::astria_address(&alice.address_bytes()),
-        ibc_relayer_addresses: vec![],
-        native_asset_base_denomination: crate::test_utils::nria(),
-        ibc_params: IBCParameters::default(),
-        allowed_fee_assets: vec![crate::test_utils::nria().into()],
-        fees: default_fees(),
+fn proto_genesis_state() -> astria_core::generated::protocol::genesis::v1alpha1::GenesisAppState {
+    astria_core::generated::protocol::genesis::v1alpha1::GenesisAppState {
+        authority_sudo_address: Some(
+            get_alice_signing_key()
+                .try_address(ASTRIA_PREFIX)
+                .unwrap()
+                .to_raw(),
+        ),
+        ibc_sudo_address: Some(
+            get_alice_signing_key()
+                .try_address(ASTRIA_PREFIX)
+                .unwrap()
+                .to_raw(),
+        ),
+        ..crate::app::test_utils::proto_genesis_state()
     }
 }
 
-fn genesis_state() -> GenesisState {
-    unchecked_genesis_state().try_into().unwrap()
+fn genesis_state() -> GenesisAppState {
+    GenesisAppState::try_from_raw(proto_genesis_state()).unwrap()
 }
 
 fn test_asset() -> asset::Denom {
@@ -367,9 +371,10 @@ async fn app_execute_transaction_ibc_relayer_change_deletion() {
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
 
-    let genesis_state = UncheckedGenesisState {
-        ibc_relayer_addresses: vec![alice_address],
-        ..unchecked_genesis_state()
+    let genesis_state = {
+        let mut state = proto_genesis_state();
+        state.ibc_relayer_addresses.push(alice_address.to_raw());
+        state
     }
     .try_into()
     .unwrap();
@@ -393,10 +398,13 @@ async fn app_execute_transaction_ibc_relayer_change_deletion() {
 async fn app_execute_transaction_ibc_relayer_change_invalid() {
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
-    let genesis_state = UncheckedGenesisState {
-        ibc_sudo_address: astria_address(&[0; 20]),
-        ibc_relayer_addresses: vec![alice_address],
-        ..unchecked_genesis_state()
+    let genesis_state = {
+        let mut state = proto_genesis_state();
+        state
+            .ibc_sudo_address
+            .replace(astria_address(&[0; 20]).to_raw());
+        state.ibc_relayer_addresses.push(alice_address.to_raw());
+        state
     }
     .try_into()
     .unwrap();
@@ -447,10 +455,15 @@ async fn app_execute_transaction_sudo_address_change_error() {
     let alice_address = astria_address(&alice.address_bytes());
     let authority_sudo_address = astria_address_from_hex_string(CAROL_ADDRESS);
 
-    let genesis_state = UncheckedGenesisState {
-        authority_sudo_address,
-        ibc_sudo_address: astria_address(&[0u8; 20]),
-        ..unchecked_genesis_state()
+    let genesis_state = {
+        let mut state = proto_genesis_state();
+        state
+            .authority_sudo_address
+            .replace(authority_sudo_address.to_raw());
+        state
+            .ibc_sudo_address
+            .replace(astria_address(&[0u8; 20]).to_raw());
+        state
     }
     .try_into()
     .unwrap();
@@ -509,9 +522,10 @@ async fn app_execute_transaction_fee_asset_change_removal() {
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
 
-    let genesis_state = UncheckedGenesisState {
-        allowed_fee_assets: vec![nria().into(), test_asset()],
-        ..unchecked_genesis_state()
+    let genesis_state = {
+        let mut state = proto_genesis_state();
+        state.allowed_fee_assets.push(test_asset().to_string());
+        state
     }
     .try_into()
     .unwrap();

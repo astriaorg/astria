@@ -77,6 +77,10 @@ fn main() {
             "crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate",
         )
         .type_attribute(".astria.primitive.v1.Uint128", "#[derive(Copy)]")
+        .type_attribute(
+            ".astria.protocol.genesis.v1alpha1.IbcParameters",
+            "#[derive(Copy)]",
+        )
         .use_arc_self(true)
         // override prost-types with pbjson-types
         .compile_well_known_types(true)
