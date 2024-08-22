@@ -35,6 +35,69 @@ pub mod astria_vendored {
             }
         }
     }
+
+    #[path = ""]
+    pub mod slinky {
+        pub mod abci {
+            pub mod v1 {
+                include!("astria_vendored.slinky.abci.v1.rs");
+
+                #[cfg(feature = "serde")]
+                mod _serde_impl {
+                    use super::*;
+                    include!("astria_vendored.slinky.abci.v1.serde.rs");
+                }
+            }
+        }
+
+        pub mod marketmap {
+            pub mod v1 {
+                include!("astria_vendored.slinky.marketmap.v1.rs");
+
+                #[cfg(feature = "serde")]
+                mod _serde_impl {
+                    use super::*;
+                    include!("astria_vendored.slinky.marketmap.v1.serde.rs");
+                }
+            }
+        }
+
+        pub mod oracle {
+            pub mod v1 {
+                include!("astria_vendored.slinky.oracle.v1.rs");
+
+                #[cfg(feature = "serde")]
+                mod _serde_impl {
+                    use super::*;
+                    include!("astria_vendored.slinky.oracle.v1.serde.rs");
+                }
+            }
+        }
+
+        pub mod service {
+            pub mod v1 {
+                include!("astria_vendored.slinky.service.v1.rs");
+
+                #[cfg(feature = "serde")]
+                mod _serde_impl {
+                    use super::*;
+                    include!("astria_vendored.slinky.service.v1.serde.rs");
+                }
+            }
+        }
+
+        pub mod types {
+            pub mod v1 {
+                include!("astria_vendored.slinky.types.v1.rs");
+
+                #[cfg(feature = "serde")]
+                mod _serde_impl {
+                    use super::*;
+                    include!("astria_vendored.slinky.types.v1.serde.rs");
+                }
+            }
+        }
+    }
 }
 
 #[path = ""]
@@ -69,7 +132,7 @@ pub mod primitive {
 #[path = ""]
 pub mod protocol {
     #[path = ""]
-    pub mod account {
+    pub mod accounts {
         #[path = "astria.protocol.accounts.v1alpha1.rs"]
         pub mod v1alpha1;
     }
@@ -84,6 +147,18 @@ pub mod protocol {
         pub mod v1alpha1;
     }
     #[path = ""]
+    pub mod genesis {
+        pub mod v1alpha1 {
+            include!("astria.protocol.genesis.v1alpha1.rs");
+
+            #[cfg(feature = "serde")]
+            mod _serde_impls {
+                use super::*;
+                include!("astria.protocol.genesis.v1alpha1.serde.rs");
+            }
+        }
+    }
+    #[path = ""]
     pub mod memos {
         pub mod v1alpha1 {
             include!("astria.protocol.memos.v1alpha1.rs");
@@ -96,7 +171,7 @@ pub mod protocol {
         }
     }
     #[path = ""]
-    pub mod transaction {
+    pub mod transactions {
         pub mod v1alpha1 {
             include!("astria.protocol.transactions.v1alpha1.rs");
 
@@ -284,69 +359,6 @@ pub mod tendermint {
         mod _serde_impl {
             use super::*;
             include!("tendermint.types.serde.rs");
-        }
-    }
-}
-
-#[path = ""]
-pub mod slinky {
-    pub mod abci {
-        pub mod v1 {
-            include!("slinky.abci.v1.rs");
-
-            #[cfg(feature = "serde")]
-            mod _serde_impl {
-                use super::*;
-                include!("slinky.abci.v1.serde.rs");
-            }
-        }
-    }
-
-    pub mod marketmap {
-        pub mod v1 {
-            include!("slinky.marketmap.v1.rs");
-
-            #[cfg(feature = "serde")]
-            mod _serde_impl {
-                use super::*;
-                include!("slinky.marketmap.v1.serde.rs");
-            }
-        }
-    }
-
-    pub mod oracle {
-        pub mod v1 {
-            include!("slinky.oracle.v1.rs");
-
-            #[cfg(feature = "serde")]
-            mod _serde_impl {
-                use super::*;
-                include!("slinky.oracle.v1.serde.rs");
-            }
-        }
-    }
-
-    pub mod service {
-        pub mod v1 {
-            include!("slinky.service.v1.rs");
-
-            #[cfg(feature = "serde")]
-            mod _serde_impl {
-                use super::*;
-                include!("slinky.service.v1.serde.rs");
-            }
-        }
-    }
-
-    pub mod types {
-        pub mod v1 {
-            include!("slinky.types.v1.rs");
-
-            #[cfg(feature = "serde")]
-            mod _serde_impl {
-                use super::*;
-                include!("slinky.types.v1.serde.rs");
-            }
         }
     }
 }

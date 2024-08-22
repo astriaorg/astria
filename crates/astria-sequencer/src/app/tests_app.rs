@@ -5,16 +5,18 @@ use astria_core::{
         asset::TracePrefixed,
         RollupId,
     },
-    protocol::transaction::v1alpha1::{
-        action::{
-            BridgeLockAction,
-            SequenceAction,
-            TransferAction,
+    protocol::{
+        genesis::v1alpha1::Account,
+        transaction::v1alpha1::{
+            action::{
+                BridgeLockAction,
+                SequenceAction,
+                TransferAction,
+            },
+            TransactionParams,
+            UnsignedTransaction,
         },
-        TransactionParams,
-        UnsignedTransaction,
     },
-    sequencer::Account,
     sequencerblock::v1alpha1::block::Deposit,
 };
 use cnidarium::StateDelta;

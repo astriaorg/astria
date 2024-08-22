@@ -4,7 +4,7 @@ use std::{
 };
 
 use astria_core::{
-    generated::slinky::{
+    generated::astria_vendored::slinky::{
         marketmap::v1::{
             query_server::Query as MarketMapQueryService,
             LastUpdatedRequest,

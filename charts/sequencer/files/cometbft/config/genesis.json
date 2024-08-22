@@ -3,13 +3,13 @@
   "app_state": {
     "native_asset_base_denomination": "{{ .Values.genesis.nativeAssetBaseDenomination }}",
     "fees": {
-      "transfer_base_fee": {{ .Values.genesis.fees.transferBaseFee }},
-      "sequence_base_fee": {{ .Values.genesis.fees.sequenceBaseFee }},
-      "sequence_byte_cost_multiplier": {{ .Values.genesis.fees.sequenceByteCostMultiplier }},
-      "init_bridge_account_base_fee": {{ .Values.genesis.fees.initBridgeAccountBaseFee }},
-      "bridge_lock_byte_cost_multiplier": {{ .Values.genesis.fees.bridgeLockByteCostMultiplier }},
-      "bridge_sudo_change_fee": {{ .Values.genesis.fees.bridgeSudoChangeFee }},
-      "ics20_withdrawal_base_fee": {{ .Values.genesis.fees.ics20WithdrawalBaseFee }}
+      "transfer_base_fee": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.transferBaseFee }},
+      "sequence_base_fee": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.sequenceBaseFee }},
+      "sequence_byte_cost_multiplier": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.sequenceByteCostMultiplier }},
+      "init_bridge_account_base_fee": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.initBridgeAccountBaseFee }},
+      "bridge_lock_byte_cost_multiplier": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.bridgeLockByteCostMultiplier }},
+      "bridge_sudo_change_fee": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.bridgeSudoChangeFee }},
+      "ics20_withdrawal_base_fee": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.ics20WithdrawalBaseFee }}
     },
     "allowed_fee_assets": [
       {{- range $index, $value := .Values.genesis.allowedFeeAssets }}
@@ -17,7 +17,7 @@
       "{{ $value }}"
       {{- end }}
     ],
-    "ibc_params": {
+    "ibc_parameters": {
       "ibc_enabled": {{ .Values.genesis.ibc.enabled }},
       "inbound_ics20_transfers_enabled": {{ .Values.genesis.ibc.inboundEnabled }},
       "outbound_ics20_transfers_enabled": {{ .Values.genesis.ibc.outboundEnabled }}
@@ -30,7 +30,7 @@
       {{- if $index }},{{- end }}
       {
         "address": {{ include "sequencer.address" $value.address }},
-        "balance": {{ toString $value.balance | replace "\"" "" }}
+        "balance": {{ include "sequencer.toUint128Proto" ( toString $value.balance | replace "\"" "" ) }} 
       }
       {{- end }}
     ],

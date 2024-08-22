@@ -6,14 +6,13 @@ use std::{
 };
 
 use astria_core::{
+    generated::protocol::genesis::v1alpha1::IbcParameters,
     primitive::v1::Address,
-    sequencer::{
+    protocol::genesis::v1alpha1::{
         Account,
         AddressPrefixes,
         Fees,
-        GenesisState,
-        IBCParameters,
-        UncheckedGenesisState,
+        GenesisAppState,
     },
     slinky::{
         market_map::v1::{
@@ -31,6 +30,7 @@ use astria_core::{
         },
         types::v1::CurrencyPair,
     },
+    Protobuf,
 };
 use astria_eyre::eyre::{
     Result,
@@ -106,88 +106,108 @@ fn genesis_state_markets() -> HashMap<String, Market> {
     markets
 }
 
-fn genesis_state() -> GenesisState {
-    UncheckedGenesisState {
-        accounts: vec![
-            Account {
-                address: alice(),
-                balance: 1_000_000_000_000_000_000,
-            },
-            Account {
-                address: bob(),
-                balance: 1_000_000_000_000_000_000,
-            },
-            Account {
-                address: charlie(),
-                balance: 1_000_000_000_000_000_000,
-            },
-        ],
-        address_prefixes: AddressPrefixes {
-            base: "astria".into(),
+fn accounts() -> Vec<Account> {
+    vec![
+        Account {
+            address: alice(),
+            balance: 1_000_000_000_000_000_000,
         },
-        authority_sudo_address: alice(),
-        ibc_sudo_address: alice(),
-        ibc_relayer_addresses: vec![alice(), bob()],
+        Account {
+            address: bob(),
+            balance: 1_000_000_000_000_000_000,
+        },
+        Account {
+            address: charlie(),
+            balance: 1_000_000_000_000_000_000,
+        },
+    ]
+}
+
+fn address_prefixes() -> AddressPrefixes {
+    AddressPrefixes {
+        base: "astria".into(),
+    }
+}
+
+fn proto_genesis_state() -> astria_core::generated::protocol::genesis::v1alpha1::GenesisAppState {
+    astria_core::generated::protocol::genesis::v1alpha1::GenesisAppState {
+        accounts: accounts().into_iter().map(Protobuf::into_raw).collect(),
+        address_prefixes: Some(address_prefixes().into_raw()),
+        authority_sudo_address: Some(alice().to_raw()),
+        chain_id: "test-1".into(),
+        ibc_sudo_address: Some(alice().to_raw()),
+        ibc_relayer_addresses: vec![alice().to_raw(), bob().to_raw()],
         native_asset_base_denomination: "nria".parse().unwrap(),
-        ibc_params: IBCParameters {
+        ibc_parameters: Some(IbcParameters {
             ibc_enabled: true,
             inbound_ics20_transfers_enabled: true,
             outbound_ics20_transfers_enabled: true,
-        },
+        }),
         allowed_fee_assets: vec!["nria".parse().unwrap()],
-        fees: Fees {
-            transfer_base_fee: 12,
-            sequence_base_fee: 32,
-            sequence_byte_cost_multiplier: 1,
-            init_bridge_account_base_fee: 48,
-            bridge_lock_byte_cost_multiplier: 1,
-            bridge_sudo_change_fee: 24,
-            ics20_withdrawal_base_fee: 24,
-        },
-        market_map: MarketMapGenesisState {
-            market_map: MarketMap {
-                markets: genesis_state_markets(),
-            },
-            last_updated: 0,
-            params: Params {
-                market_authorities: vec![alice(), bob()],
-                admin: alice(),
-            },
-        },
-        oracle: OracleGenesisState {
-            currency_pair_genesis: vec![
-                CurrencyPairGenesis {
-                    id: 0,
-                    nonce: 0,
-                    currency_pair_price: QuotePrice {
-                        price: 5_834_065_777,
-                        block_height: 0,
-                        block_timestamp: pbjson_types::Timestamp {
-                            seconds: 1_720_122_395,
-                            nanos: 0,
-                        },
-                    },
-                    currency_pair: CurrencyPair::new("BTC".to_string(), "USD".to_string()),
+        fees: Some(
+            Fees {
+                transfer_base_fee: 12,
+                sequence_base_fee: 32,
+                sequence_byte_cost_multiplier: 1,
+                init_bridge_account_base_fee: 48,
+                bridge_lock_byte_cost_multiplier: 1,
+                bridge_sudo_change_fee: 24,
+                ics20_withdrawal_base_fee: 24,
+            }
+            .into_raw(),
+        ),
+        market_map_genesis: Some(
+            MarketMapGenesisState {
+                market_map: MarketMap {
+                    markets: genesis_state_markets(),
                 },
-                CurrencyPairGenesis {
-                    id: 1,
-                    nonce: 0,
-                    currency_pair_price: QuotePrice {
-                        price: 3_138_872_234,
-                        block_height: 0,
-                        block_timestamp: pbjson_types::Timestamp {
-                            seconds: 1_720_122_395,
-                            nanos: 0,
-                        },
-                    },
-                    currency_pair: CurrencyPair::new("ETH".to_string(), "USD".to_string()),
+                last_updated: 0,
+                params: Params {
+                    market_authorities: vec![alice(), bob()],
+                    admin: alice(),
                 },
-            ],
-            next_id: 2,
-        },
+            }
+            .into_raw(),
+        ),
+        oracle_genesis: Some(
+            OracleGenesisState {
+                currency_pair_genesis: vec![
+                    CurrencyPairGenesis {
+                        id: 0,
+                        nonce: 0,
+                        currency_pair_price: QuotePrice {
+                            price: 5_834_065_777,
+                            block_height: 0,
+                            block_timestamp: pbjson_types::Timestamp {
+                                seconds: 1_720_122_395,
+                                nanos: 0,
+                            },
+                        },
+                        currency_pair: CurrencyPair::new("BTC".to_string(), "USD".to_string()),
+                    },
+                    CurrencyPairGenesis {
+                        id: 1,
+                        nonce: 0,
+                        currency_pair_price: QuotePrice {
+                            price: 3_138_872_234,
+                            block_height: 0,
+                            block_timestamp: pbjson_types::Timestamp {
+                                seconds: 1_720_122_395,
+                                nanos: 0,
+                            },
+                        },
+                        currency_pair: CurrencyPair::new("ETH".to_string(), "USD".to_string()),
+                    },
+                ],
+                next_id: 2,
+            }
+            .into_raw(),
+        ),
     }
-    .try_into()
-    .unwrap()
+}
+
+fn genesis_state() -> GenesisAppState {
+    GenesisAppState::try_from_raw(proto_genesis_state()).unwrap()
 }
 
 #[derive(clap::Args, Debug)]

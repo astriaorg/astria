@@ -65,18 +65,33 @@ fn main() {
         .emit_rerun_if_changed(false)
         .bytes([
             ".astria",
+            ".astria_vendored.slinky",
             ".celestia",
             ".cosmos",
+            ".slinky",
             ".tendermint",
         ])
         .client_mod_attribute(".", "#[cfg(feature=\"client\")]")
         .server_mod_attribute(".", "#[cfg(feature=\"server\")]")
         .extern_path(".astria_vendored.penumbra", "::penumbra-proto")
+        //.extern_path(".astria_vendored.slinky", "crate::generated::astria_vendored::slinky")
+        // .extern_path(
+        //     ".astria_vendored.slinky.marketmap.v1.GenesisState",
+        //     "crate::generated::astria_vendored::slinky::marketmap::v1::GenesisState",
+        // )
+        // .extern_path(
+        //     ".astria_vendored.slinky.oracle.v1.GenesisState",
+        //     "crate::generated::astria_vendored::slinky::oracle::v1::GenesisState",
+        // )
         .extern_path(
             ".astria_vendored.tendermint.abci.ValidatorUpdate",
             "crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate",
         )
         .type_attribute(".astria.primitive.v1.Uint128", "#[derive(Copy)]")
+        .type_attribute(
+            ".astria.protocol.genesis.v1alpha1.IbcParameters",
+            "#[derive(Copy)]",
+        )
         .use_arc_self(true)
         // override prost-types with pbjson-types
         .compile_well_known_types(true)
@@ -100,7 +115,6 @@ fn main() {
             ".celestia",
             ".cosmos",
             ".tendermint",
-            ".slinky",
         ])
         .unwrap();
 
@@ -139,7 +153,6 @@ fn clean_non_astria_code(generated: &mut ContentMap) {
                 && !name.starts_with("astria_vendored.")
                 && !name.starts_with("celestia.")
                 && !name.starts_with("cosmos.")
-                && !name.starts_with("slinky.")
                 && !name.starts_with("tendermint.")
         })
         .cloned()

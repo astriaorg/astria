@@ -1,11 +1,11 @@
 pub mod v1 {
     use std::collections::HashMap;
 
-    use crate::generated::slinky::abci::v1 as raw;
+    use crate::generated::astria_vendored::slinky::abci::v1 as raw;
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct OracleVoteExtension {
-        pub prices: HashMap<u64, Vec<u8>>,
+        pub prices: HashMap<u64, bytes::Bytes>,
     }
 
     impl OracleVoteExtension {

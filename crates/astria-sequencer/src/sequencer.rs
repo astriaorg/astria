@@ -6,8 +6,7 @@ use anyhow::{
     Result,
 };
 use astria_core::generated::{
-    sequencerblock::v1alpha1::sequencer_service_server::SequencerServiceServer,
-    slinky::{
+    astria_vendored::slinky::{
         marketmap::v1::query_server::QueryServer as MarketMapQueryServer,
         oracle::v1::query_server::QueryServer as OracleQueryServer,
         service::v1::{
@@ -15,6 +14,7 @@ use astria_core::generated::{
             QueryPricesRequest,
         },
     },
+    sequencerblock::v1alpha1::sequencer_service_server::SequencerServiceServer,
 };
 use penumbra_tower_trace::{
     trace::request_span,

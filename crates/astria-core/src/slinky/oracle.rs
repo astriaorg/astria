@@ -2,7 +2,7 @@ pub mod v1 {
     use pbjson_types::Timestamp;
 
     use crate::{
-        generated::slinky::oracle::v1 as raw,
+        generated::astria_vendored::slinky::oracle::v1 as raw,
         slinky::types::v1::CurrencyPair,
     };
 

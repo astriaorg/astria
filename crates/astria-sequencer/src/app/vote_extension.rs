@@ -7,7 +7,7 @@ use anyhow::{
 };
 use astria_core::{
     crypto::Signature,
-    generated::slinky::{
+    generated::astria_vendored::slinky::{
         abci::v1::OracleVoteExtension as RawOracleVoteExtension,
         service::v1::{
             oracle_client::OracleClient,
@@ -173,7 +173,7 @@ async fn transform_oracle_service_prices<S: StateReadExt>(
             currency_pair = currency_pair.to_string(),
             id, price, "transformed price for inclusion in vote extension"
         );
-        strategy_prices.insert(id, encoded_price);
+        strategy_prices.insert(id, encoded_price.into());
     }
 
     Ok(OracleVoteExtension {

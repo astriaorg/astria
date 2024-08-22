@@ -4,6 +4,7 @@ use anyhow::{
     Context,
     Result,
 };
+use astria_core::protocol::genesis::v1alpha1::GenesisAppState;
 use tendermint::abci::request::{
     BeginBlock,
     EndBlock,
@@ -18,7 +19,7 @@ pub(crate) struct MarketMapComponent;
 
 #[async_trait::async_trait]
 impl Component for MarketMapComponent {
-    type AppState = astria_core::sequencer::GenesisState;
+    type AppState = GenesisAppState;
 
     #[instrument(name = "MarketMapComponent::init_chain", skip(state))]
     async fn init_chain<S: StateWriteExt>(mut state: S, app_state: &Self::AppState) -> Result<()> {

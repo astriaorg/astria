@@ -204,7 +204,7 @@ mod test {
     #[tokio::test]
     async fn handle_balance_query() {
         use astria_core::{
-            generated::protocol::account::v1alpha1 as raw,
+            generated::protocol::accounts::v1alpha1 as raw,
             protocol::account::v1alpha1::AssetBalance,
         };
 

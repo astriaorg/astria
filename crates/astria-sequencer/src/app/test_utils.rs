@@ -3,34 +3,26 @@ use std::sync::Arc;
 use astria_core::{
     crypto::SigningKey,
     primitive::v1::RollupId,
-    protocol::transaction::v1alpha1::{
-        action::{
-            SequenceAction,
-            ValidatorUpdate,
+    protocol::{
+        genesis::v1alpha1::{
+            Account,
+            AddressPrefixes,
+            GenesisAppState,
         },
-        SignedTransaction,
-        TransactionParams,
-        UnsignedTransaction,
-    },
-    sequencer::{
-        Account,
-        AddressPrefixes,
-        Fees,
-        GenesisState,
-        UncheckedGenesisState,
-    },
-    slinky::{
-        market_map::v1::{
-            GenesisState as MarketMapGenesisState,
-            MarketMap,
-            Params,
+        transaction::v1alpha1::{
+            action::{
+                SequenceAction,
+                ValidatorUpdate,
+            },
+            SignedTransaction,
+            TransactionParams,
+            UnsignedTransaction,
         },
-        oracle::v1::GenesisState as OracleGenesisState,
     },
+    Protobuf,
 };
 use bytes::Bytes;
 use cnidarium::Storage;
-use penumbra_ibc::params::IBCParameters;
 
 use crate::{
     app::{
@@ -48,6 +40,7 @@ pub(crate) const CAROL_ADDRESS: &str = "60709e2d391864b732b4f0f51e387abb76743871
 pub(crate) const JUDY_ADDRESS: &str = "bc5b91da07778eeaf622d0dcf4d7b4233525998d";
 pub(crate) const TED_ADDRESS: &str = "4c4f91d8a918357ab5f6f19c1e179968fc39bb44";
 
+#[cfg_attr(feature = "benchmark", allow(dead_code))]
 pub(crate) fn get_alice_signing_key() -> SigningKey {
     // this secret key corresponds to ALICE_ADDRESS
     let alice_secret_bytes: [u8; 32] =
@@ -58,6 +51,7 @@ pub(crate) fn get_alice_signing_key() -> SigningKey {
     SigningKey::from(alice_secret_bytes)
 }
 
+#[cfg_attr(feature = "benchmark", allow(dead_code))]
 pub(crate) fn get_bridge_signing_key() -> SigningKey {
     let bridge_secret_bytes: [u8; 32] =
         hex::decode("db4982e01f3eba9e74ac35422fcd49aa2b47c3c535345c7e7da5220fe3a0ce79")
@@ -84,8 +78,9 @@ pub(crate) fn default_genesis_accounts() -> Vec<Account> {
     ]
 }
 
-pub(crate) fn default_fees() -> Fees {
-    Fees {
+#[cfg_attr(feature = "benchmark", allow(dead_code))]
+pub(crate) fn default_fees() -> astria_core::protocol::genesis::v1alpha1::Fees {
+    astria_core::protocol::genesis::v1alpha1::Fees {
         transfer_base_fee: 12,
         sequence_base_fee: 32,
         sequence_byte_cost_multiplier: 1,
@@ -96,42 +91,76 @@ pub(crate) fn default_fees() -> Fees {
     }
 }
 
-pub(crate) fn unchecked_genesis_state() -> UncheckedGenesisState {
-    UncheckedGenesisState {
-        accounts: default_genesis_accounts(),
-        address_prefixes: AddressPrefixes {
-            base: crate::test_utils::ASTRIA_PREFIX.into(),
-        },
-        authority_sudo_address: astria_address_from_hex_string(JUDY_ADDRESS),
-        ibc_sudo_address: astria_address_from_hex_string(TED_ADDRESS),
-        ibc_relayer_addresses: vec![],
-        native_asset_base_denomination: crate::test_utils::nria(),
-        ibc_params: IBCParameters::default(),
-        allowed_fee_assets: vec![crate::test_utils::nria().into()],
-        fees: default_fees(),
-        market_map: MarketMapGenesisState {
-            market_map: MarketMap {
-                markets: std::collections::HashMap::new(),
-            },
-            last_updated: 0,
-            params: Params {
-                market_authorities: vec![],
-                admin: astria_address_from_hex_string(ALICE_ADDRESS),
-            },
-        },
-        oracle: OracleGenesisState {
-            currency_pair_genesis: vec![],
-            next_id: 0,
-        },
+pub(crate) fn address_prefixes() -> AddressPrefixes {
+    AddressPrefixes {
+        base: crate::test_utils::ASTRIA_PREFIX.into(),
     }
 }
 
-pub(crate) fn genesis_state() -> GenesisState {
-    unchecked_genesis_state().try_into().unwrap()
+pub(crate) fn proto_genesis_state()
+-> astria_core::generated::protocol::genesis::v1alpha1::GenesisAppState {
+    use astria_core::{
+        generated::protocol::genesis::v1alpha1::{
+            GenesisAppState,
+            IbcParameters,
+        },
+        slinky::{
+            market_map::v1::{
+                GenesisState as MarketMapGenesisState,
+                MarketMap,
+                Params,
+            },
+            oracle::v1::GenesisState as OracleGenesisState,
+        },
+    };
+
+    GenesisAppState {
+        address_prefixes: Some(address_prefixes().to_raw()),
+        accounts: default_genesis_accounts()
+            .into_iter()
+            .map(Protobuf::into_raw)
+            .collect(),
+        authority_sudo_address: Some(astria_address_from_hex_string(JUDY_ADDRESS).to_raw()),
+        chain_id: "test-1".to_string(),
+        ibc_sudo_address: Some(astria_address_from_hex_string(TED_ADDRESS).to_raw()),
+        ibc_relayer_addresses: vec![],
+        native_asset_base_denomination: crate::test_utils::nria().to_string(),
+        ibc_parameters: Some(IbcParameters {
+            ibc_enabled: true,
+            inbound_ics20_transfers_enabled: true,
+            outbound_ics20_transfers_enabled: true,
+        }),
+        allowed_fee_assets: vec![crate::test_utils::nria().to_string()],
+        fees: Some(default_fees().to_raw()),
+        market_map_genesis: Some(
+            MarketMapGenesisState {
+                market_map: MarketMap {
+                    markets: std::collections::HashMap::new(),
+                },
+                last_updated: 0,
+                params: Params {
+                    market_authorities: vec![],
+                    admin: astria_address_from_hex_string(ALICE_ADDRESS),
+                },
+            }
+            .into_raw(),
+        ),
+        oracle_genesis: Some(
+            OracleGenesisState {
+                currency_pair_genesis: vec![],
+                next_id: 0,
+            }
+            .into_raw(),
+        ),
+    }
+}
+
+pub(crate) fn genesis_state() -> GenesisAppState {
+    proto_genesis_state().try_into().unwrap()
 }
 
 pub(crate) async fn initialize_app_with_storage(
-    genesis_state: Option<GenesisState>,
+    genesis_state: Option<GenesisAppState>,
     genesis_validators: Vec<ValidatorUpdate>,
 ) -> (App, Storage) {
     let storage = cnidarium::TempStorage::new()
@@ -164,14 +193,16 @@ pub(crate) async fn initialize_app_with_storage(
     (app, storage.clone())
 }
 
+#[cfg_attr(feature = "benchmark", allow(dead_code))]
 pub(crate) async fn initialize_app(
-    genesis_state: Option<GenesisState>,
+    genesis_state: Option<GenesisAppState>,
     genesis_validators: Vec<ValidatorUpdate>,
 ) -> App {
     let (app, _storage) = initialize_app_with_storage(genesis_state, genesis_validators).await;
     app
 }
 
+#[cfg_attr(feature = "benchmark", allow(dead_code))]
 pub(crate) fn mock_tx(
     nonce: u32,
     signer: &SigningKey,

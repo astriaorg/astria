@@ -12,7 +12,7 @@ homepage = "https://astria.org"
 name = "astria-sequencer"
 
 [features]
-default = []
+benchmark = ["divan"]
 
 [dependencies]
 astria-core = { path = "../astria-core", features = [
@@ -29,7 +29,7 @@ telemetry = { package = "astria-telemetry", path = "../astria-telemetry", featur
 
 anyhow = "1"
 borsh = { version = "1", features = ["derive"] }
-cnidarium = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.78.0", features = [
+cnidarium = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "87adc8d6b15f6081c1adf169daed4ca8873bd9f6", features = [
   "metrics",
 ] }
 ibc-proto = { version = "0.41.0", features = ["server"] }
@@ -43,7 +43,7 @@ tower-http = { version = "0.4", features = ["cors"] }
 
 async-trait = { workspace = true }
 bytes = { workspace = true }
-divan = { workspace = true }
+divan = { workspace = true, optional = true }
 futures = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 ibc-types = { workspace = true, features = ["with_serde"] }
@@ -84,3 +84,4 @@ astria-build-info = { path = "../astria-build-info", features = ["build"] }
 [[bench]]
 name = "benchmark"
 harness = false
+required-features = ["benchmark"]

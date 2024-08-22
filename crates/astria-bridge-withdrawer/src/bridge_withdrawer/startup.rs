@@ -284,16 +284,16 @@ impl Startup {
         );
 
         let proto_tx =
-            astria_core::generated::protocol::transaction::v1alpha1::SignedTransaction::decode(
+            astria_core::generated::protocol::transactions::v1alpha1::SignedTransaction::decode(
                 &*last_transaction.tx,
             )
             .wrap_err_with(|| format!(
-                            "failed to decode data in Sequencer CometBFT transaction as `{}`",
-                            astria_core::generated::protocol::transaction::v1alpha1::SignedTransaction::full_name(),
+                "failed to decode data in Sequencer CometBFT transaction as `{}`",
+                astria_core::generated::protocol::transactions::v1alpha1::SignedTransaction::full_name(),
                         ))?;
 
         let tx = SignedTransaction::try_from_raw(proto_tx)
-            .wrap_err_with(|| format!("failed to verify {}", astria_core::generated::protocol::transaction::v1alpha1::SignedTransaction::full_name()))?;
+            .wrap_err_with(|| format!("failed to verify {}", astria_core::generated::protocol::transactions::v1alpha1::SignedTransaction::full_name()))?;
 
         info!(
             last_bridge_account_tx.hash = %telemetry::display::hex(&tx_hash),

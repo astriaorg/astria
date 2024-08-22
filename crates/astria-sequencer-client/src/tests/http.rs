@@ -163,7 +163,7 @@ fn create_signed_transaction() -> SignedTransaction {
 
 #[tokio::test]
 async fn get_latest_nonce() {
-    use astria_core::generated::protocol::account::v1alpha1::NonceResponse;
+    use astria_core::generated::protocol::accounts::v1alpha1::NonceResponse;
     let MockSequencer {
         server,
         client,
@@ -190,7 +190,7 @@ async fn get_latest_nonce() {
 
 #[tokio::test]
 async fn get_latest_balance() {
-    use astria_core::generated::protocol::account::v1alpha1::{
+    use astria_core::generated::protocol::accounts::v1alpha1::{
         AssetBalance,
         BalanceResponse,
     };
@@ -317,7 +317,7 @@ async fn get_bridge_account_last_transaction_hash() {
 
 #[tokio::test]
 async fn get_transaction_fee() {
-    use astria_core::generated::protocol::transaction::v1alpha1::{
+    use astria_core::generated::protocol::transactions::v1alpha1::{
         TransactionFee,
         TransactionFeeResponse,
     };

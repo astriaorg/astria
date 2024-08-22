@@ -293,18 +293,21 @@ impl AppHandlerExecute for Ics20Transfer {
         .context("failed to refund tokens during timeout_packet_execute")
     }
 
-    async fn acknowledge_packet_execute<S: StateWrite>(mut state: S, msg: &MsgAcknowledgement) {
+    async fn acknowledge_packet_execute<S: StateWrite>(
+        mut state: S,
+        msg: &MsgAcknowledgement,
+    ) -> anyhow::Result<()> {
         let ack: TokenTransferAcknowledgement = serde_json::from_slice(
             msg.acknowledgement.as_slice(),
         )
         .expect("valid acknowledgement, should have been checked in acknowledge_packet_check");
         if ack.is_successful() {
-            return;
+            return Ok(());
         }
 
         // we put source and dest as chain_a (the source) as we're refunding tokens,
         // and the destination chain of the refund is the source.
-        if let Err(e) = execute_ics20_transfer(
+        execute_ics20_transfer(
             &mut state,
             &msg.packet.data,
             &msg.packet.port_on_a,
@@ -314,13 +317,7 @@ impl AppHandlerExecute for Ics20Transfer {
             true,
         )
         .await
-        {
-            let error: &dyn std::error::Error = e.as_ref();
-            tracing::error!(
-                error,
-                "failed to refund tokens during acknowledge_packet_execute",
-            );
-        }
+        .context("failed to refund tokens during acknowledge_packet_execute")
     }
 }
 

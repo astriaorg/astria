@@ -4,7 +4,10 @@ use anyhow::{
     Context,
     Result,
 };
-use astria_core::slinky::oracle::v1::CurrencyPairState;
+use astria_core::{
+    protocol::genesis::v1alpha1::GenesisAppState,
+    slinky::oracle::v1::CurrencyPairState,
+};
 use tendermint::abci::request::{
     BeginBlock,
     EndBlock,
@@ -19,7 +22,7 @@ pub(crate) struct OracleComponent;
 
 #[async_trait::async_trait]
 impl Component for OracleComponent {
-    type AppState = astria_core::sequencer::GenesisState;
+    type AppState = GenesisAppState;
 
     #[instrument(name = "OracleComponent::init_chain", skip(state))]
     async fn init_chain<S: StateWriteExt>(mut state: S, app_state: &Self::AppState) -> Result<()> {

@@ -5,7 +5,7 @@ pub mod v1 {
     };
 
     use crate::{
-        generated::slinky::marketmap::v1 as raw,
+        generated::astria_vendored::slinky::marketmap::v1 as raw,
         primitive::v1::{
             Address,
             AddressError,

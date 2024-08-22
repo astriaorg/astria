@@ -1,7 +1,11 @@
-#[cfg(test)]
+#[cfg(feature = "benchmark")]
+mod benchmarks;
+#[cfg(any(test, feature = "benchmark"))]
 pub(crate) mod test_utils;
 #[cfg(test)]
 mod tests_app;
+#[cfg(test)]
+mod tests_block_fees;
 #[cfg(test)]
 mod tests_breaking_changes;
 #[cfg(test)]
@@ -22,9 +26,10 @@ use anyhow::{
     Context,
 };
 use astria_core::{
-    generated::protocol::transaction::v1alpha1 as raw,
+    generated::protocol::transactions::v1alpha1 as raw,
     protocol::{
         abci::AbciErrorCode,
+        genesis::v1alpha1::GenesisAppState,
         transaction::v1alpha1::{
             action::ValidatorUpdate,
             Action,
@@ -219,7 +224,7 @@ impl App {
     pub(crate) async fn init_chain(
         &mut self,
         storage: Storage,
-        genesis_state: astria_core::sequencer::GenesisState,
+        genesis_state: GenesisAppState,
         genesis_validators: Vec<ValidatorUpdate>,
         chain_id: String,
     ) -> anyhow::Result<AppHash> {
@@ -1073,7 +1078,7 @@ impl App {
     }
 
     #[instrument(name = "App::begin_block", skip_all)]
-    pub(crate) async fn begin_block(
+    async fn begin_block(
         &mut self,
         begin_block: &abci::request::BeginBlock,
     ) -> anyhow::Result<Vec<abci::Event>> {
@@ -1117,7 +1122,7 @@ impl App {
 
     /// Executes a signed transaction.
     #[instrument(name = "App::execute_transaction", skip_all)]
-    pub(crate) async fn execute_transaction(
+    async fn execute_transaction(
         &mut self,
         signed_tx: Arc<SignedTransaction>,
     ) -> anyhow::Result<Vec<Event>> {
@@ -1140,7 +1145,7 @@ impl App {
     }
 
     #[instrument(name = "App::end_block", skip_all)]
-    pub(crate) async fn end_block(
+    async fn end_block(
         &mut self,
         height: u64,
         fee_recipient: [u8; 20],

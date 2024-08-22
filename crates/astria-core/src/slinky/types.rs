@@ -1,5 +1,5 @@
 pub mod v1 {
-    use crate::generated::slinky::types::v1 as raw;
+    use crate::generated::astria_vendored::slinky::types::v1 as raw;
 
     #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
     #[derive(Debug, Clone, PartialEq, Eq, Hash)]

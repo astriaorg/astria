@@ -15,11 +15,11 @@ type: application
 # This is the chart version. This version number should be incremented each time you make changes
 # to the chart and its templates, including the app version.
 # Versions are expected to follow Semantic Versioning (https://semver.org/)
-version: 0.3.2
+version: 0.3.3
 
 dependencies:
   - name: evm-rollup
-    version: 0.25.3
+    version: 0.25.4
     repository: "file://../evm-rollup"
   - name: composer
     version: 0.1.1

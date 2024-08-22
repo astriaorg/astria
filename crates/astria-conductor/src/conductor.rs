@@ -141,9 +141,15 @@ impl Conductor {
         }
 
         if cfg.execution_commit_level.is_with_firm() {
+            let celestia_token = if cfg.no_celestia_auth {
+                None
+            } else {
+                Some(cfg.celestia_bearer_token)
+            };
+
             let reader = celestia::Builder {
                 celestia_http_endpoint: cfg.celestia_node_http_url,
-                celestia_token: cfg.celestia_bearer_token,
+                celestia_token,
                 celestia_block_time: Duration::from_millis(cfg.celestia_block_time_ms),
                 executor: executor_handle.clone(),
                 sequencer_cometbft_client: sequencer_cometbft_client.clone(),
