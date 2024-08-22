@@ -721,6 +721,7 @@ dependencies = [
  "prost",
  "rand 0.8.5",
  "serde",
+ "serde_json",
  "sha2 0.10.8",
  "tempfile",
  "tendermint",

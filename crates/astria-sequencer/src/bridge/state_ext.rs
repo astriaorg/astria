@@ -135,6 +135,20 @@ fn bridge_account_withdrawer_address_storage_key<T: AddressBytes>(address: &T) -
     )
 }
 
+fn bridge_account_withdrawal_event_storage_key<T: AddressBytes>(
+    address: &T,
+    withdrawal_event_id: &str,
+) -> String {
+    format!(
+        "{}/withdrawalevent/{}",
+        BridgeAccountKey {
+            prefix: BRIDGE_ACCOUNT_PREFIX,
+            address
+        },
+        withdrawal_event_id
+    )
+}
+
 fn last_transaction_hash_for_bridge_account_storage_key<T: AddressBytes>(address: &T) -> Vec<u8> {
     format!(
         "{}/lasttx",
@@ -341,6 +355,25 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
     }
 
     #[instrument(skip_all)]
+    async fn get_withdrawal_event_block_for_bridge_account<T: AddressBytes>(
+        &self,
+        address: T,
+        withdrawal_event_id: &str,
+    ) -> Result<Option<u64>> {
+        let key = bridge_account_withdrawal_event_storage_key(&address, withdrawal_event_id);
+        let Some(bytes) = self
+            .get_raw(&key)
+            .await
+            .context("failed reading raw withdrawal event from state")?
+        else {
+            return Ok(None);
+        };
+
+        let block_num = u64::try_from_slice(&bytes).context("invalid block number bytes")?;
+        Ok(Some(block_num))
+    }
+
+    #[instrument(skip_all)]
     async fn get_last_transaction_hash_for_bridge_account(
         &self,
         address: &Address,
@@ -417,6 +450,17 @@ pub(crate) trait StateWriteExt: StateWrite {
             bridge_account_withdrawer_address_storage_key(&bridge_address),
             withdrawer_address.address_bytes().to_vec(),
         );
+    }
+
+    #[instrument(skip_all)]
+    fn put_withdrawal_event_block_for_bridge_account<T: AddressBytes>(
+        &mut self,
+        address: T,
+        withdrawal_event_id: &str,
+        block_num: u64,
+    ) {
+        let key = bridge_account_withdrawal_event_storage_key(&address, withdrawal_event_id);
+        self.put_raw(key, block_num.to_be_bytes().to_vec());
     }
 
     // the deposit "nonce" for a given rollup ID during a given block.

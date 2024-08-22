@@ -12,6 +12,9 @@ impl serde::Serialize for BridgeUnlock {
         if !self.rollup_transaction_hash.is_empty() {
             len += 1;
         }
+        if !self.rollup_exec_result_hash.is_empty() {
+            len += 1;
+        }
         let mut struct_ser = serializer.serialize_struct("astria.protocol.memos.v1alpha1.BridgeUnlock", len)?;
         if self.rollup_block_number != 0 {
             #[allow(clippy::needless_borrow)]
@@ -19,6 +22,9 @@ impl serde::Serialize for BridgeUnlock {
         }
         if !self.rollup_transaction_hash.is_empty() {
             struct_ser.serialize_field("rollupTransactionHash", &self.rollup_transaction_hash)?;
+        }
+        if !self.rollup_exec_result_hash.is_empty() {
+            struct_ser.serialize_field("rollupExecResultHash", &self.rollup_exec_result_hash)?;
         }
         struct_ser.end()
     }
@@ -34,12 +40,15 @@ impl<'de> serde::Deserialize<'de> for BridgeUnlock {
             "rollupBlockNumber",
             "rollup_transaction_hash",
             "rollupTransactionHash",
+            "rollup_exec_result_hash",
+            "rollupExecResultHash",
         ];
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
             RollupBlockNumber,
             RollupTransactionHash,
+            RollupExecResultHash,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -63,6 +72,7 @@ impl<'de> serde::Deserialize<'de> for BridgeUnlock {
                         match value {
                             "rollupBlockNumber" | "rollup_block_number" => Ok(GeneratedField::RollupBlockNumber),
                             "rollupTransactionHash" | "rollup_transaction_hash" => Ok(GeneratedField::RollupTransactionHash),
+                            "rollupExecResultHash" | "rollup_exec_result_hash" => Ok(GeneratedField::RollupExecResultHash),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -84,6 +94,7 @@ impl<'de> serde::Deserialize<'de> for BridgeUnlock {
             {
                 let mut rollup_block_number__ = None;
                 let mut rollup_transaction_hash__ = None;
+                let mut rollup_exec_result_hash__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
                         GeneratedField::RollupBlockNumber => {
@@ -100,11 +111,18 @@ impl<'de> serde::Deserialize<'de> for BridgeUnlock {
                             }
                             rollup_transaction_hash__ = Some(map_.next_value()?);
                         }
+                        GeneratedField::RollupExecResultHash => {
+                            if rollup_exec_result_hash__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("rollupExecResultHash"));
+                            }
+                            rollup_exec_result_hash__ = Some(map_.next_value()?);
+                        }
                     }
                 }
                 Ok(BridgeUnlock {
                     rollup_block_number: rollup_block_number__.unwrap_or_default(),
                     rollup_transaction_hash: rollup_transaction_hash__.unwrap_or_default(),
+                    rollup_exec_result_hash: rollup_exec_result_hash__.unwrap_or_default(),
                 })
             }
         }
@@ -223,6 +241,9 @@ impl serde::Serialize for Ics20WithdrawalFromRollup {
         if !self.memo.is_empty() {
             len += 1;
         }
+        if !self.rollup_exec_result_hash.is_empty() {
+            len += 1;
+        }
         let mut struct_ser = serializer.serialize_struct("astria.protocol.memos.v1alpha1.Ics20WithdrawalFromRollup", len)?;
         if self.rollup_block_number != 0 {
             #[allow(clippy::needless_borrow)]
@@ -236,6 +257,9 @@ impl serde::Serialize for Ics20WithdrawalFromRollup {
         }
         if !self.memo.is_empty() {
             struct_ser.serialize_field("memo", &self.memo)?;
+        }
+        if !self.rollup_exec_result_hash.is_empty() {
+            struct_ser.serialize_field("rollupExecResultHash", &self.rollup_exec_result_hash)?;
         }
         struct_ser.end()
     }
@@ -254,6 +278,8 @@ impl<'de> serde::Deserialize<'de> for Ics20WithdrawalFromRollup {
             "rollup_return_address",
             "rollupReturnAddress",
             "memo",
+            "rollup_exec_result_hash",
+            "rollupExecResultHash",
         ];
 
         #[allow(clippy::enum_variant_names)]
@@ -262,6 +288,7 @@ impl<'de> serde::Deserialize<'de> for Ics20WithdrawalFromRollup {
             RollupTransactionHash,
             RollupReturnAddress,
             Memo,
+            RollupExecResultHash,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -287,6 +314,7 @@ impl<'de> serde::Deserialize<'de> for Ics20WithdrawalFromRollup {
                             "rollupTransactionHash" | "rollup_transaction_hash" => Ok(GeneratedField::RollupTransactionHash),
                             "rollupReturnAddress" | "rollup_return_address" => Ok(GeneratedField::RollupReturnAddress),
                             "memo" => Ok(GeneratedField::Memo),
+                            "rollupExecResultHash" | "rollup_exec_result_hash" => Ok(GeneratedField::RollupExecResultHash),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -310,6 +338,7 @@ impl<'de> serde::Deserialize<'de> for Ics20WithdrawalFromRollup {
                 let mut rollup_transaction_hash__ = None;
                 let mut rollup_return_address__ = None;
                 let mut memo__ = None;
+                let mut rollup_exec_result_hash__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
                         GeneratedField::RollupBlockNumber => {
@@ -338,6 +367,12 @@ impl<'de> serde::Deserialize<'de> for Ics20WithdrawalFromRollup {
                             }
                             memo__ = Some(map_.next_value()?);
                         }
+                        GeneratedField::RollupExecResultHash => {
+                            if rollup_exec_result_hash__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("rollupExecResultHash"));
+                            }
+                            rollup_exec_result_hash__ = Some(map_.next_value()?);
+                        }
                     }
                 }
                 Ok(Ics20WithdrawalFromRollup {
@@ -345,6 +380,7 @@ impl<'de> serde::Deserialize<'de> for Ics20WithdrawalFromRollup {
                     rollup_transaction_hash: rollup_transaction_hash__.unwrap_or_default(),
                     rollup_return_address: rollup_return_address__.unwrap_or_default(),
                     memo: memo__.unwrap_or_default(),
+                    rollup_exec_result_hash: rollup_exec_result_hash__.unwrap_or_default(),
                 })
             }
         }

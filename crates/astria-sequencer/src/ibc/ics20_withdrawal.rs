@@ -9,7 +9,10 @@ use astria_core::{
         asset::Denom,
         Address,
     },
-    protocol::transaction::v1alpha1::action,
+    protocol::{
+        memos::v1alpha1::Ics20WithdrawalFromRollup as Ics20WithdrawalFromRollupMemo,
+        transaction::v1alpha1::action,
+    },
     Protobuf as _,
 };
 use cnidarium::{
@@ -35,7 +38,10 @@ use crate::{
     address::StateReadExt as _,
     app::ActionHandler,
     assets::StateWriteExt as _,
-    bridge::StateReadExt as _,
+    bridge::{
+        StateReadExt as _,
+        StateWriteExt as _,
+    },
     ibc::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -107,6 +113,49 @@ impl ActionHandler for action::Ics20Withdrawal {
     async fn check_stateless(&self) -> Result<()> {
         ensure!(self.timeout_time() != 0, "timeout time must be non-zero",);
 
+        if let Some(bridge_address) = &self.bridge_address {
+            let parsed_bridge_memo: Ics20WithdrawalFromRollupMemo =
+                serde_json::from_str(&self.memo)
+                    .context("failed to parse memo for ICS bound bridge withdrawal")?;
+
+            ensure!(
+                parsed_bridge_memo.rollup_return_address.len() != 0,
+                "rollup return address must be non-empty",
+            );
+            ensure!(
+                parsed_bridge_memo.rollup_return_address.into_bytes().len() <= 256,
+                "rollup return address must be no more than 256 bytes",
+            );
+            ensure!(
+                parsed_bridge_memo.rollup_transaction_hash.len() != 0,
+                "rollup transaction hash must be non-empty",
+            );
+            ensure!(
+                parsed_bridge_memo
+                    .rollup_transaction_hash
+                    .into_bytes()
+                    .len()
+                    <= 64,
+                "rollup transaction hash must be no more than 64 bytes",
+            );
+            ensure!(
+                parsed_bridge_memo.rollup_exec_result_hash.len() != 0,
+                "rollup exec result hash must be non-empty",
+            );
+            ensure!(
+                parsed_bridge_memo
+                    .rollup_exec_result_hash
+                    .into_bytes()
+                    .len()
+                    <= 64,
+                "rollup exec result hash must be no more than 64 bytes",
+            );
+            ensure!(
+                parsed_bridge_memo.rollup_block_number != 0,
+                "rollup block number must be non-zero",
+            );
+        }
+
         // NOTE (from penumbra): we could validate the destination chain address as bech32 to
         // prevent mistyped addresses, but this would preclude sending to chains that don't
         // use bech32 addresses.
@@ -128,6 +177,27 @@ impl ActionHandler for action::Ics20Withdrawal {
             state.ensure_base_prefix(bridge_address).await.context(
                 "failed to verify that bridge address address has permitted base prefix",
             )?;
+            let parsed_bridge_memo: Ics20WithdrawalFromRollupMemo =
+                serde_json::from_str(&self.memo)
+                    .context("failed to memo for ICS bound bridge withdrawal")?;
+
+            let withdrawalEventHeight = state
+                .get_withdrawal_event_block_for_bridge_account(
+                    self.bridge_address.map_or(from, Address::bytes),
+                    &parsed_bridge_memo.rollup_exec_result_hash,
+                )
+                .await
+                .context("failed to get withdrawal event height")?;
+            ensure!(
+                withdrawalEventHeight.is_none(),
+                "withdrawal event already processed",
+            );
+
+            state.put_withdrawal_event_block_for_bridge_account(
+                self.bridge_address.map_or(from, Address::bytes),
+                &parsed_bridge_memo.rollup_exec_result_hash,
+                parsed_bridge_memo.rollup_block_number,
+            );
         }
 
         let withdrawal_target = establish_withdrawal_target(self, &state, from)

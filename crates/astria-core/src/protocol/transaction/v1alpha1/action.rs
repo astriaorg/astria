@@ -21,6 +21,7 @@ use crate::{
         IncorrectRollupIdLength,
         RollupId,
     },
+    protocol::memos::v1alpha1::BridgeUnlock as BridgeUnlockMemo,
     Protobuf,
 };
 
@@ -1545,9 +1546,11 @@ pub struct BridgeUnlockAction {
     // asset to use for fee payment.
     pub fee_asset: asset::Denom,
     // memo for double spend protection.
-    pub memo: String,
+    pub memo: BridgeUnlockMemo,
     // the address of the bridge account to transfer from.
     pub bridge_address: Address,
+    // The raw string version of the memo, to avoid reserializing to JSON.
+    pub raw_memo: String,
 }
 
 impl Protobuf for BridgeUnlockAction {
@@ -1560,7 +1563,7 @@ impl Protobuf for BridgeUnlockAction {
             to: Some(self.to.into_raw()),
             amount: Some(self.amount.into()),
             fee_asset: self.fee_asset.to_string(),
-            memo: self.memo,
+            memo: self.raw_memo,
             bridge_address: Some(self.bridge_address.into_raw()),
         }
     }
@@ -1571,7 +1574,7 @@ impl Protobuf for BridgeUnlockAction {
             to: Some(self.to.to_raw()),
             amount: Some(self.amount.into()),
             fee_asset: self.fee_asset.to_string(),
-            memo: self.memo.clone(),
+            memo: self.raw_memo.clone(),
             bridge_address: Some(self.bridge_address.to_raw()),
         }
     }
@@ -1606,12 +1609,14 @@ impl Protobuf for BridgeUnlockAction {
             .and_then(|to| {
                 Address::try_from_raw(&to).map_err(BridgeUnlockActionError::bridge_address)
             })?;
+        let parsed_memo = serde_json::from_str(&memo).map_err(BridgeUnlockActionError::memo)?;
         Ok(Self {
             to,
             amount: amount.into(),
             fee_asset,
-            memo,
+            memo: parsed_memo,
             bridge_address,
+            raw_memo: memo,
         })
     }
 
@@ -1659,6 +1664,13 @@ impl BridgeUnlockActionError {
             source,
         })
     }
+
+    #[must_use]
+    fn memo(source: serde_json::Error) -> Self {
+        Self(BridgeUnlockActionErrorKind::Memo {
+            source,
+        })
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -1671,6 +1683,8 @@ enum BridgeUnlockActionErrorKind {
     FeeAsset { source: asset::ParseDenomError },
     #[error("the `bridge_address` field was invalid")]
     BridgeAddress { source: AddressError },
+    #[error("the `memo` field could not be parsed")]
+    Memo { source: serde_json::Error },
 }
 
 #[allow(clippy::module_name_repetitions)]

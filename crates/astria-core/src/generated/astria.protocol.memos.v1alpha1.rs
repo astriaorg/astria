@@ -6,12 +6,22 @@ pub struct BridgeUnlock {
     #[prost(uint64, tag = "1")]
     pub rollup_block_number: u64,
     /// The hash of the original rollup transaction that triggered a bridge unlock
-    /// and that is underlying this bridge unlock memo.
+    /// and that is underlying this bridge unlock memo. This can be utilized for
+    /// tracing from the bridge back to distinct rollup transactions.
     ///
     /// This field is of type `string` so that it can be formatted in the preferred
     /// format of the rollup when targeting plain text encoding.
     #[prost(string, tag = "2")]
     pub rollup_transaction_hash: ::prost::alloc::string::String,
+    /// A hash of the execution proof that transaction was executed on the rollup.
+    /// This is included because in many rollups simply including the transaction
+    /// is not the same as executing, inclusion of this data enables future
+    /// verification of the execution.
+    ///
+    /// This field is of type `string` so that it can be formatted in the preferred
+    /// format of the rollup when targeting plain text encoding.
+    #[prost(string, tag = "3")]
+    pub rollup_exec_result_hash: ::prost::alloc::string::String,
 }
 impl ::prost::Name for BridgeUnlock {
     const NAME: &'static str = "BridgeUnlock";
@@ -48,6 +58,15 @@ pub struct Ics20WithdrawalFromRollup {
     /// will be consumed by the downstream chain.
     #[prost(string, tag = "4")]
     pub memo: ::prost::alloc::string::String,
+    /// A hash of the execution proof that transaction was executed on the rollup.
+    /// This is included because in many rollups simply including the transaction
+    /// is not the same as executing, inclusion of this data enables future
+    /// verification of the execution.
+    ///
+    /// This field is of type `string` so that it can be formatted in the preferred
+    /// format of the rollup when targeting plain text encoding.
+    #[prost(string, tag = "5")]
+    pub rollup_exec_result_hash: ::prost::alloc::string::String,
 }
 impl ::prost::Name for Ics20WithdrawalFromRollup {
     const NAME: &'static str = "Ics20WithdrawalFromRollup";

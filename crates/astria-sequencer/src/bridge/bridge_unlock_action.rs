@@ -11,23 +11,50 @@ use astria_core::protocol::transaction::v1alpha1::action::{
 use cnidarium::StateWrite;
 
 use crate::{
-    accounts::action::{
-        check_transfer,
-        execute_transfer,
+    accounts::{
+        action::{
+            check_transfer,
+            execute_transfer,
+        },
+        AddressBytes,
     },
     address::StateReadExt as _,
     app::ActionHandler,
-    bridge::StateReadExt as _,
+    bridge::{
+        StateReadExt as _,
+        StateWriteExt as _,
+    },
     transaction::StateReadExt as _,
 };
 
 #[async_trait::async_trait]
 impl ActionHandler for BridgeUnlockAction {
     async fn check_stateless(&self) -> Result<()> {
+        ensure!(self.amount > 0, "amount must be greater than zero",);
+        ensure!(
+            self.memo.rollup_transaction_hash.len() > 0,
+            "rollup transaction hash must be non-empty",
+        );
+        ensure!(
+            self.memo.rollup_transaction_hash.clone().into_bytes().len() <= 64,
+            "rollup transaction hash must not be more than 64 bytes",
+        );
+        ensure!(
+            self.memo.rollup_exec_result_hash.len() > 0,
+            "rollup exec result hash must be non-empty",
+        );
+        ensure!(
+            self.memo.rollup_exec_result_hash.clone().into_bytes().len() <= 64,
+            "rollup exec result hash must not be more than 64 bytes",
+        );
+        ensure!(
+            self.memo.rollup_block_number > 0,
+            "rollup block number must be greater than zero",
+        );
         Ok(())
     }
 
-    async fn check_and_execute<S: StateWrite>(&self, state: S) -> Result<()> {
+    async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
         let from = state
             .get_current_source()
             .expect("transaction source must be present in state when executing an action")
@@ -60,6 +87,23 @@ impl ActionHandler for BridgeUnlockAction {
             "unauthorized to unlock bridge account",
         );
 
+        let withdrawal_event_height = state
+            .get_withdrawal_event_block_for_bridge_account(
+                self.bridge_address,
+                &self.memo.rollup_exec_result_hash,
+            )
+            .await
+            .context("failed to get withdrawal event height")?;
+        ensure!(
+            withdrawal_event_height.is_none(),
+            "withdrawal event already processed",
+        );
+        state.put_withdrawal_event_block_for_bridge_account(
+            self.bridge_address.address_bytes(),
+            &self.memo.rollup_exec_result_hash,
+            self.memo.rollup_block_number,
+        );
+
         let transfer_action = TransferAction {
             to: self.to,
             asset: asset.into(),
@@ -81,7 +125,10 @@ mod tests {
             asset,
             RollupId,
         },
-        protocol::transaction::v1alpha1::action::BridgeUnlockAction,
+        protocol::{
+            memos::v1alpha1::BridgeUnlock as BridgeUnlockMemo,
+            transaction::v1alpha1::action::BridgeUnlockAction,
+        },
     };
     use cnidarium::StateDelta;
 
@@ -130,7 +177,15 @@ mod tests {
             to: to_address,
             amount: transfer_amount,
             fee_asset: asset.clone(),
-            memo: "{}".into(),
+            memo: BridgeUnlockMemo {
+                rollup_block_number: 1,
+                rollup_transaction_hash: "a-rollup-defined-hash".to_string(),
+                rollup_exec_result_hash: "a-rollup-defined-hash".to_string(),
+            },
+            raw_memo: "{\"rollup_block_number\": 1, \"rollup_transaction_hash\": \
+                       \"a-rollup-defined-hash\", \"rollup_exec_result_hash\":  \
+                       \"a-rollup-defined-hash\"}"
+                .to_string(),
             bridge_address,
         };
 
@@ -167,7 +222,15 @@ mod tests {
             to: to_address,
             amount: transfer_amount,
             fee_asset: asset,
-            memo: "{}".into(),
+            memo: BridgeUnlockMemo {
+                rollup_block_number: 1,
+                rollup_transaction_hash: "a-rollup-defined-hash".to_string(),
+                rollup_exec_result_hash: "a-rollup-defined-hash".to_string(),
+            },
+            raw_memo: "{\"rollup_block_number\": 1, \"rollup_transaction_hash\": \
+                       \"a-rollup-defined-hash\", \"rollup_exec_result_hash\":  \
+                       \"a-rollup-defined-hash\"}"
+                .to_string(),
             bridge_address,
         };
 
@@ -209,7 +272,15 @@ mod tests {
             to: to_address,
             amount: transfer_amount,
             fee_asset: asset.clone(),
-            memo: "{}".into(),
+            memo: BridgeUnlockMemo {
+                rollup_block_number: 1,
+                rollup_transaction_hash: "a-rollup-defined-hash".to_string(),
+                rollup_exec_result_hash: "a-rollup-defined-hash".to_string(),
+            },
+            raw_memo: "{\"rollup_block_number\": 1, \"rollup_transaction_hash\": \
+                       \"a-rollup-defined-hash\", \"rollup_exec_result_hash\":  \
+                       \"a-rollup-defined-hash\"}"
+                .to_string(),
             bridge_address,
         };
 
@@ -263,7 +334,15 @@ mod tests {
             to: to_address,
             amount: transfer_amount,
             fee_asset: asset.clone(),
-            memo: "{}".into(),
+            memo: BridgeUnlockMemo {
+                rollup_block_number: 1,
+                rollup_transaction_hash: "a-rollup-defined-hash".to_string(),
+                rollup_exec_result_hash: "a-rollup-defined-hash".to_string(),
+            },
+            raw_memo: "{\"rollup_block_number\": 1, \"rollup_transaction_hash\": \
+                       \"a-rollup-defined-hash\", \"rollup_exec_result_hash\": \
+                       \"a-rollup-defined-hash\"}"
+                .to_string(),
             bridge_address,
         };
 

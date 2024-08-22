@@ -14,11 +14,20 @@ message BridgeUnlock {
   // this bridge unlock memo.
   uint64 rollup_block_number = 1;
   // The hash of the original rollup transaction that triggered a bridge unlock
-  // and that is underlying this bridge unlock memo.
+  // and that is underlying this bridge unlock memo. This can be utilized for
+  // tracing from the bridge back to distinct rollup transactions.
   //
   // This field is of type `string` so that it can be formatted in the preferred
   // format of the rollup when targeting plain text encoding.
   string rollup_transaction_hash = 2;
+  // A hash of the execution proof that transaction was executed on the rollup.
+  // This is included because in many rollups simply including the transaction
+  // is not the same as executing, inclusion of this data enables future
+  // verification of the execution.
+  //
+  // This field is of type `string` so that it can be formatted in the preferred
+  // format of the rollup when targeting plain text encoding.
+  string rollup_exec_result_hash = 3;
 }
 
 // Memo for an ICS20 withdrawal from the rollup which is sent to
@@ -43,6 +52,14 @@ message Ics20WithdrawalFromRollup {
   // A field that can be populated by the rollup. It is assumed that this field
   // will be consumed by the downstream chain.
   string memo = 4;
+  // A hash of the execution proof that transaction was executed on the rollup.
+  // This is included because in many rollups simply including the transaction
+  // is not the same as executing, inclusion of this data enables future
+  // verification of the execution.
+  //
+  // This field is of type `string` so that it can be formatted in the preferred
+  // format of the rollup when targeting plain text encoding.
+  string rollup_exec_result_hash = 5;
 }
 
 // Memo for an ICS20 transfer to Astria which is sent to a
