@@ -11,7 +11,7 @@ images:
     repo: ghcr.io/astriaorg/astria-geth
     tag: 0.13.0
     devTag: latest
-    override: pr-39
+    override: ""
   conductor:
     repo: ghcr.io/astriaorg/conductor
     tag: "0.18.0"
