@@ -80,7 +80,6 @@ hyper = { workspace = true }
 itertools = { workspace = true }
 once_cell = { workspace = true }
 rand_core = { version = "0.6", features = ["getrandom"] }
-reqwest = { workspace = true, features = ["json"] }
 tempfile = { workspace = true }
 tendermint-rpc = { workspace = true, features = ["http-client"] }
 tokio = { workspace = true, features = ["test-util"] }
@@ -88,9 +87,16 @@ tokio-stream = { workspace = true, features = ["net"] }
 wiremock = { workspace = true }
 
 assert-json-diff = "2.0.2"
+http = "0.2.7"
+isahc = { version = "1.7.2", features = ["json"] }
 tower = { version = "0.4.13" }
 tokio-test.workspace = true
 rand_chacha = "0.3.1"
 
 [build-dependencies]
 astria-build-info = { path = "../astria-build-info", features = ["build"] }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = [
+  'cfg(dylint_lib, values("tracing_debug_field"))',
+] }

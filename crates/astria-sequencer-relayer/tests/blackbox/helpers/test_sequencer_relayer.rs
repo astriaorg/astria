@@ -24,13 +24,10 @@ use astria_sequencer_relayer::{
     SequencerRelayer,
     ShutdownHandle,
 };
-use futures::TryFutureExt;
+use http::StatusCode;
+use isahc::AsyncReadResponseExt;
 use itertools::Itertools;
 use once_cell::sync::Lazy;
-use reqwest::{
-    Response,
-    StatusCode,
-};
 use serde::Deserialize;
 use serde_json::json;
 use tempfile::NamedTempFile;
@@ -539,13 +536,13 @@ impl TestSequencerRelayer {
     ) -> (serde_json::Value, StatusCode) {
         let url = format!("http://{}/{api_endpoint}", self.api_address);
         let getter = async {
-            reqwest::get(&url)
+            isahc::get_async(&url)
                 .await
                 .unwrap_or_else(|error| panic!("should get response from `{url}`: {error}"))
         };
 
         let new_context = format!("{context}: get from `{url}`");
-        let response = self.timeout_ms(100, &new_context, getter).await;
+        let mut response = self.timeout_ms(100, &new_context, getter).await;
 
         let status_code = response.status();
         let value = response
@@ -585,8 +582,10 @@ impl TestSequencerRelayer {
             value
         } else {
             let state = tokio::time::timeout(Duration::from_millis(100), async {
-                reqwest::get(format!("http://{}/status", self.api_address))
-                    .and_then(Response::json)
+                isahc::get_async(format!("http://{}/status", self.api_address))
+                    .await
+                    .ok()?
+                    .json()
                     .await
                     .ok()
             })
@@ -598,8 +597,10 @@ impl TestSequencerRelayer {
             .map_or("unknown".to_string(), |state| format!("{state:?}"));
 
             let healthz = tokio::time::timeout(Duration::from_millis(100), async {
-                reqwest::get(format!("http://{}/healthz", self.api_address))
-                    .and_then(Response::json)
+                isahc::get_async(format!("http://{}/healthz", self.api_address))
+                    .await
+                    .ok()?
+                    .json()
                     .await
                     .ok()
             })

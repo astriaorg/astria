@@ -1,93 +1,30 @@
+//! To run the benchmark, from the root of the monorepo, run:
+//! ```sh
+//! cargo bench --features=benchmark -qp astria-sequencer mempool
+//! ```
 #![allow(non_camel_case_types)]
 
 use std::{
-    collections::HashMap,
-    sync::OnceLock,
+    sync::Arc,
     time::Duration,
 };
 
-use astria_core::{
-    crypto::SigningKey,
-    primitive::v1::{
-        asset::{
-            Denom,
-            IbcPrefixed,
-        },
-        RollupId,
-    },
-    protocol::transaction::v1alpha1::{
-        action::{
-            Action,
-            SequenceAction,
-        },
-        SignedTransaction,
-        TransactionParams,
-        UnsignedTransaction,
-    },
-};
+use astria_core::protocol::transaction::v1alpha1::SignedTransaction;
 use sha2::{
     Digest as _,
     Sha256,
 };
 
-use super::{
-    Mempool,
-    RemovalReason,
+use crate::{
+    benchmark_utils::SIGNER_COUNT,
+    mempool::{
+        Mempool,
+        RemovalReason,
+    },
 };
 
-/// The maximum number of transactions with which to initialize the mempool.
-const MAX_INITIAL_TXS: usize = 100_000;
 /// The max time for any benchmark.
 const MAX_TIME: Duration = Duration::from_secs(30);
-/// The number of different signers of transactions, and also the number of different chain IDs.
-const SIGNER_COUNT: u8 = 10;
-
-/// Returns an endlessly-repeating iterator over `SIGNER_COUNT` separate signing keys.
-fn signing_keys() -> impl Iterator<Item = &'static SigningKey> {
-    static SIGNING_KEYS: OnceLock<Vec<SigningKey>> = OnceLock::new();
-    SIGNING_KEYS
-        .get_or_init(|| {
-            (0..SIGNER_COUNT)
-                .map(|i| SigningKey::from([i; 32]))
-                .collect()
-        })
-        .iter()
-        .cycle()
-}
-
-/// Returns a static ref to a collection of `MAX_INITIAL_TXS + 1` transactions.
-fn transactions() -> &'static Vec<SignedTransaction> {
-    static TXS: OnceLock<Vec<SignedTransaction>> = OnceLock::new();
-    TXS.get_or_init(|| {
-        let mut nonces_and_chain_ids = HashMap::new();
-        signing_keys()
-            .map(move |signing_key| {
-                let verification_key = signing_key.verification_key();
-                let (nonce, chain_id) = nonces_and_chain_ids
-                    .entry(verification_key)
-                    .or_insert_with(|| {
-                        (0_u32, format!("chain-{}", signing_key.verification_key()))
-                    });
-                *nonce = (*nonce).wrapping_add(1);
-                let params = TransactionParams::builder()
-                    .nonce(*nonce)
-                    .chain_id(chain_id.as_str())
-                    .build();
-                let sequence_action = SequenceAction {
-                    rollup_id: RollupId::new([1; 32]),
-                    data: vec![2; 1000],
-                    fee_asset: Denom::IbcPrefixed(IbcPrefixed::new([3; 32])),
-                };
-                UnsignedTransaction {
-                    actions: vec![Action::Sequence(sequence_action)],
-                    params,
-                }
-                .into_signed(signing_key)
-            })
-            .take(MAX_INITIAL_TXS + 1)
-            .collect()
-    })
-}
 
 /// This trait exists so we can get better output from `divan` by configuring the various mempool
 /// sizes as types rather than consts. With types we get output like:
@@ -108,7 +45,7 @@ trait MempoolSize {
     fn size() -> usize;
 
     fn checked_size() -> usize {
-        assert!(Self::size() <= MAX_INITIAL_TXS);
+        assert!(Self::size() <= transactions().len());
         Self::size()
     }
 }
@@ -145,6 +82,10 @@ impl MempoolSize for mempool_with_100000_txs {
     }
 }
 
+fn transactions() -> &'static Vec<Arc<SignedTransaction>> {
+    crate::benchmark_utils::transactions(crate::benchmark_utils::TxTypes::AllSequenceActions)
+}
+
 /// Returns a new `Mempool` initialized with the number of transactions specified by `T::size()`
 /// taken from the static `transactions()`, and with a full `comet_bft_removal_cache`.
 fn init_mempool<T: MempoolSize>() -> Mempool {
@@ -160,8 +101,10 @@ fn init_mempool<T: MempoolSize>() -> Mempool {
         for i in 0..super::REMOVAL_CACHE_SIZE {
             let hash = Sha256::digest(i.to_le_bytes()).into();
             mempool
-                .track_removal_comet_bft(hash, RemovalReason::Expired)
-                .await;
+                .comet_bft_removal_cache
+                .write()
+                .await
+                .add(hash, RemovalReason::Expired);
         }
     });
     mempool
@@ -169,7 +112,7 @@ fn init_mempool<T: MempoolSize>() -> Mempool {
 
 /// Returns the first transaction from the static `transactions()` not included in the initialized
 /// mempool, i.e. the one at index `T::size()`.
-fn get_unused_tx<T: MempoolSize>() -> SignedTransaction {
+fn get_unused_tx<T: MempoolSize>() -> Arc<SignedTransaction> {
     transactions().get(T::checked_size()).unwrap().clone()
 }
 
@@ -198,7 +141,9 @@ fn insert<T: MempoolSize>(bencher: divan::Bencher) {
         });
 }
 
-/// Benchmarks `Mempool::pop` on a mempool with the given number of existing entries.
+/// Benchmarks `Mempool::builder_queue` on a mempool with the given number of existing entries.
+///
+/// Note: this benchmark doesn't capture the nuances of dealing with parked vs pending transactions.
 #[divan::bench(
     max_time = MAX_TIME,
     types = [
@@ -208,22 +153,30 @@ fn insert<T: MempoolSize>(bencher: divan::Bencher) {
         mempool_with_100000_txs
     ]
 )]
-fn pop<T: MempoolSize>(bencher: divan::Bencher) {
+fn builder_queue<T: MempoolSize>(bencher: divan::Bencher) {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .unwrap();
+    let mocked_current_account_nonce_getter = |_: [u8; 20]| async move { Ok(0_u32) };
     bencher
         .with_inputs(|| init_mempool::<T>())
         .bench_values(move |mempool| {
             runtime.block_on(async {
-                mempool.pop().await.unwrap();
+                mempool
+                    .builder_queue(mocked_current_account_nonce_getter)
+                    .await
+                    .unwrap();
             });
         });
 }
 
-/// Benchmarks `Mempool::remove` for a single transaction on a mempool with the given number of
-/// existing entries.
+/// Benchmarks `Mempool::remove_tx_invalid` for a single transaction on a mempool with the given
+/// number of existing entries.
+///
+/// Note about this benchmark: `remove_tx_invalid()` will remove all higher nonces. To keep this
+/// benchmark comparable with the previous mempool, we're removing the highest nonce. In the future
+/// it would be better to have this bench remove the midpoint.
 #[divan::bench(
     max_time = MAX_TIME,
     types = [
@@ -233,42 +186,23 @@ fn pop<T: MempoolSize>(bencher: divan::Bencher) {
         mempool_with_100000_txs
     ]
 )]
-fn remove<T: MempoolSize>(bencher: divan::Bencher) {
+fn remove_tx_invalid<T: MempoolSize>(bencher: divan::Bencher) {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .unwrap();
     bencher
         .with_inputs(|| {
-            let tx_hash = transactions().first().unwrap().sha256_of_proto_encoding();
-            (init_mempool::<T>(), tx_hash)
+            let signed_tx = transactions()
+                .get(T::checked_size().saturating_sub(1))
+                .cloned()
+                .unwrap();
+            (init_mempool::<T>(), signed_tx)
         })
-        .bench_values(move |(mempool, tx_hash)| {
-            runtime.block_on(async {
-                mempool.remove(tx_hash).await;
-            });
-        });
-}
-
-/// Benchmarks `Mempool::track_removal_comet_bft` for a single new transaction on a mempool with
-/// the `comet_bft_removal_cache` filled.
-///
-/// Note that the number of entries in the main cache is irrelevant here.
-#[divan::bench(max_time = MAX_TIME)]
-fn track_removal_comet_bft(bencher: divan::Bencher) {
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .unwrap();
-    bencher
-        .with_inputs(|| {
-            let tx_hash = transactions().first().unwrap().sha256_of_proto_encoding();
-            (init_mempool::<mempool_with_100_txs>(), tx_hash)
-        })
-        .bench_values(move |(mempool, tx_hash)| {
+        .bench_values(move |(mempool, signed_tx)| {
             runtime.block_on(async {
                 mempool
-                    .track_removal_comet_bft(tx_hash, RemovalReason::Expired)
+                    .remove_tx_invalid(signed_tx, RemovalReason::Expired)
                     .await;
             });
         });
@@ -312,7 +246,7 @@ fn run_maintenance<T: MempoolSize>(bencher: divan::Bencher) {
         .build()
         .unwrap();
     // Set the new nonce so that the entire `REMOVAL_CACHE_SIZE` entries in the
-    // `comet_bft_removal_cache` are replaced (assuming this test case has enough txs).
+    // `comet_bft_removal_cache` are filled (assuming this test case has enough txs).
     // allow: this is test-only code, using small values, and where the result is not critical.
     #[allow(clippy::arithmetic_side_effects, clippy::cast_possible_truncation)]
     let new_nonce = (super::REMOVAL_CACHE_SIZE as u32 / u32::from(SIGNER_COUNT)) + 1;
@@ -324,10 +258,7 @@ fn run_maintenance<T: MempoolSize>(bencher: divan::Bencher) {
         .with_inputs(|| init_mempool::<T>())
         .bench_values(move |mempool| {
             runtime.block_on(async {
-                mempool
-                    .run_maintenance(current_account_nonce_getter)
-                    .await
-                    .unwrap();
+                mempool.run_maintenance(current_account_nonce_getter).await;
             });
         });
 }

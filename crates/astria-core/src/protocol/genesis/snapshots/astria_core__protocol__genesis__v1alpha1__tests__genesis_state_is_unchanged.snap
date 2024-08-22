@@ -1,9 +1,10 @@
 ---
-source: crates/astria-core/src/sequencer.rs
+source: crates/astria-core/src/protocol/genesis/v1alpha1.rs
 expression: genesis_state()
 ---
 {
-  "address_prefixes": {
+  "chainId": "astria-1",
+  "addressPrefixes": {
     "base": "astria"
   },
   "accounts": [
@@ -11,28 +12,34 @@ expression: genesis_state()
       "address": {
         "bech32m": "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
       },
-      "balance": 1000000000000000000
+      "balance": {
+        "lo": "1000000000000000000"
+      }
     },
     {
       "address": {
         "bech32m": "astria1xnlvg0rle2u6auane79t4p27g8hxnj36ja960z"
       },
-      "balance": 1000000000000000000
+      "balance": {
+        "lo": "1000000000000000000"
+      }
     },
     {
       "address": {
         "bech32m": "astria1vpcfutferpjtwv457r63uwr6hdm8gwr3pxt5ny"
       },
-      "balance": 1000000000000000000
+      "balance": {
+        "lo": "1000000000000000000"
+      }
     }
   ],
-  "authority_sudo_address": {
+  "authoritySudoAddress": {
     "bech32m": "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
   },
-  "ibc_sudo_address": {
+  "ibcSudoAddress": {
     "bech32m": "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
   },
-  "ibc_relayer_addresses": [
+  "ibcRelayerAddresses": [
     {
       "bech32m": "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
     },
@@ -40,22 +47,36 @@ expression: genesis_state()
       "bech32m": "astria1xnlvg0rle2u6auane79t4p27g8hxnj36ja960z"
     }
   ],
-  "native_asset_base_denomination": "nria",
-  "ibc_params": {
+  "nativeAssetBaseDenomination": "nria",
+  "ibcParameters": {
     "ibcEnabled": true,
     "inboundIcs20TransfersEnabled": true,
     "outboundIcs20TransfersEnabled": true
   },
-  "allowed_fee_assets": [
+  "allowedFeeAssets": [
     "nria"
   ],
   "fees": {
-    "transfer_base_fee": 12,
-    "sequence_base_fee": 32,
-    "sequence_byte_cost_multiplier": 1,
-    "init_bridge_account_base_fee": 48,
-    "bridge_lock_byte_cost_multiplier": 1,
-    "bridge_sudo_change_fee": 24,
-    "ics20_withdrawal_base_fee": 24
+    "transferBaseFee": {
+      "lo": "12"
+    },
+    "sequenceBaseFee": {
+      "lo": "32"
+    },
+    "sequenceByteCostMultiplier": {
+      "lo": "1"
+    },
+    "initBridgeAccountBaseFee": {
+      "lo": "48"
+    },
+    "bridgeLockByteCostMultiplier": {
+      "lo": "1"
+    },
+    "bridgeSudoChangeFee": {
+      "lo": "24"
+    },
+    "ics20WithdrawalBaseFee": {
+      "lo": "24"
+    }
   }
 }

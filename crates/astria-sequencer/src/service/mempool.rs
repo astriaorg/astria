@@ -1,5 +1,6 @@
 use std::{
     pin::Pin,
+    sync::Arc,
     task::{
         Context,
         Poll,
@@ -9,7 +10,7 @@ use std::{
 
 use anyhow::Context as _;
 use astria_core::{
-    generated::protocol::transaction::v1alpha1 as raw,
+    generated::protocol::transactions::v1alpha1 as raw,
     protocol::{
         abci::AbciErrorCode,
         transaction::v1alpha1::SignedTransaction,
@@ -22,11 +23,14 @@ use futures::{
     TryFutureExt as _,
 };
 use prost::Message as _;
-use tendermint::v0_38::abci::{
-    request,
-    response,
-    MempoolRequest,
-    MempoolResponse,
+use tendermint::{
+    abci::Code,
+    v0_38::abci::{
+        request,
+        response,
+        MempoolRequest,
+        MempoolResponse,
+    },
 };
 use tower::Service;
 use tower_abci::BoxError;
@@ -38,6 +42,7 @@ use tracing::{
 use crate::{
     accounts,
     address,
+    app::ActionHandler as _,
     mempool::{
         Mempool as AppMempool,
         RemovalReason,
@@ -123,15 +128,14 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
     let tx_len = tx.len();
 
     if tx_len > MAX_TX_SIZE {
-        mempool.remove(tx_hash).await;
         metrics.increment_check_tx_removed_too_large();
         return response::CheckTx {
-            code: AbciErrorCode::TRANSACTION_TOO_LARGE.into(),
+            code: Code::Err(AbciErrorCode::TRANSACTION_TOO_LARGE.value()),
             log: format!(
                 "transaction size too large; allowed: {MAX_TX_SIZE} bytes, got {}",
                 tx.len()
             ),
-            info: AbciErrorCode::TRANSACTION_TOO_LARGE.to_string(),
+            info: AbciErrorCode::TRANSACTION_TOO_LARGE.info(),
             ..response::CheckTx::default()
         };
     }
@@ -139,9 +143,8 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
     let raw_signed_tx = match raw::SignedTransaction::decode(tx) {
         Ok(tx) => tx,
         Err(e) => {
-            mempool.remove(tx_hash).await;
             return response::CheckTx {
-                code: AbciErrorCode::INVALID_PARAMETER.into(),
+                code: Code::Err(AbciErrorCode::INVALID_PARAMETER.value()),
                 log: e.to_string(),
                 info: "failed decoding bytes as a protobuf SignedTransaction".into(),
                 ..response::CheckTx::default()
@@ -151,9 +154,8 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
     let signed_tx = match SignedTransaction::try_from_raw(raw_signed_tx) {
         Ok(tx) => tx,
         Err(e) => {
-            mempool.remove(tx_hash).await;
             return response::CheckTx {
-                code: AbciErrorCode::INVALID_PARAMETER.into(),
+                code: Code::Err(AbciErrorCode::INVALID_PARAMETER.value()),
                 info: "the provided bytes was not a valid protobuf-encoded SignedTransaction, or \
                        the signature was invalid"
                     .into(),
@@ -168,11 +170,10 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
         finished_parsing.saturating_duration_since(start_parsing),
     );
 
-    if let Err(e) = transaction::check_stateless(&signed_tx).await {
-        mempool.remove(tx_hash).await;
+    if let Err(e) = signed_tx.check_stateless().await {
         metrics.increment_check_tx_removed_failed_stateless();
         return response::CheckTx {
-            code: AbciErrorCode::INVALID_PARAMETER.into(),
+            code: Code::Err(AbciErrorCode::INVALID_PARAMETER.value()),
             info: "transaction failed stateless check".into(),
             log: e.to_string(),
             ..response::CheckTx::default()
@@ -185,10 +186,9 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
     );
 
     if let Err(e) = transaction::check_nonce_mempool(&signed_tx, &state).await {
-        mempool.remove(tx_hash).await;
         metrics.increment_check_tx_removed_stale_nonce();
         return response::CheckTx {
-            code: AbciErrorCode::INVALID_NONCE.into(),
+            code: Code::Err(AbciErrorCode::INVALID_NONCE.value()),
             info: "failed verifying transaction nonce".into(),
             log: e.to_string(),
             ..response::CheckTx::default()
@@ -201,9 +201,8 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
     );
 
     if let Err(e) = transaction::check_chain_id_mempool(&signed_tx, &state).await {
-        mempool.remove(tx_hash).await;
         return response::CheckTx {
-            code: AbciErrorCode::INVALID_CHAIN_ID.into(),
+            code: Code::Err(AbciErrorCode::INVALID_CHAIN_ID.value()),
             info: "failed verifying chain id".into(),
             log: e.to_string(),
             ..response::CheckTx::default()
@@ -216,10 +215,15 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
     );
 
     if let Err(e) = transaction::check_balance_mempool(&signed_tx, &state).await {
-        mempool.remove(tx_hash).await;
+        mempool
+            .remove_tx_invalid(
+                Arc::new(signed_tx),
+                RemovalReason::FailedCheckTx(e.to_string()),
+            )
+            .await;
         metrics.increment_check_tx_removed_account_balance();
         return response::CheckTx {
-            code: AbciErrorCode::INSUFFICIENT_FUNDS.into(),
+            code: Code::Err(AbciErrorCode::INSUFFICIENT_FUNDS.value()),
             info: "failed verifying account balance".into(),
             log: e.to_string(),
             ..response::CheckTx::default()
@@ -232,13 +236,11 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
     );
 
     if let Some(removal_reason) = mempool.check_removed_comet_bft(tx_hash).await {
-        mempool.remove(tx_hash).await;
-
         match removal_reason {
             RemovalReason::Expired => {
                 metrics.increment_check_tx_removed_expired();
                 return response::CheckTx {
-                    code: AbciErrorCode::TRANSACTION_EXPIRED.into(),
+                    code: Code::Err(AbciErrorCode::TRANSACTION_EXPIRED.value()),
                     info: "transaction expired in app's mempool".into(),
                     log: "Transaction expired in the app's mempool".into(),
                     ..response::CheckTx::default()
@@ -247,9 +249,37 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
             RemovalReason::FailedPrepareProposal(err) => {
                 metrics.increment_check_tx_removed_failed_execution();
                 return response::CheckTx {
-                    code: AbciErrorCode::TRANSACTION_FAILED.into(),
+                    code: Code::Err(AbciErrorCode::TRANSACTION_FAILED.value()),
                     info: "transaction failed execution in prepare_proposal()".into(),
                     log: format!("transaction failed execution because: {err}"),
+                    ..response::CheckTx::default()
+                };
+            }
+            RemovalReason::NonceStale => {
+                return response::CheckTx {
+                    code: Code::Err(AbciErrorCode::INVALID_NONCE.value()),
+                    info: "transaction removed from app mempool due to stale nonce".into(),
+                    log: "Transaction from app mempool due to stale nonce".into(),
+                    ..response::CheckTx::default()
+                };
+            }
+            RemovalReason::LowerNonceInvalidated => {
+                return response::CheckTx {
+                    code: Code::Err(AbciErrorCode::LOWER_NONCE_INVALIDATED.value()),
+                    info: "transaction removed from app mempool due to lower nonce being \
+                           invalidated"
+                        .into(),
+                    log: "Transaction removed from app mempool due to lower nonce being \
+                          invalidated"
+                        .into(),
+                    ..response::CheckTx::default()
+                };
+            }
+            RemovalReason::FailedCheckTx(err) => {
+                return response::CheckTx {
+                    code: Code::Err(AbciErrorCode::TRANSACTION_FAILED.value()),
+                    info: "transaction failed check tx".into(),
+                    log: format!("transaction failed check tx because: {err}"),
                     ..response::CheckTx::default()
                 };
             }
@@ -270,8 +300,8 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
     {
         Err(err) => {
             return response::CheckTx {
-                code: AbciErrorCode::INTERNAL_ERROR.into(),
-                info: AbciErrorCode::INTERNAL_ERROR.to_string(),
+                code: Code::Err(AbciErrorCode::INTERNAL_ERROR.value()),
+                info: AbciErrorCode::INTERNAL_ERROR.info(),
                 log: format!("transaction failed execution because: {err:#?}"),
                 ..response::CheckTx::default()
             };
@@ -281,13 +311,18 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
 
     let actions_count = signed_tx.actions().len();
 
-    mempool
-        .insert(signed_tx, current_account_nonce)
+    if let Err(err) = mempool
+        .insert(Arc::new(signed_tx), current_account_nonce)
         .await
-        .expect(
-            "tx nonce is greater than or equal to current account nonce; this was checked in \
-             check_nonce_mempool",
-        );
+    {
+        return response::CheckTx {
+            code: Code::Err(AbciErrorCode::TRANSACTION_INSERTION_FAILED.value()),
+            info: "transaction insertion failed".into(),
+            log: format!("transaction insertion failed because: {err:#?}"),
+            ..response::CheckTx::default()
+        };
+    }
+
     let mempool_len = mempool.len().await;
 
     metrics

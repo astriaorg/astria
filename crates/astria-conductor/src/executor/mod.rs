@@ -686,7 +686,7 @@ struct ExecutableBlock {
     hash: [u8; 32],
     height: SequencerHeight,
     timestamp: pbjson_types::Timestamp,
-    transactions: Vec<Vec<u8>>,
+    transactions: Vec<Bytes>,
 }
 
 impl ExecutableBlock {
