@@ -17,7 +17,7 @@ on:
         value: ${{ github.event_name != 'pull_request' || jobs.changes.outputs.lint_workflow == 'true' || jobs.changes.outputs.proto == 'true' }}
       run_lint_rust:
         description: If lint for rust needs to be run, will be 'true'
-        value: ${{ github.event_name != 'pull_request' || jobs.changes.outputs.lint_workflow == 'true' || jobs.changes.outputs.rust == 'true' || jobs.changes.outputs.rustfmt == 'true' }}
+        value: ${{ github.event_name != 'pull_request' || jobs.changes.outputs.lint_workflow == 'true' || jobs.changes.outputs.rust == 'true' || jobs.changes.outputs.rustfmt == 'true' || jobs.changes.output.test_workflow == 'true' }}
       run_lint_toml:
         description: If lint for toml needs to be run, will be 'true'
         value: ${{ github.event_name != 'pull_request' || jobs.changes.outputs.lint_workflow == 'true' || jobs.changes.outputs.toml == 'true' }}
