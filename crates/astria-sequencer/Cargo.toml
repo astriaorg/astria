@@ -17,6 +17,8 @@ benchmark = ["divan"]
 [dependencies]
 astria-core = { path = "../astria-core", features = ["server", "serde"] }
 astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
+astria-eyre = { path = "../astria-eyre" }
+
 config = { package = "astria-config", path = "../astria-config" }
 merkle = { package = "astria-merkle", path = "../astria-merkle" }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry", features = [

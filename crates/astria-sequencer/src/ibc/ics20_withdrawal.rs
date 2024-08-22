@@ -1,9 +1,3 @@
-use anyhow::{
-    bail,
-    ensure,
-    Context as _,
-    Result,
-};
 use astria_core::{
     primitive::v1::{
         asset::Denom,
@@ -11,6 +5,13 @@ use astria_core::{
     },
     protocol::transaction::v1alpha1::action,
     Protobuf as _,
+};
+use astria_eyre::eyre::{
+    bail,
+    ensure,
+    OptionExt as _,
+    Result,
+    WrapErr as _,
 };
 use cnidarium::{
     StateRead,
@@ -42,6 +43,7 @@ use crate::{
     },
     state_ext::StateReadExt as _,
     transaction::StateReadExt as _,
+    utils::anyhow_to_eyre,
 };
 
 fn withdrawal_to_unchecked_ibc_packet(
@@ -77,7 +79,7 @@ async fn establish_withdrawal_target<S: StateRead>(
         && !state
             .is_a_bridge_account(from)
             .await
-            .context("failed to get bridge account rollup id")?
+            .wrap_err("failed to get bridge account rollup id")?
     {
         return Ok(from);
     }
@@ -89,7 +91,7 @@ async fn establish_withdrawal_target<S: StateRead>(
     let Some(withdrawer) = state
         .get_bridge_account_withdrawer_address(bridge_address)
         .await
-        .context("failed to get bridge withdrawer")?
+        .wrap_err("failed to get bridge withdrawer")?
     else {
         bail!("bridge address must have a withdrawer address set");
     };
@@ -122,49 +124,51 @@ impl ActionHandler for action::Ics20Withdrawal {
         state
             .ensure_base_prefix(&self.return_address)
             .await
-            .context("failed to verify that return address address has permitted base prefix")?;
+            .wrap_err("failed to verify that return address address has permitted base prefix")?;
 
         if let Some(bridge_address) = &self.bridge_address {
-            state.ensure_base_prefix(bridge_address).await.context(
+            state.ensure_base_prefix(bridge_address).await.wrap_err(
                 "failed to verify that bridge address address has permitted base prefix",
             )?;
         }
 
         let withdrawal_target = establish_withdrawal_target(self, &state, from)
             .await
-            .context("failed establishing which account to withdraw funds from")?;
+            .wrap_err("failed establishing which account to withdraw funds from")?;
 
         let fee = state
             .get_ics20_withdrawal_base_fee()
             .await
-            .context("failed to get ics20 withdrawal base fee")?;
+            .wrap_err("failed to get ics20 withdrawal base fee")?;
 
         let current_timestamp = state
             .get_block_timestamp()
             .await
-            .context("failed to get block timestamp")?;
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed to get block timestamp")?;
         let packet = {
             let packet = withdrawal_to_unchecked_ibc_packet(self);
             state
                 .send_packet_check(packet, current_timestamp)
                 .await
-                .context("packet failed send check")?
+                .map_err(anyhow_to_eyre)
+                .wrap_err("packet failed send check")?
         };
 
         state
             .get_and_increase_block_fees(self.fee_asset(), fee, Self::full_name())
             .await
-            .context("failed to get and increase block fees")?;
+            .wrap_err("failed to get and increase block fees")?;
 
         state
             .decrease_balance(withdrawal_target, self.denom(), self.amount())
             .await
-            .context("failed to decrease sender or bridge balance")?;
+            .wrap_err("failed to decrease sender or bridge balance")?;
 
         state
             .decrease_balance(from, self.fee_asset(), fee)
             .await
-            .context("failed to subtract fee from sender balance")?;
+            .wrap_err("failed to subtract fee from sender balance")?;
 
         // if we're the source, move tokens to the escrow account,
         // otherwise the tokens are just burned
@@ -172,7 +176,7 @@ impl ActionHandler for action::Ics20Withdrawal {
             let channel_balance = state
                 .get_ibc_channel_balance(self.source_channel(), self.denom())
                 .await
-                .context("failed to get channel balance")?;
+                .wrap_err("failed to get channel balance")?;
 
             state
                 .put_ibc_channel_balance(
@@ -180,9 +184,9 @@ impl ActionHandler for action::Ics20Withdrawal {
                     self.denom(),
                     channel_balance
                         .checked_add(self.amount())
-                        .context("overflow when adding to channel balance")?,
+                        .ok_or_eyre("overflow when adding to channel balance")?,
                 )
-                .context("failed to update channel balance")?;
+                .wrap_err("failed to update channel balance")?;
         }
 
         state.send_packet_execute(packet).await;
@@ -209,7 +213,7 @@ mod tests {
         address::StateWriteExt as _,
         bridge::StateWriteExt as _,
         test_utils::{
-            assert_anyhow_error,
+            assert_eyre_error,
             astria_address,
             ASTRIA_PREFIX,
         },
@@ -325,7 +329,7 @@ mod tests {
                 astria_address(&[2u8; 20]),
             );
 
-            assert_anyhow_error(
+            assert_eyre_error(
                 &establish_withdrawal_target(&action, &state, bridge_address())
                     .await
                     .unwrap_err(),
@@ -410,7 +414,7 @@ mod tests {
             memo: String::new(),
         };
 
-        assert_anyhow_error(
+        assert_eyre_error(
             &establish_withdrawal_target(&action, &state, not_bridge_address)
                 .await
                 .unwrap_err(),

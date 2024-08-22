@@ -1,6 +1,6 @@
-use anyhow::{
+use anyhow::Context;
+use astria_eyre::eyre::{
     bail,
-    Context as _,
     Result,
 };
 use async_trait::async_trait;
@@ -11,6 +11,8 @@ use cnidarium::{
 use tendermint::Time;
 use tracing::instrument;
 
+use crate::utils::anyhow_to_eyre;
+
 const REVISION_NUMBER_KEY: &str = "revision_number";
 
 fn storage_version_by_height_key(height: u64) -> Vec<u8> {
@@ -20,13 +22,13 @@ fn storage_version_by_height_key(height: u64) -> Vec<u8> {
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
-    async fn get_chain_id(&self) -> Result<tendermint::chain::Id> {
+    async fn get_chain_id(&self) -> anyhow::Result<tendermint::chain::Id> {
         let Some(bytes) = self
             .get_raw("chain_id")
             .await
             .context("failed to read raw chain_id from state")?
         else {
-            bail!("chain id not found in state");
+            anyhow::bail!("chain id not found in state");
         };
 
         Ok(String::from_utf8(bytes)
@@ -36,13 +38,13 @@ pub(crate) trait StateReadExt: StateRead {
     }
 
     #[instrument(skip_all)]
-    async fn get_revision_number(&self) -> Result<u64> {
+    async fn get_revision_number(&self) -> anyhow::Result<u64> {
         let Some(bytes) = self
             .get_raw(REVISION_NUMBER_KEY)
             .await
             .context("failed to read raw revision number from state")?
         else {
-            bail!("revision number not found in state");
+            anyhow::bail!("revision number not found in state");
         };
 
         let bytes = TryInto::<[u8; 8]>::try_into(bytes).map_err(|b| {
@@ -56,28 +58,28 @@ pub(crate) trait StateReadExt: StateRead {
     }
 
     #[instrument(skip_all)]
-    async fn get_block_height(&self) -> Result<u64> {
+    async fn get_block_height(&self) -> anyhow::Result<u64> {
         let Some(bytes) = self
             .get_raw("block_height")
             .await
             .context("failed to read raw block_height from state")?
         else {
-            bail!("block height not found state");
+            anyhow::bail!("block height not found state");
         };
         let Ok(bytes): Result<[u8; 8], _> = bytes.try_into() else {
-            bail!("failed turning raw block height bytes into u64; not 8 bytes?");
+            anyhow::bail!("failed turning raw block height bytes into u64; not 8 bytes?");
         };
         Ok(u64::from_be_bytes(bytes))
     }
 
     #[instrument(skip_all)]
-    async fn get_block_timestamp(&self) -> Result<Time> {
+    async fn get_block_timestamp(&self) -> anyhow::Result<Time> {
         let Some(bytes) = self
             .get_raw("block_timestamp")
             .await
             .context("failed to read raw block_timestamp from state")?
         else {
-            bail!("block timestamp not found");
+            anyhow::bail!("block timestamp not found");
         };
         // no extra allocations in the happy path (meaning the bytes are utf8)
         Time::parse_from_rfc3339(&String::from_utf8_lossy(&bytes))
@@ -86,11 +88,14 @@ pub(crate) trait StateReadExt: StateRead {
 
     #[instrument(skip_all)]
     async fn get_storage_version_by_height(&self, height: u64) -> Result<u64> {
+        use astria_eyre::eyre::WrapErr as _;
+
         let key = storage_version_by_height_key(height);
         let Some(bytes) = self
             .nonverifiable_get_raw(&key)
             .await
-            .context("failed to read raw storage_version from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed to read raw storage_version from state")?
         else {
             bail!("storage version not found");
         };
@@ -348,7 +353,7 @@ mod tests {
 
         // doesn't exist at first
         let block_height_orig = 0;
-        state
+        let _ = state
             .get_storage_version_by_height(block_height_orig)
             .await
             .expect_err("no block height should exist at first");

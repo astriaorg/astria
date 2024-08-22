@@ -4,11 +4,14 @@ mod state_ext;
 
 use std::collections::BTreeMap;
 
-use anyhow::Context as _;
 use astria_core::{
     crypto::VerificationKey,
     primitive::v1::ADDRESS_LEN,
     protocol::transaction::v1alpha1::action::ValidatorUpdate,
+};
+use astria_eyre::eyre::{
+    Result,
+    WrapErr as _,
 };
 use serde::{
     Deserialize,
@@ -79,11 +82,11 @@ impl ValidatorSet {
         }
     }
 
-    pub(crate) fn try_into_cometbft(self) -> anyhow::Result<Vec<tendermint::validator::Update>> {
+    pub(crate) fn try_into_cometbft(self) -> Result<Vec<tendermint::validator::Update>> {
         self.0
             .into_values()
             .map(crate::utils::sequencer_to_cometbft_validator)
             .collect::<Result<Vec<_>, _>>()
-            .context("failed to map one or more astria validators to cometbft validators")
+            .wrap_err("failed to map one or more astria validators to cometbft validators")
     }
 }

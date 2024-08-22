@@ -3,11 +3,6 @@ use std::collections::{
     HashSet,
 };
 
-use anyhow::{
-    anyhow,
-    Context,
-    Result,
-};
 use astria_core::{
     generated::sequencerblock::v1alpha1::Deposit as RawDeposit,
     primitive::v1::{
@@ -17,6 +12,12 @@ use astria_core::{
         ADDRESS_LEN,
     },
     sequencerblock::v1alpha1::block::Deposit,
+};
+use astria_eyre::eyre::{
+    format_err,
+    OptionExt as _,
+    Result,
+    WrapErr as _,
 };
 use async_trait::async_trait;
 use borsh::{
@@ -38,6 +39,7 @@ use tracing::{
 use crate::{
     accounts::AddressBytes,
     address,
+    utils::anyhow_to_eyre,
 };
 
 /// Newtype wrapper to read and write a u128 from rocksdb.
@@ -150,7 +152,7 @@ fn last_transaction_hash_for_bridge_account_storage_key<T: AddressBytes>(address
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
     #[instrument(skip_all)]
-    async fn is_a_bridge_account<T: AddressBytes>(&self, address: T) -> anyhow::Result<bool> {
+    async fn is_a_bridge_account<T: AddressBytes>(&self, address: T) -> Result<bool> {
         let maybe_id = self.get_bridge_account_rollup_id(address).await?;
         Ok(maybe_id.is_some())
     }
@@ -163,14 +165,15 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
         let Some(rollup_id_bytes) = self
             .get_raw(&rollup_id_storage_key(&address))
             .await
-            .context("failed reading raw account rollup ID from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading raw account rollup ID from state")?
         else {
             debug!("account rollup ID not found, returning None");
             return Ok(None);
         };
 
         let rollup_id =
-            RollupId::try_from_slice(&rollup_id_bytes).context("invalid rollup ID bytes")?;
+            RollupId::try_from_slice(&rollup_id_bytes).wrap_err("invalid rollup ID bytes")?;
         Ok(Some(rollup_id))
     }
 
@@ -182,10 +185,11 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
         let bytes = self
             .get_raw(&asset_id_storage_key(&address))
             .await
-            .context("failed reading raw asset ID from state")?
-            .ok_or_else(|| anyhow!("asset ID not found"))?;
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading raw asset ID from state")?
+            .ok_or_eyre("asset ID not found")?;
         let id = borsh::from_slice::<AssetId>(&bytes)
-            .context("failed to reconstruct asset ID from storage")?;
+            .wrap_err("failed to reconstruct asset ID from storage")?;
         Ok(asset::IbcPrefixed::new(id.0))
     }
 
@@ -197,13 +201,14 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
         let Some(sudo_address_bytes) = self
             .get_raw(&bridge_account_sudo_address_storage_key(&bridge_address))
             .await
-            .context("failed reading raw bridge account sudo address from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading raw bridge account sudo address from state")?
         else {
             debug!("bridge account sudo address not found, returning None");
             return Ok(None);
         };
         let sudo_address = sudo_address_bytes.try_into().map_err(|bytes: Vec<_>| {
-            anyhow::format_err!(
+            format_err!(
                 "failed to convert address `{}` bytes read from state to fixed length address",
                 bytes.len()
             )
@@ -221,7 +226,8 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
                 &bridge_address,
             ))
             .await
-            .context("failed reading raw bridge account withdrawer address from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading raw bridge account withdrawer address from state")?
         else {
             debug!("bridge account withdrawer address not found, returning None");
             return Ok(None);
@@ -229,7 +235,7 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
         let addr = withdrawer_address_bytes
             .try_into()
             .map_err(|bytes: Vec<_>| {
-                anyhow::Error::msg(format!(
+                astria_eyre::eyre::Error::msg(format!(
                     "failed converting `{}` bytes retrieved from storage to fixed address length",
                     bytes.len()
                 ))
@@ -242,7 +248,8 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
         let bytes = self
             .nonverifiable_get_raw(&deposit_nonce_storage_key(rollup_id))
             .await
-            .context("failed reading raw deposit nonce from state")?;
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading raw deposit nonce from state")?;
         let Some(bytes) = bytes else {
             // no deposits for this rollup id yet; return 0
             return Ok(0);
@@ -262,15 +269,15 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
         while let Some(Ok((key, _))) = stream.next().await {
             // the deposit key is of the form "deposit/{rollup_id}/{nonce}"
             let key_str =
-                String::from_utf8(key).context("failed to convert deposit key to string")?;
+                String::from_utf8(key).wrap_err("failed to convert deposit key to string")?;
             let key_parts = key_str.split('/').collect::<Vec<_>>();
             if key_parts.len() != 3 {
                 continue;
             }
             let rollup_id_bytes =
-                hex::decode(key_parts[1]).context("invalid rollup ID hex string")?;
+                hex::decode(key_parts[1]).wrap_err("invalid rollup ID hex string")?;
             let rollup_id =
-                RollupId::try_from_slice(&rollup_id_bytes).context("invalid rollup ID bytes")?;
+                RollupId::try_from_slice(&rollup_id_bytes).wrap_err("invalid rollup ID bytes")?;
             rollup_ids.insert(rollup_id);
         }
         Ok(rollup_ids)
@@ -283,8 +290,8 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
         );
         let mut deposits = Vec::new();
         while let Some(Ok((_, value))) = stream.next().await {
-            let raw = RawDeposit::decode(value.as_ref()).context("invalid deposit bytes")?;
-            let deposit = Deposit::try_from_raw(raw).context("invalid deposit raw proto")?;
+            let raw = RawDeposit::decode(value.as_ref()).wrap_err("invalid deposit bytes")?;
+            let deposit = Deposit::try_from_raw(raw).wrap_err("invalid deposit raw proto")?;
             deposits.push(deposit);
         }
         Ok(deposits)
@@ -295,13 +302,13 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
         let deposit_rollup_ids = self
             .get_deposit_rollup_ids()
             .await
-            .context("failed to get deposit rollup IDs")?;
+            .wrap_err("failed to get deposit rollup IDs")?;
         let mut deposit_events = HashMap::new();
         for rollup_id in deposit_rollup_ids {
             let rollup_deposit_events = self
                 .get_deposit_events(&rollup_id)
                 .await
-                .context("failed to get deposit events")?;
+                .wrap_err("failed to get deposit events")?;
             deposit_events.insert(rollup_id, rollup_deposit_events);
         }
         Ok(deposit_events)
@@ -312,9 +319,10 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
         let bytes = self
             .get_raw(INIT_BRIDGE_ACCOUNT_BASE_FEE_STORAGE_KEY)
             .await
-            .context("failed reading raw init bridge account base fee from state")?
-            .ok_or_else(|| anyhow!("init bridge account base fee not found"))?;
-        let Fee(fee) = Fee::try_from_slice(&bytes).context("invalid fee bytes")?;
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading raw init bridge account base fee from state")?
+            .ok_or_eyre("init bridge account base fee not found")?;
+        let Fee(fee) = Fee::try_from_slice(&bytes).wrap_err("invalid fee bytes")?;
         Ok(fee)
     }
 
@@ -323,9 +331,10 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
         let bytes = self
             .get_raw(BRIDGE_LOCK_BYTE_COST_MULTIPLIER_STORAGE_KEY)
             .await
-            .context("failed reading raw bridge lock byte cost multiplier from state")?
-            .ok_or_else(|| anyhow!("bridge lock byte cost multiplier not found"))?;
-        let Fee(fee) = Fee::try_from_slice(&bytes).context("invalid fee bytes")?;
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading raw bridge lock byte cost multiplier from state")?
+            .ok_or_eyre("bridge lock byte cost multiplier not found")?;
+        let Fee(fee) = Fee::try_from_slice(&bytes).wrap_err("invalid fee bytes")?;
         Ok(fee)
     }
 
@@ -334,9 +343,10 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
         let bytes = self
             .get_raw(BRIDGE_SUDO_CHANGE_FEE_STORAGE_KEY)
             .await
-            .context("failed reading raw bridge sudo change fee from state")?
-            .ok_or_else(|| anyhow!("bridge sudo change fee not found"))?;
-        let Fee(fee) = Fee::try_from_slice(&bytes).context("invalid fee bytes")?;
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading raw bridge sudo change fee from state")?
+            .ok_or_eyre("bridge sudo change fee not found")?;
+        let Fee(fee) = Fee::try_from_slice(&bytes).wrap_err("invalid fee bytes")?;
         Ok(fee)
     }
 
@@ -350,7 +360,8 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
                 address,
             ))
             .await
-            .context("failed reading raw last transaction hash for bridge account from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading raw last transaction hash for bridge account from state")?
         else {
             return Ok(None);
         };
@@ -384,7 +395,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let ibc = asset.into();
         self.put_raw(
             asset_id_storage_key(&address),
-            borsh::to_vec(&AssetId(ibc.get())).context("failed to serialize asset IDs")?,
+            borsh::to_vec(&AssetId(ibc.get())).wrap_err("failed to serialize asset IDs")?,
         );
         Ok(())
     }
@@ -435,7 +446,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let nonce = self.get_deposit_nonce(deposit.rollup_id()).await?;
         self.put_deposit_nonce(
             deposit.rollup_id(),
-            nonce.checked_add(1).context("nonce overflowed")?,
+            nonce.checked_add(1).ok_or_eyre("nonce overflowed")?,
         );
 
         let key = deposit_storage_key(deposit.rollup_id(), nonce);
@@ -460,7 +471,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let deposit_rollup_ids = self
             .get_deposit_rollup_ids()
             .await
-            .context("failed to get deposit rollup ids")?;
+            .wrap_err("failed to get deposit rollup ids")?;
         for rollup_id in deposit_rollup_ids {
             self.clear_deposit_info(&rollup_id).await;
         }
@@ -621,7 +632,7 @@ mod test {
         let state = StateDelta::new(snapshot);
 
         let address = astria_address(&[42u8; 20]);
-        state
+        let _ = state
             .get_bridge_account_ibc_asset(address)
             .await
             .expect_err("call to get bridge account asset ids should fail if no assets");

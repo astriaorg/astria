@@ -13,6 +13,7 @@ use std::{
 };
 
 use astria_core::protocol::transaction::v1alpha1::SignedTransaction;
+use astria_eyre::eyre::Result;
 use tokio::{
     join,
     sync::{
@@ -160,7 +161,7 @@ impl Mempool {
         &self,
         tx: Arc<SignedTransaction>,
         current_account_nonce: u32,
-    ) -> anyhow::Result<(), InsertionError> {
+    ) -> Result<(), InsertionError> {
         let timemarked_tx = TimemarkedTransaction::new(tx);
 
         let (mut pending, mut parked) = self.acquire_both_locks().await;
@@ -209,10 +210,10 @@ impl Mempool {
     pub(crate) async fn builder_queue<F, O>(
         &self,
         current_account_nonce_getter: F,
-    ) -> anyhow::Result<Vec<([u8; 32], Arc<SignedTransaction>)>>
+    ) -> Result<Vec<([u8; 32], Arc<SignedTransaction>)>>
     where
         F: Fn([u8; 20]) -> O,
-        O: Future<Output = anyhow::Result<u32>>,
+        O: Future<Output = Result<u32>>,
     {
         self.pending
             .read()
@@ -276,7 +277,7 @@ impl Mempool {
     pub(crate) async fn run_maintenance<F, O>(&self, current_account_nonce_getter: F)
     where
         F: Fn([u8; 20]) -> O,
-        O: Future<Output = anyhow::Result<u32>>,
+        O: Future<Output = Result<u32>>,
     {
         let (mut pending, mut parked) = self.acquire_both_locks().await;
 
@@ -328,6 +329,7 @@ impl Mempool {
 #[cfg(test)]
 mod test {
     use astria_core::crypto::SigningKey;
+    use astria_eyre::eyre::eyre;
 
     use super::*;
     use crate::app::test_utils::mock_tx;
@@ -420,7 +422,7 @@ mod test {
             if address == signing_address {
                 return Ok(1);
             }
-            Err(anyhow::anyhow!("invalid address"))
+            Err(eyre!("invalid address"))
         };
 
         // grab building queue, should return transactions [1,2] since [0] was below and [4] is
@@ -443,7 +445,7 @@ mod test {
             if address == signing_address {
                 return Ok(4);
             }
-            Err(anyhow::anyhow!("invalid address"))
+            Err(eyre!("invalid address"))
         };
         mempool.run_maintenance(current_account_nonce_getter).await;
 

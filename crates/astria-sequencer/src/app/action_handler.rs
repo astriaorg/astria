@@ -19,7 +19,8 @@ pub(crate) trait ActionHandler {
     // }
     // ```
 
-    async fn check_stateless(&self) -> anyhow::Result<()>;
+    async fn check_stateless(&self) -> astria_eyre::eyre::Result<()>;
 
-    async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> anyhow::Result<()>;
+    async fn check_and_execute<S: StateWrite>(&self, mut state: S)
+    -> astria_eyre::eyre::Result<()>;
 }

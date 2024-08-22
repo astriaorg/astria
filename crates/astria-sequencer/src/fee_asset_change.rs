@@ -1,10 +1,10 @@
-use anyhow::{
+use astria_core::protocol::transaction::v1alpha1::action::FeeAssetChangeAction;
+use astria_eyre::eyre::{
     bail,
     ensure,
-    Context as _,
     Result,
+    WrapErr as _,
 };
-use astria_core::protocol::transaction::v1alpha1::action::FeeAssetChangeAction;
 use async_trait::async_trait;
 use cnidarium::StateWrite;
 
@@ -32,7 +32,7 @@ impl ActionHandler for FeeAssetChangeAction {
         let authority_sudo_address = state
             .get_sudo_address()
             .await
-            .context("failed to get authority sudo address")?;
+            .wrap_err("failed to get authority sudo address")?;
         ensure!(
             authority_sudo_address == from,
             "unauthorized address for fee asset change"
@@ -47,7 +47,7 @@ impl ActionHandler for FeeAssetChangeAction {
                 if state
                     .get_allowed_fee_assets()
                     .await
-                    .context("failed to retrieve allowed fee assets")?
+                    .wrap_err("failed to retrieve allowed fee assets")?
                     .is_empty()
                 {
                     bail!("cannot remove last allowed fee asset");

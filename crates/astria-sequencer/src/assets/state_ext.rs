@@ -1,9 +1,10 @@
-use anyhow::{
-    bail,
-    Context as _,
-    Result,
-};
 use astria_core::primitive::v1::asset;
+use astria_eyre::eyre::{
+    bail,
+    OptionExt as _,
+    Result,
+    WrapErr as _,
+};
 use async_trait::async_trait;
 use borsh::{
     BorshDeserialize,
@@ -19,6 +20,8 @@ use tendermint::abci::{
     EventAttributeIndexExt as _,
 };
 use tracing::instrument;
+
+use crate::utils::anyhow_to_eyre;
 
 /// Newtype wrapper to read and write a denomination trace from rocksdb.
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
@@ -69,15 +72,16 @@ pub(crate) trait StateReadExt: StateRead {
         let Some(bytes) = self
             .nonverifiable_get_raw(NATIVE_ASSET_KEY)
             .await
-            .context("failed to read raw native asset from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed to read raw native asset from state")?
         else {
             bail!("native asset denom not found in state");
         };
 
         let asset = std::str::from_utf8(&bytes)
-            .context("bytes stored in state not utf8 encoded")?
+            .wrap_err("bytes stored in state not utf8 encoded")?
             .parse::<asset::TracePrefixed>()
-            .context("failed to parse bytes retrieved from state as trace prefixed IBC asset")?;
+            .wrap_err("failed to parse bytes retrieved from state as trace prefixed IBC asset")?;
         Ok(asset)
     }
 
@@ -89,7 +93,8 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(self
             .get_raw(&asset_storage_key(asset))
             .await
-            .context("failed reading raw asset from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading raw asset from state")?
             .is_some())
     }
 
@@ -101,16 +106,17 @@ pub(crate) trait StateReadExt: StateRead {
         let Some(bytes) = self
             .get_raw(&asset_storage_key(asset))
             .await
-            .context("failed reading raw asset from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading raw asset from state")?
         else {
             return Ok(None);
         };
 
         let DenominationTrace(denom_str) =
-            DenominationTrace::try_from_slice(&bytes).context("invalid asset bytes")?;
+            DenominationTrace::try_from_slice(&bytes).wrap_err("invalid asset bytes")?;
         let denom = denom_str
             .parse()
-            .context("failed to parse retrieved denom string as a Denom")?;
+            .wrap_err("failed to parse retrieved denom string as a Denom")?;
         Ok(Some(denom))
     }
 
@@ -127,9 +133,9 @@ pub(crate) trait StateReadExt: StateRead {
                 .strip_prefix(BLOCK_FEES_PREFIX.as_bytes())
                 .expect("prefix must always be present");
             let asset = std::str::from_utf8(suffix)
-                .context("key suffix was not utf8 encoded; this should not happen")?
+                .wrap_err("key suffix was not utf8 encoded; this should not happen")?
                 .parse::<crate::storage_keys::hunks::Asset>()
-                .context("failed to parse storage key suffix as address hunk")?
+                .wrap_err("failed to parse storage key suffix as address hunk")?
                 .get();
 
             let Ok(bytes): Result<[u8; 16], _> = value.try_into() else {
@@ -150,7 +156,8 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(self
             .nonverifiable_get_raw(fee_asset_key(asset).as_bytes())
             .await
-            .context("failed to read raw fee asset from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed to read raw fee asset from state")?
             .is_some())
     }
 
@@ -166,9 +173,9 @@ pub(crate) trait StateReadExt: StateRead {
                 .strip_prefix(FEE_ASSET_PREFIX.as_bytes())
                 .expect("prefix must always be present");
             let asset = std::str::from_utf8(suffix)
-                .context("key suffix was not utf8 encoded; this should not happen")?
+                .wrap_err("key suffix was not utf8 encoded; this should not happen")?
                 .parse::<crate::storage_keys::hunks::Asset>()
-                .context("failed to parse storage key suffix as address hunk")?
+                .wrap_err("failed to parse storage key suffix as address hunk")?
                 .get();
             assets.push(asset);
         }
@@ -189,7 +196,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip_all)]
     fn put_ibc_asset(&mut self, asset: &asset::TracePrefixed) -> Result<()> {
         let bytes = borsh::to_vec(&DenominationTrace(asset.to_string()))
-            .context("failed to serialize asset")?;
+            .wrap_err("failed to serialize asset")?;
         self.put_raw(asset_storage_key(asset), bytes);
         Ok(())
     }
@@ -211,7 +218,8 @@ pub(crate) trait StateWriteExt: StateWrite {
         let current_amount = self
             .nonverifiable_get_raw(block_fees_key.as_bytes())
             .await
-            .context("failed to read raw block fees from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed to read raw block fees from state")?
             .map(|bytes| {
                 let Ok(bytes): Result<[u8; 16], _> = bytes.try_into() else {
                     // this shouldn't happen
@@ -224,7 +232,7 @@ pub(crate) trait StateWriteExt: StateWrite {
 
         let new_amount = current_amount
             .checked_add(amount)
-            .context("block fees overflowed u128")?;
+            .ok_or_eyre("block fees overflowed u128")?;
 
         self.nonverifiable_put_raw(block_fees_key.into(), new_amount.to_be_bytes().to_vec());
 
@@ -297,7 +305,7 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         // doesn't exist at first
-        state
+        let _ = state
             .get_native_asset()
             .await
             .expect_err("no native asset denom should exist at first");

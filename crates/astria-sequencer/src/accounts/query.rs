@@ -1,7 +1,11 @@
-use anyhow::Context as _;
 use astria_core::{
     primitive::v1::Address,
     protocol::abci::AbciErrorCode,
+};
+use astria_eyre::eyre::{
+    OptionExt as _,
+    Result,
+    WrapErr as _,
 };
 use cnidarium::{
     Snapshot,
@@ -20,6 +24,7 @@ use tendermint::{
 use crate::{
     accounts::state_ext::StateReadExt as _,
     state_ext::StateReadExt as _,
+    utils::anyhow_to_eyre,
 };
 
 pub(crate) async fn balance_request(
@@ -99,10 +104,7 @@ pub(crate) async fn nonce_request(
     }
 }
 
-async fn get_snapshot_and_height(
-    storage: &Storage,
-    height: Height,
-) -> anyhow::Result<(Snapshot, Height)> {
+async fn get_snapshot_and_height(storage: &Storage, height: Height) -> Result<(Snapshot, Height)> {
     let snapshot = match height.value() {
         0 => storage.latest_snapshot(),
         other => {
@@ -110,18 +112,19 @@ async fn get_snapshot_and_height(
                 .latest_snapshot()
                 .get_storage_version_by_height(other)
                 .await
-                .context("failed to get storage version from height")?;
+                .wrap_err("failed to get storage version from height")?;
             storage
                 .snapshot(version)
-                .context("failed to get storage at version")?
+                .ok_or_eyre("failed to get storage at version")?
         }
     };
     let height: Height = snapshot
         .get_block_height()
         .await
-        .context("failed to get block height from snapshot")?
+        .map_err(anyhow_to_eyre)
+        .wrap_err("failed to get block height from snapshot")?
         .try_into()
-        .context("internal u64 block height does not fit into tendermint i64 `Height`")?;
+        .wrap_err("internal u64 block height does not fit into tendermint i64 `Height`")?;
     Ok((snapshot, height))
 }
 
@@ -129,7 +132,7 @@ async fn preprocess_request(
     storage: &Storage,
     request: &request::Query,
     params: &[(String, String)],
-) -> anyhow::Result<(Address, Snapshot, Height), response::Query> {
+) -> Result<(Address, Snapshot, Height), response::Query> {
     let Some(address) = params
         .iter()
         .find_map(|(k, v)| (k == "account").then_some(v))
@@ -143,7 +146,7 @@ async fn preprocess_request(
     };
     let address = address
         .parse()
-        .context("failed to parse argument as address")
+        .wrap_err("failed to parse argument as address")
         .map_err(|err| response::Query {
             code: Code::Err(AbciErrorCode::INVALID_PARAMETER.value()),
             info: AbciErrorCode::INVALID_PARAMETER.info(),

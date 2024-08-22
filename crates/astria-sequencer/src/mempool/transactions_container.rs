@@ -11,8 +11,12 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::Context;
 use astria_core::protocol::transaction::v1alpha1::SignedTransaction;
+use astria_eyre::eyre::{
+    eyre,
+    Result,
+    WrapErr as _,
+};
 use tokio::time::{
     Duration,
     Instant,
@@ -45,9 +49,9 @@ impl TimemarkedTransaction {
         }
     }
 
-    fn priority(&self, current_account_nonce: u32) -> anyhow::Result<TransactionPriority> {
+    fn priority(&self, current_account_nonce: u32) -> Result<TransactionPriority> {
         let Some(nonce_diff) = self.signed_tx.nonce().checked_sub(current_account_nonce) else {
-            return Err(anyhow::anyhow!(
+            return Err(eyre!(
                 "transaction nonce {} is less than current account nonce {current_account_nonce}",
                 self.signed_tx.nonce()
             ));
@@ -443,7 +447,7 @@ impl<T: TransactionsForAccount> TransactionsContainer<T> {
     ) -> Vec<([u8; 32], RemovalReason)>
     where
         F: Fn([u8; 20]) -> O,
-        O: Future<Output = anyhow::Result<u32>>,
+        O: Future<Output = Result<u32>>,
     {
         // currently just removes stale nonces and will clear accounts if the
         // transactions are older than the TTL
@@ -526,10 +530,10 @@ impl TransactionsContainer<PendingTransactionsForAccount> {
     pub(super) async fn builder_queue<F, O>(
         &self,
         current_account_nonce_getter: F,
-    ) -> anyhow::Result<Vec<([u8; 32], Arc<SignedTransaction>)>>
+    ) -> Result<Vec<([u8; 32], Arc<SignedTransaction>)>>
     where
         F: Fn([u8; 20]) -> O,
-        O: Future<Output = anyhow::Result<u32>>,
+        O: Future<Output = Result<u32>>,
     {
         // Used to hold the values in Vec for sorting.
         struct QueueEntry {
@@ -543,7 +547,7 @@ impl TransactionsContainer<PendingTransactionsForAccount> {
         for (address, account_txs) in &self.txs {
             let current_account_nonce = current_account_nonce_getter(*address)
                 .await
-                .context("failed to fetch account nonce for builder queue")?;
+                .wrap_err("failed to fetch account nonce for builder queue")?;
             for ttx in account_txs.txs.values() {
                 let priority = match ttx.priority(current_account_nonce) {
                     Ok(priority) => priority,
@@ -607,7 +611,7 @@ impl<const MAX_TX_COUNT: usize> TransactionsContainer<ParkedTransactionsForAccou
     ) -> Vec<(TimemarkedTransaction, u32)>
     where
         F: Fn([u8; 20]) -> O,
-        O: Future<Output = anyhow::Result<u32>>,
+        O: Future<Output = Result<u32>>,
     {
         let mut accounts_to_remove = Vec::new();
         let mut promoted_txs = Vec::new();
@@ -1281,7 +1285,7 @@ mod test {
             } else if address == signing_address_2 {
                 Ok(4)
             } else {
-                Err(anyhow::anyhow!("invalid address"))
+                Err(eyre!("invalid address"))
             }
         };
 
@@ -1350,7 +1354,7 @@ mod test {
             if address == signing_address_0 || address == signing_address_1 {
                 return Ok(0);
             }
-            Err(anyhow::anyhow!("invalid address"))
+            Err(eyre!("invalid address"))
         };
 
         let removed_txs = pending_txs
@@ -1444,7 +1448,7 @@ mod test {
             } else if address == signing_address_1 {
                 Ok(2)
             } else {
-                Err(anyhow::anyhow!("invalid address"))
+                Err(eyre!("invalid address"))
             }
         };
 
@@ -1562,7 +1566,7 @@ mod test {
             if address == signing_address_0 || address == signing_address_1 {
                 return Ok(1);
             }
-            Err(anyhow::anyhow!("invalid address"))
+            Err(eyre!("invalid address"))
         };
 
         assert_eq!(

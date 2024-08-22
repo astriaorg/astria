@@ -1,14 +1,14 @@
-use anyhow::{
-    bail,
-    ensure,
-    Context as _,
-    Result,
-};
 use astria_core::protocol::transaction::v1alpha1::action::{
     FeeChange,
     FeeChangeAction,
     SudoAddressChangeAction,
     ValidatorUpdate,
+};
+use astria_eyre::eyre::{
+    bail,
+    ensure,
+    Result,
+    WrapErr as _,
 };
 use cnidarium::StateWrite;
 
@@ -41,7 +41,7 @@ impl ActionHandler for ValidatorUpdate {
         let sudo_address = state
             .get_sudo_address()
             .await
-            .context("failed to get sudo address from state")?;
+            .wrap_err("failed to get sudo address from state")?;
         ensure!(sudo_address == from, "signer is not the sudo key");
 
         // ensure that we're not removing the last validator or a validator
@@ -50,7 +50,7 @@ impl ActionHandler for ValidatorUpdate {
             let validator_set = state
                 .get_validator_set()
                 .await
-                .context("failed to get validator set from state")?;
+                .wrap_err("failed to get validator set from state")?;
             // check that validator exists
             if validator_set
                 .get(self.verification_key.address_bytes())
@@ -66,11 +66,11 @@ impl ActionHandler for ValidatorUpdate {
         let mut validator_updates = state
             .get_validator_updates()
             .await
-            .context("failed getting validator updates from state")?;
+            .wrap_err("failed getting validator updates from state")?;
         validator_updates.push_update(self.clone());
         state
             .put_validator_updates(validator_updates)
-            .context("failed to put validator updates in state")?;
+            .wrap_err("failed to put validator updates in state")?;
         Ok(())
     }
 }
@@ -91,16 +91,16 @@ impl ActionHandler for SudoAddressChangeAction {
         state
             .ensure_base_prefix(&self.new_address)
             .await
-            .context("desired new sudo address has an unsupported prefix")?;
+            .wrap_err("desired new sudo address has an unsupported prefix")?;
         // ensure signer is the valid `sudo` key in state
         let sudo_address = state
             .get_sudo_address()
             .await
-            .context("failed to get sudo address from state")?;
+            .wrap_err("failed to get sudo address from state")?;
         ensure!(sudo_address == from, "signer is not the sudo key");
         state
             .put_sudo_address(self.new_address)
-            .context("failed to put sudo address in state")?;
+            .wrap_err("failed to put sudo address in state")?;
         Ok(())
     }
 }
@@ -122,14 +122,14 @@ impl ActionHandler for FeeChangeAction {
         let sudo_address = state
             .get_sudo_address()
             .await
-            .context("failed to get sudo address from state")?;
+            .wrap_err("failed to get sudo address from state")?;
         ensure!(sudo_address == from, "signer is not the sudo key");
 
         match self.fee_change {
             FeeChange::TransferBaseFee => {
                 state
                     .put_transfer_base_fee(self.new_value)
-                    .context("failed to put transfer base fee in state")?;
+                    .wrap_err("failed to put transfer base fee in state")?;
             }
             FeeChange::SequenceBaseFee => state.put_sequence_action_base_fee(self.new_value),
             FeeChange::SequenceByteCostMultiplier => {
@@ -147,7 +147,7 @@ impl ActionHandler for FeeChangeAction {
             FeeChange::Ics20WithdrawalBaseFee => {
                 state
                     .put_ics20_withdrawal_base_fee(self.new_value)
-                    .context("failed to put ics20 withdrawal base fee in state")?;
+                    .wrap_err("failed to put ics20 withdrawal base fee in state")?;
             }
         }
 

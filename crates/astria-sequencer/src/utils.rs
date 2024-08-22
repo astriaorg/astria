@@ -1,8 +1,12 @@
-use anyhow::Context as _;
 use astria_core::{
     generated::astria_vendored::tendermint::abci as raw,
     protocol::transaction::v1alpha1::action::ValidatorUpdate,
     Protobuf as _,
+};
+use astria_eyre::eyre::{
+    eyre,
+    Result,
+    WrapErr as _,
 };
 
 pub(crate) struct Hex<'a>(pub(crate) &'a [u8]);
@@ -16,9 +20,29 @@ impl<'a> std::fmt::Display for Hex<'a> {
     }
 }
 
+pub(crate) fn anyhow_to_eyre(anyhow_error: anyhow::Error) -> astria_eyre::eyre::Report {
+    let anyhow_result = Err::<(), _>(anyhow_error);
+    let boxed: Result<(), Box<dyn std::error::Error + Send + Sync>> =
+        anyhow_result.map_err(std::convert::Into::into);
+    let Err(err) = boxed else {
+        panic!("anyhow_to_eyre called on `Ok`")
+    };
+    eyre!(err)
+}
+
+pub(crate) fn eyre_to_anyhow(eyre_error: astria_eyre::eyre::Report) -> anyhow::Error {
+    let eyre_result = Err::<(), _>(eyre_error);
+    let boxed: Result<(), Box<dyn std::error::Error + Send + Sync>> =
+        eyre_result.map_err(std::convert::Into::into);
+    let Err(err) = boxed else {
+        panic!("eyre_to_anyhow called on `Ok`")
+    };
+    anyhow::anyhow!(err)
+}
+
 pub(crate) fn cometbft_to_sequencer_validator(
     value: tendermint::validator::Update,
-) -> anyhow::Result<ValidatorUpdate> {
+) -> Result<ValidatorUpdate> {
     let tendermint_proto::abci::ValidatorUpdate {
         pub_key,
         power,
@@ -27,12 +51,12 @@ pub(crate) fn cometbft_to_sequencer_validator(
         power,
         pub_key: pub_key.map(pubkey::cometbft_to_astria),
     })
-    .context("failed converting cometbft validator update to astria validator update")
+    .wrap_err("failed converting cometbft validator update to astria validator update")
 }
 
 pub(crate) fn sequencer_to_cometbft_validator(
     value: ValidatorUpdate,
-) -> anyhow::Result<tendermint::validator::Update> {
+) -> Result<tendermint::validator::Update> {
     let astria_core::generated::astria_vendored::tendermint::abci::ValidatorUpdate {
         pub_key,
         power,
@@ -42,7 +66,7 @@ pub(crate) fn sequencer_to_cometbft_validator(
         power,
     }
     .try_into()
-    .context("failed converting astria validator update to cometbft validator update")
+    .wrap_err("failed converting astria validator update to cometbft validator update")
 }
 
 mod pubkey {

@@ -1,11 +1,12 @@
-use anyhow::{
-    ensure,
-    Context,
-    Result,
-};
 use astria_core::{
     protocol::transaction::v1alpha1::action::TransferAction,
     Protobuf as _,
+};
+use astria_eyre::eyre::{
+    ensure,
+    OptionExt as _,
+    Result,
+    WrapErr as _,
 };
 use cnidarium::{
     StateRead,
@@ -44,7 +45,7 @@ impl ActionHandler for TransferAction {
             state
                 .get_bridge_account_rollup_id(from)
                 .await
-                .context("failed to get bridge account rollup id")?
+                .wrap_err("failed to get bridge account rollup id")?
                 .is_none(),
             "cannot transfer out of bridge account; BridgeUnlock must be used",
         );
@@ -60,7 +61,7 @@ pub(crate) async fn execute_transfer<S, TAddress>(
     action: &TransferAction,
     from: TAddress,
     mut state: S,
-) -> anyhow::Result<()>
+) -> Result<()>
 where
     S: StateWrite,
     TAddress: AddressBytes,
@@ -70,11 +71,11 @@ where
     let fee = state
         .get_transfer_base_fee()
         .await
-        .context("failed to get transfer base fee")?;
+        .wrap_err("failed to get transfer base fee")?;
     state
         .get_and_increase_block_fees(&action.fee_asset, fee, TransferAction::full_name())
         .await
-        .context("failed to add to block fees")?;
+        .wrap_err("failed to add to block fees")?;
 
     // if fee payment asset is same asset as transfer asset, deduct fee
     // from same balance as asset transferred
@@ -88,28 +89,28 @@ where
         state
             .decrease_balance(from, &action.asset, payment_amount)
             .await
-            .context("failed decreasing `from` account balance")?;
+            .wrap_err("failed decreasing `from` account balance")?;
         state
             .increase_balance(action.to, &action.asset, action.amount)
             .await
-            .context("failed increasing `to` account balance")?;
+            .wrap_err("failed increasing `to` account balance")?;
     } else {
         // otherwise, just transfer the transfer asset and deduct fee from fee asset balance
         // later
         state
             .decrease_balance(from, &action.asset, action.amount)
             .await
-            .context("failed decreasing `from` account balance")?;
+            .wrap_err("failed decreasing `from` account balance")?;
         state
             .increase_balance(action.to, &action.asset, action.amount)
             .await
-            .context("failed increasing `to` account balance")?;
+            .wrap_err("failed increasing `to` account balance")?;
 
         // deduct fee from fee asset balance
         state
             .decrease_balance(from, &action.fee_asset, fee)
             .await
-            .context("failed decreasing `from` account balance for fee payment")?;
+            .wrap_err("failed decreasing `from` account balance for fee payment")?;
     }
     Ok(())
 }
@@ -123,27 +124,27 @@ where
     S: StateRead,
     TAddress: AddressBytes,
 {
-    state.ensure_base_prefix(&action.to).await.context(
+    state.ensure_base_prefix(&action.to).await.wrap_err(
         "failed ensuring that the destination address matches the permitted base prefix",
     )?;
     ensure!(
         state
             .is_allowed_fee_asset(&action.fee_asset)
             .await
-            .context("failed to check allowed fee assets in state")?,
+            .wrap_err("failed to check allowed fee assets in state")?,
         "invalid fee asset",
     );
 
     let fee = state
         .get_transfer_base_fee()
         .await
-        .context("failed to get transfer base fee")?;
+        .wrap_err("failed to get transfer base fee")?;
     let transfer_asset = action.asset.clone();
 
     let from_fee_balance = state
         .get_account_balance(&from, &action.fee_asset)
         .await
-        .context("failed getting `from` account balance for fee payment")?;
+        .wrap_err("failed getting `from` account balance for fee payment")?;
 
     // if fee asset is same as transfer asset, ensure accounts has enough funds
     // to cover both the fee and the amount transferred
@@ -151,7 +152,7 @@ where
         let payment_amount = action
             .amount
             .checked_add(fee)
-            .context("transfer amount plus fee overflowed")?;
+            .ok_or_eyre("transfer amount plus fee overflowed")?;
 
         ensure!(
             from_fee_balance >= payment_amount,
@@ -168,7 +169,7 @@ where
         let from_transfer_balance = state
             .get_account_balance(from, transfer_asset)
             .await
-            .context("failed to get account balance in transfer check")?;
+            .wrap_err("failed to get account balance in transfer check")?;
         ensure!(
             from_transfer_balance >= action.amount,
             "insufficient funds for transfer"

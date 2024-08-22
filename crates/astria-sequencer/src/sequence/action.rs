@@ -1,11 +1,12 @@
-use anyhow::{
-    ensure,
-    Context,
-    Result,
-};
 use astria_core::{
     protocol::transaction::v1alpha1::action::SequenceAction,
     Protobuf as _,
+};
+use astria_eyre::eyre::{
+    ensure,
+    OptionExt as _,
+    Result,
+    WrapErr as _,
 };
 use cnidarium::StateWrite;
 
@@ -45,27 +46,27 @@ impl ActionHandler for SequenceAction {
             state
                 .is_allowed_fee_asset(&self.fee_asset)
                 .await
-                .context("failed accessing state to check if fee is allowed")?,
+                .wrap_err("failed accessing state to check if fee is allowed")?,
             "invalid fee asset",
         );
 
         let curr_balance = state
             .get_account_balance(from, &self.fee_asset)
             .await
-            .context("failed getting `from` account balance for fee payment")?;
+            .wrap_err("failed getting `from` account balance for fee payment")?;
         let fee = calculate_fee_from_state(&self.data, &state)
             .await
-            .context("calculated fee overflows u128")?;
+            .wrap_err("calculated fee overflows u128")?;
         ensure!(curr_balance >= fee, "insufficient funds");
 
         state
             .get_and_increase_block_fees(&self.fee_asset, fee, Self::full_name())
             .await
-            .context("failed to add to block fees")?;
+            .wrap_err("failed to add to block fees")?;
         state
             .decrease_balance(from, &self.fee_asset, fee)
             .await
-            .context("failed updating `from` account balance")?;
+            .wrap_err("failed updating `from` account balance")?;
         Ok(())
     }
 }
@@ -78,12 +79,12 @@ pub(crate) async fn calculate_fee_from_state<S: sequence::StateReadExt>(
     let base_fee = state
         .get_sequence_action_base_fee()
         .await
-        .context("failed to get base fee")?;
+        .wrap_err("failed to get base fee")?;
     let fee_per_byte = state
         .get_sequence_action_byte_cost_multiplier()
         .await
-        .context("failed to get fee per byte")?;
-    calculate_fee(data, fee_per_byte, base_fee).context("calculated fee overflows u128")
+        .wrap_err("failed to get fee per byte")?;
+    calculate_fee(data, fee_per_byte, base_fee).ok_or_eyre("calculated fee overflows u128")
 }
 
 /// Calculates the fee for a sequence `Action` based on the length of the `data`.

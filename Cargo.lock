@@ -798,6 +798,7 @@ dependencies = [
  "astria-build-info",
  "astria-config",
  "astria-core",
+ "astria-eyre",
  "astria-merkle",
  "astria-telemetry",
  "async-trait",

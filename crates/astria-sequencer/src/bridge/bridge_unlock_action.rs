@@ -1,12 +1,12 @@
-use anyhow::{
-    bail,
-    ensure,
-    Context as _,
-    Result,
-};
 use astria_core::protocol::transaction::v1alpha1::action::{
     BridgeUnlockAction,
     TransferAction,
+};
+use astria_eyre::eyre::{
+    bail,
+    ensure,
+    Result,
+    WrapErr as _,
 };
 use cnidarium::StateWrite;
 
@@ -35,22 +35,22 @@ impl ActionHandler for BridgeUnlockAction {
         state
             .ensure_base_prefix(&self.to)
             .await
-            .context("failed check for base prefix of destination address")?;
+            .wrap_err("failed check for base prefix of destination address")?;
         state
             .ensure_base_prefix(&self.bridge_address)
             .await
-            .context("failed check for base prefix of bridge address")?;
+            .wrap_err("failed check for base prefix of bridge address")?;
 
         let asset = state
             .get_bridge_account_ibc_asset(self.bridge_address)
             .await
-            .context("failed to get bridge's asset id, must be a bridge account")?;
+            .wrap_err("failed to get bridge's asset id, must be a bridge account")?;
 
         // check that the sender of this tx is the authorized withdrawer for the bridge account
         let Some(withdrawer_address) = state
             .get_bridge_account_withdrawer_address(self.bridge_address)
             .await
-            .context("failed to get bridge account withdrawer address")?
+            .wrap_err("failed to get bridge account withdrawer address")?
         else {
             bail!("bridge account does not have an associated withdrawer address");
         };
@@ -92,7 +92,7 @@ mod tests {
         assets::StateWriteExt as _,
         bridge::StateWriteExt as _,
         test_utils::{
-            assert_anyhow_error,
+            assert_eyre_error,
             astria_address,
             ASTRIA_PREFIX,
         },
@@ -135,7 +135,7 @@ mod tests {
         };
 
         // invalid sender, doesn't match action's `from`, should fail
-        assert_anyhow_error(
+        assert_eyre_error(
             &bridge_unlock.check_and_execute(state).await.unwrap_err(),
             "bridge account does not have an associated withdrawer address",
         );
@@ -172,7 +172,7 @@ mod tests {
         };
 
         // invalid sender, doesn't match action's bridge account's withdrawer, should fail
-        assert_anyhow_error(
+        assert_eyre_error(
             &bridge_unlock.check_and_execute(state).await.unwrap_err(),
             "unauthorized to unlock bridge account",
         );
@@ -217,7 +217,7 @@ mod tests {
         state
             .put_account_balance(bridge_address, &asset, transfer_amount)
             .unwrap();
-        assert_anyhow_error(
+        assert_eyre_error(
             &bridge_unlock
                 .check_and_execute(&mut state)
                 .await
@@ -271,7 +271,7 @@ mod tests {
         state
             .put_account_balance(bridge_address, &asset, transfer_amount)
             .unwrap();
-        assert_anyhow_error(
+        assert_eyre_error(
             &bridge_unlock
                 .check_and_execute(&mut state)
                 .await

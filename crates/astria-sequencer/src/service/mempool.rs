@@ -8,7 +8,6 @@ use std::{
     time::Instant,
 };
 
-use anyhow::Context as _;
 use astria_core::{
     generated::protocol::transactions::v1alpha1 as raw,
     protocol::{
@@ -16,6 +15,7 @@ use astria_core::{
         transaction::v1alpha1::SignedTransaction,
     },
 };
+use astria_eyre::eyre::WrapErr as _;
 use cnidarium::Storage;
 use futures::{
     Future,
@@ -296,7 +296,7 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
         .try_base_prefixed(&signed_tx.verification_key().address_bytes())
         .and_then(|address| state.get_account_nonce(address))
         .await
-        .context("failed fetching nonce for account")
+        .wrap_err("failed fetching nonce for account")
     {
         Err(err) => {
             return response::CheckTx {

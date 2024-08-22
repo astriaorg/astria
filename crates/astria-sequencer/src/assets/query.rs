@@ -1,4 +1,3 @@
-use anyhow::Context as _;
 use astria_core::{
     primitive::v1::asset,
     protocol::{
@@ -6,6 +5,7 @@ use astria_core::{
         asset::v1alpha1::AllowedFeeAssetsResponse,
     },
 };
+use astria_eyre::eyre::WrapErr as _;
 use cnidarium::Storage;
 use hex::FromHex as _;
 use prost::Message as _;
@@ -89,9 +89,7 @@ pub(crate) async fn denom_request(
     }
 }
 
-fn preprocess_request(
-    params: &[(String, String)],
-) -> anyhow::Result<asset::IbcPrefixed, response::Query> {
+fn preprocess_request(params: &[(String, String)]) -> Result<asset::IbcPrefixed, response::Query> {
     let Some(asset_id) = params.iter().find_map(|(k, v)| (k == "id").then_some(v)) else {
         return Err(response::Query {
             code: Code::Err(AbciErrorCode::INVALID_PARAMETER.value()),
@@ -101,7 +99,7 @@ fn preprocess_request(
         });
     };
     let asset = <[u8; 32]>::from_hex(asset_id)
-        .context("failed decoding hex encoded bytes")
+        .wrap_err("failed decoding hex encoded bytes")
         .map(asset::IbcPrefixed::new)
         .map_err(|err| response::Query {
             code: Code::Err(AbciErrorCode::INVALID_PARAMETER.value()),
