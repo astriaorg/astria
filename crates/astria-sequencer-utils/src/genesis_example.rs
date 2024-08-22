@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     fs::File,
     io::Write,
     path::PathBuf,
@@ -17,11 +18,14 @@ use astria_core::{
     slinky::{
         market_map::v1::{
             GenesisState as MarketMapGenesisState,
+            Market,
             MarketMap,
             Params,
             ProviderConfig,
+            Ticker,
         },
         oracle::v1::{
+            CurrencyPairGenesis,
             GenesisState as OracleGenesisState,
             QuotePrice,
         },
@@ -59,18 +63,8 @@ fn charlie() -> Address {
         .unwrap()
 }
 
-// allow clippy here because this is an example genesis state, which is long.
-#[allow(clippy::too_many_lines)]
-fn genesis_state() -> GenesisState {
-    use astria_core::slinky::{
-        market_map::v1::{
-            Market,
-            Ticker,
-        },
-        oracle::v1::CurrencyPairGenesis,
-    };
-
-    let mut markets = std::collections::HashMap::new();
+fn genesis_state_markets() -> HashMap<String, Market> {
+    let mut markets = HashMap::new();
     markets.insert(
         "BTC/USD".to_string(),
         Market {
@@ -109,6 +103,10 @@ fn genesis_state() -> GenesisState {
             }],
         },
     );
+    markets
+}
+
+fn genesis_state() -> GenesisState {
     UncheckedGenesisState {
         accounts: vec![
             Account {
@@ -148,7 +146,7 @@ fn genesis_state() -> GenesisState {
         },
         market_map: MarketMapGenesisState {
             market_map: MarketMap {
-                markets,
+                markets: genesis_state_markets(),
             },
             last_updated: 0,
             params: Params {
