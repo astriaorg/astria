@@ -19,7 +19,7 @@ use tracing::instrument;
 
 const MARKET_MAP_KEY: &str = "slinkymarketmap";
 const PARAMS_KEY: &str = "slinkyparams";
-const MARKET_MAP_LAST_UPDATED_KEY: &[u8] = b"slinkymarketmaplastupdated";
+const MARKET_MAP_LAST_UPDATED_KEY: &str = "slinkymarketmaplastupdated";
 
 /// Newtype wrapper to read and write a u64 from rocksdb.
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
@@ -27,7 +27,7 @@ struct Height(u64);
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_market_map(&self) -> Result<Option<MarketMap>> {
         let bytes = self
             .get_raw(MARKET_MAP_KEY)
@@ -43,10 +43,10 @@ pub(crate) trait StateReadExt: StateRead {
         }
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_market_map_last_updated_height(&self) -> Result<u64> {
         let Some(bytes) = self
-            .nonverifiable_get_raw(MARKET_MAP_LAST_UPDATED_KEY)
+            .get_raw(MARKET_MAP_LAST_UPDATED_KEY)
             .await
             .context("failed reading market map last updated height from state")?
         else {
@@ -56,7 +56,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(height)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_params(&self) -> Result<Option<Params>> {
         let bytes = self
             .get_raw(PARAMS_KEY)
@@ -77,24 +77,23 @@ impl<T: StateRead + ?Sized> StateReadExt for T {}
 
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     fn put_market_map(&mut self, market_map: MarketMap) -> Result<()> {
         let bytes = serde_json::to_vec(&market_map).context("failed to serialize market map")?;
         self.put_raw(MARKET_MAP_KEY.to_string(), bytes);
         Ok(())
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     fn put_market_map_last_updated_height(&mut self, height: u64) -> Result<()> {
-        // TODO: since this is an optimization, should it be in the nonconsensus store?
-        self.nonverifiable_put_raw(
-            MARKET_MAP_LAST_UPDATED_KEY.to_vec(),
+        self.put_raw(
+            MARKET_MAP_LAST_UPDATED_KEY.to_string(),
             borsh::to_vec(&Height(height)).context("failed to serialize height")?,
         );
         Ok(())
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     fn put_params(&mut self, params: Params) -> Result<()> {
         let bytes = serde_json::to_vec(&params).context("failed to serialize params")?;
         self.put_raw(PARAMS_KEY.to_string(), bytes);

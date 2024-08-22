@@ -35,7 +35,6 @@ use tonic::transport::Channel;
 use tracing::{
     debug,
     trace,
-    warn,
 };
 
 use crate::{
@@ -168,8 +167,7 @@ async fn transform_oracle_service_prices<S: StateReadExt>(
             );
             continue;
         };
-        let encoded_price =
-            DefaultCurrencyPairStrategy::get_encoded_price(state, &currency_pair, price);
+        let encoded_price = DefaultCurrencyPairStrategy::get_encoded_price(state, price);
 
         debug!(
             currency_pair = currency_pair.to_string(),
@@ -337,8 +335,8 @@ async fn validate_vote_extensions<S: StateReadExt>(
         .context("failed to multiply total voting power by 2")?
         .checked_div(3)
         .context("failed to divide total voting power by 3")?
-        .checked_sub(1)
-        .context("failed to subtract 1 from total voting power")?;
+        .checked_add(1)
+        .context("failed to add 1 from total voting power")?;
     ensure!(
         submitted_voting_power >= required_voting_power,
         "submitted voting power is less than required voting power",
@@ -450,6 +448,7 @@ pub(crate) async fn apply_prices_from_vote_extensions<S: StateWriteExt>(
 
         state
             .put_price_for_currency_pair(&currency_pair, price)
+            .await
             .context("failed to put price")?;
     }
 
@@ -479,9 +478,8 @@ async fn aggregate_oracle_votes<S: StateReadExt>(
                 continue;
             };
 
-            let price =
-                DefaultCurrencyPairStrategy::get_decoded_price(state, &currency_pair, &price_bytes)
-                    .context("failed to get decoded price")?;
+            let price = DefaultCurrencyPairStrategy::get_decoded_price(state, &price_bytes)
+                .context("failed to get decoded price")?;
             currency_pair_to_price_list
                 .entry(currency_pair)
                 .and_modify(|prices: &mut Vec<u128>| prices.push(price))
@@ -499,19 +497,15 @@ async fn aggregate_oracle_votes<S: StateReadExt>(
             price_list.sort_unstable();
             let mid = price_list.len() / 2;
             if price_list.len() % 2 == 0 {
-                let Some(num) = price_list[mid
+                let num_to_skip = mid
                     .checked_sub(1)
-                    .expect("must subtract as the length of the price list is >0")]
-                .checked_add(price_list[mid]) else {
-                    warn!(
-                        "failed to add two middle prices together; skipping currency pair: {}",
-                        currency_pair,
-                    );
-                    continue;
-                };
-                num / 2
+                    .expect("must subtract as the length of the price list is >0");
+                price_list.iter().skip(num_to_skip).take(2).sum::<u128>() / 2
             } else {
-                price_list[mid]
+                price_list
+                    .get(mid)
+                    .copied()
+                    .expect("must have element as mid < len")
             }
         };
         prices.insert(currency_pair, median_price);
@@ -528,7 +522,7 @@ mod test {
     async fn verify_vote_extension_proposal_phase_ok() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
-        verify_vote_extension(&snapshot, vec![].as_slice(), true)
+        verify_vote_extension(&snapshot, vec![].into(), true)
             .await
             .unwrap();
     }
@@ -537,7 +531,7 @@ mod test {
     async fn verify_vote_extension_not_proposal_phase_ok() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
-        verify_vote_extension(&snapshot, vec![].as_slice(), true)
+        verify_vote_extension(&snapshot, vec![].into(), true)
             .await
             .unwrap();
     }

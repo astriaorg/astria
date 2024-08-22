@@ -24,17 +24,12 @@ impl DefaultCurrencyPairStrategy {
         state.get_currency_pair(id).await
     }
 
-    pub(crate) fn get_encoded_price<S: StateReadExt>(
-        _state: &S,
-        _: &CurrencyPair,
-        price: u128,
-    ) -> Vec<u8> {
+    pub(crate) fn get_encoded_price<S: StateReadExt>(_state: &S, price: u128) -> Vec<u8> {
         price.to_be_bytes().to_vec()
     }
 
     pub(crate) fn get_decoded_price<S: StateReadExt>(
         _state: &S,
-        _: &CurrencyPair,
         encoded_price: &[u8],
     ) -> anyhow::Result<u128> {
         ensure!(encoded_price.len() == 16, "invalid encoded price length");

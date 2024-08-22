@@ -27,9 +27,7 @@ use tracing::instrument;
 const CURRENCY_PAIR_TO_ID_PREFIX: &str = "oraclecpid";
 const ID_TO_CURRENCY_PAIR_PREFIX: &str = "oracleidcp";
 const CURRENCY_PAIR_STATE_PREFIX: &str = "oraclecpstate";
-const CURRENCY_PAIR_PRICE_PREFIX: &str = "oraclecpprice";
 
-// TODO: should these values be in nonverifiable storage?
 const NUM_CURRENCY_PAIRS_KEY: &str = "oraclenumcps";
 const NUM_REMOVED_CURRENCY_PAIRS_KEY: &str = "oraclenumremovedcps";
 const NEXT_CURRENCY_PAIR_ID_KEY: &str = "oraclenextcpid";
@@ -46,10 +44,6 @@ fn currency_pair_state_storage_key(currency_pair: &CurrencyPair) -> String {
     format!("{CURRENCY_PAIR_STATE_PREFIX}/{currency_pair}",)
 }
 
-fn currency_pair_price_storage_key(currency_pair: &CurrencyPair) -> String {
-    format!("{CURRENCY_PAIR_PRICE_PREFIX}/{currency_pair}",)
-}
-
 /// Newtype wrapper to read and write a u64 from rocksdb.
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
 struct Id(u64);
@@ -60,7 +54,7 @@ struct Count(u64);
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_currency_pair_id(&self, currency_pair: &CurrencyPair) -> Result<u64> {
         let Some(bytes) = self
             .get_raw(&currency_pair_to_id_storage_key(currency_pair))
@@ -73,7 +67,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(id)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_currency_pair(&self, id: u64) -> Result<Option<CurrencyPair>> {
         let bytes = self
             .get_raw(&id_to_currency_pair_storage_key(id))
@@ -89,7 +83,7 @@ pub(crate) trait StateReadExt: StateRead {
         }
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_currency_pair_mapping(&self) -> Result<HashMap<u64, CurrencyPair>> {
         let prefix = format!("{CURRENCY_PAIR_TO_ID_PREFIX}/");
         let mut currency_pairs = HashMap::new();
@@ -115,7 +109,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(currency_pairs)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_num_currency_pairs(&self) -> Result<u64> {
         let Some(bytes) = self
             .get_raw(NUM_CURRENCY_PAIRS_KEY)
@@ -129,7 +123,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(num_currency_pairs)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_num_removed_currency_pairs(&self) -> Result<u64> {
         let Some(bytes) = self
             .get_raw(NUM_REMOVED_CURRENCY_PAIRS_KEY)
@@ -143,7 +137,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(num_removed_currency_pairs)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_currency_pair_state(
         &self,
         currency_pair: &CurrencyPair,
@@ -162,7 +156,7 @@ pub(crate) trait StateReadExt: StateRead {
         }
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_all_currency_pairs(&self) -> Result<Vec<CurrencyPair>> {
         let prefix = format!("{CURRENCY_PAIR_STATE_PREFIX}/");
         let mut currency_pairs: Vec<CurrencyPair> = Vec::new();
@@ -179,7 +173,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(currency_pairs)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_next_currency_pair_id(&self) -> Result<u64> {
         let Some(bytes) = self
             .get_raw(NEXT_CURRENCY_PAIR_ID_KEY)
@@ -192,47 +186,28 @@ pub(crate) trait StateReadExt: StateRead {
             Id::try_from_slice(&bytes).context("invalid next currency pair id bytes")?;
         Ok(next_currency_pair_id)
     }
-
-    #[instrument(skip(self))]
-    async fn get_price_for_currency_pair(
-        &self,
-        currency_pair: &CurrencyPair,
-    ) -> Result<Option<QuotePrice>> {
-        let bytes = self
-            .get_raw(&currency_pair_price_storage_key(currency_pair))
-            .await
-            .context("failed to get price for currency pair from state")?;
-        match bytes {
-            Some(bytes) => {
-                let price =
-                    serde_json::from_slice(&bytes).context("failed to deserialize price")?;
-                Ok(Some(price))
-            }
-            None => Ok(None),
-        }
-    }
 }
 
 impl<T: StateRead + ?Sized> StateReadExt for T {}
 
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     fn put_currency_pair_id(&mut self, currency_pair: &CurrencyPair, id: u64) -> Result<()> {
         let bytes = borsh::to_vec(&Id(id)).context("failed to serialize currency pair id")?;
         self.put_raw(currency_pair_to_id_storage_key(currency_pair), bytes);
         Ok(())
     }
 
-    #[instrument(skip(self))]
-    fn put_currency_pair(&mut self, id: u64, currency_pair: CurrencyPair) -> Result<()> {
+    #[instrument(skip_all)]
+    fn put_currency_pair(&mut self, id: u64, currency_pair: &CurrencyPair) -> Result<()> {
         let bytes =
             serde_json::to_vec(&currency_pair).context("failed to serialize currency pair")?;
         self.put_raw(id_to_currency_pair_storage_key(id), bytes);
         Ok(())
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     fn put_num_currency_pairs(&mut self, num_currency_pairs: u64) -> Result<()> {
         let bytes = borsh::to_vec(&Count(num_currency_pairs))
             .context("failed to serialize number of currency pairs")?;
@@ -240,7 +215,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     fn put_num_removed_currency_pairs(&mut self, num_removed_currency_pairs: u64) -> Result<()> {
         let bytes = borsh::to_vec(&Count(num_removed_currency_pairs))
             .context("failed to serialize number of removed currency pairs")?;
@@ -248,8 +223,8 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip(self))]
-    fn put_currency_pair_state_and_price(
+    #[instrument(skip_all)]
+    fn put_currency_pair_state(
         &mut self,
         currency_pair: &CurrencyPair,
         currency_pair_state: CurrencyPairState,
@@ -257,15 +232,14 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = serde_json::to_vec(&currency_pair_state)
             .context("failed to serialize currency pair state")?;
         self.put_raw(currency_pair_state_storage_key(currency_pair), bytes);
-        self.put_price_for_currency_pair(currency_pair, currency_pair_state.price)?;
         self.put_currency_pair_id(currency_pair, currency_pair_state.id)
             .context("failed to put currency pair id")?;
-        self.put_currency_pair(currency_pair_state.id, currency_pair.clone())
+        self.put_currency_pair(currency_pair_state.id, currency_pair)
             .context("failed to put currency pair")?;
         Ok(())
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     fn put_next_currency_pair_id(&mut self, next_currency_pair_id: u64) -> Result<()> {
         let bytes = borsh::to_vec(&Id(next_currency_pair_id))
             .context("failed to serialize next currency pair id")?;
@@ -273,15 +247,30 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip(self))]
-    fn put_price_for_currency_pair(
+    #[instrument(skip_all)]
+    async fn put_price_for_currency_pair(
         &mut self,
         currency_pair: &CurrencyPair,
         price: QuotePrice,
     ) -> Result<()> {
-        // TODO: also `put_currency_pair` if it didn't exist?
-        let bytes = serde_json::to_vec(&price).context("failed to serialize price")?;
-        self.put_raw(currency_pair_price_storage_key(currency_pair), bytes);
+        let state = if let Some(mut state) = self
+            .get_currency_pair_state(currency_pair)
+            .await
+            .context("failed to get currency pair state")?
+        {
+            state.price = price;
+            state.nonce.checked_add(1).context("nonce overflow")?;
+            state
+        } else {
+            let id = self.get_next_currency_pair_id().await?;
+            CurrencyPairState {
+                price,
+                nonce: 0,
+                id,
+            }
+        };
+        self.put_currency_pair_state(currency_pair, state)
+            .context("failed to put currency pair state")?;
         Ok(())
     }
 }

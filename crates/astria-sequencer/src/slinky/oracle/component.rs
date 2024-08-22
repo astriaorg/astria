@@ -30,10 +30,7 @@ impl Component for OracleComponent {
                 price: currency_pair.currency_pair_price().clone(),
             };
             state
-                .put_currency_pair_state_and_price(
-                    currency_pair.currency_pair(),
-                    currency_pair_state,
-                )
+                .put_currency_pair_state(currency_pair.currency_pair(), currency_pair_state)
                 .context("failed to put currency pair")?;
             tracing::info!(
                 "put currency pair: {}",
