@@ -20,7 +20,6 @@ fn base_prefix_key() -> &'static str {
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
-    #[instrument(skip_all, err)]
     async fn ensure_base_prefix(&self, address: &Address) -> Result<()> {
         let prefix = self
             .get_base_prefix()
@@ -34,7 +33,6 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(())
     }
 
-    #[instrument(skip_all, err)]
     async fn try_base_prefixed(&self, slice: &[u8]) -> Result<Address> {
         let prefix = self
             .get_base_prefix()
