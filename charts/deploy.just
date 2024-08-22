@@ -407,7 +407,8 @@ run-smoke-cli:
     --to-rollup-height $CURRENT_BLOCK \
     --sequencer-asset-to-withdraw nria \
     --bridge-address {{sequencer_bridge_address}} \
-    --output "${withdrawals_dst}"
+    --output "${withdrawals_dst}" \
+    --force
    astria-cli bridge submit-withdrawals \
     --signing-key <(printf "%s" "{{sequencer_bridge_pkey}}") \
     --sequencer-chain-id {{sequencer_chain_id}} \

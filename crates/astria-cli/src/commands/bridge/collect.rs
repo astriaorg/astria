@@ -75,7 +75,7 @@ pub(crate) struct WithdrawalEvents {
     #[arg(long)]
     ics20_asset_to_withdraw: Option<asset::TracePrefixed>,
     /// The bech32-encoded bridge address corresponding to the bridged rollup
-    ///  asset on the sequencer. Should match the bridge address in the geth
+    /// asset on the sequencer. Should match the bridge address in the geth
     /// rollup's bridge configuration for that asset.
     #[arg(long)]
     bridge_address: Address,
@@ -83,6 +83,9 @@ pub(crate) struct WithdrawalEvents {
     /// to Sequencer actions.
     #[arg(long, short)]
     output: PathBuf,
+    /// Overwrites <output> if it exists
+    #[arg(long, short)]
+    force: bool,
 }
 
 impl WithdrawalEvents {
@@ -97,9 +100,10 @@ impl WithdrawalEvents {
             fee_asset,
             bridge_address,
             output,
+            force,
         } = self;
 
-        let output = open_output(&output).wrap_err("failed to open output for writing")?;
+        let output = open_output(&output, force).wrap_err("failed to open output for writing")?;
 
         let block_provider = connect_to_rollup(&rollup_endpoint)
             .await
@@ -291,13 +295,19 @@ struct Output {
     path: PathBuf,
 }
 
-#[instrument(skip_all, fields(target = %target.as_ref().display()), err)]
-fn open_output<P: AsRef<Path>>(target: P) -> eyre::Result<Output> {
-    let handle = std::fs::File::options()
-        .write(true)
-        .create_new(true)
-        .open(&target)
-        .wrap_err("failed to open specified file for writing")?;
+#[instrument(skip(target), fields(target = %target.as_ref().display()), err)]
+fn open_output<P: AsRef<Path>>(target: P, overwrite: bool) -> eyre::Result<Output> {
+    let handle = if overwrite {
+        let mut options = std::fs::File::options();
+        options.write(true).create(true).truncate(true);
+        options
+    } else {
+        let mut options = std::fs::File::options();
+        options.write(true).create_new(true);
+        options
+    }
+    .open(&target)
+    .wrap_err("failed to open specified file for writing")?;
     Ok(Output {
         handle,
         path: target.as_ref().to_path_buf(),
