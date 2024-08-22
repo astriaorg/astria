@@ -5,14 +5,14 @@
 
 use std::time::Duration;
 
-use astria_core::sequencer::{
-    Account,
-    AddressPrefixes,
-    GenesisState,
-    UncheckedGenesisState,
+use astria_core::{
+    protocol::genesis::v1alpha1::{
+        Account,
+        GenesisAppState,
+    },
+    Protobuf,
 };
 use cnidarium::Storage;
-use penumbra_ibc::params::IBCParameters;
 
 use crate::{
     app::{
@@ -25,11 +25,7 @@ use crate::{
         SIGNER_COUNT,
     },
     proposal::block_size_constraints::BlockSizeConstraints,
-    test_utils::{
-        astria_address,
-        nria,
-        ASTRIA_PREFIX,
-    },
+    test_utils::astria_address,
 };
 
 /// The max time for any benchmark.
@@ -58,23 +54,18 @@ impl Fixture {
                     .pow(19)
                     .saturating_add(u128::try_from(index).unwrap()),
             })
+            .map(Protobuf::into_raw)
             .collect::<Vec<_>>();
-        let address_prefixes = AddressPrefixes {
-            base: ASTRIA_PREFIX.into(),
-        };
-        let first_address = accounts.first().unwrap().address;
-        let unchecked_genesis_state = UncheckedGenesisState {
-            accounts,
-            address_prefixes,
-            authority_sudo_address: first_address,
-            ibc_sudo_address: first_address,
-            ibc_relayer_addresses: vec![],
-            native_asset_base_denomination: nria(),
-            ibc_params: IBCParameters::default(),
-            allowed_fee_assets: vec![nria().into()],
-            fees: test_utils::default_fees(),
-        };
-        let genesis_state = GenesisState::try_from(unchecked_genesis_state).unwrap();
+        let first_address = accounts.first().cloned().unwrap().address;
+        let genesis_state = GenesisAppState::try_from_raw(
+            astria_core::generated::protocol::genesis::v1alpha1::GenesisAppState {
+                accounts,
+                authority_sudo_address: first_address.clone(),
+                ibc_sudo_address: first_address.clone(),
+                ..crate::app::test_utils::proto_genesis_state()
+            },
+        )
+        .unwrap();
 
         let (app, storage) =
             test_utils::initialize_app_with_storage(Some(genesis_state), vec![]).await;

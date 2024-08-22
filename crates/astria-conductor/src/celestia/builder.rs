@@ -19,7 +19,7 @@ use crate::{
 pub(crate) struct Builder {
     pub(crate) celestia_block_time: Duration,
     pub(crate) celestia_http_endpoint: String,
-    pub(crate) celestia_token: String,
+    pub(crate) celestia_token: Option<String>,
     pub(crate) executor: executor::Handle,
     pub(crate) sequencer_cometbft_client: SequencerClient,
     pub(crate) sequencer_requests_per_second: u32,
@@ -41,7 +41,7 @@ impl Builder {
             metrics,
         } = self;
 
-        let celestia_client = create_celestia_client(celestia_http_endpoint, &celestia_token)
+        let celestia_client = create_celestia_client(celestia_http_endpoint, celestia_token)
             .wrap_err("failed initializing client for Celestia HTTP RPC")?;
 
         Ok(Reader {
@@ -56,16 +56,21 @@ impl Builder {
     }
 }
 
-fn create_celestia_client(endpoint: String, bearer_token: &str) -> eyre::Result<CelestiaClient> {
+fn create_celestia_client(
+    endpoint: String,
+    bearer_token: Option<String>,
+) -> eyre::Result<CelestiaClient> {
     use jsonrpsee::http_client::{
         HeaderMap,
         HttpClientBuilder,
     };
     let mut headers = HeaderMap::new();
-    let auth_value = format!("Bearer {bearer_token}").parse().wrap_err(
-        "failed to construct Authorization header value from provided Celestia bearer token",
-    )?;
-    headers.insert(http::header::AUTHORIZATION, auth_value);
+    if let Some(token) = bearer_token {
+        let auth_value = format!("Bearer {token}").parse().wrap_err(
+            "failed to construct Authorization header value from provided Celestia bearer token",
+        )?;
+        headers.insert(http::header::AUTHORIZATION, auth_value);
+    }
     let client = HttpClientBuilder::default()
         .set_headers(headers)
         .build(endpoint)

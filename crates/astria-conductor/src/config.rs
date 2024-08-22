@@ -44,6 +44,9 @@ pub struct Config {
     /// URL of the Celestia Node HTTP RPC
     pub celestia_node_http_url: String,
 
+    /// Disables using the bearer token auth header for the Celestia jsonrpc
+    pub no_celestia_auth: bool,
+
     /// The JWT bearer token supplied with each jsonrpc call
     pub celestia_bearer_token: String,
 
