@@ -24,7 +24,6 @@ use tendermint::{
 use crate::{
     accounts::state_ext::StateReadExt as _,
     state_ext::StateReadExt as _,
-    utils::anyhow_to_eyre,
 };
 
 pub(crate) async fn balance_request(
@@ -121,7 +120,6 @@ async fn get_snapshot_and_height(storage: &Storage, height: Height) -> Result<(S
     let height: Height = snapshot
         .get_block_height()
         .await
-        .map_err(anyhow_to_eyre)
         .wrap_err("failed to get block height from snapshot")?
         .try_into()
         .wrap_err("internal u64 block height does not fit into tendermint i64 `Height`")?;

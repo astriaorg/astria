@@ -718,7 +718,6 @@ impl App {
             .state
             .get_chain_id()
             .await
-            .map_err(anyhow_to_eyre)
             .wrap_err("failed to get chain ID from state")?;
 
         // call begin_block on all components
@@ -777,7 +776,6 @@ impl App {
             .state
             .get_chain_id()
             .await
-            .map_err(anyhow_to_eyre)
             .wrap_err("failed to get chain ID from state")?;
         let sudo_address = self
             .state

@@ -159,7 +159,7 @@ impl ActionHandler for SignedTransaction {
         state.put_current_source(self);
 
         // Transactions must match the chain id of the node.
-        let chain_id = state.get_chain_id().await.map_err(anyhow_to_eyre)?;
+        let chain_id = state.get_chain_id().await?;
         ensure!(
             self.chain_id() == chain_id.as_str(),
             InvalidChainId(self.chain_id().to_string())

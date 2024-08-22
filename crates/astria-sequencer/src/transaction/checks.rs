@@ -28,7 +28,6 @@ use crate::{
     bridge::StateReadExt as _,
     ibc::StateReadExt as _,
     state_ext::StateReadExt as _,
-    utils::anyhow_to_eyre,
 };
 
 #[instrument(skip_all)]
@@ -59,7 +58,6 @@ pub(crate) async fn check_chain_id_mempool<S: StateRead>(
     let chain_id = state
         .get_chain_id()
         .await
-        .map_err(anyhow_to_eyre)
         .wrap_err("failed to get chain id")?;
     ensure!(tx.chain_id() == chain_id.as_str(), "chain id mismatch");
     Ok(())

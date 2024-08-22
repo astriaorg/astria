@@ -1,7 +1,6 @@
-use anyhow::Context;
 use astria_eyre::eyre::{
-    bail,
-    Result,
+    eyre,
+    bail, WrapErr as _, Result
 };
 use async_trait::async_trait;
 use cnidarium::{
@@ -22,33 +21,33 @@ fn storage_version_by_height_key(height: u64) -> Vec<u8> {
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
-    async fn get_chain_id(&self) -> anyhow::Result<tendermint::chain::Id> {
+    async fn get_chain_id(&self) -> Result<tendermint::chain::Id> {
         let Some(bytes) = self
             .get_raw("chain_id")
             .await
-            .context("failed to read raw chain_id from state")?
+            .map_err(anyhow_to_eyre).wrap_err("failed to read raw chain_id from state")?
         else {
-            anyhow::bail!("chain id not found in state");
+            bail!("chain id not found in state");
         };
 
         Ok(String::from_utf8(bytes)
-            .context("failed to parse chain id from raw bytes")?
+            .wrap_err("failed to parse chain id from raw bytes")?
             .try_into()
             .expect("only valid chain ids should be stored in the state"))
     }
 
     #[instrument(skip_all)]
-    async fn get_revision_number(&self) -> anyhow::Result<u64> {
+    async fn get_revision_number(&self) -> Result<u64> {
         let Some(bytes) = self
             .get_raw(REVISION_NUMBER_KEY)
             .await
-            .context("failed to read raw revision number from state")?
+            .map_err(anyhow_to_eyre).wrap_err("failed to read raw revision number from state")?
         else {
-            anyhow::bail!("revision number not found in state");
+            bail!("revision number not found in state");
         };
 
         let bytes = TryInto::<[u8; 8]>::try_into(bytes).map_err(|b| {
-            anyhow::anyhow!(
+            eyre!(
                 "expected 8 revision number bytes but got {}; this is a bug",
                 b.len()
             )
@@ -58,32 +57,32 @@ pub(crate) trait StateReadExt: StateRead {
     }
 
     #[instrument(skip_all)]
-    async fn get_block_height(&self) -> anyhow::Result<u64> {
+    async fn get_block_height(&self) -> Result<u64> {
         let Some(bytes) = self
             .get_raw("block_height")
             .await
-            .context("failed to read raw block_height from state")?
+            .map_err(anyhow_to_eyre).wrap_err("failed to read raw block_height from state")?
         else {
-            anyhow::bail!("block height not found state");
+            bail!("block height not found state");
         };
         let Ok(bytes): Result<[u8; 8], _> = bytes.try_into() else {
-            anyhow::bail!("failed turning raw block height bytes into u64; not 8 bytes?");
+            bail!("failed turning raw block height bytes into u64; not 8 bytes?");
         };
         Ok(u64::from_be_bytes(bytes))
     }
 
     #[instrument(skip_all)]
-    async fn get_block_timestamp(&self) -> anyhow::Result<Time> {
+    async fn get_block_timestamp(&self) -> Result<Time> {
         let Some(bytes) = self
             .get_raw("block_timestamp")
             .await
-            .context("failed to read raw block_timestamp from state")?
+            .map_err(anyhow_to_eyre).wrap_err("failed to read raw block_timestamp from state")?
         else {
-            anyhow::bail!("block timestamp not found");
+            bail!("block timestamp not found");
         };
         // no extra allocations in the happy path (meaning the bytes are utf8)
         Time::parse_from_rfc3339(&String::from_utf8_lossy(&bytes))
-            .context("failed to parse timestamp from raw timestamp bytes")
+            .wrap_err("failed to parse timestamp from raw timestamp bytes")
     }
 
     #[instrument(skip_all)]
@@ -202,7 +201,7 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         // doesn't exist at first
-        state
+        let _ = state
             .get_chain_id()
             .await
             .expect_err("no chain ID should exist at first");
@@ -278,7 +277,7 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         // doesn't exist at first
-        state
+        let _ = state
             .get_block_height()
             .await
             .expect_err("no block height should exist at first");
@@ -315,7 +314,7 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         // doesn't exist at first
-        state
+        let _ = state
             .get_block_timestamp()
             .await
             .expect_err("no block timestamp should exist at first");

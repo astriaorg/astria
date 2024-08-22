@@ -144,7 +144,6 @@ impl ActionHandler for action::Ics20Withdrawal {
         let current_timestamp = state
             .get_block_timestamp()
             .await
-            .map_err(anyhow_to_eyre)
             .wrap_err("failed to get block timestamp")?;
         let packet = {
             let packet = withdrawal_to_unchecked_ibc_packet(self);
