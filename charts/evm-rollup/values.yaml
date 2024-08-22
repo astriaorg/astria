@@ -9,16 +9,12 @@ global:
 images:
   geth:
     repo: ghcr.io/astriaorg/astria-geth
-    tag: 0.13.0
+    tag: 0.14.0
     devTag: latest
     overrideTag: ""
   conductor:
     repo: ghcr.io/astriaorg/conductor
-    tag: "0.18.0"
-    devTag: latest
-  composer:
-    repo: ghcr.io/astriaorg/composer
-    tag: "0.8.0"
+    tag: "0.20.0"
     devTag: latest
 
 

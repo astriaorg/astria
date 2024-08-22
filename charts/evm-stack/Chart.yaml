@@ -15,14 +15,14 @@ type: application
 # This is the chart version. This version number should be incremented each time you make changes
 # to the chart and its templates, including the app version.
 # Versions are expected to follow Semantic Versioning (https://semver.org/)
-version: 0.3.4
+version: 0.4.0
 
 dependencies:
   - name: evm-rollup
-    version: 0.25.5
+    version: 0.26.0
     repository: "file://../evm-rollup"
   - name: composer
-    version: 0.1.1
+    version: 0.1.2
     repository: "file://../composer"
     condition: composer.enabled
   - name: evm-faucet
@@ -30,7 +30,7 @@ dependencies:
     repository: "file://../evm-faucet"
     condition: evm-faucet.enabled
   - name: evm-bridge-withdrawer
-    version: 0.1.2
+    version: 0.2.0
     repository: "file://../evm-bridge-withdrawer"
     condition: evm-bridge-withdrawer.enabled
   - name: postgresql

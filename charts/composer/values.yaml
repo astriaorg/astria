@@ -8,7 +8,7 @@ global:
 images:
   composer:
     repo: ghcr.io/astriaorg/composer
-    tag: "0.8.0"
+    tag: "0.8.2"
     devTag: latest
 
 config:
