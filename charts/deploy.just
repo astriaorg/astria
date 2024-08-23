@@ -261,7 +261,7 @@ run-smoke-test:
   just init rollup-bridge
   CHECKS=0
   EXPECTED_BALANCE=$(echo "{{sequencer_transfer_amount}} * {{sequencer_base_amount}} * {{rollup_multiplier}}" | bc)
-  while [ $CHECKS -lt $MAX_CHECKS ]; do
+  while (( $CHECKS < $MAX_CHECKS )); do
     CHECKS=$((CHECKS+1))
     BALANCE=$(just evm-get-balance {{evm_destination_address}})
     echo "Check $CHECKS, Balance: $BALANCE, Expected: $EXPECTED_BALANCE"
@@ -272,7 +272,7 @@ run-smoke-test:
       sleep 1
     fi
   done
-  if [ $CHECKS -eq $MAX_CHECKS ]; then
+  if (( $CHECKS >= $MAX_CHECKS )); then
     echo "Bridge In failure"
     exit 1
   fi
@@ -282,7 +282,7 @@ run-smoke-test:
   TRANSFERED_BALANCE=$(echo "1 * {{sequencer_base_amount}} * {{rollup_multiplier}}" | bc)
   EXPECTED_BALANCE=$(echo "$EXPECTED_BALANCE - $TRANSFERED_BALANCE" | bc)
   CHECKS=0
-  while [ $CHECKS -lt $MAX_CHECKS ]; do
+  while (( $CHECKS < $MAX_CHECKS )); do
     CHECKS=$((CHECKS+1))
     BALANCE=$(just evm-get-balance {{evm_destination_address}})
     echo "Check $CHECKS, Balance: $BALANCE, Expected: $EXPECTED_BALANCE"
@@ -293,13 +293,13 @@ run-smoke-test:
       sleep 1
     fi
   done
-  if [ $CHECKS -eq $MAX_CHECKS ]; then
+  if (( $CHECKS >= $MAX_CHECKS )); then
     echo "Bridge Out EVM failure"
     exit 1
   fi
   CHECKS=0
   EXPECTED_BALANCE=$(echo "1 * {{sequencer_base_amount}}" | bc)
-  while [ $CHECKS -lt $MAX_CHECKS ]; do
+  while (( $CHECKS < $MAX_CHECKS )); do
     CHECKS=$((CHECKS+1))
     BALANCE=$(astria-cli sequencer account balance astria17w0adeg64ky0daxwd2ugyuneellmjgnxl39504 --sequencer-url {{sequencer_rpc_url}}  | awk '/nria/{print $(NF-1)}')
     echo "Check $CHECKS, Balance: $BALANCE, Expected: $EXPECTED_BALANCE"
@@ -310,7 +310,7 @@ run-smoke-test:
       sleep 1
     fi
   done
-  if [ $CHECKS -gt $MAX_CHECKS ]; then
+  if (( $CHECKS >= $MAX_CHECKS )); then
     echo "Bridge Out Sequencer failure"
     exit 1
   fi
@@ -319,7 +319,7 @@ run-smoke-test:
   CHECKS=0
   BLOCK_NUM_HEX=$(just evm-get-transaction-receipt {{bridge_tx_hash}} | jq -r '.blockNumber')
   BLOCK_NUM=$(just hex-to-dec $BLOCK_NUM_HEX)
-  while [ $CHECKS -lt $MAX_CHECKS ]; do
+  while (( $CHECKS < $MAX_CHECKS )); do
     CHECKS=$((CHECKS+1))
     FINALIZED_BLOCK=$(just evm-get-block-by-number finalized | jq -r '.number')
     FINALIZED_BLOCK=$(just hex-to-dec $FINALIZED_BLOCK)
@@ -331,7 +331,7 @@ run-smoke-test:
       sleep 1
     fi
   done
-  if [ $CHECKS -gt $MAX_CHECKS ]; then
+  if (( $CHECKS >= $MAX_CHECKS )); then
     echo "Finalization failure"
     exit 1
   fi
@@ -360,7 +360,7 @@ run-smoke-cli:
   just init rollup-bridge
   CHECKS=0
   EXPECTED_BALANCE=$(echo "{{sequencer_transfer_amount}} * {{sequencer_base_amount}} * {{rollup_multiplier}}" | bc)
-  while [ $CHECKS -lt $MAX_CHECKS ]; do
+  while (( $CHECKS < $MAX_CHECKS )); do
     CHECKS=$((CHECKS+1))
     BALANCE=$(just evm-get-balance {{evm_destination_address}})
     echo "Check $CHECKS, Balance: $BALANCE, Expected: $EXPECTED_BALANCE"
@@ -371,7 +371,7 @@ run-smoke-cli:
       sleep 1
     fi
   done
-  if [ $CHECKS -eq $MAX_CHECKS ]; then
+  if (( $CHECKS >= $MAX_CHECKS )); then
     echo "Bridge In failure"
     exit 1
   fi
@@ -381,7 +381,7 @@ run-smoke-cli:
   TRANSFERED_BALANCE=$(echo "1 * {{sequencer_base_amount}} * {{rollup_multiplier}}" | bc)
   EXPECTED_BALANCE=$(echo "$EXPECTED_BALANCE - $TRANSFERED_BALANCE" | bc)
   CHECKS=0
-  while [ $CHECKS -lt $MAX_CHECKS ]; do
+  while (( $CHECKS < $MAX_CHECKS )); do
     CHECKS=$((CHECKS+1))
     BALANCE=$(just evm-get-balance {{evm_destination_address}})
     echo "Check $CHECKS, Balance: $BALANCE, Expected: $EXPECTED_BALANCE"
@@ -392,7 +392,7 @@ run-smoke-cli:
       sleep 1
     fi
   done
-  if [ $CHECKS -eq $MAX_CHECKS ]; then
+  if (( $CHECKS >= $MAX_CHECKS )); then
     echo "Bridge Out EVM failure"
     exit 1
   fi
@@ -423,7 +423,7 @@ run-smoke-cli:
 
   CHECKS=0
   EXPECTED_BALANCE=$(echo "1 * {{sequencer_base_amount}}" | bc)
-  while [ $CHECKS -lt $MAX_CHECKS ]; do
+  while (( $CHECKS < $MAX_CHECKS )); do
     CHECKS=$((CHECKS+1))
     BALANCE=$(astria-cli sequencer account balance astria17w0adeg64ky0daxwd2ugyuneellmjgnxl39504 --sequencer-url {{sequencer_rpc_url}}  | awk '/nria/{print $(NF-1)}')
     echo "Check $CHECKS, Balance: $BALANCE, Expected: $EXPECTED_BALANCE"
@@ -434,7 +434,7 @@ run-smoke-cli:
       sleep 1
     fi
   done
-  if [ $CHECKS -gt $MAX_CHECKS ]; then
+  if (( $CHECKS >= $MAX_CHECKS )); then
     echo "Bridge Out Sequencer failure"
     exit 1
   fi
