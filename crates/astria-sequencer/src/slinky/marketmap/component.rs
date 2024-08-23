@@ -27,10 +27,10 @@ impl Component for MarketMapComponent {
         // only required for related actions however
 
         state
-            .put_market_map(app_state.slinky_genesis().market_map().market_map.clone())
+            .put_market_map(app_state.slinky().market_map().market_map.clone())
             .context("failed to put market map")?;
         state
-            .put_params(app_state.slinky_genesis().market_map().params.clone())
+            .put_params(app_state.slinky().market_map().params.clone())
             .context("failed to put params")?;
         Ok(())
     }

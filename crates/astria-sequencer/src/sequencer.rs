@@ -115,7 +115,9 @@ impl Sequencer {
                 .context("failed to query state for base prefix")?;
         }
 
-        let oracle_client = if config.oracle_enabled {
+        let oracle_client = if config.no_oracle {
+            None
+        } else {
             let uri: Uri = config
                 .oracle_grpc_addr
                 .parse()
@@ -137,8 +139,6 @@ impl Sequencer {
                 debug!(uri = %uri, "oracle sidecar is reachable");
             };
             Some(oracle_client)
-        } else {
-            None
         };
 
         let mempool = Mempool::new();

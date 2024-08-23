@@ -133,8 +133,8 @@ pub(crate) fn proto_genesis_state()
         }),
         allowed_fee_assets: vec![crate::test_utils::nria().to_string()],
         fees: Some(default_fees().to_raw()),
-        slinky_genesis: Some(SlinkyGenesis {
-            market_map_genesis: Some(
+        slinky: Some(SlinkyGenesis {
+            market_map: Some(
                 MarketMapGenesisState {
                     market_map: MarketMap {
                         markets: std::collections::HashMap::new(),
@@ -147,7 +147,7 @@ pub(crate) fn proto_genesis_state()
                 }
                 .into_raw(),
             ),
-            oracle_genesis: Some(
+            oracle: Some(
                 OracleGenesisState {
                     currency_pair_genesis: vec![],
                     next_id: 0,

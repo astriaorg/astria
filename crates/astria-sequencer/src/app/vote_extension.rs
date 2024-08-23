@@ -21,6 +21,7 @@ use astria_core::{
         types::v1::CurrencyPair,
     },
 };
+use indexmap::IndexMap;
 use prost::Message as _;
 use tendermint::{
     abci,
@@ -149,7 +150,7 @@ async fn transform_oracle_service_prices<S: StateReadExt>(
     state: &S,
     prices: QueryPricesResponse,
 ) -> anyhow::Result<OracleVoteExtension> {
-    let mut strategy_prices = HashMap::new();
+    let mut strategy_prices = IndexMap::new();
     for (currency_pair_id, price_string) in prices.prices {
         let currency_pair = currency_pair_id
             .parse()

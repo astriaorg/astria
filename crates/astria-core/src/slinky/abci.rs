@@ -1,25 +1,25 @@
 pub mod v1 {
-    use std::collections::HashMap;
+    use indexmap::IndexMap;
 
     use crate::generated::astria_vendored::slinky::abci::v1 as raw;
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct OracleVoteExtension {
-        pub prices: HashMap<u64, bytes::Bytes>,
+        pub prices: IndexMap<u64, bytes::Bytes>,
     }
 
     impl OracleVoteExtension {
         #[must_use]
         pub fn from_raw(raw: raw::OracleVoteExtension) -> Self {
             Self {
-                prices: raw.prices,
+                prices: raw.prices.into_iter().collect(),
             }
         }
 
         #[must_use]
         pub fn into_raw(self) -> raw::OracleVoteExtension {
             raw::OracleVoteExtension {
-                prices: self.prices,
+                prices: self.prices.into_iter().collect(),
             }
         }
     }

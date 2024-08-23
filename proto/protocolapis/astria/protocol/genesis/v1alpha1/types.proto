@@ -17,7 +17,7 @@ message GenesisAppState {
   IbcParameters ibc_parameters = 8;
   repeated string allowed_fee_assets = 9;
   Fees fees = 10;
-  SlinkyGenesis slinky_genesis = 11;
+  SlinkyGenesis slinky = 11;
 }
 
 message Account {
@@ -50,6 +50,6 @@ message Fees {
 }
 
 message SlinkyGenesis {
-  astria_vendored.slinky.marketmap.v1.GenesisState market_map_genesis = 1;
-  astria_vendored.slinky.oracle.v1.GenesisState oracle_genesis = 2;
+  astria_vendored.slinky.marketmap.v1.GenesisState market_map = 1;
+  astria_vendored.slinky.oracle.v1.GenesisState oracle = 2;
 }

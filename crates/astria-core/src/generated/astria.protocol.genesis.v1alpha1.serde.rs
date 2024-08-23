@@ -435,7 +435,7 @@ impl serde::Serialize for GenesisAppState {
         if self.fees.is_some() {
             len += 1;
         }
-        if self.slinky_genesis.is_some() {
+        if self.slinky.is_some() {
             len += 1;
         }
         let mut struct_ser = serializer.serialize_struct("astria.protocol.genesis.v1alpha1.GenesisAppState", len)?;
@@ -469,8 +469,8 @@ impl serde::Serialize for GenesisAppState {
         if let Some(v) = self.fees.as_ref() {
             struct_ser.serialize_field("fees", v)?;
         }
-        if let Some(v) = self.slinky_genesis.as_ref() {
-            struct_ser.serialize_field("slinkyGenesis", v)?;
+        if let Some(v) = self.slinky.as_ref() {
+            struct_ser.serialize_field("slinky", v)?;
         }
         struct_ser.end()
     }
@@ -500,8 +500,7 @@ impl<'de> serde::Deserialize<'de> for GenesisAppState {
             "allowed_fee_assets",
             "allowedFeeAssets",
             "fees",
-            "slinky_genesis",
-            "slinkyGenesis",
+            "slinky",
         ];
 
         #[allow(clippy::enum_variant_names)]
@@ -516,7 +515,7 @@ impl<'de> serde::Deserialize<'de> for GenesisAppState {
             IbcParameters,
             AllowedFeeAssets,
             Fees,
-            SlinkyGenesis,
+            Slinky,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -548,7 +547,7 @@ impl<'de> serde::Deserialize<'de> for GenesisAppState {
                             "ibcParameters" | "ibc_parameters" => Ok(GeneratedField::IbcParameters),
                             "allowedFeeAssets" | "allowed_fee_assets" => Ok(GeneratedField::AllowedFeeAssets),
                             "fees" => Ok(GeneratedField::Fees),
-                            "slinkyGenesis" | "slinky_genesis" => Ok(GeneratedField::SlinkyGenesis),
+                            "slinky" => Ok(GeneratedField::Slinky),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -578,7 +577,7 @@ impl<'de> serde::Deserialize<'de> for GenesisAppState {
                 let mut ibc_parameters__ = None;
                 let mut allowed_fee_assets__ = None;
                 let mut fees__ = None;
-                let mut slinky_genesis__ = None;
+                let mut slinky__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
                         GeneratedField::ChainId => {
@@ -641,11 +640,11 @@ impl<'de> serde::Deserialize<'de> for GenesisAppState {
                             }
                             fees__ = map_.next_value()?;
                         }
-                        GeneratedField::SlinkyGenesis => {
-                            if slinky_genesis__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("slinkyGenesis"));
+                        GeneratedField::Slinky => {
+                            if slinky__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("slinky"));
                             }
-                            slinky_genesis__ = map_.next_value()?;
+                            slinky__ = map_.next_value()?;
                         }
                     }
                 }
@@ -660,7 +659,7 @@ impl<'de> serde::Deserialize<'de> for GenesisAppState {
                     ibc_parameters: ibc_parameters__,
                     allowed_fee_assets: allowed_fee_assets__.unwrap_or_default(),
                     fees: fees__,
-                    slinky_genesis: slinky_genesis__,
+                    slinky: slinky__,
                 })
             }
         }
@@ -803,18 +802,18 @@ impl serde::Serialize for SlinkyGenesis {
     {
         use serde::ser::SerializeStruct;
         let mut len = 0;
-        if self.market_map_genesis.is_some() {
+        if self.market_map.is_some() {
             len += 1;
         }
-        if self.oracle_genesis.is_some() {
+        if self.oracle.is_some() {
             len += 1;
         }
         let mut struct_ser = serializer.serialize_struct("astria.protocol.genesis.v1alpha1.SlinkyGenesis", len)?;
-        if let Some(v) = self.market_map_genesis.as_ref() {
-            struct_ser.serialize_field("marketMapGenesis", v)?;
+        if let Some(v) = self.market_map.as_ref() {
+            struct_ser.serialize_field("marketMap", v)?;
         }
-        if let Some(v) = self.oracle_genesis.as_ref() {
-            struct_ser.serialize_field("oracleGenesis", v)?;
+        if let Some(v) = self.oracle.as_ref() {
+            struct_ser.serialize_field("oracle", v)?;
         }
         struct_ser.end()
     }
@@ -826,16 +825,15 @@ impl<'de> serde::Deserialize<'de> for SlinkyGenesis {
         D: serde::Deserializer<'de>,
     {
         const FIELDS: &[&str] = &[
-            "market_map_genesis",
-            "marketMapGenesis",
-            "oracle_genesis",
-            "oracleGenesis",
+            "market_map",
+            "marketMap",
+            "oracle",
         ];
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
-            MarketMapGenesis,
-            OracleGenesis,
+            MarketMap,
+            Oracle,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -857,8 +855,8 @@ impl<'de> serde::Deserialize<'de> for SlinkyGenesis {
                         E: serde::de::Error,
                     {
                         match value {
-                            "marketMapGenesis" | "market_map_genesis" => Ok(GeneratedField::MarketMapGenesis),
-                            "oracleGenesis" | "oracle_genesis" => Ok(GeneratedField::OracleGenesis),
+                            "marketMap" | "market_map" => Ok(GeneratedField::MarketMap),
+                            "oracle" => Ok(GeneratedField::Oracle),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -878,27 +876,27 @@ impl<'de> serde::Deserialize<'de> for SlinkyGenesis {
                 where
                     V: serde::de::MapAccess<'de>,
             {
-                let mut market_map_genesis__ = None;
-                let mut oracle_genesis__ = None;
+                let mut market_map__ = None;
+                let mut oracle__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
-                        GeneratedField::MarketMapGenesis => {
-                            if market_map_genesis__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("marketMapGenesis"));
+                        GeneratedField::MarketMap => {
+                            if market_map__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("marketMap"));
                             }
-                            market_map_genesis__ = map_.next_value()?;
+                            market_map__ = map_.next_value()?;
                         }
-                        GeneratedField::OracleGenesis => {
-                            if oracle_genesis__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("oracleGenesis"));
+                        GeneratedField::Oracle => {
+                            if oracle__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("oracle"));
                             }
-                            oracle_genesis__ = map_.next_value()?;
+                            oracle__ = map_.next_value()?;
                         }
                     }
                 }
                 Ok(SlinkyGenesis {
-                    market_map_genesis: market_map_genesis__,
-                    oracle_genesis: oracle_genesis__,
+                    market_map: market_map__,
+                    oracle: oracle__,
                 })
             }
         }

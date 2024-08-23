@@ -79,13 +79,13 @@ expression: genesis_state()
       "lo": "24"
     }
   },
-  "slinkyGenesis": {
-    "marketMapGenesis": {
+  "slinky": {
+    "marketMap": {
       "marketMap": {},
       "params": {
         "admin": "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
       }
     },
-    "oracleGenesis": {}
+    "oracle": {}
   }
 }

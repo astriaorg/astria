@@ -809,6 +809,7 @@ dependencies = [
  "hex",
  "ibc-proto",
  "ibc-types",
+ "indexmap 2.4.0",
  "insta",
  "is_sorted",
  "matchit",

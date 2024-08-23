@@ -28,7 +28,7 @@ pub struct GenesisAppState {
     #[prost(message, optional, tag = "10")]
     pub fees: ::core::option::Option<Fees>,
     #[prost(message, optional, tag = "11")]
-    pub slinky_genesis: ::core::option::Option<SlinkyGenesis>,
+    pub slinky: ::core::option::Option<SlinkyGenesis>,
 }
 impl ::prost::Name for GenesisAppState {
     const NAME: &'static str = "GenesisAppState";
@@ -130,11 +130,11 @@ impl ::prost::Name for Fees {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SlinkyGenesis {
     #[prost(message, optional, tag = "1")]
-    pub market_map_genesis: ::core::option::Option<
+    pub market_map: ::core::option::Option<
         super::super::super::astria_vendored::slinky::marketmap::v1::GenesisState,
     >,
     #[prost(message, optional, tag = "2")]
-    pub oracle_genesis: ::core::option::Option<
+    pub oracle: ::core::option::Option<
         super::super::super::astria_vendored::slinky::oracle::v1::GenesisState,
     >,
 }

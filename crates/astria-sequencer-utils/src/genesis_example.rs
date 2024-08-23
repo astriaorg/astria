@@ -156,9 +156,9 @@ fn proto_genesis_state() -> astria_core::generated::protocol::genesis::v1alpha1:
             }
             .into_raw(),
         ),
-        slinky_genesis: Some(
+        slinky: Some(
             astria_core::generated::protocol::genesis::v1alpha1::SlinkyGenesis {
-                market_map_genesis: Some(
+                market_map: Some(
                     MarketMapGenesisState {
                         market_map: MarketMap {
                             markets: genesis_state_markets(),
@@ -171,7 +171,7 @@ fn proto_genesis_state() -> astria_core::generated::protocol::genesis::v1alpha1:
                     }
                     .into_raw(),
                 ),
-                oracle_genesis: Some(
+                oracle: Some(
                     OracleGenesisState {
                         currency_pair_genesis: vec![
                             CurrencyPairGenesis {
