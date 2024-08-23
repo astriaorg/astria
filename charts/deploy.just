@@ -209,6 +209,8 @@ sequencer_bridge_pkey := "dfa7108e38ab71f89f356c72afc38600d5758f11a8c337164713e4
 sequencer_chain_id := "sequencer-test-chain-0"
 init-rollup-bridge rollupName=defaultRollupName evmDestinationAddress=evm_destination_address transferAmount=sequencer_transfer_amount:
   #!/usr/bin/env bash
+  set -e
+
   SEQUENCER_FUNDS_PKEY="934ab488f9e1900f6a08f50605ce1409ca9d95ebdc400dafc2e8a4306419fd52"
   ASSET="nria"
   FEE_ASSET="nria"
@@ -226,7 +228,7 @@ init-rollup-bridge rollupName=defaultRollupName evmDestinationAddress=evm_destin
     --private-key $SEQUENCER_FUNDS_PKEY \
     --sequencer.chain-id {{sequencer_chain_id}} \
     --sequencer-url {{sequencer_rpc_url}} \
-    --fee-asset=$FEE_ASSET --asset=$ASSET || exit 1
+    --fee-asset=$FEE_ASSET --asset=$ASSET
 
 
 init-ibc-bridge privateKey asset feeAsset rollupName=defaultRollupName:
@@ -244,6 +246,8 @@ bridge_tx_bytes := "0xf8f280843c54e7f182898594a58639fb5458e65e4fa917ff951c390292
 bridge_tx_hash := "0x67db5b0825e8f60b926234e209d54e0336cd94defe6720e7acadf871e0377150"
 run-smoke-test:
   #!/usr/bin/env bash
+  set -e
+
   MAX_CHECKS=30
 
   # Checking starting balance
@@ -341,6 +345,8 @@ delete-smoke-test:
 evm_contract_address := "0xA58639fB5458e65E4fA917FF951C390292C24A15"
 run-smoke-cli:
   #!/usr/bin/env bash
+  set -e
+
   MAX_CHECKS=30
 
   # Checking starting balance

@@ -34,6 +34,7 @@ delete:
 [no-cd]
 run:
   #!/usr/bin/env bash
+  set -e
 
   initial_balance=$(just evm-get-balance {{evm_destination_address}})
 
