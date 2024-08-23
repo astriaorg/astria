@@ -92,7 +92,7 @@ pub mod action {
         SudoAddressChangeAction(super::SudoAddressChangeAction),
         #[prost(message, tag = "51")]
         ValidatorUpdateAction(
-            crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate,
+            super::super::super::super::super::astria_vendored::tendermint::abci::ValidatorUpdate,
         ),
         #[prost(message, tag = "52")]
         IbcRelayerChangeAction(super::IbcRelayerChangeAction),
