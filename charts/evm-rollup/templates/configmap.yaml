@@ -25,6 +25,7 @@ data:
   ASTRIA_CONDUCTOR_PRETTY_PRINT: "{{ .Values.global.useTTY }}"
   NO_COLOR: "{{ .Values.global.useTTY }}"
   ASTRIA_CONDUCTOR_NO_OTEL: "{{ not .Values.otel.enabled }}"
+  ASTRIA_CONDUCTOR_NO_CELESTIA_AUTH: "{{ not .Values.config.celestia.token }}"
   ASTRIA_CONDUCTOR_CELESTIA_BEARER_TOKEN: "{{ .Values.config.celestia.token }}"
   OTEL_EXPORTER_OTLP_ENDPOINT: "{{ tpl .Values.otel.endpoint . }}"
   OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "{{ tpl .Values.otel.tracesEndpoint . }}"
@@ -35,7 +36,6 @@ data:
   OTEL_SERVICE_NAME: "{{ tpl .Values.otel.serviceNamePrefix . }}-conductor"
   {{- if not .Values.global.dev }}
   {{- else }}
-  ASTRIA_CONDUCTOR_NO_CELESTIA_AUTH: "{{ not .Values.config.celestia.token }}"
   {{- end }}
 ---
 apiVersion: v1
