@@ -19,9 +19,12 @@ config:
       key: token
   # The amount of token to give per request
   amount: 1800
+  minutesBetweenRequests: 1440
+  addressPrefix: "astria"
+  sequencerNativeDenom: "nria"
 
 images:
-  sequencerFaucet: "ghcr.io/astriaorg/seq-faucet:sha-5c9d64c"
+  sequencerFaucet: "ghcr.io/astriaorg/seq-faucet:0.8.0"
 
 # When deploying in a production environment should use a secret provider
 # This is configured for use with GCP, need to set own resource names
