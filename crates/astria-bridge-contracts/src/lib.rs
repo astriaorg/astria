@@ -332,7 +332,7 @@ where
     pub async fn get_for_block_hash(
         &self,
         block_hash: H256,
-    ) -> Result<Vec<Action>, GetWithdrawalActionsError> {
+    ) -> Result<LogsToActionsConverter, GetWithdrawalActionsError> {
         use futures::FutureExt as _;
         let get_ics20_logs = if self.configured_for_ics20_withdrawals() {
             get_logs::<Ics20WithdrawalFilter, _>(&self.provider, self.contract_address, block_hash)
@@ -355,114 +355,162 @@ where
                 .await
                 .map_err(GetWithdrawalActionsError::get_logs)?;
 
+        Ok(LogsToActionsConverter {
+            ics20_logs,
+            sequencer_logs,
+            asset_withdrawal_divisor: self.asset_withdrawal_divisor,
+            bridge_address: self.bridge_address,
+            fee_asset: self.fee_asset.clone(),
+            ics20_asset_to_withdraw: self.ics20_asset_to_withdraw.clone(),
+            ics20_source_channel: self.ics20_source_channel.clone(),
+        })
+    }
+}
+
+pub struct LogsToActionsConverter {
+    ics20_logs: Vec<Log>,
+    sequencer_logs: Vec<Log>,
+    asset_withdrawal_divisor: u128,
+    bridge_address: Address,
+    fee_asset: asset::Denom,
+    ics20_asset_to_withdraw: Option<asset::TracePrefixed>,
+    ics20_source_channel: Option<ibc_types::core::channel::ChannelId>,
+}
+
+impl LogsToActionsConverter {
+    /// Converts all logs to withdrawal actions. Returns a
+    pub fn convert_logs_to_actions(self) -> Vec<Result<Action, GetWithdrawalActionsError>> {
+        let Self {
+            ics20_logs,
+            sequencer_logs,
+            asset_withdrawal_divisor,
+            bridge_address,
+            fee_asset,
+            ics20_asset_to_withdraw,
+            ics20_source_channel,
+        } = self;
         // XXX: The calls to `log_to_*_action` rely on only be called if `GetWithdrawalActions`
         // is configured for either ics20 or sequencer withdrawals (or both). They would panic
         // otherwise.
         ics20_logs
             .into_iter()
-            .map(|log| self.log_to_ics20_withdrawal_action(log))
-            .chain(
-                sequencer_logs
-                    .into_iter()
-                    .map(|log| self.log_to_sequencer_withdrawal_action(log)),
-            )
+            .map(|log| {
+                log_to_ics20_withdrawal_action(
+                    log,
+                    asset_withdrawal_divisor,
+                    bridge_address,
+                    &fee_asset,
+                    ics20_asset_to_withdraw
+                        .clone()
+                        .expect("ics20_asset_to_withdraw must be configured for ics20 withdrawals"),
+                    ics20_source_channel
+                        .clone()
+                        .expect("ics20_source_channel must be configured for ics20 withdrawals"),
+                )
+            })
+            .chain(sequencer_logs.into_iter().map(|log| {
+                log_to_sequencer_withdrawal_action(
+                    log,
+                    asset_withdrawal_divisor,
+                    bridge_address,
+                    &fee_asset,
+                )
+            }))
             .collect()
     }
+}
 
-    fn log_to_ics20_withdrawal_action(
-        &self,
-        log: Log,
-    ) -> Result<Action, GetWithdrawalActionsError> {
-        let rollup_block_number = log
-            .block_number
-            .ok_or_else(|| GetWithdrawalActionsError::log_without_block_number(&log))?
-            .as_u64();
+pub fn log_to_ics20_withdrawal_action(
+    log: Log,
+    asset_withdrawal_divisor: u128,
+    bridge_address: Address,
+    fee_asset: &asset::Denom,
+    asset_to_withdraw: asset::TracePrefixed,
+    source_channel: ibc_types::core::channel::ChannelId,
+) -> Result<Action, GetWithdrawalActionsError> {
+    let rollup_block_number = log
+        .block_number
+        .ok_or_else(|| GetWithdrawalActionsError::log_without_block_number(&log))?
+        .as_u64();
 
-        let rollup_transaction_hash = log
-            .transaction_hash
-            .ok_or_else(|| GetWithdrawalActionsError::log_without_transaction_hash(&log))?
-            .to_string();
+    let rollup_transaction_hash = log
+        .transaction_hash
+        .ok_or_else(|| GetWithdrawalActionsError::log_without_transaction_hash(&log))?
+        .to_string();
 
-        let event = decode_log::<Ics20WithdrawalFilter>(log)
-            .map_err(GetWithdrawalActionsError::decode_log)?;
+    let event =
+        decode_log::<Ics20WithdrawalFilter>(log).map_err(GetWithdrawalActionsError::decode_log)?;
 
-        let (denom, source_channel) = (
-            self.ics20_asset_to_withdraw
-                .clone()
-                .expect("must be set if this method is entered")
-                .into(),
-            self.ics20_source_channel
-                .clone()
-                .expect("must be set if this method is entered"),
-        );
+    let (denom, source_channel) = (asset_to_withdraw.into(), source_channel);
 
-        let memo = memo_to_json(&memos::v1alpha1::Ics20WithdrawalFromRollup {
-            memo: event.memo.clone(),
-            rollup_block_number,
-            rollup_return_address: event.sender.to_string(),
-            rollup_transaction_hash,
-        })
-        .map_err(GetWithdrawalActionsError::encode_memo)?;
+    let memo = memo_to_json(&memos::v1alpha1::Ics20WithdrawalFromRollup {
+        memo: event.memo.clone(),
+        rollup_block_number,
+        rollup_return_address: event.sender.to_string(),
+        rollup_transaction_hash,
+    })
+    .map_err(GetWithdrawalActionsError::encode_memo)?;
 
-        let amount = calculate_amount(&event, self.asset_withdrawal_divisor)
-            .map_err(GetWithdrawalActionsError::calculate_withdrawal_amount)?;
+    let amount = calculate_amount(&event, asset_withdrawal_divisor)
+        .map_err(GetWithdrawalActionsError::calculate_withdrawal_amount)?;
 
-        let action = Ics20Withdrawal {
-            denom,
-            destination_chain_address: event.destination_chain_address,
-            return_address: self.bridge_address,
-            amount,
-            memo,
-            fee_asset: self.fee_asset.clone(),
-            // note: this refers to the timeout on the destination chain, which we are unaware of.
-            // thus, we set it to the maximum possible value.
-            timeout_height: max_timeout_height(),
-            timeout_time: timeout_in_5_min(),
-            source_channel,
-            bridge_address: Some(self.bridge_address),
-        };
-        Ok(Action::Ics20Withdrawal(action))
-    }
+    let action = Ics20Withdrawal {
+        denom,
+        destination_chain_address: event.destination_chain_address,
+        return_address: bridge_address,
+        amount,
+        memo,
+        fee_asset: fee_asset.clone(),
+        // note: this refers to the timeout on the destination chain, which we are unaware of.
+        // thus, we set it to the maximum possible value.
+        timeout_height: max_timeout_height(),
+        timeout_time: timeout_in_5_min(),
+        source_channel,
+        bridge_address: Some(bridge_address),
+    };
+    Ok(Action::Ics20Withdrawal(action))
+}
 
-    fn log_to_sequencer_withdrawal_action(
-        &self,
-        log: Log,
-    ) -> Result<Action, GetWithdrawalActionsError> {
-        let rollup_block_number = log
-            .block_number
-            .ok_or_else(|| GetWithdrawalActionsError::log_without_block_number(&log))?
-            .as_u64();
+fn log_to_sequencer_withdrawal_action(
+    log: Log,
+    asset_withdrawal_divisor: u128,
+    bridge_address: Address,
+    fee_asset: &asset::Denom,
+) -> Result<Action, GetWithdrawalActionsError> {
+    let rollup_block_number = log
+        .block_number
+        .ok_or_else(|| GetWithdrawalActionsError::log_without_block_number(&log))?
+        .as_u64();
 
-        let rollup_transaction_hash = log
-            .transaction_hash
-            .ok_or_else(|| GetWithdrawalActionsError::log_without_transaction_hash(&log))?
-            .to_string();
+    let rollup_transaction_hash = log
+        .transaction_hash
+        .ok_or_else(|| GetWithdrawalActionsError::log_without_transaction_hash(&log))?
+        .to_string();
 
-        let event = decode_log::<SequencerWithdrawalFilter>(log)
-            .map_err(GetWithdrawalActionsError::decode_log)?;
+    let event = decode_log::<SequencerWithdrawalFilter>(log)
+        .map_err(GetWithdrawalActionsError::decode_log)?;
 
-        let memo = memo_to_json(&memos::v1alpha1::BridgeUnlock {
-            rollup_block_number,
-            rollup_transaction_hash,
-        })
-        .map_err(GetWithdrawalActionsError::encode_memo)?;
+    let memo = memo_to_json(&memos::v1alpha1::BridgeUnlock {
+        rollup_block_number,
+        rollup_transaction_hash,
+    })
+    .map_err(GetWithdrawalActionsError::encode_memo)?;
 
-        let amount = calculate_amount(&event, self.asset_withdrawal_divisor)
-            .map_err(GetWithdrawalActionsError::calculate_withdrawal_amount)?;
+    let amount = calculate_amount(&event, asset_withdrawal_divisor)
+        .map_err(GetWithdrawalActionsError::calculate_withdrawal_amount)?;
 
-        let to = parse_destination_chain_as_address(&event)
-            .map_err(GetWithdrawalActionsError::destination_chain_as_address)?;
+    let to = parse_destination_chain_as_address(&event)
+        .map_err(GetWithdrawalActionsError::destination_chain_as_address)?;
 
-        let action = astria_core::protocol::transaction::v1alpha1::action::BridgeUnlockAction {
-            to,
-            amount,
-            memo,
-            fee_asset: self.fee_asset.clone(),
-            bridge_address: self.bridge_address,
-        };
+    let action = astria_core::protocol::transaction::v1alpha1::action::BridgeUnlockAction {
+        to,
+        amount,
+        memo,
+        fee_asset: fee_asset.clone(),
+        bridge_address,
+    };
 
-        Ok(Action::BridgeUnlock(action))
-    }
+    Ok(Action::BridgeUnlock(action))
 }
 
 #[derive(Debug, thiserror::Error)]
