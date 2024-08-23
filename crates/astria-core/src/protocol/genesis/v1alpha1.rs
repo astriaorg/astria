@@ -27,6 +27,117 @@ use crate::{
     Protobuf,
 };
 
+#[derive(Clone, Debug)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Deserialize, serde::Serialize),
+    serde(try_from = "raw::SlinkyGenesis", into = "raw::SlinkyGenesis")
+)]
+pub struct SlinkyGenesis {
+    market_map: MarketMapGenesisState,
+    oracle: OracleGenesisState,
+}
+
+impl SlinkyGenesis {
+    #[must_use]
+    pub fn market_map(&self) -> &MarketMapGenesisState {
+        &self.market_map
+    }
+
+    #[must_use]
+    pub fn oracle(&self) -> &OracleGenesisState {
+        &self.oracle
+    }
+}
+
+impl Protobuf for SlinkyGenesis {
+    type Error = SlinkyGenesisError;
+    type Raw = raw::SlinkyGenesis;
+
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
+        let Self::Raw {
+            market_map_genesis,
+            oracle_genesis,
+        } = raw;
+        let market_map = market_map_genesis
+            .as_ref()
+            .ok_or_else(|| Self::Error::field_not_set("market_map_genesis"))
+            .and_then(|market_map| {
+                MarketMapGenesisState::try_from_raw_ref(market_map).map_err(Self::Error::market_map)
+            })?;
+        let oracle = oracle_genesis
+            .as_ref()
+            .ok_or_else(|| Self::Error::field_not_set("oracle_genesis"))
+            .and_then(|oracle| {
+                OracleGenesisState::try_from_raw_ref(oracle).map_err(Self::Error::oracle)
+            })?;
+        Ok(Self {
+            market_map,
+            oracle,
+        })
+    }
+
+    fn to_raw(&self) -> Self::Raw {
+        let Self {
+            market_map,
+            oracle,
+        } = self;
+        Self::Raw {
+            market_map_genesis: Some(market_map.to_raw()),
+            oracle_genesis: Some(oracle.to_raw()),
+        }
+    }
+}
+
+impl TryFrom<raw::SlinkyGenesis> for SlinkyGenesis {
+    type Error = <Self as Protobuf>::Error;
+
+    fn try_from(value: raw::SlinkyGenesis) -> Result<Self, Self::Error> {
+        Self::try_from_raw(value)
+    }
+}
+
+impl From<SlinkyGenesis> for raw::SlinkyGenesis {
+    fn from(value: SlinkyGenesis) -> Self {
+        value.into_raw()
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct SlinkyGenesisError(SlinkyGenesisErrorKind);
+
+impl SlinkyGenesisError {
+    fn field_not_set(name: &'static str) -> Self {
+        Self(SlinkyGenesisErrorKind::FieldNotSet {
+            name,
+        })
+    }
+
+    fn market_map(source: MarketMapGenesisStateError) -> Self {
+        Self(SlinkyGenesisErrorKind::MarketMap {
+            source,
+        })
+    }
+
+    fn oracle(source: OracleGenesisStateError) -> Self {
+        Self(SlinkyGenesisErrorKind::Oracle {
+            source,
+        })
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("failed ensuring invariants of {}", SlinkyGenesis::full_name())]
+enum SlinkyGenesisErrorKind {
+    #[error("field was not set: `{name}`")]
+    FieldNotSet { name: &'static str },
+    #[error("`market_map` field was invalid")]
+    MarketMap { source: MarketMapGenesisStateError },
+    #[error("`oracle` field was invalid")]
+    Oracle { source: OracleGenesisStateError },
+}
+
 /// The genesis state of Astria's Sequencer.
 ///
 /// Verified to only contain valid fields (right now, addresses that have the same base prefix
@@ -48,8 +159,7 @@ pub struct GenesisAppState {
     ibc_parameters: IBCParameters,
     allowed_fee_assets: Vec<asset::Denom>,
     fees: Fees,
-    market_map: MarketMapGenesisState,
-    oracle: OracleGenesisState,
+    slinky_genesis: SlinkyGenesis,
 }
 
 impl GenesisAppState {
@@ -104,13 +214,8 @@ impl GenesisAppState {
     }
 
     #[must_use]
-    pub fn market_map(&self) -> &MarketMapGenesisState {
-        &self.market_map
-    }
-
-    #[must_use]
-    pub fn oracle(&self) -> &OracleGenesisState {
-        &self.oracle
+    pub fn slinky_genesis(&self) -> &SlinkyGenesis {
+        &self.slinky_genesis
     }
 
     fn ensure_address_has_base_prefix(
@@ -144,14 +249,21 @@ impl GenesisAppState {
             self.ensure_address_has_base_prefix(address, &format!(".ibc_relayer_addresses[{i}]"))?;
         }
 
-        for (i, address) in self.market_map.params.market_authorities.iter().enumerate() {
+        for (i, address) in self
+            .slinky_genesis
+            .market_map
+            .params
+            .market_authorities
+            .iter()
+            .enumerate()
+        {
             self.ensure_address_has_base_prefix(
                 address,
                 &format!(".market_map.params.market_authorities[{i}]"),
             )?;
         }
         self.ensure_address_has_base_prefix(
-            &self.market_map.params.admin,
+            &self.slinky_genesis.market_map.params.admin,
             ".market_map.params.admin",
         )?;
 
@@ -175,8 +287,7 @@ impl Protobuf for GenesisAppState {
             ibc_parameters,
             allowed_fee_assets,
             fees,
-            market_map_genesis,
-            oracle_genesis,
+            slinky_genesis,
         } = raw;
         let address_prefixes = address_prefixes
             .as_ref()
@@ -229,7 +340,12 @@ impl Protobuf for GenesisAppState {
             .ok_or_else(|| Self::Error::field_not_set("fees"))
             .and_then(|fees| Fees::try_from_raw_ref(fees).map_err(Self::Error::fees))?;
 
-        let market_map = market_map_genesis
+        let slinky_genesis = slinky_genesis
+            .as_ref()
+            .ok_or_else(|| Self::Error::field_not_set("slinky_genesis"))?;
+
+        let market_map = slinky_genesis
+            .market_map_genesis
             .as_ref()
             .ok_or_else(|| Self::Error::field_not_set("market_map_genesis"))
             .and_then(|market_map| {
@@ -237,7 +353,8 @@ impl Protobuf for GenesisAppState {
                     .map_err(Self::Error::market_map)
             })?;
 
-        let oracle = oracle_genesis
+        let oracle = slinky_genesis
+            .oracle_genesis
             .as_ref()
             .ok_or_else(|| Self::Error::field_not_set("oracle_genesis"))
             .and_then(|oracle| {
@@ -255,8 +372,10 @@ impl Protobuf for GenesisAppState {
             ibc_parameters,
             allowed_fee_assets,
             fees,
-            market_map,
-            oracle,
+            slinky_genesis: SlinkyGenesis {
+                market_map,
+                oracle,
+            },
         };
         this.ensure_all_addresses_have_base_prefix()
             .map_err(Self::Error::address_does_not_match_base)?;
@@ -275,8 +394,7 @@ impl Protobuf for GenesisAppState {
             ibc_parameters,
             allowed_fee_assets,
             fees,
-            market_map,
-            oracle,
+            slinky_genesis,
         } = self;
         Self::Raw {
             address_prefixes: Some(address_prefixes.to_raw()),
@@ -289,8 +407,7 @@ impl Protobuf for GenesisAppState {
             ibc_parameters: Some(ibc_parameters.to_raw()),
             allowed_fee_assets: allowed_fee_assets.iter().map(ToString::to_string).collect(),
             fees: Some(fees.to_raw()),
-            market_map_genesis: Some(market_map.clone().into_raw()),
-            oracle_genesis: Some(oracle.clone().into_raw()),
+            slinky_genesis: Some(slinky_genesis.clone().into_raw()),
         }
     }
 }
@@ -775,23 +892,22 @@ mod tests {
                 bridge_sudo_change_fee: Some(24.into()),
                 ics20_withdrawal_base_fee: Some(24.into()),
             }),
-            market_map_genesis: Some(
-                MarketMapGenesisState {
-                    market_map: MarketMap {
-                        markets: std::collections::HashMap::new(),
+            slinky_genesis: Some(
+                SlinkyGenesis {
+                    market_map: MarketMapGenesisState {
+                        market_map: MarketMap {
+                            markets: std::collections::HashMap::new(),
+                        },
+                        last_updated: 0,
+                        params: Params {
+                            market_authorities: vec![],
+                            admin: alice(),
+                        },
                     },
-                    last_updated: 0,
-                    params: Params {
-                        market_authorities: vec![],
-                        admin: alice(),
+                    oracle: OracleGenesisState {
+                        currency_pair_genesis: vec![],
+                        next_id: 0,
                     },
-                }
-                .into_raw(),
-            ),
-            oracle_genesis: Some(
-                OracleGenesisState {
-                    currency_pair_genesis: vec![],
-                    next_id: 0,
                 }
                 .into_raw(),
             ),

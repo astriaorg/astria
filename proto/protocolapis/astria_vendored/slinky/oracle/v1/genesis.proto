@@ -1,7 +1,6 @@
 syntax = "proto3";
 package astria_vendored.slinky.oracle.v1;
 
-import "cosmos_sdk/cosmos_proto/cosmos.proto";
 import "google/protobuf/timestamp.proto";
 import "astria_vendored/slinky/types/v1/currency_pair.proto";
 
@@ -10,7 +9,7 @@ option go_package = "github.com/skip-mev/slinky/x/oracle/types";
 // QuotePrice is the representation of the aggregated prices for a CurrencyPair,
 // where price represents the price of Base in terms of Quote
 message QuotePrice {
-  string price = 1 [(cosmos_proto.scalar) = "cosmos.Int"];
+  string price = 1;
 
   // BlockTimestamp tracks the block height associated with this price update.
   // We include block timestamp alongside the price to ensure that smart

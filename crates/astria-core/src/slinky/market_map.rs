@@ -11,6 +11,7 @@ pub mod v1 {
             AddressError,
         },
         slinky::types::v1::CurrencyPair,
+        Protobuf,
     };
 
     #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
@@ -21,7 +22,14 @@ pub mod v1 {
         pub params: Params,
     }
 
-    impl GenesisState {
+    impl Protobuf for GenesisState {
+        type Error = GenesisStateError;
+        type Raw = raw::GenesisState;
+
+        fn try_from_raw_ref(raw: &raw::GenesisState) -> Result<Self, Self::Error> {
+            Self::try_from_raw(raw.clone())
+        }
+
         /// Converts from a raw protobuf `GenesisState` to a native `GenesisState`.
         ///
         /// # Errors
@@ -30,7 +38,7 @@ pub mod v1 {
         /// - if the `market_map` field is invalid
         /// - if the `params` field is missing
         /// - if the `params` field is invalid
-        pub fn try_from_raw(raw: raw::GenesisState) -> Result<Self, GenesisStateError> {
+        fn try_from_raw(raw: raw::GenesisState) -> Result<Self, GenesisStateError> {
             let Some(market_map) = raw
                 .market_map
                 .map(MarketMap::try_from_raw)
@@ -55,8 +63,12 @@ pub mod v1 {
             })
         }
 
+        fn to_raw(&self) -> raw::GenesisState {
+            self.clone().into_raw()
+        }
+
         #[must_use]
-        pub fn into_raw(self) -> raw::GenesisState {
+        fn into_raw(self) -> raw::GenesisState {
             raw::GenesisState {
                 market_map: Some(self.market_map.into_raw()),
                 last_updated: self.last_updated,

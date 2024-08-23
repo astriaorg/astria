@@ -156,52 +156,62 @@ fn proto_genesis_state() -> astria_core::generated::protocol::genesis::v1alpha1:
             }
             .into_raw(),
         ),
-        market_map_genesis: Some(
-            MarketMapGenesisState {
-                market_map: MarketMap {
-                    markets: genesis_state_markets(),
-                },
-                last_updated: 0,
-                params: Params {
-                    market_authorities: vec![alice(), bob()],
-                    admin: alice(),
-                },
-            }
-            .into_raw(),
-        ),
-        oracle_genesis: Some(
-            OracleGenesisState {
-                currency_pair_genesis: vec![
-                    CurrencyPairGenesis {
-                        id: 0,
-                        nonce: 0,
-                        currency_pair_price: QuotePrice {
-                            price: 5_834_065_777,
-                            block_height: 0,
-                            block_timestamp: pbjson_types::Timestamp {
-                                seconds: 1_720_122_395,
-                                nanos: 0,
-                            },
+        slinky_genesis: Some(
+            astria_core::generated::protocol::genesis::v1alpha1::SlinkyGenesis {
+                market_map_genesis: Some(
+                    MarketMapGenesisState {
+                        market_map: MarketMap {
+                            markets: genesis_state_markets(),
                         },
-                        currency_pair: CurrencyPair::new("BTC".to_string(), "USD".to_string()),
-                    },
-                    CurrencyPairGenesis {
-                        id: 1,
-                        nonce: 0,
-                        currency_pair_price: QuotePrice {
-                            price: 3_138_872_234,
-                            block_height: 0,
-                            block_timestamp: pbjson_types::Timestamp {
-                                seconds: 1_720_122_395,
-                                nanos: 0,
-                            },
+                        last_updated: 0,
+                        params: Params {
+                            market_authorities: vec![alice(), bob()],
+                            admin: alice(),
                         },
-                        currency_pair: CurrencyPair::new("ETH".to_string(), "USD".to_string()),
-                    },
-                ],
-                next_id: 2,
-            }
-            .into_raw(),
+                    }
+                    .into_raw(),
+                ),
+                oracle_genesis: Some(
+                    OracleGenesisState {
+                        currency_pair_genesis: vec![
+                            CurrencyPairGenesis {
+                                id: 0,
+                                nonce: 0,
+                                currency_pair_price: QuotePrice {
+                                    price: 5_834_065_777,
+                                    block_height: 0,
+                                    block_timestamp: pbjson_types::Timestamp {
+                                        seconds: 1_720_122_395,
+                                        nanos: 0,
+                                    },
+                                },
+                                currency_pair: CurrencyPair::new(
+                                    "BTC".to_string(),
+                                    "USD".to_string(),
+                                ),
+                            },
+                            CurrencyPairGenesis {
+                                id: 1,
+                                nonce: 0,
+                                currency_pair_price: QuotePrice {
+                                    price: 3_138_872_234,
+                                    block_height: 0,
+                                    block_timestamp: pbjson_types::Timestamp {
+                                        seconds: 1_720_122_395,
+                                        nanos: 0,
+                                    },
+                                },
+                                currency_pair: CurrencyPair::new(
+                                    "ETH".to_string(),
+                                    "USD".to_string(),
+                                ),
+                            },
+                        ],
+                        next_id: 2,
+                    }
+                    .into_raw(),
+                ),
+            },
         ),
     }
 }

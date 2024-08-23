@@ -17,8 +17,7 @@ message GenesisAppState {
   IbcParameters ibc_parameters = 8;
   repeated string allowed_fee_assets = 9;
   Fees fees = 10;
-  astria_vendored.slinky.marketmap.v1.GenesisState market_map_genesis = 11;
-  astria_vendored.slinky.oracle.v1.GenesisState oracle_genesis = 12;
+  SlinkyGenesis slinky_genesis = 11;
 }
 
 message Account {
@@ -48,4 +47,9 @@ message Fees {
   astria.primitive.v1.Uint128 bridge_lock_byte_cost_multiplier = 5;
   astria.primitive.v1.Uint128 bridge_sudo_change_fee = 6;
   astria.primitive.v1.Uint128 ics20_withdrawal_base_fee = 7;
+}
+
+message SlinkyGenesis {
+  astria_vendored.slinky.marketmap.v1.GenesisState market_map_genesis = 1;
+  astria_vendored.slinky.oracle.v1.GenesisState oracle_genesis = 2;
 }

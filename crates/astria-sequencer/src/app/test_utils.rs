@@ -103,6 +103,7 @@ pub(crate) fn proto_genesis_state()
         generated::protocol::genesis::v1alpha1::{
             GenesisAppState,
             IbcParameters,
+            SlinkyGenesis,
         },
         slinky::{
             market_map::v1::{
@@ -132,26 +133,28 @@ pub(crate) fn proto_genesis_state()
         }),
         allowed_fee_assets: vec![crate::test_utils::nria().to_string()],
         fees: Some(default_fees().to_raw()),
-        market_map_genesis: Some(
-            MarketMapGenesisState {
-                market_map: MarketMap {
-                    markets: std::collections::HashMap::new(),
-                },
-                last_updated: 0,
-                params: Params {
-                    market_authorities: vec![],
-                    admin: astria_address_from_hex_string(ALICE_ADDRESS),
-                },
-            }
-            .into_raw(),
-        ),
-        oracle_genesis: Some(
-            OracleGenesisState {
-                currency_pair_genesis: vec![],
-                next_id: 0,
-            }
-            .into_raw(),
-        ),
+        slinky_genesis: Some(SlinkyGenesis {
+            market_map_genesis: Some(
+                MarketMapGenesisState {
+                    market_map: MarketMap {
+                        markets: std::collections::HashMap::new(),
+                    },
+                    last_updated: 0,
+                    params: Params {
+                        market_authorities: vec![],
+                        admin: astria_address_from_hex_string(ALICE_ADDRESS),
+                    },
+                }
+                .into_raw(),
+            ),
+            oracle_genesis: Some(
+                OracleGenesisState {
+                    currency_pair_genesis: vec![],
+                    next_id: 0,
+                }
+                .into_raw(),
+            ),
+        }),
     }
 }
 

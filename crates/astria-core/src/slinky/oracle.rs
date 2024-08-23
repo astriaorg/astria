@@ -4,6 +4,7 @@ pub mod v1 {
     use crate::{
         generated::astria_vendored::slinky::oracle::v1 as raw,
         slinky::types::v1::CurrencyPair,
+        Protobuf,
     };
 
     #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
@@ -250,13 +251,31 @@ pub mod v1 {
         pub next_id: u64,
     }
 
-    impl GenesisState {
+    impl Protobuf for GenesisState {
+        type Error = GenesisStateError;
+        type Raw = raw::GenesisState;
+
+        fn try_from_raw_ref(raw: &raw::GenesisState) -> Result<Self, GenesisStateError> {
+            let currency_pair_genesis = raw
+                .currency_pair_genesis
+                .clone()
+                .into_iter()
+                .map(CurrencyPairGenesis::try_from_raw)
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(GenesisStateError::currency_pair_genesis_parse_error)?;
+            let next_id = raw.next_id;
+            Ok(Self {
+                currency_pair_genesis,
+                next_id,
+            })
+        }
+
         /// Converts from a raw protobuf `GenesisState` to a native `GenesisState`.
         ///
         /// # Errors
         ///
         /// - if any of the `currency_pair_genesis` are invalid
-        pub fn try_from_raw(raw: raw::GenesisState) -> Result<Self, GenesisStateError> {
+        fn try_from_raw(raw: raw::GenesisState) -> Result<Self, GenesisStateError> {
             let currency_pair_genesis = raw
                 .currency_pair_genesis
                 .into_iter()
@@ -270,8 +289,20 @@ pub mod v1 {
             })
         }
 
+        fn to_raw(&self) -> raw::GenesisState {
+            raw::GenesisState {
+                currency_pair_genesis: self
+                    .currency_pair_genesis
+                    .clone()
+                    .into_iter()
+                    .map(CurrencyPairGenesis::into_raw)
+                    .collect(),
+                next_id: self.next_id,
+            }
+        }
+
         #[must_use]
-        pub fn into_raw(self) -> raw::GenesisState {
+        fn into_raw(self) -> raw::GenesisState {
             raw::GenesisState {
                 currency_pair_genesis: self
                     .currency_pair_genesis

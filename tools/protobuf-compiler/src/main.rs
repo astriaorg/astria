@@ -74,7 +74,6 @@ fn main() {
         .client_mod_attribute(".", "#[cfg(feature=\"client\")]")
         .server_mod_attribute(".", "#[cfg(feature=\"server\")]")
         .extern_path(".astria_vendored.penumbra", "::penumbra-proto")
-        //.extern_path(".astria_vendored.slinky", "crate::generated::astria_vendored::slinky")
         // .extern_path(
         //     ".astria_vendored.slinky.marketmap.v1.GenesisState",
         //     "crate::generated::astria_vendored::slinky::marketmap::v1::GenesisState",

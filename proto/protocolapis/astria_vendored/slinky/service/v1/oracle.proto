@@ -1,7 +1,6 @@
 syntax = "proto3";
 package astria_vendored.slinky.service.v1;
 
-import "cosmos_sdk/cosmos_proto/cosmos.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
 import "astria_vendored/slinky/marketmap/v1/market.proto";
