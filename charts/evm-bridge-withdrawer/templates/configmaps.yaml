@@ -10,8 +10,10 @@ data:
   ASTRIA_BRIDGE_WITHDRAWER_SEQUENCER_CHAIN_ID: "{{ tpl .Values.config.sequencerChainId . }}"
   ASTRIA_BRIDGE_WITHDRAWER_SEQUENCER_KEY_PATH: "/secret/sequencerPrivateKey/{{ .Values.config.sequencerPrivateKey.secret.filename }}"
   ASTRIA_BRIDGE_WITHDRAWER_SEQUENCER_ADDRESS_PREFIX: "{{ .Values.config.sequencerAddressPrefix }}"
+  ASTRIA_BRIDGE_WITHDRAWER_SEQUENCER_GRPC_ENDPOINT: "{{ tpl .Values.config.sequencerGrpcEndpoint . }}"
   ASTRIA_BRIDGE_WITHDRAWER_SEQUENCER_BRIDGE_ADDRESS: "{{ .Values.config.sequencerBridgeAddress }}"
   ASTRIA_BRIDGE_WITHDRAWER_FEE_ASSET_DENOMINATION: "{{ .Values.config.feeAssetDenom }}"
+
   ASTRIA_BRIDGE_WITHDRAWER_ROLLUP_ASSET_DENOMINATION: "{{ .Values.config.rollupAssetDenom }}"
   ASTRIA_BRIDGE_WITHDRAWER_ETHEREUM_CONTRACT_ADDRESS: "{{ .Values.config.evmContractAddress }}"
   ASTRIA_BRIDGE_WITHDRAWER_ETHEREUM_RPC_ENDPOINT: "{{ tpl .Values.config.evmRpcEndpoint . }}"
@@ -20,6 +22,7 @@ data:
   ASTRIA_BRIDGE_WITHDRAWER_FORCE_STDOUT: "{{ .Values.global.useTTY }}"
   ASTRIA_BRIDGE_WITHDRAWER_PRETTY_PRINT: "{{ .Values.global.useTTY }}"
   ASTRIA_BRIDGE_WITHDRAWER_NO_OTEL: "{{ not .Values.otel.enabled }}"
+
   NO_COLOR: "{{ .Values.global.useTTY }}"
   OTEL_EXPORTER_OTLP_ENDPOINT: "{{ tpl .Values.otel.endpoint . }}"
   OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "{{ tpl .Values.otel.tracesEndpoint . }}"
@@ -29,9 +32,7 @@ data:
   OTEL_EXPORTER_OTLP_TRACE_HEADERS: "{{ tpl .Values.otel.traceHeaders . }}"
   OTEL_SERVICE_NAME: "{{ tpl .Values.otel.serviceName . }}"
   {{- if not .Values.global.dev }}
-  ASTRIA_BRIDGE_WITHDRAWER_MIN_EXPECTED_FEE_ASSET_BALANCE: "{{ .Values.config.minExpectedFeeAssetBalance }}"
   {{- else }}
-  ASTRIA_BRIDGE_WITHDRAWER_SEQUENCER_GRPC_ENDPOINT: "{{ tpl .Values.config.sequencerGrpcEndpoint . }}"
   {{- end }}
 ---
 {{- if not .Values.secretProvider.enabled }}
