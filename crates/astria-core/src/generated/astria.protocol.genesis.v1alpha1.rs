@@ -131,11 +131,11 @@ impl ::prost::Name for Fees {
 pub struct SlinkyGenesis {
     #[prost(message, optional, tag = "1")]
     pub market_map: ::core::option::Option<
-        super::super::super::astria_vendored::slinky::marketmap::v1::GenesisState,
+        super::super::super::super::astria_vendored::slinky::marketmap::v1::GenesisState,
     >,
     #[prost(message, optional, tag = "2")]
     pub oracle: ::core::option::Option<
-        super::super::super::astria_vendored::slinky::oracle::v1::GenesisState,
+        super::super::super::super::astria_vendored::slinky::oracle::v1::GenesisState,
     >,
 }
 impl ::prost::Name for SlinkyGenesis {
