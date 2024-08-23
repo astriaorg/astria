@@ -1,7 +1,7 @@
 # Default values for sequencer.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
-global:
+global: 
   namespaceOverride: ""
   replicaCount: 1
   # Whether to use tty readable logging for astria services, when false use json.
