@@ -1,8 +1,8 @@
 syntax = "proto3";
 package astria_vendored.slinky.oracle.v1;
 
-import "google/protobuf/timestamp.proto";
 import "astria_vendored/slinky/types/v1/currency_pair.proto";
+import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/skip-mev/slinky/x/oracle/types";
 

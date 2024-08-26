@@ -1,9 +1,9 @@
 syntax = "proto3";
 package astria_vendored.slinky.oracle.v1;
 
-import "google/api/annotations.proto";
 import "astria_vendored/slinky/oracle/v1/genesis.proto";
 import "astria_vendored/slinky/types/v1/currency_pair.proto";
+import "google/api/annotations.proto";
 
 option go_package = "github.com/skip-mev/slinky/x/oracle/types";
 

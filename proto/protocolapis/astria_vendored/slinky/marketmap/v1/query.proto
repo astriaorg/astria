@@ -1,10 +1,10 @@
 syntax = "proto3";
 package astria_vendored.slinky.marketmap.v1;
 
-import "google/api/annotations.proto";
 import "astria_vendored/slinky/marketmap/v1/market.proto";
 import "astria_vendored/slinky/marketmap/v1/params.proto";
 import "astria_vendored/slinky/types/v1/currency_pair.proto";
+import "google/api/annotations.proto";
 
 option go_package = "github.com/skip-mev/slinky/x/marketmap/types";
 

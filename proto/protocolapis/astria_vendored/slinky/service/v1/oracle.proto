@@ -1,9 +1,9 @@
 syntax = "proto3";
 package astria_vendored.slinky.service.v1;
 
+import "astria_vendored/slinky/marketmap/v1/market.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
-import "astria_vendored/slinky/marketmap/v1/market.proto";
 
 option go_package = "github.com/skip-mev/slinky/service/servers/oracle/types";
 
