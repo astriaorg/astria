@@ -202,7 +202,19 @@ async fn block_to_actions(
                 "failed getting actions for block; block hash: `{block_hash}`, block height: \
                  `{rollup_height}`"
             )
-        })?;
+        })?
+        .convert_logs_to_actions()
+        .into_iter()
+        .filter_map(|r| {
+            r.map_err(|e| {
+                warn!(
+                    error = &e as &dyn std::error::Error,
+                    "failed to conver withdrawal event to sequencer action"
+                )
+            })
+            .ok()
+        })
+        .collect();
     actions_by_rollup_height.insert(rollup_height, actions)
 }
 
