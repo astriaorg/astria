@@ -62,6 +62,12 @@ modules:
       ignore_only:
         PACKAGE_VERSION_SUFFIX:
           - proto/protocolapis/astria_vendored/tendermint
+        FIELD_LOWER_SNAKE_CASE:
+          - proto/protocolapis/astria_vendored/slinky
+        SERVICE_SUFFIX:
+          - proto/protocolapis/astria_vendored/slinky
+        RPC_REQUEST_STANDARD_NAME:
+          - proto/protocolapis/astria_vendored/slinky
       disallow_comment_ignores: true
     breaking:
       use:
