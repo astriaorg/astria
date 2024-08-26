@@ -52,7 +52,8 @@ The log level represented as a number
 Full image paths for Astria built images
 */}}
 {{- define "rollup.image" -}}
-{{ .Values.images.geth.repo }}:{{ if .Values.global.dev }}{{ .Values.images.geth.devTag }}{{ else }}{{ .Values.images.geth.tag }}{{ end }}
+{{ .Values.images.geth.repo }}:{{ if .Values.images.geth.overrideTag }}{{ .Values.images.geth.overrideTag }}{{ else }}{{ if .Values.global.dev }}{{ .Values.images.geth.devTag }}{{ else }}{{ .Values.images.geth.tag }}{{ end }}
+{{- end }}
 {{- end }}
 {{- define "conductor.image" -}}
 {{ .Values.images.conductor.repo }}:{{ if .Values.global.dev }}{{ .Values.images.conductor.devTag }}{{ else }}{{ .Values.images.conductor.tag }}{{ end }}
