@@ -332,7 +332,7 @@ where
     pub async fn get_for_block_hash(
         &self,
         block_hash: H256,
-    ) -> Result<LogsToActionsConverter, GetWithdrawalActionsError> {
+    ) -> Result<LogsToActionsConverter, GetWithdrawalLogsError> {
         use futures::FutureExt as _;
         let get_ics20_logs = if self.configured_for_ics20_withdrawals() {
             get_logs::<Ics20WithdrawalFilter, _>(&self.provider, self.contract_address, block_hash)
@@ -353,7 +353,7 @@ where
         let (ics20_logs, sequencer_logs) =
             futures::future::try_join(get_ics20_logs, get_sequencer_logs)
                 .await
-                .map_err(GetWithdrawalActionsError::get_logs)?;
+                .map_err(GetWithdrawalLogsError::get_logs)?;
 
         Ok(LogsToActionsConverter {
             ics20_logs,
@@ -365,6 +365,55 @@ where
             ics20_source_channel: self.ics20_source_channel.clone(),
         })
     }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct GetWithdrawalLogsError(GetWithdrawalLogsErrorKind);
+
+impl GetWithdrawalLogsError {
+    fn get_logs(source: GetLogsError) -> Self {
+        Self(GetWithdrawalLogsErrorKind::GetLogs(source))
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum GetWithdrawalLogsErrorKind {
+    #[error(transparent)]
+    GetLogs(GetLogsError),
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("failed getting the eth logs for event `{event_name}`")]
+struct GetLogsError {
+    event_name: Cow<'static, str>,
+    // use a trait object instead of the error to not force the middleware
+    // type parameter into the error.
+    source: Box<dyn std::error::Error + Send + Sync + 'static>,
+}
+
+async fn get_logs<T: EthEvent, M>(
+    provider: &M,
+    contract_address: ethers::types::Address,
+    block_hash: H256,
+) -> Result<Vec<Log>, GetLogsError>
+where
+    M: Middleware,
+    M::Error: std::error::Error + 'static,
+{
+    let event_sig = T::signature();
+    let filter = Filter::new()
+        .at_block_hash(block_hash)
+        .address(contract_address)
+        .topic0(event_sig);
+
+    provider
+        .get_logs(&filter)
+        .await
+        .map_err(|err| GetLogsError {
+            event_name: T::name(),
+            source: err.into(),
+        })
 }
 
 pub struct LogsToActionsConverter {
@@ -379,7 +428,7 @@ pub struct LogsToActionsConverter {
 
 impl LogsToActionsConverter {
     /// Converts all logs to withdrawal actions. Returns a
-    pub fn convert_logs_to_actions(self) -> Vec<Result<Action, GetWithdrawalActionsError>> {
+    pub fn convert_logs_to_actions(self) -> Vec<Result<Action, WithdrawalConversionError>> {
         let Self {
             ics20_logs,
             sequencer_logs,
@@ -427,19 +476,19 @@ pub fn log_to_ics20_withdrawal_action(
     fee_asset: &asset::Denom,
     asset_to_withdraw: asset::TracePrefixed,
     source_channel: ibc_types::core::channel::ChannelId,
-) -> Result<Action, GetWithdrawalActionsError> {
+) -> Result<Action, WithdrawalConversionError> {
     let rollup_block_number = log
         .block_number
-        .ok_or_else(|| GetWithdrawalActionsError::log_without_block_number(&log))?
+        .ok_or_else(|| WithdrawalConversionError::log_without_block_number(&log))?
         .as_u64();
 
     let rollup_transaction_hash = log
         .transaction_hash
-        .ok_or_else(|| GetWithdrawalActionsError::log_without_transaction_hash(&log))?
+        .ok_or_else(|| WithdrawalConversionError::log_without_transaction_hash(&log))?
         .to_string();
 
     let event =
-        decode_log::<Ics20WithdrawalFilter>(log).map_err(GetWithdrawalActionsError::decode_log)?;
+        decode_log::<Ics20WithdrawalFilter>(log).map_err(WithdrawalConversionError::decode_log)?;
 
     let (denom, source_channel) = (asset_to_withdraw.into(), source_channel);
 
@@ -449,10 +498,10 @@ pub fn log_to_ics20_withdrawal_action(
         rollup_return_address: event.sender.to_string(),
         rollup_transaction_hash,
     })
-    .map_err(GetWithdrawalActionsError::encode_memo)?;
+    .map_err(WithdrawalConversionError::encode_memo)?;
 
     let amount = calculate_amount(&event, asset_withdrawal_divisor)
-        .map_err(GetWithdrawalActionsError::calculate_withdrawal_amount)?;
+        .map_err(WithdrawalConversionError::calculate_withdrawal_amount)?;
 
     let action = Ics20Withdrawal {
         denom,
@@ -476,31 +525,31 @@ fn log_to_sequencer_withdrawal_action(
     asset_withdrawal_divisor: u128,
     bridge_address: Address,
     fee_asset: &asset::Denom,
-) -> Result<Action, GetWithdrawalActionsError> {
+) -> Result<Action, WithdrawalConversionError> {
     let rollup_block_number = log
         .block_number
-        .ok_or_else(|| GetWithdrawalActionsError::log_without_block_number(&log))?
+        .ok_or_else(|| WithdrawalConversionError::log_without_block_number(&log))?
         .as_u64();
 
     let rollup_transaction_hash = log
         .transaction_hash
-        .ok_or_else(|| GetWithdrawalActionsError::log_without_transaction_hash(&log))?
+        .ok_or_else(|| WithdrawalConversionError::log_without_transaction_hash(&log))?
         .to_string();
 
     let event = decode_log::<SequencerWithdrawalFilter>(log)
-        .map_err(GetWithdrawalActionsError::decode_log)?;
+        .map_err(WithdrawalConversionError::decode_log)?;
 
     let memo = memo_to_json(&memos::v1alpha1::BridgeUnlock {
         rollup_block_number,
         rollup_transaction_hash,
     })
-    .map_err(GetWithdrawalActionsError::encode_memo)?;
+    .map_err(WithdrawalConversionError::encode_memo)?;
 
     let amount = calculate_amount(&event, asset_withdrawal_divisor)
-        .map_err(GetWithdrawalActionsError::calculate_withdrawal_amount)?;
+        .map_err(WithdrawalConversionError::calculate_withdrawal_amount)?;
 
     let to = parse_destination_chain_as_address(&event)
-        .map_err(GetWithdrawalActionsError::destination_chain_as_address)?;
+        .map_err(WithdrawalConversionError::destination_chain_as_address)?;
 
     let action = astria_core::protocol::transaction::v1alpha1::action::BridgeUnlockAction {
         to,
@@ -515,54 +564,48 @@ fn log_to_sequencer_withdrawal_action(
 
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
-pub struct GetWithdrawalActionsError(GetWithdrawalActionsErrorKind);
+pub struct WithdrawalConversionError(WithdrawalConversionErrorKind);
 
-impl GetWithdrawalActionsError {
+impl WithdrawalConversionError {
     fn calculate_withdrawal_amount(source: CalculateWithdrawalAmountError) -> Self {
-        Self(GetWithdrawalActionsErrorKind::CalculateWithdrawalAmount(
+        Self(WithdrawalConversionErrorKind::CalculateWithdrawalAmount(
             source,
         ))
     }
 
     fn decode_log(source: DecodeLogError) -> Self {
-        Self(GetWithdrawalActionsErrorKind::DecodeLog(source))
+        Self(WithdrawalConversionErrorKind::DecodeLog(source))
     }
 
     fn destination_chain_as_address(source: DestinationChainAsAddressError) -> Self {
-        Self(GetWithdrawalActionsErrorKind::DestinationChainAsAddress(
+        Self(WithdrawalConversionErrorKind::DestinationChainAsAddress(
             source,
         ))
     }
 
     fn encode_memo(source: EncodeMemoError) -> Self {
-        Self(GetWithdrawalActionsErrorKind::EncodeMemo(source))
-    }
-
-    fn get_logs(source: GetLogsError) -> Self {
-        Self(GetWithdrawalActionsErrorKind::GetLogs(source))
+        Self(WithdrawalConversionErrorKind::EncodeMemo(source))
     }
 
     // XXX: Somehow identify the log?
     fn log_without_block_number(_log: &Log) -> Self {
-        Self(GetWithdrawalActionsErrorKind::LogWithoutBlockNumber)
+        Self(WithdrawalConversionErrorKind::LogWithoutBlockNumber)
     }
 
     // XXX: Somehow identify the log?
     fn log_without_transaction_hash(_log: &Log) -> Self {
-        Self(GetWithdrawalActionsErrorKind::LogWithoutTransactionHash)
+        Self(WithdrawalConversionErrorKind::LogWithoutTransactionHash)
     }
 }
 
 #[derive(Debug, thiserror::Error)]
-enum GetWithdrawalActionsErrorKind {
+enum WithdrawalConversionErrorKind {
     #[error(transparent)]
     DecodeLog(DecodeLogError),
     #[error(transparent)]
     DestinationChainAsAddress(DestinationChainAsAddressError),
     #[error(transparent)]
     EncodeMemo(EncodeMemoError),
-    #[error(transparent)]
-    GetLogs(GetLogsError),
     #[error("log did not contain a block number")]
     LogWithoutBlockNumber,
     #[error("log did not contain a transaction hash")]
@@ -585,39 +628,6 @@ fn decode_log<T: EthEvent>(log: Log) -> Result<T, DecodeLogError> {
         event_name: T::name(),
         source: err.into(),
     })
-}
-
-#[derive(Debug, thiserror::Error)]
-#[error("failed getting the eth logs for event `{event_name}`")]
-struct GetLogsError {
-    event_name: Cow<'static, str>,
-    // use a trait object instead of the error to not force the middleware
-    // type parameter into the error.
-    source: Box<dyn std::error::Error + Send + Sync + 'static>,
-}
-
-async fn get_logs<T: EthEvent, M>(
-    provider: &M,
-    contract_address: ethers::types::Address,
-    block_hash: H256,
-) -> Result<Vec<Log>, GetLogsError>
-where
-    M: Middleware,
-    M::Error: std::error::Error + 'static,
-{
-    let event_sig = T::signature();
-    let filter = Filter::new()
-        .at_block_hash(block_hash)
-        .address(contract_address)
-        .topic0(event_sig);
-
-    provider
-        .get_logs(&filter)
-        .await
-        .map_err(|err| GetLogsError {
-            event_name: T::name(),
-            source: err.into(),
-        })
 }
 
 trait GetAmount {
