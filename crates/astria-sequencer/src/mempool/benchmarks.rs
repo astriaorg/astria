@@ -37,6 +37,10 @@ use super::{
     Mempool,
     RemovalReason,
 };
+use crate::app::test_utils::{
+    mock_balances,
+    mock_tx_cost,
+};
 
 /// The maximum number of transactions with which to initialize the mempool.
 const MAX_INITIAL_TXS: usize = 100_000;
@@ -159,7 +163,10 @@ fn init_mempool<T: MempoolSize>() -> Mempool {
     let mempool = Mempool::new();
     runtime.block_on(async {
         for tx in transactions().iter().take(T::checked_size()) {
-            mempool.insert(tx.clone(), 0).await.unwrap();
+            mempool
+                .insert(tx.clone(), 0, mock_balances(0, 0), mock_tx_cost(0, 0, 0))
+                .await
+                .unwrap();
         }
         for i in 0..super::REMOVAL_CACHE_SIZE {
             let hash = Sha256::digest(i.to_le_bytes()).into();
@@ -199,7 +206,10 @@ fn insert<T: MempoolSize>(bencher: divan::Bencher) {
         .with_inputs(|| (init_mempool::<T>(), get_unused_tx::<T>()))
         .bench_values(move |(mempool, tx)| {
             runtime.block_on(async {
-                mempool.insert(tx, 0).await.unwrap();
+                mempool
+                    .insert(tx, 0, mock_balances(0, 0), mock_tx_cost(0, 0, 0))
+                    .await
+                    .unwrap();
             });
         });
 }
@@ -317,11 +327,17 @@ fn run_maintenance<T: MempoolSize>(bencher: divan::Bencher) {
     // this test one, it's probably insignificant as the getter is only called once per address,
     // and we don't expect a high number of discrete addresses in the mempool entries.
     let current_account_nonce_getter = |_: [u8; 20]| async { Ok(new_nonce) };
+    let current_account_balances_getter = |_: [u8; 20]| async { Ok(mock_balances(0, 0)) };
     bencher
         .with_inputs(|| init_mempool::<T>())
         .bench_values(move |mempool| {
             runtime.block_on(async {
-                mempool.run_maintenance(current_account_nonce_getter).await;
+                mempool
+                    .run_maintenance(
+                        current_account_nonce_getter,
+                        current_account_balances_getter,
+                    )
+                    .await;
             });
         });
 }

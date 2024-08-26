@@ -1,10 +1,15 @@
+use std::collections::HashMap;
+
 use anyhow::{
     Context,
     Result,
 };
 use astria_core::{
     primitive::v1::{
-        asset,
+        asset::{
+            self,
+            IbcPrefixed,
+        },
         Address,
     },
     protocol::account::v1alpha1::AssetBalance,
@@ -69,8 +74,47 @@ fn nonce_storage_key<T: AddressBytes>(address: T) -> String {
 pub(crate) trait StateReadExt: StateRead + crate::assets::StateReadExt {
     #[instrument(skip_all)]
     async fn get_account_balances(&self, address: Address) -> Result<Vec<AssetBalance>> {
-        let prefix = format!("{}/balance/", StorageKey(&address));
+        let ibc_balances = self
+            .get_account_balances_ibc(address)
+            .await
+            .context("failed to grab ibc balances for account")?;
         let mut balances: Vec<AssetBalance> = Vec::new();
+
+        for (asset, balance) in ibc_balances {
+            let native_asset = self
+                .get_native_asset()
+                .await
+                .context("failed to read native asset from state")?;
+            if asset == native_asset.to_ibc_prefixed() {
+                balances.push(AssetBalance {
+                    denom: native_asset.into(),
+                    balance,
+                });
+                continue;
+            }
+
+            let denom = self
+                .map_ibc_to_trace_prefixed_asset(asset)
+                .await
+                .context("failed to get ibc asset denom")?
+                .context("asset denom not found when user has balance of it; this is a bug")?
+                .into();
+            balances.push(AssetBalance {
+                denom,
+                balance,
+            });
+        }
+
+        Ok(balances)
+    }
+
+    #[instrument(skip_all)]
+    async fn get_account_balances_ibc<T: AddressBytes>(
+        &self,
+        address: T,
+    ) -> Result<HashMap<IbcPrefixed, u128>> {
+        let prefix = format!("{}/balance/", StorageKey(&address));
+        let mut balances: HashMap<IbcPrefixed, u128> = HashMap::new();
 
         let mut stream = std::pin::pin!(self.prefix_keys(&prefix));
         while let Some(Ok(key)) = stream.next().await {
@@ -94,28 +138,7 @@ pub(crate) trait StateReadExt: StateRead + crate::assets::StateReadExt {
             let Balance(balance) =
                 Balance::try_from_slice(&value).context("invalid balance bytes")?;
 
-            let native_asset = self
-                .get_native_asset()
-                .await
-                .context("failed to read native asset from state")?;
-            if asset == native_asset.to_ibc_prefixed() {
-                balances.push(AssetBalance {
-                    denom: native_asset.into(),
-                    balance,
-                });
-                continue;
-            }
-
-            let denom = self
-                .map_ibc_to_trace_prefixed_asset(asset)
-                .await
-                .context("failed to get ibc asset denom")?
-                .context("asset denom not found when user has balance of it; this is a bug")?
-                .into();
-            balances.push(AssetBalance {
-                denom,
-                balance,
-            });
+            balances.insert(asset, balance);
         }
         Ok(balances)
     }
@@ -579,6 +602,70 @@ mod tests {
             .await
             .expect("retrieving account balances should not fail");
         assert_eq!(balances, vec![]);
+    }
+
+    #[tokio::test]
+    async fn get_account_balances_ibc() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // native account should work with ibc too
+        state.put_native_asset(&nria());
+
+        let asset_0 = state.get_native_asset().await.unwrap();
+        let asset_1 = asset_1();
+        let asset_2 = asset_2();
+
+        // also need to add assets to the ibc state
+        state
+            .put_ibc_asset(&asset_0.clone())
+            .expect("should be able to call other trait method on state object");
+        state
+            .put_ibc_asset(&asset_1.clone().unwrap_trace_prefixed())
+            .expect("should be able to call other trait method on state object");
+        state
+            .put_ibc_asset(&asset_2.clone().unwrap_trace_prefixed())
+            .expect("should be able to call other trait method on state object");
+
+        // create needed variables
+        let address = astria_address(&[42u8; 20]);
+        let amount_expected_0 = 1u128;
+        let amount_expected_1 = 2u128;
+        let amount_expected_2 = 3u128;
+
+        // add balances to the account
+        state
+            .put_account_balance(address, asset_0.clone(), amount_expected_0)
+            .expect("putting an account balance should not fail");
+        state
+            .put_account_balance(address, &asset_1, amount_expected_1)
+            .expect("putting an account balance should not fail");
+        state
+            .put_account_balance(address, &asset_2, amount_expected_2)
+            .expect("putting an account balance should not fail");
+
+        let balances = state
+            .get_account_balances_ibc(address)
+            .await
+            .expect("retrieving account balances should not fail");
+
+        assert_eq!(
+            balances.get(&asset_0.into()).expect("x"),
+            &amount_expected_0,
+            "returned value for ibc asset_0 does not match"
+        );
+        assert_eq!(
+            balances.get(&asset_1.into()).expect("x"),
+            &amount_expected_1,
+            "returned value for ibc asset_1 does not match"
+        );
+        assert_eq!(
+            balances.get(&asset_2.into()).expect("x"),
+            &amount_expected_2,
+            "returned value for ibc asset_2 does not match"
+        );
+        assert_eq!(balances.len(), 3, "should only return existing values");
     }
 
     #[tokio::test]

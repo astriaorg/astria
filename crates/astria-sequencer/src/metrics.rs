@@ -29,13 +29,14 @@ pub(crate) struct Metrics {
     check_tx_removed_failed_execution: Counter,
     check_tx_removed_failed_stateless: Counter,
     check_tx_removed_stale_nonce: Counter,
-    check_tx_removed_account_balance: Counter,
     check_tx_duration_seconds_parse_tx: Histogram,
     check_tx_duration_seconds_check_stateless: Histogram,
     check_tx_duration_seconds_check_nonce: Histogram,
     check_tx_duration_seconds_check_chain_id: Histogram,
-    check_tx_duration_seconds_check_balance: Histogram,
     check_tx_duration_seconds_check_removed: Histogram,
+    check_tx_duration_seconds_convert_address: Histogram,
+    check_tx_duration_seconds_fetch_balances: Histogram,
+    check_tx_duration_seconds_fetch_tx_cost: Histogram,
     check_tx_duration_seconds_insert_to_app_mempool: Histogram,
     actions_per_transaction_in_mempool: Histogram,
     transaction_in_mempool_size_bytes: Histogram,
@@ -126,14 +127,6 @@ impl Metrics {
         let check_tx_removed_stale_nonce = counter!(CHECK_TX_REMOVED_STALE_NONCE);
 
         describe_counter!(
-            CHECK_TX_REMOVED_ACCOUNT_BALANCE,
-            Unit::Count,
-            "The number of transactions that have been removed from the mempool due to having not \
-             enough account balance"
-        );
-        let check_tx_removed_account_balance = counter!(CHECK_TX_REMOVED_ACCOUNT_BALANCE);
-
-        describe_counter!(
             CHECK_TX_REMOVED_FAILED_EXECUTION,
             Unit::Count,
             "The number of transactions that have been removed from the mempool due to failing \
@@ -171,13 +164,21 @@ impl Metrics {
             CHECK_TX_DURATION_SECONDS,
             CHECK_TX_STAGE => "chain id check"
         );
-        let check_tx_duration_seconds_check_balance = histogram!(
-            CHECK_TX_DURATION_SECONDS,
-            CHECK_TX_STAGE => "balance check"
-        );
         let check_tx_duration_seconds_check_removed = histogram!(
             CHECK_TX_DURATION_SECONDS,
             CHECK_TX_STAGE => "check for removal"
+        );
+        let check_tx_duration_seconds_convert_address = histogram!(
+            CHECK_TX_DURATION_SECONDS,
+            CHECK_TX_STAGE => "convert address"
+        );
+        let check_tx_duration_seconds_fetch_balances = histogram!(
+            CHECK_TX_DURATION_SECONDS,
+            CHECK_TX_STAGE => "fetch account balances"
+        );
+        let check_tx_duration_seconds_fetch_tx_cost = histogram!(
+            CHECK_TX_DURATION_SECONDS,
+            CHECK_TX_STAGE => "fetch transaction cost"
         );
         let check_tx_duration_seconds_insert_to_app_mempool = histogram!(
             CHECK_TX_DURATION_SECONDS,
@@ -218,13 +219,14 @@ impl Metrics {
             check_tx_removed_failed_execution,
             check_tx_removed_failed_stateless,
             check_tx_removed_stale_nonce,
-            check_tx_removed_account_balance,
             check_tx_duration_seconds_parse_tx,
             check_tx_duration_seconds_check_stateless,
             check_tx_duration_seconds_check_nonce,
             check_tx_duration_seconds_check_chain_id,
-            check_tx_duration_seconds_check_balance,
             check_tx_duration_seconds_check_removed,
+            check_tx_duration_seconds_convert_address,
+            check_tx_duration_seconds_fetch_balances,
+            check_tx_duration_seconds_fetch_tx_cost,
             check_tx_duration_seconds_insert_to_app_mempool,
             actions_per_transaction_in_mempool,
             transaction_in_mempool_size_bytes,
@@ -289,10 +291,6 @@ impl Metrics {
         self.check_tx_removed_stale_nonce.increment(1);
     }
 
-    pub(crate) fn increment_check_tx_removed_account_balance(&self) {
-        self.check_tx_removed_account_balance.increment(1);
-    }
-
     pub(crate) fn record_check_tx_duration_seconds_parse_tx(&self, duration: Duration) {
         self.check_tx_duration_seconds_parse_tx.record(duration);
     }
@@ -311,13 +309,23 @@ impl Metrics {
             .record(duration);
     }
 
-    pub(crate) fn record_check_tx_duration_seconds_check_balance(&self, duration: Duration) {
-        self.check_tx_duration_seconds_check_balance
+    pub(crate) fn record_check_tx_duration_seconds_check_removed(&self, duration: Duration) {
+        self.check_tx_duration_seconds_check_removed
             .record(duration);
     }
 
-    pub(crate) fn record_check_tx_duration_seconds_check_removed(&self, duration: Duration) {
-        self.check_tx_duration_seconds_check_removed
+    pub(crate) fn record_check_tx_duration_seconds_convert_address(&self, duration: Duration) {
+        self.check_tx_duration_seconds_convert_address
+            .record(duration);
+    }
+
+    pub(crate) fn record_check_tx_duration_seconds_fetch_balances(&self, duration: Duration) {
+        self.check_tx_duration_seconds_fetch_balances
+            .record(duration);
+    }
+
+    pub(crate) fn record_check_tx_duration_seconds_fetch_tx_cost(&self, duration: Duration) {
+        self.check_tx_duration_seconds_fetch_tx_cost
             .record(duration);
     }
 
@@ -360,7 +368,6 @@ metric_names!(pub const METRICS_NAMES:
     CHECK_TX_REMOVED_FAILED_EXECUTION,
     CHECK_TX_REMOVED_FAILED_STATELESS,
     CHECK_TX_REMOVED_STALE_NONCE,
-    CHECK_TX_REMOVED_ACCOUNT_BALANCE,
     CHECK_TX_DURATION_SECONDS,
     ACTIONS_PER_TRANSACTION_IN_MEMPOOL,
     TRANSACTION_IN_MEMPOOL_SIZE_BYTES,
@@ -372,7 +379,6 @@ mod tests {
     use super::{
         ACTIONS_PER_TRANSACTION_IN_MEMPOOL,
         CHECK_TX_DURATION_SECONDS,
-        CHECK_TX_REMOVED_ACCOUNT_BALANCE,
         CHECK_TX_REMOVED_EXPIRED,
         CHECK_TX_REMOVED_FAILED_EXECUTION,
         CHECK_TX_REMOVED_FAILED_STATELESS,
@@ -432,10 +438,6 @@ mod tests {
             "check_tx_removed_failed_stateless",
         );
         assert_const(CHECK_TX_REMOVED_STALE_NONCE, "check_tx_removed_stale_nonce");
-        assert_const(
-            CHECK_TX_REMOVED_ACCOUNT_BALANCE,
-            "check_tx_removed_account_balance",
-        );
         assert_const(CHECK_TX_DURATION_SECONDS, "check_tx_duration_seconds");
         assert_const(
             ACTIONS_PER_TRANSACTION_IN_MEMPOOL,
