@@ -25,6 +25,7 @@ use astria_withdrawer::{
     SequencerWithdrawalFilter,
 };
 use ethers::{
+    abi::AbiEncode as _,
     contract::EthEvent,
     providers::Middleware,
     types::{
@@ -499,7 +500,7 @@ pub fn log_to_ics20_withdrawal_action(
     let rollup_transaction_hash = log
         .transaction_hash
         .ok_or_else(|| WithdrawalConversionError::log_without_transaction_hash(&log))?
-        .to_string();
+        .encode_hex();
 
     let event =
         decode_log::<Ics20WithdrawalFilter>(log).map_err(WithdrawalConversionError::decode_log)?;
@@ -548,7 +549,7 @@ fn log_to_sequencer_withdrawal_action(
     let rollup_transaction_hash = log
         .transaction_hash
         .ok_or_else(|| WithdrawalConversionError::log_without_transaction_hash(&log))?
-        .to_string();
+        .encode_hex();
 
     let event = decode_log::<SequencerWithdrawalFilter>(log)
         .map_err(WithdrawalConversionError::decode_log)?;
@@ -727,9 +728,430 @@ fn timeout_in_5_min() -> u64 {
 
 #[cfg(test)]
 mod tests {
+    use std::{
+        str::FromStr,
+        time::Duration,
+    };
+
+    use astria_core::{
+        self,
+        primitive::v1::{
+            asset,
+            Address,
+        },
+        protocol::{
+            memos,
+            transaction::v1alpha1::{
+                action::Ics20Withdrawal,
+                Action,
+            },
+        },
+    };
+    use ethers::{
+        abi::AbiEncode,
+        types::{
+            Log,
+            H256,
+            U256,
+        },
+    };
+    use ibc_types::core::client::Height as IbcHeight;
+
     use super::max_timeout_height;
+    use crate::{
+        astria_withdrawer,
+        log_to_ics20_withdrawal_action,
+        log_to_sequencer_withdrawal_action,
+    };
+
     #[test]
     fn max_timeout_height_does_not_panic() {
         max_timeout_height();
+    }
+
+    const ASTRIA_ADDRESS_PREFIX: &str = "astria";
+    /// Constructs an [`Address`] prefixed by `"astria"`.
+    #[must_use]
+    pub(crate) fn astria_address(
+        array: [u8; astria_core::primitive::v1::ADDRESS_LEN],
+    ) -> astria_core::primitive::v1::Address {
+        astria_core::primitive::v1::Address::builder()
+            .array(array)
+            .prefix(ASTRIA_ADDRESS_PREFIX)
+            .try_build()
+            .unwrap()
+    }
+
+    fn default_bridge_address() -> Address {
+        astria_address([0u8; 20])
+    }
+
+    fn default_sequencer_address() -> Address {
+        astria_address([1u8; 20])
+    }
+
+    fn default_fee_asset() -> asset::Denom {
+        "nria".parse().unwrap()
+    }
+
+    fn default_sequencer_withdrawal_denom() -> asset::Denom {
+        "nria".parse().unwrap()
+    }
+
+    fn default_sequencer_withdrawal_memo() -> memos::v1alpha1::BridgeUnlock {
+        memos::v1alpha1::BridgeUnlock {
+            rollup_block_number: 1,
+            rollup_transaction_hash: H256::from_str(
+                "0x1234567890123456789012345678901234567890123456789012345678901234",
+            )
+            .unwrap()
+            .encode_hex(),
+        }
+    }
+
+    fn default_sender_rollup_address() -> ethers::types::Address {
+        "0x1234567890123456789012345678901234567890"
+            .parse()
+            .unwrap()
+    }
+
+    const DEFAULT_IBC_DENOM: &str = "transfer/channel-0/utia";
+    #[must_use]
+    fn default_ibc_asset() -> asset::Denom {
+        DEFAULT_IBC_DENOM.parse::<asset::Denom>().unwrap()
+    }
+
+    fn default_ics20_withdrawal_memo() -> memos::v1alpha1::Ics20WithdrawalFromRollup {
+        memos::v1alpha1::Ics20WithdrawalFromRollup {
+            rollup_block_number: 1,
+            rollup_transaction_hash: H256::from_str(
+                "0x1234567890123456789012345678901234567890123456789012345678901234",
+            )
+            .unwrap()
+            .encode_hex(),
+            rollup_return_address: default_sender_rollup_address().to_string(),
+            memo: "foo".to_string(),
+        }
+    }
+
+    struct SequencerWithdrawalTestConfig {
+        asset_withdrawal_divisor: u128,
+        bridge_address: Address,
+        fee_asset: asset::Denom,
+        memo: memos::v1alpha1::BridgeUnlock,
+        event: astria_withdrawer::SequencerWithdrawalFilter,
+    }
+
+    fn default_sequencer_withdrawal_test_config() -> SequencerWithdrawalTestConfig {
+        SequencerWithdrawalTestConfig {
+            asset_withdrawal_divisor: 10u128.pow(18),
+            bridge_address: default_bridge_address(),
+            fee_asset: default_sequencer_withdrawal_denom(),
+            memo: default_sequencer_withdrawal_memo(),
+            event: astria_withdrawer::SequencerWithdrawalFilter {
+                sender: default_sender_rollup_address(),
+                amount: U256::from(10u128.pow(18)),
+                destination_chain_address: default_sequencer_address().to_string(),
+            },
+        }
+    }
+
+    struct Ics20WithdrawalTestConfig {
+        asset_withdrawal_divisor: u128,
+        bridge_address: Address,
+        fee_asset: asset::Denom,
+        memo: memos::v1alpha1::Ics20WithdrawalFromRollup,
+        event: astria_withdrawer::Ics20WithdrawalFilter,
+        ibc_asset: asset::Denom,
+        source_channel: ibc_types::core::channel::ChannelId,
+    }
+
+    fn default_ics20_withdrawal_test_config() -> Ics20WithdrawalTestConfig {
+        Ics20WithdrawalTestConfig {
+            asset_withdrawal_divisor: 10u128.pow(18),
+            bridge_address: default_bridge_address(),
+            fee_asset: default_fee_asset(),
+            memo: default_ics20_withdrawal_memo(),
+            event: astria_withdrawer::Ics20WithdrawalFilter {
+                sender: default_sender_rollup_address(),
+                amount: U256::from(10u128.pow(18)),
+                destination_chain_address: default_sequencer_address().to_string(),
+                memo: "foo".to_string(),
+            },
+            ibc_asset: default_ibc_asset(),
+            source_channel: "channel-0".parse().unwrap(),
+        }
+    }
+
+    fn make_sequencer_withdrawal_log(
+        event: astria_withdrawer::SequencerWithdrawalFilter,
+        memo: memos::v1alpha1::BridgeUnlock,
+    ) -> Log {
+        use ethers::{
+            abi::Tokenizable as _,
+            contract::EthEvent as _,
+        };
+
+        let topics = vec![
+            astria_withdrawer::SequencerWithdrawalFilter::signature(),
+            H256::from_slice(&ethers::abi::encode(&[event.sender.into_token()])),
+            H256::from_slice(&ethers::abi::encode(&[event.amount.into_token()])),
+        ];
+
+        let data = ethers::abi::encode(&[event.destination_chain_address.to_string().into_token()]);
+
+        Log {
+            block_number: Some(memo.rollup_block_number.into()),
+            transaction_hash: Some(memo.rollup_transaction_hash.parse().unwrap()),
+            data: data.into(),
+            topics,
+            address: event.sender,
+            log_index: Some(1.into()),
+            transaction_index: Some(1.into()),
+            removed: Some(false),
+            block_hash: Some(
+                "0x8e38b4dbf6b11fcc3b9dee84fb7986e29ca0a02cecd8977c161ff7333329681e"
+                    .parse()
+                    .unwrap(),
+            ),
+            transaction_log_index: Some(1.into()),
+            log_type: None,
+        }
+    }
+
+    fn make_sequencer_withdrawal_action(
+        to: Address,
+        amount: u128,
+        memo: memos::v1alpha1::BridgeUnlock,
+        bridge_address: Address,
+        fee_asset: asset::Denom,
+    ) -> Action {
+        let action = astria_core::protocol::transaction::v1alpha1::action::BridgeUnlockAction {
+            to,
+            amount,
+            memo: serde_json::to_string(&memo).unwrap(),
+            bridge_address,
+            fee_asset,
+        };
+        Action::BridgeUnlock(action)
+    }
+
+    fn make_ics20_withdrawal_log(
+        event: astria_withdrawer::Ics20WithdrawalFilter,
+        memo: memos::v1alpha1::Ics20WithdrawalFromRollup,
+    ) -> Log {
+        use ethers::contract::EthEvent as _;
+        let topics = vec![
+            astria_withdrawer::Ics20WithdrawalFilter::signature(),
+            H256::from_slice(&ethers::abi::encode(&[event.sender.into_token()])),
+            H256::from_slice(&ethers::abi::encode(&[event.amount.into_token()])),
+        ];
+
+        use ethers::abi::Tokenizable as _;
+        let data = ethers::abi::encode(&[
+            event.destination_chain_address.to_string().into_token(),
+            event.memo.into_token(),
+        ]);
+
+        Log {
+            block_number: Some(memo.rollup_block_number.into()),
+            transaction_hash: Some(memo.rollup_transaction_hash.parse().unwrap()),
+            data: data.into(),
+            topics,
+            address: event.sender,
+            log_index: Some(1.into()),
+            transaction_index: Some(1.into()),
+            removed: Some(false),
+            block_hash: Some(
+                "0x8e38b4dbf6b11fcc3b9dee84fb7986e29ca0a02cecd8977c161ff7333329681e"
+                    .parse()
+                    .unwrap(),
+            ),
+            transaction_log_index: Some(1.into()),
+            log_type: None,
+        }
+    }
+
+    #[must_use]
+    fn make_ibc_timeout_time() -> u64 {
+        // this is copied from `bridge_withdrawer::ethereum::convert`
+        const ICS20_WITHDRAWAL_TIMEOUT: Duration = Duration::from_secs(300);
+
+        tendermint::Time::now()
+            .checked_add(ICS20_WITHDRAWAL_TIMEOUT)
+            .unwrap()
+            .unix_timestamp_nanos()
+            .try_into()
+            .unwrap()
+    }
+
+    fn make_ics20_withdrawal_action(
+        amount: u128,
+        bridge_address: Address,
+        fee_asset: &asset::Denom,
+        source_channel: ibc_types::core::channel::ChannelId,
+        memo: memos::v1alpha1::Ics20WithdrawalFromRollup,
+        event: astria_withdrawer::Ics20WithdrawalFilter,
+    ) -> Action {
+        let timeout_height = IbcHeight::new(u64::MAX, u64::MAX).unwrap();
+        let timeout_time = make_ibc_timeout_time();
+        let denom = default_ibc_asset();
+        let action = astria_core::protocol::transaction::v1alpha1::action::Ics20Withdrawal {
+            amount,
+            denom: denom.clone(),
+            destination_chain_address: event.destination_chain_address,
+            return_address: bridge_address,
+            timeout_height,
+            timeout_time,
+            source_channel,
+            fee_asset: fee_asset.clone(),
+            memo: serde_json::to_string(&memo).unwrap(),
+            bridge_address: Some(bridge_address),
+        };
+        Action::Ics20Withdrawal(action)
+    }
+
+    #[track_caller]
+    fn assert_actions_eq(expected: &Action, actual: &Action) {
+        match (expected.clone(), actual.clone()) {
+            (Action::BridgeUnlock(expected), Action::BridgeUnlock(actual)) => {
+                assert_eq!(expected, actual, "BridgeUnlock actions do not match");
+            }
+            (Action::Ics20Withdrawal(expected), Action::Ics20Withdrawal(actual)) => {
+                assert_eq!(
+                    SubsetOfIcs20Withdrawal::from(expected),
+                    SubsetOfIcs20Withdrawal::from(actual),
+                    "Ics20Withdrawal actions do not match"
+                );
+            }
+            _ => {
+                panic!(
+                    "actions have a differing variants:\nexpected: {expected:?}\nactual: \
+                     {actual:?}"
+                )
+            }
+        }
+    }
+
+    /// A test wrapper around the `BridgeWithdrawer` for comparing the type without taking into
+    /// account the timout timestamp (which is based on the current `tendermint::Time::now()` in
+    /// the implementation)
+    #[derive(Debug, PartialEq)]
+    struct SubsetOfIcs20Withdrawal {
+        amount: u128,
+        denom: asset::Denom,
+        destination_chain_address: String,
+        return_address: Address,
+        timeout_height: IbcHeight,
+        source_channel: ibc_types::core::channel::ChannelId,
+        fee_asset: asset::Denom,
+        memo: String,
+        bridge_address: Option<Address>,
+    }
+
+    impl From<Ics20Withdrawal> for SubsetOfIcs20Withdrawal {
+        fn from(value: Ics20Withdrawal) -> Self {
+            let Ics20Withdrawal {
+                amount,
+                denom,
+                destination_chain_address,
+                return_address,
+                timeout_height,
+                timeout_time: _timeout_time,
+                source_channel,
+                fee_asset,
+                memo,
+                bridge_address,
+            } = value;
+            Self {
+                amount,
+                denom,
+                destination_chain_address,
+                return_address,
+                timeout_height,
+                source_channel,
+                fee_asset,
+                memo,
+                bridge_address,
+            }
+        }
+    }
+
+    #[test]
+    fn sequencer_withdrawal_conversion_correct() {
+        // create log from default config
+        let SequencerWithdrawalTestConfig {
+            asset_withdrawal_divisor,
+            bridge_address,
+            fee_asset,
+            memo,
+            event,
+        } = default_sequencer_withdrawal_test_config();
+        let log = make_sequencer_withdrawal_log(event.clone(), memo.clone());
+
+        // convert to action
+        let action = log_to_sequencer_withdrawal_action(
+            log,
+            asset_withdrawal_divisor,
+            bridge_address,
+            &fee_asset,
+        )
+        .unwrap();
+
+        // compare against action created from default config values
+        let expected_action = make_sequencer_withdrawal_action(
+            event.destination_chain_address.parse().unwrap(),
+            event
+                .amount
+                .as_u128()
+                .checked_div(asset_withdrawal_divisor)
+                .unwrap(),
+            memo,
+            bridge_address,
+            fee_asset,
+        );
+
+        assert_actions_eq(&expected_action, &action)
+    }
+
+    #[test]
+    fn ics20_withdrawal_conversion_correct() {
+        // create log form default config
+        let Ics20WithdrawalTestConfig {
+            asset_withdrawal_divisor,
+            bridge_address,
+            fee_asset,
+            memo,
+            event,
+            ibc_asset,
+            source_channel,
+        } = default_ics20_withdrawal_test_config();
+        let log = make_ics20_withdrawal_log(event.clone(), memo.clone());
+
+        // convert to action
+        let action = log_to_ics20_withdrawal_action(
+            log,
+            asset_withdrawal_divisor,
+            bridge_address,
+            &fee_asset,
+            ibc_asset.unwrap_trace_prefixed(),
+            source_channel.clone(),
+        )
+        .unwrap();
+
+        // compare against action created from default config values
+        let expected_action = make_ics20_withdrawal_action(
+            event
+                .amount
+                .as_u128()
+                .checked_div(asset_withdrawal_divisor)
+                .unwrap(),
+            bridge_address,
+            &fee_asset,
+            source_channel,
+            memo,
+            event,
+        );
+        assert_actions_eq(&expected_action, &action)
     }
 }

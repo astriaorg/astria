@@ -14,5 +14,6 @@ ibc-types = { workspace = true }
 prost = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+sha2 = { workspace = true }
 tendermint = { workspace = true }
 thiserror = { workspace = true }
