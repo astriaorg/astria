@@ -64,12 +64,10 @@ fn main() {
         .build_server(true)
         .emit_rerun_if_changed(false)
         .bytes([
-            ".astria.execution.v1alpha2",
-            ".astria.primitive.v1",
+            ".astria",
             ".celestia",
             ".cosmos",
             ".tendermint",
-            ".astria.protocol.asset.v1alpha1.AllowedFeeAssetIdsResponse",
         ])
         .client_mod_attribute(".", "#[cfg(feature=\"client\")]")
         .server_mod_attribute(".", "#[cfg(feature=\"server\")]")
@@ -79,6 +77,10 @@ fn main() {
             "crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate",
         )
         .type_attribute(".astria.primitive.v1.Uint128", "#[derive(Copy)]")
+        .type_attribute(
+            ".astria.protocol.genesis.v1alpha1.IbcParameters",
+            "#[derive(Copy)]",
+        )
         .use_arc_self(true)
         // override prost-types with pbjson-types
         .compile_well_known_types(true)

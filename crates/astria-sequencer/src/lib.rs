@@ -2,8 +2,10 @@ pub(crate) mod accounts;
 pub(crate) mod address;
 mod api_state_ext;
 pub(crate) mod app;
-pub(crate) mod asset;
+pub(crate) mod assets;
 pub(crate) mod authority;
+#[cfg(feature = "benchmark")]
+pub(crate) mod benchmark_utils;
 pub(crate) mod bridge;
 mod build_info;
 pub(crate) mod component;
@@ -19,7 +21,7 @@ mod sequencer;
 pub(crate) mod service;
 pub(crate) mod state_ext;
 pub(crate) mod storage_keys;
-#[cfg(test)]
+#[cfg(any(test, feature = "benchmark"))]
 pub(crate) mod test_utils;
 pub(crate) mod transaction;
 mod utils;

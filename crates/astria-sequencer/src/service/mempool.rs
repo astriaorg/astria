@@ -9,14 +9,17 @@ use std::{
 };
 
 use astria_core::{
-    generated::protocol::transaction::v1alpha1 as raw,
+    generated::protocol::transactions::v1alpha1 as raw,
     protocol::{
         abci::AbciErrorCode,
         transaction::v1alpha1::SignedTransaction,
     },
 };
 use bytes::Bytes;
-use cnidarium::Storage;
+use cnidarium::{
+    StateRead,
+    Storage,
+};
 use futures::{
     Future,
     FutureExt,
@@ -39,7 +42,9 @@ use tracing::{
 };
 
 use crate::{
-    accounts::state_ext::StateReadExt,
+    accounts,
+    address,
+    app::ActionHandler as _,
     mempool::{
         Mempool as AppMempool,
         RemovalReason,
@@ -121,7 +126,7 @@ impl Service<MempoolRequest> for Mempool {
 ///
 /// If the tx passes all checks, status code 0 is returned.
 #[instrument(skip_all)]
-async fn handle_check_tx<S: StateReadExt + 'static>(
+async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'static>(
     request::CheckTx {
         tx,
         kind,
@@ -192,7 +197,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
 
 /// Parses and returns the signed tx from the request if and only if it passes immutable checks,
 /// i.e. checks which will always pass or always fail.
-async fn parse_tx_and_run_immutable_checks<S: StateReadExt + 'static>(
+async fn parse_tx_and_run_immutable_checks<S: StateRead + 'static>(
     serialized_tx: Bytes,
     mut start: Instant,
     state: &S,
@@ -224,7 +229,7 @@ async fn parse_tx_and_run_immutable_checks<S: StateReadExt + 'static>(
     metrics.record_check_tx_duration_seconds_parse_tx(end.saturating_duration_since(start));
     start = end;
 
-    if let Err(e) = transaction::check_stateless(&signed_tx).await {
+    if let Err(e) = signed_tx.check_stateless().await {
         metrics.increment_check_tx_removed_failed_stateless();
         return Err(new_error_response(
             AbciErrorCode::INVALID_PARAMETER,
@@ -248,7 +253,7 @@ async fn parse_tx_and_run_immutable_checks<S: StateReadExt + 'static>(
     Ok(Arc::new(signed_tx))
 }
 
-async fn run_mutable_checks<S: StateReadExt + 'static>(
+async fn run_mutable_checks<S: StateRead + 'static>(
     signed_tx: Arc<SignedTransaction>,
     tx_hash: [u8; 32],
     tx_len: usize,
@@ -261,7 +266,6 @@ async fn run_mutable_checks<S: StateReadExt + 'static>(
         match transaction::get_current_nonce_if_tx_nonce_valid(&signed_tx, &state).await {
             Ok(nonce) => nonce,
             Err(e) => {
-                mempool.remove(tx_hash).await;
                 metrics.increment_check_tx_removed_stale_nonce();
                 return new_error_response(AbciErrorCode::INVALID_NONCE, format!("{e:#}"));
             }
@@ -272,7 +276,9 @@ async fn run_mutable_checks<S: StateReadExt + 'static>(
     start = end;
 
     if let Err(e) = transaction::check_balance_mempool(&signed_tx, &state).await {
-        mempool.remove(tx_hash).await;
+        mempool
+            .remove_tx_invalid(signed_tx, RemovalReason::FailedCheckTx(e.to_string()))
+            .await;
         metrics.increment_check_tx_removed_account_balance();
         return new_error_response(AbciErrorCode::INSUFFICIENT_FUNDS, format!("{e:#}"));
     };
@@ -282,8 +288,6 @@ async fn run_mutable_checks<S: StateReadExt + 'static>(
     start = end;
 
     if let Some(removal_reason) = mempool.check_removed_comet_bft(tx_hash).await {
-        mempool.remove(tx_hash).await;
-
         match removal_reason {
             RemovalReason::Expired => {
                 metrics.increment_check_tx_removed_expired();
@@ -296,7 +300,25 @@ async fn run_mutable_checks<S: StateReadExt + 'static>(
                 metrics.increment_check_tx_removed_failed_execution();
                 return new_error_response(
                     AbciErrorCode::TRANSACTION_FAILED,
-                    format!("transaction failed execution: {err:#}"),
+                    format!("transaction failed execution: {err}"),
+                );
+            }
+            RemovalReason::NonceStale => {
+                return new_error_response(
+                    AbciErrorCode::INVALID_NONCE,
+                    "transaction removed from app mempool due to stale nonce",
+                );
+            }
+            RemovalReason::LowerNonceInvalidated => {
+                return new_error_response(
+                    AbciErrorCode::LOWER_NONCE_INVALIDATED,
+                    "transaction removed from app mempool due to lower nonce being invalidated",
+                );
+            }
+            RemovalReason::FailedCheckTx(err) => {
+                return new_error_response(
+                    AbciErrorCode::TRANSACTION_FAILED,
+                    format!("transaction failed check tx: {err}"),
                 );
             }
         }
@@ -308,13 +330,13 @@ async fn run_mutable_checks<S: StateReadExt + 'static>(
 
     // tx is valid, push to mempool
     let actions_count = signed_tx.actions().len();
-    mempool
-        .insert(signed_tx, current_account_nonce)
-        .await
-        .expect(
-            "tx nonce is greater than or equal to current account nonce; this was checked in \
-             check_nonce_mempool",
+    if let Err(err) = mempool.insert(signed_tx, current_account_nonce).await {
+        return new_error_response(
+            AbciErrorCode::TRANSACTION_INSERTION_FAILED,
+            format!("transaction insertion failed: {err}"),
         );
+    }
+
     let mempool_len = mempool.len().await;
 
     metrics.record_check_tx_duration_seconds_insert_to_app_mempool(start.elapsed());
@@ -327,7 +349,7 @@ async fn run_mutable_checks<S: StateReadExt + 'static>(
 
 fn new_error_response<T: AsRef<str>>(code: AbciErrorCode, log: T) -> response::CheckTx {
     response::CheckTx {
-        code: tendermint::abci::Code::from(code),
+        code: tendermint::abci::Code::Err(code.value()),
         info: code.info().to_string(),
         log: log.as_ref().to_string(),
         ..response::CheckTx::default()
@@ -353,9 +375,10 @@ mod tests {
 
     use super::*;
     use crate::{
-        accounts::state_ext::StateWriteExt as _,
-        bridge::state_ext::StateWriteExt as _,
-        ibc::state_ext::StateWriteExt as _,
+        accounts::StateWriteExt as _,
+        address::StateWriteExt as _,
+        bridge::StateWriteExt as _,
+        ibc::StateWriteExt as _,
         state_ext::StateWriteExt as _,
     };
 
@@ -381,8 +404,8 @@ mod tests {
         )
         .await;
         assert_eq!(
-            response.code,
-            AbciErrorCode::INVALID_PARAMETER.into(),
+            response.code.value(),
+            AbciErrorCode::INVALID_PARAMETER.value().get(),
             "{response:?}"
         );
         assert_eq!(cached_immutable_checks.len(), 1);
@@ -405,6 +428,7 @@ mod tests {
         state_delta.put_init_bridge_account_base_fee(1);
         state_delta.put_bridge_lock_byte_cost_multiplier(1);
         state_delta.put_bridge_sudo_change_base_fee(1);
+        state_delta.put_base_prefix("a").unwrap();
         let mempool = AppMempool::new();
         let cached_immutable_checks = Arc::new(Cache::new(CACHE_SIZE));
         let metrics = Box::leak(Box::new(Metrics::new()));

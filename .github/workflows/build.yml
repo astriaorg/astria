@@ -26,7 +26,7 @@ jobs:
     with:
       package-name: 'conductor'
       tag: ${{ inputs.tag }}
-  
+
   composer:
     uses: './.github/workflows/reusable-build.yml'
     with:

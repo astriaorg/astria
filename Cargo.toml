@@ -77,9 +77,10 @@ metrics = "0.22.1"
 once_cell = "1.17.1"
 pbjson-types = "0.6"
 # Note that when updating the penumbra versions, vendored types in `proto/sequencerapis/astria_vendored` may need to be updated as well.
-penumbra-ibc = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.78.0", default-features = false }
-penumbra-proto = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.78.0" }
-penumbra-tower-trace = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.78.0" }
+# can update to a tagged release when https://github.com/penumbra-zone/penumbra/pull/4822 is included
+penumbra-ibc = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "87adc8d6b15f6081c1adf169daed4ca8873bd9f6", default-features = false }
+penumbra-proto = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "87adc8d6b15f6081c1adf169daed4ca8873bd9f6" }
+penumbra-tower-trace = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "87adc8d6b15f6081c1adf169daed4ca8873bd9f6" }
 pin-project-lite = "0.2.13"
 prost = "0.12"
 rand = "0.8.5"

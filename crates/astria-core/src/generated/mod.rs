@@ -69,7 +69,7 @@ pub mod primitive {
 #[path = ""]
 pub mod protocol {
     #[path = ""]
-    pub mod account {
+    pub mod accounts {
         #[path = "astria.protocol.accounts.v1alpha1.rs"]
         pub mod v1alpha1;
     }
@@ -84,7 +84,31 @@ pub mod protocol {
         pub mod v1alpha1;
     }
     #[path = ""]
-    pub mod transaction {
+    pub mod genesis {
+        pub mod v1alpha1 {
+            include!("astria.protocol.genesis.v1alpha1.rs");
+
+            #[cfg(feature = "serde")]
+            mod _serde_impls {
+                use super::*;
+                include!("astria.protocol.genesis.v1alpha1.serde.rs");
+            }
+        }
+    }
+    #[path = ""]
+    pub mod memos {
+        pub mod v1alpha1 {
+            include!("astria.protocol.memos.v1alpha1.rs");
+
+            #[cfg(feature = "serde")]
+            mod _serde_impls {
+                use super::*;
+                include!("astria.protocol.memos.v1alpha1.serde.rs");
+            }
+        }
+    }
+    #[path = ""]
+    pub mod transactions {
         pub mod v1alpha1 {
             include!("astria.protocol.transactions.v1alpha1.rs");
 

@@ -11,7 +11,7 @@ global:
 images:
   evmBridgeWithdrawer:
     repo: ghcr.io/astriaorg/evm-bridge-withdrawer
-    tag: "0.1.0"
+    tag: "0.2.1"
     devTag: latest
 
 config:
@@ -40,12 +40,12 @@ metrics:
 otel:
   enabled: false
   serviceName: "astria-evm-withdrawer"
-  endpoint:
-  tracesEndpoint:
+  endpoint: ""
+  tracesEndpoint: ""
   tracesCompression: gzip
-  tracesTimeout: 10
-  otlpHeaders:
-  traceHeaders:
+  tracesTimeout: "10"
+  otlpHeaders: ""
+  traceHeaders: ""
 
 serviceMonitor:
   enabled: false

@@ -56,12 +56,12 @@ impl Info {
             )
             .context("invalid path: `accounts/nonce/:account`")?;
         query_router
-            .insert("asset/denom/:id", crate::asset::query::denom_request)
+            .insert("asset/denom/:id", crate::assets::query::denom_request)
             .context("invalid path: `asset/denom/:id`")?;
         query_router
             .insert(
                 "asset/allowed_fee_assets",
-                crate::asset::query::allowed_fee_assets_request,
+                crate::assets::query::allowed_fee_assets_request,
             )
             .context("invalid path: `asset/allowed_fee_asset_ids`")?;
         query_router
@@ -128,9 +128,9 @@ impl Info {
         let (handler, params) = match self.query_router.at(&request.path) {
             Err(err) => {
                 return response::Query {
-                    code: AbciErrorCode::UNKNOWN_PATH.into(),
-                    info: AbciErrorCode::UNKNOWN_PATH.to_string(),
-                    log: format!("provided path `{}` is unknown: {err:?}", request.path),
+                    code: tendermint::abci::Code::Err(AbciErrorCode::UNKNOWN_PATH.value()),
+                    info: AbciErrorCode::UNKNOWN_PATH.info(),
+                    log: format!("provided path `{}` is unknown: {err:#}", request.path),
                     ..response::Query::default()
                 };
             }
@@ -189,22 +189,22 @@ mod test {
 
     use super::Info;
     use crate::{
-        accounts::state_ext::StateWriteExt as _,
-        asset::{
-            get_native_asset,
-            initialize_native_asset,
-            state_ext::StateWriteExt,
-        },
-        state_ext::{
-            StateReadExt,
+        accounts::StateWriteExt as _,
+        address::{
+            StateReadExt as _,
             StateWriteExt as _,
         },
+        assets::{
+            StateReadExt as _,
+            StateWriteExt as _,
+        },
+        state_ext::StateWriteExt as _,
     };
 
     #[tokio::test]
     async fn handle_balance_query() {
         use astria_core::{
-            generated::protocol::account::v1alpha1 as raw,
+            generated::protocol::accounts::v1alpha1 as raw,
             protocol::account::v1alpha1::AssetBalance,
         };
 
@@ -216,16 +216,17 @@ mod test {
         let mut state = StateDelta::new(storage.latest_snapshot());
         state.put_storage_version_by_height(height, version);
 
-        initialize_native_asset("nria");
+        state.put_base_prefix("astria").unwrap();
+        state.put_native_asset(&crate::test_utils::nria());
 
-        let address = crate::address::try_base_prefixed(
-            &hex::decode("a034c743bed8f26cb8ee7b8db2230fd8347ae131").unwrap(),
-        )
-        .unwrap();
+        let address = state
+            .try_base_prefixed(&hex::decode("a034c743bed8f26cb8ee7b8db2230fd8347ae131").unwrap())
+            .await
+            .unwrap();
 
         let balance = 1000;
         state
-            .put_account_balance(address, get_native_asset(), balance)
+            .put_account_balance(address, crate::test_utils::nria(), balance)
             .unwrap();
         state.put_block_height(height);
         storage.commit(state).await.unwrap();
@@ -252,7 +253,7 @@ mod test {
         assert!(query_response.code.is_ok());
 
         let expected_balance = AssetBalance {
-            denom: get_native_asset().clone(),
+            denom: crate::test_utils::nria().into(),
             balance,
         };
 

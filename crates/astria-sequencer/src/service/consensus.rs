@@ -2,6 +2,7 @@ use anyhow::{
     bail,
     Context,
 };
+use astria_core::protocol::genesis::v1alpha1::GenesisAppState;
 use cnidarium::Storage;
 use tendermint::v0_38::abci::{
     request,
@@ -125,9 +126,8 @@ impl Consensus {
             bail!("database already initialized");
         }
 
-        let genesis_state: astria_core::sequencer::GenesisState =
-            serde_json::from_slice(&init_chain.app_state_bytes)
-                .context("failed to parse app_state in genesis file")?;
+        let genesis_state: GenesisAppState = serde_json::from_slice(&init_chain.app_state_bytes)
+            .context("failed to parse genesis app state from init chain request")?;
         let app_hash = self
             .app
             .init_chain(
@@ -216,11 +216,6 @@ mod test {
             TransactionParams,
             UnsignedTransaction,
         },
-        sequencer::{
-            Account,
-            AddressPrefixes,
-            UncheckedGenesisState,
-        },
     };
     use bytes::Bytes;
     use prost::Message as _;
@@ -233,8 +228,6 @@ mod test {
 
     use super::*;
     use crate::{
-        app::test_utils::default_fees,
-        asset::get_native_asset,
         mempool::Mempool,
         metrics::Metrics,
         proposal::commitment::generate_rollup_datas_commitment,
@@ -249,8 +242,8 @@ mod test {
             actions: vec![
                 SequenceAction {
                     rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-                    data: b"helloworld".to_vec(),
-                    fee_asset: get_native_asset().clone(),
+                    data: Bytes::from_static(b"hello world"),
+                    fee_asset: crate::test_utils::nria().into(),
                 }
                 .into(),
             ],
@@ -289,15 +282,12 @@ mod test {
         let (mut consensus_service, mempool) =
             new_consensus_service(Some(signing_key.verification_key())).await;
         let tx = make_unsigned_tx();
-        let signed_tx = tx.into_signed(&signing_key);
-        let tx_bytes = signed_tx.clone().into_raw().encode_to_vec();
+        let signed_tx = Arc::new(tx.into_signed(&signing_key));
+        let tx_bytes = signed_tx.to_raw().encode_to_vec();
         let txs = vec![tx_bytes.into()];
-        mempool
-            .insert(Arc::new(signed_tx.clone()), 0)
-            .await
-            .unwrap();
+        mempool.insert(signed_tx.clone(), 0).await.unwrap();
 
-        let res = generate_rollup_datas_commitment(&vec![signed_tx], HashMap::new());
+        let res = generate_rollup_datas_commitment(&vec![(*signed_tx).clone()], HashMap::new());
 
         let prepare_proposal = new_prepare_proposal_request();
         let prepare_proposal_response = consensus_service
@@ -450,26 +440,22 @@ mod test {
     }
 
     async fn new_consensus_service(funded_key: Option<VerificationKey>) -> (Consensus, Mempool) {
-        let accounts = if funded_key.is_some() {
-            vec![Account {
-                address: crate::address::base_prefixed(funded_key.unwrap().address_bytes()),
-                balance: 10u128.pow(19),
-            }]
+        let accounts = if let Some(funded_key) = funded_key {
+            vec![
+                astria_core::generated::protocol::genesis::v1alpha1::Account {
+                    address: Some(
+                        crate::test_utils::astria_address(&funded_key.address_bytes()).to_raw(),
+                    ),
+                    balance: Some(10u128.pow(19).into()),
+                },
+            ]
         } else {
             vec![]
         };
-        let genesis_state = UncheckedGenesisState {
-            accounts,
-            address_prefixes: AddressPrefixes {
-                base: crate::address::get_base_prefix().to_string(),
-            },
-            authority_sudo_address: crate::address::base_prefixed([0; 20]),
-            ibc_sudo_address: crate::address::base_prefixed([0; 20]),
-            ibc_relayer_addresses: vec![],
-            native_asset_base_denomination: "nria".to_string(),
-            ibc_params: penumbra_ibc::params::IBCParameters::default(),
-            allowed_fee_assets: vec!["nria".parse().unwrap()],
-            fees: default_fees(),
+        let genesis_state = {
+            let mut state = crate::app::test_utils::proto_genesis_state();
+            state.accounts = accounts;
+            state
         }
         .try_into()
         .unwrap();
@@ -497,10 +483,10 @@ mod test {
             new_consensus_service(Some(signing_key.verification_key())).await;
 
         let tx = make_unsigned_tx();
-        let signed_tx = tx.into_signed(&signing_key);
-        let tx_bytes = signed_tx.clone().into_raw().encode_to_vec();
+        let signed_tx = Arc::new(tx.into_signed(&signing_key));
+        let tx_bytes = signed_tx.to_raw().encode_to_vec();
         let txs = vec![tx_bytes.clone().into()];
-        let res = generate_rollup_datas_commitment(&vec![signed_tx.clone()], HashMap::new());
+        let res = generate_rollup_datas_commitment(&vec![(*signed_tx).clone()], HashMap::new());
 
         let block_data = res.into_transactions(txs.clone());
         let data_hash =
@@ -514,7 +500,7 @@ mod test {
             .await
             .unwrap();
 
-        mempool.insert(Arc::new(signed_tx), 0).await.unwrap();
+        mempool.insert(signed_tx, 0).await.unwrap();
         let finalize_block = request::FinalizeBlock {
             hash: Hash::try_from([0u8; 32].to_vec()).unwrap(),
             height: 1u32.into(),

@@ -117,14 +117,14 @@ impl Client {
     pub(super) async fn execute_block_with_retry(
         &mut self,
         prev_block_hash: Bytes,
-        transactions: Vec<Vec<u8>>,
+        transactions: Vec<Bytes>,
         timestamp: Timestamp,
     ) -> eyre::Result<Block> {
         use prost::Message;
 
         let transactions = transactions
             .into_iter()
-            .map(|tx| RollupData::decode(tx.as_slice()))
+            .map(RollupData::decode)
             .collect::<Result<_, _>>()
             .wrap_err("failed to decode tx bytes as RollupData")?;
 

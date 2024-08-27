@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+package astria.protocol.genesis.v1alpha1;
+
+import "astria/primitive/v1/types.proto";
+
+message GenesisAppState {
+  string chain_id = 1;
+  AddressPrefixes address_prefixes = 2;
+  repeated Account accounts = 3;
+  astria.primitive.v1.Address authority_sudo_address = 4;
+  astria.primitive.v1.Address ibc_sudo_address = 5;
+  repeated astria.primitive.v1.Address ibc_relayer_addresses = 6;
+  string native_asset_base_denomination = 7;
+  IbcParameters ibc_parameters = 8;
+  repeated string allowed_fee_assets = 9;
+  Fees fees = 10;
+}
+
+message Account {
+  astria.primitive.v1.Address address = 1;
+  astria.primitive.v1.Uint128 balance = 2;
+}
+
+message AddressPrefixes {
+  string base = 1;
+}
+
+// IBC configuration data.
+message IbcParameters {
+  // Whether IBC (forming connections, processing IBC packets) is enabled.
+  bool ibc_enabled = 1;
+  // Whether inbound ICS-20 transfers are enabled
+  bool inbound_ics20_transfers_enabled = 2;
+  // Whether outbound ICS-20 transfers are enabled
+  bool outbound_ics20_transfers_enabled = 3;
+}
+
+message Fees {
+  astria.primitive.v1.Uint128 transfer_base_fee = 1;
+  astria.primitive.v1.Uint128 sequence_base_fee = 2;
+  astria.primitive.v1.Uint128 sequence_byte_cost_multiplier = 3;
+  astria.primitive.v1.Uint128 init_bridge_account_base_fee = 4;
+  astria.primitive.v1.Uint128 bridge_lock_byte_cost_multiplier = 5;
+  astria.primitive.v1.Uint128 bridge_sudo_change_fee = 6;
+  astria.primitive.v1.Uint128 ics20_withdrawal_base_fee = 7;
+}

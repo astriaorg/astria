@@ -5,7 +5,6 @@ use anyhow::{
 };
 use astria_core::primitive::v1::{
     asset,
-    Address,
     ADDRESS_LEN,
 };
 use async_trait::async_trait;
@@ -23,6 +22,8 @@ use tracing::{
     instrument,
 };
 
+use crate::accounts::AddressBytes;
+
 /// Newtype wrapper to read and write a u128 from rocksdb.
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
 struct Balance(u128);
@@ -38,13 +39,13 @@ struct Fee(u128);
 const IBC_SUDO_STORAGE_KEY: &str = "ibcsudo";
 const ICS20_WITHDRAWAL_BASE_FEE_STORAGE_KEY: &str = "ics20withdrawalfee";
 
-struct IbcRelayerKey<'a>(&'a Address);
+struct IbcRelayerKey<'a, T>(&'a T);
 
-impl<'a> std::fmt::Display for IbcRelayerKey<'a> {
+impl<'a, T: AddressBytes> std::fmt::Display for IbcRelayerKey<'a, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("ibc-relayer")?;
         f.write_str("/")?;
-        for byte in self.0.bytes() {
+        for byte in self.0.address_bytes() {
             f.write_fmt(format_args!("{byte:02x}"))?;
         }
         Ok(())
@@ -61,7 +62,7 @@ fn channel_balance_storage_key<TAsset: Into<asset::IbcPrefixed>>(
     )
 }
 
-fn ibc_relayer_key(address: &Address) -> String {
+fn ibc_relayer_key<T: AddressBytes>(address: &T) -> String {
     IbcRelayerKey(address).to_string()
 }
 
@@ -89,7 +90,7 @@ pub(crate) trait StateReadExt: StateRead {
     }
 
     #[instrument(skip_all)]
-    async fn get_ibc_sudo_address(&self) -> Result<Address> {
+    async fn get_ibc_sudo_address(&self) -> Result<[u8; ADDRESS_LEN]> {
         let Some(bytes) = self
             .get_raw(IBC_SUDO_STORAGE_KEY)
             .await
@@ -100,13 +101,13 @@ pub(crate) trait StateReadExt: StateRead {
         };
         let SudoAddress(address_bytes) =
             SudoAddress::try_from_slice(&bytes).context("invalid ibc sudo key bytes")?;
-        Ok(crate::address::base_prefixed(address_bytes))
+        Ok(address_bytes)
     }
 
     #[instrument(skip_all)]
-    async fn is_ibc_relayer(&self, address: &Address) -> Result<bool> {
+    async fn is_ibc_relayer<T: AddressBytes>(&self, address: T) -> Result<bool> {
         Ok(self
-            .get_raw(&ibc_relayer_key(address))
+            .get_raw(&ibc_relayer_key(&address))
             .await
             .context("failed to read ibc relayer key from state")?
             .is_some())
@@ -146,23 +147,23 @@ pub(crate) trait StateWriteExt: StateWrite {
     }
 
     #[instrument(skip_all)]
-    fn put_ibc_sudo_address(&mut self, address: Address) -> Result<()> {
+    fn put_ibc_sudo_address<T: AddressBytes>(&mut self, address: T) -> Result<()> {
         self.put_raw(
             IBC_SUDO_STORAGE_KEY.to_string(),
-            borsh::to_vec(&SudoAddress(address.bytes()))
+            borsh::to_vec(&SudoAddress(address.address_bytes()))
                 .context("failed to convert sudo address to vec")?,
         );
         Ok(())
     }
 
     #[instrument(skip_all)]
-    fn put_ibc_relayer_address(&mut self, address: &Address) {
-        self.put_raw(ibc_relayer_key(address), vec![]);
+    fn put_ibc_relayer_address<T: AddressBytes>(&mut self, address: T) {
+        self.put_raw(ibc_relayer_key(&address), vec![]);
     }
 
     #[instrument(skip_all)]
-    fn delete_ibc_relayer_address(&mut self, address: &Address) {
-        self.delete(ibc_relayer_key(address));
+    fn delete_ibc_relayer_address<T: AddressBytes>(&mut self, address: T) {
+        self.delete(ibc_relayer_key(&address));
     }
 
     #[instrument(skip_all)]
@@ -191,7 +192,14 @@ mod tests {
         StateReadExt as _,
         StateWriteExt as _,
     };
-    use crate::ibc::state_ext::channel_balance_storage_key;
+    use crate::{
+        address::StateWriteExt,
+        ibc::state_ext::channel_balance_storage_key,
+        test_utils::{
+            astria_address,
+            ASTRIA_PREFIX,
+        },
+    };
 
     fn asset_0() -> asset::Denom {
         "asset_0".parse().unwrap()
@@ -219,8 +227,10 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
+        state.put_base_prefix(ASTRIA_PREFIX).unwrap();
+
         // can write new
-        let mut address = crate::address::base_prefixed([42u8; 20]);
+        let mut address = [42u8; 20];
         state
             .put_ibc_sudo_address(address)
             .expect("writing sudo address should not fail");
@@ -234,7 +244,7 @@ mod tests {
         );
 
         // can rewrite with new value
-        address = crate::address::base_prefixed([41u8; 20]);
+        address = [41u8; 20];
         state
             .put_ibc_sudo_address(address)
             .expect("writing sudo address should not fail");
@@ -252,13 +262,15 @@ mod tests {
     async fn is_ibc_relayer_ok_if_not_set() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
-        let state = StateDelta::new(snapshot);
+        let mut state = StateDelta::new(snapshot);
+
+        state.put_base_prefix(ASTRIA_PREFIX).unwrap();
 
         // unset address returns false
-        let address = crate::address::base_prefixed([42u8; 20]);
+        let address = astria_address(&[42u8; 20]);
         assert!(
             !state
-                .is_ibc_relayer(&address)
+                .is_ibc_relayer(address)
                 .await
                 .expect("calls to properly formatted addresses should not fail"),
             "inputted address should've returned false"
@@ -271,22 +283,24 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
+        state.put_base_prefix(ASTRIA_PREFIX).unwrap();
+
         // can write
-        let address = crate::address::base_prefixed([42u8; 20]);
-        state.put_ibc_relayer_address(&address);
+        let address = astria_address(&[42u8; 20]);
+        state.put_ibc_relayer_address(address);
         assert!(
             state
-                .is_ibc_relayer(&address)
+                .is_ibc_relayer(address)
                 .await
                 .expect("a relayer address was written and must exist inside the database"),
             "stored relayer address could not be verified"
         );
 
         // can delete
-        state.delete_ibc_relayer_address(&address);
+        state.delete_ibc_relayer_address(address);
         assert!(
             !state
-                .is_ibc_relayer(&address)
+                .is_ibc_relayer(address)
                 .await
                 .expect("calls on unset addresses should not fail"),
             "relayer address was not deleted as was intended"
@@ -299,30 +313,32 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
+        state.put_base_prefix(ASTRIA_PREFIX).unwrap();
+
         // can write
-        let address = crate::address::base_prefixed([42u8; 20]);
-        state.put_ibc_relayer_address(&address);
+        let address = astria_address(&[42u8; 20]);
+        state.put_ibc_relayer_address(address);
         assert!(
             state
-                .is_ibc_relayer(&address)
+                .is_ibc_relayer(address)
                 .await
                 .expect("a relayer address was written and must exist inside the database"),
             "stored relayer address could not be verified"
         );
 
         // can write multiple
-        let address_1 = crate::address::base_prefixed([41u8; 20]);
-        state.put_ibc_relayer_address(&address_1);
+        let address_1 = astria_address(&[41u8; 20]);
+        state.put_ibc_relayer_address(address_1);
         assert!(
             state
-                .is_ibc_relayer(&address_1)
+                .is_ibc_relayer(address_1)
                 .await
                 .expect("a relayer address was written and must exist inside the database"),
             "additional stored relayer address could not be verified"
         );
         assert!(
             state
-                .is_ibc_relayer(&address)
+                .is_ibc_relayer(address)
                 .await
                 .expect("a relayer address was written and must exist inside the database"),
             "original stored relayer address could not be verified"

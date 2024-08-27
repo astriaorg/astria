@@ -6,8 +6,8 @@
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GenesisInfo {
     /// The rollup_id is the unique identifier for the rollup chain.
-    #[prost(bytes = "bytes", tag = "1")]
-    pub rollup_id: ::prost::bytes::Bytes,
+    #[prost(message, optional, tag = "1")]
+    pub rollup_id: ::core::option::Option<super::super::primitive::v1::RollupId>,
     /// The first block height of sequencer chain to use for rollup transactions.
     #[prost(uint32, tag = "2")]
     pub sequencer_genesis_block_height: u32,
