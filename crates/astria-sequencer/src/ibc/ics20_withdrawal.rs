@@ -113,13 +113,13 @@ impl ActionHandler for action::Ics20Withdrawal {
     async fn check_stateless(&self) -> Result<()> {
         ensure!(self.timeout_time() != 0, "timeout time must be non-zero",);
 
-        if let Some(bridge_address) = &self.bridge_address {
+        if self.bridge_address.is_some() {
             let parsed_bridge_memo: Ics20WithdrawalFromRollupMemo =
                 serde_json::from_str(&self.memo)
                     .context("failed to parse memo for ICS bound bridge withdrawal")?;
 
             ensure!(
-                parsed_bridge_memo.rollup_return_address.len() != 0,
+                !parsed_bridge_memo.rollup_return_address.is_empty(),
                 "rollup return address must be non-empty",
             );
             ensure!(
@@ -127,28 +127,16 @@ impl ActionHandler for action::Ics20Withdrawal {
                 "rollup return address must be no more than 256 bytes",
             );
             ensure!(
-                parsed_bridge_memo.rollup_transaction_hash.len() != 0,
+                !parsed_bridge_memo.rollup_withdrawal_event_id.is_empty(),
                 "rollup transaction hash must be non-empty",
             );
             ensure!(
                 parsed_bridge_memo
-                    .rollup_transaction_hash
+                    .rollup_withdrawal_event_id
                     .into_bytes()
                     .len()
                     <= 64,
                 "rollup transaction hash must be no more than 64 bytes",
-            );
-            ensure!(
-                parsed_bridge_memo.rollup_exec_result_hash.len() != 0,
-                "rollup exec result hash must be non-empty",
-            );
-            ensure!(
-                parsed_bridge_memo
-                    .rollup_exec_result_hash
-                    .into_bytes()
-                    .len()
-                    <= 64,
-                "rollup exec result hash must be no more than 64 bytes",
             );
             ensure!(
                 parsed_bridge_memo.rollup_block_number != 0,
@@ -181,21 +169,21 @@ impl ActionHandler for action::Ics20Withdrawal {
                 serde_json::from_str(&self.memo)
                     .context("failed to memo for ICS bound bridge withdrawal")?;
 
-            let withdrawalEventHeight = state
+            let rollup_withdrawal_height = state
                 .get_withdrawal_event_block_for_bridge_account(
                     self.bridge_address.map_or(from, Address::bytes),
-                    &parsed_bridge_memo.rollup_exec_result_hash,
+                    &parsed_bridge_memo.rollup_withdrawal_event_id,
                 )
                 .await
                 .context("failed to get withdrawal event height")?;
             ensure!(
-                withdrawalEventHeight.is_none(),
+                rollup_withdrawal_height.is_none(),
                 "withdrawal event already processed",
             );
 
             state.put_withdrawal_event_block_for_bridge_account(
                 self.bridge_address.map_or(from, Address::bytes),
-                &parsed_bridge_memo.rollup_exec_result_hash,
+                &parsed_bridge_memo.rollup_withdrawal_event_id,
                 parsed_bridge_memo.rollup_block_number,
             );
         }

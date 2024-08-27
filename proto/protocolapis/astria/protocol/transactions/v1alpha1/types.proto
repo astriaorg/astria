@@ -209,10 +209,22 @@ message BridgeUnlockAction {
   astria.primitive.v1.Uint128 amount = 2;
   // the asset used to pay the transaction fee
   string fee_asset = 3;
-  // memo for double spend prevention
-  string memo = 4;
+  // There was a memo field which was been removed in favor of the
+  // `rollup_block_number`and `rollup_transaction_hash` fields.
+  reserved 4;
   // the address of the bridge account to transfer from
   astria.primitive.v1.Address bridge_address = 5;
+  // The block number on the rollup that triggered the transaction underlying
+  // this bridge unlock memo.
+  uint64 rollup_block_number = 6;
+  // The hash of the original rollup event, a transaction hash for EVM for
+  // instance, that triggered a bridge unlock and that is underlying this bridge
+  // unlock memo. This can be utilized for tracing from the bridge back to
+  // distinct rollup transactions.
+  //
+  // This field is of type `string` so that it can be formatted in the preferred
+  // format of the rollup when targeting plain text encoding.
+  string rollup_withdrawal_event_id = 7;
 }
 
 message BridgeSudoChangeAction {
