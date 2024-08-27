@@ -31,12 +31,13 @@ use crate::{
 impl ActionHandler for BridgeUnlockAction {
     async fn check_stateless(&self) -> Result<()> {
         ensure!(self.amount > 0, "amount must be greater than zero",);
+        ensure!(self.memo.len() <= 64, "memo must not be more than 64 bytes");
         ensure!(
             !self.rollup_withdrawal_event_id.is_empty(),
             "rollup transaction hash must be non-empty",
         );
         ensure!(
-            self.rollup_withdrawal_event_id.clone().into_bytes().len() <= 64,
+            self.rollup_withdrawal_event_id.len() <= 64,
             "rollup transaction hash must not be more than 64 bytes",
         );
         ensure!(
