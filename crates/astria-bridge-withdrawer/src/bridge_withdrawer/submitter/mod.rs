@@ -19,6 +19,7 @@ use astria_core::{
 };
 use astria_eyre::eyre::{
     self,
+    ensure,
     eyre,
     Context,
 };
@@ -280,6 +281,9 @@ async fn submit_tx(
     metrics.record_sequencer_submission_latency(start.elapsed());
 
     let check_tx = check_tx?;
+
+    ensure!(check_tx.code.is_ok(), "check_tx failed: {}", check_tx.log);
+
     let tx_response = client.wait_for_tx_inclusion(check_tx.hash).await?;
 
     Ok((check_tx, tx_response))

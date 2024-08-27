@@ -60,7 +60,6 @@ pub use astria_core::{
 };
 use astria_eyre::eyre::{
     self,
-    ensure,
 };
 use async_trait::async_trait;
 use futures::Stream;
@@ -715,17 +714,7 @@ pub trait SequencerClientExt: Client {
         loop {
             tokio::time::sleep(Duration::from_millis(sleep_millis)).await;
             match self.tx(tx_hash, false).await {
-                Ok(tx) => {
-                    ensure!(
-                        tx.tx_result.code.is_ok() 
-                        // This should not happen. If the transaction failed, it should not have
-                        // been included in the block. If the transaction
-                        // was included in the block, proof should be `Some`.
-                        "failed to execute tx: {}",
-                        tx.tx_result.log
-                    );
-                    return Ok(tx);
-                }
+                Ok(tx) => return Ok(tx),
                 Err(error) => {
                     sleep_millis =
                         std::cmp::min(sleep_millis.saturating_mul(2), MAX_POLL_INTERVAL_MILLIS);
