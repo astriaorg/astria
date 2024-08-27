@@ -209,9 +209,9 @@ message BridgeUnlockAction {
   astria.primitive.v1.Uint128 amount = 2;
   // the asset used to pay the transaction fee
   string fee_asset = 3;
-  // There was a memo field which was been removed in favor of the
-  // `rollup_block_number`and `rollup_transaction_hash` fields.
-  reserved 4;
+  // The memo field can be used to provide unique identifying additional
+  // information about the bridge unlock transaction.
+  string memo = 4;
   // the address of the bridge account to transfer from
   astria.primitive.v1.Address bridge_address = 5;
   // The block number on the rollup that triggered the transaction underlying

@@ -386,6 +386,10 @@ pub struct BridgeUnlockAction {
     /// the asset used to pay the transaction fee
     #[prost(string, tag = "3")]
     pub fee_asset: ::prost::alloc::string::String,
+    /// The memo field can be used to provide unique identifying additional
+    /// information about the bridge unlock transaction.
+    #[prost(string, tag = "4")]
+    pub memo: ::prost::alloc::string::String,
     /// the address of the bridge account to transfer from
     #[prost(message, optional, tag = "5")]
     pub bridge_address: ::core::option::Option<

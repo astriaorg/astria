@@ -587,6 +587,9 @@ impl serde::Serialize for BridgeUnlockAction {
         if !self.fee_asset.is_empty() {
             len += 1;
         }
+        if !self.memo.is_empty() {
+            len += 1;
+        }
         if self.bridge_address.is_some() {
             len += 1;
         }
@@ -605,6 +608,9 @@ impl serde::Serialize for BridgeUnlockAction {
         }
         if !self.fee_asset.is_empty() {
             struct_ser.serialize_field("feeAsset", &self.fee_asset)?;
+        }
+        if !self.memo.is_empty() {
+            struct_ser.serialize_field("memo", &self.memo)?;
         }
         if let Some(v) = self.bridge_address.as_ref() {
             struct_ser.serialize_field("bridgeAddress", v)?;
@@ -630,6 +636,7 @@ impl<'de> serde::Deserialize<'de> for BridgeUnlockAction {
             "amount",
             "fee_asset",
             "feeAsset",
+            "memo",
             "bridge_address",
             "bridgeAddress",
             "rollup_block_number",
@@ -643,6 +650,7 @@ impl<'de> serde::Deserialize<'de> for BridgeUnlockAction {
             To,
             Amount,
             FeeAsset,
+            Memo,
             BridgeAddress,
             RollupBlockNumber,
             RollupWithdrawalEventId,
@@ -670,6 +678,7 @@ impl<'de> serde::Deserialize<'de> for BridgeUnlockAction {
                             "to" => Ok(GeneratedField::To),
                             "amount" => Ok(GeneratedField::Amount),
                             "feeAsset" | "fee_asset" => Ok(GeneratedField::FeeAsset),
+                            "memo" => Ok(GeneratedField::Memo),
                             "bridgeAddress" | "bridge_address" => Ok(GeneratedField::BridgeAddress),
                             "rollupBlockNumber" | "rollup_block_number" => Ok(GeneratedField::RollupBlockNumber),
                             "rollupWithdrawalEventId" | "rollup_withdrawal_event_id" => Ok(GeneratedField::RollupWithdrawalEventId),
@@ -695,6 +704,7 @@ impl<'de> serde::Deserialize<'de> for BridgeUnlockAction {
                 let mut to__ = None;
                 let mut amount__ = None;
                 let mut fee_asset__ = None;
+                let mut memo__ = None;
                 let mut bridge_address__ = None;
                 let mut rollup_block_number__ = None;
                 let mut rollup_withdrawal_event_id__ = None;
@@ -717,6 +727,12 @@ impl<'de> serde::Deserialize<'de> for BridgeUnlockAction {
                                 return Err(serde::de::Error::duplicate_field("feeAsset"));
                             }
                             fee_asset__ = Some(map_.next_value()?);
+                        }
+                        GeneratedField::Memo => {
+                            if memo__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("memo"));
+                            }
+                            memo__ = Some(map_.next_value()?);
                         }
                         GeneratedField::BridgeAddress => {
                             if bridge_address__.is_some() {
@@ -744,6 +760,7 @@ impl<'de> serde::Deserialize<'de> for BridgeUnlockAction {
                     to: to__,
                     amount: amount__,
                     fee_asset: fee_asset__.unwrap_or_default(),
+                    memo: memo__.unwrap_or_default(),
                     bridge_address: bridge_address__,
                     rollup_block_number: rollup_block_number__.unwrap_or_default(),
                     rollup_withdrawal_event_id: rollup_withdrawal_event_id__.unwrap_or_default(),

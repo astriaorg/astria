@@ -265,7 +265,6 @@ mod tests {
     use super::*;
     use crate::{
         address::StateWriteExt as _,
-        bridge::StateWriteExt as _,
         test_utils::{
             assert_anyhow_error,
             astria_address,

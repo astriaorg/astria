@@ -1546,6 +1546,8 @@ pub struct BridgeUnlockAction {
     pub fee_asset: asset::Denom,
     // the address of the bridge account to transfer from.
     pub bridge_address: Address,
+    // A field for users to additional identifying information
+    pub memo: String,
     // The block number of the rollup block containing the withdrawal event.
     pub rollup_block_number: u64,
     // The identifier of the withdrawal event in the rollup block.
@@ -1562,6 +1564,7 @@ impl Protobuf for BridgeUnlockAction {
             to: Some(self.to.into_raw()),
             amount: Some(self.amount.into()),
             fee_asset: self.fee_asset.to_string(),
+            memo: self.memo,
             bridge_address: Some(self.bridge_address.into_raw()),
             rollup_block_number: self.rollup_block_number,
             rollup_withdrawal_event_id: self.rollup_withdrawal_event_id,
@@ -1574,6 +1577,7 @@ impl Protobuf for BridgeUnlockAction {
             to: Some(self.to.to_raw()),
             amount: Some(self.amount.into()),
             fee_asset: self.fee_asset.to_string(),
+            memo: self.memo.clone(),
             bridge_address: Some(self.bridge_address.to_raw()),
             rollup_block_number: self.rollup_block_number,
             rollup_withdrawal_event_id: self.rollup_withdrawal_event_id.clone(),
@@ -1594,6 +1598,7 @@ impl Protobuf for BridgeUnlockAction {
             to,
             amount,
             fee_asset,
+            memo,
             bridge_address,
             rollup_block_number,
             rollup_withdrawal_event_id,
@@ -1615,6 +1620,7 @@ impl Protobuf for BridgeUnlockAction {
             to,
             amount: amount.into(),
             fee_asset,
+            memo,
             bridge_address,
             rollup_block_number,
             rollup_withdrawal_event_id,
