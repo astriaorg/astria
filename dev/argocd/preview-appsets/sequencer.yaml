@@ -1,0 +1,87 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: pr-sequencer-0
+  namespace: argocd
+spec:
+  generators:
+  - pullRequest:
+      github:
+        labels:
+        - demo
+        - sequencer
+        - docker-build
+        owner: astriaorg
+        repo: astria
+        tokenRef:
+          key: token
+          secretName: github-pat
+      requeueAfterSeconds: 60
+  goTemplate: true
+  goTemplateOptions:
+  - missingkey=error
+  template:
+    metadata:
+      name: pr-{{.number}}-sequencer-0
+    spec:
+      destination:
+        namespace: pr-{{.number}}
+        server: https://kubernetes.default.svc
+      project: default
+      sources:
+      - helm:
+          parameters:
+          - name: global.namespaceOverride
+            value: pr-{{.number}}
+          - name: ingress.hostname
+            value: pr-{{.number}}.dev.astria.org
+          - name: images.sequencer.devTag
+            value: pr-{{.number}}
+          - name: sequencer-relayer.config.relayer.celestiaAppGrpc
+            value: http://celestia-app-service.pr-{{.number}}.svc.cluster.local:9090
+          - name: sequencer-relayer.config.relayer.cometbftRpc
+            value: http://node0-sequencer-rpc-service.pr-{{.number}}.svc.cluster.local:26657
+          - name: sequencer-relayer.config.relayer.sequencerGrpc
+            value: http://node0-sequencer-grpc-service.pr-{{.number}}.svc.cluster.local:8080
+          - name: ingress.rpc.hostname
+            value: sequencer.pr-{{.number}}.dev.astria.org
+          - name: ingress.rpc.annotations\.external-dns\.alpha\.kubernetes\.io/hostname
+            value: rpc.sequencer.pr-{{.number}}.dev.astria.org
+          - name: ingress.grpc.hostname
+            value: sequencer.pr-{{.number}}.dev.astria.org
+          - name: ingress.grpc.annotations\.external-dns\.alpha\.kubernetes\.io/hostname
+            value: grpc.sequencer.pr-{{.number}}.dev.astria.org
+          valueFiles:
+          - ../../dev/values/validators/all.yml
+          - ../../dev/values/validators/single.yml
+          valuesObject:
+            config:
+              sequencer:
+                metrics:
+                  enabled: true
+            global:
+              dev: true
+            ingress:
+              grpc:
+                enabled: true
+            serviceMonitor:
+              enabled: true
+        path: charts/sequencer
+        repoURL: https://github.com/astriaorg/astria.git
+        targetRevision: pull/{{.number}}/head
+      - helm:
+          parameters:
+          - name: global.namespace
+            value: pr-{{.number}}
+          - name: ingress.hostname
+            value: pr-{{.number}}.dev.astria.org
+        path: charts/celestia-local
+        repoURL: https://github.com/astriaorg/astria.git
+        targetRevision: pull/{{.number}}/head
+      syncPolicy:
+        automated:
+          allowEmpty: true
+          prune: true
+          selfHeal: false
+        syncOptions:
+        - CreateNamespace=true
