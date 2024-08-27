@@ -19,7 +19,7 @@ version: 0.4.0
 
 dependencies:
   - name: evm-rollup
-    version: 0.26.0
+    version: 0.27.0
     repository: "file://../evm-rollup"
   - name: composer
     version: 0.1.2
