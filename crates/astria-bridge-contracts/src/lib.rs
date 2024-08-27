@@ -428,6 +428,11 @@ pub struct LogsToActionsConverter {
 
 impl LogsToActionsConverter {
     /// Converts all logs to withdrawal actions. Returns a
+    ///
+    /// # Panics
+    /// - Panics if collected ICS20 withdrawal events without being configured for ICS20
+    ///   withdrawals.
+    #[must_use]
     pub fn convert_logs_to_actions(self) -> Vec<Result<Action, WithdrawalConversionError>> {
         let Self {
             ics20_logs,
@@ -469,6 +474,15 @@ impl LogsToActionsConverter {
     }
 }
 
+/// Converts a rollup-side smart contract event log to a sequencer-side ics20 withdrawal action.
+///
+/// # Errors
+/// - If the log does not contain a block number.
+/// - If the log does not contain a transaction hash.
+/// - If the log cannot be decoded as a sequencer withdrawal event.
+/// - If the log does not contain a `recipient` field.
+/// - If the memo cannot be encoded to json.
+/// - If calculating the amount using the asset withdrawal divisor overflows.
 pub fn log_to_ics20_withdrawal_action(
     log: Log,
     asset_withdrawal_divisor: u128,

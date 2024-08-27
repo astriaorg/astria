@@ -210,7 +210,7 @@ async fn block_to_actions(
                 warn!(
                     error = &e as &dyn std::error::Error,
                     "failed to conver withdrawal event to sequencer action"
-                )
+                );
             })
             .ok()
         })

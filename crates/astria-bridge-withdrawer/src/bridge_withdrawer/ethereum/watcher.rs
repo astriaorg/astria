@@ -362,7 +362,7 @@ async fn get_and_forward_block_events(
                 warn!(
                     error = &e as &dyn std::error::Error,
                     "failed to conver withdrawal event to sequencer action"
-                )
+                );
             })
             .ok()
         })
