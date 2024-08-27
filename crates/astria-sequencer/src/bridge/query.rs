@@ -11,11 +11,13 @@ use prost::Message as _;
 use tendermint::abci::{
     request,
     response,
+    Code,
 };
 
 use crate::{
-    asset::state_ext::StateReadExt as _,
-    bridge::state_ext::StateReadExt as _,
+    address::StateReadExt,
+    assets::StateReadExt as _,
+    bridge::StateReadExt as _,
     state_ext::StateReadExt as _,
 };
 
@@ -25,22 +27,25 @@ fn error_query_response(
     msg: &str,
 ) -> response::Query {
     let log = match err {
-        Some(err) => format!("{msg}: {err:?}"),
+        Some(err) => format!("{msg}: {err:#}"),
         None => msg.into(),
     };
     response::Query {
-        code: code.into(),
-        info: code.to_string(),
+        code: Code::Err(code.value()),
+        info: code.info(),
         log,
         ..response::Query::default()
     }
 }
 
+// allow / FIXME: there is a lot of code duplication due to `error_query_response`.
+// this could be significantly shortened.
+#[allow(clippy::too_many_lines)]
 async fn get_bridge_account_info(
     snapshot: cnidarium::Snapshot,
     address: Address,
 ) -> anyhow::Result<Option<BridgeAccountInfo>, response::Query> {
-    let rollup_id = match snapshot.get_bridge_account_rollup_id(&address).await {
+    let rollup_id = match snapshot.get_bridge_account_rollup_id(address).await {
         Ok(Some(rollup_id)) => rollup_id,
         Ok(None) => {
             return Ok(None);
@@ -54,7 +59,7 @@ async fn get_bridge_account_info(
         }
     };
 
-    let ibc_asset = match snapshot.get_bridge_account_ibc_asset(&address).await {
+    let ibc_asset = match snapshot.get_bridge_account_ibc_asset(address).await {
         Ok(asset) => asset,
         Err(err) => {
             return Err(error_query_response(
@@ -83,8 +88,8 @@ async fn get_bridge_account_info(
         }
     };
 
-    let sudo_address = match snapshot.get_bridge_account_sudo_address(&address).await {
-        Ok(Some(sudo_address)) => sudo_address,
+    let sudo_address_bytes = match snapshot.get_bridge_account_sudo_address(address).await {
+        Ok(Some(bytes)) => bytes,
         Ok(None) => {
             return Err(error_query_response(
                 None,
@@ -101,8 +106,20 @@ async fn get_bridge_account_info(
         }
     };
 
-    let withdrawer_address = match snapshot
-        .get_bridge_account_withdrawer_address(&address)
+    let sudo_address = match snapshot.try_base_prefixed(&sudo_address_bytes).await {
+        Err(err) => {
+            return Err(error_query_response(
+                Some(err),
+                AbciErrorCode::INTERNAL_ERROR,
+                "failed to construct bech32m address from address prefix and account bytes read \
+                 from state",
+            ));
+        }
+        Ok(address) => address,
+    };
+
+    let withdrawer_address_bytes = match snapshot
+        .get_bridge_account_withdrawer_address(address)
         .await
     {
         Ok(Some(withdrawer_address)) => withdrawer_address,
@@ -120,6 +137,18 @@ async fn get_bridge_account_info(
                 "failed to get withdrawer address",
             ));
         }
+    };
+
+    let withdrawer_address = match snapshot.try_base_prefixed(&withdrawer_address_bytes).await {
+        Err(err) => {
+            return Err(error_query_response(
+                Some(err),
+                AbciErrorCode::INTERNAL_ERROR,
+                "failed to construct bech32m address from address prefix and account bytes read \
+                 from state",
+            ));
+        }
+        Ok(address) => address,
     };
 
     Ok(Some(BridgeAccountInfo {
@@ -250,8 +279,8 @@ fn preprocess_request(params: &[(String, String)]) -> anyhow::Result<Address, re
         .parse()
         .context("failed to parse argument as address")
         .map_err(|err| response::Query {
-            code: AbciErrorCode::INVALID_PARAMETER.into(),
-            info: AbciErrorCode::INVALID_PARAMETER.to_string(),
+            code: Code::Err(AbciErrorCode::INVALID_PARAMETER.value()),
+            info: AbciErrorCode::INVALID_PARAMETER.info(),
             log: format!("address could not be constructed from provided parameter: {err:#}"),
             ..response::Query::default()
         })?;
@@ -269,9 +298,14 @@ mod test {
 
     use super::*;
     use crate::{
-        asset::state_ext::StateWriteExt,
-        bridge::state_ext::StateWriteExt as _,
+        address::StateWriteExt as _,
+        assets::StateWriteExt as _,
+        bridge::StateWriteExt as _,
         state_ext::StateWriteExt as _,
+        test_utils::{
+            astria_address,
+            ASTRIA_PREFIX,
+        },
     };
 
     #[tokio::test]
@@ -280,21 +314,23 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
+        state.put_base_prefix(ASTRIA_PREFIX).unwrap();
+
         let asset: astria_core::primitive::v1::asset::Denom = "test".parse().unwrap();
         let rollup_id = RollupId::from_unhashed_bytes("test");
-        let bridge_address = crate::address::base_prefixed([0u8; 20]);
-        let sudo_address = crate::address::base_prefixed([1u8; 20]);
-        let withdrawer_address = crate::address::base_prefixed([2u8; 20]);
+        let bridge_address = astria_address(&[0u8; 20]);
+        let sudo_address = astria_address(&[1u8; 20]);
+        let withdrawer_address = astria_address(&[2u8; 20]);
         state.put_block_height(1);
-        state.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
+        state.put_bridge_account_rollup_id(bridge_address, &rollup_id);
         state
             .put_ibc_asset(asset.as_trace_prefixed().unwrap())
             .unwrap();
         state
-            .put_bridge_account_ibc_asset(&bridge_address, &asset)
+            .put_bridge_account_ibc_asset(bridge_address, &asset)
             .unwrap();
-        state.put_bridge_account_sudo_address(&bridge_address, &sudo_address);
-        state.put_bridge_account_withdrawer_address(&bridge_address, &withdrawer_address);
+        state.put_bridge_account_sudo_address(bridge_address, sudo_address);
+        state.put_bridge_account_withdrawer_address(bridge_address, withdrawer_address);
         storage.commit(state).await.unwrap();
 
         let query = request::Query {

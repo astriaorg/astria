@@ -140,48 +140,84 @@ which point backpressure will cause the reader task to pause as detailed above.
 
 ## Further Details
 
-### Pre- and Post-Submit Files
+### Submission State File
 
-At the start and end of each successful attempt to put data onto Celestia, the
-relayer writes some pertinent information to disk in the form of two JSON files;
-the pre-submit file and post-submit file. These allow the relayer to restart and
-continue submitting from where it left off.
+During attempts to put data onto Celestia, the relayer writes some pertinent
+information to disk in the form of a JSON file; the submission-state file. This
+allows the relayer to restart and continue submitting from where it left off.
 
-#### Pre-Submit File
+This file needs to exist and be writable whenever the relayer starts, even on
+first run.
 
-The contents of the pre-submit file are one of either:
+The submission state is one of three variants; `fresh`, `started` or `prepared`.
 
-```json
-{"state": "started", "sequencer_height": <number>, "last_submission": <last post-submit>}
-```
+#### `fresh` State
 
-or
-
-```json
-{"state": "ignore"}
-```
-
-The former is the normal case, with the file updated at the start of every new
-submission. The latter is used to force the relayer to ignore the pre-submit
-state entirely and only consider the post-submit state.
-
-#### Post-Submit File
-
-The contents of the post-submit file are one of either:
+The contents of the submission-state file when in `fresh` state are:
 
 ```json
 {"state": "fresh"}
 ```
 
-or
+This state is never written by the relayer: it needs to be provided externally
+before the relayer is started. It indicates that the relayer should start
+relaying from sequencer block 1.
+
+#### `started` State
+
+The contents of the submission-state file when in `started` state are:
 
 ```json
-{"state": "submitted", "celestia_height": <number>, "sequencer_height": <number>}
+{
+  "state": "started",
+  "last_submission": {
+    "celestia_height": <number>,
+    "sequencer_height": <number>
+  }
+}
 ```
 
-The former indicates the relayer should start relaying from sequencer block 1,
-while the latter records the relevant block heights of the last successful
-submission.
+This state is written by the relayer at the start of each new submission.
+`last_submission` records the last successful submission: the Celestia block
+height at which the submission was stored, and the highest sequencer block
+included in the submission.
+
+With the file in this state, on startup the relayer will begin submitting
+sequencer blocks starting from `[last_submission.sequencer_height] + 1`.
+
+#### `prepared` State
+
+The contents of the submission-state file when in `prepared` state are:
+
+```json
+{
+  "state": "prepared",
+  "sequencer_height": <number>,
+  "last_submission": {
+    "celestia_height": <number>,
+    "sequencer_height": <number>
+  },
+  "blob_tx_hash": "<64-character hex string>",
+  "at": "<timestamp in RFC-3339 format>"
+}
+```
+
+This state is written by the relayer when a submission has been prepared and is
+about to be sent to the Celestia app for execution. `sequencer_height` indicates
+the highest sequencer block included in the attempt, while `last_submission` is
+as per that in `started` state. `blob_tx_hash` is the hex-encoded SHA-256 digest
+of the `BlobTx` containing the data to be submitted, and `at` is the time at
+which the `BlobTx` was created.
+
+With the file in this state, on startup the relayer has to first establish
+whether that submission succeeded or not. It queries the Celestia app for the
+given blob hash, and if not confirmed as stored repeats the query at a rate of
+once per second until it is confirmed or until a timeout is hit.  The timeout is
+one minute after the `at` timestamp or 15 seconds, whichever is the greater.
+
+If the submission is confirmed, the relayer will then begin submitting sequencer
+blocks starting from `[sequencer_height] + 1`, otherwise it begins from
+`[last_submission.sequencer_height] + 1`.
 
 ### HTTP Servers
 

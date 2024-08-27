@@ -13,6 +13,9 @@ use telemetry::{
 
 pub struct Metrics {
     current_nonce: Gauge,
+    nonce_fetch_count: Counter,
+    nonce_fetch_failure_count: Counter,
+    nonce_fetch_latency: Histogram,
     sequencer_submission_failure_count: Counter,
     sequencer_submission_latency: Histogram,
 }
@@ -20,6 +23,18 @@ pub struct Metrics {
 impl Metrics {
     pub(crate) fn set_current_nonce(&self, nonce: u32) {
         self.current_nonce.set(nonce);
+    }
+
+    pub(crate) fn increment_nonce_fetch_count(&self) {
+        self.nonce_fetch_count.increment(1);
+    }
+
+    pub(crate) fn increment_nonce_fetch_failure_count(&self) {
+        self.nonce_fetch_failure_count.increment(1);
+    }
+
+    pub(crate) fn record_nonce_fetch_latency(&self, latency: Duration) {
+        self.nonce_fetch_latency.record(latency);
     }
 
     pub(crate) fn record_sequencer_submission_latency(&self, latency: Duration) {
@@ -42,6 +57,27 @@ impl metrics::Metrics for Metrics {
             .new_gauge_factory(CURRENT_NONCE, "The current nonce")?
             .register()?;
 
+        let nonce_fetch_count = builder
+            .new_counter_factory(
+                NONCE_FETCH_COUNT,
+                "The number of times a nonce was fetched from the sequencer",
+            )?
+            .register()?;
+
+        let nonce_fetch_failure_count = builder
+            .new_counter_factory(
+                NONCE_FETCH_FAILURE_COUNT,
+                "The number of failed attempts to fetch nonce from sequencer",
+            )?
+            .register()?;
+
+        let nonce_fetch_latency = builder
+            .new_histogram_factory(
+                NONCE_FETCH_LATENCY,
+                "The latency of fetching nonce from sequencer",
+            )?
+            .register()?;
+
         let sequencer_submission_failure_count = builder
             .new_counter_factory(
                 SEQUENCER_SUBMISSION_FAILURE_COUNT,
@@ -58,6 +94,9 @@ impl metrics::Metrics for Metrics {
 
         Ok(Self {
             current_nonce,
+            nonce_fetch_count,
+            nonce_fetch_failure_count,
+            nonce_fetch_latency,
             sequencer_submission_failure_count,
             sequencer_submission_latency,
         })

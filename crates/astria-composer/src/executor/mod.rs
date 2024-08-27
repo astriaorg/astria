@@ -40,16 +40,24 @@ use futures::{
 use pin_project_lite::pin_project;
 use prost::Message as _;
 use sequencer_client::{
-    tendermint_rpc::endpoint::broadcast::tx_sync,
+    tendermint_rpc::{
+        endpoint::broadcast::tx_sync,
+        Client as _,
+    },
     Address,
     SequencerClientExt as _,
 };
-use tendermint::crypto::Sha256;
+use tendermint::{
+    abci::Code,
+    crypto::Sha256,
+};
 use tokio::{
     select,
     sync::{
-        mpsc,
-        mpsc::error::SendTimeoutError,
+        mpsc::{
+            self,
+            error::SendTimeoutError,
+        },
         watch,
     },
     time::{
@@ -94,7 +102,16 @@ pub(crate) use builder::Builder;
 const BUNDLE_DRAINING_DURATION: Duration = Duration::from_secs(16);
 
 type StdError = dyn std::error::Error;
-
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum EnsureChainIdError {
+    #[error("failed to obtain sequencer chain ID after multiple retries")]
+    GetChainId(#[source] sequencer_client::tendermint_rpc::Error),
+    #[error("expected chain ID `{expected}`, but received `{actual}`")]
+    WrongChainId {
+        expected: String,
+        actual: tendermint::chain::Id,
+    },
+}
 /// The `Executor` interfaces with the sequencer. It handles account nonces, transaction signing,
 /// and transaction submission.
 /// The `Executor` receives `Vec<Action>` from the bundling logic, packages them with a nonce into
@@ -199,6 +216,17 @@ impl Executor {
     /// An error is returned if connecting to the sequencer fails.
     #[instrument(skip_all, fields(address = %self.address))]
     pub(super) async fn run_until_stopped(mut self) -> eyre::Result<()> {
+        select!(
+            biased;
+            () = self.shutdown_token.cancelled() => {
+                info!("received shutdown signal while running initialization routines; exiting");
+                return Ok(());
+            }
+
+            res = self.pre_run_checks() => {
+                res.wrap_err("required pre-run checks failed")?;
+            }
+        );
         let mut submission_fut: Fuse<Instrumented<SubmitFut>> = Fuse::terminated();
         let mut nonce = get_latest_nonce(self.sequencer_client.clone(), self.address, self.metrics)
             .await
@@ -417,6 +445,57 @@ impl Executor {
 
         reason.map(|_| ())
     }
+
+    /// Performs initialization checks prior to running the executor
+    async fn pre_run_checks(&self) -> eyre::Result<()> {
+        self.ensure_chain_id_is_correct().await?;
+        Ok(())
+    }
+
+    /// Performs check to ensure the configured chain ID matches the remote chain ID
+    pub(crate) async fn ensure_chain_id_is_correct(&self) -> Result<(), EnsureChainIdError> {
+        let remote_chain_id = self
+            .get_sequencer_chain_id()
+            .await
+            .map_err(EnsureChainIdError::GetChainId)?;
+        if remote_chain_id.as_str() != self.sequencer_chain_id {
+            return Err(EnsureChainIdError::WrongChainId {
+                expected: self.sequencer_chain_id.clone(),
+                actual: remote_chain_id,
+            });
+        }
+        Ok(())
+    }
+
+    /// Fetch chain id from the sequencer client
+    async fn get_sequencer_chain_id(
+        &self,
+    ) -> Result<tendermint::chain::Id, sequencer_client::tendermint_rpc::Error> {
+        let retry_config = tryhard::RetryFutureConfig::new(u32::MAX)
+            .exponential_backoff(Duration::from_millis(100))
+            .max_delay(Duration::from_secs(20))
+            .on_retry(
+                |attempt: u32,
+                 next_delay: Option<Duration>,
+                 error: &sequencer_client::tendermint_rpc::Error| {
+                    let wait_duration = next_delay
+                        .map(humantime::format_duration)
+                        .map(tracing::field::display);
+                    warn!(
+                        attempt,
+                        wait_duration,
+                        error = error as &dyn std::error::Error,
+                        "attempt to fetch sequencer genesis info; retrying after backoff",
+                    );
+                    futures::future::ready(())
+                },
+            );
+        let client_genesis: tendermint::Genesis =
+            tryhard::retry_fn(|| self.sequencer_client.genesis())
+                .with_config(retry_config)
+                .await?;
+        Ok(client_genesis.chain_id)
+    }
 }
 
 /// Queries the sequencer for the latest nonce with an exponential backoff
@@ -567,6 +646,7 @@ impl Future for SubmitFut {
 
     #[allow(clippy::too_many_lines)]
     fn poll(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+        const INVALID_NONCE: Code = Code::Err(AbciErrorCode::INVALID_NONCE.value());
         loop {
             let this = self.as_mut().project();
 
@@ -595,8 +675,8 @@ impl Future for SubmitFut {
                 SubmitStateProj::WaitingForSend {
                     fut,
                 } => match ready!(fut.poll(cx)) {
-                    Ok(rsp) => {
-                        let tendermint::abci::Code::Err(code) = rsp.code else {
+                    Ok(rsp) => match rsp.code {
+                        tendermint::abci::Code::Ok => {
                             info!("sequencer responded with ok; submission successful");
 
                             this.metrics
@@ -609,35 +689,33 @@ impl Future for SubmitFut {
                                 .nonce
                                 .checked_add(1)
                                 .expect("nonce should not overflow")));
-                        };
-                        match AbciErrorCode::from(code) {
-                            AbciErrorCode::INVALID_NONCE => {
-                                info!(
-                                    "sequencer rejected transaction due to invalid nonce; \
-                                     fetching new nonce"
-                                );
-                                SubmitState::WaitingForNonce {
-                                    fut: get_latest_nonce(
-                                        this.client.clone(),
-                                        *this.address,
-                                        self.metrics,
-                                    )
-                                    .boxed(),
-                                }
-                            }
-                            _other => {
-                                warn!(
-                                    abci.code = rsp.code.value(),
-                                    abci.log = rsp.log,
-                                    "sequencer rejected the transaction; the bundle is likely lost",
-                                );
-
-                                this.metrics.increment_sequencer_submission_failure_count();
-
-                                return Poll::Ready(Ok(*this.nonce));
+                        }
+                        INVALID_NONCE => {
+                            info!(
+                                "sequencer rejected transaction due to invalid nonce; fetching \
+                                 new nonce"
+                            );
+                            SubmitState::WaitingForNonce {
+                                fut: get_latest_nonce(
+                                    this.client.clone(),
+                                    *this.address,
+                                    self.metrics,
+                                )
+                                .boxed(),
                             }
                         }
-                    }
+                        tendermint::abci::Code::Err(_) => {
+                            warn!(
+                                abci.code = rsp.code.value(),
+                                abci.log = rsp.log,
+                                "sequencer rejected the transaction; the bundle is likely lost",
+                            );
+
+                            this.metrics.increment_sequencer_submission_failure_count();
+
+                            return Poll::Ready(Ok(*this.nonce));
+                        }
+                    },
                     Err(error) => {
                         error!(%error, "failed sending transaction to sequencer");
 

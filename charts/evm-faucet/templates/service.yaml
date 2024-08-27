@@ -1,0 +1,13 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{tpl .Values.config.rollupName . }}-evm-faucet-service
+  namespace: {{ include "evmFaucet.namespace" . }}
+spec:
+  selector:
+    app: {{tpl .Values.config.rollupName . }}-evm-faucet
+  ports:
+    - name: evm-faucet-svc
+      port: {{ .Values.ports.faucet }}
+      targetPort: faucet
+---

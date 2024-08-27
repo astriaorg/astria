@@ -4,28 +4,31 @@ use anyhow::{
     Context as _,
     Result,
 };
-use astria_core::{
-    primitive::v1::Address,
-    protocol::transaction::v1alpha1::action::FeeAssetChangeAction,
-};
+use astria_core::protocol::transaction::v1alpha1::action::FeeAssetChangeAction;
 use async_trait::async_trait;
-use cnidarium::{
-    StateRead,
-    StateWrite,
-};
+use cnidarium::StateWrite;
 
 use crate::{
-    authority::state_ext::StateReadExt as _,
-    state_ext::{
+    app::ActionHandler,
+    assets::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    transaction::action_handler::ActionHandler,
+    authority::StateReadExt as _,
+    transaction::StateReadExt as _,
 };
 
 #[async_trait]
 impl ActionHandler for FeeAssetChangeAction {
-    async fn check_stateful<S: StateRead + 'static>(&self, state: &S, from: Address) -> Result<()> {
+    async fn check_stateless(&self) -> Result<()> {
+        Ok(())
+    }
+
+    async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
+        let from = state
+            .get_current_source()
+            .expect("transaction source must be present in state when executing an action")
+            .address_bytes();
         let authority_sudo_address = state
             .get_sudo_address()
             .await
@@ -34,10 +37,6 @@ impl ActionHandler for FeeAssetChangeAction {
             authority_sudo_address == from,
             "unauthorized address for fee asset change"
         );
-        Ok(())
-    }
-
-    async fn execute<S: StateWrite>(&self, state: &mut S, _from: Address) -> Result<()> {
         match self {
             FeeAssetChangeAction::Addition(asset) => {
                 state.put_allowed_fee_asset(asset);
@@ -45,8 +44,12 @@ impl ActionHandler for FeeAssetChangeAction {
             FeeAssetChangeAction::Removal(asset) => {
                 state.delete_allowed_fee_asset(asset);
 
-                // FIXME: context
-                if state.get_allowed_fee_assets().await?.is_empty() {
+                if state
+                    .get_allowed_fee_assets()
+                    .await
+                    .context("failed to retrieve allowed fee assets")?
+                    .is_empty()
+                {
                     bail!("cannot remove last allowed fee asset");
                 }
             }

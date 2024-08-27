@@ -23,6 +23,7 @@ use borsh::{
     BorshDeserialize,
     BorshSerialize,
 };
+use bytes::Bytes;
 use cnidarium::{
     StateRead,
     StateWrite,
@@ -242,7 +243,7 @@ pub(crate) trait StateReadExt: StateRead {
             .context("failed to decode rollup IDs proof from raw bytes")?;
 
         let raw = raw::SequencerBlock {
-            block_hash: hash.to_vec(),
+            block_hash: Bytes::copy_from_slice(hash),
             header: header_raw.into(),
             rollup_transactions,
             rollup_transactions_proof: rollup_transactions_proof.into(),
@@ -390,6 +391,7 @@ mod test {
     use rand::Rng;
 
     use super::*;
+    use crate::test_utils::astria_address;
 
     // creates new sequencer block, optionally shifting all values except the height by 1
     fn make_test_sequencer_block(height: u32) -> SequencerBlock {
@@ -400,7 +402,7 @@ mod test {
         let mut deposits = vec![];
         for _ in 0..2 {
             let rollup_id = RollupId::new(rng.gen());
-            let bridge_address = crate::address::base_prefixed([rng.gen(); 20]);
+            let bridge_address = astria_address(&[rng.gen(); 20]);
             let amount = rng.gen::<u128>();
             let asset = "testasset".parse().unwrap();
             let destination_chain_address = rng.gen::<u8>().to_string();

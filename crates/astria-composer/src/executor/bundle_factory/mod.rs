@@ -14,6 +14,7 @@ use astria_core::{
         action::SequenceAction,
         Action,
     },
+    Protobuf as _,
 };
 use serde::ser::{
     Serialize,

@@ -1,9 +1,8 @@
 # this file contains overrides that are used for the ibc bridge tests
 
-config:
-  rollup:
-    genesis:
-      bridgeAddresses:
+evm-rollup:
+  genesis:
+    bridgeAddresses:
       - bridgeAddress: "astria1d7zjjljc0dsmxa545xkpwxym86g8uvvwhtezcr"
         startHeight: 1
         assetDenom: "transfer/channel-0/utia"

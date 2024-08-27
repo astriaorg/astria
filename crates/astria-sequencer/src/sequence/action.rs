@@ -4,47 +4,27 @@ use anyhow::{
     Result,
 };
 use astria_core::{
-    primitive::v1::Address,
     protocol::transaction::v1alpha1::action::SequenceAction,
+    Protobuf as _,
 };
-use tracing::instrument;
+use cnidarium::StateWrite;
 
 use crate::{
-    accounts::state_ext::{
-        StateReadExt,
-        StateWriteExt,
-    },
-    sequence::state_ext::StateReadExt as SequenceStateReadExt,
-    state_ext::{
+    accounts::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    transaction::action_handler::ActionHandler,
+    app::ActionHandler,
+    assets::{
+        StateReadExt,
+        StateWriteExt,
+    },
+    sequence,
+    transaction::StateReadExt as _,
 };
 
 #[async_trait::async_trait]
 impl ActionHandler for SequenceAction {
-    async fn check_stateful<S: StateReadExt + 'static>(
-        &self,
-        state: &S,
-        from: Address,
-    ) -> Result<()> {
-        ensure!(
-            state.is_allowed_fee_asset(&self.fee_asset).await?,
-            "invalid fee asset",
-        );
-
-        let curr_balance = state
-            .get_account_balance(from, &self.fee_asset)
-            .await
-            .context("failed getting `from` account balance for fee payment")?;
-        let fee = calculate_fee_from_state(&self.data, state)
-            .await
-            .context("calculated fee overflows u128")?;
-        ensure!(curr_balance >= fee, "insufficient funds");
-        Ok(())
-    }
-
     async fn check_stateless(&self) -> Result<()> {
         // TODO: do we want to place a maximum on the size of the data?
         // https://github.com/astriaorg/astria/issues/222
@@ -55,16 +35,33 @@ impl ActionHandler for SequenceAction {
         Ok(())
     }
 
-    #[instrument(skip_all)]
-    async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> Result<()> {
-        let fee = calculate_fee_from_state(&self.data, state)
+    async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
+        let from = state
+            .get_current_source()
+            .expect("transaction source must be present in state when executing an action")
+            .address_bytes();
+
+        ensure!(
+            state
+                .is_allowed_fee_asset(&self.fee_asset)
+                .await
+                .context("failed accessing state to check if fee is allowed")?,
+            "invalid fee asset",
+        );
+
+        let curr_balance = state
+            .get_account_balance(from, &self.fee_asset)
             .await
-            .context("failed to calculate fee")?;
+            .context("failed getting `from` account balance for fee payment")?;
+        let fee = calculate_fee_from_state(&self.data, &state)
+            .await
+            .context("calculated fee overflows u128")?;
+        ensure!(curr_balance >= fee, "insufficient funds");
+
         state
-            .get_and_increase_block_fees(&self.fee_asset, fee)
+            .get_and_increase_block_fees(&self.fee_asset, fee, Self::full_name())
             .await
             .context("failed to add to block fees")?;
-
         state
             .decrease_balance(from, &self.fee_asset, fee)
             .await
@@ -74,7 +71,7 @@ impl ActionHandler for SequenceAction {
 }
 
 /// Calculates the fee for a sequence `Action` based on the length of the `data`.
-pub(crate) async fn calculate_fee_from_state<S: SequenceStateReadExt>(
+pub(crate) async fn calculate_fee_from_state<S: sequence::StateReadExt>(
     data: &[u8],
     state: &S,
 ) -> Result<u128> {

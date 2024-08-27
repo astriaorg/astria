@@ -1,3 +1,5 @@
+mod ibc-test
+
 ##############################################
 ## Deploying and Running using Helm and K8s ##
 ##############################################
@@ -91,24 +93,24 @@ delete-sequencer name=validatorName:
 delete-sequencers: (delete-sequencer "node0") (delete-sequencer "node1") (delete-sequencer "node2")
 
 wait-for-sequencer:
-  kubectl wait -n astria-dev-cluster deployment celestia-local --for=condition=Available=True --timeout=600s
+  kubectl rollout status --watch statefulset/celestia-local -n astria-dev-cluster --timeout=600s
   kubectl rollout status --watch statefulset/sequencer -n astria-dev-cluster --timeout=600s
 
-deploy-rollup: deploy-dev-rollup deploy-bridge-withdrawer wait-for-rollup
+deploy-rollup: deploy-dev-rollup wait-for-rollup
 wait-for-rollup: wait-for-dev-rollup wait-for-bridge-withdrawer
-delete-rollup: delete-dev-rollup delete-bridge-withdrawer
+delete-rollup: delete-dev-rollup
 
 defaultRollupName          := "astria"
 defaultNetworkId           := ""
 defaultPrivateKey          := ""
 defaultSequencerStartBlock := ""
 deploy-dev-rollup rollupName=defaultRollupName networkId=defaultNetworkId:
-  helm dependency update charts/evm-rollup > /dev/null
+  helm dependency update charts/evm-stack > /dev/null
   helm install \
     {{ if rollupName          != '' { replace('--set config.rollup.name=# --set celestia-node.config.labelPrefix=#', '#', rollupName) } else { '' } }} \
     {{ if networkId           != '' { replace('--set config.rollup.networkId=#', '#', networkId) } else { '' } }} \
     -f dev/values/rollup/dev.yaml \
-    {{rollupName}}-chain-chart ./charts/evm-rollup --namespace astria-dev-cluster
+    {{rollupName}}-chain-chart ./charts/evm-stack --namespace astria-dev-cluster
 
 delete-dev-rollup rollupName=defaultRollupName:
   @just delete chart {{rollupName}}-chain
@@ -156,7 +158,7 @@ deploy-smoke-test tag=defaultTag:
   @just wait-for-ingress-controller > /dev/null
   @echo "Deploying local celestia instance..." && just deploy celestia-local > /dev/null
   @helm dependency update charts/sequencer > /dev/null
-  @helm dependency update charts/evm-rollup > /dev/null
+  @helm dependency update charts/evm-stack > /dev/null
   @echo "Setting up single astria sequencer..." && helm install \
     -n astria-validator-single single-sequencer-chart ./charts/sequencer \
     -f dev/values/validators/all.yml \
@@ -164,13 +166,11 @@ deploy-smoke-test tag=defaultTag:
     {{ if tag != '' { replace('--set images.sequencer.devTag=# --set sequencer-relayer.images.sequencerRelayer.devTag=#', '#', tag) } else { '' } }} \
     --create-namespace > /dev/null
   @just wait-for-sequencer > /dev/null
-  @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart ./charts/evm-rollup -f dev/values/rollup/dev.yaml \
-    {{ if tag != '' { replace('--set images.conductor.devTag=# --set images.composer.devTag=#', '#', tag) } else { '' } }} \
-    --set config.blockscout.enabled=false \
-    --set config.faucet.enabled=false > /dev/null
-  @echo "Starting Bridge Withdrawer..." && helm install -n astria-dev-cluster evm-bridge-withdrawer-chart ./charts/evm-bridge-withdrawer \
-    -f dev/values/withdrawer/values.yaml \
-    {{ if tag != '' { replace('--set images.evmBridgeWithdrawer.devTag=#', '#', tag) } else { '' } }} > /dev/null
+  @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart ./charts/evm-stack -f dev/values/rollup/dev.yaml \
+    {{ if tag != '' { replace('--set evm-rollup.images.conductor.devTag=# --set composer.images.composer.devTag=# --set evm-bridge-withdrawer.images.evmBridgeWithdrawer.devTag=#', '#', tag) } else { '' } }} \
+    --set blockscout-stack.enabled=false \
+    --set postgresql.enabled=false \
+    --set evm-faucet.enabled=false > /dev/null
   @just wait-for-rollup > /dev/null
 
 deploy-smoke-cli tag=defaultTag:
@@ -178,7 +178,7 @@ deploy-smoke-cli tag=defaultTag:
   @just wait-for-ingress-controller > /dev/null
   @echo "Deploying local celestia instance..." && just deploy celestia-local > /dev/null
   @helm dependency update charts/sequencer > /dev/null
-  @helm dependency update charts/evm-rollup > /dev/null
+  @helm dependency update charts/evm-stack > /dev/null
   @echo "Setting up single astria sequencer..." && helm install \
     -n astria-validator-single single-sequencer-chart ./charts/sequencer \
     -f dev/values/validators/all.yml \
@@ -186,11 +186,14 @@ deploy-smoke-cli tag=defaultTag:
     {{ if tag != '' { replace('--set images.sequencer.devTag=# --set sequencer-relayer.images.sequencerRelayer.devTag=#', '#', tag) } else { '' } }} \
     --create-namespace > /dev/null
   @just wait-for-sequencer > /dev/null
-  @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart ./charts/evm-rollup -f dev/values/rollup/dev.yaml \
-    {{ if tag != '' { replace('--set images.conductor.devTag=# --set images.composer.devTag=#', '#', tag) } else { '' } }} \
-    --set config.blockscout.enabled=false \
-    --set config.faucet.enabled=false > /dev/null
+  @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart ./charts/evm-stack -f dev/values/rollup/dev.yaml \
+      {{ if tag != '' { replace('--set evm-rollup.images.conductor.devTag=# --set composer.images.composer.devTag=#', '#', tag) } else { '' } }} \
+      --set blockscout-stack.enabled=false \
+      --set postgresql.enabled=false \
+      --set evm-bridge-withdrawer.enabled=false \
+      --set evm-faucet.enabled=false > /dev/null
   @just wait-for-dev-rollup > /dev/null
+  @sleep 10
 
 
 evm_destination_address := "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
@@ -206,6 +209,8 @@ sequencer_bridge_pkey := "dfa7108e38ab71f89f356c72afc38600d5758f11a8c337164713e4
 sequencer_chain_id := "sequencer-test-chain-0"
 init-rollup-bridge rollupName=defaultRollupName evmDestinationAddress=evm_destination_address transferAmount=sequencer_transfer_amount:
   #!/usr/bin/env bash
+  set -e
+
   SEQUENCER_FUNDS_PKEY="934ab488f9e1900f6a08f50605ce1409ca9d95ebdc400dafc2e8a4306419fd52"
   ASSET="nria"
   FEE_ASSET="nria"
@@ -223,8 +228,17 @@ init-rollup-bridge rollupName=defaultRollupName evmDestinationAddress=evm_destin
     --private-key $SEQUENCER_FUNDS_PKEY \
     --sequencer.chain-id {{sequencer_chain_id}} \
     --sequencer-url {{sequencer_rpc_url}} \
-    --fee-asset=$FEE_ASSET --asset=$ASSET || exit 1
+    --fee-asset=$FEE_ASSET --asset=$ASSET
 
+
+init-ibc-bridge privateKey asset feeAsset rollupName=defaultRollupName:
+  astria-cli sequencer init-bridge-account \
+    --rollup-name {{ rollupName }} \
+    --private-key {{ privateKey }} \
+    --sequencer.chain-id {{ sequencer_chain_id }} \
+    --sequencer-url {{ sequencer_rpc_url }} \
+    --fee-asset {{ feeAsset }} \
+    --asset {{ asset }}
 
 eth_rpc_url := "http://executor.astria.localdev.me/"
 eth_ws_url := "ws://ws-executor.astria.localdev.me/"
@@ -232,6 +246,8 @@ bridge_tx_bytes := "0xf8f280843c54e7f182898594a58639fb5458e65e4fa917ff951c390292
 bridge_tx_hash := "0x67db5b0825e8f60b926234e209d54e0336cd94defe6720e7acadf871e0377150"
 run-smoke-test:
   #!/usr/bin/env bash
+  set -e
+
   MAX_CHECKS=30
 
   # Checking starting balance
@@ -245,7 +261,7 @@ run-smoke-test:
   just init rollup-bridge
   CHECKS=0
   EXPECTED_BALANCE=$(echo "{{sequencer_transfer_amount}} * {{sequencer_base_amount}} * {{rollup_multiplier}}" | bc)
-  while [ $CHECKS -lt $MAX_CHECKS ]; do
+  while (( $CHECKS < $MAX_CHECKS )); do
     CHECKS=$((CHECKS+1))
     BALANCE=$(just evm-get-balance {{evm_destination_address}})
     echo "Check $CHECKS, Balance: $BALANCE, Expected: $EXPECTED_BALANCE"
@@ -256,7 +272,7 @@ run-smoke-test:
       sleep 1
     fi
   done
-  if [ $CHECKS -eq $MAX_CHECKS ]; then
+  if (( $CHECKS >= $MAX_CHECKS )); then
     echo "Bridge In failure"
     exit 1
   fi
@@ -266,7 +282,7 @@ run-smoke-test:
   TRANSFERED_BALANCE=$(echo "1 * {{sequencer_base_amount}} * {{rollup_multiplier}}" | bc)
   EXPECTED_BALANCE=$(echo "$EXPECTED_BALANCE - $TRANSFERED_BALANCE" | bc)
   CHECKS=0
-  while [ $CHECKS -lt $MAX_CHECKS ]; do
+  while (( $CHECKS < $MAX_CHECKS )); do
     CHECKS=$((CHECKS+1))
     BALANCE=$(just evm-get-balance {{evm_destination_address}})
     echo "Check $CHECKS, Balance: $BALANCE, Expected: $EXPECTED_BALANCE"
@@ -277,13 +293,13 @@ run-smoke-test:
       sleep 1
     fi
   done
-  if [ $CHECKS -eq $MAX_CHECKS ]; then
+  if (( $CHECKS >= $MAX_CHECKS )); then
     echo "Bridge Out EVM failure"
     exit 1
   fi
   CHECKS=0
   EXPECTED_BALANCE=$(echo "1 * {{sequencer_base_amount}}" | bc)
-  while [ $CHECKS -lt $MAX_CHECKS ]; do
+  while (( $CHECKS < $MAX_CHECKS )); do
     CHECKS=$((CHECKS+1))
     BALANCE=$(astria-cli sequencer account balance astria17w0adeg64ky0daxwd2ugyuneellmjgnxl39504 --sequencer-url {{sequencer_rpc_url}}  | awk '/nria/{print $(NF-1)}')
     echo "Check $CHECKS, Balance: $BALANCE, Expected: $EXPECTED_BALANCE"
@@ -294,7 +310,7 @@ run-smoke-test:
       sleep 1
     fi
   done
-  if [ $CHECKS -gt $MAX_CHECKS ]; then
+  if (( $CHECKS >= $MAX_CHECKS )); then
     echo "Bridge Out Sequencer failure"
     exit 1
   fi
@@ -303,7 +319,7 @@ run-smoke-test:
   CHECKS=0
   BLOCK_NUM_HEX=$(just evm-get-transaction-receipt {{bridge_tx_hash}} | jq -r '.blockNumber')
   BLOCK_NUM=$(just hex-to-dec $BLOCK_NUM_HEX)
-  while [ $CHECKS -lt $MAX_CHECKS ]; do
+  while (( $CHECKS < $MAX_CHECKS )); do
     CHECKS=$((CHECKS+1))
     FINALIZED_BLOCK=$(just evm-get-block-by-number finalized | jq -r '.number')
     FINALIZED_BLOCK=$(just hex-to-dec $FINALIZED_BLOCK)
@@ -315,7 +331,7 @@ run-smoke-test:
       sleep 1
     fi
   done
-  if [ $CHECKS -gt $MAX_CHECKS ]; then
+  if (( $CHECKS >= $MAX_CHECKS )); then
     echo "Finalization failure"
     exit 1
   fi
@@ -329,6 +345,8 @@ delete-smoke-test:
 evm_contract_address := "0xA58639fB5458e65E4fA917FF951C390292C24A15"
 run-smoke-cli:
   #!/usr/bin/env bash
+  set -e
+
   MAX_CHECKS=30
 
   # Checking starting balance
@@ -342,7 +360,7 @@ run-smoke-cli:
   just init rollup-bridge
   CHECKS=0
   EXPECTED_BALANCE=$(echo "{{sequencer_transfer_amount}} * {{sequencer_base_amount}} * {{rollup_multiplier}}" | bc)
-  while [ $CHECKS -lt $MAX_CHECKS ]; do
+  while (( $CHECKS < $MAX_CHECKS )); do
     CHECKS=$((CHECKS+1))
     BALANCE=$(just evm-get-balance {{evm_destination_address}})
     echo "Check $CHECKS, Balance: $BALANCE, Expected: $EXPECTED_BALANCE"
@@ -353,7 +371,7 @@ run-smoke-cli:
       sleep 1
     fi
   done
-  if [ $CHECKS -eq $MAX_CHECKS ]; then
+  if (( $CHECKS >= $MAX_CHECKS )); then
     echo "Bridge In failure"
     exit 1
   fi
@@ -363,7 +381,7 @@ run-smoke-cli:
   TRANSFERED_BALANCE=$(echo "1 * {{sequencer_base_amount}} * {{rollup_multiplier}}" | bc)
   EXPECTED_BALANCE=$(echo "$EXPECTED_BALANCE - $TRANSFERED_BALANCE" | bc)
   CHECKS=0
-  while [ $CHECKS -lt $MAX_CHECKS ]; do
+  while (( $CHECKS < $MAX_CHECKS )); do
     CHECKS=$((CHECKS+1))
     BALANCE=$(just evm-get-balance {{evm_destination_address}})
     echo "Check $CHECKS, Balance: $BALANCE, Expected: $EXPECTED_BALANCE"
@@ -374,7 +392,7 @@ run-smoke-cli:
       sleep 1
     fi
   done
-  if [ $CHECKS -eq $MAX_CHECKS ]; then
+  if (( $CHECKS >= $MAX_CHECKS )); then
     echo "Bridge Out EVM failure"
     exit 1
   fi
@@ -395,7 +413,8 @@ run-smoke-cli:
     --to-rollup-height $CURRENT_BLOCK \
     --sequencer-asset-to-withdraw nria \
     --bridge-address {{sequencer_bridge_address}} \
-    --output "${withdrawals_dst}"
+    --output "${withdrawals_dst}" \
+    --force
    astria-cli bridge submit-withdrawals \
     --signing-key <(printf "%s" "{{sequencer_bridge_pkey}}") \
     --sequencer-chain-id {{sequencer_chain_id}} \
@@ -404,7 +423,7 @@ run-smoke-cli:
 
   CHECKS=0
   EXPECTED_BALANCE=$(echo "1 * {{sequencer_base_amount}}" | bc)
-  while [ $CHECKS -lt $MAX_CHECKS ]; do
+  while (( $CHECKS < $MAX_CHECKS )); do
     CHECKS=$((CHECKS+1))
     BALANCE=$(astria-cli sequencer account balance astria17w0adeg64ky0daxwd2ugyuneellmjgnxl39504 --sequencer-url {{sequencer_rpc_url}}  | awk '/nria/{print $(NF-1)}')
     echo "Check $CHECKS, Balance: $BALANCE, Expected: $EXPECTED_BALANCE"
@@ -415,7 +434,7 @@ run-smoke-cli:
       sleep 1
     fi
   done
-  if [ $CHECKS -gt $MAX_CHECKS ]; then
+  if (( $CHECKS >= $MAX_CHECKS )); then
     echo "Bridge Out Sequencer failure"
     exit 1
   fi

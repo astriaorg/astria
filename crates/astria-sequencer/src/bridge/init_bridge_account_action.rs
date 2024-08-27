@@ -7,11 +7,18 @@ use anyhow::{
 use astria_core::{
     primitive::v1::Address,
     protocol::transaction::v1alpha1::action::InitBridgeAccountAction,
+    Protobuf as _,
 };
-use tracing::instrument;
+use cnidarium::StateWrite;
 
 use crate::{
-    accounts::state_ext::{
+    accounts::{
+        StateReadExt as _,
+        StateWriteExt as _,
+    },
+    address::StateReadExt as _,
+    app::ActionHandler,
+    assets::{
         StateReadExt as _,
         StateWriteExt as _,
     },
@@ -19,36 +26,33 @@ use crate::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    state_ext::{
-        StateReadExt,
-        StateWriteExt,
-    },
-    transaction::action_handler::ActionHandler,
+    transaction::StateReadExt as _,
 };
 
 #[async_trait::async_trait]
 impl ActionHandler for InitBridgeAccountAction {
     async fn check_stateless(&self) -> Result<()> {
-        self.withdrawer_address
-            .as_ref()
-            .map(crate::address::ensure_base_prefix)
-            .transpose()
-            .context("the withdrawer address has an unsupported prefix")?;
-
-        self.sudo_address
-            .as_ref()
-            .map(crate::address::ensure_base_prefix)
-            .transpose()
-            .context("the sudo address has an unsupported")?;
-
         Ok(())
     }
 
-    async fn check_stateful<S: StateReadExt + 'static>(
-        &self,
-        state: &S,
-        from: Address,
-    ) -> Result<()> {
+    async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
+        let from = state
+            .get_current_source()
+            .expect("transaction source must be present in state when executing an action")
+            .address_bytes();
+        if let Some(withdrawer_address) = &self.withdrawer_address {
+            state
+                .ensure_base_prefix(withdrawer_address)
+                .await
+                .context("failed check for base prefix of withdrawer address")?;
+        }
+        if let Some(sudo_address) = &self.sudo_address {
+            state
+                .ensure_base_prefix(sudo_address)
+                .await
+                .context("failed check for base prefix of sudo address")?;
+        }
+
         ensure!(
             state.is_allowed_fee_asset(&self.fee_asset).await?,
             "invalid fee asset",
@@ -70,7 +74,12 @@ impl ActionHandler for InitBridgeAccountAction {
         //
         // after the account becomes a bridge account, it can no longer receive funds
         // via `TransferAction`, only via `BridgeLockAction`.
-        if state.get_bridge_account_rollup_id(&from).await?.is_some() {
+        if state
+            .get_bridge_account_rollup_id(from)
+            .await
+            .context("failed getting rollup ID of bridge account")?
+            .is_some()
+        {
             bail!("bridge account already exists");
         }
 
@@ -84,24 +93,19 @@ impl ActionHandler for InitBridgeAccountAction {
             "insufficient funds for bridge account initialization",
         );
 
-        Ok(())
-    }
-
-    #[instrument(skip_all)]
-    async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> Result<()> {
-        let fee = state
-            .get_init_bridge_account_base_fee()
-            .await
-            .context("failed to get base fee for initializing bridge account")?;
-
-        state.put_bridge_account_rollup_id(&from, &self.rollup_id);
+        state.put_bridge_account_rollup_id(from, &self.rollup_id);
         state
-            .put_bridge_account_ibc_asset(&from, &self.asset)
+            .put_bridge_account_ibc_asset(from, &self.asset)
             .context("failed to put asset ID")?;
-        state.put_bridge_account_sudo_address(&from, &self.sudo_address.unwrap_or(from));
+        state.put_bridge_account_sudo_address(from, self.sudo_address.map_or(from, Address::bytes));
+        state.put_bridge_account_withdrawer_address(
+            from,
+            self.withdrawer_address.map_or(from, Address::bytes),
+        );
         state
-            .put_bridge_account_withdrawer_address(&from, &self.withdrawer_address.unwrap_or(from));
-
+            .get_and_increase_block_fees(&self.fee_asset, fee, Self::full_name())
+            .await
+            .context("failed to get and increase block fees")?;
         state
             .decrease_balance(from, &self.fee_asset, fee)
             .await
