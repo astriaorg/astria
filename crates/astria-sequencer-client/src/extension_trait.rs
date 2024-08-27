@@ -714,10 +714,10 @@ pub trait SequencerClientExt: Client {
         let mut sleep_millis = MIN_POLL_INTERVAL_MILLIS;
         loop {
             tokio::time::sleep(Duration::from_millis(sleep_millis)).await;
-            match self.tx(tx_hash, true).await {
+            match self.tx(tx_hash, false).await {
                 Ok(tx) => {
                     ensure!(
-                        tx.tx_result.code.is_ok() && tx.proof.is_some(),
+                        tx.tx_result.code.is_ok() 
                         // This should not happen. If the transaction failed, it should not have
                         // been included in the block. If the transaction
                         // was included in the block, proof should be `Some`.
