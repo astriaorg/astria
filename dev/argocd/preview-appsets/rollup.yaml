@@ -1,0 +1,72 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: pr-rollup
+  namespace: argocd
+spec:
+  generators:
+  - pullRequest:
+      github:
+        labels:
+        - demo
+        - evm
+        - docker-build
+        owner: astriaorg
+        repo: astria
+        tokenRef:
+          key: token
+          secretName: github-pat
+      requeueAfterSeconds: 60
+  goTemplate: true
+  goTemplateOptions:
+  - missingkey=error
+  template:
+    metadata:
+      name: pr-{{.number}}-rollup
+    spec:
+      destination:
+        namespace: pr-{{.number}}
+        server: https://kubernetes.default.svc
+      project: default
+      sources:
+        - repoURL: https://github.com/astriaorg/astria.git
+          targetRevision: pull/{{.number}}/head
+          path: charts/evm-stack
+          helm:
+            valueFiles:
+            - ../../dev/values/rollup/dev.yaml
+            parameters:
+            - name: global.namespaceOverride
+              value: pr-{{.number}}
+            - name: evm-rollup.ingress.hostname
+              value: pr-{{.number}}.dev.astria.org
+            - name: evm-rollup.images.conductor.devTag
+              value: pr-{{.number}}
+            - name: composer.images.composer.devTag
+              value: pr-{{.number}}
+            - name: global.sequencerGrpc
+              value: http://node0-sequencer-grpc-service.pr-{{.number}}.svc.cluster.local:8080
+            - name: global.sequencerRpc
+              value: http://node0-sequencer-rpc-service.pr-{{.number}}.svc.cluster.local:26657
+            - name: evm-rollup.config.celestia.rpc
+              value: http://celestia-service.pr-{{.number}}.svc.cluster.local:26658
+            - name: config.celestia.token
+              value: http://celestia-service.pr-{{.number}}.svc.cluster.local:5353
+            - name: evm-rollup.resources.conductor.requests.cpu
+              value: "0.1"
+            - name: evm-rollup.resources.conductor.requests.memory
+              value: 100Mi
+            - name: evm-rollup.resources.conductor.limits.cpu
+              value: "1"
+            - name: evm-rollup.resources.conductor.limits.memory
+              value: 200Mi
+            - name: postgresql.enabled
+              value: "false"
+            - name: blockscout-stack.enabled
+              value: "false"
+      syncPolicy:
+        automated:
+          allowEmpty: true
+          prune: true
+        syncOptions:
+        - CreateNamespace=true
