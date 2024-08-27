@@ -802,7 +802,7 @@ mod test {
             asset.clone(),
             destination_chain_address.to_string(),
             "text_tx_hash".to_string(),
-            1,
+            0,
         );
 
         let mut deposits = vec![deposit.clone()];
@@ -839,7 +839,7 @@ mod test {
             asset.clone(),
             destination_chain_address.to_string(),
             "text_tx_hash".to_string(),
-            2,
+            1,
         );
         deposits.append(&mut vec![deposit.clone()]);
         state
@@ -875,7 +875,7 @@ mod test {
             asset,
             destination_chain_address.to_string(),
             "text_tx_hash".to_string(),
-            3,
+            2,
         );
         let deposits_1 = vec![deposit.clone()];
         state
@@ -920,7 +920,7 @@ mod test {
             asset.clone(),
             destination_chain_address.to_string(),
             "text_tx_hash".to_string(),
-            1,
+            0,
         );
 
         // write same rollup id twice
@@ -944,7 +944,7 @@ mod test {
             asset.clone(),
             destination_chain_address.to_string(),
             "text_tx_hash".to_string(),
-            2,
+            1,
         );
         state
             .put_deposit_event(deposit)
@@ -995,7 +995,7 @@ mod test {
             asset,
             destination_chain_address.to_string(),
             "text_tx_hash".to_string(),
-            1,
+            0,
         );
 
         let deposits = vec![deposit.clone()];
@@ -1052,7 +1052,7 @@ mod test {
             asset.clone(),
             destination_chain_address.to_string(),
             "text_tx_hash".to_string(),
-            1,
+            0,
         );
 
         // write to first
@@ -1070,7 +1070,7 @@ mod test {
             asset.clone(),
             destination_chain_address.to_string(),
             "text_tx_hash".to_string(),
-            2,
+            1,
         );
         let deposits_1 = vec![deposit.clone()];
 
@@ -1148,7 +1148,7 @@ mod test {
             asset.clone(),
             destination_chain_address.to_string(),
             "text_tx_hash".to_string(),
-            1,
+            0,
         );
 
         // write to first
@@ -1166,7 +1166,7 @@ mod test {
             asset.clone(),
             destination_chain_address.to_string(),
             "text_tx_hash".to_string(),
-            2,
+            1,
         );
         state
             .put_deposit_event(deposit)

@@ -245,7 +245,7 @@ pub(crate) trait StateWriteExt: StateWrite {
             &address,
             asset,
             balance.checked_sub(amount).context(format!(
-                "subtracting from account balance failed due to insufficient funds: balance: \
+                "subtracting from account balance failed due to insufficient funds; balance: \
                  {balance}, subtraction amount: {amount}",
             ))?,
         )

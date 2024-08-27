@@ -58,7 +58,7 @@ use crate::{
     transaction::{
         InvalidChainId,
         InvalidNonce,
-        StateReadExt,
+        StateReadExt as _,
     },
 };
 
@@ -769,10 +769,12 @@ async fn app_execute_transaction_bridge_lock_action_ok() {
     let deposits = app.state.get_deposit_events(&rollup_id).await.unwrap();
     assert_eq!(deposits.len(), 1);
     assert_eq!(deposits[0], expected_deposit);
-    let Some(current_deposit_index) = app.state.get_transaction_deposit_index().await.unwrap()
-    else {
-        panic!("current_deposit_index should be `Some`")
-    };
+    let current_deposit_index = app
+        .state
+        .get_transaction_deposit_index()
+        .await
+        .unwrap()
+        .expect("current_deposit_index should be `Some`");
     assert_eq!(current_deposit_index, starting_deposit_index + 1);
 }
 

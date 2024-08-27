@@ -1,5 +1,5 @@
 use anyhow::{
-    Context,
+    Context as _,
     Result,
 };
 use astria_core::{
@@ -58,6 +58,7 @@ pub(crate) trait StateWriteExt: StateWrite {
             borsh::to_vec(&index).expect("serialize deposit index"),
         );
     }
+
     #[instrument(skip_all)]
     fn clear_transaction_deposit_index(&mut self) {
         self.nonverifiable_delete(deposit_index_storage_key().as_bytes().to_vec());

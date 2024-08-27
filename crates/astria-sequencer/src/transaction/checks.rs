@@ -100,7 +100,7 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
         .context("failed to get bridge sudo change fee")?;
 
     let mut fees_by_asset = HashMap::new();
-    let mut tx_deposit_index = 0u32;
+    let mut tx_deposit_index = 0;
     for action in &tx.actions {
         match action {
             Action::Transfer(act) => {
@@ -283,9 +283,9 @@ fn bridge_lock_update_fees(
         .saturating_mul(bridge_lock_byte_cost_multiplier),
     );
 
-    tx_deposit_index
-        .checked_add(1)
-        .ok_or(anyhow::anyhow!("deposit index overflow"))?;
+    tx_deposit_index.checked_add(1).ok_or(anyhow::anyhow!(
+        "deposit index overflow: too many deposits in transaction"
+    ))?;
 
     fees_by_asset
         .entry(act.asset.to_ibc_prefixed())
